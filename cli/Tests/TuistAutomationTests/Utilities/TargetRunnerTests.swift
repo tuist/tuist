@@ -25,6 +25,7 @@ final class TargetRunnerTests: TuistUnitTestCase {
     private var xcodeBuildController: MockXcodeBuildControlling!
     private var xcodeProjectBuildDirectoryLocator: MockXcodeProjectBuildDirectoryLocating!
     private var simulatorController: MockSimulatorControlling!
+    private var opener: MockOpening!
     private var subject: TargetRunner!
 
     override func setUp() {
@@ -32,10 +33,12 @@ final class TargetRunnerTests: TuistUnitTestCase {
         xcodeBuildController = .init()
         xcodeProjectBuildDirectoryLocator = .init()
         simulatorController = .init()
+        opener = MockOpening()
         subject = TargetRunner(
             xcodeBuildController: xcodeBuildController,
             xcodeProjectBuildDirectoryLocator: xcodeProjectBuildDirectoryLocator,
-            simulatorController: simulatorController
+            simulatorController: simulatorController,
+            opener: opener
         )
     }
 
@@ -43,6 +46,7 @@ final class TargetRunnerTests: TuistUnitTestCase {
         xcodeBuildController = nil
         xcodeProjectBuildDirectoryLocator = nil
         simulatorController = nil
+        opener = nil
         subject = nil
         super.tearDown()
     }
@@ -262,5 +266,119 @@ final class TargetRunnerTests: TuistUnitTestCase {
                 arguments: .value(arguments)
             )
             .called(1)
+    }
+
+    func test_runsApp_when_platform_is_macOS_and_product_is_app_and_device_is_absent() async throws {
+        // Given
+        let workspacePath = try temporaryPath().appending(component: "App.xcworkspace")
+        let target = Target.test(destinations: [.mac], product: .app)
+        let graphTarget = GraphTarget.test(path: workspacePath, target: target, project: .test())
+        let outputPath = try temporaryPath().appending(component: ".build")
+        let appPath = outputPath.appending(component: target.productNameWithExtension)
+        let arguments: [String] = []
+        let minVersion = Version("14.0.0")
+        let version = Version("15.0.0")
+        let deviceName: String? = nil
+        let bundleId = "dev.tuist.bundleid"
+
+        try await fileSystem.makeDirectory(at: outputPath)
+        try await fileSystem.touch(outputPath.appending(component: "Target.app"))
+        given(xcodeProjectBuildDirectoryLocator)
+            .locate(
+                destinationType: .any,
+                projectPath: .any,
+                derivedDataPath: .any,
+                configuration: .any
+            )
+            .willReturn(outputPath)
+        given(xcodeBuildController)
+            .showBuildSettings(
+                .any,
+                scheme: .any,
+                configuration: .any,
+                derivedDataPath: .any
+            )
+            .willReturn(
+                [
+                    graphTarget.target
+                        .name: XcodeBuildSettings(
+                            ["PRODUCT_BUNDLE_IDENTIFIER": bundleId],
+                            target: graphTarget.target.name, configuration: "Debug"
+                        ),
+                ]
+            )
+        given(opener).open(path: .value(appPath)).willReturn()
+
+        // Then
+        try await subject.runTarget(
+            graphTarget,
+            platform: .iOS,
+            workspacePath: workspacePath,
+            schemeName: "MyScheme",
+            configuration: nil,
+            minVersion: minVersion,
+            version: version,
+            deviceName: deviceName,
+            arguments: arguments
+        )
+
+        verify(opener).open(path: .value(appPath)).called(1)
+    }
+
+    func test_runsApp_when_platform_is_macOS_and_product_is_app_and_device_is_macos() async throws {
+        // Given
+        let workspacePath = try temporaryPath().appending(component: "App.xcworkspace")
+        let target = Target.test(destinations: [.mac], product: .app)
+        let graphTarget = GraphTarget.test(path: workspacePath, target: target, project: .test())
+        let outputPath = try temporaryPath().appending(component: ".build")
+        let appPath = outputPath.appending(component: target.productNameWithExtension)
+        let arguments: [String] = []
+        let minVersion = Version("14.0.0")
+        let version = Version("15.0.0")
+        let deviceName = "macOS"
+        let bundleId = "dev.tuist.bundleid"
+
+        try await fileSystem.makeDirectory(at: outputPath)
+        try await fileSystem.touch(outputPath.appending(component: "Target.app"))
+        given(xcodeProjectBuildDirectoryLocator)
+            .locate(
+                destinationType: .any,
+                projectPath: .any,
+                derivedDataPath: .any,
+                configuration: .any
+            )
+            .willReturn(outputPath)
+        given(xcodeBuildController)
+            .showBuildSettings(
+                .any,
+                scheme: .any,
+                configuration: .any,
+                derivedDataPath: .any
+            )
+            .willReturn(
+                [
+                    graphTarget.target
+                        .name: XcodeBuildSettings(
+                            ["PRODUCT_BUNDLE_IDENTIFIER": bundleId],
+                            target: graphTarget.target.name, configuration: "Debug"
+                        ),
+                ]
+            )
+        given(opener).open(path: .value(appPath)).willReturn()
+
+        // Then
+        try await subject.runTarget(
+            graphTarget,
+            platform: .iOS,
+            workspacePath: workspacePath,
+            schemeName: "MyScheme",
+            configuration: nil,
+            minVersion: minVersion,
+            version: version,
+            deviceName: deviceName,
+            arguments: arguments
+        )
+
+        verify(opener).open(path: .value(appPath)).called(1)
     }
 }
