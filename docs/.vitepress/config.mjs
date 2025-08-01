@@ -148,6 +148,11 @@ export default defineConfig({
   description: "Scale your Xcode app development",
   srcDir: "docs",
   lastUpdated: false,
+  experimental: {
+    metaChunk: true,
+  },
+  // Uncomment for MPA mode (disables client-side navigation but reduces JS to 0kb)
+  mpa: true,
   locales: {
     en: {
       label: "English",
