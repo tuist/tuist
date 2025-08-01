@@ -203,7 +203,7 @@ defmodule Tuist.QA.AgentTest do
                  %{
                    role: :tool,
                    tool_results: [
-                     %LangChain.Message.ToolResult{
+                     %ToolResult{
                        content: ["Screenshot data"],
                        name: "screenshot"
                      }

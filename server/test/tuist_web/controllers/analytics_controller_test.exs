@@ -507,6 +507,9 @@ defmodule TuistWeb.AnalyticsControllerTest do
       response = json_response(conn, :ok)
 
       Tuist.CommandEvents.Buffer.flush()
+      Tuist.Xcode.XcodeGraph.Buffer.flush()
+      Tuist.Xcode.XcodeProject.Buffer.flush()
+      Tuist.Xcode.XcodeTarget.Buffer.flush()
       {:ok, command_event} = CommandEvents.get_command_event_by_id(response["id"])
 
       assert response == %{
@@ -920,7 +923,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
       account = Accounts.get_account_by_id(project.account_id)
 
       command_event =
-        with_flushed_command_events(fn ->
+        with_flushed_ingestion_buffers(fn ->
           CommandEventsFixtures.command_event_fixture(project_id: project.id)
         end)
 

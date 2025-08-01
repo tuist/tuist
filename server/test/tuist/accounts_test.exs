@@ -143,7 +143,7 @@ defmodule Tuist.AccountsTest do
       _user = %{account: %{id: account_id}} = AccountsFixtures.user_fixture()
       _project = %{id: project_id} = ProjectsFixtures.project_fixture(account_id: account_id)
 
-      with_flushed_command_events(fn ->
+      with_flushed_ingestion_buffers(fn ->
         CommandEventsFixtures.command_event_fixture(
           project_id: project_id,
           remote_test_target_hits: ["Core"],
@@ -226,7 +226,7 @@ defmodule Tuist.AccountsTest do
       today = ~U[2025-01-02 23:00:00Z]
       stub(DateTime, :utc_now, fn -> today end)
 
-      with_flushed_command_events(fn ->
+      with_flushed_ingestion_buffers(fn ->
         CommandEventsFixtures.command_event_fixture(
           name: "generate",
           project_id: first_user_project.id,
@@ -265,7 +265,7 @@ defmodule Tuist.AccountsTest do
       today = ~U[2025-01-02 23:00:00Z]
       stub(DateTime, :utc_now, fn -> today end)
 
-      with_flushed_command_events(fn ->
+      with_flushed_ingestion_buffers(fn ->
         CommandEventsFixtures.command_event_fixture(
           name: "generate",
           project_id: first_user_project.id,
@@ -1413,7 +1413,7 @@ defmodule Tuist.AccountsTest do
       Accounts.add_user_to_organization(user, organization)
 
       command_event =
-        with_flushed_command_events(fn ->
+        with_flushed_ingestion_buffers(fn ->
           CommandEventsFixtures.command_event_fixture(
             name: "generate",
             project_id: project.id,

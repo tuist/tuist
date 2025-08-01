@@ -30,7 +30,7 @@ defmodule TuistWeb.RunDetailLiveTest do
     } do
       # Given
       test_run =
-        with_flushed_command_events(fn ->
+        with_flushed_ingestion_buffers(fn ->
           CommandEventsFixtures.command_event_fixture(
             project: project,
             name: "cache",
@@ -61,7 +61,7 @@ defmodule TuistWeb.RunDetailLiveTest do
       stub(CommandEvents, :has_result_bundle?, fn _ -> true end)
 
       test_run =
-        with_flushed_command_events(fn ->
+        with_flushed_ingestion_buffers(fn ->
           CommandEventsFixtures.command_event_fixture(
             project: project,
             name: "test",
@@ -88,7 +88,7 @@ defmodule TuistWeb.RunDetailLiveTest do
       stub(CommandEvents, :has_result_bundle?, fn _ -> false end)
 
       test_run =
-        with_flushed_command_events(fn ->
+        with_flushed_ingestion_buffers(fn ->
           CommandEventsFixtures.command_event_fixture(
             project: project,
             name: "test",
@@ -121,7 +121,7 @@ defmodule TuistWeb.RunDetailLiveTest do
     } do
       # Given
       test_run =
-        with_flushed_command_events(fn ->
+        with_flushed_ingestion_buffers(fn ->
           CommandEventsFixtures.command_event_fixture(
             project: project,
             name: "test",
@@ -160,7 +160,7 @@ defmodule TuistWeb.RunDetailLiveTest do
     } do
       # Given
       cache_run =
-        with_flushed_command_events(fn ->
+        with_flushed_ingestion_buffers(fn ->
           CommandEventsFixtures.command_event_fixture(
             project: project,
             name: "cache",
@@ -202,7 +202,7 @@ defmodule TuistWeb.RunDetailLiveTest do
     } do
       # Given
       ci_run =
-        with_flushed_command_events(fn ->
+        with_flushed_ingestion_buffers(fn ->
           CommandEventsFixtures.command_event_fixture(
             project: project,
             name: "cache",
@@ -233,7 +233,7 @@ defmodule TuistWeb.RunDetailLiveTest do
       stub(CommandEvents, :has_result_bundle?, fn _ -> true end)
 
       test_run =
-        with_flushed_command_events(fn ->
+        with_flushed_ingestion_buffers(fn ->
           CommandEventsFixtures.command_event_fixture(
             project: project,
             name: "test",
@@ -260,7 +260,7 @@ defmodule TuistWeb.RunDetailLiveTest do
       stub(CommandEvents, :has_result_bundle?, fn _ -> false end)
 
       test_run =
-        with_flushed_command_events(fn ->
+        with_flushed_ingestion_buffers(fn ->
           CommandEventsFixtures.command_event_fixture(
             project: project,
             name: "test",

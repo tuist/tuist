@@ -51,7 +51,10 @@ defmodule Tuist.XcodeTest do
       }
 
       # When
-      {:ok, xcode_graph} = Clickhouse.create_xcode_graph(xcode_data)
+      {:ok, xcode_graph} =
+        with_flushed_ingestion_buffers(fn ->
+          Clickhouse.create_xcode_graph(xcode_data)
+        end)
 
       # Then
       assert xcode_graph.name == "TestGraph"
@@ -157,24 +160,26 @@ defmodule Tuist.XcodeTest do
       command_event = CommandEventsFixtures.command_event_fixture()
 
       {:ok, _xcode_graph} =
-        Clickhouse.create_xcode_graph(%{
-          command_event: command_event,
-          xcode_graph: %{
-            name: "TestGraph",
-            projects: [
-              %{
-                "name" => "TestProject",
-                "path" => "TestApp",
-                "targets" => [
-                  %{
-                    "name" => "TestTarget1",
-                    "selective_testing_metadata" => %{"hash" => "hash-1", "hit" => "local"}
-                  }
-                ]
-              }
-            ]
-          }
-        })
+        with_flushed_ingestion_buffers(fn ->
+          Clickhouse.create_xcode_graph(%{
+            command_event: command_event,
+            xcode_graph: %{
+              name: "TestGraph",
+              projects: [
+                %{
+                  "name" => "TestProject",
+                  "path" => "TestApp",
+                  "targets" => [
+                    %{
+                      "name" => "TestTarget1",
+                      "selective_testing_metadata" => %{"hash" => "hash-1", "hit" => "local"}
+                    }
+                  ]
+                }
+              ]
+            }
+          })
+        end)
 
       # When
       result = Clickhouse.has_selective_testing_data?(command_event)
@@ -188,24 +193,26 @@ defmodule Tuist.XcodeTest do
       command_event = CommandEventsFixtures.command_event_fixture()
 
       {:ok, _xcode_graph} =
-        Clickhouse.create_xcode_graph(%{
-          command_event: command_event,
-          xcode_graph: %{
-            name: "TestGraph",
-            projects: [
-              %{
-                "name" => "TestProject",
-                "path" => "TestApp",
-                "targets" => [
-                  %{
-                    "name" => "TestTarget1",
-                    "binary_cache_metadata" => %{"hash" => "hash-1", "hit" => "local"}
-                  }
-                ]
-              }
-            ]
-          }
-        })
+        with_flushed_ingestion_buffers(fn ->
+          Clickhouse.create_xcode_graph(%{
+            command_event: command_event,
+            xcode_graph: %{
+              name: "TestGraph",
+              projects: [
+                %{
+                  "name" => "TestProject",
+                  "path" => "TestApp",
+                  "targets" => [
+                    %{
+                      "name" => "TestTarget1",
+                      "binary_cache_metadata" => %{"hash" => "hash-1", "hit" => "local"}
+                    }
+                  ]
+                }
+              ]
+            }
+          })
+        end)
 
       # When
       result = Clickhouse.has_selective_testing_data?(command_event)
@@ -219,24 +226,26 @@ defmodule Tuist.XcodeTest do
       command_event = CommandEventsFixtures.command_event_fixture()
 
       {:ok, _xcode_graph} =
-        Clickhouse.create_xcode_graph(%{
-          command_event: command_event,
-          xcode_graph: %{
-            name: "TestGraph",
-            projects: [
-              %{
-                "name" => "TestProject",
-                "path" => "TestApp",
-                "targets" => [
-                  %{
-                    "name" => "TestTarget1",
-                    "binary_cache_metadata" => %{"hash" => "hash-1", "hit" => "local"}
-                  }
-                ]
-              }
-            ]
-          }
-        })
+        with_flushed_ingestion_buffers(fn ->
+          Clickhouse.create_xcode_graph(%{
+            command_event: command_event,
+            xcode_graph: %{
+              name: "TestGraph",
+              projects: [
+                %{
+                  "name" => "TestProject",
+                  "path" => "TestApp",
+                  "targets" => [
+                    %{
+                      "name" => "TestTarget1",
+                      "binary_cache_metadata" => %{"hash" => "hash-1", "hit" => "local"}
+                    }
+                  ]
+                }
+              ]
+            }
+          })
+        end)
 
       # When
       result = Clickhouse.has_binary_cache_data?(command_event)
@@ -250,24 +259,26 @@ defmodule Tuist.XcodeTest do
       command_event = CommandEventsFixtures.command_event_fixture()
 
       {:ok, _xcode_graph} =
-        Clickhouse.create_xcode_graph(%{
-          command_event: command_event,
-          xcode_graph: %{
-            name: "TestGraph",
-            projects: [
-              %{
-                "name" => "TestProject",
-                "path" => "TestApp",
-                "targets" => [
-                  %{
-                    "name" => "TestTarget1",
-                    "selective_testing_metadata" => %{"hash" => "hash-1", "hit" => "local"}
-                  }
-                ]
-              }
-            ]
-          }
-        })
+        with_flushed_ingestion_buffers(fn ->
+          Clickhouse.create_xcode_graph(%{
+            command_event: command_event,
+            xcode_graph: %{
+              name: "TestGraph",
+              projects: [
+                %{
+                  "name" => "TestProject",
+                  "path" => "TestApp",
+                  "targets" => [
+                    %{
+                      "name" => "TestTarget1",
+                      "selective_testing_metadata" => %{"hash" => "hash-1", "hit" => "local"}
+                    }
+                  ]
+                }
+              ]
+            }
+          })
+        end)
 
       # When
       result = Clickhouse.has_binary_cache_data?(command_event)
@@ -281,32 +292,34 @@ defmodule Tuist.XcodeTest do
       command_event = CommandEventsFixtures.command_event_fixture()
 
       {:ok, _xcode_graph} =
-        Clickhouse.create_xcode_graph(%{
-          command_event: command_event,
-          xcode_graph: %{
-            name: "TestGraph",
-            projects: [
-              %{
-                "name" => "TestProject",
-                "path" => "TestApp",
-                "targets" => [
-                  %{
-                    "name" => "TestTarget1",
-                    "selective_testing_metadata" => %{"hash" => "hash-1", "hit" => "local"}
-                  },
-                  %{
-                    "name" => "TestTarget2",
-                    "selective_testing_metadata" => %{"hash" => "hash-2", "hit" => "remote"}
-                  },
-                  %{
-                    "name" => "TestTarget3",
-                    "selective_testing_metadata" => %{"hash" => "hash-3", "hit" => "miss"}
-                  }
-                ]
-              }
-            ]
-          }
-        })
+        with_flushed_ingestion_buffers(fn ->
+          Clickhouse.create_xcode_graph(%{
+            command_event: command_event,
+            xcode_graph: %{
+              name: "TestGraph",
+              projects: [
+                %{
+                  "name" => "TestProject",
+                  "path" => "TestApp",
+                  "targets" => [
+                    %{
+                      "name" => "TestTarget1",
+                      "selective_testing_metadata" => %{"hash" => "hash-1", "hit" => "local"}
+                    },
+                    %{
+                      "name" => "TestTarget2",
+                      "selective_testing_metadata" => %{"hash" => "hash-2", "hit" => "remote"}
+                    },
+                    %{
+                      "name" => "TestTarget3",
+                      "selective_testing_metadata" => %{"hash" => "hash-3", "hit" => "miss"}
+                    }
+                  ]
+                }
+              ]
+            }
+          })
+        end)
 
       # When (with retry for materialized view population)
       {analytics, _meta} = Clickhouse.selective_testing_analytics(command_event)
@@ -329,36 +342,38 @@ defmodule Tuist.XcodeTest do
       command_event = CommandEventsFixtures.command_event_fixture()
 
       {:ok, _xcode_graph} =
-        Clickhouse.create_xcode_graph(%{
-          command_event: command_event,
-          xcode_graph: %{
-            name: "CacheGraph",
-            projects: [
-              %{
-                "name" => "CacheProject",
-                "path" => "CacheApp",
-                "targets" => [
-                  %{
-                    "name" => "CacheTarget1",
-                    "binary_cache_metadata" => %{"hash" => "cache-hash-1", "hit" => "local"}
-                  },
-                  %{
-                    "name" => "CacheTarget2",
-                    "binary_cache_metadata" => %{"hash" => "cache-hash-2", "hit" => "remote"}
-                  },
-                  %{
-                    "name" => "CacheTarget3",
-                    "binary_cache_metadata" => %{"hash" => "cache-hash-3", "hit" => "miss"}
-                  },
-                  %{
-                    "name" => "CacheTarget4",
-                    "binary_cache_metadata" => %{"hash" => "cache-hash-4", "hit" => "local"}
-                  }
-                ]
-              }
-            ]
-          }
-        })
+        with_flushed_ingestion_buffers(fn ->
+          Clickhouse.create_xcode_graph(%{
+            command_event: command_event,
+            xcode_graph: %{
+              name: "CacheGraph",
+              projects: [
+                %{
+                  "name" => "CacheProject",
+                  "path" => "CacheApp",
+                  "targets" => [
+                    %{
+                      "name" => "CacheTarget1",
+                      "binary_cache_metadata" => %{"hash" => "cache-hash-1", "hit" => "local"}
+                    },
+                    %{
+                      "name" => "CacheTarget2",
+                      "binary_cache_metadata" => %{"hash" => "cache-hash-2", "hit" => "remote"}
+                    },
+                    %{
+                      "name" => "CacheTarget3",
+                      "binary_cache_metadata" => %{"hash" => "cache-hash-3", "hit" => "miss"}
+                    },
+                    %{
+                      "name" => "CacheTarget4",
+                      "binary_cache_metadata" => %{"hash" => "cache-hash-4", "hit" => "local"}
+                    }
+                  ]
+                }
+              ]
+            }
+          })
+        end)
 
       # When
       {analytics, _meta} = Clickhouse.binary_cache_analytics(command_event)
@@ -834,19 +849,21 @@ defmodule Tuist.XcodeTest do
         end
 
       {:ok, _xcode_graph} =
-        Clickhouse.create_xcode_graph(%{
-          command_event: command_event,
-          xcode_graph: %{
-            name: "TestGraph",
-            projects: [
-              %{
-                "name" => "TestProject",
-                "path" => "TestApp",
-                "targets" => targets
-              }
-            ]
-          }
-        })
+        with_flushed_ingestion_buffers(fn ->
+          Clickhouse.create_xcode_graph(%{
+            command_event: command_event,
+            xcode_graph: %{
+              name: "TestGraph",
+              projects: [
+                %{
+                  "name" => "TestProject",
+                  "path" => "TestApp",
+                  "targets" => targets
+                }
+              ]
+            }
+          })
+        end)
 
       # When - First page (with retry for materialized view population)
       {result, meta} = Clickhouse.selective_testing_analytics(command_event, %{page_size: 10})
@@ -875,19 +892,21 @@ defmodule Tuist.XcodeTest do
         end
 
       {:ok, _xcode_graph} =
-        Clickhouse.create_xcode_graph(%{
-          command_event: command_event,
-          xcode_graph: %{
-            name: "CacheGraph",
-            projects: [
-              %{
-                "name" => "CacheProject",
-                "path" => "CacheApp",
-                "targets" => targets
-              }
-            ]
-          }
-        })
+        with_flushed_ingestion_buffers(fn ->
+          Clickhouse.create_xcode_graph(%{
+            command_event: command_event,
+            xcode_graph: %{
+              name: "CacheGraph",
+              projects: [
+                %{
+                  "name" => "CacheProject",
+                  "path" => "CacheApp",
+                  "targets" => targets
+                }
+              ]
+            }
+          })
+        end)
 
       # When - First page (with retry for materialized view population)
       {result, meta} = Clickhouse.binary_cache_analytics(command_event, %{page_size: 10})
@@ -1007,32 +1026,34 @@ defmodule Tuist.XcodeTest do
       command_event = CommandEventsFixtures.command_event_fixture()
 
       {:ok, _xcode_graph} =
-        Clickhouse.create_xcode_graph(%{
-          command_event: command_event,
-          xcode_graph: %{
-            name: "TestGraph",
-            projects: [
-              %{
-                "name" => "TestProject",
-                "path" => "TestApp",
-                "targets" => [
-                  %{
-                    "name" => "TestTarget1",
-                    "selective_testing_metadata" => %{"hash" => "hash-1", "hit" => "local"}
-                  },
-                  %{
-                    "name" => "TestTarget2",
-                    "selective_testing_metadata" => %{"hash" => "hash-2", "hit" => "remote"}
-                  },
-                  %{
-                    "name" => "TestTarget3",
-                    "selective_testing_metadata" => %{"hash" => "hash-3", "hit" => "miss"}
-                  }
-                ]
-              }
-            ]
-          }
-        })
+        with_flushed_ingestion_buffers(fn ->
+          Clickhouse.create_xcode_graph(%{
+            command_event: command_event,
+            xcode_graph: %{
+              name: "TestGraph",
+              projects: [
+                %{
+                  "name" => "TestProject",
+                  "path" => "TestApp",
+                  "targets" => [
+                    %{
+                      "name" => "TestTarget1",
+                      "selective_testing_metadata" => %{"hash" => "hash-1", "hit" => "local"}
+                    },
+                    %{
+                      "name" => "TestTarget2",
+                      "selective_testing_metadata" => %{"hash" => "hash-2", "hit" => "remote"}
+                    },
+                    %{
+                      "name" => "TestTarget3",
+                      "selective_testing_metadata" => %{"hash" => "hash-3", "hit" => "miss"}
+                    }
+                  ]
+                }
+              ]
+            }
+          })
+        end)
 
       # When (with retry for materialized view population)
       counts = Clickhouse.selective_testing_counts(command_event)
@@ -1049,36 +1070,38 @@ defmodule Tuist.XcodeTest do
       command_event = CommandEventsFixtures.command_event_fixture()
 
       {:ok, _xcode_graph} =
-        Clickhouse.create_xcode_graph(%{
-          command_event: command_event,
-          xcode_graph: %{
-            name: "CacheGraph",
-            projects: [
-              %{
-                "name" => "CacheProject",
-                "path" => "CacheApp",
-                "targets" => [
-                  %{
-                    "name" => "CacheTarget1",
-                    "binary_cache_metadata" => %{"hash" => "cache-hash-1", "hit" => "local"}
-                  },
-                  %{
-                    "name" => "CacheTarget2",
-                    "binary_cache_metadata" => %{"hash" => "cache-hash-2", "hit" => "remote"}
-                  },
-                  %{
-                    "name" => "CacheTarget3",
-                    "binary_cache_metadata" => %{"hash" => "cache-hash-3", "hit" => "miss"}
-                  },
-                  %{
-                    "name" => "CacheTarget4",
-                    "binary_cache_metadata" => %{"hash" => "cache-hash-4", "hit" => "miss"}
-                  }
-                ]
-              }
-            ]
-          }
-        })
+        with_flushed_ingestion_buffers(fn ->
+          Clickhouse.create_xcode_graph(%{
+            command_event: command_event,
+            xcode_graph: %{
+              name: "CacheGraph",
+              projects: [
+                %{
+                  "name" => "CacheProject",
+                  "path" => "CacheApp",
+                  "targets" => [
+                    %{
+                      "name" => "CacheTarget1",
+                      "binary_cache_metadata" => %{"hash" => "cache-hash-1", "hit" => "local"}
+                    },
+                    %{
+                      "name" => "CacheTarget2",
+                      "binary_cache_metadata" => %{"hash" => "cache-hash-2", "hit" => "remote"}
+                    },
+                    %{
+                      "name" => "CacheTarget3",
+                      "binary_cache_metadata" => %{"hash" => "cache-hash-3", "hit" => "miss"}
+                    },
+                    %{
+                      "name" => "CacheTarget4",
+                      "binary_cache_metadata" => %{"hash" => "cache-hash-4", "hit" => "miss"}
+                    }
+                  ]
+                }
+              ]
+            }
+          })
+        end)
 
       # When (with retry for materialized view population)
       counts = Clickhouse.binary_cache_counts(command_event)
@@ -1126,19 +1149,21 @@ defmodule Tuist.XcodeTest do
       command_event = CommandEventsFixtures.command_event_fixture()
 
       {:ok, _xcode_graph} =
-        Clickhouse.create_xcode_graph(%{
-          command_event: command_event,
-          xcode_graph: %{
-            name: "EmptyGraph",
-            projects: [
-              %{
-                "name" => "EmptyProject",
-                "path" => "EmptyApp",
-                "targets" => []
-              }
-            ]
-          }
-        })
+        with_flushed_ingestion_buffers(fn ->
+          Clickhouse.create_xcode_graph(%{
+            command_event: command_event,
+            xcode_graph: %{
+              name: "EmptyGraph",
+              projects: [
+                %{
+                  "name" => "EmptyProject",
+                  "path" => "EmptyApp",
+                  "targets" => []
+                }
+              ]
+            }
+          })
+        end)
 
       # When
       counts = Clickhouse.selective_testing_counts(command_event)
@@ -1191,28 +1216,30 @@ defmodule Tuist.XcodeTest do
       command_event = CommandEventsFixtures.command_event_fixture()
 
       {:ok, _xcode_graph} =
-        Clickhouse.create_xcode_graph(%{
-          command_event: command_event,
-          xcode_graph: %{
-            name: "TestGraph",
-            projects: [
-              %{
-                "name" => "TestProject",
-                "path" => "TestApp",
-                "targets" => [
-                  %{
-                    "name" => "TestTarget1",
-                    "selective_testing_metadata" => %{"hash" => "hash-1", "hit" => "local"}
-                  },
-                  %{
-                    "name" => "TestTarget2",
-                    "selective_testing_metadata" => %{"hash" => "hash-2", "hit" => "remote"}
-                  }
-                ]
-              }
-            ]
-          }
-        })
+        with_flushed_ingestion_buffers(fn ->
+          Clickhouse.create_xcode_graph(%{
+            command_event: command_event,
+            xcode_graph: %{
+              name: "TestGraph",
+              projects: [
+                %{
+                  "name" => "TestProject",
+                  "path" => "TestApp",
+                  "targets" => [
+                    %{
+                      "name" => "TestTarget1",
+                      "selective_testing_metadata" => %{"hash" => "hash-1", "hit" => "local"}
+                    },
+                    %{
+                      "name" => "TestTarget2",
+                      "selective_testing_metadata" => %{"hash" => "hash-2", "hit" => "remote"}
+                    }
+                  ]
+                }
+              ]
+            }
+          })
+        end)
 
       # When - Call without flop params (with retry for materialized view population)
       {result, meta} = Clickhouse.selective_testing_analytics(command_event)
@@ -1269,28 +1296,30 @@ defmodule Tuist.XcodeTest do
       command_event = CommandEventsFixtures.command_event_fixture()
 
       {:ok, _xcode_graph} =
-        Clickhouse.create_xcode_graph(%{
-          command_event: command_event,
-          xcode_graph: %{
-            name: "TestGraph",
-            projects: [
-              %{
-                "name" => "TestProject",
-                "path" => "TestApp",
-                "targets" => [
-                  %{
-                    "name" => "TestTarget1",
-                    "binary_cache_metadata" => %{"hash" => "hash-1", "hit" => "miss"}
-                  },
-                  %{
-                    "name" => "TestTarget2",
-                    "binary_cache_metadata" => %{"hash" => "hash-2", "hit" => "miss"}
-                  }
-                ]
-              }
-            ]
-          }
-        })
+        with_flushed_ingestion_buffers(fn ->
+          Clickhouse.create_xcode_graph(%{
+            command_event: command_event,
+            xcode_graph: %{
+              name: "TestGraph",
+              projects: [
+                %{
+                  "name" => "TestProject",
+                  "path" => "TestApp",
+                  "targets" => [
+                    %{
+                      "name" => "TestTarget1",
+                      "binary_cache_metadata" => %{"hash" => "hash-1", "hit" => "miss"}
+                    },
+                    %{
+                      "name" => "TestTarget2",
+                      "binary_cache_metadata" => %{"hash" => "hash-2", "hit" => "miss"}
+                    }
+                  ]
+                }
+              ]
+            }
+          })
+        end)
 
       # When
       counts = Clickhouse.binary_cache_counts(command_event)

@@ -130,7 +130,7 @@ defmodule Tuist.CommandEventsTest do
     test "computes remote_cache_hits_count and remote_test_hits_count on insertion" do
       # When
       command_event =
-        with_flushed_command_events(fn ->
+        with_flushed_ingestion_buffers(fn ->
           CommandEventsFixtures.command_event_fixture(
             remote_cache_target_hits: ["A"],
             remote_test_target_hits: ["ATests"]
@@ -287,7 +287,7 @@ defmodule Tuist.CommandEventsTest do
       user = AccountsFixtures.user_fixture()
 
       command_event =
-        with_flushed_command_events(fn ->
+        with_flushed_ingestion_buffers(fn ->
           CommandEventsFixtures.command_event_fixture(name: "generate", user_id: user.id)
         end)
 
@@ -499,7 +499,7 @@ defmodule Tuist.CommandEventsTest do
       project_two = ProjectsFixtures.project_fixture()
 
       command_event_one =
-        with_flushed_command_events(fn ->
+        with_flushed_ingestion_buffers(fn ->
           CommandEventsFixtures.command_event_fixture(
             project_id: project.id,
             name: "one",
@@ -508,7 +508,7 @@ defmodule Tuist.CommandEventsTest do
           )
         end)
 
-      with_flushed_command_events(fn ->
+      with_flushed_ingestion_buffers(fn ->
         CommandEventsFixtures.command_event_fixture(
           project_id: project_two.id,
           name: "xxx",
@@ -518,7 +518,7 @@ defmodule Tuist.CommandEventsTest do
       end)
 
       command_event_two =
-        with_flushed_command_events(fn ->
+        with_flushed_ingestion_buffers(fn ->
           CommandEventsFixtures.command_event_fixture(
             project_id: project.id,
             name: "two",
@@ -528,7 +528,7 @@ defmodule Tuist.CommandEventsTest do
         end)
 
       command_event_three =
-        with_flushed_command_events(fn ->
+        with_flushed_ingestion_buffers(fn ->
           CommandEventsFixtures.command_event_fixture(
             project_id: project.id,
             name: "three",
@@ -538,7 +538,7 @@ defmodule Tuist.CommandEventsTest do
         end)
 
       command_event_four =
-        with_flushed_command_events(fn ->
+        with_flushed_ingestion_buffers(fn ->
           CommandEventsFixtures.command_event_fixture(
             project_id: project.id,
             name: "four",
@@ -548,7 +548,7 @@ defmodule Tuist.CommandEventsTest do
         end)
 
       command_event_five =
-        with_flushed_command_events(fn ->
+        with_flushed_ingestion_buffers(fn ->
           CommandEventsFixtures.command_event_fixture(
             project_id: project.id,
             name: "five",
@@ -680,7 +680,7 @@ defmodule Tuist.CommandEventsTest do
       project = ProjectsFixtures.project_fixture()
       _project_two = ProjectsFixtures.project_fixture()
 
-      with_flushed_command_events(fn ->
+      with_flushed_ingestion_buffers(fn ->
         _command_event_one =
           CommandEventsFixtures.command_event_fixture(
             project_id: project.id,
@@ -700,7 +700,7 @@ defmodule Tuist.CommandEventsTest do
       end)
 
       command_event_two =
-        with_flushed_command_events(fn ->
+        with_flushed_ingestion_buffers(fn ->
           CommandEventsFixtures.command_event_fixture(
             project_id: project.id,
             name: "xcodebuild",
@@ -711,7 +711,7 @@ defmodule Tuist.CommandEventsTest do
         end)
 
       command_event_three =
-        with_flushed_command_events(fn ->
+        with_flushed_ingestion_buffers(fn ->
           CommandEventsFixtures.command_event_fixture(
             project_id: project.id,
             name: "xcodebuild",
@@ -722,7 +722,7 @@ defmodule Tuist.CommandEventsTest do
         end)
 
       command_event_five =
-        with_flushed_command_events(fn ->
+        with_flushed_ingestion_buffers(fn ->
           CommandEventsFixtures.command_event_fixture(
             project_id: project.id,
             name: "test",
@@ -2073,7 +2073,7 @@ defmodule Tuist.CommandEventsTest do
       # Given
       project = ProjectsFixtures.project_fixture()
 
-      with_flushed_command_events(fn ->
+      with_flushed_ingestion_buffers(fn ->
         CommandEventsFixtures.command_event_fixture(
           project_id: project.id,
           name: "test",
@@ -2160,7 +2160,7 @@ defmodule Tuist.CommandEventsTest do
       # Given
       project = ProjectsFixtures.project_fixture()
 
-      with_flushed_command_events(fn ->
+      with_flushed_ingestion_buffers(fn ->
         CommandEventsFixtures.command_event_fixture(
           project_id: project.id,
           name: "test",
@@ -2208,7 +2208,7 @@ defmodule Tuist.CommandEventsTest do
       # Given
       project = ProjectsFixtures.project_fixture()
 
-      with_flushed_command_events(fn ->
+      with_flushed_ingestion_buffers(fn ->
         CommandEventsFixtures.command_event_fixture(
           project_id: project.id,
           name: "test",
