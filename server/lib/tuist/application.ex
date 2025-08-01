@@ -7,6 +7,7 @@ defmodule Tuist.Application do
   import Cachex.Spec
   import Tuist.Environment, only: [run_if_error_tracking_enabled: 1]
 
+  alias Tuist.CommandEvents
   alias Tuist.DBConnection.TelemetryListener
   alias Tuist.Environment
 
@@ -57,6 +58,7 @@ defmodule Tuist.Application do
         {Cachex, [:tuist, cachex_opts()]},
         {Finch, name: Tuist.Finch, pools: finch_pools()},
         {Phoenix.PubSub, name: Tuist.PubSub},
+        Supervisor.child_spec(CommandEvents.Buffer, id: CommandEvents.Buffer),
         TuistWeb.Telemetry
       ]
 

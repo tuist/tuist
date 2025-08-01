@@ -124,6 +124,9 @@ The following environment variables are used to configure the database connectio
 | `TUIST_DATABASE_POOL_SIZE` | The number of connections to keep open in the connection pool | No | `10` | `10` |
 | `TUIST_DATABASE_QUEUE_TARGET` | The interval (in miliseconds) for checking if all the connections checked out from the pool took more than the queue interval [(More information)](https://hexdocs.pm/db_connection/DBConnection.html#start_link/2-queue-config) | No | `300` | `300` |
 | `TUIST_DATABASE_QUEUE_INTERVAL` | The threshold time (in miliseconds) in the queue that the pool uses to determine if it should start dropping new connections [(More information)](https://hexdocs.pm/db_connection/DBConnection.html#start_link/2-queue-config) | No | `1000` | `1000` |
+| `TUIST_CLICKHOUSE_FLUSH_INTERVAL_MS` | Time interval in milliseconds between ClickHouse buffer flushes | No | `5000` | `5000` |
+| `TUIST_CLICKHOUSE_MAX_BUFFER_SIZE` | Maximum ClickHouse buffer size in bytes before forcing a flush | No | `1000000` | `1000000` |
+| `TUIST_CLICKHOUSE_BUFFER_POOL_SIZE` | Number of ClickHouse buffer processes to run | No | `5` | `5` |
 
 ### Authentication environment configuration {#authentication-environment-configuration}
 

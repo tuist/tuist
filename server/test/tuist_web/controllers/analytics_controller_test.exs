@@ -131,7 +131,10 @@ defmodule TuistWeb.AnalyticsControllerTest do
              }
     end
 
-    test "returns newly created command event when the date is missing - postgres", %{conn: conn, user: user} do
+    test "returns newly created command event when the date is missing - postgres", %{
+      conn: conn,
+      user: user
+    } do
       stub(Environment, :clickhouse_configured?, fn -> false end)
       stub(FunWithFlags, :enabled?, fn :clickhouse_events -> false end)
 
@@ -503,6 +506,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
 
       response = json_response(conn, :ok)
 
+      Tuist.CommandEvents.Buffer.flush()
       {:ok, command_event} = CommandEvents.get_command_event_by_id(response["id"])
 
       assert response == %{
@@ -540,7 +544,10 @@ defmodule TuistWeb.AnalyticsControllerTest do
       assert Enum.map(xcode_targets, & &1.selective_testing_hit) == [:miss, :remote]
     end
 
-    test "returns newly created command event with build_run_id - postgres", %{conn: conn, user: user} do
+    test "returns newly created command event with build_run_id - postgres", %{
+      conn: conn,
+      user: user
+    } do
       stub(Environment, :clickhouse_configured?, fn -> false end)
       stub(FunWithFlags, :enabled?, fn :clickhouse_events -> false end)
 
@@ -691,7 +698,12 @@ defmodule TuistWeb.AnalyticsControllerTest do
 
       # For CLI >= 4.56, the id field should be a UUID (string)
       assert is_binary(response["id"])
-      assert String.match?(response["id"], ~r/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/)
+
+      assert String.match?(
+               response["id"],
+               ~r/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
+             )
+
       assert response["name"] == "generate"
       assert response["project_id"] == project.id
       assert String.contains?(response["url"], "/runs/")
@@ -728,7 +740,12 @@ defmodule TuistWeb.AnalyticsControllerTest do
 
       # When CLI version header is missing, should default to new behavior (UUID)
       assert is_binary(response["id"])
-      assert String.match?(response["id"], ~r/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/)
+
+      assert String.match?(
+               response["id"],
+               ~r/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
+             )
+
       assert response["name"] == "generate"
       assert response["project_id"] == project.id
       assert String.contains?(response["url"], "/runs/")
@@ -901,7 +918,12 @@ defmodule TuistWeb.AnalyticsControllerTest do
 
       project = ProjectsFixtures.project_fixture()
       account = Accounts.get_account_by_id(project.account_id)
-      command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
+
+      command_event =
+        with_flushed_command_events(fn ->
+          CommandEventsFixtures.command_event_fixture(project_id: project.id)
+        end)
+
       upload_id = "1234"
 
       object_key =

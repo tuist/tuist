@@ -143,13 +143,14 @@ defmodule Tuist.AccountsTest do
       _user = %{account: %{id: account_id}} = AccountsFixtures.user_fixture()
       _project = %{id: project_id} = ProjectsFixtures.project_fixture(account_id: account_id)
 
-      _command_event =
+      with_flushed_command_events(fn ->
         CommandEventsFixtures.command_event_fixture(
           project_id: project_id,
           remote_test_target_hits: ["Core"],
           remote_cache_target_hits: ["Kit"],
           created_at: ~U[2025-05-17 15:27:00Z]
         )
+      end)
 
       # When
       got = Accounts.account_month_usage(account_id)
@@ -225,23 +226,25 @@ defmodule Tuist.AccountsTest do
       today = ~U[2025-01-02 23:00:00Z]
       stub(DateTime, :utc_now, fn -> today end)
 
-      CommandEventsFixtures.command_event_fixture(
-        name: "generate",
-        project_id: first_user_project.id,
-        user_id: first_user.id,
-        remote_cache_target_hits: ["Module"],
-        remote_test_target_hits: ["ModuleTeests"],
-        created_at: ~U[2025-01-01 23:00:00Z]
-      )
+      with_flushed_command_events(fn ->
+        CommandEventsFixtures.command_event_fixture(
+          name: "generate",
+          project_id: first_user_project.id,
+          user_id: first_user.id,
+          remote_cache_target_hits: ["Module"],
+          remote_test_target_hits: ["ModuleTeests"],
+          created_at: ~U[2025-01-01 23:00:00Z]
+        )
 
-      CommandEventsFixtures.command_event_fixture(
-        name: "generate",
-        project_id: second_user_project.id,
-        user_id: second_user.id,
-        remote_cache_target_hits: ["Module"],
-        remote_test_target_hits: ["ModuleTeests"],
-        created_at: ~U[2025-01-01 23:00:00Z]
-      )
+        CommandEventsFixtures.command_event_fixture(
+          name: "generate",
+          project_id: second_user_project.id,
+          user_id: second_user.id,
+          remote_cache_target_hits: ["Module"],
+          remote_test_target_hits: ["ModuleTeests"],
+          created_at: ~U[2025-01-01 23:00:00Z]
+        )
+      end)
 
       # When
       assert {[{^first_account_customer_id, 1}], _} =
@@ -262,23 +265,25 @@ defmodule Tuist.AccountsTest do
       today = ~U[2025-01-02 23:00:00Z]
       stub(DateTime, :utc_now, fn -> today end)
 
-      CommandEventsFixtures.command_event_fixture(
-        name: "generate",
-        project_id: first_user_project.id,
-        user_id: first_user.id,
-        remote_cache_target_hits: ["Module"],
-        remote_test_target_hits: ["ModuleTeests"],
-        ran_at: ~U[2025-01-01 23:00:00Z]
-      )
+      with_flushed_command_events(fn ->
+        CommandEventsFixtures.command_event_fixture(
+          name: "generate",
+          project_id: first_user_project.id,
+          user_id: first_user.id,
+          remote_cache_target_hits: ["Module"],
+          remote_test_target_hits: ["ModuleTeests"],
+          ran_at: ~U[2025-01-01 23:00:00Z]
+        )
 
-      CommandEventsFixtures.command_event_fixture(
-        name: "generate",
-        project_id: second_user_project.id,
-        user_id: second_user.id,
-        remote_cache_target_hits: ["Module"],
-        remote_test_target_hits: ["ModuleTeests"],
-        ran_at: ~U[2025-01-01 23:00:00Z]
-      )
+        CommandEventsFixtures.command_event_fixture(
+          name: "generate",
+          project_id: second_user_project.id,
+          user_id: second_user.id,
+          remote_cache_target_hits: ["Module"],
+          remote_test_target_hits: ["ModuleTeests"],
+          ran_at: ~U[2025-01-01 23:00:00Z]
+        )
+      end)
 
       # When
       assert {[{^first_account_customer_id, 1}], _} =
@@ -679,7 +684,6 @@ defmodule Tuist.AccountsTest do
       # Then
       # Verify the secret was stored
       assert updated_org.okta_encrypted_client_secret
-
       # Reload from database to ensure we're testing the persisted value
       {:ok, reloaded_org} = Accounts.get_organization_by_id(updated_org.id)
 
@@ -1409,11 +1413,13 @@ defmodule Tuist.AccountsTest do
       Accounts.add_user_to_organization(user, organization)
 
       command_event =
-        CommandEventsFixtures.command_event_fixture(
-          name: "generate",
-          project_id: project.id,
-          user_id: user.id
-        )
+        with_flushed_command_events(fn ->
+          CommandEventsFixtures.command_event_fixture(
+            name: "generate",
+            project_id: project.id,
+            user_id: user.id
+          )
+        end)
 
       Accounts.update_last_visited_project(user, project.id)
       code = Accounts.create_device_code("some-code")

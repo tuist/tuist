@@ -24,20 +24,38 @@ defmodule TuistWeb.GenerateRunsLiveTest do
     } do
       # Given
       _generate_run_one =
-        CommandEventsFixtures.command_event_fixture(
-          project_id: project.id,
-          user_id: user.id,
-          name: "generate",
-          command_arguments: ["generate", "App"]
-        )
+        with_flushed_command_events(fn ->
+          CommandEventsFixtures.command_event_fixture(
+            project_id: project.id,
+            user_id: user.id,
+            name: "generate",
+            command_arguments: ["generate", "App"]
+          )
+
+          CommandEventsFixtures.command_event_fixture(
+            project_id: project.id,
+            user_id: user.id,
+            name: "generate",
+            command_arguments: ["generate", "AppTwo"]
+          )
+        end)
 
       _generate_run_one =
-        CommandEventsFixtures.command_event_fixture(
-          project_id: project.id,
-          user_id: user.id,
-          name: "generate",
-          command_arguments: ["generate", "AppTwo"]
-        )
+        with_flushed_command_events(fn ->
+          CommandEventsFixtures.command_event_fixture(
+            project_id: project.id,
+            user_id: user.id,
+            name: "generate",
+            command_arguments: ["generate", "App"]
+          )
+
+          CommandEventsFixtures.command_event_fixture(
+            project_id: project.id,
+            user_id: user.id,
+            name: "generate",
+            command_arguments: ["generate", "AppTwo"]
+          )
+        end)
 
       # When
       {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/binary-cache/generate-runs")
@@ -70,20 +88,38 @@ defmodule TuistWeb.GenerateRunsLiveTest do
     } do
       # Given
       _generate_run_one =
-        CommandEventsFixtures.command_event_fixture(
-          project_id: project.id,
-          user_id: user.id,
-          name: "generate",
-          command_arguments: ["generate", "App"]
-        )
+        with_flushed_command_events(fn ->
+          CommandEventsFixtures.command_event_fixture(
+            project_id: project.id,
+            user_id: user.id,
+            name: "generate",
+            command_arguments: ["generate", "App"]
+          )
+
+          CommandEventsFixtures.command_event_fixture(
+            project_id: project.id,
+            user_id: user.id,
+            name: "generate",
+            command_arguments: ["generate", "AppTwo"]
+          )
+        end)
 
       _generate_run_one =
-        CommandEventsFixtures.command_event_fixture(
-          project_id: project.id,
-          user_id: user.id,
-          name: "generate",
-          command_arguments: ["generate", "AppTwo"]
-        )
+        with_flushed_command_events(fn ->
+          CommandEventsFixtures.command_event_fixture(
+            project_id: project.id,
+            user_id: user.id,
+            name: "generate",
+            command_arguments: ["generate", "App"]
+          )
+
+          CommandEventsFixtures.command_event_fixture(
+            project_id: project.id,
+            user_id: user.id,
+            name: "generate",
+            command_arguments: ["generate", "AppTwo"]
+          )
+        end)
 
       # When
       {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/binary-cache/generate-runs")

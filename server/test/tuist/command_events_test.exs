@@ -3,9 +3,7 @@ defmodule Tuist.CommandEventsTest do
   use Mimic
 
   alias Tuist.Accounts
-  alias Tuist.ClickHouseRepo
   alias Tuist.CommandEvents
-  alias Tuist.CommandEvents.Clickhouse.Event
   alias Tuist.CommandEvents.ResultBundle.ActionTestMetadata
   alias Tuist.CommandEvents.TargetTestSummary
   alias Tuist.CommandEvents.TestCase
@@ -132,11 +130,18 @@ defmodule Tuist.CommandEventsTest do
     test "computes remote_cache_hits_count and remote_test_hits_count on insertion" do
       # When
       command_event =
-        CommandEventsFixtures.command_event_fixture(remote_cache_target_hits: ["A"], remote_test_target_hits: ["ATests"])
+        with_flushed_command_events(fn ->
+          CommandEventsFixtures.command_event_fixture(
+            remote_cache_target_hits: ["A"],
+            remote_test_target_hits: ["ATests"]
+          )
+        end)
+
+      {:ok, reloaded_event} = CommandEvents.get_command_event_by_id(command_event.id)
 
       # Then
-      assert command_event.remote_cache_hits_count == 1
-      assert command_event.remote_test_hits_count == 1
+      assert reloaded_event.remote_cache_hits_count == 1
+      assert reloaded_event.remote_test_hits_count == 1
     end
 
     test "does not truncate an error message if it's under 255 chars" do
@@ -282,7 +287,9 @@ defmodule Tuist.CommandEventsTest do
       user = AccountsFixtures.user_fixture()
 
       command_event =
-        CommandEventsFixtures.command_event_fixture(name: "generate", user_id: user.id)
+        with_flushed_command_events(fn ->
+          CommandEventsFixtures.command_event_fixture(name: "generate", user_id: user.id)
+        end)
 
       # When
       got = CommandEvents.get_command_event_by_id(command_event.id)
@@ -492,51 +499,63 @@ defmodule Tuist.CommandEventsTest do
       project_two = ProjectsFixtures.project_fixture()
 
       command_event_one =
-        CommandEventsFixtures.command_event_fixture(
-          project_id: project.id,
-          name: "one",
-          duration: 1000,
-          created_at: ~N[2024-03-04 01:00:00]
-        )
+        with_flushed_command_events(fn ->
+          CommandEventsFixtures.command_event_fixture(
+            project_id: project.id,
+            name: "one",
+            duration: 1000,
+            created_at: ~N[2024-03-04 01:00:00]
+          )
+        end)
 
-      CommandEventsFixtures.command_event_fixture(
-        project_id: project_two.id,
-        name: "xxx",
-        duration: 1000,
-        created_at: ~N[2024-03-05 02:00:00]
-      )
+      with_flushed_command_events(fn ->
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project_two.id,
+          name: "xxx",
+          duration: 1000,
+          created_at: ~N[2024-03-05 02:00:00]
+        )
+      end)
 
       command_event_two =
-        CommandEventsFixtures.command_event_fixture(
-          project_id: project.id,
-          name: "two",
-          duration: 500,
-          created_at: ~N[2024-03-05 03:00:00]
-        )
+        with_flushed_command_events(fn ->
+          CommandEventsFixtures.command_event_fixture(
+            project_id: project.id,
+            name: "two",
+            duration: 500,
+            created_at: ~N[2024-03-05 03:00:00]
+          )
+        end)
 
       command_event_three =
-        CommandEventsFixtures.command_event_fixture(
-          project_id: project.id,
-          name: "three",
-          duration: 500,
-          created_at: ~N[2024-03-05 04:00:00]
-        )
+        with_flushed_command_events(fn ->
+          CommandEventsFixtures.command_event_fixture(
+            project_id: project.id,
+            name: "three",
+            duration: 500,
+            created_at: ~N[2024-03-05 04:00:00]
+          )
+        end)
 
       command_event_four =
-        CommandEventsFixtures.command_event_fixture(
-          project_id: project.id,
-          name: "four",
-          duration: 500,
-          created_at: ~N[2024-03-05 05:00:00]
-        )
+        with_flushed_command_events(fn ->
+          CommandEventsFixtures.command_event_fixture(
+            project_id: project.id,
+            name: "four",
+            duration: 500,
+            created_at: ~N[2024-03-05 05:00:00]
+          )
+        end)
 
       command_event_five =
-        CommandEventsFixtures.command_event_fixture(
-          project_id: project.id,
-          name: "five",
-          duration: 500,
-          created_at: ~N[2024-03-05 06:00:00]
-        )
+        with_flushed_command_events(fn ->
+          CommandEventsFixtures.command_event_fixture(
+            project_id: project.id,
+            name: "five",
+            duration: 500,
+            created_at: ~N[2024-03-05 06:00:00]
+          )
+        end)
 
       # When
       {got_command_events_first_page, got_meta_first_page} =
@@ -555,17 +574,17 @@ defmodule Tuist.CommandEventsTest do
 
       # Then
       assert got_command_events_first_page == [
-               command_event_five |> ClickHouseRepo.reload() |> Event.normalize_enums(),
-               command_event_four |> ClickHouseRepo.reload() |> Event.normalize_enums()
+               command_event_five.id |> CommandEvents.get_command_event_by_id() |> elem(1),
+               command_event_four.id |> CommandEvents.get_command_event_by_id() |> elem(1)
              ]
 
       assert got_command_events_second_page == [
-               command_event_three |> ClickHouseRepo.reload() |> Event.normalize_enums(),
-               command_event_two |> ClickHouseRepo.reload() |> Event.normalize_enums()
+               command_event_three.id |> CommandEvents.get_command_event_by_id() |> elem(1),
+               command_event_two.id |> CommandEvents.get_command_event_by_id() |> elem(1)
              ]
 
       assert got_command_events_third_page == [
-               command_event_one |> ClickHouseRepo.reload() |> Event.normalize_enums()
+               command_event_one.id |> CommandEvents.get_command_event_by_id() |> elem(1)
              ]
     end
   end
@@ -661,48 +680,56 @@ defmodule Tuist.CommandEventsTest do
       project = ProjectsFixtures.project_fixture()
       _project_two = ProjectsFixtures.project_fixture()
 
-      _command_event_one =
-        CommandEventsFixtures.command_event_fixture(
-          project_id: project.id,
-          name: "xcodebuild",
-          subcommand: "build",
-          duration: 1000,
-          created_at: ~N[2024-03-04 01:00:00]
-        )
+      with_flushed_command_events(fn ->
+        _command_event_one =
+          CommandEventsFixtures.command_event_fixture(
+            project_id: project.id,
+            name: "xcodebuild",
+            subcommand: "build",
+            duration: 1000,
+            created_at: ~N[2024-03-04 01:00:00]
+          )
+
+        _command_event_four =
+          CommandEventsFixtures.command_event_fixture(
+            project_id: project.id,
+            name: "four",
+            duration: 500,
+            created_at: ~N[2024-03-05 05:00:00]
+          )
+      end)
 
       command_event_two =
-        CommandEventsFixtures.command_event_fixture(
-          project_id: project.id,
-          name: "xcodebuild",
-          subcommand: "test",
-          duration: 500,
-          created_at: ~N[2024-03-05 03:00:00]
-        )
+        with_flushed_command_events(fn ->
+          CommandEventsFixtures.command_event_fixture(
+            project_id: project.id,
+            name: "xcodebuild",
+            subcommand: "test",
+            duration: 500,
+            created_at: ~N[2024-03-05 03:00:00]
+          )
+        end)
 
       command_event_three =
-        CommandEventsFixtures.command_event_fixture(
-          project_id: project.id,
-          name: "xcodebuild",
-          subcommand: "test",
-          duration: 500,
-          created_at: ~N[2024-03-05 04:00:00]
-        )
-
-      _command_event_four =
-        CommandEventsFixtures.command_event_fixture(
-          project_id: project.id,
-          name: "four",
-          duration: 500,
-          created_at: ~N[2024-03-05 05:00:00]
-        )
+        with_flushed_command_events(fn ->
+          CommandEventsFixtures.command_event_fixture(
+            project_id: project.id,
+            name: "xcodebuild",
+            subcommand: "test",
+            duration: 500,
+            created_at: ~N[2024-03-05 04:00:00]
+          )
+        end)
 
       command_event_five =
-        CommandEventsFixtures.command_event_fixture(
-          project_id: project.id,
-          name: "test",
-          duration: 500,
-          created_at: ~N[2024-03-05 06:00:00]
-        )
+        with_flushed_command_events(fn ->
+          CommandEventsFixtures.command_event_fixture(
+            project_id: project.id,
+            name: "test",
+            duration: 500,
+            created_at: ~N[2024-03-05 06:00:00]
+          )
+        end)
 
       # When
       {got_command_events_first_page, got_meta_first_page} =
@@ -718,12 +745,12 @@ defmodule Tuist.CommandEventsTest do
 
       # Then
       assert got_command_events_first_page == [
-               command_event_five |> ClickHouseRepo.reload() |> Event.normalize_enums(),
-               command_event_three |> ClickHouseRepo.reload() |> Event.normalize_enums()
+               command_event_five.id |> CommandEvents.get_command_event_by_id() |> elem(1),
+               command_event_three.id |> CommandEvents.get_command_event_by_id() |> elem(1)
              ]
 
       assert got_command_events_second_page == [
-               command_event_two |> ClickHouseRepo.reload() |> Event.normalize_enums()
+               command_event_two.id |> CommandEvents.get_command_event_by_id() |> elem(1)
              ]
     end
   end
@@ -2046,29 +2073,31 @@ defmodule Tuist.CommandEventsTest do
       # Given
       project = ProjectsFixtures.project_fixture()
 
-      CommandEventsFixtures.command_event_fixture(
-        project_id: project.id,
-        name: "test",
-        duration: 1000,
-        ran_at: ~U[2024-01-15 12:00:00Z],
-        is_ci: false
-      )
+      with_flushed_command_events(fn ->
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          name: "test",
+          duration: 1000,
+          ran_at: ~U[2024-01-15 12:00:00Z],
+          is_ci: false
+        )
 
-      CommandEventsFixtures.command_event_fixture(
-        project_id: project.id,
-        name: "test",
-        duration: 2000,
-        ran_at: ~U[2024-01-15 14:00:00Z],
-        is_ci: true
-      )
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          name: "test",
+          duration: 2000,
+          ran_at: ~U[2024-01-15 14:00:00Z],
+          is_ci: true
+        )
 
-      CommandEventsFixtures.command_event_fixture(
-        project_id: project.id,
-        name: "build",
-        duration: 1500,
-        ran_at: ~U[2024-01-15 16:00:00Z],
-        is_ci: false
-      )
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          name: "build",
+          duration: 1500,
+          ran_at: ~U[2024-01-15 16:00:00Z],
+          is_ci: false
+        )
+      end)
 
       # When - test with is_ci filter (this should catch the regression)
       result =
@@ -2131,29 +2160,31 @@ defmodule Tuist.CommandEventsTest do
       # Given
       project = ProjectsFixtures.project_fixture()
 
-      CommandEventsFixtures.command_event_fixture(
-        project_id: project.id,
-        name: "test",
-        duration: 1000,
-        ran_at: ~U[2024-01-15 12:00:00Z],
-        is_ci: false
-      )
+      with_flushed_command_events(fn ->
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          name: "test",
+          duration: 1000,
+          ran_at: ~U[2024-01-15 12:00:00Z],
+          is_ci: false
+        )
 
-      CommandEventsFixtures.command_event_fixture(
-        project_id: project.id,
-        name: "test",
-        duration: 2000,
-        ran_at: ~U[2024-01-15 14:00:00Z],
-        is_ci: true
-      )
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          name: "test",
+          duration: 2000,
+          ran_at: ~U[2024-01-15 14:00:00Z],
+          is_ci: true
+        )
 
-      CommandEventsFixtures.command_event_fixture(
-        project_id: project.id,
-        name: "build",
-        duration: 1500,
-        ran_at: ~U[2024-01-15 16:00:00Z],
-        is_ci: false
-      )
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          name: "build",
+          duration: 1500,
+          ran_at: ~U[2024-01-15 16:00:00Z],
+          is_ci: false
+        )
+      end)
 
       # When - test with is_ci filter (this should catch the regression)
       result =
@@ -2177,23 +2208,25 @@ defmodule Tuist.CommandEventsTest do
       # Given
       project = ProjectsFixtures.project_fixture()
 
-      CommandEventsFixtures.command_event_fixture(
-        project_id: project.id,
-        name: "test",
-        duration: 1000,
-        ran_at: ~U[2024-01-15 12:00:00Z],
-        is_ci: true,
-        status: :success
-      )
+      with_flushed_command_events(fn ->
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          name: "test",
+          duration: 1000,
+          ran_at: ~U[2024-01-15 12:00:00Z],
+          is_ci: true,
+          status: :success
+        )
 
-      CommandEventsFixtures.command_event_fixture(
-        project_id: project.id,
-        name: "test",
-        duration: 2000,
-        ran_at: ~U[2024-01-15 14:00:00Z],
-        is_ci: true,
-        status: :success
-      )
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          name: "test",
+          duration: 2000,
+          ran_at: ~U[2024-01-15 14:00:00Z],
+          is_ci: true,
+          status: :success
+        )
+      end)
 
       # When - test with multiple filters (this should catch the regression)
       result =

@@ -23,7 +23,7 @@ defmodule TuistWeb.CacheRunsLiveTest do
       project: project
     } do
       # Given
-      _cache_run_one =
+      with_flushed_command_events(fn ->
         CommandEventsFixtures.command_event_fixture(
           project_id: project.id,
           user_id: user.id,
@@ -31,16 +31,17 @@ defmodule TuistWeb.CacheRunsLiveTest do
           command_arguments: ["cache", "App"]
         )
 
-      _cache_run_one =
         CommandEventsFixtures.command_event_fixture(
           project_id: project.id,
           user_id: user.id,
           name: "cache",
           command_arguments: ["cache", "AppTwo"]
         )
+      end)
 
       # When
-      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/binary-cache/cache-runs")
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/binary-cache/cache-runs")
 
       # Then
       assert has_element?(lv, "span", "tuist cache App")
@@ -69,7 +70,7 @@ defmodule TuistWeb.CacheRunsLiveTest do
       project: project
     } do
       # Given
-      _cache_run_one =
+      with_flushed_command_events(fn ->
         CommandEventsFixtures.command_event_fixture(
           project_id: project.id,
           user_id: user.id,
@@ -77,16 +78,17 @@ defmodule TuistWeb.CacheRunsLiveTest do
           command_arguments: ["cache", "App"]
         )
 
-      _cache_run_one =
         CommandEventsFixtures.command_event_fixture(
           project_id: project.id,
           user_id: user.id,
           name: "cache",
           command_arguments: ["cache", "AppTwo"]
         )
+      end)
 
       # When
-      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/binary-cache/cache-runs")
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/binary-cache/cache-runs")
 
       # Then
       assert has_element?(lv, "span", "tuist cache App")
