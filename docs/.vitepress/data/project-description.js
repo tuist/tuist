@@ -3,13 +3,22 @@ import fs from "node:fs";
 
 const manifestDataFile = path.join(import.meta.dirname, "manifest-data.json");
 
+// Cache the manifest data to avoid loading it multiple times
+let cachedManifestData = null;
+
 function loadManifestData() {
+  // Return cached data if already loaded
+  if (cachedManifestData !== null) {
+    return cachedManifestData;
+  }
+
   try {
     if (fs.existsSync(manifestDataFile)) {
       const manifestData = JSON.parse(fs.readFileSync(manifestDataFile, "utf-8"));
       if (manifestData.data && !manifestData.error) {
         console.log(`✅ Loaded manifest data from ${manifestDataFile} (${manifestData.data.length} items)`);
-        return manifestData.data;
+        cachedManifestData = manifestData.data;
+        return cachedManifestData;
       } else {
         console.warn(`⚠️  Manifest data file exists but contains error: ${manifestData.error}`);
       }
@@ -21,8 +30,9 @@ function loadManifestData() {
     console.warn(`⚠️  Failed to load manifest data: ${error.message}`);
   }
   
-  // Return empty array as fallback
-  return [];
+  // Cache and return empty array as fallback
+  cachedManifestData = [];
+  return cachedManifestData;
 }
 
 export async function paths(locale) {

@@ -56,14 +56,14 @@ jobs:
             deps
             _build
             _site
-          key: mix-${{ hashFiles('mix.lock') }}
+          key: mix-${{ runner.os }}-${{ hashFiles('mix.lock') }}
       - name: Restore PNPM Cache
         uses: actions/cache@v4
         id: pnpm-cache
         with:
           path: |
             ~/.pnpm/store
-          key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+          key: pnpm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
       - uses: jdx/mise-action@v2
       - run: mise run server:clickhouse:start
       - run: mise run server:db:reset
@@ -83,14 +83,14 @@ jobs:
             deps
             _build
             _site
-          key: mix-${{ hashFiles('mix.lock') }}
+          key: mix-${{ runner.os }}-${{ hashFiles('mix.lock') }}
       - name: Restore PNPM Cache
         uses: actions/cache@v3
         id: pnpm-cache
         with:
           path: |
             ~/.pnpm/store
-          key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+          key: pnpm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
       - uses: jdx/mise-action@v2
       - name: Run Credo
         run: mix credo
@@ -108,14 +108,14 @@ jobs:
             deps
             _build
             _site
-          key: mix-${{ hashFiles('mix.lock') }}
+          key: mix-${{ runner.os }}-${{ hashFiles('mix.lock') }}
       - name: Restore PNPM Cache
         uses: actions/cache@v3
         id: pnpm-cache
         with:
           path: |
             ~/.pnpm/store
-          key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+          key: pnpm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
       - uses: jdx/mise-action@v2
       - name: Check format
         run: mise run server:format --check
@@ -133,14 +133,14 @@ jobs:
             deps
             _build
             _site
-          key: mix-${{ hashFiles('mix.lock') }}
+          key: mix-${{ runner.os }}-${{ hashFiles('mix.lock') }}
       - name: Restore PNPM Cache
         uses: actions/cache@v4
         id: pnpm-cache
         with:
           path: |
             ~/.pnpm/store
-          key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+          key: pnpm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
       - uses: jdx/mise-action@v2
       - name: Install esbuild
         run: mix esbuild.install
@@ -167,14 +167,14 @@ jobs:
             deps
             _build
             _site
-          key: mix-${{ hashFiles('mix.lock') }}
+          key: mix-${{ runner.os }}-${{ hashFiles('mix.lock') }}
       - name: Restore PNPM Cache
         uses: actions/cache@v3
         id: pnpm-cache
         with:
           path: |
             ~/.pnpm/store
-          key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+          key: pnpm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
       - uses: jdx/mise-action@v2
       - name: Check
         run: mise run server:security
@@ -194,14 +194,14 @@ jobs:
             deps
             _build
             _site
-          key: mix-${{ hashFiles('mix.lock') }}
+          key: mix-${{ runner.os }}-${{ hashFiles('mix.lock') }}
       - name: Restore PNPM Cache
         uses: actions/cache@v3
         id: pnpm-cache
         with:
           path: |
             ~/.pnpm/store
-          key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+          key: pnpm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
       - uses: jdx/mise-action@v2
       - name: Docker build
         uses: docker/build-push-action@v6
@@ -243,14 +243,14 @@ jobs:
             deps
             _build
             _site
-          key: mix-${{ hashFiles('mix.lock') }}
+          key: mix-${{ runner.os }}-${{ hashFiles('mix.lock') }}
       - name: Restore PNPM Cache
         uses: actions/cache@v4
         id: pnpm-cache
         with:
           path: |
             ~/.pnpm/store
-          key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+          key: pnpm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
       - uses: jdx/mise-action@v2
       - run: mise run server:clickhouse:start
       - run: mise run server:db:reset

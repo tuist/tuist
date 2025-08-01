@@ -28,14 +28,14 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  docs-build-deploy:
-    name: Build & Deploy
+  generate-data:
+    name: Generate Documentation Data
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
-      - name: Restore cache
+      - name: Restore SPM cache
         id: cache-restore
         uses: actions/cache/restore@v4
         with:
@@ -45,10 +45,55 @@ jobs:
       - uses: jdx/mise-action@v2
       - name: Generate documentation data
         run: mise run docs:generate-data
+      - name: Upload manifest data
+        uses: actions/upload-artifact@v4
+        with:
+          name: manifest-data
+          path: docs/.vitepress/data/manifest-data.json
+      - name: Upload CLI data
+        uses: actions/upload-artifact@v4
+        with:
+          name: cli-data
+          path: docs/.vitepress/data/cli-data.json
+      - name: Upload generated docs
+        uses: actions/upload-artifact@v4
+        with:
+          name: generated-docs
+          path: docs/docs/generated/
+      - name: Save SPM cache
+        id: cache-save
+        uses: actions/cache/save@v4
+        with:
+          path: .build
+          key: ${{ steps.cache-restore.outputs.cache-primary-key }}
+
+  build-deploy:
+    name: Build & Deploy
+    needs: generate-data
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+      - name: Download manifest data
+        uses: actions/download-artifact@v4
+        with:
+          name: manifest-data
+          path: docs/.vitepress/data/
+      - name: Download CLI data
+        uses: actions/download-artifact@v4
+        with:
+          name: cli-data
+          path: docs/.vitepress/data/
+      - name: Download generated docs
+        uses: actions/download-artifact@v4
+        with:
+          name: generated-docs
+          path: docs/docs/generated/
       - name: Build the documentation
         # VitePress is not memory-efficient, loading all the pages into memory when building
         # the site. This can potentially lead to out-of-memory errors in localized documentation
         # sites where the number of pages is multiplied by the number of languages.
+        # Ubuntu runners have more disk space than macOS runners which helps with ENOSPC errors
         env:
           NODE_OPTIONS: --max-old-space-size=12288
         run: mise run docs:build
@@ -56,9 +101,3 @@ jobs:
         if: github.ref == 'refs/heads/main'
         run: |
           mise x npm:wrangler@latest -- wrangler pages deploy --commit-hash ${{ github.sha }} --branch ${{ github.ref_name }} --project-name tuist-docs docs/.vitepress/dist
-      - name: Save cache
-        id: cache-save
-        uses: actions/cache/save@v4
-        with:
-          path: .build
-          key: ${{ steps.cache-restore.outputs.cache-primary-key }}
