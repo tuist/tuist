@@ -45,6 +45,12 @@ jobs:
       - uses: jdx/mise-action@v2
       - name: Generate documentation data
         run: mise run docs:generate-data
+      - name: Compress generated docs for artifact upload
+        run: |
+          # GitHub Actions artifacts don't support certain characters in filenames (< > : " | * ? \r \n)
+          # Since our generated docs contain files like "Array<FileElement>.md", we need to compress them
+          # into a tar archive to preserve the original filenames during upload/download
+          tar -czf docs/generated-docs.tar.gz -C docs/docs generated
       - name: Upload manifest data
         uses: actions/upload-artifact@v4
         with:
@@ -55,11 +61,11 @@ jobs:
         with:
           name: cli-data
           path: docs/.vitepress/data/cli-data.json
-      - name: Upload generated docs
+      - name: Upload generated docs archive
         uses: actions/upload-artifact@v4
         with:
           name: generated-docs
-          path: docs/docs/generated/
+          path: docs/generated-docs.tar.gz
       - name: Save SPM cache
         id: cache-save
         uses: actions/cache/save@v4
@@ -84,11 +90,16 @@ jobs:
         with:
           name: cli-data
           path: docs/.vitepress/data/
-      - name: Download generated docs
+      - name: Download generated docs archive
         uses: actions/download-artifact@v4
         with:
           name: generated-docs
-          path: docs/docs/generated/
+          path: docs/
+      - name: Extract generated docs
+        run: |
+          # Extract the compressed docs archive to restore files with special characters
+          tar -xzf docs/generated-docs.tar.gz -C docs/docs
+          rm docs/generated-docs.tar.gz
       - name: Build the documentation
         # VitePress is not memory-efficient, loading all the pages into memory when building
         # the site. This can potentially lead to out-of-memory errors in localized documentation
