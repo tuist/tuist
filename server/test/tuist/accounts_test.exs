@@ -750,7 +750,7 @@ defmodule Tuist.AccountsTest do
       user = AccountsFixtures.user_fixture()
       organization = AccountsFixtures.organization_fixture(creator: user)
 
-      invitation =
+      {:ok, invitation} =
         Accounts.invite_user_to_organization("new@tuist.io", %{
           inviter: user,
           to: organization,
@@ -777,7 +777,7 @@ defmodule Tuist.AccountsTest do
         url: fn token -> token end
       })
 
-      invitation =
+      {:ok, invitation} =
         Accounts.invite_user_to_organization("new@tuist.io", %{
           inviter: user,
           to: organization,
@@ -802,7 +802,7 @@ defmodule Tuist.AccountsTest do
       user = AccountsFixtures.user_fixture()
       organization = AccountsFixtures.organization_fixture(name: "tuist-org", creator: user)
 
-      invitation =
+      {:ok, invitation} =
         Accounts.invite_user_to_organization("new@tuist.io", %{
           inviter: user,
           to: organization,
@@ -831,7 +831,7 @@ defmodule Tuist.AccountsTest do
       organization = AccountsFixtures.organization_fixture(creator: user)
       invitee = AccountsFixtures.user_fixture(email: "new@tuist.io")
 
-      invitation =
+      {:ok, invitation} =
         Accounts.invite_user_to_organization("new@tuist.io", %{
           inviter: user,
           to: organization,
@@ -851,7 +851,7 @@ defmodule Tuist.AccountsTest do
       organization = AccountsFixtures.organization_fixture(creator: user)
       invitee = AccountsFixtures.user_fixture(email: "new@tuist.io")
 
-      invitation =
+      {:ok, invitation} =
         Accounts.invite_user_to_organization("different@tuist.io", %{
           inviter: user,
           to: organization,
@@ -884,7 +884,7 @@ defmodule Tuist.AccountsTest do
       organization = AccountsFixtures.organization_fixture(creator: user)
       invitee = AccountsFixtures.user_fixture(email: "new@tuist.io")
 
-      invitation =
+      {:ok, invitation} =
         Accounts.invite_user_to_organization("new@tuist.io", %{
           inviter: user,
           to: organization,
@@ -927,10 +927,36 @@ defmodule Tuist.AccountsTest do
         )
 
       # Then
+      assert {:ok, invitation} = invitation
       assert invitation.token == "token"
       assert invitation.invitee_email == "test@tuist.io"
       assert invitation.inviter_type == "User"
       assert invitation.organization_id == organization.id
+    end
+
+    test "returns errors" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture()
+
+      {:ok, _invitation} =
+        Accounts.invite_user_to_organization(
+          "test@tuist.io",
+          %{inviter: user, to: organization, url: fn token -> token end},
+          token: "token"
+        )
+
+      # When
+      result =
+        Accounts.invite_user_to_organization(
+          "test@tuist.io",
+          %{inviter: user, to: organization, url: fn token -> token end},
+          token: "token2"
+        )
+
+      # Then
+      assert {:error, changeset} = result
+      assert "has already been taken" in errors_on(changeset).invitee_email
     end
   end
 

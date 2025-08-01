@@ -1,31 +1,42 @@
-import { execa, $ } from "execa";
-import { temporaryDirectoryTask } from "tempy";
 import * as path from "node:path";
+import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import ejs from "ejs";
 import { localizedString } from "../i18n.mjs";
 
 // Root directory
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const rootDirectory = path.join(__dirname, "../../..");
+const cliDataFile = path.join(__dirname, "cli-data.json");
 
-// Schema
-await execa({
-  stdio: "inherit",
-})`swift build --product ProjectDescription --configuration debug --package-path ${rootDirectory}`;
-await execa({
-  stdio: "inherit",
-})`swift build --product tuist --configuration debug --package-path ${rootDirectory}`;
-var dumpedCLISchema;
-await temporaryDirectoryTask(async (tmpDir) => {
-  // I'm passing --path to sandbox the execution since we are only interested in the schema and nothing else.
-  dumpedCLISchema = await $`${path.join(
-    rootDirectory,
-    ".build/debug/tuist",
-  )} --experimental-dump-help --path ${tmpDir}`;
-});
-const { stdout } = dumpedCLISchema;
-export const schema = JSON.parse(stdout);
+// Schema - load from intermediate file or fallback to empty
+let schema = null;
+try {
+  if (fs.existsSync(cliDataFile)) {
+    const cliData = JSON.parse(fs.readFileSync(cliDataFile, "utf-8"));
+    if (cliData.schema && !cliData.error) {
+      schema = cliData.schema;
+      console.log(`✅ Loaded CLI schema from ${cliDataFile}`);
+    } else {
+      console.warn(`⚠️  CLI data file exists but contains error: ${cliData.error}`);
+    }
+  } else {
+    console.warn(`⚠️  CLI data file not found: ${cliDataFile}`);
+    console.warn("   Run 'node docs/scripts/generate-cli-data.mjs' to generate it");
+  }
+} catch (error) {
+  console.warn(`⚠️  Failed to load CLI data: ${error.message}`);
+}
+
+// Fallback empty schema if not available
+if (!schema) {
+  schema = {
+    command: {
+      subcommands: []
+    }
+  };
+}
+
+export { schema };
 
 // Paths
 function traverse(command, paths) {
