@@ -62,24 +62,9 @@ defmodule Tuist.Application do
 
     children
     |> Kernel.++(
-      if not Environment.dev_use_remote_storage?() do
-        %{port: minio_port} = URI.parse(Environment.s3_endpoint())
-        port = minio_port || 9095
-        
-        [
-          {MinioServer,
-           name: :minio_dev,
-           port: port,
-           access_key_id: Environment.s3_access_key_id(),
-           secret_access_key: Environment.s3_secret_access_key(),
-           data_dir: Path.join(File.cwd!(), "tmp/storage"),
-           ownership: :manual
-          },
-          Tuist.MinioBucketCreator
-        ]
-      else
-        []
-      end
+      if not Environment.dev_use_remote_storage?(),
+        do: [Tuist.MinioSupervisor],
+        else: []
     )
     |> Kernel.++(
       if Environment.web?(),
