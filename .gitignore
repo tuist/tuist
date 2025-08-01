@@ -114,3 +114,4 @@ Tuist/Dependencies/graph.json
 
 .claude/
 *.p12
+./minio

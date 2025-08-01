@@ -1,4 +1,5 @@
 defmodule Tuist.Vault do
+  @moduledoc false
   use Cloak.Vault, otp_app: :tuist
 
   @impl GenServer

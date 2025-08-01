@@ -24,7 +24,14 @@ defmodule Tuist.Accounts.Organization do
 
   def create_changeset(organization \\ %__MODULE__{}, attrs \\ %{}) do
     organization
-    |> cast(attrs, [:sso_provider, :sso_organization_id, :okta_client_id, :okta_encrypted_client_secret, :okta_site, :created_at])
+    |> cast(attrs, [
+      :sso_provider,
+      :sso_organization_id,
+      :okta_client_id,
+      :okta_encrypted_client_secret,
+      :okta_site,
+      :created_at
+    ])
     |> validate_inclusion(:sso_provider, [:okta, :google])
     |> unique_constraint([:sso_provider, :sso_organization_id],
       message:

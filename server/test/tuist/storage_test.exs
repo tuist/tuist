@@ -35,14 +35,16 @@ defmodule Tuist.StorageTest do
                                               {"uploadId", ^upload_id}
                                             ],
                                             headers: [],
-                                            virtual_host: true,
+                                            virtual_host: false,
                                             expires_in: ^expires_in
                                           ] ->
         {:ok, url}
       end)
 
       # When/Then
-      assert Storage.multipart_generate_url(object_key, upload_id, part_number, expires_in: expires_in) == url
+      assert Storage.multipart_generate_url(object_key, upload_id, part_number,
+               expires_in: expires_in
+             ) == url
 
       assert_received {^event_name, ^event_ref, %{},
                        %{
@@ -82,7 +84,7 @@ defmodule Tuist.StorageTest do
                                             headers: [
                                               {"Content-Length", "300"}
                                             ],
-                                            virtual_host: true,
+                                            virtual_host: false,
                                             expires_in: ^expires_in
                                           ] ->
         {:ok, url}
@@ -119,7 +121,10 @@ defmodule Tuist.StorageTest do
       expect(Environment, :s3_bucket_name, fn -> bucket_name end)
       operation = %S3{body: UUIDv7.generate()}
 
-      expect(ExAws.S3, :complete_multipart_upload, fn ^bucket_name, ^object_key, ^upload_id, ^parts ->
+      expect(ExAws.S3, :complete_multipart_upload, fn ^bucket_name,
+                                                      ^object_key,
+                                                      ^upload_id,
+                                                      ^parts ->
         operation
       end)
 
@@ -161,7 +166,7 @@ defmodule Tuist.StorageTest do
                                           [
                                             query_params: [],
                                             expires_in: ^expires_in,
-                                            virtual_host: true
+                                            virtual_host: false
                                           ] ->
         {:ok, url}
       end)
@@ -199,7 +204,7 @@ defmodule Tuist.StorageTest do
                                           [
                                             query_params: [],
                                             expires_in: ^expires_in,
-                                            virtual_host: true
+                                            virtual_host: false
                                           ] ->
         {:ok, url}
       end)
@@ -465,7 +470,8 @@ defmodule Tuist.StorageTest do
       assert Storage.get_object_size(object_key) == size
 
       # Then
-      assert_received {^event_name, ^event_ref, %{duration: duration, size: size}, %{object_key: ^object_key}}
+      assert_received {^event_name, ^event_ref, %{duration: duration, size: size},
+                       %{object_key: ^object_key}}
 
       assert is_number(size)
       assert is_number(duration)
