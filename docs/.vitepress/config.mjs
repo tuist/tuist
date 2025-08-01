@@ -148,9 +148,6 @@ export default defineConfig({
   description: "Scale your Xcode app development",
   srcDir: "docs",
   lastUpdated: false,
-  vite: {
-    plugins: [llmstxtPlugin()],
-  },
   locales: {
     en: {
       label: "English",
