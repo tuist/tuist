@@ -61,6 +61,14 @@ jobs:
         with:
           github-token: ${{ secrets.TUIST_GITHUB_TOKEN }}
           script: |
+            // Check if this is a fork contribution
+            const isFork = context.payload.pull_request.head.repo.fork;
+            if (isFork) {
+              console.log(`PR is from a fork. Setting is-member to false.`);
+              core.setOutput('is-member', 'false');
+              return;
+            }
+            
             try {
               const { data: membership } = await github.rest.teams.getMembershipForUserInOrg({
                 org: 'tuist',

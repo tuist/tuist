@@ -1,5 +1,5 @@
 {
-  "originHash" : "57ca9ad1a2fae3dcb958cd5001cc8069377467a183b14027e0df94b114f89a21",
+  "originHash" : "1516c766feea9c24b057b0ab119ecd1e4522eefec8fec956326d5e64411777d4",
   "pins" : [
     {
       "identity" : "aexml",
@@ -96,8 +96,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tuist/FileSystem.git",
       "state" : {
-        "revision" : "28c747b5ce661e8f79a4bcc3068392250d069f1c",
-        "version" : "0.11.0"
+        "revision" : "fb8065c84f7f3f62b0c1b75555d2031b62d51cf6",
+        "version" : "0.11.3"
       }
     },
     {
@@ -159,8 +159,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/p-x9/MachOKit",
       "state" : {
-        "revision" : "d0b543aa795d83539691b80959b0adb152b072e7",
-        "version" : "0.35.1"
+        "revision" : "5a09d8ad1be010bcd58d8a39554480b19e0a45e1",
+        "version" : "0.37.0"
       }
     },
     {
@@ -357,8 +357,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/p-x9/swift-fileio.git",
       "state" : {
-        "revision" : "23349fe1eb23c6ca2876d461a46ff60c0fa92f9c",
-        "version" : "0.9.0"
+        "revision" : "63daf8e8402789339ccc5a19d198ff0fcafd29d9",
+        "version" : "0.11.0"
       }
     },
     {
@@ -375,8 +375,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-log.git",
       "state" : {
-        "revision" : "3d8596ed08bd13520157f0355e35caed215ffbfa",
-        "version" : "1.6.3"
+        "revision" : "ce592ae52f982c847a4efc0dd881cc9eb32d29f2",
+        "version" : "1.6.4"
       }
     },
     {
@@ -535,10 +535,10 @@
     {
       "identity" : "xcodegraph",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/tuist/XcodeGraph",
+      "location" : "https://github.com/Zentaur0/XcodeGraph",
       "state" : {
-        "revision" : "d65980cf291174ad007e8b265eab84590d0ea7e5",
-        "version" : "1.17.0"
+        "branch" : "feature/group-path-support",
+        "revision" : "d88aeaf2889e8ade58393d7b998a74871d938694"
       }
     },
     {
