@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.57.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* Add support for running macOS app via `tuist run` by [@pepicrft](https://github.com/pepicrft) in [#7956](https://github.com/tuist/tuist/pull/7956)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.56.1...4.57.0
+
 ## What's Changed in 4.56.1<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
