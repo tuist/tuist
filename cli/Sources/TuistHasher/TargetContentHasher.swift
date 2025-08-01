@@ -40,6 +40,7 @@ public final class TargetContentHasher: TargetContentHashing {
 
     public convenience init(contentHasher: ContentHashing) {
         let platformConditionContentHasher = PlatformConditionContentHasher(contentHasher: contentHasher)
+        let xcconfigHasher = XCConfigContentHasher(contentHasher: contentHasher)
         self.init(
             contentHasher: contentHasher,
             sourceFilesContentHasher: SourceFilesContentHasher(
@@ -56,7 +57,7 @@ public final class TargetContentHasher: TargetContentHashing {
             headersContentHasher: HeadersContentHasher(contentHasher: contentHasher),
             deploymentTargetContentHasher: DeploymentTargetsContentHasher(contentHasher: contentHasher),
             plistContentHasher: PlistContentHasher(contentHasher: contentHasher),
-            settingsContentHasher: SettingsContentHasher(contentHasher: contentHasher),
+            settingsContentHasher: SettingsContentHasher(contentHasher: contentHasher, xcconfigHasher: xcconfigHasher),
             dependenciesContentHasher: DependenciesContentHasher(contentHasher: contentHasher)
         )
     }
