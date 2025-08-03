@@ -65,7 +65,7 @@ defmodule TuistWeb.PreviewController do
       |> QRCode.render(:png)
 
     conn
-    |> put_resp_content_type("image/png")
+    |> put_resp_content_type("image/png", nil)
     |> send_resp(200, qr_code_image)
   end
 
@@ -82,7 +82,7 @@ defmodule TuistWeb.PreviewController do
 
     if Storage.object_exists?(object_key) do
       conn
-      |> put_resp_content_type("image/png")
+      |> put_resp_content_type("image/png", nil)
       |> send_chunked(:ok)
       |> stream_object(object_key)
     else
