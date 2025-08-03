@@ -32,7 +32,7 @@ struct BundleShowCommandServiceTests {
         given(configLoader).loadConfig(path: .value(directoryPath)).willReturn(tuist)
 
         // When
-        await #expect(throws: BundleShowServiceError.missingFullHandle, performing: {
+        await #expect(throws: BundleShowCommandServiceError.missingFullHandle, performing: {
             try await subject.run(
                 fullHandle: nil,
                 bundleId: "bundle-123",

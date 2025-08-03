@@ -6,45 +6,27 @@ import TuistLoader
 import TuistServer
 import TuistSupport
 
-protocol BundleListServicing {
+protocol BundleListCommandServicing {
     func run(
-        fullHandle: String,
+        fullHandle: String?,
         path: String?,
         gitBranch: String?,
         json: Bool
     ) async throws
 }
 
-enum BundleListServiceError: Equatable, FatalError, LocalizedError {
+enum BundleListCommandServiceError: Equatable, LocalizedError {
     case missingFullHandle
-    case unknownError(Int)
-    case unauthorized(String)
-    case forbidden(String)
 
-    var type: TuistSupport.ErrorType {
-        switch self {
-        case .missingFullHandle: .abort
-        case .unknownError, .unauthorized, .forbidden: .abort
-        }
-    }
-
-    var description: String {
+    var errorDescription: String? {
         switch self {
         case .missingFullHandle:
             return "We couldn't list bundles because the full handle is missing. You can pass either its value or a path to a Tuist project."
-        case let .unknownError(statusCode):
-            return "The bundles could not be listed due to an unknown Tuist response of \(statusCode)."
-        case let .unauthorized(message):
-            return message
-        case let .forbidden(message):
-            return message
         }
     }
-
-    var errorDescription: String? { description }
 }
 
-final class BundleListService: BundleListServicing {
+final class BundleListCommandService: BundleListCommandServicing {
     private let listBundlesService: ListBundlesServicing
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let configLoader: ConfigLoading
@@ -60,23 +42,18 @@ final class BundleListService: BundleListServicing {
     }
 
     func run(
-        fullHandle: String,
+        fullHandle: String?,
         path: String?,
         gitBranch: String?,
         json: Bool
     ) async throws {
-        let directoryPath: AbsolutePath
-        if let path {
-            directoryPath = try AbsolutePath(validating: path, relativeTo: FileHandler.shared.currentPath)
-        } else {
-            directoryPath = FileHandler.shared.currentPath
-        }
+        let directoryPath: AbsolutePath = try await Environment.current.pathRelativeToWorkingDirectory(path)
 
         let config = try await configLoader.loadConfig(path: directoryPath)
-        let resolvedFullHandle = fullHandle.isEmpty ? config.fullHandle : fullHandle
+        let resolvedFullHandle = fullHandle != nil ? fullHandle! : config.fullHandle
 
         guard let resolvedFullHandle else {
-            throw BundleListServiceError.missingFullHandle
+            throw BundleListCommandServiceError.missingFullHandle
         }
 
         let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
@@ -96,7 +73,7 @@ final class BundleListService: BundleListServicing {
 
         if bundles.isEmpty {
             let branchFilter = gitBranch.map { " for branch '\($0)'" } ?? ""
-            Logger.current.info("No bundles found for project \(resolvedFullHandle)\(branchFilter).")
+            Noora.current.passthrough("No bundles found for project \(resolvedFullHandle)\(branchFilter).")
             return
         }
 
