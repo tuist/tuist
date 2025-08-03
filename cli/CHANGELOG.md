@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.57.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* treat the new .icon asset as an opaque directory by [@fortmarek](https://github.com/fortmarek) in [#7965](https://github.com/tuist/tuist/pull/7965)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.57.0...4.57.1
+
 ## What's Changed in 4.57.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
