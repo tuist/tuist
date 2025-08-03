@@ -1,12 +1,18 @@
 import Foundation
 
 enum Formatters {
-    static func formatBytes(_ bytes: Int) -> String {
+enum Formatters {
+    private static let byteFormatter: ByteCountFormatter = {
         let formatter = ByteCountFormatter()
         formatter.allowedUnits = [.useAll]
         formatter.countStyle = .file
-        return formatter.string(fromByteCount: Int64(bytes))
+        return formatter
+    }()
+
+    static func formatBytes(_ bytes: Int) -> String {
+        return byteFormatter.string(fromByteCount: Int64(bytes))
     }
+}
 
     static func formatDate(_ date: Date) -> String {
         let formatter = DateFormatter()
