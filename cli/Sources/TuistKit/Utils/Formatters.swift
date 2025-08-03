@@ -14,10 +14,15 @@ enum Formatters {
     }
 }
 
-    static func formatDate(_ date: Date) -> String {
+    // Cache a single DateFormatter instance to avoid the cost of creating one on each call.
+    private static let dateFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.dateStyle = .medium
         formatter.timeStyle = .short
-        return formatter.string(from: date)
+        return formatter
+    }()
+
+    static func formatDate(_ date: Date) -> String {
+        return dateFormatter.string(from: date)
     }
 }
