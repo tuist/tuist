@@ -1,11 +1,11 @@
 import Foundation
+import Mockable
 import Noora
 import OpenAPIURLSession
 import Path
 import TuistLoader
 import TuistServer
 import TuistSupport
-import Mockable
 
 @Mockable
 protocol BundleShowCommandServicing {
@@ -57,12 +57,7 @@ final class BundleShowCommandService: BundleShowCommandServicing {
         path: String?,
         json: Bool
     ) async throws {
-        let directoryPath: AbsolutePath
-        if let path {
-            directoryPath = try AbsolutePath(validating: path, relativeTo: FileHandler.shared.currentPath)
-        } else {
-            directoryPath = FileHandler.shared.currentPath
-        }
+        let directoryPath: AbsolutePath = try await Environment.current.pathRelativeToWorkingDirectory(path)
 
         let config = try await configLoader.loadConfig(path: directoryPath)
         let resolvedFullHandle = fullHandle != nil ? fullHandle! : config.fullHandle
@@ -88,7 +83,7 @@ final class BundleShowCommandService: BundleShowCommandServicing {
         Noora.current.passthrough("\(bundleInfo)")
     }
 
-    private func formatBundleInfo(_ bundle: ServerBundle) -> String {
+    func formatBundleInfo(_ bundle: ServerBundle) -> String {
         var info = [
             "Bundle".bold(),
             "ID: \(bundle.id)",
