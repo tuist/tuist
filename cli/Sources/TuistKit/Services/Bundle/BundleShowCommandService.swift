@@ -17,21 +17,13 @@ protocol BundleShowCommandServicing {
     ) async throws
 }
 
-enum BundleShowServiceError: Equatable, LocalizedError {
+enum BundleShowCommandServiceError: Equatable, LocalizedError {
     case missingFullHandle
-    case unknownError(Int)
-    case notFound(String)
-    case forbidden(String)
-    case unauthorized(String)
 
     var errorDescription: String? {
         switch self {
         case .missingFullHandle:
             return "We couldn't show the bundle because the full handle is missing. You can pass either its value or a path to a Tuist project."
-        case let .unknownError(statusCode):
-            return "We could not get the bundle due to an unknown Tuist response of \(statusCode)."
-        case let .forbidden(message), let .notFound(message), let .unauthorized(message):
-            return message
         }
     }
 }
@@ -63,7 +55,7 @@ final class BundleShowCommandService: BundleShowCommandServicing {
         let resolvedFullHandle = fullHandle != nil ? fullHandle! : config.fullHandle
 
         guard let resolvedFullHandle else {
-            throw BundleShowServiceError.missingFullHandle
+            throw BundleShowCommandServiceError.missingFullHandle
         }
 
         let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
