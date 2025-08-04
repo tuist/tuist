@@ -5,74 +5,58 @@ defmodule Tuist.QA.RunStepTest do
   alias TuistTestSupport.Fixtures.QAFixtures
 
   describe "changeset/2" do
-    test "changeset is valid with valid attributes" do
-      # Given
+    setup do
       qa_run = QAFixtures.qa_run_fixture()
 
+      valid_attrs = %{
+        qa_run_id: qa_run.id,
+        summary: "Successfully completed test step",
+        description: "Detailed description of the test step execution",
+        issues: ["Issue 1", "Issue 2"]
+      }
+
+      {:ok, qa_run: qa_run, valid_attrs: valid_attrs}
+    end
+
+    test "changeset is valid with all required attributes", %{valid_attrs: valid_attrs} do
       # When
-      changeset =
-        RunStep.changeset(%RunStep{}, %{
-          qa_run_id: qa_run.id,
-          summary: "Successfully completed test step"
-        })
+      changeset = RunStep.changeset(%RunStep{}, valid_attrs)
 
       # Then
       assert changeset.valid?
     end
 
-    test "changeset is invalid without qa_run_id" do
+    test "changeset is invalid without qa_run_id", %{valid_attrs: valid_attrs} do
+      # Given
+      attrs = Map.delete(valid_attrs, :qa_run_id)
+
       # When
-      changeset =
-        RunStep.changeset(%RunStep{}, %{
-          summary: "Successfully completed test step"
-        })
+      changeset = RunStep.changeset(%RunStep{}, attrs)
 
       # Then
       assert changeset.valid? == false
       assert "can't be blank" in errors_on(changeset).qa_run_id
     end
 
-    test "changeset is invalid without summary" do
+    test "changeset is invalid without summary", %{valid_attrs: valid_attrs} do
       # Given
-      qa_run = QAFixtures.qa_run_fixture()
+      attrs = Map.delete(valid_attrs, :summary)
 
       # When
-      changeset =
-        RunStep.changeset(%RunStep{}, %{
-          qa_run_id: qa_run.id
-        })
+      changeset = RunStep.changeset(%RunStep{}, attrs)
 
       # Then
       assert changeset.valid? == false
       assert "can't be blank" in errors_on(changeset).summary
     end
 
-    test "changeset is invalid with empty summary" do
-      # Given
-      qa_run = QAFixtures.qa_run_fixture()
-
-      # When
-      changeset =
-        RunStep.changeset(%RunStep{}, %{
-          qa_run_id: qa_run.id,
-          summary: ""
-        })
-
-      # Then
-      assert changeset.valid? == false
-      assert "can't be blank" in errors_on(changeset).summary
-    end
-
-    test "changeset is invalid with non-existent qa_run_id" do
+    test "changeset is invalid with non-existent qa_run_id", %{valid_attrs: valid_attrs} do
       # Given
       non_existent_id = Ecto.UUID.generate()
+      attrs = Map.put(valid_attrs, :qa_run_id, non_existent_id)
 
       # When
-      changeset =
-        RunStep.changeset(%RunStep{}, %{
-          qa_run_id: non_existent_id,
-          summary: "Test summary"
-        })
+      changeset = RunStep.changeset(%RunStep{}, attrs)
 
       # Then
       assert changeset.valid?
@@ -82,21 +66,52 @@ defmodule Tuist.QA.RunStepTest do
       assert "does not exist" in errors_on(changeset_with_error).qa_run_id
     end
 
-    test "changeset accepts long summary text" do
+    test "changeset is invalid without description", %{valid_attrs: valid_attrs} do
       # Given
-      qa_run = QAFixtures.qa_run_fixture()
-      long_summary = String.duplicate("This is a very long summary. ", 100)
+      attrs = Map.delete(valid_attrs, :description)
 
       # When
-      changeset =
-        RunStep.changeset(%RunStep{}, %{
-          qa_run_id: qa_run.id,
-          summary: long_summary
-        })
+      changeset = RunStep.changeset(%RunStep{}, attrs)
+
+      # Then
+      assert changeset.valid? == false
+      assert "can't be blank" in errors_on(changeset).description
+    end
+
+    test "changeset is invalid without issues", %{valid_attrs: valid_attrs} do
+      # Given
+      attrs = Map.delete(valid_attrs, :issues)
+
+      # When
+      changeset = RunStep.changeset(%RunStep{}, attrs)
+
+      # Then
+      assert changeset.valid? == false
+      assert "can't be blank" in errors_on(changeset).issues
+    end
+
+    test "changeset is invalid with empty description", %{valid_attrs: valid_attrs} do
+      # Given
+      attrs = Map.put(valid_attrs, :description, "")
+
+      # When
+      changeset = RunStep.changeset(%RunStep{}, attrs)
+
+      # Then
+      assert changeset.valid? == false
+      assert "can't be blank" in errors_on(changeset).description
+    end
+
+    test "changeset accepts empty issues array", %{valid_attrs: valid_attrs} do
+      # Given
+      attrs = Map.put(valid_attrs, :issues, [])
+
+      # When
+      changeset = RunStep.changeset(%RunStep{}, attrs)
 
       # Then
       assert changeset.valid?
-      assert changeset.changes.summary == long_summary
+      assert changeset.changes.issues == []
     end
   end
 end

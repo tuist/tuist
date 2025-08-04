@@ -3,9 +3,23 @@ defmodule Tuist.QA.ToolsTest do
   use Mimic
 
   alias LangChain.Message.ContentPart
+  alias Tuist.QA.Client
   alias Tuist.QA.Tools
 
   setup :verify_on_exit!
+
+  setup do
+    tools =
+      Tools.tools(%{
+        server_url: "http://test.com",
+        run_id: "test-run-id",
+        auth_token: "test-token",
+        account_handle: "test-account",
+        project_handle: "test-project"
+      })
+
+    %{tools: tools}
+  end
 
   describe "tools/0" do
     test "returns list of all available tools" do
@@ -26,7 +40,15 @@ defmodule Tuist.QA.ToolsTest do
       ]
 
       # When
-      tools = Tools.tools()
+      tools =
+        Tools.tools(%{
+          server_url: "http://test.com",
+          run_id: "test-run-id",
+          auth_token: "test-token",
+          account_handle: "test-account",
+          project_handle: "test-project"
+        })
+
       tool_names = Enum.map(tools, & &1.name)
 
       # Then
@@ -39,7 +61,7 @@ defmodule Tuist.QA.ToolsTest do
   end
 
   describe "describe_ui tool" do
-    test "successfully runs axe describe-ui command" do
+    test "successfully runs axe describe-ui command", %{tools: tools} do
       # Given
       simulator_uuid = "test-uuid"
 
@@ -55,7 +77,7 @@ defmodule Tuist.QA.ToolsTest do
         {ui_output, 0}
       end)
 
-      [describe_ui_tool | _] = Tools.tools()
+      describe_ui_tool = Enum.find(tools, &(&1.name == "describe_ui"))
 
       # When
       result = describe_ui_tool.function.(%{"simulator_uuid" => simulator_uuid}, nil)
@@ -64,7 +86,7 @@ defmodule Tuist.QA.ToolsTest do
       assert {:ok, _simplified_ui} = result
     end
 
-    test "returns error when axe command fails" do
+    test "returns error when axe command fails", %{tools: tools} do
       # Given
       simulator_uuid = "test-uuid"
 
@@ -72,7 +94,7 @@ defmodule Tuist.QA.ToolsTest do
         {"Command failed", 1}
       end)
 
-      [describe_ui_tool | _] = Tools.tools()
+      describe_ui_tool = Enum.find(tools, &(&1.name == "describe_ui"))
 
       # When
       result = describe_ui_tool.function.(%{"simulator_uuid" => simulator_uuid}, nil)
@@ -81,7 +103,7 @@ defmodule Tuist.QA.ToolsTest do
       assert {:error, "axe command failed (status 1): Command failed"} = result
     end
 
-    test "describes UI and simplifies AXe output" do
+    test "describes UI and simplifies AXe output", %{tools: tools} do
       # Given
       simulator_uuid = "test-uuid"
 
@@ -164,7 +186,7 @@ defmodule Tuist.QA.ToolsTest do
         {ui_output, 0}
       end)
 
-      [describe_ui_tool | _] = Tools.tools()
+      describe_ui_tool = Enum.find(tools, &(&1.name == "describe_ui"))
 
       # When
       result = describe_ui_tool.function.(%{"simulator_uuid" => simulator_uuid}, nil)
@@ -196,7 +218,7 @@ defmodule Tuist.QA.ToolsTest do
   end
 
   describe "tap tool" do
-    test "successfully runs axe tap command" do
+    test "successfully runs axe tap command", %{tools: tools} do
       # Given
       simulator_uuid = "test-uuid"
       x = 100
@@ -206,7 +228,7 @@ defmodule Tuist.QA.ToolsTest do
         {"Tap completed", 0}
       end)
 
-      tap_tool = Enum.find(Tools.tools(), &(&1.name == "tap"))
+      tap_tool = Enum.find(tools, &(&1.name == "tap"))
 
       # When
       result = tap_tool.function.(%{"simulator_uuid" => simulator_uuid, "x" => x, "y" => y}, nil)
@@ -215,7 +237,7 @@ defmodule Tuist.QA.ToolsTest do
       assert {:ok, "Tap completed"} = result
     end
 
-    test "returns error when tap command fails" do
+    test "returns error when tap command fails", %{tools: tools} do
       # Given
       simulator_uuid = "test-uuid"
 
@@ -223,7 +245,7 @@ defmodule Tuist.QA.ToolsTest do
         {"Tap failed", 1}
       end)
 
-      tap_tool = Enum.find(Tools.tools(), &(&1.name == "tap"))
+      tap_tool = Enum.find(tools, &(&1.name == "tap"))
 
       # When
       result = tap_tool.function.(%{"simulator_uuid" => simulator_uuid, "x" => 100, "y" => 200}, nil)
@@ -234,9 +256,87 @@ defmodule Tuist.QA.ToolsTest do
   end
 
   describe "screenshot tool" do
-    test "successfully captures screenshot without file path" do
+    test "successfully captures and uploads screenshot", %{tools: tools} do
       # Given
       simulator_uuid = "test-uuid"
+      name = "login_screen"
+      title = "Login Screen"
+      temp_path = "/tmp/screenshot.png"
+      image_data = <<137, 80, 78, 71, 13, 10, 26, 10>>
+      upload_url = "https://s3.example.com/upload-url"
+
+      expect(Briefly, :create, fn -> {:ok, temp_path} end)
+
+      expect(System, :cmd, fn "xcrun", ["simctl", "io", ^simulator_uuid, "screenshot", ^temp_path] ->
+        {"", 0}
+      end)
+
+      expect(File, :read, fn ^temp_path -> {:ok, image_data} end)
+
+      expect(Client, :screenshot_upload, fn %{
+                                              file_name: ^name,
+                                              title: ^title,
+                                              server_url: "http://test.com",
+                                              run_id: "test-run-id",
+                                              auth_token: "test-token",
+                                              account_handle: "test-account",
+                                              project_handle: "test-project"
+                                            } ->
+        {:ok, %{"url" => upload_url}}
+      end)
+
+      expect(Req, :put, fn ^upload_url, [body: ^image_data, headers: [{"Content-Type", "image/png"}]] ->
+        {:ok, %{status: 200}}
+      end)
+
+      expect(Client, :create_screenshot, fn %{
+                                              file_name: ^name,
+                                              title: ^title,
+                                              server_url: "http://test.com",
+                                              run_id: "test-run-id",
+                                              auth_token: "test-token",
+                                              account_handle: "test-account",
+                                              project_handle: "test-project"
+                                            } ->
+        :ok
+      end)
+
+      screenshot_tool = Enum.find(tools, &(&1.name == "screenshot"))
+
+      # When
+      result = screenshot_tool.function.(%{"simulator_uuid" => simulator_uuid, "file_name" => name, "title" => title}, nil)
+
+      # Then
+      assert {:ok, %ContentPart{}} = result
+    end
+
+    test "returns error when screenshot command fails", %{tools: tools} do
+      # Given
+      simulator_uuid = "test-uuid"
+      name = "error_screen"
+      title = "Error Screen"
+      temp_path = "/tmp/screenshot.png"
+
+      expect(Briefly, :create, fn -> {:ok, temp_path} end)
+
+      expect(System, :cmd, fn "xcrun", _ ->
+        {"Screenshot failed", 1}
+      end)
+
+      screenshot_tool = Enum.find(tools, &(&1.name == "screenshot"))
+
+      # When
+      result = screenshot_tool.function.(%{"simulator_uuid" => simulator_uuid, "file_name" => name, "title" => title}, nil)
+
+      # Then
+      assert {:error, _} = result
+    end
+
+    test "returns error when upload URL request fails", %{tools: tools} do
+      # Given
+      simulator_uuid = "test-uuid"
+      name = "failed_screen"
+      title = "Failed Screen"
       temp_path = "/tmp/screenshot.png"
       image_data = <<137, 80, 78, 71, 13, 10, 26, 10>>
 
@@ -248,59 +348,30 @@ defmodule Tuist.QA.ToolsTest do
 
       expect(File, :read, fn ^temp_path -> {:ok, image_data} end)
 
-      screenshot_tool = Enum.find(Tools.tools(), &(&1.name == "screenshot"))
-
-      # When
-      result = screenshot_tool.function.(%{"simulator_uuid" => simulator_uuid}, nil)
-
-      # Then
-      assert {:ok, %ContentPart{}} = result
-    end
-
-    test "successfully captures screenshot with custom file path" do
-      # Given
-      simulator_uuid = "test-uuid"
-      file_path = "/tmp/screenshots/test.png"
-      image_data = <<137, 80, 78, 71, 13, 10, 26, 10>>
-
-      expect(System, :cmd, fn "xcrun", ["simctl", "io", ^simulator_uuid, "screenshot", ^file_path] ->
-        {"", 0}
+      expect(Client, :screenshot_upload, fn %{
+                                              file_name: ^name,
+                                              title: ^title,
+                                              server_url: "http://test.com",
+                                              run_id: "test-run-id",
+                                              auth_token: "test-token",
+                                              account_handle: "test-account",
+                                              project_handle: "test-project"
+                                            } ->
+        {:error, "Server returned unexpected status 500"}
       end)
 
-      expect(File, :read, fn ^file_path -> {:ok, image_data} end)
-
-      screenshot_tool = Enum.find(Tools.tools(), &(&1.name == "screenshot"))
+      screenshot_tool = Enum.find(tools, &(&1.name == "screenshot"))
 
       # When
-      result = screenshot_tool.function.(%{"simulator_uuid" => simulator_uuid, "file_path" => file_path}, nil)
+      result = screenshot_tool.function.(%{"simulator_uuid" => simulator_uuid, "file_name" => name, "title" => title}, nil)
 
       # Then
-      assert {:ok, %ContentPart{}} = result
-    end
-
-    test "returns error when screenshot command fails" do
-      # Given
-      simulator_uuid = "test-uuid"
-      temp_path = "/tmp/screenshot.png"
-
-      expect(Briefly, :create, fn -> {:ok, temp_path} end)
-
-      expect(System, :cmd, fn "xcrun", _ ->
-        {"Screenshot failed", 1}
-      end)
-
-      screenshot_tool = Enum.find(Tools.tools(), &(&1.name == "screenshot"))
-
-      # When
-      result = screenshot_tool.function.(%{"simulator_uuid" => simulator_uuid}, nil)
-
-      # Then
-      assert {:error, "Failed to capture screenshot: Screenshot failed"} = result
+      assert {:error, _} = result
     end
   end
 
   describe "type_text tool" do
-    test "successfully types text" do
+    test "successfully types text", %{tools: tools} do
       # Given
       simulator_uuid = "test-uuid"
       text = "Hello World"
@@ -309,7 +380,7 @@ defmodule Tuist.QA.ToolsTest do
         {"Text typed", 0}
       end)
 
-      type_text_tool = Enum.find(Tools.tools(), &(&1.name == "type_text"))
+      type_text_tool = Enum.find(tools, &(&1.name == "type_text"))
 
       # When
       result = type_text_tool.function.(%{"simulator_uuid" => simulator_uuid, "text" => text}, nil)
@@ -320,7 +391,7 @@ defmodule Tuist.QA.ToolsTest do
   end
 
   describe "swipe tool" do
-    test "successfully performs swipe with default duration" do
+    test "successfully performs swipe with default duration", %{tools: tools} do
       # Given
       simulator_uuid = "test-uuid"
       from_x = 100
@@ -347,7 +418,7 @@ defmodule Tuist.QA.ToolsTest do
         {"Swipe completed", 0}
       end)
 
-      swipe_tool = Enum.find(Tools.tools(), &(&1.name == "swipe"))
+      swipe_tool = Enum.find(tools, &(&1.name == "swipe"))
 
       # When
       result =
@@ -363,10 +434,10 @@ defmodule Tuist.QA.ToolsTest do
         )
 
       # Then
-      assert {:ok, "Swipe completed"} = result
+      assert {:ok, "Swipe was successful"} = result
     end
 
-    test "successfully performs swipe with custom duration" do
+    test "successfully performs swipe with custom duration", %{tools: tools} do
       # Given
       simulator_uuid = "test-uuid"
       duration = 1.5
@@ -390,7 +461,7 @@ defmodule Tuist.QA.ToolsTest do
         {"Swipe completed", 0}
       end)
 
-      swipe_tool = Enum.find(Tools.tools(), &(&1.name == "swipe"))
+      swipe_tool = Enum.find(tools, &(&1.name == "swipe"))
 
       # When
       result =
@@ -407,12 +478,12 @@ defmodule Tuist.QA.ToolsTest do
         )
 
       # Then
-      assert {:ok, "Swipe completed"} = result
+      assert {:ok, "Swipe was successful"} = result
     end
   end
 
   describe "gesture tool" do
-    test "successfully performs scroll-up gesture" do
+    test "successfully performs scroll-up gesture", %{tools: tools} do
       # Given
       simulator_uuid = "test-uuid"
       preset = "scroll-up"
@@ -421,7 +492,7 @@ defmodule Tuist.QA.ToolsTest do
         {"Gesture completed", 0}
       end)
 
-      gesture_tool = Enum.find(Tools.tools(), &(&1.name == "gesture"))
+      gesture_tool = Enum.find(tools, &(&1.name == "gesture"))
 
       params = %{
         "simulator_uuid" => simulator_uuid,
@@ -432,10 +503,10 @@ defmodule Tuist.QA.ToolsTest do
       result = gesture_tool.function.(params, nil)
 
       # Then
-      assert {:ok, "Gesture completed"} = result
+      assert {:ok, "Gesture was successful"} = result
     end
 
-    test "successfully performs gesture with optional parameters" do
+    test "successfully performs gesture with optional parameters", %{tools: tools} do
       # Given
       simulator_uuid = "test-uuid"
       preset = "scroll-down"
@@ -456,7 +527,7 @@ defmodule Tuist.QA.ToolsTest do
         {"Gesture completed", 0}
       end)
 
-      gesture_tool = Enum.find(Tools.tools(), &(&1.name == "gesture"))
+      gesture_tool = Enum.find(tools, &(&1.name == "gesture"))
 
       # When
       result =
@@ -471,12 +542,12 @@ defmodule Tuist.QA.ToolsTest do
         )
 
       # Then
-      assert {:ok, "Gesture completed"} = result
+      assert {:ok, "Gesture was successful"} = result
     end
   end
 
   describe "button tool" do
-    test "successfully presses home button" do
+    test "successfully presses home button", %{tools: tools} do
       # Given
       simulator_uuid = "test-uuid"
       button = "home"
@@ -485,7 +556,7 @@ defmodule Tuist.QA.ToolsTest do
         {"Button pressed", 0}
       end)
 
-      button_tool = Enum.find(Tools.tools(), &(&1.name == "button"))
+      button_tool = Enum.find(tools, &(&1.name == "button"))
 
       # When
       result = button_tool.function.(%{"simulator_uuid" => simulator_uuid, "button" => button}, nil)
@@ -496,30 +567,128 @@ defmodule Tuist.QA.ToolsTest do
   end
 
   describe "step_finished tool" do
-    test "returns confirmation message" do
+    test "returns confirmation message on success", %{tools: tools} do
       # Given
       summary = "Successfully completed login test"
-      step_finished_tool = Enum.find(Tools.tools(), &(&1.name == "step_finished"))
+      description = "User successfully entered credentials and was able to access the main dashboard"
+      issues = ["Minor UI alignment issue in login button"]
+
+      expect(Client, :create_step, fn %{
+                                        summary: ^summary,
+                                        description: ^description,
+                                        issues: ^issues,
+                                        server_url: "http://test.com",
+                                        run_id: "test-run-id",
+                                        auth_token: "test-token",
+                                        account_handle: "test-account",
+                                        project_handle: "test-project"
+                                      } ->
+        :ok
+      end)
+
+      step_finished_tool = Enum.find(tools, &(&1.name == "step_finished"))
 
       # When
-      result = step_finished_tool.function.(%{"summary" => summary}, nil)
+      result =
+        step_finished_tool.function.(
+          %{
+            "summary" => summary,
+            "description" => description,
+            "issues" => issues
+          },
+          nil
+        )
 
       # Then
-      assert {:ok, "Step finished. Continue with your testing."} = result
+      assert {:ok,
+              "Step finished and reported. Screenshots have been associated with this step. Continue with your testing."} =
+               result
+    end
+
+    test "returns error on failure", %{tools: tools} do
+      # Given
+      summary = "Failed test step"
+      description = "Test failed due to timeout"
+      issues = ["Timeout error", "Server unresponsive"]
+
+      expect(Client, :create_step, fn %{
+                                        summary: ^summary,
+                                        description: ^description,
+                                        issues: ^issues,
+                                        server_url: "http://test.com",
+                                        run_id: "test-run-id",
+                                        auth_token: "test-token",
+                                        account_handle: "test-account",
+                                        project_handle: "test-project"
+                                      } ->
+        {:error, "Server returned unexpected status 500"}
+      end)
+
+      step_finished_tool = Enum.find(tools, &(&1.name == "step_finished"))
+
+      # When
+      result =
+        step_finished_tool.function.(
+          %{
+            "summary" => summary,
+            "description" => description,
+            "issues" => issues
+          },
+          nil
+        )
+
+      # Then
+      assert {:error, "Failed to report step: Server returned unexpected status 500"} = result
     end
   end
 
   describe "finalize tool" do
-    test "returns summary and status" do
+    test "returns summary and status on success", %{tools: tools} do
       # Given
       summary = "Test completed successfully"
-      finalize_tool = Enum.find(Tools.tools(), &(&1.name == "finalize"))
+
+      expect(Client, :finalize_run, fn %{
+                                         summary: ^summary,
+                                         server_url: "http://test.com",
+                                         run_id: "test-run-id",
+                                         auth_token: "test-token",
+                                         account_handle: "test-account",
+                                         project_handle: "test-project"
+                                       } ->
+        {:ok, "success"}
+      end)
+
+      finalize_tool = Enum.find(tools, &(&1.name == "finalize"))
 
       # When
       result = finalize_tool.function.(%{"summary" => summary}, nil)
 
       # Then
-      assert {:ok, "QA test run finished successfully."} = result
+      assert {:ok, "QA test run finished successfully and status updated."} = result
+    end
+
+    test "returns error on failure", %{tools: tools} do
+      # Given
+      summary = "Failed test run"
+
+      expect(Client, :finalize_run, fn %{
+                                         summary: ^summary,
+                                         server_url: "http://test.com",
+                                         run_id: "test-run-id",
+                                         auth_token: "test-token",
+                                         account_handle: "test-account",
+                                         project_handle: "test-project"
+                                       } ->
+        {:error, "Server returned unexpected status 404"}
+      end)
+
+      finalize_tool = Enum.find(tools, &(&1.name == "finalize"))
+
+      # When
+      result = finalize_tool.function.(%{"summary" => summary}, nil)
+
+      # Then
+      assert {:error, "Failed to update run status: Server returned unexpected status 404"} = result
     end
   end
 end

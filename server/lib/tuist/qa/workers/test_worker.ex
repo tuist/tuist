@@ -1,6 +1,6 @@
 defmodule Tuist.QA.Workers.TestWorker do
   @moduledoc """
-  A worker that adds a new Swift package and populates all its releases.
+  A worker that performs tests on a given app build and a given prompt.
   """
   use Oban.Worker,
     unique: [

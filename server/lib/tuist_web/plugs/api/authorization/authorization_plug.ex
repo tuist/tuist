@@ -13,6 +13,9 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
   def init(:cache), do: :cache
   def init(:preview), do: :preview
   def init(:registry), do: :registry
+  def init(:qa_run), do: :qa_run
+  def init(:qa_run_step), do: :qa_run_step
+  def init(:qa_screenshot), do: :qa_screenshot
 
   def init(opts) when is_list(opts) do
     opts
@@ -34,6 +37,15 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
 
       :registry ->
         authorize_account(conn, :registry)
+
+      :qa_run ->
+        authorize_project(conn, :qa_run)
+
+      :qa_run_step ->
+        authorize_project(conn, :qa_run_step)
+
+      :qa_screenshot ->
+        authorize_project(conn, :qa_screenshot)
     end
   end
 
@@ -75,10 +87,16 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
     subject =
       Authentication.authenticated_subject(conn)
 
+    subject_id = case subject do
+      %{id: id} -> id
+      %{account: %{id: id}} -> id
+      _ -> "unknown"
+    end
+
     cache_key = [
       Atom.to_string(__MODULE__),
       "authorize",
-      "#{Atom.to_string(subject.__struct__)}-#{subject.id}",
+      "#{Atom.to_string(subject.__struct__)}-#{subject_id}",
       "#{Atom.to_string(selected_project.__struct__)}-#{selected_project.id}"
     ]
 
@@ -160,6 +178,18 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
     Authorization.can?(:project_preview_delete, subject, project)
   end
 
+  def authorize(subject, :create, project, :qa_run_step) do
+    Authorization.can?(:project_qa_run_step_create, subject, project)
+  end
+
+  def authorize(subject, :update, project, :qa_run) do
+    Authorization.can?(:project_qa_run_update, subject, project)
+  end
+
+  def authorize(subject, :create, project, :qa_screenshot) do
+    Authorization.can?(:project_qa_screenshot_create, subject, project)
+  end
+
   def authorize(subject, action, project, category) do
     Authorization.can(subject, action, project, category)
   end
@@ -169,6 +199,7 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
       "POST" -> :create
       "GET" -> :read
       "PUT" -> :update
+      "PATCH" -> :update
       "DELETE" -> :delete
     end
   end

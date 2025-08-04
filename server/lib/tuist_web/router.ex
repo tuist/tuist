@@ -231,11 +231,6 @@ defmodule TuistWeb.Router do
         alias: TuistWeb.API,
         assigns: %{caching: not Tuist.Environment.test?(), cache_ttl: to_timeout(minute: 1)} do
     pipe_through [:open_api, :authenticated_api, :on_premise_api]
-    
-    scope "/qa" do
-      post "/runs/:run_id/steps", QAController, :create_step
-      patch "/runs/:run_id", QAController, :update_run
-    end
 
     scope "/accounts/:account_handle" do
       patch "/", AccountController, :update_account
@@ -287,6 +282,13 @@ defmodule TuistWeb.Router do
           get "/:preview_id", PreviewsController, :show
           get "/", PreviewsController, :index
           delete "/:preview_id", PreviewsController, :delete
+        end
+
+        scope "/qa" do
+          post "/runs/:qa_run_id/steps", QAController, :create_step
+          patch "/runs/:qa_run_id", QAController, :update_run
+          post "/runs/:qa_run_id/screenshots/upload", QAController, :screenshot_upload
+          post "/runs/:qa_run_id/screenshots", QAController, :create_screenshot
         end
 
         scope "/tokens" do

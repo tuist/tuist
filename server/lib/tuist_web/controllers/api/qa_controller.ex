@@ -1,101 +1,180 @@
 defmodule TuistWeb.API.QAController do
   use TuistWeb, :controller
 
-  alias Tuist.Authorization
   alias Tuist.QA
-  alias TuistWeb.Authentication
+  alias Tuist.Storage
+  alias TuistWeb.API.Authorization.AuthorizationPlug
+  alias TuistWeb.Plugs.LoaderPlug
 
-  @spec create_step(Plug.Conn.t(), map()) :: Plug.Conn.t()
-  def create_step(conn, %{"run_id" => run_id, "summary" => summary}) do
-    with {:ok, qa_run} <- QA.qa_run(run_id),
-         qa_run = Tuist.Repo.preload(qa_run, app_build: [preview: :project]),
-         project = qa_run.app_build.preview.project,
-         subject = Authentication.authenticated_subject(conn),
-         :ok <- Authorization.authorize(:project_qa_run_step_create, subject, project),
-         {:ok, qa_run_step} <-
-           QA.create_qa_run_step(%{
-             qa_run_id: qa_run.id,
-             summary: summary
-           }) do
-      conn
-      |> put_status(:created)
-      |> json(%{
-        id: qa_run_step.id,
-        qa_run_id: qa_run_step.qa_run_id,
-        summary: qa_run_step.summary,
-        inserted_at: qa_run_step.inserted_at
-      })
-    else
-      {:error, :not_found} ->
+  plug LoaderPlug
+  plug :load_qa_run
+  plug AuthorizationPlug, :qa_run_step when action in [:create_step]
+  plug AuthorizationPlug, :qa_run when action in [:update_run]
+  plug AuthorizationPlug, :qa_screenshot when action in [:screenshot_upload, :create_screenshot]
+
+  defp load_qa_run(%{assigns: %{selected_project: project}} = conn, _opts) do
+    case conn.path_params do
+      %{"qa_run_id" => run_id} ->
+        case QA.qa_run(run_id, preload: [app_build: [preview: :project]]) do
+          {:ok, qa_run} ->
+            if qa_run.app_build.preview.project.id == project.id do
+              assign(conn, :selected_qa_run, qa_run)
+            else
+              conn
+              |> put_status(:not_found)
+              |> json(%{error: "QA run not found"})
+              |> halt()
+            end
+
+          {:error, :not_found} ->
+            conn
+            |> put_status(:not_found)
+            |> json(%{error: "QA run not found"})
+            |> halt()
+        end
+
+      _ ->
         conn
-        |> put_status(:not_found)
-        |> json(%{error: "QA run not found"})
-
-      {:error, :forbidden} ->
-        conn
-        |> put_status(:forbidden)
-        |> json(%{error: "Forbidden"})
-
-      {:error, changeset} ->
-        errors = Ecto.Changeset.traverse_errors(changeset, fn {message, _opts} -> message end)
-
-        conn
-        |> put_status(:unprocessable_entity)
-        |> json(%{error: "Validation failed", details: errors})
     end
   end
 
-  def create_step(conn, _params) do
-    conn
-    |> put_status(:bad_request)
-    |> json(%{error: "Missing required parameter: summary"})
-  end
+  def create_step(conn, %{"summary" => summary, "description" => description, "issues" => issues}) do
+    %{selected_qa_run: qa_run} = conn.assigns
 
-  @spec update_run(Plug.Conn.t(), map()) :: Plug.Conn.t()
-  def update_run(conn, %{"run_id" => run_id, "status" => status} = params) when status in ["completed", "failed"] do
-    with {:ok, qa_run} <- QA.qa_run(run_id),
-         qa_run = Tuist.Repo.preload(qa_run, app_build: [preview: :project]),
-         project = qa_run.app_build.preview.project,
-         subject = Authentication.authenticated_subject(conn),
-         :ok <- Authorization.authorize(:project_qa_run_update, subject, project),
-         {:ok, updated_qa_run} <- QA.update_qa_run(qa_run, %{status: status, summary: Map.get(params, "summary")}) do
-      conn
-      |> put_status(:ok)
-      |> json(%{
-        id: updated_qa_run.id,
-        status: updated_qa_run.status,
-        summary: updated_qa_run.summary,
-        updated_at: updated_qa_run.updated_at
-      })
-    else
-      {:error, :not_found} ->
-        conn
-        |> put_status(:not_found)
-        |> json(%{error: "QA run not found"})
+    case QA.create_qa_run_step(%{
+           qa_run_id: qa_run.id,
+           summary: summary,
+           description: description,
+           issues: issues
+         }) do
+      {:ok, qa_run_step} ->
+        QA.update_screenshots_with_step_id(qa_run.id, qa_run_step.id)
 
-      {:error, :forbidden} ->
         conn
-        |> put_status(:forbidden)
-        |> json(%{error: "Forbidden"})
+        |> put_status(:created)
+        |> json(%{
+          id: qa_run_step.id,
+          qa_run_id: qa_run_step.qa_run_id,
+          summary: qa_run_step.summary,
+          description: qa_run_step.description,
+          issues: qa_run_step.issues,
+          inserted_at: qa_run_step.inserted_at
+        })
 
       {:error, changeset} ->
-        errors = Ecto.Changeset.traverse_errors(changeset, fn {message, _opts} -> message end)
+        message =
+          changeset
+          |> Ecto.Changeset.traverse_errors(fn {message, _opts} -> message end)
+          |> Enum.flat_map(fn {_key, value} -> value end)
+          |> Enum.join(", ")
 
         conn
-        |> put_status(:unprocessable_entity)
-        |> json(%{error: "Validation failed", details: errors})
+        |> put_status(:bad_request)
+        |> json(%{
+          message: "QA step #{message}"
+        })
     end
   end
 
-  def update_run(conn, %{"status" => status}) when status not in ["completed", "failed"] do
-    conn
-    |> put_status(:bad_request)
-    |> json(%{error: "Invalid status. Only 'completed' and 'failed' are allowed."})
+  def update_run(conn, %{"status" => status} = params) do
+    %{selected_qa_run: qa_run} = conn.assigns
+
+    case QA.update_qa_run(qa_run, %{status: status, summary: Map.get(params, "summary")}) do
+      {:ok, updated_qa_run} ->
+        conn
+        |> put_status(:ok)
+        |> json(%{
+          id: updated_qa_run.id,
+          status: updated_qa_run.status,
+          summary: updated_qa_run.summary,
+          updated_at: updated_qa_run.updated_at
+        })
+
+      {:error, changeset} ->
+        conn
+        |> put_status(:unprocessable_entity)
+        |> json(%{
+          error: "Validation failed",
+          details: Ecto.Changeset.traverse_errors(changeset, fn {msg, _} -> msg end)
+        })
+    end
   end
 
-  def update_run(conn, _params) do
+  def update_run(conn, %{"qa_run_id" => _run_id} = params) do
+    if Map.has_key?(params, "status") do
+      # Validate status values
+      status = params["status"]
+
+      if status in ["completed", "failed"] do
+        conn
+        |> put_status(:unprocessable_entity)
+        |> json(%{error: "Validation failed", details: "Invalid status value"})
+      else
+        conn
+        |> put_status(:bad_request)
+        |> json(%{error: "Invalid status. Only 'completed' and 'failed' are allowed."})
+      end
+    else
+      conn
+      |> put_status(:bad_request)
+      |> json(%{error: "Missing required parameter: status"})
+    end
+  end
+
+  def screenshot_upload(conn, %{"qa_run_id" => run_id, "file_name" => file_name}) do
+    %{selected_project: project} = conn.assigns
+    expires_in = 3600
+
+    storage_key =
+      QA.screenshot_storage_key(%{
+        account_handle: project.account.name,
+        project_handle: project.name,
+        qa_run_id: run_id,
+        file_name: file_name
+      })
+
+    upload_url = Storage.generate_upload_url(storage_key, expires_in: expires_in)
+
     conn
-    |> put_status(:bad_request)
-    |> json(%{error: "Missing required parameter: status"})
+    |> put_status(:ok)
+    |> json(%{
+      url: upload_url,
+      expires_at: System.system_time(:second) + expires_in
+    })
+  end
+
+  def create_screenshot(conn, %{"file_name" => file_name, "title" => title}) do
+    %{selected_qa_run: qa_run} = conn.assigns
+
+    case QA.create_qa_screenshot(%{
+           qa_run_id: qa_run.id,
+           file_name: file_name,
+           title: title
+         }) do
+      {:ok, screenshot} ->
+        conn
+        |> put_status(:created)
+        |> json(%{
+          id: screenshot.id,
+          qa_run_id: screenshot.qa_run_id,
+          qa_run_step_id: screenshot.qa_run_step_id,
+          file_name: screenshot.file_name,
+          title: screenshot.title,
+          inserted_at: screenshot.inserted_at
+        })
+
+      {:error, changeset} ->
+        message =
+          changeset
+          |> Ecto.Changeset.traverse_errors(fn {message, _opts} -> message end)
+          |> Enum.flat_map(fn {_key, value} -> value end)
+          |> Enum.join(", ")
+
+        conn
+        |> put_status(:bad_request)
+        |> json(%{
+          message: "QA screenshot #{message}"
+        })
+    end
   end
 end

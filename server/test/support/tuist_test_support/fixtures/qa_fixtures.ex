@@ -2,7 +2,6 @@ defmodule TuistTestSupport.Fixtures.QAFixtures do
   @moduledoc false
 
   alias Tuist.QA
-  alias Tuist.QA.Run
   alias Tuist.QA.RunStep
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AppBuildsFixtures
@@ -17,7 +16,8 @@ defmodule TuistTestSupport.Fixtures.QAFixtures do
       QA.create_qa_run(%{
         app_build_id: app_build.id,
         prompt: Keyword.get(opts, :prompt, "Test the login feature"),
-        status: Keyword.get(opts, :status, "pending")
+        status: Keyword.get(opts, :status, "pending"),
+        summary: Keyword.get(opts, :summary, "Summary of the QA run")
       })
 
     qa_run
@@ -32,7 +32,9 @@ defmodule TuistTestSupport.Fixtures.QAFixtures do
     %RunStep{}
     |> RunStep.changeset(%{
       qa_run_id: qa_run.id,
-      summary: Keyword.get(opts, :summary, "Completed login test step")
+      summary: Keyword.get(opts, :summary, "Completed login test step"),
+      description: Keyword.get(opts, :description, "Detailed description of the test step"),
+      issues: Keyword.get(opts, :issues, [])
     })
     |> Repo.insert!()
   end

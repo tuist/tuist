@@ -6,7 +6,9 @@ defmodule Tuist.Repo.Migrations.CreateQaRunSteps do
       add :id, :uuid, primary_key: true, null: false
       add :qa_run_id, references(:qa_runs, type: :uuid, on_delete: :delete_all), null: false
       add :summary, :text, null: false
-      
+      add :description, :text, null: false
+      add :issues, {:array, :string}, null: false
+
       timestamps(type: :timestamptz, updated_at: false)
     end
 
