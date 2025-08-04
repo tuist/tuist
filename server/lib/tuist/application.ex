@@ -70,8 +70,7 @@ defmodule Tuist.Application do
         %{port: minio_port, scheme: minio_scheme} = URI.parse(Environment.s3_endpoint())
         port = minio_port || 9095
 
-        minio_path =
-          {minio_path, 0} = System.cmd("mise", ["which", "minio"])
+        {minio_path, 0} = System.cmd("mise", ["which", "minio"])
 
         minio_path = String.trim(minio_path)
 
