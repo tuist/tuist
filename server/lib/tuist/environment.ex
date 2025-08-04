@@ -2,26 +2,6 @@ defmodule Tuist.Environment do
   @moduledoc false
   @env Mix.env()
 
-  defmodule Version do
-    @moduledoc ~S"""
-    A module that represents a Tuist version.
-    Tuist versions follow the convention MAJOR.YY.MM.DD.
-    """
-    @type t :: %{
-            major: integer(),
-            date: Date.t()
-          }
-    @enforce_keys [:major, :date]
-
-    defstruct [:major, :date]
-  end
-
-  defimpl String.Chars, for: Version do
-    def to_string(version) do
-      "#{version.major}.#{Timex.format!(version.date, "{YY}.{0M}.{0D}")}"
-    end
-  end
-
   def env do
     @env
   end
@@ -65,6 +45,14 @@ defmodule Tuist.Environment do
 
   def truthy?(value) do
     Enum.member?(["1", "true", "TRUE", "yes", "YES"], value)
+  end
+
+  def worker? do
+    "TUIST_WORKER" |> System.get_env("1") |> truthy?()
+  end
+
+  def web? do
+    "TUIST_WEB" |> System.get_env("1") |> truthy?()
   end
 
   def database_url(secrets \\ secrets()) do
@@ -140,28 +128,9 @@ defmodule Tuist.Environment do
   end
 
   def version do
-    version = get([:version])
-
-    case version do
-      nil ->
-        %Version{major: "1", date: Date.utc_today()}
-
-      "" ->
-        %Version{major: "1", date: Date.utc_today()}
-
-      version ->
-        [major, yy, mm, dd] = String.split(version, ".")
-
-        date =
-          "#{yy}-#{mm}-#{dd}"
-          |> Timex.parse("%y-%m-%d", :strftime)
-          |> case do
-            {:ok, date} -> date
-            # Fallback in case of error
-            {:error, _} -> Date.utc_today()
-          end
-
-        %Version{major: major, date: date}
+    case Version.parse(get([:version]) || "0.1.0") do
+      :error -> nil
+      {:ok, version} -> version
     end
   end
 
@@ -345,14 +314,6 @@ defmodule Tuist.Environment do
     get([:okta, :site], secrets)
   end
 
-  def okta_client_id_for_organization_id(organization_id, secrets \\ secrets()) do
-    get([:okta, organization_id, :client_id], secrets)
-  end
-
-  def okta_client_secret_for_organization_id(organization_id, secrets \\ secrets()) do
-    get([:okta, organization_id, :client_secret], secrets)
-  end
-
   def okta_oauth_configured?(secrets \\ secrets()) do
     get([:okta], secrets) != nil or
       Enum.any?(System.get_env(), fn {key, _value} -> String.starts_with?(key, "TUIST_OKTA_") end)
@@ -424,6 +385,27 @@ defmodule Tuist.Environment do
     get([:anthropic, :api_key], secrets)
   end
 
+  def clickhouse_flush_interval_ms(secrets \\ secrets()) do
+    case get([:clickhouse, :flush_interval_ms], secrets) do
+      flush_interval when is_binary(flush_interval) -> String.to_integer(flush_interval)
+      _ -> 5000
+    end
+  end
+
+  def clickhouse_max_buffer_size(secrets \\ secrets()) do
+    case get([:clickhouse, :max_buffer_size], secrets) do
+      max_buffer_size when is_binary(max_buffer_size) -> String.to_integer(max_buffer_size)
+      _ -> 1_000_000
+    end
+  end
+
+  def clickhouse_buffer_pool_size(secrets \\ secrets()) do
+    case get([:clickhouse, :buffer_pool_size], secrets) do
+      buffer_pool_size when is_binary(buffer_pool_size) -> String.to_integer(buffer_pool_size)
+      _ -> 5
+    end
+  end
+
   def app_url(opts \\ [], secrets \\ secrets()) do
     path = opts |> Keyword.get(:path, "/") |> String.trim_trailing("/")
 
@@ -479,6 +461,10 @@ defmodule Tuist.Environment do
 
   def secret_key_tokens(secrets \\ secrets()) do
     get([:secret_key, :tokens], secrets, default_value: secret_key_base(secrets))
+  end
+
+  def secret_key_encryption(secrets \\ secrets()) do
+    get([:secret_key, :encryption], secrets, default_value: secret_key_base(secrets))
   end
 
   def oauth_client_id(secrets \\ secrets()) do

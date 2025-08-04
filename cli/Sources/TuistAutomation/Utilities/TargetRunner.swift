@@ -57,17 +57,20 @@ public final class TargetRunner: TargetRunning {
     private let xcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirectoryLocating
     private let simulatorController: SimulatorControlling
     private let fileSystem: FileSysteming
+    private let opener: Opening
 
     public init(
         xcodeBuildController: XcodeBuildControlling = XcodeBuildController(),
         xcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirectoryLocating = XcodeProjectBuildDirectoryLocator(),
         simulatorController: SimulatorControlling = SimulatorController(),
-        fileSystem: FileSysteming = FileSystem()
+        fileSystem: FileSysteming = FileSystem(),
+        opener: Opening = Opener()
     ) {
         self.xcodeBuildController = xcodeBuildController
         self.xcodeProjectBuildDirectoryLocator = xcodeProjectBuildDirectoryLocator
         self.simulatorController = simulatorController
         self.fileSystem = fileSystem
+        self.opener = opener
     }
 
     public func runTarget(
@@ -149,18 +152,23 @@ public final class TargetRunner: TargetRunning {
         let settings = try await xcodeBuildController
             .showBuildSettings(.workspace(workspacePath), scheme: schemeName, configuration: configuration, derivedDataPath: nil)
         let bundleId = settings[target.target.name]?.productBundleIdentifier ?? target.target.bundleId
-        let simulator = try await simulatorController.askForAvailableDevice(
-            platform: platform,
-            version: version,
-            minVersion: minVersion,
-            deviceName: deviceName
-        )
 
-        Logger.current
-            .debug("Running app \(appPath.pathString) with arguments [\(arguments.joined(separator: ", "))]")
-        Logger.current.notice("Running app \(bundleId) on \(simulator.device.name)", metadata: .section)
-        try simulatorController.installApp(at: appPath, device: simulator.device)
-        try await simulatorController.launchApp(bundleId: bundleId, device: simulator.device, arguments: arguments)
+        if deviceName?.lowercased().contains("macos") == true || target.target.destinations == [.mac] {
+            try await opener.open(path: appPath)
+        } else {
+            let simulator = try await simulatorController.askForAvailableDevice(
+                platform: platform,
+                version: version,
+                minVersion: minVersion,
+                deviceName: deviceName
+            )
+
+            Logger.current
+                .debug("Running app \(appPath.pathString) with arguments [\(arguments.joined(separator: ", "))]")
+            Logger.current.notice("Running app \(bundleId) on \(simulator.device.name)", metadata: .section)
+            try simulatorController.installApp(at: appPath, device: simulator.device)
+            try await simulatorController.launchApp(bundleId: bundleId, device: simulator.device, arguments: arguments)
+        }
     }
 }
 

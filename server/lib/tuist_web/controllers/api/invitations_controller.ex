@@ -95,7 +95,7 @@ defmodule TuistWeb.API.InvitationsController do
         |> json(%{message: "The invitee email address is not a valid email address."})
 
       !is_nil(organization) ->
-        invitation =
+        {:ok, invitation} =
           Accounts.invite_user_to_organization(invitee_email, %{
             inviter: user,
             to: organization,

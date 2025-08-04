@@ -27,7 +27,7 @@ defmodule TuistWeb.APIControllerTest do
       assert data_configuration["spec"] == %{"url" => "/api/spec"}
       assert data_configuration["theme"] == "purple"
       assert data_configuration["authentication"]["http"]["basic"] == %{}
-      assert data_configuration["authentication"]["http"]["bearer"]["token"] != nil
+      assert data_configuration["authentication"]["http"]["bearer"]["token"]
       assert data_configuration["authentication"]["preferredSecurityScheme"] == "authorization"
       assert html =~ "<title>API Documentation · Tuist</title>"
     end

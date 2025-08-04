@@ -289,7 +289,7 @@ defmodule TuistWeb.API.ProjectsControllerTest do
                  "default_branch" => project_one.default_branch,
                  "visibility" => Atom.to_string(project_one.visibility)
                }
-             end) != nil
+             end)
 
       assert Enum.find_value(response["projects"], fn value ->
                value == %{
@@ -299,7 +299,7 @@ defmodule TuistWeb.API.ProjectsControllerTest do
                  "default_branch" => project_two.default_branch,
                  "visibility" => Atom.to_string(project_two.visibility)
                }
-             end) != nil
+             end)
 
       assert length(response["projects"]) == 2
     end
@@ -352,7 +352,7 @@ defmodule TuistWeb.API.ProjectsControllerTest do
                  "default_branch" => project_one.default_branch,
                  "visibility" => Atom.to_string(project_one.visibility)
                }
-             end) != nil
+             end)
 
       assert Enum.find_value(response["projects"], fn value ->
                value == %{
@@ -362,7 +362,7 @@ defmodule TuistWeb.API.ProjectsControllerTest do
                  "default_branch" => project_two.default_branch,
                  "visibility" => Atom.to_string(project_two.visibility)
                }
-             end) != nil
+             end)
 
       assert length(response["projects"]) == 2
     end

@@ -234,6 +234,7 @@ defmodule TuistWeb.Marketing.MarketingController do
       |> assign(:head_title, post.title)
       |> assign(:head_description, post.excerpt)
       |> assign(:head_keywords, post.tags)
+      |> assign(:head_fediverse_creator, author["fediverse_username"])
       |> assign(
         :head_image,
         if post.og_image_path do

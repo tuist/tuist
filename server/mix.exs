@@ -121,7 +121,7 @@ defmodule Tuist.MixProject do
       {:off_broadway_memory, "~> 1.2"},
       {:broadway_dashboard, "~> 0.4.1"},
       {:zxcvbn, "~> 0.3.0"},
-      {:styler, "~> 1.4.0", only: [:dev, :test], runtime: false},
+      {:styler, "~> 1.6.0", only: [:dev, :test], runtime: false},
       {:redix, "~> 1.1"},
       {:redis_mutex, "~> 1.1"},
       {:hammer_backend_redis, "~> 7.0"},
@@ -132,7 +132,8 @@ defmodule Tuist.MixProject do
         {:noora, "== 0.11.0"},
       {:zstream, "~> 0.6"},
       {:boruta, git: "https://github.com/malach-it/boruta_auth", branch: "master"},
-      {:langchain, git: "https://github.com/tuist/langchain", branch: "feat/until-multiple-tools"}
+      {:langchain, git: "https://github.com/tuist/langchain", branch: "feat/until-multiple-tools"},
+      {:cloak_ecto, "~> 1.3.0"}
     ]
   end
 

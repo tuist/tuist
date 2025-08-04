@@ -42,21 +42,26 @@ jobs:
           path: .build
           key: ${{ runner.os }}-docs-${{ hashFiles('Package.resolved') }}
           restore-keys: ${{ runner.os }}-docs-
-      - name: Activate .env.json
-        if: github.ref == 'refs/heads/main'
-        run: cp .optional.env.json .env.json
       - uses: jdx/mise-action@v2
-        with:
-          version: 2025.1.3
-          experimental: true
+      - name: Generate CLI docs
+        run: mise run docs:generate-cli-docs
       - name: Generate manifest docs
         run: mise run docs:generate-manifests-docs
+      - name: Free space
+        # Our build process takes a lot of disk space, hitting limits on GitHub Actions runners.
+        # This step ensures that we have enough space to build the documentation.
+        # Reference: https://github.com/actions/runner-images/issues/2840?ref=dzombak.com#issuecomment-790492173
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf "/usr/local/share/boost"
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
       - name: Build the documentation
         # VitePress is not memory-efficient, loading all the pages into memory when building
         # the site. This can potentially lead to out-of-memory errors in localized documentation
         # sites where the number of pages is multiplied by the number of languages.
         env:
-          NODE_OPTIONS: --max-old-space-size=8192
+          NODE_OPTIONS: --max-old-space-size=12288
         run: mise run docs:build
       - name: Deploy to Cloudflare Pages
         if: github.ref == 'refs/heads/main'

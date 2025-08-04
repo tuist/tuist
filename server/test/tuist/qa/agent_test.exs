@@ -36,7 +36,6 @@ defmodule Tuist.QA.AgentTest do
     stub(Tuist.Simulators, :boot_simulator, fn ^device -> :ok end)
     stub(Tuist.Simulators, :install_app, fn ^app_path, ^device -> :ok end)
 
-    stub(Tuist.Environment, :anthropic_api_key, fn -> "test-api-key" end)
     stub(ChatAnthropic, :new!, fn _ -> %ChatAnthropic{api_key: "test-api-key", model: "claude-sonnet-4-20250514"} end)
 
     stub(LLMChain, :new!, fn llm -> %LLMChain{llm: llm, messages: [], last_message: nil} end)
@@ -81,14 +80,17 @@ defmodule Tuist.QA.AgentTest do
 
       # When / Then
       assert :ok =
-               Agent.test(%{
-                 preview_url: preview_url,
-                 bundle_identifier: bundle_identifier,
-                 prompt: prompt,
-                 server_url: "https://example.com",
-                 run_id: "run-id",
-                 auth_token: "auth-token"
-               })
+               Agent.test(
+                 %{
+                   preview_url: preview_url,
+                   bundle_identifier: bundle_identifier,
+                   prompt: prompt,
+                   server_url: "https://example.com",
+                   run_id: "run-id",
+                   auth_token: "auth-token"
+                 },
+                 anthropic_api_key: "api_key"
+               )
     end
 
     test "returns error when simulator device cannot be found" do
@@ -97,14 +99,17 @@ defmodule Tuist.QA.AgentTest do
 
       # When / Then
       assert {:error, "No iOS simulator found"} =
-               Agent.test(%{
-                 preview_url: "https://example.com/preview.zip",
-                 bundle_identifier: "com.example.app",
-                 prompt: "Test feature",
-                 server_url: "https://example.com",
-                 run_id: "run-id",
-                 auth_token: "auth-token"
-               })
+               Agent.test(
+                 %{
+                   preview_url: "https://example.com/preview.zip",
+                   bundle_identifier: "com.example.app",
+                   prompt: "Test feature",
+                   server_url: "https://example.com",
+                   run_id: "run-id",
+                   auth_token: "auth-token"
+                 },
+                 anthropic_api_key: "api_key"
+               )
     end
 
     test "returns error when preview download fails" do
@@ -114,14 +119,17 @@ defmodule Tuist.QA.AgentTest do
 
       # When / Then
       assert {:error, "Failed to download preview: econnrefused"} =
-               Agent.test(%{
-                 preview_url: "https://example.com/invalid.zip",
-                 bundle_identifier: "com.example.app",
-                 prompt: "Test feature",
-                 server_url: "https://example.com",
-                 run_id: "run-id",
-                 auth_token: "auth-token"
-               })
+               Agent.test(
+                 %{
+                   preview_url: "https://example.com/invalid.zip",
+                   bundle_identifier: "com.example.app",
+                   prompt: "Test feature",
+                   server_url: "https://example.com",
+                   run_id: "run-id",
+                   auth_token: "auth-token"
+                 },
+                 anthropic_api_key: "api_key"
+               )
     end
 
     test "returns error when app extraction fails", %{extract_dir: extract_dir} do
@@ -131,14 +139,17 @@ defmodule Tuist.QA.AgentTest do
 
       # When / Then
       assert {:error, "No .app bundle found in the preview"} =
-               Agent.test(%{
-                 preview_url: "https://example.com/preview.zip",
-                 bundle_identifier: "com.example.app",
-                 prompt: "Test feature",
-                 server_url: "https://example.com",
-                 run_id: "run-id",
-                 auth_token: "auth-token"
-               })
+               Agent.test(
+                 %{
+                   preview_url: "https://example.com/preview.zip",
+                   bundle_identifier: "com.example.app",
+                   prompt: "Test feature",
+                   server_url: "https://example.com",
+                   run_id: "run-id",
+                   auth_token: "auth-token"
+                 },
+                 anthropic_api_key: "api_key"
+               )
     end
 
     test "trims previous describe_ui and screenshot tool calls from message history", %{device: device} do
@@ -204,7 +215,7 @@ defmodule Tuist.QA.AgentTest do
                  %{
                    role: :tool,
                    tool_results: [
-                     %LangChain.Message.ToolResult{
+                     %ToolResult{
                        content: ["Screenshot data"],
                        name: "screenshot"
                      }
@@ -224,14 +235,17 @@ defmodule Tuist.QA.AgentTest do
 
       # When / Then
       assert :ok =
-               Agent.test(%{
-                 preview_url: preview_url,
-                 bundle_identifier: bundle_identifier,
-                 prompt: "Test feature",
-                 server_url: "https://example.com",
-                 run_id: "run-id",
-                 auth_token: "auth-token"
-               })
+               Agent.test(
+                 %{
+                   preview_url: preview_url,
+                   bundle_identifier: bundle_identifier,
+                   prompt: "Test feature",
+                   server_url: "https://example.com",
+                   run_id: "run-id",
+                   auth_token: "auth-token"
+                 },
+                 anthropic_api_key: "api_key"
+               )
     end
   end
 end

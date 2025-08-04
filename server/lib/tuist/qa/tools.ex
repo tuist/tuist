@@ -8,7 +8,11 @@ defmodule Tuist.QA.Tools do
 
   require Logger
 
+<<<<<<< HEAD
   def tools(context \\ %{}) do
+=======
+  def tools do
+>>>>>>> origin/main
     [
       describe_ui_tool(),
       tap_tool(),
@@ -20,8 +24,12 @@ defmodule Tuist.QA.Tools do
       touch_tool(),
       gesture_tool(),
       screenshot_tool(),
+<<<<<<< HEAD
       step_finished_tool(context),
       finalize_tool(context)
+=======
+      finalize_tool()
+>>>>>>> origin/main
     ]
   end
 
@@ -292,13 +300,13 @@ defmodule Tuist.QA.Tools do
         })
       ],
       function: fn %{"simulator_uuid" => simulator_uuid, "x" => x, "y" => y, "action" => action} = _params, _context ->
-        args = ["touch", action, "#{x}", "#{y}"]
+        args = ["touch", "#{x}", "#{y}"]
 
         args =
           case action do
-            "down" -> args ++ ["down"]
-            "up" -> args ++ ["up"]
-            "down-up" -> args ++ ["down", "up"]
+            "down" -> args ++ ["--down"]
+            "up" -> args ++ ["--up"]
+            "down-up" -> args ++ ["--down", "--up"]
           end
 
         run_axe_command(simulator_uuid, args)

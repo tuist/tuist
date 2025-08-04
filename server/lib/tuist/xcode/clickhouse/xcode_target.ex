@@ -21,7 +21,13 @@ defmodule Tuist.Xcode.Clickhouse.XcodeTarget do
     field :binary_build_duration, Ch, type: "Nullable(UInt32)"
     field :selective_testing_hash, Ch, type: "Nullable(String)"
     field :selective_testing_hit, Ch, type: "Enum8('miss' = 0, 'local' = 1, 'remote' = 2)"
-    field :xcode_project_id, :string
+    field :xcode_project_id, Ch, type: "UUID"
+    field :command_event_id, Ch, type: "UUID"
+
+    belongs_to :command_event, Tuist.CommandEvents.Clickhouse.Event,
+      foreign_key: :command_event_id,
+      references: :id,
+      define_field: false
 
     belongs_to :xcode_project, Tuist.Xcode.Clickhouse.XcodeProject,
       foreign_key: :xcode_project_id,
@@ -32,10 +38,11 @@ defmodule Tuist.Xcode.Clickhouse.XcodeTarget do
     timestamps(updated_at: false)
   end
 
-  def changeset(xcode_project_id, xcode_target, inserted_at \\ nil) do
+  def changeset(command_event_id, xcode_project_id, xcode_target, inserted_at \\ nil) do
     changeset = %{
       id: UUIDv7.generate(),
       name: xcode_target["name"],
+      command_event_id: command_event_id,
       xcode_project_id: xcode_project_id,
       binary_cache_hash: nil,
       binary_cache_hit: hit_enum_to_int(:miss),

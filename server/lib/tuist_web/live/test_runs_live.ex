@@ -161,16 +161,8 @@ defmodule TuistWeb.TestRunsLive do
 
     uri = URI.new!("?" <> URI.encode_query(params))
 
-    analytics_tasks = [
-      Task.async(fn -> Analytics.runs_analytics(project.id, "test", opts) end),
-      Task.async(fn ->
-        Analytics.runs_analytics(project.id, "test", Keyword.put(opts, :status, :failure))
-      end),
-      Task.async(fn -> Analytics.runs_duration_analytics("test", opts) end)
-    ]
-
     [test_runs_analytics, failed_test_runs_analytics, test_runs_duration_analytics] =
-      Task.await_many(analytics_tasks, 10_000)
+      Analytics.combined_test_runs_analytics(project.id, opts)
 
     analytics_selected_widget = analytics_selected_widget(params)
 

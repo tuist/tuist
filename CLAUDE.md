@@ -41,14 +41,17 @@ Tuist Server is an Elixir/Phoenix web application that extends the functionality
 
 **Key Technologies:**
 - **Backend**: Elixir 1.18.3 with Phoenix 1.7.12 framework
-- **Databases**: PostgreSQL with TimescaleDB extension (primary), ClickHouse (analytics)
+- **Databases**: 
+  - PostgreSQL with TimescaleDB extension (primary database)
+  - ClickHouse (analytics database, write-only through IngestRepo)
 - **Frontend**: Phoenix LiveView with JavaScript/TypeScript and esbuild
 - **Package Management**: pnpm for JavaScript dependencies
 
 **Core Architecture Components:**
 - `lib/tuist/` - Core business logic modules (accounts, billing, bundles, projects, registry, etc.)
 - `lib/tuist_web/` - Web interface (controllers, LiveView components, marketing site)
-- `priv/repo/migrations/` - Database schema migrations
+- `priv/repo/migrations/` - PostgreSQL database schema migrations
+- `priv/ingest_repo/migrations/` - ClickHouse database schema migrations (analytics, write-only)
 - `assets/` - Frontend source files (JS/CSS)
 - `config/` - Application configuration
 

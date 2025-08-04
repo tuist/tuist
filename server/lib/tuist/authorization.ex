@@ -380,10 +380,10 @@ defmodule Tuist.Authorization do
   end
 
   def can(%User{} = user, :read, :ops) do
-    if Tuist.Environment.dev?() do
+    if Environment.dev?() do
       true
     else
-      user.account.name in Tuist.Environment.ops_user_handles()
+      user.account.name in Environment.ops_user_handles()
     end
   end
 

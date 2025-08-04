@@ -43,11 +43,11 @@ defmodule Tuist.KeyValueStore do
     cache_ttl = Keyword.get(opts, :ttl, to_timeout(minute: 1))
 
     read_or_update = fn ->
-      case Redix.command(Tuist.Environment.redis_conn_name(), ["GET", cache_key]) do
+      case Redix.command(Environment.redis_conn_name(), ["GET", cache_key]) do
         {:ok, nil} ->
           value = func.()
 
-          Redix.command(Tuist.Environment.redis_conn_name(), [
+          Redix.command(Environment.redis_conn_name(), [
             "SET",
             cache_key,
             :erlang.term_to_binary(value),
@@ -66,7 +66,7 @@ defmodule Tuist.KeyValueStore do
       RedisMutex.with_lock(
         "#{cache_key}-lock",
         read_or_update,
-        name: Tuist.Environment.redis_conn_name(),
+        name: Environment.redis_conn_name(),
         timeout: to_timeout(second: 5),
         expiry: to_timeout(second: 2)
       )

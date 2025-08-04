@@ -1,31 +1,23 @@
-import { execa, $ } from "execa";
-import { temporaryDirectoryTask } from "tempy";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
+import * as fs from "node:fs";
 import ejs from "ejs";
 import { localizedString } from "../i18n.mjs";
 
 // Root directory
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const rootDirectory = path.join(__dirname, "../../..");
 
-// Schema
-await execa({
-  stdio: "inherit",
-})`swift build --product ProjectDescription --configuration debug --package-path ${rootDirectory}`;
-await execa({
-  stdio: "inherit",
-})`swift build --product tuist --configuration debug --package-path ${rootDirectory}`;
-var dumpedCLISchema;
-await temporaryDirectoryTask(async (tmpDir) => {
-  // I'm passing --path to sandbox the execution since we are only interested in the schema and nothing else.
-  dumpedCLISchema = await $`${path.join(
-    rootDirectory,
-    ".build/debug/tuist",
-  )} --experimental-dump-help --path ${tmpDir}`;
-});
-const { stdout } = dumpedCLISchema;
-export const schema = JSON.parse(stdout);
+// Load pre-generated schema
+const schemaPath = path.join(__dirname, "../../docs/generated/cli/schema.json");
+let schema;
+try {
+  const schemaContent = fs.readFileSync(schemaPath, 'utf-8');
+  schema = JSON.parse(schemaContent);
+} catch (error) {
+  throw new Error(`Failed to load CLI schema from ${schemaPath}. Please run 'mise run docs:generate-cli-schema' first.`);
+}
+
+export { schema };
 
 // Paths
 function traverse(command, paths) {

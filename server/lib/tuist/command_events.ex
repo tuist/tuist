@@ -530,7 +530,7 @@ defmodule Tuist.CommandEvents do
       command_event_id: command_event.id,
       test_case_id: test_case_ids[test_case.identifier_url],
       xcode_target_id: target_id,
-      inserted_at: NaiveDateTime.truncate(DateTime.to_naive(Tuist.Time.utc_now()), :second)
+      inserted_at: NaiveDateTime.truncate(DateTime.to_naive(Time.utc_now()), :second)
     }
   end
 
@@ -910,7 +910,7 @@ defmodule Tuist.CommandEvents do
         identifier: test.identifier_url,
         project_identifier: project_identifier,
         project_id: command_event.project_id,
-        inserted_at: NaiveDateTime.truncate(DateTime.to_naive(Tuist.Time.utc_now()), :second)
+        inserted_at: NaiveDateTime.truncate(DateTime.to_naive(Time.utc_now()), :second)
       }
     end)
   end

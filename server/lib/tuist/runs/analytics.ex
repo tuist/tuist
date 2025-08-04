@@ -9,6 +9,7 @@ defmodule Tuist.Runs.Analytics do
   alias Tuist.CommandEvents.Clickhouse.Event
   alias Tuist.Repo
   alias Tuist.Runs.Build
+  alias Tuist.Tasks
   alias Tuist.Xcode.Clickhouse.XcodeGraph
 
   def build_duration_analytics_by_category(project_id, category, opts \\ []) do
@@ -973,5 +974,40 @@ defmodule Tuist.Runs.Analytics do
       value when is_integer(value) -> value
       value when is_float(value) -> round(value)
     end
+  end
+
+  def combined_overview_analytics(project_id, opts \\ []) do
+    queries = [
+      fn -> cache_hit_rate_analytics(opts) end,
+      fn -> selective_testing_analytics(opts) end,
+      fn -> build_duration_analytics(project_id, opts) end,
+      fn -> runs_duration_analytics("test", opts) end
+    ]
+
+    Tasks.parallel_tasks(queries)
+  end
+
+  def combined_builds_analytics(project_id, opts \\ []) do
+    queries = [
+      fn -> build_duration_analytics(project_id, opts) end,
+      fn -> build_percentile_durations(project_id, 0.99, opts) end,
+      fn -> build_percentile_durations(project_id, 0.9, opts) end,
+      fn -> build_percentile_durations(project_id, 0.5, opts) end,
+      fn -> build_analytics(project_id, opts) end,
+      fn -> build_analytics(project_id, Keyword.put(opts, :status, :failure)) end,
+      fn -> build_success_rate_analytics(project_id, opts) end
+    ]
+
+    Tasks.parallel_tasks(queries)
+  end
+
+  def combined_test_runs_analytics(project_id, opts \\ []) do
+    queries = [
+      fn -> runs_analytics(project_id, "test", opts) end,
+      fn -> runs_analytics(project_id, "test", Keyword.put(opts, :status, :failure)) end,
+      fn -> runs_duration_analytics("test", opts) end
+    ]
+
+    Tasks.parallel_tasks(queries)
   end
 end

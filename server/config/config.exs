@@ -94,8 +94,7 @@ config :phoenix, :json_library, Jason
 # Oban
 config :tuist, Oban,
   repo: Tuist.Repo,
-  notifier: Oban.Notifiers.PG,
-  queues: [default: 10]
+  notifier: Oban.Notifiers.PG
 
 # Configures the mailer
 #
@@ -105,6 +104,7 @@ config :tuist, Oban,
 # For production it's recommended to configure a different adapter
 # at the `config/runtime.exs`.
 config :tuist, Tuist.Mailer, adapter: Bamboo.LocalAdapter
+config :tuist, Tuist.Vault, key: {Tuist.Environment, :secret_key_encryption, []}
 
 config :tuist, TuistWeb.Endpoint,
   adapter: Bandit.PhoenixAdapter,

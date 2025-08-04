@@ -200,6 +200,13 @@ export function contributorsSidebar(locale) {
           link: `/${locale}/contributors/translate`,
         },
         {
+          text: localizedString(
+            locale,
+            "sidebars.contributors.items.releases.text",
+          ),
+          link: `/${locale}/contributors/releases`,
+        },
+        {
           text: localizedString(locale, "sidebars.contributors.items.cli.text"),
           collapsed: true,
           items: [
