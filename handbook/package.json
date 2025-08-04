@@ -7,7 +7,7 @@
     "esbuild": "^0.25.0",
     "vitepress": "^1.6.3",
     "wrangler": "^4.0.0",
-    "vitepress-plugin-llmstxt": "0.3.0"
+    "vitepress-plugin-llmstxt": "0.1.0"
   },
   "scripts": {
     "dev": "vitepress dev",

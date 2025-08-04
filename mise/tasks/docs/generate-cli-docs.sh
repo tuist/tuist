@@ -1,6 +1,6 @@
 #!/bin/bash
-# mise description="Generates the JSON data for the CLI documentation"
+# mise description="Generates the markdown documentation for the cli files"
 
 set -euo pipefail
 
-$MISE_PROJECT_ROOT/docs/scripts/generate-cli-data.mjs
+$MISE_PROJECT_ROOT/docs/scripts/generate-cli-docs.mjs

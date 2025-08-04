@@ -338,14 +338,6 @@ defmodule Tuist.Environment do
     get([:okta, :site], secrets)
   end
 
-  def okta_client_id_for_organization_id(organization_id, secrets \\ secrets()) do
-    get([:okta, organization_id, :client_id], secrets)
-  end
-
-  def okta_client_secret_for_organization_id(organization_id, secrets \\ secrets()) do
-    get([:okta, organization_id, :client_secret], secrets)
-  end
-
   def okta_oauth_configured?(secrets \\ secrets()) do
     get([:okta], secrets) != nil or
       Enum.any?(System.get_env(), fn {key, _value} -> String.starts_with?(key, "TUIST_OKTA_") end)
@@ -411,6 +403,31 @@ defmodule Tuist.Environment do
 
   def clickhouse_queue_target(secrets \\ secrets()) do
     get([:clickhouse, :queue_target], secrets) || database_queue_target(secrets)
+  end
+
+  def anthropic_api_key(secrets \\ secrets()) do
+    get([:anthropic, :api_key], secrets)
+  end
+
+  def clickhouse_flush_interval_ms(secrets \\ secrets()) do
+    case get([:clickhouse, :flush_interval_ms], secrets) do
+      flush_interval when is_binary(flush_interval) -> String.to_integer(flush_interval)
+      _ -> 5000
+    end
+  end
+
+  def clickhouse_max_buffer_size(secrets \\ secrets()) do
+    case get([:clickhouse, :max_buffer_size], secrets) do
+      max_buffer_size when is_binary(max_buffer_size) -> String.to_integer(max_buffer_size)
+      _ -> 1_000_000
+    end
+  end
+
+  def clickhouse_buffer_pool_size(secrets \\ secrets()) do
+    case get([:clickhouse, :buffer_pool_size], secrets) do
+      buffer_pool_size when is_binary(buffer_pool_size) -> String.to_integer(buffer_pool_size)
+      _ -> 5
+    end
   end
 
   def app_url(opts \\ [], secrets \\ secrets()) do

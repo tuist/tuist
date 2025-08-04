@@ -143,13 +143,14 @@ defmodule Tuist.AccountsTest do
       _user = %{account: %{id: account_id}} = AccountsFixtures.user_fixture()
       _project = %{id: project_id} = ProjectsFixtures.project_fixture(account_id: account_id)
 
-      _command_event =
+      with_flushed_command_events(fn ->
         CommandEventsFixtures.command_event_fixture(
           project_id: project_id,
           remote_test_target_hits: ["Core"],
           remote_cache_target_hits: ["Kit"],
           created_at: ~U[2025-05-17 15:27:00Z]
         )
+      end)
 
       # When
       got = Accounts.account_month_usage(account_id)
@@ -225,23 +226,25 @@ defmodule Tuist.AccountsTest do
       today = ~U[2025-01-02 23:00:00Z]
       stub(DateTime, :utc_now, fn -> today end)
 
-      CommandEventsFixtures.command_event_fixture(
-        name: "generate",
-        project_id: first_user_project.id,
-        user_id: first_user.id,
-        remote_cache_target_hits: ["Module"],
-        remote_test_target_hits: ["ModuleTeests"],
-        created_at: ~U[2025-01-01 23:00:00Z]
-      )
+      with_flushed_command_events(fn ->
+        CommandEventsFixtures.command_event_fixture(
+          name: "generate",
+          project_id: first_user_project.id,
+          user_id: first_user.id,
+          remote_cache_target_hits: ["Module"],
+          remote_test_target_hits: ["ModuleTeests"],
+          created_at: ~U[2025-01-01 23:00:00Z]
+        )
 
-      CommandEventsFixtures.command_event_fixture(
-        name: "generate",
-        project_id: second_user_project.id,
-        user_id: second_user.id,
-        remote_cache_target_hits: ["Module"],
-        remote_test_target_hits: ["ModuleTeests"],
-        created_at: ~U[2025-01-01 23:00:00Z]
-      )
+        CommandEventsFixtures.command_event_fixture(
+          name: "generate",
+          project_id: second_user_project.id,
+          user_id: second_user.id,
+          remote_cache_target_hits: ["Module"],
+          remote_test_target_hits: ["ModuleTeests"],
+          created_at: ~U[2025-01-01 23:00:00Z]
+        )
+      end)
 
       # When
       assert {[{^first_account_customer_id, 1}], _} =
@@ -262,23 +265,25 @@ defmodule Tuist.AccountsTest do
       today = ~U[2025-01-02 23:00:00Z]
       stub(DateTime, :utc_now, fn -> today end)
 
-      CommandEventsFixtures.command_event_fixture(
-        name: "generate",
-        project_id: first_user_project.id,
-        user_id: first_user.id,
-        remote_cache_target_hits: ["Module"],
-        remote_test_target_hits: ["ModuleTeests"],
-        ran_at: ~U[2025-01-01 23:00:00Z]
-      )
+      with_flushed_command_events(fn ->
+        CommandEventsFixtures.command_event_fixture(
+          name: "generate",
+          project_id: first_user_project.id,
+          user_id: first_user.id,
+          remote_cache_target_hits: ["Module"],
+          remote_test_target_hits: ["ModuleTeests"],
+          ran_at: ~U[2025-01-01 23:00:00Z]
+        )
 
-      CommandEventsFixtures.command_event_fixture(
-        name: "generate",
-        project_id: second_user_project.id,
-        user_id: second_user.id,
-        remote_cache_target_hits: ["Module"],
-        remote_test_target_hits: ["ModuleTeests"],
-        ran_at: ~U[2025-01-01 23:00:00Z]
-      )
+        CommandEventsFixtures.command_event_fixture(
+          name: "generate",
+          project_id: second_user_project.id,
+          user_id: second_user.id,
+          remote_cache_target_hits: ["Module"],
+          remote_test_target_hits: ["ModuleTeests"],
+          ran_at: ~U[2025-01-01 23:00:00Z]
+        )
+      end)
 
       # When
       assert {[{^first_account_customer_id, 1}], _} =
@@ -650,18 +655,16 @@ defmodule Tuist.AccountsTest do
         Accounts.update_okta_configuration(organization.id, %{
           okta_client_id: "test_client_id",
           okta_client_secret: "test_secret",
-          okta_site: "https://test.okta.com",
-          sso_organization_id: "test-okta-org"
+          sso_organization_id: "https://test.okta.com"
         })
 
       # Then
       assert {:ok, updated_org} = result
       assert updated_org.okta_client_id == "test_client_id"
-      assert updated_org.okta_site == "https://test.okta.com"
       assert updated_org.sso_provider == :okta
-      assert updated_org.sso_organization_id == "test-okta-org"
+      assert updated_org.sso_organization_id == "https://test.okta.com"
       # Check that the secret is stored (encrypted)
-      assert updated_org.okta_encrypted_client_secret != nil
+      assert updated_org.okta_encrypted_client_secret
     end
 
     test "encrypts the client secret when storing" do
@@ -675,14 +678,12 @@ defmodule Tuist.AccountsTest do
         Accounts.update_okta_configuration(organization.id, %{
           okta_client_id: "test_client_id",
           okta_client_secret: plain_secret,
-          okta_site: "https://test.okta.com",
-          sso_organization_id: "test-okta-org"
+          sso_organization_id: "https://test.okta.com"
         })
 
       # Then
       # Verify the secret was stored
-      assert updated_org.okta_encrypted_client_secret != nil
-
+      assert updated_org.okta_encrypted_client_secret
       # Reload from database to ensure we're testing the persisted value
       {:ok, reloaded_org} = Accounts.get_organization_by_id(updated_org.id)
 
@@ -725,7 +726,7 @@ defmodule Tuist.AccountsTest do
         AccountsFixtures.organization_fixture(
           creator: user,
           okta_client_id: "old_client_id",
-          okta_site: "https://old.okta.com",
+          sso_organization_id: "https://old.okta.com",
           sso_provider: :okta
         )
 
@@ -738,7 +739,7 @@ defmodule Tuist.AccountsTest do
       # Then
       assert updated_org.okta_client_id == "new_client_id"
       # unchanged
-      assert updated_org.okta_site == "https://old.okta.com"
+      assert updated_org.sso_organization_id == "https://old.okta.com"
       # still okta
       assert updated_org.sso_provider == :okta
     end
@@ -909,7 +910,7 @@ defmodule Tuist.AccountsTest do
 
   describe "invite_user_to_organization/2" do
     setup do
-      stub(Tuist.Environment, :smtp_user_name, fn -> "smtp_user_name" end)
+      stub(Environment, :smtp_user_name, fn -> "smtp_user_name" end)
       :ok
     end
 
@@ -1412,11 +1413,13 @@ defmodule Tuist.AccountsTest do
       Accounts.add_user_to_organization(user, organization)
 
       command_event =
-        CommandEventsFixtures.command_event_fixture(
-          name: "generate",
-          project_id: project.id,
-          user_id: user.id
-        )
+        with_flushed_command_events(fn ->
+          CommandEventsFixtures.command_event_fixture(
+            name: "generate",
+            project_id: project.id,
+            user_id: user.id
+          )
+        end)
 
       Accounts.update_last_visited_project(user, project.id)
       code = Accounts.create_device_code("some-code")
@@ -1467,7 +1470,7 @@ defmodule Tuist.AccountsTest do
       got = Accounts.get_account_by_handle(String.upcase(handle))
 
       # Then
-      assert got != nil
+      assert got
     end
   end
 
@@ -1648,7 +1651,7 @@ defmodule Tuist.AccountsTest do
         })
 
       assert changeset.valid?
-      assert !is_nil(get_change(changeset, :encrypted_password))
+      assert get_change(changeset, :encrypted_password)
     end
   end
 
@@ -1733,7 +1736,7 @@ defmodule Tuist.AccountsTest do
 
   describe "deliver_user_confirmation_instructions/2" do
     setup do
-      stub(Tuist.Environment, :smtp_user_name, fn -> "stmp_user_name" end)
+      stub(Environment, :smtp_user_name, fn -> "stmp_user_name" end)
       %{user: user_fixture(confirmed_at: nil)}
     end
 
@@ -1758,7 +1761,7 @@ defmodule Tuist.AccountsTest do
     setup do
       user = user_fixture(confirmed_at: nil)
 
-      stub(Tuist.Environment, :smtp_user_name, fn -> "stmp_user_name" end)
+      stub(Environment, :smtp_user_name, fn -> "stmp_user_name" end)
 
       token =
         extract_user_token(fn confirmation_url ->
@@ -1795,7 +1798,7 @@ defmodule Tuist.AccountsTest do
 
   describe "deliver_user_reset_password_instructions/2" do
     setup do
-      stub(Tuist.Environment, :smtp_user_name, fn -> "stmp_user_name" end)
+      stub(Environment, :smtp_user_name, fn -> "stmp_user_name" end)
       %{user: user_fixture()}
     end
 
@@ -1820,7 +1823,7 @@ defmodule Tuist.AccountsTest do
     setup do
       user = user_fixture()
 
-      stub(Tuist.Environment, :smtp_user_name, fn -> "stmp_user_name" end)
+      stub(Environment, :smtp_user_name, fn -> "stmp_user_name" end)
 
       token =
         extract_user_token(fn reset_password_url ->
@@ -2169,7 +2172,7 @@ defmodule Tuist.AccountsTest do
         })
 
       assert user.email == got.email
-      assert Accounts.find_oauth2_identity(%{user: user, provider: :github}) != nil
+      assert Accounts.find_oauth2_identity(%{user: user, provider: :github})
     end
 
     test "updates an existing user with a new okta identity" do
@@ -2195,7 +2198,7 @@ defmodule Tuist.AccountsTest do
         })
 
       assert user.email == got.email
-      assert Accounts.find_oauth2_identity(%{user: user, provider: :okta}) != nil
+      assert Accounts.find_oauth2_identity(%{user: user, provider: :okta})
     end
 
     test "handles reserved handle names by adding a suffix" do
@@ -2903,8 +2906,7 @@ defmodule Tuist.AccountsTest do
           sso_provider: :okta,
           sso_organization_id: "company.okta.com",
           okta_client_id: "test_client_id",
-          okta_client_secret: "test_client_secret",
-          okta_site: "https://company.okta.com"
+          okta_client_secret: "test_client_secret"
         )
 
       # When
@@ -2913,7 +2915,7 @@ defmodule Tuist.AccountsTest do
       # Then
       assert config.client_id == "test_client_id"
       assert config.client_secret == "test_client_secret"
-      assert config.site == "https://company.okta.com"
+      assert config.site == "company.okta.com"
     end
 
     test "returns error when organization does not have okta configured" do
@@ -2928,7 +2930,8 @@ defmodule Tuist.AccountsTest do
         )
 
       # When / Then
-      assert {:error, :not_found} == Accounts.get_okta_configuration_by_organization_id(organization.id)
+      assert {:error, :not_found} ==
+               Accounts.get_okta_configuration_by_organization_id(organization.id)
     end
 
     test "returns error when organization has okta as provider but no client_id" do
@@ -2943,7 +2946,8 @@ defmodule Tuist.AccountsTest do
         )
 
       # When / Then
-      assert {:error, :not_found} == Accounts.get_okta_configuration_by_organization_id(organization.id)
+      assert {:error, :not_found} ==
+               Accounts.get_okta_configuration_by_organization_id(organization.id)
     end
 
     test "returns error when organization does not exist" do

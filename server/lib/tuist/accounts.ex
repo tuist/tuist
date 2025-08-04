@@ -233,7 +233,6 @@ defmodule Tuist.Accounts do
     - attrs: Map containing Okta configuration fields:
       - okta_client_id: The Okta client ID
       - okta_client_secret: The Okta client secret (will be encrypted automatically)
-      - okta_site: The Okta site URL
       - sso_provider: Will be automatically set to :okta
       - sso_organization_id: The Okta organization ID
 
@@ -324,25 +323,23 @@ defmodule Tuist.Accounts do
     sso_organization_id = Keyword.get(opts, :sso_organization_id)
     okta_client_id = Keyword.get(opts, :okta_client_id)
     okta_client_secret = Keyword.get(opts, :okta_client_secret)
-    okta_site = Keyword.get(opts, :okta_site)
     created_at = Keyword.get(opts, :created_at, DateTime.utc_now())
 
     current_month_remote_cache_hits_count =
       Keyword.get(opts, :current_month_remote_cache_hits_count, 0)
 
-    Ecto.Multi.new()
-    |> Ecto.Multi.insert(
+    Multi.new()
+    |> Multi.insert(
       :organization,
       Organization.create_changeset(%Organization{}, %{
         sso_provider: sso_provider,
         sso_organization_id: sso_organization_id,
         okta_client_id: okta_client_id,
         okta_encrypted_client_secret: okta_client_secret,
-        okta_site: okta_site,
         created_at: created_at
       })
     )
-    |> Ecto.Multi.run(:account, fn repo, %{organization: %{id: organization_id}} ->
+    |> Multi.run(:account, fn repo, %{organization: %{id: organization_id}} ->
       repo.insert(
         Account.create_changeset(%Account{}, %{
           organization_id: organization_id,
@@ -357,7 +354,7 @@ defmodule Tuist.Accounts do
         })
       )
     end)
-    |> Ecto.Multi.run(:role, fn repo, %{organization: %{id: organization_id}} ->
+    |> Multi.run(:role, fn repo, %{organization: %{id: organization_id}} ->
       repo.insert(
         Role.create_changeset(
           %Role{},
@@ -369,7 +366,7 @@ defmodule Tuist.Accounts do
         )
       )
     end)
-    |> Ecto.Multi.run(:user_role, fn repo, %{role: role} ->
+    |> Multi.run(:user_role, fn repo, %{role: role} ->
       repo.insert(
         UserRole.create_changeset(%UserRole{}, %{
           user_id: user_id,
@@ -383,13 +380,13 @@ defmodule Tuist.Accounts do
     account = get_account_from_user(user)
 
     {:ok, _} =
-      Ecto.Multi.new()
-      |> Ecto.Multi.run(:delete_command_events, fn _repo, _changes ->
+      Multi.new()
+      |> Multi.run(:delete_command_events, fn _repo, _changes ->
         CommandEvents.delete_account_events(account.id)
         {:ok, :deleted}
       end)
-      |> Ecto.Multi.delete(:delete_account, account)
-      |> Ecto.Multi.delete(:delete_user, user)
+      |> Multi.delete(:delete_account, account)
+      |> Multi.delete(:delete_user, user)
       |> Repo.transaction()
   end
 
@@ -427,7 +424,7 @@ defmodule Tuist.Accounts do
     if oauth2_identity do
       if oauth2_identity.provider_organization_id != provider_organization_id do
         oauth2_identity
-        |> Ecto.Changeset.change(provider_organization_id: provider_organization_id)
+        |> Changeset.change(provider_organization_id: provider_organization_id)
         |> Repo.update!()
       end
 
@@ -496,8 +493,8 @@ defmodule Tuist.Accounts do
     created_at = Keyword.get(opts, :created_at, DateTime.utc_now())
 
     multi =
-      Ecto.Multi.new()
-      |> Ecto.Multi.insert(
+      Multi.new()
+      |> Multi.insert(
         :user,
         User.create_user_changeset(%User{}, %{
           email: email,
@@ -507,7 +504,7 @@ defmodule Tuist.Accounts do
           created_at: created_at
         })
       )
-      |> Ecto.Multi.run(:account, fn repo, %{user: %{id: user_id, email: email}} ->
+      |> Multi.run(:account, fn repo, %{user: %{id: user_id, email: email}} ->
         customer_id =
           Keyword.get(
             opts,
@@ -532,7 +529,7 @@ defmodule Tuist.Accounts do
         Repo.transaction(multi)
       else
         multi
-        |> Ecto.Multi.run(:oauth2_identity, fn repo, %{user: %{id: user_id}} ->
+        |> Multi.run(:oauth2_identity, fn repo, %{user: %{id: user_id}} ->
           repo.insert(
             Oauth2Identity.create_changeset(%Oauth2Identity{}, %{
               provider: oauth2_identity.provider,
@@ -796,13 +793,13 @@ defmodule Tuist.Accounts do
       :ok
     else
       {:ok, _} =
-        Ecto.Multi.new()
-        |> Ecto.Multi.insert(:role, %Role{
+        Multi.new()
+        |> Multi.insert(:role, %Role{
           name: Atom.to_string(role),
           resource_type: "Organization",
           resource_id: organization_id
         })
-        |> Ecto.Multi.insert(:user_role, fn %{role: role} ->
+        |> Multi.insert(:user_role, fn %{role: role} ->
           %UserRole{user_id: user_id, role_id: role.id}
         end)
         |> Repo.transaction()
@@ -826,9 +823,9 @@ defmodule Tuist.Accounts do
 
     if result do
       {:ok, _} =
-        Ecto.Multi.new()
-        |> Ecto.Multi.delete(:user_role, result.user_role)
-        |> Ecto.Multi.delete(:role, result.role)
+        Multi.new()
+        |> Multi.delete(:user_role, result.user_role)
+        |> Multi.delete(:role, result.role)
         |> Repo.transaction()
     end
 
@@ -868,7 +865,7 @@ defmodule Tuist.Accounts do
     user_role = Repo.one(query)
 
     {:ok, updated_role} =
-      user_role |> Ecto.Changeset.change(name: Atom.to_string(role)) |> Repo.update()
+      user_role |> Changeset.change(name: Atom.to_string(role)) |> Repo.update()
 
     updated_role
   end
@@ -942,7 +939,7 @@ defmodule Tuist.Accounts do
     account = get_account_from_organization(organization)
 
     multi =
-      Enum.reduce(emails, Ecto.Multi.new(), fn email, multi_acc ->
+      Enum.reduce(emails, Multi.new(), fn email, multi_acc ->
         token = Tuist.Tokens.generate_token(16)
 
         invitation_changeset =
@@ -953,7 +950,7 @@ defmodule Tuist.Accounts do
             organization_id: organization_id
           })
 
-        Ecto.Multi.insert(multi_acc, {:invitation, email}, invitation_changeset)
+        Multi.insert(multi_acc, {:invitation, email}, invitation_changeset)
       end)
 
     case Repo.transaction(multi) do
@@ -1078,7 +1075,7 @@ defmodule Tuist.Accounts do
   def update_last_visited_project(%User{} = user, last_visited_project_id) do
     {:ok, user} =
       user
-      |> Ecto.Changeset.change(last_visited_project_id: last_visited_project_id)
+      |> Changeset.change(last_visited_project_id: last_visited_project_id)
       |> Repo.update()
 
     user
@@ -1236,9 +1233,9 @@ defmodule Tuist.Accounts do
   end
 
   defp confirm_user_multi(user) do
-    Ecto.Multi.new()
-    |> Ecto.Multi.update(:user, User.confirm_changeset(user))
-    |> Ecto.Multi.delete_all(:tokens, UserToken.by_user_and_contexts_query(user, ["confirm"]))
+    Multi.new()
+    |> Multi.update(:user, User.confirm_changeset(user))
+    |> Multi.delete_all(:tokens, UserToken.by_user_and_contexts_query(user, ["confirm"]))
   end
 
   ## Reset password
@@ -1297,9 +1294,9 @@ defmodule Tuist.Accounts do
 
   """
   def reset_user_password(user, attrs) do
-    Ecto.Multi.new()
-    |> Ecto.Multi.update(:user, User.password_changeset(user, attrs))
-    |> Ecto.Multi.delete_all(:tokens, UserToken.by_user_and_contexts_query(user, :all))
+    Multi.new()
+    |> Multi.update(:user, User.password_changeset(user, attrs))
+    |> Multi.delete_all(:tokens, UserToken.by_user_and_contexts_query(user, :all))
     |> Repo.transaction()
     |> case do
       {:ok, %{user: user}} -> {:ok, user}
@@ -1364,7 +1361,7 @@ defmodule Tuist.Accounts do
   # there are bursts of requests coming through the API.
   defp verify_pass(token, token_hash) do
     Bcrypt.verify_pass(
-      token_hash <> Tuist.Environment.secret_key_password(),
+      token_hash <> Environment.secret_key_password(),
       token.encrypted_token_hash
     )
   end
@@ -1412,7 +1409,7 @@ defmodule Tuist.Accounts do
            %{
              client_id: organization.okta_client_id,
              client_secret: organization.okta_encrypted_client_secret,
-             site: organization.okta_site
+             site: organization.sso_organization_id
            }}
         else
           {:error, :not_found}

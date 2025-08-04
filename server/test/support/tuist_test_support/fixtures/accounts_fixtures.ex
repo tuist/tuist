@@ -38,7 +38,6 @@ defmodule TuistTestSupport.Fixtures.AccountsFixtures do
     sso_organization_id = Keyword.get(opts, :sso_organization_id)
     okta_client_id = Keyword.get(opts, :okta_client_id)
     okta_client_secret = Keyword.get(opts, :okta_client_secret)
-    okta_site = Keyword.get(opts, :okta_site)
     created_at = Keyword.get(opts, :created_at, DateTime.utc_now())
 
     customer_id =
@@ -56,7 +55,6 @@ defmodule TuistTestSupport.Fixtures.AccountsFixtures do
         sso_organization_id: sso_organization_id,
         okta_client_id: okta_client_id,
         okta_client_secret: okta_client_secret,
-        okta_site: okta_site,
         created_at: created_at,
         customer_id: customer_id,
         setup_billing: setup_billing,

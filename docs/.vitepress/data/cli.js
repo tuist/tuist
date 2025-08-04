@@ -1,39 +1,20 @@
 import * as path from "node:path";
-import fs from "node:fs";
 import { fileURLToPath } from "node:url";
+import * as fs from "node:fs";
 import ejs from "ejs";
 import { localizedString } from "../i18n.mjs";
 
 // Root directory
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const cliDataFile = path.join(__dirname, "cli-data.json");
 
-// Schema - load from intermediate file or fallback to empty
-let schema = null;
+// Load pre-generated schema
+const schemaPath = path.join(__dirname, "../../docs/generated/cli/schema.json");
+let schema;
 try {
-  if (fs.existsSync(cliDataFile)) {
-    const cliData = JSON.parse(fs.readFileSync(cliDataFile, "utf-8"));
-    if (cliData.schema && !cliData.error) {
-      schema = cliData.schema;
-      console.log(`✅ Loaded CLI schema from ${cliDataFile}`);
-    } else {
-      console.warn(`⚠️  CLI data file exists but contains error: ${cliData.error}`);
-    }
-  } else {
-    console.warn(`⚠️  CLI data file not found: ${cliDataFile}`);
-    console.warn("   Run 'node docs/scripts/generate-cli-data.mjs' to generate it");
-  }
+  const schemaContent = fs.readFileSync(schemaPath, 'utf-8');
+  schema = JSON.parse(schemaContent);
 } catch (error) {
-  console.warn(`⚠️  Failed to load CLI data: ${error.message}`);
-}
-
-// Fallback empty schema if not available
-if (!schema) {
-  schema = {
-    command: {
-      subcommands: []
-    }
-  };
+  throw new Error(`Failed to load CLI schema from ${schemaPath}. Please run 'mise run docs:generate-cli-schema' first.`);
 }
 
 export { schema };

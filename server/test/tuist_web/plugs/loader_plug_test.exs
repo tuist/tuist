@@ -27,13 +27,13 @@ defmodule TuistWeb.Plugs.LoaderPlugTest do
         %{id: run_id} =
         CommandEventsFixtures.command_event_fixture()
 
-      plug_opts = TuistWeb.Plugs.LoaderPlug.init([])
+      plug_opts = LoaderPlug.init([])
 
       expect(CommandEvents, :get_command_event_by_id, 1, fn ^run_id ->
         {:ok, run}
       end)
 
-      project_with_account = TuistTestSupport.Fixtures.ProjectsFixtures.project_fixture(preload: [:account])
+      project_with_account = ProjectsFixtures.project_fixture(preload: [:account])
 
       expect(CommandEvents, :get_project_for_command_event, 1, fn ^run, [preload: :account] ->
         {:ok, project_with_account}
@@ -54,7 +54,7 @@ defmodule TuistWeb.Plugs.LoaderPlugTest do
 
     test "raises when the run id is not found", %{conn: conn} do
       # Given
-      plug_opts = TuistWeb.Plugs.LoaderPlug.init([])
+      plug_opts = LoaderPlug.init([])
 
       # When
       run_id = "00000000-0000-0000-0000-000000000000"
@@ -73,7 +73,7 @@ defmodule TuistWeb.Plugs.LoaderPlugTest do
       # Given
       project = %{account: account} = ProjectsFixtures.project_fixture()
       slug = "#{project.account.name}/#{project.name}"
-      plug_opts = TuistWeb.Plugs.LoaderPlug.init([])
+      plug_opts = LoaderPlug.init([])
 
       expect(Projects, :get_project_by_slug, 1, fn ^slug, [preload: [:account]] ->
         {:ok, project}
@@ -108,7 +108,7 @@ defmodule TuistWeb.Plugs.LoaderPlugTest do
       account_handle = UUIDv7.generate()
       project_handle = UUIDv7.generate()
       slug = "#{account_handle}/#{project_handle}"
-      plug_opts = TuistWeb.Plugs.LoaderPlug.init([])
+      plug_opts = LoaderPlug.init([])
 
       # When/then
       assert_raise NotFoundError, "The project #{slug} was not found.", fn ->
@@ -124,7 +124,7 @@ defmodule TuistWeb.Plugs.LoaderPlugTest do
     test "raises an error when the project full handle is invalid", %{conn: conn, cache: cache} do
       # Given
       slug = "invalid"
-      plug_opts = TuistWeb.Plugs.LoaderPlug.init([])
+      plug_opts = LoaderPlug.init([])
 
       # When/then
       assert_raise BadRequestError,
@@ -145,7 +145,7 @@ defmodule TuistWeb.Plugs.LoaderPlugTest do
     } do
       # Given
       slug = "tuist/foo/bar"
-      plug_opts = TuistWeb.Plugs.LoaderPlug.init([])
+      plug_opts = LoaderPlug.init([])
 
       # When/then
       assert_raise BadRequestError,
@@ -165,7 +165,7 @@ defmodule TuistWeb.Plugs.LoaderPlugTest do
     test "caches the responses across consecutive runs", %{conn: conn, cache: cache} do
       # Given
       user = AccountsFixtures.user_fixture()
-      plug_opts = TuistWeb.Plugs.LoaderPlug.init([])
+      plug_opts = LoaderPlug.init([])
       account_handle = user.account.name
 
       expect(Accounts, :get_account_by_handle, 1, fn ^account_handle ->
@@ -196,7 +196,7 @@ defmodule TuistWeb.Plugs.LoaderPlugTest do
 
     test "raises when the account is not found", %{conn: conn, cache: cache} do
       # Given
-      plug_opts = TuistWeb.Plugs.LoaderPlug.init([])
+      plug_opts = LoaderPlug.init([])
       account_handle = UUIDv7.generate()
 
       # When/Then
@@ -218,7 +218,7 @@ defmodule TuistWeb.Plugs.LoaderPlugTest do
       # Given
       project = ProjectsFixtures.project_fixture()
       slug = "#{project.account.name}/#{project.name}"
-      plug_opts = TuistWeb.Plugs.LoaderPlug.init([])
+      plug_opts = LoaderPlug.init([])
 
       expect(Projects, :get_project_by_slug, 1, fn ^slug, [preload: [:account]] ->
         {:ok, project}
@@ -247,7 +247,7 @@ defmodule TuistWeb.Plugs.LoaderPlugTest do
       account_handle = UUIDv7.generate()
       project_handle = UUIDv7.generate()
       slug = "#{account_handle}/#{project_handle}"
-      plug_opts = TuistWeb.Plugs.LoaderPlug.init([])
+      plug_opts = LoaderPlug.init([])
 
       # When/Then
       assert_raise NotFoundError, "The project #{slug} was not found.", fn ->
@@ -263,7 +263,7 @@ defmodule TuistWeb.Plugs.LoaderPlugTest do
       # Given
       project = ProjectsFixtures.project_fixture()
       slug = "#{project.account.name}/#{project.name}"
-      plug_opts = TuistWeb.Plugs.LoaderPlug.init([])
+      plug_opts = LoaderPlug.init([])
 
       expect(Projects, :get_project_by_slug, 1, fn ^slug, [preload: [:account]] ->
         {:ok, project}
@@ -292,7 +292,7 @@ defmodule TuistWeb.Plugs.LoaderPlugTest do
       account_handle = UUIDv7.generate()
       project_handle = UUIDv7.generate()
       slug = "#{account_handle}/#{project_handle}"
-      plug_opts = TuistWeb.Plugs.LoaderPlug.init([])
+      plug_opts = LoaderPlug.init([])
 
       # When/Then
       assert_raise NotFoundError, "The project #{slug} was not found.", fn ->

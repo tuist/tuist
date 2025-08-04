@@ -11,11 +11,9 @@ defmodule TuistWeb.Controllers.ErrorHTMLTest do
       |> Floki.parse_document!()
 
     # Then
-    assert not is_nil(
-             html
-             |> Floki.find("title:fl-contains('#{gettext("Unauthorized")} · Tuist')")
-             |> List.first()
-           )
+    assert html
+           |> Floki.find("title:fl-contains('#{gettext("Unauthorized")} · Tuist')")
+           |> List.first()
   end
 
   test "render 404.html" do
@@ -27,11 +25,9 @@ defmodule TuistWeb.Controllers.ErrorHTMLTest do
       |> Floki.parse_document!()
 
     # Then
-    assert not is_nil(
-             html
-             |> Floki.find("title:fl-contains('#{gettext("Not found")} · Tuist')")
-             |> List.first()
-           )
+    assert html
+           |> Floki.find("title:fl-contains('#{gettext("Not found")} · Tuist')")
+           |> List.first()
   end
 
   test "render 429.html" do
@@ -43,11 +39,9 @@ defmodule TuistWeb.Controllers.ErrorHTMLTest do
       |> Floki.parse_document!()
 
     # Then
-    assert not is_nil(
-             html
-             |> Floki.find("title:fl-contains('#{gettext("Too many requests")} · Tuist')")
-             |> List.first()
-           )
+    assert html
+           |> Floki.find("title:fl-contains('#{gettext("Too many requests")} · Tuist')")
+           |> List.first()
   end
 
   test "render 500.html" do
@@ -59,10 +53,8 @@ defmodule TuistWeb.Controllers.ErrorHTMLTest do
       |> Floki.parse_document!()
 
     # Then
-    assert not is_nil(
-             html
-             |> Floki.find("title:fl-contains('#{gettext("Server error")} · Tuist')")
-             |> List.first()
-           )
+    assert html
+           |> Floki.find("title:fl-contains('#{gettext("Server error")} · Tuist')")
+           |> List.first()
   end
 end

@@ -24,20 +24,38 @@ defmodule TuistWeb.TestRunsLiveTest do
     } do
       # Given
       _test_run_one =
-        CommandEventsFixtures.command_event_fixture(
-          project_id: project.id,
-          user_id: user.id,
-          name: "test",
-          command_arguments: ["test", "App"]
-        )
+        with_flushed_command_events(fn ->
+          CommandEventsFixtures.command_event_fixture(
+            project_id: project.id,
+            user_id: user.id,
+            name: "test",
+            command_arguments: ["test", "App"]
+          )
+
+          CommandEventsFixtures.command_event_fixture(
+            project_id: project.id,
+            user_id: user.id,
+            name: "test",
+            command_arguments: ["test", "AppTwo"]
+          )
+        end)
 
       _test_run_one =
-        CommandEventsFixtures.command_event_fixture(
-          project_id: project.id,
-          user_id: user.id,
-          name: "test",
-          command_arguments: ["test", "AppTwo"]
-        )
+        with_flushed_command_events(fn ->
+          CommandEventsFixtures.command_event_fixture(
+            project_id: project.id,
+            user_id: user.id,
+            name: "test",
+            command_arguments: ["test", "App"]
+          )
+
+          CommandEventsFixtures.command_event_fixture(
+            project_id: project.id,
+            user_id: user.id,
+            name: "test",
+            command_arguments: ["test", "AppTwo"]
+          )
+        end)
 
       # When
       {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs")
@@ -73,20 +91,38 @@ defmodule TuistWeb.TestRunsLiveTest do
     } do
       # Given
       _test_run_one =
-        CommandEventsFixtures.command_event_fixture(
-          project_id: project.id,
-          user_id: user.id,
-          name: "test",
-          command_arguments: ["test", "App"]
-        )
+        with_flushed_command_events(fn ->
+          CommandEventsFixtures.command_event_fixture(
+            project_id: project.id,
+            user_id: user.id,
+            name: "test",
+            command_arguments: ["test", "App"]
+          )
+
+          CommandEventsFixtures.command_event_fixture(
+            project_id: project.id,
+            user_id: user.id,
+            name: "test",
+            command_arguments: ["test", "AppTwo"]
+          )
+        end)
 
       _test_run_one =
-        CommandEventsFixtures.command_event_fixture(
-          project_id: project.id,
-          user_id: user.id,
-          name: "test",
-          command_arguments: ["test", "AppTwo"]
-        )
+        with_flushed_command_events(fn ->
+          CommandEventsFixtures.command_event_fixture(
+            project_id: project.id,
+            user_id: user.id,
+            name: "test",
+            command_arguments: ["test", "App"]
+          )
+
+          CommandEventsFixtures.command_event_fixture(
+            project_id: project.id,
+            user_id: user.id,
+            name: "test",
+            command_arguments: ["test", "AppTwo"]
+          )
+        end)
 
       # When
       {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs")

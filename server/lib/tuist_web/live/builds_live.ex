@@ -112,7 +112,7 @@ defmodule TuistWeb.BuildsLive do
     |> assign(:analytics_date_range, analytics_date_range)
     |> assign(:analytics_build_scheme, analytics_build_scheme)
     |> assign(:analytics_build_category, analytics_build_category)
-    |> assign(:build_schemes, Tuist.Runs.project_build_schemes(project))
+    |> assign(:build_schemes, Runs.project_build_schemes(project))
   end
 
   defp opts_with_analytics_build_scheme(opts, analytics_build_scheme) do
