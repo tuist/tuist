@@ -131,9 +131,10 @@ defmodule Tuist.MixProject do
          {:noora, path: "../../Noora/web"}) ||
         {:noora, "== 0.11.0"},
       {:zstream, "~> 0.6"},
+      {:cloak_ecto, "~> 1.3.0"},
       {:boruta, git: "https://github.com/malach-it/boruta_auth", branch: "master"},
-      {:langchain, git: "https://github.com/tuist/langchain", branch: "feat/until-multiple-tools"},
-      {:cloak_ecto, "~> 1.3.0"}
+      {:minio_server, github: "LostKobrakai/minio_server", only: :dev},
+      {:langchain, git: "https://github.com/tuist/langchain", branch: "feat/until-multiple-tools"}
     ]
   end
 

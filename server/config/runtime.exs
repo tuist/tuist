@@ -217,16 +217,20 @@ end
 
 # Ex.AWS
 if Tuist.Environment.env() not in [:test] do
-  %{host: s3_endpoint_host} = secrets |> Tuist.Environment.s3_endpoint() |> URI.parse()
+  %{host: s3_endpoint_host, scheme: s3_scheme, port: s3_port} = secrets |> Tuist.Environment.s3_endpoint() |> URI.parse()
+
+  s3_config = [
+    scheme: "#{s3_scheme}://",
+    host: s3_endpoint_host
+  ]
+
+  s3_config = if s3_port, do: Keyword.put(s3_config, :port, s3_port), else: s3_config
 
   config :ex_aws, :req_opts,
     receive_timeout: to_timeout(second: Tuist.Environment.s3_request_timeout(secrets)),
     pool_timeout: to_timeout(second: Tuist.Environment.s3_pool_timeout(secrets))
 
-  config :ex_aws, :s3,
-    scheme: "https://",
-    host: s3_endpoint_host
-
+  config :ex_aws, :s3, s3_config
   config :ex_aws, :s3, virtual_host: Tuist.Environment.s3_virtual_host()
 
   config :ex_aws,
