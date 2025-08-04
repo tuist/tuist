@@ -291,13 +291,13 @@ defmodule Tuist.QA.Tools do
         })
       ],
       function: fn %{"simulator_uuid" => simulator_uuid, "x" => x, "y" => y, "action" => action} = _params, _context ->
-        args = ["touch", action, "#{x}", "#{y}"]
+        args = ["touch", "#{x}", "#{y}"]
 
         args =
           case action do
-            "down" -> args ++ ["down"]
-            "up" -> args ++ ["up"]
-            "down-up" -> args ++ ["down", "up"]
+            "down" -> args ++ ["--down"]
+            "up" -> args ++ ["--up"]
+            "down-up" -> args ++ ["--down", "--up"]
           end
 
         run_axe_command(simulator_uuid, args)
