@@ -238,6 +238,17 @@ Some companies support our community and open source efforts with contributions 
         </a>
       </td>
     </tr>
+    <tr>
+     <td width="20%" align="center">
+        <a href="https://abb-bank.az" target="_blank">
+          <img src="assets/companies/abb-logo-slogan.png" alt="abb_mobile_logo" height="75"/>
+        </a>
+      </td>
+      <td width="20%"></td>
+      <td width="20%"></td>
+      <td width="20%"></td>
+      <td width="20%"></td>
+    </tr>
   </tbody>
 </table>
 
