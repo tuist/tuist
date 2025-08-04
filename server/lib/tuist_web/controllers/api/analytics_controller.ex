@@ -343,7 +343,7 @@ defmodule TuistWeb.API.AnalyticsController do
 
     url =
       if is_nil(build_run_id) do
-        url(~p"/#{selected_project.account.name}/#{selected_project.name}/runs/#{command_event.id}")
+        url(~p"/#{selected_project.account.name}/#{selected_project.name}/runs/#{get_id_field(conn, command_event)}")
       else
         url(
           ~p"/#{selected_project.account.name}/#{selected_project.name}/builds/build-runs/#{String.downcase(build_run_id)}"
@@ -464,7 +464,7 @@ defmodule TuistWeb.API.AnalyticsController do
         _params
       ) do
     with {:ok, object_key} <-
-           get_object_key(%{type: type, run_id: run_id, name: command_event_artifact.name}) do
+           get_object_key(%{type: type, run_id: run_id, name: command_event_artifact.name}, conn) do
       upload_id = Storage.multipart_start(object_key)
       json(conn, %{status: "success", data: %{upload_id: upload_id}})
     end
@@ -512,7 +512,7 @@ defmodule TuistWeb.API.AnalyticsController do
         _params
       ) do
     with {:ok, object_key} <-
-           get_object_key(%{type: type, run_id: run_id, name: command_event_artifact.name}) do
+           get_object_key(%{type: type, run_id: run_id, name: command_event_artifact.name}, conn) do
       expires_in = 120
       content_length = Map.get(multipart_upload_part, :content_length)
 
@@ -571,7 +571,7 @@ defmodule TuistWeb.API.AnalyticsController do
         _params
       ) do
     with {:ok, object_key} <-
-           get_object_key(%{type: type, run_id: run_id, name: command_event_artifact.name}) do
+           get_object_key(%{type: type, run_id: run_id, name: command_event_artifact.name}, conn) do
       :ok =
         Storage.multipart_complete_upload(
           object_key,
@@ -616,58 +616,54 @@ defmodule TuistWeb.API.AnalyticsController do
     }
   )
 
-  def complete_artifacts_uploads(%{path_params: %{"run_id" => run_id}} = conn, _params) do
-    with {:ok, command_event} <- CommandEvents.get_command_event_by_id(run_id, preload: :project) do
-      current_project = Authentication.current_project(conn)
-      process_flaky_test_detection(command_event, current_project)
+  def complete_artifacts_uploads(conn, _params) do
+    conn
+    |> put_status(:no_content)
+    |> json(%{})
+  end
 
-      conn
-      |> put_status(:no_content)
-      |> json(%{})
+  defp get_object_key(%{type: type, run_id: run_id, name: name}, conn) do
+    project = Authentication.current_project(conn)
+
+    with {:ok, run_id} <- normalize_run_id(run_id) do
+      object_key =
+        case type do
+          "result_bundle" ->
+            CommandEvents.get_result_bundle_key(run_id, project)
+
+          "invocation_record" ->
+            CommandEvents.get_result_bundle_invocation_record_key(
+              run_id,
+              project
+            )
+
+          "result_bundle_object" ->
+            CommandEvents.get_result_bundle_object_key(run_id, project, name)
+        end
+
+      {:ok, object_key}
     end
   end
 
-  defp process_flaky_test_detection(command_event, current_project) do
-    if FunWithFlags.enabled?(:flaky_test_detection, for: current_project) do
-      # This is very slow. We should consider saving the necessary data in the db instead of fetching it on-demand from the S3 storage.
-      test_summary = CommandEvents.get_test_summary(command_event)
-      create_test_cases_and_runs(test_summary, command_event, current_project)
-    end
-  end
+  defp normalize_run_id(run_id) do
+    if Tuist.Environment.clickhouse_configured?() do
+      if Tuist.UUIDv7.valid?(run_id) do
+        # Newer CLI versions send UUIDs which can be converted to integer IDs,
+        # but older versions send integer IDs which cannot be converted back to UUIDs.
+        # Due to this one-way conversion, we must use the legacy_id for object keys.
+        {:ok, Tuist.UUIDv7.to_int64(run_id)}
+      else
+        {:ok, run_id}
+      end
+    else
+      case CommandEvents.get_command_event_by_id(run_id) do
+        {:ok, command_event} ->
+          # For Postgres, we _know_ both UUID and legacy ID, but to keep querying simpler, we use the legacy ID to match Clickhouse behavior.
+          {:ok, command_event.legacy_id}
 
-  defp create_test_cases_and_runs(test_summary, command_event, current_project) do
-    if not is_nil(test_summary) and not is_nil(current_project) do
-      CommandEvents.create_test_cases(%{
-        test_summary: test_summary,
-        command_event: command_event
-      })
-
-      CommandEvents.create_test_case_runs(%{
-        test_summary: test_summary,
-        command_event: command_event
-      })
-    end
-  end
-
-  defp get_object_key(%{type: type, run_id: run_id, name: name}) do
-    case CommandEvents.get_command_event_by_id(run_id) do
-      {:ok, command_event} ->
-        object_key =
-          case type do
-            "result_bundle" ->
-              CommandEvents.get_result_bundle_key(command_event)
-
-            "invocation_record" ->
-              CommandEvents.get_result_bundle_invocation_record_key(command_event)
-
-            "result_bundle_object" ->
-              CommandEvents.get_result_bundle_object_key(command_event, name)
-          end
-
-        {:ok, object_key}
-
-      {:error, :not_found} ->
-        {:error, :not_found}
+        _ ->
+          {:error, :not_found}
+      end
     end
   end
 

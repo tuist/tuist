@@ -768,7 +768,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
       upload_id = "12344"
 
       object_key =
-        "#{account.name}/#{project.name}/runs/#{command_event.id}/result_bundle.zip"
+        "#{account.name}/#{project.name}/runs/#{command_event.legacy_id}/result_bundle.zip"
 
       expect(Storage, :multipart_start, fn ^object_key ->
         upload_id
@@ -801,7 +801,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
       upload_id = "12344"
 
       object_key =
-        "#{account.name}/#{project.name}/runs/#{command_event.id}/some-id.json"
+        "#{account.name}/#{project.name}/runs/#{command_event.legacy_id}/some-id.json"
 
       expect(Storage, :multipart_start, fn ^object_key ->
         upload_id
@@ -839,7 +839,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
       upload_url = "https://url.com"
 
       object_key =
-        "#{account.name}/#{project.name}/runs/#{command_event.id}/result_bundle.zip"
+        "#{account.name}/#{project.name}/runs/#{command_event.legacy_id}/result_bundle.zip"
 
       expect(Storage, :multipart_generate_url, fn ^object_key,
                                                   ^upload_id,
@@ -882,7 +882,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
       upload_id = "1234"
 
       object_key =
-        "#{account.name}/#{project.name}/runs/#{command_event.id}/result_bundle.zip"
+        "#{account.name}/#{project.name}/runs/#{command_event.legacy_id}/result_bundle.zip"
 
       parts = [
         %{part_number: 1, etag: "etag1"},
@@ -930,7 +930,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
       upload_id = "1234"
 
       object_key =
-        "#{account.name}/#{project.name}/runs/#{command_event.id}/result_bundle.zip"
+        "#{account.name}/#{project.name}/runs/#{command_event.legacy_id}/result_bundle.zip"
 
       parts = [
         %{part_number: 1, etag: "etag1"},
