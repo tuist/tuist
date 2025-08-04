@@ -16,11 +16,11 @@ defmodule Tuist.MinioBucketCreator do
   end
 
   defp wait_for_minio(retries \\ 30)
-  
+
   defp wait_for_minio(0) do
     Logger.error("MinIO failed to start after 30 seconds")
   end
-  
+
   defp wait_for_minio(retries) do
     if minio_ready?() do
       Logger.info("MinIO is ready")
@@ -31,7 +31,7 @@ defmodule Tuist.MinioBucketCreator do
   end
 
   defp minio_ready? do
-    case ExAws.S3.list_buckets() |> ExAws.request() do
+    case ExAws.request(ExAws.S3.list_buckets()) do
       {:ok, _} -> true
       {:error, _} -> false
     end
@@ -39,14 +39,14 @@ defmodule Tuist.MinioBucketCreator do
 
   defp create_bucket do
     bucket_name = Tuist.Environment.s3_bucket_name()
-    
-    case ExAws.S3.put_bucket(bucket_name, "") |> ExAws.request() do
+
+    case bucket_name |> ExAws.S3.put_bucket("") |> ExAws.request() do
       {:ok, _} ->
         Logger.info("Created MinIO bucket: #{bucket_name}")
-        
+
       {:error, {:http_error, 409, _}} ->
         Logger.info("MinIO bucket already exists: #{bucket_name}")
-        
+
       {:error, error} ->
         Logger.error("Failed to create MinIO bucket: #{inspect(error)}")
     end

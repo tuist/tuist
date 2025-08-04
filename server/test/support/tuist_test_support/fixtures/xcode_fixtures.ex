@@ -78,9 +78,7 @@ defmodule TuistTestSupport.Fixtures.XcodeFixtures do
     command_event_id =
       Keyword.get_lazy(opts, :command_event_id, fn ->
         graph =
-          ClickHouseRepo.one(
-            from(g in CHXcodeGraph, where: g.id == ^xcode_graph_id, select: g.command_event_id)
-          )
+          ClickHouseRepo.one(from(g in CHXcodeGraph, where: g.id == ^xcode_graph_id, select: g.command_event_id))
 
         graph || CommandEventsFixtures.command_event_fixture().id
       end)

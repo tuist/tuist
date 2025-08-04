@@ -181,20 +181,20 @@ defmodule Tuist.Environment do
   end
 
   def s3_access_key_id(secrets \\ secrets()) do
-    if not dev_use_remote_storage?() do
-      "minio"
-    else
+    if dev_use_remote_storage?() do
       System.get_env("AWS_ACCESS_KEY_ID") || get([:aws, :access_key_id], secrets) ||
         get([:s3, :access_key_id], secrets)
+    else
+      "minio"
     end
   end
 
   def s3_secret_access_key(secrets \\ secrets()) do
-    if not dev_use_remote_storage?() do
-      "minio1234"
-    else
+    if dev_use_remote_storage?() do
       System.get_env("AWS_SECRET_ACCESS_KEY") || get([:aws, :secret_access_key], secrets) ||
         get([:s3, :secret_access_key], secrets)
+    else
+      "minio1234"
     end
   end
 
@@ -204,18 +204,18 @@ defmodule Tuist.Environment do
   end
 
   def s3_bucket_name(secrets \\ secrets()) do
-    if not dev_use_remote_storage?() do
-      "tuist-development"
-    else
+    if dev_use_remote_storage?() do
       get([:aws, :bucket_name], secrets) || get([:s3, :bucket_name], secrets)
+    else
+      "tuist-development"
     end
   end
 
   def s3_endpoint(secrets \\ secrets()) do
-    if not dev_use_remote_storage?() do
-      "http://localhost:9095"
-    else
+    if dev_use_remote_storage?() do
       get([:aws, :endpoint], secrets) || get([:s3, :endpoint], secrets)
+    else
+      "http://localhost:9095"
     end
   end
 
@@ -242,10 +242,10 @@ defmodule Tuist.Environment do
   end
 
   def s3_virtual_host(secrets \\ secrets()) do
-    if not dev_use_remote_storage?() do
-      false
-    else
+    if dev_use_remote_storage?() do
       [:s3, :virtual_host] |> get(secrets) |> truthy?()
+    else
+      false
     end
   end
 

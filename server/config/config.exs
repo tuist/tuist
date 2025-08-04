@@ -248,8 +248,6 @@ config :tuist, :urls,
   forum: "https://community.tuist.dev",
   documentation: "https://docs.tuist.dev",
   feature_generated_projects: "https://docs.tuist.dev/en/guides/features/projects",
-  # Import environment specific config. This must remain at the bottom
-  # of this file so it overrides the configuration defined above.
   feature_cache: "https://docs.tuist.dev/en/guides/features/cache",
   feature_previews: "https://docs.tuist.dev/en/guides/features/previews",
   feature_insights: "https://docs.tuist.dev/en/guides/features/insights",
@@ -263,4 +261,6 @@ config :ueberauth, Ueberauth,
     apple: {Ueberauth.Strategy.Apple, [callback_methods: ["POST"], default_scope: "email"]}
   ]
 
+# Import environment specific config. This must remain at the bottom
+# of this file so it overrides the configuration defined above.
 import_config "#{config_env()}.exs"
