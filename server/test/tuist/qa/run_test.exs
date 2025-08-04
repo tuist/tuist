@@ -4,14 +4,14 @@ defmodule Tuist.QA.RunTest do
   alias Tuist.QA.Run
   alias TuistTestSupport.Fixtures.AppBuildsFixtures
 
-  describe "changeset/2" do
-    test "changeset is valid with valid attributes" do
+  describe "create_changeset/2" do
+    test "is valid with valid attributes" do
       # Given
       app_build = AppBuildsFixtures.app_build_fixture()
 
       # When
       changeset =
-        Run.changeset(%Run{}, %{
+        Run.create_changeset(%Run{}, %{
           app_build_id: app_build.id,
           prompt: "Test the login feature",
           status: "pending"
@@ -21,7 +21,7 @@ defmodule Tuist.QA.RunTest do
       assert changeset.valid?
     end
 
-    test "changeset is valid with all supported statuses" do
+    test "is valid with all supported statuses" do
       # Given
       app_build = AppBuildsFixtures.app_build_fixture()
 
@@ -30,7 +30,7 @@ defmodule Tuist.QA.RunTest do
       for status <- valid_statuses do
         # When
         changeset =
-          Run.changeset(%Run{}, %{
+          Run.create_changeset(%Run{}, %{
             app_build_id: app_build.id,
             prompt: "Test prompt",
             status: status
@@ -41,10 +41,10 @@ defmodule Tuist.QA.RunTest do
       end
     end
 
-    test "changeset is invalid without app_build_id" do
+    test "is invalid without app_build_id" do
       # When
       changeset =
-        Run.changeset(%Run{}, %{
+        Run.create_changeset(%Run{}, %{
           prompt: "Test the login feature",
           status: "pending"
         })
@@ -54,13 +54,13 @@ defmodule Tuist.QA.RunTest do
       assert "can't be blank" in errors_on(changeset).app_build_id
     end
 
-    test "changeset is invalid without prompt" do
+    test "is invalid without prompt" do
       # Given
       app_build = AppBuildsFixtures.app_build_fixture()
 
       # When
       changeset =
-        Run.changeset(%Run{}, %{
+        Run.create_changeset(%Run{}, %{
           app_build_id: app_build.id,
           status: "pending"
         })
@@ -70,13 +70,13 @@ defmodule Tuist.QA.RunTest do
       assert "can't be blank" in errors_on(changeset).prompt
     end
 
-    test "changeset is valid without explicit status" do
+    test "is valid without explicit status" do
       # Given
       app_build = AppBuildsFixtures.app_build_fixture()
 
       # When
       changeset =
-        Run.changeset(%Run{}, %{
+        Run.create_changeset(%Run{}, %{
           app_build_id: app_build.id,
           prompt: "Test the login feature"
         })
@@ -87,13 +87,13 @@ defmodule Tuist.QA.RunTest do
       refute Map.has_key?(changeset.changes, :status)
     end
 
-    test "changeset is invalid with invalid status" do
+    test "is invalid with invalid status" do
       # Given
       app_build = AppBuildsFixtures.app_build_fixture()
 
       # When
       changeset =
-        Run.changeset(%Run{}, %{
+        Run.create_changeset(%Run{}, %{
           app_build_id: app_build.id,
           prompt: "Test the login feature",
           status: "invalid_status"
@@ -104,13 +104,30 @@ defmodule Tuist.QA.RunTest do
       assert "is invalid" in errors_on(changeset).status
     end
 
-    test "changeset sets status to provided value" do
+    test "is valid with provided status" do
       # Given
       app_build = AppBuildsFixtures.app_build_fixture()
 
       # When
       changeset =
-        Run.changeset(%Run{}, %{
+        Run.create_changeset(%Run{}, %{
+          app_build_id: app_build.id,
+          prompt: "Test the login feature",
+          status: "running"
+        })
+
+      # Then
+      assert changeset.valid?
+      assert changeset.changes.status == "running"
+    end
+
+    test "create_changeset sets status to provided value" do
+      # Given
+      app_build = AppBuildsFixtures.app_build_fixture()
+
+      # When
+      changeset =
+        Run.create_changeset(%Run{}, %{
           app_build_id: app_build.id,
           prompt: "Test the login feature",
           status: "running"
@@ -120,13 +137,13 @@ defmodule Tuist.QA.RunTest do
       assert changeset.changes.status == "running"
     end
 
-    test "changeset is invalid with non-existent app_build_id" do
+    test "create_changeset is invalid with non-existent app_build_id" do
       # Given
       non_existent_id = Ecto.UUID.generate()
 
       # When
       changeset =
-        Run.changeset(%Run{}, %{
+        Run.create_changeset(%Run{}, %{
           app_build_id: non_existent_id,
           prompt: "Test the login feature",
           status: "pending"

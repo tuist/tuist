@@ -29,7 +29,7 @@ defmodule Tuist.QA.Agent do
     anthropic_api_key = Keyword.get(opts, :anthropic_api_key)
 
     with {:ok, simulator_device} <- simulator_device(),
-         :ok <- run_preview(preview_url, bundle_identifier, simulator_device) do
+         :ok <- preview_url |> run_preview(bundle_identifier, simulator_device) |> dbg() do
       handler = %{
         on_message_processed: fn _chain, %Message{content: content} ->
           for %ContentPart{type: :text, content: content} <- content || [] do
@@ -89,7 +89,7 @@ defmodule Tuist.QA.Agent do
     end
   end
 
-  defp process_llm_result({:error, _chain, %LangChain.LangChainError{message: message}}, _attrs, _handler) do
+  defp process_llm_result({:error, _chain, %LangChain.LangChainError{message: message}}, _attrs, _handler, _context) do
     {:error, "LLM chain execution failed: #{message}"}
   end
 

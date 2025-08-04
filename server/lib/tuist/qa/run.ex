@@ -6,21 +6,8 @@ defmodule Tuist.QA.Run do
 
   import Ecto.Changeset
 
-  alias Ecto.Association.NotLoaded
   alias Tuist.AppBuilds.AppBuild
   alias Tuist.QA.RunStep
-
-  @type t :: %__MODULE__{
-          id: binary(),
-          app_build_id: binary(),
-          app_build: AppBuild.t() | NotLoaded.t(),
-          prompt: String.t(),
-          status: String.t(),
-          summary: String.t() | nil,
-          run_steps: [RunStep.t()] | NotLoaded.t(),
-          inserted_at: DateTime.t(),
-          updated_at: DateTime.t()
-        }
 
   @primary_key {:id, UUIDv7, autogenerate: true}
   @foreign_key_type UUIDv7
@@ -45,6 +32,6 @@ defmodule Tuist.QA.Run do
   end
 
   def update_changeset(qa_run, attrs) do
-    cast(qa_run, attrs, [:status])
+    cast(qa_run, attrs, [:status, :summary])
   end
 end

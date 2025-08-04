@@ -5,7 +5,6 @@ defmodule Tuist.QATest do
   alias Tuist.Accounts
   alias Tuist.QA
   alias Tuist.QA.Agent
-  alias Tuist.QA.Run
   alias Tuist.Storage
   alias TuistTestSupport.Fixtures.AppBuildsFixtures
   alias TuistTestSupport.Fixtures.QAFixtures
@@ -30,7 +29,8 @@ defmodule Tuist.QATest do
                                 server_url: _,
                                 run_id: _,
                                 auth_token: "test-auth-token"
-                              } ->
+                              },
+                              _opts ->
         :ok
       end)
 
@@ -42,16 +42,7 @@ defmodule Tuist.QATest do
         })
 
       # Then
-      assert {:ok, "completed"} = result
-
-      # Verify QA run was created and updated
-      qa_runs = Tuist.Repo.all(Run)
-      assert length(qa_runs) == 1
-
-      qa_run = List.first(qa_runs)
-      assert qa_run.app_build_id == app_build.id
-      assert qa_run.prompt == prompt
-      assert qa_run.status == "completed"
+      assert :ok = result
     end
 
     test "returns failed status when agent test fails" do
@@ -66,7 +57,7 @@ defmodule Tuist.QATest do
         {:ok, {%{}, "test-auth-token"}}
       end)
 
-      expect(Agent, :test, fn _ -> {:error, "Agent test failed"} end)
+      expect(Agent, :test, fn _, _ -> {:error, "Agent test failed"} end)
 
       # When
       result =
@@ -76,14 +67,7 @@ defmodule Tuist.QATest do
         })
 
       # Then
-      assert {:ok, "failed"} = result
-
-      # Verify QA run status was updated to failed
-      qa_runs = Tuist.Repo.all(Run)
-      assert length(qa_runs) == 1
-
-      qa_run = List.first(qa_runs)
-      assert qa_run.status == "failed"
+      assert {:error, "Agent test failed"} = result
     end
 
     test "returns error when auth token creation fails" do

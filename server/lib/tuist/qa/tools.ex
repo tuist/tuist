@@ -8,11 +8,7 @@ defmodule Tuist.QA.Tools do
 
   require Logger
 
-<<<<<<< HEAD
   def tools(context \\ %{}) do
-=======
-  def tools do
->>>>>>> origin/main
     [
       describe_ui_tool(),
       tap_tool(),
@@ -24,12 +20,8 @@ defmodule Tuist.QA.Tools do
       touch_tool(),
       gesture_tool(),
       screenshot_tool(),
-<<<<<<< HEAD
       step_finished_tool(context),
       finalize_tool(context)
-=======
-      finalize_tool()
->>>>>>> origin/main
     ]
   end
 
