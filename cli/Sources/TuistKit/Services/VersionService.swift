@@ -5,6 +5,7 @@ import TuistSupport
 
 final class VersionService {
     func run() throws {
-        Logger.current.notice("\(Constants.version)")
+        let version: String = Constants.version
+        Logger.current.notice("\(version)")
     }
 }

@@ -250,21 +250,18 @@ defmodule TuistWeb.OverviewLive do
       environment_label(analytics_environment)
     )
     |> then(fn socket ->
-      analytics_tasks = [
-        Task.async(fn -> Analytics.cache_hit_rate_analytics(opts) end),
-        Task.async(fn -> Analytics.selective_testing_analytics(opts) end),
-        Task.async(fn -> Analytics.build_duration_analytics(project.id, opts) end),
-        Task.async(fn -> Analytics.runs_duration_analytics("test", opts) end)
-      ]
-
       [
         binary_cache_hit_rate_analytics,
         selective_testing_analytics,
         build_analytics,
         test_analytics
-      ] = Task.await_many(analytics_tasks, 10_000)
+      ] = Analytics.combined_overview_analytics(project.id, opts)
 
       socket
+      |> assign(
+        :build_time_analytics,
+        Analytics.build_time_analytics(opts)
+      )
       |> assign(:binary_cache_hit_rate_analytics, binary_cache_hit_rate_analytics)
       |> assign(:selective_testing_analytics, selective_testing_analytics)
       |> assign(:build_analytics, build_analytics)

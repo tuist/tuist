@@ -59,6 +59,11 @@ defmodule TuistWeb.LayoutComponents do
     <meta property="og:type" content="website" />
     <meta property="og:title" content={assigns[:head_title] || "Tuist"} />
     <meta property="og:description" content={assigns[:head_description] || default_description} />
+    <meta
+      :if={not is_nil(assigns[:head_fediverse_creator])}
+      name="fediverse:creator"
+      content={assigns[:head_fediverse_creator]}
+    />
 
     <%= if is_nil(assigns[:head_image]) do %>
       <meta

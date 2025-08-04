@@ -18,7 +18,7 @@ defmodule TuistWeb.ProjectsLive do
     selected_account = socket.assigns[:selected_account]
     current_user = socket.assigns[:current_user]
 
-    if not Tuist.Authorization.can(current_user, :read, selected_account, :projects) do
+    if not Authorization.can(current_user, :read, selected_account, :projects) do
       raise TuistWeb.Errors.NotFoundError,
             gettext("The page you are looking for doesn't exist or has been moved.")
     end

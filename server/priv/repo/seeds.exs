@@ -7,6 +7,7 @@ alias Tuist.Billing.Subscription
 alias Tuist.ClickHouseRepo
 alias Tuist.CommandEvents
 alias Tuist.CommandEvents.Clickhouse.Event
+alias Tuist.IngestRepo
 alias Tuist.Projects
 alias Tuist.Projects.Project
 alias Tuist.Repo
@@ -234,7 +235,7 @@ command_events =
 command_events
 |> Enum.chunk_every(1000)
 |> Enum.each(fn chunk ->
-  ClickHouseRepo.insert_all(Event, chunk)
+  IngestRepo.insert_all(Event, chunk)
 end)
 
 test_command_events =

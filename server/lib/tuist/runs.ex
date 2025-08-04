@@ -5,7 +5,7 @@ defmodule Tuist.Runs do
 
   import Ecto.Query
 
-  alias Tuist.ClickHouseRepo
+  alias Tuist.IngestRepo
   alias Tuist.Projects.Project
   alias Tuist.Repo
   alias Tuist.Runs.Build
@@ -63,13 +63,13 @@ defmodule Tuist.Runs do
         }
       end)
 
-    ClickHouseRepo.insert_all(BuildFile, files)
+    IngestRepo.insert_all(BuildFile, files)
   end
 
   defp create_build_targets(build, targets) do
     targets = Enum.map(targets, &BuildTarget.changeset(build.id, &1))
 
-    ClickHouseRepo.insert_all(BuildTarget, targets)
+    IngestRepo.insert_all(BuildTarget, targets)
   end
 
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
@@ -117,7 +117,7 @@ defmodule Tuist.Runs do
         }
       end)
 
-    ClickHouseRepo.insert_all(
+    IngestRepo.insert_all(
       BuildIssue,
       issues
     )

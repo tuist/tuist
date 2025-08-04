@@ -232,7 +232,7 @@ defmodule TuistWeb.PreviewControllerTest do
 
       # Then
       assert response(conn, 200) =~ icon_content
-      assert get_resp_header(conn, "content-type") == ["image/png; charset=utf-8"]
+      assert get_resp_header(conn, "content-type") == ["image/png"]
     end
 
     test "returns 404 when the icon does not exist", %{conn: conn} do

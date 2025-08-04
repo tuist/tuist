@@ -45,7 +45,8 @@ defmodule Tuist.Marketing.Blog do
         "name" => "Pedro Piñera",
         "x_handle" => "pepicrft",
         "mastodon_url" => "https://mastodon.social/@pepicrft",
-        "github_handle" => "pepicrft"
+        "github_handle" => "pepicrft",
+        "fediverse_username" => "@pepicrft@mastodon.social"
       },
       "ollieatkinson" => %{
         "role" => "Senior software engineer at Monzo",
@@ -70,7 +71,8 @@ defmodule Tuist.Marketing.Blog do
         "name" => "Marek Fořt",
         "x_handle" => "marekfort",
         "mastodon_url" => "https://mastodon.social/@marekfort@mastodon.online",
-        "github_handle" => "fortmarek"
+        "github_handle" => "fortmarek",
+        "fediverse_username" => "@marekfort@mastodon.online"
       },
       "cpisciotta" => %{
         "role" => "Software engineer at Audible",
@@ -96,13 +98,15 @@ defmodule Tuist.Marketing.Blog do
         "role" => "Designer at Tuist",
         "name" => " Asmit Malakannawar ",
         "mastodon_url" => "https://mastodon.social/@asmitbm",
-        "github_handle" => "asmitbm"
+        "github_handle" => "asmitbm",
+        "fediverse_username" => "@asmitbm@mastodon.online"
       },
       "cschmatzler" => %{
         "role" => "Software Engineer at Tuist",
         "name" => "Christoph Schmatzler",
         "x_handle" => "cschmatzler",
-        "github_handle" => "cschmatzler"
+        "github_handle" => "cschmatzler",
+        "fediverse_username" => "@cschmatzler@fosstodon.org"
       }
     }
   end

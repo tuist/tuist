@@ -31,7 +31,7 @@ defmodule TuistWeb.OpsConfigurationLive do
 
     rows = [
       # Displaying the version helps identify the running application version for debugging and operational purposes.
-      %{name: "Version", value: "#{version} (released #{Timex.from_now(version.date)})"},
+      %{name: "Version", value: "#{version}"},
       %{name: "S3 region", value: Tuist.Environment.s3_region()},
       %{
         name: "S3 request timeout",

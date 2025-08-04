@@ -7,6 +7,7 @@ defmodule Tuist.Application do
   import Cachex.Spec
   import Tuist.Environment, only: [run_if_error_tracking_enabled: 1]
 
+  alias Tuist.CommandEvents
   alias Tuist.DBConnection.TelemetryListener
   alias Tuist.Environment
 
@@ -50,23 +51,34 @@ defmodule Tuist.Application do
       [
         {DBConnection.TelemetryListener, name: TelemetryListener},
         {Tuist.Repo, connection_listeners: [TelemetryListener]},
-        {Tuist.ClickHouseRepo, []},
-        {Cachex, [:tuist, cachex_opts()]},
+        Tuist.ClickHouseRepo,
+        Tuist.IngestRepo,
+        Tuist.Vault,
         {Oban, Application.fetch_env!(:tuist, Oban)},
-        {Phoenix.PubSub, name: Tuist.PubSub},
+        {Cachex, [:tuist, cachex_opts()]},
         {Finch, name: Tuist.Finch, pools: finch_pools()},
-        {Guardian.DB.Sweeper, [interval: 60 * 60 * 1000]},
-        {Tuist.API.Pipeline, []},
-        # Rate limit
-        {TuistWeb.RateLimit.InMemory, [clean_period: to_timeout(hour: 1)]},
-        TuistWeb.Telemetry,
-        # Start a worker by calling: Tuist.Worker.start_link(arg)
-        # {Tuist.Worker, arg},
-        # Start to serve requests, typically the last entry
-        TuistWeb.Endpoint
+        {Phoenix.PubSub, name: Tuist.PubSub},
+        Supervisor.child_spec(CommandEvents.Buffer, id: CommandEvents.Buffer),
+        TuistWeb.Telemetry
       ]
 
     children
+    |> Kernel.++(
+      if Environment.web?(),
+        do: [
+          {TuistWeb.RateLimit.InMemory, [clean_period: to_timeout(hour: 1)]},
+          {Tuist.API.Pipeline, []},
+          TuistWeb.Endpoint
+        ],
+        else: []
+    )
+    |> Kernel.++(
+      if Environment.worker?(),
+        do: [
+          {Guardian.DB.Sweeper, [interval: 60 * 60 * 1000]}
+        ],
+        else: []
+    )
     |> Kernel.++(if Environment.analytics_enabled?(), do: [Tuist.Analytics.Posthog], else: [])
     |> Kernel.++(
       if Environment.tuist_hosted?(),

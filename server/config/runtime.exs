@@ -10,13 +10,13 @@ import Config
 # ## Using releases
 #
 # If you use `mix release`, you need to explicitly enable the server
-# by passing the PHX_SERVER=true when you start it:
+# by passing the TUIST_WEB=true when you start it:
 #
-#     PHX_SERVER=true bin/tuist start
+#     TUIST_WEB=true bin/tuist start
 #
 # Alternatively, you can use `mix phx.gen.release` to generate a `bin/server`
 # script that automatically sets the env var above.
-if System.get_env("PHX_SERVER") do
+if Tuist.Environment.web?() do
   config :tuist, TuistWeb.Endpoint, server: true
 end
 
@@ -33,7 +33,7 @@ if Enum.member?([:prod, :stag, :can], env) do
     ecto_repos:
       [Tuist.Repo] ++
         if(Tuist.Environment.clickhouse_configured?(secrets),
-          do: [Tuist.ClickHouseRepo],
+          do: [Tuist.IngestRepo],
           else: []
         ),
     generators: [timestamp_type: :utc_datetime],
@@ -45,7 +45,22 @@ if Enum.member?([:prod, :stag, :can], env) do
       url: Tuist.Environment.clickhouse_url(secrets),
       pool_size: Tuist.Environment.clickhouse_pool_size(secrets),
       queue_target: Tuist.Environment.clickhouse_queue_target(secrets),
-      queue_interval: Tuist.Environment.clickhouse_queue_interval(secrets)
+      queue_interval: Tuist.Environment.clickhouse_queue_interval(secrets),
+      settings: [
+        readonly: 1,
+        # Specifies the join algorithms to use in order of preference: direct (fastest for small tables), 
+        # parallel_hash (good for medium tables), and hash (fallback for large tables)
+        join_algorithm: "direct,parallel_hash,hash"
+      ]
+
+    config :tuist, Tuist.IngestRepo,
+      url: Tuist.Environment.clickhouse_url(secrets),
+      pool_size: Tuist.Environment.clickhouse_pool_size(secrets),
+      queue_target: Tuist.Environment.clickhouse_queue_target(secrets),
+      queue_interval: Tuist.Environment.clickhouse_queue_interval(secrets),
+      flush_interval_ms: Tuist.Environment.clickhouse_flush_interval_ms(secrets),
+      max_buffer_size: Tuist.Environment.clickhouse_max_buffer_size(secrets),
+      pool_size: Tuist.Environment.clickhouse_buffer_pool_size(secrets)
   end
 
   database_url =
@@ -274,25 +289,34 @@ if Tuist.Environment.mail_configured?(secrets) and Tuist.Environment.env() in [:
 end
 
 # Oban
+oban_queues =
+  if Tuist.Environment.web?() and !Tuist.Environment.worker?(), do: [], else: [default: 10]
+
+oban_plugins =
+  if Tuist.Environment.web?() and !Tuist.Environment.worker?(),
+    do: [],
+    else: [
+      {Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 7},
+      {Oban.Plugins.Lifeline, rescue_after: to_timeout(minute: 30)},
+      {Oban.Plugins.Cron,
+       crontab:
+         if(Tuist.Environment.tuist_hosted?() and env == :prod,
+           do: [
+             {"0 10 * * 1-5", Tuist.Ops.DailySlackReportWorker},
+             {"0 * * * 1-5", Tuist.Ops.HourlySlackReportWorker},
+             {"@hourly", Tuist.Registry.Swift.Workers.UpdatePackagesWorker},
+             {"@hourly", Tuist.Registry.Swift.Workers.UpdatePackageReleasesWorker},
+             {"@daily", Tuist.Billing.UpdateAllCustomersRemoteCacheHitsCountWorker},
+             {"@daily", Tuist.Accounts.Workers.UpdateAllAccountsUsageWorker},
+             {"@daily", Tuist.Mautic.Workers.SyncCompaniesAndContactsWorker}
+           ],
+           else: []
+         )}
+    ]
+
 config :tuist, Oban,
-  plugins: [
-    {Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 7},
-    {Oban.Plugins.Lifeline, rescue_after: to_timeout(minute: 30)},
-    {Oban.Plugins.Cron,
-     crontab:
-       if(Tuist.Environment.tuist_hosted?() and env == :prod,
-         do: [
-           {"0 10 * * 1-5", Tuist.Ops.DailySlackReportWorker},
-           {"0 * * * 1-5", Tuist.Ops.HourlySlackReportWorker},
-           {"@hourly", Tuist.Registry.Swift.Workers.UpdatePackagesWorker},
-           {"@hourly", Tuist.Registry.Swift.Workers.UpdatePackageReleasesWorker},
-           {"@daily", Tuist.Billing.UpdateAllCustomersRemoteCacheHitsCountWorker},
-           {"@daily", Tuist.Accounts.Workers.UpdateAllAccountsUsageWorker},
-           {"@daily", Tuist.Mautic.Workers.SyncCompaniesAndContactsWorker}
-         ],
-         else: []
-       )}
-  ]
+  queues: oban_queues,
+  plugins: oban_plugins
 
 # Guardian
 config :tuist, Tuist.Guardian,

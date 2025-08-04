@@ -116,7 +116,6 @@ defmodule TuistWeb.Router do
 
   pipeline :on_premise_api do
     plug TuistWeb.OnPremisePlug, :api_license_validation
-    plug TuistWeb.OnPremisePlug, :warn_on_outdated_cli
   end
 
   pipeline :analytics do
@@ -222,7 +221,10 @@ defmodule TuistWeb.Router do
 
     get "/ready", TuistWeb.PageController, :ready
     get "/api/docs", TuistWeb.APIController, :docs
-    get "/.well-known/apple-app-site-association", TuistWeb.AppleAppSiteAssociationController, :show
+
+    get "/.well-known/apple-app-site-association",
+        TuistWeb.AppleAppSiteAssociationController,
+        :show
   end
 
   scope path: "/api",

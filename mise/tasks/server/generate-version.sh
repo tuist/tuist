@@ -1,16 +1,14 @@
-#!/bin/bash
-# mise description="Generates the version for release"
+#!/usr/bin/env bash
+# mise description="Generate version for server deployments"
 
-# Get current date components
-year=$(date +%Y)
-month=$(date +%m)
-day=$(date +%d)
+# Get the latest server@x.y.z tag
+latest_tag=$(git tag -l "server@*" | sort -V | tail -n 1)
 
-# Define major version
-MAJOR="1"
-
-# Create version string
-version="${MAJOR}.$((year % 100)).${month}.${day}"
-
-# Print version
-echo $version
+if [ -z "$latest_tag" ]; then
+    # No server tags found, use default
+    echo "0.1.0"
+else
+    # Extract version from tag (remove "server@" prefix)
+    version="${latest_tag#server@}"
+    echo "$version"
+fi

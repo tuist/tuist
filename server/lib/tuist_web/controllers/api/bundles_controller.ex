@@ -11,7 +11,6 @@ defmodule TuistWeb.API.BundlesController do
   alias Tuist.Bundles.Bundle
   alias Tuist.Projects.Project
   alias TuistWeb.API.Schemas.BundleArtifact
-  alias TuistWeb.API.Schemas.BundleSupportedPlatform
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.ValidationError
   alias TuistWeb.Authentication

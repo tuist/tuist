@@ -82,18 +82,6 @@ defmodule TuistWeb.BuildsLive do
         _ -> opts
       end
 
-    analytics_tasks = [
-      Task.async(fn -> Analytics.build_duration_analytics(project.id, opts) end),
-      Task.async(fn -> Analytics.build_percentile_durations(project.id, 0.99, opts) end),
-      Task.async(fn -> Analytics.build_percentile_durations(project.id, 0.9, opts) end),
-      Task.async(fn -> Analytics.build_percentile_durations(project.id, 0.5, opts) end),
-      Task.async(fn -> Analytics.build_analytics(project.id, opts) end),
-      Task.async(fn ->
-        Analytics.build_analytics(project.id, Keyword.put(opts, :status, :failure))
-      end),
-      Task.async(fn -> Analytics.build_success_rate_analytics(project.id, opts) end)
-    ]
-
     [
       builds_duration_analytics,
       builds_p99_durations,
@@ -102,7 +90,7 @@ defmodule TuistWeb.BuildsLive do
       total_builds_analytics,
       failed_builds_analytics,
       build_success_rate_analytics
-    ] = Task.await_many(analytics_tasks, 10_000)
+    ] = Analytics.combined_builds_analytics(project.id, opts)
 
     socket
     |> assign(:builds_duration_analytics, builds_duration_analytics)
@@ -124,7 +112,7 @@ defmodule TuistWeb.BuildsLive do
     |> assign(:analytics_date_range, analytics_date_range)
     |> assign(:analytics_build_scheme, analytics_build_scheme)
     |> assign(:analytics_build_category, analytics_build_category)
-    |> assign(:build_schemes, Tuist.Runs.project_build_schemes(project))
+    |> assign(:build_schemes, Runs.project_build_schemes(project))
   end
 
   defp opts_with_analytics_build_scheme(opts, analytics_build_scheme) do

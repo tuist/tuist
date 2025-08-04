@@ -1,8 +1,8 @@
 defmodule Tuist.CommandEvents.Clickhouse.Event do
-  @moduledoc ~S"""
-  ClickHouse schema for command events.
-  """
+  @moduledoc false
+
   use Ecto.Schema
+  use Tuist.Ingestion.Bufferable
 
   @derive {
     Flop.Schema,
@@ -55,21 +55,24 @@ defmodule Tuist.CommandEvents.Clickhouse.Event do
     field :created_at, Ch, type: "DateTime64(6)"
     field :updated_at, Ch, type: "DateTime64(6)"
 
-    field :cacheable_targets_count, Ch, type: "UInt32"
-    field :local_cache_hits_count, Ch, type: "UInt32"
-    field :remote_cache_hits_count, Ch, type: "UInt32"
-    field :test_targets_count, Ch, type: "UInt32"
-    field :local_test_hits_count, Ch, type: "UInt32"
-    field :remote_test_hits_count, Ch, type: "UInt32"
-    field :hit_rate, Ch, type: "Nullable(Float32)"
+    field :cacheable_targets_count, Ch, type: "UInt32", default: :database
+    field :local_cache_hits_count, Ch, type: "UInt32", default: :database
+    field :remote_cache_hits_count, Ch, type: "UInt32", default: :database
+    field :test_targets_count, Ch, type: "UInt32", default: :database
+    field :local_test_hits_count, Ch, type: "UInt32", default: :database
+    field :remote_test_hits_count, Ch, type: "UInt32", default: :database
+    field :hit_rate, Ch, type: "Nullable(Float32)", default: :database
 
     field :user_account_name, :string, virtual: true
   end
 
   def changeset(event_attrs) do
+    id = UUIDv7.generate()
+
     event_attrs =
       event_attrs
-      |> Map.put_new(:id, UUIDv7.generate())
+      |> Map.put_new(:id, id)
+      |> Map.put(:legacy_id, Tuist.UUIDv7.to_int64(id))
       |> normalize_status()
       |> Map.update(:command_arguments, "", fn
         args when is_list(args) -> Enum.join(args, " ")

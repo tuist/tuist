@@ -46,7 +46,7 @@ defmodule Tuist.Registry.Swift.Workers.UpdatePackagesWorkerTest do
     assert Packages.get_package_by_scope_and_name(%{
              scope: "onevcat",
              name: "Kingfisher"
-           }) != nil
+           })
   end
 
   test "skips unsupported packages" do
@@ -107,7 +107,7 @@ defmodule Tuist.Registry.Swift.Workers.UpdatePackagesWorkerTest do
     assert Packages.get_package_by_scope_and_name(%{
              scope: "onevcat",
              name: "Kingfisher"
-           }) != nil
+           })
   end
 
   test "creates missing package with a dot in its name" do
@@ -140,6 +140,6 @@ defmodule Tuist.Registry.Swift.Workers.UpdatePackagesWorkerTest do
     assert Packages.get_package_by_scope_and_name(%{
              scope: "stephenceilis",
              name: "SQLite_swift"
-           }) != nil
+           })
   end
 end

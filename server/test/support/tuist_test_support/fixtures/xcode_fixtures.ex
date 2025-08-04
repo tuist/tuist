@@ -1,8 +1,11 @@
 defmodule TuistTestSupport.Fixtures.XcodeFixtures do
   @moduledoc false
 
+  import Ecto.Query
+
   alias Tuist.ClickHouseRepo
   alias Tuist.Environment
+  alias Tuist.IngestRepo
   alias Tuist.Repo
   alias Tuist.Xcode.Clickhouse.XcodeGraph, as: CHXcodeGraph
   alias Tuist.Xcode.Clickhouse.XcodeProject, as: CHXcodeProject
@@ -56,7 +59,7 @@ defmodule TuistTestSupport.Fixtures.XcodeFixtures do
       inserted_at: NaiveDateTime.truncate(inserted_at, :second)
     }
 
-    ClickHouseRepo.insert_all(CHXcodeGraph, [xcode_graph_data])
+    IngestRepo.insert_all(CHXcodeGraph, [xcode_graph_data])
 
     %{
       id: id,
@@ -72,6 +75,14 @@ defmodule TuistTestSupport.Fixtures.XcodeFixtures do
         xcode_graph_fixture().id
       end)
 
+    command_event_id =
+      Keyword.get_lazy(opts, :command_event_id, fn ->
+        graph =
+          ClickHouseRepo.one(from(g in CHXcodeGraph, where: g.id == ^xcode_graph_id, select: g.command_event_id))
+
+        graph || CommandEventsFixtures.command_event_fixture().id
+      end)
+
     name = Keyword.get(opts, :name, "#{TuistTestSupport.Utilities.unique_integer()}")
     path = Keyword.get(opts, :path, ".")
     id = Keyword.get(opts, :id, UUIDv7.generate())
@@ -81,12 +92,19 @@ defmodule TuistTestSupport.Fixtures.XcodeFixtures do
       name: name,
       path: path,
       xcode_graph_id: xcode_graph_id,
+      command_event_id: command_event_id,
       inserted_at: NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
     }
 
-    ClickHouseRepo.insert_all(CHXcodeProject, [xcode_project_data])
+    IngestRepo.insert_all(CHXcodeProject, [xcode_project_data])
 
-    %{id: id, name: name, path: path, xcode_graph_id: xcode_graph_id}
+    %{
+      id: id,
+      name: name,
+      path: path,
+      xcode_graph_id: xcode_graph_id,
+      command_event_id: command_event_id
+    }
   end
 
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
@@ -94,6 +112,19 @@ defmodule TuistTestSupport.Fixtures.XcodeFixtures do
     xcode_project_id =
       Keyword.get_lazy(opts, :xcode_project_id, fn ->
         xcode_project_fixture().id
+      end)
+
+    command_event_id =
+      Keyword.get_lazy(opts, :command_event_id, fn ->
+        project =
+          ClickHouseRepo.one(
+            from(p in CHXcodeProject,
+              where: p.id == ^xcode_project_id,
+              select: p.command_event_id
+            )
+          )
+
+        project || CommandEventsFixtures.command_event_fixture().id
       end)
 
     name = Keyword.get(opts, :name, "#{TuistTestSupport.Utilities.unique_integer()}")
@@ -130,6 +161,7 @@ defmodule TuistTestSupport.Fixtures.XcodeFixtures do
       id: id,
       name: name,
       xcode_project_id: xcode_project_id,
+      command_event_id: command_event_id,
       binary_cache_hash: binary_cache_hash,
       binary_cache_hit: binary_cache_hit,
       selective_testing_hash: selective_testing_hash,
@@ -137,12 +169,13 @@ defmodule TuistTestSupport.Fixtures.XcodeFixtures do
       inserted_at: NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
     }
 
-    ClickHouseRepo.insert_all(CHXcodeTarget, [xcode_target_data])
+    IngestRepo.insert_all(CHXcodeTarget, [xcode_target_data])
 
     %{
       id: id,
       name: name,
       xcode_project_id: xcode_project_id,
+      command_event_id: command_event_id,
       binary_cache_hash: binary_cache_hash
     }
   end

@@ -56,7 +56,7 @@ defmodule Tuist.API.Pipeline do
     |> Tuist.CommandEvents.create_cache_events()
     |> case do
       {^events_count, nil} -> cache_events
-      _ -> Enum.map(cache_events, &Broadway.Message.failed(&1, :insert_all_error))
+      _ -> Enum.map(cache_events, &Message.failed(&1, :insert_all_error))
     end
   end
 

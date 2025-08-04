@@ -30,13 +30,15 @@ defmodule TuistWeb.RunDetailLiveTest do
     } do
       # Given
       test_run =
-        CommandEventsFixtures.command_event_fixture(
-          project: project,
-          name: "cache",
-          command_arguments: ["test", "App"],
-          test_targets: ["AppTests"],
-          is_ci: true
-        )
+        with_flushed_command_events(fn ->
+          CommandEventsFixtures.command_event_fixture(
+            project: project,
+            name: "cache",
+            command_arguments: ["test", "App"],
+            test_targets: ["AppTests"],
+            is_ci: true
+          )
+        end)
 
       # When
       {:ok, lv, _html} =
@@ -59,12 +61,14 @@ defmodule TuistWeb.RunDetailLiveTest do
       stub(CommandEvents, :has_result_bundle?, fn _ -> true end)
 
       test_run =
-        CommandEventsFixtures.command_event_fixture(
-          project: project,
-          name: "test",
-          cacheable_targets: ["Framework"],
-          user_id: user.id
-        )
+        with_flushed_command_events(fn ->
+          CommandEventsFixtures.command_event_fixture(
+            project: project,
+            name: "test",
+            cacheable_targets: ["Framework"],
+            user_id: user.id
+          )
+        end)
 
       # When
       {:ok, lv, _html} =
@@ -84,12 +88,14 @@ defmodule TuistWeb.RunDetailLiveTest do
       stub(CommandEvents, :has_result_bundle?, fn _ -> false end)
 
       test_run =
-        CommandEventsFixtures.command_event_fixture(
-          project: project,
-          name: "test",
-          cacheable_targets: ["Framework"],
-          user_id: user.id
-        )
+        with_flushed_command_events(fn ->
+          CommandEventsFixtures.command_event_fixture(
+            project: project,
+            name: "test",
+            cacheable_targets: ["Framework"],
+            user_id: user.id
+          )
+        end)
 
       # When
       {:ok, lv, _html} =
@@ -115,13 +121,15 @@ defmodule TuistWeb.RunDetailLiveTest do
     } do
       # Given
       test_run =
-        CommandEventsFixtures.command_event_fixture(
-          project: project,
-          name: "test",
-          command_arguments: ["test", "App"],
-          test_targets: ["AppTests"],
-          user_id: user.id
-        )
+        with_flushed_command_events(fn ->
+          CommandEventsFixtures.command_event_fixture(
+            project: project,
+            name: "test",
+            command_arguments: ["test", "App"],
+            test_targets: ["AppTests"],
+            user_id: user.id
+          )
+        end)
 
       xcode_graph = XcodeFixtures.xcode_graph_fixture(command_event_id: test_run.id)
 
@@ -152,13 +160,15 @@ defmodule TuistWeb.RunDetailLiveTest do
     } do
       # Given
       cache_run =
-        CommandEventsFixtures.command_event_fixture(
-          project: project,
-          name: "cache",
-          command_arguments: ["cache"],
-          cacheable_targets: ["Framework"],
-          user_id: user.id
-        )
+        with_flushed_command_events(fn ->
+          CommandEventsFixtures.command_event_fixture(
+            project: project,
+            name: "cache",
+            command_arguments: ["cache"],
+            cacheable_targets: ["Framework"],
+            user_id: user.id
+          )
+        end)
 
       xcode_graph = XcodeFixtures.xcode_graph_fixture(command_event_id: cache_run.id)
 
@@ -192,13 +202,15 @@ defmodule TuistWeb.RunDetailLiveTest do
     } do
       # Given
       ci_run =
-        CommandEventsFixtures.command_event_fixture(
-          project: project,
-          name: "cache",
-          is_ci: true,
-          user_id: nil,
-          cacheable_targets: ["Framework"]
-        )
+        with_flushed_command_events(fn ->
+          CommandEventsFixtures.command_event_fixture(
+            project: project,
+            name: "cache",
+            is_ci: true,
+            user_id: nil,
+            cacheable_targets: ["Framework"]
+          )
+        end)
 
       # When
       {:ok, lv, _html} =
@@ -221,12 +233,14 @@ defmodule TuistWeb.RunDetailLiveTest do
       stub(CommandEvents, :has_result_bundle?, fn _ -> true end)
 
       test_run =
-        CommandEventsFixtures.command_event_fixture(
-          project: project,
-          name: "test",
-          cacheable_targets: ["Framework"],
-          user_id: user.id
-        )
+        with_flushed_command_events(fn ->
+          CommandEventsFixtures.command_event_fixture(
+            project: project,
+            name: "test",
+            cacheable_targets: ["Framework"],
+            user_id: user.id
+          )
+        end)
 
       # When
       {:ok, lv, _html} =
@@ -246,12 +260,14 @@ defmodule TuistWeb.RunDetailLiveTest do
       stub(CommandEvents, :has_result_bundle?, fn _ -> false end)
 
       test_run =
-        CommandEventsFixtures.command_event_fixture(
-          project: project,
-          name: "test",
-          cacheable_targets: ["Framework"],
-          user_id: user.id
-        )
+        with_flushed_command_events(fn ->
+          CommandEventsFixtures.command_event_fixture(
+            project: project,
+            name: "test",
+            cacheable_targets: ["Framework"],
+            user_id: user.id
+          )
+        end)
 
       # When
       {:ok, lv, _html} =

@@ -131,6 +131,9 @@
         "translate": {
           "text": "Translate"
         },
+        "releases": {
+          "text": "Releases"
+        },
         "cli": {
           "text": "CLI",
           "items": {
