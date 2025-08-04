@@ -35,7 +35,7 @@ defmodule Tuist.StorageTest do
                                               {"uploadId", ^upload_id}
                                             ],
                                             headers: [],
-                                            virtual_host: true,
+                                            virtual_host: false,
                                             expires_in: ^expires_in
                                           ] ->
         {:ok, url}
@@ -82,7 +82,7 @@ defmodule Tuist.StorageTest do
                                             headers: [
                                               {"Content-Length", "300"}
                                             ],
-                                            virtual_host: true,
+                                            virtual_host: false,
                                             expires_in: ^expires_in
                                           ] ->
         {:ok, url}
@@ -161,7 +161,7 @@ defmodule Tuist.StorageTest do
                                           [
                                             query_params: [],
                                             expires_in: ^expires_in,
-                                            virtual_host: true
+                                            virtual_host: false
                                           ] ->
         {:ok, url}
       end)
@@ -199,7 +199,7 @@ defmodule Tuist.StorageTest do
                                           [
                                             query_params: [],
                                             expires_in: ^expires_in,
-                                            virtual_host: true
+                                            virtual_host: false
                                           ] ->
         {:ok, url}
       end)

@@ -24,7 +24,7 @@ defmodule Tuist.Storage do
           {"uploadId", upload_id}
         ],
         headers: headers,
-        virtual_host: true,
+        virtual_host: Environment.s3_virtual_host(),
         expires_in: Keyword.get(opts, :expires_in, 3600)
       )
 
@@ -65,7 +65,7 @@ defmodule Tuist.Storage do
           |> ExAws.S3.presigned_url(:get, Environment.s3_bucket_name(), object_key,
             query_params: [],
             expires_in: Keyword.get(opts, :expires_in, 3600),
-            virtual_host: true
+            virtual_host: Environment.s3_virtual_host()
           )
 
         url
@@ -87,7 +87,7 @@ defmodule Tuist.Storage do
       |> ExAws.S3.presigned_url(:put, Environment.s3_bucket_name(), object_key,
         query_params: [],
         expires_in: Keyword.get(opts, :expires_in, 3600),
-        virtual_host: true
+        virtual_host: Environment.s3_virtual_host()
       )
 
     :telemetry.execute(
