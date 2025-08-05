@@ -24,7 +24,7 @@ defmodule TuistWeb.GenerateRunsLiveTest do
     } do
       # Given
       _generate_run_one =
-        with_flushed_command_events(fn ->
+        with_flushed_ingestion_buffers(fn ->
           CommandEventsFixtures.command_event_fixture(
             project_id: project.id,
             user_id: user.id,
@@ -41,7 +41,7 @@ defmodule TuistWeb.GenerateRunsLiveTest do
         end)
 
       _generate_run_one =
-        with_flushed_command_events(fn ->
+        with_flushed_ingestion_buffers(fn ->
           CommandEventsFixtures.command_event_fixture(
             project_id: project.id,
             user_id: user.id,
@@ -88,7 +88,7 @@ defmodule TuistWeb.GenerateRunsLiveTest do
     } do
       # Given
       _generate_run_one =
-        with_flushed_command_events(fn ->
+        with_flushed_ingestion_buffers(fn ->
           CommandEventsFixtures.command_event_fixture(
             project_id: project.id,
             user_id: user.id,
@@ -105,7 +105,7 @@ defmodule TuistWeb.GenerateRunsLiveTest do
         end)
 
       _generate_run_one =
-        with_flushed_command_events(fn ->
+        with_flushed_ingestion_buffers(fn ->
           CommandEventsFixtures.command_event_fixture(
             project_id: project.id,
             user_id: user.id,

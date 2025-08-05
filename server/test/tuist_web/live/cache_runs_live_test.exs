@@ -23,7 +23,7 @@ defmodule TuistWeb.CacheRunsLiveTest do
       project: project
     } do
       # Given
-      with_flushed_command_events(fn ->
+      with_flushed_ingestion_buffers(fn ->
         CommandEventsFixtures.command_event_fixture(
           project_id: project.id,
           user_id: user.id,
@@ -70,7 +70,7 @@ defmodule TuistWeb.CacheRunsLiveTest do
       project: project
     } do
       # Given
-      with_flushed_command_events(fn ->
+      with_flushed_ingestion_buffers(fn ->
         CommandEventsFixtures.command_event_fixture(
           project_id: project.id,
           user_id: user.id,

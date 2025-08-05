@@ -36,6 +36,7 @@ defmodule TuistTestSupport.Cases.DataCase do
 
   setup tags do
     TuistTestSupport.Cases.DataCase.setup_sandbox(tags)
+
     :ok
   end
 

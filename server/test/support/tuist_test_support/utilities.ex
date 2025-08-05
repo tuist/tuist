@@ -7,11 +7,14 @@ defmodule TuistTestSupport.Utilities do
   end
 
   @doc """
-  Flushes the command events ingestion buffer after running the callback function.
+  Flushes the ingestion buffers after running the callback function.
   """
-  def with_flushed_command_events(fun) when is_function(fun, 0) do
+  def with_flushed_ingestion_buffers(fun) when is_function(fun, 0) do
     result = fun.()
     Tuist.CommandEvents.Buffer.flush()
+    Tuist.Xcode.XcodeGraph.Buffer.flush()
+    Tuist.Xcode.XcodeProject.Buffer.flush()
+    Tuist.Xcode.XcodeTarget.Buffer.flush()
     result
   end
 end

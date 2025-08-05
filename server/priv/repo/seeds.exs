@@ -1,10 +1,7 @@
-import Ecto.Query, only: [from: 2]
-
 alias Tuist.Accounts
 alias Tuist.AppBuilds.AppBuild
 alias Tuist.AppBuilds.Preview
 alias Tuist.Billing.Subscription
-alias Tuist.ClickHouseRepo
 alias Tuist.CommandEvents
 alias Tuist.CommandEvents.Clickhouse.Event
 alias Tuist.IngestRepo
@@ -239,7 +236,7 @@ command_events
 end)
 
 test_command_events =
-  ClickHouseRepo.all(from(c in Event, where: c.name == "test"))
+  Enum.filter(command_events, &(&1.name == "test"))
 
 test_command_events
 |> Enum.shuffle()
@@ -292,6 +289,10 @@ test_command_events
         ]
       }
     })
+
+  Tuist.Xcode.XcodeGraph.Buffer.flush()
+  Tuist.Xcode.XcodeProject.Buffer.flush()
+  Tuist.Xcode.XcodeTarget.Buffer.flush()
 
   xcode_targets =
     command_event.id

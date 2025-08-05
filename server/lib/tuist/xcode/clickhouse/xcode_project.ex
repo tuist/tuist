@@ -1,6 +1,7 @@
 defmodule Tuist.Xcode.Clickhouse.XcodeProject do
   @moduledoc false
   use Ecto.Schema
+  use Tuist.Ingestion.Bufferable
 
   @primary_key false
   schema "xcode_projects" do
