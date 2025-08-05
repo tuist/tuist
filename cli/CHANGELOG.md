@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.58.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* print the full sandbox command when a system command fails by [@hiltonc](https://github.com/hiltonc) in [#7972](https://github.com/tuist/tuist/pull/7972)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.57.1...4.58.0
+
 ## What's Changed in 4.57.1<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
