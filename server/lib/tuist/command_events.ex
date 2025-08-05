@@ -143,22 +143,37 @@ defmodule Tuist.CommandEvents do
   end
 
   def get_result_bundle_key(command_event) do
-    "#{get_command_event_artifact_base_path_key(command_event)}/result_bundle.zip"
+    project = Repo.get!(Project, command_event.project_id)
+    account = Repo.get!(Account, project.account_id)
+    "#{account.name}/#{project.name}/runs/#{command_event.id}/result_bundle.zip"
   end
 
   def get_result_bundle_invocation_record_key(command_event) do
-    "#{get_command_event_artifact_base_path_key(command_event)}/invocation_record.json"
+    project = Repo.get!(Project, command_event.project_id)
+    account = Repo.get!(Account, project.account_id)
+    "#{account.name}/#{project.name}/runs/#{command_event.id}/invocation_record.json"
   end
 
   def get_result_bundle_object_key(command_event, result_bundle_object_id) do
-    "#{get_command_event_artifact_base_path_key(command_event)}/#{result_bundle_object_id}.json"
-  end
-
-  defp get_command_event_artifact_base_path_key(command_event) do
     project = Repo.get!(Project, command_event.project_id)
     account = Repo.get!(Account, project.account_id)
+    "#{account.name}/#{project.name}/runs/#{command_event.id}/#{result_bundle_object_id}.json"
+  end
 
-    "#{account.name}/#{project.name}/runs/#{command_event.id}"
+  def get_result_bundle_key(run_id, project) do
+    "#{get_command_event_artifact_base_path_key(run_id, project)}/result_bundle.zip"
+  end
+
+  def get_result_bundle_invocation_record_key(run_id, project) do
+    "#{get_command_event_artifact_base_path_key(run_id, project)}/invocation_record.json"
+  end
+
+  def get_result_bundle_object_key(run_id, project, result_bundle_object_id) do
+    "#{get_command_event_artifact_base_path_key(run_id, project)}/#{result_bundle_object_id}.json"
+  end
+
+  def get_command_event_artifact_base_path_key(run_id, project) do
+    "#{project.account.name}/#{project.name}/runs/#{run_id}"
   end
 
   def list_flaky_test_cases(%Project{} = project, attrs) do
