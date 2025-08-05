@@ -472,6 +472,8 @@ defmodule TuistWeb.BundleLive do
     Enum.sort_by(artifacts, & &1.size, :desc)
   end
 
+  defp sort_file_breakdown_artifacts(artifacts, _, _), do: artifacts
+
   defp sort_module_breakdown_artifacts(artifacts, "name", "asc") do
     Enum.sort_by(artifacts, & &1.name, :desc)
   end
@@ -487,6 +489,8 @@ defmodule TuistWeb.BundleLive do
   defp sort_module_breakdown_artifacts(artifacts, "size", "desc") do
     Enum.sort_by(artifacts, & &1.size, :desc)
   end
+
+  defp sort_module_breakdown_artifacts(artifacts, _, _), do: artifacts
 
   defp find_duplicates(artifacts) do
     all_artifacts = flatten_artifacts(artifacts)
