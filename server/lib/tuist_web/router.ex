@@ -383,6 +383,12 @@ defmodule TuistWeb.Router do
     post "/token", TokenController, :token
   end
 
+  scope "/webhooks", TuistWeb.Webhooks do
+    pipe_through [:non_authenticated_api]
+
+    post "/github", GitHubController, :webhook
+  end
+
   # Ops Routes
   pipeline :ops do
     plug TuistWeb.Authorization, [:current_user, :read, :ops]
