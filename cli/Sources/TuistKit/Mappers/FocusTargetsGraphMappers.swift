@@ -44,6 +44,7 @@ public final class FocusTargetsGraphMappers: GraphMapping {
     }
 
     public func map(graph: Graph, environment: MapperEnvironment) throws -> (Graph, [SideEffectDescriptor], MapperEnvironment) {
+        print("Runnig focus targets graph mapper with included targets: \(includedTargets).")
         let graphTraverser = GraphTraverser(graph: graph)
         var graph = graph
         let userSpecifiedSourceTargets = graphTraverser.filterIncludedTargets(
@@ -77,6 +78,7 @@ public final class FocusTargetsGraphMappers: GraphMapping {
             project.targets = project.targets.mapValues { target in
                 var target = target
                 if !filteredTargets.contains(GraphTarget(path: project.path, target: target, project: project)) {
+                    print("Pruning \(target.name)")
                     target.prune = true
                 }
                 return target
