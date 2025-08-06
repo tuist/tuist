@@ -125,12 +125,6 @@ defmodule TuistWeb.API.QAControllerTest do
       # Given
       other_user = AccountsFixtures.user_fixture(email: "other@tuist.io", preload: [:account])
 
-      conn =
-        assign(conn, :current_subject, %AuthenticatedAccount{
-          account: other_user.account,
-          scopes: [:project_qa_step_create]
-        })
-
       other_project = ProjectsFixtures.project_fixture(account_id: other_user.account.id)
       other_preview = AppBuildsFixtures.preview_fixture(project: other_project)
       other_app_build = AppBuildsFixtures.app_build_fixture(preview: other_preview)
