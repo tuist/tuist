@@ -284,6 +284,13 @@ defmodule TuistWeb.Router do
           delete "/:preview_id", PreviewsController, :delete
         end
 
+        scope "/qa" do
+          post "/runs/:qa_run_id/steps", QAController, :create_step
+          patch "/runs/:qa_run_id", QAController, :update_run
+          post "/runs/:qa_run_id/screenshots/upload", QAController, :screenshot_upload
+          post "/runs/:qa_run_id/screenshots", QAController, :create_screenshot
+        end
+
         scope "/tokens" do
           post "/", ProjectTokensController, :create
           get "/", ProjectTokensController, :index

@@ -80,6 +80,16 @@ defmodule Tuist.Environment do
     not dev?() or truthy?(System.get_env("TUIST_DEV_USE_REMOTE_STORAGE", "0"))
   end
 
+  def prometheus_enabled? do
+    prometheus_enabled = System.get_env("TUIST_PROMETHEUS_ENABLED")
+
+    if is_nil(prometheus_enabled) do
+      not dev?() and not test?()
+    else
+      truthy?(prometheus_enabled)
+    end
+  end
+
   def get_license_key(secrets \\ secrets()) do
     System.get_env("TUIST_LICENSE_KEY") ||
       get([:license], secrets)
@@ -215,7 +225,7 @@ defmodule Tuist.Environment do
     if dev_use_remote_storage?() do
       get([:aws, :endpoint], secrets) || get([:s3, :endpoint], secrets)
     else
-      "http://localhost:9095"
+      get([:local_s3_endpoint], secrets) || "http://localhost:9095"
     end
   end
 

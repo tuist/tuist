@@ -6,6 +6,8 @@ defmodule Tuist.Guardian do
   use Guardian, otp_app: :tuist
 
   alias Tuist.Accounts
+  alias Tuist.Accounts.Account
+  alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Accounts.User
   alias Tuist.Projects.Project
 
@@ -19,8 +21,29 @@ defmodule Tuist.Guardian do
     {:ok, sub}
   end
 
+  def subject_for_token(%Account{id: id}, _claims) do
+    sub = to_string(id)
+    {:ok, sub}
+  end
+
   def subject_for_token(_, _) do
     {:error, :invalid_subject}
+  end
+
+  def resource_from_claims(%{"sub" => id, "type" => "account"} = claims) do
+    account = Accounts.get_account_by_id(id)
+
+    if account do
+      scopes = Enum.map(claims["scopes"], &String.to_atom/1)
+
+      {:ok,
+       %AuthenticatedAccount{
+         account: account,
+         scopes: scopes
+       }}
+    else
+      {:error, :resource_not_found}
+    end
   end
 
   def resource_from_claims(%{"sub" => id}) do

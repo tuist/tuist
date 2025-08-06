@@ -48,7 +48,7 @@ if Enum.member?([:prod, :stag, :can], env) do
       queue_interval: Tuist.Environment.clickhouse_queue_interval(secrets),
       settings: [
         readonly: 1,
-        # Specifies the join algorithms to use in order of preference: direct (fastest for small tables), 
+        # Specifies the join algorithms to use in order of preference: direct (fastest for small tables),
         # parallel_hash (good for medium tables), and hash (fallback for large tables)
         join_algorithm: "direct,parallel_hash,hash"
       ]
@@ -329,7 +329,7 @@ config :tuist, Tuist.Guardian,
 
 # Prometheus
 config :tuist, Tuist.PromEx,
-  disabled: Tuist.Environment.env() == :test,
+  disabled: not Tuist.Environment.prometheus_enabled?(),
   manual_metrics_start_delay: :no_delay,
   drop_metrics_groups: [],
   grafana: :disabled,

@@ -1,0 +1,286 @@
+defmodule Tuist.QATest do
+  use TuistTestSupport.Cases.DataCase
+  use Mimic
+
+  alias Tuist.Authentication
+  alias Tuist.QA
+  alias Tuist.QA.Agent
+  alias Tuist.Repo
+  alias Tuist.Storage
+  alias TuistTestSupport.Fixtures.AppBuildsFixtures
+  alias TuistTestSupport.Fixtures.QAFixtures
+
+  describe "test/1" do
+    test "successfully runs QA test and returns completed status" do
+      # Given
+      app_build = Repo.preload(AppBuildsFixtures.app_build_fixture(), preview: [project: :account])
+
+      prompt = "Test the login feature"
+
+      expect(Storage, :generate_download_url, fn _ -> "https://example.com/preview.zip" end)
+
+      expect(Authentication, :encode_and_sign, fn _account, claims, _opts ->
+        {:ok, "test-jwt-token", claims}
+      end)
+
+      expect(Agent, :test, fn %{
+                                preview_url: "https://example.com/preview.zip",
+                                bundle_identifier: "dev.tuist.app",
+                                prompt: ^prompt,
+                                server_url: _,
+                                run_id: _,
+                                auth_token: "test-jwt-token"
+                              },
+                              _opts ->
+        :ok
+      end)
+
+      # When
+      result =
+        QA.test(%{
+          app_build: app_build,
+          prompt: prompt
+        })
+
+      # Then
+      assert :ok == result
+    end
+
+    test "returns failed status when agent test fails" do
+      # Given
+      app_build = Repo.preload(AppBuildsFixtures.app_build_fixture(), preview: [project: :account])
+
+      prompt = "Test the login feature"
+
+      expect(Storage, :generate_download_url, fn _ -> "https://example.com/preview.zip" end)
+
+      expect(Authentication, :encode_and_sign, fn _account, claims, _opts ->
+        {:ok, "test-jwt-token", claims}
+      end)
+
+      expect(Agent, :test, fn _, _ -> {:error, "Agent test failed"} end)
+
+      # When
+      result =
+        QA.test(%{
+          app_build: app_build,
+          prompt: prompt
+        })
+
+      # Then
+      assert {:error, "Agent test failed"} == result
+    end
+
+    test "returns error when auth token creation fails" do
+      # Given
+      app_build = Repo.preload(AppBuildsFixtures.app_build_fixture(), preview: [project: :account])
+
+      expect(Storage, :generate_download_url, fn _ -> "https://example.com/preview.zip" end)
+
+      expect(Authentication, :encode_and_sign, fn _account, _claims, _opts ->
+        {:error, "Token creation failed"}
+      end)
+
+      # When
+      result =
+        QA.test(%{
+          app_build: app_build,
+          prompt: "Test prompt"
+        })
+
+      # Then
+      assert {:error, "Token creation failed"} == result
+    end
+  end
+
+  describe "create_qa_run/1" do
+    test "creates a QA run with valid attributes" do
+      # Given
+      app_build = AppBuildsFixtures.app_build_fixture()
+
+      # When
+      {:ok, qa_run} = QA.create_qa_run(%{app_build_id: app_build.id, prompt: "Test the login feature", status: "pending"})
+
+      # Then
+      assert qa_run.app_build_id == app_build.id
+      assert qa_run.prompt == "Test the login feature"
+      assert qa_run.status == "pending"
+    end
+  end
+
+  describe "update_qa_run/2" do
+    test "updates a QA run with valid attributes" do
+      # Given
+      qa_run = QAFixtures.qa_run_fixture()
+
+      # When
+      {:ok, updated_qa_run} = QA.update_qa_run(qa_run, %{status: "completed"})
+
+      # Then
+      assert updated_qa_run.status == "completed"
+    end
+  end
+
+  describe "create_qa_step/1" do
+    test "creates a QA run step with valid attributes" do
+      # Given
+      qa_run = QAFixtures.qa_run_fixture()
+
+      # When
+      {:ok, qa_step} =
+        QA.create_qa_step(%{
+          qa_run_id: qa_run.id,
+          summary: "Successfully logged in",
+          description: "User successfully entered credentials and accessed the main screen",
+          issues: []
+        })
+
+      # Then
+      assert qa_step.qa_run_id == qa_run.id
+      assert qa_step.summary == "Successfully logged in"
+      assert qa_step.description == "User successfully entered credentials and accessed the main screen"
+      assert qa_step.issues == []
+    end
+  end
+
+  describe "qa_run/1" do
+    test "returns QA run when it exists" do
+      # Given
+      qa_run = QAFixtures.qa_run_fixture()
+
+      # When
+      {:ok, got} = QA.qa_run(qa_run.id)
+
+      # Then
+      assert got.id == qa_run.id
+    end
+
+    test "returns not found error when QA run does not exist" do
+      # Given
+      non_existent_id = Ecto.UUID.generate()
+
+      # When
+      result = QA.qa_run(non_existent_id)
+
+      # Then
+      assert {:error, :not_found} = result
+    end
+  end
+
+  describe "create_qa_screenshot/1" do
+    test "creates a screenshot with valid attributes" do
+      # Given
+      qa_run = QAFixtures.qa_run_fixture()
+
+      # When
+      {:ok, screenshot} =
+        QA.create_qa_screenshot(%{qa_run_id: qa_run.id, file_name: "login_screen", title: "Login Screen Screenshot"})
+
+      # Then
+      assert screenshot.qa_run_id == qa_run.id
+      assert screenshot.file_name == "login_screen"
+      assert screenshot.title == "Login Screen Screenshot"
+    end
+
+    test "creates a screenshot with optional qa_step_id" do
+      # Given
+      qa_run = QAFixtures.qa_run_fixture()
+      qa_step = QAFixtures.qa_step_fixture(qa_run_id: qa_run.id)
+
+      # When
+      {:ok, screenshot} =
+        QA.create_qa_screenshot(%{
+          qa_run_id: qa_run.id,
+          qa_step_id: qa_step.id,
+          file_name: "error_dialog",
+          title: "Error Dialog Screenshot"
+        })
+
+      # Then
+      assert screenshot.qa_run_id == qa_run.id
+      assert screenshot.qa_step_id == qa_step.id
+      assert screenshot.file_name == "error_dialog"
+      assert screenshot.title == "Error Dialog Screenshot"
+    end
+  end
+
+  describe "update_screenshots_with_step_id/2" do
+    test "updates screenshots without step_id to have the given step_id" do
+      # Given
+      qa_run = QAFixtures.qa_run_fixture()
+      qa_step = QAFixtures.qa_step_fixture(qa_run_id: qa_run.id)
+      other_step = QAFixtures.qa_step_fixture(qa_run_id: qa_run.id)
+
+      {:ok, screenshot1} =
+        QA.create_qa_screenshot(%{qa_run_id: qa_run.id, file_name: "screenshot1", title: "Screenshot 1"})
+
+      {:ok, screenshot2} =
+        QA.create_qa_screenshot(%{qa_run_id: qa_run.id, file_name: "screenshot2", title: "Screenshot 2"})
+
+      {:ok, screenshot3} =
+        QA.create_qa_screenshot(%{
+          qa_run_id: qa_run.id,
+          qa_step_id: other_step.id,
+          file_name: "screenshot3",
+          title: "Screenshot 3"
+        })
+
+      # When
+      {updated_count, _} = QA.update_screenshots_with_step_id(qa_run.id, qa_step.id)
+
+      # Then
+      assert updated_count == 2
+      assert Repo.get!(QA.Screenshot, screenshot1.id).qa_step_id == qa_step.id
+      assert Repo.get!(QA.Screenshot, screenshot2.id).qa_step_id == qa_step.id
+      assert Repo.get!(QA.Screenshot, screenshot3.id).qa_step_id == other_step.id
+    end
+
+    test "returns 0 when no screenshots need updating" do
+      # Given
+      qa_run = QAFixtures.qa_run_fixture()
+      qa_step = QAFixtures.qa_step_fixture(qa_run_id: qa_run.id)
+
+      # When
+      {updated_count, _} = QA.update_screenshots_with_step_id(qa_run.id, qa_step.id)
+
+      # Then
+      assert updated_count == 0
+    end
+  end
+
+  describe "screenshot_storage_key/1" do
+    test "generates correct storage key for screenshot" do
+      # Given
+      qa_run_id = Ecto.UUID.generate()
+
+      # When
+      storage_key =
+        QA.screenshot_storage_key(%{
+          account_handle: "TestAccount",
+          project_handle: "TestProject",
+          qa_run_id: qa_run_id,
+          file_name: "login_screen"
+        })
+
+      # Then
+      assert storage_key == "testaccount/testproject/qa/screenshots/#{qa_run_id}/login_screen.png"
+    end
+
+    test "generates correct storage key with special characters in name" do
+      # Given
+      qa_run_id = Ecto.UUID.generate()
+
+      # When
+      storage_key =
+        QA.screenshot_storage_key(%{
+          account_handle: "MyAccount",
+          project_handle: "MyProject",
+          qa_run_id: qa_run_id,
+          file_name: "screen_with-special_chars"
+        })
+
+      # Then
+      assert storage_key == "myaccount/myproject/qa/screenshots/#{qa_run_id}/screen_with-special_chars.png"
+    end
+  end
+end

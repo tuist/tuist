@@ -7,19 +7,39 @@ defmodule Tuist.QA.Agent do
   alias LangChain.ChatModels.ChatAnthropic
   alias LangChain.Message
   alias LangChain.Message.ContentPart
-  alias LangChain.Message.ToolResult
   alias LangChain.TokenUsage
+  alias Tuist.QA.Client
   alias Tuist.QA.Tools
   alias Tuist.Simulators
   alias Tuist.Zip
 
   require Logger
 
-  def test(%{preview_url: preview_url, bundle_identifier: bundle_identifier, prompt: prompt}, opts) do
+  def test(
+        %{
+          preview_url: preview_url,
+          bundle_identifier: bundle_identifier,
+          prompt: prompt,
+          server_url: server_url,
+          run_id: run_id,
+          auth_token: auth_token,
+          account_handle: account_handle,
+          project_handle: project_handle
+        },
+        opts
+      ) do
     anthropic_api_key = Keyword.get(opts, :anthropic_api_key)
 
     with {:ok, simulator_device} <- simulator_device(),
-         :ok <- run_preview(preview_url, bundle_identifier, simulator_device) do
+         :ok <- run_preview(preview_url, bundle_identifier, simulator_device),
+         {:ok, _} <-
+           Client.start_run(%{
+             server_url: server_url,
+             run_id: run_id,
+             auth_token: auth_token,
+             account_handle: account_handle,
+             project_handle: project_handle
+           }) do
       handler = %{
         on_message_processed: fn _chain, %Message{content: content} ->
           for %ContentPart{type: :text, content: content} <- content || [] do
@@ -34,13 +54,14 @@ defmodule Tuist.QA.Agent do
       prompt = """
       You are a QA agent. Test the following: #{prompt}.
 
-      First, understand what you need to test. Then, set up a plan for test the feature and execute on it without asking for additional instructions. Make sure to test **multiple** scenarios. Try to interact with most of the active elements in the feature that should be tested. Take screenshots to analyze whether there are any visual inconsistencies and store the screenshots at /tmp/screenshots.
+      First, understand what you need to test. Then, set up a plan to test the feature and execute on it without asking for additional instructions. Take screenshots to analyze whether there are any visual inconsistencies.
 
-      For each step, return the test result output as a JSON in the form of {title: summary of what you tested, description: deeper explanation of what you tested and why, issues: [issues that you found], screenshots: [paths of screenshots that you took]}. Wrap this JSON in ```json``` so we can easily parse it. When using tools, use the following udid: #{simulator_device.udid}.
+      When using tools, use the following udid: #{simulator_device.udid}.
 
       Tips for interacting with the app:
       - Prefer using describe_ui over screenshot to interact with the app
-      - To dismiss a system sheet, tap within the visible screen area but outside the sheet, such in the dark/grayed area above the sheet.
+      - To dismiss a system sheet, tap within the visible screen area but outside the sheet, such in the dark/grayed area above the sheet
+      - If a button includes text, prefer tapping on the text to interact with the button
       """
 
       llm =
@@ -50,35 +71,41 @@ defmodule Tuist.QA.Agent do
           api_key: anthropic_api_key
         })
 
-      run_llm(%{llm: llm, max_retry_count: 10}, handler, [Message.new_user!(prompt)])
+      tools =
+        Tools.tools(%{
+          server_url: server_url,
+          run_id: run_id,
+          auth_token: auth_token,
+          account_handle: account_handle,
+          project_handle: project_handle
+        })
 
-      :ok
+      run_llm(%{llm: llm, max_retry_count: 10}, handler, [Message.new_user!(prompt)], tools)
     end
   end
 
-  defp run_llm(attrs, handler, messages) do
+  defp run_llm(attrs, handler, messages, tools) do
     attrs
     |> LLMChain.new!()
     |> LLMChain.add_messages(messages)
-    |> LLMChain.add_tools(Tools.tools())
+    |> LLMChain.add_tools(tools)
     |> LLMChain.add_callback(handler)
     |> LLMChain.run_until_tool_used(["describe_ui", "screenshot", "finalize"])
-    |> process_llm_result(attrs, handler)
+    |> process_llm_result(attrs, handler, tools)
   end
 
-  defp process_llm_result({:ok, %LLMChain{last_message: last_message} = chain, tool_result}, attrs, handler) do
+  defp process_llm_result({:ok, %LLMChain{last_message: last_message} = chain, tool_result}, attrs, handler, tools) do
     case tool_result.name do
       tool_name when tool_name in ["describe_ui", "screenshot"] ->
         trimmed_messages = trim_tool_messages(Enum.drop(chain.messages, -1), tool_name)
-        run_llm(attrs, handler, trimmed_messages ++ [last_message])
+        run_llm(attrs, handler, trimmed_messages ++ [last_message], tools)
 
       "finalize" ->
-        %ToolResult{content: [summary_message]} = tool_result
-        {:ok, summary_message}
+        :ok
     end
   end
 
-  defp process_llm_result({:error, _chain, %LangChain.LangChainError{message: message}}, _attrs, _handler) do
+  defp process_llm_result({:error, _chain, %LangChain.LangChainError{message: message}}, _attrs, _handler, _tools) do
     {:error, "LLM chain execution failed: #{message}"}
   end
 

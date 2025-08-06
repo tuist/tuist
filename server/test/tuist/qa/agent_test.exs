@@ -7,6 +7,7 @@ defmodule Tuist.QA.AgentTest do
   alias LangChain.Message
   alias LangChain.Message.ToolResult
   alias Tuist.QA.Agent
+  alias Tuist.QA.Client
   alias Tuist.QA.Tools
   alias Tuist.Simulators.SimulatorDevice
 
@@ -38,12 +39,22 @@ defmodule Tuist.QA.AgentTest do
 
     stub(ChatAnthropic, :new!, fn _ -> %ChatAnthropic{api_key: "test-api-key", model: "claude-sonnet-4-20250514"} end)
 
-    stub(LLMChain, :new!, fn llm -> %LLMChain{llm: llm, messages: [], last_message: nil} end)
+    stub(LLMChain, :new!, fn %{llm: llm} -> %LLMChain{llm: llm, messages: [], last_message: nil} end)
     stub(LLMChain, :add_messages, fn chain, _messages -> chain end)
     stub(LLMChain, :add_tools, fn chain, _ -> chain end)
     stub(LLMChain, :add_callback, fn chain, _ -> chain end)
 
-    stub(Tools, :tools, fn -> [] end)
+    stub(Tools, :tools, fn _params -> [] end)
+
+    stub(Client, :start_run, fn %{
+                                  server_url: _server_url,
+                                  run_id: _run_id,
+                                  auth_token: _auth_token,
+                                  account_handle: _account_handle,
+                                  project_handle: _project_handle
+                                } ->
+      {:ok, "started"}
+    end)
 
     {:ok, device: device, preview_path: preview_path, extract_dir: extract_dir, app_path: app_path}
   end
@@ -58,36 +69,46 @@ defmodule Tuist.QA.AgentTest do
       expect(Req, :get, fn ^preview_url, [into: :mocked_stream] -> {:ok, %{status: 200}} end)
       expect(Tuist.Simulators, :launch_app, fn ^bundle_identifier, ^device -> :ok end)
 
-      expect(LLMChain, :new!, fn llm ->
-        %LLMChain{
-          llm: llm,
-          messages: [],
-          last_message: %Message{
-            role: :tool,
-            tool_results: [
-              %ToolResult{
-                name: "finalize",
-                content: ["Test completed successfully"]
-              }
-            ]
-          }
+      chain_result = %LLMChain{
+        llm: %ChatAnthropic{api_key: "test-api-key", model: "claude-sonnet-4-20250514"},
+        messages: [],
+        last_message: %Message{
+          role: :tool,
+          tool_results: [
+            %ToolResult{
+              name: "finalize",
+              content: ["Test completed successfully"]
+            }
+          ]
         }
-      end)
+      }
 
-      expect(LLMChain, :run_until_tool_used, fn chain, _ ->
-        {:ok, chain, %ToolResult{name: "finalize", content: ["Test completed successfully"]}}
+      expect(LLMChain, :new!, fn attrs -> %{chain_result | llm: attrs.llm} end)
+      expect(LLMChain, :add_messages, fn chain, _messages -> chain end)
+      expect(LLMChain, :add_tools, fn chain, _tools -> chain end)
+      expect(LLMChain, :add_callback, fn chain, _handler -> chain end)
+
+      expect(LLMChain, :run_until_tool_used, fn _chain, ["describe_ui", "screenshot", "finalize"] ->
+        {:ok, chain_result, %ToolResult{name: "finalize", content: ["Test completed successfully"]}}
       end)
 
       # When / Then
-      assert :ok =
-               Agent.test(
-                 %{
-                   preview_url: preview_url,
-                   bundle_identifier: bundle_identifier,
-                   prompt: prompt
-                 },
-                 anthropic_api_key: "api_key"
-               )
+      result =
+        Agent.test(
+          %{
+            preview_url: preview_url,
+            bundle_identifier: bundle_identifier,
+            prompt: prompt,
+            server_url: "https://example.com",
+            run_id: "run-id",
+            auth_token: "auth-token",
+            account_handle: "test-account",
+            project_handle: "test-project"
+          },
+          anthropic_api_key: "api_key"
+        )
+
+      assert result == :ok
     end
 
     test "returns error when simulator device cannot be found" do
@@ -100,7 +121,12 @@ defmodule Tuist.QA.AgentTest do
                  %{
                    preview_url: "https://example.com/preview.zip",
                    bundle_identifier: "com.example.app",
-                   prompt: "Test feature"
+                   prompt: "Test feature",
+                   server_url: "https://example.com",
+                   run_id: "run-id",
+                   auth_token: "auth-token",
+                   account_handle: "test-account",
+                   project_handle: "test-project"
                  },
                  anthropic_api_key: "api_key"
                )
@@ -117,7 +143,12 @@ defmodule Tuist.QA.AgentTest do
                  %{
                    preview_url: "https://example.com/invalid.zip",
                    bundle_identifier: "com.example.app",
-                   prompt: "Test feature"
+                   prompt: "Test feature",
+                   server_url: "https://example.com",
+                   run_id: "run-id",
+                   auth_token: "auth-token",
+                   account_handle: "test-account",
+                   project_handle: "test-project"
                  },
                  anthropic_api_key: "api_key"
                )
@@ -134,7 +165,12 @@ defmodule Tuist.QA.AgentTest do
                  %{
                    preview_url: "https://example.com/preview.zip",
                    bundle_identifier: "com.example.app",
-                   prompt: "Test feature"
+                   prompt: "Test feature",
+                   server_url: "https://example.com",
+                   run_id: "run-id",
+                   auth_token: "auth-token",
+                   account_handle: "test-account",
+                   project_handle: "test-project"
                  },
                  anthropic_api_key: "api_key"
                )
@@ -169,7 +205,7 @@ defmodule Tuist.QA.AgentTest do
       expect(Req, :get, fn ^preview_url, [into: :mocked_stream] -> {:ok, %{status: 200}} end)
       expect(Tuist.Simulators, :launch_app, fn ^bundle_identifier, ^device -> :ok end)
 
-      expect(LLMChain, :new!, 1, fn llm -> %LLMChain{llm: llm, messages: [], last_message: nil} end)
+      expect(LLMChain, :new!, 1, fn %{llm: llm} -> %LLMChain{llm: llm, messages: [], last_message: nil} end)
 
       expect(LLMChain, :add_messages, 1, fn chain, [user_msg] ->
         %{chain | messages: [user_msg]}
@@ -188,7 +224,7 @@ defmodule Tuist.QA.AgentTest do
         {:ok, chain_with_messages, %ToolResult{name: "describe_ui", content: ["New UI data"]}}
       end)
 
-      expect(LLMChain, :new!, 1, fn llm -> %LLMChain{llm: llm, messages: [], last_message: nil} end)
+      expect(LLMChain, :new!, 1, fn %{llm: llm} -> %LLMChain{llm: llm, messages: [], last_message: nil} end)
 
       # previous describe_ui tool calls are removed
       expect(LLMChain, :add_messages, 1, fn chain, messages ->
@@ -227,7 +263,12 @@ defmodule Tuist.QA.AgentTest do
                  %{
                    preview_url: preview_url,
                    bundle_identifier: bundle_identifier,
-                   prompt: "Test feature"
+                   prompt: "Test feature",
+                   server_url: "https://example.com",
+                   run_id: "run-id",
+                   auth_token: "auth-token",
+                   account_handle: "test-account",
+                   project_handle: "test-project"
                  },
                  anthropic_api_key: "api_key"
                )

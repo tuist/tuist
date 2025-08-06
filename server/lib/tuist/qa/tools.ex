@@ -5,10 +5,11 @@ defmodule Tuist.QA.Tools do
   alias LangChain.Function
   alias LangChain.FunctionParam
   alias LangChain.Message.ContentPart
+  alias Tuist.QA.Client
 
   require Logger
 
-  def tools do
+  def tools(params) do
     [
       describe_ui_tool(),
       tap_tool(),
@@ -19,8 +20,9 @@ defmodule Tuist.QA.Tools do
       button_tool(),
       touch_tool(),
       gesture_tool(),
-      screenshot_tool(),
-      finalize_tool()
+      screenshot_tool(params),
+      step_finished_tool(params),
+      finalize_tool(params)
     ]
   end
 
@@ -167,19 +169,22 @@ defmodule Tuist.QA.Tools do
                    _context ->
         duration = Map.get(params, "duration", 0.5)
 
-        run_axe_command(simulator_uuid, [
-          "swipe",
-          "--start-x",
-          "#{from_x}",
-          "--start-y",
-          "#{from_y}",
-          "--end-x",
-          "#{to_x}",
-          "--end-y",
-          "#{to_y}",
-          "--duration",
-          "#{duration}"
-        ])
+        case run_axe_command(simulator_uuid, [
+               "swipe",
+               "--start-x",
+               "#{from_x}",
+               "--start-y",
+               "#{from_y}",
+               "--end-x",
+               "#{to_x}",
+               "--end-y",
+               "#{to_y}",
+               "--duration",
+               "#{duration}"
+             ]) do
+          {:ok, _} -> {:ok, "Swipe was successful"}
+          {:error, reason} -> {:error, reason}
+        end
       end
     })
   end
@@ -300,7 +305,10 @@ defmodule Tuist.QA.Tools do
             "down-up" -> args ++ ["--down", "--up"]
           end
 
-        run_axe_command(simulator_uuid, args)
+        case run_axe_command(simulator_uuid, args) do
+          {:ok, _} -> {:ok, "Touch was successful"}
+          {:error, reason} -> {:error, reason}
+        end
       end
     })
   end
@@ -389,15 +397,24 @@ defmodule Tuist.QA.Tools do
             )
           )
 
-        run_axe_command(simulator_uuid, args)
+        case run_axe_command(simulator_uuid, args) do
+          {:ok, _} -> {:ok, "Gesture was successful"}
+          {:error, reason} -> {:error, reason}
+        end
       end
     })
   end
 
-  defp screenshot_tool do
+  defp screenshot_tool(%{
+         server_url: server_url,
+         run_id: run_id,
+         auth_token: auth_token,
+         account_handle: account_handle,
+         project_handle: project_handle
+       }) do
     Function.new!(%{
       name: "screenshot",
-      description: "Captures screenshot for visual verification. Optionally saves to a file path",
+      description: "Captures a screenshot for visual verification.",
       parameters: [
         FunctionParam.new!(%{
           name: "simulator_uuid",
@@ -406,37 +423,115 @@ defmodule Tuist.QA.Tools do
           required: true
         }),
         FunctionParam.new!(%{
-          name: "file_path",
+          name: "file_name",
           type: :string,
-          description: "Full path where to save the screenshot (e.g., /tmp/screenshots/test1.png)",
-          required: false
+          description: "File name for the screenshot (without extension)",
+          required: true
+        }),
+        FunctionParam.new!(%{
+          name: "title",
+          type: :string,
+          description: "Human-readable title describing what the screenshot shows",
+          required: true
         })
       ],
-      function: fn %{"simulator_uuid" => simulator_uuid} = params, _context ->
-        file_path =
-          Map.get(params, "file_path")
-
-        file_path =
-          if is_nil(file_path) do
-            {:ok, path} = Briefly.create()
-            path
-          else
-            file_path
-          end
-
-        with {_, 0} <- System.cmd("xcrun", ["simctl", "io", simulator_uuid, "screenshot", file_path]),
-             {:ok, image_data} <- File.read(file_path) do
+      function: fn %{"simulator_uuid" => simulator_uuid, "file_name" => file_name, "title" => title}, _context ->
+        with {:ok, temp_path} <- Briefly.create(),
+             {_, 0} <- System.cmd("xcrun", ["simctl", "io", simulator_uuid, "screenshot", temp_path]),
+             {:ok, image_data} <- File.read(temp_path),
+             {:ok, %{"url" => upload_url}} <-
+               Client.screenshot_upload(%{
+                 file_name: file_name,
+                 title: title,
+                 server_url: server_url,
+                 run_id: run_id,
+                 auth_token: auth_token,
+                 account_handle: account_handle,
+                 project_handle: project_handle
+               }),
+             {:ok, _response} <- Req.put(upload_url, body: image_data, headers: [{"Content-Type", "image/png"}]),
+             :ok <-
+               Client.create_screenshot(%{
+                 file_name: file_name,
+                 title: title,
+                 server_url: server_url,
+                 run_id: run_id,
+                 auth_token: auth_token,
+                 account_handle: account_handle,
+                 project_handle: project_handle
+               }) do
           base64_image = Base.encode64(image_data)
           {:ok, ContentPart.image!(base64_image, media: :png)}
         else
-          {:error, reason} -> {:error, "Failed to read screenshot file: #{reason}"}
-          {error, _status} -> {:error, "Failed to capture screenshot: #{error}"}
+          {:error, reason} -> {:error, "Failed to capture screenshot: #{reason}"}
+          {reason, _status} -> {:error, "Failed to capture screenshot: #{reason}"}
         end
       end
     })
   end
 
-  defp finalize_tool do
+  defp step_finished_tool(%{
+         server_url: server_url,
+         run_id: run_id,
+         auth_token: auth_token,
+         account_handle: account_handle,
+         project_handle: project_handle
+       }) do
+    Function.new!(%{
+      name: "step_finished",
+      description: "Marks a finished testing step. Use this tool often to mark your progress.",
+      parameters: [
+        FunctionParam.new!(%{
+          name: "summary",
+          type: :string,
+          description: "Summary of the finished testing step",
+          required: true
+        }),
+        FunctionParam.new!(%{
+          name: "description",
+          type: :string,
+          description: "Detailed description of what was tested",
+          required: true
+        }),
+        FunctionParam.new!(%{
+          name: "issues",
+          type: :array,
+          item_type: "string",
+          description: "List of issues encountered during the step",
+          required: true
+        })
+      ],
+      function: fn %{"summary" => summary, "description" => description, "issues" => issues} = _params, _llm_context ->
+        Logger.debug("Finished step: #{summary}")
+
+        case Client.create_step(%{
+               summary: summary,
+               description: description,
+               issues: issues,
+               server_url: server_url,
+               run_id: run_id,
+               auth_token: auth_token,
+               account_handle: account_handle,
+               project_handle: project_handle
+             }) do
+          :ok ->
+            {:ok,
+             "Step finished and reported. Screenshots have been associated with this step. Continue with your testing."}
+
+          {:error, reason} ->
+            {:error, "Failed to report step: #{reason}"}
+        end
+      end
+    })
+  end
+
+  defp finalize_tool(%{
+         server_url: server_url,
+         run_id: run_id,
+         auth_token: auth_token,
+         account_handle: account_handle,
+         project_handle: project_handle
+       }) do
     Function.new!(%{
       name: "finalize",
       description: "Gathers the QA session summary and sends it to the server",
@@ -448,8 +543,20 @@ defmodule Tuist.QA.Tools do
           required: true
         })
       ],
-      function: fn %{"summary" => _summary} = _params, _context ->
-        {:ok, "The QA test run finished successfully."}
+      function: fn %{"summary" => summary} = _params, _llm_context ->
+        Logger.debug("Finalize tests: #{summary}")
+
+        case Client.finalize_run(%{
+               summary: summary,
+               server_url: server_url,
+               run_id: run_id,
+               auth_token: auth_token,
+               account_handle: account_handle,
+               project_handle: project_handle
+             }) do
+          {:ok, _} -> {:ok, "QA test run finished successfully and status updated."}
+          {:error, reason} -> {:error, "Failed to update run status: #{reason}"}
+        end
       end
     })
   end
