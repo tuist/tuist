@@ -1,4 +1,4 @@
-defmodule Tuist.Repo.Migrations.CreateQaRuns do
+defmodule Tuist.Repo.Migrations.CreateQARuns do
   use Ecto.Migration
 
   def change do

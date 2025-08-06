@@ -39,14 +39,20 @@ defmodule Tuist.QA.AgentTest do
 
     stub(ChatAnthropic, :new!, fn _ -> %ChatAnthropic{api_key: "test-api-key", model: "claude-sonnet-4-20250514"} end)
 
-    stub(LLMChain, :new!, fn attrs -> %LLMChain{llm: attrs.llm, messages: [], last_message: nil} end)
+    stub(LLMChain, :new!, fn %{llm: llm} -> %LLMChain{llm: llm, messages: [], last_message: nil} end)
     stub(LLMChain, :add_messages, fn chain, _messages -> chain end)
     stub(LLMChain, :add_tools, fn chain, _ -> chain end)
     stub(LLMChain, :add_callback, fn chain, _ -> chain end)
 
     stub(Tools, :tools, fn _params -> [] end)
 
-    stub(Client, :start_run, fn %{server_url: _server_url, run_id: _run_id, auth_token: _auth_token, account_handle: _account_handle, project_handle: _project_handle} ->
+    stub(Client, :start_run, fn %{
+                                  server_url: _server_url,
+                                  run_id: _run_id,
+                                  auth_token: _auth_token,
+                                  account_handle: _account_handle,
+                                  project_handle: _project_handle
+                                } ->
       {:ok, "started"}
     end)
 
@@ -199,7 +205,7 @@ defmodule Tuist.QA.AgentTest do
       expect(Req, :get, fn ^preview_url, [into: :mocked_stream] -> {:ok, %{status: 200}} end)
       expect(Tuist.Simulators, :launch_app, fn ^bundle_identifier, ^device -> :ok end)
 
-      expect(LLMChain, :new!, 1, fn attrs -> %LLMChain{llm: attrs.llm, messages: [], last_message: nil} end)
+      expect(LLMChain, :new!, 1, fn %{llm: llm} -> %LLMChain{llm: llm, messages: [], last_message: nil} end)
 
       expect(LLMChain, :add_messages, 1, fn chain, [user_msg] ->
         %{chain | messages: [user_msg]}
@@ -218,7 +224,7 @@ defmodule Tuist.QA.AgentTest do
         {:ok, chain_with_messages, %ToolResult{name: "describe_ui", content: ["New UI data"]}}
       end)
 
-      expect(LLMChain, :new!, 1, fn attrs -> %LLMChain{llm: attrs.llm, messages: [], last_message: nil} end)
+      expect(LLMChain, :new!, 1, fn %{llm: llm} -> %LLMChain{llm: llm, messages: [], last_message: nil} end)
 
       # previous describe_ui tool calls are removed
       expect(LLMChain, :add_messages, 1, fn chain, messages ->

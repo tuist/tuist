@@ -2,7 +2,7 @@ defmodule TuistTestSupport.Fixtures.QAFixtures do
   @moduledoc false
 
   alias Tuist.QA
-  alias Tuist.QA.RunStep
+  alias Tuist.QA.Step
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AppBuildsFixtures
 
@@ -23,14 +23,14 @@ defmodule TuistTestSupport.Fixtures.QAFixtures do
     qa_run
   end
 
-  def qa_run_step_fixture(opts \\ []) do
+  def qa_step_fixture(opts \\ []) do
     qa_run =
       Keyword.get_lazy(opts, :qa_run, fn ->
         qa_run_fixture()
       end)
 
-    %RunStep{}
-    |> RunStep.changeset(%{
+    %Step{}
+    |> Step.changeset(%{
       qa_run_id: qa_run.id,
       summary: Keyword.get(opts, :summary, "Completed login test step"),
       description: Keyword.get(opts, :description, "Detailed description of the test step"),

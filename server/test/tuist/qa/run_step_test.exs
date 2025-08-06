@@ -1,7 +1,7 @@
-defmodule Tuist.QA.RunStepTest do
+defmodule Tuist.QA.StepTest do
   use TuistTestSupport.Cases.DataCase
 
-  alias Tuist.QA.RunStep
+  alias Tuist.QA.Step
   alias TuistTestSupport.Fixtures.QAFixtures
 
   describe "changeset/2" do
@@ -20,7 +20,7 @@ defmodule Tuist.QA.RunStepTest do
 
     test "changeset is valid with all required attributes", %{valid_attrs: valid_attrs} do
       # When
-      changeset = RunStep.changeset(%RunStep{}, valid_attrs)
+      changeset = Step.changeset(%Step{}, valid_attrs)
 
       # Then
       assert changeset.valid?
@@ -31,7 +31,7 @@ defmodule Tuist.QA.RunStepTest do
       attrs = Map.delete(valid_attrs, :qa_run_id)
 
       # When
-      changeset = RunStep.changeset(%RunStep{}, attrs)
+      changeset = Step.changeset(%Step{}, attrs)
 
       # Then
       assert changeset.valid? == false
@@ -43,7 +43,7 @@ defmodule Tuist.QA.RunStepTest do
       attrs = Map.delete(valid_attrs, :summary)
 
       # When
-      changeset = RunStep.changeset(%RunStep{}, attrs)
+      changeset = Step.changeset(%Step{}, attrs)
 
       # Then
       assert changeset.valid? == false
@@ -56,12 +56,12 @@ defmodule Tuist.QA.RunStepTest do
       attrs = Map.put(valid_attrs, :qa_run_id, non_existent_id)
 
       # When
-      changeset = RunStep.changeset(%RunStep{}, attrs)
+      changeset = Step.changeset(%Step{}, attrs)
 
       # Then
       assert changeset.valid?
 
-      # When inserting into the database
+      # When
       assert {:error, changeset_with_error} = Repo.insert(changeset)
       assert "does not exist" in errors_on(changeset_with_error).qa_run_id
     end
@@ -71,7 +71,7 @@ defmodule Tuist.QA.RunStepTest do
       attrs = Map.delete(valid_attrs, :description)
 
       # When
-      changeset = RunStep.changeset(%RunStep{}, attrs)
+      changeset = Step.changeset(%Step{}, attrs)
 
       # Then
       assert changeset.valid? == false
@@ -83,7 +83,7 @@ defmodule Tuist.QA.RunStepTest do
       attrs = Map.delete(valid_attrs, :issues)
 
       # When
-      changeset = RunStep.changeset(%RunStep{}, attrs)
+      changeset = Step.changeset(%Step{}, attrs)
 
       # Then
       assert changeset.valid? == false
@@ -95,7 +95,7 @@ defmodule Tuist.QA.RunStepTest do
       attrs = Map.put(valid_attrs, :description, "")
 
       # When
-      changeset = RunStep.changeset(%RunStep{}, attrs)
+      changeset = Step.changeset(%Step{}, attrs)
 
       # Then
       assert changeset.valid? == false
@@ -107,7 +107,7 @@ defmodule Tuist.QA.RunStepTest do
       attrs = Map.put(valid_attrs, :issues, [])
 
       # When
-      changeset = RunStep.changeset(%RunStep{}, attrs)
+      changeset = Step.changeset(%Step{}, attrs)
 
       # Then
       assert changeset.valid?

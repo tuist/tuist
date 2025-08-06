@@ -56,7 +56,7 @@ defmodule Tuist do
       Projects.Workers.CleanProjectWorker,
       QA,
       QA.Run,
-      QA.RunStep,
+      QA.Step,
       Apple,
       Xcode,
       Xcode.Postgres,

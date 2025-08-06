@@ -11,8 +11,8 @@ defmodule Tuist.QA do
   alias Tuist.Environment
   alias Tuist.QA.Agent
   alias Tuist.QA.Run
-  alias Tuist.QA.RunStep
   alias Tuist.QA.Screenshot
+  alias Tuist.QA.Step
   alias Tuist.Repo
   alias Tuist.Storage
 
@@ -62,9 +62,9 @@ defmodule Tuist.QA do
   @doc """
   Creates a new QA run step.
   """
-  def create_qa_run_step(attrs) do
-    %RunStep{}
-    |> RunStep.changeset(attrs)
+  def create_qa_step(attrs) do
+    %Step{}
+    |> Step.changeset(attrs)
     |> Repo.insert()
   end
 
@@ -92,9 +92,9 @@ defmodule Tuist.QA do
   @doc """
   Updates screenshots to associate them with a QA run step.
   """
-  def update_screenshots_with_step_id(qa_run_id, qa_run_step_id) do
-    Repo.update_all(from(s in Screenshot, where: s.qa_run_id == ^qa_run_id and is_nil(s.qa_run_step_id)),
-      set: [qa_run_step_id: qa_run_step_id]
+  def update_screenshots_with_step_id(qa_run_id, qa_step_id) do
+    Repo.update_all(from(s in Screenshot, where: s.qa_run_id == ^qa_run_id and is_nil(s.qa_step_id)),
+      set: [qa_step_id: qa_step_id]
     )
   end
 
@@ -126,7 +126,7 @@ defmodule Tuist.QA do
 
     claims = %{
       "type" => "account",
-      "scopes" => ["project_qa_run_update", "project_qa_run_step_create", "project_qa_screenshot_create"],
+      "scopes" => ["project_qa_run_update", "project_qa_step_create", "project_qa_screenshot_create"],
       "project_id" => app_build.preview.project.id
     }
 

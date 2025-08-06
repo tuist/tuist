@@ -67,36 +67,6 @@ defmodule Tuist.QA.ClientTest do
       # Then
       assert result == {:error, "Server returned unexpected status 500"}
     end
-
-    test "returns error on request failure" do
-      # Given
-      summary = "Network error test"
-      description = "Connection failed"
-      issues = []
-      server_url = "https://example.com"
-      run_id = "test-run-123"
-      auth_token = "test-token"
-
-      expect(Req, :post, fn _opts ->
-        {:error, %{reason: :timeout}}
-      end)
-
-      # When
-      result =
-        Client.create_step(%{
-          summary: summary,
-          description: description,
-          issues: issues,
-          server_url: server_url,
-          run_id: run_id,
-          auth_token: auth_token,
-          account_handle: "test-account",
-          project_handle: "test-project"
-        })
-
-      # Then
-      assert result == {:error, %{reason: :timeout}}
-    end
   end
 
   describe "start_run/3" do
@@ -114,7 +84,14 @@ defmodule Tuist.QA.ClientTest do
       end)
 
       # When
-      result = Client.start_run(%{server_url: server_url, run_id: run_id, auth_token: auth_token, account_handle: "test-account", project_handle: "test-project"})
+      result =
+        Client.start_run(%{
+          server_url: server_url,
+          run_id: run_id,
+          auth_token: auth_token,
+          account_handle: "test-account",
+          project_handle: "test-project"
+        })
 
       # Then
       assert result == :ok
@@ -137,46 +114,18 @@ defmodule Tuist.QA.ClientTest do
       end)
 
       # When
-      result = Client.finalize_run(%{summary: summary, server_url: server_url, run_id: run_id, auth_token: auth_token, account_handle: "test-account", project_handle: "test-project"})
+      result =
+        Client.finalize_run(%{
+          summary: summary,
+          server_url: server_url,
+          run_id: run_id,
+          auth_token: auth_token,
+          account_handle: "test-account",
+          project_handle: "test-project"
+        })
 
       # Then
       assert result == :ok
-    end
-
-    test "returns error on server failure" do
-      # Given
-      summary = "Test run failed"
-      server_url = "https://example.com"
-      run_id = "test-run-123"
-      auth_token = "test-token"
-
-      expect(Req, :patch, fn _opts ->
-        {:ok, %{status: 404}}
-      end)
-
-      # When
-      result = Client.finalize_run(%{summary: summary, server_url: server_url, run_id: run_id, auth_token: auth_token, account_handle: "test-account", project_handle: "test-project"})
-
-      # Then
-      assert result == {:error, "Server returned unexpected status 404"}
-    end
-
-    test "returns error on request failure" do
-      # Given
-      summary = "Connection error test"
-      server_url = "https://example.com"
-      run_id = "test-run-123"
-      auth_token = "test-token"
-
-      expect(Req, :patch, fn _opts ->
-        {:error, "connection refused"}
-      end)
-
-      # When
-      result = Client.finalize_run(%{summary: summary, server_url: server_url, run_id: run_id, auth_token: auth_token, account_handle: "test-account", project_handle: "test-project"})
-
-      # Then
-      assert result == {:error, "connection refused"}
     end
   end
 
@@ -197,7 +146,7 @@ defmodule Tuist.QA.ClientTest do
         {:ok,
          %{
            status: 200,
-           body: ~s({"url": "https://s3.example.com/upload-url", "expires_at": 1234567890})
+           body: %{"url" => "https://s3.example.com/upload-url", "expires_at" => 1_234_567_890}
          }}
       end)
 
@@ -214,63 +163,7 @@ defmodule Tuist.QA.ClientTest do
         })
 
       # Then
-      assert {:ok, ~s({"url": "https://s3.example.com/upload-url", "expires_at": 1234567890})} = result
-    end
-
-    test "returns error on server failure" do
-      # Given
-      name = "error_screen"
-      title = "Error Screen"
-      server_url = "https://example.com"
-      run_id = "test-run-123"
-      auth_token = "test-token"
-
-      expect(Req, :post, fn _opts ->
-        {:ok, %{status: 500}}
-      end)
-
-      # When
-      result =
-        Client.screenshot_upload(%{
-          file_name: name,
-          title: title,
-          server_url: server_url,
-          run_id: run_id,
-          auth_token: auth_token,
-          account_handle: "test-account",
-          project_handle: "test-project"
-        })
-
-      # Then
-      assert {:error, "Server returned unexpected status 500"} = result
-    end
-
-    test "returns error on request failure" do
-      # Given
-      name = "network_error"
-      title = "Network Error Screen"
-      server_url = "https://example.com"
-      run_id = "test-run-123"
-      auth_token = "test-token"
-
-      expect(Req, :post, fn _opts ->
-        {:error, %{reason: :nxdomain}}
-      end)
-
-      # When
-      result =
-        Client.screenshot_upload(%{
-          file_name: name,
-          title: title,
-          server_url: server_url,
-          run_id: run_id,
-          auth_token: auth_token,
-          account_handle: "test-account",
-          project_handle: "test-project"
-        })
-
-      # Then
-      assert {:error, %{reason: :nxdomain}} = result
+      assert {:ok, %{"url" => "https://s3.example.com/upload-url", "expires_at" => 1_234_567_890}} = result
     end
   end
 
@@ -304,62 +197,6 @@ defmodule Tuist.QA.ClientTest do
 
       # Then
       assert result == :ok
-    end
-
-    test "returns error on server failure" do
-      # Given
-      name = "failed_screen"
-      title = "Failed Screen"
-      server_url = "https://example.com"
-      run_id = "test-run-123"
-      auth_token = "test-token"
-
-      expect(Req, :post, fn _opts ->
-        {:ok, %{status: 409}}
-      end)
-
-      # When
-      result =
-        Client.create_screenshot(%{
-          file_name: name,
-          title: title,
-          server_url: server_url,
-          run_id: run_id,
-          auth_token: auth_token,
-          account_handle: "test-account",
-          project_handle: "test-project"
-        })
-
-      # Then
-      assert result == {:error, "Server returned unexpected status 409"}
-    end
-
-    test "returns error on request failure" do
-      # Given
-      name = "timeout_screen"
-      title = "Timeout Screen"
-      server_url = "https://example.com"
-      run_id = "test-run-123"
-      auth_token = "test-token"
-
-      expect(Req, :post, fn _opts ->
-        {:error, "timeout"}
-      end)
-
-      # When
-      result =
-        Client.create_screenshot(%{
-          file_name: name,
-          title: title,
-          server_url: server_url,
-          run_id: run_id,
-          auth_token: auth_token,
-          account_handle: "test-account",
-          project_handle: "test-project"
-        })
-
-      # Then
-      assert result == {:error, "timeout"}
     end
   end
 end

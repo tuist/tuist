@@ -14,7 +14,7 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
   def init(:preview), do: :preview
   def init(:registry), do: :registry
   def init(:qa_run), do: :qa_run
-  def init(:qa_run_step), do: :qa_run_step
+  def init(:qa_step), do: :qa_step
   def init(:qa_screenshot), do: :qa_screenshot
 
   def init(opts) when is_list(opts) do
@@ -41,8 +41,8 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
       :qa_run ->
         authorize_project(conn, :qa_run)
 
-      :qa_run_step ->
-        authorize_project(conn, :qa_run_step)
+      :qa_step ->
+        authorize_project(conn, :qa_step)
 
       :qa_screenshot ->
         authorize_project(conn, :qa_screenshot)
@@ -87,11 +87,11 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
     subject =
       Authentication.authenticated_subject(conn)
 
-    subject_id = case subject do
-      %{id: id} -> id
-      %{account: %{id: id}} -> id
-      _ -> "unknown"
-    end
+    subject_id =
+      case subject do
+        %{id: id} -> id
+        %{account: %{id: id}} -> id
+      end
 
     cache_key = [
       Atom.to_string(__MODULE__),
@@ -178,8 +178,8 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
     Authorization.can?(:project_preview_delete, subject, project)
   end
 
-  def authorize(subject, :create, project, :qa_run_step) do
-    Authorization.can?(:project_qa_run_step_create, subject, project)
+  def authorize(subject, :create, project, :qa_step) do
+    Authorization.can?(:project_qa_step_create, subject, project)
   end
 
   def authorize(subject, :update, project, :qa_run) do

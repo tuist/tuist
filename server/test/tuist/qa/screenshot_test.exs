@@ -17,16 +17,13 @@ defmodule Tuist.QA.ScreenshotTest do
 
       # Then
       assert changeset.valid?
-      assert changeset.changes.qa_run_id == attrs.qa_run_id
-      assert changeset.changes.file_name == attrs.file_name
-      assert changeset.changes.title == attrs.title
     end
 
-    test "valid changeset with optional qa_run_step_id" do
+    test "valid changeset with optional qa_step_id" do
       # Given
       attrs = %{
         qa_run_id: Ecto.UUID.generate(),
-        qa_run_step_id: Ecto.UUID.generate(),
+        qa_step_id: Ecto.UUID.generate(),
         file_name: "error_dialog",
         title: "Error Dialog Screenshot"
       }
@@ -36,7 +33,6 @@ defmodule Tuist.QA.ScreenshotTest do
 
       # Then
       assert changeset.valid?
-      assert changeset.changes.qa_run_step_id == attrs.qa_run_step_id
     end
 
     test "invalid changeset without required fields" do

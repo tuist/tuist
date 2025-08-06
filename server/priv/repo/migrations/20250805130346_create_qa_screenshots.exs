@@ -1,4 +1,4 @@
-defmodule Tuist.Repo.Migrations.CreateQaScreenshots do
+defmodule Tuist.Repo.Migrations.CreateQAScreenshots do
   use Ecto.Migration
 
   def change do
@@ -6,8 +6,7 @@ defmodule Tuist.Repo.Migrations.CreateQaScreenshots do
       add :id, :uuid, primary_key: true, null: false
       add :qa_run_id, references(:qa_runs, type: :uuid, on_delete: :delete_all), null: false
 
-      add :qa_run_step_id, references(:qa_run_steps, type: :uuid, on_delete: :delete_all),
-        null: true
+      add :qa_step_id, references(:qa_steps, type: :uuid, on_delete: :delete_all), null: true
 
       add :file_name, :string, null: false
       add :title, :string, null: false
@@ -16,7 +15,7 @@ defmodule Tuist.Repo.Migrations.CreateQaScreenshots do
     end
 
     create index(:qa_screenshots, [:qa_run_id])
-    create index(:qa_screenshots, [:qa_run_step_id])
+    create index(:qa_screenshots, [:qa_step_id])
     create index(:qa_screenshots, [:inserted_at])
     create unique_index(:qa_screenshots, [:qa_run_id, :file_name])
   end

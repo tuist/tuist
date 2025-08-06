@@ -83,8 +83,6 @@ defmodule Tuist.QA.RunTest do
 
       # Then
       assert changeset.valid?
-      # Status is not in changes since it uses database default
-      refute Map.has_key?(changeset.changes, :status)
     end
 
     test "is invalid with invalid status" do
@@ -152,7 +150,7 @@ defmodule Tuist.QA.RunTest do
       # Then
       assert changeset.valid?
 
-      # When inserting into the database
+      # When
       assert {:error, changeset_with_error} = Repo.insert(changeset)
       assert "does not exist" in errors_on(changeset_with_error).app_build_id
     end

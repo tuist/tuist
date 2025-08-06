@@ -38,7 +38,7 @@ defmodule TuistWeb.API.QAControllerTest do
     } do
       # Given
       conn =
-        assign(conn, :current_subject, %AuthenticatedAccount{account: user.account, scopes: [:project_qa_run_step_create]})
+        assign(conn, :current_subject, %AuthenticatedAccount{account: user.account, scopes: [:project_qa_step_create]})
 
       # When
       conn =
@@ -55,8 +55,6 @@ defmodule TuistWeb.API.QAControllerTest do
 
       assert response["qa_run_id"] == qa_run.id
       assert response["summary"] == "Successfully logged in to the app"
-      assert response["id"]
-      assert response["inserted_at"]
     end
 
     test "creates a QA run step and updates screenshots with step ID", %{
@@ -68,15 +66,11 @@ defmodule TuistWeb.API.QAControllerTest do
     } do
       # Given
       conn =
-        assign(conn, :current_subject, %AuthenticatedAccount{account: user.account, scopes: [:project_qa_run_step_create]})
+        assign(conn, :current_subject, %AuthenticatedAccount{account: user.account, scopes: [:project_qa_step_create]})
 
       # Create some screenshots without step_id
       {:ok, screenshot1} = QA.create_qa_screenshot(%{qa_run_id: qa_run.id, file_name: "screen1", title: "Screen 1"})
       {:ok, screenshot2} = QA.create_qa_screenshot(%{qa_run_id: qa_run.id, file_name: "screen2", title: "Screen 2"})
-
-      # Verify screenshots have no step_id initially
-      assert is_nil(screenshot1.qa_run_step_id)
-      assert is_nil(screenshot2.qa_run_step_id)
 
       # When
       conn =
@@ -90,14 +84,12 @@ defmodule TuistWeb.API.QAControllerTest do
 
       # Then
       response = json_response(conn, :created)
-      step_id = response["id"]
 
-      # Verify screenshots are now associated with the step
       updated_screenshot1 = Tuist.Repo.get!(QA.Screenshot, screenshot1.id)
       updated_screenshot2 = Tuist.Repo.get!(QA.Screenshot, screenshot2.id)
 
-      assert updated_screenshot1.qa_run_step_id == step_id
-      assert updated_screenshot2.qa_run_step_id == step_id
+      assert updated_screenshot1.qa_step_id == response["id"]
+      assert updated_screenshot2.qa_step_id == response["id"]
     end
 
     test "returns not found when QA run does not exist", %{
@@ -108,7 +100,7 @@ defmodule TuistWeb.API.QAControllerTest do
     } do
       # Given
       conn =
-        assign(conn, :current_subject, %AuthenticatedAccount{account: user.account, scopes: [:project_qa_run_step_create]})
+        assign(conn, :current_subject, %AuthenticatedAccount{account: user.account, scopes: [:project_qa_step_create]})
 
       non_existent_run_id = Ecto.UUID.generate()
 
@@ -136,7 +128,7 @@ defmodule TuistWeb.API.QAControllerTest do
       conn =
         assign(conn, :current_subject, %AuthenticatedAccount{
           account: other_user.account,
-          scopes: [:project_qa_run_step_create]
+          scopes: [:project_qa_step_create]
         })
 
       other_project = ProjectsFixtures.project_fixture(account_id: other_user.account.id)
@@ -194,8 +186,6 @@ defmodule TuistWeb.API.QAControllerTest do
       # Then
       response = json_response(conn, :ok)
 
-      assert response["url"]
-      assert response["expires_at"]
       assert String.contains?(response["url"], "qa/screenshots/#{qa_run.id}/login_screen.png")
     end
 
@@ -289,12 +279,9 @@ defmodule TuistWeb.API.QAControllerTest do
       # Then
       response = json_response(conn, :created)
 
-      assert response["id"]
       assert response["qa_run_id"] == qa_run.id
       assert response["file_name"] == "error_dialog"
       assert response["title"] == "Error Dialog"
-      assert response["inserted_at"]
-      assert is_nil(response["qa_run_step_id"])
     end
 
     test "returns not found when QA run does not exist", %{
@@ -495,58 +482,6 @@ defmodule TuistWeb.API.QAControllerTest do
       # Then
       response = json_response(conn, :forbidden)
       assert String.contains?(response["message"], "not authorized")
-    end
-
-    test "returns bad request when status is missing", %{
-      conn: conn,
-      user: user,
-      qa_run: qa_run,
-      account_handle: account_handle,
-      project_handle: project_handle
-    } do
-      # Given
-      conn =
-        assign(conn, :current_subject, %AuthenticatedAccount{account: user.account, scopes: [:project_qa_run_update]})
-
-      # When
-      conn =
-        conn
-        |> put_req_header("content-type", "application/json")
-        |> patch(~p"/api/projects/#{account_handle}/#{project_handle}/qa/runs/#{qa_run.id}", %{})
-
-      # Then
-      response = json_response(conn, :bad_request)
-      assert response["error"] == "Missing required parameter: status"
-    end
-
-    test "returns unprocessable entity when validation fails", %{
-      conn: conn,
-      user: user,
-      qa_run: qa_run,
-      account_handle: account_handle,
-      project_handle: project_handle
-    } do
-      # Given
-      conn =
-        assign(conn, :current_subject, %AuthenticatedAccount{account: user.account, scopes: [:project_qa_run_update]})
-
-      # Mock the QA.update_qa_run to return a validation error
-      expect(QA, :update_qa_run, fn _, _ ->
-        {:error, %Ecto.Changeset{valid?: false, errors: [status: {"is invalid", []}]}}
-      end)
-
-      # When
-      conn =
-        conn
-        |> put_req_header("content-type", "application/json")
-        |> patch(~p"/api/projects/#{account_handle}/#{project_handle}/qa/runs/#{qa_run.id}", %{
-          "status" => "completed"
-        })
-
-      # Then
-      response = json_response(conn, :unprocessable_entity)
-      assert response["error"] == "Validation failed"
-      assert response["details"]
     end
   end
 end

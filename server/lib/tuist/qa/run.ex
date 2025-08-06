@@ -7,8 +7,8 @@ defmodule Tuist.QA.Run do
   import Ecto.Changeset
 
   alias Tuist.AppBuilds.AppBuild
-  alias Tuist.QA.RunStep
   alias Tuist.QA.Screenshot
+  alias Tuist.QA.Step
 
   @primary_key {:id, UUIDv7, autogenerate: true}
   @foreign_key_type UUIDv7
@@ -19,7 +19,7 @@ defmodule Tuist.QA.Run do
     field :summary, :string
 
     belongs_to :app_build, AppBuild, type: UUIDv7
-    has_many :run_steps, RunStep, foreign_key: :qa_run_id
+    has_many :run_steps, Step, foreign_key: :qa_run_id
     has_many :screenshots, Screenshot, foreign_key: :qa_run_id
 
     timestamps(type: :utc_datetime)

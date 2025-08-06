@@ -82,21 +82,19 @@ defmodule Tuist.AuthenticationTest do
         account,
         %{
           "type" => "account",
-          "scopes" => ["project_qa_run_update", "project_qa_run_step_create", "project_qa_screenshot_create"]
+          "scopes" => ["project_qa_run_update", "project_qa_step_create", "project_qa_screenshot_create"]
         },
         token_type: :access,
         ttl: {1, :hour}
       )
 
     # When
-    result = Authentication.authenticated_subject(jwt_token)
+    %AuthenticatedAccount{
+      account: %Account{id: account_id},
+      scopes: [:project_qa_run_update, :project_qa_step_create, :project_qa_screenshot_create]
+    } = Authentication.authenticated_subject(jwt_token)
 
     # Then
-    assert %AuthenticatedAccount{
-             account: %Account{id: account_id},
-             scopes: [:project_qa_run_update, :project_qa_run_step_create, :project_qa_screenshot_create]
-           } = result
-
     assert account_id == account.id
   end
 
