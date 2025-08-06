@@ -174,9 +174,7 @@ defmodule Tuist.GitHub.Client do
           |> Keyword.put(:finch, Tuist.Finch)
           |> Keyword.delete(:repository_full_handle)
 
-        attrs_with_headers
-        |> method.()
-        |> handle_github_response(method, attrs)
+        attrs_with_headers |> method.() |> handle_github_response(method, attrs)
 
       {:error, response} ->
         {:error, response}
@@ -184,6 +182,14 @@ defmodule Tuist.GitHub.Client do
   end
 
   defp handle_github_response({:ok, %{status: 200, body: body}}, _action, _attrs) do
+    {:ok, body}
+  end
+
+  defp handle_github_response({:ok, %{status: 201, body: ""}}, _action, _attrs) do
+    :ok
+  end
+
+  defp handle_github_response({:ok, %{status: 201, body: body}}, _action, _attrs) do
     {:ok, body}
   end
 

@@ -2,6 +2,7 @@ defmodule TuistTestSupport.Fixtures.QAFixtures do
   @moduledoc false
 
   alias Tuist.QA
+  alias Tuist.QA.Screenshot
   alias Tuist.QA.Step
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AppBuildsFixtures
@@ -35,6 +36,24 @@ defmodule TuistTestSupport.Fixtures.QAFixtures do
       summary: Keyword.get(opts, :summary, "Completed login test step"),
       description: Keyword.get(opts, :description, "Detailed description of the test step"),
       issues: Keyword.get(opts, :issues, [])
+    })
+    |> Repo.insert!()
+  end
+
+  def screenshot_fixture(opts \\ []) do
+    qa_run =
+      Keyword.get_lazy(opts, :qa_run, fn ->
+        qa_run_fixture()
+      end)
+
+    qa_step = Keyword.get(opts, :qa_step)
+
+    %Screenshot{}
+    |> Screenshot.changeset(%{
+      qa_run_id: qa_run.id,
+      qa_step_id: if(qa_step, do: qa_step.id, else: nil),
+      file_name: Keyword.get(opts, :file_name, "screenshot"),
+      title: Keyword.get(opts, :title, "Screenshot")
     })
     |> Repo.insert!()
   end

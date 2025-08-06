@@ -234,6 +234,34 @@ defmodule Tuist.AppBuilds do
     |> List.first()
   end
 
+  def latest_app_build(git_ref, %Project{} = project, opts \\ []) do
+    supported_platform = Keyword.get(opts, :supported_platform)
+
+    previews =
+      from(p in Preview)
+      |> where([p], p.project_id == ^project.id and p.git_ref == ^git_ref)
+      |> order_by([p], desc: p.inserted_at)
+      |> distinct([p], p.display_name)
+      |> Repo.all()
+      |> Repo.preload(:app_builds)
+
+    case previews do
+      [first_preview | _] ->
+        app_builds = Enum.sort_by(first_preview.app_builds, & &1.inserted_at, {:desc, DateTime})
+
+        if supported_platform do
+          Enum.find(app_builds, fn app_build ->
+            supported_platform in app_build.supported_platforms
+          end)
+        else
+          List.first(app_builds)
+        end
+
+      [] ->
+        nil
+    end
+  end
+
   def delete_preview!(%Preview{} = preview) do
     Repo.delete!(preview)
   end

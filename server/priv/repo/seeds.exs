@@ -51,7 +51,7 @@ organization =
     {:ok, organization} =
       Accounts.create_organization(%{name: "tuist", creator: user}, setup_billing: false)
 
-    organization.account
+    organization
   end
 
 _public_project =
@@ -60,12 +60,12 @@ _public_project =
       project
 
     {:error, _} ->
-      Projects.create_project(%{name: "public", account: %{id: organization.id}},
+      Projects.create_project(%{name: "public", account: %{id: organization.account.id}},
         visibility: :public
       )
   end
 
-ios_app_with_frameworks_project =
+_ios_app_with_frameworks_project =
   case Projects.get_project_by_slug("tuist/ios_app_with_frameworks") do
     {:ok, project} ->
       project
@@ -73,13 +73,25 @@ ios_app_with_frameworks_project =
     {:error, _} ->
       Projects.create_project!(%{
         name: "ios_app_with_frameworks",
-        account: %{id: organization.id}
+        account: %{id: organization.account.id}
       })
   end
 
-_org_project =
-  Projects.get_project_by_slug("tuist/tuist") ||
-    Projects.create_project!(%{name: "tuist", account: %{id: organization.id}})
+tuist_project =
+  case Projects.get_project_by_slug("tuist/tuist") do
+    {:ok, project} ->
+      project
+
+    {:error, _} ->
+      Projects.create_project!(
+        %{
+          name: "tuist",
+          account: %{id: organization.account.id}
+        },
+        vcs_repository_full_handle: "tuist/tuist",
+        vcs_provider: :github
+      )
+  end
 
 builds =
   Enum.map(1..2000, fn _ ->
@@ -92,7 +104,7 @@ builds =
     model_identifier =
       Enum.random(["MacBookPro14,2", "MacBookPro15,1", "MacBookPro10,2", "Macmini8,1"])
 
-    account_id = if is_ci, do: organization.id, else: user.account.id
+    account_id = if is_ci, do: organization.account.id, else: user.account.id
 
     inserted_at =
       DateTime.new!(
@@ -111,7 +123,7 @@ builds =
       xcode_version: xcode_version,
       is_ci: is_ci,
       model_identifier: model_identifier,
-      project_id: ios_app_with_frameworks_project.id,
+      project_id: tuist_project.id,
       account_id: account_id,
       scheme: scheme,
       inserted_at: inserted_at,
@@ -202,7 +214,7 @@ command_events =
       name: name,
       duration: Enum.random(10_000..100_000),
       tuist_version: "4.1.0",
-      project_id: ios_app_with_frameworks_project.id,
+      project_id: tuist_project.id,
       cacheable_targets: cacheable_targets,
       local_cache_target_hits: local_cache_target_hits,
       remote_cache_target_hits: remote_cache_target_hits,
@@ -258,7 +270,7 @@ test_command_events
           module_name: module_name,
           identifier: identifier,
           project_identifier: "AppTests/AppTests.xcodeproj",
-          project_id: ios_app_with_frameworks_project.id
+          project_id: tuist_project.id
         },
         flaky: Enum.random([true, false, false, false, false])
       )
@@ -357,8 +369,8 @@ test_previews =
       supported_platforms: supported_platforms,
       git_branch: git_branch,
       git_commit_sha: git_commit_sha,
-      project_id: ios_app_with_frameworks_project.id,
-      created_by_account_id: organization.id,
+      project_id: tuist_project.id,
+      created_by_account_id: organization.account.id,
       inserted_at:
         DateTime.new!(
           Date.add(DateTime.utc_now(), -Enum.random(0..400)),
