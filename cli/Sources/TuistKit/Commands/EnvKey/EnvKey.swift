@@ -250,6 +250,20 @@ public enum EnvKey: String, CaseIterable {
     case projectListJson = "TUIST_PROJECT_LIST_JSON"
     case projectListPath = "TUIST_PROJECT_LIST_PATH"
 
+    // BUNDLE LIST
+
+    case bundleListFullHandle = "TUIST_BUNDLE_LIST_FULL_HANDLE"
+    case bundleListPath = "TUIST_BUNDLE_LIST_PATH"
+    case bundleListGitBranch = "TUIST_BUNDLE_LIST_GIT_BRANCH"
+    case bundleListJson = "TUIST_BUNDLE_LIST_JSON"
+
+    // BUNDLE SHOW
+
+    case bundleShowFullHandle = "TUIST_BUNDLE_SHOW_FULL_HANDLE"
+    case bundleShowId = "TUIST_BUNDLE_SHOW_ID"
+    case bundleShowPath = "TUIST_BUNDLE_SHOW_PATH"
+    case bundleShowJson = "TUIST_BUNDLE_SHOW_JSON"
+
     // ORGANIZATION UPDATE MEMBER
 
     case organizationUpdateMemberOrganizationName = "TUIST_ORGANIZATION_UPDATE_MEMBER_ORGANIZATION_NAME"
