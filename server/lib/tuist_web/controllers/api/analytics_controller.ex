@@ -343,7 +343,7 @@ defmodule TuistWeb.API.AnalyticsController do
 
     url =
       if is_nil(build_run_id) do
-        url(~p"/#{selected_project.account.name}/#{selected_project.name}/runs/#{get_id_field(conn, command_event)}")
+        url(~p"/#{selected_project.account.name}/#{selected_project.name}/runs/#{command_event.id}")
       else
         url(
           ~p"/#{selected_project.account.name}/#{selected_project.name}/builds/build-runs/#{String.downcase(build_run_id)}"
@@ -353,7 +353,7 @@ defmodule TuistWeb.API.AnalyticsController do
     conn
     |> put_status(:ok)
     |> json(%{
-      id: get_id_field(conn, command_event),
+      id: get_id_field(command_event),
       project_id: command_event.project_id,
       name: command_event.name,
       url: url
@@ -421,8 +421,6 @@ defmodule TuistWeb.API.AnalyticsController do
       }
     end
   end
-
-  # CommandEvent artifacts
 
   operation(:multipart_start,
     summary: "It initiates a multipart upload for a command event artifact.",
@@ -667,10 +665,8 @@ defmodule TuistWeb.API.AnalyticsController do
     end
   end
 
-  defp get_id_field(conn, command_event) do
-    cli_version = conn |> get_req_header("x-tuist-cli-version") |> List.first()
-
-    if not is_nil(cli_version) and version_less_than?(cli_version, "4.56.0") do
+  defp get_id_field(command_event) do
+    if version_less_than?(command_event.tuist_version, "4.56.0") do
       command_event.legacy_id
     else
       command_event.id

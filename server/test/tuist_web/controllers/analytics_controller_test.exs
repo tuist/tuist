@@ -251,7 +251,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
 
       assert response == %{
                "name" => "generate",
-               "id" => command_event.id,
+               "id" => command_event.legacy_id,
                "project_id" => project.id,
                "url" => url(~p"/#{account.name}/#{project.name}/runs/#{command_event.id}")
              }
@@ -527,7 +527,9 @@ defmodule TuistWeb.AnalyticsControllerTest do
       assert command_event.remote_test_target_hits == ["TargetATests"]
 
       xcode_graph =
-        ClickHouseRepo.one(from(xg in XcodeGraph, where: xg.command_event_id == ^command_event.id))
+        ClickHouseRepo.one(
+          from(xg in XcodeGraph, where: xg.command_event_id == ^command_event.id)
+        )
 
       assert xcode_graph.name == "Graph"
       assert xcode_graph.binary_build_duration == 1000
@@ -590,7 +592,8 @@ defmodule TuistWeb.AnalyticsControllerTest do
                "name" => "build",
                "id" => response["id"],
                "project_id" => project.id,
-               "url" => url(~p"/#{account.name}/#{project.name}/builds/build-runs/#{build_run.id}")
+               "url" =>
+                 url(~p"/#{account.name}/#{project.name}/builds/build-runs/#{build_run.id}")
              }
 
       assert command_event.build_run.id == build_run.id
@@ -662,12 +665,16 @@ defmodule TuistWeb.AnalyticsControllerTest do
       # Then
       response = json_response(conn, :ok)
 
-      # For CLI < 4.56, the id field should be a legacy_id (integer)
-      assert is_integer(response["id"])
-      assert response["name"] == "generate"
-      assert response["project_id"] == project.id
-      assert String.contains?(response["url"], "/runs/")
-      refute Map.has_key?(response, "uuid")
+      assert %{
+               "id" => id,
+               "name" => "generate",
+               "project_id" => project_id,
+               "url" => url
+             } = response
+
+      assert is_integer(id)
+      assert project_id == project.id
+      assert String.contains?(url, "/runs/")
     end
 
     test "returns id as id for CLI versions 4.56 and above", %{conn: conn, user: user} do
@@ -699,28 +706,27 @@ defmodule TuistWeb.AnalyticsControllerTest do
       # Then
       response = json_response(conn, :ok)
 
-      # For CLI >= 4.56, the id field should be a UUID (string)
-      assert is_binary(response["id"])
+      assert %{
+               "id" => id,
+               "name" => "generate",
+               "project_id" => project_id,
+               "url" => url
+             } = response
 
-      assert String.match?(
-               response["id"],
-               ~r/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
-             )
-
-      assert response["name"] == "generate"
-      assert response["project_id"] == project.id
-      assert String.contains?(response["url"], "/runs/")
-      refute Map.has_key?(response, "uuid")
+      assert Tuist.UUIDv7.valid?(id)
+      assert project_id == project.id
+      assert String.contains?(url, "/runs/")
     end
 
-    test "returns id as id when CLI version header is missing", %{conn: conn, user: user} do
-      # Given
+    test "returns legacy_id when CLI version header is missing but tuist_version is old", %{
+      conn: conn,
+      user: user
+    } do
       conn = Authentication.put_current_user(conn, user)
 
       account = Accounts.get_account_from_user(user)
       project = ProjectsFixtures.project_fixture(account_id: account.id)
 
-      # When
       conn =
         conn
         |> put_req_header("content-type", "application/json")
@@ -730,7 +736,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
             name: "generate",
             command_arguments: ["App"],
             duration: 100,
-            tuist_version: "1.0.0",
+            tuist_version: "4.55.0",
             swift_version: "5.0",
             macos_version: "10.15",
             is_ci: false,
@@ -741,18 +747,58 @@ defmodule TuistWeb.AnalyticsControllerTest do
       # Then
       response = json_response(conn, :ok)
 
-      # When CLI version header is missing, should default to new behavior (UUID)
-      assert is_binary(response["id"])
+      assert %{
+               "id" => id,
+               "name" => "generate",
+               "project_id" => project_id,
+               "url" => url
+             } = response
 
-      assert String.match?(
-               response["id"],
-               ~r/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
-             )
+      assert is_integer(id)
+      assert project_id == project.id
+      assert String.contains?(url, "/runs/")
+    end
 
-      assert response["name"] == "generate"
-      assert response["project_id"] == project.id
-      assert String.contains?(response["url"], "/runs/")
-      refute Map.has_key?(response, "uuid")
+    test "returns id when CLI version header is missing but tuist_version is new", %{
+      conn: conn,
+      user: user
+    } do
+      conn = Authentication.put_current_user(conn, user)
+
+      account = Accounts.get_account_from_user(user)
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          "/api/analytics?project_id=#{account.name}/#{project.name}",
+          %{
+            name: "generate",
+            command_arguments: ["App"],
+            duration: 100,
+            tuist_version: "4.56.0",
+            swift_version: "5.0",
+            macos_version: "10.15",
+            is_ci: false,
+            client_id: "client-id"
+          }
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+
+      assert %{
+               "id" => id,
+               "name" => "generate",
+               "project_id" => project_id,
+               "url" => url
+             } = response
+
+      assert is_binary(id)
+      assert Tuist.UUIDv7.valid?(id)
+      assert project_id == project.id
+      assert String.contains?(url, "/runs/")
     end
   end
 
