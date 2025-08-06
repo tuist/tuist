@@ -1,6 +1,17 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.58.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* include project settings hash in target hash by [@mikhailmulyar](https://github.com/mikhailmulyar) in [#7962](https://github.com/tuist/tuist/pull/7962)
+
+## New Contributors
+* [@mikhailmulyar](https://github.com/mikhailmulyar) made their first contribution in [#7962](https://github.com/tuist/tuist/pull/7962)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.58.0...4.58.1
+
 ## What's Changed in 4.58.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
