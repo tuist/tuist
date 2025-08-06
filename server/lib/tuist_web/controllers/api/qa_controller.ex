@@ -89,11 +89,16 @@ defmodule TuistWeb.API.QAController do
         })
 
       {:error, changeset} ->
+        message =
+          changeset
+          |> Ecto.Changeset.traverse_errors(fn {message, _opts} -> message end)
+          |> Enum.flat_map(fn {_key, value} -> value end)
+          |> Enum.join(", ")
+
         conn
-        |> put_status(:unprocessable_entity)
+        |> put_status(:bad_request)
         |> json(%{
-          error: "Validation failed",
-          details: Ecto.Changeset.traverse_errors(changeset, fn {msg, _} -> msg end)
+          message: "QA step #{message}"
         })
     end
   end

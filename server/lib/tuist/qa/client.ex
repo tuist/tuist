@@ -18,13 +18,26 @@ defmodule Tuist.QA.Client do
     qa_server_request(:post, step_url, auth_token, json: %{summary: summary, description: description, issues: issues})
   end
 
-  def start_run(%{server_url: server_url, run_id: run_id, auth_token: auth_token, account_handle: account_handle, project_handle: project_handle}) do
+  def start_run(%{
+        server_url: server_url,
+        run_id: run_id,
+        auth_token: auth_token,
+        account_handle: account_handle,
+        project_handle: project_handle
+      }) do
     run_url = qa_run_url(server_url, account_handle, project_handle, run_id)
 
     qa_server_request(:patch, run_url, auth_token, json: %{status: "running"})
   end
 
-  def finalize_run(%{summary: summary, server_url: server_url, run_id: run_id, auth_token: auth_token, account_handle: account_handle, project_handle: project_handle}) do
+  def finalize_run(%{
+        summary: summary,
+        server_url: server_url,
+        run_id: run_id,
+        auth_token: auth_token,
+        account_handle: account_handle,
+        project_handle: project_handle
+      }) do
     run_url = qa_run_url(server_url, account_handle, project_handle, run_id)
 
     qa_server_request(:patch, run_url, auth_token, json: %{status: "completed", summary: summary})

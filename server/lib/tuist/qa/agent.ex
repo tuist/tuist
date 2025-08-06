@@ -32,7 +32,14 @@ defmodule Tuist.QA.Agent do
 
     with {:ok, simulator_device} <- simulator_device(),
          :ok <- run_preview(preview_url, bundle_identifier, simulator_device),
-         {:ok, _} <- Client.start_run(%{server_url: server_url, run_id: run_id, auth_token: auth_token, account_handle: account_handle, project_handle: project_handle}) do
+         {:ok, _} <-
+           Client.start_run(%{
+             server_url: server_url,
+             run_id: run_id,
+             auth_token: auth_token,
+             account_handle: account_handle,
+             project_handle: project_handle
+           }) do
       handler = %{
         on_message_processed: fn _chain, %Message{content: content} ->
           for %ContentPart{type: :text, content: content} <- content || [] do
@@ -64,7 +71,14 @@ defmodule Tuist.QA.Agent do
           api_key: anthropic_api_key
         })
 
-      tools = Tools.tools(%{server_url: server_url, run_id: run_id, auth_token: auth_token, account_handle: account_handle, project_handle: project_handle})
+      tools =
+        Tools.tools(%{
+          server_url: server_url,
+          run_id: run_id,
+          auth_token: auth_token,
+          account_handle: account_handle,
+          project_handle: project_handle
+        })
 
       run_llm(%{llm: llm, max_retry_count: 10}, handler, [Message.new_user!(prompt)], tools)
     end

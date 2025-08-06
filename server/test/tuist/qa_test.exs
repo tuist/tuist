@@ -127,7 +127,13 @@ defmodule Tuist.QATest do
       qa_run = QAFixtures.qa_run_fixture()
 
       # When
-      {:ok, qa_step} = QA.create_qa_step(%{qa_run_id: qa_run.id, summary: "Successfully logged in", description: "User successfully entered credentials and accessed the main screen", issues: []})
+      {:ok, qa_step} =
+        QA.create_qa_step(%{
+          qa_run_id: qa_run.id,
+          summary: "Successfully logged in",
+          description: "User successfully entered credentials and accessed the main screen",
+          issues: []
+        })
 
       # Then
       assert qa_step.qa_run_id == qa_run.id
@@ -167,7 +173,8 @@ defmodule Tuist.QATest do
       qa_run = QAFixtures.qa_run_fixture()
 
       # When
-      {:ok, screenshot} = QA.create_qa_screenshot(%{qa_run_id: qa_run.id, file_name: "login_screen", title: "Login Screen Screenshot"})
+      {:ok, screenshot} =
+        QA.create_qa_screenshot(%{qa_run_id: qa_run.id, file_name: "login_screen", title: "Login Screen Screenshot"})
 
       # Then
       assert screenshot.qa_run_id == qa_run.id
@@ -181,7 +188,13 @@ defmodule Tuist.QATest do
       qa_step = QAFixtures.qa_step_fixture(qa_run_id: qa_run.id)
 
       # When
-      {:ok, screenshot} = QA.create_qa_screenshot(%{qa_run_id: qa_run.id, qa_step_id: qa_step.id, file_name: "error_dialog", title: "Error Dialog Screenshot"})
+      {:ok, screenshot} =
+        QA.create_qa_screenshot(%{
+          qa_run_id: qa_run.id,
+          qa_step_id: qa_step.id,
+          file_name: "error_dialog",
+          title: "Error Dialog Screenshot"
+        })
 
       # Then
       assert screenshot.qa_run_id == qa_run.id
@@ -198,9 +211,19 @@ defmodule Tuist.QATest do
       qa_step = QAFixtures.qa_step_fixture(qa_run_id: qa_run.id)
       other_step = QAFixtures.qa_step_fixture(qa_run_id: qa_run.id)
 
-      {:ok, screenshot1} = QA.create_qa_screenshot(%{qa_run_id: qa_run.id, file_name: "screenshot1", title: "Screenshot 1"})
-      {:ok, screenshot2} = QA.create_qa_screenshot(%{qa_run_id: qa_run.id, file_name: "screenshot2", title: "Screenshot 2"})
-      {:ok, screenshot3} = QA.create_qa_screenshot(%{qa_run_id: qa_run.id, qa_step_id: other_step.id, file_name: "screenshot3", title: "Screenshot 3"})
+      {:ok, screenshot1} =
+        QA.create_qa_screenshot(%{qa_run_id: qa_run.id, file_name: "screenshot1", title: "Screenshot 1"})
+
+      {:ok, screenshot2} =
+        QA.create_qa_screenshot(%{qa_run_id: qa_run.id, file_name: "screenshot2", title: "Screenshot 2"})
+
+      {:ok, screenshot3} =
+        QA.create_qa_screenshot(%{
+          qa_run_id: qa_run.id,
+          qa_step_id: other_step.id,
+          file_name: "screenshot3",
+          title: "Screenshot 3"
+        })
 
       # When
       {updated_count, _} = QA.update_screenshots_with_step_id(qa_run.id, qa_step.id)
@@ -231,7 +254,13 @@ defmodule Tuist.QATest do
       qa_run_id = Ecto.UUID.generate()
 
       # When
-      storage_key = QA.screenshot_storage_key(%{account_handle: "TestAccount", project_handle: "TestProject", qa_run_id: qa_run_id, file_name: "login_screen"})
+      storage_key =
+        QA.screenshot_storage_key(%{
+          account_handle: "TestAccount",
+          project_handle: "TestProject",
+          qa_run_id: qa_run_id,
+          file_name: "login_screen"
+        })
 
       # Then
       assert storage_key == "testaccount/testproject/qa/screenshots/#{qa_run_id}/login_screen.png"
@@ -242,7 +271,13 @@ defmodule Tuist.QATest do
       qa_run_id = Ecto.UUID.generate()
 
       # When
-      storage_key = QA.screenshot_storage_key(%{account_handle: "MyAccount", project_handle: "MyProject", qa_run_id: qa_run_id, file_name: "screen_with-special_chars"})
+      storage_key =
+        QA.screenshot_storage_key(%{
+          account_handle: "MyAccount",
+          project_handle: "MyProject",
+          qa_run_id: qa_run_id,
+          file_name: "screen_with-special_chars"
+        })
 
       # Then
       assert storage_key == "myaccount/myproject/qa/screenshots/#{qa_run_id}/screen_with-special_chars.png"

@@ -304,7 +304,8 @@ defmodule Tuist.QA.ToolsTest do
       screenshot_tool = Enum.find(tools, &(&1.name == "screenshot"))
 
       # When
-      result = screenshot_tool.function.(%{"simulator_uuid" => simulator_uuid, "file_name" => name, "title" => title}, nil)
+      result =
+        screenshot_tool.function.(%{"simulator_uuid" => simulator_uuid, "file_name" => name, "title" => title}, nil)
 
       # Then
       assert {:ok, %ContentPart{}} = result
@@ -326,7 +327,8 @@ defmodule Tuist.QA.ToolsTest do
       screenshot_tool = Enum.find(tools, &(&1.name == "screenshot"))
 
       # When
-      result = screenshot_tool.function.(%{"simulator_uuid" => simulator_uuid, "file_name" => name, "title" => title}, nil)
+      result =
+        screenshot_tool.function.(%{"simulator_uuid" => simulator_uuid, "file_name" => name, "title" => title}, nil)
 
       # Then
       assert {:error, _} = result
@@ -363,7 +365,8 @@ defmodule Tuist.QA.ToolsTest do
       screenshot_tool = Enum.find(tools, &(&1.name == "screenshot"))
 
       # When
-      result = screenshot_tool.function.(%{"simulator_uuid" => simulator_uuid, "file_name" => name, "title" => title}, nil)
+      result =
+        screenshot_tool.function.(%{"simulator_uuid" => simulator_uuid, "file_name" => name, "title" => title}, nil)
 
       # Then
       assert {:error, _} = result

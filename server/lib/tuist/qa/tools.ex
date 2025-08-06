@@ -405,7 +405,13 @@ defmodule Tuist.QA.Tools do
     })
   end
 
-  defp screenshot_tool(%{server_url: server_url, run_id: run_id, auth_token: auth_token, account_handle: account_handle, project_handle: project_handle}) do
+  defp screenshot_tool(%{
+         server_url: server_url,
+         run_id: run_id,
+         auth_token: auth_token,
+         account_handle: account_handle,
+         project_handle: project_handle
+       }) do
     Function.new!(%{
       name: "screenshot",
       description: "Captures a screenshot for visual verification.",
@@ -464,7 +470,13 @@ defmodule Tuist.QA.Tools do
     })
   end
 
-  defp step_finished_tool(%{server_url: server_url, run_id: run_id, auth_token: auth_token, account_handle: account_handle, project_handle: project_handle}) do
+  defp step_finished_tool(%{
+         server_url: server_url,
+         run_id: run_id,
+         auth_token: auth_token,
+         account_handle: account_handle,
+         project_handle: project_handle
+       }) do
     Function.new!(%{
       name: "step_finished",
       description: "Marks a finished testing step. Use this tool often to mark your progress.",
@@ -513,7 +525,13 @@ defmodule Tuist.QA.Tools do
     })
   end
 
-  defp finalize_tool(%{server_url: server_url, run_id: run_id, auth_token: auth_token, account_handle: account_handle, project_handle: project_handle}) do
+  defp finalize_tool(%{
+         server_url: server_url,
+         run_id: run_id,
+         auth_token: auth_token,
+         account_handle: account_handle,
+         project_handle: project_handle
+       }) do
     Function.new!(%{
       name: "finalize",
       description: "Gathers the QA session summary and sends it to the server",
@@ -528,7 +546,14 @@ defmodule Tuist.QA.Tools do
       function: fn %{"summary" => summary} = _params, _llm_context ->
         Logger.debug("Finalize tests: #{summary}")
 
-        case Client.finalize_run(%{summary: summary, server_url: server_url, run_id: run_id, auth_token: auth_token, account_handle: account_handle, project_handle: project_handle}) do
+        case Client.finalize_run(%{
+               summary: summary,
+               server_url: server_url,
+               run_id: run_id,
+               auth_token: auth_token,
+               account_handle: account_handle,
+               project_handle: project_handle
+             }) do
           {:ok, _} -> {:ok, "QA test run finished successfully and status updated."}
           {:error, reason} -> {:error, "Failed to update run status: #{reason}"}
         end
