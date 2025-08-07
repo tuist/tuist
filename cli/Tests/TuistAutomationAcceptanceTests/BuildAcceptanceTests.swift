@@ -32,6 +32,29 @@ struct BuildAcceptanceTests {
             ]
         )
     }
+
+    @Test(
+        .withFixture("app_with_buildable_folders"),
+        .inTemporaryDirectory,
+        .withMockedEnvironment()
+    ) func app_with_buildable_folders() async throws {
+        // Given
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+
+        // When/Then
+        try await TuistTest.run(GenerateCommand.self, ["--path", fixtureDirectory.pathString, "--no-open"])
+        try await TuistTest.run(
+            BuildCommand.self,
+            [
+                "App",
+                "--path",
+                fixtureDirectory.pathString,
+                "--derived-data-path",
+                temporaryDirectory.pathString,
+            ]
+        )
+    }
 }
 
 /// Build projects using Tuist build
