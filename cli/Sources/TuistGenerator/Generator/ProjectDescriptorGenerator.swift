@@ -40,6 +40,13 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
                 archiveVersion: Xcode.LastKnown.archiveVersion
             )
         }
+
+        static var xcode16: ProjectConstants {
+            ProjectConstants(
+                objectVersion: 70,
+                archiveVersion: Xcode.LastKnown.archiveVersion
+            )
+        }
     }
 
     // MARK: - Attributes
@@ -337,6 +344,6 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
 
     private func determineProjectConstants() throws -> ProjectConstants {
         // TODO: Determine if this can be inferred by the set Xcode version
-        .xcode13
+        .xcode16
     }
 }
