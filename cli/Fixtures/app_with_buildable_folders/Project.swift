@@ -11,8 +11,8 @@ let project = Project(
             infoPlist: .default,
             dependencies: [],
             buildableFolders: [
-                .folder(path: "Sources"),
                 .folder(path: "Resources"),
+                .folder(path: "Sources"),
             ]
         ),
     ]
