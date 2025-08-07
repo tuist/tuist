@@ -39,15 +39,75 @@ defmodule Tuist.QA.Agent do
              auth_token: auth_token,
              account_handle: account_handle,
              project_handle: project_handle
+           }),
+         {:ok, log_streamer} <-
+           Client.start_log_stream(%{
+             server_url: server_url,
+             run_id: run_id,
+             auth_token: auth_token
            }) do
       handler = %{
-        on_message_processed: fn _chain, %Message{content: content} ->
-          for %ContentPart{type: :text, content: content} <- content || [] do
-            Logger.debug(content)
+        on_message_processed: fn _chain,
+                                 %Message{
+                                   role: role,
+                                   content: content,
+                                   tool_calls: tool_calls,
+                                   tool_results: tool_results
+                                 } ->
+          role_message = "Processing #{role} message"
+          Logger.debug(role_message)
+
+          Client.stream_log(log_streamer, %{
+            message: role_message,
+            level: "debug",
+            timestamp: DateTime.utc_now()
+          })
+
+          for %ContentPart{type: :text, content: text_content} <- content || [] do
+            Logger.debug("Message content: #{text_content}")
+
+            Client.stream_log(log_streamer, %{
+              message: "Message content: #{text_content}",
+              level: "debug",
+              timestamp: DateTime.utc_now()
+            })
+          end
+
+          for tool_call <- tool_calls || [] do
+            tool_message =
+              "Tool call: #{tool_call.name} with args: #{inspect(tool_call.arguments)}"
+
+            Logger.debug(tool_message)
+
+            Client.stream_log(log_streamer, %{
+              message: tool_message,
+              level: "info",
+              timestamp: DateTime.utc_now()
+            })
+          end
+
+          for tool_result <- tool_results || [] do
+            result_message =
+              "Tool result from #{tool_result.name}: #{inspect(tool_result.content)}"
+
+            Logger.debug(result_message)
+
+            Client.stream_log(log_streamer, %{
+              message: result_message,
+              level: "info",
+              timestamp: DateTime.utc_now()
+            })
           end
         end,
         on_llm_token_usage: fn _chain, %TokenUsage{input: input, output: output} ->
-          Logger.debug("LLM token usage: #{input} input tokens, #{output} output tokens")
+          message = "LLM token usage: #{input} input tokens, #{output} output tokens"
+          Logger.debug(message)
+
+          Client.stream_log(log_streamer, %{
+            message: message,
+            level: "info",
+            timestamp: DateTime.utc_now()
+          })
         end
       }
 
