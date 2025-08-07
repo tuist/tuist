@@ -18,7 +18,7 @@ final class PackageLinter: PackageLinting {
     }
 
     func lint(_ package: Package) async throws -> [LintingIssue] {
-        if case let .local(path) = package, try await !fileSystem.exists(path) {
+        if case let .local(path, _) = package, try await !fileSystem.exists(path) {
             let issue = LintingIssue(
                 reason: "Package with local path (\(path)) does not exist.",
                 severity: .error

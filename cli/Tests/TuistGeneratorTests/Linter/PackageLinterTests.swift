@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import Testing
 import TuistCore
 import TuistSupport
 import XcodeGraph
@@ -22,7 +23,7 @@ final class PackageLinterTests: TuistUnitTestCase {
 
     func test_lint_when_a_local_path_does_not_exists() async throws {
         let path = try! AbsolutePath(validating: "/NotExists")
-        let package = Package.local(path: path)
+        let package = Package.local(path: path, groupPath: nil)
 
         let got = try await subject.lint(package)
 
@@ -31,7 +32,7 @@ final class PackageLinterTests: TuistUnitTestCase {
 
     func test_lint_when_a_local_path_exists() async throws {
         let path = try! AbsolutePath(validating: "/")
-        let package = Package.local(path: path)
+        let package = Package.local(path: path, groupPath: nil)
 
         let got = try await subject.lint(package)
 

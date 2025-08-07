@@ -11,8 +11,8 @@ extension XcodeGraph.Package {
     ///   - generatorPaths: Generator paths.
     static func from(manifest: ProjectDescription.Package, generatorPaths: GeneratorPaths) throws -> XcodeGraph.Package {
         switch manifest {
-        case let .local(path: local):
-            return .local(path: try generatorPaths.resolve(path: local))
+        case let .local(local, groupPath):
+            return .local(path: try generatorPaths.resolve(path: local), groupPath: groupPath?.pathString)
         case let .remote(url: url, requirement: version):
             return .remote(url: url, requirement: .from(manifest: version))
         case let .registry(identifier: identifier, requirement: version):

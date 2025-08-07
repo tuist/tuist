@@ -72,7 +72,7 @@ final class SwiftPackageManagerInteractorTests: TuistTestCase {
         let target = anyTarget(dependencies: [
             .package(product: "Example", type: .runtime),
         ])
-        let package = try Package.local(path: AbsolutePath(validating: "/Package/"))
+        let package = try Package.local(path: AbsolutePath(validating: "/Package/"), groupPath: nil)
         let project = Project.test(
             path: temporaryPath,
             name: "Test",
