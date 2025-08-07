@@ -103,6 +103,9 @@ public struct Target: Codable, Equatable, Sendable {
     /// The target's metadata.
     public var metadata: TargetMetadata
 
+    /// The target's buildable folders.
+    public var buildableFolders: [BuildableFolder]
+
     public static func target(
         name: String,
         destinations: Destinations,
@@ -127,7 +130,8 @@ public struct Target: Codable, Equatable, Sendable {
         mergedBinaryType: MergedBinaryType = .disabled,
         mergeable: Bool = false,
         onDemandResourcesTags: OnDemandResourcesTags? = nil,
-        metadata: TargetMetadata = .default
+        metadata: TargetMetadata = .default,
+        buildableFolders: [BuildableFolder] = []
     ) -> Self {
         self.init(
             name: name,
@@ -153,7 +157,8 @@ public struct Target: Codable, Equatable, Sendable {
             mergedBinaryType: mergedBinaryType,
             mergeable: mergeable,
             onDemandResourcesTags: onDemandResourcesTags,
-            metadata: metadata
+            metadata: metadata,
+            buildableFolders: buildableFolders
         )
     }
 }

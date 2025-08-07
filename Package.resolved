@@ -1,5 +1,5 @@
 {
-  "originHash" : "57ca9ad1a2fae3dcb958cd5001cc8069377467a183b14027e0df94b114f89a21",
+  "originHash" : "eb16746856ee92a2a4cb1b46b263734a23f9f0c47d5436b03c51652a8fc1c2db",
   "pins" : [
     {
       "identity" : "aexml",
@@ -96,8 +96,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tuist/FileSystem.git",
       "state" : {
-        "revision" : "28c747b5ce661e8f79a4bcc3068392250d069f1c",
-        "version" : "0.11.0"
+        "revision" : "23bcf23ce85edb653817a34c42c5140b16a6132c",
+        "version" : "0.11.5"
       }
     },
     {
@@ -159,8 +159,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/p-x9/MachOKit",
       "state" : {
-        "revision" : "d0b543aa795d83539691b80959b0adb152b072e7",
-        "version" : "0.35.1"
+        "revision" : "5a09d8ad1be010bcd58d8a39554480b19e0a45e1",
+        "version" : "0.37.0"
       }
     },
     {
@@ -357,8 +357,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/p-x9/swift-fileio.git",
       "state" : {
-        "revision" : "23349fe1eb23c6ca2876d461a46ff60c0fa92f9c",
-        "version" : "0.9.0"
+        "revision" : "63daf8e8402789339ccc5a19d198ff0fcafd29d9",
+        "version" : "0.11.0"
       }
     },
     {
@@ -375,8 +375,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-log.git",
       "state" : {
-        "revision" : "3d8596ed08bd13520157f0355e35caed215ffbfa",
-        "version" : "1.6.3"
+        "revision" : "ce592ae52f982c847a4efc0dd881cc9eb32d29f2",
+        "version" : "1.6.4"
       }
     },
     {
@@ -402,8 +402,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-nio",
       "state" : {
-        "revision" : "a5fea865badcb1c993c85b0f0e8d05a4bd2270fb",
-        "version" : "2.85.0"
+        "revision" : "1c30f0f2053b654e3d1302492124aa6d242cdba7",
+        "version" : "2.86.0"
       }
     },
     {
@@ -537,8 +537,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tuist/XcodeGraph",
       "state" : {
-        "revision" : "d65980cf291174ad007e8b265eab84590d0ea7e5",
-        "version" : "1.17.0"
+        "branch" : "buildable-folders",
+        "revision" : "8b129fe7994fcbdf2021f9731202834683227f09"
       }
     },
     {

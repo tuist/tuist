@@ -85,7 +85,8 @@ import TuistSupport
             settings: Settings? = nil,
             coreDataModels: [CoreDataModel] = [],
             environment: [String: String] = [:],
-            metadata: TargetMetadata = .default
+            metadata: TargetMetadata = .default,
+            buildableFolders: [BuildableFolder] = []
         ) -> Target {
             .target(
                 name: name,
@@ -103,7 +104,8 @@ import TuistSupport
                 settings: settings,
                 coreDataModels: coreDataModels,
                 environmentVariables: environment.mapValues { .init(stringLiteral: $0) },
-                metadata: metadata
+                metadata: metadata,
+                buildableFolders: buildableFolders
             )
         }
     }

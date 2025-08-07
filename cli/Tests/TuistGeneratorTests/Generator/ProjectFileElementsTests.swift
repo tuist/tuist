@@ -69,17 +69,17 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
 
         // Then
         XCTAssertTrue(files.isSuperset(of: [
-            GroupFileElement(path: "/project/debug.xcconfig", group: project.filesGroup),
-            GroupFileElement(path: "/project/release.xcconfig", group: project.filesGroup),
-            GroupFileElement(path: "/path/to/file", group: project.filesGroup),
-            GroupFileElement(path: "/path/to/folder", group: project.filesGroup, isReference: true),
-            GroupFileElement(path: "/path/to/configuration.storekit", group: project.filesGroup),
+            GroupFileElement.file(path: "/project/debug.xcconfig", group: project.filesGroup),
+            GroupFileElement.file(path: "/project/release.xcconfig", group: project.filesGroup),
+            GroupFileElement.file(path: "/path/to/file", group: project.filesGroup),
+            GroupFileElement.folder(path: "/path/to/folder", group: project.filesGroup),
+            GroupFileElement.file(path: "/path/to/configuration.storekit", group: project.filesGroup),
         ]))
     }
 
     func test_addElement() throws {
         // Given
-        let element = GroupFileElement(
+        let element = GroupFileElement.file(
             path: "/path/myfolder/resources/a.png",
             group: .group(name: "Project")
         )
@@ -101,7 +101,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
 
     func test_addElement_withDotFolders() throws {
         // Given
-        let element = GroupFileElement(
+        let element = GroupFileElement.file(
             path: "/path/my.folder/resources/a.png",
             group: .group(name: "Project")
         )
@@ -123,10 +123,9 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
 
     func test_addElement_fileReference() throws {
         // Given
-        let element = GroupFileElement(
+        let element = GroupFileElement.folder(
             path: "/path/myfolder/resources/generated_images",
-            group: .group(name: "Project"),
-            isReference: true
+            group: .group(name: "Project")
         )
 
         // When
@@ -146,7 +145,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
 
     func test_addElement_parentDirectories() throws {
         // Given
-        let element = GroupFileElement(
+        let element = GroupFileElement.file(
             path: "/path/another/path/resources/a.png",
             group: .group(name: "Project")
         )
@@ -168,7 +167,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
 
     func test_addElement_xcassets() throws {
         // Given
-        let element = GroupFileElement(
+        let element = GroupFileElement.file(
             path: "/path/myfolder/resources/assets.xcassets",
             group: .group(name: "Project")
         )
@@ -190,7 +189,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
 
     func test_addElement_docc() throws {
         // Given
-        let element = GroupFileElement(
+        let element = GroupFileElement.file(
             path: "/path/myfolder/resources/ImportantDocumentation.docc",
             group: .group(name: "Project")
         )
@@ -212,7 +211,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
 
     func test_addElement_scnassets() throws {
         // Given
-        let element = GroupFileElement(
+        let element = GroupFileElement.file(
             path: "/path/myfolder/resources/assets.scnassets",
             group: .group(name: "Project")
         )
@@ -245,10 +244,9 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         ])
 
         let elements = resources.map {
-            GroupFileElement(
+            GroupFileElement.folder(
                 path: $0,
-                group: .group(name: "Project"),
-                isReference: true
+                group: .group(name: "Project")
             )
         }
 
@@ -296,10 +294,9 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         ])
 
         let elements = resources.map {
-            GroupFileElement(
+            GroupFileElement.folder(
                 path: $0,
-                group: .group(name: "Project"),
-                isReference: true
+                group: .group(name: "Project")
             )
         }
 
@@ -347,10 +344,9 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         ])
 
         let elements = resources.map {
-            GroupFileElement(
+            GroupFileElement.file(
                 path: $0,
-                group: .group(name: "Project"),
-                isReference: true
+                group: .group(name: "Project")
             )
         }
 
@@ -425,28 +421,32 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
             ),
             dependencies: [],
             playgrounds: ["/project/MyPlayground.playground"],
-            additionalFiles: [.file(path: try AbsolutePath(validating: "/project/README.md"))]
+            additionalFiles: [.file(path: try AbsolutePath(validating: "/project/README.md"))],
+            buildableFolders: [
+                BuildableFolder(path: "/project/buildable"),
+            ]
         )
 
         // When
-        let files = try subject.targetFiles(target: target)
+        let files = try subject.targetFiles(target: target, project: Project.test())
 
         // Then
         XCTAssertTrue(files.isSuperset(of: [
-            GroupFileElement(path: "/project/debug.xcconfig", group: target.filesGroup),
-            GroupFileElement(path: "/project/release.xcconfig", group: target.filesGroup),
-            GroupFileElement(path: "/project/file.swift", group: target.filesGroup),
-            GroupFileElement(path: "/project/MyPlayground.playground", group: target.filesGroup),
-            GroupFileElement(path: "/project/image.png", group: target.filesGroup),
-            GroupFileElement(path: "/project/reference", group: target.filesGroup, isReference: true),
-            GroupFileElement(path: "/project/public.h", group: target.filesGroup),
-            GroupFileElement(path: "/project/project.h", group: target.filesGroup),
-            GroupFileElement(path: "/project/private.h", group: target.filesGroup),
-            GroupFileElement(path: "/project/model.xcdatamodeld/1.xcdatamodel", group: target.filesGroup),
-            GroupFileElement(path: "/project/model.xcdatamodeld", group: target.filesGroup),
-            GroupFileElement(path: "/project/tuist.rtfd", group: target.filesGroup),
-            GroupFileElement(path: "/project/tuist.rtfd/TXT.rtf", group: target.filesGroup),
-            GroupFileElement(path: "/project/README.md", group: target.filesGroup),
+            GroupFileElement.file(path: "/project/debug.xcconfig", group: target.filesGroup),
+            GroupFileElement.file(path: "/project/release.xcconfig", group: target.filesGroup),
+            GroupFileElement.file(path: "/project/file.swift", group: target.filesGroup),
+            GroupFileElement.file(path: "/project/MyPlayground.playground", group: target.filesGroup),
+            GroupFileElement.file(path: "/project/image.png", group: target.filesGroup),
+            GroupFileElement.folder(path: "/project/reference", group: target.filesGroup),
+            GroupFileElement.file(path: "/project/public.h", group: target.filesGroup),
+            GroupFileElement.file(path: "/project/project.h", group: target.filesGroup),
+            GroupFileElement.file(path: "/project/private.h", group: target.filesGroup),
+            GroupFileElement.file(path: "/project/model.xcdatamodeld/1.xcdatamodel", group: target.filesGroup),
+            GroupFileElement.file(path: "/project/model.xcdatamodeld", group: target.filesGroup),
+            GroupFileElement.file(path: "/project/tuist.rtfd", group: target.filesGroup),
+            GroupFileElement.file(path: "/project/tuist.rtfd/TXT.rtf", group: target.filesGroup),
+            GroupFileElement.file(path: "/project/README.md", group: target.filesGroup),
+            GroupFileElement.synchronizedFolder(path: "/project/buildable", group: target.filesGroup),
         ]))
     }
 
@@ -590,7 +590,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         // Given
         let pbxproj = PBXProj()
         let path = try AbsolutePath(validating: "/a/b/c/file.swift")
-        let fileElement = GroupFileElement(path: path, group: .group(name: "SomeGroup"))
+        let fileElement = GroupFileElement.file(path: path, group: .group(name: "SomeGroup"))
         let project = Project.test(
             path: .root,
             sourceRootPath: .root,
@@ -995,9 +995,9 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(gpxFiles, [
-            GroupFileElement(path: "/gpx/A", group: filesGroup),
-            GroupFileElement(path: "/gpx/B", group: filesGroup),
-            GroupFileElement(path: "/gpx/C", group: filesGroup),
+            GroupFileElement.file(path: "/gpx/A", group: filesGroup),
+            GroupFileElement.file(path: "/gpx/B", group: filesGroup),
+            GroupFileElement.file(path: "/gpx/C", group: filesGroup),
         ])
     }
 
@@ -1024,10 +1024,10 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(gpxFiles, [
-            GroupFileElement(path: "/gpx/A", group: filesGroup),
-            GroupFileElement(path: "/gpx/B", group: filesGroup),
-            GroupFileElement(path: "/gpx/C", group: filesGroup),
-            GroupFileElement(path: "/gpx/D", group: filesGroup),
+            GroupFileElement.file(path: "/gpx/A", group: filesGroup),
+            GroupFileElement.file(path: "/gpx/B", group: filesGroup),
+            GroupFileElement.file(path: "/gpx/C", group: filesGroup),
+            GroupFileElement.file(path: "/gpx/D", group: filesGroup),
         ])
     }
 
