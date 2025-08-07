@@ -579,7 +579,8 @@ public final class PackageInfoMapper: PackageInfoMapping {
             resources: resources,
             headers: headers,
             dependencies: dependencies,
-            settings: settings
+            settings: settings,
+            buildableFolders: []
         )
     }
 
