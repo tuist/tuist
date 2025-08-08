@@ -61,6 +61,11 @@ jobs:
         with:
           github-token: ${{ secrets.TUIST_GITHUB_TOKEN }}
           script: |
+            if (context.payload.pull_request.head.repo.full_name !== context.repo.owner + '/' + context.repo.repo) {
+              core.setOutput('is-member', 'false');
+              return;
+            }
+
             try {
               const { data: membership } = await github.rest.teams.getMembershipForUserInOrg({
                 org: 'tuist',
