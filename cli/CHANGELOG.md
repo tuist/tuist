@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.59.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* cache binaries by default for arm64 only, add --architectures option to specify architectures by [@fortmarek](https://github.com/fortmarek) in [#7977](https://github.com/tuist/tuist/pull/7977)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.58.1...4.59.0
+
 ## What's Changed in 4.58.1<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
