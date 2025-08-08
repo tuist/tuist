@@ -66,6 +66,27 @@ final class XCFrameworkSignatureProviderIntegrationTests: TuistUnitTestCase {
         XCTAssertEqual(result, .signedWithAppleCertificate(teamIdentifier: "U6LC622NKF", teamName: "Tuist GmbH"))
     }
 
+    func test_signature_appleSignedNoTeamIdInAuthority() async throws {
+        // Given
+        let codesignOutput = """
+        Identifier=SignedXCFramework
+        Authority=iPhone Distribution: Tuist GmbH
+        Authority=Developer ID Certification Authority
+        Authority=Apple Root CA
+        TeamIdentifier=U6LC622NKF
+        """
+
+        given(codesignController)
+            .signature(of: .value(path))
+            .willReturn(codesignOutput)
+
+        // When
+        let result = try await subject.signature(of: path)
+
+        // Then
+        XCTAssertEqual(result, .signedWithAppleCertificate(teamIdentifier: "U6LC622NKF", teamName: "Tuist GmbH"))
+    }
+
     func test_signature_selfSigned() async throws {
         // Given
         let codesign0FixturePath = fixturePath(
