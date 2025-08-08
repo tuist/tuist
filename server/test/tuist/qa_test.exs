@@ -367,7 +367,7 @@ defmodule Tuist.QATest do
       result = QA.find_pending_qa_runs_for_app_build(app_build)
 
       # Then
-      assert result |> Enum.map(& &1.id) |> Enum.sort() == [qa_run1.id, qa_run2.id]
+      assert result |> Enum.sort_by(& &1.inserted_at) |> Enum.map(& &1.id) == [qa_run1.id, qa_run2.id]
     end
 
     test "returns empty list when no pending QA runs exist" do

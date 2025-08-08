@@ -18,6 +18,41 @@ defmodule Tuist.QA do
   alias Tuist.Storage
   alias Tuist.VCS
 
+  require EEx
+
+  @qa_summary_template """
+  ### 🤖 QA Test Summary
+  **Prompt:** <%= @prompt %>
+  **Preview:** [<%= @preview_display_name %>](<%= @preview_url %>)
+  **Commit:** [<%= String.slice(@commit_sha, 0, 9) %>](<%= @git_remote_url_origin %>/commit/<%= @commit_sha %>)<%= if @summary do %>
+
+  <%= @summary %><% end %><%= if not Enum.empty?(@run_steps) do %>
+
+  <details>
+  <summary>🚶 QA Steps</summary>
+
+  <%= for {step, index} <- Enum.with_index(@run_steps, 1) do %>
+  #### <%= index %>. <%= step.summary %>
+
+  <%= step.description %><%= if not Enum.empty?(step.issues) do %>
+
+  **⚠️ Issues Found:**<%= for issue <- step.issues do %>
+  1. <%= issue %>
+  <% end %><% end %><%= if not Enum.empty?(step.screenshots) do %><%= for {screenshot, screenshot_index} <- step.screenshots |> Enum.sort_by(& &1.inserted_at) |> Enum.with_index(1) do %>
+
+  <details>
+  <summary><%= screenshot_index %>. <%= screenshot.title %></summary>
+
+  <img src="<%= @app_url %>/<%= @account_handle %>/<%= @project_handle %>/qa/runs/<%= @qa_run_id %>/screenshots/<%= screenshot.id %>" alt="<%= screenshot.title %>" width="500" />
+  </details><% end %><% end %>
+
+  <% end %>
+  </details>
+
+  <% end %>
+  """
+  EEx.function_from_string(:defp, :render_qa_summary, @qa_summary_template, [:assigns])
+
   @doc """
   Run a QA test run for the given app build.
   """
@@ -204,55 +239,19 @@ defmodule Tuist.QA do
     preview = qa_run.app_build.preview
     preview_url = "#{Environment.app_url()}/#{project.account.name}/#{project.name}/previews/#{preview.id}"
 
-    EEx.eval_string(qa_summary_template(),
-      assigns: %{
-        summary: qa_run.summary,
-        run_steps: qa_run.run_steps,
-        app_url: Environment.app_url(),
-        account_handle: project.account.name,
-        project_handle: project.name,
-        qa_run_id: qa_run.id,
-        prompt: qa_run.prompt,
-        preview_url: preview_url,
-        preview_display_name: preview.display_name,
-        commit_sha: preview.git_commit_sha,
-        git_remote_url_origin: Projects.get_repository_url(project)
-      }
-    )
-  end
-
-  defp qa_summary_template do
-    """
-    ### 🤖 QA Test Summary
-    **Prompt:** <%= @prompt %>
-    **Preview:** [<%= @preview_display_name %>](<%= @preview_url %>)
-    **Commit:** [<%= String.slice(@commit_sha, 0, 9) %>](<%= @git_remote_url_origin %>/commit/<%= @commit_sha %>)<%= if @summary do %>
-
-    <%= @summary %><% end %><%= if not Enum.empty?(@run_steps) do %>
-
-    <details>
-    <summary>🚶 QA Steps</summary>
-
-    <%= for {step, index} <- Enum.with_index(@run_steps, 1) do %>
-    #### <%= index %>. <%= step.summary %>
-
-    <%= step.description %><%= if not Enum.empty?(step.issues) do %>
-
-    **⚠️ Issues Found:**<%= for issue <- step.issues do %>
-    1. <%= issue %>
-    <% end %><% end %><%= if not Enum.empty?(step.screenshots) do %><%= for {screenshot, screenshot_index} <- step.screenshots |> Enum.sort_by(& &1.inserted_at) |> Enum.with_index(1) do %>
-
-    <details>
-    <summary><%= screenshot_index %>. <%= screenshot.title %></summary>
-
-    <img src="<%= @app_url %>/<%= @account_handle %>/<%= @project_handle %>/qa/runs/<%= @qa_run_id %>/screenshots/<%= screenshot.id %>" alt="<%= screenshot.title %>" width="500" />
-    </details><% end %><% end %>
-
-    <% end %>
-    </details>
-
-    <% end %>
-    """
+    render_qa_summary(%{
+      summary: qa_run.summary,
+      run_steps: qa_run.run_steps,
+      app_url: Environment.app_url(),
+      account_handle: project.account.name,
+      project_handle: project.name,
+      qa_run_id: qa_run.id,
+      prompt: qa_run.prompt,
+      preview_url: preview_url,
+      preview_display_name: preview.display_name,
+      commit_sha: preview.git_commit_sha,
+      git_remote_url_origin: Projects.get_repository_url(project)
+    })
   end
 
   defp generate_app_build_download_url(%AppBuild{} = app_build) do
