@@ -1458,7 +1458,6 @@ struct PackageInfoMapperTests {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         let defaultResourcePaths = try [
-            "metal",
             "storyboard",
             "strings",
             "xcassets",

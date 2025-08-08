@@ -928,7 +928,6 @@ extension ProjectDescription.ResourceFileElements {
         "xcassets",
         "strings",
         "stringsdict",
-        "metal",
     ])
 
     private static func defaultResourcePaths(
