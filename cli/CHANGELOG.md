@@ -1,6 +1,17 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.59.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* prevent metal files from being processed as resources. by [@DenTelezhkin](https://github.com/DenTelezhkin) in [#7976](https://github.com/tuist/tuist/pull/7976)
+
+## New Contributors
+* [@DenTelezhkin](https://github.com/DenTelezhkin) made their first contribution in [#7976](https://github.com/tuist/tuist/pull/7976)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.59.0...4.59.1
+
 ## What's Changed in 4.59.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
