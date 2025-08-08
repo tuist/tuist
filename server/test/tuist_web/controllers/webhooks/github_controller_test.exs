@@ -158,7 +158,7 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
         ProjectsFixtures.project_fixture(
           account_id: account.id,
           vcs_repository_full_handle: "org/repo",
-          vcs_provider: "github"
+          vcs_provider: :github
         )
 
       conn = put_req_header(conn, "x-github-event", "issue_comment")
