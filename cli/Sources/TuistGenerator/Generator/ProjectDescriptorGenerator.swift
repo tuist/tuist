@@ -40,6 +40,20 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
                 archiveVersion: Xcode.LastKnown.archiveVersion
             )
         }
+
+        static var xcode15: ProjectDescriptorGenerator.ProjectConstants {
+            ProjectConstants(
+                objectVersion: 56,
+                archiveVersion: Xcode.LastKnown.archiveVersion
+            )
+        }
+
+        static var xcode16: ProjectDescriptorGenerator.ProjectConstants {
+            ProjectConstants(
+                objectVersion: 60,
+                archiveVersion: Xcode.LastKnown.archiveVersion
+            )
+        }
     }
 
     // MARK: - Attributes
@@ -90,7 +104,7 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
         let selfRefFile = XCWorkspaceDataElement.file(selfRef)
         let workspaceData = XCWorkspaceData(children: [selfRefFile])
         let workspace = XCWorkspace(data: workspaceData)
-        let projectConstants = try determineProjectConstants()
+        let projectConstants = try determineProjectConstants(for: project)
         let pbxproj = PBXProj(
             objectVersion: projectConstants.objectVersion,
             archiveVersion: projectConstants.archiveVersion,
@@ -335,8 +349,12 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
         return attributes
     }
 
-    private func determineProjectConstants() throws -> ProjectConstants {
+    private func determineProjectConstants(for project: Project) throws -> ProjectConstants {
+        if project.targets.values.contains(where: \.hasDependenciesWithSignature) {
+            return .xcode16
+        }
+
         // TODO: Determine if this can be inferred by the set Xcode version
-        .xcode13
+        return .xcode13
     }
 }

@@ -23,4 +23,8 @@ extension Target {
             return true
         }
     }
+
+    var hasDependenciesWithSignature: Bool {
+        dependencies.contains(where: \.hasSignature)
+    }
 }

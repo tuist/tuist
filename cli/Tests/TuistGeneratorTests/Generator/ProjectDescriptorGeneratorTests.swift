@@ -199,6 +199,47 @@ struct ProjectDescriptorGeneratorTests {
         .withMockedSwiftVersionProvider,
         .inTemporaryDirectory,
         .withMockedXcodeController
+    ) func objectVersion_when_contains_expected_signature() async throws {
+        let xcodeControllerMock = try #require(XcodeController.mocked)
+        given(xcodeControllerMock)
+            .selectedVersion()
+            .willReturn(Version(16, 0, 0))
+
+        // Given
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
+        let project = Project.test(
+            path: temporaryPath,
+            name: "Project",
+            targets: [.test(
+                platform: .iOS,
+                dependencies: [.xcframework(
+                    path: "/XCFramework.xcframework",
+                    expectedSignature: .selfSigned(
+                        fingerprint: "EF61C3C0339FC84805357AFEC2E0BB0E6A0D5EE64165B333F934BF9E282785BC"
+                    ),
+                    status: .required,
+                    condition: nil
+                )]
+            )]
+        )
+        let graph = Graph.test(
+            projects: [project.path: project]
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let got = try await subject.generate(project: project, graphTraverser: graphTraverser)
+
+        // Then
+        let pbxproj = got.xcodeProj.pbxproj
+        #expect(pbxproj.objectVersion == 60)
+        #expect(pbxproj.archiveVersion == Xcode.LastKnown.archiveVersion)
+    }
+
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .inTemporaryDirectory,
+        .withMockedXcodeController
     ) func test_knownRegions() async throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)

@@ -52,7 +52,7 @@ public struct XCFrameworkSignatureProvider {
     }
 
     private static let signedWithAppleCertificateString = "Authority=Apple Root CA"
-    private static let teamNameRegExPattern = #"Authority=[^:]+?:\s*([^()]+)\s*\(([A-Z0-9]+)\)"#
+    private static let teamNameRegExPattern = #"Authority=[^:]+?:\s*([^()|^\n]+)\s*(\(([A-Z0-9]+)\))?"#
     private static let teamIdentifierRegExPattern = #"TeamIdentifier=([A-Z0-9]+)"#
 
     /// Returns the signature of the XCFramework at the given `xcframeworkPath`.
