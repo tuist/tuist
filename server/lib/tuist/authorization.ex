@@ -166,6 +166,7 @@ defmodule Tuist.Authorization do
   object :project_qa_screenshot do
     action :create do
       desc("Allows an account token with project_qa_screenshot_create scope to create QA screenshots.")
+
       allow([:authenticated_as_account, scopes_permit: :project_qa_screenshot_create])
     end
   end
@@ -174,6 +175,12 @@ defmodule Tuist.Authorization do
     action :update do
       desc("Allows an account token with project_qa_run_update scope to update a QA run.")
       allow([:authenticated_as_account, scopes_permit: :project_qa_run_update])
+
+      desc(
+        "Allows the authenticated project to update the QA run if it matches the project for which the QA run belongs."
+      )
+
+      allow([:authenticated_as_project, :projects_match])
     end
   end
 

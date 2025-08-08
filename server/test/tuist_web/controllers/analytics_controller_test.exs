@@ -527,9 +527,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
       assert command_event.remote_test_target_hits == ["TargetATests"]
 
       xcode_graph =
-        ClickHouseRepo.one(
-          from(xg in XcodeGraph, where: xg.command_event_id == ^command_event.id)
-        )
+        ClickHouseRepo.one(from(xg in XcodeGraph, where: xg.command_event_id == ^command_event.id))
 
       assert xcode_graph.name == "Graph"
       assert xcode_graph.binary_build_duration == 1000
@@ -592,8 +590,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
                "name" => "build",
                "id" => response["id"],
                "project_id" => project.id,
-               "url" =>
-                 url(~p"/#{account.name}/#{project.name}/builds/build-runs/#{build_run.id}")
+               "url" => url(~p"/#{account.name}/#{project.name}/builds/build-runs/#{build_run.id}")
              }
 
       assert command_event.build_run.id == build_run.id

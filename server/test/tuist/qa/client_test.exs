@@ -3,6 +3,7 @@ defmodule Tuist.QA.ClientTest do
   use Mimic
 
   alias Tuist.QA.Client
+  alias Tuist.QA.LogStreamer
 
   describe "create_step/6" do
     test "makes POST request with correct parameters" do
@@ -15,7 +16,9 @@ defmodule Tuist.QA.ClientTest do
       auth_token = "test-token"
 
       expect(Req, :post, fn opts ->
-        assert opts[:url] == "#{server_url}/api/projects/test-account/test-project/qa/runs/#{run_id}/steps"
+        assert opts[:url] ==
+                 "#{server_url}/api/projects/test-account/test-project/qa/runs/#{run_id}/steps"
+
         assert opts[:json] == %{summary: summary, description: description, issues: issues}
         assert opts[:headers] == %{"Authorization" => "Bearer #{auth_token}"}
         {:ok, %{status: 201, body: ""}}
@@ -77,7 +80,9 @@ defmodule Tuist.QA.ClientTest do
       auth_token = "test-token"
 
       expect(Req, :patch, fn opts ->
-        assert opts[:url] == "#{server_url}/api/projects/test-account/test-project/qa/runs/#{run_id}"
+        assert opts[:url] ==
+                 "#{server_url}/api/projects/test-account/test-project/qa/runs/#{run_id}"
+
         assert opts[:json] == %{status: "running"}
         assert opts[:headers] == %{"Authorization" => "Bearer #{auth_token}"}
         {:ok, %{status: 201, body: ""}}
@@ -107,7 +112,9 @@ defmodule Tuist.QA.ClientTest do
       auth_token = "test-token"
 
       expect(Req, :patch, fn opts ->
-        assert opts[:url] == "#{server_url}/api/projects/test-account/test-project/qa/runs/#{run_id}"
+        assert opts[:url] ==
+                 "#{server_url}/api/projects/test-account/test-project/qa/runs/#{run_id}"
+
         assert opts[:json] == %{status: "completed", summary: summary}
         assert opts[:headers] == %{"Authorization" => "Bearer #{auth_token}"}
         {:ok, %{status: 201, body: ""}}
@@ -139,7 +146,9 @@ defmodule Tuist.QA.ClientTest do
       auth_token = "test-token"
 
       expect(Req, :post, fn opts ->
-        assert opts[:url] == "#{server_url}/api/projects/test-account/test-project/qa/runs/#{run_id}/screenshots/upload"
+        assert opts[:url] ==
+                 "#{server_url}/api/projects/test-account/test-project/qa/runs/#{run_id}/screenshots/upload"
+
         assert opts[:json] == %{file_name: name, title: title}
         assert opts[:headers] == %{"Authorization" => "Bearer #{auth_token}"}
 
@@ -163,7 +172,8 @@ defmodule Tuist.QA.ClientTest do
         })
 
       # Then
-      assert {:ok, %{"url" => "https://s3.example.com/upload-url", "expires_at" => 1_234_567_890}} = result
+      assert {:ok, %{"url" => "https://s3.example.com/upload-url", "expires_at" => 1_234_567_890}} =
+               result
     end
   end
 
@@ -177,7 +187,9 @@ defmodule Tuist.QA.ClientTest do
       auth_token = "test-token"
 
       expect(Req, :post, fn opts ->
-        assert opts[:url] == "#{server_url}/api/projects/test-account/test-project/qa/runs/#{run_id}/screenshots"
+        assert opts[:url] ==
+                 "#{server_url}/api/projects/test-account/test-project/qa/runs/#{run_id}/screenshots"
+
         assert opts[:json] == %{file_name: name, title: title}
         assert opts[:headers] == %{"Authorization" => "Bearer #{auth_token}"}
         {:ok, %{status: 201, body: ""}}
@@ -193,6 +205,62 @@ defmodule Tuist.QA.ClientTest do
           auth_token: auth_token,
           account_handle: "test-account",
           project_handle: "test-project"
+        })
+
+      # Then
+      assert result == :ok
+    end
+  end
+
+  describe "start_log_stream/1" do
+    test "starts LogStreamer with correct parameters" do
+      # Given
+      server_url = "https://example.com"
+      run_id = "test-run-123"
+      auth_token = "test-token"
+
+      expect(LogStreamer, :start_link, fn params ->
+        assert params.server_url == server_url
+        assert params.run_id == run_id
+        assert params.auth_token == auth_token
+        {:ok, :fake_pid}
+      end)
+
+      # When
+      result =
+        Client.start_log_stream(%{
+          server_url: server_url,
+          run_id: run_id,
+          auth_token: auth_token
+        })
+
+      # Then
+      assert result == {:ok, :fake_pid}
+    end
+  end
+
+  describe "stream_log/2" do
+    test "forwards log message to LogStreamer" do
+      # Given
+      streamer_pid = :fake_pid
+      message = "Test log message"
+      level = "info"
+      timestamp = DateTime.utc_now()
+
+      expect(LogStreamer, :stream_log, fn pid, params ->
+        assert pid == streamer_pid
+        assert params.message == message
+        assert params.level == level
+        assert params.timestamp == timestamp
+        :ok
+      end)
+
+      # When
+      result =
+        Client.stream_log(streamer_pid, %{
+          message: message,
+          level: level,
+          timestamp: timestamp
         })
 
       # Then

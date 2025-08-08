@@ -134,7 +134,8 @@ defmodule Tuist.MixProject do
       {:cloak_ecto, "~> 1.3.0"},
       {:boruta, git: "https://github.com/malach-it/boruta_auth", branch: "master"},
       {:minio_server, github: "LostKobrakai/minio_server", only: :dev},
-      {:langchain, git: "https://github.com/brainlid/langchain", branch: "main"}
+      {:langchain, git: "https://github.com/brainlid/langchain", branch: "main"},
+      {:websockex, "~> 0.4.3"}
     ]
   end
 

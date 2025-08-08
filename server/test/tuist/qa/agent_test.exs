@@ -37,9 +37,14 @@ defmodule Tuist.QA.AgentTest do
     stub(Tuist.Simulators, :boot_simulator, fn ^device -> :ok end)
     stub(Tuist.Simulators, :install_app, fn ^app_path, ^device -> :ok end)
 
-    stub(ChatAnthropic, :new!, fn _ -> %ChatAnthropic{api_key: "test-api-key", model: "claude-sonnet-4-20250514"} end)
+    stub(ChatAnthropic, :new!, fn _ ->
+      %ChatAnthropic{api_key: "test-api-key", model: "claude-sonnet-4-20250514"}
+    end)
 
-    stub(LLMChain, :new!, fn %{llm: llm} -> %LLMChain{llm: llm, messages: [], last_message: nil} end)
+    stub(LLMChain, :new!, fn %{llm: llm} ->
+      %LLMChain{llm: llm, messages: [], last_message: nil}
+    end)
+
     stub(LLMChain, :add_messages, fn chain, _messages -> chain end)
     stub(LLMChain, :add_tools, fn chain, _ -> chain end)
     stub(LLMChain, :add_callback, fn chain, _ -> chain end)
@@ -55,6 +60,16 @@ defmodule Tuist.QA.AgentTest do
                                 } ->
       {:ok, "started"}
     end)
+
+    stub(Client, :start_log_stream, fn %{
+                                         server_url: _server_url,
+                                         run_id: _run_id,
+                                         auth_token: _auth_token
+                                       } ->
+      {:ok, :fake_log_streamer_pid}
+    end)
+
+    stub(Client, :stream_log, fn :fake_log_streamer_pid, _log_params -> :ok end)
 
     {:ok, device: device, preview_path: preview_path, extract_dir: extract_dir, app_path: app_path}
   end
@@ -176,7 +191,9 @@ defmodule Tuist.QA.AgentTest do
                )
     end
 
-    test "trims previous describe_ui and screenshot tool calls from message history", %{device: device} do
+    test "trims previous describe_ui and screenshot tool calls from message history", %{
+      device: device
+    } do
       # Given
       preview_url = "https://example.com/preview.zip"
       bundle_identifier = "com.example.app"
@@ -205,7 +222,9 @@ defmodule Tuist.QA.AgentTest do
       expect(Req, :get, fn ^preview_url, [into: :mocked_stream] -> {:ok, %{status: 200}} end)
       expect(Tuist.Simulators, :launch_app, fn ^bundle_identifier, ^device -> :ok end)
 
-      expect(LLMChain, :new!, 1, fn %{llm: llm} -> %LLMChain{llm: llm, messages: [], last_message: nil} end)
+      expect(LLMChain, :new!, 1, fn %{llm: llm} ->
+        %LLMChain{llm: llm, messages: [], last_message: nil}
+      end)
 
       expect(LLMChain, :add_messages, 1, fn chain, [user_msg] ->
         %{chain | messages: [user_msg]}
@@ -224,31 +243,44 @@ defmodule Tuist.QA.AgentTest do
         {:ok, chain_with_messages, %ToolResult{name: "describe_ui", content: ["New UI data"]}}
       end)
 
-      expect(LLMChain, :new!, 1, fn %{llm: llm} -> %LLMChain{llm: llm, messages: [], last_message: nil} end)
+      expect(LLMChain, :new!, 1, fn %{llm: llm} ->
+        %LLMChain{llm: llm, messages: [], last_message: nil}
+      end)
 
       # previous describe_ui tool calls are removed
       expect(LLMChain, :add_messages, 1, fn chain, messages ->
-        assert Enum.map(messages, &Map.take(&1, [:role, :content, :tool_calls, :tool_results])) == [
-                 %{content: [%{content: "Test the app", type: :text}], role: :user, tool_calls: nil, tool_results: nil},
-                 %{
-                   role: :assistant,
-                   tool_calls: [%{arguments: %{}, name: "screenshot"}],
-                   content: nil,
-                   tool_results: nil
-                 },
-                 %{
-                   role: :tool,
-                   tool_results: [
-                     %ToolResult{
-                       content: ["Screenshot data"],
-                       name: "screenshot"
-                     }
-                   ],
-                   content: nil,
-                   tool_calls: nil
-                 },
-                 %{content: [%{content: "New action", type: :text}], role: :assistant, tool_calls: nil, tool_results: nil}
-               ]
+        assert Enum.map(messages, &Map.take(&1, [:role, :content, :tool_calls, :tool_results])) ==
+                 [
+                   %{
+                     content: [%{content: "Test the app", type: :text}],
+                     role: :user,
+                     tool_calls: nil,
+                     tool_results: nil
+                   },
+                   %{
+                     role: :assistant,
+                     tool_calls: [%{arguments: %{}, name: "screenshot"}],
+                     content: nil,
+                     tool_results: nil
+                   },
+                   %{
+                     role: :tool,
+                     tool_results: [
+                       %ToolResult{
+                         content: ["Screenshot data"],
+                         name: "screenshot"
+                       }
+                     ],
+                     content: nil,
+                     tool_calls: nil
+                   },
+                   %{
+                     content: [%{content: "New action", type: :text}],
+                     role: :assistant,
+                     tool_calls: nil,
+                     tool_results: nil
+                   }
+                 ]
 
         %{chain | messages: messages}
       end)
