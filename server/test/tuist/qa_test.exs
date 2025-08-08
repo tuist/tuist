@@ -461,10 +461,11 @@ defmodule Tuist.QATest do
       result = QA.screenshot(screenshot.id, qa_run_id: qa_run.id)
 
       # Then
-      assert result.id == screenshot.id
+      assert {:ok, returned_screenshot} = result
+      assert returned_screenshot.id == screenshot.id
     end
 
-    test "returns nil when screenshot exists but qa_run_id doesn't match" do
+    test "returns error when screenshot exists but qa_run_id doesn't match" do
       # Given
       qa_run = QAFixtures.qa_run_fixture()
       other_qa_run = QAFixtures.qa_run_fixture()
@@ -474,7 +475,7 @@ defmodule Tuist.QATest do
       result = QA.screenshot(screenshot.id, qa_run_id: other_qa_run.id)
 
       # Then
-      assert result == nil
+      assert result == {:error, :not_found}
     end
 
     test "returns screenshot when it exists and qa_run_id is not provided" do
@@ -486,10 +487,11 @@ defmodule Tuist.QATest do
       result = QA.screenshot(screenshot.id)
 
       # Then
-      assert result.id == screenshot.id
+      assert {:ok, returned_screenshot} = result
+      assert returned_screenshot.id == screenshot.id
     end
 
-    test "returns nil when screenshot doesn't exist" do
+    test "returns error when screenshot doesn't exist" do
       # Given
       non_existent_id = Ecto.UUID.generate()
       qa_run = QAFixtures.qa_run_fixture()
@@ -498,7 +500,7 @@ defmodule Tuist.QATest do
       result = QA.screenshot(non_existent_id, qa_run_id: qa_run.id)
 
       # Then
-      assert result == nil
+      assert result == {:error, :not_found}
     end
   end
 

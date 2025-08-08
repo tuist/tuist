@@ -51,7 +51,7 @@ defmodule TuistTestSupport.Fixtures.QAFixtures do
     %Screenshot{}
     |> Screenshot.changeset(%{
       qa_run_id: qa_run.id,
-      qa_step_id: if(qa_step, do: qa_step.id, else: nil),
+      qa_step_id: if(qa_step, do: qa_step.id),
       file_name: Keyword.get(opts, :file_name, "screenshot"),
       title: Keyword.get(opts, :title, "Screenshot")
     })

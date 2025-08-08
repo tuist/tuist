@@ -45,12 +45,11 @@ defmodule TuistWeb.QAController do
        ) do
     with {:ok, qa_run} <- QA.qa_run(qa_run_id, preload: [app_build: [preview: :project]]),
          true <- qa_run.app_build.preview.project.id == project.id,
-         screenshot when not is_nil(screenshot) <- QA.screenshot(screenshot_id, qa_run_id: qa_run_id) do
+         {:ok, screenshot} <- QA.screenshot(screenshot_id, qa_run_id: qa_run_id) do
       assign(conn, :selected_qa_screenshot, screenshot)
     else
       _ ->
         raise NotFoundError, "QA screenshot not found."
     end
   end
-
 end

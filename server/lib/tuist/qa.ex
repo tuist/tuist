@@ -109,10 +109,16 @@ defmodule Tuist.QA do
   def screenshot(screenshot_id, opts \\ []) do
     qa_run_id = Keyword.get(opts, :qa_run_id)
 
-    if qa_run_id do
-      Repo.one(from(s in Screenshot, where: s.id == ^screenshot_id and s.qa_run_id == ^qa_run_id))
-    else
-      Repo.get(Screenshot, screenshot_id)
+    screenshot =
+      if qa_run_id do
+        Repo.one(from(s in Screenshot, where: s.id == ^screenshot_id and s.qa_run_id == ^qa_run_id))
+      else
+        Repo.get(Screenshot, screenshot_id)
+      end
+
+    case screenshot do
+      nil -> {:error, :not_found}
+      screenshot -> {:ok, screenshot}
     end
   end
 
