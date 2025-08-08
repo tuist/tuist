@@ -1,4 +1,5 @@
 import FileSystem
+import FileSystemTesting
 import Foundation
 import Mockable
 import Path
@@ -90,6 +91,36 @@ struct XCConfigContentHasherTests {
                 #include "\(sourceFile2Path.pathString)"
                 xcconfigFile1-hashxcconfigFile2-hash
                 """
+        )
+    }
+
+    @Test(.inTemporaryDirectory)
+    func throwErrorAtRecursiveInclude() async throws {
+        // Given
+        try await fileSystem.writeText(
+            """
+            #include "xcconfigFile2.xcconfig"
+            xcconfigFile1
+            """,
+            at: sourceFile1Path
+        )
+        try await fileSystem.writeText(
+            """
+            #include "xcconfigFile1.xcconfig"
+            xcconfigFile2
+            """,
+            at: sourceFile2Path
+        )
+
+        // Then
+        await #expect(
+            throws: XCConfigContentHasherError.recursiveIncludeInXCConfigDetected(
+                path: sourceFile2Path,
+                includedPath: sourceFile1Path
+            ),
+            performing: {
+                try await subject.hash(path: sourceFile1Path)
+            }
         )
     }
 }

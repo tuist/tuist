@@ -4,10 +4,28 @@ import Mockable
 import Path
 import TSCBasic
 import TuistCore
+import TuistSupport
 
 @Mockable
 public protocol XCConfigContentHashing {
     func hash(path: Path.AbsolutePath) async throws -> String
+}
+
+enum XCConfigContentHasherError: FatalError, Equatable {
+    case recursiveIncludeInXCConfigDetected(path: Path.AbsolutePath, includedPath: Path.AbsolutePath)
+
+    var description: String {
+        switch self {
+        case let .recursiveIncludeInXCConfigDetected(path, includedPath):
+            return "Detected recursive include in XCConfig at path - `\(path)`. Included path - `\(includedPath)`"
+        }
+    }
+
+    var type: ErrorType {
+        switch self {
+        case .recursiveIncludeInXCConfigDetected: return .abort
+        }
+    }
 }
 
 /// `XCConfigContentHasher`
@@ -26,6 +44,10 @@ public struct XCConfigContentHasher: XCConfigContentHashing {
     // MARK: - XCConfigContentHashing
 
     public func hash(path: Path.AbsolutePath) async throws -> String {
+        try await hash(path: path, processedPaths: [path])
+    }
+
+    private func hash(path: Path.AbsolutePath, processedPaths: Set<Path.AbsolutePath>) async throws -> String {
         let source = try await fileSystem.readTextFile(at: path)
 
         let pattern = "#include\\s*\"([^'\"]+)\""
@@ -35,7 +57,12 @@ public struct XCConfigContentHasher: XCConfigContentHashing {
 
         for include in includes {
             let includePath = try Path.AbsolutePath(validating: include, relativeTo: path.parentDirectory)
-            let hash = try await hash(path: includePath)
+
+            if processedPaths.contains(includePath) {
+                throw XCConfigContentHasherError.recursiveIncludeInXCConfigDetected(path: path, includedPath: includePath)
+            }
+
+            let hash = try await hash(path: includePath, processedPaths: processedPaths.union([includePath]))
             xcconfigHash += hash
         }
 
