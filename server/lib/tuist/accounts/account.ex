@@ -22,6 +22,7 @@ defmodule Tuist.Accounts.Account do
     field :customer_id, :string
     field :current_month_remote_cache_hits_count, :integer
     field :current_month_remote_cache_hits_count_updated_at, :naive_datetime
+    field :tenant_id, :string
 
     belongs_to :organization, Organization
     belongs_to :user, User
@@ -50,7 +51,8 @@ defmodule Tuist.Accounts.Account do
         :organization_id,
         :customer_id,
         :current_month_remote_cache_hits_count,
-        :current_month_remote_cache_hits_count_updated_at
+        :current_month_remote_cache_hits_count_updated_at,
+        :tenant_id
       ])
 
     user_id = get_field(changeset, :user_id)
@@ -85,7 +87,7 @@ defmodule Tuist.Accounts.Account do
 
   def update_changeset(account, attrs) do
     account
-    |> cast(attrs, [:name])
+    |> cast(attrs, [:name, :tenant_id])
     |> validate_handle()
   end
 

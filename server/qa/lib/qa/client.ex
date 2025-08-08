@@ -1,4 +1,4 @@
-defmodule Tuist.QA.Client do
+defmodule QA.Client do
   @moduledoc """
   Client module for communicating with the QA server.
   """

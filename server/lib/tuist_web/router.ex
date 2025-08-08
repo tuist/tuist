@@ -216,14 +216,17 @@ defmodule TuistWeb.Router do
     end
   end
 
-  scope "/" do
+  scope "/", TuistWeb do
     pipe_through [:open_api, :browser_app]
 
-    get "/ready", TuistWeb.PageController, :ready
-    get "/api/docs", TuistWeb.APIController, :docs
+    get "/ready", PageController, :ready
+    get "/api/docs", APIController, :docs
+
+    get "/.well-known/openid-configuration", WellKnownController, :openid_configuration
+    get "/.well-known/jwks.json", WellKnownController, :jwks
 
     get "/.well-known/apple-app-site-association",
-        TuistWeb.AppleAppSiteAssociationController,
+        AppleAppSiteAssociationController,
         :show
   end
 
