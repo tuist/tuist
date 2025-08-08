@@ -12,7 +12,7 @@ public protocol XCConfigContentHashing {
 
 /// `XCConfigContentHasher`
 /// is responsible for computing a hash that uniquely identifies some `xcconfig` file
-public final class XCConfigContentHasher: XCConfigContentHashing {
+public struct XCConfigContentHasher: XCConfigContentHashing {
     private let contentHasher: ContentHashing
     private let fileSystem: FileSysteming
 
