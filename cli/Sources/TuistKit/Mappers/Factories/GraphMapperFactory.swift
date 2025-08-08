@@ -147,7 +147,7 @@ public final class GraphMapperFactory: GraphMapperFactorying {
             if !ignoreBinaryCache {
                 let focusTargetsGraphMapper = TargetsToCacheBinariesGraphMapper(
                     config: config,
-                    sources: includedTargets.isEmpty ? .tests : .explicit(includedTargets),
+                    decider: AllPossibleTargetReplacementDecider(exceptions: includedTargets),
                     configuration: configuration,
                     cacheStorage: cacheStorage
                 )
@@ -176,7 +176,7 @@ public final class GraphMapperFactory: GraphMapperFactorying {
             if !ignoreBinaryCache {
                 let focusTargetsGraphMapper = TargetsToCacheBinariesGraphMapper(
                     config: config,
-                    sources: .build,
+                    decider: ExternalOnlyTargetReplacementDecider(),
                     configuration: configuration,
                     cacheStorage: cacheStorage
                 )
@@ -211,7 +211,7 @@ public final class GraphMapperFactory: GraphMapperFactorying {
             if !ignoreBinaryCache {
                 let focusTargetsGraphMapper = TargetsToCacheBinariesGraphMapper(
                     config: config,
-                    sources: cacheSources,
+                    decider: AllPossibleTargetReplacementDecider(exceptions: cacheSources),
                     configuration: configuration,
                     cacheStorage: cacheStorage
                 )
@@ -252,7 +252,7 @@ public final class GraphMapperFactory: GraphMapperFactorying {
 
             let focusTargetsGraphMapper = TargetsToCacheBinariesGraphMapper(
                 config: config,
-                sources: cacheSources,
+                decider: AllPossibleTargetReplacementDecider(exceptions: cacheSources),
                 configuration: configuration,
                 cacheStorage: cacheStorage
             )
