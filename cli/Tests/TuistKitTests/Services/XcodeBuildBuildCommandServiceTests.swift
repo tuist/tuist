@@ -70,7 +70,7 @@ struct XcodeBuildBuildCommandServiceTests {
 
         given(xcodeBuildController)
             .run(arguments: .any)
-            .willReturn()
+            .willReturn(Data())
 
         // When
         try await subject.run(passthroughXcodebuildArguments: arguments)

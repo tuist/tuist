@@ -41,6 +41,8 @@ struct XcodeBuildTestCommandService {
     private let cacheStorageFactory: CacheStorageFactorying
     private let selectiveTestingGraphHasher: SelectiveTestingGraphHashing
     private let selectiveTestingService: SelectiveTestingServicing
+    private let xcBeautifyController: XCBeautifyControlling
+    private let xcBeautifyArgumentsParser: XCBeautifyArgumentsParsing
 
     init(
         fileSystem: FileSysteming = FileSystem(),
@@ -51,7 +53,9 @@ struct XcodeBuildTestCommandService {
         uniqueIDGenerator: UniqueIDGenerating = UniqueIDGenerator(),
         cacheStorageFactory: CacheStorageFactorying,
         selectiveTestingGraphHasher: SelectiveTestingGraphHashing,
-        selectiveTestingService: SelectiveTestingServicing
+        selectiveTestingService: SelectiveTestingServicing,
+        xcBeautifyController: XCBeautifyControlling = XCBeautifyController(),
+        xcBeautifyArgumentsParser: XCBeautifyArgumentsParsing = XCBeautifyArgumentsParser()
     ) {
         self.fileSystem = fileSystem
         self.xcodeGraphMapper = xcodeGraphMapper
@@ -62,15 +66,19 @@ struct XcodeBuildTestCommandService {
         self.cacheStorageFactory = cacheStorageFactory
         self.selectiveTestingGraphHasher = selectiveTestingGraphHasher
         self.selectiveTestingService = selectiveTestingService
+        self.xcBeautifyController = xcBeautifyController
+        self.xcBeautifyArgumentsParser = xcBeautifyArgumentsParser
     }
 
     func run(
         passthroughXcodebuildArguments: [String]
     ) async throws {
-        let path = try await path(passthroughXcodebuildArguments: passthroughXcodebuildArguments)
+        let arguments = xcBeautifyArgumentsParser.parse(passthroughXcodebuildArguments)
+        let path = try await path(passthroughXcodebuildArguments: arguments.xcbeautify)
         let config = try await configLoader.loadConfig(path: path)
         try await runTests(
-            passthroughXcodebuildArguments: passthroughXcodebuildArguments,
+            passthroughXcodebuildArguments: arguments.remaining,
+            xcbeautifyArgs: arguments.xcbeautify,
             path: path,
             config: config
         )
@@ -79,6 +87,7 @@ struct XcodeBuildTestCommandService {
     // swiftlint:disable:next function_body_length
     private func runTests(
         passthroughXcodebuildArguments: [String],
+        xcbeautifyArgs: [String],
         path: AbsolutePath,
         config: Tuist
     ) async throws {
@@ -180,7 +189,7 @@ struct XcodeBuildTestCommandService {
         }
 
         do {
-            try await xcodeBuildController
+            let output = try await xcodeBuildController
                 .run(
                     arguments: [
                         passthroughXcodebuildArguments,
@@ -189,8 +198,12 @@ struct XcodeBuildTestCommandService {
                             passthroughXcodebuildArguments: passthroughXcodebuildArguments
                         ),
                     ]
-                    .flatMap { $0 }
+                    .flatMap { $0 },
                 )
+
+            if !xcbeautifyArgs.isEmpty {
+                try await xcBeautifyController.run(arguments: xcbeautifyArgs, buildOutput: output)
+            }
         } catch {
             await updateRunMetadataStorage(
                 with: testableGraphTargets,
@@ -199,7 +212,6 @@ struct XcodeBuildTestCommandService {
             )
             throw error
         }
-
         await updateRunMetadataStorage(
             with: testableGraphTargets,
             selectiveTestingHashes: selectiveTestingHashes,

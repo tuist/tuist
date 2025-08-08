@@ -315,9 +315,10 @@ public final class XcodeBuildController: XcodeBuildControlling {
         return buildSettingsByTargetName
     }
 
-    public func run(arguments: [String]) async throws {
+    @discardableResult
+    public func run(arguments: [String]) async throws -> Data {
         let logger = Logger.current
-        
+
         func format(_ bytes: [UInt8]) -> String {
             let string = String(decoding: bytes, as: Unicode.UTF8.self)
             if Environment.current.isVerbose == true {
@@ -341,15 +342,20 @@ public final class XcodeBuildController: XcodeBuildControlling {
         let command = ["/usr/bin/xcrun", "xcodebuild"] + arguments
         
         logger.debug("Running xcodebuild command: \(command.joined(separator: " "))")
+       
+        var output = Data()
         
         try system.run(command,
                        verbose: false,
                        environment: Environment.current.variables,
                        redirection: .stream(stdout: { bytes in
             log(bytes)
+            output.append(contentsOf: bytes)
         }, stderr: { bytes in
             log(bytes, isError: true)
         }))
+        
+        return output
     }
     
     public func version() async throws -> Version? {
@@ -366,7 +372,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
         
         return Version(string: components[xcodeIndex + 1])
     }
-    
+
     private func loadBuildSettings(_ command: [String]) async throws -> String {
         // xcodebuild has a bug where xcodebuild -showBuildSettings
         // can sometimes hang indefinitely on projects that don't

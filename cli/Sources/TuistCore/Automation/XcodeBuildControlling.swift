@@ -1,3 +1,4 @@
+import Foundation
 import Mockable
 import Path
 import XcodeGraph
@@ -118,7 +119,8 @@ public protocol XcodeBuildControlling {
 
     /// Runs `xcodebuild` with passed `arguments` and formats the output
     /// - arguments: Arguments to pass to `xcodebuild`
-    func run(arguments: [String]) async throws
+    @discardableResult
+    func run(arguments: [String]) async throws -> Data
 
     /// - Returns: `xcodebuild` version. This version is aligned with the Xcode version.
     func version() async throws -> Version?
