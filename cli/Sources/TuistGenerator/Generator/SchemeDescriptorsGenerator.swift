@@ -442,28 +442,26 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         rootPath: AbsolutePath,
         generatedProjects: [AbsolutePath: GeneratedProject]
     ) throws -> XCScheme.LaunchAction? {
-        let specifiedExecutableTarget = scheme.runAction?.executable
-        let defaultTarget = defaultTargetReference(scheme: scheme)
-        guard let target = specifiedExecutableTarget ?? defaultTarget else { return nil }
-
         var buildableProductRunnable: XCScheme.BuildableProductRunnable?
         var macroExpansion: XCScheme.BuildableReference?
         var pathRunnable: XCScheme.PathRunnable?
         var defaultBuildConfiguration = BuildConfiguration.debug.name
+        var graphTarget: GraphTarget?
 
         if let filePath = scheme.runAction?.filePath {
             pathRunnable = XCScheme.PathRunnable(filePath: filePath.pathString)
         } else {
-            guard let graphTarget = graphTraverser.target(path: target.projectPath, name: target.name) else { return nil }
-            defaultBuildConfiguration = graphTarget.project.defaultDebugBuildConfigurationName
+            guard let graphRunnableTarget = graphTraverser.schemeRunnableTarget(scheme: scheme) else { return nil }
+            graphTarget = graphRunnableTarget
+            defaultBuildConfiguration = graphRunnableTarget.project.defaultDebugBuildConfigurationName
             guard let buildableReference = try createBuildableReference(
-                graphTarget: graphTarget,
+                graphTarget: graphRunnableTarget,
                 graphTraverser: graphTraverser,
                 rootPath: rootPath,
                 generatedProjects: generatedProjects
             ) else { return nil }
 
-            if graphTarget.target.product.runnable {
+            if graphRunnableTarget.target.product.runnable {
                 buildableProductRunnable = XCScheme.BuildableProductRunnable(
                     buildableReference: buildableReference,
                     runnableDebuggingMode: "0"
@@ -543,8 +541,6 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
                 launcherIdentifier = launchActionConstants.launcher
             }
         }
-
-        let graphTarget = graphTraverser.target(path: target.projectPath, name: target.name)
 
         let customLLDBInitFilePath: RelativePath?
         if let customLLDBInitFile = scheme.runAction?.customLLDBInitFile,
