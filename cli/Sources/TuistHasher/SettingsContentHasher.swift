@@ -12,11 +12,13 @@ public protocol SettingsContentHashing {
 /// is responsible for computing a hash that uniquely identifies some `Settings`
 public final class SettingsContentHasher: SettingsContentHashing {
     private let contentHasher: ContentHashing
+    private let xcconfigHasher: XCConfigContentHashing
 
     // MARK: - Init
 
-    public init(contentHasher: ContentHashing) {
+    public init(contentHasher: ContentHashing, xcconfigHasher: XCConfigContentHashing) {
         self.contentHasher = contentHasher
+        self.xcconfigHasher = xcconfigHasher
     }
 
     // MARK: - SettingsContentHashing
@@ -52,7 +54,7 @@ public final class SettingsContentHasher: SettingsContentHashing {
     private func hash(_ configuration: Configuration) async throws -> String {
         var configurationHash = try hash(configuration.settings)
         if let xcconfigPath = configuration.xcconfig {
-            let xcconfigHash = try await contentHasher.hash(path: xcconfigPath)
+            let xcconfigHash = try await xcconfigHasher.hash(path: xcconfigPath)
             configurationHash += xcconfigHash
         }
         return configurationHash
