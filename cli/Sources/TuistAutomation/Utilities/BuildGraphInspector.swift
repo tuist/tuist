@@ -196,16 +196,12 @@ public final class BuildGraphInspector: BuildGraphInspecting {
     }
 
     public func runnableTarget(scheme: Scheme, graphTraverser: GraphTraversing) -> GraphTarget? {
-        guard let runTarget = scheme.runAction?.executable else { return nil }
-        return graphTraverser.target(
-            path: runTarget.projectPath,
-            name: runTarget.name
-        )
+        return graphTraverser.schemeRunnableTarget(scheme: scheme)
     }
 
     public func runnableSchemes(graphTraverser: GraphTraversing) -> [Scheme] {
         graphTraverser.schemes()
-            .filter { $0.runAction?.executable != nil }
+            .filter { graphTraverser.schemeRunnableTarget(scheme: $0) != nil }
             .sorted(by: { $0.name < $1.name })
     }
 
