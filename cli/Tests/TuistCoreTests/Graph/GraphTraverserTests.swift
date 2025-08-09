@@ -5293,6 +5293,66 @@ final class GraphTraverserTests: TuistUnitTestCase {
         XCTAssertEmpty(got)
     }
 
+    func test_schemeRunnableTarget_when_no_executable_nor_build_targets() {
+        // Given
+        let scheme = Scheme.test(buildAction: .test(targets: []), runAction: .test(executable: nil))
+        let graph = Graph.test(projects: [:])
+        let subject = GraphTraverser(graph: graph)
+
+        // When/Then
+        XCTAssertNil(subject.schemeRunnableTarget(scheme: scheme))
+    }
+
+    func test_schemeRunnableTarget_when_executable_and_present_target() {
+        // Given
+        let target = Target.test(name: "App", product: .app)
+        let project = Project.test(targets: [target])
+        let targetReference = TargetReference(projectPath: project.path, name: "App")
+        let scheme = Scheme.test(buildAction: .test(targets: []), runAction: .test(executable: targetReference))
+        let graph = Graph.test(projects: [project.path: project])
+        let subject = GraphTraverser(graph: graph)
+
+        // When/Then
+        XCTAssertEqual(subject.schemeRunnableTarget(scheme: scheme)?.target, target)
+    }
+
+    func test_schemeRunnableTarget_when_executable_and_absent_target() {
+        // Given
+        let project = Project.test(targets: [])
+        let targetReference = TargetReference(projectPath: project.path, name: "App")
+        let scheme = Scheme.test(buildAction: .test(targets: []), runAction: .test(executable: targetReference))
+        let graph = Graph.test(projects: [project.path: project])
+        let subject = GraphTraverser(graph: graph)
+
+        // When/Then
+        XCTAssertNil(subject.schemeRunnableTarget(scheme: scheme))
+    }
+
+    func test_schemeRunnableTarget_when_absent_executable_runnable_build_target_and_present_target() {
+        // Given
+        let target = Target.test(name: "App", product: .app)
+        let project = Project.test(targets: [target])
+        let targetReference = TargetReference(projectPath: project.path, name: "App")
+        let scheme = Scheme.test(buildAction: .test(targets: [targetReference]), runAction: nil)
+        let graph = Graph.test(projects: [project.path: project])
+        let subject = GraphTraverser(graph: graph)
+
+        // When/Then
+        XCTAssertEqual(subject.schemeRunnableTarget(scheme: scheme)?.target, target)
+    }
+
+    func test_schemeRunnableTarget_when_absent_executable_runnable_build_target_and_absent_target() {
+        // Given
+        let project = Project.test(targets: [])
+        let targetReference = TargetReference(projectPath: project.path, name: "App")
+        let scheme = Scheme.test(buildAction: .test(targets: [targetReference]), runAction: nil)
+        let graph = Graph.test(projects: [project.path: project])
+        let subject = GraphTraverser(graph: graph)
+
+        // When/Then
+        XCTAssertNil(subject.schemeRunnableTarget(scheme: scheme))
+    }
+
     // MARK: - Helpers
 
     private func sdkDependency(from dependency: GraphDependencyReference) -> SDKPathAndStatus? {
