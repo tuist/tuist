@@ -135,6 +135,10 @@ extension XcodeGraph.Target {
         }
 
         let metadata = XcodeGraph.TargetMetadata(tags: Set(manifest.metadata.tags))
+        let buildableFolders = try manifest.buildableFolders.map { try XcodeGraph.BuildableFolder.from(
+            manifest: $0,
+            generatorPaths: generatorPaths
+        ) }
 
         return XcodeGraph.Target(
             name: name,
@@ -163,7 +167,8 @@ extension XcodeGraph.Target {
             mergeable: manifest.mergeable,
             onDemandResourcesTags: onDemandResourcesTags,
             metadata: metadata,
-            type: type
+            type: type,
+            buildableFolders: buildableFolders
         )
     }
 
