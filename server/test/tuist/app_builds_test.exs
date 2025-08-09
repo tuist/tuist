@@ -1147,4 +1147,148 @@ defmodule Tuist.AppBuildsTest do
       assert result.id == ipa_build.id
     end
   end
+
+  describe "latest_app_build/3" do
+    test "returns the latest app build for a given git ref and project" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      preview =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          git_ref: "refs/heads/feature"
+        )
+
+      _app_build_1 =
+        AppBuildsFixtures.app_build_fixture(
+          preview: preview,
+          supported_platforms: [:ios],
+          inserted_at: ~U[2021-01-01 01:30:00Z]
+        )
+
+      app_build_2 =
+        AppBuildsFixtures.app_build_fixture(
+          preview: preview,
+          supported_platforms: [:macos],
+          inserted_at: ~U[2021-01-01 02:30:00Z]
+        )
+
+      # When
+      result = AppBuilds.latest_app_build("refs/heads/feature", project)
+
+      # Then
+      assert result.id == app_build_2.id
+    end
+
+    test "returns the latest app build with the specified supported platform" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      preview =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          git_ref: "refs/heads/main",
+          display_name: "App"
+        )
+
+      _app_build_ios =
+        AppBuildsFixtures.app_build_fixture(
+          preview: preview,
+          supported_platforms: [:ios],
+          inserted_at: ~U[2021-01-01 01:00:00Z]
+        )
+
+      app_build_macos =
+        AppBuildsFixtures.app_build_fixture(
+          preview: preview,
+          supported_platforms: [:macos],
+          inserted_at: ~U[2021-01-01 02:00:00Z]
+        )
+
+      # When
+      result = AppBuilds.latest_app_build("refs/heads/main", project, supported_platform: :macos)
+
+      # Then
+      assert result.id == app_build_macos.id
+    end
+
+    test "returns nil when no previews exist for the git ref" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      _other_preview =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          git_ref: "refs/heads/other"
+        )
+
+      # When
+      result = AppBuilds.latest_app_build("refs/heads/nonexistent", project)
+
+      # Then
+      assert result == nil
+    end
+
+    test "returns nil when no app builds exist for matching previews" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      AppBuildsFixtures.preview_fixture(
+        project: project,
+        git_ref: "refs/heads/main"
+      )
+
+      # When
+      result = AppBuilds.latest_app_build("refs/heads/main", project)
+
+      # Then
+      assert result == nil
+    end
+
+    test "returns nil when no app builds match the specified supported platform" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      preview =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          git_ref: "refs/heads/main"
+        )
+
+      _app_build_ios =
+        AppBuildsFixtures.app_build_fixture(
+          preview: preview,
+          supported_platforms: [:ios]
+        )
+
+      # When
+      result = AppBuilds.latest_app_build("refs/heads/main", project, supported_platform: :macos)
+
+      # Then
+      assert result == nil
+    end
+
+    test "finds app build with specific platform among multiple platforms" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      preview =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          git_ref: "refs/heads/main"
+        )
+
+      app_build_multi_platform =
+        AppBuildsFixtures.app_build_fixture(
+          preview: preview,
+          supported_platforms: [:ios, :macos, :watchos]
+        )
+
+      # When
+      result = AppBuilds.latest_app_build("refs/heads/main", project, supported_platform: :macos)
+
+      # Then
+      assert result.id == app_build_multi_platform.id
+    end
+  end
 end

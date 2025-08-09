@@ -4,6 +4,9 @@ defmodule TuistWeb.Endpoint do
   # The session will be stored in the cookie and signed,
   # this means its contents can be read but not tampered with.
   # Set :encryption_salt if you would also like to encrypt it.
+  alias TuistWeb.Webhooks.BillingController
+  alias TuistWeb.Webhooks.GitHubController
+
   @session_options [
     store: :cookie,
     key: "_tuist_key",
@@ -47,8 +50,13 @@ defmodule TuistWeb.Endpoint do
 
   plug Stripe.WebhookPlug,
     at: "/webhooks/stripe",
-    handler: TuistWeb.Webhooks.BillingController,
+    handler: BillingController,
     secret: {Tuist.Environment, :stripe_endpoint_secret, []}
+
+  plug TuistWeb.Plugs.GitHubWebhookPlug,
+    at: "/webhooks/github",
+    handler: GitHubController,
+    secret: {Tuist.Environment, :github_app_webhook_secret, []}
 
   plug Plug.Parsers,
     parsers: [:urlencoded, :multipart, :json],

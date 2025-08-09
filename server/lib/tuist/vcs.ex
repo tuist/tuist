@@ -158,6 +158,51 @@ defmodule Tuist.VCS do
     |> Oban.insert()
   end
 
+  @doc """
+  Creates a comment on a VCS issue/pull request.
+  """
+  def create_comment(%{repository_full_handle: repository_full_handle, git_ref: git_ref, body: body, project: project}) do
+    cond do
+      not String.starts_with?(git_ref, "refs/pull/") ->
+        {:error, :not_pull_request}
+
+      not connected?(%{repository_full_handle: repository_full_handle, project: project}) ->
+        {:error, :repository_not_connected}
+
+      true ->
+        client = get_client_for_provider(:github)
+        issue_id = get_issue_id_from_git_ref(git_ref)
+
+        client.create_comment(%{
+          repository_full_handle: repository_full_handle,
+          issue_id: issue_id,
+          body: body
+        })
+    end
+  end
+
+  @doc """
+  Updates an existing comment on a VCS issue/pull request.
+  """
+  def update_comment(%{
+        repository_full_handle: repository_full_handle,
+        comment_id: comment_id,
+        body: body,
+        project: project
+      }) do
+    if connected?(%{repository_full_handle: repository_full_handle, project: project}) do
+      client = get_client_for_provider(:github)
+
+      client.update_comment(%{
+        repository_full_handle: repository_full_handle,
+        comment_id: comment_id,
+        body: body
+      })
+    else
+      {:error, :repository_not_connected}
+    end
+  end
+
   def post_vcs_pull_request_comment(%{
         git_ref: git_ref,
         git_remote_url_origin: git_remote_url_origin,

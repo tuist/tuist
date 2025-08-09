@@ -16,6 +16,7 @@ defmodule Tuist.QA.Workers.TestWorker do
   def perform(%Oban.Job{args: %{"app_build_id" => app_build_id, "prompt" => prompt}} = _job) do
     {:ok, app_build} = AppBuilds.app_build_by_id(app_build_id, preload: [preview: [project: :account]])
 
-    QA.test(%{app_build: app_build, prompt: prompt})
+    {:ok, qa_run} = QA.test(%{app_build: app_build, prompt: prompt})
+    QA.post_vcs_test_summary(qa_run)
   end
 end

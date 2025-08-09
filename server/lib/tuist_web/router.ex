@@ -515,6 +515,16 @@ defmodule TuistWeb.Router do
     get "/:id/icon.png", PreviewController, :download_icon
   end
 
+  scope "/:account_handle/:project_handle/qa/runs/:qa_run_id/screenshots", TuistWeb do
+    pipe_through [
+      :open_api,
+      :browser_app,
+      :analytics
+    ]
+
+    get "/:screenshot_id", QAController, :download_screenshot
+  end
+
   scope "/:account_handle/:project_handle/previews/:id", TuistWeb do
     pipe_through [
       :open_api,

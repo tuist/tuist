@@ -393,4 +393,20 @@ defmodule Tuist.Projects do
     |> Enum.sort_by(& &1.last_interacted_at, {:desc, NaiveDateTime})
     |> Enum.take(limit)
   end
+
+  def project_by_vcs_repository_full_handle(vcs_repository_full_handle, opts \\ []) do
+    preload = Keyword.get(opts, :preload, [:account])
+
+    project =
+      Repo.one(
+        from p in Project,
+          where: p.vcs_repository_full_handle == ^vcs_repository_full_handle,
+          preload: ^preload
+      )
+
+    case project do
+      nil -> {:error, :not_found}
+      _ -> {:ok, project}
+    end
+  end
 end

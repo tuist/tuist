@@ -41,7 +41,8 @@ defmodule TuistTestSupport.Fixtures.AppBuildsFixtures do
     |> AppBuild.create_changeset(%{
       preview_id: preview.id,
       type: Keyword.get(opts, :type, :app_bundle),
-      supported_platforms: Keyword.get(opts, :supported_platforms, [:ios])
+      supported_platforms: Keyword.get(opts, :supported_platforms, [:ios]),
+      inserted_at: Keyword.get(opts, :inserted_at)
     })
     |> Repo.insert!()
   end

@@ -5,6 +5,7 @@ defmodule TuistWeb.PreviewsControllerTest do
   alias Tuist.Accounts
   alias Tuist.AppBuilds
   alias Tuist.AppBuilds.Preview
+  alias Tuist.QA
   alias Tuist.Repo
   alias Tuist.Storage
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -536,6 +537,79 @@ defmodule TuistWeb.PreviewsControllerTest do
 
       assert response["message"] ==
                "tuist is not authorized to create preview"
+    end
+
+    test "triggers pending QA runs for iOS simulator app builds", %{
+      conn: conn,
+      user: user,
+      account: account
+    } do
+      # Given
+      upload_id = "1234"
+
+      project =
+        ProjectsFixtures.project_fixture(
+          account_id: account.id,
+          vcs_provider: :github,
+          vcs_repository_full_handle: "testaccount/testproject"
+        )
+
+      preview =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          git_commit_sha: "commit-sha",
+          git_branch: "main",
+          git_ref: "refs/pull/123/merge"
+        )
+
+      app_build =
+        AppBuildsFixtures.app_build_fixture(
+          preview: preview,
+          supported_platforms: [:ios_simulator]
+        )
+
+      QA.create_qa_run(%{
+        app_build_id: nil,
+        status: "pending",
+        vcs_repository_full_handle: "testaccount/testproject",
+        vcs_provider: :github,
+        git_ref: "refs/pull/123/merge",
+        prompt: "Test login functionality"
+      })
+
+      expect(Storage, :multipart_complete_upload, fn _object_key, _upload_id, _parts ->
+        :ok
+      end)
+
+      expect(Storage, :generate_download_url, fn _, _ -> "https://mocked-url.com" end)
+
+      expect(Oban, :insert, fn job ->
+        assert job.changes.worker == "Tuist.QA.Workers.TestWorker"
+
+        assert job.changes.args == %{
+                 "app_build_id" => app_build.id,
+                 "prompt" => "Test login functionality"
+               }
+
+        {:ok, job}
+      end)
+
+      conn = Authentication.put_current_user(conn, user)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/projects/#{account.name}/#{project.name}/previews/complete",
+          preview_id: app_build.id,
+          multipart_upload_parts: %{
+            parts: [],
+            upload_id: upload_id
+          }
+        )
+
+      # Then
+      assert json_response(conn, :ok)
     end
   end
 
