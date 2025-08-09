@@ -58,6 +58,7 @@ public struct ResourcesContentHasher: ResourcesContentHashing {
 
     private func hashResourceFileElement(element: ResourceFileElement) async throws -> MerkleNode {
         var children: [MerkleNode] = [
+            MerkleNode(hash: try contentHasher.hash(element.path.basename), identifier: "name"),
             MerkleNode(hash: try await contentHasher.hash(path: element.path), identifier: "content"),
             MerkleNode(hash: try contentHasher.hash(element.isReference), identifier: "isReference"),
             MerkleNode(hash: try contentHasher.hash(element.tags), identifier: "tags"),
