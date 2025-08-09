@@ -618,6 +618,14 @@ public class GraphTraverser: GraphTraversing {
         )
     }
 
+    public func schemeRunnableTarget(scheme: Scheme) -> GraphTarget? {
+        let specifiedExecutableTarget = scheme.runAction?.executable
+        let defaultTarget = scheme.buildAction?.targets.first
+        guard let target = specifiedExecutableTarget ?? defaultTarget else { return nil }
+        guard let graphTarget = self.target(path: target.projectPath, name: target.name) else { return nil }
+        return graphTarget.target.product.runnable ? graphTarget : nil
+    }
+
     public func copyProductDependencies(path: Path.AbsolutePath, name: String) -> Set<GraphDependencyReference> {
         guard let target = target(path: path, name: name) else { return Set() }
 
