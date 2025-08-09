@@ -118,9 +118,6 @@ struct RunCommandServiceTests {
         given(buildGraphInspector)
             .runnableSchemes(graphTraverser: .any)
             .willReturn([.test()])
-        given(buildGraphInspector)
-            .runnableTarget(scheme: .any, graphTraverser: .any)
-            .willReturn(.test())
 
         try await subject.run(generate: true)
     }
@@ -146,9 +143,6 @@ struct RunCommandServiceTests {
             given(buildGraphInspector)
                 .runnableSchemes(graphTraverser: .any)
                 .willReturn([.test()])
-            given(buildGraphInspector)
-                .runnableTarget(scheme: .any, graphTraverser: .any)
-                .willReturn(.test())
 
             // When
             try await subject.run()
@@ -186,9 +180,6 @@ struct RunCommandServiceTests {
             given(buildGraphInspector)
                 .runnableSchemes(graphTraverser: .any)
                 .willReturn([.test(name: schemeName)])
-            given(buildGraphInspector)
-                .runnableTarget(scheme: .any, graphTraverser: .any)
-                .willReturn(.test())
 
             // When
             try await subject.run(
@@ -236,9 +227,6 @@ struct RunCommandServiceTests {
         given(buildGraphInspector)
             .runnableSchemes(graphTraverser: .any)
             .willReturn([.test(name: schemeName)])
-        given(buildGraphInspector)
-            .runnableTarget(scheme: .any, graphTraverser: .any)
-            .willReturn(.test())
 
         // When
         try await subject.run(
@@ -270,9 +258,7 @@ struct RunCommandServiceTests {
         given(buildGraphInspector)
             .runnableSchemes(graphTraverser: .any)
             .willReturn([.test()])
-        given(buildGraphInspector)
-            .runnableTarget(scheme: .any, graphTraverser: .any)
-            .willReturn(.test())
+
         targetBuilder.buildTargetStub = { _, _, _, _, _, _, _, _, _, _, _, _ in }
         targetRunner.assertCanRunTargetStub = { _ in throw TestError() }
 

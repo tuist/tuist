@@ -51,12 +51,6 @@ public protocol BuildGraphInspecting {
     /// Given a graphTraverser, it returns a list of testable schemes.
     func testableSchemes(graphTraverser: GraphTraversing) -> [Scheme]
 
-    ///  From the list of runnable targets of the given scheme, it returns the first one.
-    /// - Parameters:
-    ///   - scheme: Scheme in which to look up the target.
-    ///   - graphTraverser: GraphTraversing traverser.
-    func runnableTarget(scheme: Scheme, graphTraverser: GraphTraversing) -> GraphTarget?
-
     /// Given a graphTraverser, it returns a list of runnable schemes.
     func runnableSchemes(graphTraverser: GraphTraversing) -> [Scheme]
 
@@ -195,12 +189,8 @@ public final class BuildGraphInspector: BuildGraphInspecting {
             .sorted(by: { $0.name < $1.name })
     }
 
-    public func runnableTarget(scheme: Scheme, graphTraverser: GraphTraversing) -> GraphTarget? {
-        return graphTraverser.schemeRunnableTarget(scheme: scheme)
-    }
-
     public func runnableSchemes(graphTraverser: GraphTraversing) -> [Scheme] {
-        graphTraverser.schemes()
+        return graphTraverser.schemes()
             .filter { graphTraverser.schemeRunnableTarget(scheme: $0) != nil }
             .sorted(by: { $0.name < $1.name })
     }
