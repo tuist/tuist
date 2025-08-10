@@ -18,8 +18,7 @@ let project = Project(
             sources: ["Sources/**/*"],
             dependencies: [
 //                .external(name: "MyMacro"),
-                .external(name: "MySPMPlugin"),
-
+                .external(name: "MySPMPlugin")
             ]
         ),
     ]

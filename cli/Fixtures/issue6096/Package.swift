@@ -25,7 +25,7 @@ let package = Package(
 
         // experiment packages
 //        .package(url: "https://github.com/YIshihara11201/MyMacro", from: "0.1.2"),
-        .package(url: "https://github.com/YIshihara11201/MySPMPlugin", from: "1.0.1")
+        .package(url: "https://github.com/YIshihara11201/MySPMPlugin", from: "1.0.4")
     ],
     targets: [
     ]
