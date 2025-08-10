@@ -384,7 +384,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
         switch target.type {
         case .regular, .system, .macro, .plugin:
             break
-        case .test, .executable:
+        case .test, .executable: // MARK: MyHelper is ignored here.
             switch packageType {
             case .external:
                 Logger.current.debug("Target \(target.name) of type \(target.type) ignored")
