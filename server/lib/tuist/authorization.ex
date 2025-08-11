@@ -175,12 +175,6 @@ defmodule Tuist.Authorization do
     action :update do
       desc("Allows an account token with project_qa_run_update scope to update a QA run.")
       allow([:authenticated_as_account, scopes_permit: :project_qa_run_update])
-
-      desc(
-        "Allows the authenticated project to update the QA run if it matches the project for which the QA run belongs. This is needed for the QA agent which authenticates with a project token and needs to update run status (running, completed, etc.)."
-      )
-
-      allow([:authenticated_as_project, :projects_match])
     end
   end
 
