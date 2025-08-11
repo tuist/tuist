@@ -15,17 +15,13 @@ defmodule Tuist.Storage do
         [{"Content-Length", Integer.to_string(content_length)}]
       end
 
-    {:ok, url} =
-      :s3
-      |> ExAws.Config.new()
-      |> ExAws.S3.presigned_url(:put, Environment.s3_bucket_name(), object_key,
+    url =
+      presigned_url(:put, object_key,
         query_params: [
           {"partNumber", part_number},
           {"uploadId", upload_id}
         ],
-        headers: headers,
-        virtual_host: Environment.s3_virtual_host(),
-        expires_in: Keyword.get(opts, :expires_in, 3600)
+        headers: headers
       )
 
     :telemetry.execute(
@@ -33,6 +29,30 @@ defmodule Tuist.Storage do
       %{},
       %{object_key: object_key, upload_id: upload_id, part_number: part_number}
     )
+
+    url
+  end
+
+  defp presigned_url(method, object_key, opts \\ []) do
+    query_params = Keyword.get(opts, :query_params, [])
+    headers = Keyword.get(opts, :headers, [])
+
+    bucket_as_host = Tuist.Environment.s3_bucket_as_host()
+    virtual_host = Tuist.Environment.s3_virtual_host()
+    bucket_name = Tuist.Environment.s3_bucket_name()
+
+    {:ok, url} =
+      dbg(
+        :s3
+        |> ExAws.Config.new()
+        |> ExAws.S3.presigned_url(:put, bucket_name, object_key,
+          query_params: query_params,
+          headers: headers,
+          expires_in: Keyword.get(opts, :expires_in, 3600),
+          bucket_as_host: bucket_as_host,
+          virtual_host: virtual_host
+        )
+      )
 
     url
   end
@@ -57,23 +77,11 @@ defmodule Tuist.Storage do
   end
 
   def generate_download_url(object_key, opts \\ []) do
-    {time, url} =
-      Performance.measure_time_in_milliseconds(fn ->
-        {:ok, url} =
-          :s3
-          |> ExAws.Config.new()
-          |> ExAws.S3.presigned_url(:get, Environment.s3_bucket_name(), object_key,
-            query_params: [],
-            expires_in: Keyword.get(opts, :expires_in, 3600),
-            virtual_host: Environment.s3_virtual_host()
-          )
-
-        url
-      end)
+    url = presigned_url(:get, object_key)
 
     :telemetry.execute(
       Tuist.Telemetry.event_name_storage_generate_download_presigned_url(),
-      %{duration: time},
+      %{},
       %{object_key: object_key}
     )
 
@@ -81,14 +89,7 @@ defmodule Tuist.Storage do
   end
 
   def generate_upload_url(object_key, opts \\ []) do
-    {:ok, url} =
-      :s3
-      |> ExAws.Config.new()
-      |> ExAws.S3.presigned_url(:put, Environment.s3_bucket_name(), object_key,
-        query_params: [],
-        expires_in: Keyword.get(opts, :expires_in, 3600),
-        virtual_host: Environment.s3_virtual_host()
-      )
+    url = presigned_url(:put, object_key)
 
     :telemetry.execute(
       Tuist.Telemetry.event_name_storage_generate_upload_presigned_url(),

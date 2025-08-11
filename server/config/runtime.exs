@@ -217,7 +217,8 @@ end
 
 # Ex.AWS
 if Tuist.Environment.env() not in [:test] do
-  %{host: s3_endpoint_host, scheme: s3_scheme, port: s3_port} = secrets |> Tuist.Environment.s3_endpoint() |> URI.parse()
+  %{host: s3_endpoint_host, scheme: s3_scheme, port: s3_port} =
+    secrets |> Tuist.Environment.s3_endpoint() |> URI.parse()
 
   s3_config = [
     scheme: "#{s3_scheme}://",
@@ -231,7 +232,6 @@ if Tuist.Environment.env() not in [:test] do
     pool_timeout: to_timeout(second: Tuist.Environment.s3_pool_timeout(secrets))
 
   config :ex_aws, :s3, s3_config
-  config :ex_aws, :s3, virtual_host: Tuist.Environment.s3_virtual_host()
 
   config :ex_aws,
     http_client: Tuist.AWS.Client
