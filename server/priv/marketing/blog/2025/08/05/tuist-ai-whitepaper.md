@@ -60,7 +60,7 @@ The fundamental problem? Apple's code signing. Current solutions force you to pr
 **We're solving this with on-demand signing.** Instead of signing at build time, we sign at install time—specifically for each device. This means:
 - Push code, get a preview link immediately
 - Anyone in your organization can install with one tap
-- No certificate management, no device registration hassles
+- Automatic certificate management
 - Feedback flows directly back to your PR or Slack
 
 The future we're building: An agent completes a feature, generates a preview, and your entire team is testing it within seconds. Product managers provide feedback that agents immediately incorporate. The development cycle compresses from days to hours.
