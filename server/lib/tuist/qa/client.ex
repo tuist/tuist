@@ -3,6 +3,8 @@ defmodule Tuist.QA.Client do
   Client module for communicating with the QA server.
   """
 
+  alias Tuist.QA.LogStreamer
+
   def create_step(%{
         summary: summary,
         description: description,
@@ -72,6 +74,22 @@ defmodule Tuist.QA.Client do
     screenshot_url = qa_run_url(server_url, account_handle, project_handle, run_id, "/screenshots")
 
     qa_server_request(:post, screenshot_url, auth_token, json: %{file_name: file_name, title: title})
+  end
+
+  def start_log_stream(%{server_url: server_url, run_id: run_id, auth_token: auth_token}) do
+    LogStreamer.start_link(%{
+      server_url: server_url,
+      run_id: run_id,
+      auth_token: auth_token
+    })
+  end
+
+  def stream_log(streamer_pid, %{message: message, level: level, timestamp: timestamp}) do
+    LogStreamer.stream_log(streamer_pid, %{
+      message: message,
+      level: level,
+      timestamp: timestamp
+    })
   end
 
   defp qa_run_url(server_url, account_handle, project_handle, run_id, path \\ "") do
