@@ -18,7 +18,7 @@ defmodule TuistWeb.Endpoint do
     websocket: [connect_info: [:user_agent, session: @session_options]],
     longpoll: [connect_info: [session: @session_options]]
 
-  socket "/socket", TuistWeb.UserSocket,
+  socket "/socket", TuistWeb.Socket,
     websocket: true,
     longpoll: false
 

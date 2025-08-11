@@ -7,7 +7,7 @@ defmodule TuistWeb.QALogChannelTest do
   import TuistTestSupport.Fixtures.QAFixtures
 
   alias TuistWeb.QALogChannel
-  alias TuistWeb.UserSocket
+  alias TuistWeb.Socket
 
   setup do
     organization = organization_fixture()
@@ -28,7 +28,7 @@ defmodule TuistWeb.QALogChannelTest do
       Tuist.Authentication.encode_and_sign(account, claims, token_type: :access, ttl: {1, :hour})
 
     {:ok, socket} =
-      connect(UserSocket, %{"token" => auth_token}, connect_info: %{})
+      connect(Socket, %{"token" => auth_token}, connect_info: %{})
 
     %{
       socket: socket,
