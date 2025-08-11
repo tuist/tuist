@@ -14,21 +14,27 @@ defmodule TuistWeb.QALogChannelTest do
     account = Tuist.Repo.get_by!(Tuist.Accounts.Account, organization_id: organization.id)
 
     project = project_fixture(account_id: account.id)
-
-    project_token = Tuist.Projects.create_project_token(project)
-
     preview = preview_fixture(project: project)
     app_build = app_build_fixture(preview: preview)
     qa_run = qa_run_fixture(app_build: app_build)
 
+    claims = %{
+      "type" => "account",
+      "scopes" => ["project_qa_run_update", "project_qa_step_create", "project_qa_screenshot_create"],
+      "project_id" => project.id
+    }
+
+    {:ok, auth_token, _claims} =
+      Tuist.Authentication.encode_and_sign(account, claims, token_type: :access, ttl: {1, :hour})
+
     {:ok, socket} =
-      connect(UserSocket, %{"token" => project_token}, connect_info: %{})
+      connect(UserSocket, %{"token" => auth_token}, connect_info: %{})
 
     %{
       socket: socket,
       account: account,
       project: project,
-      project_token: project_token,
+      auth_token: auth_token,
       qa_run: qa_run
     }
   end
