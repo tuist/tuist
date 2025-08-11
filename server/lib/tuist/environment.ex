@@ -324,6 +324,10 @@ defmodule Tuist.Environment do
     get([:github, :app_private_key], secrets)
   end
 
+  def github_app_webhook_secret(secrets \\ secrets()) do
+    get([:github, :app_webhook_secret], secrets)
+  end
+
   def github_oauth_configured?(secrets \\ secrets()) do
     github_app_client_id(secrets) != nil and github_app_client_secret(secrets) != nil
   end

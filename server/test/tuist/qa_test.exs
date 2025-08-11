@@ -7,7 +7,9 @@ defmodule Tuist.QATest do
   alias Tuist.QA.Agent
   alias Tuist.Repo
   alias Tuist.Storage
+  alias Tuist.VCS
   alias TuistTestSupport.Fixtures.AppBuildsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.QAFixtures
 
   describe "test/1" do
@@ -36,14 +38,14 @@ defmodule Tuist.QATest do
       end)
 
       # When
-      result =
+      {:ok, qa_run} =
         QA.test(%{
           app_build: app_build,
           prompt: prompt
         })
 
       # Then
-      assert :ok == result
+      assert qa_run.prompt == prompt
     end
 
     test "returns failed status when agent test fails" do
@@ -281,6 +283,384 @@ defmodule Tuist.QATest do
 
       # Then
       assert storage_key == "myaccount/myproject/qa/screenshots/#{qa_run_id}/screen_with-special_chars.png"
+    end
+  end
+
+  describe "find_pending_qa_runs_for_app_build/1" do
+    test "returns pending QA runs for app build with iOS simulator support" do
+      # Given
+      project =
+        ProjectsFixtures.project_fixture(
+          vcs_provider: :github,
+          vcs_repository_full_handle: "testaccount/testproject"
+        )
+
+      preview = AppBuildsFixtures.preview_fixture(project: project)
+
+      app_build =
+        AppBuildsFixtures.app_build_fixture(
+          preview: preview,
+          supported_platforms: [:ios_simulator]
+        )
+
+      {:ok, qa_run1} =
+        QA.create_qa_run(%{
+          app_build_id: nil,
+          status: "pending",
+          vcs_repository_full_handle: "testaccount/testproject",
+          vcs_provider: :github,
+          git_ref: preview.git_ref,
+          prompt: "Test prompt 1"
+        })
+
+      {:ok, qa_run2} =
+        QA.create_qa_run(%{
+          app_build_id: nil,
+          status: "pending",
+          vcs_repository_full_handle: "testaccount/testproject",
+          vcs_provider: :github,
+          git_ref: preview.git_ref,
+          prompt: "Test prompt 2"
+        })
+
+      {:ok, _qa_run_with_build} =
+        QA.create_qa_run(%{
+          app_build_id: app_build.id,
+          status: "pending",
+          vcs_repository_full_handle: "testaccount/testproject",
+          vcs_provider: :github,
+          git_ref: preview.git_ref,
+          prompt: "Test prompt 3"
+        })
+
+      {:ok, _qa_run_completed} =
+        QA.create_qa_run(%{
+          app_build_id: nil,
+          status: "completed",
+          vcs_repository_full_handle: "testaccount/testproject",
+          vcs_provider: :github,
+          git_ref: preview.git_ref,
+          prompt: "Test prompt 4"
+        })
+
+      {:ok, _qa_run_different_repo} =
+        QA.create_qa_run(%{
+          app_build_id: nil,
+          status: "pending",
+          vcs_repository_full_handle: "other/repo",
+          vcs_provider: :github,
+          git_ref: preview.git_ref,
+          prompt: "Test prompt 5"
+        })
+
+      {:ok, _qa_run_different_ref} =
+        QA.create_qa_run(%{
+          app_build_id: nil,
+          status: "pending",
+          vcs_repository_full_handle: "testaccount/testproject",
+          vcs_provider: :github,
+          git_ref: "refs/pull/456/merge",
+          prompt: "Test prompt 6"
+        })
+
+      # When
+      result = QA.find_pending_qa_runs_for_app_build(app_build)
+
+      # Then
+      assert result |> Enum.sort_by(& &1.inserted_at) |> Enum.map(& &1.id) == [qa_run1.id, qa_run2.id]
+    end
+
+    test "returns empty list when no pending QA runs exist" do
+      # Given
+      project =
+        ProjectsFixtures.project_fixture(
+          vcs_provider: :github,
+          vcs_repository_full_handle: "testaccount/testproject"
+        )
+
+      preview = AppBuildsFixtures.preview_fixture(project: project)
+
+      app_build =
+        AppBuildsFixtures.app_build_fixture(
+          preview: preview,
+          supported_platforms: [:ios_simulator]
+        )
+
+      # When
+      result = QA.find_pending_qa_runs_for_app_build(app_build)
+
+      # Then
+      assert result == []
+    end
+
+    test "returns empty list when project has no repository URL" do
+      # Given
+      project =
+        ProjectsFixtures.project_fixture(
+          vcs_provider: nil,
+          vcs_repository_full_handle: nil
+        )
+
+      preview = AppBuildsFixtures.preview_fixture(project: project)
+
+      app_build =
+        AppBuildsFixtures.app_build_fixture(
+          preview: preview,
+          supported_platforms: [:ios_simulator]
+        )
+
+      # When
+      result = QA.find_pending_qa_runs_for_app_build(app_build)
+
+      # Then
+      assert result == []
+    end
+
+    test "returns empty list when preview has no git_ref" do
+      # Given
+      project =
+        ProjectsFixtures.project_fixture(
+          vcs_provider: :github,
+          vcs_repository_full_handle: "testaccount/testproject"
+        )
+
+      preview = AppBuildsFixtures.preview_fixture(project: project, git_ref: nil)
+
+      app_build =
+        AppBuildsFixtures.app_build_fixture(
+          preview: preview,
+          supported_platforms: [:ios_simulator]
+        )
+
+      # Create pending QA runs that should not be returned
+      {:ok, _qa_run} =
+        QA.create_qa_run(%{
+          app_build_id: nil,
+          status: "pending",
+          vcs_repository_full_handle: "testaccount/testproject",
+          vcs_provider: :github,
+          git_ref: "refs/heads/main",
+          prompt: "Test prompt"
+        })
+
+      # When
+      result = QA.find_pending_qa_runs_for_app_build(app_build)
+
+      # Then
+      assert result == []
+    end
+  end
+
+  describe "screenshot/2" do
+    test "returns screenshot when it exists and qa_run_id is provided" do
+      # Given
+      qa_run = QAFixtures.qa_run_fixture()
+      screenshot = QAFixtures.screenshot_fixture(qa_run: qa_run, file_name: "test_screenshot", title: "Test Screenshot")
+
+      # When
+      result = QA.screenshot(screenshot.id, qa_run_id: qa_run.id)
+
+      # Then
+      assert {:ok, returned_screenshot} = result
+      assert returned_screenshot.id == screenshot.id
+    end
+
+    test "returns error when screenshot exists but qa_run_id doesn't match" do
+      # Given
+      qa_run = QAFixtures.qa_run_fixture()
+      other_qa_run = QAFixtures.qa_run_fixture()
+      screenshot = QAFixtures.screenshot_fixture(qa_run: qa_run)
+
+      # When
+      result = QA.screenshot(screenshot.id, qa_run_id: other_qa_run.id)
+
+      # Then
+      assert result == {:error, :not_found}
+    end
+
+    test "returns screenshot when it exists and qa_run_id is not provided" do
+      # Given
+      qa_run = QAFixtures.qa_run_fixture()
+      screenshot = QAFixtures.screenshot_fixture(qa_run: qa_run, file_name: "any_screenshot", title: "Any Screenshot")
+
+      # When
+      result = QA.screenshot(screenshot.id)
+
+      # Then
+      assert {:ok, returned_screenshot} = result
+      assert returned_screenshot.id == screenshot.id
+    end
+
+    test "returns error when screenshot doesn't exist" do
+      # Given
+      non_existent_id = Ecto.UUID.generate()
+      qa_run = QAFixtures.qa_run_fixture()
+
+      # When
+      result = QA.screenshot(non_existent_id, qa_run_id: qa_run.id)
+
+      # Then
+      assert result == {:error, :not_found}
+    end
+  end
+
+  describe "post_vcs_test_summary/1" do
+    test "successfully posts VCS comment for PR with QA run summary" do
+      # Given
+      project =
+        ProjectsFixtures.project_fixture(
+          name: "TestProject",
+          vcs_repository_full_handle: "testaccount/testproject",
+          vcs_provider: :github
+        )
+
+      preview =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          git_ref: "refs/pull/123/merge",
+          git_commit_sha: "abc123def456"
+        )
+
+      app_build = AppBuildsFixtures.app_build_fixture(preview: preview)
+
+      qa_run =
+        QAFixtures.qa_run_fixture(
+          app_build: app_build,
+          summary: "Test run completed successfully",
+          prompt: "Test the login functionality"
+        )
+
+      step1 =
+        QAFixtures.qa_step_fixture(
+          qa_run: qa_run,
+          summary: "Login step",
+          description: "User successfully logged in",
+          issues: ["Login button not visible"]
+        )
+
+      step2 =
+        QAFixtures.qa_step_fixture(
+          qa_run: qa_run,
+          summary: "Navigation step",
+          description: "User navigated to main screen",
+          issues: []
+        )
+
+      screenshot1 =
+        QAFixtures.screenshot_fixture(
+          qa_run: qa_run,
+          qa_step: step1,
+          file_name: "screenshot1",
+          title: "Screenshot 1"
+        )
+
+      screenshot2 =
+        QAFixtures.screenshot_fixture(
+          qa_run: qa_run,
+          qa_step: step2,
+          file_name: "screenshot2",
+          title: "Screenshot 2"
+        )
+
+      expected_body = """
+      ### 🤖 QA Test Summary
+      **Prompt:** Test the login functionality
+      **Preview:** [#{preview.display_name}](http://localhost:8080/#{project.account.name}/#{project.name}/previews/#{preview.id})
+      **Commit:** [abc123def](https://github.com/testaccount/testproject/commit/abc123def456)
+
+      Test run completed successfully
+
+      <details>
+      <summary>🚶 QA Steps</summary>
+
+
+      #### 1. Login step
+
+      User successfully logged in
+
+      **⚠️ Issues Found:**
+      1. Login button not visible
+
+
+      <details>
+      <summary>1. Screenshot 1</summary>
+
+      <img src="http://localhost:8080/#{project.account.name}/#{project.name}/qa/runs/#{qa_run.id}/screenshots/#{screenshot1.id}" alt="Screenshot 1" width="500" />
+      </details>
+
+
+      #### 2. Navigation step
+
+      User navigated to main screen
+
+      <details>
+      <summary>1. Screenshot 2</summary>
+
+      <img src="http://localhost:8080/#{project.account.name}/#{project.name}/qa/runs/#{qa_run.id}/screenshots/#{screenshot2.id}" alt="Screenshot 2" width="500" />
+      </details>
+
+
+      </details>
+
+      """
+
+      expect(VCS, :create_comment, fn %{
+                                        repository_full_handle: "testaccount/testproject",
+                                        git_ref: "refs/pull/123/merge",
+                                        body: body,
+                                        project: _project
+                                      } ->
+        assert body == expected_body
+        :ok
+      end)
+
+      # When
+      result = QA.post_vcs_test_summary(qa_run)
+
+      # Then
+      assert :ok == result
+    end
+
+    test "updates existing VCS comment when issue_comment_id exists" do
+      # Given
+      project =
+        ProjectsFixtures.project_fixture(
+          name: "TestProject",
+          vcs_repository_full_handle: "testaccount/testproject",
+          vcs_provider: :github
+        )
+
+      preview =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          git_ref: "refs/pull/123/merge",
+          git_commit_sha: "abc123def456"
+        )
+
+      app_build = AppBuildsFixtures.app_build_fixture(preview: preview)
+
+      {:ok, qa_run} =
+        QA.create_qa_run(%{
+          app_build_id: app_build.id,
+          summary: "Test run completed successfully",
+          prompt: "Test the login functionality",
+          issue_comment_id: 98_765
+        })
+
+      expect(VCS, :update_comment, fn %{
+                                        repository_full_handle: "testaccount/testproject",
+                                        comment_id: 98_765,
+                                        body: _body,
+                                        project: _project
+                                      } ->
+        :ok
+      end)
+
+      # When
+      result = QA.post_vcs_test_summary(qa_run)
+
+      # Then
+      assert :ok == result
     end
   end
 end

@@ -891,4 +891,84 @@ defmodule Tuist.ProjectsTest do
       assert recent_projects == []
     end
   end
+
+  describe "project_by_vcs_repository_full_handle/1" do
+    test "returns project when found" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      vcs_handle = "tuist/tuist"
+
+      project =
+        ProjectsFixtures.project_fixture(
+          account_id: account.id,
+          vcs_repository_full_handle: vcs_handle
+        )
+
+      # When
+      {:ok, got_project} = Projects.project_by_vcs_repository_full_handle(vcs_handle)
+
+      # Then
+      assert got_project.id == project.id
+    end
+
+    test "returns error when project not found" do
+      # Given
+      vcs_handle = "nonexistent/project"
+
+      # When
+      result = Projects.project_by_vcs_repository_full_handle(vcs_handle)
+
+      # Then
+      assert {:error, :not_found} == result
+    end
+
+    test "returns correct project when multiple projects exist" do
+      # Given
+      user_one = AccountsFixtures.user_fixture()
+      user_two = AccountsFixtures.user_fixture()
+      account_one = Accounts.get_account_from_user(user_one)
+      account_two = Accounts.get_account_from_user(user_two)
+
+      vcs_handle_one = "tuist/project-one"
+      vcs_handle_two = "tuist/project-two"
+
+      project_one =
+        ProjectsFixtures.project_fixture(
+          account_id: account_one.id,
+          vcs_repository_full_handle: vcs_handle_one
+        )
+
+      ProjectsFixtures.project_fixture(
+        account_id: account_two.id,
+        vcs_repository_full_handle: vcs_handle_two
+      )
+
+      # When
+      {:ok, got_project} = Projects.project_by_vcs_repository_full_handle(vcs_handle_one)
+
+      # Then
+      assert got_project.id == project_one.id
+    end
+
+    test "returns project with preloaded account association" do
+      # Given
+      organization = AccountsFixtures.organization_fixture(name: "test-org")
+      account = Accounts.get_account_from_organization(organization)
+      vcs_handle = "test-org/test-project"
+
+      project =
+        ProjectsFixtures.project_fixture(
+          account_id: account.id,
+          vcs_repository_full_handle: vcs_handle
+        )
+
+      # When
+      {:ok, got_project} = Projects.project_by_vcs_repository_full_handle(vcs_handle, preload: [:account])
+
+      # Then
+      assert got_project.id == project.id
+      assert Ecto.assoc_loaded?(got_project.account)
+    end
+  end
 end
