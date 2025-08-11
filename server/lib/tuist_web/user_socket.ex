@@ -20,7 +20,6 @@ defmodule TuistWeb.UserSocket do
 
   def id(socket) do
     case socket.assigns do
-      # NOTE: This is probably not unique enough? As in, one account can run multiple tests at the same time?
       %{current_subject: %{account: %{id: account_id}}} -> "account:#{account_id}"
       _ -> nil
     end
