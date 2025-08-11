@@ -1,5 +1,6 @@
 import Foundation
 import Mockable
+import Path
 import Testing
 import TuistCore
 import TuistTesting
@@ -50,6 +51,9 @@ struct TargetContentHasherTests {
         given(contentHasher)
             .hash(Parameter<[String]>.any)
             .willProduce { $0.joined(separator: "-") }
+        given(contentHasher)
+            .hash(path: .any)
+            .willProduce { $0.pathString }
 
         given(settingsContentHasher)
             .hash(settings: .any)
@@ -140,6 +144,34 @@ struct TargetContentHasherTests {
                 Target-app-io.tuist.Target-Target-dependencies_hash-sources_hash-resources_hash-copy_files_hash\
                 -core_data_models_hash-target_scripts_hash-dictionary_hash-iPad-iPhone-additional_string-iPad\
                 -iPhone-deployment_targets_hash-settings_hash-settings_hash
+                """
+        )
+    }
+
+    @Test func hash_with_buildable_folders() async throws {
+        // Given
+        let target = GraphTarget.test(target: .test(buildableFolders: [
+            BuildableFolder(path: try AbsolutePath(validating: "/test/Resources")),
+            BuildableFolder(path: try AbsolutePath(validating: "/test/Sources")),
+        ]), project: .test())
+
+        // When
+        let got = try await subject.contentHash(
+            for: target,
+            hashedTargets: [:],
+            hashedPaths: [:],
+            destination: .test(
+                device: .test(name: "iPhone 16"),
+                runtime: .test(name: "iOS-16")
+            ),
+            additionalStrings: []
+        )
+
+        // Then
+        #expect(
+            got.hash ==
+                """
+                Target-app-io.tuist.Target-Target-dependencies_hash-sources_hash-resources_hash-copy_files_hash-core_data_models_hash-target_scripts_hash-dictionary_hash-/test/Resources-/test/Sources-iPad-iPhone-iPad-iPhone-deployment_targets_hash-settings_hash-settings_hash
                 """
         )
     }

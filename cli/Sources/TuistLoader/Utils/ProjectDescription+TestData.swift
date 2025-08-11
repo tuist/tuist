@@ -97,6 +97,7 @@ import TuistSupport
                 infoPlist: infoPlist,
                 sources: sources,
                 resources: resources,
+                buildableFolders: buildableFolders,
                 headers: headers,
                 entitlements: entitlements,
                 scripts: scripts,
@@ -104,8 +105,7 @@ import TuistSupport
                 settings: settings,
                 coreDataModels: coreDataModels,
                 environmentVariables: environment.mapValues { .init(stringLiteral: $0) },
-                metadata: metadata,
-                buildableFolders: buildableFolders
+                metadata: metadata
             )
         }
     }

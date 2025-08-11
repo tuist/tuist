@@ -116,6 +116,7 @@ public struct Target: Codable, Equatable, Sendable {
         infoPlist: InfoPlist? = .default,
         sources: SourceFilesList? = nil,
         resources: ResourceFileElements? = nil,
+        buildableFolders: [BuildableFolder] = [],
         copyFiles: [CopyFilesAction]? = nil,
         headers: Headers? = nil,
         entitlements: Entitlements? = nil,
@@ -130,8 +131,7 @@ public struct Target: Codable, Equatable, Sendable {
         mergedBinaryType: MergedBinaryType = .disabled,
         mergeable: Bool = false,
         onDemandResourcesTags: OnDemandResourcesTags? = nil,
-        metadata: TargetMetadata = .default,
-        buildableFolders: [BuildableFolder] = []
+        metadata: TargetMetadata = .default
     ) -> Self {
         self.init(
             name: name,
