@@ -42,16 +42,14 @@ defmodule Tuist.Storage do
     bucket_name = Tuist.Environment.s3_bucket_name()
 
     {:ok, url} =
-      dbg(
-        :s3
-        |> ExAws.Config.new()
-        |> ExAws.S3.presigned_url(:put, bucket_name, object_key,
-          query_params: query_params,
-          headers: headers,
-          expires_in: Keyword.get(opts, :expires_in, 3600),
-          bucket_as_host: bucket_as_host,
-          virtual_host: virtual_host
-        )
+      :s3
+      |> ExAws.Config.new()
+      |> ExAws.S3.presigned_url(method, bucket_name, object_key,
+        query_params: query_params,
+        headers: headers,
+        expires_in: Keyword.get(opts, :expires_in, 3600),
+        bucket_as_host: bucket_as_host,
+        virtual_host: virtual_host
       )
 
     url
