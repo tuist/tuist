@@ -605,7 +605,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
                     path: .path(artifactPath.pathString),
                     expectedSignature: nil,
                     status: .required,
-                    condition: nil
+                    condition: platformCondition
                 )
             }
             if let aliasedName = moduleAliases?[name] {
