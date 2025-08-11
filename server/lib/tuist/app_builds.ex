@@ -237,29 +237,37 @@ defmodule Tuist.AppBuilds do
   def latest_app_build(git_ref, %Project{} = project, opts \\ []) do
     supported_platform = Keyword.get(opts, :supported_platform)
 
-    previews =
-      from(p in Preview)
-      |> where([p], p.project_id == ^project.id and p.git_ref == ^git_ref)
-      |> order_by([p], desc: p.inserted_at)
-      |> distinct([p], p.display_name)
-      |> Repo.all()
-      |> Repo.preload(:app_builds)
+    enum_el_type =
+      case AppBuild.__schema__(:type, :supported_platforms) do
+        {:array, el_type} -> el_type
+        other -> raise "Unexpected type for supported_platforms: #{inspect(other)}"
+      end
 
-    case previews do
-      [first_preview | _] ->
-        app_builds = Enum.sort_by(first_preview.app_builds, & &1.inserted_at, {:desc, DateTime})
+    latest_preview =
+      from p in Preview,
+        where: p.project_id == ^project.id and p.git_ref == ^git_ref,
+        distinct: p.display_name,
+        order_by: [asc: p.display_name, desc: p.inserted_at]
 
-        if supported_platform do
-          Enum.find(app_builds, fn app_build ->
-            supported_platform in app_build.supported_platforms
-          end)
-        else
-          List.first(app_builds)
-        end
+    app_build_query =
+      from ab in AppBuild,
+        where:
+          ab.preview_id == parent_as(:p).id and
+            (is_nil(type(^supported_platform, ^enum_el_type)) or
+               fragment("? = ANY(?)", type(^supported_platform, ^enum_el_type), ab.supported_platforms)),
+        order_by: [desc: ab.inserted_at],
+        limit: 1
 
-      [] ->
-        nil
-    end
+    query =
+      from p in subquery(latest_preview),
+        as: :p,
+        inner_lateral_join: ab in subquery(app_build_query),
+        on: true,
+        order_by: [desc: p.inserted_at],
+        limit: 1,
+        select: ab
+
+    Repo.one(query)
   end
 
   def delete_preview!(%Preview{} = preview) do
