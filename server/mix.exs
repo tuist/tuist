@@ -135,7 +135,7 @@ defmodule Tuist.MixProject do
       {:boruta, git: "https://github.com/malach-it/boruta_auth", branch: "master"},
       {:minio_server, github: "LostKobrakai/minio_server", only: :dev},
       {:langchain, git: "https://github.com/brainlid/langchain", branch: "main"},
-      {:websockex, "~> 0.4.3"}
+      {:slipstream, "~> 1.2.0"}
     ]
   end
 
