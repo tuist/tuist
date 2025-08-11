@@ -577,10 +577,10 @@ public final class PackageInfoMapper: PackageInfoMapping {
             infoPlist: .default,
             sources: sources,
             resources: resources,
+            buildableFolders: [],
             headers: headers,
             dependencies: dependencies,
-            settings: settings,
-            buildableFolders: []
+            settings: settings
         )
     }
 

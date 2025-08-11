@@ -66,8 +66,7 @@ struct TargetGeneratorTests {
         // Then
         #expect(generatedTarget.fileSystemSynchronizedGroups?.count != 0)
         let group = try #require(generatedTarget.fileSystemSynchronizedGroups?.first)
-        let groupAbsolutePath = try group.fullPath(sourceRoot: project.xcodeProjPath.pathString)
-        #expect(group.nameOrPath == "xxx")
+        #expect(group.path == "Sources")
     }
 
     @Test func generateTarget_productName() async throws {

@@ -9,11 +9,11 @@ let project = Project(
             product: .app,
             bundleId: "dev.tuist.app-with-buildable-folders",
             infoPlist: .default,
-            dependencies: [],
             buildableFolders: [
                 .folder(path: "Resources"),
                 .folder(path: "Sources"),
-            ]
+            ],
+            dependencies: []
         ),
     ]
 )
