@@ -1,4 +1,4 @@
-defmodule TuistWeb.UserSocket do
+defmodule TuistWeb.Socket do
   use Phoenix.Socket
 
   alias Tuist.Authentication
@@ -11,8 +11,8 @@ defmodule TuistWeb.UserSocket do
         socket = assign(socket, :current_subject, subject)
         {:ok, socket}
 
-      {:error, _reason} ->
-        :error
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
