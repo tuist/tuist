@@ -602,7 +602,6 @@ defmodule Tuist.QATest do
 
       </details>
 
-
       """
 
       expect(VCS, :create_comment, fn %{

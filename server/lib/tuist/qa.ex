@@ -20,38 +20,8 @@ defmodule Tuist.QA do
 
   require EEx
 
-  @qa_summary_template """
-  ### 🤖 QA Test Summary
-  **Prompt:** <%= @prompt %>
-  **Preview:** [<%= @preview_display_name %>](<%= @preview_url %>)
-  **Commit:** [<%= String.slice(@commit_sha, 0, 9) %>](<%= @git_remote_url_origin %>/commit/<%= @commit_sha %>)<%= if @summary do %>
-
-  <%= @summary %><% end %><%= if not Enum.empty?(@run_steps) do %>
-
-  <details>
-  <summary>🚶 QA Steps</summary>
-
-  <%= for {step, index} <- Enum.with_index(@run_steps, 1) do %>
-  #### <%= index %>. <%= step.summary %>
-
-  <%= step.description %><%= if not Enum.empty?(step.issues) do %>
-
-  **⚠️ Issues Found:**<%= for issue <- step.issues do %>
-  1. <%= issue %>
-  <% end %><% end %><%= if not Enum.empty?(step.screenshots) do %><%= for {screenshot, screenshot_index} <- step.screenshots |> Enum.sort_by(& &1.inserted_at) |> Enum.with_index(1) do %>
-
-  <details>
-  <summary><%= screenshot_index %>. <%= screenshot.title %></summary>
-
-  <img src="<%= @app_url %>/<%= @account_handle %>/<%= @project_handle %>/qa/runs/<%= @qa_run_id %>/screenshots/<%= screenshot.id %>" alt="<%= screenshot.title %>" width="500" />
-  </details><% end %><% end %>
-
-  <% end %>
-  </details>
-
-  <% end %>
-  """
-  EEx.function_from_string(:defp, :render_qa_summary, @qa_summary_template, [:assigns])
+  @qa_summary_template_path Path.join([__DIR__, "qa", "qa_test_summary.eex"])
+  EEx.function_from_file(:defp, :render_qa_summary, @qa_summary_template_path, [:assigns])
 
   @doc """
   Run a QA test run for the given app build.
