@@ -418,6 +418,14 @@ defmodule TuistWeb.Router do
         {TuistWeb.Authorization, [:current_user, :read, :ops]}
       ]
     )
+
+    live_session :ops_qa,
+      on_mount: [
+        {TuistWeb.Authentication, :ensure_authenticated},
+        {TuistWeb.Authorization, [:current_user, :read, :ops]}
+      ] do
+      live "/qa", TuistWeb.OpsQALive
+    end
   end
 
   if Tuist.Environment.dev?() do

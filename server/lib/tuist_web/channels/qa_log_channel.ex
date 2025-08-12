@@ -4,6 +4,8 @@ defmodule TuistWeb.QALogChannel do
 
   alias Tuist.Authorization
   alias Tuist.QA
+  alias Tuist.QA.Log
+  alias Tuist.QA.Logs.Buffer
 
   require Logger
 
@@ -20,6 +22,7 @@ defmodule TuistWeb.QALogChannel do
 
   def handle_in("log", %{"message" => message, "level" => level, "timestamp" => timestamp}, socket) do
     qa_run = socket.assigns.qa_run
+    project_id = qa_run.app_build.preview.project.id
 
     log_message = "[QA:#{qa_run.id}] #{message}"
     log_metadata = [qa_run_id: qa_run.id, level: level, timestamp: timestamp]
@@ -31,6 +34,8 @@ defmodule TuistWeb.QALogChannel do
       "error" -> Logger.error(log_message, log_metadata)
       _ -> Logger.info(log_message, log_metadata)
     end
+
+    persist_log_to_clickhouse(project_id, qa_run.id, message, level, timestamp)
 
     {:reply, :ok, socket}
   end
@@ -59,4 +64,31 @@ defmodule TuistWeb.QALogChannel do
       {:error, :unauthorized}
     end
   end
+
+  defp persist_log_to_clickhouse(project_id, qa_run_id, message, level, timestamp) do
+    parsed_timestamp = parse_timestamp(timestamp)
+
+    log_attrs = %{
+      project_id: project_id,
+      qa_run_id: qa_run_id,
+      message: message,
+      level: level,
+      timestamp: parsed_timestamp,
+      inserted_at: DateTime.utc_now()
+    }
+
+    log_attrs = Log.changeset(log_attrs)
+    log = struct(Log, log_attrs)
+
+    Buffer.insert(log)
+  end
+
+  defp parse_timestamp(timestamp) when is_binary(timestamp) do
+    case DateTime.from_iso8601(timestamp) do
+      {:ok, dt, _offset} -> dt
+      {:error, _reason} -> DateTime.utc_now()
+    end
+  end
+
+  defp parse_timestamp(_), do: DateTime.utc_now()
 end

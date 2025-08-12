@@ -58,6 +58,8 @@ defmodule Tuist do
       QA.Run,
       QA.Step,
       QA.Screenshot,
+      QA.Log,
+      QA.Logs.Buffer,
       QA.Workers.TestWorker,
       Apple,
       Xcode,
