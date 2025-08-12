@@ -1,7 +1,33 @@
 defmodule Tuist.SSHClient do
   @moduledoc """
-  SSH client module for executing commands on remote servers.
+  SSH client module for executing commands on remote servers and managing SSH connections.
   """
+
+  @doc """
+  Establishes an SSH connection to a remote host.
+
+  ## Parameters
+    - host: The hostname or IP address to connect to
+    - port: The SSH port (defaults to 22)
+    - opts: SSH connection options (user, user_dir, auth_methods, etc.)
+
+  ## Returns
+    - {:ok, connection} on success
+    - {:error, reason} on failure
+  """
+  def connect(host, port \\ 22, opts \\ []) do
+    :ssh.connect(host, port, opts)
+  end
+
+  @doc """
+  Closes an SSH connection.
+
+  ## Parameters
+    - connection: The SSH connection to close
+  """
+  def close(connection) do
+    :ssh.close(connection)
+  end
 
   def run_command(connection, command, timeout \\ 60_000) do
     {:ok, channel} = :ssh_connection.session_channel(connection, timeout)
@@ -13,42 +39,27 @@ defmodule Tuist.SSHClient do
     receive do
       {:ssh_cm, _pid, {:data, _cid, 1, data}} ->
         updated_message = return_message <> data
-        debug_last_lines(updated_message, "stderr data received")
         receive_message(updated_message)
 
       {:ssh_cm, _pid, {:data, _cid, 0, data}} ->
         updated_message = return_message <> data
-        debug_last_lines(updated_message, "stdout data received")
         receive_message(updated_message)
 
       {:ssh_cm, _pid, {:eof, _cid}} ->
-        debug_last_lines(return_message, "EOF received")
         receive_message(return_message)
 
       {:ssh_cm, _pid, {:closed, _cid}} ->
-        debug_last_lines(return_message, "Channel closed")
         receive_message(return_message)
 
       {:ssh_cm, _pid, {:exit_status, _cid, 0}} ->
-        debug_last_lines(return_message, "Exit status 0")
         {:ok, return_message}
 
       {:ssh_cm, _pid, {:exit_status, _cid, code}} ->
-        debug_last_lines(return_message, "Exit status #{code}")
         {:error, "return from command failed with code #{code}"}
     after
       to_timeout(minute: 1) ->
-        debug_last_lines(return_message, "TIMEOUT - last 50 lines")
         {:error, "no return from command after 60 seconds"}
     end
-  end
-
-  defp debug_last_lines(text, label) do
-    lines = String.split(text, "\n")
-    line_count = length(lines)
-    last_lines = lines |> Enum.take(-100) |> Enum.join("\n")
-
-    dbg({label, "Total lines: #{line_count}", "Last 100 lines:", last_lines})
   end
 
   def transfer_file(connection, local_path, remote_path, opts \\ []) do
@@ -71,7 +82,6 @@ defmodule Tuist.SSHClient do
 
     case result do
       :ok ->
-        # Set executable permissions via SFTP
         {:ok, file_info} = :ssh_sftp.read_file_info(sftp_channel, remote_path)
         updated_info = put_elem(file_info, 7, permissions)
 

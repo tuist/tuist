@@ -1,26 +1,16 @@
 defmodule QA do
-  @moduledoc false
+  @moduledoc """
+  This module is a CLI for running QA tests on macOS.
+  """
   use Application
 
   alias QA.Agent
 
   def start(_, _) do
-    args = parse_arguments()
-
-    # Extract required parameters
-    params = %{
-      preview_url: args[:preview_url],
-      bundle_identifier: args[:bundle_identifier],
-      prompt: args[:prompt],
-      server_url: args[:server_url],
-      run_id: args[:run_id],
-      auth_token: args[:auth_token],
-      account_handle: args[:account_handle],
-      project_handle: args[:project_handle]
-    }
+    params = parse_arguments()
 
     opts = [
-      anthropic_api_key: args[:anthropic_api_key]
+      anthropic_api_key: params.anthropic_api_key
     ]
 
     case Agent.test(params, opts) do

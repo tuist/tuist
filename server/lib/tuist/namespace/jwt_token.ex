@@ -16,7 +16,7 @@ defmodule Tuist.Namespace.JWTToken do
   - exp: Expiration timestamp (5 minutes from now)
   """
   def generate_id_token do
-    issuer = get_issuer()
+    issuer = issuer()
     partner_id = Environment.namespace_partner_id() || "user_01k0cg5tfqx3ppc19pm0r1y2j1"
 
     claims = %{
@@ -27,14 +27,10 @@ defmodule Tuist.Namespace.JWTToken do
       "exp" => DateTime.utc_now() |> DateTime.add(300, :second) |> DateTime.to_unix()
     }
 
-    # Get the RSA private key for signing
     jwk = JOSE.JWK.from_pem(Environment.namespace_jwt_private_key())
-
-    # Create the JWT and sign it with RS256
     jws = %{"alg" => "RS256", "kid" => "namespace-jwt-key-1"}
     jwt = JOSE.JWT.from_map(claims)
 
-    # Sign and compact the token
     {_, token} = jwk |> JOSE.JWT.sign(jws, jwt) |> JOSE.JWS.compact()
 
     {:ok, token}
@@ -43,8 +39,7 @@ defmodule Tuist.Namespace.JWTToken do
   @doc """
   Gets the issuer URL using the configured app URL.
   """
-  def get_issuer do
-    # Remove trailing slash if present
+  def issuer do
     String.trim_trailing(Environment.app_url(), "/")
   end
 
@@ -62,15 +57,12 @@ defmodule Tuist.Namespace.JWTToken do
   @doc """
   Returns the public key in JWK format for the JWKS endpoint.
   """
-  def get_public_jwk do
-    # Get the private key JWK
+  def public_jwk do
     private_jwk = JOSE.JWK.from_pem(Environment.namespace_jwt_private_key())
 
-    # Convert to public key and then to map
     public_jwk = JOSE.JWK.to_public(private_jwk)
     {_, public_jwk_map} = JOSE.JWK.to_map(public_jwk)
 
-    # Add additional fields required for JWKS
     public_jwk_map
     |> Map.put("use", "sig")
     |> Map.put("alg", "RS256")

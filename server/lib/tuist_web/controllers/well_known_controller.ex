@@ -1,13 +1,14 @@
 defmodule TuistWeb.WellKnownController do
   use TuistWeb, :controller
 
+  alias Tuist.Environment
   alias Tuist.Namespace.JWTToken
 
   @doc """
   Returns the OpenID configuration for JWT verification.
   """
   def openid_configuration(conn, _params) do
-    issuer = JWTToken.get_issuer()
+    issuer = JWTToken.issuer()
 
     configuration = %{
       issuer: issuer,
@@ -28,10 +29,8 @@ defmodule TuistWeb.WellKnownController do
   Returns the JSON Web Key Set (JWKS) for verifying JWT signatures.
   """
   def jwks(conn, _params) do
-    # Get the public key in JWK format
-    public_jwk = JWTToken.get_public_jwk()
+    public_jwk = JWTToken.public_jwk()
 
-    # Create the JWKS response with the public key
     jwks = %{
       keys: [public_jwk]
     }
@@ -39,5 +38,39 @@ defmodule TuistWeb.WellKnownController do
     conn
     |> put_resp_content_type("application/json")
     |> json(jwks)
+  end
+
+  @doc """
+  Serves the Apple App Site Association file dynamically based on the environment.
+  """
+  def apple_app_site_association(conn, _params) do
+    app_id = get_app_id()
+
+    association = %{
+      applinks: %{
+        apps: [],
+        details: [
+          %{
+            appID: app_id,
+            paths: ["/*/*/previews/*"]
+          }
+        ]
+      }
+    }
+
+    json(conn, association)
+  end
+
+  defp get_app_id do
+    team_id = "U6LC622NKF"
+
+    bundle_id =
+      cond do
+        Environment.stag?() -> "dev.tuist.app.staging"
+        Environment.can?() -> "dev.tuist.app.canary"
+        true -> "dev.tuist.app"
+      end
+
+    "#{team_id}.#{bundle_id}"
   end
 end

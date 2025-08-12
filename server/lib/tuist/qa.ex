@@ -57,17 +57,9 @@ defmodule Tuist.QA do
       }
 
       if Environment.namespace_enabled?() do
-        account = app_build.preview.project.account
-
-        {:ok, account_with_tenant} =
-          if is_nil(account.tenant_id) do
-            Accounts.create_namespace_tenant_for_account(account)
-          else
-            {:ok, account}
-          end
-
-        run_qa_tests_in_namespace(attrs, account_with_tenant.tenant_id)
-        qa_run(qa_run.id)
+        with :ok <- run_qa_tests_in_namespace(attrs, app_build.preview.project.account) do
+          qa_run(qa_run.id)
+        end
       else
         Agent.test(
           attrs,
@@ -79,10 +71,22 @@ defmodule Tuist.QA do
     end
   end
 
-  defp run_qa_tests_in_namespace(attrs, tenant_id) do
-    {:ok, ssh_connection} = Namespace.create_instance_with_ssh_connection(tenant_id)
-    SSHClient.transfer_file(ssh_connection, "/app/bin/qa", "/usr/local/bin/qa", permissions: 0o100755)
-    SSHClient.run_command(ssh_connection, qa_script(attrs))
+  defp account_with_tenant(account) do
+    if is_nil(account.tenant_id) do
+      Accounts.create_namespace_tenant_for_account(account)
+    else
+      {:ok, account}
+    end
+  end
+
+  defp run_qa_tests_in_namespace(attrs, account) do
+    with {:ok, account_with_tenant} <- account_with_tenant(account),
+         {:ok, %{ssh_connection: ssh_connection, instance: instance, tenant_token: tenant_token}} <-
+           Namespace.create_instance_with_ssh_connection(account_with_tenant.tenant_id),
+         :ok <- SSHClient.transfer_file(ssh_connection, "/app/bin/qa", "/usr/local/bin/qa", permissions: 0o100755),
+         {:ok, _} <- SSHClient.run_command(ssh_connection, qa_script(attrs)) do
+      Namespace.delete_instance(instance.id, tenant_token)
+    end
   end
 
   defp qa_script(%{

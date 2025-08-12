@@ -5,18 +5,24 @@ defmodule Tuist.Namespace do
 
   alias Tuist.Environment
   alias Tuist.Namespace.Instance
+  alias Tuist.Namespace.JWTToken
+  alias Tuist.SSHClient
 
   @base_compute_url "https://eu.compute.namespaceapis.com/namespace.cloud.compute.v1beta.ComputeService"
   @base_tenant_url "https://iam.namespaceapis.com/namespace.cloud.iam.v1beta.TenantService"
 
+  @doc """
+  Creates a new instance with an SSH connection and provisions a new tenant token.
+  """
   def create_instance_with_ssh_connection(tenant_id) do
     with {:ok, tenant_token} <-
-           issue_tenant_token(tenant_id: tenant_id, actor_id: "tuist-qa"),
-         {:ok, %Instance{id: instance_id}} <-
-           create_instance(tenant_token: tenant_token),
+           issue_tenant_token(tenant_id, "tuist-qa"),
+         {:ok, %Instance{id: instance_id} = instance} <-
+           create_instance(tenant_token),
          :ok <-
-           wait_for_instance_to_be_running(instance_id, tenant_token: tenant_token) do
-      ssh_connection(instance_id, tenant_token: tenant_token)
+           wait_for_instance_to_be_running(instance_id, tenant_token),
+         {:ok, ssh_connection} <- ssh_connection(instance_id, tenant_token) do
+      {:ok, %{ssh_connection: ssh_connection, tenant_token: tenant_token, instance: instance}}
     end
   end
 
@@ -26,62 +32,24 @@ defmodule Tuist.Namespace do
   ## Parameters
     - visible_name: The Tenant's visible name, e.g. "Foobar (production)"
     - external_account_id: A string that identifies an external account associated with this tenant
-    - policies: A list of policies that apply to this Tenant (optional)
-    - labels: A list of labels that should be attached to the Tenant (optional)
   """
-  def create_tenant(params) do
-    visible_name = Keyword.get(params, :visible_name)
-    external_account_id = Keyword.fetch!(params, :external_account_id)
-    policies = Keyword.get(params, :policies, [])
-    labels = Keyword.get(params, :labels, [])
-
-    request_body = %{
-      "visible_name" => visible_name,
-      "external_account_id" => "#{external_account_id}",
-      "policies" => policies,
-      "labels" => labels
-    }
-
-    case (&Req.post/1)
-         |> iam_request(
-           url: "#{@base_tenant_url}/CreateTenant",
-           json: request_body
-         )
-         |> dbg() do
-      {:ok, response} ->
-        {:ok, response}
-
-      {:error, reason} ->
-        {:error, reason}
-    end
+  def create_tenant(visible_name, external_account_id) do
+    iam_request(&Req.post/1,
+      url: "#{@base_tenant_url}/CreateTenant",
+      json: %{
+        "visible_name" => visible_name,
+        "external_account_id" => "#{external_account_id}"
+      }
+    )
   end
 
   @doc """
   Issues a tenant token for a specific tenant.
-
-  ## Parameters
-    - tenant_id: The ID of the tenant to issue credentials for
-    - actor_id: An integration-specified identifier representing the user requesting credentials
-    - duration_secs: How long the credentials should be valid for (optional, defaults to 15 minutes)
-    - policies: A list of policies that apply to this tenant token (optional)
   """
-  def issue_tenant_token(params) do
-    tenant_id = Keyword.fetch!(params, :tenant_id)
-    actor_id = Keyword.fetch!(params, :actor_id)
-    # Default 15 minutes
-    duration_secs = Keyword.get(params, :duration_secs, 900)
-    policies = Keyword.get(params, :policies, [])
-
-    request_body = %{
-      "tenant_id" => tenant_id,
-      "actor_id" => actor_id,
-      "duration_secs" => duration_secs,
-      "policies" => policies
-    }
-
+  def issue_tenant_token(tenant_id, actor_id) do
     case iam_request(&Req.post/1,
            url: "#{@base_tenant_url}/IssueTenantToken",
-           json: request_body
+           json: %{"tenant_id" => tenant_id, "actor_id" => actor_id}
          ) do
       {:ok, %{"bearerToken" => bearer_token}} ->
         {:ok, bearer_token}
@@ -96,15 +64,9 @@ defmodule Tuist.Namespace do
 
   @doc """
   Creates a new compute instance with SSH key authentication.
-
-  ## Options
-    - tenant_token: Optional tenant token to use for authentication instead of the default token
   """
-  def create_instance(opts \\ []) do
+  def create_instance(tenant_token) do
     ssh_public_key = Environment.namespace_ssh_public_key()
-
-    # deadline = DateTime.utc_now() |> DateTime.add(10, :hour) |> DateTime.to_iso8601()
-    deadline = DateTime.utc_now() |> DateTime.add(10, :minute) |> DateTime.to_iso8601()
 
     request_body =
       %{
@@ -115,7 +77,7 @@ defmodule Tuist.Namespace do
           "virtual_cpu" => 6,
           "machine_arch" => "arm64"
         },
-        "deadline" => deadline,
+        "deadline" => DateTime.utc_now() |> DateTime.add(20, :minute) |> DateTime.to_iso8601(),
         "experimental" => %{
           "authorized_ssh_keys" => [ssh_public_key]
         }
@@ -124,10 +86,9 @@ defmodule Tuist.Namespace do
     case compute_request(&Req.post/1,
            url: "#{@base_compute_url}/CreateInstance",
            json: request_body,
-           tenant_token: opts[:tenant_token]
+           tenant_token: tenant_token
          ) do
-      {:ok, create_instance_response} ->
-        %{"metadata" => %{"instanceId" => instance_id}} = create_instance_response
+      {:ok, %{"metadata" => %{"instanceId" => instance_id}}} ->
         {:ok, %Instance{id: instance_id}}
 
       response ->
@@ -137,15 +98,12 @@ defmodule Tuist.Namespace do
 
   @doc """
   Waits until an instance reaches the READY state.
-
-  ## Options
-    - tenant_token: Optional tenant token to use for authentication
   """
-  def wait_for_instance_to_be_running(instance_id, opts \\ []) do
+  def wait_for_instance_to_be_running(instance_id, tenant_token) do
     start_time = :os.system_time(:second)
     timeout_seconds = 20
 
-    poll_instance_status(instance_id, start_time, timeout_seconds, opts[:tenant_token])
+    poll_instance_status(instance_id, start_time, timeout_seconds, tenant_token)
   end
 
   defp poll_instance_status(instance_id, start_time, timeout_seconds, tenant_token) do
@@ -158,13 +116,11 @@ defmodule Tuist.Namespace do
         "instance_id" => instance_id
       }
 
-      case (&Req.post/1)
-           |> compute_request(
+      case compute_request(&Req.post/1,
              url: "#{@base_compute_url}/DescribeInstance",
              json: request_body,
              tenant_token: tenant_token
-           )
-           |> dbg() do
+           ) do
         {:ok, %{"metadata" => %{"status" => "RUNNING"}}} ->
           :ok
 
@@ -181,36 +137,24 @@ defmodule Tuist.Namespace do
   @doc """
   Gets the status of an instance.
   """
-  def describe_instance(instance_id) do
-    request_body = %{
-      "instance_id" => instance_id,
-      "cluster_id" => "default"
-    }
-
+  def describe_instance(instance_id, tenant_token) do
     compute_request(&Req.post/1,
       url: "#{@base_compute_url}/DescribeInstance",
-      json: request_body
+      json: %{
+        "instance_id" => instance_id,
+        "cluster_id" => "default"
+      },
+      tenant_token: tenant_token
     )
   end
 
   @doc """
   Deletes an instance.
   """
-  def delete_instance(instance_id) do
+  def delete_instance(instance_id, tenant_token) do
     compute_request(&Req.delete/1,
-      url: "#{@base_compute_url}/v1beta/compute/instances/#{instance_id}"
-    )
-  end
-
-  @doc """
-  Lists all instances.
-  """
-  def list_instances(opts \\ []) do
-    page_size = Keyword.get(opts, :page_size, 100)
-
-    compute_request(&Req.get/1,
-      url: "#{@base_compute_url}/v1beta/compute/instances",
-      params: %{page_size: page_size}
+      url: "#{@base_compute_url}/v1beta/compute/instances/#{instance_id}",
+      tenant_token: tenant_token
     )
   end
 
@@ -232,12 +176,9 @@ defmodule Tuist.Namespace do
 
   @doc """
   Establishes an SSH connection to the specified instance.
-
-  ## Options
-    - tenant_token: Optional tenant token to use for authentication
   """
-  def ssh_connection(instance_id, opts \\ []) do
-    case ssh_config(instance_id, opts[:tenant_token]) do
+  def ssh_connection(instance_id, tenant_token) do
+    case ssh_config(instance_id, tenant_token) do
       {:ok, %{endpoint: endpoint, username: username}} ->
         user_dir = Briefly.create!(type: :directory)
 
@@ -248,7 +189,7 @@ defmodule Tuist.Namespace do
 
         File.write!(user_dir <> "/id_ed25519.pub", Environment.namespace_ssh_public_key())
 
-        :ssh.connect(String.to_charlist(endpoint), 22,
+        SSHClient.connect(String.to_charlist(endpoint), 22,
           user: String.to_charlist(username),
           user_dir: String.to_charlist(user_dir),
           silently_accept_hosts: true,
@@ -262,8 +203,7 @@ defmodule Tuist.Namespace do
   end
 
   defp iam_request(method, attrs) do
-    # For IAM/tenant endpoints, use OIDC token
-    {:ok, id_token} = Tuist.Namespace.JWTToken.generate_id_token()
+    {:ok, id_token} = JWTToken.generate_id_token()
     authorization_header = "Bearer oidc_#{id_token}"
 
     attrs_with_headers =
@@ -273,7 +213,6 @@ defmodule Tuist.Namespace do
         {"Content-Type", "application/json"},
         {"Accept", "application/json"}
       ])
-      |> dbg()
       |> Keyword.put(:finch, Tuist.Finch)
 
     attrs_with_headers
@@ -282,22 +221,16 @@ defmodule Tuist.Namespace do
   end
 
   defp compute_request(method, attrs) do
-    # For compute endpoints, use tenant token if provided, otherwise use environment token
-    token = Keyword.get(attrs, :tenant_token) || Environment.namespace_token()
-
-    authorization_header = "Bearer #{token}"
-
-    # Remove tenant_token from attrs since it's not needed for the HTTP request
-    cleaned_attrs = Keyword.delete(attrs, :tenant_token)
+    tenant_token = Keyword.get(attrs, :tenant_token)
 
     attrs_with_headers =
-      cleaned_attrs
+      attrs
+      |> Keyword.delete(:tenant_token)
       |> Keyword.put(:headers, [
-        {"Authorization", authorization_header},
+        {"Authorization", "Bearer #{tenant_token}"},
         {"Content-Type", "application/json"},
         {"Accept", "application/json"}
       ])
-      |> dbg()
       |> Keyword.put(:finch, Tuist.Finch)
 
     attrs_with_headers

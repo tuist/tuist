@@ -102,7 +102,7 @@ defmodule QA.Agent do
       - Prefer using describe_ui over screenshot to interact with the app
       - To dismiss a system sheet, tap within the visible screen area but outside the sheet, such in the dark/grayed area above the sheet
       - If a button includes text, prefer tapping on the text to interact with the button
-      - To clear fields, use the 42 keycode (backspace) for a longer duration
+      - To clear fields, use the 42 keycode (backspace) with a longer duration
       - Don't clear pre-filled/placeholder values in fields – instead start typing the text directly
       """
 
@@ -138,21 +138,8 @@ defmodule QA.Agent do
 
   defp process_llm_result({:ok, %LLMChain{last_message: last_message} = chain, tool_result}, attrs, handler, tools) do
     case tool_result.name do
-      tool_name when tool_name in ["describe_ui", "describe_webview"] ->
-        trimmed_messages =
-          chain.messages
-          |> Enum.drop(-1)
-          |> trim_tool_messages("describe_ui")
-          |> trim_tool_messages("describe_webview")
-
-        run_llm(attrs, handler, trimmed_messages ++ [last_message], tools)
-
-      tool_name when tool_name in ["screenshot"] ->
-        trimmed_messages =
-          chain.messages
-          |> Enum.drop(-1)
-          |> trim_tool_messages(tool_name)
-
+      tool_name when tool_name in ["describe_ui", "screenshot"] ->
+        trimmed_messages = trim_tool_messages(Enum.drop(chain.messages, -1), tool_name)
         run_llm(attrs, handler, trimmed_messages ++ [last_message], tools)
 
       "finalize" ->

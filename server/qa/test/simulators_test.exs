@@ -1,9 +1,8 @@
-defmodule Tuist.Simulators.SimulatorsTest do
+defmodule QA.Simulators.SimulatorsTest do
   use ExUnit.Case, async: false
   use Mimic
 
-  alias Tuist.Simulators
-  alias Tuist.Simulators.SimulatorDevice
+  alias QA.Simulators.SimulatorDevice
 
   describe "devices/1" do
     test "returns all devices when no runtime filter is provided" do
@@ -32,7 +31,7 @@ defmodule Tuist.Simulators.SimulatorsTest do
       end)
 
       # When
-      {:ok, devices} = Simulators.devices()
+      {:ok, devices} = QA.Simulators.devices()
 
       # Then
       assert Enum.sort_by(devices, & &1.name) == [
@@ -84,7 +83,7 @@ defmodule Tuist.Simulators.SimulatorsTest do
       end)
 
       # When
-      {:ok, devices} = Simulators.devices(runtime_identifier: "com.apple.CoreSimulator.SimRuntime.iOS-18-4")
+      {:ok, devices} = QA.Simulators.devices(runtime_identifier: "com.apple.CoreSimulator.SimRuntime.iOS-18-4")
 
       # Then
 
@@ -113,7 +112,7 @@ defmodule Tuist.Simulators.SimulatorsTest do
       end)
 
       # When
-      {:ok, devices} = Simulators.devices()
+      {:ok, devices} = QA.Simulators.devices()
 
       # Then
       assert devices == []
@@ -126,7 +125,7 @@ defmodule Tuist.Simulators.SimulatorsTest do
       end)
 
       # When
-      result = Simulators.devices()
+      result = QA.Simulators.devices()
 
       # Then
       assert {:error, "Listing devices failed with: Command failed"} = result
@@ -163,7 +162,7 @@ defmodule Tuist.Simulators.SimulatorsTest do
       end)
 
       # When
-      {:ok, devices} = Simulators.devices(name: "iPhone 16")
+      {:ok, devices} = QA.Simulators.devices(name: "iPhone 16")
 
       # Then
       assert Enum.sort_by(devices, & &1.udid) == [
@@ -220,7 +219,7 @@ defmodule Tuist.Simulators.SimulatorsTest do
 
       # When
       {:ok, devices} =
-        Simulators.devices(
+        QA.Simulators.devices(
           runtime_identifier: "com.apple.CoreSimulator.SimRuntime.iOS-18-4",
           name: "iPhone 16"
         )
@@ -257,7 +256,7 @@ defmodule Tuist.Simulators.SimulatorsTest do
       end)
 
       # When
-      result = Simulators.devices(name: "iPhone 15")
+      result = QA.Simulators.devices(name: "iPhone 15")
 
       # Then
       assert {:ok, []} = result
@@ -275,7 +274,7 @@ defmodule Tuist.Simulators.SimulatorsTest do
       }
 
       # When
-      result = Simulators.boot_simulator(device)
+      result = QA.Simulators.boot_simulator(device)
 
       # Then
       assert result == :ok
@@ -295,7 +294,7 @@ defmodule Tuist.Simulators.SimulatorsTest do
       end)
 
       # When
-      result = Simulators.boot_simulator(device)
+      result = QA.Simulators.boot_simulator(device)
 
       # Then
       assert result == :ok
@@ -315,7 +314,7 @@ defmodule Tuist.Simulators.SimulatorsTest do
       end)
 
       # When
-      result = Simulators.boot_simulator(device)
+      result = QA.Simulators.boot_simulator(device)
 
       # Then
       assert {:error, "Failed to boot simulator: Unable to boot device"} = result
@@ -339,7 +338,7 @@ defmodule Tuist.Simulators.SimulatorsTest do
       end)
 
       # When
-      result = Simulators.install_app(app_path, device)
+      result = QA.Simulators.install_app(app_path, device)
 
       # Then
       assert result == :ok
@@ -361,7 +360,7 @@ defmodule Tuist.Simulators.SimulatorsTest do
       end)
 
       # When
-      result = Simulators.install_app(app_path, device)
+      result = QA.Simulators.install_app(app_path, device)
 
       # Then
       assert {:error, "Failed to install app: Failed to install app"} = result
@@ -385,7 +384,7 @@ defmodule Tuist.Simulators.SimulatorsTest do
       end)
 
       # When
-      result = Simulators.launch_app(bundle_identifier, device)
+      result = QA.Simulators.launch_app(bundle_identifier, device)
 
       # Then
       assert result == :ok
@@ -407,7 +406,7 @@ defmodule Tuist.Simulators.SimulatorsTest do
       end)
 
       # When
-      result = Simulators.launch_app(bundle_identifier, device)
+      result = QA.Simulators.launch_app(bundle_identifier, device)
 
       # Then
       assert {:error, "Failed to launch app: Unable to launch com.example.myapp"} = result

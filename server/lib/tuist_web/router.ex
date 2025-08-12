@@ -221,13 +221,14 @@ defmodule TuistWeb.Router do
 
     get "/ready", PageController, :ready
     get "/api/docs", APIController, :docs
+  end
 
-    get "/.well-known/openid-configuration", WellKnownController, :openid_configuration
-    get "/.well-known/jwks.json", WellKnownController, :jwks
+  scope "/.well-known", TuistWeb do
+    pipe_through [:open_api, :non_authenticated_api]
 
-    get "/.well-known/apple-app-site-association",
-        AppleAppSiteAssociationController,
-        :show
+    get "/openid-configuration", WellKnownController, :openid_configuration
+    get "/jwks.json", WellKnownController, :jwks
+    get "/apple-app-site-association", WellKnownController, :apple_app_site_association
   end
 
   scope path: "/api",

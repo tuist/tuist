@@ -29,8 +29,7 @@ defmodule QA.Tools do
   defp describe_ui_tool do
     Function.new!(%{
       name: "describe_ui",
-      description:
-        "Retrieves the entire view hierarchy with precise frame coordinates for all visible elements. Automatically scans WebView content when needed.",
+      description: "Retrieves the entire view hierarchy with precise frame coordinates for all visible elements.",
       parameters: [
         FunctionParam.new!(%{
           name: "simulator_uuid",
@@ -44,12 +43,8 @@ defmodule QA.Tools do
           {:ok, content} ->
             simplified_content = simplify_ui_description(content)
 
-            # Check if we need to scan WebView points
             if should_scan_webview(content) do
-              case scan_webview_points(simulator_uuid) do
-                {:ok, webview_content} -> {:ok, webview_content}
-                {:error, _reason} -> {:ok, simplified_content}
-              end
+              describe_webview_ui(content, simulator_uuid)
             else
               {:ok, simplified_content}
             end
@@ -282,9 +277,7 @@ defmodule QA.Tools do
       function: fn %{"simulator_uuid" => simulator_uuid, "keycode" => keycode} = params, _context ->
         duration = Map.get(params, "duration", 0.1)
 
-        args = ["key", keycode, "--duration", "#{duration}"]
-
-        case run_axe_command(simulator_uuid, args) do
+        case run_axe_command(simulator_uuid, ["key", keycode, "--duration", "#{duration}"]) do
           {:ok, _} -> {:ok, "Key pressed successfully"}
           {:error, reason} -> {:error, reason}
         end
@@ -629,85 +622,51 @@ defmodule QA.Tools do
     end
   end
 
-  defp scan_webview_points(simulator_uuid) do
+  defp describe_webview_ui(ui_content, simulator_uuid) do
     grid_size = 50
 
-    # First get screen dimensions from describe-ui
-    case run_axe_command(simulator_uuid, ["describe-ui"]) do
-      {:ok, ui_content} ->
-        case extract_screen_dimensions(ui_content) do
-          {:ok, {width, height}} ->
-            scan_points_with_idb(simulator_uuid, width, height, grid_size)
-
-          {:error, reason} ->
-            {:error, "Failed to get screen dimensions: #{reason}"}
-        end
+    case screen_dimensions(ui_content) do
+      {:ok, {width, height}} ->
+        scan_points_with_idb(simulator_uuid, width, height, grid_size)
 
       {:error, reason} ->
-        {:error, "Failed to get UI description: #{reason}"}
+        {:error, "Failed to get screen dimensions: #{reason}"}
     end
   end
 
-  defp extract_screen_dimensions(ui_content) do
+  defp screen_dimensions(ui_content) do
     case JSON.decode(ui_content) do
-      {:ok, ui_data} when is_list(ui_data) ->
-        # Find the root window element
-        case find_window_frame(ui_data) do
-          {:ok, frame} -> {:ok, {frame["width"], frame["height"]}}
-          :error -> {:error, "Could not find window frame"}
-        end
+      {:ok, ui_data} ->
+        find_window_frame(ui_data)
 
-      {:ok, ui_data} when is_map(ui_data) ->
-        case ui_data["frame"] do
-          %{"width" => width, "height" => height} -> {:ok, {width, height}}
-          _ -> {:error, "Could not find frame in root element"}
-        end
-
-      {:error, _} ->
-        {:error, "Invalid JSON in UI content"}
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
-  defp find_window_frame(elements) when is_list(elements) do
-    Enum.find_value(elements, :error, fn element ->
+  defp find_window_frame(elements) do
+    Enum.find_value(elements, {:error, :window_frame_not_found}, fn element ->
       case element do
-        %{"type" => type, "frame" => frame} when type in ["Window", "Application"] -> {:ok, frame}
-        %{"children" => children} -> find_window_frame(children)
-        _ -> nil
+        %{"type" => type, "frame" => frame} when type in ["Window", "Application"] ->
+          {:ok, {frame["width"], frame["height"]}}
+
+        _ ->
+          nil
       end
     end)
   end
 
   defp scan_points_with_idb(simulator_uuid, width, height, grid_size) do
-    # Generate grid points
-    x_points = Enum.to_list(0..trunc(width)//grid_size)
-    y_points = Enum.to_list(0..trunc(height)//grid_size)
-
     for_result =
-      for x <- x_points,
-          y <- y_points do
-        case run_idb_describe_point(simulator_uuid, x, y) do
-          {:ok, point_info} ->
-            case String.trim(point_info) do
-              "" ->
-                nil
-
-              content ->
-                case JSON.decode(content) do
-                  {:ok, element} -> element
-                  {:error, _} -> nil
-                end
-            end
-
-          {:error, _} ->
-            nil
-        end
+      for x <- 0..trunc(width)//grid_size,
+          y <- 0..trunc(height)//grid_size,
+          {:ok, point_info} <- [run_idb_describe_point(simulator_uuid, x, y)],
+          {:ok, element} <- [JSON.decode(point_info)] do
+        element
       end
 
     elements =
-      for_result
-      |> Enum.reject(&is_nil/1)
-      |> Enum.uniq_by(fn element -> element["AXUniqueId"] || {element["frame"], element["AXLabel"]} end)
+      Enum.uniq_by(for_result, fn element -> element["AXUniqueId"] || {element["frame"], element["AXLabel"]} end)
 
     {:ok, JSON.encode!(elements)}
   end

@@ -533,10 +533,6 @@ defmodule Tuist.Environment do
       oauth_private_key(secrets) != nil
   end
 
-  def namespace_token(secrets \\ secrets()) do
-    get([:namespace_token], secrets)
-  end
-
   def namespace_ssh_private_key(secrets \\ secrets()) do
     get([:namespace, :ssh_private_key], secrets)
   end
@@ -557,8 +553,7 @@ defmodule Tuist.Environment do
   end
 
   def namespace_enabled?(secrets \\ secrets()) do
-    namespace_token(secrets) != nil or
-      (namespace_partner_id(secrets) != nil and namespace_jwt_private_key(secrets) != nil)
+    namespace_partner_id(secrets) != nil and namespace_jwt_private_key(secrets) != nil
   end
 
   def get(keys, secrets \\ secrets(), opts \\ []) do

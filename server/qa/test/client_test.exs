@@ -2,8 +2,8 @@ defmodule Tuist.QA.ClientTest do
   use ExUnit.Case, async: true
   use Mimic
 
-  alias Tuist.QA.Client
-  alias Tuist.QA.LogStreamer
+  alias QA.Client
+  alias QA.LogStreamer
 
   describe "create_step/6" do
     test "makes POST request with correct parameters" do
