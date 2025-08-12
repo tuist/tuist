@@ -12,20 +12,37 @@ defmodule Tuist.QA do
   alias Tuist.Authentication
   alias Tuist.Environment
   alias Tuist.Namespace
+  alias Tuist.Projects
   alias Tuist.QA.Run
   alias Tuist.QA.Screenshot
   alias Tuist.QA.Step
   alias Tuist.Repo
   alias Tuist.SSHClient
   alias Tuist.Storage
+  alias Tuist.VCS
+
+  require EEx
+
+  @qa_summary_template_path Path.join([__DIR__, "qa", "qa_test_summary.eex"])
+  EEx.function_from_file(:defp, :render_qa_summary, @qa_summary_template_path, [:assigns])
 
   @doc """
   Run a QA test run for the given app build.
   """
-  def test(%{app_build: %AppBuild{id: app_build_id} = app_build, prompt: prompt}) do
+  def test(%{app_build: %AppBuild{id: app_build_id} = app_build, prompt: prompt} = params) do
     app_build = Repo.preload(app_build, preview: [project: :account])
+    issue_comment_id = Map.get(params, :issue_comment_id)
 
-    with {:ok, qa_run} <- create_qa_run(%{app_build_id: app_build_id, prompt: prompt, status: "pending"}),
+    with {:ok, qa_run} <-
+           create_qa_run(%{
+             app_build_id: app_build_id,
+             prompt: prompt,
+             status: "pending",
+             issue_comment_id: issue_comment_id,
+             git_ref: app_build.preview.git_ref,
+             vcs_provider: app_build.preview.project.vcs_provider,
+             vcs_repository_full_handle: app_build.preview.project.vcs_repository_full_handle
+           }),
          app_build_url = generate_app_build_download_url(app_build),
          {:ok, auth_token} <- create_qa_auth_token(app_build) do
       attrs = %{
@@ -50,11 +67,14 @@ defmodule Tuist.QA do
           end
 
         run_qa_tests_in_namespace(attrs, account_with_tenant.tenant_id)
+        qa_run(qa_run.id)
       else
         Agent.test(
           attrs,
           anthropic_api_key: Environment.anthropic_api_key()
         )
+
+        qa_run(qa_run.id)
       end
     end
   end
@@ -134,6 +154,25 @@ defmodule Tuist.QA do
   end
 
   @doc """
+  Gets a screenshot by ID and optionally by QA run ID.
+  """
+  def screenshot(screenshot_id, opts \\ []) do
+    qa_run_id = Keyword.get(opts, :qa_run_id)
+
+    screenshot =
+      if qa_run_id do
+        Repo.one(from(s in Screenshot, where: s.id == ^screenshot_id and s.qa_run_id == ^qa_run_id))
+      else
+        Repo.get(Screenshot, screenshot_id)
+      end
+
+    case screenshot do
+      nil -> {:error, :not_found}
+      screenshot -> {:ok, screenshot}
+    end
+  end
+
+  @doc """
   Updates screenshots to associate them with a QA run step.
   """
   def update_screenshots_with_step_id(qa_run_id, qa_step_id) do
@@ -152,6 +191,82 @@ defmodule Tuist.QA do
         file_name: file_name
       }) do
     "#{String.downcase(account_handle)}/#{String.downcase(project_handle)}/qa/screenshots/#{qa_run_id}/#{file_name}.png"
+  end
+
+  @doc """
+  Finds pending QA runs for the given app build.
+
+  Returns a list of pending QA runs that match the app build's repository URL
+  and git_ref, and have no app_build_id assigned yet.
+  """
+  def find_pending_qa_runs_for_app_build(app_build) do
+    app_build = Repo.preload(app_build, preview: [project: :account])
+    project = app_build.preview.project
+    preview = app_build.preview
+
+    if project.vcs_repository_full_handle && project.vcs_provider && preview.git_ref do
+      Repo.all(
+        from(run in Run,
+          where:
+            is_nil(run.app_build_id) and run.status == "pending" and
+              run.vcs_repository_full_handle == ^project.vcs_repository_full_handle and
+              run.vcs_provider == ^project.vcs_provider and
+              run.git_ref == ^preview.git_ref
+        )
+      )
+    else
+      []
+    end
+  end
+
+  @doc """
+  Posts a QA test summary comment to VCS for the given QA run.
+  """
+  def post_vcs_test_summary(qa_run) do
+    qa_run =
+      Repo.preload(qa_run,
+        app_build: [preview: [project: :account]],
+        run_steps: :screenshots
+      )
+
+    preview = qa_run.app_build.preview
+    project = preview.project
+    comment_body = render_qa_summary_comment_body(qa_run, project)
+
+    if qa_run.issue_comment_id do
+      VCS.update_comment(%{
+        repository_full_handle: project.vcs_repository_full_handle,
+        comment_id: qa_run.issue_comment_id,
+        body: comment_body,
+        project: project
+      })
+    else
+      VCS.create_comment(%{
+        repository_full_handle: project.vcs_repository_full_handle,
+        git_ref: preview.git_ref,
+        body: comment_body,
+        project: project
+      })
+    end
+  end
+
+  defp render_qa_summary_comment_body(qa_run, project) do
+    preview = qa_run.app_build.preview
+    preview_url = "#{Environment.app_url()}/#{project.account.name}/#{project.name}/previews/#{preview.id}"
+
+    render_qa_summary(%{
+      summary: qa_run.summary,
+      run_steps: qa_run.run_steps,
+      app_url: Environment.app_url(),
+      account_handle: project.account.name,
+      project_handle: project.name,
+      qa_run_id: qa_run.id,
+      prompt: qa_run.prompt,
+      preview_url: preview_url,
+      preview_display_name: preview.display_name,
+      commit_sha: preview.git_commit_sha,
+      git_remote_url_origin: Projects.get_repository_url(project)
+    })
   end
 
   defp generate_app_build_download_url(%AppBuild{} = app_build) do

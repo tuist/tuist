@@ -7,6 +7,7 @@ defmodule TuistWeb.API.PreviewsController do
   alias Tuist.Accounts.User
   alias Tuist.AppBuilds
   alias Tuist.Projects.Project
+  alias Tuist.QA
   alias Tuist.Storage
   alias TuistWeb.API.Schemas
   alias TuistWeb.API.Schemas.ArtifactMultipartUploadPart
@@ -339,6 +340,8 @@ defmodule TuistWeb.API.PreviewsController do
           )
 
         AppBuilds.update_preview_with_app_build(app_build.preview.id, app_build)
+
+        trigger_pending_qa_runs_for_app_build(app_build)
 
         Tuist.Analytics.preview_upload(Authentication.authenticated_subject(conn))
 
@@ -774,5 +777,23 @@ defmodule TuistWeb.API.PreviewsController do
           },
       created_from_ci: is_nil(preview.created_by_account) || is_nil(preview.created_by_account.user_id)
     }
+  end
+
+  defp trigger_pending_qa_runs_for_app_build(app_build) do
+    # We currently support QA only for the iOS simulator
+    if :ios_simulator in app_build.supported_platforms do
+      pending_qa_runs = QA.find_pending_qa_runs_for_app_build(app_build)
+
+      for qa_run <- pending_qa_runs do
+        {:ok, updated_qa_run} = QA.update_qa_run(qa_run, %{app_build_id: app_build.id})
+
+        %{
+          "app_build_id" => app_build.id,
+          "prompt" => updated_qa_run.prompt
+        }
+        |> QA.Workers.TestWorker.new()
+        |> Oban.insert()
+      end
+    end
   end
 end

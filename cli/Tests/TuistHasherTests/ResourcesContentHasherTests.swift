@@ -55,6 +55,35 @@ final class ResourcesContentHasherTests: TuistUnitTestCase {
         XCTAssertEqual(hashes.count, 1)
     }
 
+    func test_hash_changes_after_resource_rename() async throws {
+        // Given
+        let temporaryDirectory = try temporaryPath()
+        let fileSystem = FileSystem()
+        let resource1 = temporaryDirectory.appending(component: "1.png")
+        let resource2 = temporaryDirectory.appending(component: "2.png")
+        try await fileSystem.writeText("1", at: resource1)
+        try await fileSystem.writeText("1", at: resource2)
+        let privacyManifest = PrivacyManifest(
+            tracking: true,
+            trackingDomains: ["io.tuist"],
+            collectedDataTypes: [["test": .string("tuist")]],
+            accessedApiTypes: [["test": .string("tuist")]]
+        )
+        let resourceFileElements1 = ResourceFileElements([
+            .file(path: resource1),
+        ], privacyManifest: privacyManifest)
+        let resourceFileElements2 = ResourceFileElements([
+            .file(path: resource2),
+        ], privacyManifest: privacyManifest)
+
+        // When
+        let hash1 = try await subject.hash(identifier: "resources", resources: resourceFileElements1).hash
+        let hash2 = try await subject.hash(identifier: "resources", resources: resourceFileElements2).hash
+
+        // Then
+        XCTAssertNotEqual(hash1, hash2)
+    }
+
     func test_hash_returnsTheRightMerkleNode() async throws {
         // Given
         let temporaryDirectory = try temporaryPath()
@@ -80,13 +109,18 @@ final class ResourcesContentHasherTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(got, MerkleNode(
-            hash: "a1e41502d881675442e20a7a0ce58245",
+            hash: "b310dc618b8893abc76c9a4b9628e04e",
             identifier: "resources",
             children: [
                 MerkleNode(
-                    hash: "069310d0d484da1c8bcc98386a1f36e7",
+                    hash: "e297e7925b4d0d805f87eb8842081511",
                     identifier: resource1.pathString,
                     children: [
+                        MerkleNode(
+                            hash: "4a47a0db6e60853dedfcfdf08a5ca249",
+                            identifier: "name",
+                            children: []
+                        ),
                         MerkleNode(
                             hash: "c4ca4238a0b923820dcc509a6f75849b",
                             identifier: "content",
@@ -116,9 +150,14 @@ final class ResourcesContentHasherTests: TuistUnitTestCase {
                     ]
                 ),
                 MerkleNode(
-                    hash: "09eb77e7eb4c9f21384c143fc399c5ca",
+                    hash: "67a89904e984196e4081300ca5cfa0fa",
                     identifier: resource2.parentDirectory.pathString,
                     children: [
+                        MerkleNode(
+                            hash: "129ccb8ef5914163bbcc42da1658d73f",
+                            identifier: "name",
+                            children: []
+                        ),
                         MerkleNode(
                             hash: "c81e728d9d4c2f636f067f89cc14862c",
                             identifier: "content",

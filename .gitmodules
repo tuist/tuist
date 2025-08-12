@@ -4,3 +4,4 @@
 [submodule "cli/TuistCacheEE"]
 	path = cli/TuistCacheEE
 	url = https://github.com/tuist/TuistCacheEE/
+	update = "none"

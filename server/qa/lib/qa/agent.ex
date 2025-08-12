@@ -15,6 +15,16 @@ defmodule QA.Agent do
 
   require Logger
 
+  defp log_and_stream(message, log_streamer, level \\ :debug) do
+    Logger.log(level, message)
+
+    Client.stream_log(log_streamer, %{
+      message: message,
+      level: to_string(level),
+      timestamp: DateTime.utc_now()
+    })
+  end
+
   def test(
         %{
           preview_url: preview_url,
@@ -39,15 +49,45 @@ defmodule QA.Agent do
              auth_token: auth_token,
              account_handle: account_handle,
              project_handle: project_handle
+           }),
+         {:ok, log_streamer} <-
+           Client.start_log_stream(%{
+             server_url: server_url,
+             run_id: run_id,
+             auth_token: auth_token
            }) do
       handler = %{
-        on_message_processed: fn _chain, %Message{content: content} ->
-          for %ContentPart{type: :text, content: content} <- content || [] do
-            Logger.debug(content)
+        on_message_processed: fn _chain,
+                                 %Message{
+                                   role: role,
+                                   content: content,
+                                   tool_calls: tool_calls,
+                                   tool_results: tool_results
+                                 } ->
+          role_message = "Processing #{role} message"
+          log_and_stream(role_message, log_streamer)
+
+          for %ContentPart{type: :text, content: text_content} <- content || [] do
+            log_and_stream("Message content: #{text_content}", log_streamer)
+          end
+
+          for tool_call <- tool_calls || [] do
+            tool_message =
+              "Tool call: #{tool_call.name} with args: #{inspect(tool_call.arguments)}"
+
+            log_and_stream(tool_message, log_streamer, :info)
+          end
+
+          for tool_result <- tool_results || [] do
+            result_message =
+              "Tool result from #{tool_result.name}: #{inspect(tool_result.content)}"
+
+            log_and_stream(result_message, log_streamer, :info)
           end
         end,
         on_llm_token_usage: fn _chain, %TokenUsage{input: input, output: output} ->
-          Logger.debug("LLM token usage: #{input} input tokens, #{output} output tokens")
+          message = "LLM token usage: #{input} input tokens, #{output} output tokens"
+          log_and_stream(message, log_streamer, :info)
         end
       }
 

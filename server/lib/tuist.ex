@@ -56,6 +56,8 @@ defmodule Tuist do
       QA,
       QA.Run,
       QA.Step,
+      QA.Screenshot,
+      QA.Workers.TestWorker,
       Apple,
       Xcode,
       Xcode.Postgres,

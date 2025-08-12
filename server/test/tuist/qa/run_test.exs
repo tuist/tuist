@@ -41,7 +41,7 @@ defmodule Tuist.QA.RunTest do
       end
     end
 
-    test "is invalid without app_build_id" do
+    test "is valid without app_build_id" do
       # When
       changeset =
         Run.create_changeset(%Run{}, %{
@@ -50,8 +50,7 @@ defmodule Tuist.QA.RunTest do
         })
 
       # Then
-      assert changeset.valid? == false
-      assert "can't be blank" in errors_on(changeset).app_build_id
+      assert changeset.valid? == true
     end
 
     test "is invalid without prompt" do
