@@ -3,6 +3,7 @@ defmodule TuistWeb.API.Schemas.Bundle do
   The schema for a bundle.
   """
   alias OpenApiSpex.Schema
+  alias TuistWeb.API.Schemas.BundleSupportedPlatform
 
   require OpenApiSpex
 
@@ -31,7 +32,7 @@ defmodule TuistWeb.API.Schemas.Bundle do
       supported_platforms: %Schema{
         type: :array,
         description: "List of supported platforms",
-        items: %Schema{type: :string}
+        items: BundleSupportedPlatform
       },
       install_size: %Schema{
         type: :integer,
@@ -59,11 +60,6 @@ defmodule TuistWeb.API.Schemas.Bundle do
         format: "date-time",
         description: "When the bundle was created"
       },
-      updated_at: %Schema{
-        type: :string,
-        format: "date-time",
-        description: "When the bundle was last updated"
-      },
       uploaded_by_account: %Schema{
         type: :string,
         description: "The account that uploaded this bundle"
@@ -78,6 +74,16 @@ defmodule TuistWeb.API.Schemas.Bundle do
         description: "The URL to view this bundle"
       }
     },
-    required: [:id, :name, :app_bundle_id, :version, :supported_platforms, :install_size, :inserted_at, :updated_at, :uploaded_by_account, :artifacts, :url]
+    required: [
+      :id,
+      :name,
+      :app_bundle_id,
+      :version,
+      :supported_platforms,
+      :install_size,
+      :inserted_at,
+      :uploaded_by_account,
+      :url
+    ]
   })
 end

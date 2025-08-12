@@ -10,9 +10,8 @@ defmodule TuistWeb.API.BundlesController do
   alias Tuist.Bundles
   alias Tuist.Bundles.Bundle
   alias Tuist.Projects.Project
+  alias TuistWeb.API.Schemas.Bundle
   alias TuistWeb.API.Schemas.BundleArtifact
-  alias TuistWeb.API.Schemas.BundleList
-  alias TuistWeb.API.Schemas.BundleSupportedPlatform
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.ValidationError
   alias TuistWeb.Authentication
@@ -65,18 +64,9 @@ defmodule TuistWeb.API.BundlesController do
            properties: %{
              data: %Schema{
                type: :array,
-               items: BundleList
+               items: Bundle
              },
-             meta: %Schema{
-               type: :object,
-               properties: %{
-                 current_page: %Schema{type: :integer},
-                 page_size: %Schema{type: :integer},
-                 total_count: %Schema{type: :integer},
-                 total_pages: %Schema{type: :integer}
-               },
-               required: [:current_page, :page_size, :total_count, :total_pages]
-             }
+             meta: TuistWeb.API.Schemas.PaginationMetadata
            },
            required: [:data, :meta]
          }},
@@ -85,7 +75,6 @@ defmodule TuistWeb.API.BundlesController do
     }
 
   def index(%{assigns: %{selected_project: selected_project}} = conn, params) do
-    # Create filters in the format Flop expects (list of filter objects)
     filters = [
       %{field: :project_id, op: :==, value: selected_project.id}
     ]
@@ -109,25 +98,22 @@ defmodule TuistWeb.API.BundlesController do
         page -> Map.put(flop_params, :page, page)
       end
 
-    case Bundles.list_bundles(flop_params, preload: [:uploaded_by_account, project: :account]) do
-      {bundles, meta} ->
-        conn
-        |> put_status(:ok)
-        |> json(%{
-          data: Enum.map(bundles, &bundle_list_to_map/1),
-          meta: %{
-            current_page: meta.current_page,
-            page_size: meta.page_size,
-            total_count: meta.total_count,
-            total_pages: meta.total_pages
-          }
-        })
+    {bundles, meta} =
+      Bundles.list_bundles(flop_params, preload: [:uploaded_by_account, project: :account])
 
-      error ->
-        conn
-        |> put_status(:internal_server_error)
-        |> json(%{error: "Failed to list bundles: #{inspect(error)}"})
-    end
+    conn
+    |> put_status(:ok)
+    |> json(%{
+      bundles: Enum.map(bundles, &bundle_list_to_map/1),
+      meta: %{
+        has_next_page: meta.has_next_page?,
+        has_previous_page: meta.has_previous_page?,
+        current_page: meta.current_page,
+        page_size: meta.page_size,
+        total_count: meta.total_count,
+        total_pages: meta.total_pages
+      }
+    })
   end
 
   operation :show,
@@ -154,35 +140,26 @@ defmodule TuistWeb.API.BundlesController do
       ]
     },
     responses: %{
-      ok: {"Bundle details", "application/json", TuistWeb.API.Schemas.Bundle},
+      ok: {"Bundle details", "application/json", Bundle},
       not_found: {"Bundle not found", "application/json", Error},
-      unauthorized:
-        {"You need to be authenticated to view this bundle", "application/json", Error},
+      unauthorized: {"You need to be authenticated to view this bundle", "application/json", Error},
       forbidden: {"You are not authorized to view this bundle", "application/json", Error}
     }
 
   def show(%{assigns: %{selected_project: selected_project}} = conn, %{"bundle_id" => bundle_id}) do
-    case Bundles.get_bundle(bundle_id, preload: [:uploaded_by_account, project: :account]) do
+    case Bundles.get_bundle(bundle_id,
+           project_id: selected_project.id,
+           preload: [:uploaded_by_account, project: :account]
+         ) do
       {:ok, bundle} ->
-        if bundle.project_id == selected_project.id do
-          conn
-          |> put_status(:ok)
-          |> json(bundle_to_map(bundle))
-        else
-          conn
-          |> put_status(:forbidden)
-          |> json(%{message: "Bundle does not belong to this project"})
-        end
+        conn
+        |> put_status(:ok)
+        |> json(bundle_to_map(bundle))
 
       {:error, :not_found} ->
         conn
         |> put_status(:not_found)
         |> json(%{message: "Bundle not found"})
-
-      error ->
-        conn
-        |> put_status(:internal_server_error)
-        |> json(%{error: "Failed to get bundle: #{inspect(error)}"})
     end
   end
 
@@ -270,11 +247,9 @@ defmodule TuistWeb.API.BundlesController do
       ]
     },
     responses: %{
-      ok:
-        {"The bundle was created successfully", "application/json", TuistWeb.API.Schemas.Bundle},
+      ok: {"The bundle was created successfully", "application/json", Bundle},
       bad_request: {"Validation errors occurred", "application/json", ValidationError},
-      unauthorized:
-        {"You need to be authenticated to create a bundle", "application/json", Error},
+      unauthorized: {"You need to be authenticated to create a bundle", "application/json", Error},
       forbidden: {"You are not authorized to create a bundle", "application/json", Error}
     }
 
@@ -289,29 +264,28 @@ defmodule TuistWeb.API.BundlesController do
         %AuthenticatedAccount{account: account} -> account.id
       end
 
-    with {:ok, %Bundle{} = bundle} <-
-           Bundles.create_bundle(%{
-             id: id,
-             project_id: selected_project.id,
-             app_bundle_id: bundle["app_bundle_id"],
-             name: bundle["name"],
-             install_size: bundle["install_size"],
-             download_size: bundle["download_size"],
-             supported_platforms: bundle["supported_platforms"],
-             version: bundle["version"],
-             artifacts: bundle["artifacts"],
-             git_branch: bundle["git_branch"],
-             git_commit_sha: bundle["git_commit_sha"],
-             git_ref: bundle["git_ref"],
-             uploaded_by_account_id: account_id
-           }) do
+    with {:ok, %Bundles.Bundle{} = bundle} <-
+           Bundles.create_bundle(
+             %{
+               id: id,
+               project_id: selected_project.id,
+               app_bundle_id: bundle["app_bundle_id"],
+               name: bundle["name"],
+               install_size: bundle["install_size"],
+               download_size: bundle["download_size"],
+               supported_platforms: bundle["supported_platforms"],
+               version: bundle["version"],
+               artifacts: bundle["artifacts"],
+               git_branch: bundle["git_branch"],
+               git_commit_sha: bundle["git_commit_sha"],
+               git_ref: bundle["git_ref"],
+               uploaded_by_account_id: account_id
+             },
+             preload: [:uploaded_by_account, project: [:account]]
+           ) do
       conn
       |> put_status(:ok)
-      |> json(%{
-        id: bundle.id,
-        url:
-          url(~p"/#{selected_project.account.name}/#{selected_project.name}/bundles/#{bundle.id}")
-      })
+      |> json(bundle_to_map(bundle))
     end
   end
 
@@ -328,7 +302,6 @@ defmodule TuistWeb.API.BundlesController do
       git_commit_sha: bundle.git_commit_sha,
       git_ref: bundle.git_ref,
       inserted_at: bundle.inserted_at,
-      updated_at: bundle.updated_at,
       uploaded_by_account: bundle.uploaded_by_account.name,
       url: url(~p"/#{bundle.project.account.name}/#{bundle.project.name}/bundles/#{bundle.id}")
     }
@@ -353,7 +326,6 @@ defmodule TuistWeb.API.BundlesController do
       git_commit_sha: bundle.git_commit_sha,
       git_ref: bundle.git_ref,
       inserted_at: bundle.inserted_at,
-      updated_at: bundle.updated_at,
       uploaded_by_account: bundle.uploaded_by_account.name,
       artifacts: artifacts,
       url: url(~p"/#{bundle.project.account.name}/#{bundle.project.name}/bundles/#{bundle.id}")
@@ -367,9 +339,8 @@ defmodule TuistWeb.API.BundlesController do
       size: artifact.size,
       shasum: artifact.shasum,
       children:
-        if(artifact.children && length(artifact.children) > 0,
-          do: Enum.map(artifact.children, &artifact_to_map/1),
-          else: nil
+        if(artifact.children && !Enum.empty?(artifact.children),
+          do: Enum.map(artifact.children, &artifact_to_map/1)
         )
     }
   end
