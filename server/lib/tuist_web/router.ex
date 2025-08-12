@@ -420,9 +420,11 @@ defmodule TuistWeb.Router do
     )
 
     live_session :ops_qa,
+      layout: {TuistWeb.Layouts, :ops},
       on_mount: [
         {TuistWeb.Authentication, :ensure_authenticated},
-        {TuistWeb.Authorization, [:current_user, :read, :ops]}
+        {TuistWeb.Authorization, [:current_user, :read, :ops]},
+        {TuistWeb.LayoutLive, :ops}
       ] do
       live "/qa", TuistWeb.OpsQALive
     end

@@ -14,6 +14,8 @@ defmodule TuistWeb.OpsQALive do
     {:ok,
      socket
      |> assign(:projects_with_qa_runs, list_projects_with_qa_runs())
+     |> assign(:qa_runs_chart_data, get_qa_runs_chart_data())
+     |> assign(:projects_usage_chart_data, get_projects_usage_chart_data())
      |> assign(:head_title, "#{gettext("QA Operations")} · Tuist")}
   end
 
@@ -21,8 +23,106 @@ defmodule TuistWeb.OpsQALive do
   def render(assigns) do
     ~H"""
     <div id="qa-operations">
-      <div data-part="row">
-        <h2 data-part="title">{gettext("QA Operations")}</h2>
+      <div data-part="charts-row">
+        <.card title={gettext("QA Runs (Last 30 Days)")} icon="chart_arcs">
+          <.card_section>
+            <.chart
+              id="qa-runs-chart"
+              type="line"
+              extra_options={
+                %{
+                  grid: %{
+                    width: "97%",
+                    left: "0.4%",
+                    height: "88%",
+                    top: "5%"
+                  },
+                  xAxis: %{
+                    boundaryGap: false,
+                    axisLabel: %{
+                      color: "var:noora-surface-label-secondary"
+                    }
+                  },
+                  yAxis: %{
+                    splitNumber: 4,
+                    splitLine: %{
+                      lineStyle: %{
+                        color: "var:noora-chart-lines"
+                      }
+                    },
+                    axisLabel: %{
+                      color: "var:noora-surface-label-secondary"
+                    }
+                  },
+                  legend: %{
+                    show: false
+                  }
+                }
+              }
+              series={[
+                %{
+                  color: "var:noora-chart-primary",
+                  data: @qa_runs_chart_data,
+                  name: gettext("QA Runs"),
+                  type: "line",
+                  smooth: 0.1,
+                  symbol: "none"
+                }
+              ]}
+              y_axis_min={0}
+            />
+          </.card_section>
+        </.card>
+
+        <.card title={gettext("Projects Using QA (Last 30 Days)")} icon="chart_arcs">
+          <.card_section>
+            <.chart
+              id="projects-usage-chart"
+              type="line"
+              extra_options={
+                %{
+                  grid: %{
+                    width: "97%",
+                    left: "0.4%",
+                    height: "88%",
+                    top: "5%"
+                  },
+                  xAxis: %{
+                    boundaryGap: false,
+                    axisLabel: %{
+                      color: "var:noora-surface-label-secondary"
+                    }
+                  },
+                  yAxis: %{
+                    splitNumber: 4,
+                    splitLine: %{
+                      lineStyle: %{
+                        color: "var:noora-chart-lines"
+                      }
+                    },
+                    axisLabel: %{
+                      color: "var:noora-surface-label-secondary"
+                    }
+                  },
+                  legend: %{
+                    show: false
+                  }
+                }
+              }
+              series={[
+                %{
+                  color: "var:noora-chart-secondary",
+                  data: @projects_usage_chart_data,
+                  name: gettext("Projects"),
+                  type: "line",
+                  smooth: 0.1,
+                  symbol: "none"
+                }
+              ]}
+              y_axis_min={0}
+            />
+          </.card_section>
+        </.card>
       </div>
 
       <div :if={Enum.empty?(@projects_with_qa_runs)} data-part="empty-state">
@@ -81,12 +181,12 @@ defmodule TuistWeb.OpsQALive do
           latest_qa_run_status:
             fragment(
               "
-            (SELECT status 
-             FROM qa_runs 
-             JOIN app_builds ON qa_runs.app_build_id = app_builds.id 
-             JOIN previews ON app_builds.preview_id = previews.id 
-             WHERE previews.project_id = ? 
-             ORDER BY qa_runs.inserted_at DESC 
+            (SELECT status
+             FROM qa_runs
+             JOIN app_builds ON qa_runs.app_build_id = app_builds.id
+             JOIN previews ON app_builds.preview_id = previews.id
+             WHERE previews.project_id = ?
+             ORDER BY qa_runs.inserted_at DESC
              LIMIT 1)",
               p.id
             )
@@ -95,6 +195,59 @@ defmodule TuistWeb.OpsQALive do
       )
 
     Repo.all(query)
+  end
+
+  defp get_qa_runs_chart_data do
+    thirty_days_ago = Date.add(Date.utc_today(), -30)
+    thirty_days_ago_datetime = DateTime.new!(thirty_days_ago, ~T[00:00:00], "Etc/UTC")
+
+    query =
+      from(qa in Run,
+        where: qa.inserted_at >= ^thirty_days_ago_datetime,
+        group_by: fragment("DATE(?)", qa.inserted_at),
+        select: %{
+          date: fragment("DATE(?)", qa.inserted_at),
+          count: count(qa.id)
+        },
+        order_by: [asc: fragment("DATE(?)", qa.inserted_at)]
+      )
+
+    results = Repo.all(query)
+
+    # Fill in missing dates with zero counts
+    date_range = Date.range(thirty_days_ago, Date.utc_today())
+
+    Enum.map(date_range, fn date ->
+      count =
+        Enum.find_value(results, 0, fn result ->
+          if result.date == date, do: result.count, else: false
+        end)
+
+      [Date.to_string(date), count]
+    end)
+  end
+
+  defp get_projects_usage_chart_data do
+    thirty_days_ago = Date.add(Date.utc_today(), -30)
+    thirty_days_ago_datetime = DateTime.new!(thirty_days_ago, ~T[00:00:00], "Etc/UTC")
+    date_range = Date.range(thirty_days_ago, Date.utc_today())
+
+    # Calculate cumulative unique projects for each date
+    Enum.map(date_range, fn date ->
+      date_datetime = DateTime.new!(date, ~T[23:59:59], "Etc/UTC")
+
+      query =
+        from(qa in Run,
+          join: ab in assoc(qa, :app_build),
+          join: pr in assoc(ab, :preview),
+          join: p in assoc(pr, :project),
+          where: qa.inserted_at >= ^thirty_days_ago_datetime and qa.inserted_at <= ^date_datetime,
+          select: count(p.id, :distinct)
+        )
+
+      count = Repo.one(query) || 0
+      [Date.to_string(date), count]
+    end)
   end
 
   defp format_datetime(%DateTime{} = datetime) do
