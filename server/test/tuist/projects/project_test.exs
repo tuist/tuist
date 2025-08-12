@@ -20,7 +20,7 @@ defmodule Tuist.ProjectTest do
 
     assert changeset.valid? == false
 
-    assert "must contain only alphanumeric characters and hyphens" in errors_on(changeset).name
+    assert "must contain only alphanumeric characters, hyphens, and underscores" in errors_on(changeset).name
   end
 
   test "name cannot contain other invalid characters" do
@@ -29,7 +29,14 @@ defmodule Tuist.ProjectTest do
 
     assert changeset.valid? == false
 
-    assert "must contain only alphanumeric characters and hyphens" in errors_on(changeset).name
+    assert "must contain only alphanumeric characters, hyphens, and underscores" in errors_on(changeset).name
+  end
+
+  test "name can contain underscores" do
+    changeset =
+      Project.create_changeset(%Project{}, %{token: "token", name: "project_name", account_id: 0})
+
+    assert changeset.valid? == true
   end
 
   describe "validation of handle validity" do
