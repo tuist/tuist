@@ -59,7 +59,7 @@ extension TuistCore.Tuist {
                 fullHandle: manifest.fullHandle
             )
             let cacheOptions = TuistCore.TuistGeneratedProjectOptions.CacheOptions.from(manifest: cacheOptions)
-            
+
             let compatibleXcodeVersions = TuistCore.CompatibleXcodeVersions.from(manifest: compatibleXcodeVersions)
             let plugins = try plugins.map { try PluginLocation.from(manifest: $0, generatorPaths: generatorPaths) }
             let swiftVersion: TSCUtility.Version?

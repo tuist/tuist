@@ -450,15 +450,15 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         var pathRunnable: XCScheme.PathRunnable?
         var defaultBuildConfiguration = BuildConfiguration.debug.name
         let target = specifiedExecutableTarget ?? defaultTarget
-        let graphTarget: GraphTarget? = if let target = target {
+        let graphTarget: GraphTarget? = if let target {
             graphTraverser.target(path: target.projectPath, name: target.name)
         } else {
             nil
         }
-                
+
         if let filePath = scheme.runAction?.filePath {
             pathRunnable = XCScheme.PathRunnable(filePath: filePath.pathString)
-        } else if let target = target  {
+        } else if let target {
             guard let graphTarget = graphTraverser.target(path: target.projectPath, name: target.name) else { return nil }
             defaultBuildConfiguration = graphTarget.project.defaultDebugBuildConfigurationName
             guard let buildableReference = try createBuildableReference(

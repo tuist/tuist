@@ -28,7 +28,7 @@ public struct Tuist: Equatable, Hashable {
 
     /// The base `URL` that points to the Tuist server.
     public let url: URL
-    
+
     /// Returns the default Tuist configuration.
     public static var `default`: Tuist {
         return Tuist(

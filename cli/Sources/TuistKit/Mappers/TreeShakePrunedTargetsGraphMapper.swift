@@ -175,7 +175,7 @@ public final class TreeShakePrunedTargetsGraphMapper: GraphMapping {
             let hasTestTargets = !(scheme.testAction?.targets ?? []).isEmpty
             let hasTestPlans = !(scheme.testAction?.testPlans ?? []).isEmpty
             let runsAFilePathExecutable = scheme.runAction?.filePath != nil
-            
+
             guard hasBuildTargets || hasTestTargets || hasTestPlans || runsAFilePathExecutable else {
                 return nil
             }

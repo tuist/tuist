@@ -1,8 +1,8 @@
 import Foundation
 import Logging
 import TuistCore
-import XcodeGraph
 import TuistSupport
+import XcodeGraph
 
 public final class AutogenerateTuistGenerateSchemeMapper: GraphMapping { // swiftlint:disable:this type_name
     private let includeGenerateScheme: Bool
@@ -19,23 +19,27 @@ public final class AutogenerateTuistGenerateSchemeMapper: GraphMapping { // swif
         graph: Graph,
         environment: MapperEnvironment
     ) async throws -> (Graph, [SideEffectDescriptor], MapperEnvironment) {
-        
         let schemes: [Scheme]
         let executablePath = Environment.current.currentExecutablePath()
         schemes = [
             Scheme(
                 name: "Generate Project",
                 shared: true,
-                runAction: RunAction(configurationName: "Debug",
-                                     attachDebugger: false,
-                                     customLLDBInitFile: nil,
-                                     executable: nil,
-                                     filePath: executablePath,
-                                     arguments: Arguments(launchArguments: [LaunchArgument(name: "generate --no-open", isEnabled: true), ]),
-                                     diagnosticsOptions: SchemeDiagnosticsOptions(),
-                                     customWorkingDirectory: graph.path,
-                                     useCustomWorkingDirectory: true),
-            )
+                runAction: RunAction(
+                    configurationName: "Debug",
+                    attachDebugger: false,
+                    customLLDBInitFile: nil,
+                    executable: nil,
+                    filePath: executablePath,
+                    arguments: Arguments(launchArguments: [LaunchArgument(
+                        name: "generate --no-open",
+                        isEnabled: true
+                    )]),
+                    diagnosticsOptions: SchemeDiagnosticsOptions(),
+                    customWorkingDirectory: graph.path,
+                    useCustomWorkingDirectory: true
+                ),
+            ),
         ]
 
         var graph = graph

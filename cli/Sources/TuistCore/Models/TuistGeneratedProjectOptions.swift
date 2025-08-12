@@ -8,7 +8,7 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
     public let generationOptions: GenerationOptions
     public let installOptions: InstallOptions
     public let cacheOptions: CacheOptions
-    
+
     public init(
         compatibleXcodeVersions: CompatibleXcodeVersions,
         swiftVersion: Version?,
@@ -96,7 +96,7 @@ extension TuistGeneratedProjectOptions {
             self.includeGenerateScheme = includeGenerateScheme
         }
     }
-    
+
     public struct CacheOptions: Codable, Equatable, Sendable, Hashable {
         public var keepSourceTargets: Bool
 
@@ -177,15 +177,15 @@ extension TuistGeneratedProjectOptions {
             )
         }
     }
-extension TuistGeneratedProjectOptions.CacheOptions {
-    public static func test(
-        keepSourceTargets: Bool = false
-    ) -> Self {
-        .init(
-            keepSourceTargets: keepSourceTargets
-        )
-    }
-}
 
+    extension TuistGeneratedProjectOptions.CacheOptions {
+        public static func test(
+            keepSourceTargets: Bool = false
+        ) -> Self {
+            .init(
+                keepSourceTargets: keepSourceTargets
+            )
+        }
+    }
 
 #endif

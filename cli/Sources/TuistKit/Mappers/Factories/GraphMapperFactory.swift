@@ -81,7 +81,10 @@ public final class GraphMapperFactory: GraphMapperFactorying {
                 buildInsightsDisabled: config.project.generatedProject?.generationOptions.buildInsightsDisabled ?? true
             )
         )
-        mappers.append(AutogenerateTuistGenerateSchemeMapper(includeGenerateScheme: config.project.generatedProject?.generationOptions.includeGenerateScheme ?? false))
+        mappers
+            .append(AutogenerateTuistGenerateSchemeMapper(includeGenerateScheme: config.project.generatedProject?
+                    .generationOptions.includeGenerateScheme ?? false
+            ))
         return mappers
     }
 }
@@ -112,7 +115,10 @@ public final class GraphMapperFactory: GraphMapperFactorying {
                     buildInsightsDisabled: config.project.generatedProject?.generationOptions.buildInsightsDisabled ?? true
                 )
             )
-            mappers.append(AutogenerateTuistGenerateSchemeMapper(includeGenerateScheme: config.project.generatedProject?.generationOptions.includeGenerateScheme ?? false))
+            mappers
+                .append(AutogenerateTuistGenerateSchemeMapper(includeGenerateScheme: config.project.generatedProject?
+                        .generationOptions.includeGenerateScheme ?? false
+                ))
 
             mappers.append(ModuleMapMapper())
             mappers.append(ExternalProjectsPlatformNarrowerGraphMapper())
@@ -163,7 +169,10 @@ public final class GraphMapperFactory: GraphMapperFactorying {
                     buildInsightsDisabled: config.project.generatedProject?.generationOptions.buildInsightsDisabled ?? true
                 )
             )
-            mappers.append(AutogenerateTuistGenerateSchemeMapper(includeGenerateScheme: config.project.generatedProject?.generationOptions.includeGenerateScheme ?? false))
+            mappers
+                .append(AutogenerateTuistGenerateSchemeMapper(includeGenerateScheme: config.project.generatedProject?
+                        .generationOptions.includeGenerateScheme ?? false
+                ))
             return mappers
         }
 
@@ -202,7 +211,10 @@ public final class GraphMapperFactory: GraphMapperFactorying {
                     buildInsightsDisabled: config.project.generatedProject?.generationOptions.buildInsightsDisabled ?? true
                 )
             )
-            mappers.append(AutogenerateTuistGenerateSchemeMapper(includeGenerateScheme: config.project.generatedProject?.generationOptions.includeGenerateScheme ?? false))
+            mappers
+                .append(AutogenerateTuistGenerateSchemeMapper(includeGenerateScheme: config.project.generatedProject?
+                        .generationOptions.includeGenerateScheme ?? false
+                ))
             return mappers
         }
 
@@ -233,7 +245,10 @@ public final class GraphMapperFactory: GraphMapperFactorying {
                     buildInsightsDisabled: config.project.generatedProject?.generationOptions.buildInsightsDisabled ?? true
                 )
             )
-            mappers.append(AutogenerateTuistGenerateSchemeMapper(includeGenerateScheme: config.project.generatedProject?.generationOptions.includeGenerateScheme ?? false))
+            mappers
+                .append(AutogenerateTuistGenerateSchemeMapper(includeGenerateScheme: config.project.generatedProject?
+                        .generationOptions.includeGenerateScheme ?? false
+                ))
 
             mappers.append(ModuleMapMapper())
             mappers.append(UpdateWorkspaceProjectsGraphMapper())
@@ -250,8 +265,11 @@ public final class GraphMapperFactory: GraphMapperFactorying {
                     buildInsightsDisabled: config.project.generatedProject?.generationOptions.buildInsightsDisabled ?? true
                 )
             )
-            mappers.append(AutogenerateTuistGenerateSchemeMapper(includeGenerateScheme: config.project.generatedProject?.generationOptions.includeGenerateScheme ?? false))
-            
+            mappers
+                .append(AutogenerateTuistGenerateSchemeMapper(includeGenerateScheme: config.project.generatedProject?
+                        .generationOptions.includeGenerateScheme ?? false
+                ))
+
             return mappers
         }
 
@@ -273,7 +291,7 @@ public final class GraphMapperFactory: GraphMapperFactorying {
                 configuration: configuration,
                 cacheStorage: cacheStorage
             ))
-            
+
             mappers.append(ModuleMapMapper())
             mappers.append(UpdateWorkspaceProjectsGraphMapper())
             mappers.append(ExternalProjectsPlatformNarrowerGraphMapper())
@@ -289,8 +307,11 @@ public final class GraphMapperFactory: GraphMapperFactorying {
                     buildInsightsDisabled: config.project.generatedProject?.generationOptions.buildInsightsDisabled ?? true
                 )
             )
-            mappers.append(AutogenerateTuistGenerateSchemeMapper(includeGenerateScheme: config.project.generatedProject?.generationOptions.includeGenerateScheme ?? false))
-            
+            mappers
+                .append(AutogenerateTuistGenerateSchemeMapper(includeGenerateScheme: config.project.generatedProject?
+                        .generationOptions.includeGenerateScheme ?? false
+                ))
+
             return mappers
         }
 
