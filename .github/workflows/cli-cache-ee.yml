@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - .github/workflows/cli-cache-ee.yml
+      - mise/tasks/cli/ee.sh
       - "cli/TuistCacheEE"
       - "cli/TuistCacheEE/**"
       - "cli/Sources/**"
@@ -20,6 +21,7 @@ on:
   pull_request:
     paths:
       - .github/workflows/cli-cache-ee.yml
+      - mise/tasks/cli/ee.sh
       - "cli/TuistCacheEE"
       - "cli/TuistCacheEE/**"
       - "cli/Sources/**"
@@ -44,6 +46,7 @@ env:
   TUIST_CONFIG_TOKEN: ${{ secrets.TUIST_CONFIG_TOKEN }}
   MISE_SOPS_AGE_KEY: ${{ secrets.MISE_SOPS_AGE_KEY }}
   GITHUB_TOKEN: ${{ secrets.TUIST_GITHUB_TOKEN }}
+  TUIST_GITHUB_TOKEN: ${{ secrets.TUIST_GITHUB_TOKEN }}
 
 concurrency:
   group: cli-cache-ee-${{ github.head_ref }}
