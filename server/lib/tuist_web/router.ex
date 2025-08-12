@@ -1,6 +1,5 @@
 defmodule TuistWeb.Router do
   use TuistWeb, :router
-  use ErrorTracker.Web, :router
 
   import Oban.Web.Router
   import Phoenix.LiveDashboard.Router
@@ -411,13 +410,6 @@ defmodule TuistWeb.Router do
         style: :csp_nonce,
         script: :csp_nonce
       }
-
-    error_tracker_dashboard("/errors",
-      on_mount: [
-        {TuistWeb.Authentication, :ensure_authenticated},
-        {TuistWeb.Authorization, [:current_user, :read, :ops]}
-      ]
-    )
 
     live_session :ops_qa,
       layout: {TuistWeb.Layouts, :ops},

@@ -342,7 +342,3 @@ config :tuist, Tuist.PromEx,
     auth_strategy: :none
   ]
 
-# Error tracker
-if not Tuist.Environment.tuist_hosted?() do
-  config :error_tracker, enabled: true
-end
