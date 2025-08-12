@@ -5,8 +5,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/YIshihara11201/MySPMPlugin",
       "state" : {
-        "revision" : "82e649381762c02253f2168688ece3e68b14a7b6",
-        "version" : "1.0.1"
+        "revision" : "43bb5dd40aa14ece5512b2cbdfb7e20504f4cdaa",
+        "version" : "1.0.4"
       }
     }
   ],
