@@ -15,6 +15,7 @@ struct XCConfigContentHasherTests {
 
     private var sourceFile1Path: AbsolutePath!
     private var sourceFile2Path: AbsolutePath!
+    private var sourceFile3Path: AbsolutePath!
 
     init() throws {
         contentHasher = .init()
@@ -24,6 +25,7 @@ struct XCConfigContentHasherTests {
 
         sourceFile1Path = temporaryDirectory.appending(component: "xcconfigFile1.xcconfig")
         sourceFile2Path = temporaryDirectory.appending(component: "xcconfigFile2.xcconfig")
+        sourceFile3Path = temporaryDirectory.appending(component: "xcconfigFile3.xcconfig")
 
         given(contentHasher)
             .hash(Parameter<String>.any)
@@ -106,17 +108,24 @@ struct XCConfigContentHasherTests {
         )
         try await fileSystem.writeText(
             """
-            #include "xcconfigFile1.xcconfig"
+            #include "xcconfigFile3.xcconfig"
             xcconfigFile2
             """,
             at: sourceFile2Path
+        )
+        try await fileSystem.writeText(
+            """
+            #include "xcconfigFile1.xcconfig"
+            xcconfigFile3
+            """,
+            at: sourceFile3Path
         )
 
         // Then
         await #expect(
             throws: XCConfigContentHasherError.recursiveIncludeInXCConfigDetected(
-                path: sourceFile2Path,
-                includedPath: sourceFile1Path
+                path: sourceFile1Path,
+                includedPaths: [sourceFile1Path, sourceFile2Path, sourceFile3Path, sourceFile1Path]
             ),
             performing: {
                 try await subject.hash(path: sourceFile1Path)

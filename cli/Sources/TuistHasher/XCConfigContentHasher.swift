@@ -1,8 +1,9 @@
 import FileSystem
 import Foundation
 import Mockable
+import OrderedSet
 import Path
-import TSCBasic
+import struct TSCBasic.RegEx
 import TuistCore
 import TuistSupport
 
@@ -11,19 +12,14 @@ public protocol XCConfigContentHashing {
     func hash(path: Path.AbsolutePath) async throws -> String
 }
 
-enum XCConfigContentHasherError: FatalError, Equatable {
-    case recursiveIncludeInXCConfigDetected(path: Path.AbsolutePath, includedPath: Path.AbsolutePath)
+enum XCConfigContentHasherError: LocalizedError, Equatable {
+    case recursiveIncludeInXCConfigDetected(path: Path.AbsolutePath, includedPaths: [Path.AbsolutePath])
 
-    var description: String {
+    var errorDescription: String? {
         switch self {
-        case let .recursiveIncludeInXCConfigDetected(path, includedPath):
-            return "Detected recursive include in XCConfig at path - `\(path)`. Included path - `\(includedPath)`"
-        }
-    }
-
-    var type: ErrorType {
-        switch self {
-        case .recursiveIncludeInXCConfigDetected: return .abort
+        case let .recursiveIncludeInXCConfigDetected(path, includedPaths):
+            let includes = includedPaths.map { "`\($0.pathString)`" }.joined(separator: " -> ")
+            return "The .xcconfig file at path `\(path.pathString)` includes itself recursively: \(includes)"
         }
     }
 }
@@ -47,7 +43,10 @@ public struct XCConfigContentHasher: XCConfigContentHashing {
         try await hash(path: path, processedPaths: [path])
     }
 
-    private func hash(path: Path.AbsolutePath, processedPaths: Set<Path.AbsolutePath>) async throws -> String {
+    private func hash(
+        path: Path.AbsolutePath,
+        processedPaths: OrderedSet<Path.AbsolutePath>,
+    ) async throws -> String {
         let source = try await fileSystem.readTextFile(at: path)
 
         let pattern = "#include\\s*\"([^'\"]+)\""
@@ -58,11 +57,14 @@ public struct XCConfigContentHasher: XCConfigContentHashing {
         for include in includes {
             let includePath = try Path.AbsolutePath(validating: include, relativeTo: path.parentDirectory)
 
-            if processedPaths.contains(includePath) {
-                throw XCConfigContentHasherError.recursiveIncludeInXCConfigDetected(path: path, includedPath: includePath)
+            if let index = processedPaths.firstIndex(of: includePath) {
+                throw XCConfigContentHasherError.recursiveIncludeInXCConfigDetected(
+                    path: includePath,
+                    includedPaths: processedPaths[index...] + [includePath]
+                )
             }
 
-            let hash = try await hash(path: includePath, processedPaths: processedPaths.union([includePath]))
+            let hash = try await hash(path: includePath, processedPaths: processedPaths.union(with: [includePath]))
             xcconfigHash += hash
         }
 
