@@ -12,7 +12,6 @@ public struct ServerBundle: Codable {
     public let gitCommitSha: String?
     public let gitRef: String?
     public let insertedAt: Date
-    public let updatedAt: Date
     public let uploadedByAccount: String
     public let artifacts: [ServerBundleArtifact]
     public let url: String
@@ -29,7 +28,7 @@ public struct ServerBundle: Codable {
         gitCommitSha: String?,
         gitRef: String?,
         insertedAt: Date,
-        updatedAt: Date,
+        updatedAt _: Date,
         uploadedByAccount: String,
         artifacts: [ServerBundleArtifact],
         url: String
@@ -45,7 +44,6 @@ public struct ServerBundle: Codable {
         self.gitCommitSha = gitCommitSha
         self.gitRef = gitRef
         self.insertedAt = insertedAt
-        self.updatedAt = updatedAt
         self.uploadedByAccount = uploadedByAccount
         self.artifacts = artifacts
         self.url = url
@@ -56,35 +54,16 @@ public struct ServerBundle: Codable {
         name = bundle.name
         appBundleId = bundle.app_bundle_id
         version = bundle.version
-        supportedPlatforms = bundle.supported_platforms
+        supportedPlatforms = bundle.supported_platforms.map(\.rawValue)
         installSize = bundle.install_size
         downloadSize = bundle.download_size
         gitBranch = bundle.git_branch
         gitCommitSha = bundle.git_commit_sha
         gitRef = bundle.git_ref
         insertedAt = bundle.inserted_at
-        updatedAt = bundle.updated_at
         uploadedByAccount = bundle.uploaded_by_account
-        artifacts = bundle.artifacts.compactMap { ServerBundleArtifact($0) }
+        artifacts = bundle.artifacts?.compactMap { ServerBundleArtifact($0) } ?? []
         url = bundle.url
-    }
-
-    init?(_ bundleList: Components.Schemas.BundleList) {
-        id = bundleList.id
-        name = bundleList.name
-        appBundleId = bundleList.app_bundle_id
-        version = bundleList.version
-        supportedPlatforms = bundleList.supported_platforms
-        installSize = bundleList.install_size
-        downloadSize = bundleList.download_size
-        gitBranch = bundleList.git_branch
-        gitCommitSha = bundleList.git_commit_sha
-        gitRef = bundleList.git_ref
-        insertedAt = bundleList.inserted_at
-        updatedAt = bundleList.updated_at
-        uploadedByAccount = bundleList.uploaded_by_account
-        artifacts = [] // BundleList doesn't include artifacts
-        url = bundleList.url
     }
 }
 
