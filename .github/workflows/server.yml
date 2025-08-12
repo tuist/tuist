@@ -146,14 +146,18 @@ jobs:
         run: mix esbuild.install
       - name: Check esbuild output
         run: |
-          # Capture both stdout and stderr, filter out known non-warning messages
-          output=$(mix esbuild app --log-level=warning 2>&1 | grep -v "^==> " | grep -v "^Compiling" | grep -v "^Generated" | grep -v "Downloading esbuild")
-          if [ -z "$output" ]; then
+          # Run esbuild and capture output
+          output=$(mix esbuild app --log-level=warning 2>&1 || true)
+          
+          # Filter out known non-warning messages
+          warnings=$(echo "$output" | grep -v "^==> " | grep -v "^Compiling" | grep -v "^Generated" | grep -v "Downloading esbuild" | grep -v "^$" || true)
+          
+          if [ -z "$warnings" ]; then
             echo "No esbuild warnings detected."
             exit 0
           else
             echo "::error title=esbuild warnings detected::asset build has warnings."
-            echo "$output"
+            echo "$warnings"
             exit 1
           fi
   security:
