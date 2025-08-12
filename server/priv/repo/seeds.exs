@@ -7,6 +7,8 @@ alias Tuist.CommandEvents.Clickhouse.Event
 alias Tuist.IngestRepo
 alias Tuist.Projects
 alias Tuist.Projects.Project
+alias Tuist.QA
+alias Tuist.QA.Run
 alias Tuist.Repo
 alias Tuist.Runs.Build
 alias Tuist.Xcode
@@ -406,3 +408,87 @@ Enum.each(test_previews, fn preview_attrs ->
     Repo.insert!(app_build_changeset)
   end)
 end)
+
+# Create QA runs for some of the app builds
+app_builds = AppBuild |> Repo.all() |> Repo.preload(preview: :project)
+
+qa_prompts = [
+  "Test the main app flow and login functionality",
+  "Verify that all buttons work correctly and navigation is smooth",
+  "Check if the app handles edge cases properly",
+  "Test the user registration and onboarding process",
+  "Validate the app's performance under various conditions",
+  "Test accessibility features and VoiceOver support",
+  "Verify dark mode and light mode switching",
+  "Test the payment flow and subscription features",
+  "Check if push notifications work correctly",
+  "Test offline functionality and data synchronization"
+]
+
+qa_statuses = ["pending", "running", "completed", "failed"]
+
+qa_summaries = [
+  "All tests passed successfully. The app flows work as expected.",
+  "Found minor UI issues in the onboarding flow. Overall functionality is good.",
+  "Critical bug discovered in the payment process. Needs immediate attention.",
+  "App performance is excellent. All accessibility features work correctly.",
+  "Login functionality has some edge case issues that need addressing.",
+  "Great user experience overall. Minor improvements suggested for navigation.",
+  "App crashes when handling large datasets. Memory optimization needed.",
+  "Perfect implementation of dark mode. All UI elements adapt correctly.",
+  "Push notifications work but delivery timing could be improved.",
+  "Offline mode works well but sync process could be faster."
+]
+
+# Take a subset of app builds to create QA runs for
+selected_app_builds = Enum.take_random(app_builds, 25)
+
+qa_runs =
+  Enum.map(selected_app_builds, fn app_build ->
+    status = Enum.random(qa_statuses)
+    prompt = Enum.random(qa_prompts)
+
+    # Only add summary for completed or failed runs
+    summary =
+      if status in ["completed", "failed"] do
+        Enum.random(qa_summaries)
+      end
+
+    # Generate some git metadata
+    git_refs = ["main", "develop", "feature/new-ui", "feature/qa-testing", "release/v1.2.0"]
+    vcs_providers = [:github]
+
+    repository_handles = [
+      "tuist/tuist",
+      "tuist/example-app",
+      "tuist/ios-sample",
+      "company/mobile-app",
+      "org/customer-app"
+    ]
+
+    inserted_at =
+      DateTime.new!(
+        Date.add(DateTime.utc_now(), -Enum.random(0..30)),
+        Time.new!(
+          Enum.random(0..23),
+          Enum.random(0..59),
+          Enum.random(0..59)
+        )
+      )
+
+    %{
+      id: UUIDv7.generate(),
+      app_build_id: app_build.id,
+      prompt: prompt,
+      status: status,
+      summary: summary,
+      vcs_repository_full_handle: Enum.random(repository_handles),
+      vcs_provider: Enum.random(vcs_providers),
+      git_ref: Enum.random(git_refs),
+      issue_comment_id: if(Enum.random([true, false]), do: Enum.random(1000..9999)),
+      inserted_at: inserted_at,
+      updated_at: inserted_at
+    }
+  end)
+
+Repo.insert_all(Run, qa_runs)
