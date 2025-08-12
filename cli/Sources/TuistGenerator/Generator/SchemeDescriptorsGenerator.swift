@@ -79,7 +79,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         graphTraverser: GraphTraversing
     ) throws -> [SchemeDescriptor] {
         let schemes = try workspace.schemes.map { scheme in
-            try generateScheme(
+            return try generateScheme(
                 scheme: scheme,
                 path: workspace.xcWorkspacePath.parentDirectory,
                 graphTraverser: graphTraverser,
@@ -444,16 +444,21 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
     ) throws -> XCScheme.LaunchAction? {
         let specifiedExecutableTarget = scheme.runAction?.executable
         let defaultTarget = defaultTargetReference(scheme: scheme)
-        guard let target = specifiedExecutableTarget ?? defaultTarget else { return nil }
 
         var buildableProductRunnable: XCScheme.BuildableProductRunnable?
         var macroExpansion: XCScheme.BuildableReference?
         var pathRunnable: XCScheme.PathRunnable?
         var defaultBuildConfiguration = BuildConfiguration.debug.name
-
+        let target = specifiedExecutableTarget ?? defaultTarget
+        let graphTarget: GraphTarget? = if let target = target {
+            graphTraverser.target(path: target.projectPath, name: target.name)
+        } else {
+            nil
+        }
+                
         if let filePath = scheme.runAction?.filePath {
             pathRunnable = XCScheme.PathRunnable(filePath: filePath.pathString)
-        } else {
+        } else if let target = target  {
             guard let graphTarget = graphTraverser.target(path: target.projectPath, name: target.name) else { return nil }
             defaultBuildConfiguration = graphTarget.project.defaultDebugBuildConfigurationName
             guard let buildableReference = try createBuildableReference(
@@ -544,8 +549,6 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             }
         }
 
-        let graphTarget = graphTraverser.target(path: target.projectPath, name: target.name)
-
         let customLLDBInitFilePath: RelativePath?
         if let customLLDBInitFile = scheme.runAction?.customLLDBInitFile,
            let graphTarget
@@ -616,7 +619,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
 
         let appClipInvocationURLString = scheme.runAction?.appClipInvocationURL?.absoluteString
 
-        return XCScheme.LaunchAction(
+        let xcScheme = XCScheme.LaunchAction(
             runnable: pathRunnable ?? buildableProductRunnable,
             buildConfiguration: buildConfiguration,
             preActions: preActions,
@@ -626,6 +629,8 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             selectedLauncherIdentifier: launcherIdentifier,
             launchStyle: launchStyle,
             askForAppToLaunch: launchActionConstants.askForAppToLaunch,
+            customWorkingDirectory: scheme.runAction?.customWorkingDirectory?.pathString,
+            useCustomWorkingDirectory: scheme.runAction?.useCustomWorkingDirectory ?? false,
             locationScenarioReference: locationScenarioReference,
             enableGPUFrameCaptureMode: enableGPUFrameCaptureMode,
             disableGPUValidationMode: disableGPUValidationMode,
@@ -646,6 +651,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             customLLDBInitFile: customLLDBInitFilePath.map { "$(SRCROOT)/\($0.pathString)" },
             appClipInvocationURLString: appClipInvocationURLString
         )
+        return xcScheme
     } // swiftlint:enable function_body_length
 
     /// Generates the scheme profile action for a given target.

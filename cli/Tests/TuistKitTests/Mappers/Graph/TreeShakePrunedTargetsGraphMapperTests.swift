@@ -344,7 +344,7 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
             projects: [project.path: project]
         )
 
-        let unprunedTargets = targets.filter { !$0.prune }
+        let unprunedTargets = targets.filter { !$0.metadata.tags.contains("tuist:prunable") }
         let schemeWithUnprunedTargets = Scheme.test(
             name: "Scheme",
             buildAction: .test(targets: unprunedTargets.map { TargetReference(projectPath: path, name: $0.name) }),

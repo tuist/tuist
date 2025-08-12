@@ -71,12 +71,23 @@ final class PruneOrphanExternalTargetsGraphMapperTests: TuistUnitTestCase {
 
         // Then
 
-        XCTAssertEqual(gotGraph.projects[project.path]?.targets[app.name]?.prune, false)
-        XCTAssertEqual(gotGraph.projects[packageProject.path]?.targets[directPackageProduct.name]?.prune, false)
-        XCTAssertEqual(gotGraph.projects[packageProject.path]?.targets[transitivePackageProduct.name]?.prune, false)
-        XCTAssertEqual(gotGraph.projects[packageProject.path]?.targets[packageDevProduct.name]?.prune, true)
+        XCTAssertEqual(gotGraph.projects[project.path]?.targets[app.name]?.metadata.tags.contains("tuist:prunable"), false)
         XCTAssertEqual(
-            gotGraph.projects[packageProject.path]?.targets[transitivePackageProductWithNoDestinations.name]?.prune,
+            gotGraph.projects[packageProject.path]?.targets[directPackageProduct.name]?.metadata.tags.contains("tuist:prunable"),
+            false
+        )
+        XCTAssertEqual(
+            gotGraph.projects[packageProject.path]?.targets[transitivePackageProduct.name]?.metadata.tags
+                .contains("tuist:prunable"),
+            false
+        )
+        XCTAssertEqual(
+            gotGraph.projects[packageProject.path]?.targets[packageDevProduct.name]?.metadata.tags.contains("tuist:prunable"),
+            true
+        )
+        XCTAssertEqual(
+            gotGraph.projects[packageProject.path]?.targets[transitivePackageProductWithNoDestinations.name]?.metadata.tags
+                .contains("tuist:prunable"),
             true
         )
     }

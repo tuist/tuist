@@ -50,6 +50,9 @@ extension Tuist {
         ///   - Cause issues with manifest caching
         public var disableSandbox: Bool
 
+        /// When true, it includes a scheme to run "tuist generate"
+        public var includeGenerateScheme: Bool
+
         public static func options(
             resolveDependenciesWithSystemScm: Bool = false,
             disablePackageVersionLocking: Bool = false,
@@ -58,7 +61,8 @@ extension Tuist {
             defaultConfiguration: String? = nil,
             optionalAuthentication: Bool = false,
             buildInsightsDisabled: Bool = false,
-            disableSandbox: Bool = false
+            disableSandbox: Bool = false,
+            includeGenerateScheme: Bool = false
         ) -> Self {
             self.init(
                 resolveDependenciesWithSystemScm: resolveDependenciesWithSystemScm,
@@ -69,7 +73,8 @@ extension Tuist {
                 defaultConfiguration: defaultConfiguration,
                 optionalAuthentication: optionalAuthentication,
                 buildInsightsDisabled: buildInsightsDisabled,
-                disableSandbox: disableSandbox
+                disableSandbox: disableSandbox,
+                includeGenerateScheme: includeGenerateScheme
             )
         }
 
@@ -96,7 +101,8 @@ extension Tuist {
                 defaultConfiguration: defaultConfiguration,
                 optionalAuthentication: optionalAuthentication,
                 buildInsightsDisabled: false,
-                disableSandbox: false
+                disableSandbox: false,
+                includeGenerateScheme: false
             )
         }
     }

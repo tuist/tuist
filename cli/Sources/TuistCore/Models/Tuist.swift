@@ -28,7 +28,7 @@ public struct Tuist: Equatable, Hashable {
 
     /// The base `URL` that points to the Tuist server.
     public let url: URL
-
+    
     /// Returns the default Tuist configuration.
     public static var `default`: Tuist {
         return Tuist(
@@ -91,6 +91,16 @@ public struct InspectOptions: Codable, Equatable, Hashable, Sendable {
         redundantDependencies: RedundantDependencies
     ) {
         self.redundantDependencies = redundantDependencies
+    }
+}
+
+public struct CacheOptions: Codable, Equatable, Hashable, Sendable {
+    public var keepSourceTargets: Bool
+
+    public init(
+        keepSourceTargets: Bool = false
+    ) {
+        self.keepSourceTargets = keepSourceTargets
     }
 }
 

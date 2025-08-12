@@ -7,19 +7,22 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
     public let plugins: [PluginLocation]
     public let generationOptions: GenerationOptions
     public let installOptions: InstallOptions
-
+    public let cacheOptions: CacheOptions
+    
     public init(
         compatibleXcodeVersions: CompatibleXcodeVersions,
         swiftVersion: Version?,
         plugins: [PluginLocation],
         generationOptions: GenerationOptions,
-        installOptions: InstallOptions
+        installOptions: InstallOptions,
+        cacheOptions: CacheOptions
     ) {
         self.compatibleXcodeVersions = compatibleXcodeVersions
         self.swiftVersion = swiftVersion
         self.plugins = plugins
         self.generationOptions = generationOptions
         self.installOptions = installOptions
+        self.cacheOptions = cacheOptions
     }
 
     public func hash(into hasher: inout Hasher) {
@@ -28,6 +31,7 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
         hasher.combine(plugins)
         hasher.combine(generationOptions)
         hasher.combine(installOptions)
+        hasher.combine(cacheOptions)
     }
 
     public static var `default`: Self {
@@ -40,9 +44,11 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
                 disablePackageVersionLocking: false,
                 staticSideEffectsWarningTargets: .all,
                 buildInsightsDisabled: true,
-                disableSandbox: false
+                disableSandbox: false,
+                includeGenerateScheme: false
             ),
-            installOptions: .init(passthroughSwiftPackageManagerArguments: [])
+            installOptions: .init(passthroughSwiftPackageManagerArguments: []),
+            cacheOptions: CacheOptions(keepSourceTargets: false)
         )
     }
 }
@@ -64,6 +70,7 @@ extension TuistGeneratedProjectOptions {
         public var optionalAuthentication: Bool
         public let buildInsightsDisabled: Bool
         public let disableSandbox: Bool
+        public let includeGenerateScheme: Bool
 
         public init(
             resolveDependenciesWithSystemScm: Bool,
@@ -74,7 +81,8 @@ extension TuistGeneratedProjectOptions {
             defaultConfiguration: String? = nil,
             optionalAuthentication: Bool = false,
             buildInsightsDisabled: Bool,
-            disableSandbox: Bool
+            disableSandbox: Bool,
+            includeGenerateScheme: Bool
         ) {
             self.resolveDependenciesWithSystemScm = resolveDependenciesWithSystemScm
             self.disablePackageVersionLocking = disablePackageVersionLocking
@@ -85,6 +93,17 @@ extension TuistGeneratedProjectOptions {
             self.optionalAuthentication = optionalAuthentication
             self.buildInsightsDisabled = buildInsightsDisabled
             self.disableSandbox = disableSandbox
+            self.includeGenerateScheme = includeGenerateScheme
+        }
+    }
+    
+    public struct CacheOptions: Codable, Equatable, Sendable, Hashable {
+        public var keepSourceTargets: Bool
+
+        public init(
+            keepSourceTargets: Bool = false
+        ) {
+            self.keepSourceTargets = keepSourceTargets
         }
     }
 
@@ -106,14 +125,16 @@ extension TuistGeneratedProjectOptions {
             swiftVersion: Version? = nil,
             plugins: [PluginLocation] = [],
             generationOptions: GenerationOptions = .test(),
-            installOptions: InstallOptions = .test()
+            installOptions: InstallOptions = .test(),
+            cacheOptions: CacheOptions = .test()
         ) -> Self {
             return .init(
                 compatibleXcodeVersions: compatibleXcodeVersions,
                 swiftVersion: swiftVersion,
                 plugins: plugins,
                 generationOptions: generationOptions,
-                installOptions: installOptions
+                installOptions: installOptions,
+                cacheOptions: cacheOptions
             )
         }
     }
@@ -129,7 +150,8 @@ extension TuistGeneratedProjectOptions {
             defaultConfiguration: String? = nil,
             optionalAuthentication: Bool = false,
             buildInsightsDisabled: Bool = true,
-            disableSandbox: Bool = false
+            disableSandbox: Bool = false,
+            includeGenerateScheme: Bool = false
         ) -> Self {
             .init(
                 resolveDependenciesWithSystemScm: resolveDependenciesWithSystemScm,
@@ -140,7 +162,8 @@ extension TuistGeneratedProjectOptions {
                 defaultConfiguration: defaultConfiguration,
                 optionalAuthentication: optionalAuthentication,
                 buildInsightsDisabled: buildInsightsDisabled,
-                disableSandbox: disableSandbox
+                disableSandbox: disableSandbox,
+                includeGenerateScheme: includeGenerateScheme
             )
         }
     }
@@ -154,4 +177,15 @@ extension TuistGeneratedProjectOptions {
             )
         }
     }
+extension TuistGeneratedProjectOptions.CacheOptions {
+    public static func test(
+        keepSourceTargets: Bool = false
+    ) -> Self {
+        .init(
+            keepSourceTargets: keepSourceTargets
+        )
+    }
+}
+
+
 #endif

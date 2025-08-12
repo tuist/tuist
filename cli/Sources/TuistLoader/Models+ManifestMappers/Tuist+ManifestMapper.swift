@@ -49,7 +49,8 @@ extension TuistCore.Tuist {
             manifestSwiftVersion,
             plugins,
             generationOptions,
-            installOptions
+            installOptions,
+            cacheOptions
         ):
             let generatorPaths = GeneratorPaths(manifestDirectory: path, rootDirectory: rootDirectory)
             let generationOptions = try TuistCore.TuistGeneratedProjectOptions.GenerationOptions.from(
@@ -57,6 +58,8 @@ extension TuistCore.Tuist {
                 generatorPaths: generatorPaths,
                 fullHandle: manifest.fullHandle
             )
+            let cacheOptions = TuistCore.TuistGeneratedProjectOptions.CacheOptions.from(manifest: cacheOptions)
+            
             let compatibleXcodeVersions = TuistCore.CompatibleXcodeVersions.from(manifest: compatibleXcodeVersions)
             let plugins = try plugins.map { try PluginLocation.from(manifest: $0, generatorPaths: generatorPaths) }
             let swiftVersion: TSCUtility.Version?
@@ -77,7 +80,8 @@ extension TuistCore.Tuist {
                         swiftVersion: swiftVersion.map { .init(stringLiteral: $0.description) },
                         plugins: plugins,
                         generationOptions: generationOptions,
-                        installOptions: installOptions
+                        installOptions: installOptions,
+                        cacheOptions: cacheOptions
                     )
                 ),
                 fullHandle: fullHandle,

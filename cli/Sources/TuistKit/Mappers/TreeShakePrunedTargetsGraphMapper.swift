@@ -14,7 +14,7 @@ public final class TreeShakePrunedTargetsGraphMapper: GraphMapping {
         let sourceTargets: Set<TargetReference> = Set(
             graph.projects.flatMap { projectPath, project -> [TargetReference] in
                 return project.targets.compactMap { _, target -> TargetReference? in
-                    if target.prune { return nil }
+                    if target.metadata.tags.contains("tuist:prunable") { return nil }
                     return TargetReference(projectPath: projectPath, name: target.name)
                 }
             }
@@ -174,7 +174,9 @@ public final class TreeShakePrunedTargetsGraphMapper: GraphMapping {
             let hasBuildTargets = !(scheme.buildAction?.targets ?? []).isEmpty
             let hasTestTargets = !(scheme.testAction?.targets ?? []).isEmpty
             let hasTestPlans = !(scheme.testAction?.testPlans ?? []).isEmpty
-            guard hasBuildTargets || hasTestTargets || hasTestPlans else {
+            let runsAFilePathExecutable = scheme.runAction?.filePath != nil
+            
+            guard hasBuildTargets || hasTestTargets || hasTestPlans || runsAFilePathExecutable else {
                 return nil
             }
 
