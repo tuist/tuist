@@ -19,6 +19,7 @@ on:
       - "Tuist/**"
   pull_request:
     paths:
+      - .github/workflows/cli-cache-ee.yml
       - "cli/TuistCacheEE"
       - "cli/TuistCacheEE/**"
       - "cli/Sources/**"
