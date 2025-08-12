@@ -1,9 +1,10 @@
 import Foundation
-import MyMacro
 
 //import Buildable
 //import ComposableArchitecture
 //import Buildable
+//import MyMacro
+import MySPMPlugin
 
 #stringify(3+4)
 #stringify(3 + 100)
