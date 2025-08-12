@@ -149,11 +149,14 @@ defmodule Tuist.Namespace do
   end
 
   @doc """
-  Deletes an instance.
+  Destroys an instance.
   """
-  def delete_instance(instance_id, tenant_token) do
-    compute_request(&Req.delete/1,
-      url: "#{@base_compute_url}/v1beta/compute/instances/#{instance_id}",
+  def destroy_instance(instance_id, tenant_token) do
+    compute_request(&Req.post/1,
+      url: "#{@base_compute_url}/DestroyInstance",
+      json: %{
+        "instance_id" => instance_id
+      },
       tenant_token: tenant_token
     )
   end

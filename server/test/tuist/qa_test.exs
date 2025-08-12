@@ -69,14 +69,18 @@ defmodule Tuist.QATest do
       end)
 
       expect(Tuist.Namespace, :create_instance_with_ssh_connection, fn "test-tenant-123" ->
-        {:ok, %{
-          ssh_connection: %{},
-          instance: %{id: "instance-123"},
-          tenant_token: "tenant-token-456"
-        }}
+        {:ok,
+         %{
+           ssh_connection: %{},
+           instance: %{id: "instance-123"},
+           tenant_token: "tenant-token-456"
+         }}
       end)
 
-      expect(Tuist.SSHClient, :transfer_file, fn _ssh_connection, "/app/bin/qa", "/usr/local/bin/qa", permissions: 0o100755 ->
+      expect(Tuist.SSHClient, :transfer_file, fn _ssh_connection,
+                                                 "/app/bin/qa",
+                                                 "/usr/local/bin/qa",
+                                                 [permissions: 0o100755] ->
         :ok
       end)
 
@@ -89,7 +93,7 @@ defmodule Tuist.QATest do
         {:ok, "QA test completed successfully"}
       end)
 
-      expect(Tuist.Namespace, :delete_instance, fn "instance-123", "tenant-token-456" ->
+      expect(Tuist.Namespace, :destroy_instance, fn "instance-123", "tenant-token-456" ->
         :ok
       end)
 
@@ -120,14 +124,18 @@ defmodule Tuist.QATest do
       expect(Tuist.Environment, :namespace_enabled?, fn -> true end)
 
       expect(Tuist.Namespace, :create_instance_with_ssh_connection, fn "existing-tenant-456" ->
-        {:ok, %{
-          ssh_connection: %{},
-          instance: %{id: "instance-789"},
-          tenant_token: "tenant-token-789"
-        }}
+        {:ok,
+         %{
+           ssh_connection: %{},
+           instance: %{id: "instance-789"},
+           tenant_token: "tenant-token-789"
+         }}
       end)
 
-      expect(Tuist.SSHClient, :transfer_file, fn _ssh_connection, "/app/bin/qa", "/usr/local/bin/qa", permissions: 0o100755 ->
+      expect(Tuist.SSHClient, :transfer_file, fn _ssh_connection,
+                                                 "/app/bin/qa",
+                                                 "/usr/local/bin/qa",
+                                                 [permissions: 0o100755] ->
         :ok
       end)
 
@@ -135,7 +143,7 @@ defmodule Tuist.QATest do
         {:ok, "QA test completed successfully"}
       end)
 
-      expect(Tuist.Namespace, :delete_instance, fn "instance-789", "tenant-token-789" ->
+      expect(Tuist.Namespace, :destroy_instance, fn "instance-789", "tenant-token-789" ->
         :ok
       end)
 
@@ -167,7 +175,7 @@ defmodule Tuist.QATest do
       expect(Agent, :test, fn attrs, opts ->
         assert attrs.preview_url == "https://example.com/preview.zip"
         assert attrs.prompt == prompt
-        assert opts[:anthropic_api_key] != nil
+        assert opts[:anthropic_api_key]
         :ok
       end)
 

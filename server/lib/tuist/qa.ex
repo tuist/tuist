@@ -85,7 +85,7 @@ defmodule Tuist.QA do
            Namespace.create_instance_with_ssh_connection(account_with_tenant.tenant_id),
          :ok <- SSHClient.transfer_file(ssh_connection, "/app/bin/qa", "/usr/local/bin/qa", permissions: 0o100755),
          {:ok, _} <- SSHClient.run_command(ssh_connection, qa_script(attrs)) do
-      Namespace.delete_instance(instance.id, tenant_token)
+      Namespace.destroy_instance(instance.id, tenant_token)
     end
   end
 

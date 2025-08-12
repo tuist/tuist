@@ -150,7 +150,7 @@ defmodule Tuist.NamespaceTest do
         {:ok, "test-jwt-token"}
       end)
 
-      assert {:ok, unexpected_response} == Namespace.issue_tenant_token("tuist-qa", "tenant-123")
+      assert {:ok, unexpected_response} == Namespace.issue_tenant_token("tenant-123", "tuist-qa")
     end
   end
 
@@ -220,11 +220,10 @@ defmodule Tuist.NamespaceTest do
         ~U[2024-01-01 12:00:00Z]
       end)
 
-      Mimic.expect(DateTime, :add, 2, fn
-        datetime, minutes, :minute ->
-          assert datetime == ~U[2024-01-01 12:00:00Z]
-          assert minutes == 20
-          ~U[2024-01-01 12:20:00Z]
+      Mimic.expect(DateTime, :add, 2, fn datetime, minutes, :minute ->
+        assert datetime == ~U[2024-01-01 12:00:00Z]
+        assert minutes == 20
+        ~U[2024-01-01 12:20:00Z]
       end)
 
       Mimic.expect(DateTime, :to_iso8601, fn datetime ->
@@ -284,18 +283,22 @@ defmodule Tuist.NamespaceTest do
     end
   end
 
-  describe "delete_instance/1" do
+  describe "destroy_instance/2" do
     test "successfully deletes instance" do
       instance_id = "instance-delete"
 
-      Mimic.expect(Req, :delete, fn opts ->
+      Mimic.expect(Req, :post, fn opts ->
         assert opts[:url] ==
-                 "https://eu.compute.namespaceapis.com/namespace.cloud.compute.v1beta.ComputeService/v1beta/compute/instances/#{instance_id}"
+                 "https://eu.compute.namespaceapis.com/namespace.cloud.compute.v1beta.ComputeService/DestroyInstance"
+
+        assert opts[:json] == %{
+                 "instance_id" => instance_id
+               }
 
         {:ok, %{status: 204}}
       end)
 
-      assert :ok = Namespace.delete_instance(instance_id, "test-tenant-token")
+      assert :ok = Namespace.destroy_instance(instance_id, "test-tenant-token")
     end
   end
 
