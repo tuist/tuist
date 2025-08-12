@@ -1,0 +1,72 @@
+name: Validate SwiftPM Resolution
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "Package.swift"
+      - ".gitmodules"
+      - ".github/workflows/validate-spm.yml"
+  pull_request:
+    paths:
+      - "Package.swift"
+      - ".gitmodules"
+      - ".github/workflows/validate-spm.yml"
+
+concurrency:
+  group: validate-spm-${{ github.head_ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate-external-spm:
+    name: Validate External SwiftPM Resolution
+    runs-on: macos-15
+    steps:
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_16.2.app
+      
+      - name: Create test package
+        run: |
+          mkdir test-package
+          cd test-package
+          swift package init --type executable
+          
+      - name: Add Tuist as dependency
+        run: |
+          cd test-package
+          cat > Package.swift << 'EOF'
+          // swift-tools-version: 6.0
+          import PackageDescription
+          
+          let package = Package(
+              name: "TestPackage",
+              platforms: [.macOS(.v14)],
+              dependencies: [
+                  .package(url: "https://github.com/tuist/tuist.git", branch: "${{ github.head_ref || github.ref_name }}")
+              ],
+              targets: [
+                  .executableTarget(
+                      name: "TestPackage",
+                      dependencies: []
+                  )
+              ]
+          )
+          EOF
+          
+      - name: Resolve dependencies
+        run: |
+          cd test-package
+          swift package resolve
+          
+      - name: Verify resolution succeeded
+        run: |
+          cd test-package
+          if [ -f "Package.resolved" ]; then
+            echo "✅ SwiftPM successfully resolved Tuist as a dependency"
+            echo "Package.resolved contents:"
+            cat Package.resolved
+          else
+            echo "❌ Failed to resolve Tuist as a SwiftPM dependency"
+            exit 1
+          fi
