@@ -50,9 +50,7 @@ final class BundleListCommandService: BundleListCommandServicing {
         let directoryPath: AbsolutePath = try await Environment.current.pathRelativeToWorkingDirectory(path)
 
         let config = try await configLoader.loadConfig(path: directoryPath)
-        let resolvedFullHandle = fullHandle != nil ? fullHandle! : config.fullHandle
-
-        guard let resolvedFullHandle else {
+        guard let resolvedFullHandle = fullHandle != nil ? fullHandle! : config.fullHandle else {
             throw BundleListCommandServiceError.missingFullHandle
         }
 

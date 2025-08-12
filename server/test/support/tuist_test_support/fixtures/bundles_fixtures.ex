@@ -5,6 +5,7 @@ defmodule TuistTestSupport.Fixtures.BundlesFixtures do
   """
 
   alias Tuist.Bundles
+  alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
@@ -14,16 +15,14 @@ defmodule TuistTestSupport.Fixtures.BundlesFixtures do
   def bundle_fixture(opts \\ []) do
     id = UUIDv7.generate()
     project = Keyword.get(opts, :project, ProjectsFixtures.project_fixture())
-    
-    # Get or create an account for uploaded_by_account_id
-    uploaded_by_account = case Keyword.get(opts, :uploaded_by_account) do
-      nil -> 
-        case Keyword.get(opts, :uploaded_by_user) do
-          nil -> AccountsFixtures.user_fixture(preload: [:account]).account
-          user -> user.account
-        end
-      account -> account
-    end
+    preload = Keyword.get(opts, :preload, [:uploaded_by_account])
+
+    uploaded_by_account =
+      Keyword.get(
+        opts,
+        :uploaded_by_account,
+        AccountsFixtures.user_fixture(preload: [:account]).account
+      )
 
     {:ok, bundle} =
       Bundles.create_bundle(%{
@@ -47,6 +46,6 @@ defmodule TuistTestSupport.Fixtures.BundlesFixtures do
         artifacts: Keyword.get(opts, :artifacts, [])
       })
 
-    bundle
+    Repo.preload(bundle, preload)
   end
 end

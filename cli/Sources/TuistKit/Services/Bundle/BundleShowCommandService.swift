@@ -52,9 +52,7 @@ final class BundleShowCommandService: BundleShowCommandServicing {
         let directoryPath: AbsolutePath = try await Environment.current.pathRelativeToWorkingDirectory(path)
 
         let config = try await configLoader.loadConfig(path: directoryPath)
-        let resolvedFullHandle = fullHandle != nil ? fullHandle! : config.fullHandle
-
-        guard let resolvedFullHandle else {
+        guard let resolvedFullHandle = fullHandle != nil ? fullHandle! : config.fullHandle else {
             throw BundleShowCommandServiceError.missingFullHandle
         }
 
@@ -101,28 +99,6 @@ final class BundleShowCommandService: BundleShowCommandServicing {
             info.append("Git Ref: \(gitRef)")
         }
 
-        if !bundle.artifacts.isEmpty {
-            info.append("")
-            info.append("Artifacts".bold())
-            info.append(contentsOf: formatArtifacts(bundle.artifacts))
-        }
-
         return info.joined(separator: "\n")
-    }
-
-    private func formatArtifacts(_ artifacts: [ServerBundleArtifact], depth: Int = 0) -> [String] {
-        let indent = String(repeating: "  ", count: depth)
-        var lines: [String] = []
-
-        for artifact in artifacts {
-            let size = Formatters.formatBytes(artifact.size)
-            lines.append("\(indent)• \(artifact.path) (\(artifact.artifactType)) - \(size)")
-
-            if !artifact.children.isEmpty {
-                lines.append(contentsOf: formatArtifacts(artifact.children, depth: depth + 1))
-            }
-        }
-
-        return lines
     }
 }
