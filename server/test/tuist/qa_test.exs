@@ -5,6 +5,7 @@ defmodule Tuist.QATest do
   alias Tuist.Authentication
   alias Tuist.QA
   alias Tuist.QA.Agent
+  alias Tuist.QA.Run
   alias Tuist.Repo
   alias Tuist.Storage
   alias Tuist.VCS
@@ -166,6 +167,194 @@ defmodule Tuist.QATest do
 
       # Then
       assert {:error, :not_found} = result
+    end
+  end
+
+  describe "get_qa_run_for_ops/1" do
+    test "returns QA run with project and account info when it exists" do
+      # Given
+      project = ProjectsFixtures.project_fixture(name: "TestProject")
+      preview = AppBuildsFixtures.preview_fixture(project: project)
+      app_build = AppBuildsFixtures.app_build_fixture(preview: preview)
+      qa_run = QAFixtures.qa_run_fixture(app_build: app_build, prompt: "Test prompt", status: "running")
+
+      # When
+      result = QA.get_qa_run_for_ops(qa_run.id)
+
+      # Then
+      assert %{
+               id: qa_run_id,
+               project_name: project_name,
+               account_name: account_name,
+               status: "running",
+               prompt: "Test prompt",
+               inserted_at: inserted_at
+             } = result
+
+      assert qa_run_id == qa_run.id
+      assert project_name == project.name
+      assert account_name == project.account.name
+      assert %DateTime{} = inserted_at
+    end
+
+    test "returns nil when QA run does not exist" do
+      # Given
+      non_existent_id = Ecto.UUID.generate()
+
+      # When
+      result = QA.get_qa_run_for_ops(non_existent_id)
+
+      # Then
+      assert result == nil
+    end
+  end
+
+  describe "get_qa_logs/1" do
+    test "returns empty list when no logs exist for QA run" do
+      # Given
+      qa_run = QAFixtures.qa_run_fixture()
+
+      # When
+      logs = QA.get_qa_logs(qa_run.id)
+
+      # Then
+      assert logs == []
+    end
+  end
+
+  describe "get_qa_runs_chart_data/0" do
+    test "returns chart data for last 30 days with zero fill" do
+      # Given
+      today = Date.utc_today()
+      three_days_ago = Date.add(today, -3)
+
+      qa_run = QAFixtures.qa_run_fixture()
+
+      three_days_ago_datetime = DateTime.new!(three_days_ago, ~T[12:00:00], "Etc/UTC")
+
+      Repo.update_all(from(q in Run, where: q.id == ^qa_run.id),
+        set: [inserted_at: three_days_ago_datetime]
+      )
+
+      # When
+      chart_data = QA.get_qa_runs_chart_data()
+
+      # Then
+      assert length(chart_data) == 31
+
+      three_days_ago_str = Date.to_string(three_days_ago)
+
+      three_days_ago_entry =
+        Enum.find(chart_data, fn [date, _count] ->
+          date == three_days_ago_str
+        end)
+
+      assert [^three_days_ago_str, 1] = three_days_ago_entry
+
+      today_str = Date.to_string(today)
+
+      today_entry =
+        Enum.find(chart_data, fn [date, _count] ->
+          date == today_str
+        end)
+
+      assert [^today_str, 0] = today_entry
+    end
+
+    test "returns all zeros when no QA runs in last 30 days" do
+      # When
+      chart_data = QA.get_qa_runs_chart_data()
+
+      # Then
+      assert length(chart_data) == 31
+      assert Enum.all?(chart_data, fn [_date, count] -> count == 0 end)
+    end
+  end
+
+  describe "get_projects_usage_chart_data/0" do
+    test "returns cumulative unique project counts" do
+      # Given
+      project1 = ProjectsFixtures.project_fixture()
+      project2 = ProjectsFixtures.project_fixture()
+
+      preview1 = AppBuildsFixtures.preview_fixture(project: project1)
+      preview2 = AppBuildsFixtures.preview_fixture(project: project2)
+
+      app_build1 = AppBuildsFixtures.app_build_fixture(preview: preview1)
+      app_build2 = AppBuildsFixtures.app_build_fixture(preview: preview2)
+
+      _qa_run1 = QAFixtures.qa_run_fixture(app_build: app_build1)
+      _qa_run2 = QAFixtures.qa_run_fixture(app_build: app_build2)
+
+      # When
+      chart_data = QA.get_projects_usage_chart_data()
+
+      # Then
+      assert length(chart_data) == 31
+
+      # Last day should show 2 unique projects
+      [_last_date, last_count] = List.last(chart_data)
+      assert last_count == 2
+    end
+
+    test "returns all zeros when no QA runs" do
+      # When
+      chart_data = QA.get_projects_usage_chart_data()
+
+      # Then
+      assert length(chart_data) == 31
+      assert Enum.all?(chart_data, fn [_date, count] -> count == 0 end)
+    end
+  end
+
+  describe "get_recent_qa_runs/0" do
+    test "returns recent QA runs with project info" do
+      # Given
+      project = ProjectsFixtures.project_fixture(name: "TestProject")
+      preview = AppBuildsFixtures.preview_fixture(project: project)
+      app_build = AppBuildsFixtures.app_build_fixture(preview: preview)
+
+      _qa_run1 = QAFixtures.qa_run_fixture(app_build: app_build, status: "failed", prompt: "Test prompt 1")
+      _qa_run2 = QAFixtures.qa_run_fixture(app_build: app_build, status: "completed", prompt: "Test prompt 2")
+      _qa_run3 = QAFixtures.qa_run_fixture(app_build: app_build, status: "running", prompt: "Test prompt 3")
+
+      # When
+      recent_runs = QA.get_recent_qa_runs()
+
+      # Then
+      assert length(recent_runs) == 3
+
+      # All runs should be returned regardless of status
+      statuses = Enum.map(recent_runs, & &1.status)
+      assert "failed" in statuses
+      assert "completed" in statuses
+      assert "running" in statuses
+    end
+
+    test "returns empty list when no QA runs exist" do
+      # When
+      recent_runs = QA.get_recent_qa_runs()
+
+      # Then
+      assert recent_runs == []
+    end
+
+    test "limits results to 50 most recent runs" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      preview = AppBuildsFixtures.preview_fixture(project: project)
+      app_build = AppBuildsFixtures.app_build_fixture(preview: preview)
+
+      Enum.each(1..60, fn i ->
+        status = Enum.random(["completed", "failed", "running", "pending"])
+        QAFixtures.qa_run_fixture(app_build: app_build, status: status, prompt: "Test #{i}")
+      end)
+
+      # When
+      recent_runs = QA.get_recent_qa_runs()
+
+      # Then
+      assert length(recent_runs) == 50
     end
   end
 

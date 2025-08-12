@@ -1,6 +1,7 @@
 alias Tuist.Accounts
 alias Tuist.AppBuilds.AppBuild
 alias Tuist.AppBuilds.Preview
+alias Tuist.Billing
 alias Tuist.Billing.Subscription
 alias Tuist.CommandEvents
 alias Tuist.CommandEvents.Clickhouse.Event
@@ -8,6 +9,7 @@ alias Tuist.IngestRepo
 alias Tuist.Projects
 alias Tuist.Projects.Project
 alias Tuist.QA
+alias Tuist.QA.Log
 alias Tuist.QA.Run
 alias Tuist.Repo
 alias Tuist.Runs.Build
@@ -409,7 +411,6 @@ Enum.each(test_previews, fn preview_attrs ->
   end)
 end)
 
-# Create QA runs for some of the app builds
 app_builds = AppBuild |> Repo.all() |> Repo.preload(preview: :project)
 
 qa_prompts = [
@@ -440,7 +441,6 @@ qa_summaries = [
   "Offline mode works well but sync process could be faster."
 ]
 
-# Take a subset of app builds to create QA runs for
 selected_app_builds = Enum.take_random(app_builds, 25)
 
 qa_runs =
@@ -448,13 +448,11 @@ qa_runs =
     status = Enum.random(qa_statuses)
     prompt = Enum.random(qa_prompts)
 
-    # Only add summary for completed or failed runs
     summary =
       if status in ["completed", "failed"] do
         Enum.random(qa_summaries)
       end
 
-    # Generate some git metadata
     git_refs = ["main", "develop", "feature/new-ui", "feature/qa-testing", "release/v1.2.0"]
     vcs_providers = [:github]
 
@@ -492,3 +490,214 @@ qa_runs =
   end)
 
 Repo.insert_all(Run, qa_runs)
+
+qa_logs =
+  Enum.flat_map(qa_runs, fn qa_run ->
+    log_messages =
+      case qa_run.status do
+        "pending" ->
+          [
+            {"info", "QA run initialized"},
+            {"debug", "Waiting for agent to become available"}
+          ]
+
+        "running" ->
+          [
+            {"info", "QA run initialized"},
+            {"debug", "Waiting for agent to become available"},
+            {"info", "QA agent started"},
+            {"info", "Starting test execution"},
+            {"debug", "Loading app on simulator"},
+            {"info", "Running automated tests..."}
+          ]
+
+        "completed" ->
+          [
+            {"info", "QA run initialized"},
+            {"debug", "Waiting for agent to become available"},
+            {"info", "QA agent started"},
+            {"info", "Starting test execution"},
+            {"debug", "Loading app on simulator"},
+            {"info", "Running automated tests..."},
+            {"debug", "Screenshot captured for main screen"},
+            {"info", "Testing navigation flows"},
+            {"debug", "All UI elements found and verified"},
+            {"info", "Testing user interactions"},
+            {"debug", "Form validation tests passed"},
+            {"info", "Testing edge cases"},
+            {"debug", "Error handling validated"},
+            {"info", "All tests completed successfully"},
+            {"info", "Generating test summary"},
+            {"info", "QA run completed successfully"}
+          ]
+
+        "failed" ->
+          [
+            {"info", "QA run initialized"},
+            {"debug", "Waiting for agent to become available"},
+            {"info", "QA agent started"},
+            {"info", "Starting test execution"},
+            {"debug", "Loading app on simulator"},
+            {"info", "Running automated tests..."},
+            {"warning", "App took longer than expected to load"},
+            {"debug", "Screenshot captured for main screen"},
+            {"info", "Testing navigation flows"},
+            {"error", "Button element not found on screen"},
+            {"debug", "Attempting to retry element lookup"},
+            {"error", "Element lookup failed after retry"},
+            {"warning", "Continuing with remaining tests"},
+            {"info", "Testing user interactions"},
+            {"error", "Form submission failed - validation error"},
+            {"debug", "Error details: Required field missing"},
+            {"error", "Critical test failure detected"},
+            {"info", "Stopping test execution due to failures"},
+            {"error", "QA run failed with critical issues"}
+          ]
+      end
+
+    base_time = qa_run.inserted_at
+
+    duration_minutes =
+      case qa_run.status do
+        "pending" -> 1
+        "running" -> 15
+        "completed" -> 30
+        "failed" -> 20
+      end
+
+    log_messages
+    |> Enum.with_index()
+    |> Enum.map(fn {{level, message}, index} ->
+      minutes_offset = div(duration_minutes * index, length(log_messages))
+      log_timestamp = base_time |> NaiveDateTime.add(minutes_offset * 60, :second) |> NaiveDateTime.truncate(:second)
+
+      level_int =
+        case level do
+          "debug" -> 0
+          "info" -> 1
+          "warning" -> 2
+          "error" -> 3
+        end
+
+      app_build = Enum.find(app_builds, &(&1.id == qa_run.app_build_id))
+      project_id = app_build.preview.project.id
+
+      %{
+        project_id: project_id,
+        qa_run_id: qa_run.id,
+        message: message,
+        level: level_int,
+        timestamp: log_timestamp,
+        inserted_at: log_timestamp
+      }
+    end)
+  end)
+
+qa_logs
+|> Enum.chunk_every(1000)
+|> Enum.each(fn chunk ->
+  processed_logs =
+    Enum.map(chunk, fn log ->
+      %{
+        log
+        | timestamp: NaiveDateTime.truncate(log.timestamp, :second),
+          inserted_at: NaiveDateTime.truncate(log.inserted_at, :second)
+      }
+    end)
+
+  IngestRepo.insert_all(Log, processed_logs)
+end)
+
+token_usage_data =
+  Enum.flat_map(qa_runs, fn qa_run ->
+    app_build = Enum.find(app_builds, &(&1.id == qa_run.app_build_id))
+    account_id = app_build.preview.project.account_id
+
+    case qa_run.status do
+      "completed" ->
+        base_time = qa_run.inserted_at
+
+        [
+          %{
+            id: UUIDv7.generate(),
+            input_tokens: Enum.random(800..1500),
+            output_tokens: Enum.random(400..800),
+            model: "claude-sonnet-4-20250514",
+            feature: "qa",
+            feature_resource_id: qa_run.id,
+            account_id: account_id,
+            timestamp: DateTime.add(base_time, Enum.random(10..30), :second),
+            inserted_at: DateTime.add(base_time, Enum.random(10..30), :second),
+            updated_at: DateTime.add(base_time, Enum.random(10..30), :second)
+          },
+          %{
+            id: UUIDv7.generate(),
+            input_tokens: Enum.random(500..1000),
+            output_tokens: Enum.random(300..600),
+            model: "claude-sonnet-4-20250514",
+            feature: "qa",
+            feature_resource_id: qa_run.id,
+            account_id: account_id,
+            timestamp: DateTime.add(base_time, Enum.random(60..120), :second),
+            inserted_at: DateTime.add(base_time, Enum.random(60..120), :second),
+            updated_at: DateTime.add(base_time, Enum.random(60..120), :second)
+          },
+          %{
+            id: UUIDv7.generate(),
+            input_tokens: Enum.random(200..600),
+            output_tokens: Enum.random(100..300),
+            model: "claude-sonnet-4-20250514",
+            feature: "qa",
+            feature_resource_id: qa_run.id,
+            account_id: account_id,
+            timestamp: DateTime.add(base_time, Enum.random(150..200), :second),
+            inserted_at: DateTime.add(base_time, Enum.random(150..200), :second),
+            updated_at: DateTime.add(base_time, Enum.random(150..200), :second)
+          }
+        ]
+
+      "failed" ->
+        base_time = qa_run.inserted_at
+
+        [
+          %{
+            id: UUIDv7.generate(),
+            input_tokens: Enum.random(600..1200),
+            output_tokens: Enum.random(300..600),
+            model: "claude-sonnet-4-20250514",
+            feature: "qa",
+            feature_resource_id: qa_run.id,
+            account_id: account_id,
+            timestamp: DateTime.add(base_time, Enum.random(10..30), :second),
+            inserted_at: DateTime.add(base_time, Enum.random(10..30), :second),
+            updated_at: DateTime.add(base_time, Enum.random(10..30), :second)
+          }
+        ]
+
+      "running" ->
+        base_time = qa_run.inserted_at
+
+        [
+          %{
+            id: UUIDv7.generate(),
+            input_tokens: Enum.random(400..800),
+            output_tokens: Enum.random(200..400),
+            model: "claude-sonnet-4-20250514",
+            feature: "qa",
+            feature_resource_id: qa_run.id,
+            account_id: account_id,
+            timestamp: DateTime.add(base_time, Enum.random(5..15), :second),
+            inserted_at: DateTime.add(base_time, Enum.random(5..15), :second),
+            updated_at: DateTime.add(base_time, Enum.random(5..15), :second)
+          }
+        ]
+
+      _ ->
+        []
+    end
+  end)
+
+if !Enum.empty?(token_usage_data) do
+  Repo.insert_all(Billing.TokenUsage, token_usage_data)
+  IO.puts("Created #{length(token_usage_data)} token usage records")
+end

@@ -243,14 +243,14 @@ defmodule Tuist.QA.ClientTest do
     test "forwards log message to LogStreamer" do
       # Given
       streamer_pid = :fake_pid
-      message = "Test log message"
-      level = "info"
+      data = JSON.encode!(%{"message" => "Test log message"})
+      type = "message"
       timestamp = DateTime.utc_now()
 
       expect(LogStreamer, :stream_log, fn pid, params ->
         assert pid == streamer_pid
-        assert params.message == message
-        assert params.level == level
+        assert params.data == data
+        assert params.type == type
         assert params.timestamp == timestamp
         :ok
       end)
@@ -258,8 +258,8 @@ defmodule Tuist.QA.ClientTest do
       # When
       result =
         Client.stream_log(streamer_pid, %{
-          message: message,
-          level: level,
+          data: data,
+          type: type,
           timestamp: timestamp
         })
 

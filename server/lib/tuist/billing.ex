@@ -12,6 +12,7 @@ defmodule Tuist.Billing do
   alias Tuist.Billing.Customer
   alias Tuist.Billing.PaymentMethod
   alias Tuist.Billing.Subscription
+  alias Tuist.Billing.TokenUsage
   alias Tuist.Repo
 
   # Unfortunately, this data can't be obtained and cached
@@ -323,6 +324,169 @@ defmodule Tuist.Billing do
         limit: 1
       )
     )
+  end
+
+  @doc """
+  Creates a new token usage record for billing purposes.
+  """
+  def create_token_usage(attrs) do
+    %TokenUsage{}
+    |> TokenUsage.changeset(attrs)
+    |> Repo.insert()
+  end
+
+  @doc """
+  Gets token usage statistics for a specific feature and resource.
+  """
+  def get_token_usage_for_resource(feature, resource_id) do
+    query =
+      from(tu in TokenUsage,
+        where: tu.feature == ^feature and tu.feature_resource_id == ^resource_id,
+        select: %{
+          total_input_tokens: coalesce(sum(tu.input_tokens), 0),
+          total_output_tokens: coalesce(sum(tu.output_tokens), 0),
+          usage_count: count(tu.id),
+          total_tokens: coalesce(sum(tu.input_tokens), 0) + coalesce(sum(tu.output_tokens), 0)
+        }
+      )
+
+    case Repo.one(query) do
+      nil -> %{total_input_tokens: 0, total_output_tokens: 0, usage_count: 0, total_tokens: 0}
+      result -> result
+    end
+  end
+
+  @doc """
+  Gets token usage statistics for an account across all features.
+  """
+  def get_account_token_usage(account_id, opts \\ []) do
+    query = from(tu in TokenUsage, where: tu.account_id == ^account_id)
+
+    query =
+      case Keyword.get(opts, :feature) do
+        nil -> query
+        feature -> from(tu in query, where: tu.feature == ^feature)
+      end
+
+    query =
+      case Keyword.get(opts, :since) do
+        nil -> query
+        since_date -> from(tu in query, where: tu.timestamp >= ^since_date)
+      end
+
+    query =
+      from(tu in query,
+        select: %{
+          total_input_tokens: coalesce(sum(tu.input_tokens), 0),
+          total_output_tokens: coalesce(sum(tu.output_tokens), 0),
+          usage_count: count(tu.id),
+          total_tokens: coalesce(sum(tu.input_tokens), 0) + coalesce(sum(tu.output_tokens), 0)
+        }
+      )
+
+    case Repo.one(query) do
+      nil -> %{total_input_tokens: 0, total_output_tokens: 0, usage_count: 0, total_tokens: 0}
+      result -> result
+    end
+  end
+
+  @doc """
+  Gets token usage breakdown by feature for an account.
+  """
+  def get_account_token_usage_by_feature(account_id, opts \\ []) do
+    query = from(tu in TokenUsage, where: tu.account_id == ^account_id)
+
+    query =
+      case Keyword.get(opts, :since) do
+        nil -> query
+        since_date -> from(tu in query, where: tu.timestamp >= ^since_date)
+      end
+
+    query =
+      from(tu in query,
+        group_by: tu.feature,
+        select: %{
+          feature: tu.feature,
+          total_input_tokens: coalesce(sum(tu.input_tokens), 0),
+          total_output_tokens: coalesce(sum(tu.output_tokens), 0),
+          usage_count: count(tu.id),
+          total_tokens: coalesce(sum(tu.input_tokens), 0) + coalesce(sum(tu.output_tokens), 0)
+        }
+      )
+
+    Repo.all(query)
+  end
+
+  @doc """
+  Gets token usage for all accounts for a specific feature, with 30-day and all-time stats.
+  """
+  def get_feature_token_usage_by_account(feature) do
+    thirty_days_ago = DateTime.add(DateTime.utc_now(), -30, :day)
+
+    all_time_query =
+      from(tu in TokenUsage,
+        join: a in assoc(tu, :account),
+        where: tu.feature == ^feature,
+        group_by: [tu.account_id, a.name],
+        select: %{
+          account_id: tu.account_id,
+          account_name: a.name,
+          total_input_tokens: coalesce(sum(tu.input_tokens), 0),
+          total_output_tokens: coalesce(sum(tu.output_tokens), 0),
+          total_tokens: coalesce(sum(tu.input_tokens), 0) + coalesce(sum(tu.output_tokens), 0),
+          usage_count: count(tu.id)
+        }
+      )
+
+    thirty_day_query =
+      from(tu in TokenUsage,
+        join: a in assoc(tu, :account),
+        where: tu.feature == ^feature and tu.timestamp >= ^thirty_days_ago,
+        group_by: [tu.account_id, a.name],
+        select: %{
+          account_id: tu.account_id,
+          account_name: a.name,
+          total_input_tokens: coalesce(sum(tu.input_tokens), 0),
+          total_output_tokens: coalesce(sum(tu.output_tokens), 0),
+          total_tokens: coalesce(sum(tu.input_tokens), 0) + coalesce(sum(tu.output_tokens), 0),
+          usage_count: count(tu.id)
+        }
+      )
+
+    all_time_results = Repo.all(all_time_query)
+    thirty_day_results = Repo.all(thirty_day_query)
+
+    thirty_day_map =
+      Map.new(thirty_day_results, fn result -> {result.account_id, result} end)
+
+    all_time_results
+    |> Enum.map(fn all_time ->
+      thirty_day =
+        Map.get(thirty_day_map, all_time.account_id, %{
+          total_input_tokens: 0,
+          total_output_tokens: 0,
+          total_tokens: 0,
+          usage_count: 0
+        })
+
+      %{
+        account_id: all_time.account_id,
+        account_name: all_time.account_name,
+        all_time: %{
+          total_input_tokens: all_time.total_input_tokens,
+          total_output_tokens: all_time.total_output_tokens,
+          total_tokens: all_time.total_tokens,
+          usage_count: all_time.usage_count
+        },
+        thirty_day: %{
+          total_input_tokens: thirty_day.total_input_tokens,
+          total_output_tokens: thirty_day.total_output_tokens,
+          total_tokens: thirty_day.total_tokens,
+          usage_count: thirty_day.usage_count
+        }
+      }
+    end)
+    |> Enum.sort_by(& &1.all_time.total_tokens, :desc)
   end
 
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity

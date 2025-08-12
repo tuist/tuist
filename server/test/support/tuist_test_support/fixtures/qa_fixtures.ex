@@ -1,7 +1,9 @@
 defmodule TuistTestSupport.Fixtures.QAFixtures do
   @moduledoc false
 
+  alias Tuist.ClickHouseRepo
   alias Tuist.QA
+  alias Tuist.QA.Log
   alias Tuist.QA.Screenshot
   alias Tuist.QA.Step
   alias Tuist.Repo
@@ -56,5 +58,29 @@ defmodule TuistTestSupport.Fixtures.QAFixtures do
       title: Keyword.get(opts, :title, "Screenshot")
     })
     |> Repo.insert!()
+  end
+
+  def qa_log_fixture(opts \\ []) do
+    qa_run =
+      Keyword.get_lazy(opts, :qa_run, fn ->
+        qa_run_fixture()
+      end)
+
+    project = Repo.preload(qa_run.app_build, preview: [project: :account]).preview.project
+
+    log_attrs = %{
+      project_id: project.id,
+      qa_run_id: qa_run.id,
+      message: Keyword.get(opts, :message, "Test log message"),
+      level: Keyword.get(opts, :level, "info"),
+      timestamp: Keyword.get(opts, :timestamp, NaiveDateTime.utc_now()),
+      inserted_at: NaiveDateTime.utc_now()
+    }
+
+    changeset_attrs = Log.changeset(log_attrs)
+
+    ClickHouseRepo.insert_stream("qa_logs", [changeset_attrs])
+
+    struct(Log, changeset_attrs)
   end
 end

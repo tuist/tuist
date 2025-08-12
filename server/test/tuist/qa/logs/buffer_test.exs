@@ -10,8 +10,8 @@ defmodule Tuist.QA.Logs.BufferTest do
       log_attrs = %{
         project_id: 123,
         qa_run_id: UUIDv7.generate(),
-        message: "Test log message",
-        level: "info",
+        data: JSON.encode!(%{"message" => "Test log message"}),
+        type: "message",
         timestamp: DateTime.utc_now(),
         inserted_at: DateTime.utc_now()
       }

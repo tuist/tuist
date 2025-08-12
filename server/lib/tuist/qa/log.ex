@@ -9,7 +9,7 @@ defmodule Tuist.QA.Log do
     filterable: [
       :project_id,
       :qa_run_id,
-      :level,
+      :type,
       :timestamp
     ],
     sortable: [:timestamp, :inserted_at]
@@ -19,8 +19,8 @@ defmodule Tuist.QA.Log do
   schema "qa_logs" do
     field :project_id, Ch, type: "Int64"
     field :qa_run_id, Ch, type: "UUID"
-    field :message, Ch, type: "String"
-    field :level, Ch, type: "Enum8('debug' = 0, 'info' = 1, 'warning' = 2, 'error' = 3)"
+    field :data, Ch, type: "String"
+    field :type, Ch, type: "Enum8('usage' = 0, 'tool_call' = 1, 'tool_call_result' = 2, 'message' = 3)"
     field :timestamp, Ch, type: "DateTime"
     field :inserted_at, Ch, type: "DateTime"
   end
@@ -29,7 +29,7 @@ defmodule Tuist.QA.Log do
     log_attrs
     |> convert_datetime_field(:timestamp)
     |> convert_datetime_field(:inserted_at)
-    |> normalize_level()
+    |> normalize_type()
   end
 
   defp convert_datetime_field(attrs, field) do
@@ -55,17 +55,27 @@ defmodule Tuist.QA.Log do
   defp parse_datetime_string(str) do
     cond do
       String.contains?(str, "Z") or String.contains?(str, "+") ->
-        {:ok, dt, _offset} = DateTime.from_iso8601(str)
-        DateTime.to_naive(dt)
+        case DateTime.from_iso8601(str) do
+          {:ok, dt, _offset} -> DateTime.to_naive(dt)
+          {:error, _} -> fallback_datetime()
+        end
 
       String.contains?(str, " ") ->
-        {:ok, parsed} = NaiveDateTime.from_iso8601(String.replace(str, " ", "T"))
-        parsed
+        case NaiveDateTime.from_iso8601(String.replace(str, " ", "T")) do
+          {:ok, parsed} -> parsed
+          {:error, _} -> fallback_datetime()
+        end
 
       true ->
-        {:ok, dt, _offset} = DateTime.from_iso8601(str <> "Z")
-        DateTime.to_naive(dt)
+        case DateTime.from_iso8601(str <> "Z") do
+          {:ok, dt, _offset} -> DateTime.to_naive(dt)
+          {:error, _} -> fallback_datetime()
+        end
     end
+  end
+
+  defp fallback_datetime do
+    DateTime.to_naive(DateTime.utc_now())
   end
 
   defp update_field_with_naive_datetime(attrs, field, ndt) do
@@ -73,15 +83,15 @@ defmodule Tuist.QA.Log do
     Map.put(attrs, field, ndt_with_usec)
   end
 
-  defp normalize_level(attrs) do
-    if Map.has_key?(attrs, :level) do
-      Map.update!(attrs, :level, fn
-        "debug" -> 0
-        "info" -> 1
-        "warning" -> 2
-        "error" -> 3
-        level when is_integer(level) -> level
-        _ -> 1
+  defp normalize_type(attrs) do
+    if Map.has_key?(attrs, :type) do
+      Map.update!(attrs, :type, fn
+        "usage" -> 0
+        "tool_call" -> 1
+        "tool_call_result" -> 2
+        "message" -> 3
+        type when is_integer(type) -> type
+        _ -> 3
       end)
     else
       attrs
@@ -91,13 +101,7 @@ defmodule Tuist.QA.Log do
   def normalize_enums(log) do
     %{
       log
-      | level: level_int_to_atom(log.level)
+      | type: String.to_atom(log.type)
     }
   end
-
-  defp level_int_to_atom(0), do: :debug
-  defp level_int_to_atom(1), do: :info
-  defp level_int_to_atom(2), do: :warning
-  defp level_int_to_atom(3), do: :error
-  defp level_int_to_atom(_), do: :info
 end

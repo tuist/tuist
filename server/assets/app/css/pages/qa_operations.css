@@ -139,6 +139,26 @@
     }
   }
 
+  & [data-part="failed-runs-section"] {
+    & .noora-card {
+      & .noora-card-section {
+        padding: var(--noora-spacing-0);
+      }
+    }
+
+    & [data-part="empty-table"] {
+      display: flex;
+      justify-content: center;
+      padding: var(--noora-spacing-8);
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-body-medium);
+    }
+
+    & .noora-table {
+      border-radius: var(--noora-radius-medium);
+    }
+  }
+
   @media (max-width: 768px) {
     & [data-part="charts-row"] {
       grid-template-columns: 1fr;

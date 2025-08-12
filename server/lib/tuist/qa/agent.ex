@@ -15,12 +15,14 @@ defmodule Tuist.QA.Agent do
 
   require Logger
 
-  defp log_and_stream(message, log_streamer, level \\ :debug) do
-    Logger.log(level, message)
+  @claude_model "claude-sonnet-4-20250514"
+
+  defp log_and_stream(data, log_streamer, type) do
+    Logger.info(inspect(data))
 
     Client.stream_log(log_streamer, %{
-      message: message,
-      level: to_string(level),
+      data: JSON.encode!(data),
+      type: type,
       timestamp: DateTime.utc_now()
     })
   end
@@ -59,35 +61,59 @@ defmodule Tuist.QA.Agent do
       handler = %{
         on_message_processed: fn _chain,
                                  %Message{
-                                   role: role,
+                                   role: _role,
                                    content: content,
                                    tool_calls: tool_calls,
                                    tool_results: tool_results
                                  } ->
-          role_message = "Processing #{role} message"
-          log_and_stream(role_message, log_streamer)
-
           for %ContentPart{type: :text, content: text_content} <- content || [] do
-            log_and_stream("Message content: #{text_content}", log_streamer)
+            log_and_stream(%{message: text_content}, log_streamer, "message")
           end
 
           for tool_call <- tool_calls || [] do
-            tool_message =
-              "Tool call: #{tool_call.name} with args: #{inspect(tool_call.arguments)}"
-
-            log_and_stream(tool_message, log_streamer, :info)
+            log_and_stream(
+              %{
+                name: tool_call.name,
+                arguments: tool_call.arguments
+              },
+              log_streamer,
+              "tool_call"
+            )
           end
 
           for tool_result <- tool_results || [] do
-            result_message =
-              "Tool result from #{tool_result.name}: #{inspect(tool_result.content)}"
+            content_data =
+              case tool_result.content do
+                content_parts when is_list(content_parts) ->
+                  Enum.map(content_parts, fn
+                    %ContentPart{type: type, content: content} -> %{type: type, content: content}
+                    other -> other
+                  end)
 
-            log_and_stream(result_message, log_streamer, :info)
+                other ->
+                  other
+              end
+
+            log_and_stream(
+              %{
+                name: tool_result.name,
+                content: content_data
+              },
+              log_streamer,
+              "tool_call_result"
+            )
           end
         end,
         on_llm_token_usage: fn _chain, %TokenUsage{input: input, output: output} ->
-          message = "LLM token usage: #{input} input tokens, #{output} output tokens"
-          log_and_stream(message, log_streamer, :info)
+          log_and_stream(
+            %{
+              input: input,
+              output: output,
+              model: @claude_model
+            },
+            log_streamer,
+            "usage"
+          )
         end
       }
 
@@ -106,7 +132,7 @@ defmodule Tuist.QA.Agent do
 
       llm =
         ChatAnthropic.new!(%{
-          model: "claude-sonnet-4-20250514",
+          model: @claude_model,
           max_tokens: 2000,
           api_key: anthropic_api_key
         })
@@ -120,7 +146,24 @@ defmodule Tuist.QA.Agent do
           project_handle: project_handle
         })
 
-      run_llm(%{llm: llm, max_retry_count: 10}, handler, [Message.new_user!(prompt)], tools)
+      case run_llm(%{llm: llm, max_retry_count: 10}, handler, [Message.new_user!(prompt)], tools) do
+        {:error, error_message} ->
+          log_and_stream(%{message: error_message}, log_streamer, "message")
+
+          Client.fail_run(%{
+            error_message: error_message,
+            server_url: server_url,
+            run_id: run_id,
+            auth_token: auth_token,
+            account_handle: account_handle,
+            project_handle: project_handle
+          })
+
+          {:error, error_message}
+
+        result ->
+          result
+      end
     end
   end
 

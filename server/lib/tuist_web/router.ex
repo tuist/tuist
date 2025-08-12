@@ -419,6 +419,7 @@ defmodule TuistWeb.Router do
         {TuistWeb.LayoutLive, :ops}
       ] do
       live "/qa", TuistWeb.OpsQALive
+      live "/qa/:qa_run_id/logs", TuistWeb.OpsQALogsLive
     end
   end
 

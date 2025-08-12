@@ -39,6 +39,22 @@
               navigate={~p"/ops/sent_emails"}
             />
           <% end %>
+          <.tab_menu_horizontal_item
+            label={gettext("Errors")}
+            navigate="https://appsignal.com/tuist-cloud/sites/6607b64d83eb6789e61c8ba7/dashboard"
+          >
+            <:icon_right>
+              <Noora.Icon.external_link />
+            </:icon_right>
+          </.tab_menu_horizontal_item>
+          <.tab_menu_horizontal_item
+            label={gettext("Grafana")}
+            navigate="https://tuist.grafana.net"
+          >
+            <:icon_right>
+              <Noora.Icon.external_link />
+            </:icon_right>
+          </.tab_menu_horizontal_item>
         </.tab_menu_horizontal>
       </nav>
     </div>
