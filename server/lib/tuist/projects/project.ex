@@ -53,6 +53,7 @@ defmodule Tuist.Projects.Project do
     |> validate_inclusion(:visibility, [:private, :public])
     |> validate_inclusion(:vcs_provider, [:github])
     |> validate_required([:token, :account_id, :name])
+    |> validate_format(:name, ~r/^[a-zA-Z0-9-]+$/, message: "must contain only alphanumeric characters and hyphens")
     |> validate_change(:name, fn :name, name ->
       if String.contains?(name, ".") do
         [

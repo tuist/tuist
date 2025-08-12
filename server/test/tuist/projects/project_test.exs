@@ -14,6 +14,24 @@ defmodule Tuist.ProjectTest do
     assert "Project name can't contain a dot. Please use a different name, such as project-name." in errors_on(changeset).name
   end
 
+  test "name cannot contain spaces" do
+    changeset =
+      Project.create_changeset(%Project{}, %{token: "token", name: "my project", account_id: 0})
+
+    assert changeset.valid? == false
+
+    assert "must contain only alphanumeric characters and hyphens" in errors_on(changeset).name
+  end
+
+  test "name cannot contain other invalid characters" do
+    changeset =
+      Project.create_changeset(%Project{}, %{token: "token", name: "project@name", account_id: 0})
+
+    assert changeset.valid? == false
+
+    assert "must contain only alphanumeric characters and hyphens" in errors_on(changeset).name
+  end
+
   describe "validation of handle validity" do
     test "it fails when the handle is included in the block list" do
       # Given/When
