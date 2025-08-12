@@ -24,4 +24,4 @@ if [ ! -f "cli/TuistCacheEE/.git" ]; then
 fi
 
 # Force update the submodule regardless of update=none setting
-git submodule update --init --remote --checkout --force cli/TuistCacheEE
+git submodule update --init --checkout --force cli/TuistCacheEE
