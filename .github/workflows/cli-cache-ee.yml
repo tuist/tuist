@@ -5,6 +5,7 @@ on:
     branches:
       - main
     paths:
+      - .github/workflows/cli-cache-ee.yml
       - "cli/TuistCacheEE"
       - "cli/TuistCacheEE/**"
       - "cli/Sources/**"
@@ -68,7 +69,7 @@ jobs:
               core.setOutput('is-member', 'false');
               return;
             }
-            
+
             try {
               const { data: membership } = await github.rest.teams.getMembershipForUserInOrg({
                 org: 'tuist',
