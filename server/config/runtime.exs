@@ -217,7 +217,8 @@ end
 
 # Ex.AWS
 if Tuist.Environment.env() not in [:test] do
-  %{host: s3_endpoint_host, scheme: s3_scheme, port: s3_port} = secrets |> Tuist.Environment.s3_endpoint() |> URI.parse()
+  %{host: s3_endpoint_host, scheme: s3_scheme, port: s3_port} =
+    secrets |> Tuist.Environment.s3_endpoint() |> URI.parse()
 
   s3_config = [
     scheme: "#{s3_scheme}://",
@@ -336,7 +337,7 @@ config :tuist, Tuist.PromEx,
   # Larger numbers might lead to internal tasks timing out.
   # By keeping it small we might loose some granularity of the data, but I think it's a good tradeoff.
   # Use default value to avoid over-compacting
-  ets_flush_interval: 500,
+  ets_flush_interval: 7_500,
   metrics_server: [
     port: 9091,
     auth_strategy: :none
