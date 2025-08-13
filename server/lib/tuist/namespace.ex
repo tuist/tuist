@@ -54,9 +54,6 @@ defmodule Tuist.Namespace do
       {:ok, %{"bearerToken" => bearer_token}} ->
         {:ok, bearer_token}
 
-      {:ok, response} ->
-        {:ok, response}
-
       {:error, reason} ->
         {:error, reason}
     end
