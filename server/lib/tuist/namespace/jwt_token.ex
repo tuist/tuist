@@ -17,7 +17,7 @@ defmodule Tuist.Namespace.JWTToken do
   """
   def generate_id_token do
     issuer = issuer()
-    partner_id = Environment.namespace_partner_id() || "user_01k0cg5tfqx3ppc19pm0r1y2j1"
+    partner_id = Environment.namespace_partner_id()
 
     claims = %{
       "iss" => issuer,
