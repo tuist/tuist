@@ -101,7 +101,7 @@ defmodule Tuist.Namespace do
   """
   def wait_for_instance_to_be_running(instance_id, tenant_token) do
     start_time = :os.system_time(:second)
-    timeout_seconds = 20
+    timeout_seconds = 120
 
     poll_instance_status(instance_id, start_time, timeout_seconds, tenant_token)
   end
