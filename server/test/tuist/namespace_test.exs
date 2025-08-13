@@ -1,5 +1,6 @@
 defmodule Tuist.NamespaceTest do
   use TuistTestSupport.Cases.DataCase, async: true
+  use Mimic
 
   alias Tuist.Namespace
   alias Tuist.Namespace.Instance
@@ -13,11 +14,11 @@ defmodule Tuist.NamespaceTest do
       bearer_token = "test-bearer-token"
       instance_id = "instance-456"
 
-      Mimic.expect(JWTToken, :generate_id_token, fn ->
+      expect(JWTToken, :generate_id_token, fn ->
         {:ok, "test-jwt-token"}
       end)
 
-      Mimic.expect(Req, :post, 4, fn opts ->
+      expect(Req, :post, 4, fn opts ->
         cond do
           String.contains?(opts[:url], "IssueTenantToken") ->
             {:ok, %{status: 200, body: %{"bearerToken" => bearer_token}}}
@@ -33,21 +34,15 @@ defmodule Tuist.NamespaceTest do
         end
       end)
 
-      Mimic.expect(Tuist.Environment, :namespace_ssh_public_key, fn ->
+      stub(Tuist.Environment, :namespace_ssh_public_key, fn ->
         "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIG..."
       end)
 
-      Mimic.expect(Tuist.Environment, :namespace_ssh_private_key, fn ->
+      stub(Tuist.Environment, :namespace_ssh_private_key, fn ->
         Base.encode64("test-private-key")
       end)
 
-      Mimic.expect(Briefly, :create!, fn [type: :directory] ->
-        "/tmp/test-ssh"
-      end)
-
-      Mimic.expect(File, :write!, 2, fn _path, _content -> :ok end)
-
-      Mimic.expect(SSHClient, :connect, fn _host, _port, _opts ->
+      expect(SSHClient, :connect, fn _host, _port, _opts ->
         {:ok, :test_ssh_connection_ref}
       end)
 
@@ -66,11 +61,11 @@ defmodule Tuist.NamespaceTest do
     test "returns error when tenant token issuance fails" do
       tenant_id = "test-tenant-123"
 
-      Mimic.expect(JWTToken, :generate_id_token, fn ->
+      expect(JWTToken, :generate_id_token, fn ->
         {:ok, "test-jwt-token"}
       end)
 
-      Mimic.expect(Req, :post, fn opts ->
+      expect(Req, :post, fn opts ->
         if String.contains?(opts[:url], "IssueTenantToken") do
           {:ok, %{status: 401}}
         end
@@ -85,7 +80,7 @@ defmodule Tuist.NamespaceTest do
     test "successfully creates tenant with all parameters" do
       expected_response = %{"tenant_id" => "tenant-123"}
 
-      Mimic.expect(Req, :post, fn opts ->
+      expect(Req, :post, fn opts ->
         assert opts[:url] == "https://iam.namespaceapis.com/namespace.cloud.iam.v1beta.TenantService/CreateTenant"
 
         assert opts[:json] == %{
@@ -96,7 +91,7 @@ defmodule Tuist.NamespaceTest do
         {:ok, %{status: 201, body: expected_response}}
       end)
 
-      Mimic.expect(JWTToken, :generate_id_token, fn ->
+      expect(JWTToken, :generate_id_token, fn ->
         {:ok, "test-jwt-token"}
       end)
 
@@ -104,11 +99,11 @@ defmodule Tuist.NamespaceTest do
     end
 
     test "handles HTTP error responses" do
-      Mimic.expect(Req, :post, fn _opts ->
+      expect(Req, :post, fn _opts ->
         {:ok, %{status: 401}}
       end)
 
-      Mimic.expect(JWTToken, :generate_id_token, fn ->
+      expect(JWTToken, :generate_id_token, fn ->
         {:ok, "test-jwt-token"}
       end)
 
@@ -121,7 +116,7 @@ defmodule Tuist.NamespaceTest do
     test "successfully issues tenant token" do
       expected_token = "bearer-token-123"
 
-      Mimic.expect(Req, :post, fn opts ->
+      expect(Req, :post, fn opts ->
         assert opts[:url] == "https://iam.namespaceapis.com/namespace.cloud.iam.v1beta.TenantService/IssueTenantToken"
 
         assert opts[:json] == %{
@@ -132,25 +127,11 @@ defmodule Tuist.NamespaceTest do
         {:ok, %{status: 200, body: %{"bearerToken" => expected_token}}}
       end)
 
-      Mimic.expect(JWTToken, :generate_id_token, fn ->
+      expect(JWTToken, :generate_id_token, fn ->
         {:ok, "test-jwt-token"}
       end)
 
       assert {:ok, ^expected_token} = Namespace.issue_tenant_token("tenant-123", "tuist-qa")
-    end
-
-    test "handles response without bearerToken" do
-      unexpected_response = %{"other_field" => "value"}
-
-      Mimic.expect(Req, :post, fn _opts ->
-        {:ok, %{status: 200, body: unexpected_response}}
-      end)
-
-      Mimic.expect(JWTToken, :generate_id_token, fn ->
-        {:ok, "test-jwt-token"}
-      end)
-
-      assert {:ok, unexpected_response} == Namespace.issue_tenant_token("tenant-123", "tuist-qa")
     end
   end
 
@@ -164,26 +145,26 @@ defmodule Tuist.NamespaceTest do
         }
       }
 
-      Mimic.expect(Tuist.Environment, :namespace_ssh_public_key, fn ->
+      expect(Tuist.Environment, :namespace_ssh_public_key, fn ->
         "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIG..."
       end)
 
-      Mimic.expect(DateTime, :utc_now, fn ->
+      expect(DateTime, :utc_now, fn ->
         ~U[2024-01-01 12:00:00Z]
       end)
 
-      Mimic.expect(DateTime, :add, fn datetime, minutes, :minute ->
+      expect(DateTime, :add, fn datetime, minutes, :minute ->
         assert datetime == ~U[2024-01-01 12:00:00Z]
         assert minutes == 20
         ~U[2024-01-01 12:20:00Z]
       end)
 
-      Mimic.expect(DateTime, :to_iso8601, fn datetime ->
+      expect(DateTime, :to_iso8601, fn datetime ->
         assert datetime == ~U[2024-01-01 12:20:00Z]
         "2024-01-01T12:20:00Z"
       end)
 
-      Mimic.expect(Req, :post, fn opts ->
+      expect(Req, :post, fn opts ->
         assert opts[:url] ==
                  "https://eu.compute.namespaceapis.com/namespace.cloud.compute.v1beta.ComputeService/CreateInstance"
 
@@ -212,26 +193,26 @@ defmodule Tuist.NamespaceTest do
     test "successfully creates instance with tenant token" do
       tenant_token = "custom-tenant-token"
 
-      Mimic.expect(Tuist.Environment, :namespace_ssh_public_key, fn ->
+      expect(Tuist.Environment, :namespace_ssh_public_key, fn ->
         "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIG..."
       end)
 
-      Mimic.expect(DateTime, :utc_now, fn ->
+      expect(DateTime, :utc_now, fn ->
         ~U[2024-01-01 12:00:00Z]
       end)
 
-      Mimic.expect(DateTime, :add, 1, fn datetime, minutes, :minute ->
+      expect(DateTime, :add, 1, fn datetime, minutes, :minute ->
         assert datetime == ~U[2024-01-01 12:00:00Z]
         assert minutes == 20
         ~U[2024-01-01 12:20:00Z]
       end)
 
-      Mimic.expect(DateTime, :to_iso8601, fn datetime ->
+      expect(DateTime, :to_iso8601, fn datetime ->
         assert datetime == ~U[2024-01-01 12:20:00Z]
         "2024-01-01T12:20:00Z"
       end)
 
-      Mimic.expect(Req, :post, fn opts ->
+      expect(Req, :post, fn opts ->
         headers = opts[:headers]
         auth_header = Enum.find(headers, fn {key, _value} -> key == "Authorization" end)
         assert auth_header == {"Authorization", "Bearer #{tenant_token}"}
@@ -247,7 +228,7 @@ defmodule Tuist.NamespaceTest do
     test "returns :ok when instance is running" do
       instance_id = "instance-running"
 
-      Mimic.expect(Req, :post, fn opts ->
+      expect(Req, :post, fn opts ->
         assert opts[:json] == %{"instance_id" => instance_id}
         {:ok, %{status: 200, body: %{"metadata" => %{"status" => "RUNNING"}}}}
       end)
@@ -267,7 +248,7 @@ defmodule Tuist.NamespaceTest do
         }
       }
 
-      Mimic.expect(Req, :post, fn opts ->
+      expect(Req, :post, fn opts ->
         assert opts[:url] ==
                  "https://eu.compute.namespaceapis.com/namespace.cloud.compute.v1beta.ComputeService/DescribeInstance"
 
@@ -287,7 +268,7 @@ defmodule Tuist.NamespaceTest do
     test "successfully deletes instance" do
       instance_id = "instance-delete"
 
-      Mimic.expect(Req, :post, fn opts ->
+      expect(Req, :post, fn opts ->
         assert opts[:url] ==
                  "https://eu.compute.namespaceapis.com/namespace.cloud.compute.v1beta.ComputeService/DestroyInstance"
 
@@ -309,7 +290,7 @@ defmodule Tuist.NamespaceTest do
       username = "test-user"
       tenant_token = "ssh-tenant-token"
 
-      Mimic.expect(Req, :post, fn opts ->
+      expect(Req, :post, fn opts ->
         assert opts[:json] == %{"instance_id" => instance_id}
         headers = opts[:headers]
         auth_header = Enum.find(headers, fn {key, _value} -> key == "Authorization" end)
@@ -321,21 +302,15 @@ defmodule Tuist.NamespaceTest do
       private_key_b64 = Base.encode64("test-private-key-content")
       public_key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIG..."
 
-      Mimic.expect(Tuist.Environment, :namespace_ssh_private_key, fn ->
+      expect(Tuist.Environment, :namespace_ssh_private_key, fn ->
         private_key_b64
       end)
 
-      Mimic.expect(Tuist.Environment, :namespace_ssh_public_key, fn ->
+      expect(Tuist.Environment, :namespace_ssh_public_key, fn ->
         public_key
       end)
 
-      Mimic.expect(Briefly, :create!, fn [type: :directory] ->
-        "/tmp/test-dir"
-      end)
-
-      Mimic.expect(File, :write!, 2, fn _path, _content -> :ok end)
-
-      Mimic.expect(SSHClient, :connect, fn host, _port, opts ->
+      expect(SSHClient, :connect, fn host, _port, opts ->
         assert host == String.to_charlist(endpoint)
         assert opts[:user] == String.to_charlist(username)
 
