@@ -109,15 +109,7 @@ defmodule Tuist.Namespace do
     if current_time - start_time >= timeout_seconds do
       {:error, :instance_timeout}
     else
-      request_body = %{
-        "instance_id" => instance_id
-      }
-
-      case compute_request(&Req.post/1,
-             url: "#{@base_compute_url}/DescribeInstance",
-             json: request_body,
-             tenant_token: tenant_token
-           ) do
+      case describe_instance(instance_id, tenant_token) do
         {:ok, %{"metadata" => %{"status" => "RUNNING"}}} ->
           :ok
 
@@ -129,6 +121,7 @@ defmodule Tuist.Namespace do
           {:error, reason}
       end
     end
+  end
   end
 
   @doc """
