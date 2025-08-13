@@ -191,6 +191,59 @@ defmodule Tuist.QATest do
       assert qa_run.status == "pending"
     end
 
+    test "destroys namespace instance even when running the SSH command fails" do
+      # Given
+      app_build = AppBuildsFixtures.app_build_fixture(preload: [preview: [project: :account]])
+      account = app_build.preview.project.account
+      prompt = "Test the login feature"
+
+      expect(Storage, :generate_download_url, fn _ -> "https://example.com/preview.zip" end)
+
+      expect(Authentication, :encode_and_sign, fn _account, claims, _opts ->
+        {:ok, "test-jwt-token", claims}
+      end)
+
+      expect(Tuist.Environment, :namespace_enabled?, fn -> true end)
+
+      expect(Tuist.Accounts, :create_namespace_tenant_for_account, fn ^account ->
+        {:ok, Map.put(account, :tenant_id, "test-tenant-123")}
+      end)
+
+      expect(Tuist.Namespace, :create_instance_with_ssh_connection, fn "test-tenant-123" ->
+        {:ok,
+         %{
+           ssh_connection: %{},
+           instance: %{id: "instance-123"},
+           tenant_token: "tenant-token-456"
+         }}
+      end)
+
+      expect(Tuist.SSHClient, :transfer_file, fn _ssh_connection,
+                                                 "/app/bin/qa",
+                                                 "/usr/local/bin/qa",
+                                                 [permissions: 0o100755] ->
+        :ok
+      end)
+
+      expect(Tuist.SSHClient, :run_command, fn _ssh_connection, _command ->
+        {:error, "Command execution failed"}
+      end)
+
+      expect(Tuist.Namespace, :destroy_instance, fn "instance-123", "tenant-token-456" ->
+        :ok
+      end)
+
+      # When
+      result =
+        QA.test(%{
+          app_build: app_build,
+          prompt: prompt
+        })
+
+      # Then
+      assert {:error, "Command execution failed"} == result
+    end
+
     test "returns error when auth token creation fails" do
       # Given
       app_build = Repo.preload(AppBuildsFixtures.app_build_fixture(), preview: [project: :account])

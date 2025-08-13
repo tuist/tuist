@@ -82,10 +82,19 @@ defmodule Tuist.QA do
   defp run_qa_tests_in_namespace(attrs, account) do
     with {:ok, account_with_tenant} <- account_with_tenant(account),
          {:ok, %{ssh_connection: ssh_connection, instance: instance, tenant_token: tenant_token}} <-
-           Namespace.create_instance_with_ssh_connection(account_with_tenant.tenant_id),
-         :ok <- SSHClient.transfer_file(ssh_connection, "/app/bin/qa", "/usr/local/bin/qa", permissions: 0o100755),
+           Namespace.create_instance_with_ssh_connection(account_with_tenant.tenant_id) do
+      run_qa_tests_in_namespace_instance(attrs, instance, ssh_connection, tenant_token)
+    end
+  end
+
+  defp run_qa_tests_in_namespace_instance(attrs, instance, ssh_connection, tenant_token) do
+    with :ok <- SSHClient.transfer_file(ssh_connection, "/app/bin/qa", "/usr/local/bin/qa", permissions: 0o100755),
          {:ok, _} <- SSHClient.run_command(ssh_connection, qa_script(attrs)) do
       Namespace.destroy_instance(instance.id, tenant_token)
+    else
+      {:error, reason} ->
+        Namespace.destroy_instance(instance.id, tenant_token)
+        {:error, reason}
     end
   end
 
