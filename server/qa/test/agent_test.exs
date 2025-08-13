@@ -8,8 +8,8 @@ defmodule Tuist.QA.AgentTest do
   alias LangChain.Message.ToolResult
   alias QA.Agent
   alias QA.Client
-  alias QA.Tools
   alias QA.Simulators.SimulatorDevice
+  alias QA.Tools
 
   setup do
     device = %SimulatorDevice{
