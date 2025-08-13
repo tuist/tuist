@@ -220,7 +220,7 @@ defmodule Tuist.NamespaceTest do
         ~U[2024-01-01 12:00:00Z]
       end)
 
-      Mimic.expect(DateTime, :add, 2, fn datetime, minutes, :minute ->
+      Mimic.expect(DateTime, :add, 1, fn datetime, minutes, :minute ->
         assert datetime == ~U[2024-01-01 12:00:00Z]
         assert minutes == 20
         ~U[2024-01-01 12:20:00Z]
