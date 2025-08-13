@@ -53,7 +53,6 @@ defmodule Tuist.Projects.Project do
     |> validate_inclusion(:visibility, [:private, :public])
     |> validate_inclusion(:vcs_provider, [:github])
     |> validate_required([:token, :account_id, :name])
-    |> validate_format(:name, ~r/^[a-zA-Z0-9-_]+$/, message: "must contain only alphanumeric characters, hyphens, and underscores")
     |> validate_change(:name, fn :name, name ->
       if String.contains?(name, ".") do
         [
@@ -64,6 +63,10 @@ defmodule Tuist.Projects.Project do
         []
       end
     end)
+    |> validate_format(:name, ~r/^[a-zA-Z0-9-_]+$/,
+      message: "must contain only alphanumeric characters, hyphens, and underscores"
+    )
+    |> validate_length(:name, min: 1, max: 32)
     |> update_change(:name, &String.downcase/1)
     |> unique_constraint([:name, :account_id], name: "index_projects_on_name_and_account_id")
   end
