@@ -295,7 +295,7 @@ defmodule Tuist.NamespaceTest do
                  "instance_id" => instance_id
                }
 
-        {:ok, %{status: 204}}
+        {:ok, %{status: 200, body: %{}}}
       end)
 
       assert :ok = Namespace.destroy_instance(instance_id, "test-tenant-token")

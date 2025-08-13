@@ -103,7 +103,17 @@ defmodule TuistWeb.Webhooks.GitHubController do
   end
 
   defp tuist_qa_prompt(body) do
-    case Regex.run(~r/\/tuist qa\s*(.*)$/im, body) do
+    base_prompt =
+      cond do
+        Environment.stag?() -> "/tuist-stag qa"
+        Environment.dev?() -> "/tuist-dev qa"
+        Environment.can?() -> "/tuist-can qa"
+        true -> "/tuist qa"
+      end
+
+    pattern = ~r/#{Regex.escape(base_prompt)}\s*(.*)$/im
+
+    case Regex.run(pattern, body) do
       [_, prompt] ->
         String.trim(prompt)
 

@@ -99,13 +99,14 @@ defmodule Tuist.SSHClient do
         updated_info = put_elem(file_info, 7, permissions)
 
         :ssh_sftp.write_file_info(sftp_channel, String.to_charlist(remote_path), updated_info)
+        :ssh_sftp.close(sftp_channel, handle)
+        :ssh_sftp.stop_channel(sftp_channel)
         :ok
 
       :error ->
+        :ssh_sftp.close(sftp_channel, handle)
+        :ssh_sftp.stop_channel(sftp_channel)
         :error
     end
-
-    :ssh_sftp.close(sftp_channel, handle)
-    :ssh_sftp.stop_channel(sftp_channel)
   end
 end

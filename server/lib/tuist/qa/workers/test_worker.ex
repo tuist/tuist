@@ -7,7 +7,7 @@ defmodule Tuist.QA.Workers.TestWorker do
       period: :infinity,
       states: [:available, :scheduled, :executing, :retryable]
     ],
-    max_attempts: 3
+    max_attempts: 1
 
   alias Tuist.AppBuilds
   alias Tuist.QA

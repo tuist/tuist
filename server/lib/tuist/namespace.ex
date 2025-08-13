@@ -242,7 +242,15 @@ defmodule Tuist.Namespace do
   end
 
   defp handle_namespace_response({:ok, %{status: 200, body: body}}, _method, _attrs) do
-    {:ok, body}
+    if body == %{} do
+      :ok
+    else
+      {:ok, body}
+    end
+  end
+
+  defp handle_namespace_response({:ok, %{status: 200}}, _method, _attrs) do
+    :ok
   end
 
   defp handle_namespace_response({:ok, %{status: 201, body: body}}, _method, _attrs) do
