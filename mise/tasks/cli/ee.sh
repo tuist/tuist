@@ -10,11 +10,11 @@ if [ -n "${TUIST_GITHUB_TOKEN:-}" ]; then
    # Ensure we always clean up, even if an error occurs later
    cleanup() {
        # Remove all matching rewrites to avoid leaving secrets behind
-       git config --local --unset-all url."https://${TUIST_GITHUB_TOKEN}@github.com/".insteadOf || true
+       git config --global --unset-all url."https://${TUIST_GITHUB_TOKEN}@github.com/".insteadOf || true
    }
    trap cleanup EXIT
-   # Set the submodule URL with the token
-   git config --local --add url."https://${TUIST_GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/"
+   # Set the submodule URL with the token globally so it applies to submodule operations
+   git config --global --add url."https://${TUIST_GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/"
 fi
 
 # Check if submodule is initialized
