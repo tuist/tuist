@@ -51,8 +51,7 @@ defmodule Tuist.Accounts.Account do
         :organization_id,
         :customer_id,
         :current_month_remote_cache_hits_count,
-        :current_month_remote_cache_hits_count_updated_at,
-        :tenant_id
+        :current_month_remote_cache_hits_count_updated_at
       ])
 
     user_id = get_field(changeset, :user_id)
@@ -75,7 +74,6 @@ defmodule Tuist.Accounts.Account do
     |> validate_handle()
     |> unique_constraint([:user_id])
     |> unique_constraint([:organization_id])
-    |> unique_constraint(:tenant_id)
   end
 
   def billing_changeset(account, attrs) do

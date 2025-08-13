@@ -147,13 +147,12 @@ defmodule Tuist.AccountTest do
       {:ok, user1} = Tuist.Repo.insert(%User{email: "user1@test.com", token: "token-a"})
       {:ok, user2} = Tuist.Repo.insert(%User{email: "user2@test.com", token: "token-b"})
 
-      {:ok, _account1} =
+      {:ok, account1} =
         %Account{}
         |> Account.create_changeset(%{
           name: "account1",
           user_id: user1.id,
-          billing_email: "#{UUIDv7.generate()}@tuist.dev",
-          tenant_id: "tenant-123"
+          billing_email: "#{UUIDv7.generate()}@tuist.dev"
         })
         |> Tuist.Repo.insert()
 
@@ -166,6 +165,7 @@ defmodule Tuist.AccountTest do
         })
         |> Tuist.Repo.insert()
 
+      Tuist.Repo.update(Account.update_changeset(account1, %{tenant_id: "tenant-123"}))
       changeset = Account.update_changeset(account2, %{tenant_id: "tenant-123"})
       {:error, changeset} = Tuist.Repo.update(changeset)
       assert "has already been taken" in errors_on(changeset).tenant_id
