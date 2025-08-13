@@ -43,8 +43,6 @@ jobs:
           key: ${{ runner.os }}-docs-${{ hashFiles('Package.resolved') }}
           restore-keys: ${{ runner.os }}-docs-
       - uses: jdx/mise-action@v2
-      - name: Initialize TuistCacheEE submodule
-        run: mise run cli:ee
       - name: Generate CLI docs
         run: mise run docs:generate-cli-docs
       - name: Generate manifest docs
