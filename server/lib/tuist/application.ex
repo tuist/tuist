@@ -109,7 +109,6 @@ defmodule Tuist.Application do
         ],
         else: []
     )
-    |> Kernel.++(if Environment.analytics_enabled?(), do: [Tuist.Analytics.Posthog], else: [])
     |> Kernel.++(
       if Environment.tuist_hosted?(),
         do: [{DNSCluster, query: Application.get_env(:tuist, :dns_cluster_query) || :ignore}],
