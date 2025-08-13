@@ -71,7 +71,7 @@ defmodule Tuist.QA do
     end
   end
 
-  defp account_with_tenant(account) do
+  defp account_initializing_namespace_tenant_if_absent(account) do
     if is_nil(account.namespace_tenant_id) do
       Accounts.create_namespace_tenant_for_account(account)
     else
@@ -80,7 +80,7 @@ defmodule Tuist.QA do
   end
 
   defp run_qa_tests_in_namespace(attrs, account) do
-    with {:ok, account_with_tenant} <- account_with_tenant(account),
+    with {:ok, account_with_tenant} <- account_initializing_namespace_tenant_if_absent(account),
          {:ok, %{ssh_connection: ssh_connection, instance: instance, tenant_token: tenant_token}} <-
            Namespace.create_instance_with_ssh_connection(account_with_tenant.namespace_tenant_id) do
       run_qa_tests_in_namespace_instance(attrs, instance, ssh_connection, tenant_token)
