@@ -3,9 +3,9 @@ defmodule Tuist.Repo.Migrations.AddTenantIdToAccounts do
 
   def change do
     alter table(:accounts) do
-      add :tenant_id, :string
+      add :namespace_tenant_id, :string
     end
 
-    create unique_index(:accounts, [:tenant_id])
+    create unique_index(:accounts, [:namespace_tenant_id])
   end
 end

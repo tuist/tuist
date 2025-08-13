@@ -65,7 +65,7 @@ defmodule Tuist.QATest do
       expect(Tuist.Environment, :namespace_enabled?, fn -> true end)
 
       expect(Tuist.Accounts, :create_namespace_tenant_for_account, fn ^account ->
-        {:ok, Map.put(account, :tenant_id, "test-tenant-123")}
+        {:ok, Map.put(account, :namespace_tenant_id, "test-tenant-123")}
       end)
 
       expect(Tuist.Namespace, :create_instance_with_ssh_connection, fn "test-tenant-123" ->
@@ -111,7 +111,7 @@ defmodule Tuist.QATest do
     test "handles existing tenant when namespace is enabled" do
       # Given
       app_build = Repo.preload(AppBuildsFixtures.app_build_fixture(), preview: [project: :account])
-      account = Map.put(app_build.preview.project.account, :tenant_id, "existing-tenant-456")
+      account = Map.put(app_build.preview.project.account, :namespace_tenant_id, "existing-tenant-456")
       app_build = put_in(app_build.preview.project.account, account)
       prompt = "Test the login feature"
 
@@ -206,7 +206,7 @@ defmodule Tuist.QATest do
       expect(Tuist.Environment, :namespace_enabled?, fn -> true end)
 
       expect(Tuist.Accounts, :create_namespace_tenant_for_account, fn ^account ->
-        {:ok, Map.put(account, :tenant_id, "test-tenant-123")}
+        {:ok, Map.put(account, :namespace_tenant_id, "test-tenant-123")}
       end)
 
       expect(Tuist.Namespace, :create_instance_with_ssh_connection, fn "test-tenant-123" ->

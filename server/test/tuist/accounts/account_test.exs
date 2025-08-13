@@ -91,10 +91,10 @@ defmodule Tuist.AccountTest do
       refute Account.update_changeset(%Account{}, %{name: "my.name"}).valid?
     end
 
-    test "allows updating tenant_id" do
-      changeset = Account.update_changeset(%Account{}, %{tenant_id: "tenant-123"})
+    test "allows updating namespace_tenant_id" do
+      changeset = Account.update_changeset(%Account{}, %{namespace_tenant_id: "tenant-123"})
       assert changeset.valid?
-      assert changeset.changes.tenant_id == "tenant-123"
+      assert changeset.changes.namespace_tenant_id == "tenant-123"
     end
   end
 
@@ -143,7 +143,7 @@ defmodule Tuist.AccountTest do
       assert "should be at most 32 character(s)" in errors_on(changeset).name
     end
 
-    test "validates tenant_id uniqueness on update" do
+    test "validates namespace_tenant_id uniqueness on update" do
       {:ok, user1} = Tuist.Repo.insert(%User{email: "user1@test.com", token: "token-a"})
       {:ok, user2} = Tuist.Repo.insert(%User{email: "user2@test.com", token: "token-b"})
 
@@ -165,10 +165,10 @@ defmodule Tuist.AccountTest do
         })
         |> Tuist.Repo.insert()
 
-      Tuist.Repo.update(Account.update_changeset(account1, %{tenant_id: "tenant-123"}))
-      changeset = Account.update_changeset(account2, %{tenant_id: "tenant-123"})
+      Tuist.Repo.update(Account.update_changeset(account1, %{namespace_tenant_id: "tenant-123"}))
+      changeset = Account.update_changeset(account2, %{namespace_tenant_id: "tenant-123"})
       {:error, changeset} = Tuist.Repo.update(changeset)
-      assert "has already been taken" in errors_on(changeset).tenant_id
+      assert "has already been taken" in errors_on(changeset).namespace_tenant_id
     end
   end
 end

@@ -1169,16 +1169,16 @@ defmodule Tuist.Accounts do
   end
 
   @doc """
-  Creates a namespace tenant for the account and updates the account with the tenant_id.
+  Creates a namespace tenant for the account and updates the account with the namespace_tenant_id.
   """
   def create_namespace_tenant_for_account(%Account{} = account) do
     case Namespace.create_tenant(
            account.name,
            account.id
          ) do
-      {:ok, %{"tenant" => %{"id" => tenant_id}}} ->
+      {:ok, %{"tenant" => %{"id" => namespace_tenant_id}}} ->
         account
-        |> Account.update_changeset(%{tenant_id: tenant_id})
+        |> Account.update_changeset(%{namespace_tenant_id: namespace_tenant_id})
         |> Repo.update()
 
       {:error, reason} ->
