@@ -182,12 +182,13 @@ defmodule Tuist.Namespace do
       {:ok, %{endpoint: endpoint, username: username}} ->
         user_dir = Briefly.create!(type: :directory)
 
+        key_directory = user_dir <> "/id_ed25519"
         File.write!(
-          user_dir <> "/id_ed25519",
+          key_directory,
           Base.decode64!(Environment.namespace_ssh_private_key())
         )
 
-        File.write!(user_dir <> "/id_ed25519.pub", Environment.namespace_ssh_public_key())
+        File.write!(key_directory, Environment.namespace_ssh_public_key())
 
         SSHClient.connect(String.to_charlist(endpoint), 22,
           user: String.to_charlist(username),
