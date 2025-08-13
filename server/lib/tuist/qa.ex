@@ -61,12 +61,13 @@ defmodule Tuist.QA do
           qa_run(qa_run.id)
         end
       else
-        Agent.test(
-          attrs,
-          anthropic_api_key: Environment.anthropic_api_key()
-        )
+        case Agent.test(attrs, anthropic_api_key: Environment.anthropic_api_key()) do
+          :ok ->
+            qa_run(qa_run.id)
 
-        qa_run(qa_run.id)
+          {:error, reason} ->
+            {:error, reason}
+        end
       end
     end
   end
