@@ -62,6 +62,19 @@ defmodule Tuist.SSHClient do
     end
   end
 
+  @doc """
+  Transfers a file from local to remote via SFTP.
+
+  ## Parameters
+    - connection: The SSH connection
+    - local_path: Path to the local file
+    - remote_path: Destination path on the remote server
+    - opts: Options including :permissions (defaults to 0o100666)
+
+  ## Returns
+    - :ok on success
+    - :error on failure
+  """
   def transfer_file(connection, local_path, remote_path, opts \\ []) do
     permissions = Keyword.get(opts, :permissions, 0o100666)
 
