@@ -75,6 +75,7 @@ defmodule Tuist.Accounts.Account do
     |> validate_handle()
     |> unique_constraint([:user_id])
     |> unique_constraint([:organization_id])
+    |> unique_constraint(:tenant_id)
   end
 
   def billing_changeset(account, attrs) do
@@ -89,6 +90,7 @@ defmodule Tuist.Accounts.Account do
     account
     |> cast(attrs, [:name, :tenant_id])
     |> validate_handle()
+    |> unique_constraint(:tenant_id)
   end
 
   defp validate_handle(changeset) do
