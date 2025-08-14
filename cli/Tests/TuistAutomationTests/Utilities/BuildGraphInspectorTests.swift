@@ -844,4 +844,60 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         XCTAssertEqual(got?.project, project)
         XCTAssertEqual(got?.target, target2)
     }
+
+    func test_runnableSchemes_when_no_runnable_item_in_scheme() async throws {
+        // Given
+        let path = try temporaryPath()
+        let projectPath = path.appending(component: "App.xcodeproj")
+        let app = Target.test(name: "App", product: .app)
+        let appReference = TargetReference(projectPath: projectPath, name: app.name)
+        let scheme = Scheme.test(
+            buildAction: .test(targets: [appReference]), runAction: nil
+        )
+        let project = Project.test(
+            path: projectPath,
+            targets: [
+                app,
+            ],
+            schemes: [scheme]
+        )
+        let graph = Graph.test(
+            projects: [projectPath: project]
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.runnableSchemes(graphTraverser: graphTraverser)
+
+        // Then
+        XCTAssertEqual(got, [scheme])
+    }
+
+    func test_runnableSchemes_when_runnable_item_in_scheme() async throws {
+        // Given
+        let path = try temporaryPath()
+        let projectPath = path.appending(component: "App.xcodeproj")
+        let app = Target.test(name: "App", product: .app)
+        let appReference = TargetReference(projectPath: projectPath, name: app.name)
+        let scheme = Scheme.test(
+            buildAction: nil, runAction: .test(executable: appReference)
+        )
+        let project = Project.test(
+            path: projectPath,
+            targets: [
+                app,
+            ],
+            schemes: [scheme]
+        )
+        let graph = Graph.test(
+            projects: [projectPath: project]
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.runnableSchemes(graphTraverser: graphTraverser)
+
+        // Then
+        XCTAssertEqual(got, [scheme])
+    }
 }

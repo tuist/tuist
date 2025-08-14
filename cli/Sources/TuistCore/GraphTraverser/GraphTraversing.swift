@@ -290,6 +290,11 @@ public protocol GraphTraversing {
         path: AbsolutePath,
         name: String
     ) -> Set<GraphDependency>
+
+    /// Given a scheme, it returns the runnable target.
+    /// - Parameter scheme: Scheme to check against.
+    /// - Returns: The runnable target if any.
+    func schemeRunnableTarget(scheme: Scheme) -> GraphTarget?
 }
 
 extension GraphTraversing {
