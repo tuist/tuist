@@ -12,7 +12,7 @@ public final class SkipUITestsProjectMapper: ProjectMapping {
         project.targets = project.targets.mapValues { target in
             var copy = target
             if copy.product == .uiTests {
-                copy.prune = true
+                copy.metadata.tags.formUnion(["tuist:prunable"])
             }
             return copy
         }

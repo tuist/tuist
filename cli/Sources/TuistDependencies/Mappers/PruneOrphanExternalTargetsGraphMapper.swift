@@ -28,7 +28,7 @@ public struct PruneOrphanExternalTargetsGraphMapper: GraphMapping {
                 let graphTarget = GraphTarget(path: projectPath, target: target, project: project)
                 var target = target
                 if orphanExternalTargets.contains(graphTarget) || target.destinations.isEmpty {
-                    target.prune = true
+                    target.metadata.tags.formUnion(["tuist:prunable"])
                 }
                 return (target.name, target)
             })

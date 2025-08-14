@@ -77,7 +77,7 @@ public final class FocusTargetsGraphMappers: GraphMapping {
             project.targets = project.targets.mapValues { target in
                 var target = target
                 if !filteredTargets.contains(GraphTarget(path: project.path, target: target, project: project)) {
-                    target.prune = true
+                    target.metadata.tags.formUnion(["tuist:prunable"])
                 }
                 return target
             }
