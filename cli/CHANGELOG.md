@@ -1,6 +1,17 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.60.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* support hashing transitive `.xcconfig` files by [@mikhailmulyar](https://github.com/mikhailmulyar) in [#7961](https://github.com/tuist/tuist/pull/7961)
+### 🐛 Bug Fixes
+
+* use Xcode default for which architectures are built by [@fortmarek](https://github.com/fortmarek) in [#8007](https://github.com/tuist/tuist/pull/8007)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.59.2...4.60.0
+
 ## What's Changed in 4.59.2<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
