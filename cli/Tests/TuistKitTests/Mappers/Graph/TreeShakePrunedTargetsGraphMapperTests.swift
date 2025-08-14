@@ -21,7 +21,7 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
 
     func test_map_removes_projects_when_all_its_targets_are_pruned() throws {
         // Given
-        let target = Target.test(prune: true)
+        let target = Target.test(metadata: .metadata(tags: ["tuist:prunable"]))
         let project = Project.test(targets: [target])
 
         let graph = Graph.test(
@@ -47,8 +47,8 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
 
     func test_map_removes_pruned_targets_from_projects() throws {
         // Given
-        let firstTarget = Target.test(name: "first", prune: false)
-        let secondTarget = Target.test(name: "second", prune: true)
+        let firstTarget = Target.test(name: "first")
+        let secondTarget = Target.test(name: "second", metadata: .metadata(tags: ["tuist:prunable"]))
         let project = Project.test(targets: [firstTarget, secondTarget])
 
         let graph = Graph.test(
@@ -71,8 +71,8 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
     func test_map_removes_project_schemes_with_whose_all_targets_have_been_removed() throws {
         // Given
         let path = try AbsolutePath(validating: "/project")
-        let prunedTarget = Target.test(name: "first", prune: true)
-        let keptTarget = Target.test(name: "second", prune: false)
+        let prunedTarget = Target.test(name: "first", metadata: .metadata(tags: ["tuist:prunable"]))
+        let keptTarget = Target.test(name: "second")
         let schemes: [Scheme] = [
             .test(buildAction: .test(targets: [.init(projectPath: path, name: prunedTarget.name)])),
         ]
@@ -96,7 +96,7 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
     func test_map_removes_project_schemes_with_whose_run_action_expand_variable_from_target_has_been_removed() throws {
         // Given
         let path = try AbsolutePath(validating: "/project")
-        let prunedTarget = Target.test(name: "first", prune: true)
+        let prunedTarget = Target.test(name: "first", metadata: .metadata(tags: ["tuist:prunable"]))
         let keptTarget = Target.test(name: "second", prune: false)
         let schemes: [Scheme] = [
             .test(
@@ -124,8 +124,8 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
     func test_map_removes_project_schemes_with_whose_test_action_expand_variable_from_target_has_been_removed() throws {
         // Given
         let path = try AbsolutePath(validating: "/project")
-        let prunedTarget = Target.test(name: "first", prune: true)
-        let keptTarget = Target.test(name: "second", prune: false)
+        let prunedTarget = Target.test(name: "first", metadata: .metadata(tags: ["tuist:prunable"]))
+        let keptTarget = Target.test(name: "second")
         let schemes: [Scheme] = [
             .test(
                 buildAction: .test(targets: [.init(projectPath: path, name: keptTarget.name)]),
@@ -151,8 +151,8 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
 
     func test_map_removes_project_schemes_with_test_plans_when_all_targets_were_removed() throws {
         let path = try AbsolutePath(validating: "/project")
-        let prunedTarget = Target.test(name: "first", prune: true)
-        let keptTarget = Target.test(name: "second", prune: false)
+        let prunedTarget = Target.test(name: "first", metadata: .metadata(tags: ["tuist:prunable"]))
+        let keptTarget = Target.test(name: "second")
         let schemes: [Scheme] = [
             .test(
                 buildAction: .test(targets: [.init(projectPath: path, name: prunedTarget.name)]),
@@ -193,8 +193,8 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
 
     func test_map_keeps_project_schemes_with_whose_all_targets_have_been_removed_but_have_test_plans() throws {
         let path = try AbsolutePath(validating: "/project")
-        let prunedTarget = Target.test(name: "first", prune: true)
-        let keptTarget = Target.test(name: "second", prune: false)
+        let prunedTarget = Target.test(name: "first", metadata: .metadata(tags: ["tuist:prunable"]))
+        let keptTarget = Target.test(name: "second")
         let schemes: [Scheme] = [
             .test(
                 buildAction: .test(targets: [.init(projectPath: path, name: prunedTarget.name)]),
@@ -267,7 +267,7 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
         // Given
         let path = try AbsolutePath(validating: "/project")
         let removedProjectPath = AbsolutePath.root.appending(component: "Other")
-        let target = Target.test(name: "first", prune: true)
+        let target = Target.test(name: "first", metadata: .metadata(tags: ["tuist:prunable"]))
         let schemes: [Scheme] = [
             .test(buildAction: .test(targets: [.init(projectPath: path, name: target.name)])),
         ]
@@ -296,7 +296,7 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
         // Given
         let path = try AbsolutePath(validating: "/project")
         let removedProjectPath = AbsolutePath.root.appending(component: "Other")
-        let target = Target.test(name: "first", prune: true)
+        let target = Target.test(name: "first", metadata: .metadata(tags: ["tuist:prunable"]))
         let schemes: [Scheme] = [
             .test(buildAction: .test(targets: [.init(projectPath: path, name: target.name)])),
         ]
@@ -372,7 +372,7 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
         let firstTarget = Target.test(name: "Brazil")
         let secondTarget = Target.test(name: "Ghana")
         let thirdTarget = Target.test(name: "Japan")
-        let prunedTarget = Target.test(name: "Pruned", prune: true)
+        let prunedTarget = Target.test(name: "Pruned", metadata: .metadata(tags: ["tuist:prunable"]))
         let project = Project.test(targets: [firstTarget, secondTarget, thirdTarget, prunedTarget])
 
         let graph = Graph.test(
@@ -390,12 +390,39 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
         XCTAssertEqual(gotGraph.projects.first?.value, expectedProject)
     }
 
+    func test_map_preserves_schemes_with_no_targets_but_executables() throws {
+        // Given
+        let project = Project.test(targets: [])
+        let executable = try AbsolutePath(validating: "/test/tuist")
+
+        let graph = Graph.test(
+            path: project.path,
+            workspace: .test(schemes: [
+                .test(name: "Tuist", runAction: .test(filePath: executable)),
+            ]),
+            projects: [project.path: project],
+            dependencies: [:]
+        )
+
+        // When
+        let (gotGraph, _, _) = try subject.map(graph: graph, environment: MapperEnvironment())
+
+        // Then
+        XCTAssertEqual(gotGraph.workspace.schemes.count, 1)
+        XCTAssertEqual(gotGraph.workspace.schemes.first?.name, "Tuist")
+    }
+
     func test_map_removes_pruned_dependencies() throws {
         // Given
         let frameworkBiOS = Target.test(name: "BiOS", destinations: [.iPhone], product: .framework)
         // This one has been marked to prune by Tuist because it's not needed if we filter down the platforms from the entry-point
         // nodes of the graph.
-        let frameworkBtvOS = Target.test(name: "BtvOS", destinations: [.appleTv], product: .framework, prune: true)
+        let frameworkBtvOS = Target.test(
+            name: "BtvOS",
+            destinations: [.appleTv],
+            product: .framework,
+            metadata: .metadata(tags: ["tuist:prunable"])
+        )
         let frameworkA = Target.test(name: "A", destinations: [.iPhone], product: .framework, dependencies: [
             .target(name: frameworkBiOS.name, status: .required, condition: nil),
             .target(name: frameworkBtvOS.name, status: .required, condition: nil),

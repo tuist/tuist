@@ -151,7 +151,7 @@ extension TuistGeneratedProjectOptions {
             optionalAuthentication: Bool = false,
             buildInsightsDisabled: Bool = true,
             disableSandbox: Bool = false,
-            includeGenerateScheme: Bool = false
+            includeGenerateScheme: Bool = true
         ) -> Self {
             .init(
                 resolveDependenciesWithSystemScm: resolveDependenciesWithSystemScm,

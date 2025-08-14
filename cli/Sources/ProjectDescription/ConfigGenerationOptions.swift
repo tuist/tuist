@@ -62,7 +62,7 @@ extension Tuist {
             optionalAuthentication: Bool = false,
             buildInsightsDisabled: Bool = false,
             disableSandbox: Bool = false,
-            includeGenerateScheme: Bool = false
+            includeGenerateScheme: Bool = true
         ) -> Self {
             self.init(
                 resolveDependenciesWithSystemScm: resolveDependenciesWithSystemScm,

@@ -538,7 +538,7 @@
       "location" : "https://github.com/tuist/XcodeGraph",
       "state" : {
         "branch" : "mutable-metadata",
-        "revision" : "c9cb275d2ffa585eff92319a9ac39f341a66b57e"
+        "revision" : "b919ac4cfc7a3367b3e2556393ed6a5c9f49b016"
       }
     },
     {

@@ -94,16 +94,6 @@ public struct InspectOptions: Codable, Equatable, Hashable, Sendable {
     }
 }
 
-public struct CacheOptions: Codable, Equatable, Hashable, Sendable {
-    public var keepSourceTargets: Bool
-
-    public init(
-        keepSourceTargets: Bool = false
-    ) {
-        self.keepSourceTargets = keepSourceTargets
-    }
-}
-
 #if DEBUG
     extension Tuist {
         public static func test(
