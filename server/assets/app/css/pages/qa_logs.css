@@ -77,7 +77,7 @@
       min-height: 20px;
 
       &:hover {
-        background: var(--noora-button-neutral-background-hover);
+        background: var(--noora-surface-background-tertiary);
       }
     }
 
