@@ -55,29 +55,45 @@ defmodule TuistWeb.Webhooks.GitHubController do
 
       {:ok, project} ->
         git_ref = "refs/pull/#{issue_number}/merge"
-        simulator_app_build = AppBuilds.latest_app_build(git_ref, project, supported_platform: :ios_simulator)
 
-        {:ok, %{"id" => comment_id}} = post_initial_comment(simulator_app_build, repository_full_handle, git_ref, project)
-
-        if simulator_app_build do
-          %{
-            "app_build_id" => simulator_app_build.id,
-            "prompt" => prompt,
-            "issue_comment_id" => comment_id
-          }
-          |> QA.Workers.TestWorker.new()
-          |> Oban.insert()
+        if FunWithFlags.enabled?(:qa, for: project.account) do
+          start_or_enqueue_qa_run(project, prompt, git_ref)
         else
-          QA.create_qa_run(%{
-            app_build_id: nil,
-            prompt: prompt,
-            status: "pending",
-            vcs_provider: project.vcs_provider,
-            vcs_repository_full_handle: project.vcs_repository_full_handle,
+          VCS.create_comment(%{
+            repository_full_handle: repository_full_handle,
             git_ref: git_ref,
-            issue_comment_id: comment_id
+            body:
+              "Tuist QA is currently not generally available. Contact us at contact@tuist.dev if you'd like an early preview of the feature.",
+            project: project
           })
         end
+    end
+  end
+
+  defp start_or_enqueue_qa_run(project, prompt, git_ref) do
+    simulator_app_build = AppBuilds.latest_app_build(git_ref, project, supported_platform: :ios_simulator)
+
+    {:ok, %{"id" => comment_id}} =
+      post_initial_comment(simulator_app_build, project.vcs_repository_full_handle, git_ref, project)
+
+    if simulator_app_build do
+      %{
+        "app_build_id" => simulator_app_build.id,
+        "prompt" => prompt,
+        "issue_comment_id" => comment_id
+      }
+      |> QA.Workers.TestWorker.new()
+      |> Oban.insert()
+    else
+      QA.create_qa_run(%{
+        app_build_id: nil,
+        prompt: prompt,
+        status: "pending",
+        vcs_provider: project.vcs_provider,
+        vcs_repository_full_handle: project.vcs_repository_full_handle,
+        git_ref: git_ref,
+        issue_comment_id: comment_id
+      })
     end
   end
 
