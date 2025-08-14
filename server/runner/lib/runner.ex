@@ -29,7 +29,7 @@ defmodule Runner do
   end
 
   defp parse_args do
-    argv = System.argv()
+    argv = Burrito.Util.Args.get_arguments()
 
     case argv do
       [] ->
