@@ -61,7 +61,6 @@ defmodule Tuist.QA.Agent do
       handler = %{
         on_message_processed: fn _chain,
                                  %Message{
-                                   role: _role,
                                    content: content,
                                    tool_calls: tool_calls,
                                    tool_results: tool_results
