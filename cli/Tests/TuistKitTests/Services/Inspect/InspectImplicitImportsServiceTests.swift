@@ -54,10 +54,8 @@ final class LintImplicitImportsServiceTests: TuistUnitTestCase {
         given(targetScanner).imports(for: .value(app)).willReturn(Set(["Framework"]))
         given(targetScanner).imports(for: .value(framework)).willReturn(Set([]))
 
-        let expectedError = LintingError()
-
-        // When
-        await XCTAssertThrowsSpecific(try await subject.run(path: path.pathString), expectedError)
+        // When / Then
+        await XCTAssertThrowsSpecific(try await subject.run(path: path.pathString), LintingError())
     }
 
     func test_run_when_external_package_target_is_implicitly_imported() async throws {
@@ -78,10 +76,8 @@ final class LintImplicitImportsServiceTests: TuistUnitTestCase {
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
         given(targetScanner).imports(for: .value(app)).willReturn(Set(["PackageTarget"]))
 
-        let expectedError = LintingError()
-
         // When / Then
-        await XCTAssertThrowsSpecific(try await subject.run(path: path.pathString), expectedError)
+        await XCTAssertThrowsSpecific(try await subject.run(path: path.pathString), LintingError())
     }
 
     func test_run_when_external_package_target_is_explicitly_imported() async throws {
@@ -144,7 +140,7 @@ final class LintImplicitImportsServiceTests: TuistUnitTestCase {
         given(targetScanner).imports(for: .value(app)).willReturn(Set(["PackageTargetDependency"]))
 
         // When / Then
-        try await subject.run(path: path.pathString)
+        await XCTAssertThrowsSpecific(try await subject.run(path: path.pathString), LintingError())
     }
 
     func test_run_doesntThrowAnyErrors_when_thereAreNoIssues() async throws {

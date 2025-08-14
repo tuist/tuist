@@ -143,7 +143,7 @@ final class LintRedundantImportsServiceTests: TuistUnitTestCase {
         given(targetScanner).imports(for: .value(app)).willReturn([])
 
         // When / Then
-        try await subject.run(path: path.pathString)
+        await XCTAssertThrowsSpecific(try await subject.run(path: path.pathString), LintingError())
     }
 
     func test_run_doesntThrowAnyErrors_when_thereAreNoIssues() async throws {
