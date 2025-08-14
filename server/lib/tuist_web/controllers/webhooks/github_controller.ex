@@ -111,7 +111,7 @@ defmodule TuistWeb.Webhooks.GitHubController do
         true -> "/tuist qa"
       end
 
-    pattern = ~r/#{Regex.escape(base_prompt)}\s*(.*)$/im
+    pattern = ~r/^\s*#{Regex.escape(base_prompt)}\s*(.*)$/im
 
     case Regex.run(pattern, body) do
       [_, prompt] ->
