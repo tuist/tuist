@@ -59,15 +59,15 @@ COPY mix.exs mix.lock ./
 RUN mix deps.get --only $MIX_ENV
 RUN mkdir config
 
-# Copy qa source before building
-COPY qa qa
+# Copy runner source before building
+COPY runner runner
 
-# Build qa binary
-WORKDIR /app/qa
+# Build runner binary
+WORKDIR /app/runner
 RUN mix deps.get --only $MIX_ENV
-RUN MIX_ENV=prod mix release qa
+RUN MIX_ENV=prod mix release runner
 RUN mkdir -p /app/build
-RUN cp burrito_out/qa_macos /app/build/qa
+RUN cp burrito_out/runner_macos /app/build/runner
 
 WORKDIR /app
 
@@ -144,7 +144,7 @@ RUN if [ "$TUIST_HOSTED" = "0" ]; then \
 ENV SECRETS_DIRECTORY=/app/priv/secrets/
 COPY priv/repo/structure.sql /app/priv/repo/structure.sql
 
-COPY --from=builder /app/build/qa /app/bin/qa
+COPY --from=builder /app/build/runner /app/bin/runner
 
 USER nobody
 

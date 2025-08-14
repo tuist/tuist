@@ -1,11 +1,11 @@
-defmodule QA.Tools do
+defmodule Runner.QA.Tools do
   @moduledoc """
   QA tools such as for iOS Simulator interaction.
   """
   alias LangChain.Function
   alias LangChain.FunctionParam
   alias LangChain.Message.ContentPart
-  alias QA.Client
+  alias Runner.QA.Client
 
   require Logger
 

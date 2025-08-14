@@ -1,4 +1,4 @@
-defmodule QA.Agent do
+defmodule Runner.QA.Agent do
   @moduledoc """
   Tuist QA agent module.
   """
@@ -8,10 +8,10 @@ defmodule QA.Agent do
   alias LangChain.Message
   alias LangChain.Message.ContentPart
   alias LangChain.TokenUsage
-  alias QA.Client
-  alias QA.Simulators
-  alias QA.Tools
-  alias QA.Zip
+  alias Runner.QA.Client
+  alias Runner.QA.Simulators
+  alias Runner.QA.Tools
+  alias Runner.Zip
 
   require Logger
 

@@ -1,9 +1,9 @@
-defmodule QA.MixProject do
+defmodule Runner.MixProject do
   use Mix.Project
 
   def project do
     [
-      app: :qa,
+      app: :runner,
       version: "0.1.0",
       build_path: "../_build",
       deps_path: "../deps",
@@ -17,7 +17,7 @@ defmodule QA.MixProject do
 
   def application do
     [
-      mod: {QA, []},
+      mod: {Runner, []},
       extra_applications: [:logger]
     ]
   end
@@ -33,7 +33,7 @@ defmodule QA.MixProject do
 
   defp releases do
     [
-      qa: [
+      runner: [
         steps: [:assemble, &Burrito.wrap/1],
         burrito: [
           targets: [

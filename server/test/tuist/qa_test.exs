@@ -2,7 +2,7 @@ defmodule Tuist.QATest do
   use TuistTestSupport.Cases.DataCase
   use Mimic
 
-  alias QA.Agent
+  alias Runner.QA.Agent
   alias Tuist.Authentication
   alias Tuist.QA
   alias Tuist.Repo
@@ -78,8 +78,8 @@ defmodule Tuist.QATest do
       end)
 
       expect(Tuist.SSHClient, :transfer_file, fn _ssh_connection,
-                                                 "/app/bin/qa",
-                                                 "/usr/local/bin/qa",
+                                                 "/app/bin/runner",
+                                                 "/usr/local/bin/runner",
                                                  [permissions: 0o100755] ->
         :ok
       end)
@@ -87,7 +87,7 @@ defmodule Tuist.QATest do
       expect(Tuist.SSHClient, :run_command, fn _ssh_connection, command ->
         assert String.contains?(command, "brew install facebook/fb/idb-companion")
         assert String.contains?(command, "pipx install fb-idb")
-        assert String.contains?(command, "qa --preview-url")
+        assert String.contains?(command, "runner qa --preview-url")
         assert String.contains?(command, "Test the login feature")
         assert String.contains?(command, "--auth-token test-jwt-token")
         {:ok, "QA test completed successfully"}
@@ -133,8 +133,8 @@ defmodule Tuist.QATest do
       end)
 
       expect(Tuist.SSHClient, :transfer_file, fn _ssh_connection,
-                                                 "/app/bin/qa",
-                                                 "/usr/local/bin/qa",
+                                                 "/app/bin/runner",
+                                                 "/usr/local/bin/runner",
                                                  [permissions: 0o100755] ->
         :ok
       end)
@@ -219,8 +219,8 @@ defmodule Tuist.QATest do
       end)
 
       expect(Tuist.SSHClient, :transfer_file, fn _ssh_connection,
-                                                 "/app/bin/qa",
-                                                 "/usr/local/bin/qa",
+                                                 "/app/bin/runner",
+                                                 "/usr/local/bin/runner",
                                                  [permissions: 0o100755] ->
         :ok
       end)

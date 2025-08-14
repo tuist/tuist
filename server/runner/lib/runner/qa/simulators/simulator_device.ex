@@ -1,4 +1,4 @@
-defmodule QA.Simulators.SimulatorDevice do
+defmodule Runner.QA.Simulators.SimulatorDevice do
   @moduledoc """
   Represents a simulator device.
   """

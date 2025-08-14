@@ -1,4 +1,4 @@
-defmodule QA.Zip do
+defmodule Runner.Zip do
   @moduledoc ~S"""
   A module to deal with zips.
   """

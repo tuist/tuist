@@ -1,10 +1,10 @@
-defmodule Tuist.QA.LogStreamerTest do
+defmodule Runner.QA.LogStreamerTest do
   use ExUnit.Case, async: true
   use Mimic
 
   import Slipstream.Socket
 
-  alias QA.LogStreamer
+  alias Runner.QA.LogStreamer
 
   defp create_socket(run_id) do
     assign(Slipstream.new_socket(), :run_id, run_id)

@@ -7,7 +7,7 @@ defmodule Tuist.MixProject do
       version: "0.1.0",
       elixir: "~> 1.16",
       elixirc_paths: elixirc_paths(Mix.env()),
-      test_paths: ["test", "qa/test"],
+      test_paths: ["test", "runner/test"],
       start_permanent: Enum.member?([:prod, :stag, :can], Mix.env()),
       aliases: aliases(),
       deps: deps(),
@@ -134,7 +134,7 @@ defmodule Tuist.MixProject do
       {:cloak_ecto, "~> 1.3.0"},
       {:boruta, git: "https://github.com/malach-it/boruta_auth", branch: "master"},
       {:minio_server, github: "LostKobrakai/minio_server", only: :dev},
-      {:qa, path: "qa", runtime: false}
+      {:runner, path: "runner", runtime: false}
     ]
   end
 

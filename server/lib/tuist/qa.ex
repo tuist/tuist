@@ -5,7 +5,7 @@ defmodule Tuist.QA do
 
   import Ecto.Query
 
-  alias QA.Agent
+  alias Runner.QA.Agent
   alias Tuist.Accounts
   alias Tuist.AppBuilds
   alias Tuist.AppBuilds.AppBuild
@@ -92,8 +92,8 @@ defmodule Tuist.QA do
     with :ok <-
            SSHClient.transfer_file(
              ssh_connection,
-             "/app/bin/qa",
-             "/usr/local/bin/qa",
+             "/app/bin/runner",
+             "/usr/local/bin/runner",
              permissions: 0o100755
            ),
          {:ok, _output} <- SSHClient.run_command(ssh_connection, qa_script(attrs)) do
@@ -119,7 +119,7 @@ defmodule Tuist.QA do
     brew install facebook/fb/idb-companion cameroncooke/axe/axe pipx --quiet || true
     pipx install fb-idb
     export PATH=$PATH:$HOME/.local/bin
-    qa --preview-url "#{app_build_url}" --bundle-identifier #{bundle_identifier} --server-url #{server_url} --run-id #{run_id} --auth-token #{auth_token} --account-handle #{account_handle} --project-handle #{project_handle} --prompt "#{prompt}" --anthropic-api-key #{Environment.anthropic_api_key()}
+    runner qa --preview-url "#{app_build_url}" --bundle-identifier #{bundle_identifier} --server-url #{server_url} --run-id #{run_id} --auth-token #{auth_token} --account-handle #{account_handle} --project-handle #{project_handle} --prompt "#{prompt}" --anthropic-api-key #{Environment.anthropic_api_key()}
     """
   end
 

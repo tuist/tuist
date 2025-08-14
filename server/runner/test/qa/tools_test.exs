@@ -1,10 +1,10 @@
-defmodule Tuist.QA.ToolsTest do
+defmodule Runner.QA.ToolsTest do
   use ExUnit.Case, async: true
   use Mimic
 
   alias LangChain.Message.ContentPart
-  alias QA.Client
-  alias QA.Tools
+  alias Runner.QA.Client
+  alias Runner.QA.Tools
 
   setup :verify_on_exit!
 
