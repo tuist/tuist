@@ -191,5 +191,26 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
       # Then
       assert result.status == 200
     end
+
+    test "ignores QA prompt in quoted text with > prefix", %{conn: conn} do
+      # Given
+      conn = put_req_header(conn, "x-github-event", "issue_comment")
+
+      reject(Projects, :project_by_vcs_repository_full_handle, 2)
+
+      # When
+      result =
+        GitHubController.handle(conn, %{
+          "action" => "created",
+          "comment" => %{
+            "body" => "> /tuist qa test the app\nThis should not trigger"
+          },
+          "repository" => %{"full_name" => "org/repo"},
+          "issue" => %{"number" => 42, "pull_request" => %{}}
+        })
+
+      # Then
+      assert result.status == 200
+    end
   end
 end

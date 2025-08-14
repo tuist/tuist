@@ -2955,4 +2955,42 @@ defmodule Tuist.AccountsTest do
       assert {:error, :not_found} == Accounts.get_okta_configuration_by_organization_id(999_999)
     end
   end
+
+  describe "create_namespace_tenant_for_account/1" do
+    test "creates a tenant and updates account with namespace_tenant_id" do
+      # Given
+      %{account: account} = AccountsFixtures.user_fixture()
+      namespace_tenant_id = "tenant-123"
+      account_name = account.name
+      account_id = account.id
+
+      expect(Tuist.Namespace, :create_tenant, 1, fn ^account_name, ^account_id ->
+        {:ok, %{"tenant" => %{"id" => namespace_tenant_id}}}
+      end)
+
+      # When
+      {:ok, updated_account} = Accounts.create_namespace_tenant_for_account(account)
+
+      # Then
+      assert updated_account.namespace_tenant_id == namespace_tenant_id
+      assert updated_account.id == account.id
+    end
+
+    test "returns error when Namespace.create_tenant fails" do
+      # Given
+      %{account: account} = AccountsFixtures.user_fixture()
+      error_reason = "Namespace API error"
+
+      expect(Tuist.Namespace, :create_tenant, 1, fn _account_name, _account_id ->
+        {:error, error_reason}
+      end)
+
+      # When
+      {:error, reason} = Accounts.create_namespace_tenant_for_account(account)
+
+      # Then
+      assert reason == error_reason
+      assert is_nil(Accounts.get_account_by_id(account.id).namespace_tenant_id)
+    end
+  end
 end

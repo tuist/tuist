@@ -1,9 +1,9 @@
-defmodule Tuist.QA.Client do
+defmodule Runner.QA.Client do
   @moduledoc """
   Client module for communicating with the QA server.
   """
 
-  alias Tuist.QA.LogStreamer
+  alias Runner.QA.LogStreamer
 
   def create_step(%{
         summary: summary,

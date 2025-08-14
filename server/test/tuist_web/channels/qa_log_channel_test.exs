@@ -1,6 +1,7 @@
 defmodule TuistWeb.QALogChannelTest do
   use TuistWeb.ChannelCase
 
+  import ExUnit.CaptureLog
   import TuistTestSupport.Fixtures.AccountsFixtures
   import TuistTestSupport.Fixtures.AppBuildsFixtures
   import TuistTestSupport.Fixtures.ProjectsFixtures
@@ -96,16 +97,18 @@ defmodule TuistWeb.QALogChannelTest do
 
       levels = ["debug", "info", "warn", "warning", "error"]
 
-      for level <- levels do
-        log_message = %{
-          "message" => "Test #{level} message",
-          "level" => level,
-          "timestamp" => DateTime.to_iso8601(DateTime.utc_now())
-        }
+      capture_log(fn ->
+        for level <- levels do
+          log_message = %{
+            "message" => "Test #{level} message",
+            "level" => level,
+            "timestamp" => DateTime.to_iso8601(DateTime.utc_now())
+          }
 
-        ref = push(socket, "log", log_message)
-        assert_reply(ref, :ok)
-      end
+          ref = push(socket, "log", log_message)
+          assert_reply(ref, :ok)
+        end
+      end)
     end
 
     test "defaults to info level for unknown levels", %{socket: socket, qa_run: qa_run} do

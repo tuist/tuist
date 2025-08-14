@@ -1,4 +1,4 @@
-defmodule Tuist.QA.Agent do
+defmodule Runner.QA.Agent do
   @moduledoc """
   Tuist QA agent module.
   """
@@ -8,10 +8,10 @@ defmodule Tuist.QA.Agent do
   alias LangChain.Message
   alias LangChain.Message.ContentPart
   alias LangChain.TokenUsage
-  alias Tuist.QA.Client
-  alias Tuist.QA.Tools
-  alias Tuist.Simulators
-  alias Tuist.Zip
+  alias Runner.QA.Client
+  alias Runner.QA.Simulators
+  alias Runner.QA.Tools
+  alias Runner.Zip
 
   require Logger
 
@@ -98,10 +98,12 @@ defmodule Tuist.QA.Agent do
 
       When using tools, use the following udid: #{simulator_device.udid}.
 
-      Tips for interacting with the app:
+      When interacting with the app:
       - Prefer using describe_ui over screenshot to interact with the app
       - To dismiss a system sheet, tap within the visible screen area but outside the sheet, such in the dark/grayed area above the sheet
       - If a button includes text, prefer tapping on the text to interact with the button
+      - To clear fields, use the 42 keycode (backspace) with a longer duration
+      - Don't clear pre-filled/placeholder values in fields – instead start typing the text directly
       """
 
       llm =

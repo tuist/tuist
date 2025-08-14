@@ -1,9 +1,9 @@
-defmodule Tuist.Simulators.SimulatorsTest do
+defmodule Runner.QA.Simulators.SimulatorsTest do
   use ExUnit.Case, async: false
   use Mimic
 
-  alias Tuist.Simulators
-  alias Tuist.Simulators.SimulatorDevice
+  alias Runner.QA.Simulators
+  alias Runner.QA.Simulators.SimulatorDevice
 
   describe "devices/1" do
     test "returns all devices when no runtime filter is provided" do

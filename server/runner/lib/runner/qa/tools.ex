@@ -1,11 +1,11 @@
-defmodule Tuist.QA.Tools do
+defmodule Runner.QA.Tools do
   @moduledoc """
   QA tools such as for iOS Simulator interaction.
   """
   alias LangChain.Function
   alias LangChain.FunctionParam
   alias LangChain.Message.ContentPart
-  alias Tuist.QA.Client
+  alias Runner.QA.Client
 
   require Logger
 
@@ -29,7 +29,7 @@ defmodule Tuist.QA.Tools do
   defp describe_ui_tool do
     Function.new!(%{
       name: "describe_ui",
-      description: "Retrieves the entire view hierarchy with precise frame coordinates for all visible elements",
+      description: "Retrieves the entire view hierarchy with precise frame coordinates for all visible elements.",
       parameters: [
         FunctionParam.new!(%{
           name: "simulator_uuid",
@@ -40,8 +40,17 @@ defmodule Tuist.QA.Tools do
       ],
       function: fn %{"simulator_uuid" => simulator_uuid} = _params, _context ->
         case run_axe_command(simulator_uuid, ["describe-ui"]) do
-          {:ok, content} -> {:ok, simplify_ui_description(content)}
-          {:error, reason} -> {:error, reason}
+          {:ok, content} ->
+            simplified_content = simplify_ui_description(content)
+
+            if should_scan_webview(content) do
+              describe_webview_ui(content, simulator_uuid)
+            else
+              {:ok, simplified_content}
+            end
+
+          {:error, reason} ->
+            {:error, reason}
         end
       end
     })
@@ -111,7 +120,21 @@ defmodule Tuist.QA.Tools do
       ],
       function: fn %{"simulator_uuid" => simulator_uuid, "x" => x, "y" => y} = params, _context ->
         duration = Map.get(params, "duration", 1.0)
-        run_axe_command(simulator_uuid, ["ui", "long-press", "#{x}", "#{y}", "--duration", "#{duration}"])
+
+        case run_axe_command(simulator_uuid, [
+               "touch",
+               "-x",
+               "#{x}",
+               "-y",
+               "#{y}",
+               "--down",
+               "--up",
+               "--delay",
+               "#{duration}"
+             ]) do
+          {:ok, _} -> {:ok, "Long press successful"}
+          {:error, reason} -> {:error, reason}
+        end
       end
     })
   end
@@ -208,7 +231,10 @@ defmodule Tuist.QA.Tools do
         })
       ],
       function: fn %{"simulator_uuid" => simulator_uuid, "text" => text} = _params, _context ->
-        run_axe_command(simulator_uuid, ["type", text])
+        case run_axe_command(simulator_uuid, ["type", text]) do
+          {:ok, _} -> {:ok, "Text typed successfully"}
+          {:error, reason} -> {:error, reason}
+        end
       end
     })
   end
@@ -227,12 +253,34 @@ defmodule Tuist.QA.Tools do
         FunctionParam.new!(%{
           name: "keycode",
           type: :string,
-          description: "HID keycode to press",
+          description: """
+          Press individual keys using their HID keycode values.
+
+          Common keycodes:
+            40 - Return/Enter
+            42 - Backspace
+            43 - Tab
+            44 - Space
+            58-67 - F1-F10
+            224-231 - Modifier keys (Ctrl, Shift, Alt, etc.)
+          """,
           required: true
+        }),
+        FunctionParam.new!(%{
+          name: "duration",
+          type: :number,
+          description: "Duration to hold the key in seconds",
+          required: false,
+          default: 0.1
         })
       ],
-      function: fn %{"simulator_uuid" => simulator_uuid, "keycode" => keycode} = _params, _context ->
-        run_axe_command(simulator_uuid, ["key", keycode])
+      function: fn %{"simulator_uuid" => simulator_uuid, "keycode" => keycode} = params, _context ->
+        duration = Map.get(params, "duration", 0.1)
+
+        case run_axe_command(simulator_uuid, ["key", keycode, "--duration", "#{duration}"]) do
+          {:ok, _} -> {:ok, "Key pressed successfully"}
+          {:error, reason} -> {:error, reason}
+        end
       end
     })
   end
@@ -559,6 +607,78 @@ defmodule Tuist.QA.Tools do
         end
       end
     })
+  end
+
+  defp should_scan_webview(ui_content) do
+    case JSON.decode(ui_content) do
+      {:ok, ui_data} when is_list(ui_data) ->
+        case ui_data do
+          [%{"role" => "AXApplication", "children" => []}] -> true
+          _ -> false
+        end
+
+      _ ->
+        false
+    end
+  end
+
+  defp describe_webview_ui(ui_content, simulator_uuid) do
+    grid_size = 50
+
+    case screen_dimensions(ui_content) do
+      {:ok, {width, height}} ->
+        scan_points_with_idb(simulator_uuid, width, height, grid_size)
+
+      {:error, reason} ->
+        {:error, "Failed to get screen dimensions: #{reason}"}
+    end
+  end
+
+  defp screen_dimensions(ui_content) do
+    case JSON.decode(ui_content) do
+      {:ok, ui_data} ->
+        find_window_frame(ui_data)
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp find_window_frame(elements) do
+    Enum.find_value(elements, {:error, :window_frame_not_found}, fn element ->
+      case element do
+        %{"type" => type, "frame" => frame} when type in ["Window", "Application"] ->
+          {:ok, {frame["width"], frame["height"]}}
+
+        _ ->
+          nil
+      end
+    end)
+  end
+
+  defp scan_points_with_idb(simulator_uuid, width, height, grid_size) do
+    for_result =
+      for x <- 0..trunc(width)//grid_size,
+          y <- 0..trunc(height)//grid_size,
+          {:ok, point_info} <- [run_idb_describe_point(simulator_uuid, x, y)],
+          {:ok, element} <- [JSON.decode(point_info)] do
+        element
+      end
+
+    elements =
+      Enum.uniq_by(for_result, fn element -> element["AXUniqueId"] || {element["frame"], element["AXLabel"]} end)
+
+    {:ok, JSON.encode!(elements)}
+  end
+
+  defp run_idb_describe_point(simulator_uuid, x, y) do
+    case System.cmd("idb", ["ui", "describe-point", "--udid", simulator_uuid, "--json", "#{x}", "#{y}"]) do
+      {output, 0} ->
+        {:ok, String.trim(output)}
+
+      {error, status} ->
+        {:error, "idb describe-point failed (status #{status}): #{error}"}
+    end
   end
 
   defp run_axe_command(simulator_uuid, args) do

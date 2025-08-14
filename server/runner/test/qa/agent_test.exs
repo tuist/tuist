@@ -1,4 +1,4 @@
-defmodule Tuist.QA.AgentTest do
+defmodule Runner.QA.AgentTest do
   use ExUnit.Case, async: true
   use Mimic
 
@@ -6,10 +6,11 @@ defmodule Tuist.QA.AgentTest do
   alias LangChain.ChatModels.ChatAnthropic
   alias LangChain.Message
   alias LangChain.Message.ToolResult
-  alias Tuist.QA.Agent
-  alias Tuist.QA.Client
-  alias Tuist.QA.Tools
-  alias Tuist.Simulators.SimulatorDevice
+  alias Runner.QA.Agent
+  alias Runner.QA.Client
+  alias Runner.QA.Simulators
+  alias Runner.QA.Simulators.SimulatorDevice
+  alias Runner.QA.Tools
 
   setup do
     device = %SimulatorDevice{
@@ -23,7 +24,7 @@ defmodule Tuist.QA.AgentTest do
     extract_dir = "/tmp/extracted"
     app_path = "/tmp/extracted/MyApp.app"
 
-    stub(Tuist.Simulators, :devices, fn -> {:ok, [device]} end)
+    stub(Simulators, :devices, fn -> {:ok, [device]} end)
 
     stub(Briefly, :create, fn
       [extname: ".zip"] -> {:ok, preview_path}
@@ -31,11 +32,11 @@ defmodule Tuist.QA.AgentTest do
     end)
 
     stub(File, :stream!, fn ^preview_path -> :mocked_stream end)
-    stub(Tuist.Zip, :extract, fn _, _ -> {:ok, []} end)
+    stub(Runner.Zip, :extract, fn _, _ -> {:ok, []} end)
     stub(File, :ls, fn ^extract_dir -> {:ok, ["MyApp.app"]} end)
 
-    stub(Tuist.Simulators, :boot_simulator, fn ^device -> :ok end)
-    stub(Tuist.Simulators, :install_app, fn ^app_path, ^device -> :ok end)
+    stub(Simulators, :boot_simulator, fn ^device -> :ok end)
+    stub(Simulators, :install_app, fn ^app_path, ^device -> :ok end)
 
     stub(ChatAnthropic, :new!, fn _ ->
       %ChatAnthropic{api_key: "test-api-key", model: "claude-sonnet-4-20250514"}
@@ -82,7 +83,7 @@ defmodule Tuist.QA.AgentTest do
       prompt = "Test the login feature"
 
       expect(Req, :get, fn ^preview_url, [into: :mocked_stream] -> {:ok, %{status: 200}} end)
-      expect(Tuist.Simulators, :launch_app, fn ^bundle_identifier, ^device -> :ok end)
+      expect(Simulators, :launch_app, fn ^bundle_identifier, ^device -> :ok end)
 
       chain_result = %LLMChain{
         llm: %ChatAnthropic{api_key: "test-api-key", model: "claude-sonnet-4-20250514"},
@@ -128,7 +129,7 @@ defmodule Tuist.QA.AgentTest do
 
     test "returns error when simulator device cannot be found" do
       # Given
-      expect(Tuist.Simulators, :devices, fn -> {:ok, []} end)
+      expect(Simulators, :devices, fn -> {:ok, []} end)
 
       # When / Then
       assert {:error, "No iOS simulator found"} =
@@ -220,7 +221,7 @@ defmodule Tuist.QA.AgentTest do
       ]
 
       expect(Req, :get, fn ^preview_url, [into: :mocked_stream] -> {:ok, %{status: 200}} end)
-      expect(Tuist.Simulators, :launch_app, fn ^bundle_identifier, ^device -> :ok end)
+      expect(Simulators, :launch_app, fn ^bundle_identifier, ^device -> :ok end)
 
       expect(LLMChain, :new!, 1, fn %{llm: llm} ->
         %LLMChain{llm: llm, messages: [], last_message: nil}

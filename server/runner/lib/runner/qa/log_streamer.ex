@@ -1,4 +1,4 @@
-defmodule Tuist.QA.LogStreamer do
+defmodule Runner.QA.LogStreamer do
   @moduledoc """
   WebSocket client for streaming QA logs to the server using Slipstream.
   """

@@ -45,5 +45,6 @@ defmodule TuistTestSupport.Fixtures.AppBuildsFixtures do
       inserted_at: Keyword.get(opts, :inserted_at)
     })
     |> Repo.insert!()
+    |> Repo.preload(Keyword.get(opts, :preload, []))
   end
 end
