@@ -236,6 +236,8 @@ jobs:
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - uses: jdx/mise-action@v2
       - name: Initialize TuistCacheEE submodule
+        env:
+          TUIST_GITHUB_TOKEN: ${{ secrets.TUIST_GITHUB_TOKEN }}
         run: mise run cli:ee
       - name: Get release notes
         id: release-notes
