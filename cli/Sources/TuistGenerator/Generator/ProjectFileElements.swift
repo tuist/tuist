@@ -31,8 +31,6 @@ public enum GroupFileElement: Hashable {
         }
     }
 
-    // CopyFileElement
-
     var path: AbsolutePath {
         switch self {
         case let .file(path, _): return path
@@ -113,7 +111,9 @@ class ProjectFileElements {
 
         // Products
         let directProducts = project.targets.values.map {
-            GraphDependencyReference.product(target: $0.name, productName: $0.productNameWithExtension, condition: nil)
+            GraphDependencyReference.product(
+                target: $0.name, productName: $0.productNameWithExtension, condition: nil
+            )
         }
 
         // Dependencies
@@ -134,14 +134,18 @@ class ProjectFileElements {
         // Config files
         let configFiles = project.settings.configurations.values.compactMap { $0?.xcconfig }
 
-        fileElements.formUnion(configFiles.map {
-            GroupFileElement.file(path: $0, group: project.filesGroup)
-        })
+        fileElements.formUnion(
+            configFiles.map {
+                GroupFileElement.file(path: $0, group: project.filesGroup)
+            }
+        )
 
         // Additional files
-        fileElements.formUnion(project.additionalFiles.map {
-            GroupFileElement($0, group: project.filesGroup)
-        })
+        fileElements.formUnion(
+            project.additionalFiles.map {
+                GroupFileElement($0, group: project.filesGroup)
+            }
+        )
 
         // Add the .storekit files if needed. StoreKit files must be added to the
         // project/workspace so that the scheme can correctly reference them.
@@ -156,10 +160,14 @@ class ProjectFileElements {
         // Add the .gpx files if needed. GPS Exchange files must be added to the
         // project/workspace so that the scheme can correctly reference them.
         // In case the configuration already contains such file, we should avoid adding it twice
-        let runActionGPXFiles = gpxFilesForRunAction(in: project.schemes, filesGroup: project.filesGroup)
+        let runActionGPXFiles = gpxFilesForRunAction(
+            in: project.schemes, filesGroup: project.filesGroup
+        )
         fileElements.formUnion(runActionGPXFiles)
 
-        let testActionGPXFiles = gpxFilesForTestAction(in: project.schemes, filesGroup: project.filesGroup)
+        let testActionGPXFiles = gpxFilesForTestAction(
+            in: project.schemes, filesGroup: project.filesGroup
+        )
         fileElements.formUnion(testActionGPXFiles)
 
         return fileElements
@@ -167,10 +175,14 @@ class ProjectFileElements {
 
     func targetSynchronizedGroups(target: Target, project: Project) throws -> Set<GroupFileElement> {
         var groups = Set<GroupFileElement>()
-        groups.formUnion(target.buildableFolders.map { GroupFileElement.synchronizedFolder(
-            path: $0.path,
-            group: project.filesGroup
-        ) })
+        groups.formUnion(
+            target.buildableFolders.map {
+                GroupFileElement.synchronizedFolder(
+                    path: $0.path,
+                    group: project.filesGroup
+                )
+            }
+        )
         return groups
     }
 
@@ -207,18 +219,22 @@ class ProjectFileElements {
         // Elements
         var elements = Set<GroupFileElement>()
         elements.formUnion(files.map { GroupFileElement.file(path: $0, group: target.filesGroup) })
-        elements.formUnion(target.resources.resources.map {
-            GroupFileElement($0, group: target.filesGroup)
-        })
+        elements.formUnion(
+            target.resources.resources.map {
+                GroupFileElement($0, group: target.filesGroup)
+            }
+        )
         try elements.formUnion(targetSynchronizedGroups(target: target, project: project))
 
         for copyFile in target.copyFiles {
-            elements.formUnion(copyFile.files.map {
-                GroupFileElement(
-                    $0,
-                    group: target.filesGroup
-                )
-            })
+            elements.formUnion(
+                copyFile.files.map {
+                    GroupFileElement(
+                        $0,
+                        group: target.filesGroup
+                    )
+                }
+            )
         }
 
         return elements
@@ -231,7 +247,9 @@ class ProjectFileElements {
         sourceRootPath: AbsolutePath
     ) throws {
         for file in files {
-            try generate(fileElement: file, groups: groups, pbxproj: pbxproj, sourceRootPath: sourceRootPath)
+            try generate(
+                fileElement: file, groups: groups, pbxproj: pbxproj, sourceRootPath: sourceRootPath
+            )
         }
     }
 
@@ -347,7 +365,9 @@ class ProjectFileElements {
         pbxproj: PBXProj
     ) throws {
         guard products[targetName] == nil else { return }
-        let fileType = try RelativePath(validating: productName).extension.flatMap { Xcode.filetype(extension: $0) }
+        let fileType = try RelativePath(validating: productName).extension.flatMap {
+            Xcode.filetype(extension: $0)
+        }
         let fileReference = PBXFileReference(
             sourceTree: .buildProductsDir,
             explicitFileType: fileType,
@@ -372,7 +392,9 @@ class ProjectFileElements {
 
         let fileElementRelativeToSourceRoot = fileElement.path.relative(to: sourceRootPath)
         let closestRelativeRelativePath =
-            try closestRelativeElementPath(pathRelativeToSourceRoot: fileElementRelativeToSourceRoot)
+            try closestRelativeElementPath(
+                pathRelativeToSourceRoot: fileElementRelativeToSourceRoot
+            )
         let closestRelativeAbsolutePath = sourceRootPath.appending(closestRelativeRelativePath)
         // Add the first relative element.
         let group: PBXGroup
@@ -519,7 +541,9 @@ class ProjectFileElements {
             // For variant groups formed by Interface Builder files (.xib or .storyboard) and corresponding .strings
             // files, name and path of the group must have the extension of the Interface Builder file. Since the order
             // in which such groups are formed is not deterministic, we must change the name and path here as necessary.
-            if ["xib", "storyboard"].contains(localizedFile.extension), !variantGroup.nameOrPath.hasSuffix(fileName) {
+            if ["xib", "storyboard"].contains(localizedFile.extension),
+               !variantGroup.nameOrPath.hasSuffix(fileName)
+            {
                 variantGroup.name = fileName
                 elements[existingVariantGroup.path] = nil
                 elements[variantGroupPath] = variantGroup
@@ -604,7 +628,9 @@ class ProjectFileElements {
         toGroup: PBXGroup,
         pbxproj: PBXProj
     ) -> (element: PBXFileElement, path: AbsolutePath) {
-        let group = PBXFileSystemSynchronizedRootGroup(sourceTree: .group, path: folderRelativePath.pathString, name: name)
+        let group = PBXFileSystemSynchronizedRootGroup(
+            sourceTree: .group, path: folderRelativePath.pathString, name: name
+        )
         pbxproj.add(object: group)
         toGroup.children.append(group)
         elements[folderAbsolutePath] = group
@@ -619,7 +645,9 @@ class ProjectFileElements {
         toGroup: PBXGroup,
         pbxproj: PBXProj
     ) -> (element: PBXFileElement, path: AbsolutePath) {
-        let group = PBXGroup(children: [], sourceTree: .group, name: name, path: folderRelativePath.pathString)
+        let group = PBXGroup(
+            children: [], sourceTree: .group, name: name, path: folderRelativePath.pathString
+        )
         pbxproj.add(object: group)
         toGroup.children.append(group)
         elements[folderAbsolutePath] = group
@@ -642,7 +670,8 @@ class ProjectFileElements {
             lastKnownFileType: lastKnownFileType,
             path: fileRelativePath.pathString,
             expectedSignature: expectedSignature,
-            xcLanguageSpecificationIdentifier: xcLanguageSpecificationIdentifierFromLastKnownFileType(lastKnownFileType)
+            xcLanguageSpecificationIdentifier:
+            xcLanguageSpecificationIdentifierFromLastKnownFileType(lastKnownFileType)
         )
         pbxproj.add(object: file)
         toGroup.children.append(file)
@@ -665,7 +694,8 @@ class ProjectFileElements {
             lastKnownFileType: lastKnownFileType,
             path: fileAbsolutePath.pathString,
             expectedSignature: expectedSignature,
-            xcLanguageSpecificationIdentifier: xcLanguageSpecificationIdentifierFromLastKnownFileType(lastKnownFileType)
+            xcLanguageSpecificationIdentifier:
+            xcLanguageSpecificationIdentifierFromLastKnownFileType(lastKnownFileType)
         )
         pbxproj.add(object: file)
         toGroup.children.append(file)
@@ -673,7 +703,9 @@ class ProjectFileElements {
         return file
     }
 
-    private func xcLanguageSpecificationIdentifierFromLastKnownFileType(_ lastKnownFileType: String?) -> String? {
+    private func xcLanguageSpecificationIdentifierFromLastKnownFileType(
+        _ lastKnownFileType: String?
+    ) -> String? {
         lastKnownFileType == "file.playground" ? "xcode.lang.swift" : nil
     }
 
@@ -759,7 +791,8 @@ class ProjectFileElements {
     /// this method will return ../../../d/
     func closestRelativeElementPath(pathRelativeToSourceRoot: RelativePath) throws -> RelativePath {
         let relativePathComponents = pathRelativeToSourceRoot.components
-        let firstElementComponents = relativePathComponents.reduce(into: [String]()) { components, component in
+        let firstElementComponents = relativePathComponents.reduce(into: [String]()) {
+            components, component in
             let isLastRelative = components.last == ".." || components.last == "."
             if components.last != nil, !isLastRelative { return }
             components.append(component)
@@ -771,7 +804,9 @@ class ProjectFileElements {
         }
     }
 
-    func variantGroup(containing localizedFile: AbsolutePath) -> (group: PBXVariantGroup, path: AbsolutePath)? {
+    func variantGroup(containing localizedFile: AbsolutePath) -> (
+        group: PBXVariantGroup, path: AbsolutePath
+    )? {
         let variantGroupBasePath = localizedFile.parentDirectory.parentDirectory
 
         // Variant groups used to localize Interface Builder or Intent Definition files (.xib, .storyboard or .intentdefition)
