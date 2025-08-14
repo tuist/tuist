@@ -1,12 +1,7 @@
 import ProjectDescription
 
-let settings: Settings = .settings(base: [
-    "HEADER_SEARCH_PATHS": "path/to/lib/include",
-])
-
 let project = Project(
     name: "MainApp",
-    settings: settings,
     targets: [
         .target(
             name: "App",
@@ -14,23 +9,11 @@ let project = Project(
             product: .app,
             bundleId: "dev.tuist.MainApp",
             deploymentTargets: .iOS("17.0.0"),
-            infoPlist: .extendingDefault(
-                with: [
-                    "UILaunchStoryboardName": "LaunchScreen",
-                ]
-            ),
             sources: "App/Sources/**",
             resources: "App/Resources/**",
             dependencies: [
                 .target(name: "Framework1"),
             ],
-            settings: .settings(
-                base: [
-                    "DEVELOPMENT_TEAM": "U6LC622NKF",
-                    "CODE_SIGN_STYLE": "Automatic",
-                    "CODE_SIGN_IDENTITY": "Apple Development",
-                ]
-            ),
             metadata: .metadata(tags: ["App"])
         ),
         .target(
