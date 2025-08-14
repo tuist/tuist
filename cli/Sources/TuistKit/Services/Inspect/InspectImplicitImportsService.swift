@@ -19,7 +19,7 @@ enum InspectImplicitImportsServiceError: FatalError, Equatable {
             """
             The following implicit dependencies were found:
             \(
-                issues.map { " - \($0.target) implicitly depends on: \($0.implicitDependencies.joined(separator: ", "))" }
+                issues.map { " - \($0.target) implicitly depends on: \($0.implicitDependencies.sorted().joined(separator: ", "))" }
                     .joined(separator: "\n")
             )
             """

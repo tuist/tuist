@@ -28,6 +28,7 @@ final class GraphImportsLinter: GraphImportsLinting {
         ignoreTagsMatching: Set<String>
     ) async throws -> [LintingIssue] {
         return try await targetImportsMap(graphTraverser: graphTraverser, inspectType: inspectType)
+            .sorted { $0.key.name < $1.key.name }
             .compactMap { target, implicitDependencies in
                 guard target.metadata.tags.intersection(ignoreTagsMatching).isEmpty else {
                     return nil
