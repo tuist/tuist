@@ -139,7 +139,7 @@ defmodule TuistWeb.QALogChannelTest do
       token_usage = Tuist.Billing.token_usage_for_resource("qa", qa_run.id)
       assert token_usage.total_input_tokens == 150
       assert token_usage.total_output_tokens == 75
-      assert token_usage.usage_count == 1
+      assert token_usage.average_tokens == 225
     end
 
     test "handles multiple token usage logs and accumulates totals", %{
@@ -179,7 +179,7 @@ defmodule TuistWeb.QALogChannelTest do
       token_usage = Tuist.Billing.token_usage_for_resource("qa", qa_run.id)
       assert token_usage.total_input_tokens == 300
       assert token_usage.total_output_tokens == 150
-      assert token_usage.usage_count == 2
+      assert token_usage.average_tokens == 450
     end
   end
 end

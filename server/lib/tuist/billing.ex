@@ -345,13 +345,20 @@ defmodule Tuist.Billing do
         select: %{
           total_input_tokens: coalesce(sum(tu.input_tokens), 0),
           total_output_tokens: coalesce(sum(tu.output_tokens), 0),
-          usage_count: count(tu.id),
+          average_tokens:
+            fragment(
+              "CASE WHEN count(distinct ?) > 0 THEN (coalesce(sum(?), 0) + coalesce(sum(?), 0)) / count(distinct ?) ELSE 0 END",
+              tu.feature_resource_id,
+              tu.input_tokens,
+              tu.output_tokens,
+              tu.feature_resource_id
+            ),
           total_tokens: coalesce(sum(tu.input_tokens), 0) + coalesce(sum(tu.output_tokens), 0)
         }
       )
 
     case Repo.one(query) do
-      nil -> %{total_input_tokens: 0, total_output_tokens: 0, usage_count: 0, total_tokens: 0}
+      nil -> %{total_input_tokens: 0, total_output_tokens: 0, average_tokens: 0, total_tokens: 0}
       result -> result
     end
   end
@@ -373,7 +380,14 @@ defmodule Tuist.Billing do
           total_input_tokens: coalesce(sum(tu.input_tokens), 0),
           total_output_tokens: coalesce(sum(tu.output_tokens), 0),
           total_tokens: coalesce(sum(tu.input_tokens), 0) + coalesce(sum(tu.output_tokens), 0),
-          usage_count: count(tu.id)
+          average_tokens:
+            fragment(
+              "CASE WHEN count(distinct ?) > 0 THEN (coalesce(sum(?), 0) + coalesce(sum(?), 0)) / count(distinct ?) ELSE 0 END",
+              tu.feature_resource_id,
+              tu.input_tokens,
+              tu.output_tokens,
+              tu.feature_resource_id
+            )
         }
       )
 
@@ -388,7 +402,14 @@ defmodule Tuist.Billing do
           total_input_tokens: coalesce(sum(tu.input_tokens), 0),
           total_output_tokens: coalesce(sum(tu.output_tokens), 0),
           total_tokens: coalesce(sum(tu.input_tokens), 0) + coalesce(sum(tu.output_tokens), 0),
-          usage_count: count(tu.id)
+          average_tokens:
+            fragment(
+              "CASE WHEN count(distinct ?) > 0 THEN (coalesce(sum(?), 0) + coalesce(sum(?), 0)) / count(distinct ?) ELSE 0 END",
+              tu.feature_resource_id,
+              tu.input_tokens,
+              tu.output_tokens,
+              tu.feature_resource_id
+            )
         }
       )
 
@@ -405,7 +426,7 @@ defmodule Tuist.Billing do
           total_input_tokens: 0,
           total_output_tokens: 0,
           total_tokens: 0,
-          usage_count: 0
+          average_tokens: 0
         })
 
       %{
@@ -415,13 +436,13 @@ defmodule Tuist.Billing do
           total_input_tokens: all_time.total_input_tokens,
           total_output_tokens: all_time.total_output_tokens,
           total_tokens: all_time.total_tokens,
-          usage_count: all_time.usage_count
+          average_tokens: all_time.average_tokens
         },
         thirty_day: %{
           total_input_tokens: thirty_day.total_input_tokens,
           total_output_tokens: thirty_day.total_output_tokens,
           total_tokens: thirty_day.total_tokens,
-          usage_count: thirty_day.usage_count
+          average_tokens: thirty_day.average_tokens
         }
       }
     end)

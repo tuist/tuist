@@ -125,7 +125,7 @@ defmodule Tuist.Billing.TokenUsageTest do
                total_input_tokens: 300,
                total_output_tokens: 150,
                total_tokens: 450,
-               usage_count: 2
+               average_tokens: 450
              } = usage
     end
 
@@ -137,7 +137,7 @@ defmodule Tuist.Billing.TokenUsageTest do
                total_input_tokens: 0,
                total_output_tokens: 0,
                total_tokens: 0,
-               usage_count: 0
+               average_tokens: 0
              } = usage
     end
   end
@@ -208,13 +208,13 @@ defmodule Tuist.Billing.TokenUsageTest do
                  total_input_tokens: 1300,
                  total_output_tokens: 650,
                  total_tokens: 1950,
-                 usage_count: 3
+                 average_tokens: 650
                },
                thirty_day: %{
                  total_input_tokens: 300,
                  total_output_tokens: 150,
                  total_tokens: 450,
-                 usage_count: 2
+                 average_tokens: 225
                }
              } = first_account
 
@@ -227,13 +227,13 @@ defmodule Tuist.Billing.TokenUsageTest do
                  total_input_tokens: 300,
                  total_output_tokens: 150,
                  total_tokens: 450,
-                 usage_count: 1
+                 average_tokens: 450
                },
                thirty_day: %{
                  total_input_tokens: 300,
                  total_output_tokens: 150,
                  total_tokens: 450,
-                 usage_count: 1
+                 average_tokens: 450
                }
              } = second_account
 

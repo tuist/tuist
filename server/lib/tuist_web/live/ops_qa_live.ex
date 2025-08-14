@@ -137,12 +137,7 @@ defmodule TuistWeb.OpsQALive do
                 <.text_cell label={"#{format_number(usage.all_time.total_input_tokens)} / #{format_number(usage.all_time.total_output_tokens)}"} />
               </:col>
               <:col :let={usage} label={gettext("Average Tokens per Run")}>
-                <.text_cell label={
-                  format_average_tokens_per_run(
-                    usage.all_time.total_input_tokens + usage.all_time.total_output_tokens,
-                    usage.all_time.usage_count
-                  )
-                } />
+                <.text_cell label={format_number(usage.all_time.average_tokens)} />
               </:col>
               <:empty_state>
                 <.table_empty_state
@@ -217,13 +212,6 @@ defmodule TuistWeb.OpsQALive do
   end
 
   defp format_number(_), do: "0"
-
-  defp format_average_tokens_per_run(total_tokens, usage_count) when usage_count > 0 do
-    average = div(total_tokens, usage_count)
-    format_number(average)
-  end
-
-  defp format_average_tokens_per_run(_, _), do: "0"
 
   defp format_qa_run_token_usage(qa_run) do
     input_tokens = qa_run.input_tokens
