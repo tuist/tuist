@@ -569,7 +569,11 @@ qa_logs =
     |> Enum.with_index()
     |> Enum.map(fn {{level, message}, index} ->
       minutes_offset = div(duration_minutes * index, length(log_messages))
-      log_timestamp = base_time |> NaiveDateTime.add(minutes_offset * 60, :second) |> NaiveDateTime.truncate(:second)
+
+      log_timestamp =
+        base_time
+        |> NaiveDateTime.add(minutes_offset * 60, :second)
+        |> NaiveDateTime.truncate(:second)
 
       level_int =
         case level do
@@ -585,8 +589,8 @@ qa_logs =
       %{
         project_id: project_id,
         qa_run_id: qa_run.id,
-        message: message,
-        level: level_int,
+        data: message,
+        type: level_int,
         timestamp: log_timestamp,
         inserted_at: log_timestamp
       }
