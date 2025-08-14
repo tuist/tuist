@@ -10,7 +10,7 @@ defmodule Tuist.Billing.TokenUsage do
 
   @primary_key {:id, UUIDv7, autogenerate: true}
 
-  schema "billing_token_usage" do
+  schema "token_usages" do
     field :input_tokens, :integer
     field :output_tokens, :integer
     field :model, :string
@@ -32,7 +32,7 @@ defmodule Tuist.Billing.TokenUsage do
     |> validate_required([:input_tokens, :output_tokens, :model, :feature, :feature_resource_id, :account_id, :timestamp])
     |> validate_number(:input_tokens, greater_than_or_equal_to: 0)
     |> validate_number(:output_tokens, greater_than_or_equal_to: 0)
-    |> validate_inclusion(:feature, ["qa", "chat", "analysis", "generation"])
+    |> validate_inclusion(:feature, ["qa"])
     |> foreign_key_constraint(:account_id)
   end
 end

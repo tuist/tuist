@@ -2,7 +2,7 @@ defmodule Tuist.Repo.Migrations.CreateBillingTokenUsage do
   use Ecto.Migration
 
   def change do
-    create table(:billing_token_usage, primary_key: false) do
+    create table(:token_usages, primary_key: false) do
       add :id, :binary_id, primary_key: true
       add :input_tokens, :integer, null: false
       add :output_tokens, :integer, null: false
@@ -17,11 +17,14 @@ defmodule Tuist.Repo.Migrations.CreateBillingTokenUsage do
       timestamps(type: :timestamptz)
     end
 
-    create index(:billing_token_usage, [:account_id])
-    create index(:billing_token_usage, [:feature])
-    create index(:billing_token_usage, [:feature_resource_id])
-    create index(:billing_token_usage, [:timestamp])
-    create index(:billing_token_usage, [:account_id, :feature])
-    create index(:billing_token_usage, [:account_id, :timestamp])
+    create index(:token_usages, [:account_id])
+    create index(:token_usages, [:feature])
+    create index(:token_usages, [:feature_resource_id])
+    create index(:token_usages, [:timestamp])
+    create index(:token_usages, [:account_id, :feature])
+    create index(:token_usages, [:account_id, :timestamp])
+    create index(:token_usages, [:account_id, :feature, "timestamp DESC"],
+             name: :token_usages_account_feature_timestamp_idx
+           )
   end
 end
