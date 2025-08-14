@@ -444,16 +444,7 @@ class ProjectFileElements {
         }
 
         // Synchronized group
-        if case let GroupFileElement.synchronizedFolder(path: absolutePath, group: group) = element {
-            return addSynchronizedGroupElement(
-                from: from,
-                folderAbsolutePath: absolutePath,
-                folderRelativePath: relativePath,
-                name: name,
-                toGroup: toGroup,
-                pbxproj: pbxproj
-            )
-        } else if isLocalized(path: absolutePath) {
+        if isLocalized(path: absolutePath) {
             // Localized container (e.g. /path/to/en.lproj) we don't add it directly
             // an element will get added once the next path component is evaluated
             //
@@ -478,6 +469,15 @@ class ProjectFileElements {
             )
         } else if !isLeaf {
             return addGroupElement(
+                from: from,
+                folderAbsolutePath: absolutePath,
+                folderRelativePath: relativePath,
+                name: name,
+                toGroup: toGroup,
+                pbxproj: pbxproj
+            )
+        } else if case let GroupFileElement.synchronizedFolder(path: absolutePath, _) = element {
+            return addSynchronizedGroupElement(
                 from: from,
                 folderAbsolutePath: absolutePath,
                 folderRelativePath: relativePath,
