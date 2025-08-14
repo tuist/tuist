@@ -67,8 +67,7 @@ final class GraphImportsLinter: GraphImportsLinting {
 
             let explicitTargetDependencies = explicitTargetDependencies(
                 graphTraverser: graphTraverser,
-                target: target,
-                includeExternalDependencies: inspectType == .implicit
+                target: target
             )
 
             let observedImports = switch inspectType {
@@ -85,20 +84,9 @@ final class GraphImportsLinter: GraphImportsLinting {
         return observedTargetImports
     }
 
-    private func explicitTargetDependencies(
-        graphTraverser: GraphTraverser,
-        target: GraphTarget,
-        includeExternalDependencies: Bool
-    ) -> Set<String> {
-        let targetDependencies = if includeExternalDependencies {
-            graphTraverser
-                .directTargetDependencies(path: target.project.path, name: target.target.name)
-        } else {
-            graphTraverser
-                .directLocalTargetDependencies(path: target.project.path, name: target.target.name)
-        }
-
-        let explicitTargetDependencies = targetDependencies
+    private func explicitTargetDependencies(graphTraverser: GraphTraverser, target: GraphTarget) -> Set<String> {
+        let explicitTargetDependencies = graphTraverser
+            .directTargetDependencies(path: target.project.path, name: target.target.name)
             .filter { dependency in
                 !dependency.target.bundleId.hasSuffix(".generated.resources")
             }
@@ -136,14 +124,6 @@ final class GraphImportsLinter: GraphImportsLinting {
                     return true
                 }
             }
-            .map { dependency in
-                if case .external = dependency.graphTarget.project.type { return graphTraverser
-                    .allTargetDependencies(path: target.project.path, name: target.target.name)
-                } else {
-                    return Set(arrayLiteral: dependency.graphTarget)
-                }
-            }
-            .flatMap { $0 }
             .map(\.target.productName)
         return Set(explicitTargetDependencies)
     }
