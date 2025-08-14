@@ -533,6 +533,44 @@ defmodule Tuist.Environment do
       oauth_private_key(secrets) != nil
   end
 
+  @doc """
+  Returns the Namespace SSH private key used to establish secure SSH connections between the server and the Namespace runner.
+  """
+  def namespace_ssh_private_key(secrets \\ secrets()) do
+    get([:namespace, :ssh_private_key], secrets)
+  end
+
+  @doc """
+  Returns the Namespace SSH public key used to establish secure SSH connections between the server and the Namespace runner.
+  """
+  def namespace_ssh_public_key(secrets \\ secrets()) do
+    get([:namespace, :ssh_public_key], secrets)
+  end
+
+  @doc """
+  Returns the Namespace partner ID that identifies this Tuist instance
+  as an authorized partner in the Namespace ecosystem. This ID is used
+  when issuing Namespace tenant tokens.
+  """
+  def namespace_partner_id(secrets \\ secrets()) do
+    get([:namespace, :partner_id], secrets)
+  end
+
+  @doc """
+  Returns the Namespace JWT private key used for signing authentication tokens
+  that are exchanged between Tuist and Namespace services when issuing Namespace tenant tokens.
+  """
+  def namespace_jwt_private_key(secrets \\ secrets()) do
+    case get([:namespace, :jwt_private_key], secrets) do
+      nil -> nil
+      base64_key -> Base.decode64!(base64_key)
+    end
+  end
+
+  def namespace_enabled?(secrets \\ secrets()) do
+    namespace_partner_id(secrets) != nil and namespace_jwt_private_key(secrets) != nil
+  end
+
   def get(keys, secrets \\ secrets(), opts \\ []) do
     env_variable =
       "TUIST_#{keys |> Enum.map(&to_string/1) |> Enum.map_join("_", &String.upcase/1)}"

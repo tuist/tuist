@@ -1,9 +1,10 @@
-defmodule Tuist.QA.LogStreamerTest do
+defmodule Runner.QA.LogStreamerTest do
   use ExUnit.Case, async: true
+  use Mimic
 
   import Slipstream.Socket
 
-  alias Tuist.QA.LogStreamer
+  alias Runner.QA.LogStreamer
 
   defp create_socket(run_id) do
     assign(Slipstream.new_socket(), :run_id, run_id)
@@ -25,6 +26,10 @@ defmodule Tuist.QA.LogStreamerTest do
     test "initializes socket with run_id and connects" do
       config = [uri: "ws://localhost:4000/socket/websocket?token=test"]
       init_args = %{run_id: "test-run-id"}
+
+      stub(Slipstream, :connect!, fn socket, ^config ->
+        socket
+      end)
 
       {:ok, socket} = LogStreamer.init({config, init_args})
 

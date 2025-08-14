@@ -5,18 +5,20 @@ defmodule Tuist.QA do
 
   import Ecto.Query
 
+  alias Runner.QA.Agent
+  alias Tuist.Accounts
   alias Tuist.AppBuilds
   alias Tuist.AppBuilds.AppBuild
   alias Tuist.Authentication
   alias Tuist.ClickHouseRepo
   alias Tuist.Environment
+  alias Tuist.Namespace
   alias Tuist.Projects
-  alias Tuist.QA.Agent
-  alias Tuist.QA.Log
   alias Tuist.QA.Run
   alias Tuist.QA.Screenshot
   alias Tuist.QA.Step
   alias Tuist.Repo
+  alias Tuist.SSHClient
   alias Tuist.Storage
   alias Tuist.VCS
 
@@ -43,23 +45,83 @@ defmodule Tuist.QA do
              vcs_repository_full_handle: app_build.preview.project.vcs_repository_full_handle
            }),
          app_build_url = generate_app_build_download_url(app_build),
-         {:ok, auth_token} <- create_qa_auth_token(app_build),
-         :ok <-
-           Agent.test(
-             %{
-               preview_url: app_build_url,
-               bundle_identifier: app_build.preview.bundle_identifier,
-               prompt: prompt,
-               server_url: Environment.app_url(),
-               run_id: qa_run.id,
-               auth_token: auth_token,
-               account_handle: app_build.preview.project.account.name,
-               project_handle: app_build.preview.project.name
-             },
-             anthropic_api_key: Environment.anthropic_api_key()
-           ) do
-      qa_run(qa_run.id)
+         {:ok, auth_token} <- create_qa_auth_token(app_build) do
+      attrs = %{
+        preview_url: app_build_url,
+        bundle_identifier: app_build.preview.bundle_identifier,
+        prompt: prompt,
+        server_url: Environment.app_url(),
+        run_id: qa_run.id,
+        auth_token: auth_token,
+        account_handle: app_build.preview.project.account.name,
+        project_handle: app_build.preview.project.name
+      }
+
+      if Environment.namespace_enabled?() do
+        with :ok <- run_qa_tests_in_namespace(attrs, app_build.preview.project.account) do
+          qa_run(qa_run.id)
+        end
+      else
+        case Agent.test(attrs, anthropic_api_key: Environment.anthropic_api_key()) do
+          :ok ->
+            qa_run(qa_run.id)
+
+          {:error, reason} ->
+            {:error, reason}
+        end
+      end
     end
+  end
+
+  defp account_initializing_namespace_tenant_if_absent(account) do
+    if is_nil(account.namespace_tenant_id) do
+      Accounts.create_namespace_tenant_for_account(account)
+    else
+      {:ok, account}
+    end
+  end
+
+  defp run_qa_tests_in_namespace(attrs, account) do
+    with {:ok, account_with_tenant} <- account_initializing_namespace_tenant_if_absent(account),
+         {:ok, %{ssh_connection: ssh_connection, instance: instance, tenant_token: tenant_token}} <-
+           Namespace.create_instance_with_ssh_connection(account_with_tenant.namespace_tenant_id) do
+      run_qa_tests_in_namespace_instance(attrs, instance, ssh_connection, tenant_token)
+    end
+  end
+
+  defp run_qa_tests_in_namespace_instance(attrs, instance, ssh_connection, tenant_token) do
+    with :ok <-
+           SSHClient.transfer_file(
+             ssh_connection,
+             "/app/bin/runner",
+             "/usr/local/bin/runner",
+             permissions: 0o100755
+           ),
+         {:ok, _output} <- SSHClient.run_command(ssh_connection, qa_script(attrs)) do
+      :ok
+    end
+  after
+    Namespace.destroy_instance(instance.id, tenant_token)
+  end
+
+  defp qa_script(%{
+         preview_url: app_build_url,
+         bundle_identifier: bundle_identifier,
+         prompt: prompt,
+         server_url: server_url,
+         run_id: run_id,
+         auth_token: auth_token,
+         account_handle: account_handle,
+         project_handle: project_handle
+       }) do
+    """
+    set -e
+
+    brew install facebook/fb/idb-companion cameroncooke/axe/axe pipx --quiet || true
+    pipx install fb-idb
+    export PATH=$PATH:$HOME/.local/bin
+    runner qa --preview-url "#{app_build_url}" --bundle-identifier #{bundle_identifier} --server-url #{server_url} --run-id #{run_id} --auth-token #{auth_token} --account-handle #{account_handle} --project-handle #{project_handle} --prompt "#{prompt}" --anthropic-api-key #{Environment.anthropic_api_key()}
+    """
   end
 
   @doc """

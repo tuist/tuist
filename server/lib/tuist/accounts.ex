@@ -22,6 +22,7 @@ defmodule Tuist.Accounts do
   alias Tuist.CommandEvents
   alias Tuist.Ecto.Utils
   alias Tuist.Environment
+  alias Tuist.Namespace
   alias Tuist.Repo
 
   require Logger
@@ -1165,6 +1166,24 @@ defmodule Tuist.Accounts do
     account
     |> Account.update_changeset(attrs)
     |> Repo.update()
+  end
+
+  @doc """
+  Creates a namespace tenant for the account and updates the account with the namespace_tenant_id.
+  """
+  def create_namespace_tenant_for_account(%Account{} = account) do
+    case Namespace.create_tenant(
+           account.name,
+           account.id
+         ) do
+      {:ok, %{"tenant" => %{"id" => namespace_tenant_id}}} ->
+        account
+        |> Account.update_changeset(%{namespace_tenant_id: namespace_tenant_id})
+        |> Repo.update()
+
+      {:error, reason} ->
+        {:error, reason}
+    end
   end
 
   @doc """

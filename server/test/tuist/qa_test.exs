@@ -2,10 +2,9 @@ defmodule Tuist.QATest do
   use TuistTestSupport.Cases.DataCase
   use Mimic
 
+  alias Runner.QA.Agent
   alias Tuist.Authentication
   alias Tuist.QA
-  alias Tuist.QA.Agent
-  alias Tuist.QA.Run
   alias Tuist.Repo
   alias Tuist.Storage
   alias Tuist.VCS
@@ -26,6 +25,8 @@ defmodule Tuist.QATest do
       expect(Authentication, :encode_and_sign, fn _account, claims, _opts ->
         {:ok, "test-jwt-token", claims}
       end)
+
+      expect(Tuist.Environment, :namespace_enabled?, fn -> false end)
 
       expect(Agent, :test, fn %{
                                 preview_url: "https://example.com/preview.zip",
@@ -50,7 +51,115 @@ defmodule Tuist.QATest do
       assert qa_run.prompt == prompt
     end
 
-    test "returns failed status when agent test fails" do
+    test "successfully runs QA test in namespace when namespace is enabled" do
+      # Given
+      app_build = Repo.preload(AppBuildsFixtures.app_build_fixture(), preview: [project: :account])
+      account = app_build.preview.project.account
+      prompt = "Test the login feature"
+
+      expect(Storage, :generate_download_url, fn _ -> "https://example.com/preview.zip" end)
+
+      expect(Authentication, :encode_and_sign, fn _account, claims, _opts ->
+        {:ok, "test-jwt-token", claims}
+      end)
+
+      expect(Tuist.Environment, :namespace_enabled?, fn -> true end)
+
+      expect(Tuist.Accounts, :create_namespace_tenant_for_account, fn ^account ->
+        {:ok, Map.put(account, :namespace_tenant_id, "test-tenant-123")}
+      end)
+
+      expect(Tuist.Namespace, :create_instance_with_ssh_connection, fn "test-tenant-123" ->
+        {:ok,
+         %{
+           ssh_connection: %{},
+           instance: %{id: "instance-123"},
+           tenant_token: "tenant-token-456"
+         }}
+      end)
+
+      expect(Tuist.SSHClient, :transfer_file, fn _ssh_connection,
+                                                 "/app/bin/runner",
+                                                 "/usr/local/bin/runner",
+                                                 [permissions: 0o100755] ->
+        :ok
+      end)
+
+      expect(Tuist.SSHClient, :run_command, fn _ssh_connection, command ->
+        assert String.contains?(command, "brew install facebook/fb/idb-companion")
+        assert String.contains?(command, "pipx install fb-idb")
+        assert String.contains?(command, "runner qa --preview-url")
+        assert String.contains?(command, "Test the login feature")
+        assert String.contains?(command, "--auth-token test-jwt-token")
+        {:ok, "QA test completed successfully"}
+      end)
+
+      expect(Tuist.Namespace, :destroy_instance, fn "instance-123", "tenant-token-456" ->
+        :ok
+      end)
+
+      # When
+      {:ok, qa_run} =
+        QA.test(%{
+          app_build: app_build,
+          prompt: prompt
+        })
+
+      # Then
+      assert qa_run.prompt == prompt
+    end
+
+    test "handles existing tenant when namespace is enabled" do
+      # Given
+      app_build = Repo.preload(AppBuildsFixtures.app_build_fixture(), preview: [project: :account])
+      account = Map.put(app_build.preview.project.account, :namespace_tenant_id, "existing-tenant-456")
+      app_build = put_in(app_build.preview.project.account, account)
+      prompt = "Test the login feature"
+
+      expect(Storage, :generate_download_url, fn _ -> "https://example.com/preview.zip" end)
+
+      expect(Authentication, :encode_and_sign, fn _account, claims, _opts ->
+        {:ok, "test-jwt-token", claims}
+      end)
+
+      expect(Tuist.Environment, :namespace_enabled?, fn -> true end)
+
+      expect(Tuist.Namespace, :create_instance_with_ssh_connection, fn "existing-tenant-456" ->
+        {:ok,
+         %{
+           ssh_connection: %{},
+           instance: %{id: "instance-789"},
+           tenant_token: "tenant-token-789"
+         }}
+      end)
+
+      expect(Tuist.SSHClient, :transfer_file, fn _ssh_connection,
+                                                 "/app/bin/runner",
+                                                 "/usr/local/bin/runner",
+                                                 [permissions: 0o100755] ->
+        :ok
+      end)
+
+      expect(Tuist.SSHClient, :run_command, fn _ssh_connection, _command ->
+        {:ok, "QA test completed successfully"}
+      end)
+
+      expect(Tuist.Namespace, :destroy_instance, fn "instance-789", "tenant-token-789" ->
+        :ok
+      end)
+
+      # When
+      {:ok, qa_run} =
+        QA.test(%{
+          app_build: app_build,
+          prompt: prompt
+        })
+
+      # Then
+      assert qa_run.prompt == prompt
+    end
+
+    test "runs agent test when namespace is disabled" do
       # Given
       app_build =
         Repo.preload(AppBuildsFixtures.app_build_fixture(), preview: [project: :account])
@@ -63,7 +172,68 @@ defmodule Tuist.QATest do
         {:ok, "test-jwt-token", claims}
       end)
 
-      expect(Agent, :test, fn _, _ -> {:error, "Agent test failed"} end)
+      expect(Tuist.Environment, :namespace_enabled?, fn -> false end)
+
+      expect(Agent, :test, fn attrs, opts ->
+        assert attrs.preview_url == "https://example.com/preview.zip"
+        assert attrs.prompt == prompt
+        assert opts[:anthropic_api_key]
+        :ok
+      end)
+
+      # When
+      {:ok, qa_run} =
+        QA.test(%{
+          app_build: app_build,
+          prompt: prompt
+        })
+
+      # Then
+      assert qa_run.prompt == prompt
+      assert qa_run.status == "pending"
+    end
+
+    test "destroys namespace instance even when running the SSH command fails" do
+      # Given
+      app_build = AppBuildsFixtures.app_build_fixture(preload: [preview: [project: :account]])
+      account = app_build.preview.project.account
+      prompt = "Test the login feature"
+
+      expect(Storage, :generate_download_url, fn _ -> "https://example.com/preview.zip" end)
+
+      expect(Authentication, :encode_and_sign, fn _account, claims, _opts ->
+        {:ok, "test-jwt-token", claims}
+      end)
+
+      expect(Tuist.Environment, :namespace_enabled?, fn -> true end)
+
+      expect(Tuist.Accounts, :create_namespace_tenant_for_account, fn ^account ->
+        {:ok, Map.put(account, :namespace_tenant_id, "test-tenant-123")}
+      end)
+
+      expect(Tuist.Namespace, :create_instance_with_ssh_connection, fn "test-tenant-123" ->
+        {:ok,
+         %{
+           ssh_connection: %{},
+           instance: %{id: "instance-123"},
+           tenant_token: "tenant-token-456"
+         }}
+      end)
+
+      expect(Tuist.SSHClient, :transfer_file, fn _ssh_connection,
+                                                 "/app/bin/runner",
+                                                 "/usr/local/bin/runner",
+                                                 [permissions: 0o100755] ->
+        :ok
+      end)
+
+      expect(Tuist.SSHClient, :run_command, fn _ssh_connection, _command ->
+        {:error, "Command execution failed"}
+      end)
+
+      expect(Tuist.Namespace, :destroy_instance, fn "instance-123", "tenant-token-456" ->
+        :ok
+      end)
 
       # When
       result =
@@ -73,7 +243,7 @@ defmodule Tuist.QATest do
         })
 
       # Then
-      assert {:error, "Agent test failed"} == result
+      assert {:error, "Command execution failed"} == result
     end
 
     test "returns error when auth token creation fails" do

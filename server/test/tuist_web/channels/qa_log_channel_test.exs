@@ -1,6 +1,7 @@
 defmodule TuistWeb.QALogChannelTest do
   use TuistWeb.ChannelCase
 
+  import ExUnit.CaptureLog
   import TuistTestSupport.Fixtures.AccountsFixtures
   import TuistTestSupport.Fixtures.AppBuildsFixtures
   import TuistTestSupport.Fixtures.ProjectsFixtures
@@ -111,9 +112,10 @@ defmodule TuistWeb.QALogChannelTest do
           "timestamp" => DateTime.to_iso8601(DateTime.utc_now())
         }
 
-        ref = push(socket, "log", log_message)
-        assert_reply(ref, :ok)
-      end
+          ref = push(socket, "log", log_message)
+          assert_reply(ref, :ok)
+        end
+      end)
     end
 
     test "handles token usage logs and creates token usage records", %{

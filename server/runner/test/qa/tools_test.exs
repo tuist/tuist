@@ -1,10 +1,10 @@
-defmodule Tuist.QA.ToolsTest do
+defmodule Runner.QA.ToolsTest do
   use ExUnit.Case, async: true
   use Mimic
 
   alias LangChain.Message.ContentPart
-  alias Tuist.QA.Client
-  alias Tuist.QA.Tools
+  alias Runner.QA.Client
+  alias Runner.QA.Tools
 
   setup :verify_on_exit!
 
@@ -182,9 +182,11 @@ defmodule Tuist.QA.ToolsTest do
       ]
       """
 
-      expect(System, :cmd, fn "/opt/homebrew/bin/axe", ["describe-ui", "--udid", ^simulator_uuid] ->
+      expect(System, :cmd, 1, fn "/opt/homebrew/bin/axe", ["describe-ui", "--udid", ^simulator_uuid] ->
         {ui_output, 0}
       end)
+
+      reject(System, :cmd, 2)
 
       describe_ui_tool = Enum.find(tools, &(&1.name == "describe_ui"))
 
@@ -212,6 +214,69 @@ defmodule Tuist.QA.ToolsTest do
                      "frame" => %{"x" => 305.67, "y" => 229.33, "width" => 55.33, "height" => 28.33}
                    }
                  ]
+               }
+             ]
+    end
+
+    test "detects webview scenario and uses idb fallback", %{tools: tools} do
+      # Given
+      simulator_uuid = "test-uuid"
+
+      webview_ui_output =
+        ~s([{"role": "AXApplication", "type": "Application", "frame": {"x": 0, "y": 0, "width": 393, "height": 852}, "children": []}])
+
+      # Mock axe describe-ui returning webview scenario (empty application with frame info)
+      expect(System, :cmd, fn "/opt/homebrew/bin/axe", ["describe-ui", "--udid", ^simulator_uuid] ->
+        {webview_ui_output, 0}
+      end)
+
+      stub(System, :cmd, fn "idb", ["ui", "describe-point", "--udid", ^simulator_uuid, "--json", x, y] ->
+        case {x, y} do
+          {"0", "0"} ->
+            {
+              """
+              {
+                "AXUniqueId": "button-1",
+                "AXLabel": "Login Button",
+                "frame": {"x": 0, "y": 0, "width": 100, "height": 50}
+              }
+              """,
+              0
+            }
+
+          {"50", "0"} ->
+            {
+              """
+              {
+                "AXUniqueId": "input-1",
+                "AXLabel": "Username Field",
+                "frame": {"x": 50, "y": 0, "width": 150, "height": 30}
+              }
+              """,
+              0
+            }
+
+          _ ->
+            {"", 0}
+        end
+      end)
+
+      describe_ui_tool = Enum.find(tools, &(&1.name == "describe_ui"))
+
+      # When
+      {:ok, webview_content} = describe_ui_tool.function.(%{"simulator_uuid" => simulator_uuid}, nil)
+
+      # Then
+      assert JSON.decode!(webview_content) == [
+               %{
+                 "AXLabel" => "Login Button",
+                 "AXUniqueId" => "button-1",
+                 "frame" => %{"height" => 50, "width" => 100, "x" => 0, "y" => 0}
+               },
+               %{
+                 "AXLabel" => "Username Field",
+                 "AXUniqueId" => "input-1",
+                 "frame" => %{"height" => 30, "width" => 150, "x" => 50, "y" => 0}
                }
              ]
     end
@@ -389,7 +454,7 @@ defmodule Tuist.QA.ToolsTest do
       result = type_text_tool.function.(%{"simulator_uuid" => simulator_uuid, "text" => text}, nil)
 
       # Then
-      assert {:ok, "Text typed"} = result
+      assert {:ok, "Text typed successfully"} = result
     end
   end
 

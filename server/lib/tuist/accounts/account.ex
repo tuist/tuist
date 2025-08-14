@@ -22,6 +22,7 @@ defmodule Tuist.Accounts.Account do
     field :customer_id, :string
     field :current_month_remote_cache_hits_count, :integer
     field :current_month_remote_cache_hits_count_updated_at, :naive_datetime
+    field :namespace_tenant_id, :string
 
     belongs_to :organization, Organization
     belongs_to :user, User
@@ -85,8 +86,9 @@ defmodule Tuist.Accounts.Account do
 
   def update_changeset(account, attrs) do
     account
-    |> cast(attrs, [:name])
+    |> cast(attrs, [:name, :namespace_tenant_id])
     |> validate_handle()
+    |> unique_constraint(:namespace_tenant_id)
   end
 
   defp validate_handle(changeset) do

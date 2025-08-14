@@ -1,9 +1,9 @@
-defmodule Tuist.Simulators do
+defmodule Runner.QA.Simulators do
   @moduledoc """
   Module for interacting with simulators via xcrun simctl.
   """
 
-  alias Tuist.Simulators.SimulatorDevice
+  alias Runner.QA.Simulators.SimulatorDevice
 
   @doc """
   Lists all available simulator devices.

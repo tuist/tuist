@@ -7,6 +7,7 @@ defmodule Tuist.MixProject do
       version: "0.1.0",
       elixir: "~> 1.16",
       elixirc_paths: elixirc_paths(Mix.env()),
+      test_paths: ["test", "runner/test"],
       start_permanent: Enum.member?([:prod, :stag, :can], Mix.env()),
       aliases: aliases(),
       deps: deps(),
@@ -20,7 +21,7 @@ defmodule Tuist.MixProject do
   def application do
     [
       mod: {Tuist.Application, []},
-      extra_applications: [:logger, :runtime_tools, :os_mon]
+      extra_applications: [:logger, :runtime_tools, :os_mon, :ssh]
     ]
   end
 
@@ -47,8 +48,7 @@ defmodule Tuist.MixProject do
       {:heroicons,
        github: "tailwindlabs/heroicons", tag: "v2.1.1", sparse: "optimized", app: false, compile: false, depth: 1},
       {:bamboo, "~> 2.4.0"},
-      {:finch,
-       git: "https://github.com/sneako/finch.git", ref: "f857ad514411f8ae7383bb431827769612493434", override: true},
+      {:finch, "~> 0.20.0"},
       {:telemetry_metrics, "~> 1.0"},
       {:telemetry_poller, "~> 1.0"},
       {:gettext, "~> 0.26"},
@@ -133,8 +133,7 @@ defmodule Tuist.MixProject do
       {:cloak_ecto, "~> 1.3.0"},
       {:boruta, git: "https://github.com/malach-it/boruta_auth", branch: "master"},
       {:minio_server, github: "LostKobrakai/minio_server", only: :dev},
-      {:langchain, git: "https://github.com/brainlid/langchain", branch: "main"},
-      {:slipstream, "~> 1.2.0"}
+      {:runner, path: "runner", runtime: false}
     ]
   end
 
