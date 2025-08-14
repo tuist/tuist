@@ -229,7 +229,7 @@ defmodule Tuist.NamespaceTest do
       instance_id = "instance-running"
 
       expect(Req, :post, fn opts ->
-        assert opts[:json] == %{"instance_id" => instance_id}
+        assert opts[:json] == %{"instance_id" => instance_id, "cluster_id" => "default"}
         {:ok, %{status: 200, body: %{"metadata" => %{"status" => "RUNNING"}}}}
       end)
 

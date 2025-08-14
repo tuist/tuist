@@ -89,22 +89,18 @@ defmodule Tuist.QA do
   end
 
   defp run_qa_tests_in_namespace_instance(attrs, instance, ssh_connection, tenant_token) do
-    try do
-      with :ok <-
-             SSHClient.transfer_file(
-               ssh_connection,
-               "/app/bin/qa",
-               "/usr/local/bin/qa",
-               permissions: 0o100755
-             ),
-           {:ok, _output} <- SSHClient.run_command(ssh_connection, qa_script(attrs)) do
-        :ok
-      end
-    after
-      # Best-effort cleanup; ignore its result so we don't override the primary outcome
-      Namespace.destroy_instance(instance.id, tenant_token)
+    with :ok <-
+           SSHClient.transfer_file(
+             ssh_connection,
+             "/app/bin/qa",
+             "/usr/local/bin/qa",
+             permissions: 0o100755
+           ),
+         {:ok, _output} <- SSHClient.run_command(ssh_connection, qa_script(attrs)) do
       :ok
     end
+  after
+    Namespace.destroy_instance(instance.id, tenant_token)
   end
 
   defp qa_script(%{

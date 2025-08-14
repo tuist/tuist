@@ -122,7 +122,6 @@ defmodule Tuist.Namespace do
       end
     end
   end
-  end
 
   @doc """
   Gets the status of an instance.
