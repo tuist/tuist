@@ -6,7 +6,7 @@ defmodule Tuist.IngestRepo.Migrations.AddQaLogsTable do
              primary_key: false,
              engine: "MergeTree",
              options:
-               "ORDER BY (project_id, qa_run_id, timestamp) TTL inserted_at + INTERVAL 14 DAY"
+               "PARTITION BY toYYYYMM(timestamp) ORDER BY (project_id, qa_run_id, timestamp) TTL inserted_at + INTERVAL 14 DAY"
            ) do
       add :project_id, :Int64, null: false
       add :qa_run_id, :uuid, null: false
