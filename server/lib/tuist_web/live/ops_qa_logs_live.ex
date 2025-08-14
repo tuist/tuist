@@ -7,7 +7,7 @@ defmodule TuistWeb.OpsQALogsLive do
 
   @impl true
   def mount(%{"qa_run_id" => qa_run_id}, _session, socket) do
-    case QA.get_qa_run_for_ops(qa_run_id) do
+    case QA.qa_run_for_ops(qa_run_id) do
       nil ->
         {:ok,
          socket
@@ -15,7 +15,7 @@ defmodule TuistWeb.OpsQALogsLive do
          |> push_navigate(to: ~p"/ops/qa")}
 
       qa_run ->
-        logs = QA.get_qa_logs(qa_run_id)
+        logs = QA.logs_for_run(qa_run_id)
 
         {:ok,
          socket
@@ -179,7 +179,8 @@ defmodule TuistWeb.OpsQALogsLive do
 
   defp prettify_json(data) when is_binary(data) do
     case JSON.decode!(data) do
-      %{"name" => "describe_ui", "content" => [%{"content" => nested_json, "type" => "text"}]} = decoded ->
+      %{"name" => "describe_ui", "content" => [%{"content" => nested_json, "type" => "text"}]} =
+          decoded ->
         ui_data = JSON.decode!(nested_json)
         Jason.encode!(%{decoded | "content" => ui_data}, pretty: true)
 

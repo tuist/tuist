@@ -10,10 +10,10 @@ defmodule TuistWeb.OpsQALive do
   def mount(_params, _session, socket) do
     {:ok,
      socket
-     |> assign(:qa_runs_chart_data, QA.get_qa_runs_chart_data())
-     |> assign(:projects_usage_chart_data, QA.get_projects_usage_chart_data())
-     |> assign(:recent_qa_runs, QA.get_recent_qa_runs())
-     |> assign(:token_usage_by_account, Billing.get_feature_token_usage_by_account("qa"))
+     |> assign(:qa_runs_chart_data, QA.qa_runs_chart_data())
+     |> assign(:projects_usage_chart_data, QA.projects_usage_chart_data())
+     |> assign(:recent_qa_runs, QA.recent_qa_runs())
+     |> assign(:token_usage_by_account, Billing.feature_token_usage_by_account("qa"))
      |> assign(:head_title, "#{gettext("QA Operations")} · Tuist")}
   end
 

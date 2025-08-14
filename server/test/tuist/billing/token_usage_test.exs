@@ -91,7 +91,7 @@ defmodule Tuist.Billing.TokenUsageTest do
     end
   end
 
-  describe "get_token_usage_for_resource/2" do
+  describe "token_usage_for_resource/2" do
     test "returns aggregated token usage for a specific resource" do
       organization = organization_fixture()
       account = Tuist.Repo.get_by!(Account, organization_id: organization.id)
@@ -119,7 +119,7 @@ defmodule Tuist.Billing.TokenUsageTest do
           timestamp: DateTime.utc_now()
         })
 
-      usage = Billing.get_token_usage_for_resource("qa", resource_id)
+      usage = Billing.token_usage_for_resource("qa", resource_id)
 
       assert %{
                total_input_tokens: 300,
@@ -131,7 +131,7 @@ defmodule Tuist.Billing.TokenUsageTest do
 
     test "returns zero stats when no usage exists" do
       resource_id = UUIDv7.generate()
-      usage = Billing.get_token_usage_for_resource("qa", resource_id)
+      usage = Billing.token_usage_for_resource("qa", resource_id)
 
       assert %{
                total_input_tokens: 0,
@@ -142,7 +142,7 @@ defmodule Tuist.Billing.TokenUsageTest do
     end
   end
 
-  describe "get_feature_token_usage_by_account/1" do
+  describe "feature_token_usage_by_account/1" do
     test "returns token usage by account for a specific feature with 30-day and all-time stats" do
       org1 = organization_fixture()
       org2 = organization_fixture()
@@ -197,7 +197,7 @@ defmodule Tuist.Billing.TokenUsageTest do
           timestamp: today
         })
 
-      usage_by_account = Billing.get_feature_token_usage_by_account("qa")
+      usage_by_account = Billing.feature_token_usage_by_account("qa")
 
       assert length(usage_by_account) == 2
 
@@ -241,7 +241,7 @@ defmodule Tuist.Billing.TokenUsageTest do
     end
 
     test "returns empty list when no usage exists for feature" do
-      usage_by_account = Billing.get_feature_token_usage_by_account("nonexistent_feature")
+      usage_by_account = Billing.feature_token_usage_by_account("nonexistent_feature")
       assert usage_by_account == []
     end
   end

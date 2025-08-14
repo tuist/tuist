@@ -20,7 +20,11 @@ defmodule TuistWeb.QALogChannelTest do
 
     claims = %{
       "type" => "account",
-      "scopes" => ["project_qa_run_update", "project_qa_step_create", "project_qa_screenshot_create"],
+      "scopes" => [
+        "project_qa_run_update",
+        "project_qa_step_create",
+        "project_qa_screenshot_create"
+      ],
       "project_id" => project.id
     }
 
@@ -112,7 +116,10 @@ defmodule TuistWeb.QALogChannelTest do
       end
     end
 
-    test "handles token usage logs and creates token usage records", %{socket: socket, qa_run: qa_run} do
+    test "handles token usage logs and creates token usage records", %{
+      socket: socket,
+      qa_run: qa_run
+    } do
       {:ok, _, socket} = subscribe_and_join(socket, QALogChannel, "qa_logs:#{qa_run.id}")
 
       token_usage_message = %{
@@ -129,13 +136,16 @@ defmodule TuistWeb.QALogChannelTest do
       ref = push(socket, "log", token_usage_message)
       assert_reply(ref, :ok)
 
-      token_usage = Tuist.Billing.get_token_usage_for_resource("qa", qa_run.id)
+      token_usage = Tuist.Billing.token_usage_for_resource("qa", qa_run.id)
       assert token_usage.total_input_tokens == 150
       assert token_usage.total_output_tokens == 75
       assert token_usage.usage_count == 1
     end
 
-    test "handles multiple token usage logs and accumulates totals", %{socket: socket, qa_run: qa_run} do
+    test "handles multiple token usage logs and accumulates totals", %{
+      socket: socket,
+      qa_run: qa_run
+    } do
       {:ok, _, socket} = subscribe_and_join(socket, QALogChannel, "qa_logs:#{qa_run.id}")
 
       token_usage_1 = %{
@@ -166,7 +176,7 @@ defmodule TuistWeb.QALogChannelTest do
       ref2 = push(socket, "log", token_usage_2)
       assert_reply(ref2, :ok)
 
-      token_usage = Tuist.Billing.get_token_usage_for_resource("qa", qa_run.id)
+      token_usage = Tuist.Billing.token_usage_for_resource("qa", qa_run.id)
       assert token_usage.total_input_tokens == 300
       assert token_usage.total_output_tokens == 150
       assert token_usage.usage_count == 2

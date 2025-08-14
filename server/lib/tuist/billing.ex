@@ -338,7 +338,7 @@ defmodule Tuist.Billing do
   @doc """
   Gets token usage statistics for a specific feature and resource.
   """
-  def get_token_usage_for_resource(feature, resource_id) do
+  def token_usage_for_resource(feature, resource_id) do
     query =
       from(tu in TokenUsage,
         where: tu.feature == ^feature and tu.feature_resource_id == ^resource_id,
@@ -359,7 +359,7 @@ defmodule Tuist.Billing do
   @doc """
   Gets token usage for all accounts for a specific feature, with 30-day and all-time stats.
   """
-  def get_feature_token_usage_by_account(feature) do
+  def feature_token_usage_by_account(feature) do
     thirty_days_ago = DateTime.add(DateTime.utc_now(), -30, :day)
 
     all_time_query =

@@ -16,7 +16,8 @@ defmodule Tuist.QATest do
   describe "test/1" do
     test "successfully runs QA test and returns completed status" do
       # Given
-      app_build = Repo.preload(AppBuildsFixtures.app_build_fixture(), preview: [project: :account])
+      app_build =
+        Repo.preload(AppBuildsFixtures.app_build_fixture(), preview: [project: :account])
 
       prompt = "Test the login feature"
 
@@ -51,7 +52,8 @@ defmodule Tuist.QATest do
 
     test "returns failed status when agent test fails" do
       # Given
-      app_build = Repo.preload(AppBuildsFixtures.app_build_fixture(), preview: [project: :account])
+      app_build =
+        Repo.preload(AppBuildsFixtures.app_build_fixture(), preview: [project: :account])
 
       prompt = "Test the login feature"
 
@@ -76,7 +78,8 @@ defmodule Tuist.QATest do
 
     test "returns error when auth token creation fails" do
       # Given
-      app_build = Repo.preload(AppBuildsFixtures.app_build_fixture(), preview: [project: :account])
+      app_build =
+        Repo.preload(AppBuildsFixtures.app_build_fixture(), preview: [project: :account])
 
       expect(Storage, :generate_download_url, fn _ -> "https://example.com/preview.zip" end)
 
@@ -102,7 +105,12 @@ defmodule Tuist.QATest do
       app_build = AppBuildsFixtures.app_build_fixture()
 
       # When
-      {:ok, qa_run} = QA.create_qa_run(%{app_build_id: app_build.id, prompt: "Test the login feature", status: "pending"})
+      {:ok, qa_run} =
+        QA.create_qa_run(%{
+          app_build_id: app_build.id,
+          prompt: "Test the login feature",
+          status: "pending"
+        })
 
       # Then
       assert qa_run.app_build_id == app_build.id
@@ -141,7 +149,10 @@ defmodule Tuist.QATest do
       # Then
       assert qa_step.qa_run_id == qa_run.id
       assert qa_step.summary == "Successfully logged in"
-      assert qa_step.description == "User successfully entered credentials and accessed the main screen"
+
+      assert qa_step.description ==
+               "User successfully entered credentials and accessed the main screen"
+
       assert qa_step.issues == []
     end
   end
@@ -170,16 +181,18 @@ defmodule Tuist.QATest do
     end
   end
 
-  describe "get_qa_run_for_ops/1" do
+  describe "qa_run_for_ops/1" do
     test "returns QA run with project and account info when it exists" do
       # Given
       project = ProjectsFixtures.project_fixture(name: "TestProject")
       preview = AppBuildsFixtures.preview_fixture(project: project)
       app_build = AppBuildsFixtures.app_build_fixture(preview: preview)
-      qa_run = QAFixtures.qa_run_fixture(app_build: app_build, prompt: "Test prompt", status: "running")
+
+      qa_run =
+        QAFixtures.qa_run_fixture(app_build: app_build, prompt: "Test prompt", status: "running")
 
       # When
-      result = QA.get_qa_run_for_ops(qa_run.id)
+      result = QA.qa_run_for_ops(qa_run.id)
 
       # Then
       assert %{
@@ -202,27 +215,27 @@ defmodule Tuist.QATest do
       non_existent_id = Ecto.UUID.generate()
 
       # When
-      result = QA.get_qa_run_for_ops(non_existent_id)
+      result = QA.qa_run_for_ops(non_existent_id)
 
       # Then
       assert result == nil
     end
   end
 
-  describe "get_qa_logs/1" do
+  describe "logs_for_run/1" do
     test "returns empty list when no logs exist for QA run" do
       # Given
       qa_run = QAFixtures.qa_run_fixture()
 
       # When
-      logs = QA.get_qa_logs(qa_run.id)
+      logs = QA.logs_for_run(qa_run.id)
 
       # Then
       assert logs == []
     end
   end
 
-  describe "get_qa_runs_chart_data/0" do
+  describe "qa_runs_chart_data/0" do
     test "returns chart data for last 30 days with zero fill" do
       # Given
       today = Date.utc_today()
@@ -237,7 +250,7 @@ defmodule Tuist.QATest do
       )
 
       # When
-      chart_data = QA.get_qa_runs_chart_data()
+      chart_data = QA.qa_runs_chart_data()
 
       # Then
       assert length(chart_data) == 31
@@ -263,7 +276,7 @@ defmodule Tuist.QATest do
 
     test "returns all zeros when no QA runs in last 30 days" do
       # When
-      chart_data = QA.get_qa_runs_chart_data()
+      chart_data = QA.qa_runs_chart_data()
 
       # Then
       assert length(chart_data) == 31
@@ -271,7 +284,7 @@ defmodule Tuist.QATest do
     end
   end
 
-  describe "get_projects_usage_chart_data/0" do
+  describe "projects_usage_chart_data/0" do
     test "returns cumulative unique project counts" do
       # Given
       project1 = ProjectsFixtures.project_fixture()
@@ -287,7 +300,7 @@ defmodule Tuist.QATest do
       _qa_run2 = QAFixtures.qa_run_fixture(app_build: app_build2)
 
       # When
-      chart_data = QA.get_projects_usage_chart_data()
+      chart_data = QA.projects_usage_chart_data()
 
       # Then
       assert length(chart_data) == 31
@@ -299,7 +312,7 @@ defmodule Tuist.QATest do
 
     test "returns all zeros when no QA runs" do
       # When
-      chart_data = QA.get_projects_usage_chart_data()
+      chart_data = QA.projects_usage_chart_data()
 
       # Then
       assert length(chart_data) == 31
@@ -307,19 +320,32 @@ defmodule Tuist.QATest do
     end
   end
 
-  describe "get_recent_qa_runs/0" do
+  describe "recent_qa_runs/0" do
     test "returns recent QA runs with project info" do
       # Given
       project = ProjectsFixtures.project_fixture(name: "TestProject")
       preview = AppBuildsFixtures.preview_fixture(project: project)
       app_build = AppBuildsFixtures.app_build_fixture(preview: preview)
 
-      _qa_run1 = QAFixtures.qa_run_fixture(app_build: app_build, status: "failed", prompt: "Test prompt 1")
-      _qa_run2 = QAFixtures.qa_run_fixture(app_build: app_build, status: "completed", prompt: "Test prompt 2")
-      _qa_run3 = QAFixtures.qa_run_fixture(app_build: app_build, status: "running", prompt: "Test prompt 3")
+      _qa_run1 =
+        QAFixtures.qa_run_fixture(app_build: app_build, status: "failed", prompt: "Test prompt 1")
+
+      _qa_run2 =
+        QAFixtures.qa_run_fixture(
+          app_build: app_build,
+          status: "completed",
+          prompt: "Test prompt 2"
+        )
+
+      _qa_run3 =
+        QAFixtures.qa_run_fixture(
+          app_build: app_build,
+          status: "running",
+          prompt: "Test prompt 3"
+        )
 
       # When
-      recent_runs = QA.get_recent_qa_runs()
+      recent_runs = QA.recent_qa_runs()
 
       # Then
       assert length(recent_runs) == 3
@@ -333,7 +359,7 @@ defmodule Tuist.QATest do
 
     test "returns empty list when no QA runs exist" do
       # When
-      recent_runs = QA.get_recent_qa_runs()
+      recent_runs = QA.recent_qa_runs()
 
       # Then
       assert recent_runs == []
@@ -351,7 +377,7 @@ defmodule Tuist.QATest do
       end)
 
       # When
-      recent_runs = QA.get_recent_qa_runs()
+      recent_runs = QA.recent_qa_runs()
 
       # Then
       assert length(recent_runs) == 50
@@ -365,7 +391,11 @@ defmodule Tuist.QATest do
 
       # When
       {:ok, screenshot} =
-        QA.create_qa_screenshot(%{qa_run_id: qa_run.id, file_name: "login_screen", title: "Login Screen Screenshot"})
+        QA.create_qa_screenshot(%{
+          qa_run_id: qa_run.id,
+          file_name: "login_screen",
+          title: "Login Screen Screenshot"
+        })
 
       # Then
       assert screenshot.qa_run_id == qa_run.id
@@ -403,10 +433,18 @@ defmodule Tuist.QATest do
       other_step = QAFixtures.qa_step_fixture(qa_run_id: qa_run.id)
 
       {:ok, screenshot1} =
-        QA.create_qa_screenshot(%{qa_run_id: qa_run.id, file_name: "screenshot1", title: "Screenshot 1"})
+        QA.create_qa_screenshot(%{
+          qa_run_id: qa_run.id,
+          file_name: "screenshot1",
+          title: "Screenshot 1"
+        })
 
       {:ok, screenshot2} =
-        QA.create_qa_screenshot(%{qa_run_id: qa_run.id, file_name: "screenshot2", title: "Screenshot 2"})
+        QA.create_qa_screenshot(%{
+          qa_run_id: qa_run.id,
+          file_name: "screenshot2",
+          title: "Screenshot 2"
+        })
 
       {:ok, screenshot3} =
         QA.create_qa_screenshot(%{
@@ -471,7 +509,8 @@ defmodule Tuist.QATest do
         })
 
       # Then
-      assert storage_key == "myaccount/myproject/qa/screenshots/#{qa_run_id}/screen_with-special_chars.png"
+      assert storage_key ==
+               "myaccount/myproject/qa/screenshots/#{qa_run_id}/screen_with-special_chars.png"
     end
   end
 
@@ -556,7 +595,10 @@ defmodule Tuist.QATest do
       result = QA.find_pending_qa_runs_for_app_build(app_build)
 
       # Then
-      assert result |> Enum.sort_by(& &1.inserted_at) |> Enum.map(& &1.id) == [qa_run1.id, qa_run2.id]
+      assert result |> Enum.sort_by(& &1.inserted_at) |> Enum.map(& &1.id) == [
+               qa_run1.id,
+               qa_run2.id
+             ]
     end
 
     test "returns empty list when no pending QA runs exist" do
@@ -644,7 +686,13 @@ defmodule Tuist.QATest do
     test "returns screenshot when it exists and qa_run_id is provided" do
       # Given
       qa_run = QAFixtures.qa_run_fixture()
-      screenshot = QAFixtures.screenshot_fixture(qa_run: qa_run, file_name: "test_screenshot", title: "Test Screenshot")
+
+      screenshot =
+        QAFixtures.screenshot_fixture(
+          qa_run: qa_run,
+          file_name: "test_screenshot",
+          title: "Test Screenshot"
+        )
 
       # When
       result = QA.screenshot(screenshot.id, qa_run_id: qa_run.id)
@@ -670,7 +718,13 @@ defmodule Tuist.QATest do
     test "returns screenshot when it exists and qa_run_id is not provided" do
       # Given
       qa_run = QAFixtures.qa_run_fixture()
-      screenshot = QAFixtures.screenshot_fixture(qa_run: qa_run, file_name: "any_screenshot", title: "Any Screenshot")
+
+      screenshot =
+        QAFixtures.screenshot_fixture(
+          qa_run: qa_run,
+          file_name: "any_screenshot",
+          title: "Any Screenshot"
+        )
 
       # When
       result = QA.screenshot(screenshot.id)

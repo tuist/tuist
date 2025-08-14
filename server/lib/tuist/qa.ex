@@ -105,7 +105,7 @@ defmodule Tuist.QA do
   Gets a QA run by ID with project and account information for ops interface.
   Returns a map with the necessary fields for display.
   """
-  def get_qa_run_for_ops(qa_run_id) do
+  def qa_run_for_ops(qa_run_id) do
     query =
       from(qa in Run,
         join: ab in assoc(qa, :app_build),
@@ -129,7 +129,7 @@ defmodule Tuist.QA do
   @doc """
   Gets QA logs for a given QA run ID from ClickHouse.
   """
-  def get_qa_logs(qa_run_id) do
+  def logs_for_run(qa_run_id) do
     query =
       from(log in Log,
         where: log.qa_run_id == ^qa_run_id,
@@ -145,7 +145,7 @@ defmodule Tuist.QA do
   Gets QA runs chart data for the last 30 days.
   Returns a list of [date, count] pairs for each day.
   """
-  def get_qa_runs_chart_data do
+  def qa_runs_chart_data do
     thirty_days_ago = Date.add(Date.utc_today(), -30)
     thirty_days_ago_datetime = DateTime.new!(thirty_days_ago, ~T[00:00:00], "Etc/UTC")
 
@@ -175,7 +175,7 @@ defmodule Tuist.QA do
   Gets cumulative projects usage chart data for the last 30 days.
   Returns a list of [date, cumulative_unique_projects_count] pairs.
   """
-  def get_projects_usage_chart_data do
+  def projects_usage_chart_data do
     thirty_days_ago = Date.add(Date.utc_today(), -30)
     thirty_days_ago_datetime = DateTime.new!(thirty_days_ago, ~T[00:00:00], "Etc/UTC")
 
@@ -215,7 +215,7 @@ defmodule Tuist.QA do
   Gets recent QA runs for ops interface.
   Returns up to 50 most recent runs with project and account info.
   """
-  def get_recent_qa_runs do
+  def recent_qa_runs do
     query =
       from(qa in Run,
         join: ab in assoc(qa, :app_build),
