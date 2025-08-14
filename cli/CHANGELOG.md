@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.61.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* Add support for keeping the sources of the targets replaced by binaries by [@pepicrft](https://github.com/pepicrft) in [#8000](https://github.com/tuist/tuist/pull/8000)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.60.0...4.61.0
+
 ## What's Changed in 4.60.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
