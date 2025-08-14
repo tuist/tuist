@@ -19,6 +19,8 @@ public final class AutogenerateTuistGenerateSchemeMapper: GraphMapping { // swif
         graph: Graph,
         environment: MapperEnvironment
     ) async throws -> (Graph, [SideEffectDescriptor], MapperEnvironment) {
+        guard includeGenerateScheme else { return (graph, [], environment) }
+
         let schemes: [Scheme]
         let executablePath = Environment.current.currentExecutablePath()
         schemes = [
