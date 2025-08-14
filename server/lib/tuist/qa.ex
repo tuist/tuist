@@ -216,19 +216,26 @@ defmodule Tuist.QA do
   Returns up to 50 most recent runs with project and account info.
   """
   def recent_qa_runs do
+    alias Tuist.Billing.TokenUsage
+
     query =
       from(qa in Run,
         join: ab in assoc(qa, :app_build),
         join: pr in assoc(ab, :preview),
         join: p in assoc(pr, :project),
         join: a in assoc(p, :account),
+        left_join: tu in TokenUsage,
+        on: tu.feature_resource_id == qa.id and tu.feature == "qa",
+        group_by: [qa.id, p.name, a.name, qa.status, qa.inserted_at, qa.prompt],
         select: %{
           id: qa.id,
           project_name: p.name,
           account_name: a.name,
           status: qa.status,
           inserted_at: qa.inserted_at,
-          prompt: qa.prompt
+          prompt: qa.prompt,
+          input_tokens: coalesce(sum(tu.input_tokens), 0),
+          output_tokens: coalesce(sum(tu.output_tokens), 0)
         },
         order_by: [desc: qa.inserted_at],
         limit: 50

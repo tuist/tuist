@@ -173,14 +173,14 @@ defmodule TuistWeb.OpsQALive do
                 <:col :let={qa_run} label={gettext("Status")}>
                   <.text_cell label={String.capitalize(qa_run.status)} />
                 </:col>
-                <:col :let={qa_run} label={gettext("Created At")}>
-                  <.text_cell label={format_datetime(qa_run.inserted_at)} />
-                </:col>
                 <:col :let={qa_run} label={gettext("Prompt")}>
                   <.text_cell label={String.slice(qa_run.prompt || "No prompt", 0, 50) <> if(String.length(qa_run.prompt || "") > 50, do: "...", else: "")} />
                 </:col>
-                <:col :let={qa_run} label={gettext("Token Usage")}>
+                <:col :let={qa_run} label={gettext("Token usage")}>
                   <.text_cell label={format_qa_run_token_usage(qa_run)} />
+                </:col>
+                <:col :let={qa_run} label={gettext("Ran at")}>
+                  <.text_cell label={format_datetime(qa_run.inserted_at)} />
                 </:col>
                 <:col :let={qa_run} label={gettext("Actions")}>
                   <.button
@@ -226,8 +226,8 @@ defmodule TuistWeb.OpsQALive do
   defp format_average_tokens_per_run(_, _), do: "0"
 
   defp format_qa_run_token_usage(qa_run) do
-    input_tokens = qa_run.input_tokens || 0
-    output_tokens = qa_run.output_tokens || 0
+    input_tokens = qa_run.input_tokens
+    output_tokens = qa_run.output_tokens
 
     if input_tokens == 0 and output_tokens == 0 do
       "No tokens"
