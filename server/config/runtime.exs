@@ -342,4 +342,3 @@ config :tuist, Tuist.PromEx,
     port: 9091,
     auth_strategy: :none
   ]
-

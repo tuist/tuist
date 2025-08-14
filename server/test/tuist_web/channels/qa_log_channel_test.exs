@@ -105,12 +105,13 @@ defmodule TuistWeb.QALogChannelTest do
         {"usage", %{"input" => 100, "output" => 50, "model" => "test-model"}}
       ]
 
-      for {type, data} <- types do
-        log_message = %{
-          "data" => JSON.encode!(data),
-          "type" => type,
-          "timestamp" => DateTime.to_iso8601(DateTime.utc_now())
-        }
+      capture_log(fn ->
+        for {type, data} <- types do
+          log_message = %{
+            "data" => JSON.encode!(data),
+            "type" => type,
+            "timestamp" => DateTime.to_iso8601(DateTime.utc_now())
+          }
 
           ref = push(socket, "log", log_message)
           assert_reply(ref, :ok)

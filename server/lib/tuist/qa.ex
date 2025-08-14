@@ -14,6 +14,7 @@ defmodule Tuist.QA do
   alias Tuist.Environment
   alias Tuist.Namespace
   alias Tuist.Projects
+  alias Tuist.QA.Log
   alias Tuist.QA.Run
   alias Tuist.QA.Screenshot
   alias Tuist.QA.Step

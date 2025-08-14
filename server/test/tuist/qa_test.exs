@@ -5,6 +5,7 @@ defmodule Tuist.QATest do
   alias Runner.QA.Agent
   alias Tuist.Authentication
   alias Tuist.QA
+  alias Tuist.QA.Run
   alias Tuist.Repo
   alias Tuist.Storage
   alias Tuist.VCS
