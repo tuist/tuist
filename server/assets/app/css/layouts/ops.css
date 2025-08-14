@@ -42,8 +42,8 @@
 
   & > [data-part="content"] {
     display: flex;
-    flex-direction: column;
     flex-grow: 1;
+    flex-direction: column;
     padding: var(--noora-spacing-0) var(--noora-spacing-16);
 
     @media (max-width: 768px) {

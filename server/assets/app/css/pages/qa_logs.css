@@ -25,9 +25,9 @@
 
       & > [data-part="meta"] {
         display: flex;
+        flex-wrap: wrap;
         align-items: center;
         gap: var(--noora-spacing-4);
-        flex-wrap: wrap;
 
         & > [data-part="project"] {
           color: var(--noora-surface-label-secondary);
@@ -58,54 +58,48 @@
     }
 
     & [data-part="logs-container"] {
-      background: var(--noora-surface-background-secondary);
       border: 1px solid var(--noora-surface-border-primary);
       border-radius: var(--noora-radius-medium);
-      font-family: var(--noora-font-code);
+      background: var(--noora-surface-background-secondary);
+      max-height: 70vh;
+      overflow: auto;
+      color: var(--noora-surface-label-primary);
       font-size: 0.8125rem;
       line-height: 1.45;
-      overflow: auto;
-      max-height: 70vh;
-      color: var(--noora-surface-label-primary);
+      font-family: var(--noora-font-code);
     }
 
     & [data-part="log-entry"] {
       display: flex;
-      padding: var(--noora-spacing-1) var(--noora-spacing-5);
-      border-bottom: none;
-      min-height: 20px;
       align-items: flex-start;
+      border-bottom: none;
+      padding: var(--noora-spacing-1) var(--noora-spacing-5);
+      min-height: 20px;
 
       &:hover {
         background: var(--noora-button-neutral-background-hover);
       }
-
-      &:not([data-type="tool_call"]) {
-        align-items: center;
-      }
     }
 
     & [data-part="timestamp"] {
-      color: var(--noora-surface-label-tertiary);
-      font-family: var(--noora-font-code);
-      font-size: 0.6875rem;
-      min-width: 65px;
-      margin-right: var(--noora-spacing-4);
       margin-top: var(--noora-spacing-1);
+      margin-right: var(--noora-spacing-4);
+      min-width: 65px;
+      color: var(--noora-surface-label-tertiary);
+      font-size: 0.6875rem;
+      font-family: var(--noora-font-code);
       user-select: none;
     }
 
-
-
     & [data-part="log-type"] {
-      min-width: 80px;
-      margin-top: var(--noora-spacing-2);
+      margin-top: var(--noora-spacing-1);
       margin-right: var(--noora-spacing-4);
-      font-family: var(--noora-font-code);
-      font-size: 0.6875rem;
-      font-weight: 600;
-      user-select: none;
+      min-width: 80px;
       color: var(--noora-surface-label-secondary);
+      font-weight: 600;
+      font-size: 0.6875rem;
+      font-family: var(--noora-font-code);
+      user-select: none;
 
       &[data-type="usage"] {
         color: var(--noora-orange-600);
@@ -126,10 +120,10 @@
 
     & [data-part="log-message"] {
       flex: 1;
-      white-space: pre-wrap;
-      word-break: break-word;
       margin-top: var(--noora-spacing-1);
       color: var(--noora-surface-label-primary);
+      white-space: pre-wrap;
+      word-break: break-word;
     }
 
     & [data-part="tool-call-content"] {
@@ -145,32 +139,32 @@
 
     & [data-part="tool-name"] {
       flex: 1;
+      margin-top: var(--noora-spacing-1);
       color: var(--noora-surface-label-primary);
       font-weight: 500;
-      margin-top: var(--noora-spacing-1);
     }
 
     & [data-part="expand-toggle"] {
-      background: none;
-      border: 1px solid var(--noora-surface-border-primary);
-      color: var(--noora-surface-label-tertiary);
+      display: flex;
+      flex-shrink: 0;
+      justify-content: center;
+      align-items: center;
+      transition: all 0.2s ease;
       cursor: pointer;
-      font-family: var(--noora-font-code);
-      font-size: 0.75rem;
+      margin-top: var(--noora-spacing-1);
+      border: 1px solid var(--noora-surface-border-primary);
       border-radius: var(--noora-radius-xsmall);
+      background: none;
+      padding: 0;
       width: 16px;
       height: 16px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 0;
-      margin-top: var(--noora-spacing-1);
-      flex-shrink: 0;
-      transition: all 0.2s ease;
+      color: var(--noora-surface-label-tertiary);
+      font-size: 0.75rem;
+      font-family: var(--noora-font-code);
 
       &:hover {
-        background: var(--noora-button-neutral-background-hover);
         border-color: var(--noora-surface-border-primary);
+        background: var(--noora-button-neutral-background-hover);
         color: var(--noora-surface-label-primary);
       }
 
@@ -180,27 +174,27 @@
     }
 
     & [data-part="expand-icon"] {
-      line-height: 1;
       font-weight: bold;
+      line-height: 1;
     }
 
     & [data-part="tool-call-details"] {
       margin-top: var(--noora-spacing-4);
-      padding-left: var(--noora-spacing-5);
       border-left: 2px solid var(--noora-surface-border-primary);
+      padding-left: var(--noora-spacing-5);
     }
 
     & [data-part="json-content"] {
-      background: var(--noora-surface-background-tertiary);
+      margin: 0;
       border: 1px solid var(--noora-surface-border-primary);
       border-radius: var(--noora-radius-medium);
+      background: var(--noora-surface-background-tertiary);
       padding: var(--noora-spacing-5);
-      margin: 0;
+      overflow-x: auto;
       color: var(--noora-surface-label-primary);
-      font-family: var(--noora-font-code);
       font-size: 0.75rem;
       line-height: 1.4;
-      overflow-x: auto;
+      font-family: var(--noora-font-code);
       white-space: pre;
     }
   }

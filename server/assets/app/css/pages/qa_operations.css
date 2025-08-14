@@ -32,8 +32,8 @@
   & > [data-part="empty-state"] {
     display: flex;
     flex-direction: column;
-    align-items: center;
     justify-content: center;
+    align-items: center;
     text-align: center;
 
     & [data-part="content"] {
