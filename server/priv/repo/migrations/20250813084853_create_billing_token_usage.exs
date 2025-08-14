@@ -23,6 +23,7 @@ defmodule Tuist.Repo.Migrations.CreateBillingTokenUsage do
     create index(:token_usages, [:timestamp])
     create index(:token_usages, [:account_id, :feature])
     create index(:token_usages, [:account_id, :timestamp])
+
     create index(:token_usages, [:account_id, :feature, "timestamp DESC"],
              name: :token_usages_account_feature_timestamp_idx
            )

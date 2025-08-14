@@ -269,7 +269,8 @@ defmodule Tuist.QA do
   Updates screenshots to associate them with a QA run step.
   """
   def update_screenshots_with_step_id(qa_run_id, qa_step_id) do
-    Repo.update_all(from(s in Screenshot, where: s.qa_run_id == ^qa_run_id and is_nil(s.qa_step_id)),
+    Repo.update_all(
+      from(s in Screenshot, where: s.qa_run_id == ^qa_run_id and is_nil(s.qa_step_id)),
       set: [qa_step_id: qa_step_id]
     )
   end
@@ -345,7 +346,9 @@ defmodule Tuist.QA do
 
   defp render_qa_summary_comment_body(qa_run, project) do
     preview = qa_run.app_build.preview
-    preview_url = "#{Environment.app_url()}/#{project.account.name}/#{project.name}/previews/#{preview.id}"
+
+    preview_url =
+      "#{Environment.app_url()}/#{project.account.name}/#{project.name}/previews/#{preview.id}"
 
     render_qa_summary(%{
       summary: qa_run.summary,
@@ -373,21 +376,16 @@ defmodule Tuist.QA do
     Storage.generate_download_url(storage_key)
   end
 
-  @doc """
-  Gets total token usage for a QA run using the billing context.
-  """
-  def get_qa_run_token_usage(qa_run_id) do
-    alias Tuist.Billing
-
-    Billing.get_token_usage_for_resource("qa", qa_run_id)
-  end
-
   defp create_qa_auth_token(%AppBuild{} = app_build) do
     account = app_build.preview.project.account
 
     claims = %{
       "type" => "account",
-      "scopes" => ["project_qa_run_update", "project_qa_step_create", "project_qa_screenshot_create"],
+      "scopes" => [
+        "project_qa_run_update",
+        "project_qa_step_create",
+        "project_qa_screenshot_create"
+      ],
       "project_id" => app_build.preview.project.id
     }
 

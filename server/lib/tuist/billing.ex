@@ -357,67 +357,6 @@ defmodule Tuist.Billing do
   end
 
   @doc """
-  Gets token usage statistics for an account across all features.
-  """
-  def get_account_token_usage(account_id, opts \\ []) do
-    query = from(tu in TokenUsage, where: tu.account_id == ^account_id)
-
-    query =
-      case Keyword.get(opts, :feature) do
-        nil -> query
-        feature -> from(tu in query, where: tu.feature == ^feature)
-      end
-
-    query =
-      case Keyword.get(opts, :since) do
-        nil -> query
-        since_date -> from(tu in query, where: tu.timestamp >= ^since_date)
-      end
-
-    query =
-      from(tu in query,
-        select: %{
-          total_input_tokens: coalesce(sum(tu.input_tokens), 0),
-          total_output_tokens: coalesce(sum(tu.output_tokens), 0),
-          usage_count: count(tu.id),
-          total_tokens: coalesce(sum(tu.input_tokens), 0) + coalesce(sum(tu.output_tokens), 0)
-        }
-      )
-
-    case Repo.one(query) do
-      nil -> %{total_input_tokens: 0, total_output_tokens: 0, usage_count: 0, total_tokens: 0}
-      result -> result
-    end
-  end
-
-  @doc """
-  Gets token usage breakdown by feature for an account.
-  """
-  def get_account_token_usage_by_feature(account_id, opts \\ []) do
-    query = from(tu in TokenUsage, where: tu.account_id == ^account_id)
-
-    query =
-      case Keyword.get(opts, :since) do
-        nil -> query
-        since_date -> from(tu in query, where: tu.timestamp >= ^since_date)
-      end
-
-    query =
-      from(tu in query,
-        group_by: tu.feature,
-        select: %{
-          feature: tu.feature,
-          total_input_tokens: coalesce(sum(tu.input_tokens), 0),
-          total_output_tokens: coalesce(sum(tu.output_tokens), 0),
-          usage_count: count(tu.id),
-          total_tokens: coalesce(sum(tu.input_tokens), 0) + coalesce(sum(tu.output_tokens), 0)
-        }
-      )
-
-    Repo.all(query)
-  end
-
-  @doc """
   Gets token usage for all accounts for a specific feature, with 30-day and all-time stats.
   """
   def get_feature_token_usage_by_account(feature) do
