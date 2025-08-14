@@ -98,7 +98,43 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
       assert result.status == 200
     end
 
-    test "creates QA worker job when app build exists", %{conn: conn} do
+    test "posts message when QA feature flag is disabled for account", %{conn: conn} do
+      # Given
+      organization = AccountsFixtures.organization_fixture()
+      account = Tuist.Repo.get_by!(Account, organization_id: organization.id)
+
+      ProjectsFixtures.project_fixture(
+        account_id: account.id,
+        vcs_repository_full_handle: "org/repo"
+      )
+
+      conn = put_req_header(conn, "x-github-event", "issue_comment")
+
+      expect(FunWithFlags, :enabled?, fn :qa, [for: ^account] ->
+        false
+      end)
+
+      expect(VCS, :create_comment, fn comment_params ->
+        assert comment_params.body ==
+                 "Tuist QA is currently not generally available. Contact us at contact@tuist.dev if you'd like an early preview of the feature."
+
+        {:ok, %{"id" => "comment_123"}}
+      end)
+
+      # When
+      result =
+        GitHubController.handle(conn, %{
+          "action" => "created",
+          "comment" => %{"body" => "/tuist qa test login flow"},
+          "repository" => %{"full_name" => "org/repo"},
+          "issue" => %{"number" => 42, "pull_request" => %{}}
+        })
+
+      # Then
+      assert result.status == 200
+    end
+
+    test "creates QA worker job when app build exists and feature flag is enabled", %{conn: conn} do
       # Given
       organization = AccountsFixtures.organization_fixture()
       account = Tuist.Repo.get_by!(Account, organization_id: organization.id)
@@ -114,8 +150,8 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
 
       conn = put_req_header(conn, "x-github-event", "issue_comment")
 
-      expect(Projects, :project_by_vcs_repository_full_handle, fn "org/repo", _opts ->
-        {:ok, project}
+      expect(FunWithFlags, :enabled?, fn :qa, [for: ^account] ->
+        true
       end)
 
       expect(AppBuilds, :latest_app_build, fn "refs/pull/42/merge", ^project, _opts ->
@@ -149,7 +185,7 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
       assert result.status == 200
     end
 
-    test "creates pending QA run when no app build exists", %{conn: conn} do
+    test "creates pending QA run when no app build exists and feature flag is enabled", %{conn: conn} do
       # Given
       organization = AccountsFixtures.organization_fixture()
       account = Tuist.Repo.get_by!(Account, organization_id: organization.id)
@@ -165,6 +201,10 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
 
       expect(Projects, :project_by_vcs_repository_full_handle, fn "org/repo", _ ->
         {:ok, project}
+      end)
+
+      expect(FunWithFlags, :enabled?, fn :qa, [for: ^account] ->
+        true
       end)
 
       expect(AppBuilds, :latest_app_build, fn "refs/pull/55/merge", ^project, _ ->
