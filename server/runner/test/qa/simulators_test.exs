@@ -1,4 +1,4 @@
-defmodule Runner.Runner.QA.Simulators.SimulatorsTest do
+defmodule Runner.QA.Simulators.SimulatorsTest do
   use ExUnit.Case, async: false
   use Mimic
 
