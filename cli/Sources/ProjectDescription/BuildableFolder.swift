@@ -8,7 +8,7 @@ public struct BuildableFolder: Sendable, Codable, Equatable, ExpressibleByString
     /// Creates an instance of a buildable folder.
     /// - Parameter path: Path to the buildable folder.
     /// - Returns: An instance of buildable folder.
-    public static func folder(path: Path) -> Self {
+    public static func folder(_ path: Path) -> Self {
         Self(path: path)
     }
 
