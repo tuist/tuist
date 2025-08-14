@@ -105,9 +105,9 @@ defmodule TuistWeb.Webhooks.GitHubController do
   defp tuist_qa_prompt(body) do
     base_prompt =
       cond do
-        Environment.stag?() -> "/tuist-stag qa"
-        Environment.dev?() -> "/tuist-dev qa"
-        Environment.can?() -> "/tuist-can qa"
+        Environment.stag?() -> "/tuist-staging qa"
+        Environment.dev?() -> "/tuist-development qa"
+        Environment.can?() -> "/tuist-canary qa"
         true -> "/tuist qa"
       end
 
