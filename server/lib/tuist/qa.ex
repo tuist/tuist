@@ -193,24 +193,20 @@ defmodule Tuist.QA do
         order_by: [asc: fragment("DATE(?)", qa.inserted_at)]
       )
 
-    results = Repo.all(query)
+    results_by_date =
+      Repo.all(query)
+      |> Map.new(fn r -> {r.date, MapSet.new(r.project_ids)} end)
+
     date_range = Date.range(thirty_days_ago, Date.utc_today())
 
-    {_, chart_data} =
-      Enum.reduce(date_range, {MapSet.new(), []}, fn date, {cumulative_projects, acc} ->
-        case Enum.find(results, fn result -> result.date == date end) do
-          nil ->
-            {cumulative_projects, [[Date.to_string(date), MapSet.size(cumulative_projects)] | acc]}
-
-          result ->
-            updated_cumulative = MapSet.union(cumulative_projects, MapSet.new(result.project_ids))
-            {updated_cumulative, [[Date.to_string(date), MapSet.size(updated_cumulative)] | acc]}
-        end
+    {_, acc} =
+      Enum.reduce(date_range, {MapSet.new(), []}, fn date, {cumulative, out} ->
+        todays_projects = Map.get(results_by_date, date, MapSet.new())
+        cumulative = MapSet.union(cumulative, todays_projects)
+        {cumulative, [[Date.to_string(date), MapSet.size(cumulative)] | out]}
       end)
 
-    Enum.reverse(chart_data)
-  end
-
+    Enum.reverse(acc)
   @doc """
   Gets recent QA runs for ops interface.
   Returns up to 50 most recent runs with project and account info.
