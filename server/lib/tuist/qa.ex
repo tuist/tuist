@@ -194,7 +194,8 @@ defmodule Tuist.QA do
       )
 
     results_by_date =
-      Repo.all(query)
+      query
+      |> Repo.all()
       |> Map.new(fn r -> {r.date, MapSet.new(r.project_ids)} end)
 
     date_range = Date.range(thirty_days_ago, Date.utc_today())
@@ -207,6 +208,8 @@ defmodule Tuist.QA do
       end)
 
     Enum.reverse(acc)
+  end
+
   @doc """
   Gets recent QA runs for ops interface.
   Returns up to 50 most recent runs with project and account info.
