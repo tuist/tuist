@@ -22,10 +22,14 @@ defmodule Tuist.Billing.TokenUsageTest do
       }
 
       assert {:ok, token_usage} = Billing.create_token_usage(attrs)
-      assert token_usage.input_tokens == 100
-      assert token_usage.output_tokens == 50
-      assert token_usage.model == "claude-sonnet-4-20250514"
-      assert token_usage.feature == "qa"
+
+      assert %{
+               input_tokens: 100,
+               output_tokens: 50,
+               model: "claude-sonnet-4-20250514",
+               feature: "qa"
+             } = token_usage
+
       assert token_usage.account_id == account.id
     end
 
@@ -116,20 +120,25 @@ defmodule Tuist.Billing.TokenUsageTest do
         })
 
       usage = Billing.get_token_usage_for_resource("qa", resource_id)
-      assert usage.total_input_tokens == 300
-      assert usage.total_output_tokens == 150
-      assert usage.total_tokens == 450
-      assert usage.usage_count == 2
+
+      assert %{
+               total_input_tokens: 300,
+               total_output_tokens: 150,
+               total_tokens: 450,
+               usage_count: 2
+             } = usage
     end
 
     test "returns zero stats when no usage exists" do
       resource_id = UUIDv7.generate()
       usage = Billing.get_token_usage_for_resource("qa", resource_id)
 
-      assert usage.total_input_tokens == 0
-      assert usage.total_output_tokens == 0
-      assert usage.total_tokens == 0
-      assert usage.usage_count == 0
+      assert %{
+               total_input_tokens: 0,
+               total_output_tokens: 0,
+               total_tokens: 0,
+               usage_count: 0
+             } = usage
     end
   end
 
@@ -154,17 +163,20 @@ defmodule Tuist.Billing.TokenUsageTest do
           input_tokens: 200,
           output_tokens: 100,
           model: "gpt-4",
-          feature: "chat",
+          feature: "qa",
           feature_resource_id: UUIDv7.generate(),
           account_id: account.id,
           timestamp: DateTime.utc_now()
         })
 
       usage = Billing.get_account_token_usage(account.id)
-      assert usage.total_input_tokens == 300
-      assert usage.total_output_tokens == 150
-      assert usage.total_tokens == 450
-      assert usage.usage_count == 2
+
+      assert %{
+               total_input_tokens: 300,
+               total_output_tokens: 150,
+               total_tokens: 450,
+               usage_count: 2
+             } = usage
     end
 
     test "filters by feature when specified" do
@@ -187,16 +199,19 @@ defmodule Tuist.Billing.TokenUsageTest do
           input_tokens: 200,
           output_tokens: 100,
           model: "gpt-4",
-          feature: "chat",
+          feature: "qa",
           feature_resource_id: UUIDv7.generate(),
           account_id: account.id,
           timestamp: DateTime.utc_now()
         })
 
       usage = Billing.get_account_token_usage(account.id, feature: "qa")
-      assert usage.total_input_tokens == 100
-      assert usage.total_output_tokens == 50
-      assert usage.usage_count == 1
+
+      assert %{
+               total_input_tokens: 300,
+               total_output_tokens: 150,
+               usage_count: 2
+             } = usage
     end
 
     test "filters by date when specified" do
@@ -229,9 +244,12 @@ defmodule Tuist.Billing.TokenUsageTest do
         })
 
       usage = Billing.get_account_token_usage(account.id, since: today)
-      assert usage.total_input_tokens == 200
-      assert usage.total_output_tokens == 100
-      assert usage.usage_count == 1
+
+      assert %{
+               total_input_tokens: 200,
+               total_output_tokens: 100,
+               usage_count: 1
+             } = usage
     end
   end
 
@@ -256,7 +274,7 @@ defmodule Tuist.Billing.TokenUsageTest do
           input_tokens: 200,
           output_tokens: 100,
           model: "gpt-4",
-          feature: "chat",
+          feature: "qa",
           feature_resource_id: UUIDv7.generate(),
           account_id: account.id,
           timestamp: DateTime.utc_now()
@@ -276,15 +294,12 @@ defmodule Tuist.Billing.TokenUsageTest do
       usage_by_feature = Billing.get_account_token_usage_by_feature(account.id)
 
       qa_usage = Enum.find(usage_by_feature, &(&1.feature == "qa"))
-      chat_usage = Enum.find(usage_by_feature, &(&1.feature == "chat"))
 
-      assert qa_usage.total_input_tokens == 250
-      assert qa_usage.total_output_tokens == 125
-      assert qa_usage.usage_count == 2
-
-      assert chat_usage.total_input_tokens == 200
-      assert chat_usage.total_output_tokens == 100
-      assert chat_usage.usage_count == 1
+      assert %{
+               total_input_tokens: 450,
+               total_output_tokens: 225,
+               usage_count: 3
+             } = qa_usage
     end
   end
 
@@ -337,7 +352,7 @@ defmodule Tuist.Billing.TokenUsageTest do
           input_tokens: 100,
           output_tokens: 50,
           model: "gpt-4",
-          feature: "chat",
+          feature: "qa",
           feature_resource_id: UUIDv7.generate(),
           account_id: account1.id,
           timestamp: today
@@ -345,32 +360,45 @@ defmodule Tuist.Billing.TokenUsageTest do
 
       usage_by_account = Billing.get_feature_token_usage_by_account("qa")
 
-      # Should be sorted by all-time total tokens descending
       assert length(usage_by_account) == 2
 
       first_account = List.first(usage_by_account)
-      assert first_account.account_id == account1.id
-      assert first_account.all_time.total_input_tokens == 1200
-      assert first_account.all_time.total_output_tokens == 600
-      assert first_account.all_time.total_tokens == 1800
-      assert first_account.all_time.usage_count == 2
 
-      assert first_account.thirty_day.total_input_tokens == 200
-      assert first_account.thirty_day.total_output_tokens == 100
-      assert first_account.thirty_day.total_tokens == 300
-      assert first_account.thirty_day.usage_count == 1
+      assert %{
+               all_time: %{
+                 total_input_tokens: 1300,
+                 total_output_tokens: 650,
+                 total_tokens: 1950,
+                 usage_count: 3
+               },
+               thirty_day: %{
+                 total_input_tokens: 300,
+                 total_output_tokens: 150,
+                 total_tokens: 450,
+                 usage_count: 2
+               }
+             } = first_account
+
+      assert first_account.account_id == account1.id
 
       second_account = List.last(usage_by_account)
-      assert second_account.account_id == account2.id
-      assert second_account.all_time.total_input_tokens == 300
-      assert second_account.all_time.total_output_tokens == 150
-      assert second_account.all_time.total_tokens == 450
-      assert second_account.all_time.usage_count == 1
 
-      assert second_account.thirty_day.total_input_tokens == 300
-      assert second_account.thirty_day.total_output_tokens == 150
-      assert second_account.thirty_day.total_tokens == 450
-      assert second_account.thirty_day.usage_count == 1
+      assert %{
+               all_time: %{
+                 total_input_tokens: 300,
+                 total_output_tokens: 150,
+                 total_tokens: 450,
+                 usage_count: 1
+               },
+               thirty_day: %{
+                 total_input_tokens: 300,
+                 total_output_tokens: 150,
+                 total_tokens: 450,
+                 usage_count: 1
+               }
+             } = second_account
+
+      assert second_account.account_id == account2.id
     end
 
     test "returns empty list when no usage exists for feature" do

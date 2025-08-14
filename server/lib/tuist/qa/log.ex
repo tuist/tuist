@@ -29,7 +29,6 @@ defmodule Tuist.QA.Log do
     log_attrs
     |> convert_datetime_field(:timestamp)
     |> convert_datetime_field(:inserted_at)
-    |> normalize_type()
   end
 
   defp convert_datetime_field(attrs, field) do
@@ -55,47 +54,23 @@ defmodule Tuist.QA.Log do
   defp parse_datetime_string(str) do
     cond do
       String.contains?(str, "Z") or String.contains?(str, "+") ->
-        case DateTime.from_iso8601(str) do
-          {:ok, dt, _offset} -> DateTime.to_naive(dt)
-          {:error, _} -> fallback_datetime()
-        end
+        {:ok, dt, _offset} = DateTime.from_iso8601(str)
+        DateTime.to_naive(dt)
 
       String.contains?(str, " ") ->
-        case NaiveDateTime.from_iso8601(String.replace(str, " ", "T")) do
-          {:ok, parsed} -> parsed
-          {:error, _} -> fallback_datetime()
-        end
+        # Already in NaiveDateTime format
+        {:ok, parsed} = NaiveDateTime.from_iso8601(String.replace(str, " ", "T"))
+        parsed
 
       true ->
-        case DateTime.from_iso8601(str <> "Z") do
-          {:ok, dt, _offset} -> DateTime.to_naive(dt)
-          {:error, _} -> fallback_datetime()
-        end
+        {:ok, dt, _offset} = DateTime.from_iso8601(str <> "Z")
+        DateTime.to_naive(dt)
     end
-  end
-
-  defp fallback_datetime do
-    DateTime.to_naive(DateTime.utc_now())
   end
 
   defp update_field_with_naive_datetime(attrs, field, ndt) do
     ndt_with_usec = %{ndt | microsecond: {elem(ndt.microsecond, 0), 6}}
     Map.put(attrs, field, ndt_with_usec)
-  end
-
-  defp normalize_type(attrs) do
-    if Map.has_key?(attrs, :type) do
-      Map.update!(attrs, :type, fn
-        "usage" -> 0
-        "tool_call" -> 1
-        "tool_call_result" -> 2
-        "message" -> 3
-        type when is_integer(type) -> type
-        _ -> 3
-      end)
-    else
-      attrs
-    end
   end
 
   def normalize_enums(log) do
