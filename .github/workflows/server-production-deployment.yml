@@ -62,7 +62,7 @@ jobs:
         with:
           path: |
             ~/.pnpm/store
-          key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
+          key: pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
       - uses: jdx/mise-action@v2
       - name: "Get version"
         id: version
@@ -136,7 +136,7 @@ jobs:
         with:
           path: |
             ~/.pnpm/store
-          key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
+          key: pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
       - uses: jdx/mise-action@v2
       - name: "Get version"
         id: version
@@ -188,7 +188,7 @@ jobs:
         with:
           path: |
             ~/.pnpm/store
-          key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
+          key: pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
       - uses: jdx/mise-action@v2
       - name: "Get version"
         id: version

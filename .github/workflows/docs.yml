@@ -49,7 +49,7 @@ jobs:
         with:
           path: |
             ~/.pnpm/store
-          key: pnpm-docs-${{ hashFiles('docs/pnpm-lock.yaml') }}
+          key: pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - name: Restore cache

@@ -37,7 +37,7 @@ jobs:
         with:
           path: |
             ~/.pnpm/store
-          key: pnpm-handbook-${{ hashFiles('docs/pnpm-lock.yaml') }}
+          key: pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
       - uses: jdx/mise-action@v2
         with:
           experimental: true
