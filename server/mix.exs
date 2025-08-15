@@ -93,7 +93,6 @@ defmodule Tuist.MixProject do
       {:jose, "~> 1.11"},
       {:ecto_psql_extras, "~> 0.8.1"},
       {:cachex, "~> 4.1.0"},
-      {:error_tracker, "~> 0.6.0"},
       {:excellent_migrations, "~> 0.1.8"},
       {:ex_aws_sts, "~> 2.2"},
       {:qr_code, "~> 3.2.0"},
@@ -129,7 +128,7 @@ defmodule Tuist.MixProject do
       {:ecto_ch, "~> 0.7.0"},
       (System.get_env("NOORA_LOCAL") &&
          {:noora, path: "../../Noora/web"}) ||
-        {:noora, "== 0.11.0"},
+        {:noora, "== 0.12.0"},
       {:zstream, "~> 0.6"},
       {:cloak_ecto, "~> 1.3.0"},
       {:boruta, git: "https://github.com/malach-it/boruta_auth", branch: "master"},

@@ -19,8 +19,8 @@ defmodule Runner.QA.LogStreamer do
     Slipstream.start_link(__MODULE__, {config, init_args})
   end
 
-  def stream_log(pid, %{message: message, level: level, timestamp: timestamp}) do
-    GenServer.cast(pid, {:stream_log, message, level, timestamp})
+  def stream_log(pid, %{data: data, type: type, timestamp: timestamp}) do
+    GenServer.cast(pid, {:stream_log, data, type, timestamp})
   end
 
   @impl Slipstream
@@ -43,12 +43,12 @@ defmodule Runner.QA.LogStreamer do
   end
 
   @impl Slipstream
-  def handle_cast({:stream_log, message, level, timestamp}, socket) do
+  def handle_cast({:stream_log, data, type, timestamp}, socket) do
     topic = @topic_prefix <> socket.assigns.run_id
 
     payload = %{
-      "message" => message,
-      "level" => level,
+      "data" => data,
+      "type" => type,
       "timestamp" => DateTime.to_iso8601(timestamp)
     }
 

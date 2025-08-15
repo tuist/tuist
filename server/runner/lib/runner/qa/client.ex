@@ -45,6 +45,19 @@ defmodule Runner.QA.Client do
     qa_server_request(:patch, run_url, auth_token, json: %{status: "completed", summary: summary})
   end
 
+  def fail_run(%{
+        error_message: error_message,
+        server_url: server_url,
+        run_id: run_id,
+        auth_token: auth_token,
+        account_handle: account_handle,
+        project_handle: project_handle
+      }) do
+    run_url = qa_run_url(server_url, account_handle, project_handle, run_id)
+
+    qa_server_request(:patch, run_url, auth_token, json: %{status: "failed", error_message: error_message})
+  end
+
   def screenshot_upload(%{
         file_name: file_name,
         title: title,
@@ -54,7 +67,8 @@ defmodule Runner.QA.Client do
         account_handle: account_handle,
         project_handle: project_handle
       }) do
-    upload_url = qa_run_url(server_url, account_handle, project_handle, run_id, "/screenshots/upload")
+    upload_url =
+      qa_run_url(server_url, account_handle, project_handle, run_id, "/screenshots/upload")
 
     case qa_server_request(:post, upload_url, auth_token, json: %{file_name: file_name, title: title}) do
       {:ok, response} -> {:ok, response}
@@ -71,7 +85,8 @@ defmodule Runner.QA.Client do
         account_handle: account_handle,
         project_handle: project_handle
       }) do
-    screenshot_url = qa_run_url(server_url, account_handle, project_handle, run_id, "/screenshots")
+    screenshot_url =
+      qa_run_url(server_url, account_handle, project_handle, run_id, "/screenshots")
 
     qa_server_request(:post, screenshot_url, auth_token, json: %{file_name: file_name, title: title})
   end
@@ -84,10 +99,10 @@ defmodule Runner.QA.Client do
     })
   end
 
-  def stream_log(streamer_pid, %{message: message, level: level, timestamp: timestamp}) do
+  def stream_log(streamer_pid, %{data: data, type: type, timestamp: timestamp}) do
     LogStreamer.stream_log(streamer_pid, %{
-      message: message,
-      level: level,
+      data: data,
+      type: type,
       timestamp: timestamp
     })
   end

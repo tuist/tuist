@@ -19,15 +19,6 @@ config :boruta, Boruta.Oauth,
 config :ecto_ch,
   default_table_engine: "MergeTree"
 
-# Error tracker
-config :error_tracker,
-  repo: Tuist.Repo,
-  enabled: false,
-  otp_app: :tuist,
-  ignorer: Tuist.ErrorTracker.Ignorer,
-  # 1 week
-  plugins: [{ErrorTracker.Plugins.Pruner, max_age: to_timeout(week: 1)}]
-
 # esbuild
 config :esbuild,
   version: "0.25.2",
