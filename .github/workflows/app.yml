@@ -6,16 +6,12 @@ on:
       - main
     paths:
       - "app/**"
-      - "Package.resolved"
       - ".github/workflows/app.yml"
-      - "mise.toml"
       - "Tuist/**"
   pull_request:
     paths:
       - "app/**"
-      - "Package.resolved"
       - ".github/workflows/app.yml"
-      - "mise.toml"
       - "Tuist/**"
 
 permissions:

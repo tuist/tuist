@@ -10,10 +10,8 @@ on:
       - "cli/Sources/**"
       - "cli/Tests/**"
       - "*.swift"
-      - "Package.resolved"
       - ".github/workflows/cli.yml"
       - "mise/tasks/cli/lint.sh"
-      - "mise.toml"
       - "cli/Fixtures/**"
       - "Tuist/**"
   pull_request:
@@ -23,10 +21,8 @@ on:
       - "cli/Sources/**"
       - "cli/Tests/**"
       - "*.swift"
-      - "Package.resolved"
       - ".github/workflows/cli.yml"
       - "mise/tasks/cli/lint.sh"
-      - "mise.toml"
       - "cli/Fixtures/**"
       - "Tuist/**"
 
