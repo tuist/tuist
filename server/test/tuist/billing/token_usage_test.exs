@@ -143,7 +143,7 @@ defmodule Tuist.Billing.TokenUsageTest do
   end
 
   describe "feature_token_usage_by_account/1" do
-    test "returns token usage by account for a specific feature with 30-day and all-time stats" do
+    test "returns token usage by account for a specific feature with 30-day and 12-month stats" do
       org1 = organization_fixture()
       org2 = organization_fixture()
       account1 = Tuist.Repo.get_by!(Account, organization_id: org1.id)
@@ -204,7 +204,7 @@ defmodule Tuist.Billing.TokenUsageTest do
       first_account = List.first(usage_by_account)
 
       assert %{
-               all_time: %{
+               twelve_month: %{
                  total_input_tokens: 1300,
                  total_output_tokens: 650,
                  total_tokens: 1950,
@@ -223,7 +223,7 @@ defmodule Tuist.Billing.TokenUsageTest do
       second_account = List.last(usage_by_account)
 
       assert %{
-               all_time: %{
+               twelve_month: %{
                  total_input_tokens: 300,
                  total_output_tokens: 150,
                  total_tokens: 450,

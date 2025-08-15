@@ -16,7 +16,6 @@ defmodule Tuist.QA.Logs.BufferTest do
         inserted_at: DateTime.utc_now()
       }
 
-      log_attrs = Log.changeset(log_attrs)
       log = struct(Log, log_attrs)
 
       # When

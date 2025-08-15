@@ -9,6 +9,7 @@ defmodule Tuist.QA do
   alias Tuist.Accounts
   alias Tuist.AppBuilds
   alias Tuist.AppBuilds.AppBuild
+    alias Tuist.Billing.TokenUsage
   alias Tuist.Authentication
   alias Tuist.ClickHouseRepo
   alias Tuist.Environment
@@ -278,7 +279,6 @@ defmodule Tuist.QA do
   Returns up to 50 most recent runs with project and account info.
   """
   def recent_qa_runs do
-    alias Tuist.Billing.TokenUsage
 
     query =
       from(qa in Run,

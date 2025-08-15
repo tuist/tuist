@@ -364,89 +364,118 @@ defmodule Tuist.Billing do
   end
 
   @doc """
-  Gets token usage for all accounts for a specific feature, with 30-day and all-time stats.
+  Gets token usage for all accounts for a specific feature, with 30-day and 12-month stats.
   """
   def feature_token_usage_by_account(feature) do
     thirty_days_ago = DateTime.add(DateTime.utc_now(), -30, :day)
+    twelve_months_ago = DateTime.add(DateTime.utc_now(), -365, :day)
 
-    all_time_query =
+    query =
       from(tu in TokenUsage,
         join: a in assoc(tu, :account),
-        where: tu.feature == ^feature,
+        where: tu.feature == ^feature and tu.timestamp >= ^twelve_months_ago,
         group_by: [tu.account_id, a.name],
         select: %{
           account_id: tu.account_id,
           account_name: a.name,
-          total_input_tokens: coalesce(sum(tu.input_tokens), 0),
-          total_output_tokens: coalesce(sum(tu.output_tokens), 0),
-          total_tokens: coalesce(sum(tu.input_tokens), 0) + coalesce(sum(tu.output_tokens), 0),
-          average_tokens:
+          twelve_month_total_input_tokens: coalesce(sum(tu.input_tokens), 0),
+          twelve_month_total_output_tokens: coalesce(sum(tu.output_tokens), 0),
+          twelve_month_total_tokens: coalesce(sum(tu.input_tokens), 0) + coalesce(sum(tu.output_tokens), 0),
+          twelve_month_average_tokens:
             fragment(
               "CASE WHEN count(distinct ?) > 0 THEN (coalesce(sum(?), 0) + coalesce(sum(?), 0)) / count(distinct ?) ELSE 0 END",
               tu.feature_resource_id,
               tu.input_tokens,
               tu.output_tokens,
               tu.feature_resource_id
-            )
-        }
-      )
-
-    thirty_day_query =
-      from(tu in TokenUsage,
-        join: a in assoc(tu, :account),
-        where: tu.feature == ^feature and tu.timestamp >= ^thirty_days_ago,
-        group_by: [tu.account_id, a.name],
-        select: %{
-          account_id: tu.account_id,
-          account_name: a.name,
-          total_input_tokens: coalesce(sum(tu.input_tokens), 0),
-          total_output_tokens: coalesce(sum(tu.output_tokens), 0),
-          total_tokens: coalesce(sum(tu.input_tokens), 0) + coalesce(sum(tu.output_tokens), 0),
-          average_tokens:
+            ),
+          thirty_day_total_input_tokens:
+            coalesce(
+              sum(
+                fragment(
+                  "CASE WHEN ? >= ? THEN ? ELSE 0 END",
+                  tu.timestamp,
+                  ^thirty_days_ago,
+                  tu.input_tokens
+                )
+              ),
+              0
+            ),
+          thirty_day_total_output_tokens:
+            coalesce(
+              sum(
+                fragment(
+                  "CASE WHEN ? >= ? THEN ? ELSE 0 END",
+                  tu.timestamp,
+                  ^thirty_days_ago,
+                  tu.output_tokens
+                )
+              ),
+              0
+            ),
+          thirty_day_total_tokens:
+            coalesce(
+              sum(
+                fragment(
+                  "CASE WHEN ? >= ? THEN ? ELSE 0 END",
+                  tu.timestamp,
+                  ^thirty_days_ago,
+                  tu.input_tokens
+                )
+              ),
+              0
+            ) +
+              coalesce(
+                sum(
+                  fragment(
+                    "CASE WHEN ? >= ? THEN ? ELSE 0 END",
+                    tu.timestamp,
+                    ^thirty_days_ago,
+                    tu.output_tokens
+                  )
+                ),
+                0
+              ),
+          thirty_day_average_tokens:
             fragment(
-              "CASE WHEN count(distinct ?) > 0 THEN (coalesce(sum(?), 0) + coalesce(sum(?), 0)) / count(distinct ?) ELSE 0 END",
+              "CASE WHEN count(distinct CASE WHEN ? >= ? THEN ? END) > 0 THEN (coalesce(sum(CASE WHEN ? >= ? THEN ? ELSE 0 END), 0) + coalesce(sum(CASE WHEN ? >= ? THEN ? ELSE 0 END), 0)) / count(distinct CASE WHEN ? >= ? THEN ? END) ELSE 0 END",
+              tu.timestamp,
+              ^thirty_days_ago,
               tu.feature_resource_id,
+              tu.timestamp,
+              ^thirty_days_ago,
               tu.input_tokens,
+              tu.timestamp,
+              ^thirty_days_ago,
               tu.output_tokens,
+              tu.timestamp,
+              ^thirty_days_ago,
               tu.feature_resource_id
             )
         }
       )
 
-    all_time_results = Repo.all(all_time_query)
-    thirty_day_results = Repo.all(thirty_day_query)
-
-    thirty_day_map =
-      Map.new(thirty_day_results, fn result -> {result.account_id, result} end)
-
-    all_time_results
-    |> Enum.map(fn all_time ->
-      thirty_day =
-        Map.get(thirty_day_map, all_time.account_id, %{
-          total_input_tokens: 0,
-          total_output_tokens: 0,
-          total_tokens: 0,
-          average_tokens: 0
-        })
-
+    query
+    |> Repo.all()
+    |> Enum.map(fn result ->
       %{
-        account_id: all_time.account_id,
-        account_name: all_time.account_name,
-        all_time: %{
-          total_input_tokens: all_time.total_input_tokens,
-          total_output_tokens: all_time.total_output_tokens,
-          total_tokens: all_time.total_tokens,
-          average_tokens: all_time.average_tokens
+        account_id: result.account_id,
+        account_name: result.account_name,
+        twelve_month: %{
+          total_input_tokens: result.twelve_month_total_input_tokens,
+          total_output_tokens: result.twelve_month_total_output_tokens,
+          total_tokens: result.twelve_month_total_tokens,
+          average_tokens: result.twelve_month_average_tokens
         },
         thirty_day: %{
-          total_input_tokens: thirty_day.total_input_tokens,
-          total_output_tokens: thirty_day.total_output_tokens,
-          total_tokens: thirty_day.total_tokens,
-          average_tokens: thirty_day.average_tokens
+          total_input_tokens: result.thirty_day_total_input_tokens,
+          total_output_tokens: result.thirty_day_total_output_tokens,
+          total_tokens: result.thirty_day_total_tokens,
+          average_tokens: result.thirty_day_average_tokens
         }
       }
     end)
-    |> Enum.sort_by(& &1.all_time.total_tokens, :desc)
+    |> Enum.sort_by(& &1.twelve_month.total_tokens, :desc)
   end
 
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity

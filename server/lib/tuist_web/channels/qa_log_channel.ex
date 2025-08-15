@@ -85,7 +85,6 @@ defmodule TuistWeb.QALogChannel do
       inserted_at: DateTime.utc_now()
     }
 
-    log_attrs = Log.changeset(log_attrs)
     log = struct(Log, log_attrs)
 
     Buffer.insert(log)
@@ -121,6 +120,11 @@ defmodule TuistWeb.QALogChannel do
 
       {:error, changeset} ->
         Logger.error("Failed to record token usage for QA run #{qa_run.id}: #{inspect(changeset.errors)}")
+
+        Appsignal.send_error(%RuntimeError{message: "Failed to record token usage"}, %{
+          qa_run_id: qa_run.id,
+          changeset_errors: inspect(changeset.errors)
+        })
     end
   end
 end

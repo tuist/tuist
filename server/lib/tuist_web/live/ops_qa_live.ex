@@ -133,11 +133,11 @@ defmodule TuistWeb.OpsQALive do
               <:col :let={usage} label={gettext("Last 30 Days")}>
                 <.text_cell label={"#{format_number(usage.thirty_day.total_input_tokens)} / #{format_number(usage.thirty_day.total_output_tokens)}"} />
               </:col>
-              <:col :let={usage} label={gettext("All Time")}>
-                <.text_cell label={"#{format_number(usage.all_time.total_input_tokens)} / #{format_number(usage.all_time.total_output_tokens)}"} />
+              <:col :let={usage} label={gettext("Last Year")}>
+                <.text_cell label={"#{format_number(usage.twelve_month.total_input_tokens)} / #{format_number(usage.twelve_month.total_output_tokens)}"} />
               </:col>
               <:col :let={usage} label={gettext("Average Tokens per Run")}>
-                <.text_cell label={format_number(usage.all_time.average_tokens)} />
+                <.text_cell label={format_number(usage.twelve_month.average_tokens)} />
               </:col>
               <:empty_state>
                 <.table_empty_state

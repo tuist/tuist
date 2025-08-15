@@ -25,54 +25,6 @@ defmodule Tuist.QA.Log do
     field :inserted_at, Ch, type: "DateTime"
   end
 
-  def changeset(log_attrs) do
-    log_attrs
-    |> convert_datetime_field(:timestamp)
-    |> convert_datetime_field(:inserted_at)
-  end
-
-  defp convert_datetime_field(attrs, field) do
-    case Map.get(attrs, field) do
-      %DateTime{} = dt ->
-        update_field_with_naive_datetime(attrs, field, DateTime.to_naive(dt))
-
-      %NaiveDateTime{} = ndt ->
-        update_field_with_naive_datetime(attrs, field, ndt)
-
-      str when is_binary(str) ->
-        ndt = parse_datetime_string(str)
-        update_field_with_naive_datetime(attrs, field, ndt)
-
-      nil ->
-        attrs
-
-      _ ->
-        attrs
-    end
-  end
-
-  defp parse_datetime_string(str) do
-    cond do
-      String.contains?(str, "Z") or String.contains?(str, "+") ->
-        {:ok, dt, _offset} = DateTime.from_iso8601(str)
-        DateTime.to_naive(dt)
-
-      String.contains?(str, " ") ->
-        # Already in NaiveDateTime format
-        {:ok, parsed} = NaiveDateTime.from_iso8601(String.replace(str, " ", "T"))
-        parsed
-
-      true ->
-        {:ok, dt, _offset} = DateTime.from_iso8601(str <> "Z")
-        DateTime.to_naive(dt)
-    end
-  end
-
-  defp update_field_with_naive_datetime(attrs, field, ndt) do
-    ndt_with_usec = %{ndt | microsecond: {elem(ndt.microsecond, 0), 6}}
-    Map.put(attrs, field, ndt_with_usec)
-  end
-
   def normalize_enums(log) do
     %{
       log

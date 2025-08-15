@@ -77,10 +77,8 @@ defmodule TuistTestSupport.Fixtures.QAFixtures do
       inserted_at: NaiveDateTime.utc_now()
     }
 
-    changeset_attrs = Log.changeset(log_attrs)
+    ClickHouseRepo.insert_stream("qa_logs", [log_attrs])
 
-    ClickHouseRepo.insert_stream("qa_logs", [changeset_attrs])
-
-    struct(Log, changeset_attrs)
+    struct(Log, log_attrs)
   end
 end
