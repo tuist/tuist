@@ -232,7 +232,6 @@ if Tuist.Environment.env() not in [:test] do
     pool_timeout: to_timeout(second: Tuist.Environment.s3_pool_timeout(secrets))
 
   config :ex_aws, :s3, s3_config
-  config :ex_aws, :s3, virtual_host: Tuist.Environment.s3_virtual_host()
 
   config :ex_aws,
     http_client: Tuist.AWS.Client
