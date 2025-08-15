@@ -216,7 +216,7 @@ jobs:
       - uses: jdx/mise-action@v2
       # We move it so that we can copy it inside the Docker image for
       # reproducibility of dependency resolution.
-      - run: cp pnpm-lock.yaml server/pnpm-lock.yaml
+      - run: cp ../pnpm-lock.yaml ./pnpm-lock.yaml
       - name: Docker build
         uses: docker/build-push-action@v6
         with:
