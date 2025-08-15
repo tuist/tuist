@@ -36,7 +36,7 @@ defmodule TuistWeb.Router do
   end
 
   pipeline :browser_app do
-    plug :accepts, ["html"]
+    plug :accepts, ["html", "svg", "png"]
     plug :disable_robot_indexing
     plug :fetch_session
     plug :fetch_live_flash
@@ -539,9 +539,18 @@ defmodule TuistWeb.Router do
 
     get "/manifest.plist", PreviewController, :manifest
     get "/app.ipa", PreviewController, :download_archive
+    get "/download", PreviewController, :download_preview
+  end
+
+  scope "/:account_handle/:project_handle/previews/:id", TuistWeb do
+    pipe_through [
+      :open_api,
+      :browser_app,
+      :analytics
+    ]
+
     get "/qr-code.svg", PreviewController, :download_qr_code_svg
     get "/qr-code.png", PreviewController, :download_qr_code_png
-    get "/download", PreviewController, :download_preview
   end
 
   scope "/:account_handle/:project_handle/previews/:id", TuistWeb do
