@@ -134,36 +134,37 @@
   <div data-part="qa-runs-section">
     <.card title={gettext("Recent QA Runs")} icon="history">
       <.card_section>
-        <%= if Enum.empty?(@recent_qa_runs) do %>
-          <div data-part="empty-table">
-            <span>{gettext("No QA runs found")}</span>
-          </div>
-        <% else %>
-          <.table id="recent-qa-runs-table" rows={@recent_qa_runs}>
-            <:col :let={qa_run} label={gettext("Project")}>
-              <.text_cell label={"#{qa_run.account_name}/#{qa_run.project_name}"} />
-            </:col>
-            <:col :let={qa_run} label={gettext("Status")}>
-              <.text_cell label={String.capitalize(qa_run.status)} />
-            </:col>
-            <:col :let={qa_run} label={gettext("Prompt")}>
-              <.text_cell label={String.slice(qa_run.prompt || "No prompt", 0, 50) <> if(String.length(qa_run.prompt || "") > 50, do: "...", else: "")} />
-            </:col>
-            <:col :let={qa_run} label={gettext("Token usage")}>
-              <.text_cell label={format_qa_run_token_usage(qa_run)} />
-            </:col>
-            <:col :let={qa_run} label={gettext("Ran at")}>
-              <.text_cell label={format_datetime(qa_run.inserted_at)} />
-            </:col>
-            <:col :let={qa_run} label={gettext("Actions")}>
-              <.button
-                variant="secondary"
-                label={gettext("View Logs")}
-                navigate={~p"/ops/qa/#{qa_run.id}/logs"}
-              />
-            </:col>
-          </.table>
-        <% end %>
+        <.table id="recent-qa-runs-table" rows={@recent_qa_runs}>
+          <:col :let={qa_run} label={gettext("Project")}>
+            <.text_cell label={"#{qa_run.account_name}/#{qa_run.project_name}"} />
+          </:col>
+          <:col :let={qa_run} label={gettext("Status")}>
+            <.text_cell label={String.capitalize(qa_run.status)} />
+          </:col>
+          <:col :let={qa_run} label={gettext("Prompt")}>
+            <.text_cell label={String.slice(qa_run.prompt || "No prompt", 0, 50) <> if(String.length(qa_run.prompt || "") > 50, do: "...", else: "")} />
+          </:col>
+          <:col :let={qa_run} label={gettext("Token usage")}>
+            <.text_cell label={format_qa_run_token_usage(qa_run)} />
+          </:col>
+          <:col :let={qa_run} label={gettext("Ran at")}>
+            <.text_cell label={format_datetime(qa_run.inserted_at)} />
+          </:col>
+          <:col :let={qa_run} label={gettext("Actions")}>
+            <.button
+              variant="secondary"
+              label={gettext("View Logs")}
+              navigate={~p"/ops/qa/#{qa_run.id}/logs"}
+            />
+          </:col>
+          <:empty_state>
+            <.table_empty_state
+              icon="history"
+              title={gettext("No QA runs found")}
+              subtitle={gettext("Get our customers to run some QA!")}
+            />
+          </:empty_state>
+        </.table>
       </.card_section>
     </.card>
   </div>
