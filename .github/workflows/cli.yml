@@ -4,6 +4,16 @@ on:
   push:
     branches:
       - main
+    paths:
+      - "cli/TuistCacheEE"
+      - "cli/TuistCacheEE/**"
+      - "cli/Sources/**"
+      - "cli/Tests/**"
+      - "*.swift"
+      - ".github/workflows/cli.yml"
+      - "mise/tasks/cli/lint.sh"
+      - "cli/Fixtures/**"
+      - "Tuist/**"
   pull_request:
     paths:
       - "cli/TuistCacheEE"
@@ -11,10 +21,8 @@ on:
       - "cli/Sources/**"
       - "cli/Tests/**"
       - "*.swift"
-      - "Package.resolved"
       - ".github/workflows/cli.yml"
       - "mise/tasks/cli/lint.sh"
-      - "mise.toml"
       - "cli/Fixtures/**"
       - "Tuist/**"
 
