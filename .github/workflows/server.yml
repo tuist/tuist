@@ -67,7 +67,7 @@ jobs:
         with:
           path: |
             ~/.pnpm/store
-          key: pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+          key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
       - uses: jdx/mise-action@v2
       - run: mise run server:clickhouse:start
       - run: mise run server:db:reset
@@ -94,7 +94,7 @@ jobs:
         with:
           path: |
             ~/.pnpm/store
-          key: pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+          key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
       - uses: jdx/mise-action@v2
       - name: Run Credo
         run: mix credo
@@ -119,7 +119,7 @@ jobs:
         with:
           path: |
             ~/.pnpm/store
-          key: pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+          key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
       - uses: jdx/mise-action@v2
       - name: Check format
         run: mise run server:format --check
@@ -144,7 +144,7 @@ jobs:
         with:
           path: |
             ~/.pnpm/store
-          key: pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+          key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
       - uses: jdx/mise-action@v2
       - name: Install esbuild
         run: mix esbuild.install
@@ -185,7 +185,7 @@ jobs:
         with:
           path: |
             ~/.pnpm/store
-          key: pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+          key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
       - uses: jdx/mise-action@v2
       - name: Check
         run: mise run server:security
@@ -212,7 +212,7 @@ jobs:
         with:
           path: |
             ~/.pnpm/store
-          key: pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+          key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
       - uses: jdx/mise-action@v2
       # We move it so that we can copy it inside the Docker image for
       # reproducibility of dependency resolution.
@@ -263,7 +263,7 @@ jobs:
         with:
           path: |
             ~/.pnpm/store
-          key: pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+          key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
       - uses: jdx/mise-action@v2
       - run: mise run server:clickhouse:start
       - run: mise run server:db:reset
