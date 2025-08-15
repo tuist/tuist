@@ -14,28 +14,28 @@
         <.tab_menu_horizontal>
           <.tab_menu_horizontal_item
             label={gettext("QA")}
-            selected={String.starts_with?(@current_path || "", "/ops/qa")}
+            selected={String.starts_with?(@current_path, "/ops/qa")}
             navigate={~p"/ops/qa"}
           />
           <.tab_menu_horizontal_item
             label={gettext("LiveDashboard")}
-            selected={String.starts_with?(@current_path || "", "/ops/dashboard")}
+            selected={String.starts_with?(@current_path, "/ops/dashboard")}
             navigate={~p"/ops/dashboard"}
           />
           <.tab_menu_horizontal_item
             label={gettext("Jobs")}
-            selected={String.starts_with?(@current_path || "", "/ops/oban")}
+            selected={String.starts_with?(@current_path, "/ops/oban")}
             navigate={~p"/ops/oban"}
           />
           <.tab_menu_horizontal_item
             label={gettext("Flags")}
-            selected={String.starts_with?(@current_path || "", "/ops/flags")}
+            selected={String.starts_with?(@current_path, "/ops/flags")}
             navigate={~p"/ops/flags"}
           />
           <%= if Tuist.Environment.dev?() do %>
             <.tab_menu_horizontal_item
               label={gettext("Emails")}
-              selected={String.starts_with?(@current_path || "", "/ops/sent_emails")}
+              selected={String.starts_with?(@current_path, "/ops/sent_emails")}
               navigate={~p"/ops/sent_emails"}
             />
           <% end %>

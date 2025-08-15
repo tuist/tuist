@@ -389,6 +389,7 @@ defmodule TuistWeb.Router do
   # Ops Routes
   pipeline :ops do
     plug TuistWeb.Authorization, [:current_user, :read, :ops]
+    plug :assign_current_path
   end
 
   scope "/ops" do
