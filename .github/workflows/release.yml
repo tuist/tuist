@@ -600,6 +600,18 @@ jobs:
             build/SHASUMS256.txt
             build/SHASUMS512.txt
 
+      - name: Trigger Homebrew Formula Update
+        if: needs.check-releases.outputs.cli-should-release == 'true' && needs.release-cli.result == 'success'
+        run: |
+          SHA256=$(cat build/SHASUMS256.txt | grep tuist.zip | awk '{print $1}')
+          mise run cli:release:homebrew-formula --version "${{ needs.check-releases.outputs.cli-next-version }}" --github-token "${{ secrets.TUIST_GITHUB_TOKEN }}" --sha256 "$SHA256"
+
+      - name: Trigger Homebrew Cask Update
+        if: needs.check-releases.outputs.cli-should-release == 'true' && needs.release-cli.result == 'success'
+        run: |
+          SHA256=$(cat build/SHASUMS256.txt | grep tuist.zip | awk '{print $1}')
+          mise run cli:release:homebrew-cask --version "${{ needs.check-releases.outputs.cli-next-version }}" --github-token "${{ secrets.TUIST_GITHUB_TOKEN }}" --sha256 "$SHA256"
+
       - name: Create App GitHub Release
         if: needs.check-releases.outputs.app-should-release == 'true' && needs.release-app.result == 'success'
         uses: softprops/action-gh-release@v2
