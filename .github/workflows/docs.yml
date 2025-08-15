@@ -10,7 +10,7 @@ on:
       - Package.swift
       - Package.resolved
       - mise/tasks/docs/**
-      - pnpm-lock.yaml
+      - docs/pnpm-lock.yaml
       - handbook/package.json
   pull_request:
     paths:
@@ -20,7 +20,7 @@ on:
       - Package.swift
       - Package.resolved
       - mise/tasks/docs/**
-      - pnpm-lock.yaml
+      - docs/pnpm-lock.yaml
       - handbook/package.json
 
 permissions:
@@ -31,6 +31,7 @@ env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   TUIST_CONFIG_TOKEN: ${{ secrets.TUIST_CONFIG_TOKEN }}
   CLOUDFLARE_ACCOUNT_ID: cc0237353f2f825680b0463629cd4a86
+  PNPM_HOME: ~/.pnpm
 
 concurrency:
   group: docs-${{ github.head_ref }}
@@ -42,6 +43,13 @@ jobs:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
+      - name: Restore PNPM Cache
+        uses: actions/cache@v3
+        id: pnpm-cache
+        with:
+          path: |
+            ~/.pnpm/store
+          key: pnpm-docs-${{ hashFiles('docs/pnpm-lock.yaml') }}
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - name: Restore cache

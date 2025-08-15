@@ -6,12 +6,15 @@ on:
     paths:
       - handbook/**
       - .github/workflows/handbook-deploy.yml
-      - pnpm-lock.yaml
+      - handbook/pnpm-lock.yaml
       - handbook/package.json
 
 concurrency:
   group: handbook-deploy-${{ github.head_ref }}
   cancel-in-progress: true
+
+env:
+  PNPM_HOME: ~/.pnpm
 
 jobs:
   handbook-deploy:
@@ -22,6 +25,13 @@ jobs:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - name: Restore PNPM Cache
+        uses: actions/cache@v3
+        id: pnpm-cache
+        with:
+          path: |
+            ~/.pnpm/store
+          key: pnpm-handbook-${{ hashFiles('docs/pnpm-lock.yaml') }}
       - uses: jdx/mise-action@v2
         with:
           experimental: true

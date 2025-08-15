@@ -7,12 +7,12 @@ on:
     paths:
       - server/**
       - .github/workflows/server.yml
-      - pnpm-lock.yaml
+      - server/pnpm-lock.yaml
   pull_request:
     paths:
       - server/**
       - .github/workflows/server.yml
-      - pnpm-lock.yaml
+      - server/pnpm-lock.yaml
   merge_group: {}
 
 permissions:
@@ -67,7 +67,7 @@ jobs:
         with:
           path: |
             ~/.pnpm/store
-          key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+          key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
       - uses: jdx/mise-action@v2
       - run: mise run server:clickhouse:start
       - run: mise run server:db:reset
@@ -94,7 +94,7 @@ jobs:
         with:
           path: |
             ~/.pnpm/store
-          key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+          key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
       - uses: jdx/mise-action@v2
       - name: Run Credo
         run: mix credo
@@ -119,7 +119,7 @@ jobs:
         with:
           path: |
             ~/.pnpm/store
-          key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+          key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
       - uses: jdx/mise-action@v2
       - name: Check format
         run: mise run server:format --check
@@ -144,7 +144,7 @@ jobs:
         with:
           path: |
             ~/.pnpm/store
-          key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+          key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
       - uses: jdx/mise-action@v2
       - name: Install esbuild
         run: mix esbuild.install
@@ -152,10 +152,10 @@ jobs:
         run: |
           # Run esbuild and capture output
           output=$(mix esbuild app --log-level=warning 2>&1 || true)
-          
+
           # Filter out known non-warning messages
           warnings=$(echo "$output" | grep -v "^==> " | grep -v "^Compiling" | grep -v "^Generated" | grep -v "Downloading esbuild" | grep -v "^$" || true)
-          
+
           if [ -z "$warnings" ]; then
             echo "No esbuild warnings detected."
             exit 0
@@ -185,7 +185,7 @@ jobs:
         with:
           path: |
             ~/.pnpm/store
-          key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+          key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
       - uses: jdx/mise-action@v2
       - name: Check
         run: mise run server:security
@@ -212,7 +212,7 @@ jobs:
         with:
           path: |
             ~/.pnpm/store
-          key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+          key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
       - uses: jdx/mise-action@v2
       - name: Docker build
         uses: docker/build-push-action@v6
@@ -261,7 +261,7 @@ jobs:
         with:
           path: |
             ~/.pnpm/store
-          key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+          key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
       - uses: jdx/mise-action@v2
       - run: mise run server:clickhouse:start
       - run: mise run server:db:reset
