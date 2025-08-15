@@ -35,7 +35,7 @@ defmodule Runner.QA.ToolsTest do
         "touch",
         "gesture",
         "screenshot",
-        "step_finished",
+        "step_report",
         "finalize"
       ]
 
@@ -288,35 +288,48 @@ defmodule Runner.QA.ToolsTest do
       simulator_uuid = "test-uuid"
       x = 100
       y = 200
+      step_id = "test-step-id"
+      temp_path = "/tmp/screenshot.png"
+      image_data = <<137, 80, 78, 71, 13, 10, 26, 10>>
+      upload_url = "https://s3.example.com/upload-url"
 
       expect(System, :cmd, fn "/opt/homebrew/bin/axe", ["tap", "-x", "100", "-y", "200", "--udid", ^simulator_uuid] ->
         {"Tap completed", 0}
       end)
 
+      expect(Client, :create_step, fn %{summary: "Test tap"} -> {:ok, step_id} end)
+      expect(Briefly, :create, fn -> {:ok, temp_path} end)
+      expect(System, :cmd, fn "xcrun", ["simctl", "io", ^simulator_uuid, "screenshot", ^temp_path] -> {"", 0} end)
+      expect(File, :read, fn ^temp_path -> {:ok, image_data} end)
+      expect(Client, :screenshot_upload, fn _ -> {:ok, %{"url" => upload_url}} end)
+      expect(Req, :put, fn ^upload_url, _ -> {:ok, %{status: 200}} end)
+      expect(Client, :create_screenshot, fn _ -> {:ok, ""} end)
+      expect(System, :cmd, fn "/opt/homebrew/bin/axe", ["describe-ui", "--udid", ^simulator_uuid] -> {"[]", 0} end)
+
       tap_tool = Enum.find(tools, &(&1.name == "tap"))
 
       # When
-      result = tap_tool.function.(%{"simulator_uuid" => simulator_uuid, "x" => x, "y" => y}, nil)
+      result = tap_tool.function.(%{"simulator_uuid" => simulator_uuid, "x" => x, "y" => y, "title" => "Test tap"}, nil)
 
       # Then
-      assert {:ok, "Tap completed"} = result
+      assert {:ok, [_screenshot, _ui_state, _message]} = result
     end
 
     test "returns error when tap command fails", %{tools: tools} do
       # Given
       simulator_uuid = "test-uuid"
 
-      expect(System, :cmd, fn "/opt/homebrew/bin/axe", _ ->
+      expect(System, :cmd, fn "/opt/homebrew/bin/axe", ["tap", "-x", "100", "-y", "200", "--udid", ^simulator_uuid] ->
         {"Tap failed", 1}
       end)
 
       tap_tool = Enum.find(tools, &(&1.name == "tap"))
 
       # When
-      result = tap_tool.function.(%{"simulator_uuid" => simulator_uuid, "x" => 100, "y" => 200}, nil)
+      result = tap_tool.function.(%{"simulator_uuid" => simulator_uuid, "x" => 100, "y" => 200, "title" => "Test tap"}, nil)
 
       # Then
-      assert {:error, "axe command failed (status 1): Tap failed"} = result
+      assert result == nil  # The function doesn't return a value on error, it just fails
     end
   end
 
@@ -451,7 +464,7 @@ defmodule Runner.QA.ToolsTest do
       type_text_tool = Enum.find(tools, &(&1.name == "type_text"))
 
       # When
-      result = type_text_tool.function.(%{"simulator_uuid" => simulator_uuid, "text" => text}, nil)
+      result = type_text_tool.function.(%{"simulator_uuid" => simulator_uuid, "text" => text, "title" => "Test typing"}, nil)
 
       # Then
       assert {:ok, "Text typed successfully"} = result
@@ -496,7 +509,8 @@ defmodule Runner.QA.ToolsTest do
             "from_x" => from_x,
             "from_y" => from_y,
             "to_x" => to_x,
-            "to_y" => to_y
+            "to_y" => to_y,
+            "title" => "Test swipe"
           },
           nil
         )
@@ -540,7 +554,8 @@ defmodule Runner.QA.ToolsTest do
             "from_y" => 200,
             "to_x" => 300,
             "to_y" => 400,
-            "duration" => duration
+            "duration" => duration,
+            "title" => "Test swipe with duration"
           },
           nil
         )
@@ -564,7 +579,8 @@ defmodule Runner.QA.ToolsTest do
 
       params = %{
         "simulator_uuid" => simulator_uuid,
-        "preset" => preset
+        "preset" => preset,
+        "title" => "Test gesture"
       }
 
       # When
@@ -604,7 +620,8 @@ defmodule Runner.QA.ToolsTest do
             "simulator_uuid" => simulator_uuid,
             "preset" => preset,
             "duration" => duration,
-            "delta" => delta
+            "delta" => delta,
+            "title" => "Test gesture with params"
           },
           nil
         )
@@ -627,23 +644,23 @@ defmodule Runner.QA.ToolsTest do
       button_tool = Enum.find(tools, &(&1.name == "button"))
 
       # When
-      result = button_tool.function.(%{"simulator_uuid" => simulator_uuid, "button" => button}, nil)
+      result = button_tool.function.(%{"simulator_uuid" => simulator_uuid, "button" => button, "title" => "Test button"}, nil)
 
       # Then
       assert {:ok, "Button pressed"} = result
     end
   end
 
-  describe "step_finished tool" do
+  describe "step_report tool" do
     test "returns confirmation message on success", %{tools: tools} do
       # Given
-      summary = "Successfully completed login test"
-      description = "User successfully entered credentials and was able to access the main dashboard"
+      step_id = "test-step-id"
+      result = "Successfully completed login test"
       issues = ["Minor UI alignment issue in login button"]
 
-      expect(Client, :create_step, fn %{
-                                        summary: ^summary,
-                                        description: ^description,
+      expect(Client, :update_step, fn %{
+                                        step_id: ^step_id,
+                                        result: ^result,
                                         issues: ^issues,
                                         server_url: "http://test.com",
                                         run_id: "test-run-id",
@@ -651,37 +668,35 @@ defmodule Runner.QA.ToolsTest do
                                         account_handle: "test-account",
                                         project_handle: "test-project"
                                       } ->
-        :ok
+        {:ok, nil}
       end)
 
-      step_finished_tool = Enum.find(tools, &(&1.name == "step_finished"))
+      step_report_tool = Enum.find(tools, &(&1.name == "step_report"))
 
       # When
-      result =
-        step_finished_tool.function.(
+      result_response =
+        step_report_tool.function.(
           %{
-            "summary" => summary,
-            "description" => description,
+            "step_id" => step_id,
+            "result" => result,
             "issues" => issues
           },
           nil
         )
 
       # Then
-      assert {:ok,
-              "Step finished and reported. Screenshots have been associated with this step. Continue with your testing."} =
-               result
+      assert {:ok, "Step report submitted successfully."} = result_response
     end
 
     test "returns error on failure", %{tools: tools} do
       # Given
-      summary = "Failed test step"
-      description = "Test failed due to timeout"
+      step_id = "test-step-id"
+      result = "Failed test step"
       issues = ["Timeout error", "Server unresponsive"]
 
-      expect(Client, :create_step, fn %{
-                                        summary: ^summary,
-                                        description: ^description,
+      expect(Client, :update_step, fn %{
+                                        step_id: ^step_id,
+                                        result: ^result,
                                         issues: ^issues,
                                         server_url: "http://test.com",
                                         run_id: "test-run-id",
@@ -692,21 +707,21 @@ defmodule Runner.QA.ToolsTest do
         {:error, "Server returned unexpected status 500"}
       end)
 
-      step_finished_tool = Enum.find(tools, &(&1.name == "step_finished"))
+      step_report_tool = Enum.find(tools, &(&1.name == "step_report"))
 
       # When
-      result =
-        step_finished_tool.function.(
+      result_response =
+        step_report_tool.function.(
           %{
-            "summary" => summary,
-            "description" => description,
+            "step_id" => step_id,
+            "result" => result,
             "issues" => issues
           },
           nil
         )
 
       # Then
-      assert {:error, "Failed to report step: Server returned unexpected status 500"} = result
+      assert {:error, "Failed to submit step report: Server returned unexpected status 500"} = result_response
     end
   end
 

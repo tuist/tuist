@@ -133,7 +133,8 @@ defmodule Tuist.MixProject do
       {:cloak_ecto, "~> 1.3.0"},
       {:boruta, git: "https://github.com/malach-it/boruta_auth", branch: "master"},
       {:minio_server, github: "LostKobrakai/minio_server", only: :dev},
-      {:runner, path: "runner", runtime: false}
+      {:runner, path: "runner", runtime: false},
+      {:slipstream, "~> 1.2.0"}
     ]
   end
 

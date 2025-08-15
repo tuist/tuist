@@ -328,6 +328,49 @@ defmodule Tuist.QATest do
     end
   end
 
+  describe "step/1" do
+    test "returns QA step when it exists" do
+      # Given
+      qa_step = QAFixtures.qa_step_fixture()
+
+      # When
+      {:ok, retrieved_step} = QA.step(qa_step.id)
+
+      # Then
+      assert retrieved_step == qa_step
+    end
+
+    test "returns not found error when QA step does not exist" do
+      # Given
+      non_existent_id = Ecto.UUID.generate()
+
+      # When
+      result = QA.step(non_existent_id)
+
+      # Then
+      assert {:error, :not_found} = result
+    end
+  end
+
+  describe "update_step/2" do
+    test "updates a QA step with valid attributes" do
+      # Given
+      qa_step = QAFixtures.qa_step_fixture(summary: "Initial summary", issues: [])
+
+      # When
+      {:ok, updated_step} =
+        QA.update_step(qa_step, %{
+          summary: "Updated summary",
+          description: "Updated description",
+          issues: ["Issue 1", "Issue 2"]
+        })
+
+      # Then
+      assert updated_step.id == qa_step.id
+      assert updated_step.summary == "Updated summary"
+    end
+  end
+
   describe "qa_run/1" do
     test "returns QA run when it exists" do
       # Given
@@ -979,16 +1022,17 @@ defmodule Tuist.QATest do
       expected_body = """
       ### 🤖 QA Test Summary
       **Prompt:** Test the login functionality
+      **Issues:** ⚠️ 1
       **Preview:** [#{preview.display_name}](http://localhost:8080/#{project.account.name}/#{project.name}/previews/#{preview.id})
       **Commit:** [abc123def](https://github.com/testaccount/testproject/commit/abc123def456)
 
-      Test run completed successfully
+
+
+      🚶 QA Steps
+
 
       <details>
-      <summary>🚶 QA Steps</summary>
-
-
-      #### 1. Login step
+      <summary>1. ⚠️ Login step</summary>
 
       User successfully logged in
 
@@ -996,25 +1040,21 @@ defmodule Tuist.QATest do
       1. Login button not visible
 
 
-      <details>
-      <summary>1. Screenshot 1</summary>
-
       <img src="http://localhost:8080/#{project.account.name}/#{project.name}/qa/runs/#{qa_run.id}/screenshots/#{screenshot1.id}" alt="Screenshot 1" width="500" />
       </details>
 
 
-      #### 2. Navigation step
+      <details>
+      <summary>2.  Navigation step</summary>
 
       User navigated to main screen
-
-      <details>
-      <summary>1. Screenshot 2</summary>
 
       <img src="http://localhost:8080/#{project.account.name}/#{project.name}/qa/runs/#{qa_run.id}/screenshots/#{screenshot2.id}" alt="Screenshot 2" width="500" />
       </details>
 
 
       </details>
+
 
       """
 

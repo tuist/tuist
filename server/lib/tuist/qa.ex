@@ -154,6 +154,25 @@ defmodule Tuist.QA do
   end
 
   @doc """
+  Returns a QA step by ID.
+  """
+  def step(id) do
+    case Repo.get(Step, id) do
+      nil -> {:error, :not_found}
+      step -> {:ok, step}
+    end
+  end
+
+  @doc """
+  Updates a QA step.
+  """
+  def update_step(%Step{} = step, attrs) do
+    step
+    |> Step.changeset(attrs)
+    |> Repo.update()
+  end
+
+  @doc """
   Gets a QA run by ID.
   """
   def qa_run(id, opts \\ []) do
@@ -420,7 +439,8 @@ defmodule Tuist.QA do
 
     render_qa_summary(%{
       summary: qa_run.summary,
-      run_steps: qa_run.run_steps,
+      run_steps: Enum.sort_by(qa_run.run_steps, & &1.inserted_at, DateTime),
+      issue_count: Enum.count(qa_run.run_steps |> Enum.flat_map(& &1.issues)),
       app_url: Environment.app_url(),
       account_handle: project.account.name,
       project_handle: project.name,
@@ -452,6 +472,7 @@ defmodule Tuist.QA do
       "scopes" => [
         "project_qa_run_update",
         "project_qa_step_create",
+        "project_qa_step_update",
         "project_qa_screenshot_create"
       ],
       "project_id" => app_build.preview.project.id

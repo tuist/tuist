@@ -26,7 +26,7 @@ defmodule Tuist.QA.Step do
   def changeset(qa_step, attrs) do
     qa_step
     |> cast(attrs, [:qa_run_id, :summary, :description, :issues])
-    |> validate_required([:qa_run_id, :summary, :description, :issues])
+    |> validate_required([:qa_run_id, :summary, :issues])
     |> foreign_key_constraint(:qa_run_id)
   end
 end

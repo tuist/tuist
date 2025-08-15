@@ -182,6 +182,10 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
     Authorization.can?(:project_qa_step_create, subject, project)
   end
 
+  def authorize(subject, :update, project, :qa_step) do
+    Authorization.can?(:project_qa_step_update, subject, project)
+  end
+
   def authorize(subject, :update, project, :qa_run) do
     Authorization.can?(:project_qa_run_update, subject, project)
   end
