@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.61.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* generation regression by [@pepicrft](https://github.com/pepicrft) in [#8011](https://github.com/tuist/tuist/pull/8011)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.61.0...4.61.1
+
 ## What's Changed in 4.61.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
