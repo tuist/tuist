@@ -466,37 +466,34 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         generatedProjects: [AbsolutePath: GeneratedProject]
     ) throws -> XCScheme.LaunchAction? {
         let specifiedExecutableTarget = scheme.runAction?.executable
-        let defaultTarget = defaultTargetReference(scheme: scheme)
 
         var buildableProductRunnable: XCScheme.BuildableProductRunnable?
         var macroExpansion: XCScheme.BuildableReference?
         var pathRunnable: XCScheme.PathRunnable?
         var defaultBuildConfiguration = BuildConfiguration.debug.name
-        let target = specifiedExecutableTarget ?? defaultTarget
-        let graphTarget: GraphTarget? =
-            if let target {
-                graphTraverser.target(path: target.projectPath, name: target.name)
-            } else {
-                nil
-            }
+        
+        let graphTarget: GraphTarget! = if let specifiedExecutableTarget, let graphTarget = graphTraverser.target(path: specifiedExecutableTarget.projectPath, name: specifiedExecutableTarget.name) {
+            graphTarget
+        } else if let schemeRunnableTarget = graphTraverser.schemeRunnableTarget(scheme: scheme) {
+            schemeRunnableTarget
+        } else {
+            nil
+        }
 
         if let filePath = scheme.runAction?.filePath {
             pathRunnable = XCScheme.PathRunnable(filePath: filePath.pathString)
-        } else if let target {
-            guard
-                let graphTarget = graphTraverser.target(path: target.projectPath, name: target.name)
-            else { return nil }
+        } else if let graphTarget {
             defaultBuildConfiguration = graphTarget.project.defaultDebugBuildConfigurationName
             guard
                 let buildableReference = try createBuildableReference(
-                    graphTarget: graphRunnableTarget,
+                    graphTarget: graphTarget,
                     graphTraverser: graphTraverser,
                     rootPath: rootPath,
                     generatedProjects: generatedProjects
                 )
             else { return nil }
 
-            if graphRunnableTarget.target.product.runnable {
+            if graphTarget.target.product.runnable {
                 buildableProductRunnable = XCScheme.BuildableProductRunnable(
                     buildableReference: buildableReference,
                     runnableDebuggingMode: "0"
@@ -504,6 +501,8 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             } else {
                 macroExpansion = buildableReference
             }
+        } else {
+            return nil
         }
 
         if let expandVariableFromTarget = scheme.runAction?.expandVariableFromTarget,

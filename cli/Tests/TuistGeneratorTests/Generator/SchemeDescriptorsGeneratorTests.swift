@@ -1327,7 +1327,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
     func test_schemeLaunchAction_with_path() throws {
         let projectPath = try AbsolutePath(validating: "/somepath/Project")
 
-        let target = Target.test(name: "Library", platform: .iOS, product: .dynamicLibrary)
+        let target = Target.test(name: "App", platform: .iOS, product: .app)
 
         let buildAction = BuildAction.test(targets: [TargetReference(projectPath: projectPath, name: "Library")])
         let testAction = TestAction.test(
@@ -1335,7 +1335,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             diagnosticsOptions: SchemeDiagnosticsOptions(mainThreadCheckerEnabled: true)
         )
 
-        let scheme = Scheme.test(name: "Library", buildAction: buildAction, testAction: testAction, runAction: nil)
+        let scheme = Scheme.test(name: "App", buildAction: buildAction, testAction: testAction, runAction: nil)
         let project = Project.test(
             path: projectPath,
             xcodeProjPath: projectPath.appending(component: "Project.xcodeproj"),
