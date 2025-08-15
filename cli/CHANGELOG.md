@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.61.2<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* platform conditions not applied for binary dependencies in external packages by [@pepicrft](https://github.com/pepicrft) in [#7991](https://github.com/tuist/tuist/pull/7991)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.61.1...4.61.2
+
 ## What's Changed in 4.61.1<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
