@@ -625,3 +625,15 @@ jobs:
             Docker image: `ghcr.io/tuist/tuist:${{ needs.check-releases.outputs.server-next-version-number }}`
 
             ${{ needs.release-server.outputs.release-notes }}
+
+      - name: Trigger Homebrew Formula Update
+        if: needs.check-releases.outputs.cli-should-release == 'true' && needs.release-cli.result == 'success'
+        run: |
+          SHA256=$(cat build/SHASUMS256.txt | grep tuist.zip | awk '{print $1}')
+          mise run cli:release:homebrew-formula --version "${{ needs.check-releases.outputs.cli-next-version }}" --github-token "${{ secrets.TUIST_GITHUB_TOKEN }}" --sha256 "$SHA256"
+
+      - name: Trigger Homebrew Cask Update
+        if: needs.check-releases.outputs.cli-should-release == 'true' && needs.release-cli.result == 'success'
+        run: |
+          SHA256=$(cat build/SHASUMS256.txt | grep tuist.zip | awk '{print $1}')
+          mise run cli:release:homebrew-cask --version "${{ needs.check-releases.outputs.cli-next-version }}" --github-token "${{ secrets.TUIST_GITHUB_TOKEN }}" --sha256 "$SHA256"

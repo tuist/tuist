@@ -1,5 +1,5 @@
 #!/bin/bash
-# mise description="Triggers the GitHub Actions workflow to release a new version of the Homebrew cask."
+# mise description="Triggers the GitHub Actions workflow to release a new version of the Homebrew formula."
 set -eo pipefail
 
 # Parse command line arguments
@@ -30,7 +30,7 @@ fi
 
 OWNER="tuist"
 REPO="homebrew-tuist"
-WORKFLOW_ID="130356792"
+WORKFLOW_ID="90129194"
 
 # Trigger the workflow
 curl -v X POST \
