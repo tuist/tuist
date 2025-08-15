@@ -17,7 +17,31 @@ defmodule Runner.QA.Client do
       }) do
     step_url = qa_run_url(server_url, account_handle, project_handle, run_id, "/steps")
 
-    qa_server_request(:post, step_url, auth_token, json: %{summary: summary, description: description, issues: issues})
+    case qa_server_request(:post, step_url, auth_token,
+           json: %{summary: summary, description: description, issues: issues}
+         ) do
+      {:ok, %{"id" => step_id}} -> {:ok, step_id}
+      {:ok, response} -> {:ok, response}
+      :ok -> :ok
+      error -> error
+    end
+  end
+
+  def update_step(%{
+        step_id: step_id,
+        result: result,
+        issues: issues,
+        server_url: server_url,
+        run_id: run_id,
+        auth_token: auth_token,
+        account_handle: account_handle,
+        project_handle: project_handle
+      }) do
+    step_url = qa_run_url(server_url, account_handle, project_handle, run_id, "/steps/#{step_id}")
+
+    qa_server_request(:patch, step_url, auth_token,
+      json: %{result: result, issues: issues}
+    )
   end
 
   def start_run(%{
@@ -62,18 +86,23 @@ defmodule Runner.QA.Client do
     end
   end
 
-  def create_screenshot(%{
-        file_name: file_name,
-        title: title,
-        server_url: server_url,
-        run_id: run_id,
-        auth_token: auth_token,
-        account_handle: account_handle,
-        project_handle: project_handle
-      }) do
+  def create_screenshot(
+        %{
+          file_name: file_name,
+          title: title,
+          server_url: server_url,
+          run_id: run_id,
+          auth_token: auth_token,
+          account_handle: account_handle,
+          project_handle: project_handle
+        } = params
+      ) do
     screenshot_url = qa_run_url(server_url, account_handle, project_handle, run_id, "/screenshots")
 
-    qa_server_request(:post, screenshot_url, auth_token, json: %{file_name: file_name, title: title})
+    body = %{file_name: file_name, title: title}
+    body = if step_id = Map.get(params, :step_id), do: Map.put(body, :step_id, step_id), else: body
+
+    qa_server_request(:post, screenshot_url, auth_token, json: body)
   end
 
   def start_log_stream(%{server_url: server_url, run_id: run_id, auth_token: auth_token}) do
@@ -112,7 +141,7 @@ defmodule Runner.QA.Client do
     handle_qa_server_response(case_result)
   end
 
-  defp handle_qa_server_response({:ok, %{status: status, body: body}}) when status == 200 do
+  defp handle_qa_server_response({:ok, %{status: status, body: body}}) when status in 200..299 do
     {:ok, body}
   end
 

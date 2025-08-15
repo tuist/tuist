@@ -8,7 +8,7 @@ defmodule TuistWeb.API.QAController do
 
   plug LoaderPlug
   plug :load_qa_run
-  plug AuthorizationPlug, :qa_step when action in [:create_step]
+  plug AuthorizationPlug, :qa_step when action in [:create_step, :update_step]
   plug AuthorizationPlug, :qa_run when action in [:update_run]
   plug AuthorizationPlug, :qa_screenshot when action in [:screenshot_upload, :create_screenshot]
 
@@ -76,6 +76,54 @@ defmodule TuistWeb.API.QAController do
     end
   end
 
+  def update_step(%{assigns: %{selected_qa_run: qa_run}} = conn, %{"step_id" => step_id} = params) do
+    with {:ok, qa_step} <- QA.qa_step(step_id),
+         true <- qa_step.qa_run_id == qa_run.id do
+      update_attrs = %{
+        result: Map.get(params, "result"),
+        issues: Map.get(params, "issues", [])
+      }
+
+      case QA.update_qa_step(qa_step, update_attrs) do
+        {:ok, updated_qa_step} ->
+          conn
+          |> put_status(:ok)
+          |> json(%{
+            id: updated_qa_step.id,
+            qa_run_id: updated_qa_step.qa_run_id,
+            summary: updated_qa_step.summary,
+            description: updated_qa_step.description,
+            result: updated_qa_step.result,
+            issues: updated_qa_step.issues,
+            updated_at: updated_qa_step.updated_at
+          })
+
+        {:error, changeset} ->
+          message =
+            changeset
+            |> Ecto.Changeset.traverse_errors(fn {message, _opts} -> message end)
+            |> Enum.flat_map(fn {_key, value} -> value end)
+            |> Enum.join(", ")
+
+          conn
+          |> put_status(:bad_request)
+          |> json(%{
+            message: "QA step #{message}"
+          })
+      end
+    else
+      false ->
+        conn
+        |> put_status(:not_found)
+        |> json(%{error: "QA step not found"})
+
+      {:error, :not_found} ->
+        conn
+        |> put_status(:not_found)
+        |> json(%{error: "QA step not found"})
+    end
+  end
+
   def update_run(%{assigns: %{selected_qa_run: qa_run}} = conn, %{"status" => status} = params) do
     case QA.update_qa_run(qa_run, %{status: status, summary: Map.get(params, "summary")}) do
       {:ok, updated_qa_run} ->
@@ -125,12 +173,16 @@ defmodule TuistWeb.API.QAController do
     })
   end
 
-  def create_screenshot(%{assigns: %{selected_qa_run: qa_run}} = conn, %{"file_name" => file_name, "title" => title}) do
-    case QA.create_qa_screenshot(%{
-           qa_run_id: qa_run.id,
-           file_name: file_name,
-           title: title
-         }) do
+  def create_screenshot(%{assigns: %{selected_qa_run: qa_run}} = conn, %{"file_name" => file_name, "title" => title} = params) do
+    attrs = %{
+      qa_run_id: qa_run.id,
+      file_name: file_name,
+      title: title
+    }
+    
+    attrs = if step_id = Map.get(params, "step_id"), do: Map.put(attrs, :qa_step_id, step_id), else: attrs
+
+    case QA.create_qa_screenshot(attrs) do
       {:ok, screenshot} ->
         conn
         |> put_status(:created)

@@ -96,10 +96,11 @@ defmodule Runner.QA.Agent do
 
       First, understand what you need to test. Then, set up a plan to test the feature and execute on it without asking for additional instructions. Take screenshots to analyze whether there are any visual inconsistencies.
 
-      When using tools, use the following udid: #{simulator_device.udid}.
+      When using tools, use the following udid: #{simulator_device.udid}. After using a tool that returns an image, analyze it for visual inconsistencies.
 
       When interacting with the app:
       - Prefer using describe_ui over screenshot to interact with the app
+      - Don't try to read labels from screenshots
       - To dismiss a system sheet, tap within the visible screen area but outside the sheet, such in the dark/grayed area above the sheet
       - If a button includes text, prefer tapping on the text to interact with the button
       - To clear fields, use the 42 keycode (backspace) with a longer duration

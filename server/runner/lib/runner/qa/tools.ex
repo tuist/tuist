@@ -12,7 +12,7 @@ defmodule Runner.QA.Tools do
   def tools(params) do
     [
       describe_ui_tool(),
-      tap_tool(),
+      tap_tool(params),
       long_press_tool(),
       swipe_tool(),
       type_text_tool(),
@@ -21,7 +21,7 @@ defmodule Runner.QA.Tools do
       touch_tool(),
       gesture_tool(),
       screenshot_tool(params),
-      step_finished_tool(params),
+      step_report_tool(params),
       finalize_tool(params)
     ]
   end
@@ -29,7 +29,8 @@ defmodule Runner.QA.Tools do
   defp describe_ui_tool do
     Function.new!(%{
       name: "describe_ui",
-      description: "Retrieves the entire view hierarchy with precise frame coordinates for all visible elements.",
+      description:
+        "Retrieves the entire view hierarchy with precise frame coordinates for all visible elements. Use this tool only if you don't have a recent UI state description.",
       parameters: [
         FunctionParam.new!(%{
           name: "simulator_uuid",
@@ -56,7 +57,13 @@ defmodule Runner.QA.Tools do
     })
   end
 
-  defp tap_tool do
+  defp tap_tool(%{
+         server_url: server_url,
+         run_id: run_id,
+         auth_token: auth_token,
+         account_handle: account_handle,
+         project_handle: project_handle
+       }) do
     Function.new!(%{
       name: "tap",
       description:
@@ -79,10 +86,60 @@ defmodule Runner.QA.Tools do
           type: :number,
           description: "Y coordinate to tap",
           required: true
+        }),
+        FunctionParam.new!(%{
+          name: "title",
+          type: :string,
+          description: "Brief title describing your action",
+          required: true
+        }),
+        FunctionParam.new!(%{
+          name: "description",
+          type: :string,
+          description: "Describe why you're making this tap",
+          required: true
         })
       ],
-      function: fn %{"simulator_uuid" => simulator_uuid, "x" => x, "y" => y}, _context ->
-        run_axe_command(simulator_uuid, ["tap", "-x", "#{x}", "-y", "#{y}"])
+      function: fn %{
+                     "simulator_uuid" => simulator_uuid,
+                     "x" => x,
+                     "y" => y,
+                     "title" => title,
+                     "description" => description
+                   },
+                   _context ->
+        with {:ok, _} <- run_axe_command(simulator_uuid, ["tap", "-x", "#{x}", "-y", "#{y}"]),
+             {:ok, step_id} <-
+               Client.create_step(%{
+                 summary: title,
+                 description: description,
+                 issues: [],
+                 server_url: server_url,
+                 run_id: run_id,
+                 auth_token: auth_token,
+                 account_handle: account_handle,
+                 project_handle: project_handle
+               }),
+             {:ok, screenshot_content} <-
+               capture_and_upload_screenshot(%{
+                 simulator_uuid: simulator_uuid,
+                 file_name: "tap_#{x}_#{y}_#{:os.system_time(:millisecond)}",
+                 title: "After tap: #{title}",
+                 server_url: server_url,
+                 run_id: run_id,
+                 auth_token: auth_token,
+                 account_handle: account_handle,
+                 project_handle: project_handle,
+                 step_id: step_id
+               }),
+             {:ok, ui_description} <- get_ui_description(simulator_uuid) do
+          {:ok,
+           [
+             ContentPart.text!("Tap was successful. Step ID: #{step_id}\nUse the returned image to analyze visual inconsistencies."),
+             screenshot_content,
+             ContentPart.text!("Current UI state:\n#{ui_description}")
+           ]}
+        end
       end
     })
   end
@@ -462,52 +519,19 @@ defmodule Runner.QA.Tools do
        }) do
     Function.new!(%{
       name: "screenshot",
-      description: "Captures a screenshot for visual verification.",
+      description: "Captures a screenshot of the current view.",
       parameters: [
         FunctionParam.new!(%{
           name: "simulator_uuid",
           type: :string,
           description: "The UUID of the simulator",
           required: true
-        }),
-        FunctionParam.new!(%{
-          name: "file_name",
-          type: :string,
-          description: "File name for the screenshot (without extension)",
-          required: true
-        }),
-        FunctionParam.new!(%{
-          name: "title",
-          type: :string,
-          description: "Human-readable title describing what the screenshot shows",
-          required: true
         })
       ],
-      function: fn %{"simulator_uuid" => simulator_uuid, "file_name" => file_name, "title" => title}, _context ->
+      function: fn %{"simulator_uuid" => simulator_uuid}, _context ->
         with {:ok, temp_path} <- Briefly.create(),
              {_, 0} <- System.cmd("xcrun", ["simctl", "io", simulator_uuid, "screenshot", temp_path]),
-             {:ok, image_data} <- File.read(temp_path),
-             {:ok, %{"url" => upload_url}} <-
-               Client.screenshot_upload(%{
-                 file_name: file_name,
-                 title: title,
-                 server_url: server_url,
-                 run_id: run_id,
-                 auth_token: auth_token,
-                 account_handle: account_handle,
-                 project_handle: project_handle
-               }),
-             {:ok, _response} <- Req.put(upload_url, body: image_data, headers: [{"Content-Type", "image/png"}]),
-             :ok <-
-               Client.create_screenshot(%{
-                 file_name: file_name,
-                 title: title,
-                 server_url: server_url,
-                 run_id: run_id,
-                 auth_token: auth_token,
-                 account_handle: account_handle,
-                 project_handle: project_handle
-               }) do
+             {:ok, image_data} <- File.read(temp_path) do
           base64_image = Base.encode64(image_data)
           {:ok, ContentPart.image!(base64_image, media: :png)}
         else
@@ -518,7 +542,7 @@ defmodule Runner.QA.Tools do
     })
   end
 
-  defp step_finished_tool(%{
+  defp step_report_tool(%{
          server_url: server_url,
          run_id: run_id,
          auth_token: auth_token,
@@ -526,35 +550,35 @@ defmodule Runner.QA.Tools do
          project_handle: project_handle
        }) do
     Function.new!(%{
-      name: "step_finished",
-      description: "Marks a finished testing step. Use this tool often to mark your progress.",
+      name: "step_report",
+      description: "Reports the result and any issues found for a completed step (e.g., after a tap action). Use this to document whether the action achieved its expected outcome and to report any visual or functional issues.",
       parameters: [
         FunctionParam.new!(%{
-          name: "summary",
+          name: "step_id",
           type: :string,
-          description: "Summary of the finished testing step",
+          description: "The ID of the step to report on (returned from actions like tap)",
           required: true
         }),
         FunctionParam.new!(%{
-          name: "description",
+          name: "result",
           type: :string,
-          description: "Detailed description of what was tested",
+          description: "Detailed description of what happened - did the action achieve its expected outcome?",
           required: true
         }),
         FunctionParam.new!(%{
           name: "issues",
           type: :array,
           item_type: "string",
-          description: "List of issues encountered during the step",
+          description: "List of any issues found (e.g., visual glitches, unexpected behavior, accessibility problems)",
           required: true
         })
       ],
-      function: fn %{"summary" => summary, "description" => description, "issues" => issues} = _params, _llm_context ->
-        Logger.debug("Finished step: #{summary}")
+      function: fn %{"step_id" => step_id, "result" => result, "issues" => issues} = _params, _context ->
+        Logger.debug("Reporting step #{step_id}")
 
-        case Client.create_step(%{
-               summary: summary,
-               description: description,
+        case Client.update_step(%{
+               step_id: step_id,
+               result: result,
                issues: issues,
                server_url: server_url,
                run_id: run_id,
@@ -563,14 +587,57 @@ defmodule Runner.QA.Tools do
                project_handle: project_handle
              }) do
           :ok ->
-            {:ok,
-             "Step finished and reported. Screenshots have been associated with this step. Continue with your testing."}
+            {:ok, "Step report submitted successfully."}
 
           {:error, reason} ->
-            {:error, "Failed to report step: #{reason}"}
+            {:error, "Failed to submit step report: #{reason}"}
         end
       end
     })
+  end
+
+  defp capture_and_upload_screenshot(%{
+         simulator_uuid: simulator_uuid,
+         file_name: file_name,
+         title: title,
+         server_url: server_url,
+         run_id: run_id,
+         auth_token: auth_token,
+         account_handle: account_handle,
+         project_handle: project_handle,
+         step_id: step_id
+       }) do
+    with {:ok, temp_path} <- Briefly.create(),
+         {_, 0} <- System.cmd("xcrun", ["simctl", "io", simulator_uuid, "screenshot", temp_path]),
+         {:ok, image_data} <- File.read(temp_path),
+         {:ok, %{"url" => upload_url}} <-
+           Client.screenshot_upload(%{
+             file_name: file_name,
+             title: title,
+             server_url: server_url,
+             run_id: run_id,
+             auth_token: auth_token,
+             account_handle: account_handle,
+             project_handle: project_handle
+           }),
+         {:ok, _response} <- Req.put(upload_url, body: image_data, headers: [{"Content-Type", "image/png"}]),
+         {:ok, _response} <-
+           Client.create_screenshot(%{
+             file_name: file_name,
+             title: title,
+             server_url: server_url,
+             run_id: run_id,
+             auth_token: auth_token,
+             account_handle: account_handle,
+             project_handle: project_handle,
+             step_id: step_id
+           }) do
+      base64_image = Base.encode64(image_data)
+      {:ok, ContentPart.image!(base64_image, media: :png)}
+    else
+      {:error, reason} -> {:error, "Failed to capture screenshot: #{reason}"}
+      {reason, _status} -> {:error, "Failed to capture screenshot: #{reason}"}
+    end
   end
 
   defp finalize_tool(%{
@@ -752,4 +819,20 @@ defmodule Runner.QA.Tools do
   end
 
   defp round_if_needed(value), do: value
+
+  defp get_ui_description(simulator_uuid) do
+    case run_axe_command(simulator_uuid, ["describe-ui"]) do
+      {:ok, content} ->
+        simplified_content = simplify_ui_description(content)
+
+        if should_scan_webview(content) do
+          describe_webview_ui(content, simulator_uuid)
+        else
+          {:ok, simplified_content}
+        end
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
 end
