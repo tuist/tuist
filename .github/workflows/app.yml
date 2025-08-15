@@ -4,6 +4,13 @@ on:
   push:
     branches:
       - main
+    paths:
+      - "app/**"
+      - "*.swift"
+      - "Package.resolved"
+      - ".github/workflows/app.yml"
+      - "mise.toml"
+      - "Tuist/**"
   pull_request:
     paths:
       - "app/**"

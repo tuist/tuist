@@ -4,6 +4,10 @@ on:
   push:
     branches:
       - main
+    paths:
+      - server/**
+      - .github/workflows/server.yml
+      - pnpm-lock.yaml
   pull_request:
     paths:
       - server/**

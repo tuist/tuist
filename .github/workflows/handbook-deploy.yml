@@ -3,6 +3,11 @@ on:
   push:
     branches:
       - "main"
+    paths:
+      - handbook/**
+      - .github/workflows/handbook-deploy.yml
+      - pnpm-lock.yaml
+      - handbook/package.json
 
 concurrency:
   group: handbook-deploy-${{ github.head_ref }}

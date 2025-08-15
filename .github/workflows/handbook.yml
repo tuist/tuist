@@ -4,6 +4,11 @@ on:
   push:
     branches:
       - main
+    paths:
+      - handbook/**
+      - .github/workflows/handbook.yml
+      - pnpm-lock.yaml
+      - handbook/package.json
   pull_request:
     paths:
       - handbook/**
