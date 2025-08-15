@@ -8,7 +8,7 @@ defmodule Tuist.Bundles.Artifact do
   @primary_key {:id, UUIDv7, autogenerate: true}
   @foreign_key_type UUIDv7
   schema "artifacts" do
-    field :artifact_type, Ecto.Enum, values: [:directory, :file, :font, :binary, :localization, :asset]
+    field :artifact_type, Ecto.Enum, values: [:directory, :file, :font, :binary, :localization, :asset, :unknown]
 
     field :path, :string
     field :size, :integer
