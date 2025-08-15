@@ -154,7 +154,7 @@ defmodule TuistWeb.LayoutLive do
      })
      |> assign(
        :can_read_billing,
-       Authorization.can(current_user, :read, selected_account, :billing)
+       Authorization.authorize(:billing_read, current_user, selected_account) == :ok
      )
      |> assign_latest_app_release()
      |> assign_latest_cli_release()
@@ -182,7 +182,7 @@ defmodule TuistWeb.LayoutLive do
     account
     |> Projects.get_all_project_accounts()
     |> Enum.filter(fn %{account: account, project: project} ->
-      Authorization.can(current_user, :access, %{project | account: account}, :url)
+      Authorization.authorize(:url_access, current_user, %{project | account: account}) == :ok
     end)
     |> Enum.map(&%{&1.project | account: &1.account})
   end

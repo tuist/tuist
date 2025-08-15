@@ -21,7 +21,7 @@ defmodule TuistWeb.Authorization do
       is_nil(user) ->
         raise UnauthorizedError, gettext("You need to be authenticated to access this page.")
 
-      Authorization.can(user, :read, :ops) ->
+      Authorization.authorize(:ops_read, user, :ops) == :ok ->
         conn
 
       true ->
@@ -50,7 +50,7 @@ defmodule TuistWeb.Authorization do
       is_nil(user) ->
         raise UnauthorizedError, gettext("You need to be authenticated to access this page.")
 
-      Authorization.can(user, :read, :ops) ->
+      Authorization.authorize(:ops_read, user, :ops) == :ok ->
         {:cont, socket}
 
       true ->
@@ -66,7 +66,7 @@ defmodule TuistWeb.Authorization do
       is_nil(user) ->
         raise UnauthorizedError, gettext("You need to be authenticated to access this page.")
 
-      Authorization.can?(:project_preview_read, user, preview.project) ->
+      Authorization.authorize(:project_preview_read, user, preview.project) == :ok ->
         conn
 
       true ->
@@ -82,7 +82,7 @@ defmodule TuistWeb.Authorization do
       is_nil(user) ->
         raise UnauthorizedError, gettext("You need to be authenticated to access this page.")
 
-      Authorization.can(user, :read, entity) ->
+      Authorization.authorize(:command_event_read, user, entity) == :ok ->
         conn
 
       true ->
@@ -98,7 +98,7 @@ defmodule TuistWeb.Authorization do
       is_nil(user) ->
         raise UnauthorizedError, gettext("You need to be authenticated to access this page.")
 
-      Authorization.can(user, :read, entity) ->
+      Authorization.authorize(:command_event_read, user, entity) == :ok ->
         {:cont, socket}
 
       true ->
@@ -128,7 +128,7 @@ defmodule TuistWeb.Authorization do
   def require_user_can_read_project(%{user: user, account_handle: account_handle, project_handle: project_handle}) do
     project = Projects.get_project_by_account_and_project_handles(account_handle, project_handle)
 
-    if is_nil(project) or not Authorization.can(user, :read, project, :dashboard) do
+    if is_nil(project) or Authorization.authorize(:project_dashboard_read, user, project) != :ok do
       raise NotFoundError,
             "The page you are looking for doesn't exist or has been moved."
     end

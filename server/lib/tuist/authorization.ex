@@ -4,15 +4,6 @@ defmodule Tuist.Authorization do
   """
   use LetMe.Policy, error_reason: :forbidden
 
-  alias Tuist.Accounts
-  alias Tuist.Accounts.Account
-  alias Tuist.Accounts.User
-  alias Tuist.Billing
-  alias Tuist.CommandEvents
-  alias Tuist.Environment
-  alias Tuist.Projects.Project
-  alias Tuist.VCS
-
   object :project_run do
     action :create do
       desc("Allows users of a project to create a run.")
@@ -105,6 +96,30 @@ defmodule Tuist.Authorization do
     end
   end
 
+  object :project_cache_management do
+    action :create do
+      desc("Allows users of a project to create cache.")
+      allow([:authenticated_as_user, user_role: :user])
+
+      desc("Allows the admin of a project to create cache.")
+      allow([:authenticated_as_user, user_role: :admin])
+
+      desc("Allows the authenticated project to create cache if it matches the project.")
+      allow([:authenticated_as_project, :projects_match])
+    end
+
+    action :update do
+      desc("Allows users of a project to update cache.")
+      allow([:authenticated_as_user, user_role: :user])
+
+      desc("Allows the admin of a project to update cache.")
+      allow([:authenticated_as_user, user_role: :admin])
+
+      desc("Allows the authenticated project to update cache if it matches the project.")
+      allow([:authenticated_as_project, :projects_match])
+    end
+  end
+
   object :account_registry do
     action :read do
       desc("Allows users of an account to read its registry.")
@@ -145,6 +160,19 @@ defmodule Tuist.Authorization do
       allow([:authenticated_as_user, user_role: :user])
 
       desc("Allows the admin of an account to create an account token.")
+      allow([:authenticated_as_user, user_role: :admin])
+    end
+
+    action :read do
+      desc("Allows users of an account to read account tokens.")
+      allow([:authenticated_as_user, user_role: :user])
+
+      desc("Allows the admin of an account to read account tokens.")
+      allow([:authenticated_as_user, user_role: :admin])
+    end
+
+    action :delete do
+      desc("Allows the admin of an account to delete account tokens.")
       allow([:authenticated_as_user, user_role: :admin])
     end
   end
@@ -224,178 +252,316 @@ defmodule Tuist.Authorization do
     end
   end
 
-  def can(%User{} = user, :create, %Account{} = account, :project) do
-    Accounts.owns_account_or_belongs_to_account_organization?(user, account)
-  end
+  # Additional objects converted from old can/3 and can/4 functions
 
-  def can(%User{} = user, :read, %Account{} = account, :project) do
-    Accounts.owns_account_or_belongs_to_account_organization?(user, account)
-  end
+  object :project do
+    action :create do
+      desc("Allows users of an account to create a project.")
+      allow([:authenticated_as_user, user_role: :user])
 
-  def can(%User{} = user, :update, %Project{} = project, %{repository: %VCS.Repositories.Repository{} = repository}) do
-    account = Accounts.get_account_by_id(project.account_id)
+      desc("Allows the admin of an account to create a project.")
+      allow([:authenticated_as_user, user_role: :admin])
+    end
 
-    if can(user, :update, account, :project) do
-      case VCS.get_user_permission(%{user: user, repository: repository}) do
-        {:ok, %VCS.Repositories.Permission{permission: permission}} ->
-          Enum.member?(["admin", "write"], permission)
+    action :read do
+      desc("Allows users of an account to read projects.")
+      allow([:authenticated_as_user, user_role: :user])
 
-        _ ->
-          false
-      end
-    else
-      false
+      desc("Allows the admin of an account to read projects.")
+      allow([:authenticated_as_user, user_role: :admin])
+    end
+
+    action :update do
+      desc("Allows the admin of an account to update a project.")
+      allow([:authenticated_as_user, user_role: :admin])
+    end
+
+    action :update_with_repository do
+      desc("Allows the admin of an account to update a project with repository changes.")
+      allow([:authenticated_as_user, user_role: :admin])
+
+      desc("Allows users with repository write/admin permissions to update a project with repository changes.")
+
+      allow([:authenticated_as_user, :repository_permission_check])
+    end
+
+    action :delete do
+      desc("Allows the admin of an account to delete a project.")
+      allow([:authenticated_as_user, user_role: :admin])
     end
   end
 
-  def can(_, :read, %Project{visibility: :public}, :dashboard) do
-    true
-  end
+  object :project_dashboard do
+    action :read do
+      desc("Allows anyone to read a public project dashboard.")
+      allow(:public_project)
 
-  def can(nil, :read, %Project{visibility: :private}, :dashboard) do
-    false
-  end
+      desc("Allows users of an account to read private project dashboards.")
+      allow([:authenticated_as_user, user_role: :user])
 
-  def can(%User{} = user, :read, %Project{visibility: :private} = project, :dashboard) do
-    account = Accounts.get_account_by_id(project.account_id)
-    can(user, :read, account, :project)
-  end
-
-  def can(%User{} = user, :update, %Account{} = account, :project) do
-    Accounts.owns_account_or_is_admin_to_account_organization?(user, account)
-  end
-
-  def can(%User{} = user, :delete, %Account{} = account, :project) do
-    Accounts.owns_account_or_is_admin_to_account_organization?(user, account)
-  end
-
-  def can(%User{} = user, :create, %Project{} = project, :cache) do
-    Accounts.owns_account_or_belongs_to_account_organization?(user, %{id: project.account_id})
-  end
-
-  def can(%User{} = user, :update, %Project{} = project, :cache) do
-    Accounts.owns_account_or_belongs_to_account_organization?(user, %{id: project.account_id})
-  end
-
-  def can(%User{} = user, :update, %Account{} = account, :billing) do
-    subscription = Billing.get_current_active_subscription(account)
-
-    if not Environment.tuist_hosted?() or
-         (not is_nil(subscription) and subscription.plan == :open_source) do
-      false
-    else
-      Accounts.owns_account_or_is_admin_to_account_organization?(user, account)
+      desc("Allows the admin of an account to read private project dashboards.")
+      allow([:authenticated_as_user, user_role: :admin])
     end
   end
 
-  def can(%User{} = user, :read, %Account{} = account, :billing) do
-    subscription = Billing.get_current_active_subscription(account)
+  object :account_billing do
+    action :read do
+      desc("Allows admins to read billing information for Tuist hosted accounts.")
+      allow([:authenticated_as_user, :tuist_hosted_billing])
+    end
 
-    if not Environment.tuist_hosted?() or
-         (not is_nil(subscription) and subscription.plan == :open_source) do
-      false
-    else
-      Accounts.owns_account_or_is_admin_to_account_organization?(user, account)
+    action :update do
+      desc("Allows admins to update billing information for Tuist hosted accounts.")
+      allow([:authenticated_as_user, :tuist_hosted_billing])
     end
   end
 
-  def can(nil, :update, _account, :billing) do
-    false
-  end
+  object :account_projects do
+    action :read do
+      desc("Allows users of an account to read projects.")
+      allow([:authenticated_as_user, user_role: :user])
 
-  def can(%User{} = user, :read, %Account{} = account, :projects) do
-    Accounts.owns_account_or_belongs_to_account_organization?(user, account)
-  end
-
-  def can(%User{} = user, :read, %Account{} = account, :organization) do
-    Accounts.owns_account_or_belongs_to_account_organization?(user, account)
-  end
-
-  def can(%User{} = user, :read, %Account{} = account, :organization_usage) do
-    Accounts.owns_account_or_belongs_to_account_organization?(user, account)
-  end
-
-  def can(%User{} = user, :update, %Account{} = account, :organization) do
-    Accounts.owns_account_or_is_admin_to_account_organization?(user, account)
-  end
-
-  def can(%User{} = user, :delete, %Account{} = account, :organization) do
-    Accounts.owns_account_or_is_admin_to_account_organization?(user, account)
-  end
-
-  def can(%User{} = user, :create, %Account{} = account, :invitation) do
-    Accounts.owns_account_or_is_admin_to_account_organization?(user, account)
-  end
-
-  def can(%User{} = user, :read, %Account{} = account, :invitation) do
-    Accounts.owns_account_or_is_admin_to_account_organization?(user, account)
-  end
-
-  def can(%User{} = user, :delete, %Account{} = account, :invitation) do
-    Accounts.owns_account_or_is_admin_to_account_organization?(user, account)
-  end
-
-  def can(%User{} = user, :delete, %Account{} = account, :member) do
-    Accounts.owns_account_or_is_admin_to_account_organization?(user, account)
-  end
-
-  def can(%User{} = user, :update, %Account{} = account, :member) do
-    Accounts.owns_account_or_is_admin_to_account_organization?(user, account)
-  end
-
-  def can(%User{} = user, :create, %Account{} = account, :token) do
-    Accounts.owns_account_or_belongs_to_account_organization?(user, account)
-  end
-
-  def can(%User{} = user, :read, %Account{} = account, :token) do
-    Accounts.owns_account_or_belongs_to_account_organization?(user, account)
-  end
-
-  def can(%User{} = user, :delete, %Account{} = account, :token) do
-    Accounts.owns_account_or_is_admin_to_account_organization?(user, account)
-  end
-
-  def can(%User{} = user, :update, %Project{} = project, :settings) do
-    Accounts.owns_account_or_is_admin_to_account_organization?(user, %{id: project.account_id})
-  end
-
-  def can(%Project{} = current_project, :create, %Project{} = project, :cache) do
-    current_project.id == project.id
-  end
-
-  def can(%Project{} = current_project, :update, %Project{} = project, :cache) do
-    current_project.id == project.id
-  end
-
-  def can(_, :access, %Project{visibility: :public}, :url) do
-    true
-  end
-
-  def can(nil, :access, %Project{visibility: :private}, :url) do
-    false
-  end
-
-  def can(user, :access, %Project{visibility: :private, account: %Account{} = account}, :url) do
-    Accounts.owns_account_or_belongs_to_account_organization?(user, account)
-  end
-
-  def can(subject, :read, command_event)
-      when command_event.__struct__ in [Tuist.CommandEvents.Postgres.Event, Tuist.CommandEvents.Clickhouse.Event] do
-    case CommandEvents.get_project_for_command_event(command_event) do
-      {:ok, project} -> can?(:project_run_read, subject, project)
-      {:error, _} -> false
+      desc("Allows the admin of an account to read projects.")
+      allow([:authenticated_as_user, user_role: :admin])
     end
   end
 
-  def can(%User{} = user, :read, :ops) do
-    if Environment.dev?() do
-      true
-    else
-      user.account.name in Environment.ops_user_handles()
+  object :account_organization_info do
+    action :read do
+      desc("Allows users of an account to read organization info.")
+      allow([:authenticated_as_user, user_role: :user])
+
+      desc("Allows the admin of an account to read organization info.")
+      allow([:authenticated_as_user, user_role: :admin])
+    end
+
+    action :update do
+      desc("Allows the admin of an account to update organization info.")
+      allow([:authenticated_as_user, user_role: :admin])
+    end
+
+    action :delete do
+      desc("Allows the admin of an account to delete organization.")
+      allow([:authenticated_as_user, user_role: :admin])
     end
   end
 
-  def can?(action, subject, object) do
-    authorize(action, subject, object) == :ok
+  object :account_organization_usage do
+    action :read do
+      desc("Allows users of an account to read organization usage.")
+      allow([:authenticated_as_user, user_role: :user])
+
+      desc("Allows the admin of an account to read organization usage.")
+      allow([:authenticated_as_user, user_role: :admin])
+    end
+  end
+
+  object :account_invitation do
+    action :create do
+      desc("Allows the admin of an account to create invitations.")
+      allow([:authenticated_as_user, user_role: :admin])
+    end
+
+    action :read do
+      desc("Allows the admin of an account to read invitations.")
+      allow([:authenticated_as_user, user_role: :admin])
+    end
+
+    action :delete do
+      desc("Allows the admin of an account to delete invitations.")
+      allow([:authenticated_as_user, user_role: :admin])
+    end
+  end
+
+  object :account_member do
+    action :update do
+      desc("Allows the admin of an account to update members.")
+      allow([:authenticated_as_user, user_role: :admin])
+    end
+
+    action :delete do
+      desc("Allows the admin of an account to delete members.")
+      allow([:authenticated_as_user, user_role: :admin])
+    end
+  end
+
+  object :project_settings do
+    action :update do
+      desc("Allows the admin of an account to update project settings.")
+      allow([:authenticated_as_user, user_role: :admin])
+    end
+  end
+
+  object :project_url do
+    action :access do
+      desc("Allows anyone to access public project URLs.")
+      allow(:public_project)
+
+      desc("Allows users of an account to access private project URLs.")
+      allow([:authenticated_as_user, user_role: :user])
+
+      desc("Allows the admin of an account to access private project URLs.")
+      allow([:authenticated_as_user, user_role: :admin])
+    end
+  end
+
+  object :command_event do
+    action :read do
+      desc("Allows reading command events if the user can read the associated project or if the project is public.")
+
+      allow(:command_event_project_access)
+    end
+  end
+
+  object :ops do
+    action :read do
+      desc("Allows ops access for authorized users.")
+      allow([:authenticated_as_user, :ops_access])
+    end
+  end
+
+  # Additional objects for missing authorization rules
+  object :invitation do
+    action :create do
+      desc("Allows the admin of an account to create invitations.")
+      allow([:authenticated_as_user, user_role: :admin])
+    end
+
+    action :read do
+      desc("Allows the admin of an account to read invitations.")
+      allow([:authenticated_as_user, user_role: :admin])
+    end
+
+    action :delete do
+      desc("Allows the admin of an account to delete invitations.")
+      allow([:authenticated_as_user, user_role: :admin])
+    end
+  end
+
+  object :billing do
+    action :read do
+      desc("Allows admins to read billing information for Tuist hosted accounts.")
+      allow([:authenticated_as_user, :tuist_hosted_billing])
+    end
+
+    action :update do
+      desc("Allows admins to update billing information for Tuist hosted accounts.")
+      allow([:authenticated_as_user, :tuist_hosted_billing])
+    end
+  end
+
+  object :member do
+    action :update do
+      desc("Allows the admin of an account to update members.")
+      allow([:authenticated_as_user, user_role: :admin])
+    end
+
+    action :delete do
+      desc("Allows the admin of an account to delete members.")
+      allow([:authenticated_as_user, user_role: :admin])
+    end
+  end
+
+  object :token do
+    action :create do
+      desc("Allows users of an account to create tokens.")
+      allow([:authenticated_as_user, user_role: :user])
+
+      desc("Allows the admin of an account to create tokens.")
+      allow([:authenticated_as_user, user_role: :admin])
+    end
+
+    action :read do
+      desc("Allows users of an account to read tokens.")
+      allow([:authenticated_as_user, user_role: :user])
+
+      desc("Allows the admin of an account to read tokens.")
+      allow([:authenticated_as_user, user_role: :admin])
+    end
+
+    action :delete do
+      desc("Allows users of an account to delete tokens.")
+      allow([:authenticated_as_user, user_role: :user])
+
+      desc("Allows the admin of an account to delete tokens.")
+      allow([:authenticated_as_user, user_role: :admin])
+    end
+  end
+
+  object :url do
+    action :access do
+      desc("Allows anyone to access public project URLs.")
+      allow(:public_project)
+
+      desc("Allows users of an account to access private project URLs.")
+      allow([:authenticated_as_user, user_role: :user])
+
+      desc("Allows the admin of an account to access private project URLs.")
+      allow([:authenticated_as_user, user_role: :admin])
+    end
+  end
+
+  object :organization do
+    action :read do
+      desc("Allows users of an account to read organization info.")
+      allow([:authenticated_as_user, user_role: :user])
+
+      desc("Allows the admin of an account to read organization info.")
+      allow([:authenticated_as_user, user_role: :admin])
+    end
+
+    action :update do
+      desc("Allows the admin of an account to update organization info.")
+      allow([:authenticated_as_user, user_role: :admin])
+    end
+
+    action :delete do
+      desc("Allows the admin of an account to delete organization.")
+      allow([:authenticated_as_user, user_role: :admin])
+    end
+  end
+
+  object :organization_usage do
+    action :read do
+      desc("Allows users of an account to read organization usage.")
+      allow([:authenticated_as_user, user_role: :user])
+
+      desc("Allows the admin of an account to read organization usage.")
+      allow([:authenticated_as_user, user_role: :admin])
+    end
+  end
+
+  object :projects do
+    action :read do
+      desc("Allows users of an account to read projects.")
+      allow([:authenticated_as_user, user_role: :user])
+
+      desc("Allows the admin of an account to read projects.")
+      allow([:authenticated_as_user, user_role: :admin])
+    end
+  end
+
+  object :cache do
+    action :create do
+      desc("Allows users of a project to create cache.")
+      allow([:authenticated_as_user, user_role: :user])
+
+      desc("Allows the admin of a project to create cache.")
+      allow([:authenticated_as_user, user_role: :admin])
+
+      desc("Allows the authenticated project to create cache if it matches the project.")
+      allow([:authenticated_as_project, :projects_match])
+    end
+
+    action :update do
+      desc("Allows users of a project to update cache.")
+      allow([:authenticated_as_user, user_role: :user])
+
+      desc("Allows the admin of a project to update cache.")
+      allow([:authenticated_as_user, user_role: :admin])
+
+      desc("Allows the authenticated project to update cache if it matches the project.")
+      allow([:authenticated_as_project, :projects_match])
+    end
   end
 end
