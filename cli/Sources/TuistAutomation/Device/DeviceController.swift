@@ -76,7 +76,7 @@ public final class DeviceController: DeviceControlling {
             }
 
             return deviceList.result.devices
-                .map(PhysicalDevice.init)
+                .compactMap(PhysicalDevice.init)
         }
     }
 
@@ -152,7 +152,7 @@ private struct DeviceList: Codable {
             }
 
             struct DeviceProperties: Codable {
-                let name: String
+                let name: String?
                 let osVersionNumber: String?
             }
 
@@ -164,16 +164,23 @@ private struct DeviceList: Codable {
                     case visionOS
                 }
 
-                let udid: String
-                let platform: Platform
+                let udid: String?
+                let platform: Platform?
             }
         }
     }
 }
 
 extension PhysicalDevice {
-    fileprivate init(_ device: DeviceList.Result.Device) {
-        let platform: Platform = switch device.hardwareProperties.platform {
+    fileprivate init?(_ device: DeviceList.Result.Device) {
+        // Some properties from the `devicectl` can be `nil`.
+        // However, when some properties, like the `platform`, are missing, we can't properly work with the device.
+        // In those cases, we return `nil` here and filter such devices out before passing them to the caller.
+        guard let udid = device.hardwareProperties.udid,
+              let hardwarePlatform = device.hardwareProperties.platform,
+              let name = device.deviceProperties.name
+        else { return nil }
+        let platform: Platform = switch hardwarePlatform {
         case .iOS: .iOS
         case .tvOS: .tvOS
         case .visionOS: .visionOS
@@ -192,8 +199,8 @@ extension PhysicalDevice {
         }
 
         self.init(
-            id: device.hardwareProperties.udid,
-            name: device.deviceProperties.name,
+            id: udid,
+            name: name,
             platform: platform,
             osVersion: device.deviceProperties.osVersionNumber,
             transportType: transportType,
