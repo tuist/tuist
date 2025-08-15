@@ -1,39 +1,75 @@
 import Foundation
 import Path
+import Testing
 import TuistCore
 import XcodeGraph
 import XcodeProj
-import XCTest
 @testable import TuistGenerator
 
-final class TargetGeneratorTests: XCTestCase {
+struct TargetGeneratorTests {
     var path: AbsolutePath!
     var subject: TargetGenerator!
     var pbxproj: PBXProj!
     var pbxProject: PBXProject!
     var fileElements: ProjectFileElements!
 
-    override func setUp() {
-        super.setUp()
-
+    init() {
         path = try! AbsolutePath(validating: "/test")
         pbxproj = PBXProj()
         pbxProject = createPbxProject(pbxproj: pbxproj)
         fileElements = ProjectFileElements([:])
-
         subject = TargetGenerator()
     }
 
-    override func tearDown() {
-        subject = nil
-        fileElements = nil
-        pbxProject = nil
-        pbxproj = nil
-        path = nil
-        super.tearDown()
+    @Test func generateTarget_synchronizedGroups() async throws {
+        // Given
+        let buildableFolderPath = path.appending(component: "Sources")
+        let target = Target.test(
+            name: "MyFramework",
+            product: .framework,
+            scripts: [],
+            buildableFolders: [
+                BuildableFolder(path: buildableFolderPath),
+            ]
+        )
+        let project = Project.test(
+            path: path,
+            sourceRootPath: path,
+            xcodeProjPath: path.appending(component: "Test.xcodeproj"),
+            targets: [target]
+        )
+        let graph = Graph.test()
+        let graphTraverser = GraphTraverser(graph: graph)
+        let groups = ProjectGroups.generate(
+            project: project,
+            pbxproj: pbxproj
+        )
+        try fileElements.generateProjectFiles(
+            project: project,
+            graphTraverser: graphTraverser,
+            groups: groups,
+            pbxproj: pbxproj
+        )
+
+        // When
+        let generatedTarget = try await subject.generateTarget(
+            target: target,
+            project: project,
+            pbxproj: pbxproj,
+            pbxProject: pbxProject,
+            projectSettings: Settings.test(),
+            fileElements: fileElements,
+            path: path,
+            graphTraverser: graphTraverser
+        )
+
+        // Then
+        #expect(generatedTarget.fileSystemSynchronizedGroups?.count != 0)
+        let group = try #require(generatedTarget.fileSystemSynchronizedGroups?.first)
+        #expect(group.path == "Sources")
     }
 
-    func test_generateTarget_productName() async throws {
+    @Test func generateTarget_productName() async throws {
         // Given
         let target = Target.test(
             name: "MyFramework",
@@ -85,25 +121,20 @@ final class TargetGeneratorTests: XCTestCase {
         )
 
         // Then
-        XCTAssertEqual(generatedTarget.productName, "MyFramework")
-        XCTAssertEqual(generatedTarget.productNameWithExtension(), "MyFramework.framework")
-        XCTAssertEqual(generatedTarget.productType, .framework)
+        #expect(generatedTarget.productName == "MyFramework")
+        #expect(generatedTarget.productNameWithExtension() == "MyFramework.framework")
+        #expect(generatedTarget.productType == .framework)
+        let preBuildPhase = try #require(generatedTarget.buildPhases.first(where: { $0.name() == "pre" }))
+        let postBuildPhase = try #require(generatedTarget.buildPhases.first(where: { $0.name() == "post" }))
 
-        guard let preBuildPhase = generatedTarget.buildPhases.first(where: { $0.name() == "pre" }),
-              let postBuildPhase = generatedTarget.buildPhases.first(where: { $0.name() == "post" })
-        else {
-            XCTFail("Failed to generate target with build phases pre and post")
-            return
-        }
+        #expect(preBuildPhase.inputFileListPaths == [])
+        #expect(preBuildPhase.outputFileListPaths == [])
 
-        XCTAssertEqual(preBuildPhase.inputFileListPaths, [])
-        XCTAssertEqual(preBuildPhase.outputFileListPaths, [])
-
-        XCTAssertEqual(postBuildPhase.inputFileListPaths, ["/tmp/b"])
-        XCTAssertEqual(postBuildPhase.outputFileListPaths, ["/tmp/d"])
+        #expect(postBuildPhase.inputFileListPaths == ["/tmp/b"])
+        #expect(postBuildPhase.outputFileListPaths == ["/tmp/d"])
     }
 
-    func test_generateTargetDependencies() async throws {
+    @Test func test_generateTargetDependencies() async throws {
         // Given
         let targetA = Target.test(
             name: "TargetA",
@@ -131,7 +162,7 @@ final class TargetGeneratorTests: XCTestCase {
                     from: .target(name: targetA.name, path: path),
                     to: .target(name: targetC.name, path: path)
                 ):
-                    try XCTUnwrap(.when([.ios])),
+                    .when([.ios])!,
             ]
         )
         let graphTraverser = GraphTraverser(graph: graph)
@@ -155,13 +186,13 @@ final class TargetGeneratorTests: XCTestCase {
         ]
 
         for (index, dependency) in nativeTargetA.dependencies.enumerated() {
-            XCTAssertEqual(dependency.name, expected[index].name)
-            XCTAssertEqual(dependency.platformFilter, expected[index].platformFilter)
-            XCTAssertEqual(dependency.platformFilters, expected[index].platformFilters)
+            #expect(dependency.name == expected[index].name)
+            #expect(dependency.platformFilter == expected[index].platformFilter)
+            #expect(dependency.platformFilters == expected[index].platformFilters)
         }
     }
 
-    func test_generateTarget_actions() async throws {
+    @Test func generateTarget_actions() async throws {
         // Given
         let graph = Graph.test()
         let graphTraverser = GraphTraverser(graph: graph)
@@ -212,14 +243,14 @@ final class TargetGeneratorTests: XCTestCase {
 
         // Then
         let preBuildPhase = pbxTarget.buildPhases.first as? PBXShellScriptBuildPhase
-        XCTAssertEqual(preBuildPhase?.name, "pre")
-        XCTAssertEqual(preBuildPhase?.shellPath, "/bin/sh")
-        XCTAssertEqual(preBuildPhase?.shellScript, "\"$SRCROOT\"/script.sh arg")
+        #expect(preBuildPhase?.name == "pre")
+        #expect(preBuildPhase?.shellPath == "/bin/sh")
+        #expect(preBuildPhase?.shellScript == "\"$SRCROOT\"/script.sh arg")
 
         let postBuildPhase = pbxTarget.buildPhases.last as? PBXShellScriptBuildPhase
-        XCTAssertEqual(postBuildPhase?.name, "post")
-        XCTAssertEqual(postBuildPhase?.shellPath, "/bin/sh")
-        XCTAssertEqual(postBuildPhase?.shellScript, "\"$SRCROOT\"/script.sh arg")
+        #expect(postBuildPhase?.name == "post")
+        #expect(postBuildPhase?.shellPath == "/bin/sh")
+        #expect(postBuildPhase?.shellScript == "\"$SRCROOT\"/script.sh arg")
     }
 
     // MARK: - Helpers

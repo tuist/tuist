@@ -20,8 +20,10 @@ let project = Project(
 {% elif platform == "macOS" %}
             infoPlist: .default,
 {% endif %}
-            sources: ["{{ name }}/Sources/**"],
-            resources: ["{{ name }}/Resources/**"],
+            buildableFolders: [
+                "{{ name }}/Sources",
+                "{{ name }}/Resources",
+            ],
             dependencies: []
         ),
         .target(
@@ -30,8 +32,9 @@ let project = Project(
             product: .unitTests,
             bundleId: "dev.tuist.{{ bundle_identifier }}Tests",
             infoPlist: .default,
-            sources: ["{{ name }}/Tests/**"],
-            resources: [],
+            buildableFolders: [
+                "{{ name }}/Tests"
+            ],
             dependencies: [.target(name: "{{ name }}")]
         ),
     ]
