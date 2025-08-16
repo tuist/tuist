@@ -34,7 +34,7 @@ defmodule TuistWeb.AuthorizationTest do
     } do
       # Given
       conn = Authentication.put_current_user(conn, user)
-      expect(Tuist.Authorization, :can, fn ^user, :read, :ops -> true end)
+      expect(Tuist.Authorization, :authorize, fn :ops_read, ^user, :ops -> :ok end)
 
       # When
       got = Authorization.call(conn, Authorization.init([:current_user, :read, :ops]))
@@ -49,7 +49,10 @@ defmodule TuistWeb.AuthorizationTest do
     } do
       # Given
       conn = Authentication.put_current_user(conn, user)
-      expect(Tuist.Authorization, :can, fn ^user, :read, :ops -> false end)
+
+      expect(Tuist.Authorization, :authorize, fn :ops_read, ^user, :ops ->
+        {:error, :forbidden}
+      end)
 
       # When/Then
       assert_raise UnauthorizedError,
@@ -149,7 +152,9 @@ defmodule TuistWeb.AuthorizationTest do
         assigns: Authentication.put_current_user(%{current_command_event: command_event}, user)
       }
 
-      expect(Tuist.Authorization, :can, fn ^user, :read, ^command_event -> true end)
+      expect(Tuist.Authorization, :authorize, fn :command_event_read, ^user, ^command_event ->
+        :ok
+      end)
 
       # When/Then
       assert Authorization.on_mount([:current_user, :read, :command_event], %{}, %{}, socket) ==
@@ -165,7 +170,9 @@ defmodule TuistWeb.AuthorizationTest do
         assigns: Authentication.put_current_user(%{current_command_event: command_event}, user)
       }
 
-      expect(Tuist.Authorization, :can, fn ^user, :read, ^command_event -> false end)
+      expect(Tuist.Authorization, :authorize, fn :command_event_read, ^user, ^command_event ->
+        {:error, :forbidden}
+      end)
 
       # When/Then
       assert_raise NotFoundError,
@@ -198,7 +205,7 @@ defmodule TuistWeb.AuthorizationTest do
          %{user: user} do
       # Given
       socket = %Socket{assigns: Authentication.put_current_user(%{}, user)}
-      expect(Tuist.Authorization, :can, fn ^user, :read, :ops -> true end)
+      expect(Tuist.Authorization, :authorize, fn :ops_read, ^user, :ops -> :ok end)
 
       # When/Then
       assert Authorization.on_mount([:current_user, :read, :ops], %{}, %{}, socket) ==
@@ -209,7 +216,10 @@ defmodule TuistWeb.AuthorizationTest do
          %{user: user} do
       # Given
       socket = %Socket{assigns: Authentication.put_current_user(%{}, user)}
-      expect(Tuist.Authorization, :can, fn ^user, :read, :ops -> false end)
+
+      expect(Tuist.Authorization, :authorize, fn :ops_read, ^user, :ops ->
+        {:error, :forbidden}
+      end)
 
       # When/Then
       assert_raise UnauthorizedError,

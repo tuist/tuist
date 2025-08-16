@@ -21,7 +21,7 @@ defmodule Tuist.AuthorizationTest do
     stub(Environment, :tuist_hosted?, fn -> false end)
 
     # When
-    assert Authorization.can(user, :update, account, :billing) == false
+    assert Authorization.authorize(:account_billing_update, user, account) == {:error, :forbidden}
   end
 
   test "can.update.account.billing when the subject is the same account being read and it's not on-premise" do
@@ -31,7 +31,7 @@ defmodule Tuist.AuthorizationTest do
     stub(Environment, :tuist_hosted?, fn -> true end)
 
     # When
-    assert Authorization.can(user, :update, account, :billing) == true
+    assert Authorization.authorize(:account_billing_update, user, account) == :ok
   end
 
   test "can.update.account.billing when the subject is not the same account being read and it's on-premise" do
@@ -42,7 +42,8 @@ defmodule Tuist.AuthorizationTest do
     stub(Environment, :tuist_hosted?, fn -> false end)
 
     # When
-    assert Authorization.can(user, :update, account_two, :billing) == false
+    assert Authorization.authorize(:account_billing_update, user, account_two) ==
+             {:error, :forbidden}
   end
 
   test "can.update.account.billing when the subject is not the same account being read and it's not on-premise" do
@@ -53,7 +54,8 @@ defmodule Tuist.AuthorizationTest do
     stub(Environment, :tuist_hosted?, fn -> true end)
 
     # When
-    assert Authorization.can(user, :update, account_two, :billing) == false
+    assert Authorization.authorize(:account_billing_update, user, account_two) ==
+             {:error, :forbidden}
   end
 
   test "can.update.account.billing when the subject is an admin of the account being read and it's on-premise" do
@@ -65,7 +67,7 @@ defmodule Tuist.AuthorizationTest do
     stub(Environment, :tuist_hosted?, fn -> false end)
 
     # When
-    assert Authorization.can(user, :update, account, :billing) == false
+    assert Authorization.authorize(:account_billing_update, user, account) == {:error, :forbidden}
   end
 
   test "can.update.account.billing when the subject is an admin of the account being read and it's not on-premise" do
@@ -77,7 +79,7 @@ defmodule Tuist.AuthorizationTest do
     stub(Environment, :tuist_hosted?, fn -> true end)
 
     # When
-    assert Authorization.can(user, :update, account, :billing) == true
+    assert Authorization.authorize(:account_billing_update, user, account) == :ok
   end
 
   test "can.update.account.billing when the subject is an admin of the account being read, it's not on-premise, and the account has an open_source plan" do
@@ -90,7 +92,7 @@ defmodule Tuist.AuthorizationTest do
     stub(Environment, :tuist_hosted?, fn -> true end)
 
     # When
-    assert Authorization.can(user, :update, account, :billing) == false
+    assert Authorization.authorize(:account_billing_update, user, account) == {:error, :forbidden}
   end
 
   test "can.update.account.billing when the subject is a user of the account being read and it's on-premise" do
@@ -102,7 +104,7 @@ defmodule Tuist.AuthorizationTest do
     stub(Environment, :tuist_hosted?, fn -> false end)
 
     # When
-    assert Authorization.can(user, :update, account, :billing) == false
+    assert Authorization.authorize(:account_billing_update, user, account) == {:error, :forbidden}
   end
 
   test "can.update.account.billing when the subject is a user of the account being read and it's not on-premise" do
@@ -114,7 +116,7 @@ defmodule Tuist.AuthorizationTest do
     stub(Environment, :tuist_hosted?, fn -> true end)
 
     # When
-    assert Authorization.can(user, :update, account, :billing) == false
+    assert Authorization.authorize(:account_billing_update, user, account) == {:error, :forbidden}
   end
 
   test "can.read.project.cache when the subject is the same project being read" do
@@ -122,7 +124,7 @@ defmodule Tuist.AuthorizationTest do
     project = ProjectsFixtures.project_fixture()
 
     # When
-    assert Authorization.can?(:project_cache_read, project, project) == true
+    assert Authorization.authorize(:project_cache_read, project, project) == :ok
   end
 
   test "can.read.project.cache when the subject is not the same project being read" do
@@ -131,7 +133,8 @@ defmodule Tuist.AuthorizationTest do
     another_project = ProjectsFixtures.project_fixture()
 
     # When
-    assert Authorization.can?(:project_cache_read, another_project, project) == false
+    assert Authorization.authorize(:project_cache_read, another_project, project) ==
+             {:error, :forbidden}
   end
 
   test "can.create.project.cache when the subject is the same project being read" do
@@ -139,7 +142,7 @@ defmodule Tuist.AuthorizationTest do
     project = ProjectsFixtures.project_fixture()
 
     # When
-    assert Authorization.can(project, :create, project, :cache) == true
+    assert Authorization.authorize(:project_cache_management_create, project, project) == :ok
   end
 
   test "can.create.project.cache when the subject is not the same project being read" do
@@ -148,7 +151,8 @@ defmodule Tuist.AuthorizationTest do
     another_project = ProjectsFixtures.project_fixture()
 
     # When
-    assert Authorization.can(another_project, :create, project, :cache) == false
+    assert Authorization.authorize(:project_cache_management_create, another_project, project) ==
+             {:error, :forbidden}
   end
 
   test "can.update.project.cache when the subject is the same project being read" do
@@ -156,7 +160,7 @@ defmodule Tuist.AuthorizationTest do
     project = ProjectsFixtures.project_fixture()
 
     # When
-    assert Authorization.can(project, :update, project, :cache) == true
+    assert Authorization.authorize(:project_cache_management_update, project, project) == :ok
   end
 
   test "can.update.project.cache when the subject is not the same project being read" do
@@ -165,7 +169,8 @@ defmodule Tuist.AuthorizationTest do
     another_project = ProjectsFixtures.project_fixture()
 
     # When
-    assert Authorization.can(another_project, :update, project, :cache) == false
+    assert Authorization.authorize(:project_cache_management_update, another_project, project) ==
+             {:error, :forbidden}
   end
 
   test "can.read.project.cache when the subject is a user that belongs to the project organization" do
@@ -177,7 +182,7 @@ defmodule Tuist.AuthorizationTest do
     Accounts.add_user_to_organization(user, organization, role: :user)
 
     # When
-    assert Authorization.can?(:project_cache_read, user, project) == true
+    assert Authorization.authorize(:project_cache_read, user, project) == :ok
   end
 
   test "can.read.project.cache when the subject is a user that doesn't belong to the project organization" do
@@ -188,7 +193,7 @@ defmodule Tuist.AuthorizationTest do
     user = AccountsFixtures.user_fixture()
 
     # When
-    assert Authorization.can?(:project_cache_read, user, project) == false
+    assert Authorization.authorize(:project_cache_read, user, project) == {:error, :forbidden}
   end
 
   test "can.read.project.cache when the subject is a user that doesn't belong to the project organization and the project is public" do
@@ -199,7 +204,7 @@ defmodule Tuist.AuthorizationTest do
     user = AccountsFixtures.user_fixture()
 
     # When
-    assert Authorization.can?(:project_cache_read, user, project) == true
+    assert Authorization.authorize(:project_cache_read, user, project) == :ok
   end
 
   test "can.create.project.cache when the subject is a user that belongs to the project organization" do
@@ -211,7 +216,7 @@ defmodule Tuist.AuthorizationTest do
     Accounts.add_user_to_organization(user, organization, role: :user)
 
     # When
-    assert Authorization.can(user, :create, project, :cache) == true
+    assert Authorization.authorize(:project_cache_management_create, user, project) == :ok
   end
 
   test "can.create.project.cache when the subject is a user that doesn't belong to the project organization" do
@@ -222,7 +227,8 @@ defmodule Tuist.AuthorizationTest do
     user = AccountsFixtures.user_fixture()
 
     # When
-    assert Authorization.can(user, :create, project, :cache) == false
+    assert Authorization.authorize(:project_cache_management_create, user, project) ==
+             {:error, :forbidden}
   end
 
   test "can.update.project.cache when the subject is a user that belongs to the project organization" do
@@ -234,7 +240,7 @@ defmodule Tuist.AuthorizationTest do
     Accounts.add_user_to_organization(user, organization, role: :user)
 
     # When
-    assert Authorization.can(user, :update, project, :cache) == true
+    assert Authorization.authorize(:project_cache_management_update, user, project) == :ok
   end
 
   test "can.update.project.cache when the subject is a user that doesn't belong to the project organization" do
@@ -245,7 +251,8 @@ defmodule Tuist.AuthorizationTest do
     user = AccountsFixtures.user_fixture()
 
     # When
-    assert Authorization.can(user, :update, project, :cache) == false
+    assert Authorization.authorize(:project_cache_management_update, user, project) ==
+             {:error, :forbidden}
   end
 
   test "can.access.project.url returns true when the project is public and the subject is nil" do
@@ -255,7 +262,7 @@ defmodule Tuist.AuthorizationTest do
     project = ProjectsFixtures.project_fixture(account_id: account.id, visibility: :public)
 
     # When/Then
-    assert Authorization.can(nil, :access, project, :url) == true
+    assert Authorization.authorize(:project_url_access, nil, project) == :ok
   end
 
   test "can.access.project.url returns true when the project is public and the subject is not nil" do
@@ -266,7 +273,7 @@ defmodule Tuist.AuthorizationTest do
     user = AccountsFixtures.user_fixture()
 
     # When/Then
-    assert Authorization.can(user, :access, project, :url) == true
+    assert Authorization.authorize(:project_url_access, user, project) == :ok
   end
 
   test "can.access.project.url returns false when the project is private and the subject is nil" do
@@ -276,7 +283,7 @@ defmodule Tuist.AuthorizationTest do
     project = ProjectsFixtures.project_fixture(account_id: account.id, visibility: :private)
 
     # When/Then
-    assert Authorization.can(nil, :access, project, :url) == false
+    assert Authorization.authorize(:project_url_access, nil, project) == {:error, :forbidden}
   end
 
   test "can.access.project.url returns true when the project is private and the subject is user of the organization" do
@@ -295,7 +302,7 @@ defmodule Tuist.AuthorizationTest do
     Accounts.add_user_to_organization(user, organization, role: :user)
 
     # When/Then
-    assert Authorization.can(user, :access, project, :url) == true
+    assert Authorization.authorize(:project_url_access, user, project) == :ok
   end
 
   test "can.access.project.url returns true when the project is private and the subject is admin of the organization" do
@@ -314,7 +321,7 @@ defmodule Tuist.AuthorizationTest do
     Accounts.add_user_to_organization(user, organization, role: :admin)
 
     # When/Then
-    assert Authorization.can(user, :access, project, :url) == true
+    assert Authorization.authorize(:project_url_access, user, project) == :ok
   end
 
   test "can.access.project.url returns true when the project is private and the subject doesn't belong to the organization" do
@@ -332,7 +339,7 @@ defmodule Tuist.AuthorizationTest do
     user = AccountsFixtures.user_fixture()
 
     # When/Then
-    assert Authorization.can(user, :access, project, :url) == false
+    assert Authorization.authorize(:project_url_access, user, project) == {:error, :forbidden}
   end
 
   test "can.read.command_event when the subject is a user that belongs to the command event's project organization" do
@@ -345,7 +352,7 @@ defmodule Tuist.AuthorizationTest do
     command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
 
     # When
-    assert Authorization.can(user, :read, command_event) == true
+    assert Authorization.authorize(:command_event_read, user, command_event) == :ok
   end
 
   test "can.read.command_event when the subject is a user that doesn't belong to the command event's project organization" do
@@ -357,7 +364,8 @@ defmodule Tuist.AuthorizationTest do
     command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
 
     # When
-    assert Authorization.can(user, :read, command_event) == false
+    assert Authorization.authorize(:command_event_read, user, command_event) ==
+             {:error, :forbidden}
   end
 
   test "can.read.command_event when the subject is a user that doesn't belong to the command event's project organization and the project's visibility is public" do
@@ -369,7 +377,7 @@ defmodule Tuist.AuthorizationTest do
     command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
 
     # When
-    assert Authorization.can(user, :read, command_event) == true
+    assert Authorization.authorize(:command_event_read, user, command_event) == :ok
   end
 
   test "can.read.command_event when the subject is an anonymous user and the command event's project's visibility is private" do
@@ -380,7 +388,8 @@ defmodule Tuist.AuthorizationTest do
     command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
 
     # When
-    assert Authorization.can(nil, :read, command_event) == false
+    assert Authorization.authorize(:command_event_read, nil, command_event) ==
+             {:error, :forbidden}
   end
 
   test "can.read.command_event when the subject is an anonymous user and the command event's project's visibility is public" do
@@ -391,7 +400,7 @@ defmodule Tuist.AuthorizationTest do
     command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
 
     # When
-    assert Authorization.can(nil, :read, command_event) == true
+    assert Authorization.authorize(:command_event_read, nil, command_event) == :ok
   end
 
   test "can.create.account.project when the subject is a user that belongs to an organization" do
@@ -402,7 +411,7 @@ defmodule Tuist.AuthorizationTest do
     Accounts.add_user_to_organization(user, organization)
 
     # When
-    assert Authorization.can(user, :create, account, :project) == true
+    assert Authorization.authorize(:project_create, user, account) == :ok
   end
 
   test "can.create.account.project when the subject is a user that doesn't belong to an organization" do
@@ -412,7 +421,7 @@ defmodule Tuist.AuthorizationTest do
     user = AccountsFixtures.user_fixture()
 
     # When
-    assert Authorization.can(user, :create, account, :project) == false
+    assert Authorization.authorize(:project_create, user, account) == {:error, :forbidden}
   end
 
   test "can.update.account.project when the subject is a user that belongs to an organization" do
@@ -423,7 +432,7 @@ defmodule Tuist.AuthorizationTest do
     Accounts.add_user_to_organization(user, organization)
 
     # When
-    assert Authorization.can(user, :update, account, :project) == false
+    assert Authorization.authorize(:project_update, user, account) == {:error, :forbidden}
   end
 
   test "can.update.account.project when the subject is a user that is admin of an organization" do
@@ -434,7 +443,7 @@ defmodule Tuist.AuthorizationTest do
     Accounts.add_user_to_organization(user, organization, role: :admin)
 
     # When
-    assert Authorization.can(user, :update, account, :project) == true
+    assert Authorization.authorize(:project_update, user, account) == :ok
   end
 
   test "can.update.account.project when the subject is a user that doesn't belong to an organization" do
@@ -444,7 +453,7 @@ defmodule Tuist.AuthorizationTest do
     user = AccountsFixtures.user_fixture()
 
     # When
-    assert Authorization.can(user, :update, account, :project) == false
+    assert Authorization.authorize(:project_update, user, account) == {:error, :forbidden}
   end
 
   test "can.read.account.project when the subject is a user that belongs to an organization" do
@@ -455,7 +464,7 @@ defmodule Tuist.AuthorizationTest do
     Accounts.add_user_to_organization(user, organization)
 
     # When
-    assert Authorization.can(user, :read, account, :project) == true
+    assert Authorization.authorize(:project_read, user, account) == :ok
   end
 
   test "can.read.account.project when the subject is a user that doesn't belong to an organization" do
@@ -465,7 +474,7 @@ defmodule Tuist.AuthorizationTest do
     user = AccountsFixtures.user_fixture()
 
     # When
-    assert Authorization.can(user, :read, account, :project) == false
+    assert Authorization.authorize(:project_read, user, account) == {:error, :forbidden}
   end
 
   test "can.update.project.repository when the subject is a user that doesn't belong to the project organization" do
@@ -482,7 +491,10 @@ defmodule Tuist.AuthorizationTest do
     }
 
     # When
-    assert Authorization.can(user, :update, project, %{repository: repository}) == false
+    assert Authorization.authorize(:project_update_with_repository, user, %{
+             project: project,
+             repository: repository
+           }) == {:error, :forbidden}
   end
 
   test "can.update.project.repository when the subject is a user that is a user of the project organization" do
@@ -500,7 +512,10 @@ defmodule Tuist.AuthorizationTest do
     }
 
     # When
-    assert Authorization.can(user, :update, project, %{repository: repository}) == false
+    assert Authorization.authorize(:project_update_with_repository, user, %{
+             project: project,
+             repository: repository
+           }) == {:error, :forbidden}
   end
 
   test "can.update.project.repository when the subject is a user that is an admin of the project organization and has write repository permission" do
@@ -522,7 +537,10 @@ defmodule Tuist.AuthorizationTest do
     }
 
     # When
-    assert Authorization.can(user, :update, project, %{repository: repository}) == true
+    assert Authorization.authorize(:project_update_with_repository, user, %{
+             project: project,
+             repository: repository
+           }) == :ok
   end
 
   test "can.update.project.repository when the subject is a user that is an admin of the project organization and has admin repository permission" do
@@ -544,7 +562,10 @@ defmodule Tuist.AuthorizationTest do
     }
 
     # When
-    assert Authorization.can(user, :update, project, %{repository: repository}) == true
+    assert Authorization.authorize(:project_update_with_repository, user, %{
+             project: project,
+             repository: repository
+           }) == :ok
   end
 
   test "can.update.project.repository when the subject is a user that is an admin of the project organization and has read repository permission" do
@@ -566,7 +587,10 @@ defmodule Tuist.AuthorizationTest do
     }
 
     # When
-    assert Authorization.can(user, :update, project, %{repository: repository}) == false
+    assert Authorization.authorize(:project_update_with_repository, user, %{
+             project: project,
+             repository: repository
+           }) == {:error, :forbidden}
   end
 
   test "can.update.project.repository when the subject is a user that is an admin of the project organization and the permission was not found" do
@@ -588,7 +612,10 @@ defmodule Tuist.AuthorizationTest do
     }
 
     # When
-    assert Authorization.can(user, :update, project, %{repository: repository}) == false
+    assert Authorization.authorize(:project_update_with_repository, user, %{
+             project: project,
+             repository: repository
+           }) == {:error, :forbidden}
   end
 
   test "can.read.project.dashboard when the subject is a user that belongs to an organization" do
@@ -600,7 +627,7 @@ defmodule Tuist.AuthorizationTest do
     project = ProjectsFixtures.project_fixture(account_id: account.id)
 
     # When
-    assert Authorization.can(user, :read, project, :dashboard) == true
+    assert Authorization.authorize(:project_dashboard_read, user, project) == :ok
   end
 
   test "can.read.project.dashboard when the subject is a user that doesn't belong to an organization" do
@@ -609,7 +636,7 @@ defmodule Tuist.AuthorizationTest do
     project = ProjectsFixtures.project_fixture()
 
     # When
-    assert Authorization.can(user, :read, project, :dashboard) == false
+    assert Authorization.authorize(:project_dashboard_read, user, project) == {:error, :forbidden}
   end
 
   test "can.read.project.dashboard when the subject is a user and a project is public" do
@@ -618,7 +645,7 @@ defmodule Tuist.AuthorizationTest do
     project = ProjectsFixtures.project_fixture(visibility: :public)
 
     # When
-    assert Authorization.can(user, :read, project, :dashboard) == true
+    assert Authorization.authorize(:project_dashboard_read, user, project) == :ok
   end
 
   test "can.read.project.dashboard when the subject is an anonymous user and a project is private" do
@@ -626,7 +653,7 @@ defmodule Tuist.AuthorizationTest do
     project = ProjectsFixtures.project_fixture(visibility: :private)
 
     # When
-    assert Authorization.can(nil, :read, project, :dashboard) == false
+    assert Authorization.authorize(:project_dashboard_read, nil, project) == {:error, :forbidden}
   end
 
   test "can.read.project.dashboard when the subject is an anonymous user and a project is public" do
@@ -634,7 +661,7 @@ defmodule Tuist.AuthorizationTest do
     project = ProjectsFixtures.project_fixture(visibility: :public)
 
     # When
-    assert Authorization.can(nil, :read, project, :dashboard) == true
+    assert Authorization.authorize(:project_dashboard_read, nil, project) == :ok
   end
 
   test "can.delete.account.project when the subject is a user that belongs to an organization" do
@@ -645,7 +672,7 @@ defmodule Tuist.AuthorizationTest do
     Accounts.add_user_to_organization(user, organization)
 
     # When
-    assert Authorization.can(user, :delete, account, :project) == false
+    assert Authorization.authorize(:project_delete, user, account) == {:error, :forbidden}
   end
 
   test "can.delete.account.project when the subject is a user that is admin of an organization" do
@@ -656,7 +683,7 @@ defmodule Tuist.AuthorizationTest do
     Accounts.add_user_to_organization(user, organization, role: :admin)
 
     # When
-    assert Authorization.can(user, :delete, account, :project) == true
+    assert Authorization.authorize(:project_delete, user, account) == :ok
   end
 
   test "can.delete.account.project when the subject is a user that doesn't belong to an organization" do
@@ -666,7 +693,7 @@ defmodule Tuist.AuthorizationTest do
     user = AccountsFixtures.user_fixture()
 
     # When
-    assert Authorization.can(user, :delete, account, :project) == false
+    assert Authorization.authorize(:project_delete, user, account) == {:error, :forbidden}
   end
 
   test "can.read.account.projects when the subject is a user that is admin of an organization" do
@@ -677,7 +704,7 @@ defmodule Tuist.AuthorizationTest do
     Accounts.add_user_to_organization(user, organization, role: :admin)
 
     # When
-    assert Authorization.can(user, :read, account, :projects) == true
+    assert Authorization.authorize(:account_projects_read, user, account) == :ok
   end
 
   test "can.read.account.projects when the subject is a user that belongs to an organization" do
@@ -688,7 +715,7 @@ defmodule Tuist.AuthorizationTest do
     Accounts.add_user_to_organization(user, organization, role: :user)
 
     # When
-    assert Authorization.can(user, :read, account, :projects) == true
+    assert Authorization.authorize(:account_projects_read, user, account) == :ok
   end
 
   test "can.read.account.projects when the subject is a user that doesn't belong to an organization" do
@@ -698,7 +725,7 @@ defmodule Tuist.AuthorizationTest do
     user = AccountsFixtures.user_fixture()
 
     # When
-    assert Authorization.can(user, :read, account, :projects) == false
+    assert Authorization.authorize(:account_projects_read, user, account) == {:error, :forbidden}
   end
 
   test "can.read.account.organization when the subject is a user that is admin of an organization" do
@@ -709,7 +736,7 @@ defmodule Tuist.AuthorizationTest do
     Accounts.add_user_to_organization(user, organization, role: :admin)
 
     # When
-    assert Authorization.can(user, :read, account, :organization) == true
+    assert Authorization.authorize(:account_organization_info_read, user, account) == :ok
   end
 
   test "can.read.account.billing when the subject is a user that belongs to the organization and it's on-premise" do
@@ -721,7 +748,7 @@ defmodule Tuist.AuthorizationTest do
     stub(Environment, :tuist_hosted?, fn -> false end)
 
     # When
-    assert Authorization.can(user, :read, account, :billing) == false
+    assert Authorization.authorize(:account_billing_read, user, account) == {:error, :forbidden}
   end
 
   test "can.read.account.billing when the subject is a user that belongs to the organization and it's not on-premise" do
@@ -733,7 +760,7 @@ defmodule Tuist.AuthorizationTest do
     stub(Environment, :tuist_hosted?, fn -> true end)
 
     # When
-    assert Authorization.can(user, :read, account, :billing) == false
+    assert Authorization.authorize(:account_billing_read, user, account) == {:error, :forbidden}
   end
 
   test "can.read.account.billing when the subject is a user that doesn't belong to an organization and it's on-premise" do
@@ -744,7 +771,7 @@ defmodule Tuist.AuthorizationTest do
     stub(Environment, :tuist_hosted?, fn -> false end)
 
     # When
-    assert Authorization.can(user, :read, account, :billing) == false
+    assert Authorization.authorize(:account_billing_read, user, account) == {:error, :forbidden}
   end
 
   test "can.read.account.billing when the subject is a user that doesn't belong to an organization and it's not on-premise" do
@@ -755,7 +782,7 @@ defmodule Tuist.AuthorizationTest do
     stub(Environment, :tuist_hosted?, fn -> true end)
 
     # When
-    assert Authorization.can(user, :read, account, :billing) == false
+    assert Authorization.authorize(:account_billing_read, user, account) == {:error, :forbidden}
   end
 
   test "can.read.account.billing when the subject is a user is admin of the organization and it's on-premise" do
@@ -767,7 +794,7 @@ defmodule Tuist.AuthorizationTest do
     stub(Environment, :tuist_hosted?, fn -> false end)
 
     # When
-    assert Authorization.can(user, :read, account, :billing) == false
+    assert Authorization.authorize(:account_billing_read, user, account) == {:error, :forbidden}
   end
 
   test "can.read.account.billing when the subject is a user is admin of the organization and it's not on-premise" do
@@ -779,7 +806,7 @@ defmodule Tuist.AuthorizationTest do
     stub(Environment, :tuist_hosted?, fn -> true end)
 
     # When
-    assert Authorization.can(user, :read, account, :billing) == true
+    assert Authorization.authorize(:account_billing_read, user, account) == :ok
   end
 
   test "can.read.account.billing when the subject is interacting with its account and it's on-premise" do
@@ -788,7 +815,8 @@ defmodule Tuist.AuthorizationTest do
     stub(Environment, :tuist_hosted?, fn -> false end)
 
     # When
-    assert Authorization.can(user, :read, user.account, :billing) == false
+    assert Authorization.authorize(:account_billing_read, user, user.account) ==
+             {:error, :forbidden}
   end
 
   test "can.read.account.billing when the subject is interacting with its account and it's not on-premise" do
@@ -797,7 +825,7 @@ defmodule Tuist.AuthorizationTest do
     stub(Environment, :tuist_hosted?, fn -> true end)
 
     # When
-    assert Authorization.can(user, :read, user.account, :billing) == true
+    assert Authorization.authorize(:account_billing_read, user, user.account) == :ok
   end
 
   test "can.read.account.billing when the subject is interacting with its account and the account has an open_source subscription" do
@@ -809,7 +837,8 @@ defmodule Tuist.AuthorizationTest do
     stub(Environment, :tuist_hosted?, fn -> true end)
 
     # When
-    assert Authorization.can(user, :read, user.account, :billing) == false
+    assert Authorization.authorize(:account_billing_read, user, user.account) ==
+             {:error, :forbidden}
   end
 
   test "can.read.account.organization when the subject is a user that belongs to an organization" do
@@ -820,7 +849,7 @@ defmodule Tuist.AuthorizationTest do
     Accounts.add_user_to_organization(user, organization, role: :user)
 
     # When
-    assert Authorization.can(user, :read, account, :organization) == true
+    assert Authorization.authorize(:account_organization_info_read, user, account) == :ok
   end
 
   test "can.read.account.organization when the subject is a user that doesn't belong to an organization" do
@@ -830,7 +859,8 @@ defmodule Tuist.AuthorizationTest do
     user = AccountsFixtures.user_fixture()
 
     # When
-    assert Authorization.can(user, :read, account, :organization) == false
+    assert Authorization.authorize(:account_organization_info_read, user, account) ==
+             {:error, :forbidden}
   end
 
   test "can.read.account.oragnization_usage when the subject is a user that is admin of an organization" do
@@ -841,7 +871,7 @@ defmodule Tuist.AuthorizationTest do
     Accounts.add_user_to_organization(user, organization, role: :admin)
 
     # When
-    assert Authorization.can(user, :read, account, :organization_usage) == true
+    assert Authorization.authorize(:account_organization_usage_read, user, account) == :ok
   end
 
   test "can.read.account.oragnization_usage when the subject is a user that belongs to an organization" do
@@ -852,7 +882,7 @@ defmodule Tuist.AuthorizationTest do
     Accounts.add_user_to_organization(user, organization, role: :user)
 
     # When
-    assert Authorization.can(user, :read, account, :organization_usage) == true
+    assert Authorization.authorize(:account_organization_usage_read, user, account) == :ok
   end
 
   test "can.read.account.oragnization_usage when the subject is a user that doesn't belong to an organization" do
@@ -862,7 +892,8 @@ defmodule Tuist.AuthorizationTest do
     user = AccountsFixtures.user_fixture()
 
     # When
-    assert Authorization.can(user, :read, account, :organization_usage) == false
+    assert Authorization.authorize(:account_organization_usage_read, user, account) ==
+             {:error, :forbidden}
   end
 
   test "can.update.account.organization when the subject is a user that is admin of an organization" do
@@ -873,7 +904,7 @@ defmodule Tuist.AuthorizationTest do
     Accounts.add_user_to_organization(user, organization, role: :admin)
 
     # When
-    assert Authorization.can(user, :update, account, :organization) == true
+    assert Authorization.authorize(:account_organization_info_update, user, account) == :ok
   end
 
   test "can.update.account.organization when the subject is a user that belongs to an organization" do
@@ -884,7 +915,8 @@ defmodule Tuist.AuthorizationTest do
     Accounts.add_user_to_organization(user, organization, role: :user)
 
     # When
-    assert Authorization.can(user, :update, account, :organization) == false
+    assert Authorization.authorize(:account_organization_info_update, user, account) ==
+             {:error, :forbidden}
   end
 
   test "can.update.account.organization when the subject is a user that doesn't belong to an organization" do
@@ -894,7 +926,8 @@ defmodule Tuist.AuthorizationTest do
     user = AccountsFixtures.user_fixture()
 
     # When
-    assert Authorization.can(user, :update, account, :organization) == false
+    assert Authorization.authorize(:account_organization_info_update, user, account) ==
+             {:error, :forbidden}
   end
 
   test "can.delete.account.organization when the subject is a user that is admin of an organization" do
@@ -905,7 +938,7 @@ defmodule Tuist.AuthorizationTest do
     Accounts.add_user_to_organization(user, organization, role: :admin)
 
     # When
-    assert Authorization.can(user, :delete, account, :organization) == true
+    assert Authorization.authorize(:account_organization_info_delete, user, account) == :ok
   end
 
   test "can.delete.account.organization when the subject is a user that belongs to an organization" do
@@ -916,7 +949,8 @@ defmodule Tuist.AuthorizationTest do
     Accounts.add_user_to_organization(user, organization, role: :user)
 
     # When
-    assert Authorization.can(user, :delete, account, :organization) == false
+    assert Authorization.authorize(:account_organization_info_delete, user, account) ==
+             {:error, :forbidden}
   end
 
   test "can.delete.account.organization when the subject is a user that doesn't belong to an organization" do
@@ -926,7 +960,8 @@ defmodule Tuist.AuthorizationTest do
     user = AccountsFixtures.user_fixture()
 
     # When
-    assert Authorization.can(user, :delete, account, :organization) == false
+    assert Authorization.authorize(:account_organization_info_delete, user, account) ==
+             {:error, :forbidden}
   end
 
   test "can.create.account.invitation when the subject is a user that is admin of an organization" do
@@ -937,7 +972,7 @@ defmodule Tuist.AuthorizationTest do
     Accounts.add_user_to_organization(user, organization, role: :admin)
 
     # When
-    assert Authorization.can(user, :create, account, :invitation) == true
+    assert Authorization.authorize(:account_invitation_create, user, account) == :ok
   end
 
   test "can.create.account.invitation when the subject is a user that belongs to an organization" do
@@ -948,7 +983,8 @@ defmodule Tuist.AuthorizationTest do
     Accounts.add_user_to_organization(user, organization, role: :user)
 
     # When
-    assert Authorization.can(user, :create, account, :invitation) == false
+    assert Authorization.authorize(:account_invitation_create, user, account) ==
+             {:error, :forbidden}
   end
 
   test "can.create.account.invitation when the subject is a user that doesn't belong to an organization" do
@@ -958,7 +994,8 @@ defmodule Tuist.AuthorizationTest do
     user = AccountsFixtures.user_fixture()
 
     # When
-    assert Authorization.can(user, :create, account, :invitation) == false
+    assert Authorization.authorize(:account_invitation_create, user, account) ==
+             {:error, :forbidden}
   end
 
   test "can.delete.account.invitation when the subject is a user that is admin of an organization" do
@@ -969,7 +1006,7 @@ defmodule Tuist.AuthorizationTest do
     Accounts.add_user_to_organization(user, organization, role: :admin)
 
     # When
-    assert Authorization.can(user, :delete, account, :invitation) == true
+    assert Authorization.authorize(:account_invitation_delete, user, account) == :ok
   end
 
   test "can.delete.account.invitation when the subject is a user that belongs to an organization" do
@@ -980,7 +1017,8 @@ defmodule Tuist.AuthorizationTest do
     Accounts.add_user_to_organization(user, organization, role: :user)
 
     # When
-    assert Authorization.can(user, :delete, account, :invitation) == false
+    assert Authorization.authorize(:account_invitation_delete, user, account) ==
+             {:error, :forbidden}
   end
 
   test "can.delete.account.invitation when the subject is a user that doesn't belong to an organization" do
@@ -990,7 +1028,8 @@ defmodule Tuist.AuthorizationTest do
     user = AccountsFixtures.user_fixture()
 
     # When
-    assert Authorization.can(user, :delete, account, :invitation) == false
+    assert Authorization.authorize(:account_invitation_delete, user, account) ==
+             {:error, :forbidden}
   end
 
   test "can.delete.account.member when the subject is a user that is admin of an organization" do
@@ -1001,7 +1040,7 @@ defmodule Tuist.AuthorizationTest do
     Accounts.add_user_to_organization(user, organization, role: :admin)
 
     # When
-    assert Authorization.can(user, :delete, account, :member) == true
+    assert Authorization.authorize(:account_member_delete, user, account) == :ok
   end
 
   test "can.delete.account.member when the subject is a user that belongs to an organization" do
@@ -1012,7 +1051,7 @@ defmodule Tuist.AuthorizationTest do
     Accounts.add_user_to_organization(user, organization, role: :user)
 
     # When
-    assert Authorization.can(user, :delete, account, :member) == false
+    assert Authorization.authorize(:account_member_delete, user, account) == {:error, :forbidden}
   end
 
   test "can.delete.account.member when the subject is a user that doesn't belong to an organization" do
@@ -1022,7 +1061,7 @@ defmodule Tuist.AuthorizationTest do
     user = AccountsFixtures.user_fixture()
 
     # When
-    assert Authorization.can(user, :delete, account, :member) == false
+    assert Authorization.authorize(:account_member_delete, user, account) == {:error, :forbidden}
   end
 
   test "can.update.account.member when the subject is a user that is admin of an organization" do
@@ -1033,7 +1072,7 @@ defmodule Tuist.AuthorizationTest do
     Accounts.add_user_to_organization(user, organization, role: :admin)
 
     # When
-    assert Authorization.can(user, :update, account, :member) == true
+    assert Authorization.authorize(:account_member_update, user, account) == :ok
   end
 
   test "can.update.account.member when the subject is a user that belongs to an organization" do
@@ -1044,7 +1083,7 @@ defmodule Tuist.AuthorizationTest do
     Accounts.add_user_to_organization(user, organization, role: :user)
 
     # When
-    assert Authorization.can(user, :update, account, :member) == false
+    assert Authorization.authorize(:account_member_update, user, account) == {:error, :forbidden}
   end
 
   test "can.update.account.member when the subject is a user that doesn't belong to an organization" do
@@ -1054,7 +1093,7 @@ defmodule Tuist.AuthorizationTest do
     user = AccountsFixtures.user_fixture()
 
     # When
-    assert Authorization.can(user, :update, account, :member) == false
+    assert Authorization.authorize(:account_member_update, user, account) == {:error, :forbidden}
   end
 
   test "can.create.account.token when the subject is the same account being read" do
@@ -1063,7 +1102,7 @@ defmodule Tuist.AuthorizationTest do
     account = Accounts.get_account_from_user(user)
 
     # When
-    assert Authorization.can(user, :create, account, :token) == true
+    assert Authorization.authorize(:account_token_create, user, account) == :ok
   end
 
   test "can.create.account.token when the subject is not the same account being read" do
@@ -1073,7 +1112,7 @@ defmodule Tuist.AuthorizationTest do
     account_two = Accounts.get_account_from_user(user_two)
 
     # When
-    assert Authorization.can(user, :read, account_two, :token) == false
+    assert Authorization.authorize(:account_token_read, user, account_two) == {:error, :forbidden}
   end
 
   test "can.create.account.token when the subject is an admin of the account being read" do
@@ -1084,7 +1123,7 @@ defmodule Tuist.AuthorizationTest do
     Accounts.add_user_to_organization(user, organization, role: :admin)
 
     # When
-    assert Authorization.can(user, :create, account, :token) == true
+    assert Authorization.authorize(:account_token_create, user, account) == :ok
   end
 
   test "can.create.account.token when the subject is a user of the account being read" do
@@ -1095,7 +1134,7 @@ defmodule Tuist.AuthorizationTest do
     Accounts.add_user_to_organization(user, organization, role: :user)
 
     # When
-    assert Authorization.can(user, :create, account, :token) == true
+    assert Authorization.authorize(:account_token_create, user, account) == :ok
   end
 
   test "can.create.account.token when the subject does not belong to the account organization" do
@@ -1105,7 +1144,7 @@ defmodule Tuist.AuthorizationTest do
     account = Accounts.get_account_from_organization(organization)
 
     # When
-    assert Authorization.can(user, :create, account, :token) == false
+    assert Authorization.authorize(:account_token_create, user, account) == {:error, :forbidden}
   end
 
   test "can.read.account.token when the subject is not the same account being read" do
@@ -1115,7 +1154,7 @@ defmodule Tuist.AuthorizationTest do
     account_two = Accounts.get_account_from_user(user_two)
 
     # When
-    assert Authorization.can(user, :read, account_two, :token) == false
+    assert Authorization.authorize(:account_token_read, user, account_two) == {:error, :forbidden}
   end
 
   test "can.read.account.token when the subject is an admin of the account being read" do
@@ -1126,7 +1165,7 @@ defmodule Tuist.AuthorizationTest do
     Accounts.add_user_to_organization(user, organization, role: :admin)
 
     # When
-    assert Authorization.can(user, :read, account, :token) == true
+    assert Authorization.authorize(:account_token_read, user, account) == :ok
   end
 
   test "can.read.account.token when the subject is a user of the account being read" do
@@ -1137,7 +1176,7 @@ defmodule Tuist.AuthorizationTest do
     Accounts.add_user_to_organization(user, organization, role: :user)
 
     # When
-    assert Authorization.can(user, :read, account, :token) == true
+    assert Authorization.authorize(:account_token_read, user, account) == :ok
   end
 
   test "can.read.account.token when the subject does not belong to the account organization" do
@@ -1146,7 +1185,7 @@ defmodule Tuist.AuthorizationTest do
     account = Accounts.get_account_from_user(user)
 
     # When
-    assert Authorization.can(user, :read, account, :token) == true
+    assert Authorization.authorize(:account_token_read, user, account) == :ok
   end
 
   test "can.delete.account.token when the subject is not the same account being read" do
@@ -1156,7 +1195,8 @@ defmodule Tuist.AuthorizationTest do
     account_two = Accounts.get_account_from_user(user_two)
 
     # When
-    assert Authorization.can(user, :delete, account_two, :token) == false
+    assert Authorization.authorize(:account_token_delete, user, account_two) ==
+             {:error, :forbidden}
   end
 
   test "can.delete.account.token when the subject is an admin of the account being read" do
@@ -1167,7 +1207,7 @@ defmodule Tuist.AuthorizationTest do
     Accounts.add_user_to_organization(user, organization, role: :admin)
 
     # When
-    assert Authorization.can(user, :delete, account, :token) == true
+    assert Authorization.authorize(:account_token_delete, user, account) == :ok
   end
 
   test "can.delete.account.token when the subject is a user of the account being read" do
@@ -1178,7 +1218,7 @@ defmodule Tuist.AuthorizationTest do
     Accounts.add_user_to_organization(user, organization, role: :user)
 
     # When
-    assert Authorization.can(user, :delete, account, :token) == false
+    assert Authorization.authorize(:account_token_delete, user, account) == {:error, :forbidden}
   end
 
   test "can.delete.account.token when the subject does not belong to the account organization" do
@@ -1188,7 +1228,7 @@ defmodule Tuist.AuthorizationTest do
     account = Accounts.get_account_from_organization(organization)
 
     # When
-    assert Authorization.can(user, :delete, account, :token) == false
+    assert Authorization.authorize(:account_token_delete, user, account) == {:error, :forbidden}
   end
 
   test "can.create.project.preview when the subject is not the same project account being created" do
@@ -1199,7 +1239,7 @@ defmodule Tuist.AuthorizationTest do
     project = ProjectsFixtures.project_fixture(account_id: account_two.id)
 
     # When
-    assert Authorization.can?(:project_preview_create, user, project) == false
+    assert Authorization.authorize(:project_preview_create, user, project) == {:error, :forbidden}
   end
 
   test "can.create.project.preview when the subject is an admin of the project organization being created" do
@@ -1211,7 +1251,7 @@ defmodule Tuist.AuthorizationTest do
     project = ProjectsFixtures.project_fixture(account_id: account.id)
 
     # When
-    assert Authorization.can?(:project_preview_create, user, project) == true
+    assert Authorization.authorize(:project_preview_create, user, project) == :ok
   end
 
   test "can.create.project.preview when the subject is a user of the project organization being created" do
@@ -1223,7 +1263,7 @@ defmodule Tuist.AuthorizationTest do
     project = ProjectsFixtures.project_fixture(account_id: account.id)
 
     # When
-    assert Authorization.can?(:project_preview_create, user, project) == true
+    assert Authorization.authorize(:project_preview_create, user, project) == :ok
   end
 
   test "can.create.project.preview when the subject does not belong to the project organization" do
@@ -1234,7 +1274,7 @@ defmodule Tuist.AuthorizationTest do
     project = ProjectsFixtures.project_fixture(account_id: account.id)
 
     # When
-    assert Authorization.can?(:project_preview_create, user, project) == false
+    assert Authorization.authorize(:project_preview_create, user, project) == {:error, :forbidden}
   end
 
   test "can.create.project.preview when the subject is the same project previews are being created for" do
@@ -1242,7 +1282,7 @@ defmodule Tuist.AuthorizationTest do
     project = ProjectsFixtures.project_fixture()
 
     # When
-    assert Authorization.can?(:project_preview_create, project, project) == true
+    assert Authorization.authorize(:project_preview_create, project, project) == :ok
   end
 
   test "can.create.project.preview when the subject is not the same project previews are being created for" do
@@ -1251,7 +1291,8 @@ defmodule Tuist.AuthorizationTest do
     another_project = ProjectsFixtures.project_fixture()
 
     # When
-    assert Authorization.can?(:project_preview_create, another_project, project) == false
+    assert Authorization.authorize(:project_preview_create, another_project, project) ==
+             {:error, :forbidden}
   end
 
   test "can.read.project.preview when the subject is not the same project account being read" do
@@ -1262,7 +1303,7 @@ defmodule Tuist.AuthorizationTest do
     project = ProjectsFixtures.project_fixture(account_id: account_two.id)
 
     # When
-    assert Authorization.can?(:project_preview_read, user, project) == false
+    assert Authorization.authorize(:project_preview_read, user, project) == {:error, :forbidden}
   end
 
   test "can.read.project.preview when the subject is an admin of the project organization being read" do
@@ -1274,7 +1315,7 @@ defmodule Tuist.AuthorizationTest do
     project = ProjectsFixtures.project_fixture(account_id: account.id)
 
     # When
-    assert Authorization.can?(:project_preview_read, user, project) == true
+    assert Authorization.authorize(:project_preview_read, user, project) == :ok
   end
 
   test "can.read.project.preview when the subject is a user of the project organization being read" do
@@ -1286,7 +1327,7 @@ defmodule Tuist.AuthorizationTest do
     project = ProjectsFixtures.project_fixture(account_id: account.id)
 
     # When
-    assert Authorization.can?(:project_preview_read, user, project) == true
+    assert Authorization.authorize(:project_preview_read, user, project) == :ok
   end
 
   test "can.read.project.preview when the subject does not belong to the project organization" do
@@ -1297,7 +1338,7 @@ defmodule Tuist.AuthorizationTest do
     project = ProjectsFixtures.project_fixture(account_id: account.id)
 
     # When
-    assert Authorization.can?(:project_preview_read, user, project) == false
+    assert Authorization.authorize(:project_preview_read, user, project) == {:error, :forbidden}
   end
 
   test "can.read.project.preview when the subject does not belong to the project organization and the project is public" do
@@ -1306,7 +1347,7 @@ defmodule Tuist.AuthorizationTest do
     project = ProjectsFixtures.project_fixture(visibility: :public)
 
     # When
-    assert Authorization.can?(:project_preview_read, user, project) == true
+    assert Authorization.authorize(:project_preview_read, user, project) == :ok
   end
 
   test "can.read.project.preview when the subject is anonymous and the project is public" do
@@ -1314,7 +1355,7 @@ defmodule Tuist.AuthorizationTest do
     project = ProjectsFixtures.project_fixture(visibility: :public)
 
     # When
-    assert Authorization.can?(:project_preview_read, nil, project) == true
+    assert Authorization.authorize(:project_preview_read, nil, project) == :ok
   end
 
   test "can.update.project.settings when the subject is not the same project account being updated" do
@@ -1325,7 +1366,8 @@ defmodule Tuist.AuthorizationTest do
     project = ProjectsFixtures.project_fixture(account_id: account_two.id)
 
     # When
-    assert Authorization.can(user, :update, project, :settings) == false
+    assert Authorization.authorize(:project_settings_update, user, project) ==
+             {:error, :forbidden}
   end
 
   test "can.update.project.settings when the subject is an admin of the project organization being updated" do
@@ -1337,7 +1379,7 @@ defmodule Tuist.AuthorizationTest do
     project = ProjectsFixtures.project_fixture(account_id: account.id)
 
     # When
-    assert Authorization.can(user, :update, project, :settings) == true
+    assert Authorization.authorize(:project_settings_update, user, project) == :ok
   end
 
   test "can.update.project.settings when the subject is a user of the project organizatio being updated" do
@@ -1349,7 +1391,8 @@ defmodule Tuist.AuthorizationTest do
     project = ProjectsFixtures.project_fixture(account_id: account.id)
 
     # When
-    assert Authorization.can(user, :update, project, :settings) == false
+    assert Authorization.authorize(:project_settings_update, user, project) ==
+             {:error, :forbidden}
   end
 
   test "can.update.project.settings when the subject does not belong to the project organization" do
@@ -1360,7 +1403,8 @@ defmodule Tuist.AuthorizationTest do
     project = ProjectsFixtures.project_fixture(account_id: account.id)
 
     # When
-    assert Authorization.can(user, :update, project, :settings) == false
+    assert Authorization.authorize(:project_settings_update, user, project) ==
+             {:error, :forbidden}
   end
 
   test "can.user.read.ops when the environment is :dev" do
@@ -1369,7 +1413,7 @@ defmodule Tuist.AuthorizationTest do
     user = AccountsFixtures.user_fixture()
 
     # Then
-    assert Authorization.can(user, :read, :ops) == true
+    assert Authorization.authorize(:ops_read, user, :ops) == :ok
   end
 
   test "can.user.read.ops when the environment is not dev and the account handle is not included in the list of super admin handles" do
@@ -1379,7 +1423,7 @@ defmodule Tuist.AuthorizationTest do
     stub(Environment, :ops_user_handles, fn -> [] end)
 
     # Then
-    assert Authorization.can(user, :read, :ops) == false
+    assert Authorization.authorize(:command_event_read, user, :ops) == {:error, :forbidden}
   end
 
   test "can.user.read.ops when the environment is not dev and the account handle is included in the list of super admin handles" do
@@ -1389,7 +1433,7 @@ defmodule Tuist.AuthorizationTest do
     stub(Environment, :ops_user_handles, fn -> [user.account.name] end)
 
     # Then
-    assert Authorization.can(user, :read, :ops) == true
+    assert Authorization.authorize(:ops_read, user, :ops) == :ok
   end
 
   test "can.read.account.registry when the subject is the same account being read and the scopes permit the action" do
@@ -1397,11 +1441,11 @@ defmodule Tuist.AuthorizationTest do
     account = AccountsFixtures.user_fixture(preload: [:account]).account
 
     # When
-    assert Authorization.can?(
+    assert Authorization.authorize(
              :account_registry_read,
              %AuthenticatedAccount{account: account, scopes: [:account_registry_read]},
              account
-           ) == true
+           ) == :ok
   end
 
   test "can.read.account.registry when the subject is the same account being read and the scopes don't permit the action" do
@@ -1409,11 +1453,11 @@ defmodule Tuist.AuthorizationTest do
     account = AccountsFixtures.user_fixture(preload: [:account]).account
 
     # When
-    assert Authorization.can?(
+    assert Authorization.authorize(
              :account_registry_read,
              %AuthenticatedAccount{account: account, scopes: [:account_registry_write]},
              account
-           ) == false
+           ) == {:error, :forbidden}
   end
 
   test "can.read.account.registry when the subject is not the same account being read" do
@@ -1422,11 +1466,11 @@ defmodule Tuist.AuthorizationTest do
     another_account = AccountsFixtures.user_fixture(preload: [:account]).account
 
     # When
-    assert Authorization.can?(
+    assert Authorization.authorize(
              :account_registry_read,
              %AuthenticatedAccount{account: account, scopes: [:account_registry_read]},
              another_account
-           ) == false
+           ) == {:error, :forbidden}
   end
 
   test "can.read.account.registry when the subject is project" do
@@ -1435,10 +1479,10 @@ defmodule Tuist.AuthorizationTest do
     account = AccountsFixtures.user_fixture(preload: [:account]).account
 
     # When
-    assert Authorization.can?(
+    assert Authorization.authorize(
              :account_registry_read,
              project,
              account
-           ) == false
+           ) == {:error, :forbidden}
   end
 end

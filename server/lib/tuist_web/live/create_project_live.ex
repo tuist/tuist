@@ -116,7 +116,7 @@ defmodule TuistWeb.CreateProjectLive do
   @impl true
   def handle_event("create_project", %{"project" => params}, socket) do
     with %Account{} = account <- Accounts.get_account_by_id(socket.assigns.selected_account),
-         true <- Authorization.can(socket.assigns.current_user, :create, account, :project),
+         :ok <- Authorization.authorize(:project_create, socket.assigns.current_user, account),
          {:ok, project} <- Projects.create_project(%{name: params["name"], account: account}) do
       {:noreply,
        push_navigate(socket,

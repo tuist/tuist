@@ -48,10 +48,6 @@ defmodule TuistWeb.App do
      |> assign(
        :projects,
        projects
-     )
-     |> assign(
-       :can_update_billing,
-       Authorization.can(user, :update, owner_account, :billing)
      )}
   end
 

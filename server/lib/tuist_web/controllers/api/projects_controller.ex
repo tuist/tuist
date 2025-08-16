@@ -17,7 +17,7 @@ defmodule TuistWeb.API.ProjectsController do
     render_error: TuistWeb.RenderAPIErrorPlug
   )
 
-  tags ["Projects"]
+  tags(["Projects"])
 
   operation(:create,
     summary: "Create a new project.",
@@ -96,7 +96,7 @@ defmodule TuistWeb.API.ProjectsController do
         |> put_status(:not_found)
         |> json(%Error{message: "The account #{account_handle} was not found"})
 
-      !Authorization.can(user, :create, account, :project) ->
+      Authorization.authorize(:project_create, user, account) != :ok ->
         conn
         |> put_status(:forbidden)
         |> json(%Error{
@@ -225,7 +225,7 @@ defmodule TuistWeb.API.ProjectsController do
         |> put_status(:not_found)
         |> json(%Error{message: "Account #{account_handle} not found."})
 
-      !Authorization.can(user, :read, account, :project) ->
+      Authorization.authorize(:project_read, user, account) != :ok ->
         conn
         |> put_status(:forbidden)
         |> json(%Error{
@@ -376,7 +376,7 @@ defmodule TuistWeb.API.ProjectsController do
         |> put_status(:not_found)
         |> json(%{message: "Project #{account_handle}/#{project_handle} was not found."})
 
-      not Authorization.can(user, :update, project, :settings) ->
+      Authorization.authorize(:project_settings_update, user, project) != :ok ->
         conn
         |> put_status(:forbidden)
         |> json(%{
@@ -384,7 +384,10 @@ defmodule TuistWeb.API.ProjectsController do
         })
 
       not is_nil(repository) and
-          not Authorization.can(user, :update, project, %{repository: repository}) ->
+          Authorization.authorize(:project_update_with_repository, user, %{
+            project: project,
+            repository: repository
+          }) != :ok ->
         conn
         |> put_status(:forbidden)
         |> json(%{
@@ -458,7 +461,7 @@ defmodule TuistWeb.API.ProjectsController do
         |> put_status(:not_found)
         |> json(%Error{message: "Project not found."})
 
-      !Authorization.can(user, :delete, project_account.account, :project) ->
+      Authorization.authorize(:project_delete, user, project_account.account) != :ok ->
         conn
         |> put_status(:forbidden)
         |> json(%Error{

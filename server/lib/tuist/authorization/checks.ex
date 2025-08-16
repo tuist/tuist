@@ -96,7 +96,127 @@ defmodule Tuist.Authorization.Checks do
     true
   end
 
+  def public_project(_, %Project{visibility: :private}) do
+    false
+  end
+
   def public_project(_, %Project{}) do
+    false
+  end
+
+  def tuist_hosted_billing(%User{} = user, %Account{} = account) do
+    subscription = Tuist.Billing.get_current_active_subscription(account)
+
+    if not Tuist.Environment.tuist_hosted?() or
+         (not is_nil(subscription) and subscription.plan == :open_source) do
+      false
+    else
+      Accounts.owns_account_or_is_admin_to_account_organization?(user, account)
+    end
+  end
+
+  def ops_access(%User{} = user, _) do
+    if Tuist.Environment.dev?() do
+      true
+    else
+      user.account.name in Tuist.Environment.ops_user_handles()
+    end
+  end
+
+  def repository_permission_check(%User{} = user, %{project: %Project{} = project, repository: repository}) do
+    account = Accounts.get_account_by_id(project.account_id)
+
+    if Accounts.owns_account_or_is_admin_to_account_organization?(user, account) do
+      case Tuist.VCS.get_user_permission(%{user: user, repository: repository}) do
+        {:ok, %Tuist.VCS.Repositories.Permission{permission: permission}} ->
+          Enum.member?(["admin", "write"], permission)
+
+        _ ->
+          false
+      end
+    else
+      false
+    end
+  end
+
+  def project_command_event_access(%User{} = user, %{project: %Project{} = project}) do
+    user_role(user, project, :user)
+  end
+
+  def project_command_event_access(%User{} = user, command_event) when is_struct(command_event) do
+    case Map.get(command_event, :project) do
+      %Project{} = project ->
+        user_role(user, project, :user)
+
+      _ ->
+        case Map.get(command_event, :project_id) do
+          project_id when not is_nil(project_id) ->
+            project = Tuist.Projects.get_project_by_id(project_id)
+            user_role(user, project, :user)
+
+          _ ->
+            false
+        end
+    end
+  end
+
+  def project_command_event_access(nil, command_event) when is_struct(command_event) do
+    case Map.get(command_event, :project) do
+      %Project{} = project ->
+        public_project(nil, project)
+
+      _ ->
+        case Map.get(command_event, :project_id) do
+          project_id when not is_nil(project_id) ->
+            project = Tuist.Projects.get_project_by_id(project_id)
+            public_project(nil, project)
+
+          _ ->
+            false
+        end
+    end
+  end
+
+  def project_command_event_access(_, _) do
+    false
+  end
+
+  def command_event_project_access(user_or_nil, command_event) when is_struct(command_event) do
+    project =
+      case Map.get(command_event, :project) do
+        %Project{} = project ->
+          project
+
+        _ ->
+          case Map.get(command_event, :project_id) do
+            project_id when not is_nil(project_id) ->
+              Tuist.Projects.get_project_by_id(project_id)
+
+            _ ->
+              nil
+          end
+      end
+
+    case project do
+      %Project{} = project ->
+        if public_project(user_or_nil, project) do
+          true
+        else
+          case user_or_nil do
+            %User{} = user ->
+              user_role(user, project, :user)
+
+            _ ->
+              false
+          end
+        end
+
+      _ ->
+        false
+    end
+  end
+
+  def command_event_project_access(_, _) do
     false
   end
 end

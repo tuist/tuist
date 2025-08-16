@@ -130,68 +130,68 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
   end
 
   def authorize(subject, :read, project, :cache) do
-    Authorization.can?(:project_cache_read, subject, project)
+    Authorization.authorize(:project_cache_read, subject, project) == :ok
   end
 
   def authorize(subject, :create, project, :bundle) do
-    Authorization.can?(:project_bundle_create, subject, project)
+    Authorization.authorize(:project_bundle_create, subject, project) == :ok
   end
 
   def authorize(subject, :read, project, :bundle) do
-    Authorization.can?(:project_bundle_read, subject, project)
+    Authorization.authorize(:project_bundle_read, subject, project) == :ok
   end
 
   def authorize(subject, :read, account, :registry) do
-    Authorization.can?(:account_registry_read, subject, account)
+    Authorization.authorize(:account_registry_read, subject, account) == :ok
   end
 
   def authorize(subject, :create, account, :registry) do
     # Logging in is done via POST request
-    Authorization.can?(:account_registry_read, subject, account)
+    Authorization.authorize(:account_registry_read, subject, account) == :ok
   end
 
   def authorize(subject, :create, account, :account_token) do
-    Authorization.can?(:account_token_create, subject, account)
+    Authorization.authorize(:account_token_create, subject, account) == :ok
   end
 
   def authorize(subject, :create, project, :run) do
-    Authorization.can?(:project_run_create, subject, project)
+    Authorization.authorize(:project_run_create, subject, project) == :ok
   end
 
   def authorize(subject, :read, project, :run) do
-    Authorization.can?(:project_run_read, subject, project)
+    Authorization.authorize(:project_run_read, subject, project) == :ok
   end
 
   def authorize(subject, :update, project, :run) do
-    Authorization.can?(:project_run_update, subject, project)
+    Authorization.authorize(:project_run_update, subject, project) == :ok
   end
 
   def authorize(subject, :create, project, :preview) do
-    Authorization.can?(:project_preview_create, subject, project)
+    Authorization.authorize(:project_preview_create, subject, project) == :ok
   end
 
   def authorize(subject, :read, project, :preview) do
-    Authorization.can?(:project_preview_read, subject, project)
+    Authorization.authorize(:project_preview_read, subject, project) == :ok
   end
 
   def authorize(subject, :delete, project, :preview) do
-    Authorization.can?(:project_preview_delete, subject, project)
+    Authorization.authorize(:project_preview_delete, subject, project) == :ok
   end
 
   def authorize(subject, :create, project, :qa_step) do
-    Authorization.can?(:project_qa_step_create, subject, project)
+    Authorization.authorize(:project_qa_step_create, subject, project) == :ok
   end
 
   def authorize(subject, :update, project, :qa_run) do
-    Authorization.can?(:project_qa_run_update, subject, project)
+    Authorization.authorize(:project_qa_run_update, subject, project) == :ok
   end
 
   def authorize(subject, :create, project, :qa_screenshot) do
-    Authorization.can?(:project_qa_screenshot_create, subject, project)
+    Authorization.authorize(:project_qa_screenshot_create, subject, project) == :ok
   end
 
   def authorize(subject, action, project, category) do
-    Authorization.can(subject, action, project, category)
+    Authorization.authorize(:"#{category}_#{action}", subject, project) == :ok
   end
 
   defp get_action(conn) do

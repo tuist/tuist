@@ -14,7 +14,7 @@ defmodule TuistWeb.API.InvitationsController do
     render_message: TuistWeb.RenderAPIErrorPlug
   )
 
-  tags ["Invitations"]
+  tags(["Invitations"])
 
   operation(:create,
     summary: "Creates an invitation",
@@ -67,7 +67,7 @@ defmodule TuistWeb.API.InvitationsController do
         |> put_status(:not_found)
         |> json(%{message: "Organization #{organization_name} was not found."})
 
-      !Authorization.can(user, :create, organization.account, :invitation) ->
+      Authorization.authorize(:invitation_create, user, organization.account) != :ok ->
         conn
         |> put_status(:forbidden)
         |> json(%{message: "The authenticated subject is not authorized to perform this action"})
@@ -177,7 +177,7 @@ defmodule TuistWeb.API.InvitationsController do
           message: "The invitation with the given invitee email and organization name was not found"
         })
 
-      !Authorization.can(user, :delete, organization.account, :invitation) ->
+      Authorization.authorize(:invitation_delete, user, organization.account) != :ok ->
         conn
         |> put_status(:forbidden)
         |> json(%{message: "The authenticated subject is not authorized to perform this action"})
