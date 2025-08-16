@@ -82,6 +82,8 @@ config :money,
 # Use Jason for JSON parsing in Phoenix
 config :phoenix, :json_library, Jason
 
+config :prom_ex, :storage_adapter, PromEx.Storage.Peep
+
 # Oban
 config :tuist, Oban,
   repo: Tuist.Repo,
@@ -238,6 +240,8 @@ config :tuist, :urls,
   get_started: "https://docs.tuist.dev",
   forum: "https://community.tuist.dev",
   documentation: "https://docs.tuist.dev",
+  # Import environment specific config. This must remain at the bottom
+  # of this file so it overrides the configuration defined above.
   feature_generated_projects: "https://docs.tuist.dev/en/guides/features/projects",
   feature_cache: "https://docs.tuist.dev/en/guides/features/cache",
   feature_previews: "https://docs.tuist.dev/en/guides/features/previews",
@@ -252,6 +256,4 @@ config :ueberauth, Ueberauth,
     apple: {Ueberauth.Strategy.Apple, [callback_methods: ["POST"], default_scope: "email"]}
   ]
 
-# Import environment specific config. This must remain at the bottom
-# of this file so it overrides the configuration defined above.
 import_config "#{config_env()}.exs"
