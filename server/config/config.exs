@@ -79,10 +79,16 @@ config :mime, :types, %{
 config :money,
   default_currency: :USD
 
+config :peep, :bucket_calculator, Tuist.PromEx.Buckets
+
 # Use Jason for JSON parsing in Phoenix
 config :phoenix, :json_library, Jason
 
-config :prom_ex, :storage_adapter, PromEx.Storage.Peep
+# Using the default EST storage leads to [lock contention](https://github.com/akoutmos/prom_ex/issues/248#issuecomment-2709045234)
+# and causes the CPU clogging with cascading effects (e.g. connections dropping).
+# This configures prom_ex to use a different storage using [this](https://github.com/plausible/analytics/pull/5130/)
+# as a reference
+config :prom_ex, :storage_adapter, Tuist.PromEx.StripedPeep
 
 # Oban
 config :tuist, Oban,
