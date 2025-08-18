@@ -31,10 +31,6 @@ env:
   TUIST_CONFIG_TOKEN: ${{ secrets.TUIST_CONFIG_TOKEN }}
   PNPM_HOME: ~/.pnpm
 
-defaults:
-  run:
-    working-directory: docs
-
 concurrency:
   group: docs-${{ github.head_ref }}
   cancel-in-progress: true
@@ -51,20 +47,24 @@ jobs:
         with:
           path: |
             ~/.pnpm/store
-          key: pnpm-${{ hashFiles('../pnpm-lock.yaml') }}
+          key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - name: Restore cache
         id: cache-restore
         uses: actions/cache/restore@v4
         with:
-          path: ../.build
+          path: .build
           key: ${{ runner.os }}-docs-${{ hashFiles('../Package.resolved') }}
           restore-keys: ${{ runner.os }}-docs-
       - uses: jdx/mise-action@v2
+        with:
+          working-directory: docs
       - name: Generate CLI docs
+        working-directory: docs
         run: mise run generate-cli-docs
       - name: Generate manifest docs
+        working-directory: docs
         run: mise run generate-manifests-docs
       - name: Free space
         # Our build process takes a lot of disk space, hitting limits on GitHub Actions runners.
@@ -81,9 +81,11 @@ jobs:
         # sites where the number of pages is multiplied by the number of languages.
         env:
           NODE_OPTIONS: --max-old-space-size=12288
-        run: mise run docs:build
+        working-directory: docs
+        run: mise run build
       - name: Deploy to Cloudflare Pages
         if: github.ref == 'refs/heads/main'
+        working-directory: docs
         env:
           MISE_SOPS_AGE_KEY: ${{ secrets.MISE_SOPS_AGE_KEY }}
         run: |
@@ -92,5 +94,5 @@ jobs:
         id: cache-save
         uses: actions/cache/save@v4
         with:
-          path: ../.build
+          path: .build
           key: ${{ steps.cache-restore.outputs.cache-primary-key }}
