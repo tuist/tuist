@@ -238,6 +238,8 @@ public struct TuistCommand: AsyncParsableCommand {
         errorAlertMessage: TerminalText? = nil,
         errorAlertNextSteps: [TerminalText]? = nil
     ) {
+        if Environment.current.isJSONOutput { return }
+
         let errorAlert: ErrorAlert? =
             if let errorAlertMessage {
                 .alert(errorAlertMessage, takeaways: errorAlertNextSteps ?? [])

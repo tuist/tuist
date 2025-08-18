@@ -62,13 +62,13 @@ defmodule TuistWeb.API.BundlesController do
          %Schema{
            type: :object,
            properties: %{
-             data: %Schema{
+             bundles: %Schema{
                type: :array,
                items: Bundle
              },
              meta: TuistWeb.API.Schemas.PaginationMetadata
            },
-           required: [:data, :meta]
+           required: [:bundles, :meta]
          }},
       unauthorized: {"You need to be authenticated to list bundles", "application/json", Error},
       forbidden: {"You are not authorized to list bundles", "application/json", Error}
@@ -89,7 +89,7 @@ defmodule TuistWeb.API.BundlesController do
       filters: filters,
       order_by: [:inserted_at],
       order_directions: [:desc],
-      page_size: Map.get(params, "page_size", 50)
+      page_size: Map.get(params, "page_size", 20)
     }
 
     flop_params =

@@ -34,7 +34,7 @@ struct BundleShowCommandServiceTests {
         // When
         await #expect(throws: BundleShowCommandServiceError.missingFullHandle, performing: {
             try await subject.run(
-                fullHandle: nil,
+                project: nil,
                 bundleId: "bundle-123",
                 path: nil,
                 json: false
@@ -62,7 +62,7 @@ struct BundleShowCommandServiceTests {
         ).willReturn(bundle)
         // When
         try await subject.run(
-            fullHandle: nil,
+            project: nil,
             bundleId: bunldeId,
             path: nil,
             json: false
@@ -73,7 +73,7 @@ struct BundleShowCommandServiceTests {
     }
 
     @Test(
-        .withMockedEnvironment(),
+        .withMockedEnvironment(arguments: ["--json"]),
         .withMockedNoora
     ) func run_when_full_handle_is_not_pass_and_present_in_config_and_json() async throws {
         // Given
@@ -92,7 +92,7 @@ struct BundleShowCommandServiceTests {
         ).willReturn(bundle)
         // When
         try await subject.run(
-            fullHandle: nil,
+            project: nil,
             bundleId: bunldeId,
             path: nil,
             json: true
@@ -100,6 +100,7 @@ struct BundleShowCommandServiceTests {
 
         // Then
         let jsonEncoder = JSONEncoder()
+        jsonEncoder.dateEncodingStrategy = .iso8601
         jsonEncoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         let bundleJSON = String(data: try jsonEncoder.encode(bundle), encoding: .utf8)!
         #expect(ui().contains(bundleJSON))
@@ -125,7 +126,7 @@ struct BundleShowCommandServiceTests {
         ).willReturn(bundle)
         // When
         try await subject.run(
-            fullHandle: fullHandle,
+            project: fullHandle,
             bundleId: bunldeId,
             path: nil,
             json: false
@@ -136,7 +137,7 @@ struct BundleShowCommandServiceTests {
     }
 
     @Test(
-        .withMockedEnvironment(),
+        .withMockedEnvironment(arguments: ["--json"]),
         .withMockedNoora
     ) func run_when_full_handle_is_passed_and_absent_in_config_and_json() async throws {
         // Given
@@ -155,7 +156,7 @@ struct BundleShowCommandServiceTests {
         ).willReturn(bundle)
         // When
         try await subject.run(
-            fullHandle: fullHandle,
+            project: fullHandle,
             bundleId: bunldeId,
             path: nil,
             json: true
@@ -163,6 +164,7 @@ struct BundleShowCommandServiceTests {
 
         // Then
         let jsonEncoder = JSONEncoder()
+        jsonEncoder.dateEncodingStrategy = .iso8601
         jsonEncoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         let bundleJSON = String(data: try jsonEncoder.encode(bundle), encoding: .utf8)!
         #expect(ui().contains(bundleJSON))
@@ -191,7 +193,7 @@ struct BundleShowCommandServiceTests {
         ).willReturn(bundle)
         // When
         try await subject.run(
-            fullHandle: optionFullHandle,
+            project: optionFullHandle,
             bundleId: bunldeId,
             path: nil,
             json: false
@@ -202,7 +204,7 @@ struct BundleShowCommandServiceTests {
     }
 
     @Test(
-        .withMockedEnvironment(),
+        .withMockedEnvironment(arguments: ["--json"]),
         .withMockedNoora
     ) func run_when_full_handle_is_passed_and_present_in_config_and_json() async throws {
         // Given
@@ -224,7 +226,7 @@ struct BundleShowCommandServiceTests {
         ).willReturn(bundle)
         // When
         try await subject.run(
-            fullHandle: optionFullHandle,
+            project: optionFullHandle,
             bundleId: bunldeId,
             path: nil,
             json: true
@@ -232,6 +234,7 @@ struct BundleShowCommandServiceTests {
 
         // Then
         let jsonEncoder = JSONEncoder()
+        jsonEncoder.dateEncodingStrategy = .iso8601
         jsonEncoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         let bundleJSON = String(data: try jsonEncoder.encode(bundle), encoding: .utf8)!
         #expect(ui().contains(bundleJSON))

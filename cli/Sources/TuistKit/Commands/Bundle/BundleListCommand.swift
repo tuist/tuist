@@ -17,7 +17,7 @@ struct BundleListCommand: AsyncParsableCommand, NooraReadyCommand {
         help: "The full handle of the project. Must be in the format of account-handle/project-handle. If not provided, it will be read from the project's Tuist.swift.",
         envKey: .bundleListFullHandle
     )
-    var fullHandle: String?
+    var project: String?
 
     @Option(
         name: .shortAndLong,
@@ -43,7 +43,7 @@ struct BundleListCommand: AsyncParsableCommand, NooraReadyCommand {
 
     func run() async throws {
         try await BundleListCommandService().run(
-            fullHandle: fullHandle,
+            project: project,
             path: path,
             gitBranch: gitBranch,
             json: json

@@ -10,7 +10,7 @@ import TuistSupport
 @Mockable
 protocol BundleShowCommandServicing {
     func run(
-        fullHandle: String?,
+        project: String?,
         bundleId: String,
         path: String?,
         json: Bool
@@ -44,7 +44,7 @@ final class BundleShowCommandService: BundleShowCommandServicing {
     }
 
     func run(
-        fullHandle: String?,
+        project: String?,
         bundleId: String,
         path: String?,
         json: Bool
@@ -52,7 +52,7 @@ final class BundleShowCommandService: BundleShowCommandServicing {
         let directoryPath: AbsolutePath = try await Environment.current.pathRelativeToWorkingDirectory(path)
 
         let config = try await configLoader.loadConfig(path: directoryPath)
-        guard let resolvedFullHandle = fullHandle != nil ? fullHandle! : config.fullHandle else {
+        guard let resolvedFullHandle = project != nil ? project! : config.fullHandle else {
             throw BundleShowCommandServiceError.missingFullHandle
         }
 

@@ -36,7 +36,7 @@ struct BundleListCommandServiceTests {
         // When
         await #expect(throws: BundleListCommandServiceError.missingFullHandle, performing: {
             try await subject.run(
-                fullHandle: nil,
+                project: nil,
                 path: nil,
                 gitBranch: nil,
                 json: false
@@ -45,7 +45,7 @@ struct BundleListCommandServiceTests {
     }
 
     @Test(
-        .withMockedEnvironment(),
+        .withMockedEnvironment(arguments: ["--json"]),
         .withMockedNoora
     ) func run_when_full_handle_is_not_pass_and_present_in_config_and_json() async throws {
         // Given
@@ -67,7 +67,7 @@ struct BundleListCommandServiceTests {
         ])
         // When
         try await subject.run(
-            fullHandle: nil,
+            project: nil,
             path: nil,
             gitBranch: "main",
             json: true
@@ -75,6 +75,7 @@ struct BundleListCommandServiceTests {
 
         // Then
         let jsonEncoder = JSONEncoder()
+        jsonEncoder.dateEncodingStrategy = .iso8601
         jsonEncoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         let bundleJSON = String(data: try jsonEncoder.encode([serverBundle]), encoding: .utf8)!
         #expect(ui().contains(bundleJSON))
@@ -101,7 +102,7 @@ struct BundleListCommandServiceTests {
         ])
         // When
         try await subject.run(
-            fullHandle: nil,
+            project: nil,
             path: nil,
             gitBranch: "main",
             json: false
@@ -134,7 +135,7 @@ struct BundleListCommandServiceTests {
         ])
         // When
         try await subject.run(
-            fullHandle: nil,
+            project: nil,
             path: nil,
             gitBranch: "main",
             json: false

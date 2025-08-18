@@ -73,7 +73,7 @@ public final class ListBundlesService: ListBundlesServicing {
         case let .ok(okResponse):
             switch okResponse.body {
             case let .json(json):
-                return json.data.compactMap(ServerBundle.init)
+                return json.bundles.compactMap(ServerBundle.init)
             }
         case let .unauthorized(unauthorized):
             switch unauthorized.body {

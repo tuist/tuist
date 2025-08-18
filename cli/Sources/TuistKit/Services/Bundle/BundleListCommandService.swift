@@ -8,7 +8,7 @@ import TuistSupport
 
 protocol BundleListCommandServicing {
     func run(
-        fullHandle: String?,
+        project: String?,
         path: String?,
         gitBranch: String?,
         json: Bool
@@ -42,7 +42,7 @@ final class BundleListCommandService: BundleListCommandServicing {
     }
 
     func run(
-        fullHandle: String?,
+        project: String?,
         path: String?,
         gitBranch: String?,
         json: Bool
@@ -50,7 +50,7 @@ final class BundleListCommandService: BundleListCommandServicing {
         let directoryPath: AbsolutePath = try await Environment.current.pathRelativeToWorkingDirectory(path)
 
         let config = try await configLoader.loadConfig(path: directoryPath)
-        guard let resolvedFullHandle = fullHandle != nil ? fullHandle! : config.fullHandle else {
+        guard let resolvedFullHandle = project != nil ? project! : config.fullHandle else {
             throw BundleListCommandServiceError.missingFullHandle
         }
 

@@ -6321,24 +6321,24 @@ internal enum Operations {
                 internal enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/responses/200/content/json`.
                     internal struct jsonPayload: Codable, Hashable, Sendable {
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/responses/200/content/json/data`.
-                        internal var data: [Components.Schemas.Bundle]
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/responses/200/content/json/bundles`.
+                        internal var bundles: [Components.Schemas.Bundle]
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/responses/200/content/json/meta`.
                         internal var meta: Components.Schemas.PaginationMetadata
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
-                        ///   - data:
+                        ///   - bundles:
                         ///   - meta:
                         internal init(
-                            data: [Components.Schemas.Bundle],
+                            bundles: [Components.Schemas.Bundle],
                             meta: Components.Schemas.PaginationMetadata
                         ) {
-                            self.data = data
+                            self.bundles = bundles
                             self.meta = meta
                         }
                         internal enum CodingKeys: String, CodingKey {
-                            case data
+                            case bundles
                             case meta
                         }
                     }
@@ -12362,10 +12362,6 @@ internal enum Operations {
         internal struct Input: Sendable, Hashable {
             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}/GET/path`.
             internal struct Path: Sendable, Hashable {
-                /// The ID of the bundle.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}/GET/path/bundle_id`.
-                internal var bundle_id: Swift.String
                 /// The handle of the account.
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}/GET/path/account_handle`.
@@ -12374,20 +12370,24 @@ internal enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}/GET/path/project_handle`.
                 internal var project_handle: Swift.String
+                /// The ID of the bundle.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}/GET/path/bundle_id`.
+                internal var bundle_id: Swift.String
                 /// Creates a new `Path`.
                 ///
                 /// - Parameters:
-                ///   - bundle_id: The ID of the bundle.
                 ///   - account_handle: The handle of the account.
                 ///   - project_handle: The handle of the project.
+                ///   - bundle_id: The ID of the bundle.
                 internal init(
-                    bundle_id: Swift.String,
                     account_handle: Swift.String,
-                    project_handle: Swift.String
+                    project_handle: Swift.String,
+                    bundle_id: Swift.String
                 ) {
-                    self.bundle_id = bundle_id
                     self.account_handle = account_handle
                     self.project_handle = project_handle
+                    self.bundle_id = bundle_id
                 }
             }
             internal var path: Operations.getBundle.Input.Path

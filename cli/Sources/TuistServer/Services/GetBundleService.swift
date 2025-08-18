@@ -53,9 +53,9 @@ public final class GetBundleService: GetBundleServicing {
         let response = try await client.getBundle(
             .init(
                 path: .init(
-                    bundle_id: bundleId,
-                    account_handle: handles.accountHandle,
-                    project_handle: handles.projectHandle,
+                    account_handle: bundleId,
+                    project_handle: handles.accountHandle,
+                    bundle_id: handles.projectHandle,
                 )
             )
         )
@@ -64,10 +64,7 @@ public final class GetBundleService: GetBundleServicing {
         case let .ok(okResponse):
             switch okResponse.body {
             case let .json(bundle):
-                guard let serverBundle = ServerBundle(bundle) else {
-                    throw GetBundleServiceError.unknownError(500)
-                }
-                return serverBundle
+                return ServerBundle(bundle)
             }
         case let .notFound(notFound):
             switch notFound.body {

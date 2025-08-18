@@ -28,7 +28,6 @@ public struct ServerBundle: Codable {
         gitCommitSha: String?,
         gitRef: String?,
         insertedAt: Date,
-        updatedAt _: Date,
         uploadedByAccount: String,
         artifacts: [ServerBundleArtifact],
         url: String
@@ -49,7 +48,7 @@ public struct ServerBundle: Codable {
         self.url = url
     }
 
-    init?(_ bundle: Components.Schemas.Bundle) {
+    init(_ bundle: Components.Schemas.Bundle) {
         id = bundle.id
         name = bundle.name
         appBundleId = bundle.app_bundle_id
@@ -88,7 +87,7 @@ public struct ServerBundleArtifact: Codable {
         self.children = children
     }
 
-    init?(_ artifact: Components.Schemas.BundleArtifact) {
+    init(_ artifact: Components.Schemas.BundleArtifact) {
         artifactType = artifact.artifact_type.rawValue
         path = artifact.path
         size = artifact.size
@@ -111,7 +110,6 @@ public struct ServerBundleArtifact: Codable {
             gitCommitSha: String? = "abc123",
             gitRef: String? = "refs/heads/main",
             insertedAt: Date = Date(),
-            updatedAt: Date = Date(),
             uploadedByAccount: String = "test-account",
             artifacts: [ServerBundleArtifact] = [],
             url: String = "https://tuist.dev/test-account/test-project/bundles/test-bundle-id"
@@ -128,7 +126,6 @@ public struct ServerBundleArtifact: Codable {
                 gitCommitSha: gitCommitSha,
                 gitRef: gitRef,
                 insertedAt: insertedAt,
-                updatedAt: updatedAt,
                 uploadedByAccount: uploadedByAccount,
                 artifacts: artifacts,
                 url: url
