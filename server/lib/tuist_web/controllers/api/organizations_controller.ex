@@ -321,7 +321,7 @@ defmodule TuistWeb.API.OrganizationsController do
         |> put_status(:not_found)
         |> json(%{message: "Organization not found"})
 
-      Authorization.authorize(:organization_usage_read, user, organization.account) != :ok ->
+      Authorization.authorize(:billing_usage_read, user, organization.account) != :ok ->
         conn
         |> put_status(:forbidden)
         |> json(%{message: "The authenticated subject is not authorized to perform this action"})

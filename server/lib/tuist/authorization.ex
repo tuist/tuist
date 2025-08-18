@@ -4,7 +4,7 @@ defmodule Tuist.Authorization do
   """
   use LetMe.Policy, error_reason: :forbidden
 
-  object :project_run do
+  object :run do
     action :create do
       desc("Allows users of a project to create a run.")
       allow([:authenticated_as_user, user_role: :user])
@@ -29,9 +29,7 @@ defmodule Tuist.Authorization do
       desc("Allows the admin of a project to read a run.")
       allow([:authenticated_as_user, user_role: :admin])
 
-      desc(
-        "Allows the authenticated project to read the run if it matches the project whose run is being read."
-      )
+      desc("Allows the authenticated project to read the run if it matches the project whose run is being read.")
 
       allow([:authenticated_as_project, :projects_match])
     end
@@ -43,15 +41,13 @@ defmodule Tuist.Authorization do
       desc("Allows the admin of a project to update a run.")
       allow([:authenticated_as_user, user_role: :admin])
 
-      desc(
-        "Allows the authenticated project to update the run if it matches the project whose run is being read."
-      )
+      desc("Allows the authenticated project to update the run if it matches the project whose run is being read.")
 
       allow([:authenticated_as_project, :projects_match])
     end
   end
 
-  object :project_bundle do
+  object :bundle do
     action :create do
       desc("Allows users of a project to create a bundle.")
       allow([:authenticated_as_user, user_role: :user])
@@ -67,9 +63,7 @@ defmodule Tuist.Authorization do
     end
 
     action :read do
-      desc(
-        "Allows the authenticated subject to read a project's bundle if the project is public."
-      )
+      desc("Allows the authenticated subject to read a project's bundle if the project is public.")
 
       allow(:public_project)
 
@@ -79,15 +73,40 @@ defmodule Tuist.Authorization do
       desc("Allows the admin of a project to read a bundle.")
       allow([:authenticated_as_user, user_role: :admin])
 
-      desc(
-        "Allows the authenticated project to read the bundle if it matches the project whose bundle is being read."
-      )
+      desc("Allows the authenticated project to read the bundle if it matches the project whose bundle is being read.")
 
       allow([:authenticated_as_project, :projects_match])
     end
   end
 
-  object :project_cache do
+  object :cache do
+    action :create do
+      desc("Allows users of a project's account to create entries in the project cache.")
+      allow([:authenticated_as_user, user_role: :user])
+
+      desc("Allows the admin of a project's account to create entries in the project cache.")
+      allow([:authenticated_as_user, user_role: :admin])
+
+      desc("Allows the authenticated project to read the cache if it matches the project whose cache is being read.")
+
+      allow([:authenticated_as_project, :projects_match])
+    end
+
+    action :read do
+      desc("Allows the authenticated subject to read a project's cache if the project is public.")
+      allow(:public_project)
+
+      desc("Allows users of a project's account to read the project cache.")
+      allow([:authenticated_as_user, user_role: :user])
+
+      desc("Allows the admin of a project's account to read the project cache.")
+      allow([:authenticated_as_user, user_role: :admin])
+
+      desc("Allows the authenticated project to read the cache if it matches the project whose cache is being read.")
+
+      allow([:authenticated_as_project, :projects_match])
+    end
+
     action :update do
       desc("Allows users of a project to update cache.")
       allow([:authenticated_as_user, user_role: :user])
@@ -100,7 +119,25 @@ defmodule Tuist.Authorization do
     end
   end
 
-  object :account_registry do
+  object :registry do
+    action :create do
+      desc("Allows users of an account to read its registry.")
+      allow([:authenticated_as_user, user_role: :user])
+
+      desc("Allows the admin of an account to read its registry.")
+      allow([:authenticated_as_user, user_role: :admin])
+
+      desc(
+        "Allows the authenticated account to read the account registry if it matches the account whose registry is being read."
+      )
+
+      allow([:authenticated_as_account, :accounts_match, scopes_permit: :registry_read])
+
+      desc("Allows the authenticated project to read the cache if it matches the project whose cache is being read.")
+
+      allow([:authenticated_as_project, :accounts_match])
+    end
+
     action :read do
       desc("Allows users of an account to read its registry.")
       allow([:authenticated_as_user, user_role: :user])
@@ -112,11 +149,9 @@ defmodule Tuist.Authorization do
         "Allows the authenticated account to read the account registry if it matches the account whose registry is being read."
       )
 
-      allow([:authenticated_as_account, :accounts_match, scopes_permit: :account_registry_read])
+      allow([:authenticated_as_account, :accounts_match, scopes_permit: :registry_read])
 
-      desc(
-        "Allows the authenticated project to read the cache if it matches the project whose cache is being read."
-      )
+      desc("Allows the authenticated project to read the cache if it matches the project whose cache is being read.")
 
       allow([:authenticated_as_project, :accounts_match])
     end
@@ -157,31 +192,29 @@ defmodule Tuist.Authorization do
     end
   end
 
-  object :project_qa_step do
+  object :qa_step do
     action :create do
-      desc("Allows an account token with project_qa_step_create scope to create QA steps.")
-      allow([:authenticated_as_account, scopes_permit: :project_qa_step_create])
+      desc("Allows an account token with qa_step_create scope to create QA steps.")
+      allow([:authenticated_as_account, scopes_permit: :qa_step_create])
     end
   end
 
-  object :project_qa_screenshot do
+  object :qa_screenshot do
     action :create do
-      desc(
-        "Allows an account token with project_qa_screenshot_create scope to create QA screenshots."
-      )
+      desc("Allows an account token with qa_screenshot_create scope to create QA screenshots.")
 
-      allow([:authenticated_as_account, scopes_permit: :project_qa_screenshot_create])
+      allow([:authenticated_as_account, scopes_permit: :qa_screenshot_create])
     end
   end
 
-  object :project_qa_run do
+  object :qa_run do
     action :update do
-      desc("Allows an account token with project_qa_run_update scope to update a QA run.")
-      allow([:authenticated_as_account, scopes_permit: :project_qa_run_update])
+      desc("Allows an account token with qa_run_update scope to update a QA run.")
+      allow([:authenticated_as_account, scopes_permit: :qa_run_update])
     end
   end
 
-  object :project_preview do
+  object :preview do
     action :create do
       desc("Allows users of a project to create a preview.")
       allow([:authenticated_as_user, user_role: :user])
@@ -197,9 +230,7 @@ defmodule Tuist.Authorization do
     end
 
     action :read do
-      desc(
-        "Allows the authenticated subject to read a project's preview if the project is public."
-      )
+      desc("Allows the authenticated subject to read a project's preview if the project is public.")
 
       allow(:public_project)
 
@@ -209,9 +240,7 @@ defmodule Tuist.Authorization do
       desc("Allows the admin of a project to read a preview.")
       allow([:authenticated_as_user, user_role: :admin])
 
-      desc(
-        "Allows the authenticated project to read the preview if it matches the project whose preview is being read."
-      )
+      desc("Allows the authenticated project to read the preview if it matches the project whose preview is being read.")
 
       allow([:authenticated_as_project, :projects_match])
     end
@@ -257,9 +286,7 @@ defmodule Tuist.Authorization do
       desc("Allows the admin of an account to update a project with repository changes.")
       allow([:authenticated_as_user, user_role: :admin])
 
-      desc(
-        "Allows users with repository write/admin permissions to update a project with repository changes."
-      )
+      desc("Allows users with repository write/admin permissions to update a project with repository changes.")
 
       allow([:authenticated_as_user, :repository_permission_check])
     end
@@ -270,7 +297,7 @@ defmodule Tuist.Authorization do
     end
   end
 
-  object :project_dashboard do
+  object :dashboard do
     action :read do
       desc("Allows anyone to read a public project dashboard.")
       allow(:public_project)
@@ -283,7 +310,7 @@ defmodule Tuist.Authorization do
     end
   end
 
-  object :account_billing do
+  object :billing do
     action :read do
       desc("Allows admins to read billing information for Tuist hosted accounts.")
       allow([:authenticated_as_user, :tuist_hosted_billing])
@@ -294,7 +321,7 @@ defmodule Tuist.Authorization do
       allow([:authenticated_as_user, :tuist_hosted_billing])
     end
 
-    action :read_token_usage do
+    action :usage_read do
       desc("Allows users of an account to read organization token usage.")
       allow([:authenticated_as_user, user_role: :user])
 
@@ -303,7 +330,7 @@ defmodule Tuist.Authorization do
     end
   end
 
-  object :account_projects do
+  object :projects do
     action :read do
       desc("Allows users of an account to read projects.")
       allow([:authenticated_as_user, user_role: :user])
@@ -313,7 +340,7 @@ defmodule Tuist.Authorization do
     end
   end
 
-  object :account_organization_info do
+  object :organization do
     action :read do
       desc("Allows users of an account to read organization info.")
       allow([:authenticated_as_user, user_role: :user])
@@ -333,7 +360,7 @@ defmodule Tuist.Authorization do
     end
   end
 
-  object :account_invitation do
+  object :invitation do
     action :create do
       desc("Allows the admin of an account to create invitations.")
       allow([:authenticated_as_user, user_role: :admin])
@@ -350,7 +377,7 @@ defmodule Tuist.Authorization do
     end
   end
 
-  object :account_member do
+  object :member do
     action :update do
       desc("Allows the admin of an account to update members.")
       allow([:authenticated_as_user, user_role: :admin])
@@ -377,9 +404,7 @@ defmodule Tuist.Authorization do
 
   object :command_event do
     action :read do
-      desc(
-        "Allows reading command events if the user can read the associated project or if the project is public."
-      )
+      desc("Allows reading command events if the user can read the associated project or if the project is public.")
 
       allow(:command_event_project_access)
     end

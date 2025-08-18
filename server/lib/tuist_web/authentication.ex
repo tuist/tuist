@@ -329,7 +329,7 @@ defmodule TuistWeb.Authentication do
       ) do
     project = Projects.get_project_by_account_and_project_handles(account_handle, project_handle)
 
-    if is_nil(project) or Authorization.authorize(:project_dashboard_read, nil, project) != :ok,
+    if is_nil(project) or Authorization.authorize(:dashboard_read, nil, project) != :ok,
       do: require_authenticated_user(conn, opts),
       else: conn
   end
@@ -342,7 +342,7 @@ defmodule TuistWeb.Authentication do
       {:ok, preview} ->
         if preview.visibility == :public or
              Authorization.authorize(
-               :project_preview_read,
+               :preview_read,
                nil,
                Repo.preload(preview, :project).project
              ) == :ok do

@@ -63,7 +63,7 @@ defmodule TuistWeb.LayoutLive do
 
     %{account: selected_account} = selected_project
 
-    selected_account_projects = get_account_projects(selected_account, current_user)
+    selected_projects = get_projects(selected_account, current_user)
 
     current_user_accounts =
       if is_nil(current_user) do
@@ -95,7 +95,7 @@ defmodule TuistWeb.LayoutLive do
      |> append_breadcrumb(%{
        label: selected_project.name,
        items:
-         Enum.map(selected_account_projects, fn project ->
+         Enum.map(selected_projects, fn project ->
            %{
              label: project.name,
              value: project.id,
@@ -110,8 +110,8 @@ defmodule TuistWeb.LayoutLive do
      |> assign(:selected_project, selected_project)
      |> assign(:current_user, current_user)
      |> assign(
-       :selected_account_projects,
-       selected_account_projects
+       :selected_projects,
+       selected_projects
      )
      |> assign_selected_run(params)}
   end
@@ -178,7 +178,7 @@ defmodule TuistWeb.LayoutLive do
     end)
   end
 
-  defp get_account_projects(account, current_user) do
+  defp get_projects(account, current_user) do
     account
     |> Projects.get_all_project_accounts()
     |> Enum.filter(fn %{account: account, project: project} ->

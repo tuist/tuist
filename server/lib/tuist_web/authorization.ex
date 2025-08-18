@@ -55,7 +55,7 @@ defmodule TuistWeb.Authorization do
       is_nil(user) ->
         raise UnauthorizedError, gettext("You need to be authenticated to access this page.")
 
-      Authorization.authorize(:project_preview_read, user, preview.project) == :ok ->
+      Authorization.authorize(:preview_read, user, preview.project) == :ok ->
         conn
 
       true ->
@@ -101,7 +101,7 @@ defmodule TuistWeb.Authorization do
   def require_user_can_read_project(%{user: user, account_handle: account_handle, project_handle: project_handle}) do
     project = Projects.get_project_by_account_and_project_handles(account_handle, project_handle)
 
-    if is_nil(project) or Authorization.authorize(:project_dashboard_read, user, project) != :ok do
+    if is_nil(project) or Authorization.authorize(:dashboard_read, user, project) != :ok do
       raise NotFoundError,
             "The page you are looking for doesn't exist or has been moved."
     end

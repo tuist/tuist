@@ -38,7 +38,7 @@ defmodule TuistWeb.API.QAControllerTest do
     } do
       # Given
       conn =
-        assign(conn, :current_subject, %AuthenticatedAccount{account: user.account, scopes: [:project_qa_step_create]})
+        assign(conn, :current_subject, %AuthenticatedAccount{account: user.account, scopes: [:qa_step_create]})
 
       # When
       conn =
@@ -66,7 +66,7 @@ defmodule TuistWeb.API.QAControllerTest do
     } do
       # Given
       conn =
-        assign(conn, :current_subject, %AuthenticatedAccount{account: user.account, scopes: [:project_qa_step_create]})
+        assign(conn, :current_subject, %AuthenticatedAccount{account: user.account, scopes: [:qa_step_create]})
 
       # Create some screenshots without step_id
       {:ok, screenshot1} = QA.create_qa_screenshot(%{qa_run_id: qa_run.id, file_name: "screen1", title: "Screen 1"})
@@ -100,7 +100,7 @@ defmodule TuistWeb.API.QAControllerTest do
     } do
       # Given
       conn =
-        assign(conn, :current_subject, %AuthenticatedAccount{account: user.account, scopes: [:project_qa_step_create]})
+        assign(conn, :current_subject, %AuthenticatedAccount{account: user.account, scopes: [:qa_step_create]})
 
       non_existent_run_id = Ecto.UUID.generate()
 
@@ -161,7 +161,7 @@ defmodule TuistWeb.API.QAControllerTest do
       conn =
         assign(conn, :current_subject, %AuthenticatedAccount{
           account: user.account,
-          scopes: [:project_qa_screenshot_create]
+          scopes: [:qa_screenshot_create]
         })
 
       expect(Storage, :generate_upload_url, fn storage_key, _options ->
@@ -193,7 +193,7 @@ defmodule TuistWeb.API.QAControllerTest do
       conn =
         assign(conn, :current_subject, %AuthenticatedAccount{
           account: user.account,
-          scopes: [:project_qa_screenshot_create]
+          scopes: [:qa_screenshot_create]
         })
 
       non_existent_run_id = Ecto.UUID.generate()
@@ -258,7 +258,7 @@ defmodule TuistWeb.API.QAControllerTest do
       conn =
         assign(conn, :current_subject, %AuthenticatedAccount{
           account: user.account,
-          scopes: [:project_qa_screenshot_create]
+          scopes: [:qa_screenshot_create]
         })
 
       # When
@@ -288,7 +288,7 @@ defmodule TuistWeb.API.QAControllerTest do
       conn =
         assign(conn, :current_subject, %AuthenticatedAccount{
           account: user.account,
-          scopes: [:project_qa_screenshot_create]
+          scopes: [:qa_screenshot_create]
         })
 
       non_existent_run_id = Ecto.UUID.generate()
@@ -318,7 +318,7 @@ defmodule TuistWeb.API.QAControllerTest do
       conn =
         assign(conn, :current_subject, %AuthenticatedAccount{
           account: user.account,
-          scopes: [:project_qa_screenshot_create]
+          scopes: [:qa_screenshot_create]
         })
 
       # Create first screenshot
@@ -379,7 +379,7 @@ defmodule TuistWeb.API.QAControllerTest do
     } do
       # Given
       conn =
-        assign(conn, :current_subject, %AuthenticatedAccount{account: user.account, scopes: [:project_qa_run_update]})
+        assign(conn, :current_subject, %AuthenticatedAccount{account: user.account, scopes: [:qa_run_update]})
 
       # When
       conn =
@@ -408,7 +408,7 @@ defmodule TuistWeb.API.QAControllerTest do
     } do
       # Given
       conn =
-        assign(conn, :current_subject, %AuthenticatedAccount{account: user.account, scopes: [:project_qa_run_update]})
+        assign(conn, :current_subject, %AuthenticatedAccount{account: user.account, scopes: [:qa_run_update]})
 
       # When
       conn =
@@ -435,7 +435,7 @@ defmodule TuistWeb.API.QAControllerTest do
     } do
       # Given
       conn =
-        assign(conn, :current_subject, %AuthenticatedAccount{account: user.account, scopes: [:project_qa_run_update]})
+        assign(conn, :current_subject, %AuthenticatedAccount{account: user.account, scopes: [:qa_run_update]})
 
       non_existent_run_id = Ecto.UUID.generate()
 

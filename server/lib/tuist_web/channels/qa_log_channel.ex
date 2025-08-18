@@ -53,7 +53,7 @@ defmodule TuistWeb.QALogChannel do
   defp authorize_subject_for_qa_run(subject, qa_run) do
     project = qa_run.app_build.preview.project
 
-    case Authorization.authorize(:project_qa_run_update, subject, project) do
+    case Authorization.authorize(:qa_run_update, subject, project) do
       :ok -> :ok
       {:error, :forbidden} -> {:error, :unauthorized}
     end

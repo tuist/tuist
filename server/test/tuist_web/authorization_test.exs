@@ -7,7 +7,6 @@ defmodule TuistWeb.AuthorizationTest do
   alias Tuist.Accounts
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.AppBuildsFixtures
-  alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistWeb.Authentication
   alias TuistWeb.Authorization
@@ -119,70 +118,6 @@ defmodule TuistWeb.AuthorizationTest do
                      Authorization.call(
                        conn,
                        Authorization.init([:current_user, :read, :preview])
-                     )
-                   end
-    end
-  end
-
-  describe "on_mount with options [:current_user, :read, :command_event]" do
-    test "raises an error if the socket doesn't have an authenticated user" do
-      # Given
-      command_event = CommandEventsFixtures.command_event_fixture()
-      socket = %Socket{assigns: %{current_command_event: command_event}}
-
-      # When/Then
-      assert_raise UnauthorizedError,
-                   gettext("You need to be authenticated to access this page."),
-                   fn ->
-                     Authorization.on_mount(
-                       [:current_user, :read, :command_event],
-                       %{},
-                       %{},
-                       socket
-                     )
-                   end
-    end
-
-    test "continues the socket connection if the user is authorized to read the current command_event",
-         %{user: user} do
-      # Given
-      command_event = CommandEventsFixtures.command_event_fixture()
-
-      socket = %Socket{
-        assigns: Authentication.put_current_user(%{current_command_event: command_event}, user)
-      }
-
-      expect(Tuist.Authorization, :authorize, fn :command_event_read, ^user, ^command_event ->
-        :ok
-      end)
-
-      # When/Then
-      assert Authorization.on_mount([:current_user, :read, :command_event], %{}, %{}, socket) ==
-               {:cont, socket}
-    end
-
-    test "raises an error if the socket has an authenticated user and they are not authorized to read the current command event",
-         %{user: user} do
-      # Given
-      command_event = CommandEventsFixtures.command_event_fixture()
-
-      socket = %Socket{
-        assigns: Authentication.put_current_user(%{current_command_event: command_event}, user)
-      }
-
-      expect(Tuist.Authorization, :authorize, fn :command_event_read, ^user, ^command_event ->
-        {:error, :forbidden}
-      end)
-
-      # When/Then
-      assert_raise NotFoundError,
-                   gettext("The page you are looking for doesn't exist or has been moved."),
-                   fn ->
-                     Authorization.on_mount(
-                       [:current_user, :read, :command_event],
-                       %{},
-                       %{},
-                       socket
                      )
                    end
     end
