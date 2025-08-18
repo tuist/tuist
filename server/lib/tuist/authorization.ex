@@ -177,13 +177,6 @@ defmodule Tuist.Authorization do
     end
   end
 
-  object :account_organization do
-    action :update do
-      desc("Allows the admin of an account to update its organization.")
-      allow([:authenticated_as_user, user_role: :admin])
-    end
-  end
-
   object :project_qa_step do
     action :create do
       desc("Allows an account token with project_qa_step_create scope to create QA steps.")

@@ -33,16 +33,6 @@ defmodule TuistWeb.Authorization do
     guard_can_user_read_entity(preview, conn)
   end
 
-  def on_mount(
-        [:current_user, :read, :command_event],
-        _params,
-        _session,
-        %Socket{assigns: %{current_command_event: command_event}} = socket
-      )
-      when not is_nil(command_event) do
-    guard_can_user_read_entity(command_event, socket)
-  end
-
   def on_mount([:current_user, :read, :ops], _params, _session, socket) do
     user = Authentication.current_user(socket)
 
