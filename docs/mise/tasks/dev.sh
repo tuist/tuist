@@ -3,4 +3,4 @@
 
 set -euo pipefail
 
-pnpm run -C $MISE_PROJECT_ROOT/docs dev
+pnpm run dev

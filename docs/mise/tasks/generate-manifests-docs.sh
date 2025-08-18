@@ -3,4 +3,4 @@
 
 set -euo pipefail
 
-$MISE_PROJECT_ROOT/docs/scripts/generate-manifest-docs.mjs
+./scripts/generate-manifest-docs.mjs

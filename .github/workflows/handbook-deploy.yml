@@ -13,6 +13,10 @@ concurrency:
   group: handbook-deploy-${{ github.head_ref }}
   cancel-in-progress: true
 
+defaults:
+  run:
+    working-directory: handbook
+
 env:
   PNPM_HOME: ~/.pnpm
 
@@ -20,9 +24,6 @@ jobs:
   handbook-deploy:
     name: Handbook Deploy
     runs-on: ubuntu-latest
-    env:
-      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
       - name: Restore PNPM Cache
@@ -31,9 +32,9 @@ jobs:
         with:
           path: |
             ~/.pnpm/store
-          key: pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+          key: pnpm-${{ hashFiles('../pnpm-lock.yaml') }}
       - uses: jdx/mise-action@v2
       - name: Deploy handbook
         env:
           NODE_OPTIONS: --max-old-space-size=8192
-        run: mise run handbook:deploy
+        run: mise run deploy

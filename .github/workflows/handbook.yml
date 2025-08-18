@@ -24,8 +24,12 @@ concurrency:
 env:
   PNPM_HOME: ~/.pnpm
 
+defaults:
+  run:
+    working-directory: handbook
+
 jobs:
-  handbook-build:
+  build:
     name: Build
     runs-on: "ubuntu-latest"
     timeout-minutes: 15
@@ -37,6 +41,6 @@ jobs:
         with:
           path: |
             ~/.pnpm/store
-          key: pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+          key: pnpm-${{ hashFiles('../pnpm-lock.yaml') }}
       - uses: jdx/mise-action@v2
-      - run: mise run handbook:build
+      - run: mise run build

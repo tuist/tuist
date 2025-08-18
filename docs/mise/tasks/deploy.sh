@@ -3,4 +3,4 @@
 
 set -euo pipefail
 
-pnpm run -C $MISE_PROJECT_ROOT/docs deploy
+pnpm run deploy

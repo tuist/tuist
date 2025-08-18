@@ -3,4 +3,4 @@
 
 set -euo pipefail
 
-$MISE_PROJECT_ROOT/docs/scripts/generate-cli-docs.mjs
+./scripts/generate-cli-docs.mjs

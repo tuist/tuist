@@ -33,12 +33,16 @@ env:
   CLOUDFLARE_ACCOUNT_ID: cc0237353f2f825680b0463629cd4a86
   PNPM_HOME: ~/.pnpm
 
+defaults:
+  run:
+    working-directory: docs
+
 concurrency:
   group: docs-${{ github.head_ref }}
   cancel-in-progress: true
 
 jobs:
-  docs-build-deploy:
+  build-deploy:
     name: Build & Deploy
     runs-on: macos-15
     steps:
@@ -49,21 +53,21 @@ jobs:
         with:
           path: |
             ~/.pnpm/store
-          key: pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+          key: pnpm-${{ hashFiles('../pnpm-lock.yaml') }}
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - name: Restore cache
         id: cache-restore
         uses: actions/cache/restore@v4
         with:
-          path: .build
-          key: ${{ runner.os }}-docs-${{ hashFiles('Package.resolved') }}
+          path: ../.build
+          key: ${{ runner.os }}-docs-${{ hashFiles('../Package.resolved') }}
           restore-keys: ${{ runner.os }}-docs-
       - uses: jdx/mise-action@v2
       - name: Generate CLI docs
-        run: mise run docs:generate-cli-docs
+        run: mise run generate-cli-docs
       - name: Generate manifest docs
-        run: mise run docs:generate-manifests-docs
+        run: mise run generate-manifests-docs
       - name: Free space
         # Our build process takes a lot of disk space, hitting limits on GitHub Actions runners.
         # This step ensures that we have enough space to build the documentation.
@@ -83,10 +87,10 @@ jobs:
       - name: Deploy to Cloudflare Pages
         if: github.ref == 'refs/heads/main'
         run: |
-          mise x npm:wrangler@latest -- wrangler pages deploy --commit-hash ${{ github.sha }} --branch ${{ github.ref_name }} --project-name tuist-docs docs/.vitepress/dist
+          wrangler pages deploy --commit-hash ${{ github.sha }} --branch ${{ github.ref_name }} --project-name tuist-docs .vitepress/dist
       - name: Save cache
         id: cache-save
         uses: actions/cache/save@v4
         with:
-          path: .build
+          path: ../.build
           key: ${{ steps.cache-restore.outputs.cache-primary-key }}
