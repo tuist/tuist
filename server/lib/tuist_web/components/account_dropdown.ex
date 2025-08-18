@@ -63,7 +63,7 @@ defmodule TuistWeb.AccountDropdown do
                 <:icon_left><.settings /></:icon_left>
               </.button>
               <.button
-                :if={Authorization.can(@current_user, :read, :ops)}
+                :if={Authorization.authorize(:ops_read, @current_user)}
                 navigate={~p"/ops/qa"}
                 label={gettext("Operations")}
                 variant="secondary"
