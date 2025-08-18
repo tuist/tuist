@@ -1,4 +1,4 @@
-name: handbook-deploy
+name: Handbook Deploy
 on:
   push:
     branches:
@@ -21,8 +21,8 @@ env:
   PNPM_HOME: ~/.pnpm
 
 jobs:
-  handbook-deploy:
-    name: Handbook Deploy
+  cloudflare:
+    name: Cloudflare
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
@@ -36,5 +36,6 @@ jobs:
       - uses: jdx/mise-action@v2
       - name: Deploy handbook
         env:
+          MISE_SOPS_AGE_KEY: ${{ secrets.MISE_SOPS_AGE_KEY }}
           NODE_OPTIONS: --max-old-space-size=8192
         run: mise run deploy
