@@ -182,7 +182,7 @@ defmodule TuistWeb.LayoutLive do
     account
     |> Projects.get_all_project_accounts()
     |> Enum.filter(fn %{account: account, project: project} ->
-      Authorization.authorize(:url_access, current_user, %{project | account: account}) == :ok
+      Authorization.authorize(:project_url_access, current_user, %{project | account: account}) == :ok
     end)
     |> Enum.map(&%{&1.project | account: &1.account})
   end

@@ -376,7 +376,7 @@ defmodule TuistWeb.API.ProjectsController do
         |> put_status(:not_found)
         |> json(%{message: "Project #{account_handle}/#{project_handle} was not found."})
 
-      Authorization.authorize(:project_settings_update, user, project) != :ok ->
+      Authorization.authorize(:project_update, user, project) != :ok ->
         conn
         |> put_status(:forbidden)
         |> json(%{
@@ -384,7 +384,7 @@ defmodule TuistWeb.API.ProjectsController do
         })
 
       not is_nil(repository) and
-          Authorization.authorize(:project_update_with_repository, user, %{
+          Authorization.authorize(:project_update_repository, user, %{
             project: project,
             repository: repository
           }) != :ok ->

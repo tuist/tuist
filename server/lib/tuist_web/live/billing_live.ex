@@ -139,7 +139,7 @@ defmodule TuistWeb.BillingLive do
   attr :features, :list, required: true
   attr :most_popular, :boolean, default: false
 
-  slot(:action_button, required: true)
+  slot :action_button, required: true
 
   def pricing_card(assigns) do
     ~H"""

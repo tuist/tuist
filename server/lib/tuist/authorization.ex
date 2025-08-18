@@ -80,34 +80,6 @@ defmodule Tuist.Authorization do
   end
 
   object :project_cache do
-    action :read do
-      desc("Allows the authenticated subject to read a project's cache if the project is public.")
-      allow(:public_project)
-
-      desc("Allows users of a project's account to read the project cache.")
-      allow([:authenticated_as_user, user_role: :user])
-
-      desc("Allows the admin of a project's account to read the project cache.")
-      allow([:authenticated_as_user, user_role: :admin])
-
-      desc("Allows the authenticated project to read the cache if it matches the project whose cache is being read.")
-
-      allow([:authenticated_as_project, :projects_match])
-    end
-  end
-
-  object :project_cache_management do
-    action :create do
-      desc("Allows users of a project to create cache.")
-      allow([:authenticated_as_user, user_role: :user])
-
-      desc("Allows the admin of a project to create cache.")
-      allow([:authenticated_as_user, user_role: :admin])
-
-      desc("Allows the authenticated project to create cache if it matches the project.")
-      allow([:authenticated_as_project, :projects_match])
-    end
-
     action :update do
       desc("Allows users of a project to update cache.")
       allow([:authenticated_as_user, user_role: :user])
@@ -118,6 +90,7 @@ defmodule Tuist.Authorization do
       desc("Allows the authenticated project to update cache if it matches the project.")
       allow([:authenticated_as_project, :projects_match])
     end
+
   end
 
   object :account_registry do
@@ -245,8 +218,6 @@ defmodule Tuist.Authorization do
     end
   end
 
-  # Additional objects converted from old can/3 and can/4 functions
-
   object :project do
     action :create do
       desc("Allows users of an account to create a project.")
@@ -269,12 +240,11 @@ defmodule Tuist.Authorization do
       allow([:authenticated_as_user, user_role: :admin])
     end
 
-    action :update_with_repository do
+    action :update_repository do
       desc("Allows the admin of an account to update a project with repository changes.")
       allow([:authenticated_as_user, user_role: :admin])
 
       desc("Allows users with repository write/admin permissions to update a project with repository changes.")
-
       allow([:authenticated_as_user, :repository_permission_check])
     end
 
@@ -374,13 +344,6 @@ defmodule Tuist.Authorization do
 
     action :delete do
       desc("Allows the admin of an account to delete members.")
-      allow([:authenticated_as_user, user_role: :admin])
-    end
-  end
-
-  object :project_settings do
-    action :update do
-      desc("Allows the admin of an account to update project settings.")
       allow([:authenticated_as_user, user_role: :admin])
     end
   end

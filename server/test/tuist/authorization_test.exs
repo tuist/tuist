@@ -491,7 +491,7 @@ defmodule Tuist.AuthorizationTest do
     }
 
     # When
-    assert Authorization.authorize(:project_update_with_repository, user, %{
+    assert Authorization.authorize(:project_update_repository, user, %{
              project: project,
              repository: repository
            }) == {:error, :forbidden}
@@ -512,7 +512,7 @@ defmodule Tuist.AuthorizationTest do
     }
 
     # When
-    assert Authorization.authorize(:project_update_with_repository, user, %{
+    assert Authorization.authorize(:project_update_repository, user, %{
              project: project,
              repository: repository
            }) == {:error, :forbidden}
@@ -537,7 +537,7 @@ defmodule Tuist.AuthorizationTest do
     }
 
     # When
-    assert Authorization.authorize(:project_update_with_repository, user, %{
+    assert Authorization.authorize(:project_update_repository, user, %{
              project: project,
              repository: repository
            }) == :ok
@@ -562,7 +562,7 @@ defmodule Tuist.AuthorizationTest do
     }
 
     # When
-    assert Authorization.authorize(:project_update_with_repository, user, %{
+    assert Authorization.authorize(:project_update_repository, user, %{
              project: project,
              repository: repository
            }) == :ok
@@ -587,7 +587,7 @@ defmodule Tuist.AuthorizationTest do
     }
 
     # When
-    assert Authorization.authorize(:project_update_with_repository, user, %{
+    assert Authorization.authorize(:project_update_repository, user, %{
              project: project,
              repository: repository
            }) == {:error, :forbidden}
@@ -612,7 +612,7 @@ defmodule Tuist.AuthorizationTest do
     }
 
     # When
-    assert Authorization.authorize(:project_update_with_repository, user, %{
+    assert Authorization.authorize(:project_update_repository, user, %{
              project: project,
              repository: repository
            }) == {:error, :forbidden}
