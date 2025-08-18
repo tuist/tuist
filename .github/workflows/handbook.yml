@@ -39,6 +39,4 @@ jobs:
             ~/.pnpm/store
           key: pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
       - uses: jdx/mise-action@v2
-        with:
-          experimental: true
       - run: mise run handbook:build
