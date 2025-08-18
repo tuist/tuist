@@ -10,7 +10,7 @@ public protocol ListBundlesServicing: Sendable {
         page: Int?,
         pageSize: Int?,
         serverURL: URL
-    ) async throws -> [ServerBundle]
+    ) async throws -> Operations.listBundles.Output.Ok.Body.jsonPayload
 }
 
 enum ListBundlesServiceError: LocalizedError {
@@ -51,7 +51,7 @@ public final class ListBundlesService: ListBundlesServicing {
         page: Int?,
         pageSize: Int?,
         serverURL: URL
-    ) async throws -> [ServerBundle] {
+    ) async throws -> Operations.listBundles.Output.Ok.Body.jsonPayload {
         let client = Client.authenticated(serverURL: serverURL)
         let handles = try fullHandleService.parse(fullHandle)
 
@@ -73,7 +73,7 @@ public final class ListBundlesService: ListBundlesServicing {
         case let .ok(okResponse):
             switch okResponse.body {
             case let .json(json):
-                return json.bundles.compactMap(ServerBundle.init)
+                return json
             }
         case let .unauthorized(unauthorized):
             switch unauthorized.body {

@@ -56,7 +56,7 @@ final class BundleListCommandService: BundleListCommandServicing {
 
         let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
 
-        let bundles = try await listBundlesService.listBundles(
+        let response = try await listBundlesService.listBundles(
             fullHandle: resolvedFullHandle,
             gitBranch: gitBranch,
             page: nil,
@@ -65,11 +65,11 @@ final class BundleListCommandService: BundleListCommandServicing {
         )
 
         if json {
-            try Noora.current.json(bundles)
+            try Noora.current.json(response)
             return
         }
 
-        if bundles.isEmpty {
+        if response.bundles.isEmpty {
             let branchFilter = gitBranch.map { " for branch '\($0)'" } ?? ""
             Noora.current.passthrough("No bundles found for project \(resolvedFullHandle)\(branchFilter).")
             return
@@ -82,13 +82,13 @@ final class BundleListCommandService: BundleListCommandServicing {
             TableColumn(title: "Download size", width: .auto),
             TableColumn(title: "Inserted at", width: .auto),
             TableColumn(title: "URL", width: .auto),
-        ], rows: bundles.map { bundle in
+        ], rows: response.bundles.map { bundle in
             return [
                 "\(bundle.id)",
-                "\(bundle.appBundleId)",
-                "\(Formatters.formatBytes(bundle.installSize))",
-                "\(bundle.downloadSize != nil ? Formatters.formatBytes(bundle.downloadSize!) : "Unknown")",
-                "\(Formatters.formatDate(bundle.insertedAt))",
+                "\(bundle.app_bundle_id)",
+                "\(Formatters.formatBytes(bundle.install_size))",
+                "\(bundle.download_size != nil ? Formatters.formatBytes(bundle.download_size!) : "Unknown")",
+                "\(Formatters.formatDate(bundle.inserted_at))",
                 "\(.link(title: "Link", href: bundle.url))",
             ]
         }), pageSize: 10)

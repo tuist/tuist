@@ -8,7 +8,7 @@ public protocol GetBundleServicing {
         fullHandle: String,
         bundleId: String,
         serverURL: URL
-    ) async throws -> ServerBundle
+    ) async throws -> Components.Schemas.Bundle
 }
 
 enum GetBundleServiceError: LocalizedError {
@@ -46,7 +46,7 @@ public final class GetBundleService: GetBundleServicing {
         fullHandle: String,
         bundleId: String,
         serverURL: URL
-    ) async throws -> ServerBundle {
+    ) async throws -> Components.Schemas.Bundle {
         let client = Client.authenticated(serverURL: serverURL)
         let handles = try fullHandleService.parse(fullHandle)
 
@@ -64,7 +64,7 @@ public final class GetBundleService: GetBundleServicing {
         case let .ok(okResponse):
             switch okResponse.body {
             case let .json(bundle):
-                return ServerBundle(bundle)
+                return bundle
             }
         case let .notFound(notFound):
             switch notFound.body {

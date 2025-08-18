@@ -55,16 +55,28 @@ struct BundleListCommandServiceTests {
         given(configLoader).loadConfig(path: .value(directoryPath)).willReturn(tuist)
         let serverURL = URL(string: "https://\(UUID().uuidString).tuist.dev")!
         given(serverEnvironmentService).url(configServerURL: .value(tuist.url)).willReturn(serverURL)
-        let serverBundle = ServerBundle.test(id: UUID().uuidString)
+        let response = Operations.listBundles.Output.Ok.Body.jsonPayload(bundles: [
+            .init(
+                app_bundle_id: "app.tuist.dev",
+                id: UUID().uuidString,
+                inserted_at: Date(),
+                install_size: 300,
+                name: "Tuist",
+                supported_platforms: [.ios],
+                uploaded_by_account: "tuist",
+                url: "https://tuist.dev/\(UUID().uuidString)",
+                version: "1.2.3"
+            ),
+        ], meta: .init(has_next_page: false, has_previous_page: false, page_size: 1, total_count: 1))
+
         given(listBundlesService).listBundles(
             fullHandle: .value(fullHandle),
             gitBranch: .value("main"),
             page: .value(nil),
             pageSize: .value(50),
             serverURL: .value(serverURL)
-        ).willReturn([
-            serverBundle,
-        ])
+        ).willReturn(response)
+
         // When
         try await subject.run(
             project: nil,
@@ -77,7 +89,7 @@ struct BundleListCommandServiceTests {
         let jsonEncoder = JSONEncoder()
         jsonEncoder.dateEncodingStrategy = .iso8601
         jsonEncoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        let bundleJSON = String(data: try jsonEncoder.encode([serverBundle]), encoding: .utf8)!
+        let bundleJSON = String(data: try jsonEncoder.encode(response), encoding: .utf8)!
         #expect(ui().contains(bundleJSON))
     }
 
@@ -92,14 +104,18 @@ struct BundleListCommandServiceTests {
         given(configLoader).loadConfig(path: .value(directoryPath)).willReturn(tuist)
         let serverURL = URL(string: "https://\(UUID().uuidString).tuist.dev")!
         given(serverEnvironmentService).url(configServerURL: .value(tuist.url)).willReturn(serverURL)
+        let response = Operations.listBundles.Output.Ok.Body.jsonPayload(
+            bundles: [],
+            meta: .init(has_next_page: false, has_previous_page: false, page_size: 1, total_count: 0)
+        )
         given(listBundlesService).listBundles(
             fullHandle: .value(fullHandle),
             gitBranch: .value("main"),
             page: .value(nil),
             pageSize: .value(50),
             serverURL: .value(serverURL)
-        ).willReturn([
-        ])
+        ).willReturn(response)
+
         // When
         try await subject.run(
             project: nil,
@@ -122,17 +138,30 @@ struct BundleListCommandServiceTests {
         let directoryPath = try await Environment.current.pathRelativeToWorkingDirectory(nil)
         given(configLoader).loadConfig(path: .value(directoryPath)).willReturn(tuist)
         let serverURL = URL(string: "https://\(UUID().uuidString).tuist.dev")!
-        let serverBundle = ServerBundle.test(id: UUID().uuidString)
         given(serverEnvironmentService).url(configServerURL: .value(tuist.url)).willReturn(serverURL)
+
+        let bundle = Components.Schemas.Bundle(
+            app_bundle_id: "app.tuist.dev",
+            id: UUID().uuidString,
+            inserted_at: Date(),
+            install_size: 300,
+            name: "Tuist",
+            supported_platforms: [.ios],
+            uploaded_by_account: "tuist",
+            url: "https://tuist.dev/\(UUID().uuidString)",
+            version: "1.2.3"
+        )
+        let response = Operations.listBundles.Output.Ok.Body.jsonPayload(bundles: [
+            bundle,
+        ], meta: .init(has_next_page: false, has_previous_page: false, page_size: 1, total_count: 1))
         given(listBundlesService).listBundles(
             fullHandle: .value(fullHandle),
             gitBranch: .value("main"),
             page: .value(nil),
             pageSize: .value(50),
             serverURL: .value(serverURL)
-        ).willReturn([
-            serverBundle,
-        ])
+        ).willReturn(response)
+
         // When
         try await subject.run(
             project: nil,
@@ -150,6 +179,6 @@ struct BundleListCommandServiceTests {
         //        ├──────────────────────┼────────────┼────────┼─────────┼─────────────┼─────┤
         //        │ 9620034E-59B2-46BE-… │ com.examp… │ 1 MB   │ 512 KB  │ 3. Aug 202… │ (L… │
         //        ╰──────────────────────┴────────────┴────────┴─────────┴─────────────┴─────╯
-        #expect(ui().contains(serverBundle.appBundleId.prefix(8)))
+        #expect(ui().contains(bundle.app_bundle_id.prefix(8)))
     }
 }
