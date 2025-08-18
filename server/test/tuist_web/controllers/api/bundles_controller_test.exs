@@ -238,7 +238,7 @@ defmodule TuistWeb.API.BundlesControllerTest do
                "current_page" => 1,
                "has_next_page" => false,
                "has_previous_page" => false,
-               "page_size" => 50,
+               "page_size" => 20,
                "total_count" => 2,
                "total_pages" => 1
              }
@@ -296,7 +296,7 @@ defmodule TuistWeb.API.BundlesControllerTest do
                "current_page" => 1,
                "has_next_page" => false,
                "has_previous_page" => false,
-               "page_size" => 50,
+               "page_size" => 20,
                "total_count" => 1,
                "total_pages" => 1
              }
@@ -341,7 +341,7 @@ defmodule TuistWeb.API.BundlesControllerTest do
                "current_page" => 1,
                "has_next_page" => false,
                "has_previous_page" => false,
-               "page_size" => 50,
+               "page_size" => 20,
                "total_count" => 0,
                "total_pages" => 0
              }

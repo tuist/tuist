@@ -241,7 +241,7 @@ defmodule Tuist.BundlesTest do
 
       # When
       got =
-        Bundles.last_project_bundle(project, bundle: bundle) |> Repo.preload(:uploaded_by_account)
+        project |> Bundles.last_project_bundle(bundle: bundle) |> Repo.preload(:uploaded_by_account)
 
       # Then
       assert got == last_bundle
