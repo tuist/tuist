@@ -4,7 +4,6 @@ defmodule TuistWeb.Authorization do
   """
   use Gettext, backend: TuistWeb.Gettext
 
-  alias Phoenix.LiveView.Socket
   alias Tuist.AppBuilds.Preview
   alias Tuist.Authorization
   alias Tuist.Projects
@@ -74,22 +73,6 @@ defmodule TuistWeb.Authorization do
 
       Authorization.authorize(:command_event_read, user, entity) == :ok ->
         conn
-
-      true ->
-        raise NotFoundError,
-              gettext("The page you are looking for doesn't exist or has been moved.")
-    end
-  end
-
-  defp guard_can_user_read_entity(entity, %Socket{} = socket) do
-    user = Authentication.current_user(socket)
-
-    cond do
-      is_nil(user) ->
-        raise UnauthorizedError, gettext("You need to be authenticated to access this page.")
-
-      Authorization.authorize(:command_event_read, user, entity) == :ok ->
-        {:cont, socket}
 
       true ->
         raise NotFoundError,

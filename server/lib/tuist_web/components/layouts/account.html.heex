@@ -24,7 +24,7 @@
       <.tab_menu_horizontal_item
         :if={
           Tuist.Authorization.authorize(
-            :account_settings_update,
+            :account_update,
             @current_user,
             @selected_account
           ) == :ok
@@ -36,7 +36,7 @@
       <.tab_menu_horizontal_item
         :if={
           Tuist.Authorization.authorize(
-            :account_settings_update,
+            :account_update,
             @current_user,
             @selected_account
           ) == :ok

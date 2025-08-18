@@ -9,7 +9,7 @@ defmodule TuistWeb.AccountSettingsLive do
 
   @impl true
   def mount(_params, _uri, %{assigns: %{selected_account: selected_account, current_user: current_user}} = socket) do
-    if Authorization.authorize(:account_settings_update, current_user, selected_account) != :ok do
+    if Authorization.authorize(:account_update, current_user, selected_account) != :ok do
       raise TuistWeb.Errors.UnauthorizedError,
             gettext("You are not authorized to perform this action.")
     end
