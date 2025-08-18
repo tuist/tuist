@@ -33,8 +33,6 @@ jobs:
             ~/.pnpm/store
           key: pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
       - uses: jdx/mise-action@v2
-        with:
-          experimental: true
       - name: Deploy handbook
         env:
           NODE_OPTIONS: --max-old-space-size=8192
