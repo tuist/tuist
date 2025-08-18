@@ -7,13 +7,13 @@ on:
     paths:
       - handbook/**
       - .github/workflows/handbook.yml
-      - handbook/pnpm-lock.yaml
+      - pnpm-lock.yaml
       - handbook/package.json
   pull_request:
     paths:
       - handbook/**
       - .github/workflows/handbook.yml
-      - handbook/pnpm-lock.yaml
+      - pnpm-lock.yaml
       - handbook/package.json
   merge_group:
 
@@ -21,12 +21,15 @@ concurrency:
   group: handbook-${{ github.head_ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 env:
   PNPM_HOME: ~/.pnpm
 
 jobs:
-  handbook-build:
-    name: Build
+  build-deploy:
+    name: Build & Deploy
     runs-on: "ubuntu-latest"
     timeout-minutes: 15
     steps:
@@ -37,6 +40,13 @@ jobs:
         with:
           path: |
             ~/.pnpm/store
-          key: pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+          key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
       - uses: jdx/mise-action@v2
-      - run: mise run handbook:build
+      - name: Build handbook
+        run: mise -C handbook/ run build
+      - name: Deploy to Cloudflare Pages
+        if: github.ref == 'refs/heads/main'
+        env:
+          MISE_SOPS_AGE_KEY: ${{ secrets.MISE_SOPS_AGE_KEY }}
+          NODE_OPTIONS: --max-old-space-size=8192
+        run: mise -C handbook/ run deploy
