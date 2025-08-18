@@ -107,7 +107,8 @@ jobs:
       - uses: actions/checkout@v3
       - uses: tuist/action@v1
         with:
-          version: 4.63.0
+          # Replace x.y.z with the desired/latest Tuist version
+          version: x.y.z
       - run: tuist build
 ```
 ```yaml [Homebrew]
