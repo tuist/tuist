@@ -35,19 +35,19 @@ defmodule Tuist.MixProject do
   # Type `mix help deps` for examples and options.
   defp deps do
     [
-      {:phoenix, "~> 1.7.12"},
+      {:phoenix, "~> 1.7"},
       {:phoenix_ecto, "~> 4.4"},
       {:ecto_sql, "~> 3.12"},
       {:postgrex, ">= 0.0.0"},
       {:phoenix_html, "~> 4.0"},
       {:phoenix_live_reload, "~> 1.2", only: :dev},
-      {:phoenix_live_view, "~> 1.0.0"},
+      {:phoenix_live_view, "~> 1.0"},
       {:phoenix_view, "~> 2.0"},
       {:floki, ">= 0.33.0"},
       {:phoenix_live_dashboard, "~> 0.8.4"},
       {:heroicons,
        github: "tailwindlabs/heroicons", tag: "v2.1.1", sparse: "optimized", app: false, compile: false, depth: 1},
-      {:bamboo, "~> 2.4.0"},
+      {:bamboo, "~> 2.4"},
       {:finch, "~> 0.20.0"},
       {:telemetry_metrics, "~> 1.0"},
       {:telemetry_poller, "~> 1.0"},
@@ -64,8 +64,8 @@ defmodule Tuist.MixProject do
       {:ex_aws, "~> 2.5.5"},
       {:ex_aws_s3, "~> 2.5.5"},
       {:number, "~> 1.0"},
-      {:mimic, "~> 1.12.0", only: :test},
-      {:ymlr, "~> 2.0"},
+      {:mimic, "~> 2.0", only: :test},
+      {:ymlr, "~> 5.0"},
       {:open_api_spex, "~> 3.18"},
       {:oban, "~> 2.19"},
       {:oban_web, "~> 2.11"},
@@ -105,11 +105,11 @@ defmodule Tuist.MixProject do
       {:let_me, "~> 1.2"},
       {:ua_parser, "~> 1.8"},
       {:money, "~> 1.12"},
-      {:image, "~> 0.60.0"},
+      {:image, "~> 0.60"},
       {:boundary, "~> 0.10", runtime: false},
       {:makeup, "~> 1.2", override: true},
       {:sobelow, "~> 0.14", only: [:dev, :test], runtime: false},
-      {:solid, "~> 1.0.0"},
+      {:solid, "~> 1.0"},
       {:plug_minify_html, "~> 0.1.0"},
       {:briefly, "~> 0.5.0"},
       {:fun_with_flags, "~> 1.13.0"},
@@ -120,12 +120,12 @@ defmodule Tuist.MixProject do
       {:off_broadway_memory, "~> 1.2"},
       {:broadway_dashboard, "~> 0.4.1"},
       {:zxcvbn, "~> 0.3.0"},
-      {:styler, "~> 1.6.0", only: [:dev, :test], runtime: false},
+      {:styler, "~> 1.6", only: [:dev, :test], runtime: false},
       {:redix, "~> 1.1"},
       {:redis_mutex, "~> 1.1"},
       {:hammer_backend_redis, "~> 7.0"},
       {:tidewave, "~> 0.1", only: :dev},
-      {:ecto_ch, "~> 0.7.0"},
+      {:ecto_ch, "~> 0.7"},
       (System.get_env("NOORA_LOCAL") &&
          {:noora, path: "../../Noora/web"}) ||
         {:noora, "== 0.12.0"},
@@ -133,7 +133,8 @@ defmodule Tuist.MixProject do
       {:cloak_ecto, "~> 1.3.0"},
       {:boruta, git: "https://github.com/malach-it/boruta_auth", branch: "master"},
       {:minio_server, github: "LostKobrakai/minio_server", only: :dev},
-      {:runner, path: "runner", runtime: false}
+      {:runner, path: "runner", runtime: false},
+      {:lazy_html, ">= 0.1.0", only: :test}
     ]
   end
 
