@@ -96,7 +96,7 @@ struct InspectBundleCommandService {
             )
         }
         AlertController.current.success(
-            .alert("View the bundle analysis at \(serverBundle.url.absoluteString)")
+            .alert("View the bundle analysis at \(serverBundle.url)")
         )
     }
 

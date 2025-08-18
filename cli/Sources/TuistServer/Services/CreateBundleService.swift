@@ -103,8 +103,7 @@
             case let .ok(okResponse):
                 switch okResponse.body {
                 case let .json(bundle):
-                    guard let bundle = ServerBundle(bundle) else { throw CreateBundleServiceError.invalidBundle(bundle.id) }
-                    return bundle
+                    return ServerBundle(bundle)
                 }
             case let .undocumented(statusCode: statusCode, _):
                 throw CreateBundleServiceError.unknownError(statusCode)
