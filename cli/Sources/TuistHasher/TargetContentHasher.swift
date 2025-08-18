@@ -153,6 +153,12 @@ public final class TargetContentHasher: TargetContentHashing {
         } else {
             []
         }
+
+        let buildableFolderHashes = try await graphTarget.target.buildableFolders.sorted(by: { $0.path < $1.path })
+            .concurrentMap {
+                try await self.contentHasher.hash(path: $0.path)
+            }
+
         var stringsToHash = [
             graphTarget.target.name,
             graphTarget.target.product.rawValue,
@@ -165,7 +171,7 @@ public final class TargetContentHasher: TargetContentHashing {
             coreDataModelHash,
             targetScriptsHash,
             environmentHash,
-        ] + destinations + additionalStrings + destinationHashes
+        ] + buildableFolderHashes + destinations + additionalStrings + destinationHashes
 
         stringsToHash.append(contentsOf: graphTarget.target.destinations.map(\.rawValue).sorted())
 

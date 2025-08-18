@@ -651,10 +651,9 @@ struct BuildPhaseGeneratorTests {
         )
         for file in files {
             try fileElements.generate(
-                fileElement: GroupFileElement(
+                fileElement: GroupFileElement.folder(
                     path: file,
-                    group: .group(name: "Project"),
-                    isReference: true
+                    group: .group(name: "Project")
                 ),
                 groups: groups,
                 pbxproj: pbxproj,
@@ -703,10 +702,9 @@ struct BuildPhaseGeneratorTests {
         )
         for file in files {
             try fileElements.generate(
-                fileElement: GroupFileElement(
+                fileElement: GroupFileElement.folder(
                     path: file,
-                    group: .group(name: "Project"),
-                    isReference: true
+                    group: .group(name: "Project")
                 ),
                 groups: groups,
                 pbxproj: pbxproj,
