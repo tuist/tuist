@@ -65,7 +65,7 @@ final class TargetManifestMapperTests: TuistUnitTestCase {
                     order: .pre,
                     outputPaths: ["Scripts/file.swift"]
                 )],
-                buildableFolders: [.folder(path: "BuildableSources")],
+                buildableFolders: [.folder("BuildableSources")],
             ),
             generatorPaths: GeneratorPaths(
                 manifestDirectory: try temporaryPath(),
