@@ -29,8 +29,8 @@ defaults:
     working-directory: handbook
 
 jobs:
-  build:
-    name: Build
+  build-deploy:
+    name: Build & Deploy
     runs-on: "ubuntu-latest"
     timeout-minutes: 15
     steps:
@@ -43,4 +43,11 @@ jobs:
             ~/.pnpm/store
           key: pnpm-${{ hashFiles('../pnpm-lock.yaml') }}
       - uses: jdx/mise-action@v2
-      - run: mise run build
+      - name: Build handbook
+        run: mise run build
+      - name: Deploy to Cloudflare Pages
+        if: github.ref == 'refs/heads/main'
+        env:
+          MISE_SOPS_AGE_KEY: ${{ secrets.MISE_SOPS_AGE_KEY }}
+          NODE_OPTIONS: --max-old-space-size=8192
+        run: mise run deploy
