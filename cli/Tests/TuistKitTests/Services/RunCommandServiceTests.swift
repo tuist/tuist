@@ -105,15 +105,20 @@ struct RunCommandServiceTests {
             .loadConfig(path: .any)
             .willReturn(.test())
         let projectPath = try AbsolutePath(validating: "/path/to")
-        let runnableScheme = Scheme.test(name: "App", runAction: .test(executable: TargetReference(projectPath: projectPath, name: "App")))
+        let runnableScheme = Scheme.test(
+            name: "App",
+            runAction: .test(executable: TargetReference(projectPath: projectPath, name: "App"))
+        )
         let graph = Graph.test(
             projects: [
-                projectPath: .test(targets: [
-                    .test(name: "App", product: .app)
-                ],
-                                   schemes: [
-                                    runnableScheme
-                                   ])
+                projectPath: .test(
+                    targets: [
+                        .test(name: "App", product: .app),
+                    ],
+                    schemes: [
+                        runnableScheme,
+                    ]
+                ),
             ]
         )
         given(generator)
@@ -130,7 +135,7 @@ struct RunCommandServiceTests {
         given(buildGraphInspector)
             .runnableSchemes(graphTraverser: .any)
             .willReturn([runnableScheme])
-        
+
         try await subject.run(runnable: .scheme("App"), generate: true)
     }
 
@@ -141,15 +146,20 @@ struct RunCommandServiceTests {
             // Given
             let workspacePath = temporaryDirectory.appending(component: "App.xcworkspace")
             let projectPath = try AbsolutePath(validating: "/path/to")
-            let runnableScheme = Scheme.test(name: "App", runAction: .test(executable: TargetReference(projectPath: projectPath, name: "App")))
+            let runnableScheme = Scheme.test(
+                name: "App",
+                runAction: .test(executable: TargetReference(projectPath: projectPath, name: "App"))
+            )
             let graph = Graph.test(
                 projects: [
-                    projectPath: .test(targets: [
-                        .test(name: "App", product: .app)
-                    ],
-                                       schemes: [
-                                        runnableScheme
-                                       ])
+                    projectPath: .test(
+                        targets: [
+                            .test(name: "App", product: .app),
+                        ],
+                        schemes: [
+                            runnableScheme,
+                        ]
+                    ),
                 ]
             )
             given(generator)
@@ -183,15 +193,20 @@ struct RunCommandServiceTests {
             let clean = true
             let configuration = "Test"
             let projectPath = try AbsolutePath(validating: "/path/to")
-            let runnableScheme = Scheme.test(name: schemeName, runAction: .test(executable: TargetReference(projectPath: projectPath, name: "App")))
+            let runnableScheme = Scheme.test(
+                name: schemeName,
+                runAction: .test(executable: TargetReference(projectPath: projectPath, name: "App"))
+            )
             let graph = Graph.test(
                 projects: [
-                    projectPath: .test(targets: [
-                        .test(name: "App", product: .app)
-                    ],
-                                       schemes: [
-                                        runnableScheme
-                                       ])
+                    projectPath: .test(
+                        targets: [
+                            .test(name: "App", product: .app),
+                        ],
+                        schemes: [
+                            runnableScheme,
+                        ]
+                    ),
                 ]
             )
             targetBuilder
@@ -237,20 +252,25 @@ struct RunCommandServiceTests {
         let version = Version("15.0.0")
         let deviceName = "iPhone 11"
         let arguments = ["-arg1", "--arg2", "SomeArgument"]
-        
+
         let projectPath = try AbsolutePath(validating: "/path/to")
-        let runnableScheme = Scheme.test(name: schemeName, runAction: .test(executable: TargetReference(projectPath: projectPath, name: "App")))
+        let runnableScheme = Scheme.test(
+            name: schemeName,
+            runAction: .test(executable: TargetReference(projectPath: projectPath, name: "App"))
+        )
         let graph = Graph.test(
             projects: [
-                projectPath: .test(targets: [
-                    .test(name: "App", product: .app)
-                ],
-                                   schemes: [
-                                    runnableScheme
-                                   ])
+                projectPath: .test(
+                    targets: [
+                        .test(name: "App", product: .app),
+                    ],
+                    schemes: [
+                        runnableScheme,
+                    ]
+                ),
             ]
         )
-        
+
         targetRunner
             .runTargetStub = {
                 _, _workspacePath, _schemeName, _configuration, _minVersion, _version, _deviceName,
@@ -297,18 +317,23 @@ struct RunCommandServiceTests {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let workspacePath = temporaryDirectory.appending(component: "App.xcworkspace")
         let projectPath = try AbsolutePath(validating: "/path/to")
-        let runnableScheme = Scheme.test(name: "App", runAction: .test(executable: TargetReference(projectPath: projectPath, name: "App")))
+        let runnableScheme = Scheme.test(
+            name: "App",
+            runAction: .test(executable: TargetReference(projectPath: projectPath, name: "App"))
+        )
         let graph = Graph.test(
             projects: [
-                projectPath: .test(targets: [
-                    .test(name: "App", product: .app)
-                ],
-                                   schemes: [
-                                    runnableScheme
-                                   ])
+                projectPath: .test(
+                    targets: [
+                        .test(name: "App", product: .app),
+                    ],
+                    schemes: [
+                        runnableScheme,
+                    ]
+                ),
             ]
         )
-        
+
         given(generator)
             .load(path: .any, options: .any)
             .willReturn(graph)

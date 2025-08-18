@@ -161,7 +161,8 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         )
 
         let wasCreatedForAppExtension = isSchemeForAppExtension(
-            scheme: scheme, graphTraverser: graphTraverser)
+            scheme: scheme, graphTraverser: graphTraverser
+        )
 
         let lastUpgradeVersion =
             lastUpgradeCheck?.xcodeStringValue ?? Constants.defaultLastUpgradeVersion
@@ -180,7 +181,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         )
 
         return SchemeDescriptor(xcScheme: xcscheme, shared: scheme.shared, hidden: scheme.hidden)
-    }  // swiftlint:enable function_body_length
+    } // swiftlint:enable function_body_length
 
     /// Generates the scheme build action.
     ///
@@ -207,11 +208,10 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         var postActions: [XCScheme.ExecutionAction] = []
 
         for buildActionTarget in buildAction.targets {
-            guard
-                let buildActionGraphTarget = graphTraverser.target(
-                    path: buildActionTarget.projectPath,
-                    name: buildActionTarget.name
-                ),
+            guard let buildActionGraphTarget = graphTraverser.target(
+                path: buildActionTarget.projectPath,
+                name: buildActionTarget.name
+            ),
                 let buildableReference = try createBuildableReference(
                     graphTarget: buildActionGraphTarget,
                     graphTraverser: graphTraverser,
@@ -223,7 +223,9 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             }
             entries.append(
                 XCScheme.BuildAction.Entry(
-                    buildableReference: buildableReference, buildFor: buildFor))
+                    buildableReference: buildableReference, buildFor: buildFor
+                )
+            )
         }
 
         preActions = try buildAction.preActions.map {
@@ -272,10 +274,10 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         // Use empty action if nil, otherwise Xcode will create it anyway
         let testAction =
             scheme.testAction
-            ?? .empty(
-                withConfigurationName: scheme.runAction?.configurationName
-                    ?? BuildConfiguration.debug.name
-            )
+                ?? .empty(
+                    withConfigurationName: scheme.runAction?.configurationName
+                        ?? BuildConfiguration.debug.name
+                )
 
         var testables: [XCScheme.TestableReference] = []
         var preActions: [XCScheme.ExecutionAction] = []
@@ -294,11 +296,10 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             } ?? []
 
         for testableTarget in testAction.targets {
-            guard
-                let testableGraphTarget = graphTraverser.target(
-                    path: testableTarget.target.projectPath,
-                    name: testableTarget.target.name
-                ),
+            guard let testableGraphTarget = graphTraverser.target(
+                path: testableTarget.target.projectPath,
+                name: testableTarget.target.name
+            ),
                 let reference = try createBuildableReference(
                     graphTarget: testableGraphTarget,
                     graphTraverser: graphTraverser,
@@ -316,7 +317,8 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
 
                 if case let .gpxFile(gpxPath) = locationScenario {
                     let fileRelativePath = gpxPath.relative(
-                        to: graphTraverser.workspace.xcWorkspacePath)
+                        to: graphTraverser.workspace.xcWorkspacePath
+                    )
                     identifier = fileRelativePath.pathString
                 }
 
@@ -365,15 +367,16 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
 
         if let arguments = testAction.arguments {
             args = XCScheme.CommandLineArguments(
-                arguments: getCommandlineArguments(arguments.launchArguments))
+                arguments: getCommandlineArguments(arguments.launchArguments)
+            )
             environments = environmentVariables(arguments.environmentVariables)
         }
 
         let codeCoverageTargets = try testAction.codeCoverageTargets
             .compactMap { (target: TargetReference) -> XCScheme.BuildableReference? in
-                guard
-                    let graphTarget = graphTraverser.target(
-                        path: target.projectPath, name: target.name)
+                guard let graphTarget = graphTraverser.target(
+                    path: target.projectPath, name: target.name
+                )
                 else { return nil }
                 return try testCoverageTargetReferences(
                     graphTarget: graphTarget,
@@ -385,11 +388,10 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
 
         var macroExpansion: XCScheme.BuildableReference?
         if let expandVariableFromTarget = testAction.expandVariableFromTarget {
-            guard
-                let graphTarget = graphTraverser.target(
-                    path: expandVariableFromTarget.projectPath,
-                    name: expandVariableFromTarget.name
-                )
+            guard let graphTarget = graphTraverser.target(
+                path: expandVariableFromTarget.projectPath,
+                name: expandVariableFromTarget.name
+            )
             else {
                 return nil
             }
@@ -448,7 +450,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             region: region,
             preferredScreenCaptureFormat: preferredScreenCaptureFormat
         )
-    }  // swiftlint:enable function_body_length
+    } // swiftlint:enable function_body_length
 
     // swiftlint:disable function_body_length
     // Generates the scheme launch action.
@@ -471,11 +473,19 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         var macroExpansion: XCScheme.BuildableReference?
         var pathRunnable: XCScheme.PathRunnable?
         var defaultBuildConfiguration = BuildConfiguration.debug.name
-        
-        let graphTarget: GraphTarget! = if let specifiedExecutableTarget, let graphTarget = graphTraverser.target(path: specifiedExecutableTarget.projectPath, name: specifiedExecutableTarget.name) {
+
+        let graphTarget: GraphTarget! = if let specifiedExecutableTarget, let graphTarget = graphTraverser.target(
+            path: specifiedExecutableTarget.projectPath,
+            name: specifiedExecutableTarget.name
+        ) {
             graphTarget
         } else if let schemeRunnableTarget = graphTraverser.schemeRunnableTarget(scheme: scheme) {
             schemeRunnableTarget
+        } else if let defaultTargetReference = defaultTargetReference(scheme: scheme), let defaultTarget = graphTraverser.target(
+            path: defaultTargetReference.projectPath,
+            name: defaultTargetReference.name
+        ) {
+            defaultTarget
         } else {
             nil
         }
@@ -484,14 +494,15 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             pathRunnable = XCScheme.PathRunnable(filePath: filePath.pathString)
         } else if let graphTarget {
             defaultBuildConfiguration = graphTarget.project.defaultDebugBuildConfigurationName
-            guard
-                let buildableReference = try createBuildableReference(
-                    graphTarget: graphTarget,
-                    graphTraverser: graphTraverser,
-                    rootPath: rootPath,
-                    generatedProjects: generatedProjects
-                )
-            else { return nil }
+            guard let buildableReference = try createBuildableReference(
+                graphTarget: graphTarget,
+                graphTraverser: graphTraverser,
+                rootPath: rootPath,
+                generatedProjects: generatedProjects
+            )
+            else {
+                return nil
+            }
 
             if graphTarget.target.product.runnable {
                 buildableProductRunnable = XCScheme.BuildableProductRunnable(
@@ -506,16 +517,16 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         }
 
         if let expandVariableFromTarget = scheme.runAction?.expandVariableFromTarget,
-            let graphTarget = graphTraverser.target(
-                path: expandVariableFromTarget.projectPath,
-                name: expandVariableFromTarget.name
-            ),
-            let buildableReference = try createBuildableReference(
-                graphTarget: graphTarget,
-                graphTraverser: graphTraverser,
-                rootPath: rootPath,
-                generatedProjects: generatedProjects
-            )
+           let graphTarget = graphTraverser.target(
+               path: expandVariableFromTarget.projectPath,
+               name: expandVariableFromTarget.name
+           ),
+           let buildableReference = try createBuildableReference(
+               graphTarget: graphTarget,
+               graphTraverser: graphTraverser,
+               rootPath: rootPath,
+               generatedProjects: generatedProjects
+           )
         {
             // Xcode assigns the runnable target to the expand variables target by default.
             // Assigning the runnable target to macro expansion can lead to an unstable .xcscheme.
@@ -543,7 +554,8 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
 
         if let arguments = scheme.runAction?.arguments {
             commandlineArguments = XCScheme.CommandLineArguments(
-                arguments: getCommandlineArguments(arguments.launchArguments))
+                arguments: getCommandlineArguments(arguments.launchArguments)
+            )
             environments = environmentVariables(arguments.environmentVariables)
         }
 
@@ -561,13 +573,14 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             scheme.runAction?.diagnosticsOptions.mainThreadCheckerEnabled == false
         let disablePerformanceAntipatternChecker =
             scheme.runAction?.diagnosticsOptions
-            .performanceAntipatternCheckerEnabled == false
+                .performanceAntipatternCheckerEnabled == false
 
         let launchActionConstants: Constants.LaunchAction
         let launcherIdentifier: String
         let debuggerIdentifier: String
         let isSchemeForAppExtension = isSchemeForAppExtension(
-            scheme: scheme, graphTraverser: graphTraverser)
+            scheme: scheme, graphTraverser: graphTraverser
+        )
         if isSchemeForAppExtension == true {
             launchActionConstants = .extension
             debuggerIdentifier = ""
@@ -578,7 +591,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
                 debuggerIdentifier = runAction.attachDebugger ? XCScheme.defaultDebugger : ""
                 launcherIdentifier =
                     runAction.attachDebugger
-                    ? launchActionConstants.launcher : XCScheme.posixSpawnLauncher
+                        ? launchActionConstants.launcher : XCScheme.posixSpawnLauncher
             } else {
                 debuggerIdentifier = XCScheme.defaultDebugger
                 launcherIdentifier = launchActionConstants.launcher
@@ -587,7 +600,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
 
         let customLLDBInitFilePath: RelativePath?
         if let customLLDBInitFile = scheme.runAction?.customLLDBInitFile,
-            let graphTarget
+           let graphTarget
         {
             customLLDBInitFilePath = customLLDBInitFile.relative(to: graphTarget.project.path)
         } else {
@@ -597,7 +610,8 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         if let storeKitFilePath = scheme.runAction?.options.storeKitConfigurationPath {
             // the identifier is the relative path between the storekit file, and the xcode project
             let fileRelativePath = storeKitFilePath.relative(
-                to: graphTraverser.workspace.xcWorkspacePath)
+                to: graphTraverser.workspace.xcWorkspacePath
+            )
             storeKitConfigurationFileReference = .init(identifier: fileRelativePath.pathString)
         }
 
@@ -606,7 +620,8 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
 
             if case let .gpxFile(gpxPath) = locationScenario {
                 let fileRelativePath = gpxPath.relative(
-                    to: graphTraverser.workspace.xcWorkspacePath)
+                    to: graphTraverser.workspace.xcWorkspacePath
+                )
                 identifier = fileRelativePath.pathString
             }
 
@@ -692,7 +707,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             appClipInvocationURLString: appClipInvocationURLString
         )
         return xcScheme
-    }  // swiftlint:enable function_body_length
+    } // swiftlint:enable function_body_length
 
     /// Generates the scheme profile action for a given target.
     ///
@@ -702,7 +717,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
     ///   - rootPath: Root path to either project or workspace.
     ///   - generatedProjects: Project paths mapped to generated projects.
     /// - Returns: Scheme profile action.
-    func schemeProfileAction(  // swiftlint:disable:this function_body_length
+    func schemeProfileAction( // swiftlint:disable:this function_body_length
         scheme: Scheme,
         graphTraverser: GraphTraversing,
         rootPath: AbsolutePath,
@@ -717,8 +732,9 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             if let arguments = action.arguments {
                 commandlineArguments =
                     XCScheme
-                    .CommandLineArguments(
-                        arguments: getCommandlineArguments(arguments.launchArguments))
+                        .CommandLineArguments(
+                            arguments: getCommandlineArguments(arguments.launchArguments)
+                        )
                 environments = environmentVariables(arguments.environmentVariables)
             }
         } else if let action = scheme.runAction, let executable = action.executable {
@@ -730,13 +746,12 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
 
         guard let graphTarget = graphTraverser.target(path: target.projectPath, name: target.name)
         else { return nil }
-        guard
-            let buildableReference = try createBuildableReference(
-                graphTarget: graphTarget,
-                graphTraverser: graphTraverser,
-                rootPath: rootPath,
-                generatedProjects: generatedProjects
-            )
+        guard let buildableReference = try createBuildableReference(
+            graphTarget: graphTarget,
+            graphTraverser: graphTraverser,
+            rootPath: rootPath,
+            generatedProjects: generatedProjects
+        )
         else { return nil }
 
         var buildableProductRunnable: XCScheme.BuildableProductRunnable?
@@ -753,7 +768,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
 
         let buildConfiguration =
             scheme.profileAction?
-            .configurationName ?? defaultReleaseBuildConfigurationName(in: graphTarget.project)
+                .configurationName ?? defaultReleaseBuildConfigurationName(in: graphTarget.project)
 
         let preActions =
             try scheme.profileAction?.preActions.map {
@@ -802,12 +817,12 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         generatedProjects _: [AbsolutePath: GeneratedProject]
     ) throws -> XCScheme.AnalyzeAction? {
         guard let target = defaultTargetReference(scheme: scheme),
-            let graphTarget = graphTraverser.target(path: target.projectPath, name: target.name)
+              let graphTarget = graphTraverser.target(path: target.projectPath, name: target.name)
         else { return nil }
 
         let buildConfiguration =
             scheme.analyzeAction?.configurationName
-            ?? graphTarget.project.defaultDebugBuildConfigurationName
+                ?? graphTarget.project.defaultDebugBuildConfigurationName
         return XCScheme.AnalyzeAction(buildConfiguration: buildConfiguration)
     }
 
@@ -827,7 +842,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
     ) throws -> XCScheme.ArchiveAction? {
         guard let archiveAction = scheme.archiveAction else {
             guard let target = defaultTargetReference(scheme: scheme),
-                let graphTarget = graphTraverser.target(path: target.projectPath, name: target.name)
+                  let graphTarget = graphTraverser.target(path: target.projectPath, name: target.name)
             else {
                 return nil
             }
@@ -868,8 +883,9 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         rootPath: AbsolutePath
     ) throws -> XCScheme.ExecutionAction {
         guard let targetReference = action.target,
-            let graphTarget = graphTraverser.target(
-                path: targetReference.projectPath, name: targetReference.name)
+              let graphTarget = graphTraverser.target(
+                  path: targetReference.projectPath, name: targetReference.name
+              )
         else {
             return XCScheme.ExecutionAction(
                 scriptText: action.scriptText,
@@ -919,9 +935,9 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         generatedProjects: [AbsolutePath: GeneratedProject]
     ) throws -> XCScheme.BuildableReference? {
         let projectPath = graphTarget.project.xcodeProjPath
-        guard
-            let target = graphTraverser.target(
-                path: graphTarget.project.path, name: graphTarget.target.name)
+        guard let target = graphTraverser.target(
+            path: graphTarget.project.path, name: graphTarget.target.name
+        )
         else { return nil }
         guard let generatedProject = generatedProjects[projectPath] else { return nil }
         guard let pbxTarget = generatedProject.targets[graphTarget.target.name] else { return nil }
@@ -967,8 +983,8 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
     ///     - arguments: commandline argument keys.
     /// - Returns: XCScheme.CommandLineArguments.CommandLineArgument.
     private func getCommandlineArguments(_ arguments: [LaunchArgument]) -> [XCScheme
-        .CommandLineArguments.CommandLineArgument]
-    {
+        .CommandLineArguments.CommandLineArgument
+    ] {
         arguments.map {
             XCScheme.CommandLineArguments.CommandLineArgument(name: $0.name, enabled: $0.isEnabled)
         }
@@ -980,11 +996,12 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
     ///     - environments: environment variables
     /// - Returns: XCScheme.EnvironmentVariable.
     private func environmentVariables(_ environments: [String: EnvironmentVariable]) -> [XCScheme
-        .EnvironmentVariable]
-    {
+        .EnvironmentVariable
+    ] {
         environments.map { key, variable in
             XCScheme.EnvironmentVariable(
-                variable: key, value: variable.value, enabled: variable.isEnabled)
+                variable: key, value: variable.value, enabled: variable.isEnabled
+            )
         }.sorted { $0.variable < $1.variable }
     }
 
@@ -1033,8 +1050,9 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
 
     private func isSchemeForAppExtension(scheme: Scheme, graphTraverser: GraphTraversing) -> Bool? {
         guard let defaultTarget = defaultTargetReference(scheme: scheme),
-            let graphTarget = graphTraverser.target(
-                path: defaultTarget.projectPath, name: defaultTarget.name)
+              let graphTarget = graphTraverser.target(
+                  path: defaultTarget.projectPath, name: defaultTarget.name
+              )
         else {
             return nil
         }
