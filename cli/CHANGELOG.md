@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.62.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* Add support for buildable folders by [@pepicrft](https://github.com/pepicrft) in [#7984](https://github.com/tuist/tuist/pull/7984)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.61.2...4.62.0
+
 ## What's Changed in 4.61.2<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
