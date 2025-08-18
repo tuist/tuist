@@ -118,7 +118,7 @@ defmodule TuistWeb.BillingLive do
     }
   end
 
-  attr(:label, :string, required: true)
+  attr :label, :string, required: true
 
   def plan_feature(assigns) do
     ~H"""
@@ -131,13 +131,13 @@ defmodule TuistWeb.BillingLive do
     """
   end
 
-  attr(:id, :string, required: true)
-  attr(:name, :string, required: true)
-  attr(:description, :string, required: true)
-  attr(:price, :string, required: true)
-  attr(:price_subtitle, :string, default: nil)
-  attr(:features, :list, required: true)
-  attr(:most_popular, :boolean, default: false)
+  attr :id, :string, required: true
+  attr :name, :string, required: true
+  attr :description, :string, required: true
+  attr :price, :string, required: true
+  attr :price_subtitle, :string, default: nil
+  attr :features, :list, required: true
+  attr :most_popular, :boolean, default: false
 
   slot(:action_button, required: true)
 
@@ -177,8 +177,8 @@ defmodule TuistWeb.BillingLive do
     """
   end
 
-  attr(:id, :string, required: true)
-  attr(:plan, :atom, required: true)
+  attr :id, :string, required: true
+  attr :plan, :atom, required: true
 
   def pricing_cards(assigns) do
     ~H"""
@@ -246,7 +246,7 @@ defmodule TuistWeb.BillingLive do
     """
   end
 
-  attr(:id, :string, required: true)
+  attr :id, :string, required: true
 
   defp notch_svg(assigns) do
     ~H"""

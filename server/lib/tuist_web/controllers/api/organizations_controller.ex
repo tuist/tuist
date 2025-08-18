@@ -17,7 +17,7 @@ defmodule TuistWeb.API.OrganizationsController do
     render_message: TuistWeb.RenderAPIErrorPlug
   )
 
-  tags(["Organizations"])
+  tags ["Organizations"]
 
   operation(:index,
     summary: "Lists the organizations",

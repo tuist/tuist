@@ -17,7 +17,7 @@ defmodule TuistWeb.API.ProjectsController do
     render_error: TuistWeb.RenderAPIErrorPlug
   )
 
-  tags(["Projects"])
+  tags ["Projects"]
 
   operation(:create,
     summary: "Create a new project.",

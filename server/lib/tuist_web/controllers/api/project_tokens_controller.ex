@@ -9,7 +9,7 @@ defmodule TuistWeb.API.ProjectTokensController do
   alias TuistWeb.API.Schemas.ProjectToken
   alias TuistWeb.Authentication
 
-  tags(["Project tokens"])
+  tags ["Project tokens"]
 
   operation(:create,
     summary: "Create a new project token.",

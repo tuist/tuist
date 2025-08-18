@@ -10,8 +10,8 @@ defmodule TuistWeb.BillingController do
   alias Tuist.Billing
   alias TuistWeb.Authentication
 
-  plug(:assign_billing_account)
-  plug(:authorize)
+  plug :assign_billing_account
+  plug :authorize
 
   def manage(%{assigns: %{billing_account: billing_account}} = conn, _params) do
     billing_account = Accounts.create_customer_when_absent(billing_account)

@@ -14,7 +14,7 @@ defmodule TuistWeb.API.InvitationsController do
     render_message: TuistWeb.RenderAPIErrorPlug
   )
 
-  tags(["Invitations"])
+  tags ["Invitations"]
 
   operation(:create,
     summary: "Creates an invitation",
