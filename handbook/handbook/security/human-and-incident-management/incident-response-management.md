@@ -1,9 +1,10 @@
 ---
-title: Incident response management
-titleTemplate: :title | Human and incident management | Security | Tuist Handbook
-description: Incident response management is a set of procedures that an organization follows when an incident occurs. The goal is to minimize the damage and reduce recovery time and costs.
+{
+  "title": "Incident response management",
+  "titleTemplate": ":title | Human and incident management | Security | Tuist Handbook",
+  "description": "Incident response management is a set of procedures that an organization follows when an incident occurs. The goal is to minimize the damage and reduce recovery time and costs."
+}
 ---
-
 # Incident response management
 
 - **Policy owner:** Pedro Piñera Buendía

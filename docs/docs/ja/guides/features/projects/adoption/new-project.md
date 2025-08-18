@@ -1,9 +1,10 @@
 ---
-title: 新規プロジェクトの作成
-titleTemplate: :title · Adoption · Projects · Develop · Guides · Tuist
-description: Tuist で新規プロジェクトを作成する方法を学びます。
+{
+  "title": "新規プロジェクトの作成",
+  "titleTemplate": ":title · Adoption · Projects · Develop · Guides · Tuist",
+  "description": "Tuist で新規プロジェクトを作成する方法を学びます。"
+}
 ---
-
 # 新規プロジェクトの作成 {#create-a-new-project}
 
 Tuist を使って新しいプロジェクトを開始する最も簡単な方法は、`tuist init` コマンドを使用することです。 This command launches an interactive CLI that guides you through setting up your project. When prompted, make sure to select the option to create a "generated project".

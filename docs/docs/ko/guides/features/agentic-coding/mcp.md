@@ -1,9 +1,10 @@
 ---
-title: Model Context Protocol (MCP)
-titleTemplate: :title · AI · Guides · Tuist
-description: Tuist의 MCP 서버를 사용하여 앱 개발 환경에서 언어 기반 인터페이스를 활용하는 방법을 배워봅니다.
+{
+  "title": "Model Context Protocol (MCP)",
+  "titleTemplate": ":title · AI · Guides · Tuist",
+  "description": "Tuist의 MCP 서버를 사용하여 앱 개발 환경에서 언어 기반 인터페이스를 활용하는 방법을 배워봅니다."
+}
 ---
-
 # Model Context Protocol (MCP)
 
 [Model Context Protocol (MCP)](https://www.claudemcp.com)은 LLM이 개발 환경과 상호작용할 수 있도록 [Claude](https://claude.ai)에서 제안한 표준입니다.

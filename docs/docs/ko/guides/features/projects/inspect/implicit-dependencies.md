@@ -1,9 +1,10 @@
 ---
-title: Implicit imports
-titleTemplate: :title · Inspect · Projects · Develop · Guides · Tuist
-description: Learn how to use Tuist to find implicit dependencies.
+{
+  "title": "Implicit imports",
+  "titleTemplate": ":title · Inspect · Projects · Develop · Guides · Tuist",
+  "description": "Learn how to use Tuist to find implicit dependencies."
+}
 ---
-
 # 암시적 임포트 {#implicit-imports}
 
 Apple은 순수 Xcode 프로젝트의 그래프 관리 복잡성을 줄이기 위해, 의존성을 암시적으로 정의할 수 있는 방식으로 빌드 시스템을 설계했습니다. 이는 앱과 같은 프로덕트가 의존성을 명시적으로 선언하지 않아도 프레임워크에 의존성을 가질 수 있다는 뜻입니다. 소규모 프로젝트에서는 문제없을 수 있지만, 프로젝트 그래프의 복잡성이 증가함에 따라 이러한 암시적인 방식 때문에 증분 빌드가 불안정해지거나 프리뷰, 코드 자동완성 같은 에디터 기능이 제대로 작동하지 않을 수 있습니다.

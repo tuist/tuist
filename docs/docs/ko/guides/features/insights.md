@@ -1,9 +1,10 @@
 ---
-title: Insights
-titleTemplate: :title · Develop · Guides · Tuist
-description: 개발 환경을 유지하기 위해 프로젝트에 대한 인사이트를 얻으세요.
+{
+  "title": "Insights",
+  "titleTemplate": ":title · Develop · Guides · Tuist",
+  "description": "개발 환경을 유지하기 위해 프로젝트에 대한 인사이트를 얻으세요."
+}
 ---
-
 # Insights {#insights}
 
 > [!IMPORTANT] 요구사항

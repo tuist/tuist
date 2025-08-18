@@ -1,9 +1,10 @@
 ---
-title: Gather insights
-titleTemplate: :title · Quick-start · Guides · Tuist
-description: 프로젝트에서 인사이트를 수집하는 방법에 대해 배웁니다.
+{
+  "title": "Gather insights",
+  "titleTemplate": ":title · Quick-start · Guides · Tuist",
+  "description": "프로젝트에서 인사이트를 수집하는 방법에 대해 배웁니다."
+}
 ---
-
 # Gather insights {#gather-insights}
 
 Tuist는 기능을 확장하기 위해 서버와 통합할 수 있습니다. 프로젝트와 빌드에 대해 인사이트를 수집하는 것이 그 기능 중에 하나입니다. 서버의 프로젝트에 필요한 계정만 있으면 됩니다.

@@ -1,9 +1,10 @@
 ---
-title: Needs pool
-titleTemplate: :title | Product | Tuist Handbook
-description: This document captures the needs of people using Tuist to get ideas on how to improve the product.
+{
+  "title": "Needs pool",
+  "titleTemplate": ":title | Product | Tuist Handbook",
+  "description": "This document captures the needs of people using Tuist to get ideas on how to improve the product."
+}
 ---
-
 # Needs pool
 
 Tuist must solve real needs that people have.

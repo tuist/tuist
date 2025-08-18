@@ -1,9 +1,10 @@
 ---
-title: Use Tuist with a Swift Package
-titleTemplate: :title · Adoption · Projects · Develop · Guides · Tuist
-description: Swift Package와 함께 Tuist를 사용하는 방법에 대해 알아봅니다.
+{
+  "title": "Use Tuist with a Swift Package",
+  "titleTemplate": ":title · Adoption · Projects · Develop · Guides · Tuist",
+  "description": "Swift Package와 함께 Tuist를 사용하는 방법에 대해 알아봅니다."
+}
 ---
-
 # Using Tuist with a Swift Package <Badge type="warning" text="beta" /> {#using-tuist-with-a-swift-package-badge-typewarning-textbeta-}
 
 Tuist는 프로젝트에 DSL로 `Package.swift` 사용을 지원하고 패키지 타겟을 Xcode 프로젝트와 타겟으로 변환합니다.

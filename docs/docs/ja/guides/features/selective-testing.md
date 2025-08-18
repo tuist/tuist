@@ -1,9 +1,10 @@
 ---
-title: 選択的テスト
-titleTemplate: :title · Develop · Guides · Tuist
-description: Use selective testing to run only the tests that have changed since the last successful test run.
+{
+  "title": "選択的テスト",
+  "titleTemplate": ":title · Develop · Guides · Tuist",
+  "description": "Use selective testing to run only the tests that have changed since the last successful test run."
+}
 ---
-
 # Selective testing {#selective-testing}
 
 As your project grows, so does the amount of your tests. For a long time, running all tests on every PR or push to `main` takes tens of seconds. But this solution does not scale to thousands of tests your team might have.

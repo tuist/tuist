@@ -1,9 +1,10 @@
 ---
-title: Editing
-titleTemplate: :title · Projects · Develop · Guides · Tuist
-description: Xcode의 빌드 시스템과 편집기 기능을 활용하여 프로젝트를 선언하기 위한 Tuist의 편집 워크플로우에 대해 배워봅니다.
+{
+  "title": "Editing",
+  "titleTemplate": ":title · Projects · Develop · Guides · Tuist",
+  "description": "Xcode의 빌드 시스템과 편집기 기능을 활용하여 프로젝트를 선언하기 위한 Tuist의 편집 워크플로우에 대해 배워봅니다."
+}
 ---
-
 # Editing {#editing}
 
 Xcode의 UI를 통해 변경되는 기존 Xcode 프로젝트와 Swift Package와 달리, Tuist로 관리되는 프로젝트는 매니페스트 파일에 포함된 Swift 코드로 정의됩니다.

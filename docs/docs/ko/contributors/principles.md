@@ -1,9 +1,10 @@
 ---
-title: Principles
-titleTemplate: :title · Contributors · Tuist
-description: 이 문서는 Tuist의 개발을 위한 원칙을 설명합니다.
+{
+  "title": "Principles",
+  "titleTemplate": ":title · Contributors · Tuist",
+  "description": "이 문서는 Tuist의 개발을 위한 원칙을 설명합니다."
+}
 ---
-
 # Principles {#principles}
 
 이 페이지는 Tuist의 디자인과 개발의 기둥이 되는 원칙을 설명합니다. 이것은 프로젝트와 함께 발전하고 프로젝트 기반과 잘 부합하는 지속 가능한 성장을 보장하기 위한 것입니다.

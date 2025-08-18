@@ -1,9 +1,10 @@
 ---
-title: Benefits
-titleTemplate: :title | People | Tuist Handbook
-description: Learn about the benefits and perks of working at Tuist.
+{
+  "title": "Benefits",
+  "titleTemplate": ":title | People | Tuist Handbook",
+  "description": "Learn about the benefits and perks of working at Tuist."
+}
 ---
-
 # Benefits
 
 At many technology companies, perks are offered on top of salaries—free lunches, gym memberships, or wellness stipends. While these benefits can be appealing, they often create an emotional dependency between employees and the company. This isn’t something we encourage at Tuist. Instead, we believe in **paying people fairly** and **giving them the freedom** to decide how to spend their compensation in ways that best support their needs and lifestyle.

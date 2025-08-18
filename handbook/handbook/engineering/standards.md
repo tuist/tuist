@@ -1,9 +1,10 @@
 ---
-title: Standards
-titleTemplate: :title | Engineering | Tuist Handbook
-description: Learn about Tuist's stance on adopting and embracing standards over proprietary abstractions and tools.
+{
+  "title": "Standards",
+  "titleTemplate": ":title | Engineering | Tuist Handbook",
+  "description": "Learn about Tuist's stance on adopting and embracing standards over proprietary abstractions and tools."
+}
 ---
-
 # Standards
 
 To create a platform that stands the test of time, we must prioritize certain principles. One of the most important is choosing standards over proprietary abstractions and tools. This principle should guide not only [our technology choices](/engineering/technologies) but also our product design.

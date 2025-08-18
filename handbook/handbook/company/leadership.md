@@ -1,9 +1,10 @@
 ---
-title: Leadership
-titleTemplate: :title | Company | Tuist Handbook
-mission: Learn more about the leadership team at Tuist
+{
+  "title": "Leadership",
+  "titleTemplate": ":title | Company | Tuist Handbook",
+  "mission": "Learn more about the leadership team at Tuist"
+}
 ---
-
 # Leadership
 
 This document contains information about the leadership team at Tuist (roles and people).

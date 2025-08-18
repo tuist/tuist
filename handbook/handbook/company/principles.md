@@ -1,9 +1,10 @@
 ---
-title: Principles
-titleTemplate: :title | Company | Tuist Handbook
-mission: An organization is driven by its people and culture. What follows are the principles of Tuist, which together describe the foundational characteristics of the company.
+{
+  "title": "Principles",
+  "titleTemplate": ":title | Company | Tuist Handbook",
+  "mission": "An organization is driven by its people and culture. What follows are the principles of Tuist, which together describe the foundational characteristics of the company."
+}
 ---
-
 # Principles
 
 The heart of Tuist lies in its community and shared ethos. Below, you'll find the core principles that define Tuist's essence and guide our collective journey. These principles serve as our compass, helping us navigate decisions and fostering a unified approach to our work. By embracing these shared values, we ensure that our actions and choices consistently align with Tuist's vision and mission.

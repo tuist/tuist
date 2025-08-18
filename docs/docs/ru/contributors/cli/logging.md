@@ -1,9 +1,10 @@
 ---
-title: Логирование
-titleTemplate: :title · CLI · Contributors · Tuist
-description: Узнайте, как внести вклад в Tuist, проводя ревью на пулл-реквесты
+{
+  "title": "Логирование",
+  "titleTemplate": ":title · CLI · Contributors · Tuist",
+  "description": "Узнайте, как внести вклад в Tuist, проводя ревью на пулл-реквесты"
+}
 ---
-
 # Логирование {#logging}
 
 CLI использует интерфейс [swift-log](https://github.com/apple/swift-log) интерфейс для логирования. Пакет абстрагирует детали реализации логирования, позволяя CLI быть независимым от её исполнения. The logger is dependency-injected using task locals and can be accessed anywhere using:

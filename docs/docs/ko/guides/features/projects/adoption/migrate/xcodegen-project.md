@@ -1,9 +1,10 @@
 ---
-title: Migrate an XcodeGen project자동
-titleTemplate: :title · Migrate · Adoption · Projects · Develop · Guides · Tuist
-description: XcodeGen에서 Tuist로 프로젝트를 마이그레이션 하는 방법을 배웁니다.
+{
+  "title": "Migrate an XcodeGen project자동",
+  "titleTemplate": ":title · Migrate · Adoption · Projects · Develop · Guides · Tuist",
+  "description": "XcodeGen에서 Tuist로 프로젝트를 마이그레이션 하는 방법을 배웁니다."
+}
 ---
-
 # Migrate an XcodeGen project {#migrate-an-xcodegen-project}
 
 [XcodeGen](https://github.com/yonaskolb/XcodeGen)은 Xcode 프로젝트를 정의하기 위해 [구성 포맷](https://github.com/yonaskolb/XcodeGen/blob/master/Docs/ProjectSpec.md)으로 YAML을 사용하는 프로젝트 생성 툴입니다. 많은 조직에서 **Xcode 프로젝트로 작업하면 빈번하게 발생하는 Git 충돌을 벗어나기 위해 채택했습니다.** 그러나 Git 충돌은 조직에서 경험하는 많은 문제 중 하나에 불과합니다. Xcode는 개발자에게 많은 복잡성과 암시적 구성을 노출시켜서 대규모 프로젝트를 유지하고 최적화 하기 어렵게 만듭니다. XcodeGen은 프로젝트 관리 도구가 아닌 Xcode 프로젝트를 생성하는 툴이므로 설계상 부족한 점이 있습니다. Xcode 프로젝트 생성하는 것 이상의 툴이 필요하다면 Tuist를 고려해 보시기 바랍니다.

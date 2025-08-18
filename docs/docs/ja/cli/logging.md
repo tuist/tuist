@@ -1,9 +1,10 @@
 ---
-title: ロギング
-titleTemplate: :title · CLI · Tuist
-description: Tuist でログを有効にして設定する方法を学ぶ。
+{
+  "title": "ロギング",
+  "titleTemplate": ":title · CLI · Tuist",
+  "description": "Tuist でログを有効にして設定する方法を学ぶ。"
+}
 ---
-
 # ロギング {#logging}
 
 CLI は問題を診断するのに役立つメッセージを内部的に記録します。

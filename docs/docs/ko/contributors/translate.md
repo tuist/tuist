@@ -1,9 +1,10 @@
 ---
-title: Translate
-titleTemplate: :title · Contributors · Tuist
-description: 이 문서는 Tuist의 개발을 위한 원칙을 설명합니다.
+{
+  "title": "Translate",
+  "titleTemplate": ":title · Contributors · Tuist",
+  "description": "이 문서는 Tuist의 개발을 위한 원칙을 설명합니다."
+}
 ---
-
 # Translate {#translate}
 
 언어는 이해의 장벽이 될 수 있습니다. 우리는 Tuist가 가능한 많은 사람들에게 접근 가능하도록 하려고 합니다. Tuist에서 지원하지 않는 언어를 사용한다면, Tuist를 번역하여 우리를 도울 수 있습니다.
