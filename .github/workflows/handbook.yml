@@ -21,12 +21,11 @@ concurrency:
   group: handbook-${{ github.head_ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 env:
   PNPM_HOME: ~/.pnpm
-
-defaults:
-  run:
-    working-directory: handbook
 
 jobs:
   build-deploy:
@@ -36,7 +35,6 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
       - name: Restore PNPM Cache
-        working-directory: .
         uses: actions/cache@v3
         id: pnpm-cache
         with:
@@ -45,9 +43,11 @@ jobs:
           key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
       - uses: jdx/mise-action@v2
       - name: Build handbook
+        working-directory: handbook
         run: mise run build
       - name: Deploy to Cloudflare Pages
         if: github.ref == 'refs/heads/main'
+        working-directory: handbook
         env:
           MISE_SOPS_AGE_KEY: ${{ secrets.MISE_SOPS_AGE_KEY }}
           NODE_OPTIONS: --max-old-space-size=8192
