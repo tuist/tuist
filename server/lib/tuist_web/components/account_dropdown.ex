@@ -7,6 +7,7 @@ defmodule TuistWeb.AccountDropdown do
 
   alias Tuist.Accounts
   alias Tuist.Accounts.User
+  alias Tuist.Authorization
 
   attr :id, :string, required: true
   attr :latest_app_release, :map, required: true
@@ -60,6 +61,14 @@ defmodule TuistWeb.AccountDropdown do
                 variant="secondary"
               >
                 <:icon_left><.settings /></:icon_left>
+              </.button>
+              <.button
+                :if={Authorization.can(@current_user, :read, :ops)}
+                navigate={~p"/ops/qa"}
+                label={gettext("Operations")}
+                variant="secondary"
+              >
+                <:icon_left><.dashboard /></:icon_left>
               </.button>
               <.button
                 :if={latest_app_release = @latest_app_release.ok? && @latest_app_release.result}

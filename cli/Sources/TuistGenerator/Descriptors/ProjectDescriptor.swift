@@ -61,7 +61,7 @@ public struct ProjectDescriptor {
                 mainGroup: mainGroup
             )
             let pbxproj = PBXProj(
-                objectVersion: 50,
+                objectVersion: 70,
                 archiveVersion: 10
             )
             pbxproj.add(object: mainGroup)

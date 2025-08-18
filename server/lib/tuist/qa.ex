@@ -10,9 +10,12 @@ defmodule Tuist.QA do
   alias Tuist.AppBuilds
   alias Tuist.AppBuilds.AppBuild
   alias Tuist.Authentication
+  alias Tuist.Billing.TokenUsage
+  alias Tuist.ClickHouseRepo
   alias Tuist.Environment
   alias Tuist.Namespace
   alias Tuist.Projects
+  alias Tuist.QA.Log
   alias Tuist.QA.Run
   alias Tuist.QA.Screenshot
   alias Tuist.QA.Step
@@ -163,6 +166,146 @@ defmodule Tuist.QA do
   end
 
   @doc """
+  Gets a QA run by ID with project and account information for ops interface.
+  Returns a map with the necessary fields for display.
+  """
+  def qa_run_for_ops(qa_run_id) do
+    query =
+      from(qa in Run,
+        join: ab in assoc(qa, :app_build),
+        join: pr in assoc(ab, :preview),
+        join: p in assoc(pr, :project),
+        join: a in assoc(p, :account),
+        where: qa.id == ^qa_run_id,
+        select: %{
+          id: qa.id,
+          project_name: p.name,
+          account_name: a.name,
+          status: qa.status,
+          inserted_at: qa.inserted_at,
+          prompt: qa.prompt
+        }
+      )
+
+    Repo.one(query)
+  end
+
+  @doc """
+  Gets QA logs for a given QA run ID from ClickHouse.
+  """
+  def logs_for_run(qa_run_id) do
+    query =
+      from(log in Log,
+        where: log.qa_run_id == ^qa_run_id,
+        order_by: [asc: log.timestamp]
+      )
+
+    logs = ClickHouseRepo.all(query)
+
+    Enum.map(logs, &Log.normalize_enums/1)
+  end
+
+  @doc """
+  Gets QA runs chart data for the last 30 days.
+  Returns a list of [date, count] pairs for each day.
+  """
+  def qa_runs_chart_data do
+    thirty_days_ago = Date.add(Date.utc_today(), -30)
+    thirty_days_ago_datetime = DateTime.new!(thirty_days_ago, ~T[00:00:00], "Etc/UTC")
+
+    query =
+      from(qa in Run,
+        where: qa.inserted_at >= ^thirty_days_ago_datetime,
+        group_by: fragment("DATE(?)", qa.inserted_at),
+        select: %{
+          date: fragment("DATE(?)", qa.inserted_at),
+          count: count(qa.id)
+        },
+        order_by: [asc: fragment("DATE(?)", qa.inserted_at)]
+      )
+
+    results = Repo.all(query)
+    results_map = Map.new(results, fn result -> {result.date, result.count} end)
+
+    date_range = Date.range(thirty_days_ago, Date.utc_today())
+
+    Enum.map(date_range, fn date ->
+      count = Map.get(results_map, date, 0)
+      [Date.to_string(date), count]
+    end)
+  end
+
+  @doc """
+  Gets cumulative projects usage chart data for the last 30 days.
+  Returns a list of [date, cumulative_unique_projects_count] pairs.
+  """
+  def projects_usage_chart_data do
+    thirty_days_ago = Date.add(Date.utc_today(), -30)
+    thirty_days_ago_datetime = DateTime.new!(thirty_days_ago, ~T[00:00:00], "Etc/UTC")
+
+    query =
+      from(qa in Run,
+        join: ab in assoc(qa, :app_build),
+        join: pr in assoc(ab, :preview),
+        join: p in assoc(pr, :project),
+        where: qa.inserted_at >= ^thirty_days_ago_datetime,
+        group_by: fragment("DATE(?)", qa.inserted_at),
+        select: %{
+          date: fragment("DATE(?)", qa.inserted_at),
+          project_ids: fragment("array_agg(DISTINCT ?)", p.id)
+        },
+        order_by: [asc: fragment("DATE(?)", qa.inserted_at)]
+      )
+
+    results_by_date =
+      query
+      |> Repo.all()
+      |> Map.new(fn r -> {r.date, MapSet.new(r.project_ids)} end)
+
+    date_range = Date.range(thirty_days_ago, Date.utc_today())
+
+    {_, acc} =
+      Enum.reduce(date_range, {MapSet.new(), []}, fn date, {cumulative, out} ->
+        todays_projects = Map.get(results_by_date, date, MapSet.new())
+        cumulative = MapSet.union(cumulative, todays_projects)
+        {cumulative, [[Date.to_string(date), MapSet.size(cumulative)] | out]}
+      end)
+
+    Enum.reverse(acc)
+  end
+
+  @doc """
+  Gets recent QA runs for ops interface.
+  Returns up to 50 most recent runs with project and account info.
+  """
+  def recent_qa_runs do
+    query =
+      from(qa in Run,
+        join: ab in assoc(qa, :app_build),
+        join: pr in assoc(ab, :preview),
+        join: p in assoc(pr, :project),
+        join: a in assoc(p, :account),
+        left_join: tu in TokenUsage,
+        on: tu.feature_resource_id == qa.id and tu.feature == "qa",
+        group_by: [qa.id, p.name, a.name, qa.status, qa.inserted_at, qa.prompt],
+        select: %{
+          id: qa.id,
+          project_name: p.name,
+          account_name: a.name,
+          status: qa.status,
+          inserted_at: qa.inserted_at,
+          prompt: qa.prompt,
+          input_tokens: coalesce(sum(tu.input_tokens), 0),
+          output_tokens: coalesce(sum(tu.output_tokens), 0)
+        },
+        order_by: [desc: qa.inserted_at],
+        limit: 50
+      )
+
+    Repo.all(query)
+  end
+
+  @doc """
   Creates a new QA screenshot.
   """
   def create_qa_screenshot(attrs) do
@@ -194,7 +337,8 @@ defmodule Tuist.QA do
   Updates screenshots to associate them with a QA run step.
   """
   def update_screenshots_with_step_id(qa_run_id, qa_step_id) do
-    Repo.update_all(from(s in Screenshot, where: s.qa_run_id == ^qa_run_id and is_nil(s.qa_step_id)),
+    Repo.update_all(
+      from(s in Screenshot, where: s.qa_run_id == ^qa_run_id and is_nil(s.qa_step_id)),
       set: [qa_step_id: qa_step_id]
     )
   end
@@ -270,7 +414,9 @@ defmodule Tuist.QA do
 
   defp render_qa_summary_comment_body(qa_run, project) do
     preview = qa_run.app_build.preview
-    preview_url = "#{Environment.app_url()}/#{project.account.name}/#{project.name}/previews/#{preview.id}"
+
+    preview_url =
+      "#{Environment.app_url()}/#{project.account.name}/#{project.name}/previews/#{preview.id}"
 
     render_qa_summary(%{
       summary: qa_run.summary,

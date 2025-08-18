@@ -68,8 +68,8 @@ defmodule TuistWeb.QALogChannelTest do
       {:ok, _, socket} = subscribe_and_join(socket, QALogChannel, "qa_logs:#{qa_run.id}")
 
       log_message = %{
-        "message" => "Test log message",
-        "level" => "info",
+        "data" => JSON.encode!(%{"message" => "Test log message"}),
+        "type" => "message",
         "timestamp" => DateTime.to_iso8601(DateTime.utc_now())
       }
 
@@ -82,8 +82,8 @@ defmodule TuistWeb.QALogChannelTest do
 
       for i <- 1..3 do
         log_message = %{
-          "message" => "Test log message #{i}",
-          "level" => "debug",
+          "data" => JSON.encode!(%{"message" => "Test log message #{i}"}),
+          "type" => "message",
           "timestamp" => DateTime.to_iso8601(DateTime.utc_now())
         }
 
@@ -92,16 +92,20 @@ defmodule TuistWeb.QALogChannelTest do
       end
     end
 
-    test "handles different log levels correctly", %{socket: socket, qa_run: qa_run} do
+    test "handles different log types correctly", %{socket: socket, qa_run: qa_run} do
       {:ok, _, socket} = subscribe_and_join(socket, QALogChannel, "qa_logs:#{qa_run.id}")
 
-      levels = ["debug", "info", "warn", "warning", "error"]
+      types = [
+        {"message", %{"message" => "Test message"}},
+        {"tool_call", %{"name" => "test_tool", "arguments" => %{}}},
+        {"usage", %{"input" => 100, "output" => 50, "model" => "test-model"}}
+      ]
 
       capture_log(fn ->
-        for level <- levels do
+        for {type, data} <- types do
           log_message = %{
-            "message" => "Test #{level} message",
-            "level" => level,
+            "data" => JSON.encode!(data),
+            "type" => type,
             "timestamp" => DateTime.to_iso8601(DateTime.utc_now())
           }
 
@@ -111,17 +115,70 @@ defmodule TuistWeb.QALogChannelTest do
       end)
     end
 
-    test "defaults to info level for unknown levels", %{socket: socket, qa_run: qa_run} do
+    test "handles token usage logs and creates token usage records", %{
+      socket: socket,
+      qa_run: qa_run
+    } do
       {:ok, _, socket} = subscribe_and_join(socket, QALogChannel, "qa_logs:#{qa_run.id}")
 
-      log_message = %{
-        "message" => "Test unknown level message",
-        "level" => "unknown",
+      token_usage_message = %{
+        "data" =>
+          JSON.encode!(%{
+            "input" => 150,
+            "output" => 75,
+            "model" => "claude-sonnet-4-20250514"
+          }),
+        "type" => "usage",
         "timestamp" => DateTime.to_iso8601(DateTime.utc_now())
       }
 
-      ref = push(socket, "log", log_message)
+      ref = push(socket, "log", token_usage_message)
       assert_reply(ref, :ok)
+
+      token_usage = Tuist.Billing.token_usage_for_resource("qa", qa_run.id)
+      assert token_usage.total_input_tokens == 150
+      assert token_usage.total_output_tokens == 75
+      assert token_usage.average_tokens == 225
+    end
+
+    test "handles multiple token usage logs and accumulates totals", %{
+      socket: socket,
+      qa_run: qa_run
+    } do
+      {:ok, _, socket} = subscribe_and_join(socket, QALogChannel, "qa_logs:#{qa_run.id}")
+
+      token_usage_1 = %{
+        "data" =>
+          JSON.encode!(%{
+            "input" => 100,
+            "output" => 50,
+            "model" => "claude-sonnet-4-20250514"
+          }),
+        "type" => "usage",
+        "timestamp" => DateTime.to_iso8601(DateTime.utc_now())
+      }
+
+      token_usage_2 = %{
+        "data" =>
+          JSON.encode!(%{
+            "input" => 200,
+            "output" => 100,
+            "model" => "claude-sonnet-4-20250514"
+          }),
+        "type" => "usage",
+        "timestamp" => DateTime.to_iso8601(DateTime.utc_now())
+      }
+
+      ref1 = push(socket, "log", token_usage_1)
+      assert_reply(ref1, :ok)
+
+      ref2 = push(socket, "log", token_usage_2)
+      assert_reply(ref2, :ok)
+
+      token_usage = Tuist.Billing.token_usage_for_resource("qa", qa_run.id)
+      assert token_usage.total_input_tokens == 300
+      assert token_usage.total_output_tokens == 150
+      assert token_usage.average_tokens == 450
     end
   end
 end

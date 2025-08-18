@@ -1,6 +1,5 @@
 defmodule TuistWeb.Router do
   use TuistWeb, :router
-  use ErrorTracker.Web, :router
 
   import Oban.Web.Router
   import Phoenix.LiveDashboard.Router
@@ -36,7 +35,7 @@ defmodule TuistWeb.Router do
   end
 
   pipeline :browser_app do
-    plug :accepts, ["html"]
+    plug :accepts, ["html", "svg", "png"]
     plug :disable_robot_indexing
     plug :fetch_session
     plug :fetch_live_flash
@@ -390,6 +389,7 @@ defmodule TuistWeb.Router do
   # Ops Routes
   pipeline :ops do
     plug TuistWeb.Authorization, [:current_user, :read, :ops]
+    plug :assign_current_path
   end
 
   scope "/ops" do
@@ -416,12 +416,16 @@ defmodule TuistWeb.Router do
         script: :csp_nonce
       }
 
-    error_tracker_dashboard("/errors",
+    live_session :ops_qa,
+      layout: {TuistWeb.Layouts, :ops},
       on_mount: [
         {TuistWeb.Authentication, :ensure_authenticated},
-        {TuistWeb.Authorization, [:current_user, :read, :ops]}
-      ]
-    )
+        {TuistWeb.Authorization, [:current_user, :read, :ops]},
+        {TuistWeb.LayoutLive, :ops}
+      ] do
+      live "/qa", TuistWeb.OpsQALive
+      live "/qa/:qa_run_id/logs", TuistWeb.OpsQALogsLive
+    end
   end
 
   if Tuist.Environment.dev?() do
@@ -539,9 +543,18 @@ defmodule TuistWeb.Router do
 
     get "/manifest.plist", PreviewController, :manifest
     get "/app.ipa", PreviewController, :download_archive
+    get "/download", PreviewController, :download_preview
+  end
+
+  scope "/:account_handle/:project_handle/previews/:id", TuistWeb do
+    pipe_through [
+      :open_api,
+      :browser_app,
+      :analytics
+    ]
+
     get "/qr-code.svg", PreviewController, :download_qr_code_svg
     get "/qr-code.png", PreviewController, :download_qr_code_png
-    get "/download", PreviewController, :download_preview
   end
 
   scope "/:account_handle/:project_handle/previews/:id", TuistWeb do

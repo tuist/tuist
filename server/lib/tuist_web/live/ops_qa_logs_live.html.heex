@@ -1,0 +1,77 @@
+<div id="ops-qa-logs">
+  <div data-part="header">
+    <div data-part="breadcrumb">
+      <.link_button label={gettext("Back")} navigate={~p"/ops/qa"} variant="secondary">
+        <:icon_left>
+          <.arrow_left />
+        </:icon_left>
+      </.link_button>
+    </div>
+
+    <div data-part="title-section">
+      <div data-part="meta">
+        <span data-part="project">{@qa_run.account_name}/{@qa_run.project_name}</span>
+        <.status_badge
+          status={map_qa_status_to_badge_status(@qa_run.status)}
+          label={String.capitalize(@qa_run.status)}
+        />
+        <span data-part="time">{format_datetime(@qa_run.inserted_at)}</span>
+      </div>
+    </div>
+  </div>
+
+  <div data-part="logs-section">
+    <.card title={gettext("Logs")} icon="file">
+      <.card_section>
+        <%= if Enum.empty?(@logs) do %>
+          <div data-part="empty-logs">
+            <span>{gettext("No logs found for this QA run")}</span>
+          </div>
+        <% else %>
+          <div data-part="logs-container">
+            <div :for={log <- @logs} data-part="log-entry" data-type={log.type}>
+              <span data-part="timestamp">{format_log_timestamp_short(log.timestamp)}</span>
+              <span data-part="log-type" data-type={log.type}>
+                {log_type_short(log)}
+              </span>
+              <%= if log.type == :tool_call or log.type == :tool_call_result do %>
+                <div data-part="tool-call-content">
+                  <div data-part="tool-call-header">
+                    <button
+                      type="button"
+                      data-part="expand-toggle"
+                      phx-click="toggle_tool_details"
+                      phx-value-log-id={log_id(log)}
+                    >
+                      <span class="expand-icon">
+                        {if expanded?(log, @expanded_tools), do: "−", else: "+"}
+                      </span>
+                    </button>
+                    <span data-part="tool-name">{format_log_message(log)}</span>
+                  </div>
+                  <%= if expanded?(log, @expanded_tools) do %>
+                    <div data-part="tool-call-details">
+                      <%= if log.type == :tool_call_result and has_screenshot?(log) do %>
+                        <div data-part="screenshot-content">
+                          <img
+                            src={"data:image/png;base64,#{get_screenshot_data(log)}"}
+                            alt="Screenshot"
+                            style="max-width: 100%; max-height: 400px; height: auto; border-radius: 6px; margin-bottom: 12px;"
+                          />
+                        </div>
+                      <% else %>
+                        <pre data-part="json-content">{prettify_json(log.data)}</pre>
+                      <% end %>
+                    </div>
+                  <% end %>
+                </div>
+              <% else %>
+                <div data-part="log-message" data-type={log.type}>{format_log_message(log)}</div>
+              <% end %>
+            </div>
+          </div>
+        <% end %>
+      </.card_section>
+    </.card>
+  </div>
+</div>

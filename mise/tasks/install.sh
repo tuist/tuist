@@ -10,7 +10,7 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
   tuist install
 fi
 (cd server && mix deps.get)
-(cd server && pnpm install)
+(cd server && pnpm install --ignore-workspace)
 
 if [ -z "$CI" ]; then
   $SCRIPT_DIR/server/db/reset.sh

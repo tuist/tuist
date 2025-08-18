@@ -1,6 +1,30 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.62.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* Add support for buildable folders by [@pepicrft](https://github.com/pepicrft) in [#7984](https://github.com/tuist/tuist/pull/7984)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.61.2...4.62.0
+
+## What's Changed in 4.61.2<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* platform conditions not applied for binary dependencies in external packages by [@pepicrft](https://github.com/pepicrft) in [#7991](https://github.com/tuist/tuist/pull/7991)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.61.1...4.61.2
+
+## What's Changed in 4.61.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* generation regression by [@pepicrft](https://github.com/pepicrft) in [#8011](https://github.com/tuist/tuist/pull/8011)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.61.0...4.61.1
+
 ## What's Changed in 4.61.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features

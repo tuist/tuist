@@ -163,6 +163,17 @@ defmodule TuistWeb.LayoutLive do
      |> assign(:current_user_accounts, current_user_accounts)}
   end
 
+  def on_mount(:ops, _params, session, socket) do
+    current_user = get_current_user(session)
+
+    {:cont,
+     socket
+     |> assign_current_path()
+     |> assign_latest_app_release()
+     |> assign_latest_cli_release()
+     |> assign(:current_user, current_user)}
+  end
+
   defp get_user_organization_accounts(user) do
     if is_nil(user) do
       []
