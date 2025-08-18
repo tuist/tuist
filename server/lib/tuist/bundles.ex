@@ -299,8 +299,7 @@ defmodule Tuist.Bundles do
       previous_date = Date.add(date, -days_back)
       Map.get(bundle_sizes, previous_date)
     end)
-    |> Enum.filter(&(not is_nil(&1)))
-    |> List.first() || 0
+    |> Enum.find(&(not is_nil(&1))) || 0
   end
 
   def bundle_download_size_analytics(%Project{} = project, opts \\ []) do
@@ -419,7 +418,7 @@ defmodule Tuist.Bundles do
     if Enum.empty?(apps) do
       nil
     else
-      (apps |> Enum.filter(&Enum.member?(&1.supported_platforms, :ios)) |> List.first() ||
+      (Enum.find(apps, &Enum.member?(&1.supported_platforms, :ios)) ||
          List.first(apps)).name
     end
   end
