@@ -7,13 +7,13 @@ on:
     paths:
       - handbook/**
       - .github/workflows/handbook.yml
-      - handbook/pnpm-lock.yaml
+      - pnpm-lock.yaml
       - handbook/package.json
   pull_request:
     paths:
       - handbook/**
       - .github/workflows/handbook.yml
-      - handbook/pnpm-lock.yaml
+      - pnpm-lock.yaml
       - handbook/package.json
   merge_group:
 
