@@ -43,10 +43,12 @@ jobs:
           key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
       - uses: jdx/mise-action@v2
       - name: Build handbook
-        run: mise -C handbook/ run build
+        working-directory: handbook
+        run: mise run build
       - name: Deploy to Cloudflare Pages
         if: github.ref == 'refs/heads/main'
         env:
           MISE_SOPS_AGE_KEY: ${{ secrets.MISE_SOPS_AGE_KEY }}
           NODE_OPTIONS: --max-old-space-size=8192
-        run: mise -C handbook/ run deploy
+        working-directory: handbook
+        run: mise run deploy
