@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.63.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* `tuist run` fails to run a scheme even though it has runnable targets by [@pepicrft](https://github.com/pepicrft) in [#7989](https://github.com/tuist/tuist/pull/7989)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.63.0...4.63.1
+
 ## What's Changed in 4.63.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
