@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.63.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* Add commands to list and read bundles by [@pepicrft](https://github.com/pepicrft) in [#7893](https://github.com/tuist/tuist/pull/7893)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.62.0...4.63.0
+
 ## What's Changed in 4.62.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
