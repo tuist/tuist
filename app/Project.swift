@@ -53,6 +53,7 @@ let bundleId =
 let project = Project(
     name: "TuistApp",
     settings: .settings(
+        base: ["ARCHS": "arm64"],
         debug: [
             "SWIFT_ACTIVE_COMPILATION_CONDITIONS": "$(inherited) MOCKING",
         ]
