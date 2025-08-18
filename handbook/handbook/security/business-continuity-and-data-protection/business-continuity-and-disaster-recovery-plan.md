@@ -1,9 +1,10 @@
 ---
-title: Business continuity and disaster recovery plan
-titleTemplate: :title | Business continuity and data protection | Security | Tuist Handbook
-description: "The purpose of this business continuity plan is to prepare Tuist GmbH in the event of service outages caused by factors beyond our control (e.g., natural disasters, man-made events), and to restore services to the widest extent possible in a minimum time frame."
+{
+  "title": "Business continuity and disaster recovery plan",
+  "titleTemplate": ":title | Business continuity and data protection | Security | Tuist Handbook",
+  "description": "The purpose of this business continuity plan is to prepare Tuist GmbH in the event of service outages caused by factors beyond our control (e.g., natural disasters, man-made events), and to restore services to the widest extent possible in a minimum time frame."
+}
 ---
-
 # Business continuity and disaster recovery plan
 
 - **Policy owner:** Pedro Piñera Buendía

@@ -1,9 +1,10 @@
 ---
-title: Authentication
-titleTemplate: :title | Server | Guides | Tuist
-description: CLI에서 Tuist 서버에 인증하는 방법을 배워봅니다.
+{
+  "title": "Authentication",
+  "titleTemplate": ":title | Server | Guides | Tuist",
+  "description": "CLI에서 Tuist 서버에 인증하는 방법을 배워봅니다."
+}
 ---
-
 # 인증 {#authentication}
 
 서버와 상호 작용하기 위해 CLI는 [Bearer 인증](https://swagger.io/docs/specification/authentication/bearer-authentication/)을 사용하여 요청을 인증해야 합니다. CLI는 사용자 또는 프로젝트로 인증하는 것을 지원합니다.

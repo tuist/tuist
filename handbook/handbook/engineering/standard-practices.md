@@ -1,9 +1,10 @@
 ---
-title: Standard practices
-titleTemplate: :title | Engineering | Tuist Handbook
-description: Standard practices are the set of guidelines that Tuist engineers follow to ensure that the codebase is consistent, maintainable, and scalable.
+{
+  "title": "Standard practices",
+  "titleTemplate": ":title | Engineering | Tuist Handbook",
+  "description": "Standard practices are the set of guidelines that Tuist engineers follow to ensure that the codebase is consistent, maintainable, and scalable."
+}
 ---
-
 # Standard practices
 
 ## Trunk-based development

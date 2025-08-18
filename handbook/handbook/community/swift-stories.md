@@ -1,9 +1,10 @@
 ---
-title: Swift Stories Newsletter
-titleTemplate: :title | Community | Tuist Handbook
-description: Swift Stories is a bi-weeky newsletter that features stories from and for the Swift community to spark inspiration.
+{
+  "title": "Swift Stories Newsletter",
+  "titleTemplate": ":title | Community | Tuist Handbook",
+  "description": "Swift Stories is a bi-weeky newsletter that features stories from and for the Swift community to spark inspiration."
+}
 ---
-
 # Swift Stories Newsletter
 
 [Swift Stories](https://community.tuist.dev/t/swift-stories-newsletter/275) is a bi-weeky newsletter that features stories from and for the Swift community to spark inspiration.

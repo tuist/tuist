@@ -1,9 +1,10 @@
 ---
-title: Migrate a Bazel project
-titleTemplate: :title · Migrate · Adoption · Projects · Develop · Guides · Tuist
-description: Bazel에서 Tuist로 프로젝트를 마이그레이션 하는 방법을 배웁니다.
+{
+  "title": "Migrate a Bazel project",
+  "titleTemplate": ":title · Migrate · Adoption · Projects · Develop · Guides · Tuist",
+  "description": "Bazel에서 Tuist로 프로젝트를 마이그레이션 하는 방법을 배웁니다."
+}
 ---
-
 # Migrate a Bazel project {#migrate-a-bazel-project}
 
 [Bazel](https://bazel.build)은 Google이 2015년에 오픈소스로 공개한 빌드 시스템입니다. Bazel은 어떤 크기의 소프트웨어에서도 빠르고 안정적으로 빌드와 테스트할 수 있는 강력한 툴입니다. [Spotify](https://engineering.atspotify.com/2023/10/switching-build-systems-seamlessly/), [Tinder](https://medium.com/tinder/bazel-hermetic-toolchain-and-tooling-migration-c244dc0d3ae), 또는 [Lyft](https://semaphoreci.com/blog/keith-smiley-bazel)와 같은 일부 대규모 조직에서는 Bazel을 사용하지만, Bazel을 도입하고 유지하는데 초기 투자 (즉, 기술 학습) 와 지속적인 투자 (즉, Xcode 업데이트 유지) 가 필요합니다. 일부 조직에서는 이를 범용적인 문제로 다루어 효과를 볼 수 있지만, 제품 개발에만 집중하길 원하는 조직에서는 최선의 선택이 아닐 수 있습니다. 예를 들어, iOS 플랫폼 팀이 Bazel을 도입했는데 이를 주도했던 개발자들이 회사를 떠난 후에 이를 포기해야 했던 조직을 본 적이 있습니다. 애플의 Xcode와 빌드 시스템 간의 강한 결합성도 Bazel 프로젝트를 유지하는데 어렵게 만드는 또 다른 요인입니다.

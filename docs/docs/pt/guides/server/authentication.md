@@ -1,9 +1,10 @@
 ---
-title: Authentication
-titleTemplate: :title | Server | Guides | Tuist
-description: Learn how to authenticate with the Tuist server from the CLI.
+{
+  "title": "Authentication",
+  "titleTemplate": ":title | Server | Guides | Tuist",
+  "description": "Learn how to authenticate with the Tuist server from the CLI."
+}
 ---
-
 # Authentication {#authentication}
 
 To interact with the server, the CLI needs to authenticate the requests using [bearer authentication](https://swagger.io/docs/specification/authentication/bearer-authentication/). The CLI supports authenticating as a user or as a project.

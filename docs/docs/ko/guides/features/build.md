@@ -1,9 +1,10 @@
 ---
-title: Build
-titleTemplate: :title · Develop · Guides · Tuist
-description: 프로젝트를 효율적으로 빌드하기 위해 Tuist를 어떻게 사용하는지 배워봅니다.
+{
+  "title": "Build",
+  "titleTemplate": ":title · Develop · Guides · Tuist",
+  "description": "프로젝트를 효율적으로 빌드하기 위해 Tuist를 어떻게 사용하는지 배워봅니다."
+}
 ---
-
 # Build {#build}
 
 프로젝트는 보통 빌드 시스템이 제공하는 CLI (예: `xcodebuild`) 를 통해 빌드됩니다. Tuist는 사용자 경험을 개선하고 최적화와 분석 기능을 제공하기 위해 이런 CLI를 래핑하여 플랫폼과 워크플로우를 통합합니다.

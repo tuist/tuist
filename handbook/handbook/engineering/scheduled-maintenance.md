@@ -1,9 +1,10 @@
 ---
-title: Scheduled maintenance
-titleTemplate: :title | Engineering | Tuist Handbook
-description: This document outlines our company's approach to communicating scheduled maintenance activities to users.
+{
+  "title": "Scheduled maintenance",
+  "titleTemplate": ":title | Engineering | Tuist Handbook",
+  "description": "This document outlines our company's approach to communicating scheduled maintenance activities to users."
+}
 ---
-
 ## Scheduled Maintenance Guidelines
 
 ### Overview

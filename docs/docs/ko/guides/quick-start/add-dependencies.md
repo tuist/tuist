@@ -1,9 +1,10 @@
 ---
-title: Add dependencies
-titleTemplate: :title · Quick-start · Guides · Tuist
-description: 첫 번째 Swift 프로젝트에 의존성을 추가하는 방법을 배웁니다.
+{
+  "title": "Add dependencies",
+  "titleTemplate": ":title · Quick-start · Guides · Tuist",
+  "description": "첫 번째 Swift 프로젝트에 의존성을 추가하는 방법을 배웁니다."
+}
 ---
-
 # 의존성 추가하기 {#add-dependencies}
 
 프로젝트에서 추가 기능을 제공하기 위해 서드 파티 라이브러리에 의존하는 것은 일반적입니다. 의존성을 추가하기 위해서는 다음의 명령어를 수행하여 프로젝트를 편집합니다:

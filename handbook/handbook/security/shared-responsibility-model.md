@@ -1,9 +1,10 @@
 ---
-title: Shared responsibility model
-titleTemplate: :title | Security | Tuist Handbook
-description:
+{
+  "title": "Shared responsibility model",
+  "titleTemplate": ":title | Security | Tuist Handbook",
+  "description": null
+}
 ---
-
 # Shared responsibility model
 
 At Tuist, we rely on trusted infrastructure providers, such as [Fly.io](https://fly.io), [Tigris](https://tigrisdata.com) and [Supabase](https://supabase.com), to manage key aspects of our infrastructure security. These partnerships enable us to deliver reliable and secure services while focusing on application and data-level security.

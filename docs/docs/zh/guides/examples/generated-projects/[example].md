@@ -1,8 +1,9 @@
 ---
-editLink: false
-titleTemplate: :title · Generated Projects · Examples · Guides · Tuist
+{
+  "editLink": false,
+  "titleTemplate": ":title · Generated Projects · Examples · Guides · Tuist"
+}
 ---
-
 <script setup>
 import { useData } from 'vitepress'
 

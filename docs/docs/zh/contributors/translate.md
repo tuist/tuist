@@ -1,9 +1,10 @@
 ---
-title: Translate
-titleTemplate: :title · Contributors · Tuist
-description: This document describes the principles that guide the development of Tuist.
+{
+  "title": "Translate",
+  "titleTemplate": ":title · Contributors · Tuist",
+  "description": "This document describes the principles that guide the development of Tuist."
+}
 ---
-
 # Translate {#translate}
 
 Languages can be barriers to understanding. We want to make sure that Tuist is accessible to as many people as possible. If you speak a language that Tuist doesn't support, you can help us by translating the various surfaces of Tuist.

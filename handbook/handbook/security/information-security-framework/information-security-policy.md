@@ -1,9 +1,10 @@
 ---
-title: Information Security Policy (AUP)
-titleTemplate: :title | Information security framework | Security | Tuist Handbook
-description: The purpose of this policy is to communicate our information security policies and outline the acceptable use and protection of the company’s information and assets.
+{
+  "title": "Information Security Policy (AUP)",
+  "titleTemplate": ":title | Information security framework | Security | Tuist Handbook",
+  "description": "The purpose of this policy is to communicate our information security policies and outline the acceptable use and protection of the company’s information and assets."
+}
 ---
-
 # Information Security Policy (AUP)
 
 - **Policy owner:** Pedro Piñera Buendía

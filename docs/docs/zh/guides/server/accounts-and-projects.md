@@ -1,9 +1,10 @@
 ---
-title: Accounts and projects
-titleTemplate: :title | Server | Guides | Tuist
-description: Learn how to create and manage accounts and projects in Tuist.
+{
+  "title": "Accounts and projects",
+  "titleTemplate": ":title | Server | Guides | Tuist",
+  "description": "Learn how to create and manage accounts and projects in Tuist."
+}
 ---
-
 # Accounts and projects {#accounts-and-projects}
 
 Some Tuist features require a server which adds persistence of data and can interact with other services. To interact with the server, you need an account and a project that you connect to your local project.

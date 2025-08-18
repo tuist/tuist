@@ -1,9 +1,10 @@
 ---
-title: 로깅
-titleTemplate: :title · CLI · Tuist
-description: Tuist의 로깅 활성화와 설정 방법 배우기.
+{
+  "title": "로깅",
+  "titleTemplate": ":title · CLI · Tuist",
+  "description": "Tuist의 로깅 활성화와 설정 방법 배우기."
+}
 ---
-
 # 로깅 {#logging}
 
 CLI는 내부적으로 메세지를 기록하여 문제 확인에 도움을 줍니다.

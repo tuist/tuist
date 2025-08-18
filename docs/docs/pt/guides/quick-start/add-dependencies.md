@@ -1,9 +1,10 @@
 ---
-title: Add dependencies
-titleTemplate: :title · Quick-start · Guides · Tuist
-description: Learn how to add dependencies to your first Swift project
+{
+  "title": "Add dependencies",
+  "titleTemplate": ":title · Quick-start · Guides · Tuist",
+  "description": "Learn how to add dependencies to your first Swift project"
+}
 ---
-
 # Add dependencies {#add-dependencies}
 
 It's common for projects to depend on third-party libraries to provide additional functionality. To do so, run the following command to have the best experience editing your project:

@@ -1,9 +1,10 @@
 ---
-title: はじめに
-titleTemplate: :title · コントリビューター · Tuist
-description: このガイドに従って、Tuistへのコントリビューションを始めましょう。
+{
+  "title": "はじめに",
+  "titleTemplate": ":title · コントリビューター · Tuist",
+  "description": "このガイドに従って、Tuistへのコントリビューションを始めましょう。"
+}
 ---
-
 # はじめに {#get-started}
 
 iOS などの Apple プラットフォーム向けのアプリ開発経験がある場合、Tuist にコードを追加することもそれほど違いはないでしょう。 アプリ開発と比べて、触れておくべき違いが2点あります。

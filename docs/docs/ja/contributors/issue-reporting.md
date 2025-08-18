@@ -1,9 +1,10 @@
 ---
-title: Issue の報告
-titleTemplate: :title · コントリビューター · Tuist
-description: バグを報告してTuist に貢献する方法を学ぶ
+{
+  "title": "Issue の報告",
+  "titleTemplate": ":title · コントリビューター · Tuist",
+  "description": "バグを報告してTuist に貢献する方法を学ぶ"
+}
 ---
-
 # Issue の報告 {#issue-reporting}
 
 Tuist のユーザーとして、バグや予期しない動作に遭遇することがあるかもしれません。

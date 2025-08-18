@@ -1,9 +1,10 @@
 ---
-title: Registry
-titleTemplate: :title · Develop · Guides · Tuist
-description: Optimize your Swift package resolution times by leveraging the Tuist Registry.
+{
+  "title": "Registry",
+  "titleTemplate": ":title · Develop · Guides · Tuist",
+  "description": "Optimize your Swift package resolution times by leveraging the Tuist Registry."
+}
 ---
-
 # Registry {#registry}
 
 > [!IMPORTANT] REQUIREMENTS
