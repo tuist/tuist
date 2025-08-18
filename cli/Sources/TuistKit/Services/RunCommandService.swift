@@ -352,7 +352,7 @@ struct RunCommandService {
             throw RunCommandServiceError.schemeNotFound(scheme: scheme, existing: runnableSchemes.map(\.name))
         }
 
-        guard let graphTarget = buildGraphInspector.runnableTarget(scheme: scheme, graphTraverser: graphTraverser) else {
+        guard let graphTarget = graphTraverser.schemeRunnableTarget(scheme: scheme) else {
             throw RunCommandServiceError.schemeWithoutRunnableTarget(scheme: scheme.name)
         }
 

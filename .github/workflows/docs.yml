@@ -55,7 +55,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .build
-          key: ${{ runner.os }}-docs-${{ hashFiles('../Package.resolved') }}
+          key: ${{ runner.os }}-docs-${{ hashFiles('./Package.resolved') }}
           restore-keys: ${{ runner.os }}-docs-
       - uses: jdx/mise-action@v2
         with:
