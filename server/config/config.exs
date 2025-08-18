@@ -79,8 +79,16 @@ config :mime, :types, %{
 config :money,
   default_currency: :USD
 
+config :peep, :bucket_calculator, Tuist.PromEx.Buckets
+
 # Use Jason for JSON parsing in Phoenix
 config :phoenix, :json_library, Jason
+
+# Using the default ETS storage leads to [lock contention](https://github.com/akoutmos/prom_ex/issues/248#issuecomment-2709045234)
+# and causes the CPU clogging with cascading effects (e.g. connections dropping).
+# This configures prom_ex to use a different storage using [this](https://github.com/plausible/analytics/pull/5130/)
+# as a reference
+config :prom_ex, :storage_adapter, Tuist.PromEx.StripedPeep
 
 # Oban
 config :tuist, Oban,
@@ -238,6 +246,8 @@ config :tuist, :urls,
   get_started: "https://docs.tuist.dev",
   forum: "https://community.tuist.dev",
   documentation: "https://docs.tuist.dev",
+  # Import environment specific config. This must remain at the bottom
+  # of this file so it overrides the configuration defined above.
   feature_generated_projects: "https://docs.tuist.dev/en/guides/features/projects",
   feature_cache: "https://docs.tuist.dev/en/guides/features/cache",
   feature_previews: "https://docs.tuist.dev/en/guides/features/previews",
@@ -252,6 +262,4 @@ config :ueberauth, Ueberauth,
     apple: {Ueberauth.Strategy.Apple, [callback_methods: ["POST"], default_scope: "email"]}
   ]
 
-# Import environment specific config. This must remain at the bottom
-# of this file so it overrides the configuration defined above.
 import_config "#{config_env()}.exs"
