@@ -7,7 +7,7 @@ defmodule Runner.QA.Client do
 
   def create_step(
         %{
-          summary: summary,
+          action: action,
           issues: issues,
           server_url: server_url,
           run_id: run_id,
@@ -18,7 +18,7 @@ defmodule Runner.QA.Client do
       ) do
     step_url = qa_run_url(server_url, account_handle, project_handle, run_id, "/steps")
 
-    body = %{summary: summary, issues: issues}
+    body = %{action: action, issues: issues}
     body = if result = Map.get(params, :result), do: Map.put(body, :result, result), else: body
 
     case qa_server_request(:post, step_url, auth_token, json: body) do
@@ -57,7 +57,6 @@ defmodule Runner.QA.Client do
   end
 
   def finalize_run(%{
-        summary: summary,
         server_url: server_url,
         run_id: run_id,
         auth_token: auth_token,
@@ -66,7 +65,7 @@ defmodule Runner.QA.Client do
       }) do
     run_url = qa_run_url(server_url, account_handle, project_handle, run_id)
 
-    qa_server_request(:patch, run_url, auth_token, json: %{status: "completed", summary: summary})
+    qa_server_request(:patch, run_url, auth_token, json: %{status: "completed"})
   end
 
   def fail_run(%{
@@ -79,22 +78,29 @@ defmodule Runner.QA.Client do
       }) do
     run_url = qa_run_url(server_url, account_handle, project_handle, run_id)
 
-    qa_server_request(:patch, run_url, auth_token, json: %{status: "failed", error_message: error_message})
+    qa_server_request(:patch, run_url, auth_token,
+      json: %{status: "failed", error_message: error_message}
+    )
   end
 
   def screenshot_upload(%{
-        file_name: file_name,
-        title: title,
         server_url: server_url,
         run_id: run_id,
         auth_token: auth_token,
         account_handle: account_handle,
-        project_handle: project_handle
+        project_handle: project_handle,
+        screenshot_id: screenshot_id
       }) do
     upload_url =
-      qa_run_url(server_url, account_handle, project_handle, run_id, "/screenshots/upload")
+      qa_run_url(
+        server_url,
+        account_handle,
+        project_handle,
+        run_id,
+        "/screenshots/#{screenshot_id}/upload"
+      )
 
-    case qa_server_request(:post, upload_url, auth_token, json: %{file_name: file_name, title: title}) do
+    case qa_server_request(:post, upload_url, auth_token) do
       {:ok, response} -> {:ok, response}
       {:error, reason} -> {:error, reason}
     end
@@ -102,21 +108,18 @@ defmodule Runner.QA.Client do
 
   def create_screenshot(
         %{
-          file_name: file_name,
-          title: title,
           server_url: server_url,
           run_id: run_id,
           auth_token: auth_token,
           account_handle: account_handle,
-          project_handle: project_handle
-        } = params
+          project_handle: project_handle,
+          step_id: step_id
+        } = _params
       ) do
-    screenshot_url = qa_run_url(server_url, account_handle, project_handle, run_id, "/screenshots")
+    screenshot_url =
+      qa_run_url(server_url, account_handle, project_handle, run_id, "/screenshots")
 
-    body = %{file_name: file_name, title: title}
-    body = if step_id = Map.get(params, :step_id), do: Map.put(body, :step_id, step_id), else: body
-
-    qa_server_request(:post, screenshot_url, auth_token, json: body)
+    qa_server_request(:post, screenshot_url, auth_token, json: %{step_id: step_id})
   end
 
   def start_log_stream(%{server_url: server_url, run_id: run_id, auth_token: auth_token}) do
@@ -139,7 +142,7 @@ defmodule Runner.QA.Client do
     "#{server_url}/api/projects/#{account_handle}/#{project_handle}/qa/runs/#{run_id}#{path}"
   end
 
-  defp qa_server_request(method, url, auth_token, params) do
+  defp qa_server_request(method, url, auth_token, params \\ []) do
     opts =
       [
         url: url,

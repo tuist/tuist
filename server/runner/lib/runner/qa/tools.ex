@@ -5,7 +5,6 @@ defmodule Runner.QA.Tools do
   alias LangChain.Function
   alias LangChain.FunctionParam
   alias LangChain.Message.ContentPart
-  alias LangChain.Message.ToolResult
   alias Runner.QA.Client
 
   require Logger
@@ -41,7 +40,7 @@ defmodule Runner.QA.Tools do
           required: true
         })
       ],
-      function: fn %{"simulator_uuid" => simulator_uuid} = _params, context ->
+      function: fn %{"simulator_uuid" => simulator_uuid} = _params, _context ->
         case run_axe_command(simulator_uuid, ["describe-ui"]) do
           {:ok, content} ->
             simplified_content = simplify_ui_description(content)
@@ -49,7 +48,7 @@ defmodule Runner.QA.Tools do
             if should_scan_webview(content) do
               describe_webview_ui(content, simulator_uuid)
             else
-              {:ok, simplified_content}
+              {:ok, [ContentPart.text!(simplified_content)]}
             end
 
           {:error, reason} ->
@@ -90,7 +89,7 @@ defmodule Runner.QA.Tools do
           required: true
         }),
         FunctionParam.new!(%{
-          name: "title",
+          name: "action",
           type: :string,
           description: "Brief title describing your action",
           required: true
@@ -100,15 +99,14 @@ defmodule Runner.QA.Tools do
                      "simulator_uuid" => simulator_uuid,
                      "x" => x,
                      "y" => y,
-                     "title" => title
+                     "action" => action
                    },
                    _context ->
         action_result = run_axe_command(simulator_uuid, ["tap", "-x", "#{x}", "-y", "#{y}"])
 
         execute_action_with_step_report(action_result, %{
           simulator_uuid: simulator_uuid,
-          title: title,
-          file_name: "tap_#{x}_#{y}_#{:os.system_time(:millisecond)}",
+          action: action,
           server_url: server_url,
           run_id: run_id,
           auth_token: auth_token,
@@ -156,13 +154,15 @@ defmodule Runner.QA.Tools do
           default: 1.0
         }),
         FunctionParam.new!(%{
-          name: "title",
+          name: "action",
           type: :string,
           description: "Brief title describing your action",
           required: true
         })
       ],
-      function: fn %{"simulator_uuid" => simulator_uuid, "x" => x, "y" => y, "title" => title} = params, _context ->
+      function: fn %{"simulator_uuid" => simulator_uuid, "x" => x, "y" => y, "action" => action} =
+                     params,
+                   _context ->
         duration = Map.get(params, "duration", 1.0)
 
         action_result =
@@ -180,8 +180,7 @@ defmodule Runner.QA.Tools do
 
         execute_action_with_step_report(action_result, %{
           simulator_uuid: simulator_uuid,
-          title: title,
-          file_name: "long_press_#{x}_#{y}_#{:os.system_time(:millisecond)}",
+          action: action,
           server_url: server_url,
           run_id: run_id,
           auth_token: auth_token,
@@ -241,7 +240,7 @@ defmodule Runner.QA.Tools do
           default: 0.5
         }),
         FunctionParam.new!(%{
-          name: "title",
+          name: "action",
           type: :string,
           description: "Brief title describing your action",
           required: true
@@ -253,7 +252,7 @@ defmodule Runner.QA.Tools do
                      "from_y" => from_y,
                      "to_x" => to_x,
                      "to_y" => to_y,
-                     "title" => title
+                     "action" => action
                    } = params,
                    _context ->
         duration = Map.get(params, "duration", 0.5)
@@ -275,9 +274,8 @@ defmodule Runner.QA.Tools do
 
         execute_action_with_step_report(action_result, %{
           simulator_uuid: simulator_uuid,
-          title: title,
-          file_name: "swipe_#{from_x}_#{from_y}_to_#{to_x}_#{to_y}_#{:os.system_time(:millisecond)}",
           server_url: server_url,
+          action: action,
           run_id: run_id,
           auth_token: auth_token,
           account_handle: account_handle,
@@ -311,19 +309,20 @@ defmodule Runner.QA.Tools do
           required: true
         }),
         FunctionParam.new!(%{
-          name: "title",
+          name: "action",
           type: :string,
           description: "Brief title describing your action",
           required: true
         })
       ],
-      function: fn %{"simulator_uuid" => simulator_uuid, "text" => text, "title" => title} = _params, _context ->
+      function: fn %{"simulator_uuid" => simulator_uuid, "text" => text, "action" => action} =
+                     _params,
+                   _context ->
         action_result = run_axe_command(simulator_uuid, ["type", text])
 
         execute_action_with_step_report(action_result, %{
           simulator_uuid: simulator_uuid,
-          title: title,
-          file_name: "type_text_#{:os.system_time(:millisecond)}",
+          action: action,
           server_url: server_url,
           run_id: run_id,
           auth_token: auth_token,
@@ -375,21 +374,23 @@ defmodule Runner.QA.Tools do
           default: 0.1
         }),
         FunctionParam.new!(%{
-          name: "title",
+          name: "action",
           type: :string,
           description: "Brief title describing your action",
           required: true
         })
       ],
-      function: fn %{"simulator_uuid" => simulator_uuid, "keycode" => keycode, "title" => title} = params, _context ->
+      function: fn %{"simulator_uuid" => simulator_uuid, "keycode" => keycode, "action" => action} =
+                     params,
+                   _context ->
         duration = Map.get(params, "duration", 0.1)
 
-        action_result = run_axe_command(simulator_uuid, ["key", keycode, "--duration", "#{duration}"])
+        action_result =
+          run_axe_command(simulator_uuid, ["key", keycode, "--duration", "#{duration}"])
 
         execute_action_with_step_report(action_result, %{
           simulator_uuid: simulator_uuid,
-          title: title,
-          file_name: "key_press_#{keycode}_#{:os.system_time(:millisecond)}",
+          action: action,
           server_url: server_url,
           run_id: run_id,
           auth_token: auth_token,
@@ -425,19 +426,23 @@ defmodule Runner.QA.Tools do
           required: true
         }),
         FunctionParam.new!(%{
-          name: "title",
+          name: "action",
           type: :string,
           description: "Brief title describing your action",
           required: true
         })
       ],
-      function: fn %{"simulator_uuid" => simulator_uuid, "button" => button_name, "title" => title} = _params, _context ->
+      function: fn %{
+                     "simulator_uuid" => simulator_uuid,
+                     "button" => button_name,
+                     "action" => action
+                   } = _params,
+                   _context ->
         action_result = run_axe_command(simulator_uuid, ["button", button_name])
 
         execute_action_with_step_report(action_result, %{
           simulator_uuid: simulator_uuid,
-          title: title,
-          file_name: "button_#{button_name}_#{:os.system_time(:millisecond)}",
+          action: action,
           server_url: server_url,
           run_id: run_id,
           auth_token: auth_token,
@@ -487,13 +492,15 @@ defmodule Runner.QA.Tools do
           default: "tap"
         }),
         FunctionParam.new!(%{
-          name: "title",
+          name: "action",
           type: :string,
           description: "Brief title describing your action",
           required: true
         })
       ],
-      function: fn %{"simulator_uuid" => simulator_uuid, "x" => x, "y" => y, "title" => title} = params, _context ->
+      function: fn %{"simulator_uuid" => simulator_uuid, "x" => x, "y" => y, "action" => _action} =
+                     params,
+                   _context ->
         action = Map.get(params, "action", "down-up")
         args = ["touch", "#{x}", "#{y}"]
 
@@ -508,8 +515,7 @@ defmodule Runner.QA.Tools do
 
         execute_action_with_step_report(action_result, %{
           simulator_uuid: simulator_uuid,
-          title: title,
-          file_name: "touch_#{action}_#{x}_#{y}_#{:os.system_time(:millisecond)}",
+          action: action,
           server_url: server_url,
           run_id: run_id,
           auth_token: auth_token,
@@ -590,19 +596,38 @@ defmodule Runner.QA.Tools do
           required: false
         }),
         FunctionParam.new!(%{
-          name: "title",
+          name: "action",
           type: :string,
           description: "Brief title describing your action",
           required: true
         })
       ],
-      function: fn %{"simulator_uuid" => simulator_uuid, "preset" => preset, "title" => title} = params, _context ->
+      function: fn %{"simulator_uuid" => simulator_uuid, "preset" => preset, "action" => action} =
+                     params,
+                   _context ->
         args =
           ["gesture", preset]
-          |> then(&if(duration = Map.get(params, "duration"), do: &1 ++ ["--duration", "#{duration}"], else: &1))
-          |> then(&if(pre_delay = Map.get(params, "pre_delay"), do: &1 ++ ["--pre-delay", "#{pre_delay}"], else: &1))
-          |> then(&if(post_delay = Map.get(params, "post_delay"), do: &1 ++ ["--post-delay", "#{post_delay}"], else: &1))
-          |> then(&if(delta = Map.get(params, "delta"), do: &1 ++ ["--delta", "#{delta}"], else: &1))
+          |> then(
+            &if(duration = Map.get(params, "duration"),
+              do: &1 ++ ["--duration", "#{duration}"],
+              else: &1
+            )
+          )
+          |> then(
+            &if(pre_delay = Map.get(params, "pre_delay"),
+              do: &1 ++ ["--pre-delay", "#{pre_delay}"],
+              else: &1
+            )
+          )
+          |> then(
+            &if(post_delay = Map.get(params, "post_delay"),
+              do: &1 ++ ["--post-delay", "#{post_delay}"],
+              else: &1
+            )
+          )
+          |> then(
+            &if(delta = Map.get(params, "delta"), do: &1 ++ ["--delta", "#{delta}"], else: &1)
+          )
           |> then(
             &if(screen_height = Map.get(params, "screen_height"),
               do: &1 ++ ["--screen-height", "#{screen_height}"],
@@ -620,8 +645,7 @@ defmodule Runner.QA.Tools do
 
         execute_action_with_step_report(action_result, %{
           simulator_uuid: simulator_uuid,
-          title: title,
-          file_name: "gesture_#{preset}_#{:os.system_time(:millisecond)}",
+          action: action,
           server_url: server_url,
           run_id: run_id,
           auth_token: auth_token,
@@ -633,11 +657,11 @@ defmodule Runner.QA.Tools do
   end
 
   defp screenshot_tool(%{
-         server_url: server_url,
-         run_id: run_id,
-         auth_token: auth_token,
-         account_handle: account_handle,
-         project_handle: project_handle
+         server_url: _server_url,
+         run_id: _run_id,
+         auth_token: _auth_token,
+         account_handle: _account_handle,
+         project_handle: _project_handle
        }) do
     Function.new!(%{
       name: "screenshot",
@@ -652,10 +676,11 @@ defmodule Runner.QA.Tools do
       ],
       function: fn %{"simulator_uuid" => simulator_uuid}, _context ->
         with {:ok, temp_path} <- Briefly.create(),
-             {_, 0} <- System.cmd("xcrun", ["simctl", "io", simulator_uuid, "screenshot", temp_path]),
+             {_, 0} <-
+               System.cmd("xcrun", ["simctl", "io", simulator_uuid, "screenshot", temp_path]),
              {:ok, image_data} <- File.read(temp_path) do
           base64_image = Base.encode64(image_data)
-          {:ok, ContentPart.image!(base64_image, media: :png)}
+          {:ok, [ContentPart.image!(base64_image, media: :png)]}
         else
           {:error, reason} -> {:error, "Failed to capture screenshot: #{reason}"}
           {reason, _status} -> {:error, "Failed to capture screenshot: #{reason}"}
@@ -674,7 +699,7 @@ defmodule Runner.QA.Tools do
     Function.new!(%{
       name: "plan_report",
       description:
-        "Reports the initial QA plan as a step. Call this after creating your test plan but before executing any actions. This creates a QA step with the plan summary and captures the initial state screenshot.",
+        "Reports the initial QA plan. Call this after creating your test plan but before executing any actions.",
       parameters: [
         FunctionParam.new!(%{
           name: "simulator_uuid",
@@ -683,30 +708,29 @@ defmodule Runner.QA.Tools do
           required: true
         }),
         FunctionParam.new!(%{
-          name: "plan_summary",
+          name: "summary",
           type: :string,
           description: "A concise summary of the QA plan and what will be tested",
           required: true
         }),
         FunctionParam.new!(%{
-          name: "plan_details",
+          name: "details",
           type: :string,
-          description: "Detailed test plan including specific areas and interactions to be tested",
+          description:
+            "Detailed test plan including specific areas and interactions to be tested",
           required: true
         })
       ],
       function: fn %{
                      "simulator_uuid" => simulator_uuid,
-                     "plan_summary" => plan_summary,
-                     "plan_details" => plan_details
+                     "summary" => summary,
+                     "details" => details
                    } = _params,
                    _context ->
-        Logger.debug("Reporting QA plan")
-
         with {:ok, step_id} <-
                Client.create_step(%{
-                 summary: plan_summary,
-                 result: plan_details,
+                 action: summary,
+                 result: details,
                  issues: [],
                  server_url: server_url,
                  run_id: run_id,
@@ -717,8 +741,6 @@ defmodule Runner.QA.Tools do
              {:ok, screenshot_content} <-
                capture_and_upload_screenshot(%{
                  simulator_uuid: simulator_uuid,
-                 file_name: "qa_plan_initial_state_#{:os.system_time(:millisecond)}",
-                 title: "Initial app state before QA testing",
                  server_url: server_url,
                  run_id: run_id,
                  auth_token: auth_token,
@@ -730,7 +752,7 @@ defmodule Runner.QA.Tools do
            [
              screenshot_content,
              ContentPart.text!(
-               "QA plan reported successfully with step_id: #{step_id}. The plan has been documented and the initial app state screenshot has been captured."
+               "The QA plan has been documented and the initial app state screenshot has been captured."
              )
            ]}
         else
@@ -766,7 +788,8 @@ defmodule Runner.QA.Tools do
         FunctionParam.new!(%{
           name: "result",
           type: :string,
-          description: "Detailed description of what happened - did the action achieve its expected outcome?",
+          description:
+            "Detailed description of what happened - did the action achieve its expected outcome?",
           required: true
         }),
         FunctionParam.new!(%{
@@ -778,9 +801,8 @@ defmodule Runner.QA.Tools do
           required: true
         })
       ],
-      function: fn %{"step_id" => step_id, "result" => result, "issues" => issues} = _params, _context ->
-        Logger.debug("Reporting step #{step_id}")
-
+      function: fn %{"step_id" => step_id, "result" => result, "issues" => issues} = _params,
+                   _context ->
         case Client.update_step(%{
                step_id: step_id,
                result: result,
@@ -803,8 +825,6 @@ defmodule Runner.QA.Tools do
 
   defp capture_and_upload_screenshot(%{
          simulator_uuid: simulator_uuid,
-         file_name: file_name,
-         title: title,
          server_url: server_url,
          run_id: run_id,
          auth_token: auth_token,
@@ -815,28 +835,26 @@ defmodule Runner.QA.Tools do
     with {:ok, temp_path} <- Briefly.create(),
          {_, 0} <- System.cmd("xcrun", ["simctl", "io", simulator_uuid, "screenshot", temp_path]),
          {:ok, image_data} <- File.read(temp_path),
-         {:ok, %{"url" => upload_url}} <-
-           Client.screenshot_upload(%{
-             file_name: file_name,
-             title: title,
-             server_url: server_url,
-             run_id: run_id,
-             auth_token: auth_token,
-             account_handle: account_handle,
-             project_handle: project_handle
-           }),
-         {:ok, _response} <- Req.put(upload_url, body: image_data, headers: [{"Content-Type", "image/png"}]),
-         {:ok, _response} <-
+         {:ok, %{"id" => screenshot_id}} <-
            Client.create_screenshot(%{
-             file_name: file_name,
-             title: title,
              server_url: server_url,
              run_id: run_id,
              auth_token: auth_token,
              account_handle: account_handle,
              project_handle: project_handle,
              step_id: step_id
-           }) do
+           }),
+         {:ok, %{"url" => upload_url}} <-
+           Client.screenshot_upload(%{
+             server_url: server_url,
+             run_id: run_id,
+             auth_token: auth_token,
+             account_handle: account_handle,
+             project_handle: project_handle,
+             screenshot_id: screenshot_id
+           }),
+         {:ok, _response} <-
+           Req.put(upload_url, body: image_data, headers: [{"Content-Type", "image/png"}]) do
       base64_image = Base.encode64(image_data)
       {:ok, ContentPart.image!(base64_image, media: :png)}
     else
@@ -854,20 +872,10 @@ defmodule Runner.QA.Tools do
        }) do
     Function.new!(%{
       name: "finalize",
-      description: "Gathers the QA session summary and sends it to the server",
-      parameters: [
-        FunctionParam.new!(%{
-          name: "summary",
-          type: :string,
-          description: "Summary of the QA session, including what was tested and any findings",
-          required: true
-        })
-      ],
-      function: fn %{"summary" => summary} = _params, _llm_context ->
-        Logger.debug("Finalize tests: #{summary}")
-
+      description: "Marks the QA session as completed",
+      parameters: [],
+      function: fn _params, _llm_context ->
         case Client.finalize_run(%{
-               summary: summary,
                server_url: server_url,
                run_id: run_id,
                auth_token: auth_token,
@@ -929,14 +937,13 @@ defmodule Runner.QA.Tools do
   end
 
   defp scan_points_with_idb(simulator_uuid, width, height, grid_size) do
-    # Generate all points to scan
     points =
       for x <- 0..trunc(width)//grid_size,
           y <- 0..trunc(height)//grid_size do
         {x, y}
       end
 
-    tasks =
+    ui_description =
       Enum.map(points, fn {x, y} ->
         Task.async(fn ->
           case run_idb_describe_point(simulator_uuid, x, y) do
@@ -951,23 +958,31 @@ defmodule Runner.QA.Tools do
           end
         end)
       end)
-
-    # Await all tasks in this chunk and collect successful results
-    elements =
-      tasks
       |> Task.await_many(20_000)
       |> Enum.filter(fn
         {:ok, _element} -> true
         :error -> false
       end)
       |> Enum.map(fn {:ok, element} -> element end)
-      |> Enum.uniq_by(fn element -> element["AXUniqueId"] || {element["frame"], element["AXLabel"]} end)
+      |> Enum.uniq_by(fn element ->
+        element["AXUniqueId"] || {element["frame"], element["AXLabel"]}
+      end)
+      |> JSON.encode!()
+      |> simplify_ui_description()
 
-    {:ok, "Current UI state: #{JSON.encode!(elements)}"}
+    {:ok, "Current UI state: #{ui_description}"}
   end
 
   defp run_idb_describe_point(simulator_uuid, x, y) do
-    case System.cmd("idb", ["ui", "describe-point", "--udid", simulator_uuid, "--json", "#{x}", "#{y}"]) do
+    case System.cmd("idb", [
+           "ui",
+           "describe-point",
+           "--udid",
+           simulator_uuid,
+           "--json",
+           "#{x}",
+           "#{y}"
+         ]) do
       {output, 0} ->
         {:ok, String.trim(output)}
 
@@ -1019,7 +1034,10 @@ defmodule Runner.QA.Tools do
     |> then(fn simplified ->
       # Add role if it's different from type
       role = element["role"]
-      if role && role != "AX#{element["type"]}", do: Map.put(simplified, "role", role), else: simplified
+
+      if role && role != "AX#{element["type"]}",
+        do: Map.put(simplified, "role", role),
+        else: simplified
     end)
     |> then(
       &if frame = element["frame"] do
@@ -1070,8 +1088,7 @@ defmodule Runner.QA.Tools do
 
   defp execute_action_with_step_report(action_result, %{
          simulator_uuid: simulator_uuid,
-         title: title,
-         file_name: file_name,
+         action: action,
          server_url: server_url,
          run_id: run_id,
          auth_token: auth_token,
@@ -1081,7 +1098,7 @@ defmodule Runner.QA.Tools do
     with {:ok, _} <- action_result,
          {:ok, step_id} <-
            Client.create_step(%{
-             summary: title,
+             action: action,
              issues: [],
              server_url: server_url,
              run_id: run_id,
@@ -1092,8 +1109,6 @@ defmodule Runner.QA.Tools do
          {:ok, screenshot_content} <-
            capture_and_upload_screenshot(%{
              simulator_uuid: simulator_uuid,
-             file_name: file_name,
-             title: "After action: #{title}",
              server_url: server_url,
              run_id: run_id,
              auth_token: auth_token,
@@ -1105,7 +1120,7 @@ defmodule Runner.QA.Tools do
       {:ok,
        [
          screenshot_content,
-         ContentPart.text!("Current UI state:\n#{ui_description}"),
+         ContentPart.text!(ui_description),
          ContentPart.text!(step_id)
        ]}
     end

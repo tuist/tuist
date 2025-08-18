@@ -54,7 +54,9 @@ defmodule Tuist.QATest do
 
     test "successfully runs QA test in namespace when namespace is enabled" do
       # Given
-      app_build = Repo.preload(AppBuildsFixtures.app_build_fixture(), preview: [project: :account])
+      app_build =
+        Repo.preload(AppBuildsFixtures.app_build_fixture(), preview: [project: :account])
+
       account = app_build.preview.project.account
       prompt = "Test the login feature"
 
@@ -112,8 +114,12 @@ defmodule Tuist.QATest do
 
     test "handles existing tenant when namespace is enabled" do
       # Given
-      app_build = Repo.preload(AppBuildsFixtures.app_build_fixture(), preview: [project: :account])
-      account = Map.put(app_build.preview.project.account, :namespace_tenant_id, "existing-tenant-456")
+      app_build =
+        Repo.preload(AppBuildsFixtures.app_build_fixture(), preview: [project: :account])
+
+      account =
+        Map.put(app_build.preview.project.account, :namespace_tenant_id, "existing-tenant-456")
+
       app_build = put_in(app_build.preview.project.account, account)
       prompt = "Test the login feature"
 
@@ -312,16 +318,16 @@ defmodule Tuist.QATest do
       {:ok, qa_step} =
         QA.create_qa_step(%{
           qa_run_id: qa_run.id,
-          summary: "Successfully logged in",
-          description: "User successfully entered credentials and accessed the main screen",
+          action: "Tap on Tuist label",
+          result: "User successfully entered credentials and accessed the main screen",
           issues: []
         })
 
       # Then
       assert qa_step.qa_run_id == qa_run.id
-      assert qa_step.summary == "Successfully logged in"
+      assert qa_step.action == "Tap on Tuist label"
 
-      assert qa_step.description ==
+      assert qa_step.result ==
                "User successfully entered credentials and accessed the main screen"
 
       assert qa_step.issues == []
@@ -355,19 +361,19 @@ defmodule Tuist.QATest do
   describe "update_step/2" do
     test "updates a QA step with valid attributes" do
       # Given
-      qa_step = QAFixtures.qa_step_fixture(summary: "Initial summary", issues: [])
+      qa_step = QAFixtures.qa_step_fixture(action: "Initial action", issues: [])
 
       # When
       {:ok, updated_step} =
         QA.update_step(qa_step, %{
-          summary: "Updated summary",
-          description: "Updated description",
+          action: "Updated action",
+          result: "Updated result",
           issues: ["Issue 1", "Issue 2"]
         })
 
       # Then
       assert updated_step.id == qa_step.id
-      assert updated_step.summary == "Updated summary"
+      assert updated_step.action == "Updated action"
     end
   end
 
@@ -606,15 +612,11 @@ defmodule Tuist.QATest do
       # When
       {:ok, screenshot} =
         QA.create_qa_screenshot(%{
-          qa_run_id: qa_run.id,
-          file_name: "login_screen",
-          title: "Login Screen Screenshot"
+          qa_run_id: qa_run.id
         })
 
       # Then
       assert screenshot.qa_run_id == qa_run.id
-      assert screenshot.file_name == "login_screen"
-      assert screenshot.title == "Login Screen Screenshot"
     end
 
     test "creates a screenshot with optional qa_step_id" do
@@ -626,16 +628,12 @@ defmodule Tuist.QATest do
       {:ok, screenshot} =
         QA.create_qa_screenshot(%{
           qa_run_id: qa_run.id,
-          qa_step_id: qa_step.id,
-          file_name: "error_dialog",
-          title: "Error Dialog Screenshot"
+          qa_step_id: qa_step.id
         })
 
       # Then
       assert screenshot.qa_run_id == qa_run.id
       assert screenshot.qa_step_id == qa_step.id
-      assert screenshot.file_name == "error_dialog"
-      assert screenshot.title == "Error Dialog Screenshot"
     end
   end
 
@@ -695,6 +693,7 @@ defmodule Tuist.QATest do
     test "generates correct storage key for screenshot" do
       # Given
       qa_run_id = Ecto.UUID.generate()
+      screenshot_id = Ecto.UUID.generate()
 
       # When
       storage_key =
@@ -702,29 +701,12 @@ defmodule Tuist.QATest do
           account_handle: "TestAccount",
           project_handle: "TestProject",
           qa_run_id: qa_run_id,
-          file_name: "login_screen"
-        })
-
-      # Then
-      assert storage_key == "testaccount/testproject/qa/screenshots/#{qa_run_id}/login_screen.png"
-    end
-
-    test "generates correct storage key with special characters in name" do
-      # Given
-      qa_run_id = Ecto.UUID.generate()
-
-      # When
-      storage_key =
-        QA.screenshot_storage_key(%{
-          account_handle: "MyAccount",
-          project_handle: "MyProject",
-          qa_run_id: qa_run_id,
-          file_name: "screen_with-special_chars"
+          screenshot_id: screenshot_id
         })
 
       # Then
       assert storage_key ==
-               "myaccount/myproject/qa/screenshots/#{qa_run_id}/screen_with-special_chars.png"
+               "testaccount/testproject/qa/screenshots/#{qa_run_id}/#{screenshot_id}.png"
     end
   end
 
@@ -983,40 +965,35 @@ defmodule Tuist.QATest do
       qa_run =
         QAFixtures.qa_run_fixture(
           app_build: app_build,
-          summary: "Test run completed successfully",
           prompt: "Test the login functionality"
         )
 
       step1 =
         QAFixtures.qa_step_fixture(
           qa_run: qa_run,
-          summary: "Login step",
-          description: "User successfully logged in",
+          action: "Login step",
+          result: "User Tap on Tuist label",
           issues: ["Login button not visible"]
         )
 
       step2 =
         QAFixtures.qa_step_fixture(
           qa_run: qa_run,
-          summary: "Navigation step",
-          description: "User navigated to main screen",
+          action: "Navigation step",
+          result: "User navigated to main screen",
           issues: []
         )
 
       screenshot1 =
         QAFixtures.screenshot_fixture(
           qa_run: qa_run,
-          qa_step: step1,
-          file_name: "screenshot1",
-          title: "Screenshot 1"
+          qa_step: step1
         )
 
       screenshot2 =
         QAFixtures.screenshot_fixture(
           qa_run: qa_run,
-          qa_step: step2,
-          file_name: "screenshot2",
-          title: "Screenshot 2"
+          qa_step: step2
         )
 
       expected_body = """
@@ -1034,7 +1011,7 @@ defmodule Tuist.QATest do
       <details>
       <summary>1. ⚠️ Login step</summary>
 
-      User successfully logged in
+      User Tap on Tuist label
 
       **⚠️ Issues Found:**
       1. Login button not visible
@@ -1096,7 +1073,6 @@ defmodule Tuist.QATest do
       {:ok, qa_run} =
         QA.create_qa_run(%{
           app_build_id: app_build.id,
-          summary: "Test run completed successfully",
           prompt: "Test the login functionality",
           issue_comment_id: 98_765
         })

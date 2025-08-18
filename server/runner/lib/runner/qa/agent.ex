@@ -16,6 +16,16 @@ defmodule Runner.QA.Agent do
   require Logger
 
   @claude_model "claude-sonnet-4-20250514"
+  @action_tool_names [
+    "tap",
+    "swipe",
+    "long_press",
+    "type_text",
+    "key_press",
+    "button",
+    "touch",
+    "gesture"
+  ]
 
   defp log_and_stream(data, log_streamer, type) do
     Logger.info(inspect(data))
@@ -121,14 +131,14 @@ defmodule Runner.QA.Agent do
 
       First, understand what you need to test. Then, set up a plan to test the feature and execute on it without asking for additional instructions. Take screenshots to analyze whether there are any visual inconsistencies.
 
-      When using tools, use the following udid: #{simulator_device.udid}. After using a tool that returns an image, analyze it for visual inconsistencies.
+      When using tools, use the following udid: #{simulator_device.udid}.
 
       When interacting with the app, make sure to follow the these guidelines:
       - Prefer using describe_ui over screenshot to interact with the app
       - Don't read labels from screenshots. Always read them from the UI description.
       - To dismiss a system sheet, tap within the visible screen area but outside the sheet, such in the dark/grayed area above the sheet
       - If a button includes text, prefer tapping on the text to interact with the button
-      - When you recognize a placeholder/pre-filled fields, you should never try to clear the placeholder value as it won't work. Instead, replace the text directly with type_text tool.
+      - When you recognize a placeholder/pre-filled fields, never try to clear the placeholder value. Instead, replace the text directly with type_text tool.
       """
 
       llm =
@@ -147,15 +157,11 @@ defmodule Runner.QA.Agent do
           project_handle: project_handle
         })
 
-      # Get all tool names except step_report_tool for run_until_tool_used
-      tool_names_except_step_report = tools |> Enum.map(& &1.name) |> Enum.reject(&(&1 == "step_report"))
-
       case run_llm(
              %{llm: llm, max_retry_count: 10},
              handler,
              [Message.new_user!(prompt)],
-             tools,
-             tool_names_except_step_report
+             tools
            ) do
         {:error, error_message} ->
           log_and_stream(%{message: error_message}, log_streamer, "message")
@@ -177,94 +183,39 @@ defmodule Runner.QA.Agent do
     end
   end
 
-  defp run_llm(attrs, handler, messages, tools, tool_names_except_step_report) do
+  defp run_llm(attrs, handler, messages, tools) do
     attrs
     |> LLMChain.new!()
     |> LLMChain.add_messages(messages)
     |> LLMChain.add_tools(tools)
     |> LLMChain.add_callback(handler)
-    |> LLMChain.run_until_tool_used(tool_names_except_step_report)
-    |> process_llm_result(attrs, handler, tools, tool_names_except_step_report)
+    |> LLMChain.run_until_tool_used(tools |> Enum.map(& &1.name))
+    |> process_llm_result(attrs, handler, tools)
   end
 
   defp process_llm_result(
-         {:ok, %LLMChain{last_message: last_message} = chain, tool_result},
+         {:ok, %LLMChain{last_message: last_message, messages: messages} = _chain, tool_result},
          attrs,
          handler,
-         tools,
-         tool_names_except_step_report
+         tools
        ) do
     case tool_result.name do
       "finalize" ->
         :ok
 
       tool_name ->
-        # Check if the tool result contains UI content or screenshot content
-        should_clear_ui_content = contains_ui_content?(tool_result)
-        should_clear_screenshot_content = contains_screenshot_content?(tool_result)
+        messages =
+          clear_ui_and_screenshot_messages(Enum.drop(messages, -1)) ++ [List.last(messages)]
 
-        messages_to_use =
-          if should_clear_ui_content or should_clear_screenshot_content do
-            cleared_messages =
-              clear_ui_and_screenshot_messages(
-                Enum.drop(chain.messages, -1),
-                should_clear_ui_content,
-                should_clear_screenshot_content
-              )
-
-            cleared_messages ++ [last_message]
+        messages =
+          if tool_name in @action_tool_names and
+               last_message.tool_results != nil do
+            reporting_step_for_last_action_tool(messages, attrs, handler, tools)
           else
-            chain.messages
+            messages
           end
 
-        messages_to_use =
-          if tool_name in ["tap", "swipe", "long_press", "type_text", "key_press", "button", "touch", "gesture"] do
-            # Extract step_id and drop the last content item from the last tool_result
-            {cleaned_messages, step_id} =
-              case List.last(last_message.tool_results) do
-                %{content: content_parts} = last_tool_result when is_list(content_parts) ->
-                  # Get the step_id from the last content part
-                  step_id =
-                    case List.last(content_parts) do
-                      %ContentPart{type: :text, content: text_content} -> text_content
-                      _ -> nil
-                    end
-
-                  # Drop the last content part (step_id)
-                  updated_tool_result = %{last_tool_result | content: Enum.drop(content_parts, -1)}
-
-                  # Update the last message with the cleaned tool result
-                  other_tool_results = Enum.drop(last_message.tool_results, -1)
-                  updated_last_message = %{last_message | tool_results: other_tool_results ++ [updated_tool_result]}
-
-                  # Replace the last message in messages_to_use
-                  {Enum.drop(messages_to_use, -1) ++ [updated_last_message], step_id}
-
-                _ ->
-                  {messages_to_use, nil}
-              end
-
-            {:ok, chain, _} =
-              attrs
-              |> LLMChain.new!()
-              |> LLMChain.add_messages(
-                cleaned_messages ++
-                  [
-                    Message.new_user!(
-                      "Use the returned image to analyze visual inconsistencies and report the result for step_id #{step_id} with the step_report tool."
-                    )
-                  ]
-              )
-              |> LLMChain.add_tools(tools)
-              |> LLMChain.add_callback(handler)
-              |> LLMChain.run_until_tool_used("step_report")
-
-            chain.messages
-          else
-            messages_to_use
-          end
-
-        run_llm(attrs, handler, messages_to_use, tools, tool_names_except_step_report)
+        run_llm(attrs, handler, messages, tools)
     end
   end
 
@@ -272,215 +223,124 @@ defmodule Runner.QA.Agent do
          {:error, _chain, %LangChain.LangChainError{message: message}},
          _attrs,
          _handler,
-         _tools,
-         _tool_names_except_step_report
+         _tools
        ) do
     {:error, "LLM chain execution failed: #{message}"}
   end
 
-  @doc false
-  def contains_ui_content?(tool_result) do
-    case tool_result.content do
-      content_parts when is_list(content_parts) ->
-        Enum.any?(content_parts, fn
-          %ContentPart{type: :text, content: text_content} ->
-            # Check for describe_ui content (text starting with "Current UI")
-            String.starts_with?(text_content, "Current UI")
+  defp reporting_step_for_last_action_tool(messages, attrs, handler, tools) do
+    {messages, step_id} = messages_with_step_id(messages)
 
-          _ ->
-            false
-        end)
+    report_step(attrs, handler, tools, messages, step_id)
 
-      other when is_binary(other) ->
-        # Handle string content that might start with "Current UI"
-        String.starts_with?(other, "Current UI")
-
-      _ ->
-        false
-    end
+    messages
   end
 
-  @doc false
-  def contains_screenshot_content?(tool_result) do
-    case tool_result.content do
-      content_parts when is_list(content_parts) ->
-        Enum.any?(content_parts, fn
-          %ContentPart{type: :image, options: options} ->
-            # Check for screenshot content (images with media: :png)
-            Keyword.get(options || [], :media) == :png
+  # Extracts step_id from the last message and removes the step_id from the last message
+  defp messages_with_step_id(messages) do
+    last_message = List.last(messages)
+    last_tool_result = List.last(last_message.tool_results)
+    %{content: content_parts} = last_tool_result
+    %ContentPart{type: :text, content: step_id} = List.last(content_parts)
 
-          _ ->
-            false
-        end)
+    last_tool_result = %{
+      last_tool_result
+      | content: Enum.drop(content_parts, -1)
+    }
 
-      _ ->
-        false
-    end
+    last_message = %{
+      last_message
+      | tool_results: Enum.drop(last_message.tool_results, -1) ++ [last_tool_result]
+    }
+
+    {Enum.drop(messages, -1) ++ [last_message], step_id}
   end
 
-  defp clear_ui_and_screenshot_messages(messages, clear_ui_content, clear_screenshot_content) do
-    # First pass: identify which tool_results will be removed
-    tools_to_clear = []
-    tools_to_clear = if clear_ui_content, do: ["describe_ui" | tools_to_clear], else: tools_to_clear
-    tools_to_clear = if clear_screenshot_content, do: ["screenshot" | tools_to_clear], else: tools_to_clear
+  defp report_step(attrs, handler, tools, messages, step_id) do
+    attrs
+    |> LLMChain.new!()
+    |> LLMChain.add_messages(
+      messages ++
+        [
+          Message.new_user!(
+            "Use the returned image to analyze visual inconsistencies and report the result for step_id #{step_id} with the step_report tool."
+          )
+        ]
+    )
+    |> LLMChain.add_tools(tools)
+    |> LLMChain.add_callback(handler)
+    |> LLMChain.run_until_tool_used("step_report")
+  end
 
-    tool_results_to_remove =
+  defp clear_ui_and_screenshot_messages(messages) do
+    messages =
       messages
-      |> Enum.flat_map(fn message ->
-        case message.tool_results do
-          tool_results when is_list(tool_results) ->
-            tool_results
-            |> Enum.filter(fn tool_result ->
-              # Remove if tool name should be cleared
-              # Or if the tool result contains content that should be cleared
-              tool_result.name in tools_to_clear or
-                case tool_result.content do
-                  content_parts when is_list(content_parts) ->
-                    Enum.any?(content_parts, fn
-                      %ContentPart{type: :image, options: options} ->
-                        # Contains screenshot content that should be cleared
-                        clear_screenshot_content and Keyword.get(options || [], :media) == :png
+      |> Enum.map(&clear_ui_and_screenshot_content/1)
 
-                      %ContentPart{type: :text, content: text_content} ->
-                        # Contains UI content that should be cleared
-                        clear_ui_content and String.starts_with?(text_content, "Current UI")
-
-                      _ ->
-                        false
-                    end)
-
-                  other when is_binary(other) ->
-                    # Handle string content that might start with "Current UI"
-                    clear_ui_content and String.starts_with?(other, "Current UI")
-
-                  _ ->
-                    false
-                end
-            end)
-            |> Enum.map(fn tool_result ->
-              Map.get(tool_result, :tool_call_id) || Map.get(tool_result, "tool_call_id")
-            end)
-            |> Enum.reject(&is_nil/1)
-
-          _ ->
-            []
-        end
-      end)
+    tool_call_ids_with_no_content =
+      messages
+      |> Enum.reject(&is_nil(&1.tool_results))
+      |> Enum.flat_map(& &1.tool_results)
+      |> Enum.filter(&Enum.empty?(&1.content))
+      |> Enum.map(& &1.tool_call_id)
       |> MapSet.new()
 
-    # Second pass: clear messages, removing tool_calls if their results will be removed
+    messages =
+      messages
+      |> Enum.map(fn message ->
+        tool_results =
+          (message.tool_results || [])
+          |> Enum.filter(&(&1.tool_call_id not in tool_call_ids_with_no_content))
+
+        tool_calls =
+          (message.tool_calls || [])
+          |> Enum.filter(&(&1.call_id not in tool_call_ids_with_no_content))
+
+        %{
+          message
+          | tool_results: tool_results,
+            tool_calls: tool_calls
+        }
+      end)
+
     messages
-    |> Enum.map(&clear_ui_and_screenshot_content(&1, clear_ui_content, clear_screenshot_content, tool_results_to_remove))
     |> Enum.reject(&is_message_empty?/1)
   end
 
   defp is_message_empty?(message) do
-    # A message is considered empty if it has no content, no tool calls, and no tool results
-    content_empty =
-      case message.content do
-        nil -> true
-        [] -> true
-        _ -> false
-      end
-
-    tool_calls_empty =
-      case message.tool_calls do
-        nil -> true
-        [] -> true
-        _ -> false
-      end
-
-    tool_results_empty =
-      case message.tool_results do
-        nil -> true
-        [] -> true
-        _ -> false
-      end
-
-    content_empty and tool_calls_empty and tool_results_empty
+    Enum.empty?(message.content || []) && Enum.empty?(message.tool_calls || []) &&
+      Enum.empty?(message.tool_results || [])
   end
 
-  defp clear_ui_and_screenshot_content(message, clear_ui_content, clear_screenshot_content, tool_results_to_remove) do
-    # Clear content from message based on what should be cleared
-    updated_content =
-      case message.content do
-        content_parts when is_list(content_parts) ->
-          Enum.reject(content_parts, fn
-            %ContentPart{type: :image, options: options} ->
-              # Remove screenshot content (images with media: :png) if clearing screenshots
-              clear_screenshot_content and Keyword.get(options || [], :media) == :png
+  defp clear_ui_and_screenshot_content(message) do
+    tool_results =
+      (message.tool_results || [])
+      |> Enum.map(fn tool_result ->
+        content =
+          case tool_result.content do
+            content_parts when is_list(content_parts) ->
+              Enum.reject(content_parts, fn
+                %ContentPart{type: :image} ->
+                  true
 
-            %ContentPart{type: :text, content: text_content} ->
-              # Remove describe_ui content if clearing UI content
-              clear_ui_content and String.starts_with?(text_content, "Current UI")
+                %ContentPart{type: :text, content: text_content} ->
+                  String.starts_with?(text_content, "Current UI")
 
-            _ ->
-              false
-          end)
+                _ ->
+                  false
+              end)
 
-        other ->
-          other
-      end
+            other ->
+              other
+          end
 
-    # Clear tool results based on what should be cleared
-    tools_to_clear = []
-    tools_to_clear = if clear_ui_content, do: ["describe_ui" | tools_to_clear], else: tools_to_clear
-    tools_to_clear = if clear_screenshot_content, do: ["screenshot" | tools_to_clear], else: tools_to_clear
+        %{tool_result | content: content}
+      end)
 
-    updated_tool_results =
-      case message.tool_results do
-        tool_results when is_list(tool_results) ->
-          Enum.reject(tool_results, fn tool_result ->
-            # Remove if tool name should be cleared
-            # Or if the tool result contains content that should be cleared
-            tool_result.name in tools_to_clear or
-              tool_result_contains_clearable_content?(tool_result, clear_ui_content, clear_screenshot_content)
-          end)
-
-        other ->
-          other
-      end
-
-    # Clear tool calls if their corresponding tool_results will be removed
-    updated_tool_calls =
-      case message.tool_calls do
-        tool_calls when is_list(tool_calls) ->
-          Enum.reject(tool_calls, fn tool_call ->
-            # Remove tool_call if its result will be removed
-            call_id = Map.get(tool_call, :call_id) || Map.get(tool_call, "call_id")
-            call_id && MapSet.member?(tool_results_to_remove, call_id)
-          end)
-
-        other ->
-          other
-      end
-
-    %{message | content: updated_content, tool_results: updated_tool_results, tool_calls: updated_tool_calls}
-  end
-
-  defp tool_result_contains_clearable_content?(tool_result, clear_ui_content, clear_screenshot_content) do
-    case tool_result.content do
-      content_parts when is_list(content_parts) ->
-        Enum.any?(content_parts, fn
-          %ContentPart{type: :image, options: options} ->
-            # Contains screenshot content that should be cleared
-            clear_screenshot_content and Keyword.get(options || [], :media) == :png
-
-          %ContentPart{type: :text, content: text_content} ->
-            # Contains UI content that should be cleared
-            clear_ui_content and String.starts_with?(text_content, "Current UI")
-
-          _ ->
-            false
-        end)
-
-      other when is_binary(other) ->
-        # Handle string content that might start with "Current UI"
-        clear_ui_content and String.starts_with?(other, "Current UI")
-
-      _ ->
-        false
-    end
+    %{
+      message
+      | tool_results: tool_results
+    }
   end
 
   defp run_preview(preview_url, bundle_identifier, simulator_device) do

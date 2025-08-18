@@ -35,6 +35,7 @@ defmodule Runner.QA.ToolsTest do
         "touch",
         "gesture",
         "screenshot",
+        "plan_report",
         "step_report",
         "finalize"
       ]
@@ -73,7 +74,8 @@ defmodule Runner.QA.ToolsTest do
       }
       """
 
-      expect(System, :cmd, fn "/opt/homebrew/bin/axe", ["describe-ui", "--udid", ^simulator_uuid] ->
+      expect(System, :cmd, fn "/opt/homebrew/bin/axe",
+                              ["describe-ui", "--udid", ^simulator_uuid] ->
         {ui_output, 0}
       end)
 
@@ -90,7 +92,8 @@ defmodule Runner.QA.ToolsTest do
       # Given
       simulator_uuid = "test-uuid"
 
-      expect(System, :cmd, fn "/opt/homebrew/bin/axe", ["describe-ui", "--udid", ^simulator_uuid] ->
+      expect(System, :cmd, fn "/opt/homebrew/bin/axe",
+                              ["describe-ui", "--udid", ^simulator_uuid] ->
         {"Command failed", 1}
       end)
 
@@ -182,7 +185,8 @@ defmodule Runner.QA.ToolsTest do
       ]
       """
 
-      expect(System, :cmd, 1, fn "/opt/homebrew/bin/axe", ["describe-ui", "--udid", ^simulator_uuid] ->
+      expect(System, :cmd, 1, fn "/opt/homebrew/bin/axe",
+                                 ["describe-ui", "--udid", ^simulator_uuid] ->
         {ui_output, 0}
       end)
 
@@ -194,7 +198,8 @@ defmodule Runner.QA.ToolsTest do
       result = describe_ui_tool.function.(%{"simulator_uuid" => simulator_uuid}, nil)
 
       # Then
-      assert {:ok, simplified_ui} = result
+      assert {:ok, [simplified_ui_content]} = result
+      assert %ContentPart{type: :text, content: simplified_ui} = simplified_ui_content
 
       assert JSON.decode!(simplified_ui) == [
                %{
@@ -205,13 +210,23 @@ defmodule Runner.QA.ToolsTest do
                    %{
                      "type" => "Heading",
                      "label" => "Previews",
-                     "frame" => %{"x" => 16.0, "y" => 101.33, "width" => 143.33, "height" => 40.67}
+                     "frame" => %{
+                       "x" => 16.0,
+                       "y" => 101.33,
+                       "width" => 143.33,
+                       "height" => 40.67
+                     }
                    },
                    %{
                      "type" => "Button",
                      "label" => "Run",
                      "enabled" => false,
-                     "frame" => %{"x" => 305.67, "y" => 229.33, "width" => 55.33, "height" => 28.33}
+                     "frame" => %{
+                       "x" => 305.67,
+                       "y" => 229.33,
+                       "width" => 55.33,
+                       "height" => 28.33
+                     }
                    }
                  ]
                }
@@ -226,11 +241,13 @@ defmodule Runner.QA.ToolsTest do
         ~s([{"role": "AXApplication", "type": "Application", "frame": {"x": 0, "y": 0, "width": 393, "height": 852}, "children": []}])
 
       # Mock axe describe-ui returning webview scenario (empty application with frame info)
-      expect(System, :cmd, fn "/opt/homebrew/bin/axe", ["describe-ui", "--udid", ^simulator_uuid] ->
+      expect(System, :cmd, fn "/opt/homebrew/bin/axe",
+                              ["describe-ui", "--udid", ^simulator_uuid] ->
         {webview_ui_output, 0}
       end)
 
-      stub(System, :cmd, fn "idb", ["ui", "describe-point", "--udid", ^simulator_uuid, "--json", x, y] ->
+      stub(System, :cmd, fn "idb",
+                            ["ui", "describe-point", "--udid", ^simulator_uuid, "--json", x, y] ->
         case {x, y} do
           {"0", "0"} ->
             {
@@ -264,21 +281,12 @@ defmodule Runner.QA.ToolsTest do
       describe_ui_tool = Enum.find(tools, &(&1.name == "describe_ui"))
 
       # When
-      {:ok, webview_content} = describe_ui_tool.function.(%{"simulator_uuid" => simulator_uuid}, nil)
+      {:ok, webview_content} =
+        describe_ui_tool.function.(%{"simulator_uuid" => simulator_uuid}, nil)
 
       # Then
-      assert JSON.decode!(webview_content) == [
-               %{
-                 "AXLabel" => "Login Button",
-                 "AXUniqueId" => "button-1",
-                 "frame" => %{"height" => 50, "width" => 100, "x" => 0, "y" => 0}
-               },
-               %{
-                 "AXLabel" => "Username Field",
-                 "AXUniqueId" => "input-1",
-                 "frame" => %{"height" => 30, "width" => 150, "x" => 50, "y" => 0}
-               }
-             ]
+      assert webview_content ==
+               "Current UI state: [{\"frame\":{\"height\":50,\"width\":100,\"x\":0,\"y\":0},\"label\":\"Login Button\"},{\"frame\":{\"height\":30,\"width\":150,\"x\":50,\"y\":0},\"label\":\"Username Field\"}]"
     end
   end
 
@@ -293,23 +301,37 @@ defmodule Runner.QA.ToolsTest do
       image_data = <<137, 80, 78, 71, 13, 10, 26, 10>>
       upload_url = "https://s3.example.com/upload-url"
 
-      expect(System, :cmd, fn "/opt/homebrew/bin/axe", ["tap", "-x", "100", "-y", "200", "--udid", ^simulator_uuid] ->
+      expect(System, :cmd, fn "/opt/homebrew/bin/axe",
+                              ["tap", "-x", "100", "-y", "200", "--udid", ^simulator_uuid] ->
         {"Tap completed", 0}
       end)
 
-      expect(Client, :create_step, fn %{summary: "Test tap"} -> {:ok, step_id} end)
+      expect(Client, :create_step, fn %{action: "Test tap"} -> {:ok, step_id} end)
       expect(Briefly, :create, fn -> {:ok, temp_path} end)
-      expect(System, :cmd, fn "xcrun", ["simctl", "io", ^simulator_uuid, "screenshot", ^temp_path] -> {"", 0} end)
+
+      expect(System, :cmd, fn "xcrun",
+                              ["simctl", "io", ^simulator_uuid, "screenshot", ^temp_path] ->
+        {"", 0}
+      end)
+
       expect(File, :read, fn ^temp_path -> {:ok, image_data} end)
+      expect(Client, :create_screenshot, fn _ -> {:ok, %{"id" => "screenshot-123"}} end)
       expect(Client, :screenshot_upload, fn _ -> {:ok, %{"url" => upload_url}} end)
       expect(Req, :put, fn ^upload_url, _ -> {:ok, %{status: 200}} end)
-      expect(Client, :create_screenshot, fn _ -> {:ok, ""} end)
-      expect(System, :cmd, fn "/opt/homebrew/bin/axe", ["describe-ui", "--udid", ^simulator_uuid] -> {"[]", 0} end)
+
+      expect(System, :cmd, fn "/opt/homebrew/bin/axe",
+                              ["describe-ui", "--udid", ^simulator_uuid] ->
+        {"[]", 0}
+      end)
 
       tap_tool = Enum.find(tools, &(&1.name == "tap"))
 
       # When
-      result = tap_tool.function.(%{"simulator_uuid" => simulator_uuid, "x" => x, "y" => y, "title" => "Test tap"}, nil)
+      result =
+        tap_tool.function.(
+          %{"simulator_uuid" => simulator_uuid, "x" => x, "y" => y, "action" => "Test tap"},
+          nil
+        )
 
       # Then
       assert {:ok, [_screenshot, _ui_state, _message]} = result
@@ -319,17 +341,22 @@ defmodule Runner.QA.ToolsTest do
       # Given
       simulator_uuid = "test-uuid"
 
-      expect(System, :cmd, fn "/opt/homebrew/bin/axe", ["tap", "-x", "100", "-y", "200", "--udid", ^simulator_uuid] ->
+      expect(System, :cmd, fn "/opt/homebrew/bin/axe",
+                              ["tap", "-x", "100", "-y", "200", "--udid", ^simulator_uuid] ->
         {"Tap failed", 1}
       end)
 
       tap_tool = Enum.find(tools, &(&1.name == "tap"))
 
       # When
-      result = tap_tool.function.(%{"simulator_uuid" => simulator_uuid, "x" => 100, "y" => 200, "title" => "Test tap"}, nil)
+      result =
+        tap_tool.function.(
+          %{"simulator_uuid" => simulator_uuid, "x" => 100, "y" => 200, "action" => "Test tap"},
+          nil
+        )
 
       # Then
-      assert result == nil  # The function doesn't return a value on error, it just fails
+      assert {:error, "axe command failed (status 1): Tap failed"} = result
     end
   end
 
@@ -337,117 +364,48 @@ defmodule Runner.QA.ToolsTest do
     test "successfully captures and uploads screenshot", %{tools: tools} do
       # Given
       simulator_uuid = "test-uuid"
-      name = "login_screen"
-      title = "Login Screen"
       temp_path = "/tmp/screenshot.png"
       image_data = <<137, 80, 78, 71, 13, 10, 26, 10>>
-      upload_url = "https://s3.example.com/upload-url"
 
       expect(Briefly, :create, fn -> {:ok, temp_path} end)
 
-      expect(System, :cmd, fn "xcrun", ["simctl", "io", ^simulator_uuid, "screenshot", ^temp_path] ->
+      expect(System, :cmd, fn "xcrun",
+                              ["simctl", "io", ^simulator_uuid, "screenshot", ^temp_path] ->
         {"", 0}
       end)
 
       expect(File, :read, fn ^temp_path -> {:ok, image_data} end)
 
-      expect(Client, :screenshot_upload, fn %{
-                                              file_name: ^name,
-                                              title: ^title,
-                                              server_url: "http://test.com",
-                                              run_id: "test-run-id",
-                                              auth_token: "test-token",
-                                              account_handle: "test-account",
-                                              project_handle: "test-project"
-                                            } ->
-        {:ok, %{"url" => upload_url}}
-      end)
-
-      expect(Req, :put, fn ^upload_url, [body: ^image_data, headers: [{"Content-Type", "image/png"}]] ->
-        {:ok, %{status: 200}}
-      end)
-
-      expect(Client, :create_screenshot, fn %{
-                                              file_name: ^name,
-                                              title: ^title,
-                                              server_url: "http://test.com",
-                                              run_id: "test-run-id",
-                                              auth_token: "test-token",
-                                              account_handle: "test-account",
-                                              project_handle: "test-project"
-                                            } ->
-        :ok
-      end)
-
       screenshot_tool = Enum.find(tools, &(&1.name == "screenshot"))
 
       # When
       result =
-        screenshot_tool.function.(%{"simulator_uuid" => simulator_uuid, "file_name" => name, "title" => title}, nil)
+        screenshot_tool.function.(%{"simulator_uuid" => simulator_uuid}, nil)
 
       # Then
-      assert {:ok, %ContentPart{}} = result
+      assert {:ok, [%ContentPart{type: :image}]} = result
     end
 
     test "returns error when screenshot command fails", %{tools: tools} do
       # Given
       simulator_uuid = "test-uuid"
-      name = "error_screen"
-      title = "Error Screen"
       temp_path = "/tmp/screenshot.png"
 
       expect(Briefly, :create, fn -> {:ok, temp_path} end)
 
-      expect(System, :cmd, fn "xcrun", _ ->
-        {"Screenshot failed", 1}
+      expect(System, :cmd, fn "xcrun",
+                              ["simctl", "io", ^simulator_uuid, "screenshot", ^temp_path] ->
+        {"Screenshot command failed", 1}
       end)
 
       screenshot_tool = Enum.find(tools, &(&1.name == "screenshot"))
 
       # When
       result =
-        screenshot_tool.function.(%{"simulator_uuid" => simulator_uuid, "file_name" => name, "title" => title}, nil)
+        screenshot_tool.function.(%{"simulator_uuid" => simulator_uuid}, nil)
 
       # Then
-      assert {:error, _} = result
-    end
-
-    test "returns error when upload URL request fails", %{tools: tools} do
-      # Given
-      simulator_uuid = "test-uuid"
-      name = "failed_screen"
-      title = "Failed Screen"
-      temp_path = "/tmp/screenshot.png"
-      image_data = <<137, 80, 78, 71, 13, 10, 26, 10>>
-
-      expect(Briefly, :create, fn -> {:ok, temp_path} end)
-
-      expect(System, :cmd, fn "xcrun", ["simctl", "io", ^simulator_uuid, "screenshot", ^temp_path] ->
-        {"", 0}
-      end)
-
-      expect(File, :read, fn ^temp_path -> {:ok, image_data} end)
-
-      expect(Client, :screenshot_upload, fn %{
-                                              file_name: ^name,
-                                              title: ^title,
-                                              server_url: "http://test.com",
-                                              run_id: "test-run-id",
-                                              auth_token: "test-token",
-                                              account_handle: "test-account",
-                                              project_handle: "test-project"
-                                            } ->
-        {:error, "Server returned unexpected status 500"}
-      end)
-
-      screenshot_tool = Enum.find(tools, &(&1.name == "screenshot"))
-
-      # When
-      result =
-        screenshot_tool.function.(%{"simulator_uuid" => simulator_uuid, "file_name" => name, "title" => title}, nil)
-
-      # Then
-      assert {:error, _} = result
+      assert {:error, "Failed to capture screenshot: Screenshot command failed"} = result
     end
   end
 
@@ -457,17 +415,45 @@ defmodule Runner.QA.ToolsTest do
       simulator_uuid = "test-uuid"
       text = "Hello World"
 
-      expect(System, :cmd, fn "/opt/homebrew/bin/axe", ["type", ^text, "--udid", ^simulator_uuid] ->
+      expect(System, :cmd, fn "/opt/homebrew/bin/axe",
+                              ["type", ^text, "--udid", ^simulator_uuid] ->
         {"Text typed", 0}
+      end)
+
+      step_id = "test-step-id"
+      temp_path = "/tmp/screenshot.png"
+      image_data = <<137, 80, 78, 71, 13, 10, 26, 10>>
+      upload_url = "https://s3.example.com/upload-url"
+
+      expect(Client, :create_step, fn %{action: "Test typing"} -> {:ok, step_id} end)
+      expect(Briefly, :create, fn -> {:ok, temp_path} end)
+
+      expect(System, :cmd, fn "xcrun",
+                              ["simctl", "io", ^simulator_uuid, "screenshot", ^temp_path] ->
+        {"", 0}
+      end)
+
+      expect(File, :read, fn ^temp_path -> {:ok, image_data} end)
+      expect(Client, :create_screenshot, fn _ -> {:ok, %{"id" => "screenshot-123"}} end)
+      expect(Client, :screenshot_upload, fn _ -> {:ok, %{"url" => upload_url}} end)
+      expect(Req, :put, fn ^upload_url, _ -> {:ok, %{status: 200}} end)
+
+      expect(System, :cmd, fn "/opt/homebrew/bin/axe",
+                              ["describe-ui", "--udid", ^simulator_uuid] ->
+        {"[]", 0}
       end)
 
       type_text_tool = Enum.find(tools, &(&1.name == "type_text"))
 
       # When
-      result = type_text_tool.function.(%{"simulator_uuid" => simulator_uuid, "text" => text, "title" => "Test typing"}, nil)
+      result =
+        type_text_tool.function.(
+          %{"simulator_uuid" => simulator_uuid, "text" => text, "action" => "Test typing"},
+          nil
+        )
 
       # Then
-      assert {:ok, "Text typed successfully"} = result
+      assert {:ok, [_screenshot, _ui_state, _message]} = result
     end
   end
 
@@ -499,6 +485,29 @@ defmodule Runner.QA.ToolsTest do
         {"Swipe completed", 0}
       end)
 
+      step_id = "test-step-id"
+      temp_path = "/tmp/screenshot.png"
+      image_data = <<137, 80, 78, 71, 13, 10, 26, 10>>
+      upload_url = "https://s3.example.com/upload-url"
+
+      expect(Client, :create_step, fn %{action: "Test swipe"} -> {:ok, step_id} end)
+      expect(Briefly, :create, fn -> {:ok, temp_path} end)
+
+      expect(System, :cmd, fn "xcrun",
+                              ["simctl", "io", ^simulator_uuid, "screenshot", ^temp_path] ->
+        {"", 0}
+      end)
+
+      expect(File, :read, fn ^temp_path -> {:ok, image_data} end)
+      expect(Client, :create_screenshot, fn _ -> {:ok, %{"id" => "screenshot-123"}} end)
+      expect(Client, :screenshot_upload, fn _ -> {:ok, %{"url" => upload_url}} end)
+      expect(Req, :put, fn ^upload_url, _ -> {:ok, %{status: 200}} end)
+
+      expect(System, :cmd, fn "/opt/homebrew/bin/axe",
+                              ["describe-ui", "--udid", ^simulator_uuid] ->
+        {"[]", 0}
+      end)
+
       swipe_tool = Enum.find(tools, &(&1.name == "swipe"))
 
       # When
@@ -510,13 +519,13 @@ defmodule Runner.QA.ToolsTest do
             "from_y" => from_y,
             "to_x" => to_x,
             "to_y" => to_y,
-            "title" => "Test swipe"
+            "action" => "Test swipe"
           },
           nil
         )
 
       # Then
-      assert {:ok, "Swipe was successful"} = result
+      assert {:ok, [_screenshot, _ui_state, _message]} = result
     end
 
     test "successfully performs swipe with custom duration", %{tools: tools} do
@@ -543,6 +552,29 @@ defmodule Runner.QA.ToolsTest do
         {"Swipe completed", 0}
       end)
 
+      step_id = "test-step-id"
+      temp_path = "/tmp/screenshot.png"
+      image_data = <<137, 80, 78, 71, 13, 10, 26, 10>>
+      upload_url = "https://s3.example.com/upload-url"
+
+      expect(Client, :create_step, fn %{action: "Test swipe with duration"} -> {:ok, step_id} end)
+      expect(Briefly, :create, fn -> {:ok, temp_path} end)
+
+      expect(System, :cmd, fn "xcrun",
+                              ["simctl", "io", ^simulator_uuid, "screenshot", ^temp_path] ->
+        {"", 0}
+      end)
+
+      expect(File, :read, fn ^temp_path -> {:ok, image_data} end)
+      expect(Client, :create_screenshot, fn _ -> {:ok, %{"id" => "screenshot-123"}} end)
+      expect(Client, :screenshot_upload, fn _ -> {:ok, %{"url" => upload_url}} end)
+      expect(Req, :put, fn ^upload_url, _ -> {:ok, %{status: 200}} end)
+
+      expect(System, :cmd, fn "/opt/homebrew/bin/axe",
+                              ["describe-ui", "--udid", ^simulator_uuid] ->
+        {"[]", 0}
+      end)
+
       swipe_tool = Enum.find(tools, &(&1.name == "swipe"))
 
       # When
@@ -555,13 +587,13 @@ defmodule Runner.QA.ToolsTest do
             "to_x" => 300,
             "to_y" => 400,
             "duration" => duration,
-            "title" => "Test swipe with duration"
+            "action" => "Test swipe with duration"
           },
           nil
         )
 
       # Then
-      assert {:ok, "Swipe was successful"} = result
+      assert {:ok, [_screenshot, _ui_state, _message]} = result
     end
   end
 
@@ -571,8 +603,32 @@ defmodule Runner.QA.ToolsTest do
       simulator_uuid = "test-uuid"
       preset = "scroll-up"
 
-      expect(System, :cmd, fn "/opt/homebrew/bin/axe", ["gesture", ^preset, "--udid", ^simulator_uuid] ->
+      expect(System, :cmd, fn "/opt/homebrew/bin/axe",
+                              ["gesture", ^preset, "--udid", ^simulator_uuid] ->
         {"Gesture completed", 0}
+      end)
+
+      step_id = "test-step-id"
+      temp_path = "/tmp/screenshot.png"
+      image_data = <<137, 80, 78, 71, 13, 10, 26, 10>>
+      upload_url = "https://s3.example.com/upload-url"
+
+      expect(Client, :create_step, fn %{action: "Test gesture"} -> {:ok, step_id} end)
+      expect(Briefly, :create, fn -> {:ok, temp_path} end)
+
+      expect(System, :cmd, fn "xcrun",
+                              ["simctl", "io", ^simulator_uuid, "screenshot", ^temp_path] ->
+        {"", 0}
+      end)
+
+      expect(File, :read, fn ^temp_path -> {:ok, image_data} end)
+      expect(Client, :create_screenshot, fn _ -> {:ok, %{"id" => "screenshot-123"}} end)
+      expect(Client, :screenshot_upload, fn _ -> {:ok, %{"url" => upload_url}} end)
+      expect(Req, :put, fn ^upload_url, _ -> {:ok, %{status: 200}} end)
+
+      expect(System, :cmd, fn "/opt/homebrew/bin/axe",
+                              ["describe-ui", "--udid", ^simulator_uuid] ->
+        {"[]", 0}
       end)
 
       gesture_tool = Enum.find(tools, &(&1.name == "gesture"))
@@ -580,14 +636,14 @@ defmodule Runner.QA.ToolsTest do
       params = %{
         "simulator_uuid" => simulator_uuid,
         "preset" => preset,
-        "title" => "Test gesture"
+        "action" => "Test gesture"
       }
 
       # When
       result = gesture_tool.function.(params, nil)
 
       # Then
-      assert {:ok, "Gesture was successful"} = result
+      assert {:ok, [_screenshot, _ui_state, _message]} = result
     end
 
     test "successfully performs gesture with optional parameters", %{tools: tools} do
@@ -611,6 +667,29 @@ defmodule Runner.QA.ToolsTest do
         {"Gesture completed", 0}
       end)
 
+      step_id = "test-step-id"
+      temp_path = "/tmp/screenshot.png"
+      image_data = <<137, 80, 78, 71, 13, 10, 26, 10>>
+      upload_url = "https://s3.example.com/upload-url"
+
+      expect(Client, :create_step, fn %{action: "Test gesture with params"} -> {:ok, step_id} end)
+      expect(Briefly, :create, fn -> {:ok, temp_path} end)
+
+      expect(System, :cmd, fn "xcrun",
+                              ["simctl", "io", ^simulator_uuid, "screenshot", ^temp_path] ->
+        {"", 0}
+      end)
+
+      expect(File, :read, fn ^temp_path -> {:ok, image_data} end)
+      expect(Client, :create_screenshot, fn _ -> {:ok, %{"id" => "screenshot-123"}} end)
+      expect(Client, :screenshot_upload, fn _ -> {:ok, %{"url" => upload_url}} end)
+      expect(Req, :put, fn ^upload_url, _ -> {:ok, %{status: 200}} end)
+
+      expect(System, :cmd, fn "/opt/homebrew/bin/axe",
+                              ["describe-ui", "--udid", ^simulator_uuid] ->
+        {"[]", 0}
+      end)
+
       gesture_tool = Enum.find(tools, &(&1.name == "gesture"))
 
       # When
@@ -621,13 +700,13 @@ defmodule Runner.QA.ToolsTest do
             "preset" => preset,
             "duration" => duration,
             "delta" => delta,
-            "title" => "Test gesture with params"
+            "action" => "Test gesture with params"
           },
           nil
         )
 
       # Then
-      assert {:ok, "Gesture was successful"} = result
+      assert {:ok, [_screenshot, _ui_state, _message]} = result
     end
   end
 
@@ -637,17 +716,45 @@ defmodule Runner.QA.ToolsTest do
       simulator_uuid = "test-uuid"
       button = "home"
 
-      expect(System, :cmd, fn "/opt/homebrew/bin/axe", ["button", ^button, "--udid", ^simulator_uuid] ->
+      expect(System, :cmd, fn "/opt/homebrew/bin/axe",
+                              ["button", ^button, "--udid", ^simulator_uuid] ->
         {"Button pressed", 0}
+      end)
+
+      step_id = "test-step-id"
+      temp_path = "/tmp/screenshot.png"
+      image_data = <<137, 80, 78, 71, 13, 10, 26, 10>>
+      upload_url = "https://s3.example.com/upload-url"
+
+      expect(Client, :create_step, fn %{action: "Test button"} -> {:ok, step_id} end)
+      expect(Briefly, :create, fn -> {:ok, temp_path} end)
+
+      expect(System, :cmd, fn "xcrun",
+                              ["simctl", "io", ^simulator_uuid, "screenshot", ^temp_path] ->
+        {"", 0}
+      end)
+
+      expect(File, :read, fn ^temp_path -> {:ok, image_data} end)
+      expect(Client, :create_screenshot, fn _ -> {:ok, %{"id" => "screenshot-123"}} end)
+      expect(Client, :screenshot_upload, fn _ -> {:ok, %{"url" => upload_url}} end)
+      expect(Req, :put, fn ^upload_url, _ -> {:ok, %{status: 200}} end)
+
+      expect(System, :cmd, fn "/opt/homebrew/bin/axe",
+                              ["describe-ui", "--udid", ^simulator_uuid] ->
+        {"[]", 0}
       end)
 
       button_tool = Enum.find(tools, &(&1.name == "button"))
 
       # When
-      result = button_tool.function.(%{"simulator_uuid" => simulator_uuid, "button" => button, "title" => "Test button"}, nil)
+      result =
+        button_tool.function.(
+          %{"simulator_uuid" => simulator_uuid, "button" => button, "action" => "Test button"},
+          nil
+        )
 
       # Then
-      assert {:ok, "Button pressed"} = result
+      assert {:ok, [_screenshot, _ui_state, _message]} = result
     end
   end
 
@@ -721,17 +828,78 @@ defmodule Runner.QA.ToolsTest do
         )
 
       # Then
-      assert {:error, "Failed to submit step report: Server returned unexpected status 500"} = result_response
+      assert {:error, "Failed to submit step report: Server returned unexpected status 500"} =
+               result_response
+    end
+  end
+
+  describe "plan_report tool" do
+    test "successfully reports QA plan and captures initial screenshot", %{tools: tools} do
+      # Given
+      simulator_uuid = "test-uuid"
+      summary = "Test login functionality"
+
+      details =
+        "Test that users can successfully log in with valid credentials and receive appropriate error messages for invalid credentials"
+
+      step_id = "test-step-id"
+      temp_path = "/tmp/screenshot.png"
+      image_data = <<137, 80, 78, 71, 13, 10, 26, 10>>
+      upload_url = "https://s3.example.com/upload-url"
+
+      expect(Client, :create_step, fn %{
+                                        action: ^summary,
+                                        result: ^details,
+                                        issues: [],
+                                        server_url: "http://test.com",
+                                        run_id: "test-run-id",
+                                        auth_token: "test-token",
+                                        account_handle: "test-account",
+                                        project_handle: "test-project"
+                                      } ->
+        {:ok, step_id}
+      end)
+
+      expect(Briefly, :create, fn -> {:ok, temp_path} end)
+
+      expect(System, :cmd, fn "xcrun",
+                              ["simctl", "io", ^simulator_uuid, "screenshot", ^temp_path] ->
+        {"", 0}
+      end)
+
+      expect(File, :read, fn ^temp_path -> {:ok, image_data} end)
+      expect(Client, :create_screenshot, fn _ -> {:ok, %{"id" => "screenshot-123"}} end)
+      expect(Client, :screenshot_upload, fn _ -> {:ok, %{"url" => upload_url}} end)
+      expect(Req, :put, fn ^upload_url, _ -> {:ok, %{status: 200}} end)
+
+      plan_report_tool = Enum.find(tools, &(&1.name == "plan_report"))
+
+      # When
+      result =
+        plan_report_tool.function.(
+          %{
+            "simulator_uuid" => simulator_uuid,
+            "summary" => summary,
+            "details" => details
+          },
+          nil
+        )
+
+      # Then
+      assert {:ok, [screenshot, message]} = result
+      assert %ContentPart{} = screenshot
+
+      assert %ContentPart{
+               content:
+                 "The QA plan has been documented and the initial app state screenshot has been captured."
+             } = message
     end
   end
 
   describe "finalize tool" do
-    test "returns summary and status on success", %{tools: tools} do
+    test "returns status on success", %{tools: tools} do
       # Given
-      summary = "Test completed successfully"
-
       expect(Client, :finalize_run, fn %{
-                                         summary: ^summary,
                                          server_url: "http://test.com",
                                          run_id: "test-run-id",
                                          auth_token: "test-token",
@@ -744,7 +912,7 @@ defmodule Runner.QA.ToolsTest do
       finalize_tool = Enum.find(tools, &(&1.name == "finalize"))
 
       # When
-      result = finalize_tool.function.(%{"summary" => summary}, nil)
+      result = finalize_tool.function.(%{}, nil)
 
       # Then
       assert {:ok, "QA test run finished successfully and status updated."} = result
@@ -752,10 +920,7 @@ defmodule Runner.QA.ToolsTest do
 
     test "returns error on failure", %{tools: tools} do
       # Given
-      summary = "Failed test run"
-
       expect(Client, :finalize_run, fn %{
-                                         summary: ^summary,
                                          server_url: "http://test.com",
                                          run_id: "test-run-id",
                                          auth_token: "test-token",
@@ -768,10 +933,11 @@ defmodule Runner.QA.ToolsTest do
       finalize_tool = Enum.find(tools, &(&1.name == "finalize"))
 
       # When
-      result = finalize_tool.function.(%{"summary" => summary}, nil)
+      result = finalize_tool.function.(%{}, nil)
 
       # Then
-      assert {:error, "Failed to update run status: Server returned unexpected status 404"} = result
+      assert {:error, "Failed to update run status: Server returned unexpected status 404"} =
+               result
     end
   end
 end

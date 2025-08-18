@@ -38,20 +38,18 @@ defmodule TuistWeb.API.QAController do
     end
   end
 
-  def create_step(conn, %{"summary" => summary, "issues" => issues} = params) do
+  def create_step(conn, %{"action" => action, "issues" => issues} = params) do
     %{selected_qa_run: qa_run} = conn.assigns
 
-    attrs = %{
-      qa_run_id: qa_run.id,
-      summary: summary,
-      issues: issues
-    }
+    result = Map.get(params, "result")
 
-    # Add description if provided (for backward compatibility)
-    attrs = if description = Map.get(params, "description"), do: Map.put(attrs, :description, description), else: attrs
-
-    # Add result as description if provided (similar to update_step)
-    attrs = if result = Map.get(params, "result"), do: Map.put(attrs, :description, result), else: attrs
+    attrs =
+      %{
+        qa_run_id: qa_run.id,
+        action: action,
+        issues: issues
+      }
+      |> then(&if(is_nil(result), do: &1, else: Map.put(&1, :result, result)))
 
     case QA.create_qa_step(attrs) do
       {:ok, qa_step} ->
@@ -62,8 +60,8 @@ defmodule TuistWeb.API.QAController do
         |> json(%{
           id: qa_step.id,
           qa_run_id: qa_step.qa_run_id,
-          summary: qa_step.summary,
-          description: qa_step.description,
+          action: qa_step.action,
+          result: qa_step.result,
           issues: qa_step.issues,
           inserted_at: qa_step.inserted_at
         })
@@ -87,7 +85,7 @@ defmodule TuistWeb.API.QAController do
     with {:ok, qa_step} <- QA.step(step_id),
          true <- qa_step.qa_run_id == qa_run.id do
       update_attrs = %{
-        description: Map.get(params, "result"),
+        result: Map.get(params, "result"),
         issues: Map.get(params, "issues", [])
       }
 
@@ -98,8 +96,8 @@ defmodule TuistWeb.API.QAController do
           |> json(%{
             id: updated_qa_step.id,
             qa_run_id: updated_qa_step.qa_run_id,
-            summary: updated_qa_step.summary,
-            description: updated_qa_step.description,
+            action: updated_qa_step.action,
+            result: updated_qa_step.result,
             issues: updated_qa_step.issues,
             inserted_at: updated_qa_step.inserted_at
           })
@@ -130,15 +128,14 @@ defmodule TuistWeb.API.QAController do
     end
   end
 
-  def update_run(%{assigns: %{selected_qa_run: qa_run}} = conn, %{"status" => status} = params) do
-    case QA.update_qa_run(qa_run, %{status: status, summary: Map.get(params, "summary")}) do
+  def update_run(%{assigns: %{selected_qa_run: qa_run}} = conn, %{"status" => status}) do
+    case QA.update_qa_run(qa_run, %{status: status}) do
       {:ok, updated_qa_run} ->
         conn
         |> put_status(:ok)
         |> json(%{
           id: updated_qa_run.id,
           status: updated_qa_run.status,
-          summary: updated_qa_run.summary,
           updated_at: updated_qa_run.updated_at
         })
 
@@ -157,16 +154,16 @@ defmodule TuistWeb.API.QAController do
     end
   end
 
-  def screenshot_upload(conn, %{"qa_run_id" => run_id, "file_name" => file_name}) do
-    %{selected_project: project} = conn.assigns
+  def screenshot_upload(conn, %{"screenshot_id" => screenshot_id}) do
+    %{selected_project: project, selected_qa_run: qa_run} = conn.assigns
     expires_in = 3600
 
     storage_key =
       QA.screenshot_storage_key(%{
         account_handle: project.account.name,
         project_handle: project.name,
-        qa_run_id: run_id,
-        file_name: file_name
+        qa_run_id: qa_run.id,
+        screenshot_id: screenshot_id
       })
 
     upload_url = Storage.generate_upload_url(storage_key, expires_in: expires_in)
@@ -181,15 +178,12 @@ defmodule TuistWeb.API.QAController do
 
   def create_screenshot(
         %{assigns: %{selected_qa_run: qa_run}} = conn,
-        %{"file_name" => file_name, "title" => title} = params
+        %{"step_id" => step_id} = _params
       ) do
     attrs = %{
       qa_run_id: qa_run.id,
-      file_name: file_name,
-      title: title
+      qa_step_id: step_id
     }
-
-    attrs = if step_id = Map.get(params, "step_id"), do: Map.put(attrs, :qa_step_id, step_id), else: attrs
 
     case QA.create_qa_screenshot(attrs) do
       {:ok, screenshot} ->
@@ -199,8 +193,6 @@ defmodule TuistWeb.API.QAController do
           id: screenshot.id,
           qa_run_id: screenshot.qa_run_id,
           qa_step_id: screenshot.qa_step_id,
-          file_name: screenshot.file_name,
-          title: screenshot.title,
           inserted_at: screenshot.inserted_at
         })
 

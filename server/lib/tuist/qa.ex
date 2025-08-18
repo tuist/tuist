@@ -369,9 +369,9 @@ defmodule Tuist.QA do
         account_handle: account_handle,
         project_handle: project_handle,
         qa_run_id: qa_run_id,
-        file_name: file_name
+        screenshot_id: screenshot_id
       }) do
-    "#{String.downcase(account_handle)}/#{String.downcase(project_handle)}/qa/screenshots/#{qa_run_id}/#{file_name}.png"
+    "#{String.downcase(account_handle)}/#{String.downcase(project_handle)}/qa/screenshots/#{qa_run_id}/#{screenshot_id}.png"
   end
 
   @doc """
@@ -407,7 +407,7 @@ defmodule Tuist.QA do
     qa_run =
       Repo.preload(qa_run,
         app_build: [preview: [project: :account]],
-        run_steps: :screenshots
+        run_steps: :screenshot
       )
 
     preview = qa_run.app_build.preview
@@ -438,7 +438,6 @@ defmodule Tuist.QA do
       "#{Environment.app_url()}/#{project.account.name}/#{project.name}/previews/#{preview.id}"
 
     render_qa_summary(%{
-      summary: qa_run.summary,
       run_steps: Enum.sort_by(qa_run.run_steps, & &1.inserted_at, DateTime),
       issue_count: Enum.count(qa_run.run_steps |> Enum.flat_map(& &1.issues)),
       app_url: Environment.app_url(),

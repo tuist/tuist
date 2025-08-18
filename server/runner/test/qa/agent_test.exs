@@ -51,12 +51,20 @@ defmodule Runner.QA.AgentTest do
     stub(LLMChain, :add_tools, fn chain, _ -> chain end)
     stub(LLMChain, :add_callback, fn chain, _ -> chain end)
 
-    stub(Tools, :tools, fn _params -> 
+    stub(Tools, :tools, fn _params ->
       [
-        %{name: "describe_ui"}, %{name: "tap"}, %{name: "long_press"},
-        %{name: "swipe"}, %{name: "type_text"}, %{name: "key_press"}, 
-        %{name: "button"}, %{name: "touch"}, %{name: "gesture"}, 
-        %{name: "screenshot"}, %{name: "step_report"}, %{name: "finalize"}
+        %{name: "describe_ui"},
+        %{name: "tap"},
+        %{name: "long_press"},
+        %{name: "swipe"},
+        %{name: "type_text"},
+        %{name: "key_press"},
+        %{name: "button"},
+        %{name: "touch"},
+        %{name: "gesture"},
+        %{name: "screenshot"},
+        %{name: "step_report"},
+        %{name: "finalize"}
       ]
     end)
 
@@ -80,7 +88,8 @@ defmodule Runner.QA.AgentTest do
 
     stub(Client, :stream_log, fn :fake_log_streamer_pid, _log_params -> :ok end)
 
-    {:ok, device: device, preview_path: preview_path, extract_dir: extract_dir, app_path: app_path}
+    {:ok,
+     device: device, preview_path: preview_path, extract_dir: extract_dir, app_path: app_path}
   end
 
   describe "test/1" do
@@ -112,13 +121,9 @@ defmodule Runner.QA.AgentTest do
       expect(LLMChain, :add_tools, fn chain, _tools -> chain end)
       expect(LLMChain, :add_callback, fn chain, _handler -> chain end)
 
-      expect(LLMChain, :run_until_tool_used, fn _chain, tool_names ->
-        # Should be all tool names except step_report
-        refute "step_report" in tool_names
-        assert "finalize" in tool_names
-        assert "describe_ui" in tool_names
-        assert "screenshot" in tool_names
-        {:ok, chain_result, %ToolResult{name: "finalize", content: ["Test completed successfully"]}}
+      expect(LLMChain, :run_until_tool_used, fn _chain, _tool_names ->
+        {:ok, chain_result,
+         %ToolResult{name: "finalize", content: ["Test completed successfully"]}}
       end)
 
       # When / Then
@@ -205,36 +210,60 @@ defmodule Runner.QA.AgentTest do
                )
     end
 
-    test "clears previous UI and screenshot content when tool result contains UI/screenshot data", %{
-      device: device
-    } do
+    test "clears previous UI and screenshot content when tool result contains UI/screenshot data",
+         %{
+           device: device
+         } do
       # Given
       preview_url = "https://example.com/preview.zip"
       bundle_identifier = "com.example.app"
 
       messages = [
-        %Message{role: :user, content: [%{type: :text, content: "Test the app"}]},
         %Message{
-          role: :assistant,
-          tool_calls: [%{name: "tap", arguments: %{}}]
-        },
-        %Message{
-          role: :tool,
-          tool_results: [%ToolResult{name: "tap", content: ["Previous tap result"]}],
-          content: [ContentPart.text!("Current UI state: UI data"), ContentPart.image!("image_data", media: :png)]
-        },
-        %Message{
-          role: :tool,
-          tool_results: [%ToolResult{name: "describe_ui", content: ["UI data"]}],
-          content: [ContentPart.text!("Current UI state: More UI data"), ContentPart.image!("screenshot_data", media: :png)]
+          role: :user,
+          content: [%{type: :text, content: "Test the app"}]
         },
         %Message{
           role: :assistant,
-          tool_calls: [%{name: "swipe", arguments: %{}}]
+          tool_calls: [%{name: "tap", call_id: "tap_id", arguments: %{}}]
         },
         %Message{
           role: :tool,
-          tool_results: [%ToolResult{name: "swipe", content: ["Swipe data"]}]
+          tool_results: [
+            %ToolResult{
+              name: "tap",
+              tool_call_id: "tap_id",
+              content: [
+                "Previous tap result",
+                ContentPart.text!("Current UI state: UI data"),
+                ContentPart.image!("image_data", media: :png)
+              ]
+            }
+          ]
+        },
+        %Message{
+          role: :assistant,
+          tool_calls: [%{name: "describe_ui", call_id: "describe_ui_id", arguments: %{}}]
+        },
+        %Message{
+          role: :tool,
+          tool_results: [
+            %ToolResult{
+              name: "describe_ui",
+              tool_call_id: "describe_ui_id",
+              content: [ContentPart.text!("Current UI state: UI data")]
+            }
+          ]
+        },
+        %Message{
+          role: :assistant,
+          tool_calls: [%{name: "swipe", call_id: "swipe_one_id", arguments: %{}}]
+        },
+        %Message{
+          role: :tool,
+          tool_results: [
+            %ToolResult{name: "swipe", tool_call_id: "swipe_one_id", content: ["Swipe data"]}
+          ]
         },
         %Message{role: :assistant, content: [%{type: :text, content: "Continuing test"}]}
       ]
@@ -250,10 +279,7 @@ defmodule Runner.QA.AgentTest do
         %{chain | messages: [user_msg]}
       end)
 
-      expect(LLMChain, :run_until_tool_used, 1, fn input_chain, tool_names ->
-        # Verify all tools except step_report are included
-        refute "step_report" in tool_names
-        
+      expect(LLMChain, :run_until_tool_used, 1, fn input_chain, _tool_names ->
         chain_with_messages = %{
           input_chain
           | messages: messages,
@@ -263,48 +289,73 @@ defmodule Runner.QA.AgentTest do
             }
         }
 
-        {:ok, chain_with_messages, %ToolResult{name: "tap", content: [ContentPart.text!("Current UI state: New data"), ContentPart.image!("screenshot_data", media: :png)]}}
+        {:ok, chain_with_messages,
+         %ToolResult{
+           name: "tap",
+           content: [
+             ContentPart.text!("Current UI state: New data"),
+             ContentPart.image!("screenshot_data", media: :png)
+           ]
+         }}
       end)
 
       expect(LLMChain, :new!, 1, fn %{llm: llm} ->
         %LLMChain{llm: llm, messages: [], last_message: nil}
       end)
 
-      # Previous UI state and screenshot content should be cleared when new tool result contains UI/screenshot data
       expect(LLMChain, :add_messages, 1, fn chain, cleared_messages ->
-        # Check that UI state and screenshot content is removed from previous messages
-        # and messages that become empty are completely removed
-        
-        user_message = Enum.at(cleared_messages, 0)
-        assert user_message.role == :user
-        assert user_message.content == [%{type: :text, content: "Test the app"}]
-        
-        # The message with only describe_ui tool results and UI content should be completely removed
-        describe_ui_only_message = Enum.find(cleared_messages, fn msg -> 
-          msg.role == :tool && 
-          Enum.any?(msg.tool_results || [], fn tr -> tr.name == "describe_ui" end) &&
-          Enum.all?(msg.tool_results || [], fn tr -> tr.name in ["describe_ui", "screenshot"] end)
-        end)
-        assert describe_ui_only_message == nil, "Message with only UI/screenshot content should be completely removed"
-        
-        # Tool message with mixed content should have UI content cleared but other content preserved
-        mixed_tool_message = Enum.find(cleared_messages, fn msg ->
-          msg.role == :tool &&
-          Enum.any?(msg.tool_results || [], fn tr -> tr.name == "tap" end)
-        end)
-        
-        if mixed_tool_message do
-          # Should preserve non-describe_ui/screenshot tool results  
-          preserved_results = Enum.reject(mixed_tool_message.tool_results || [], fn tr -> tr.name in ["describe_ui", "screenshot"] end)
-          assert length(preserved_results) > 0  # Should have the tap result
-          assert mixed_tool_message.content == []  # Current UI content and image cleared
-        end
-        
+        assert cleared_messages == [
+                 %Message{
+                   role: :user,
+                   content: [%{type: :text, content: "Test the app"}],
+                   tool_calls: [],
+                   tool_results: []
+                 },
+                 %Message{
+                   role: :assistant,
+                   tool_calls: [%{name: "tap", call_id: "tap_id", arguments: %{}}],
+                   tool_results: []
+                 },
+                 %Message{
+                   role: :tool,
+                   content: nil,
+                   tool_results: [
+                     %ToolResult{
+                       name: "tap",
+                       tool_call_id: "tap_id",
+                       content: ["Previous tap result"]
+                     }
+                   ],
+                   tool_calls: []
+                 },
+                 %Message{
+                   role: :assistant,
+                   tool_calls: [%{name: "swipe", call_id: "swipe_one_id", arguments: %{}}],
+                   tool_results: []
+                 },
+                 %Message{
+                   role: :tool,
+                   tool_results: [
+                     %ToolResult{
+                       name: "swipe",
+                       tool_call_id: "swipe_one_id",
+                       content: ["Swipe data"]
+                     }
+                   ],
+                   tool_calls: []
+                 },
+                 %Message{
+                   role: :assistant,
+                   content: [%{type: :text, content: "Continuing test"}],
+                   tool_calls: nil,
+                   tool_results: nil
+                 }
+               ]
+
         %{chain | messages: cleared_messages}
       end)
 
-      expect(LLMChain, :run_until_tool_used, 1, fn chain, tool_names ->
-        refute "step_report" in tool_names
+      expect(LLMChain, :run_until_tool_used, 1, fn chain, _tool_names ->
         {:ok, chain, %ToolResult{name: "finalize", content: ["Test completed"]}}
       end)
 
@@ -325,25 +376,13 @@ defmodule Runner.QA.AgentTest do
                )
     end
 
-    test "does not clear messages when tool result contains no UI/screenshot data", %{
+    test "calls run_until_tool_used with step_report when an action tool is called", %{
       device: device
     } do
-      # Given  
+      # Given
       preview_url = "https://example.com/preview.zip"
       bundle_identifier = "com.example.app"
-
-      messages = [
-        %Message{role: :user, content: [%{type: :text, content: "Test the app"}]},
-        %Message{
-          role: :assistant,
-          tool_calls: [%{name: "tap", arguments: %{}}]
-        },
-        %Message{
-          role: :tool,
-          tool_results: [%ToolResult{name: "tap", content: ["Previous tap result"]}],
-          content: [ContentPart.text!("Current UI state: UI data")]
-        }
-      ]
+      prompt = "Test the login feature"
 
       expect(Req, :get, fn ^preview_url, [into: :mocked_stream] -> {:ok, %{status: 200}} end)
       expect(Simulators, :launch_app, fn ^bundle_identifier, ^device -> :ok end)
@@ -356,46 +395,86 @@ defmodule Runner.QA.AgentTest do
         %{chain | messages: [user_msg]}
       end)
 
-      expect(LLMChain, :run_until_tool_used, 1, fn input_chain, tool_names ->
-        refute "step_report" in tool_names
-        
-        chain_with_messages = %{
-          input_chain
-          | messages: messages,
-            last_message: %Message{
-              role: :assistant,
-              content: [%{type: :text, content: "New action"}]
-            }
-        }
-
-        # Tool result with NO UI/screenshot content - should not trigger clearing
-        {:ok, chain_with_messages, %ToolResult{name: "swipe", content: [ContentPart.text!("Swipe completed successfully")]}}
+      expect(LLMChain, :run_until_tool_used, 1, fn chain, _tool_names ->
+        {:ok,
+         %{
+           chain
+           | messages: [
+               %Message{
+                 role: :user,
+                 content: [%{type: :text, content: "Test the login feature"}]
+               },
+               %Message{
+                 role: :assistant,
+                 tool_calls: [%{name: "tap", call_id: "tap_1", arguments: %{}}]
+               },
+               %Message{
+                 role: :tool,
+                 tool_results: [
+                   %ToolResult{
+                     name: "tap",
+                     tool_call_id: "tap_1",
+                     content: [
+                       ContentPart.text!("Tapped element"),
+                       ContentPart.image!("screenshot_data", media: :png),
+                       ContentPart.text!("step_123")
+                     ]
+                   }
+                 ]
+               }
+             ],
+             last_message: %Message{
+               role: :tool,
+               tool_results: [
+                 %ToolResult{
+                   name: "tap",
+                   tool_call_id: "tap_1",
+                   content: [
+                     ContentPart.text!("Tapped element"),
+                     ContentPart.image!("screenshot_data", media: :png),
+                     ContentPart.text!("step_123")
+                   ]
+                 }
+               ]
+             }
+         },
+         %ToolResult{
+           name: "tap",
+           content: [
+             ContentPart.text!("Tapped element"),
+             ContentPart.image!("screenshot_data", media: :png),
+             ContentPart.text!("step_123")
+           ]
+         }}
       end)
 
       expect(LLMChain, :new!, 1, fn %{llm: llm} ->
         %LLMChain{llm: llm, messages: [], last_message: nil}
       end)
 
-      # Messages should NOT be cleared since tool result contains no UI/screenshot data
-      expect(LLMChain, :add_messages, 1, fn chain, messages_passed ->
-        # Should be the full chain.messages (which includes original + last_message from run_until_tool_used)
-        # In non-clearing case, we pass chain.messages directly
-        assert length(messages_passed) >= length(messages)
-        
-        # Original UI content should still be present (not cleared)
-        tool_message = Enum.find(messages_passed, &(&1.role == :tool))
-        if tool_message do
-          assert Enum.any?(tool_message.content || [], fn
-            %ContentPart{type: :text, content: content} -> String.starts_with?(content, "Current UI")
-            _ -> false
-          end)
-        end
-        
-        %{chain | messages: messages_passed}
+      expect(LLMChain, :add_messages, 1, fn chain, messages ->
+        assert List.last(messages) ==
+                 Message.new_user!(
+                   "Use the returned image to analyze visual inconsistencies and report the result for step_id step_123 with the step_report tool."
+                 )
+
+        %{chain | messages: messages}
       end)
 
-      expect(LLMChain, :run_until_tool_used, 1, fn chain, tool_names ->
-        refute "step_report" in tool_names
+      expect(LLMChain, :run_until_tool_used, 1, fn chain, tool_name ->
+        assert tool_name == "step_report"
+        {:ok, chain, %ToolResult{name: "step_report", content: ["Step reported successfully"]}}
+      end)
+
+      expect(LLMChain, :new!, 1, fn %{llm: llm} ->
+        %LLMChain{llm: llm, messages: [], last_message: nil}
+      end)
+
+      expect(LLMChain, :add_messages, 1, fn chain, _messages ->
+        %{chain | messages: []}
+      end)
+
+      expect(LLMChain, :run_until_tool_used, 1, fn chain, _tool_names ->
         {:ok, chain, %ToolResult{name: "finalize", content: ["Test completed"]}}
       end)
 
@@ -405,7 +484,7 @@ defmodule Runner.QA.AgentTest do
                  %{
                    preview_url: preview_url,
                    bundle_identifier: bundle_identifier,
-                   prompt: "Test feature",
+                   prompt: prompt,
                    server_url: "https://example.com",
                    run_id: "run-id",
                    auth_token: "auth-token",
@@ -416,78 +495,4 @@ defmodule Runner.QA.AgentTest do
                )
     end
   end
-
-  describe "contains_ui_content?/1" do
-    test "returns true when tool result contains UI content in content parts" do
-      tool_result = %ToolResult{
-        name: "describe_ui",
-        content: [
-          %ContentPart{type: :text, content: "Current UI state: some data"},
-          %ContentPart{type: :image, options: [media: :png]}
-        ]
-      }
-
-      assert Agent.contains_ui_content?(tool_result)
-    end
-
-    test "returns true when tool result contains UI content as binary string" do
-      tool_result = %ToolResult{
-        name: "describe_ui", 
-        content: "Current UI state: some data"
-      }
-
-      assert Agent.contains_ui_content?(tool_result)
-    end
-
-    test "returns false when tool result contains only screenshot content" do
-      tool_result = %ToolResult{
-        name: "screenshot",
-        content: [%ContentPart{type: :image, options: [media: :png]}]
-      }
-
-      refute Agent.contains_ui_content?(tool_result)
-    end
-
-    test "returns false when tool result contains no UI or screenshot content" do
-      tool_result = %ToolResult{
-        name: "tap",
-        content: ["Tap completed successfully"]
-      }
-
-      refute Agent.contains_ui_content?(tool_result)
-    end
-  end
-
-  describe "contains_screenshot_content?/1" do
-    test "returns true when tool result contains screenshot content" do
-      tool_result = %ToolResult{
-        name: "screenshot",
-        content: [
-          %ContentPart{type: :image, options: [media: :png]},
-          %ContentPart{type: :text, content: "Screenshot taken"}
-        ]
-      }
-
-      assert Agent.contains_screenshot_content?(tool_result)
-    end
-
-    test "returns false when tool result contains only UI content" do
-      tool_result = %ToolResult{
-        name: "describe_ui",
-        content: [%ContentPart{type: :text, content: "Current UI state: some data"}]
-      }
-
-      refute Agent.contains_screenshot_content?(tool_result)
-    end
-
-    test "returns false when tool result contains no UI or screenshot content" do
-      tool_result = %ToolResult{
-        name: "tap",
-        content: ["Tap completed successfully"]
-      }
-
-      refute Agent.contains_screenshot_content?(tool_result)
-    end
-  end
-
 end
