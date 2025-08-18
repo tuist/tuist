@@ -1,4 +1,90 @@
-.marketing__home__section__hero {
+/* html[data-noora] #marketing-home {
+  
+} */
+
+html:not([data-noora]) #marketing-home {
+  display: none;
+}
+
+.container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.background {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 800px;
+  z-index: -1;
+  background: linear-gradient(180deg, #F4F5FE 0%, #EFE8FF 100%);
+  mask-image: linear-gradient(to bottom,black 80%,transparent 100%);
+}
+
+.background img {
+  position: absolute;   
+  top: 0;               
+  left: 0;              
+  height: 100%;         
+  width: 100%;         
+  object-fit: cover;  
+}
+
+.marketing-home-section-hero {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-9);
+  overflow: hidden;
+}
+
+.marketing-home-section-title {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-0);
+}
+
+.title {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--noora-spacing-5);
+}
+
+.title h1 {
+  font-family: var(--noora-font-heading);
+  font: var(--noora-font-weight-medium) var(--noora-font-display-xlarge);
+  color: var(--noora-surface-label-primary);
+  text-shadow: 0px 1px 1px rgba(0, 0, 0, 0.25);
+}
+
+.swift-logo {
+  width: auto;
+  height: 70px;
+}
+
+.marketing-home-section-subtitle {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.marketing-home-section-subtitle p {
+  width: 644px;
+  text-align: center;
+  font: var(--noora-font-weight-medium) var(--noora-font-body-large);
+
+}
+
+html[data-noora] {
+&  .marketing__home__section__hero, & .marketing__home__section__companies, & .marketing__home__section__features, & .marketing__home__section__testimonials, & .marketing__home__section__time_saved, & .marketing__home__section__highlights, & .marketing__home__section__learn_more {
+
+  display: none;
+}
+}
+.marketing__home__section__hero { 
   display: flex;
   flex-direction: column;
   justify-content: center;

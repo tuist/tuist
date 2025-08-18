@@ -1,10 +1,11 @@
 <!DOCTYPE html>
-<html lang={Gettext.get_locale()} class="[scrollbar-gutter:stable]">
+<html lang={Gettext.get_locale()} class="[scrollbar-gutter:stable]" data-noora={FunWithFlags.enabled?(:noora)}>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="csp-nonce" content={get_csp_nonce()} />
     <meta name="csrf-token" content={get_csrf_token()} />
+    <meta name="color-scheme" content="light only" />
     <.live_title>
       {assigns[:head_title] || "Tuist"}
     </.live_title>
@@ -131,7 +132,7 @@
       .mauticform-field-hidden { display:none }
     </style>
   </head>
-  <body data-scrollable="true">
+  <body data-scrollable="true" data-theme="light">
     <TuistWeb.Marketing.MarketingComponents.header current_path={@current_path} {assigns} />
     {@inner_content}
     <TuistWeb.Marketing.MarketingComponents.footer />

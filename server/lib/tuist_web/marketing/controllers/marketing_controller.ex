@@ -1,5 +1,6 @@
 defmodule TuistWeb.Marketing.MarketingController do
   use TuistWeb, :controller
+  use Noora
 
   import TuistWeb.Marketing.StructuredMarkup
 

@@ -4,10 +4,25 @@
 @import "./css/components.css";
 @import "./css/pages.css";
 @import "./css/content.css";
-
+@import "noora/noora.css";
+:root {
+  color-scheme: light;
+  overflow-x: hidden;
+}
 body {
-  margin: 0px;
-  background: var(--white);
   padding: 0px;
-  font-family: "Space Grotesk";
+  background: var(--noora-surface-background-primary);
+  margin-top: var(--noora-spacing-12);
+  margin-bottom: var(--noora-spacing-12);
+  margin-left: var(--noora-spacing-14);
+  margin-right: var(--noora-spacing-14);
+  font-family: var(--noora-font-body);
+  display: flex;
+  flex-direction: column;
+  gap: 48px;
+}
+
+h1 {
+  margin-block-end: 0;
+  margin-block-start: 0;
 }
