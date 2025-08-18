@@ -89,8 +89,6 @@ defmodule TuistWeb.BundleLive do
 
     filter = params["filter"] || ""
 
-    series = to_chart_series(bundle, filter, duplicates)
-
     table_artifact = build_root_table_artifact(bundle, base_path, duplicates)
 
     selected_artifact =
@@ -105,14 +103,14 @@ defmodule TuistWeb.BundleLive do
           end
       end
 
+    # The values passed to `assign_async` are copied to the background task. To prevent the whole socket from being copied and passed over, we are taking only the parts that we need.
+    all_artifacts = socket.assigns.all_artifacts
+
     socket =
       socket
-      |> assign(series: series)
       |> assign(filter: filter)
       |> assign(uri: uri)
       |> assign(:selected_tab, params["tab"] || "overview")
-      |> assign_module_breakdown(params)
-      |> assign_file_breakdown(params)
       |> assign(:install_size_deviation, Bundles.install_size_deviation(bundle))
       |> assign(
         :last_bundle,
@@ -120,11 +118,29 @@ defmodule TuistWeb.BundleLive do
       )
       |> assign_table_artifact(selected_artifact, params)
       |> assign(:bundle_size_analysis_sunburst_chart_selected_artifact, selected_artifact)
+      |> assign_async(:overview, fn ->
+        series = to_chart_series(bundle, filter, duplicates)
+
+        {:ok,
+         %{
+           overview: %{
+             series: series
+           }
+         }}
+      end)
+      |> assign_async(:file_breakdown, fn ->
+        data = assign_file_breakdown_data(all_artifacts, params)
+        {:ok, %{file_breakdown: data}}
+      end)
+      |> assign_async(:module_breakdown, fn ->
+        data = assign_module_breakdown_data(all_artifacts, params)
+        {:ok, %{module_breakdown: data}}
+      end)
 
     {:noreply, socket}
   end
 
-  defp assign_file_breakdown(%{assigns: %{all_artifacts: all_artifacts}} = socket, params) do
+  defp assign_file_breakdown_data(all_artifacts, params) do
     file_breakdown_filter = params["file-breakdown-filter"] || ""
     file_breakdown_sort_by = params["file-breakdown-sort-by"] || "size"
     file_breakdown_sort_order = params["file-breakdown-sort-order"] || "desc"
@@ -150,19 +166,17 @@ defmodule TuistWeb.BundleLive do
         @table_page_size
       )
 
-    socket
-    |> assign(:file_breakdown_filter, file_breakdown_filter)
-    |> assign(:file_breakdown_page, file_breakdown_page)
-    |> assign(:file_breakdown_page_count, file_breakdown_page_count)
-    |> assign(
-      :file_breakdown_current_page_artifacts,
-      file_breakdown_current_page_artifacts
-    )
-    |> assign(:file_breakdown_sort_by, file_breakdown_sort_by)
-    |> assign(:file_breakdown_sort_order, file_breakdown_sort_order)
+    %{
+      file_breakdown_filter: file_breakdown_filter,
+      file_breakdown_page: file_breakdown_page,
+      file_breakdown_page_count: file_breakdown_page_count,
+      file_breakdown_current_page_artifacts: file_breakdown_current_page_artifacts,
+      file_breakdown_sort_by: file_breakdown_sort_by,
+      file_breakdown_sort_order: file_breakdown_sort_order
+    }
   end
 
-  defp assign_module_breakdown(%{assigns: %{all_artifacts: all_artifacts}} = socket, params) do
+  defp assign_module_breakdown_data(all_artifacts, params) do
     module_breakdown_filter = params["module-breakdown-filter"] || ""
     module_breakdown_sort_by = params["module-breakdown-sort-by"] || "size"
     module_breakdown_sort_order = params["module-breakdown-sort-order"] || "desc"
@@ -194,16 +208,14 @@ defmodule TuistWeb.BundleLive do
         @table_page_size
       )
 
-    socket
-    |> assign(:module_breakdown_filter, module_breakdown_filter)
-    |> assign(:module_breakdown_page, module_breakdown_page)
-    |> assign(:module_breakdown_page_count, module_breakdown_page_count)
-    |> assign(
-      :module_breakdown_current_page_artifacts,
-      module_breakdown_current_page_artifacts
-    )
-    |> assign(:module_breakdown_sort_by, module_breakdown_sort_by)
-    |> assign(:module_breakdown_sort_order, module_breakdown_sort_order)
+    %{
+      module_breakdown_filter: module_breakdown_filter,
+      module_breakdown_page: module_breakdown_page,
+      module_breakdown_page_count: module_breakdown_page_count,
+      module_breakdown_current_page_artifacts: module_breakdown_current_page_artifacts,
+      module_breakdown_sort_by: module_breakdown_sort_by,
+      module_breakdown_sort_order: module_breakdown_sort_order
+    }
   end
 
   def handle_event(
@@ -877,4 +889,45 @@ defmodule TuistWeb.BundleLive do
     )
     |> Enum.sort_by(& &1.value, :desc)
   end
+
+  defp breadcrumb_data(path, artifacts_by_path, _bundle_name) do
+    path
+    |> String.split("/")
+    |> Enum.with_index()
+    |> Enum.map(fn {path_component, index} ->
+      breadcrumb_path =
+        path
+        |> String.split("/")
+        |> Enum.take(index + 1)
+        |> Enum.join("/")
+
+      breadcrumb_artifact = Map.get(artifacts_by_path, breadcrumb_path)
+
+      {path_component, index, breadcrumb_path, breadcrumb_artifact}
+    end)
+    |> Enum.filter(fn {_, _, _, breadcrumb_artifact} -> breadcrumb_artifact end)
+  end
+
+  defp duplicate_total_size(duplicates) do
+    duplicates
+    |> Enum.flat_map(& &1.artifacts)
+    |> Enum.reduce(0, fn duplicate, acc -> acc + duplicate.size end)
+  end
+
+  defp duplicate_percentage(duplicates, bundle_install_size) do
+    total_size = duplicate_total_size(duplicates)
+    percentage = total_size / bundle_install_size * 100
+
+    percentage
+    |> Decimal.from_float()
+    |> Decimal.round(2)
+  end
+
+  defp duplicate_filename(artifacts) when is_list(artifacts) and length(artifacts) > 0 do
+    hd(artifacts).path
+    |> String.split("/")
+    |> List.last()
+  end
+
+  defp duplicate_filename(_), do: ""
 end
