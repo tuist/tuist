@@ -67,6 +67,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "SwiftECC"),
                 ],
                 settings: .settings(
+                    base: ["ARCHS": "arm64"],
                     configurations: [
                         .debug(
                             name: "Debug",
@@ -807,7 +808,8 @@ public enum Module: String, CaseIterable {
 
         var baseSettings = settings.base
         baseSettings["MACOSX_DEPLOYMENT_TARGET"] = "14.0"
-
+        baseSettings["ARCHS"] = "arm64"
+        
         let settings = Settings.settings(
             base: baseSettings,
             configurations: [
@@ -854,7 +856,8 @@ public enum Module: String, CaseIterable {
         case .tuist:
             return .settings(
                 base: [
-                    "LD_RUNPATH_SEARCH_PATHS": "$(FRAMEWORK_SEARCH_PATHS)"
+                    "LD_RUNPATH_SEARCH_PATHS": "$(FRAMEWORK_SEARCH_PATHS)",
+                    "ARCHS": "arm64"
                 ],
                 configurations: [
                     .debug(name: "Debug", settings: [:], xcconfig: nil),
@@ -879,6 +882,7 @@ public enum Module: String, CaseIterable {
             )
         default:
             return .settings(
+                base: ["ARCHS": "arm64"],
                 configurations: [
                     .debug(
                         name: "Debug",
