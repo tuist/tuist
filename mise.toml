@@ -1,5 +1,5 @@
 [tools]
-    tuist = "4.63.2"
+    tuist = "4.63.3"
     swiftlint = "0.59.1"
     swiftformat = "0.57.2"
     pnpm = "10.14"

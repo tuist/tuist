@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.63.3<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* include pagination data when listing the bundles as a json by [@pepicrft](https://github.com/pepicrft) in [#8041](https://github.com/tuist/tuist/pull/8041)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.63.2...4.63.3
+
 ## What's Changed in 4.63.2<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
