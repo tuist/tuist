@@ -225,10 +225,10 @@ if Tuist.Environment.env() not in [:test] do
       [
         scheme: "#{s3_scheme}://",
         host: s3_endpoint_host,
-        bucket_as_host: Tuist.Environment.s3_virtual_host(),
+        bucket_as_host: Tuist.Environment.s3_bucket_as_host(),
         region: Tuist.Environment.s3_region(secrets)
       ],
-      &if(is_nil(s3_port), do: Keyword.put(&1, :port, s3_port), else: &1)
+      &if(is_nil(s3_port), do: &1, else: Keyword.put(&1, :port, s3_port))
     )
 
   config :ex_aws, :req_opts,
@@ -239,7 +239,7 @@ if Tuist.Environment.env() not in [:test] do
 
   config :ex_aws,
     http_client: Tuist.AWS.Client,
-    virtual_host: Tuist.Environment.s3_bucket_as_host(),
+    virtual_host: Tuist.Environment.s3_virtual_host(),
     region: Tuist.Environment.s3_region(secrets)
 
   case Tuist.Environment.s3_authentication_method(secrets) do
