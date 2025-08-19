@@ -90,7 +90,6 @@ defmodule TuistWeb.QALogChannel do
 
     Buffer.insert(log)
 
-    # Broadcast the log to all listeners for real-time updates
     Tuist.PubSub.broadcast(
       log,
       "qa_logs:#{qa_run_id}",
