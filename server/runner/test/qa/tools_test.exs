@@ -74,8 +74,7 @@ defmodule Runner.QA.ToolsTest do
       }
       """
 
-      expect(System, :cmd, fn "/opt/homebrew/bin/axe",
-                              ["describe-ui", "--udid", ^simulator_uuid] ->
+      expect(System, :cmd, fn "/opt/homebrew/bin/axe", ["describe-ui", "--udid", ^simulator_uuid] ->
         {ui_output, 0}
       end)
 
@@ -92,8 +91,7 @@ defmodule Runner.QA.ToolsTest do
       # Given
       simulator_uuid = "test-uuid"
 
-      expect(System, :cmd, fn "/opt/homebrew/bin/axe",
-                              ["describe-ui", "--udid", ^simulator_uuid] ->
+      expect(System, :cmd, fn "/opt/homebrew/bin/axe", ["describe-ui", "--udid", ^simulator_uuid] ->
         {"Command failed", 1}
       end)
 
@@ -185,8 +183,7 @@ defmodule Runner.QA.ToolsTest do
       ]
       """
 
-      expect(System, :cmd, 1, fn "/opt/homebrew/bin/axe",
-                                 ["describe-ui", "--udid", ^simulator_uuid] ->
+      expect(System, :cmd, 1, fn "/opt/homebrew/bin/axe", ["describe-ui", "--udid", ^simulator_uuid] ->
         {ui_output, 0}
       end)
 
@@ -241,13 +238,11 @@ defmodule Runner.QA.ToolsTest do
         ~s([{"role": "AXApplication", "type": "Application", "frame": {"x": 0, "y": 0, "width": 393, "height": 852}, "children": []}])
 
       # Mock axe describe-ui returning webview scenario (empty application with frame info)
-      expect(System, :cmd, fn "/opt/homebrew/bin/axe",
-                              ["describe-ui", "--udid", ^simulator_uuid] ->
+      expect(System, :cmd, fn "/opt/homebrew/bin/axe", ["describe-ui", "--udid", ^simulator_uuid] ->
         {webview_ui_output, 0}
       end)
 
-      stub(System, :cmd, fn "idb",
-                            ["ui", "describe-point", "--udid", ^simulator_uuid, "--json", x, y] ->
+      stub(System, :cmd, fn "idb", ["ui", "describe-point", "--udid", ^simulator_uuid, "--json", x, y] ->
         case {x, y} do
           {"0", "0"} ->
             {
@@ -286,7 +281,7 @@ defmodule Runner.QA.ToolsTest do
 
       # Then
       assert webview_content ==
-               "Current UI state: [{\"frame\":{\"height\":50,\"width\":100,\"x\":0,\"y\":0},\"label\":\"Login Button\"},{\"frame\":{\"height\":30,\"width\":150,\"x\":50,\"y\":0},\"label\":\"Username Field\"}]"
+               ~s(Current UI state: [{"frame":{"height":50,"width":100,"x":0,"y":0},"label":"Login Button"},{"frame":{"height":30,"width":150,"x":50,"y":0},"label":"Username Field"}])
     end
   end
 
@@ -301,16 +296,14 @@ defmodule Runner.QA.ToolsTest do
       image_data = <<137, 80, 78, 71, 13, 10, 26, 10>>
       upload_url = "https://s3.example.com/upload-url"
 
-      expect(System, :cmd, fn "/opt/homebrew/bin/axe",
-                              ["tap", "-x", "100", "-y", "200", "--udid", ^simulator_uuid] ->
+      expect(System, :cmd, fn "/opt/homebrew/bin/axe", ["tap", "-x", "100", "-y", "200", "--udid", ^simulator_uuid] ->
         {"Tap completed", 0}
       end)
 
       expect(Client, :create_step, fn %{action: "Test tap"} -> {:ok, step_id} end)
       expect(Briefly, :create, fn -> {:ok, temp_path} end)
 
-      expect(System, :cmd, fn "xcrun",
-                              ["simctl", "io", ^simulator_uuid, "screenshot", ^temp_path] ->
+      expect(System, :cmd, fn "xcrun", ["simctl", "io", ^simulator_uuid, "screenshot", ^temp_path] ->
         {"", 0}
       end)
 
@@ -319,8 +312,7 @@ defmodule Runner.QA.ToolsTest do
       expect(Client, :screenshot_upload, fn _ -> {:ok, %{"url" => upload_url}} end)
       expect(Req, :put, fn ^upload_url, _ -> {:ok, %{status: 200}} end)
 
-      expect(System, :cmd, fn "/opt/homebrew/bin/axe",
-                              ["describe-ui", "--udid", ^simulator_uuid] ->
+      expect(System, :cmd, fn "/opt/homebrew/bin/axe", ["describe-ui", "--udid", ^simulator_uuid] ->
         {"[]", 0}
       end)
 
@@ -341,8 +333,7 @@ defmodule Runner.QA.ToolsTest do
       # Given
       simulator_uuid = "test-uuid"
 
-      expect(System, :cmd, fn "/opt/homebrew/bin/axe",
-                              ["tap", "-x", "100", "-y", "200", "--udid", ^simulator_uuid] ->
+      expect(System, :cmd, fn "/opt/homebrew/bin/axe", ["tap", "-x", "100", "-y", "200", "--udid", ^simulator_uuid] ->
         {"Tap failed", 1}
       end)
 
@@ -369,8 +360,7 @@ defmodule Runner.QA.ToolsTest do
 
       expect(Briefly, :create, fn -> {:ok, temp_path} end)
 
-      expect(System, :cmd, fn "xcrun",
-                              ["simctl", "io", ^simulator_uuid, "screenshot", ^temp_path] ->
+      expect(System, :cmd, fn "xcrun", ["simctl", "io", ^simulator_uuid, "screenshot", ^temp_path] ->
         {"", 0}
       end)
 
@@ -393,8 +383,7 @@ defmodule Runner.QA.ToolsTest do
 
       expect(Briefly, :create, fn -> {:ok, temp_path} end)
 
-      expect(System, :cmd, fn "xcrun",
-                              ["simctl", "io", ^simulator_uuid, "screenshot", ^temp_path] ->
+      expect(System, :cmd, fn "xcrun", ["simctl", "io", ^simulator_uuid, "screenshot", ^temp_path] ->
         {"Screenshot command failed", 1}
       end)
 
@@ -415,8 +404,7 @@ defmodule Runner.QA.ToolsTest do
       simulator_uuid = "test-uuid"
       text = "Hello World"
 
-      expect(System, :cmd, fn "/opt/homebrew/bin/axe",
-                              ["type", ^text, "--udid", ^simulator_uuid] ->
+      expect(System, :cmd, fn "/opt/homebrew/bin/axe", ["type", ^text, "--udid", ^simulator_uuid] ->
         {"Text typed", 0}
       end)
 
@@ -428,8 +416,7 @@ defmodule Runner.QA.ToolsTest do
       expect(Client, :create_step, fn %{action: "Test typing"} -> {:ok, step_id} end)
       expect(Briefly, :create, fn -> {:ok, temp_path} end)
 
-      expect(System, :cmd, fn "xcrun",
-                              ["simctl", "io", ^simulator_uuid, "screenshot", ^temp_path] ->
+      expect(System, :cmd, fn "xcrun", ["simctl", "io", ^simulator_uuid, "screenshot", ^temp_path] ->
         {"", 0}
       end)
 
@@ -438,8 +425,7 @@ defmodule Runner.QA.ToolsTest do
       expect(Client, :screenshot_upload, fn _ -> {:ok, %{"url" => upload_url}} end)
       expect(Req, :put, fn ^upload_url, _ -> {:ok, %{status: 200}} end)
 
-      expect(System, :cmd, fn "/opt/homebrew/bin/axe",
-                              ["describe-ui", "--udid", ^simulator_uuid] ->
+      expect(System, :cmd, fn "/opt/homebrew/bin/axe", ["describe-ui", "--udid", ^simulator_uuid] ->
         {"[]", 0}
       end)
 
@@ -493,8 +479,7 @@ defmodule Runner.QA.ToolsTest do
       expect(Client, :create_step, fn %{action: "Test swipe"} -> {:ok, step_id} end)
       expect(Briefly, :create, fn -> {:ok, temp_path} end)
 
-      expect(System, :cmd, fn "xcrun",
-                              ["simctl", "io", ^simulator_uuid, "screenshot", ^temp_path] ->
+      expect(System, :cmd, fn "xcrun", ["simctl", "io", ^simulator_uuid, "screenshot", ^temp_path] ->
         {"", 0}
       end)
 
@@ -503,8 +488,7 @@ defmodule Runner.QA.ToolsTest do
       expect(Client, :screenshot_upload, fn _ -> {:ok, %{"url" => upload_url}} end)
       expect(Req, :put, fn ^upload_url, _ -> {:ok, %{status: 200}} end)
 
-      expect(System, :cmd, fn "/opt/homebrew/bin/axe",
-                              ["describe-ui", "--udid", ^simulator_uuid] ->
+      expect(System, :cmd, fn "/opt/homebrew/bin/axe", ["describe-ui", "--udid", ^simulator_uuid] ->
         {"[]", 0}
       end)
 
@@ -560,8 +544,7 @@ defmodule Runner.QA.ToolsTest do
       expect(Client, :create_step, fn %{action: "Test swipe with duration"} -> {:ok, step_id} end)
       expect(Briefly, :create, fn -> {:ok, temp_path} end)
 
-      expect(System, :cmd, fn "xcrun",
-                              ["simctl", "io", ^simulator_uuid, "screenshot", ^temp_path] ->
+      expect(System, :cmd, fn "xcrun", ["simctl", "io", ^simulator_uuid, "screenshot", ^temp_path] ->
         {"", 0}
       end)
 
@@ -570,8 +553,7 @@ defmodule Runner.QA.ToolsTest do
       expect(Client, :screenshot_upload, fn _ -> {:ok, %{"url" => upload_url}} end)
       expect(Req, :put, fn ^upload_url, _ -> {:ok, %{status: 200}} end)
 
-      expect(System, :cmd, fn "/opt/homebrew/bin/axe",
-                              ["describe-ui", "--udid", ^simulator_uuid] ->
+      expect(System, :cmd, fn "/opt/homebrew/bin/axe", ["describe-ui", "--udid", ^simulator_uuid] ->
         {"[]", 0}
       end)
 
@@ -603,8 +585,7 @@ defmodule Runner.QA.ToolsTest do
       simulator_uuid = "test-uuid"
       preset = "scroll-up"
 
-      expect(System, :cmd, fn "/opt/homebrew/bin/axe",
-                              ["gesture", ^preset, "--udid", ^simulator_uuid] ->
+      expect(System, :cmd, fn "/opt/homebrew/bin/axe", ["gesture", ^preset, "--udid", ^simulator_uuid] ->
         {"Gesture completed", 0}
       end)
 
@@ -616,8 +597,7 @@ defmodule Runner.QA.ToolsTest do
       expect(Client, :create_step, fn %{action: "Test gesture"} -> {:ok, step_id} end)
       expect(Briefly, :create, fn -> {:ok, temp_path} end)
 
-      expect(System, :cmd, fn "xcrun",
-                              ["simctl", "io", ^simulator_uuid, "screenshot", ^temp_path] ->
+      expect(System, :cmd, fn "xcrun", ["simctl", "io", ^simulator_uuid, "screenshot", ^temp_path] ->
         {"", 0}
       end)
 
@@ -626,8 +606,7 @@ defmodule Runner.QA.ToolsTest do
       expect(Client, :screenshot_upload, fn _ -> {:ok, %{"url" => upload_url}} end)
       expect(Req, :put, fn ^upload_url, _ -> {:ok, %{status: 200}} end)
 
-      expect(System, :cmd, fn "/opt/homebrew/bin/axe",
-                              ["describe-ui", "--udid", ^simulator_uuid] ->
+      expect(System, :cmd, fn "/opt/homebrew/bin/axe", ["describe-ui", "--udid", ^simulator_uuid] ->
         {"[]", 0}
       end)
 
@@ -675,8 +654,7 @@ defmodule Runner.QA.ToolsTest do
       expect(Client, :create_step, fn %{action: "Test gesture with params"} -> {:ok, step_id} end)
       expect(Briefly, :create, fn -> {:ok, temp_path} end)
 
-      expect(System, :cmd, fn "xcrun",
-                              ["simctl", "io", ^simulator_uuid, "screenshot", ^temp_path] ->
+      expect(System, :cmd, fn "xcrun", ["simctl", "io", ^simulator_uuid, "screenshot", ^temp_path] ->
         {"", 0}
       end)
 
@@ -685,8 +663,7 @@ defmodule Runner.QA.ToolsTest do
       expect(Client, :screenshot_upload, fn _ -> {:ok, %{"url" => upload_url}} end)
       expect(Req, :put, fn ^upload_url, _ -> {:ok, %{status: 200}} end)
 
-      expect(System, :cmd, fn "/opt/homebrew/bin/axe",
-                              ["describe-ui", "--udid", ^simulator_uuid] ->
+      expect(System, :cmd, fn "/opt/homebrew/bin/axe", ["describe-ui", "--udid", ^simulator_uuid] ->
         {"[]", 0}
       end)
 
@@ -716,8 +693,7 @@ defmodule Runner.QA.ToolsTest do
       simulator_uuid = "test-uuid"
       button = "home"
 
-      expect(System, :cmd, fn "/opt/homebrew/bin/axe",
-                              ["button", ^button, "--udid", ^simulator_uuid] ->
+      expect(System, :cmd, fn "/opt/homebrew/bin/axe", ["button", ^button, "--udid", ^simulator_uuid] ->
         {"Button pressed", 0}
       end)
 
@@ -729,8 +705,7 @@ defmodule Runner.QA.ToolsTest do
       expect(Client, :create_step, fn %{action: "Test button"} -> {:ok, step_id} end)
       expect(Briefly, :create, fn -> {:ok, temp_path} end)
 
-      expect(System, :cmd, fn "xcrun",
-                              ["simctl", "io", ^simulator_uuid, "screenshot", ^temp_path] ->
+      expect(System, :cmd, fn "xcrun", ["simctl", "io", ^simulator_uuid, "screenshot", ^temp_path] ->
         {"", 0}
       end)
 
@@ -739,8 +714,7 @@ defmodule Runner.QA.ToolsTest do
       expect(Client, :screenshot_upload, fn _ -> {:ok, %{"url" => upload_url}} end)
       expect(Req, :put, fn ^upload_url, _ -> {:ok, %{status: 200}} end)
 
-      expect(System, :cmd, fn "/opt/homebrew/bin/axe",
-                              ["describe-ui", "--udid", ^simulator_uuid] ->
+      expect(System, :cmd, fn "/opt/homebrew/bin/axe", ["describe-ui", "--udid", ^simulator_uuid] ->
         {"[]", 0}
       end)
 
@@ -862,8 +836,7 @@ defmodule Runner.QA.ToolsTest do
 
       expect(Briefly, :create, fn -> {:ok, temp_path} end)
 
-      expect(System, :cmd, fn "xcrun",
-                              ["simctl", "io", ^simulator_uuid, "screenshot", ^temp_path] ->
+      expect(System, :cmd, fn "xcrun", ["simctl", "io", ^simulator_uuid, "screenshot", ^temp_path] ->
         {"", 0}
       end)
 
@@ -890,8 +863,7 @@ defmodule Runner.QA.ToolsTest do
       assert %ContentPart{} = screenshot
 
       assert %ContentPart{
-               content:
-                 "The QA plan has been documented and the initial app state screenshot has been captured."
+               content: "The QA plan has been documented and the initial app state screenshot has been captured."
              } = message
     end
   end

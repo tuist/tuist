@@ -226,7 +226,7 @@ defmodule TuistWeb.API.QAControllerTest do
 
       # When
       screenshot_id = Ecto.UUID.generate()
-      
+
       conn =
         conn
         |> put_req_header("content-type", "application/json")
@@ -400,7 +400,7 @@ defmodule TuistWeb.API.QAControllerTest do
       # Then
       response = json_response(conn, :ok)
 
-      assert response |> Map.take(["id", "result", "issues"]) == %{
+      assert Map.take(response, ["id", "result", "issues"]) == %{
                "id" => qa_step.id,
                "result" => "Login successful",
                "issues" => ["Minor UI alignment issue"]

@@ -88,8 +88,7 @@ defmodule Runner.QA.AgentTest do
 
     stub(Client, :stream_log, fn :fake_log_streamer_pid, _log_params -> :ok end)
 
-    {:ok,
-     device: device, preview_path: preview_path, extract_dir: extract_dir, app_path: app_path}
+    {:ok, device: device, preview_path: preview_path, extract_dir: extract_dir, app_path: app_path}
   end
 
   describe "test/1" do
@@ -122,8 +121,7 @@ defmodule Runner.QA.AgentTest do
       expect(LLMChain, :add_callback, fn chain, _handler -> chain end)
 
       expect(LLMChain, :run_until_tool_used, fn _chain, _tool_names ->
-        {:ok, chain_result,
-         %ToolResult{name: "finalize", content: ["Test completed successfully"]}}
+        {:ok, chain_result, %ToolResult{name: "finalize", content: ["Test completed successfully"]}}
       end)
 
       # When / Then

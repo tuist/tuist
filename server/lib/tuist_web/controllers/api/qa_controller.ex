@@ -44,12 +44,10 @@ defmodule TuistWeb.API.QAController do
     result = Map.get(params, "result")
 
     attrs =
-      %{
-        qa_run_id: qa_run.id,
-        action: action,
-        issues: issues
-      }
-      |> then(&if(is_nil(result), do: &1, else: Map.put(&1, :result, result)))
+      then(
+        %{qa_run_id: qa_run.id, action: action, issues: issues},
+        &if(is_nil(result), do: &1, else: Map.put(&1, :result, result))
+      )
 
     case QA.create_qa_step(attrs) do
       {:ok, qa_step} ->
@@ -176,10 +174,7 @@ defmodule TuistWeb.API.QAController do
     })
   end
 
-  def create_screenshot(
-        %{assigns: %{selected_qa_run: qa_run}} = conn,
-        %{"step_id" => step_id} = _params
-      ) do
+  def create_screenshot(%{assigns: %{selected_qa_run: qa_run}} = conn, %{"step_id" => step_id} = _params) do
     attrs = %{
       qa_run_id: qa_run.id,
       qa_step_id: step_id

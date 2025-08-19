@@ -439,7 +439,7 @@ defmodule Tuist.QA do
 
     render_qa_summary(%{
       run_steps: Enum.sort_by(qa_run.run_steps, & &1.inserted_at, DateTime),
-      issue_count: Enum.count(qa_run.run_steps |> Enum.flat_map(& &1.issues)),
+      issue_count: qa_run.run_steps |> Enum.flat_map(& &1.issues) |> Enum.count(),
       app_url: Environment.app_url(),
       account_handle: project.account.name,
       project_handle: project.name,

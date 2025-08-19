@@ -78,9 +78,7 @@ defmodule Runner.QA.Client do
       }) do
     run_url = qa_run_url(server_url, account_handle, project_handle, run_id)
 
-    qa_server_request(:patch, run_url, auth_token,
-      json: %{status: "failed", error_message: error_message}
-    )
+    qa_server_request(:patch, run_url, auth_token, json: %{status: "failed", error_message: error_message})
   end
 
   def screenshot_upload(%{

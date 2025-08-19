@@ -189,7 +189,7 @@ defmodule Runner.QA.Agent do
     |> LLMChain.add_messages(messages)
     |> LLMChain.add_tools(tools)
     |> LLMChain.add_callback(handler)
-    |> LLMChain.run_until_tool_used(tools |> Enum.map(& &1.name))
+    |> LLMChain.run_until_tool_used(Enum.map(tools, & &1.name))
     |> process_llm_result(attrs, handler, tools)
   end
 
@@ -219,12 +219,7 @@ defmodule Runner.QA.Agent do
     end
   end
 
-  defp process_llm_result(
-         {:error, _chain, %LangChain.LangChainError{message: message}},
-         _attrs,
-         _handler,
-         _tools
-       ) do
+  defp process_llm_result({:error, _chain, %LangChain.LangChainError{message: message}}, _attrs, _handler, _tools) do
     {:error, "LLM chain execution failed: #{message}"}
   end
 
@@ -273,28 +268,20 @@ defmodule Runner.QA.Agent do
   end
 
   defp clear_ui_and_screenshot_messages(messages) do
-    messages =
-      messages
-      |> Enum.map(&clear_ui_and_screenshot_content/1)
+    messages = Enum.map(messages, &clear_ui_and_screenshot_content/1)
 
     tool_call_ids_with_no_content =
       messages
       |> Enum.reject(&is_nil(&1.tool_results))
       |> Enum.flat_map(& &1.tool_results)
       |> Enum.filter(&Enum.empty?(&1.content))
-      |> Enum.map(& &1.tool_call_id)
-      |> MapSet.new()
+      |> MapSet.new(& &1.tool_call_id)
 
     messages =
-      messages
-      |> Enum.map(fn message ->
-        tool_results =
-          (message.tool_results || [])
-          |> Enum.filter(&(&1.tool_call_id not in tool_call_ids_with_no_content))
+      Enum.map(messages, fn message ->
+        tool_results = Enum.filter(message.tool_results || [], &(&1.tool_call_id not in tool_call_ids_with_no_content))
 
-        tool_calls =
-          (message.tool_calls || [])
-          |> Enum.filter(&(&1.call_id not in tool_call_ids_with_no_content))
+        tool_calls = Enum.filter(message.tool_calls || [], &(&1.call_id not in tool_call_ids_with_no_content))
 
         %{
           message
@@ -303,8 +290,7 @@ defmodule Runner.QA.Agent do
         }
       end)
 
-    messages
-    |> Enum.reject(&is_message_empty?/1)
+    Enum.reject(messages, &is_message_empty?/1)
   end
 
   defp is_message_empty?(message) do
@@ -314,8 +300,7 @@ defmodule Runner.QA.Agent do
 
   defp clear_ui_and_screenshot_content(message) do
     tool_results =
-      (message.tool_results || [])
-      |> Enum.map(fn tool_result ->
+      Enum.map(message.tool_results || [], fn tool_result ->
         content =
           case tool_result.content do
             content_parts when is_list(content_parts) ->
