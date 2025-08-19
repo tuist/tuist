@@ -5,16 +5,6 @@ defmodule Tuist.Telemetry.Sanitizer do
   """
 
   @doc """
-  Sanitizes a telemetry metadata map by converting all values to
-  types that are supported by String.Chars protocol.
-  """
-  def sanitize_metadata(metadata) when is_map(metadata) do
-    Map.new(metadata, fn {key, value} -> {key, sanitize_value(value)} end)
-  end
-
-  def sanitize_metadata(metadata), do: metadata
-
-  @doc """
   Sanitizes a single value to ensure it's compatible with String.Chars protocol.
   """
   def sanitize_value(value) when is_binary(value), do: value
@@ -29,22 +19,11 @@ defmodule Tuist.Telemetry.Sanitizer do
   end
 
   def sanitize_value(value) when is_struct(value) do
-    case value do
-      %{__struct__: module} ->
-        "#{inspect(module)}"
-
-      _ ->
-        inspect(value)
-    end
+    %{__struct__: module} = value
+    "#{inspect(module)}"
   end
 
   def sanitize_value(value) do
     to_string(value)
-  rescue
-    Protocol.UndefinedError ->
-      inspect(value)
-
-    _ ->
-      inspect(value)
   end
 end

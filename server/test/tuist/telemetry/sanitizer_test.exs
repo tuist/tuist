@@ -32,29 +32,4 @@ defmodule Tuist.Telemetry.SanitizerTest do
       assert result == "%{key: \"value\"}"
     end
   end
-
-  describe "sanitize_metadata/1" do
-    test "sanitizes all values in a map" do
-      error = %Redix.ConnectionError{reason: :tcp_closed}
-
-      metadata = %{
-        name: "test",
-        status: 200,
-        error: error,
-        list: [1, 2, 3]
-      }
-
-      result = Sanitizer.sanitize_metadata(metadata)
-
-      assert result.name == "test"
-      assert result.status == 200
-      assert result.error == "Redix.ConnectionError"
-      assert result.list == "[1, 2, 3]"
-    end
-
-    test "returns non-map values unchanged" do
-      assert Sanitizer.sanitize_metadata("test") == "test"
-      assert Sanitizer.sanitize_metadata(123) == 123
-    end
-  end
 end
