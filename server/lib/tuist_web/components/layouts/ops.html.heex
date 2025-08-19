@@ -42,8 +42,9 @@
           <%= if not Tuist.Environment.dev_use_remote_storage?() do %>
             <.tab_menu_horizontal_item
               label={gettext("Storage")}
+              href={"http://localhost:#{Tuist.Environment.minio_console_port()}"}
               target="_blank"
-              navigate={"http://localhost:#{Tuist.Environment.minio_console_port()}"}
+              rel="noopener noreferrer"
             />
           <% end %>
           <.tab_menu_horizontal_item
