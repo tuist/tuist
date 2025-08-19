@@ -1,6 +1,46 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.64.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* improve passthrough argument documentation with usage examples by [@pepicrft](https://github.com/pepicrft) in [#8047](https://github.com/tuist/tuist/pull/8047)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.63.3...4.64.0
+
+## What's Changed in 4.63.3<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* include pagination data when listing the bundles as a json by [@pepicrft](https://github.com/pepicrft) in [#8041](https://github.com/tuist/tuist/pull/8041)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.63.2...4.63.3
+
+## What's Changed in 4.63.2<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* `bundle show` failing due to wrong data passed by the cli by [@pepicrft](https://github.com/pepicrft) in [#8037](https://github.com/tuist/tuist/pull/8037)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.63.1...4.63.2
+
+## What's Changed in 4.63.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* `tuist run` fails to run a scheme even though it has runnable targets by [@pepicrft](https://github.com/pepicrft) in [#7989](https://github.com/tuist/tuist/pull/7989)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.63.0...4.63.1
+
+## What's Changed in 4.63.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* Add commands to list and read bundles by [@pepicrft](https://github.com/pepicrft) in [#7893](https://github.com/tuist/tuist/pull/7893)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.62.0...4.63.0
+
 ## What's Changed in 4.62.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features

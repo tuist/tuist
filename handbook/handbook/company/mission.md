@@ -1,9 +1,10 @@
 ---
-title: Mission
-titleTemplate: :title | Company | Tuist Handbook
-mission: Learn more about the mission of Tuist
+{
+  "title": "Mission",
+  "titleTemplate": ":title | Company | Tuist Handbook",
+  "mission": "Learn more about the mission of Tuist"
+}
 ---
-
 # Mission
 
 **To streamline app development through an integrated platform that helps developers build and share high-quality software at unmatched speed and scale.**

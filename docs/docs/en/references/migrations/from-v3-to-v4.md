@@ -1,9 +1,10 @@
 ---
-title: From v3 to v4
-titleTemplate: :title · Migrations · References · Tuist
-description: This page documents how to migrate the Tuist CLI from the version 3 to version 4.
+{
+  "title": "From v3 to v4",
+  "titleTemplate": ":title · Migrations · References · Tuist",
+  "description": "This page documents how to migrate the Tuist CLI from the version 3 to version 4."
+}
 ---
-
 # From Tuist v3 to v4 {#from-tuist-v3-to-v4}
 
 With the release of [Tuist 4](https://github.com/tuist/tuist/releases/tag/4.0.0), we took the opportunity to introduce some breaking changes to the project, which we believed would make the project easier to use and maintain in the long run. This document outlines the changes you will need to make to your project to upgrade from Tuist 3 to Tuist 4.

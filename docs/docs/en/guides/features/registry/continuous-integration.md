@@ -1,9 +1,10 @@
 ---
-title: Continuous integration
-titleTemplate: :title · Registry · Features · Guides · Tuist
-description: Learn how to use the Tuist Registry in continuous integration.
+{
+  "title": "Continuous integration",
+  "titleTemplate": ":title · Registry · Features · Guides · Tuist",
+  "description": "Learn how to use the Tuist Registry in continuous integration."
+}
 ---
-
 # Continuous Integration (CI) {#continuous-integration-ci}
 
 To use the registry on your CI, you need to ensure that you have logged in to the registry by running `tuist registry login` as part of your workflow.

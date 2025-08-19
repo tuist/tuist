@@ -1,9 +1,10 @@
 ---
-title: Synthesized files
-titleTemplate: :title · Projects · Features · Guides · Tuist
-description: Learn about synthesized files in Tuist projects.
+{
+  "title": "Synthesized files",
+  "titleTemplate": ":title · Projects · Features · Guides · Tuist",
+  "description": "Learn about synthesized files in Tuist projects."
+}
 ---
-
 # Synthesized files {#synthesized-files}
 
 Tuist can generate files and code at generation-time to bring some convenience to managing and working with Xcode projects. In this page you'll learn about this functionality, and how you can use it in your projects.

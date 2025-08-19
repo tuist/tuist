@@ -1,9 +1,10 @@
 ---
-title: 기존 Xcode 프로젝트를 Tuist로 전환하기
-titleTemplate: :title · Migrate · Adoption · Projects · Develop · Guides · Tuist
-description: Xcode 프로젝트에서 Tuist 프로젝트로 변환하는 방법을 알아봅니다.
+{
+  "title": "기존 Xcode 프로젝트를 Tuist로 전환하기",
+  "titleTemplate": ":title · Migrate · Adoption · Projects · Develop · Guides · Tuist",
+  "description": "Xcode 프로젝트에서 Tuist 프로젝트로 변환하는 방법을 알아봅니다."
+}
 ---
-
 # Migrate an Xcode project {#migrate-an-xcode-project}
 
 <LocalizedLink href="/guides/start/new-project">Tuist로 새로운 프로젝트를 생성</LocalizedLink>하면 자동으로 모든 것이 구성되지만 그렇지 않으면, Tuist의 기본 요소를 사용해서 Xcode 프로젝트를 정의해야 합니다. 이 과정이 얼마나 번거로운지는 프로젝트의 복잡도에 따라 다릅니다.

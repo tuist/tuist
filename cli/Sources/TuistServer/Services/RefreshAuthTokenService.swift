@@ -13,11 +13,14 @@ public protocol RefreshAuthTokenServicing: Sendable {
 public enum RefreshAuthTokenServiceError: LocalizedError, Equatable {
     case unknownError(Int)
     case unauthorized(String)
+    case badRequest
 
     public var errorDescription: String? {
         switch self {
         case let .unknownError(statusCode):
             return "The CLI authentication failed due to an unknown Tuist response of \(statusCode)."
+        case .badRequest:
+            return "The CLI failed to refresh the token due to a bad request error."
         case let .unauthorized(message):
             return message
         }
@@ -50,6 +53,8 @@ public final class RefreshAuthTokenService: RefreshAuthTokenServicing {
             }
         case let .undocumented(statusCode: statusCode, _):
             throw RefreshAuthTokenServiceError.unknownError(statusCode)
+        case .badRequest:
+            throw RefreshAuthTokenServiceError.badRequest
         }
     }
 }

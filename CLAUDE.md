@@ -2,6 +2,20 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Git and Pull Requests
+
+When creating commits and pull requests, use these conventional commit scopes:
+- `app` - Changes to the Tuist iOS app
+- `server` - Changes to the Tuist server (Elixir/Phoenix)
+- `cli` - Changes to the Tuist CLI (Swift)
+- `docs` - Changes to documentation
+- `handbook` - Changes to the handbook/guides
+
+Examples:
+- `feat(server): add new telemetry sanitizer module`
+- `fix(cli): resolve cache artifact upload issue`
+- `docs(handbook): update project setup guide`
+
 # Tuist CLI (Swift)
 
 ## Code style

@@ -14,7 +14,7 @@
             gitCommitSHA: String?,
             gitBranch: String?,
             gitRef: String?
-        ) async throws -> ServerBundle
+        ) async throws -> Components.Schemas.Bundle
     }
 
     enum CreateBundleServiceError: LocalizedError {
@@ -56,7 +56,7 @@
             gitCommitSHA: String?,
             gitBranch: String?,
             gitRef: String?
-        ) async throws -> ServerBundle {
+        ) async throws -> Components.Schemas.Bundle {
             let client = Client.authenticated(serverURL: serverURL)
             let handles = try fullHandleService.parse(fullHandle)
             let supportedPlatforms: [Components.Schemas.BundleSupportedPlatform] = try appBundleReport.platforms.map {
@@ -103,7 +103,6 @@
             case let .ok(okResponse):
                 switch okResponse.body {
                 case let .json(bundle):
-                    guard let bundle = ServerBundle(bundle) else { throw CreateBundleServiceError.invalidBundle(bundle.id) }
                     return bundle
                 }
             case let .undocumented(statusCode: statusCode, _):

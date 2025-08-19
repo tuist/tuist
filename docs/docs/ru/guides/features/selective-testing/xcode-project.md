@@ -1,9 +1,10 @@
 ---
-title: xcodebuild
-titleTemplate: :title · Selective testing · Develop · Guides · Tuist
-description: Learn how to leverage selective testing with `xcodebuild`.
+{
+  "title": "xcodebuild",
+  "titleTemplate": ":title · Selective testing · Develop · Guides · Tuist",
+  "description": "Learn how to leverage selective testing with `xcodebuild`."
+}
 ---
-
 # xcodebuild {#xcodebuild}
 
 > [!IMPORTANT] REQUIREMENTS

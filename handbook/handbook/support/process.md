@@ -1,9 +1,10 @@
 ---
-title: Support process
-titleTemplate: :title | Support | Tuist Handbook
-description: Learn how we provide support to developers and organizations using Tuist.
+{
+  "title": "Support process",
+  "titleTemplate": ":title | Support | Tuist Handbook",
+  "description": "Learn how we provide support to developers and organizations using Tuist."
+}
 ---
-
 # Support process
 
 Developers and organizations might run into issues or have questions while using Tuist.

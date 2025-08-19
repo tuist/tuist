@@ -1,9 +1,10 @@
 ---
-title: Releases
-titleTemplate: :title | Contributors | Tuist
-description: Learn how Tuist's continuous release process works
+{
+  "title": "Releases",
+  "titleTemplate": ":title | Contributors | Tuist",
+  "description": "Learn how Tuist's continuous release process works"
+}
 ---
-
 # Releases
 
 Tuist uses a continuous release system that automatically publishes new versions whenever meaningful changes are merged to the main branch. This approach ensures that improvements reach users quickly without manual intervention from maintainers.

@@ -1,9 +1,10 @@
 ---
-title: Использование Tuist с Swift Package
-titleTemplate: :title · Adoption · Projects · Develop · Guides · Tuist
-description: Узнайте, как использовать Tuist с Swift Package.
+{
+  "title": "Использование Tuist с Swift Package",
+  "titleTemplate": ":title · Adoption · Projects · Develop · Guides · Tuist",
+  "description": "Узнайте, как использовать Tuist с Swift Package."
+}
 ---
-
 # Использование Tuist с Swift Package <Badge type="warning" text="beta" /> {#using-tuist-with-a-swift-package-badge-typewarning-textbeta-}
 
 Tuist поддерживает использование `Package.swift` в качестве DSL для проектов и преобразует ваши пакетные модули в Xcode проект и модули Xcode.

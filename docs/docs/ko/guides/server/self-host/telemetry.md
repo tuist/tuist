@@ -1,9 +1,10 @@
 ---
-title: Metrics
-titleTemplate: :title | Self-hosting | Server | Guides | Tuist
-description: 컴파일된 바이너리를 캐싱하고 다양한 환경 간에 공유하여 빌드 시간을 최적화하세요.
+{
+  "title": "Metrics",
+  "titleTemplate": ":title | Self-hosting | Server | Guides | Tuist",
+  "description": "컴파일된 바이너리를 캐싱하고 다양한 환경 간에 공유하여 빌드 시간을 최적화하세요."
+}
 ---
-
 # 메트릭 {#metrics}
 
 Tuist 서버에서 수집한 메트릭을 [Prometheus](https://prometheus.io/)를 통해 가져오고

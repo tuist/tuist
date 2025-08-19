@@ -16,7 +16,6 @@ defmodule Tuist.QA.Run do
   schema "qa_runs" do
     field :prompt, :string
     field :status, :string, default: "pending"
-    field :summary, :string
     field :vcs_repository_full_handle, :string
     field :vcs_provider, Ecto.Enum, values: [github: 0]
     field :git_ref, :string
@@ -35,7 +34,6 @@ defmodule Tuist.QA.Run do
       :app_build_id,
       :prompt,
       :status,
-      :summary,
       :vcs_repository_full_handle,
       :vcs_provider,
       :git_ref,
@@ -47,6 +45,6 @@ defmodule Tuist.QA.Run do
   end
 
   def update_changeset(qa_run, attrs) do
-    cast(qa_run, attrs, [:app_build_id, :status, :summary])
+    cast(qa_run, attrs, [:app_build_id, :status])
   end
 end

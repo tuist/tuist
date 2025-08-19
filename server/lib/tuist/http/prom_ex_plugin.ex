@@ -6,6 +6,8 @@ defmodule Tuist.HTTP.PromExPlugin do
 
   import Telemetry.Metrics
 
+  alias Tuist.Telemetry.Sanitizer
+
   @impl true
   def event_metrics(_opts) do
     [
@@ -230,7 +232,7 @@ defmodule Tuist.HTTP.PromExPlugin do
     response_attrs =
       case metadata[:result] do
         {:ok, %{status: status}} -> %{response_status: status}
-        {:error, exception} -> %{error: Exception.message(exception)}
+        {:error, exception} -> %{error: Sanitizer.sanitize_value(exception)}
       end
 
     %{
@@ -257,7 +259,7 @@ defmodule Tuist.HTTP.PromExPlugin do
       %{
         name: metadata.name,
         status: Map.get(metadata, :status),
-        error: Map.get(metadata, :error)
+        error: Sanitizer.sanitize_value(Map.get(metadata, :error))
       },
       request_to_tag_values(metadata.request)
     )

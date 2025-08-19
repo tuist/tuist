@@ -20,7 +20,7 @@ public struct XcodeBuildTestWithoutBuildingCommand: AsyncParsableCommand, Tracka
 
     @Argument(
         parsing: .captureForPassthrough,
-        help: "xcodebuild arguments that will be passed through to the xcodebuild CLI."
+        help: "Arguments that will be passed through to the xcodebuild CLI. All arguments are forwarded to xcodebuild. Example: tuist xcodebuild test-without-building -scheme MyAppTests -destination 'platform=iOS Simulator,name=iPhone 15' -testConfiguration Debug"
     )
     public var passthroughXcodebuildArguments: [String] = []
 

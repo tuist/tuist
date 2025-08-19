@@ -1,9 +1,10 @@
 ---
-title: Plugins
-titleTemplate: :title · Projects · Develop · Guides · Tuist
-description: Tuist에서 Plugin을 생성하고 사용하여 기능을 확장하는 방법을 알아보세요.
+{
+  "title": "Plugins",
+  "titleTemplate": ":title · Projects · Develop · Guides · Tuist",
+  "description": "Tuist에서 Plugin을 생성하고 사용하여 기능을 확장하는 방법을 알아보세요."
+}
 ---
-
 # Plugins {#plugins}
 
 Plugin은 여러 프로젝트에서 Tuist 아티팩트를 공유하고 재사용할 수 있는 도구입니다. 지원되는 아티팩트는 다음과 같습니다:

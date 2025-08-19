@@ -55,7 +55,7 @@ public enum Module: String, CaseIterable {
                 bundleId: "dev.tuist.TuistCacheEE",
                 deploymentTargets: .macOS("14.0"),
                 infoPlist: .default,
-                sources: ["cli/TuistCacheEE/Sources/**/*.swift"],
+                buildableFolders: ["cli/TuistCacheEE/Sources/"],
                 dependencies: [
                     .target(name: Module.core.targetName),
                     .target(name: Module.support.targetName),
@@ -91,7 +91,7 @@ public enum Module: String, CaseIterable {
                 bundleId: "dev.tuist.TuistCacheEETests",
                 deploymentTargets: .macOS("14.0"),
                 infoPlist: .default,
-                sources: ["cli/TuistCacheEE/Tests/**/*.swift"],
+                buildableFolders: [.folder("cli/TuistCacheEE/Tests")],
                 dependencies: [
                     .target(name: Module.core.targetName),
                     .target(name: Module.server.targetName),
@@ -112,7 +112,7 @@ public enum Module: String, CaseIterable {
                 bundleId: "dev.tuist.TuistCacheEEAcceptanceTests",
                 deploymentTargets: .macOS("14.0"),
                 infoPlist: .default,
-                sources: ["cli/TuistCacheEE/AcceptanceTests/**/*.swift"],
+                buildableFolders: ["cli/TuistCacheEE/AcceptanceTests"],
                 dependencies: [
                     .target(name: Module.core.targetName),
                     .target(name: Module.server.targetName),
@@ -845,7 +845,7 @@ public enum Module: String, CaseIterable {
             bundleId: "dev.tuist.\(name)",
             deploymentTargets: deploymentTargets,
             infoPlist: .default,
-            sources: ["\(rootFolder)/\(name)/**/*.swift"],
+            buildableFolders: [.folder("\(rootFolder)/\(name)/")],
             dependencies: dependencies,
             settings: settings
         )

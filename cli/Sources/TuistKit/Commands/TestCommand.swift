@@ -196,7 +196,7 @@ public struct TestCommand: AsyncParsableCommand, LogConfigurableCommand,
 
     @Argument(
         parsing: .postTerminator,
-        help: "xcodebuild arguments that will be passthrough"
+        help: "Arguments that will be passed through to xcodebuild. Use -- followed by xcodebuild arguments. Example: tuist test -- -destination 'platform=iOS Simulator,name=iPhone 15' -parallel-testing-enabled YES"
     )
     var passthroughXcodeBuildArguments: [String] = []
 

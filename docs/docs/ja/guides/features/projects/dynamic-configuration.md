@@ -1,9 +1,10 @@
 ---
-title: Dynamic configuration
-titleTemplate: :title · Projects · Develop · Guides · Tuist
-description: Learn how how to use environment variables to dynamically configure your project.
+{
+  "title": "Dynamic configuration",
+  "titleTemplate": ":title · Projects · Develop · Guides · Tuist",
+  "description": "Learn how how to use environment variables to dynamically configure your project."
+}
 ---
-
 # Dynamic configuration {#dynamic-configuration}
 
 There are certain scenarios where you might need to dynamically configure your project at generation time. For example, you might want to change the name of the app, the bundle identifier, or the deployment target based on the environment where the project is being generated. Tuist supports that via environment variables, which can be accessed from the manifest files.

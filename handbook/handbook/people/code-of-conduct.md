@@ -1,9 +1,10 @@
 ---
-title: Code of Conduct
-titleTemplate: :title | People | Tuist Handbook
-description: The code of conduct for the Tuist GmbH staff.
+{
+  "title": "Code of Conduct",
+  "titleTemplate": ":title | People | Tuist Handbook",
+  "description": "The code of conduct for the Tuist GmbH staff."
+}
 ---
-
 # Code of Conduct
 
 - **Policy Owner:** Pedro Piñera Buendía

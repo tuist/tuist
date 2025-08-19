@@ -1,9 +1,10 @@
 ---
-title: Tuist について
-titleTemplate: :title · Guides · Tuist
-description: Apple 標準の開発ツールを強化し、より大規模で優れたアプリを構築する。
+{
+  "title": "Tuist について",
+  "titleTemplate": ":title · Guides · Tuist",
+  "description": "Apple 標準の開発ツールを強化し、より大規模で優れたアプリを構築する。"
+}
 ---
-
 <script setup>
 import VPFeature from "vitepress/dist/client/theme-default/components/VPFeature.vue";
 </script>

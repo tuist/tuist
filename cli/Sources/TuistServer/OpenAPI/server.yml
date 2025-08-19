@@ -91,7 +91,7 @@ components:
               x-struct:
               x-validate:
           required:
-            - bundle_id
+            - app_bundle_id
             - name
             - supported_platforms
             - version
@@ -988,7 +988,7 @@ components:
               x-struct:
               x-validate:
             type:
-              description: The type of the run, which is 'build' in this case.
+              description: "The type of the run, which is 'build' in this case."
               enum:
                 - build
               type: string
@@ -1022,18 +1022,90 @@ components:
     Bundle:
       description: Response schema for bundle
       properties:
+        app_bundle_id:
+          description: The bundle ID of the app
+          type: string
+          x-struct:
+          x-validate:
+        artifacts:
+          description: The artifacts in this bundle
+          items:
+            $ref: '#/components/schemas/BundleArtifact'
+          type: array
+          x-struct:
+          x-validate:
+        download_size:
+          description: The bundle download size in bytes
+          type: integer
+          x-struct:
+          x-validate:
+        git_branch:
+          description: The git branch associated with the bundle.
+          type: string
+          x-struct:
+          x-validate:
+        git_commit_sha:
+          description: The git commit SHA associated with the bundle.
+          type: string
+          x-struct:
+          x-validate:
+        git_ref:
+          description: Git reference of the repository. When run from CI in a pull request, this will be the remote reference to the pull request, such as `refs/pull/23958/merge`.
+          type: string
+          x-struct:
+          x-validate:
         id:
           description: The ID of the bundle. This is not a bundle ID that you'd set in Xcode but the database identifier of the bundle.
           type: string
           x-struct:
           x-validate:
+        inserted_at:
+          description: When the bundle was created
+          format: date-time
+          type: string
+          x-struct:
+          x-validate:
+        install_size:
+          description: The bundle install size in bytes
+          type: integer
+          x-struct:
+          x-validate:
+        name:
+          description: The name of the bundle
+          type: string
+          x-struct:
+          x-validate:
+        supported_platforms:
+          description: List of supported platforms
+          items:
+            $ref: '#/components/schemas/BundleSupportedPlatform'
+          type: array
+          x-struct:
+          x-validate:
+        uploaded_by_account:
+          description: The account that uploaded this bundle
+          type: string
+          x-struct:
+          x-validate:
         url:
-          description: The URL of the bundle
+          description: The URL to view this bundle
+          type: string
+          x-struct:
+          x-validate:
+        version:
+          description: The version of the bundle
           type: string
           x-struct:
           x-validate:
       required:
         - id
+        - name
+        - app_bundle_id
+        - version
+        - supported_platforms
+        - install_size
+        - inserted_at
+        - uploaded_by_account
         - url
       title: Bundle
       type: object
@@ -1051,6 +1123,7 @@ components:
             - binary
             - localization
             - asset
+            - unknown
           type: string
           x-struct:
           x-validate:
@@ -1828,7 +1901,7 @@ components:
           x-struct:
           x-validate:
         type:
-          description: The type of the run, which is 'build' in this case.
+          description: "The type of the run, which is 'build' in this case."
           enum:
             - build
           type: string
@@ -2003,7 +2076,7 @@ paths:
           required: false
           schema:
             $ref: '#/components/schemas/CacheCategory'
-        - description: The project identifier '{account_name}/{project_name}'.
+        - description: "The project identifier '{account_name}/{project_name}'."
           in: query
           name: project_id
           required: true
@@ -2065,7 +2138,7 @@ paths:
         description: Multi-part upload parts
         required: false
       responses:
-        200:
+        '200':
           content:
             application/json:
               schema:
@@ -2088,25 +2161,25 @@ paths:
                 x-struct:
                 x-validate:
           description: The upload has been completed
-        401:
+        '401':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: You need to be authenticated to access this resource
-        402:
+        '402':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The account has an invalid plan
-        403:
+        '403':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The authenticated subject is not authorized to perform this action
-        404:
+        '404':
           content:
             application/json:
               schema:
@@ -2416,19 +2489,19 @@ paths:
         description: Command event params
         required: false
       responses:
-        200:
+        '200':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/CommandEvent'
           description: The command event was created
-        401:
+        '401':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: You need to be authenticated to access this resource
-        403:
+        '403':
           content:
             application/json:
               schema:
@@ -2516,7 +2589,7 @@ paths:
         description: Preview upload request params
         required: false
       responses:
-        200:
+        '200':
           content:
             application/json:
               schema:
@@ -2562,19 +2635,19 @@ paths:
                 x-struct:
                 x-validate:
           description: The upload has been started
-        401:
+        '401':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: You need to be authenticated to access this resource
-        403:
+        '403':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The authenticated subject is not authorized to perform this action
-        404:
+        '404':
           content:
             application/json:
               schema:
@@ -2613,19 +2686,19 @@ paths:
         description: Authentication params.
         required: false
       responses:
-        200:
+        '200':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/AuthenticationTokens'
           description: Successfully authenticated and returned new API tokens.
-        401:
+        '401':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Invalid email or password.
-        429:
+        '429':
           content:
             application/json:
               schema:
@@ -2658,13 +2731,19 @@ paths:
         description: Token params
         required: false
       responses:
-        200:
+        '200':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/AuthenticationTokens'
           description: Succcessfully generated new API tokens.
-        401:
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The token can't be refreshed because it has invalid type
+        '401':
           content:
             application/json:
               schema:
@@ -2674,6 +2753,86 @@ paths:
       tags:
         - Authentication
   /api/projects/{account_handle}/{project_handle}/bundles:
+    get:
+      callbacks: {}
+      operationId: listBundles
+      parameters:
+        - description: Page number for pagination.
+          in: query
+          name: page
+          required: false
+          schema:
+            type: integer
+            x-struct:
+            x-validate:
+        - description: Filter bundles by git branch.
+          in: query
+          name: git_branch
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Number of items per page.
+          in: query
+          name: page_size
+          required: false
+          schema:
+            type: integer
+            x-struct:
+            x-validate:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  bundles:
+                    items:
+                      $ref: '#/components/schemas/Bundle'
+                    type: array
+                    x-struct:
+                    x-validate:
+                  meta:
+                    $ref: '#/components/schemas/PaginationMetadata'
+                required:
+                  - bundles
+                  - meta
+                type: object
+                x-struct:
+                x-validate:
+          description: List of bundles
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to list bundles
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You are not authorized to list bundles
+      summary: List bundles for a project
+      tags:
+        - Bundles
     post:
       callbacks: {}
       operationId: createBundle
@@ -2757,7 +2916,7 @@ paths:
                       x-struct:
                       x-validate:
                   required:
-                    - bundle_id
+                    - app_bundle_id
                     - name
                     - supported_platforms
                     - version
@@ -2775,25 +2934,25 @@ paths:
         description: Bundle params
         required: false
       responses:
-        200:
+        '200':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Bundle'
           description: The bundle was created successfully
-        400:
+        '400':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ValidationError'
           description: Validation errors occurred
-        401:
+        '401':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: You need to be authenticated to create a bundle
-        403:
+        '403':
           content:
             application/json:
               schema:
@@ -2817,7 +2976,7 @@ paths:
             x-struct:
             x-validate:
       responses:
-        200:
+        '200':
           content:
             application/json:
               schema:
@@ -2844,7 +3003,7 @@ paths:
                 x-struct:
                 x-validate:
           description: The device code is authenticated
-        202:
+        '202':
           content:
             application/json:
               schema:
@@ -2852,7 +3011,7 @@ paths:
                 x-struct:
                 x-validate:
           description: The device code is not authenticated
-        400:
+        '400':
           content:
             application/json:
               schema:
@@ -2883,25 +3042,25 @@ paths:
         description: Artifact to upload
         required: false
       responses:
-        200:
+        '200':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ArtifactUploadID'
           description: The upload has been started
-        401:
+        '401':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: You need to be authenticated to access this resource
-        403:
+        '403':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The authenticated subject is not authorized to perform this action
-        404:
+        '404':
           content:
             application/json:
               schema:
@@ -2916,7 +3075,7 @@ paths:
       operationId: listProjects
       parameters: []
       responses:
-        200:
+        '200':
           content:
             application/json:
               schema:
@@ -2933,7 +3092,7 @@ paths:
                 x-struct:
                 x-validate:
           description: List of projects
-        401:
+        '401':
           content:
             application/json:
               schema:
@@ -2975,25 +3134,25 @@ paths:
         description: Projects params
         required: false
       responses:
-        200:
+        '200':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Project'
           description: The project was created
-        400:
+        '400':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The account was not found
-        401:
+        '401':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: You need to be authenticated to access this resource
-        403:
+        '403':
           content:
             application/json:
               schema:
@@ -3025,7 +3184,7 @@ paths:
             x-struct:
             x-validate:
       responses:
-        200:
+        '200':
           content:
             application/json:
               schema:
@@ -3044,19 +3203,19 @@ paths:
                 x-struct:
                 x-validate:
           description: A list of project tokens.
-        401:
+        '401':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: You need to be authenticated to list tokens
-        403:
+        '403':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: You need to be authorized to list tokens
-        404:
+        '404':
           content:
             application/json:
               schema:
@@ -3087,7 +3246,7 @@ paths:
             x-struct:
             x-validate:
       responses:
-        200:
+        '200':
           content:
             application/json:
               schema:
@@ -3105,19 +3264,19 @@ paths:
                 x-struct:
                 x-validate:
           description: A project token was generated
-        401:
+        '401':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: You need to be authenticated to issue new tokens
-        403:
+        '403':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: You need to be authorized to issue new tokens
-        404:
+        '404':
           content:
             application/json:
               schema:
@@ -3141,25 +3300,25 @@ paths:
             x-struct:
             x-validate:
       responses:
-        200:
+        '200':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/OrganizationUsage'
           description: The organization usage
-        401:
+        '401':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: You need to be authenticated to access this resource
-        403:
+        '403':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The authenticated subject is not authorized to perform this action
-        404:
+        '404':
           content:
             application/json:
               schema:
@@ -3180,7 +3339,7 @@ paths:
           required: false
           schema:
             $ref: '#/components/schemas/CacheCategory'
-        - description: The project identifier '{account_name}/{project_name}'.
+        - description: "The project identifier '{account_name}/{project_name}'."
           in: query
           name: project_id
           required: true
@@ -3205,31 +3364,31 @@ paths:
             x-struct:
             x-validate:
       responses:
-        200:
+        '200':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ArtifactUploadID'
           description: The upload has been started
-        401:
+        '401':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: You need to be authenticated to access this resource
-        402:
+        '402':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The account has an invalid plan
-        403:
+        '403':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The authenticated subject is not authorized to perform this action
-        404:
+        '404':
           content:
             application/json:
               schema:
@@ -3269,31 +3428,31 @@ paths:
             x-struct:
             x-validate:
       responses:
-        200:
+        '200':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/CacheActionItem'
           description: The item exists in the action cache
-        401:
+        '401':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: You need to be authenticated to access this resource
-        402:
+        '402':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The account has an invalid plan
-        403:
+        '403':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The authenticated subject is not authorized to perform this action
-        404:
+        '404':
           content:
             application/json:
               schema:
@@ -3322,7 +3481,7 @@ paths:
             type: integer
             x-struct:
             x-validate:
-        - description: The project identifier '{account_name}/{project_name}'.
+        - description: "The project identifier '{account_name}/{project_name}'."
           in: query
           name: project_id
           required: true
@@ -3363,31 +3522,31 @@ paths:
             x-struct:
             x-validate:
       responses:
-        200:
+        '200':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ArtifactMultipartUploadURL'
           description: The URL has been generated
-        401:
+        '401':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: You need to be authenticated to access this resource
-        402:
+        '402':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The account has an invalid plan
-        403:
+        '403':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The authenticated subject is not authorized to perform this action
-        404:
+        '404':
           content:
             application/json:
               schema:
@@ -3426,19 +3585,19 @@ paths:
         description: Apple authentication params.
         required: false
       responses:
-        200:
+        '200':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/AuthenticationTokens'
           description: Successfully authenticated and returned new API tokens.
-        400:
+        '400':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Invalid request parameters.
-        401:
+        '401':
           content:
             application/json:
               schema:
@@ -3486,43 +3645,43 @@ paths:
         description: Cache action item upload params
         required: false
       responses:
-        200:
+        '200':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/CacheActionItem'
           description: The request is valid but the cache action item already exists
-        201:
+        '201':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/CacheActionItem'
           description: The action item was cached
-        400:
+        '400':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The request has missing or invalid parameters
-        401:
+        '401':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: You need to be authenticated to access this resource
-        402:
+        '402':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The account has an invalid plan
-        403:
+        '403':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The authenticated subject is not authorized to perform this action
-        404:
+        '404':
           content:
             application/json:
               schema:
@@ -3547,21 +3706,21 @@ paths:
             x-struct:
             x-validate:
       responses:
-        204:
+        '204':
           description: The organization was deleted
-        401:
+        '401':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: You need to be authenticated to access this resource
-        403:
+        '403':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The authenticated subject is not authorized to perform this action
-        404:
+        '404':
           content:
             application/json:
               schema:
@@ -3584,25 +3743,25 @@ paths:
             x-struct:
             x-validate:
       responses:
-        200:
+        '200':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Organization'
           description: The organization
-        401:
+        '401':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: You need to be authenticated to access this resource
-        403:
+        '403':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The authenticated subject is not authorized to perform this action
-        404:
+        '404':
           content:
             application/json:
               schema:
@@ -3650,31 +3809,31 @@ paths:
         description: Organization update params
         required: false
       responses:
-        200:
+        '200':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Organization'
           description: The organization
-        400:
+        '400':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The organization could not be updated due to a validation error
-        401:
+        '401':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: You need to be authenticated to access this resource
-        403:
+        '403':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The authenticated subject is not authorized to perform this action
-        404:
+        '404':
           content:
             application/json:
               schema:
@@ -3722,31 +3881,31 @@ paths:
         description: Organization update params
         required: false
       responses:
-        200:
+        '200':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Organization'
           description: The organization
-        400:
+        '400':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The organization could not be updated due to a validation error
-        401:
+        '401':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: You need to be authenticated to access this resource
-        403:
+        '403':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The authenticated subject is not authorized to perform this action
-        404:
+        '404':
           content:
             application/json:
               schema:
@@ -3804,25 +3963,25 @@ paths:
         description: Artifact to generate a signed URL for
         required: false
       responses:
-        200:
+        '200':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ArtifactMultipartUploadURL'
           description: The URL has been generated
-        401:
+        '401':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: You need to be authenticated to access this resource
-        403:
+        '403':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The authenticated subject is not authorized to perform this action
-        404:
+        '404':
           content:
             application/json:
               schema:
@@ -3831,6 +3990,63 @@ paths:
       summary: It generates a signed URL for uploading a part.
       tags:
         - Previews
+  /api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}:
+    get:
+      callbacks: {}
+      operationId: getBundle
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The ID of the bundle.
+          in: path
+          name: bundle_id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Bundle'
+          description: Bundle details
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to view this bundle
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You are not authorized to view this bundle
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Bundle not found
+      summary: Get a single bundle by ID
+      tags:
+        - Bundles
   /api/accounts/{account_handle}/tokens:
     post:
       callbacks: {}
@@ -3873,7 +4089,7 @@ paths:
         description: Create account token params
         required: false
       responses:
-        200:
+        '200':
           content:
             application/json:
               schema:
@@ -3891,19 +4107,19 @@ paths:
                 x-struct:
                 x-validate:
           description: An account token was generated
-        401:
+        '401':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: You need to be authenticated to issue new tokens
-        403:
+        '403':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: You need to be authorized to issue new tokens
-        404:
+        '404':
           content:
             application/json:
               schema:
@@ -3944,25 +4160,25 @@ paths:
         description: Artifact to generate a signed URL for
         required: false
       responses:
-        200:
+        '200':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ArtifactMultipartUploadURL'
           description: The URL has been generated
-        401:
+        '401':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: You need to be authenticated to access this resource
-        403:
+        '403':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The authenticated subject is not authorized to perform this action
-        404:
+        '404':
           content:
             application/json:
               schema:
@@ -3993,21 +4209,21 @@ paths:
             x-struct:
             x-validate:
       responses:
-        204:
+        '204':
           description: The cache has been successfully cleaned
-        401:
+        '401':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: You need to be authenticated to access this resource
-        403:
+        '403':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The authenticated subject is not authorized to perform this action
-        404:
+        '404':
           content:
             application/json:
               schema:
@@ -4048,21 +4264,21 @@ paths:
         description: Invitation params
         required: false
       responses:
-        204:
+        '204':
           description: The invitation was cancelled
-        401:
+        '401':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: You need to be authenticated to access this resource
-        403:
+        '403':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The authenticated subject is not authorized to perform this action
-        404:
+        '404':
           content:
             application/json:
               schema:
@@ -4102,31 +4318,31 @@ paths:
         description: Invitation params
         required: false
       responses:
-        200:
+        '200':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Invitation'
           description: The user was invited
-        400:
+        '400':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The user could not be invited due to a validation error
-        401:
+        '401':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: You need to be authenticated to access this resource
-        403:
+        '403':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The authenticated subject is not authorized to perform this action
-        404:
+        '404':
           content:
             application/json:
               schema:
@@ -4220,7 +4436,7 @@ paths:
             x-struct:
             x-validate:
       responses:
-        200:
+        '200':
           content:
             application/json:
               schema:
@@ -4242,13 +4458,13 @@ paths:
                 x-struct:
                 x-validate:
           description: Successful response for listing previews.
-        401:
+        '401':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: You need to be authenticated to access this resource
-        403:
+        '403':
           content:
             application/json:
               schema:
@@ -4269,7 +4485,7 @@ paths:
           required: false
           schema:
             $ref: '#/components/schemas/CacheCategory'
-        - description: The project identifier '{account_name}/{project_name}'.
+        - description: "The project identifier '{account_name}/{project_name}'."
           in: query
           name: project_id
           required: true
@@ -4294,31 +4510,31 @@ paths:
             x-struct:
             x-validate:
       responses:
-        200:
+        '200':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/CacheArtifactDownloadURL'
           description: The artifact exists and is downloadable
-        401:
+        '401':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: You need to be authenticated to access this resource
-        402:
+        '402':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The account has an invalid plan
-        403:
+        '403':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The authenticated subject is not authorized to perform this action
-        404:
+        '404':
           content:
             application/json:
               schema:
@@ -4359,27 +4575,27 @@ paths:
         description: Command event artifact multipart upload completion
         required: false
       responses:
-        204:
+        '204':
           description: The upload has been completed
-        401:
+        '401':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: You need to be authenticated to access this resource
-        403:
+        '403':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The authenticated subject is not authorized to perform this action
-        404:
+        '404':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The project doesn't exist
-        500:
+        '500':
           content:
             application/json:
               schema:
@@ -4395,7 +4611,7 @@ paths:
       operationId: listOrganizations
       parameters: []
       responses:
-        200:
+        '200':
           content:
             application/json:
               schema:
@@ -4414,13 +4630,13 @@ paths:
                 x-struct:
                 x-validate:
           description: The list of organizations
-        401:
+        '401':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: You need to be authenticated to access this resource
-        403:
+        '403':
           content:
             application/json:
               schema:
@@ -4452,13 +4668,13 @@ paths:
         description: Organization params
         required: false
       responses:
-        200:
+        '200':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Organization'
           description: The organization was created
-        400:
+        '400':
           content:
             application/json:
               schema:
@@ -4498,27 +4714,27 @@ paths:
             x-struct:
             x-validate:
       responses:
-        204:
+        '204':
           description: The preview was deleted
-        400:
+        '400':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The request is invalid
-        401:
+        '401':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: You need to be authenticated to access this resource
-        403:
+        '403':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The authenticated subject is not authorized to perform this action
-        404:
+        '404':
           content:
             application/json:
               schema:
@@ -4557,31 +4773,31 @@ paths:
             x-struct:
             x-validate:
       responses:
-        200:
+        '200':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Preview'
           description: The preview exists and can be downloaded
-        400:
+        '400':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The request is invalid
-        401:
+        '401':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: You need to be authenticated to access this resource
-        403:
+        '403':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The authenticated subject is not authorized to perform this action
-        404:
+        '404':
           content:
             application/json:
               schema:
@@ -4603,7 +4819,7 @@ paths:
           required: false
           schema:
             $ref: '#/components/schemas/CacheCategory'
-        - description: The project identifier '{account_name}/{project_name}'.
+        - description: "The project identifier '{account_name}/{project_name}'."
           in: query
           name: project_id
           required: true
@@ -4628,7 +4844,7 @@ paths:
             x-struct:
             x-validate:
       responses:
-        200:
+        '200':
           content:
             application/json:
               schema:
@@ -4651,25 +4867,25 @@ paths:
                 x-struct:
                 x-validate:
           description: The artifact exists
-        401:
+        '401':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: You need to be authenticated to access this resource
-        402:
+        '402':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The account has an invalid plan
-        403:
+        '403':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The authenticated subject is not authorized to perform this action
-        404:
+        '404':
           content:
             application/json:
               schema:
@@ -4730,27 +4946,27 @@ paths:
             x-struct:
             x-validate:
       responses:
-        204:
+        '204':
           description: The project token was revoked
-        400:
+        '400':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The provided token ID is not valid
-        401:
+        '401':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: You need to be authenticated to access this resource
-        403:
+        '403':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The authenticated subject is not authorized to perform this action
-        404:
+        '404':
           content:
             application/json:
               schema:
@@ -4781,25 +4997,25 @@ paths:
             x-struct:
             x-validate:
       responses:
-        200:
+        '200':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Project'
           description: The project to show
-        401:
+        '401':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: You need to be authenticated to access this resource
-        403:
+        '403':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The authenticated subject is not authorized to perform this action
-        404:
+        '404':
           content:
             application/json:
               schema:
@@ -4858,31 +5074,31 @@ paths:
         description: Project update params
         required: false
       responses:
-        200:
+        '200':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Project'
           description: The updated project
-        400:
+        '400':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The request is invalid, for example when attempting to link the project to a repository the authenticated user doesn't have access to.
-        401:
+        '401':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: You need to be authenticated to access this resource
-        403:
+        '403':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The authenticated subject is not authorized to perform this action
-        404:
+        '404':
           content:
             application/json:
               schema:
@@ -4970,7 +5186,7 @@ paths:
             x-struct:
             x-validate:
       responses:
-        200:
+        '200':
           content:
             application/json:
               schema:
@@ -4987,7 +5203,7 @@ paths:
                 x-struct:
                 x-validate:
           description: List of runs
-        403:
+        '403':
           content:
             application/json:
               schema:
@@ -5281,7 +5497,7 @@ paths:
                       x-struct:
                       x-validate:
                     type:
-                      description: The type of the run, which is 'build' in this case.
+                      description: "The type of the run, which is 'build' in this case."
                       enum:
                         - build
                       type: string
@@ -5306,7 +5522,7 @@ paths:
         description: Run params
         required: false
       responses:
-        200:
+        '200':
           content:
             application/json:
               schema:
@@ -5315,25 +5531,25 @@ paths:
                 x-struct:
                 x-validate:
           description: The created build
-        400:
+        '400':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The request parameters are invalid
-        401:
+        '401':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: You need to be authenticated to create a run
-        403:
+        '403':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The authenticated subject is not authorized to perform this action
-        404:
+        '404':
           content:
             application/json:
               schema:
@@ -5365,27 +5581,27 @@ paths:
             x-struct:
             x-validate:
       responses:
-        204:
+        '204':
           description: The member was removed
-        400:
+        '400':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The member could not be removed due to a validation error
-        401:
+        '401':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: You need to be authenticated to access this resource
-        403:
+        '403':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The authenticated subject is not authorized to perform this action
-        404:
+        '404':
           content:
             application/json:
               schema:
@@ -5436,31 +5652,31 @@ paths:
         description: Member update params
         required: false
       responses:
-        200:
+        '200':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/OrganizationMember'
           description: The member was updated
-        400:
+        '400':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The member could not be updated due to a validation error
-        401:
+        '401':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: You need to be authenticated to access this resource
-        403:
+        '403':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The authenticated subject is not authorized to perform this action
-        404:
+        '404':
           content:
             application/json:
               schema:
@@ -5500,25 +5716,25 @@ paths:
             x-struct:
             x-validate:
       responses:
-        200:
+        '200':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ArtifactUploadURL'
           description: The presigned upload URL
-        401:
+        '401':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: You need to be authenticated to access this resource
-        403:
+        '403':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The authenticated subject is not authorized to perform this action
-        404:
+        '404':
           content:
             application/json:
               schema:
@@ -5577,25 +5793,25 @@ paths:
         description: preview multipart upload completion
         required: false
       responses:
-        200:
+        '200':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Preview'
           description: The upload has been completed
-        401:
+        '401':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: You need to be authenticated to access this resource
-        403:
+        '403':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The authenticated subject is not authorized to perform this action
-        404:
+        '404':
           content:
             application/json:
               schema:
@@ -5618,21 +5834,21 @@ paths:
             x-struct:
             x-validate:
       responses:
-        204:
+        '204':
           description: The project was successfully deleted.
-        401:
+        '401':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: You need to be authenticated to access this resource
-        403:
+        '403':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The authenticated subject is not authorized to perform this action
-        404:
+        '404':
           content:
             application/json:
               schema:
@@ -5656,21 +5872,21 @@ paths:
             x-struct:
             x-validate:
       responses:
-        204:
+        '204':
           description: The account was deleted
-        401:
+        '401':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: You need to be authenticated to access this resource
-        403:
+        '403':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The authenticated subject is not authorized to perform this action
-        404:
+        '404':
           content:
             application/json:
               schema:
@@ -5708,31 +5924,31 @@ paths:
         description: Change account
         required: false
       responses:
-        200:
+        '200':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Account'
           description: Account successfully updated
-        400:
+        '400':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ValidationError'
           description: Validation errors occurred
-        401:
+        '401':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: You need to be authenticated to update your account.
-        403:
+        '403':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: You don't have permission to update this account.
-        404:
+        '404':
           content:
             application/json:
               schema:
@@ -5767,21 +5983,21 @@ paths:
         description: Extra metadata for the post-processing of a command event.
         required: false
       responses:
-        204:
+        '204':
           description: The command event artifact uploads were successfully finished
-        401:
+        '401':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: You need to be authenticated to access this resource
-        403:
+        '403':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The authenticated subject is not authorized to perform this action
-        404:
+        '404':
           content:
             application/json:
               schema:

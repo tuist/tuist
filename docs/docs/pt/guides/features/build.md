@@ -1,9 +1,10 @@
 ---
-title: Build
-titleTemplate: :title · Develop · Guides · Tuist
-description: Learn how to use Tuist to build your projects efficiently.
+{
+  "title": "Build",
+  "titleTemplate": ":title · Develop · Guides · Tuist",
+  "description": "Learn how to use Tuist to build your projects efficiently."
+}
 ---
-
 # Build {#build}
 
 Projects are usually built through a build-system-provided CLI (e.g. `xcodebuild`). Tuist wraps them to improve the user experience and integrate the workflows with the platform to provide optimizations and analytics.

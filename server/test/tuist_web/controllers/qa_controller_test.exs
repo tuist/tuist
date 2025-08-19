@@ -38,7 +38,7 @@ defmodule TuistWeb.QAControllerTest do
     } do
       # Given
       expected_key =
-        "#{String.downcase(account.name)}/#{String.downcase(project.name)}/qa/screenshots/#{qa_run.id}/#{screenshot.file_name}.png"
+        "#{String.downcase(account.name)}/#{String.downcase(project.name)}/qa/screenshots/#{qa_run.id}/#{screenshot.id}.png"
 
       stub(Storage, :stream_object, fn ^expected_key ->
         ["chunk1", "chunk2", "chunk3"]

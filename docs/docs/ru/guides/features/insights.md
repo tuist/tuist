@@ -1,9 +1,10 @@
 ---
-title: Insights
-titleTemplate: :title · Develop · Guides · Tuist
-description: Get insights into your projects to maintain a product developer environment.
+{
+  "title": "Insights",
+  "titleTemplate": ":title · Develop · Guides · Tuist",
+  "description": "Get insights into your projects to maintain a product developer environment."
+}
 ---
-
 # Insights {#insights}
 
 > [!IMPORTANT] REQUIREMENTS
