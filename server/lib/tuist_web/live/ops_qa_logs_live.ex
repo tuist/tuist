@@ -69,8 +69,7 @@ defmodule TuistWeb.OpsQALogsLive do
     end
   end
 
-  defp log_type_short(log_type) when is_binary(log_type),
-    do: log_type_short(String.to_existing_atom(log_type))
+  defp log_type_short(log_type) when is_binary(log_type), do: log_type_short(String.to_existing_atom(log_type))
 
   defp format_log_message(log) do
     case JSON.decode!(log.data) do

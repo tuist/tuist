@@ -219,12 +219,7 @@ defmodule Runner.QA.Agent do
     end
   end
 
-  defp process_llm_result(
-         {:error, _chain, %LangChain.LangChainError{message: message}},
-         _attrs,
-         _handler,
-         _tools
-       ) do
+  defp process_llm_result({:error, _chain, %LangChain.LangChainError{message: message}}, _attrs, _handler, _tools) do
     {:error, "LLM chain execution failed: #{message}"}
   end
 
