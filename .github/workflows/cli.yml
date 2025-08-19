@@ -104,7 +104,7 @@ jobs:
           restore-keys: ${{ runner.os }}-cli-
       - uses: jdx/mise-action@v2
       - name: Cache
-        run: mise x -- tuist cache
+        run: tuist cache --architectures arm64
       - name: Save cache
         id: cache-save
         uses: actions/cache/save@v4
