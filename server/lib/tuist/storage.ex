@@ -5,14 +5,15 @@ defmodule Tuist.Storage do
   alias Tuist.Environment
   alias Tuist.Performance
 
-  def multipart_generate_url(object_key, upload_id, part_number, _opts) do
+  def multipart_generate_url(object_key, upload_id, part_number, opts \\ []) do
+    opts =
+      Keyword.put(opts, :query_params, [
+        {"partNumber", part_number},
+        {"uploadId", upload_id}
+      ])
+
     url =
-      presigned_url(:put, object_key,
-        query_params: [
-          {"partNumber", part_number},
-          {"uploadId", upload_id}
-        ]
-      )
+      presigned_url(:put, object_key, opts)
 
     :telemetry.execute(
       Tuist.Telemetry.event_name_storage_multipart_generate_upload_part_presigned_url(),
@@ -23,7 +24,7 @@ defmodule Tuist.Storage do
     url
   end
 
-  defp presigned_url(method, object_key, opts \\ []) do
+  defp presigned_url(method, object_key, opts) do
     query_params = Keyword.get(opts, :query_params, [])
 
     bucket_name = Environment.s3_bucket_name()
@@ -57,8 +58,8 @@ defmodule Tuist.Storage do
     result
   end
 
-  def generate_download_url(object_key, _opts \\ []) do
-    url = presigned_url(:get, object_key)
+  def generate_download_url(object_key, opts \\ []) do
+    url = presigned_url(:get, object_key, opts)
 
     :telemetry.execute(
       Tuist.Telemetry.event_name_storage_generate_download_presigned_url(),
@@ -69,8 +70,8 @@ defmodule Tuist.Storage do
     url
   end
 
-  def generate_upload_url(object_key, _opts \\ []) do
-    url = presigned_url(:put, object_key)
+  def generate_upload_url(object_key, opts \\ []) do
+    url = presigned_url(:put, object_key, opts)
 
     :telemetry.execute(
       Tuist.Telemetry.event_name_storage_generate_upload_presigned_url(),
