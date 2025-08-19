@@ -448,10 +448,6 @@ qa_runs =
     status = Enum.random(qa_statuses)
     prompt = Enum.random(qa_prompts)
 
-    summary =
-      if status in ["completed", "failed"] do
-        Enum.random(qa_summaries)
-      end
 
     git_refs = ["main", "develop", "feature/new-ui", "feature/qa-testing", "release/v1.2.0"]
     vcs_providers = [:github]
@@ -479,7 +475,6 @@ qa_runs =
       app_build_id: app_build.id,
       prompt: prompt,
       status: status,
-      summary: summary,
       vcs_repository_full_handle: Enum.random(repository_handles),
       vcs_provider: Enum.random(vcs_providers),
       git_ref: Enum.random(git_refs),
