@@ -625,7 +625,9 @@ defmodule Runner.QA.Tools do
               else: &1
             )
           )
-          |> then(&if(delta = Map.get(params, "delta"), do: &1 ++ ["--delta", "#{delta}"], else: &1))
+          |> then(
+            &if(delta = Map.get(params, "delta"), do: &1 ++ ["--delta", "#{delta}"], else: &1)
+          )
           |> then(
             &if(screen_height = Map.get(params, "screen_height"),
               do: &1 ++ ["--screen-height", "#{screen_height}"],
@@ -714,7 +716,8 @@ defmodule Runner.QA.Tools do
         FunctionParam.new!(%{
           name: "details",
           type: :string,
-          description: "Detailed test plan including specific areas and interactions to be tested",
+          description:
+            "Detailed test plan including specific areas and interactions to be tested",
           required: true
         })
       ],
@@ -748,7 +751,9 @@ defmodule Runner.QA.Tools do
           {:ok,
            [
              screenshot_content,
-             ContentPart.text!("The QA plan has been documented and the initial app state screenshot has been captured.")
+             ContentPart.text!(
+               "The QA plan has been documented and the initial app state screenshot has been captured."
+             )
            ]}
         else
           {:error, reason} -> {:error, "Failed to report QA plan: #{reason}"}
@@ -783,7 +788,8 @@ defmodule Runner.QA.Tools do
         FunctionParam.new!(%{
           name: "result",
           type: :string,
-          description: "Detailed description of what happened - did the action achieve its expected outcome?",
+          description:
+            "Detailed description of what happened - did the action achieve its expected outcome?",
           required: true
         }),
         FunctionParam.new!(%{
@@ -795,7 +801,8 @@ defmodule Runner.QA.Tools do
           required: true
         })
       ],
-      function: fn %{"step_id" => step_id, "result" => result, "issues" => issues} = _params, _context ->
+      function: fn %{"step_id" => step_id, "result" => result, "issues" => issues} = _params,
+                   _context ->
         case Client.update_step(%{
                step_id: step_id,
                result: result,

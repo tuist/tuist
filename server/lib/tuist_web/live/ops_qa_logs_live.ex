@@ -60,14 +60,17 @@ defmodule TuistWeb.OpsQALogsLive do
   defp map_qa_status_to_badge_status("pending"), do: "warning"
   defp map_qa_status_to_badge_status(_), do: "disabled"
 
-  defp log_type_short(log) do
-    case log.type do
+  defp log_type_short(log_type) when is_atom(log_type) do
+    case log_type do
       :usage -> "TOKENS"
       :tool_call -> "TOOL"
       :tool_call_result -> "RESULT"
       :message -> "ASSISTANT"
     end
   end
+
+  defp log_type_short(log_type) when is_binary(log_type),
+    do: log_type_short(String.to_existing_atom(log_type))
 
   defp format_log_message(log) do
     case JSON.decode!(log.data) do
