@@ -52,7 +52,7 @@ struct BundleShowCommandServiceTests {
         let tuist = Tuist.test(fullHandle: fullHandle)
         let serverURL = URL(string: "https://\(UUID().uuidString).tuist.dev")!
         let directoryPath = try await Environment.current.pathRelativeToWorkingDirectory(nil)
-        let bundle = ServerBundle.test(artifacts: [.test()])
+        let bundle = testBundle()
         given(configLoader).loadConfig(path: .value(directoryPath)).willReturn(tuist)
         given(serverEnvironmentService).url(configServerURL: .value(tuist.url)).willReturn(serverURL)
         given(getBundleService).getBundle(
@@ -82,7 +82,7 @@ struct BundleShowCommandServiceTests {
         let tuist = Tuist.test(fullHandle: fullHandle)
         let serverURL = URL(string: "https://\(UUID().uuidString).tuist.dev")!
         let directoryPath = try await Environment.current.pathRelativeToWorkingDirectory(nil)
-        let bundle = ServerBundle.test(artifacts: [.test()])
+        let bundle = testBundle()
         given(configLoader).loadConfig(path: .value(directoryPath)).willReturn(tuist)
         given(serverEnvironmentService).url(configServerURL: .value(tuist.url)).willReturn(serverURL)
         given(getBundleService).getBundle(
@@ -116,7 +116,7 @@ struct BundleShowCommandServiceTests {
         let tuist = Tuist.test(fullHandle: nil)
         let serverURL = URL(string: "https://\(UUID().uuidString).tuist.dev")!
         let directoryPath = try await Environment.current.pathRelativeToWorkingDirectory(nil)
-        let bundle = ServerBundle.test(artifacts: [.test()])
+        let bundle = testBundle()
         given(configLoader).loadConfig(path: .value(directoryPath)).willReturn(tuist)
         given(serverEnvironmentService).url(configServerURL: .value(tuist.url)).willReturn(serverURL)
         given(getBundleService).getBundle(
@@ -146,7 +146,7 @@ struct BundleShowCommandServiceTests {
         let tuist = Tuist.test(fullHandle: nil)
         let serverURL = URL(string: "https://\(UUID().uuidString).tuist.dev")!
         let directoryPath = try await Environment.current.pathRelativeToWorkingDirectory(nil)
-        let bundle = ServerBundle.test(artifacts: [.test()])
+        let bundle = testBundle()
         given(configLoader).loadConfig(path: .value(directoryPath)).willReturn(tuist)
         given(serverEnvironmentService).url(configServerURL: .value(tuist.url)).willReturn(serverURL)
         given(getBundleService).getBundle(
@@ -181,7 +181,7 @@ struct BundleShowCommandServiceTests {
         let tuist = Tuist.test(fullHandle: configFullHandle)
         let serverURL = URL(string: "https://\(UUID().uuidString).tuist.dev")!
         let directoryPath = try await Environment.current.pathRelativeToWorkingDirectory(nil)
-        let bundle = ServerBundle.test(artifacts: [.test()])
+        let bundle = testBundle()
         given(configLoader).loadConfig(path: .value(directoryPath)).willReturn(tuist)
         given(serverEnvironmentService).url(configServerURL: .value(tuist.url)).willReturn(serverURL)
 
@@ -214,7 +214,7 @@ struct BundleShowCommandServiceTests {
         let tuist = Tuist.test(fullHandle: configFullHandle)
         let serverURL = URL(string: "https://\(UUID().uuidString).tuist.dev")!
         let directoryPath = try await Environment.current.pathRelativeToWorkingDirectory(nil)
-        let bundle = ServerBundle.test(artifacts: [.test()])
+        let bundle = testBundle()
         given(configLoader).loadConfig(path: .value(directoryPath)).willReturn(tuist)
         given(serverEnvironmentService).url(configServerURL: .value(tuist.url)).willReturn(serverURL)
 
@@ -238,5 +238,19 @@ struct BundleShowCommandServiceTests {
         jsonEncoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         let bundleJSON = String(data: try jsonEncoder.encode(bundle), encoding: .utf8)!
         #expect(ui().contains(bundleJSON))
+    }
+
+    private func testBundle() -> Components.Schemas.Bundle {
+        return Components.Schemas.Bundle(
+            app_bundle_id: "dev.tuist",
+            id: UUID().uuidString,
+            inserted_at: Date(),
+            install_size: 10,
+            name: "App",
+            supported_platforms: [],
+            uploaded_by_account: "tuist",
+            url: "https://tuist.dev/\(UUID().uuidString)",
+            version: "1.0.0"
+        )
     }
 }

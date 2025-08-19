@@ -73,29 +73,29 @@ final class BundleShowCommandService: BundleShowCommandServicing {
         Noora.current.passthrough("\(bundleInfo)")
     }
 
-    func formatBundleInfo(_ bundle: ServerBundle) -> String {
+    func formatBundleInfo(_ bundle: Components.Schemas.Bundle) -> String {
         var info = [
             "Bundle".bold(),
             "ID: \(bundle.id)",
             "Name: \(bundle.name)",
             "Version: \(bundle.version)",
-            "App Bundle ID: \(bundle.appBundleId)",
-            "Supported Platforms: \(bundle.supportedPlatforms.joined(separator: ", "))",
-            "Install Size: \(Formatters.formatBytes(bundle.installSize))",
-            "Download Size: \(bundle.downloadSize.map(Formatters.formatBytes) ?? "Unknown")",
-            "Uploaded by: \(bundle.uploadedByAccount)",
-            "Created: \(Formatters.formatDate(bundle.insertedAt))",
+            "App Bundle ID: \(bundle.app_bundle_id)",
+            "Supported Platforms: \(bundle.supported_platforms.map(\.rawValue).joined(separator: ", "))",
+            "Install Size: \(Formatters.formatBytes(bundle.install_size))",
+            "Download Size: \(bundle.download_size.map(Formatters.formatBytes) ?? "Unknown")",
+            "Uploaded by: \(bundle.uploaded_by_account)",
+            "Created: \(Formatters.formatDate(bundle.inserted_at))",
         ]
 
-        if let gitBranch = bundle.gitBranch {
+        if let gitBranch = bundle.git_branch {
             info.append("Git Branch: \(gitBranch)")
         }
 
-        if let gitCommitSha = bundle.gitCommitSha {
+        if let gitCommitSha = bundle.git_commit_sha {
             info.append("Git Commit: \(gitCommitSha)")
         }
 
-        if let gitRef = bundle.gitRef {
+        if let gitRef = bundle.git_ref {
             info.append("Git Ref: \(gitRef)")
         }
 

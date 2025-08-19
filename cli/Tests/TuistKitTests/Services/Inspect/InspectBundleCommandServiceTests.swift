@@ -53,7 +53,17 @@ struct InspectBundleCommandServiceTests {
                 gitBranch: .any,
                 gitRef: .any
             )
-            .willReturn(.test())
+            .willReturn(.init(
+                app_bundle_id: "dev.tuist",
+                id: UUID().uuidString,
+                inserted_at: Date(),
+                install_size: 10,
+                name: "App",
+                supported_platforms: [],
+                uploaded_by_account: "tuist",
+                url: "https://tuist.dev/\(UUID().uuidString)",
+                version: "1.0.0"
+            ))
 
         given(rosalind)
             .analyzeAppBundle(at: .any)
