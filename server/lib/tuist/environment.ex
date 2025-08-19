@@ -84,7 +84,7 @@ defmodule Tuist.Environment do
     prometheus_enabled = System.get_env("TUIST_PROMETHEUS_ENABLED")
 
     if is_nil(prometheus_enabled) do
-      not dev?() and not test?()
+      not dev?() and not test?() and web?()
     else
       truthy?(prometheus_enabled)
     end
