@@ -1,9 +1,10 @@
 ---
-title: Installation
-titleTemplate: :title | Self-hosting | Server | Guides | Tuist
-description: Tuist를 인프라에 설치하는 방법을 배워봅니다.
+{
+  "title": "Installation",
+  "titleTemplate": ":title | Self-hosting | Server | Guides | Tuist",
+  "description": "Tuist를 인프라에 설치하는 방법을 배워봅니다."
+}
 ---
-
 # On-premise installation {#onpremise-installation}
 
 인프라에 대한 더 많은 제어를 요구하는 조직을 위해 Tuist 서버의 자체 호스팅 버전을 제공합니다. 이 버전은 Tuist를 자체 인프라에 호스팅하여 사용자의 데이터가 안전하고 비공개로 유지되도록 보장합니다.

@@ -1,9 +1,10 @@
 ---
-title: The cost of convenience
-titleTemplate: :title · Projects · Develop · Guides · Tuist
-description: Xcode에서 편의성의 비용에 대해 알아보고 Tuist는 이 문제를 어떻게 예방하는지 배워봅니다.
+{
+  "title": "The cost of convenience",
+  "titleTemplate": ":title · Projects · Develop · Guides · Tuist",
+  "description": "Xcode에서 편의성의 비용에 대해 알아보고 Tuist는 이 문제를 어떻게 예방하는지 배워봅니다."
+}
 ---
-
 # The cost of convenience {#the-cost-of-convenience}
 
 **작은 프로젝트에서 대규모 프로젝트까지** 사용할 수 있는 코드 편집기를 설계하는 것은 어려운 작업입니다.

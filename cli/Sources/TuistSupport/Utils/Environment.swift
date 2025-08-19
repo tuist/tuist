@@ -29,6 +29,9 @@ public protocol Environmenting: Sendable {
     /// Returns the environment variables.
     var variables: [String: String] { get }
 
+    /// True if the program has been started to render the output as JSON.
+    var isJSONOutput: Bool { get }
+
     /// Returns the arguments that have been passed to the process.
     var arguments: [String] { get }
 
@@ -123,6 +126,10 @@ public struct Environment: Environmenting {
     public var homeDirectory: AbsolutePath {
         // swiftlint:disable force_try
         try! AbsolutePath(validating: NSHomeDirectory())
+    }
+
+    public var isJSONOutput: Bool {
+        return arguments.contains("--json")
     }
 
     /// Returns true if the output of Tuist should be coloured.

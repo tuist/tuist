@@ -1,9 +1,10 @@
 ---
-title: 生成されたプロジェクト
-titleTemplate: :title · Selective testing · Develop · Guides · Tuist
-description: Learn how to leverage selective testing with a generated project.
+{
+  "title": "生成されたプロジェクト",
+  "titleTemplate": ":title · Selective testing · Develop · Guides · Tuist",
+  "description": "Learn how to leverage selective testing with a generated project."
+}
 ---
-
 # Generated project {#generated-project}
 
 > [!IMPORTANT] REQUIREMENTS

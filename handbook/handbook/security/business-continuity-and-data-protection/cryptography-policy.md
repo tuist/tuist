@@ -1,9 +1,10 @@
 ---
-title: Cryptography policy
-titleTemplate: :title | Business continuity and data protection | Security | Tuist Handbook
-description: "To ensure proper and effective use of cryptography to protect the confidentiality, authenticity and/or integrity of information. This policy establishes requirements for the use and protection of cryptographic keys and cryptographic methods throughout the entire encryption lifecycle."
+{
+  "title": "Cryptography policy",
+  "titleTemplate": ":title | Business continuity and data protection | Security | Tuist Handbook",
+  "description": "To ensure proper and effective use of cryptography to protect the confidentiality, authenticity and/or integrity of information. This policy establishes requirements for the use and protection of cryptographic keys and cryptographic methods throughout the entire encryption lifecycle."
+}
 ---
-
 # Cryptography Policy
 
 - **Policy owner:** Pedro Piñera Buendía

@@ -1,9 +1,10 @@
 ---
-title: Logging
-titleTemplate: :title · CLI · Tuist
-description: Learn how to enable and configure logging in Tuist.
+{
+  "title": "Logging",
+  "titleTemplate": ":title · CLI · Tuist",
+  "description": "Learn how to enable and configure logging in Tuist."
+}
 ---
-
 # Logging {#logging}
 
 The CLI logs messages internally to help you diagnose issues.

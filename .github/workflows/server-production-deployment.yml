@@ -7,7 +7,7 @@ on:
     paths:
       - server/**
       - .github/workflows/server-production-deployment.yml
-      - pnpm-lock.yaml
+      - server/pnpm-lock.yaml
 
   workflow_dispatch:
     inputs:
@@ -62,7 +62,7 @@ jobs:
         with:
           path: |
             ~/.pnpm/store
-          key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+          key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
       - uses: jdx/mise-action@v2
       - name: "Get version"
         id: version
@@ -136,7 +136,7 @@ jobs:
         with:
           path: |
             ~/.pnpm/store
-          key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+          key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
       - uses: jdx/mise-action@v2
       - name: "Get version"
         id: version
@@ -188,7 +188,7 @@ jobs:
         with:
           path: |
             ~/.pnpm/store
-          key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+          key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
       - uses: jdx/mise-action@v2
       - name: "Get version"
         id: version

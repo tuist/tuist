@@ -269,6 +269,8 @@ defmodule TuistWeb.Router do
         put "/", ProjectsController, :update
 
         scope "/bundles" do
+          get "/", BundlesController, :index
+          get "/:bundle_id", BundlesController, :show
           post "/", BundlesController, :create
         end
 
@@ -460,8 +462,6 @@ defmodule TuistWeb.Router do
     live_session :require_authenticated_user,
       on_mount: [{TuistWeb.Authentication, :ensure_authenticated}] do
       get "/dashboard", DashboardController, :dashboard
-      live "/users/settings", UserSettingsLive, :edit
-      live "/users/settings/confirm_email/:token", UserSettingsLive, :confirm_email
       live "/organizations/new", CreateOrganizationLive, :new
       live "/projects/new", CreateProjectLive, :new
     end
@@ -475,7 +475,6 @@ defmodule TuistWeb.Router do
     live_session :current_user,
       on_mount: [{TuistWeb.Authentication, :mount_current_user}] do
       live "/users/confirm/:token", UserConfirmationLive, :edit
-      live "/users/confirm", UserConfirmationInstructionsLive, :new
     end
   end
 

@@ -1,9 +1,10 @@
 ---
-title: Install Tuist
-titleTemplate: :title · Quick-start · Guides · Tuist
-description: Tuist를 설치하는 방법을 알아보세요.
+{
+  "title": "Install Tuist",
+  "titleTemplate": ":title · Quick-start · Guides · Tuist",
+  "description": "Tuist를 설치하는 방법을 알아보세요."
+}
 ---
-
 # Install Tuist {#install-tuist}
 
 Tuist CLI는 실행 가능한 동적 프레임워크와 일련의 리소스(예: 템플릿)로 구성되어 있습니다. [소스에서](https://github.com/tuist/tuist) 수동으로 Tuist를 빌드할 수도 있지만, **올바른 설치를 위해 다음 설치 방법 중 하나를 사용하는 것이 좋습니다.**

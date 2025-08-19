@@ -1,9 +1,10 @@
 ---
-title: Best practices
-titleTemplate: :title · Projects · Develop · Guides · Tuist
-description: Learn about the best practices for working with Tuist and Xcode projects.
+{
+  "title": "Best practices",
+  "titleTemplate": ":title · Projects · Develop · Guides · Tuist",
+  "description": "Learn about the best practices for working with Tuist and Xcode projects."
+}
 ---
-
 # Best practices {#best-practices}
 
 Over the years working with different teams and projects, we've identified a set of best practices that we recommend following when working with Tuist and Xcode projects. These practices are not mandatory, but they can help you structure your projects in a way that makes them easier to maintain and scale.

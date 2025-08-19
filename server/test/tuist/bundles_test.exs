@@ -90,6 +90,29 @@ defmodule Tuist.BundlesTest do
       # Then
       assert {:error, :not_found} == got
     end
+
+    test "when the bundle is associated with the project with the given id" do
+      # Given
+      bundle = BundlesFixtures.bundle_fixture()
+
+      # When
+      {:ok, got} = Bundles.get_bundle(bundle.id, project_id: bundle.project_id)
+
+      # Then
+      assert got.id == bundle.id
+    end
+
+    test "when the bundle is not associated with the project with the given id" do
+      # Given
+      bundle = BundlesFixtures.bundle_fixture()
+      another_project = ProjectsFixtures.project_fixture()
+
+      # When
+      got = Bundles.get_bundle(bundle.id, project_id: another_project.id)
+
+      # Then
+      assert {:error, :not_found} == got
+    end
   end
 
   describe "install_size_deviation/1" do
@@ -217,7 +240,8 @@ defmodule Tuist.BundlesTest do
         )
 
       # When
-      got = Bundles.last_project_bundle(project, bundle: bundle)
+      got =
+        project |> Bundles.last_project_bundle(bundle: bundle) |> Repo.preload(:uploaded_by_account)
 
       # Then
       assert got == last_bundle

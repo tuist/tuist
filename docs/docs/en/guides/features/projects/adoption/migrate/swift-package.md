@@ -1,9 +1,10 @@
 ---
-title: Migrate a Swift Package
-titleTemplate: :title · Migrate · Adoption · Projects · Features · Guides · Tuist
-description: Learn how to migrate from Swift Package Manager as a solution for managing your projects to Tuist projects.
+{
+  "title": "Migrate a Swift Package",
+  "titleTemplate": ":title · Migrate · Adoption · Projects · Features · Guides · Tuist",
+  "description": "Learn how to migrate from Swift Package Manager as a solution for managing your projects to Tuist projects."
+}
 ---
-
 # Migrate a Swift Package {#migrate-a-swift-package}
 
 Swift Package Manager emerged as a dependency manager for Swift code that uninentionally found itself solving the problem of managing projects and supporting other programming languages like Objective-C. Because the tool was designed with a different purpose in mind, it can be challenging to use it to manage projects at scale because it lacks flexibility, performance, and power that Tuist provides. This is well captured in the [Scaling iOS at Bumble](https://medium.com/bumble-tech/scaling-ios-at-bumble-239e0fa009f2) article, which includes the following table comparing the performance of Swift Package Manager and native Xcode projects:

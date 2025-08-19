@@ -1,9 +1,10 @@
 ---
-title: Xcode project
-titleTemplate: :title · Registry · Develop · Guides · Tuist
-description: Learn how to use the Tuist Registry in an Xcode project.
+{
+  "title": "Xcode project",
+  "titleTemplate": ":title · Registry · Develop · Guides · Tuist",
+  "description": "Learn how to use the Tuist Registry in an Xcode project."
+}
 ---
-
 # Xcode project {#xcode-project}
 
 To add packages using the registry in your Xcode project, use the default Xcode UI. You can search for packages in the registry by clicking on the `+` button in the `Package Dependencies` tab in Xcode. If the package is available in the registry, you will see the `tuist.dev` registry in the top right:

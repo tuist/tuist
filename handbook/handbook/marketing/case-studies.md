@@ -1,9 +1,10 @@
 ---
-title: Case studies
-titleTemplate: :title | Marketing | Tuist Handbook
-description: This document provides guidelines for creating case studies that showcase the impact of Tuist on organizations' projects.
+{
+  "title": "Case studies",
+  "titleTemplate": ":title | Marketing | Tuist Handbook",
+  "description": "This document provides guidelines for creating case studies that showcase the impact of Tuist on organizations' projects."
+}
 ---
-
 # Case studies
 
 Case studies are a useful tool to **celebrate the success of Tuist users and showcase the impact of Tuist on their projects.** They provide a real-world perspective on how Tuist has helped teams overcome challenges and achieve their goals.

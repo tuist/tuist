@@ -1,9 +1,10 @@
 ---
-title: Manifests
-titleTemplate: :title · Projects · Develop · Guides · Tuist
-description: Tuist가 프로젝트와 워크스페이스를 정의하고 생성 프로세스를 구성하는데 사용하는 매니페스트 파일에 대해 알아봅니다.
+{
+  "title": "Manifests",
+  "titleTemplate": ":title · Projects · Develop · Guides · Tuist",
+  "description": "Tuist가 프로젝트와 워크스페이스를 정의하고 생성 프로세스를 구성하는데 사용하는 매니페스트 파일에 대해 알아봅니다."
+}
 ---
-
 # Manifests {#manifests}
 
 Tuist는 프로젝트와 워크스페이스를 정의하고 생성 프로세스를 구성하는데 기본적으로 Swift 파일을 사용합니다. 이러한 파일은 이 문서에서 **매니페스트 파일**이라고 합니다.

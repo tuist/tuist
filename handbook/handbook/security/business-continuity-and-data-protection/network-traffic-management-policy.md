@@ -1,9 +1,10 @@
 ---
-title: Network traffic management policy
-titleTemplate: :title | Business continuity and data protection | Security | Tuist Handbook
-description: "This policy establishes procedures for monitoring, controlling, managing, and evaluating network traffic to identify vulnerabilities, anomalies and capacity issues in Tuist GmbH's infrastructure."
+{
+  "title": "Network traffic management policy",
+  "titleTemplate": ":title | Business continuity and data protection | Security | Tuist Handbook",
+  "description": "This policy establishes procedures for monitoring, controlling, managing, and evaluating network traffic to identify vulnerabilities, anomalies and capacity issues in Tuist GmbH's infrastructure."
+}
 ---
-
 # Network traffic management policy
 
 - **Policy owner:** Pedro Piñera Buendía

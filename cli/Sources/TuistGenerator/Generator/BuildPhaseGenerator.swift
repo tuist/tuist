@@ -308,6 +308,12 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         pbxBuildFiles.forEach { pbxproj.add(object: $0) }
         sourcesBuildPhase.files = pbxBuildFiles
 
+        if !target.buildableFolders.isEmpty {
+            pbxproj.add(object: sourcesBuildPhase)
+            pbxTarget.buildPhases.append(sourcesBuildPhase)
+            return
+        }
+
         // Only add sources build phase if there are build files or if the product requires the sources build phase to be valid,
         // such as `.framework`
         switch target.product {

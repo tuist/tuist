@@ -1,9 +1,10 @@
 ---
-title: Penetration testing policy
-titleTemplate: :title | Secure development and operations | Security | Tuist Handbook
-description: Policy establishing the requirements for regular penetration testing of Tuist GmbH systems and applications to identify and remediate security vulnerabilities.
+{
+  "title": "Penetration testing policy",
+  "titleTemplate": ":title | Secure development and operations | Security | Tuist Handbook",
+  "description": "Policy establishing the requirements for regular penetration testing of Tuist GmbH systems and applications to identify and remediate security vulnerabilities."
+}
 ---
-
 # Penetration testing policy
 
 - **Policy owner:** Pedro Piñera Buendía

@@ -1,9 +1,10 @@
 ---
-title: Employee termination security policy  
-titleTemplate: :title | Security | Tuist Handbook  
-description: "To ensure the secure handling of company assets and information upon employee termination, safeguarding both company and customer data. This policy establishes requirements for revoking access, returning assets, and protecting confidential information after an employee’s departure."
+{
+  "title": "Employee termination security policy",
+  "titleTemplate": ":title | Security | Tuist Handbook",
+  "description": "To ensure the secure handling of company assets and information upon employee termination, safeguarding both company and customer data. This policy establishes requirements for revoking access, returning assets, and protecting confidential information after an employee’s departure."
+}
 ---
-
 # Employee termination security policy
 
 - **Policy owner:** Pedro Piñera Buendía

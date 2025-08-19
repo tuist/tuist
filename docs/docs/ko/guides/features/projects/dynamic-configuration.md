@@ -1,9 +1,10 @@
 ---
-title: Dynamic configuration
-titleTemplate: :title · Projects · Develop · Guides · Tuist
-description: 프로젝트를 동적 구성하기 위해 환경 변수를 사용하는 방법을 배워봅니다.
+{
+  "title": "Dynamic configuration",
+  "titleTemplate": ":title · Projects · Develop · Guides · Tuist",
+  "description": "프로젝트를 동적 구성하기 위해 환경 변수를 사용하는 방법을 배워봅니다."
+}
 ---
-
 # Dynamic configuration {#dynamic-configuration}
 
 프로젝트 생성 시점에 프로젝트를 동적으로 구성 해야하는 경우가 있습니다. 예를 들어, 프로젝트가 생성되는 환경에 따라 앱 이름, 번들 식별자, 또는 배포 타겟을 변경해야 되는 경우가 있습니다. Tuist는 매니페스트 파일에서 접근될 수 있는 환경 변수를 통해 동적 구성을 지원합니다.

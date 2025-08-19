@@ -1,9 +1,10 @@
 ---
-title: 6-week cycles
-titleTemplate: :title | Company | Tuist Handbook
-mission: Understand Tuist's 6-week project cycle approach and its benefits
+{
+  "title": "6-week cycles",
+  "titleTemplate": ":title | Company | Tuist Handbook",
+  "mission": "Understand Tuist's 6-week project cycle approach and its benefits"
+}
 ---
-
 # 6-week cycles
 
 At Tuist, we shape projects to be executable in 6-week cycles. We believe this timeframe strikes the perfect balance: long enough to deliver meaningful value to teams and developers using Tuist, yet short enough to maintain momentum, focus, and a sense of progress.

@@ -4,13 +4,14 @@ on:
   push:
     branches:
       - main
+    paths:
+      - "app/**"
+      - ".github/workflows/app.yml"
+      - "Tuist/**"
   pull_request:
     paths:
       - "app/**"
-      - "*.swift"
-      - "Package.resolved"
       - ".github/workflows/app.yml"
-      - "mise.toml"
       - "Tuist/**"
 
 permissions:

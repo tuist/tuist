@@ -1,9 +1,10 @@
 ---
-title: Best practices
-titleTemplate: :title · Projects · Develop · Guides · Tuist
-description: Tuist와 Xcode 프로젝트를 다룰 때의 모범 사례들을 알아보세요.
+{
+  "title": "Best practices",
+  "titleTemplate": ":title · Projects · Develop · Guides · Tuist",
+  "description": "Tuist와 Xcode 프로젝트를 다룰 때의 모범 사례들을 알아보세요."
+}
 ---
-
 # Best practices {#best-practices}
 
 다양한 팀 및 프로젝트와의 수년간 협업 경험을 바탕으로, Tuist와 Xcode 프로젝트를 다룰 때 권장하는 모범 사례들을 정리했습니다. 이러한 모범 사례들은 필수 사항은 아니지만, 프로젝트를 보다 유지보수하기 쉽고 확장 가능한 방식으로 구조화하는데 도움이 될 수 있습니다.

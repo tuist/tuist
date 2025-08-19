@@ -1,4 +1,9 @@
 packages:
   - docs/
   - handbook/
-  - server/
+  - "!server/"
+
+onlyBuiltDependencies:
+  - esbuild
+  - sharp
+  - workerd

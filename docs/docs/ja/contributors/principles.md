@@ -1,9 +1,10 @@
 ---
-title: 原則
-titleTemplate: :title · コントリビューター · Tuist
-description: このドキュメントでは、Tuist の開発を導く原則について説明します。
+{
+  "title": "原則",
+  "titleTemplate": ":title · コントリビューター · Tuist",
+  "description": "このドキュメントでは、Tuist の開発を導く原則について説明します。"
+}
 ---
-
 # 原則 {#principles}
 
 このページでは、Tuistの設計と開発の柱となる原則について説明します。 これらの原則はプロジェクトとともに進化し、プロジェクトの基盤に適切に合致する形で持続可能な成長を保証するために存在します。

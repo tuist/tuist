@@ -1,9 +1,10 @@
 ---
-title: GitHub
-titleTemplate: :title | Git forges | Integrations | Guides | Tuist
-description: Learn how to connect Tuist to other tools and services.
+{
+  "title": "GitHub",
+  "titleTemplate": ":title | Git forges | Integrations | Guides | Tuist",
+  "description": "Learn how to connect Tuist to other tools and services."
+}
 ---
-
 # Integrations {#integrations}
 
 We strongly believe we should meet developers where they are, and let's be honest, developers spend time outside of their coding environments, such as reviewing pull request on [GitHub](https://github.com) or communicating with their team on [Slack](https://slack.com). That's why we've built integrations with popular tools and services to make it easier for you to use Tuist in your workflows. This page lists the integrations we currently support.

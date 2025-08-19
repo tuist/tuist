@@ -1,9 +1,10 @@
 ---
-title: Issue reporting
-titleTemplate: :title · Участникам проекта · Tuist
-description: Learn how to contribute to Tuist by reporting bugs
+{
+  "title": "Issue reporting",
+  "titleTemplate": ":title · Участникам проекта · Tuist",
+  "description": "Learn how to contribute to Tuist by reporting bugs"
+}
 ---
-
 # Issue reporting {#issue-reporting}
 
 As user of Tuist, you might come across bugs or unexpected behaviors.

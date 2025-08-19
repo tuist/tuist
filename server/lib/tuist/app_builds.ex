@@ -230,8 +230,7 @@ defmodule Tuist.AppBuilds do
   def latest_ipa_app_build_for_preview(%Preview{} = preview) do
     preview.app_builds
     |> Enum.sort_by(& &1.inserted_at, {:desc, DateTime})
-    |> Enum.filter(&(&1.type == :ipa))
-    |> List.first()
+    |> Enum.find(&(&1.type == :ipa))
   end
 
   def latest_app_build(git_ref, %Project{} = project, opts \\ []) do

@@ -1,9 +1,10 @@
 ---
-title: Asset management policy
-titleTemplate: :title | Physical and asset security | Security | Tuist Handbook
-description: "To identify organizational assets and define appropriate protection responsibilities. To ensure that information receives an appropriate level of protection in accordance with its importance to the organization. To prevent unauthorized disclosure, modification, removal, or destruction of information stored on media.."
+{
+  "title": "Asset management policy",
+  "titleTemplate": ":title | Physical and asset security | Security | Tuist Handbook",
+  "description": "To identify organizational assets and define appropriate protection responsibilities. To ensure that information receives an appropriate level of protection in accordance with its importance to the organization. To prevent unauthorized disclosure, modification, removal, or destruction of information stored on media.."
+}
 ---
-
 # Asset Management Policy
 
 - **Policy owner:** Pedro Piñera Buendía

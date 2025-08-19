@@ -27,6 +27,7 @@ public final class MockEnvironment: Environmenting {
     }
 
     public var processId: String = UUID().uuidString
+    public var isJSONOutput: Bool = false
     public var isVerbose: Bool = false
     public var queueDirectoryStub: AbsolutePath?
     public var shouldOutputBeColoured: Bool = false
@@ -80,6 +81,7 @@ extension Environment {
 public struct EnvironmentTestingTrait: TestTrait, SuiteTrait, TestScoping {
     let temporaryDirectory: AbsolutePath?
     let inheritedVariables: [String]
+    let arguments: [String]
 
     public func provideScope(
         for _: Test,
@@ -88,6 +90,7 @@ public struct EnvironmentTestingTrait: TestTrait, SuiteTrait, TestScoping {
     ) async throws {
         let mockEnvironment = try MockEnvironment(temporaryDirectory: temporaryDirectory)
         mockEnvironment.variables = ProcessInfo.processInfo.environment.filter { inheritedVariables.contains($0.key) }
+        mockEnvironment.arguments = arguments
         try await Environment.$current.withValue(mockEnvironment) {
             try await function()
         }
@@ -104,8 +107,9 @@ extension Trait where Self == EnvironmentTestingTrait {
     /// When this trait is applied to a test, the environment will be mocked.
     public static func withMockedEnvironment(
         temporaryDirectory: AbsolutePath? = nil,
-        inheritingVariables inheritedVariables: [String] = []
+        inheritingVariables inheritedVariables: [String] = [],
+        arguments: [String] = []
     ) -> Self {
-        Self(temporaryDirectory: temporaryDirectory, inheritedVariables: inheritedVariables)
+        Self(temporaryDirectory: temporaryDirectory, inheritedVariables: inheritedVariables, arguments: arguments)
     }
 }

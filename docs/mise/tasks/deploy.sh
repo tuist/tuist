@@ -1,6 +1,6 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # mise description="Deploys the documentation website."
 
 set -euo pipefail
 
-pnpm run -C $MISE_PROJECT_ROOT/docs deploy
+pnpm run deploy
