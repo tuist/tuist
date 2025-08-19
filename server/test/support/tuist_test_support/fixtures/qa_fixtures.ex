@@ -19,8 +19,7 @@ defmodule TuistTestSupport.Fixtures.QAFixtures do
       QA.create_qa_run(%{
         app_build_id: app_build.id,
         prompt: Keyword.get(opts, :prompt, "Test the login feature"),
-        status: Keyword.get(opts, :status, "pending"),
-        summary: Keyword.get(opts, :summary, "Summary of the QA run")
+        status: Keyword.get(opts, :status, "pending")
       })
 
     qa_run
@@ -35,8 +34,8 @@ defmodule TuistTestSupport.Fixtures.QAFixtures do
     %Step{}
     |> Step.changeset(%{
       qa_run_id: qa_run.id,
-      summary: Keyword.get(opts, :summary, "Completed login test step"),
-      description: Keyword.get(opts, :description, "Detailed description of the test step"),
+      action: Keyword.get(opts, :action, "Tap on Tuist label"),
+      result: Keyword.get(opts, :result, "Detailed description of the test step"),
       issues: Keyword.get(opts, :issues, [])
     })
     |> Repo.insert!()
@@ -53,9 +52,7 @@ defmodule TuistTestSupport.Fixtures.QAFixtures do
     %Screenshot{}
     |> Screenshot.changeset(%{
       qa_run_id: qa_run.id,
-      qa_step_id: if(qa_step, do: qa_step.id),
-      file_name: Keyword.get(opts, :file_name, "screenshot"),
-      title: Keyword.get(opts, :title, "Screenshot")
+      qa_step_id: if(qa_step, do: qa_step.id)
     })
     |> Repo.insert!()
   end

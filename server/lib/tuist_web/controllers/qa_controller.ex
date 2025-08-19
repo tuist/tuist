@@ -18,7 +18,7 @@ defmodule TuistWeb.QAController do
         account_handle: account_handle,
         project_handle: project_handle,
         qa_run_id: qa_run_id,
-        file_name: screenshot.file_name
+        screenshot_id: screenshot.id
       })
 
     conn

@@ -5,6 +5,7 @@ defmodule Runner.QA.AgentTest do
   alias LangChain.Chains.LLMChain
   alias LangChain.ChatModels.ChatAnthropic
   alias LangChain.Message
+  alias LangChain.Message.ContentPart
   alias LangChain.Message.ToolResult
   alias Runner.QA.Agent
   alias Runner.QA.Client
@@ -50,7 +51,22 @@ defmodule Runner.QA.AgentTest do
     stub(LLMChain, :add_tools, fn chain, _ -> chain end)
     stub(LLMChain, :add_callback, fn chain, _ -> chain end)
 
-    stub(Tools, :tools, fn _params -> [] end)
+    stub(Tools, :tools, fn _params ->
+      [
+        %{name: "describe_ui"},
+        %{name: "tap"},
+        %{name: "long_press"},
+        %{name: "swipe"},
+        %{name: "type_text"},
+        %{name: "key_press"},
+        %{name: "button"},
+        %{name: "touch"},
+        %{name: "gesture"},
+        %{name: "screenshot"},
+        %{name: "step_report"},
+        %{name: "finalize"}
+      ]
+    end)
 
     stub(Client, :start_run, fn %{
                                   server_url: _server_url,
@@ -104,7 +120,7 @@ defmodule Runner.QA.AgentTest do
       expect(LLMChain, :add_tools, fn chain, _tools -> chain end)
       expect(LLMChain, :add_callback, fn chain, _handler -> chain end)
 
-      expect(LLMChain, :run_until_tool_used, fn _chain, ["describe_ui", "screenshot", "finalize"] ->
+      expect(LLMChain, :run_until_tool_used, fn _chain, _tool_names ->
         {:ok, chain_result, %ToolResult{name: "finalize", content: ["Test completed successfully"]}}
       end)
 
@@ -192,30 +208,60 @@ defmodule Runner.QA.AgentTest do
                )
     end
 
-    test "trims previous describe_ui and screenshot tool calls from message history", %{
-      device: device
-    } do
+    test "clears previous UI and screenshot content when tool result contains UI/screenshot data",
+         %{
+           device: device
+         } do
       # Given
       preview_url = "https://example.com/preview.zip"
       bundle_identifier = "com.example.app"
 
       messages = [
-        %Message{role: :user, content: [%{type: :text, content: "Test the app"}]},
         %Message{
-          role: :assistant,
-          tool_calls: [%{name: "describe_ui", arguments: %{}}]
-        },
-        %Message{
-          role: :tool,
-          tool_results: [%ToolResult{name: "describe_ui", content: ["UI hierarchy"]}]
+          role: :user,
+          content: [%{type: :text, content: "Test the app"}]
         },
         %Message{
           role: :assistant,
-          tool_calls: [%{name: "screenshot", arguments: %{}}]
+          tool_calls: [%{name: "tap", call_id: "tap_id", arguments: %{}}]
         },
         %Message{
           role: :tool,
-          tool_results: [%ToolResult{name: "screenshot", content: ["Screenshot data"]}]
+          tool_results: [
+            %ToolResult{
+              name: "tap",
+              tool_call_id: "tap_id",
+              content: [
+                "Previous tap result",
+                ContentPart.text!("Current UI state: UI data"),
+                ContentPart.image!("image_data", media: :png)
+              ]
+            }
+          ]
+        },
+        %Message{
+          role: :assistant,
+          tool_calls: [%{name: "describe_ui", call_id: "describe_ui_id", arguments: %{}}]
+        },
+        %Message{
+          role: :tool,
+          tool_results: [
+            %ToolResult{
+              name: "describe_ui",
+              tool_call_id: "describe_ui_id",
+              content: [ContentPart.text!("Current UI state: UI data")]
+            }
+          ]
+        },
+        %Message{
+          role: :assistant,
+          tool_calls: [%{name: "swipe", call_id: "swipe_one_id", arguments: %{}}]
+        },
+        %Message{
+          role: :tool,
+          tool_results: [
+            %ToolResult{name: "swipe", tool_call_id: "swipe_one_id", content: ["Swipe data"]}
+          ]
         },
         %Message{role: :assistant, content: [%{type: :text, content: "Continuing test"}]}
       ]
@@ -231,7 +277,7 @@ defmodule Runner.QA.AgentTest do
         %{chain | messages: [user_msg]}
       end)
 
-      expect(LLMChain, :run_until_tool_used, 1, fn input_chain, ["describe_ui", "screenshot", "finalize"] ->
+      expect(LLMChain, :run_until_tool_used, 1, fn input_chain, _tool_names ->
         chain_with_messages = %{
           input_chain
           | messages: messages,
@@ -241,52 +287,73 @@ defmodule Runner.QA.AgentTest do
             }
         }
 
-        {:ok, chain_with_messages, %ToolResult{name: "describe_ui", content: ["New UI data"]}}
+        {:ok, chain_with_messages,
+         %ToolResult{
+           name: "tap",
+           content: [
+             ContentPart.text!("Current UI state: New data"),
+             ContentPart.image!("screenshot_data", media: :png)
+           ]
+         }}
       end)
 
       expect(LLMChain, :new!, 1, fn %{llm: llm} ->
         %LLMChain{llm: llm, messages: [], last_message: nil}
       end)
 
-      # previous describe_ui tool calls are removed
-      expect(LLMChain, :add_messages, 1, fn chain, messages ->
-        assert Enum.map(messages, &Map.take(&1, [:role, :content, :tool_calls, :tool_results])) ==
-                 [
-                   %{
-                     content: [%{content: "Test the app", type: :text}],
-                     role: :user,
-                     tool_calls: nil,
-                     tool_results: nil
-                   },
-                   %{
-                     role: :assistant,
-                     tool_calls: [%{arguments: %{}, name: "screenshot"}],
-                     content: nil,
-                     tool_results: nil
-                   },
-                   %{
-                     role: :tool,
-                     tool_results: [
-                       %ToolResult{
-                         content: ["Screenshot data"],
-                         name: "screenshot"
-                       }
-                     ],
-                     content: nil,
-                     tool_calls: nil
-                   },
-                   %{
-                     content: [%{content: "New action", type: :text}],
-                     role: :assistant,
-                     tool_calls: nil,
-                     tool_results: nil
-                   }
-                 ]
+      expect(LLMChain, :add_messages, 1, fn chain, cleared_messages ->
+        assert cleared_messages == [
+                 %Message{
+                   role: :user,
+                   content: [%{type: :text, content: "Test the app"}],
+                   tool_calls: [],
+                   tool_results: []
+                 },
+                 %Message{
+                   role: :assistant,
+                   tool_calls: [%{name: "tap", call_id: "tap_id", arguments: %{}}],
+                   tool_results: []
+                 },
+                 %Message{
+                   role: :tool,
+                   content: nil,
+                   tool_results: [
+                     %ToolResult{
+                       name: "tap",
+                       tool_call_id: "tap_id",
+                       content: ["Previous tap result"]
+                     }
+                   ],
+                   tool_calls: []
+                 },
+                 %Message{
+                   role: :assistant,
+                   tool_calls: [%{name: "swipe", call_id: "swipe_one_id", arguments: %{}}],
+                   tool_results: []
+                 },
+                 %Message{
+                   role: :tool,
+                   tool_results: [
+                     %ToolResult{
+                       name: "swipe",
+                       tool_call_id: "swipe_one_id",
+                       content: ["Swipe data"]
+                     }
+                   ],
+                   tool_calls: []
+                 },
+                 %Message{
+                   role: :assistant,
+                   content: [%{type: :text, content: "Continuing test"}],
+                   tool_calls: nil,
+                   tool_results: nil
+                 }
+               ]
 
-        %{chain | messages: messages}
+        %{chain | messages: cleared_messages}
       end)
 
-      expect(LLMChain, :run_until_tool_used, 1, fn chain, ["describe_ui", "screenshot", "finalize"] ->
+      expect(LLMChain, :run_until_tool_used, 1, fn chain, _tool_names ->
         {:ok, chain, %ToolResult{name: "finalize", content: ["Test completed"]}}
       end)
 
@@ -297,6 +364,125 @@ defmodule Runner.QA.AgentTest do
                    preview_url: preview_url,
                    bundle_identifier: bundle_identifier,
                    prompt: "Test feature",
+                   server_url: "https://example.com",
+                   run_id: "run-id",
+                   auth_token: "auth-token",
+                   account_handle: "test-account",
+                   project_handle: "test-project"
+                 },
+                 anthropic_api_key: "api_key"
+               )
+    end
+
+    test "calls run_until_tool_used with step_report when an action tool is called", %{
+      device: device
+    } do
+      # Given
+      preview_url = "https://example.com/preview.zip"
+      bundle_identifier = "com.example.app"
+      prompt = "Test the login feature"
+
+      expect(Req, :get, fn ^preview_url, [into: :mocked_stream] -> {:ok, %{status: 200}} end)
+      expect(Simulators, :launch_app, fn ^bundle_identifier, ^device -> :ok end)
+
+      expect(LLMChain, :new!, 1, fn %{llm: llm} ->
+        %LLMChain{llm: llm, messages: [], last_message: nil}
+      end)
+
+      expect(LLMChain, :add_messages, 1, fn chain, [user_msg] ->
+        %{chain | messages: [user_msg]}
+      end)
+
+      expect(LLMChain, :run_until_tool_used, 1, fn chain, _tool_names ->
+        {:ok,
+         %{
+           chain
+           | messages: [
+               %Message{
+                 role: :user,
+                 content: [%{type: :text, content: "Test the login feature"}]
+               },
+               %Message{
+                 role: :assistant,
+                 tool_calls: [%{name: "tap", call_id: "tap_1", arguments: %{}}]
+               },
+               %Message{
+                 role: :tool,
+                 tool_results: [
+                   %ToolResult{
+                     name: "tap",
+                     tool_call_id: "tap_1",
+                     content: [
+                       ContentPart.text!("Tapped element"),
+                       ContentPart.image!("screenshot_data", media: :png),
+                       ContentPart.text!("step_123")
+                     ]
+                   }
+                 ]
+               }
+             ],
+             last_message: %Message{
+               role: :tool,
+               tool_results: [
+                 %ToolResult{
+                   name: "tap",
+                   tool_call_id: "tap_1",
+                   content: [
+                     ContentPart.text!("Tapped element"),
+                     ContentPart.image!("screenshot_data", media: :png),
+                     ContentPart.text!("step_123")
+                   ]
+                 }
+               ]
+             }
+         },
+         %ToolResult{
+           name: "tap",
+           content: [
+             ContentPart.text!("Tapped element"),
+             ContentPart.image!("screenshot_data", media: :png),
+             ContentPart.text!("step_123")
+           ]
+         }}
+      end)
+
+      expect(LLMChain, :new!, 1, fn %{llm: llm} ->
+        %LLMChain{llm: llm, messages: [], last_message: nil}
+      end)
+
+      expect(LLMChain, :add_messages, 1, fn chain, messages ->
+        assert List.last(messages) ==
+                 Message.new_user!(
+                   "Use the returned image to analyze visual inconsistencies and report the result for step_id step_123 with the step_report tool."
+                 )
+
+        %{chain | messages: messages}
+      end)
+
+      expect(LLMChain, :run_until_tool_used, 1, fn chain, tool_name ->
+        assert tool_name == "step_report"
+        {:ok, chain, %ToolResult{name: "step_report", content: ["Step reported successfully"]}}
+      end)
+
+      expect(LLMChain, :new!, 1, fn %{llm: llm} ->
+        %LLMChain{llm: llm, messages: [], last_message: nil}
+      end)
+
+      expect(LLMChain, :add_messages, 1, fn chain, _messages ->
+        %{chain | messages: []}
+      end)
+
+      expect(LLMChain, :run_until_tool_used, 1, fn chain, _tool_names ->
+        {:ok, chain, %ToolResult{name: "finalize", content: ["Test completed"]}}
+      end)
+
+      # When / Then
+      assert :ok =
+               Agent.test(
+                 %{
+                   preview_url: preview_url,
+                   bundle_identifier: bundle_identifier,
+                   prompt: prompt,
                    server_url: "https://example.com",
                    run_id: "run-id",
                    auth_token: "auth-token",
