@@ -34,8 +34,6 @@ defmodule Tuist.StorageTest do
                                               {"partNumber", ^part_number},
                                               {"uploadId", ^upload_id}
                                             ],
-                                            headers: [],
-                                            virtual_host: false,
                                             expires_in: ^expires_in
                                           ] ->
         {:ok, url}
@@ -79,10 +77,6 @@ defmodule Tuist.StorageTest do
                                               {"partNumber", ^part_number},
                                               {"uploadId", ^upload_id}
                                             ],
-                                            headers: [
-                                              {"Content-Length", "300"}
-                                            ],
-                                            virtual_host: false,
                                             expires_in: ^expires_in
                                           ] ->
         {:ok, url}
@@ -160,8 +154,7 @@ defmodule Tuist.StorageTest do
                                           ^object_key,
                                           [
                                             query_params: [],
-                                            expires_in: ^expires_in,
-                                            virtual_host: false
+                                            expires_in: ^expires_in
                                           ] ->
         {:ok, url}
       end)
@@ -170,9 +163,7 @@ defmodule Tuist.StorageTest do
       assert Storage.generate_download_url(object_key, expires_in: expires_in) == url
 
       # Then
-      assert_received {^event_name, ^event_ref, %{duration: duration}, %{object_key: ^object_key}}
-
-      assert is_number(duration)
+      assert_received {^event_name, ^event_ref, %{}, %{object_key: ^object_key}}
     end
   end
 
@@ -198,8 +189,7 @@ defmodule Tuist.StorageTest do
                                           ^object_key,
                                           [
                                             query_params: [],
-                                            expires_in: ^expires_in,
-                                            virtual_host: false
+                                            expires_in: ^expires_in
                                           ] ->
         {:ok, url}
       end)

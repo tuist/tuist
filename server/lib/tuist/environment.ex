@@ -259,6 +259,14 @@ defmodule Tuist.Environment do
     end
   end
 
+  def s3_bucket_as_host(secrets \\ secrets()) do
+    if dev_use_remote_storage?() do
+      [:s3, :bucket_as_host] |> get(secrets) |> truthy?()
+    else
+      false
+    end
+  end
+
   def slack_tuist_token(secrets \\ secrets()) do
     get([:slack, :tuist, :token], secrets)
   end
