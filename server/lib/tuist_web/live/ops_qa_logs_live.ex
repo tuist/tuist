@@ -15,6 +15,10 @@ defmodule TuistWeb.OpsQALogsLive do
       qa_run ->
         logs = QA.logs_for_run(qa_run_id)
 
+        if connected?(socket) do
+          Tuist.PubSub.subscribe("qa_logs:#{qa_run_id}")
+        end
+
         {:ok,
          socket
          |> assign(:qa_run, qa_run)
@@ -36,6 +40,18 @@ defmodule TuistWeb.OpsQALogsLive do
       end
 
     {:noreply, assign(socket, :expanded_tools, new_expanded_tools)}
+  end
+
+  @impl true
+  def handle_info({:qa_log_created, log}, socket) do
+    current_logs = socket.assigns.logs
+    updated_logs = current_logs ++ [log]
+
+    {:noreply, assign(socket, :logs, updated_logs)}
+  end
+
+  def handle_info(_event, socket) do
+    {:noreply, socket}
   end
 
   defp map_qa_status_to_badge_status("failed"), do: "error"

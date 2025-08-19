@@ -50,7 +50,8 @@ defmodule TuistWeb.QALogChannel do
 
   defp authorize_qa_run(socket, qa_run_id) do
     with {:ok, subject} <- extract_subject_from_socket(socket),
-         {:ok, qa_run} <- QA.qa_run(qa_run_id, preload: [app_build: [preview: [project: :account]]]),
+         {:ok, qa_run} <-
+           QA.qa_run(qa_run_id, preload: [app_build: [preview: [project: :account]]]),
          :ok <- authorize_subject_for_qa_run(subject, qa_run) do
       {:ok, qa_run}
     end
@@ -88,6 +89,13 @@ defmodule TuistWeb.QALogChannel do
     log = struct(Log, log_attrs)
 
     Buffer.insert(log)
+
+    # Broadcast the log to all listeners for real-time updates
+    Tuist.PubSub.broadcast(
+      log,
+      "qa_logs:#{qa_run_id}",
+      :qa_log_created
+    )
   end
 
   defp parse_timestamp(timestamp) when is_binary(timestamp) do
@@ -119,7 +127,9 @@ defmodule TuistWeb.QALogChannel do
         )
 
       {:error, changeset} ->
-        Logger.error("Failed to record token usage for QA run #{qa_run.id}: #{inspect(changeset.errors)}")
+        Logger.error(
+          "Failed to record token usage for QA run #{qa_run.id}: #{inspect(changeset.errors)}"
+        )
 
         Appsignal.send_error(%RuntimeError{message: "Failed to record token usage"}, %{
           qa_run_id: qa_run.id,
