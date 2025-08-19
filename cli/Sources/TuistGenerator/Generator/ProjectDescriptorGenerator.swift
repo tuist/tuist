@@ -344,6 +344,6 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
 
     private func determineProjectConstants() throws -> ProjectConstants {
         // TODO: Determine if this can be inferred by the set Xcode version
-        .xcode16
+        .xcode13
     }
 }
