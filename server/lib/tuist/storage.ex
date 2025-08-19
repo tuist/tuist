@@ -5,23 +5,13 @@ defmodule Tuist.Storage do
   alias Tuist.Environment
   alias Tuist.Performance
 
-  def multipart_generate_url(object_key, upload_id, part_number, opts \\ []) do
-    content_length = Keyword.get(opts, :content_length)
-
-    headers =
-      if is_nil(content_length) do
-        []
-      else
-        [{"Content-Length", Integer.to_string(content_length)}]
-      end
-
+  def multipart_generate_url(object_key, upload_id, part_number, _opts) do
     url =
       presigned_url(:put, object_key,
         query_params: [
           {"partNumber", part_number},
           {"uploadId", upload_id}
-        ],
-        headers: headers
+        ]
       )
 
     :telemetry.execute(
@@ -35,21 +25,14 @@ defmodule Tuist.Storage do
 
   defp presigned_url(method, object_key, opts \\ []) do
     query_params = Keyword.get(opts, :query_params, [])
-    headers = Keyword.get(opts, :headers, [])
 
-    bucket_as_host = Tuist.Environment.s3_bucket_as_host()
-    virtual_host = Tuist.Environment.s3_virtual_host()
-    bucket_name = Tuist.Environment.s3_bucket_name()
+    bucket_name = Environment.s3_bucket_name()
+    config = ExAws.Config.new(:s3)
 
     {:ok, url} =
-      :s3
-      |> ExAws.Config.new()
-      |> ExAws.S3.presigned_url(method, bucket_name, object_key,
+      ExAws.S3.presigned_url(config, method, bucket_name, object_key,
         query_params: query_params,
-        headers: headers,
-        expires_in: Keyword.get(opts, :expires_in, 3600),
-        bucket_as_host: bucket_as_host,
-        virtual_host: virtual_host
+        expires_in: Keyword.get(opts, :expires_in, 3600)
       )
 
     url
@@ -74,7 +57,7 @@ defmodule Tuist.Storage do
     result
   end
 
-  def generate_download_url(object_key, opts \\ []) do
+  def generate_download_url(object_key, _opts \\ []) do
     url = presigned_url(:get, object_key)
 
     :telemetry.execute(
@@ -86,7 +69,7 @@ defmodule Tuist.Storage do
     url
   end
 
-  def generate_upload_url(object_key, opts \\ []) do
+  def generate_upload_url(object_key, _opts \\ []) do
     url = presigned_url(:put, object_key)
 
     :telemetry.execute(
@@ -171,9 +154,7 @@ defmodule Tuist.Storage do
     {time, upload_id} =
       Performance.measure_time_in_milliseconds(fn ->
         %{body: %{upload_id: upload_id}} =
-          Environment.s3_bucket_name()
-          |> ExAws.S3.initiate_multipart_upload(object_key)
-          |> ExAws.request!()
+          Environment.s3_bucket_name() |> ExAws.S3.initiate_multipart_upload(object_key) |> ExAws.request!()
 
         upload_id
       end)
