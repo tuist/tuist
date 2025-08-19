@@ -1,5 +1,5 @@
 {
-  "originHash" : "02adb7ee1845099ef2687b2565b08a2200dc1ecbd2efa8785c26c5e542de37ce",
+  "originHash" : "98f08a36513a45dd55e82e04e5fdb72e5b0261d2f0eacd5113999d759c027d2b",
   "pins" : [
     {
       "identity" : "aexml",
@@ -96,8 +96,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tuist/FileSystem.git",
       "state" : {
-        "revision" : "d2f49d5a9f8ada3b6e1a2bc4254d715b214d5753",
-        "version" : "0.11.8"
+        "revision" : "29fe550f93cb562b56ba917b95330a20ac82bee0",
+        "version" : "0.11.10"
       }
     },
     {
@@ -139,7 +139,7 @@
     {
       "identity" : "keychainaccess",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/kishikawakatsumi/KeychainAccess.git",
+      "location" : "https://github.com/kishikawakatsumi/KeychainAccess",
       "state" : {
         "revision" : "84e546727d66f1adc5439debad16270d0fdd04e7",
         "version" : "4.2.2"
@@ -159,8 +159,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/p-x9/MachOKit",
       "state" : {
-        "revision" : "5a09d8ad1be010bcd58d8a39554480b19e0a45e1",
-        "version" : "0.37.0"
+        "revision" : "954f8ad0b5abb8ebcacb36238765559cde10caa2",
+        "version" : "0.38.0"
       }
     },
     {
@@ -177,8 +177,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tuist/Noora",
       "state" : {
-        "revision" : "8302bde2f44191ec352c2621f6471259dc4c7d8d",
-        "version" : "0.46.0"
+        "revision" : "37f3513276cece58fc80ac4fda939ed5dfda6e86",
+        "version" : "0.47.0"
       }
     },
     {
@@ -211,7 +211,7 @@
     {
       "identity" : "path",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/tuist/Path.git",
+      "location" : "https://github.com/tuist/Path",
       "state" : {
         "revision" : "7c74ac435e03a927c3a73134c48b61e60221abcb",
         "version" : "0.3.8"
@@ -229,7 +229,7 @@
     {
       "identity" : "queuer",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/FabrizioBrancati/Queuer.git",
+      "location" : "https://github.com/FabrizioBrancati/Queuer",
       "state" : {
         "revision" : "52515108d0ac4616d9e15ffcc7ad986e300d31ff",
         "version" : "2.1.1"
@@ -249,8 +249,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tuist/Rosalind",
       "state" : {
-        "revision" : "1cfc2e95768bc963e960b721726ed1ea8d5342d7",
-        "version" : "0.5.91"
+        "revision" : "aac202672676206f65ccf16f41d1ff0164ee47a4",
+        "version" : "0.5.102"
       }
     },
     {
@@ -283,7 +283,7 @@
     {
       "identity" : "stencil",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/stencilproject/Stencil.git",
+      "location" : "https://github.com/stencilproject/Stencil",
       "state" : {
         "revision" : "4f222ac85d673f35df29962fc4c36ccfdaf9da5b",
         "version" : "0.15.1"
@@ -292,7 +292,7 @@
     {
       "identity" : "stencilswiftkit",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/SwiftGen/StencilSwiftKit.git",
+      "location" : "https://github.com/SwiftGen/StencilSwiftKit",
       "state" : {
         "revision" : "20e2de5322c83df005939d9d9300fab130b49f97",
         "version" : "2.10.1"
@@ -357,8 +357,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/p-x9/swift-fileio.git",
       "state" : {
-        "revision" : "63daf8e8402789339ccc5a19d198ff0fcafd29d9",
-        "version" : "0.11.0"
+        "revision" : "76a4c719e796a1e5052e283788d8cd92408758fe",
+        "version" : "0.12.0"
       }
     },
     {
@@ -429,8 +429,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/modelcontextprotocol/swift-sdk.git",
       "state" : {
-        "revision" : "e76d61155bf00482ea8f2ff78fca08a4eece410e",
-        "version" : "0.10.0"
+        "revision" : "f1b50e6de22b5206068bb09851d585f560d893c4",
+        "version" : "0.10.1"
       }
     },
     {
@@ -537,8 +537,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tuist/XcodeGraph",
       "state" : {
-        "revision" : "fa55f181323abcdce5c5a7de04d270417109fafa",
-        "version" : "1.20.0"
+        "revision" : "d0f9ced36922ba84eede839d5e766cec85703588",
+        "version" : "1.21.0"
       }
     },
     {
