@@ -304,6 +304,10 @@ defmodule Tuist.Environment do
     end
   end
 
+  def minio_console_port do
+    9098
+  end
+
   def mautic_username(secrets \\ secrets()) do
     get([:mautic, :username], secrets)
   end
