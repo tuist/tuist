@@ -1,52 +1,58 @@
-<main class="marketing__changelog" aria-label={gettext("Changelog")} role="main">
-  <div class="marketing__changelog__header" role="banner">
-    <h1 class="marketing__changelog__header__title">{gettext("Changelog")}</h1>
-    <nav class="marketing__changelog__header__categories" aria-label={gettext("Categories")}>
-      <.link
-        patch={~p"/changelog"}
-        data-selected={if(@current_path == ~p"/changelog", do: "true", else: "false")}
-        class="marketing__changelog__header__categories__category"
-        aria-current={if(@current_path == ~p"/changelog", do: "page", else: "false")}
-      >
-        {gettext("All")}
-      </.link>
-      <%= for category <- @categories do %>
-        <% params = %{category: category} %>
+<TuistWeb.Marketing.Layouts.marketing {assigns}>
+  <main class="marketing__changelog" aria-label={gettext("Changelog")} role="main">
+    <div class="marketing__changelog__header" role="banner">
+      <h1 class="marketing__changelog__header__title">{gettext("Changelog")}</h1>
+      <nav class="marketing__changelog__header__categories" aria-label={gettext("Categories")}>
         <.link
-          patch={~p"/changelog?#{params}"}
-          data-selected={if(@current_path == ~p"/changelog?#{params}", do: "true", else: "false")}
+          patch={~p"/changelog"}
+          data-selected={if(@current_path == ~p"/changelog", do: "true", else: "false")}
           class="marketing__changelog__header__categories__category"
-          aria-current={if(@current_path == ~p"/changelog?#{params}", do: "page", else: "false")}
+          aria-current={if(@current_path == ~p"/changelog", do: "page", else: "false")}
         >
-          <span>{category}</span>
+          {gettext("All")}
         </.link>
-      <% end %>
-    </nav>
-  </div>
-  <div class="marketing__changelog__body">
-    <%= for entry <- @entries do %>
-      <div class="marketing__changelog__body__entry__timeline" role="presentation">
-        <TuistWeb.Marketing.MarketingIcons.shell_icon
-          class="marketing__changelog__body__entry__timeline__icon"
-          aria-hidden="true"
-        />
-        <div class="marketing__changelog__body__entry__timeline__line" aria-hidden="true"></div>
-      </div>
-      <article class="marketing__changelog__body__entry__metadata">
-        <h3 class="marketing__changelog__body__entry__metadata__title" id={entry.id}>
-          <a href={"\##{entry.id}"}>{entry.title}</a>
-        </h3>
-        <p class="marketing__changelog__body__entry__metadata__date">
-          {Timex.format!(entry.date, "{Mfull} {D}, {YYYY}")}
-        </p>
-        <div class="marketing__changelog__body__entry__metadata__category">
-          {entry.category}
+        <%= for category <- @categories do %>
+          <% params = %{category: category} %>
+          <.link
+            patch={~p"/changelog?#{params}"}
+            data-selected={
+              if(@current_path == ~p"/changelog?#{params}", do: "true", else: "false")
+            }
+            class="marketing__changelog__header__categories__category"
+            aria-current={
+              if(@current_path == ~p"/changelog?#{params}", do: "page", else: "false")
+            }
+          >
+            <span>{category}</span>
+          </.link>
+        <% end %>
+      </nav>
+    </div>
+    <div class="marketing__changelog__body">
+      <%= for entry <- @entries do %>
+        <div class="marketing__changelog__body__entry__timeline" role="presentation">
+          <TuistWeb.Marketing.MarketingIcons.shell_icon
+            class="marketing__changelog__body__entry__timeline__icon"
+            aria-hidden="true"
+          />
+          <div class="marketing__changelog__body__entry__timeline__line" aria-hidden="true"></div>
         </div>
-      </article>
-      <div class="marketing__changelog__body__entry__body marketing_content">
-        {raw(entry.body)}
-      </div>
-    <% end %>
-  </div>
-  <TuistWeb.Marketing.MarketingComponents.cta />
-</main>
+        <article class="marketing__changelog__body__entry__metadata">
+          <h3 class="marketing__changelog__body__entry__metadata__title" id={entry.id}>
+            <a href={"\##{entry.id}"}>{entry.title}</a>
+          </h3>
+          <p class="marketing__changelog__body__entry__metadata__date">
+            {Timex.format!(entry.date, "{Mfull} {D}, {YYYY}")}
+          </p>
+          <div class="marketing__changelog__body__entry__metadata__category">
+            {entry.category}
+          </div>
+        </article>
+        <div class="marketing__changelog__body__entry__body marketing_content">
+          {raw(entry.body)}
+        </div>
+      <% end %>
+    </div>
+    <TuistWeb.Marketing.MarketingComponents.cta />
+  </main>
+</TuistWeb.Marketing.Layouts.marketing>
