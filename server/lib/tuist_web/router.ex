@@ -75,7 +75,7 @@ defmodule TuistWeb.Router do
     plug :enable_robot_indexing
     plug :fetch_session
     plug :fetch_live_flash
-    plug :put_root_layout, html: {TuistWeb.Marketing.Layouts, :marketing}
+    plug :put_root_layout, html: {TuistWeb.Marketing.Layouts, :root}
     plug :protect_from_forgery
     plug :put_secure_browser_headers
     plug Ueberauth
@@ -163,6 +163,11 @@ defmodule TuistWeb.Router do
 
         live Path.join(locale_path_prefix, "/changelog"),
              TuistWeb.Marketing.MarketingChangelogLive,
+             metadata: %{type: :marketing},
+             private: private
+
+        live Path.join(locale_path_prefix, "/qa"),
+             TuistWeb.Marketing.MarketingQALive,
              metadata: %{type: :marketing},
              private: private
       end
