@@ -1,0 +1,8 @@
+#qa {
+  & > .header {
+    background-image: url('../../svg/qa/header.svg');
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
+  }
+}
