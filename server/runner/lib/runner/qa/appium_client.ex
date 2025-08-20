@@ -3,21 +3,22 @@ defmodule Runner.QA.AppiumClient do
   Manages Appium WebDriver sessions for iOS simulator automation.
   """
 
-  alias WebDriverClient
   alias WebDriverClient.Config
+
   require Logger
 
   @appium_server_url "http://localhost:4723"
   @session_timeout 30_000
 
   def start_session(simulator_uuid, app_bundle_id) do
-    config = Config.build(@appium_server_url, 
-      protocol: :w3c,
-      http_client_options: [
-        recv_timeout: @session_timeout,
-        timeout: @session_timeout
-      ]
-    )
+    config =
+      Config.build(@appium_server_url,
+        protocol: :w3c,
+        http_client_options: [
+          recv_timeout: @session_timeout,
+          timeout: @session_timeout
+        ]
+      )
 
     # W3C WebDriver session request format
     session_request = %{

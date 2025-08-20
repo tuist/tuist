@@ -155,7 +155,7 @@ defmodule Runner.QA.Agent do
           auth_token: auth_token,
           account_handle: account_handle,
           project_handle: project_handle,
-          app_bundle_id: bundle_identifier
+          bundle_identifier: bundle_identifier
         })
 
       case run_llm(

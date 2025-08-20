@@ -119,9 +119,10 @@ defmodule Tuist.QA do
     """
     set -e
 
-    brew install facebook/fb/idb-companion cameroncooke/axe/axe pipx --quiet || true
-    pipx install fb-idb
-    export PATH=$PATH:$HOME/.local/bin
+    brew install cameroncooke/axe/axe --quiet || true
+    npm i --location=global appium
+    appium driver install xcuitest
+    tmux new-session -d -s appium 'appium'
     runner qa --preview-url "#{app_build_url}" --bundle-identifier #{bundle_identifier} --server-url #{server_url} --run-id #{run_id} --auth-token #{auth_token} --account-handle #{account_handle} --project-handle #{project_handle} --prompt "#{prompt}" --anthropic-api-key #{Environment.anthropic_api_key()}
     """
   end
@@ -341,7 +342,9 @@ defmodule Tuist.QA do
 
     screenshot =
       if qa_run_id do
-        Repo.one(from(s in Screenshot, where: s.id == ^screenshot_id and s.qa_run_id == ^qa_run_id))
+        Repo.one(
+          from(s in Screenshot, where: s.id == ^screenshot_id and s.qa_run_id == ^qa_run_id)
+        )
       else
         Repo.get(Screenshot, screenshot_id)
       end

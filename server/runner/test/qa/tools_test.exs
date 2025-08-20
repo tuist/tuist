@@ -3,6 +3,7 @@ defmodule Runner.QA.ToolsTest do
   use Mimic
 
   alias LangChain.Message.ContentPart
+  alias Runner.QA.AppiumClient
   alias Runner.QA.Client
   alias Runner.QA.Tools
 
@@ -15,7 +16,8 @@ defmodule Runner.QA.ToolsTest do
         run_id: "test-run-id",
         auth_token: "test-token",
         account_handle: "test-account",
-        project_handle: "test-project"
+        project_handle: "test-project",
+        bundle_identifier: "com.test.app"
       })
 
     %{tools: tools}
@@ -47,7 +49,8 @@ defmodule Runner.QA.ToolsTest do
           run_id: "test-run-id",
           auth_token: "test-token",
           account_handle: "test-account",
-          project_handle: "test-project"
+          project_handle: "test-project",
+          bundle_identifier: "com.test.app"
         })
 
       tool_names = Enum.map(tools, & &1.name)
@@ -62,20 +65,25 @@ defmodule Runner.QA.ToolsTest do
   end
 
   describe "describe_ui tool" do
-    test "successfully runs axe describe-ui command", %{tools: tools} do
+    test "successfully gets page source from Appium", %{tools: tools} do
       # Given
       simulator_uuid = "test-uuid"
-
-      ui_output = """
-      {
-        "elements": [
-          {"type": "Button", "frame": {"x": 100, "y": 200, "width": 80, "height": 40}}
-        ]
-      }
+      session = %{id: "test-session"}
+      
+      xml_output = """
+      <XCUIElementTypeApplication name="TestApp" label="TestApp" visible="true" enabled="true" x="0" y="0" width="393" height="852">
+        <XCUIElementTypeButton name="Login" label="Login" visible="true" enabled="true" x="100" y="200" width="80" height="40"/>
+      </XCUIElementTypeApplication>
       """
-
-      expect(System, :cmd, fn "/opt/homebrew/bin/axe", ["describe-ui", "--udid", ^simulator_uuid] ->
-        {ui_output, 0}
+      
+      # Mock Appium session creation (first call for new session)
+      expect(AppiumClient, :start_session, fn ^simulator_uuid, "com.test.app" ->
+        {:ok, session}
+      end)
+      
+      # Mock getting page source
+      expect(AppiumClient, :get_page_source, fn ^session ->
+        {:ok, xml_output}
       end)
 
       describe_ui_tool = Enum.find(tools, &(&1.name == "describe_ui"))
@@ -84,110 +92,57 @@ defmodule Runner.QA.ToolsTest do
       result = describe_ui_tool.function.(%{"simulator_uuid" => simulator_uuid}, nil)
 
       # Then
-      assert {:ok, _simplified_ui} = result
+      assert {:ok, [content_part]} = result
+      assert %ContentPart{type: :text, content: content} = content_part
+      assert String.starts_with?(content, "Current UI state:")
+      
+      # Verify the parsed content includes the button
+      assert content =~ "XCUIElementTypeButton"
+      assert content =~ "Login"
     end
 
-    test "returns error when axe command fails", %{tools: tools} do
+    test "handles second call with same simulator", %{tools: tools} do
       # Given
       simulator_uuid = "test-uuid"
-
-      expect(System, :cmd, fn "/opt/homebrew/bin/axe", ["describe-ui", "--udid", ^simulator_uuid] ->
-        {"Command failed", 1}
-      end)
-
-      describe_ui_tool = Enum.find(tools, &(&1.name == "describe_ui"))
-
-      # When
-      result = describe_ui_tool.function.(%{"simulator_uuid" => simulator_uuid}, nil)
-
-      # Then
-      assert {:error, "axe command failed (status 1): Command failed"} = result
-    end
-
-    test "describes UI and simplifies AXe output", %{tools: tools} do
-      # Given
-      simulator_uuid = "test-uuid"
-
-      ui_output = """
-      [
-        {
-          "AXFrame" : "{{0, 0}, {393, 852}}",
-          "AXUniqueId" : null,
-          "frame" : {
-            "y" : 0,
-            "x" : 0,
-            "width" : 393,
-            "height" : 852
-          },
-          "role_description" : "application",
-          "AXLabel" : "Tuist",
-          "content_required" : false,
-          "type" : "Application",
-          "title" : null,
-          "help" : null,
-          "custom_actions" : [],
-          "AXValue" : null,
-          "enabled" : true,
-          "role" : "AXApplication",
-          "children" : [
-            {
-              "AXFrame" : "{{15.999999999999986, 101.33333333333333}, {143.33333333333331, 40.666666666666671}}",
-              "AXUniqueId" : null,
-              "frame" : {
-                "y" : 101.33333333333333,
-                "x" : 15.999999999999986,
-                "width" : 143.33333333333331,
-                "height" : 40.666666666666671
-              },
-              "role_description" : "heading",
-              "AXLabel" : "Previews",
-              "content_required" : false,
-              "type" : "Heading",
-              "title" : null,
-              "help" : null,
-              "custom_actions" : [],
-              "AXValue" : null,
-              "enabled" : true,
-              "role" : "AXHeading",
-              "children" : [],
-              "subrole" : null,
-              "pid" : 44977
-            },
-            {
-              "AXFrame" : "{{305.66665649414062, 229.33332824707031}, {55.333343505859375, 28.333328247070312}}",
-              "AXUniqueId" : null,
-              "frame" : {
-                "y" : 229.33332824707031,
-                "x" : 305.66665649414062,
-                "width" : 55.333343505859375,
-                "height" : 28.333328247070312
-              },
-              "role_description" : "button",
-              "AXLabel" : "Run",
-              "content_required" : false,
-              "type" : "Button",
-              "title" : null,
-              "help" : null,
-              "custom_actions" : [],
-              "AXValue" : null,
-              "enabled" : false,
-              "role" : "AXButton",
-              "children" : [],
-              "subrole" : null,
-              "pid" : 44977
-            }
-          ],
-          "subrole" : null,
-          "pid" : 44977
-        }
-      ]
+      session = %{id: "existing-session"}
+      
+      xml_output = """
+      <XCUIElementTypeApplication name="TestApp">
+        <XCUIElementTypeButton name="Submit" x="50" y="100" width="100" height="50"/>
+      </XCUIElementTypeApplication>
       """
-
-      expect(System, :cmd, 1, fn "/opt/homebrew/bin/axe", ["describe-ui", "--udid", ^simulator_uuid] ->
-        {ui_output, 0}
+      
+      # First call creates session
+      expect(AppiumClient, :start_session, fn ^simulator_uuid, "com.test.app" ->
+        {:ok, session}
+      end)
+      
+      # Mock getting page source - called multiple times due to session validation
+      expect(AppiumClient, :get_page_source, 3, fn ^session ->
+        {:ok, xml_output}
       end)
 
-      reject(System, :cmd, 2)
+      describe_ui_tool = Enum.find(tools, &(&1.name == "describe_ui"))
+
+      # When - call twice
+      result1 = describe_ui_tool.function.(%{"simulator_uuid" => simulator_uuid}, nil)
+      result2 = describe_ui_tool.function.(%{"simulator_uuid" => simulator_uuid}, nil)
+
+      # Then
+      assert {:ok, [content_part1]} = result1
+      assert {:ok, [_content_part2]} = result2
+      assert %ContentPart{type: :text, content: content} = content_part1
+      assert content =~ "Submit"
+    end
+
+    test "handles session creation failure gracefully", %{tools: tools} do
+      # Given
+      simulator_uuid = "test-uuid"
+      
+      # Mock session creation failure
+      expect(AppiumClient, :start_session, fn ^simulator_uuid, "com.test.app" ->
+        {:error, "Failed to create session"}
+      end)
 
       describe_ui_tool = Enum.find(tools, &(&1.name == "describe_ui"))
 
@@ -195,93 +150,116 @@ defmodule Runner.QA.ToolsTest do
       result = describe_ui_tool.function.(%{"simulator_uuid" => simulator_uuid}, nil)
 
       # Then
-      assert {:ok, [simplified_ui_content]} = result
-      assert %ContentPart{type: :text, content: simplified_ui} = simplified_ui_content
-
-      assert JSON.decode!(simplified_ui) == [
-               %{
-                 "type" => "Application",
-                 "label" => "Tuist",
-                 "frame" => %{"x" => 0, "y" => 0, "width" => 393, "height" => 852},
-                 "children" => [
-                   %{
-                     "type" => "Heading",
-                     "label" => "Previews",
-                     "frame" => %{
-                       "x" => 16.0,
-                       "y" => 101.33,
-                       "width" => 143.33,
-                       "height" => 40.67
-                     }
-                   },
-                   %{
-                     "type" => "Button",
-                     "label" => "Run",
-                     "enabled" => false,
-                     "frame" => %{
-                       "x" => 305.67,
-                       "y" => 229.33,
-                       "width" => 55.33,
-                       "height" => 28.33
-                     }
-                   }
-                 ]
-               }
-             ]
+      assert {:error, "Failed to create Appium session: Failed to create session"} = result
     end
 
-    test "detects webview scenario and uses idb fallback", %{tools: tools} do
+    test "returns error when Appium connection fails", %{tools: tools} do
       # Given
       simulator_uuid = "test-uuid"
-
-      webview_ui_output =
-        ~s([{"role": "AXApplication", "type": "Application", "frame": {"x": 0, "y": 0, "width": 393, "height": 852}, "children": []}])
-
-      # Mock axe describe-ui returning webview scenario (empty application with frame info)
-      expect(System, :cmd, fn "/opt/homebrew/bin/axe", ["describe-ui", "--udid", ^simulator_uuid] ->
-        {webview_ui_output, 0}
-      end)
-
-      stub(System, :cmd, fn "idb", ["ui", "describe-point", "--udid", ^simulator_uuid, "--json", x, y] ->
-        case {x, y} do
-          {"0", "0"} ->
-            {
-              """
-              {
-                "AXUniqueId": "button-1",
-                "AXLabel": "Login Button",
-                "frame": {"x": 0, "y": 0, "width": 100, "height": 50}
-              }
-              """,
-              0
-            }
-
-          {"50", "0"} ->
-            {
-              """
-              {
-                "AXUniqueId": "input-1",
-                "AXLabel": "Username Field",
-                "frame": {"x": 50, "y": 0, "width": 150, "height": 30}
-              }
-              """,
-              0
-            }
-
-          _ ->
-            {"", 0}
-        end
+      
+      # Mock Appium session creation failure
+      expect(AppiumClient, :start_session, fn ^simulator_uuid, "com.test.app" ->
+        {:error, "Appium connection failed: unable to complete HTTP request: :timeout"}
       end)
 
       describe_ui_tool = Enum.find(tools, &(&1.name == "describe_ui"))
 
       # When
-      {:ok, webview_content} =
-        describe_ui_tool.function.(%{"simulator_uuid" => simulator_uuid}, nil)
+      result = describe_ui_tool.function.(%{"simulator_uuid" => simulator_uuid}, nil)
 
       # Then
-      assert webview_content ==
-               ~s(Current UI state: [{"frame":{"height":50,"width":100,"x":0,"y":0},"label":"Login Button"},{"frame":{"height":30,"width":150,"x":50,"y":0},"label":"Username Field"}])
+      assert {:error, "Failed to create Appium session: Appium connection failed: unable to complete HTTP request: :timeout"} = result
+    end
+
+    test "returns error when page source retrieval fails", %{tools: tools} do
+      # Given
+      simulator_uuid = "test-uuid"
+      session = %{id: "test-session"}
+      
+      # Mock successful session creation
+      expect(AppiumClient, :start_session, fn ^simulator_uuid, "com.test.app" ->
+        {:ok, session}
+      end)
+      
+      # Mock page source retrieval failure
+      expect(AppiumClient, :get_page_source, fn ^session ->
+        {:error, "Failed to get page source"}
+      end)
+
+      describe_ui_tool = Enum.find(tools, &(&1.name == "describe_ui"))
+
+      # When
+      result = describe_ui_tool.function.(%{"simulator_uuid" => simulator_uuid}, nil)
+
+      # Then
+      assert {:error, "Failed to get page source"} = result
+    end
+
+    test "parses complex XML hierarchy correctly", %{tools: tools} do
+      # Given
+      simulator_uuid = "test-uuid"
+      session = %{id: "test-session"}
+      
+      xml_output = """
+      <XCUIElementTypeApplication name="TestApp" visible="true" enabled="true" x="0" y="0" width="393" height="852">
+        <XCUIElementTypeWindow x="0" y="0" width="393" height="852">
+          <XCUIElementTypeOther x="0" y="59" width="393" height="793">
+            <XCUIElementTypeNavigationBar name="Settings" x="0" y="59" width="393" height="44">
+              <XCUIElementTypeButton name="Back" label="Back" x="8" y="59" width="40" height="44"/>
+              <XCUIElementTypeStaticText name="Settings" label="Settings" x="176" y="70" width="40" height="22"/>
+            </XCUIElementTypeNavigationBar>
+            <XCUIElementTypeTable x="0" y="103" width="393" height="749">
+              <XCUIElementTypeCell name="Profile" label="Profile" x="0" y="103" width="393" height="44" enabled="true">
+                <XCUIElementTypeStaticText name="Profile" label="Profile" x="16" y="103" width="50" height="44"/>
+              </XCUIElementTypeCell>
+              <XCUIElementTypeCell name="Notifications" label="Notifications" x="0" y="147" width="393" height="44" enabled="false">
+                <XCUIElementTypeStaticText name="Notifications" label="Notifications" x="16" y="147" width="100" height="44"/>
+              </XCUIElementTypeCell>
+            </XCUIElementTypeTable>
+          </XCUIElementTypeOther>
+        </XCUIElementTypeWindow>
+      </XCUIElementTypeApplication>
+      """
+      
+      expect(AppiumClient, :start_session, fn ^simulator_uuid, "com.test.app" ->
+        {:ok, session}
+      end)
+      
+      expect(AppiumClient, :get_page_source, fn ^session ->
+        {:ok, xml_output}
+      end)
+
+      describe_ui_tool = Enum.find(tools, &(&1.name == "describe_ui"))
+
+      # When
+      result = describe_ui_tool.function.(%{"simulator_uuid" => simulator_uuid}, nil)
+
+      # Then
+      assert {:ok, [content_part]} = result
+      assert %ContentPart{type: :text, content: content} = content_part
+      
+      # Verify the parsed content includes various element types
+      parsed = JSON.decode!(String.replace(content, "Current UI state: ", ""))
+      assert is_list(parsed)
+      
+      # Should include all element types from XML
+      element_types = Enum.map(parsed, & &1["type"]) |> Enum.uniq()
+      assert "XCUIElementTypeApplication" in element_types
+      assert "XCUIElementTypeButton" in element_types
+      assert "XCUIElementTypeStaticText" in element_types
+      assert "XCUIElementTypeCell" in element_types
+      
+      # Check that coordinates are parsed correctly
+      profile_cell = Enum.find(parsed, & &1["label"] == "Profile" && &1["type"] == "XCUIElementTypeCell")
+      assert profile_cell["frame"]["x"] == 0
+      assert profile_cell["frame"]["y"] == 103
+      assert profile_cell["frame"]["width"] == 393
+      assert profile_cell["frame"]["height"] == 44
+      assert profile_cell["enabled"] == true
+      
+      # Check disabled element
+      notifications_cell = Enum.find(parsed, & &1["label"] == "Notifications" && &1["type"] == "XCUIElementTypeCell")
+      assert notifications_cell["enabled"] == false
     end
   end
 
@@ -312,9 +290,11 @@ defmodule Runner.QA.ToolsTest do
       expect(Client, :screenshot_upload, fn _ -> {:ok, %{"url" => upload_url}} end)
       expect(Req, :put, fn ^upload_url, _ -> {:ok, %{status: 200}} end)
 
-      expect(System, :cmd, fn "/opt/homebrew/bin/axe", ["describe-ui", "--udid", ^simulator_uuid] ->
-        {"[]", 0}
+      # Mock get_ui_description with Appium
+      expect(AppiumClient, :start_session, fn ^simulator_uuid, "com.test.app" ->
+        {:ok, %{id: "session"}}
       end)
+      expect(AppiumClient, :get_page_source, fn _ -> {:ok, "<XCUIElementTypeApplication/>"} end)
 
       tap_tool = Enum.find(tools, &(&1.name == "tap"))
 
@@ -425,9 +405,11 @@ defmodule Runner.QA.ToolsTest do
       expect(Client, :screenshot_upload, fn _ -> {:ok, %{"url" => upload_url}} end)
       expect(Req, :put, fn ^upload_url, _ -> {:ok, %{status: 200}} end)
 
-      expect(System, :cmd, fn "/opt/homebrew/bin/axe", ["describe-ui", "--udid", ^simulator_uuid] ->
-        {"[]", 0}
+      # Mock get_ui_description with Appium
+      expect(AppiumClient, :start_session, fn ^simulator_uuid, "com.test.app" ->
+        {:ok, %{id: "session"}}
       end)
+      expect(AppiumClient, :get_page_source, fn _ -> {:ok, "<XCUIElementTypeApplication/>"} end)
 
       type_text_tool = Enum.find(tools, &(&1.name == "type_text"))
 
@@ -488,9 +470,11 @@ defmodule Runner.QA.ToolsTest do
       expect(Client, :screenshot_upload, fn _ -> {:ok, %{"url" => upload_url}} end)
       expect(Req, :put, fn ^upload_url, _ -> {:ok, %{status: 200}} end)
 
-      expect(System, :cmd, fn "/opt/homebrew/bin/axe", ["describe-ui", "--udid", ^simulator_uuid] ->
-        {"[]", 0}
+      # Mock get_ui_description with Appium
+      expect(AppiumClient, :start_session, fn ^simulator_uuid, "com.test.app" ->
+        {:ok, %{id: "session"}}
       end)
+      expect(AppiumClient, :get_page_source, fn _ -> {:ok, "<XCUIElementTypeApplication/>"} end)
 
       swipe_tool = Enum.find(tools, &(&1.name == "swipe"))
 
@@ -553,9 +537,11 @@ defmodule Runner.QA.ToolsTest do
       expect(Client, :screenshot_upload, fn _ -> {:ok, %{"url" => upload_url}} end)
       expect(Req, :put, fn ^upload_url, _ -> {:ok, %{status: 200}} end)
 
-      expect(System, :cmd, fn "/opt/homebrew/bin/axe", ["describe-ui", "--udid", ^simulator_uuid] ->
-        {"[]", 0}
+      # Mock get_ui_description with Appium
+      expect(AppiumClient, :start_session, fn ^simulator_uuid, "com.test.app" ->
+        {:ok, %{id: "session"}}
       end)
+      expect(AppiumClient, :get_page_source, fn _ -> {:ok, "<XCUIElementTypeApplication/>"} end)
 
       swipe_tool = Enum.find(tools, &(&1.name == "swipe"))
 
@@ -606,9 +592,11 @@ defmodule Runner.QA.ToolsTest do
       expect(Client, :screenshot_upload, fn _ -> {:ok, %{"url" => upload_url}} end)
       expect(Req, :put, fn ^upload_url, _ -> {:ok, %{status: 200}} end)
 
-      expect(System, :cmd, fn "/opt/homebrew/bin/axe", ["describe-ui", "--udid", ^simulator_uuid] ->
-        {"[]", 0}
+      # Mock get_ui_description with Appium
+      expect(AppiumClient, :start_session, fn ^simulator_uuid, "com.test.app" ->
+        {:ok, %{id: "session"}}
       end)
+      expect(AppiumClient, :get_page_source, fn _ -> {:ok, "<XCUIElementTypeApplication/>"} end)
 
       gesture_tool = Enum.find(tools, &(&1.name == "gesture"))
 
@@ -663,9 +651,11 @@ defmodule Runner.QA.ToolsTest do
       expect(Client, :screenshot_upload, fn _ -> {:ok, %{"url" => upload_url}} end)
       expect(Req, :put, fn ^upload_url, _ -> {:ok, %{status: 200}} end)
 
-      expect(System, :cmd, fn "/opt/homebrew/bin/axe", ["describe-ui", "--udid", ^simulator_uuid] ->
-        {"[]", 0}
+      # Mock get_ui_description with Appium
+      expect(AppiumClient, :start_session, fn ^simulator_uuid, "com.test.app" ->
+        {:ok, %{id: "session"}}
       end)
+      expect(AppiumClient, :get_page_source, fn _ -> {:ok, "<XCUIElementTypeApplication/>"} end)
 
       gesture_tool = Enum.find(tools, &(&1.name == "gesture"))
 
@@ -714,9 +704,11 @@ defmodule Runner.QA.ToolsTest do
       expect(Client, :screenshot_upload, fn _ -> {:ok, %{"url" => upload_url}} end)
       expect(Req, :put, fn ^upload_url, _ -> {:ok, %{status: 200}} end)
 
-      expect(System, :cmd, fn "/opt/homebrew/bin/axe", ["describe-ui", "--udid", ^simulator_uuid] ->
-        {"[]", 0}
+      # Mock get_ui_description with Appium
+      expect(AppiumClient, :start_session, fn ^simulator_uuid, "com.test.app" ->
+        {:ok, %{id: "session"}}
       end)
+      expect(AppiumClient, :get_page_source, fn _ -> {:ok, "<XCUIElementTypeApplication/>"} end)
 
       button_tool = Enum.find(tools, &(&1.name == "button"))
 

@@ -28,7 +28,8 @@ defmodule Runner.MixProject do
       {:langchain, git: "https://github.com/brainlid/langchain", branch: "main"},
       {:briefly, "~> 0.5.0"},
       {:slipstream, "~> 1.2.0"},
-      {:web_driver_client, "~> 0.2.0"}
+      {:web_driver_client, "~> 0.2.0"},
+      {:sax_map, "~> 1.2"}
     ]
   end
 

@@ -5,8 +5,8 @@ defmodule Runner.QA.Tools do
   alias LangChain.Function
   alias LangChain.FunctionParam
   alias LangChain.Message.ContentPart
-  alias Runner.QA.Client
   alias Runner.QA.AppiumClient
+  alias Runner.QA.Client
 
   require Logger
 
@@ -31,7 +31,7 @@ defmodule Runner.QA.Tools do
     ]
   end
 
-  defp describe_ui_tool(%{app_bundle_id: app_bundle_id}) do
+  defp describe_ui_tool(%{bundle_identifier: bundle_identifier}) do
     Function.new!(%{
       name: "describe_ui",
       description:
@@ -45,7 +45,7 @@ defmodule Runner.QA.Tools do
         })
       ],
       function: fn %{"simulator_uuid" => simulator_uuid} = _params, _context ->
-        case get_appium_session(simulator_uuid, app_bundle_id) do
+        case get_appium_session(simulator_uuid, bundle_identifier) do
           {:ok, session} ->
             case AppiumClient.get_page_source(session) do
               {:ok, xml_content} ->
@@ -58,7 +58,7 @@ defmodule Runner.QA.Tools do
 
           {:error, reason} when is_binary(reason) ->
             {:error, "Failed to create Appium session: #{reason}"}
-            
+
           {:error, reason} ->
             {:error, "Failed to create Appium session: #{inspect(reason)}"}
         end
@@ -72,7 +72,7 @@ defmodule Runner.QA.Tools do
          auth_token: auth_token,
          account_handle: account_handle,
          project_handle: project_handle,
-         app_bundle_id: app_bundle_id
+         bundle_identifier: bundle_identifier
        }) do
     Function.new!(%{
       name: "tap",
@@ -121,7 +121,7 @@ defmodule Runner.QA.Tools do
           auth_token: auth_token,
           account_handle: account_handle,
           project_handle: project_handle,
-          app_bundle_id: app_bundle_id
+          bundle_identifier: bundle_identifier
         })
       end
     })
@@ -133,7 +133,7 @@ defmodule Runner.QA.Tools do
          auth_token: auth_token,
          account_handle: account_handle,
          project_handle: project_handle,
-         app_bundle_id: app_bundle_id
+         bundle_identifier: bundle_identifier
        }) do
     Function.new!(%{
       name: "long_press",
@@ -197,7 +197,7 @@ defmodule Runner.QA.Tools do
           auth_token: auth_token,
           account_handle: account_handle,
           project_handle: project_handle,
-          app_bundle_id: app_bundle_id
+          bundle_identifier: bundle_identifier
         })
       end
     })
@@ -209,7 +209,7 @@ defmodule Runner.QA.Tools do
          auth_token: auth_token,
          account_handle: account_handle,
          project_handle: project_handle,
-         app_bundle_id: app_bundle_id
+         bundle_identifier: bundle_identifier
        }) do
     Function.new!(%{
       name: "swipe",
@@ -293,7 +293,7 @@ defmodule Runner.QA.Tools do
           auth_token: auth_token,
           account_handle: account_handle,
           project_handle: project_handle,
-          app_bundle_id: app_bundle_id
+          bundle_identifier: bundle_identifier
         })
       end
     })
@@ -305,7 +305,7 @@ defmodule Runner.QA.Tools do
          auth_token: auth_token,
          account_handle: account_handle,
          project_handle: project_handle,
-         app_bundle_id: app_bundle_id
+         bundle_identifier: bundle_identifier
        }) do
     Function.new!(%{
       name: "type_text",
@@ -343,7 +343,7 @@ defmodule Runner.QA.Tools do
           auth_token: auth_token,
           account_handle: account_handle,
           project_handle: project_handle,
-          app_bundle_id: app_bundle_id
+          bundle_identifier: bundle_identifier
         })
       end
     })
@@ -355,7 +355,7 @@ defmodule Runner.QA.Tools do
          auth_token: auth_token,
          account_handle: account_handle,
          project_handle: project_handle,
-         app_bundle_id: app_bundle_id
+         bundle_identifier: bundle_identifier
        }) do
     Function.new!(%{
       name: "key_press",
@@ -413,7 +413,7 @@ defmodule Runner.QA.Tools do
           auth_token: auth_token,
           account_handle: account_handle,
           project_handle: project_handle,
-          app_bundle_id: app_bundle_id
+          bundle_identifier: bundle_identifier
         })
       end
     })
@@ -425,7 +425,7 @@ defmodule Runner.QA.Tools do
          auth_token: auth_token,
          account_handle: account_handle,
          project_handle: project_handle,
-         app_bundle_id: app_bundle_id
+         bundle_identifier: bundle_identifier
        }) do
     Function.new!(%{
       name: "button",
@@ -467,7 +467,7 @@ defmodule Runner.QA.Tools do
           auth_token: auth_token,
           account_handle: account_handle,
           project_handle: project_handle,
-          app_bundle_id: app_bundle_id
+          bundle_identifier: bundle_identifier
         })
       end
     })
@@ -479,7 +479,7 @@ defmodule Runner.QA.Tools do
          auth_token: auth_token,
          account_handle: account_handle,
          project_handle: project_handle,
-         app_bundle_id: app_bundle_id
+         bundle_identifier: bundle_identifier
        }) do
     Function.new!(%{
       name: "touch",
@@ -542,7 +542,7 @@ defmodule Runner.QA.Tools do
           auth_token: auth_token,
           account_handle: account_handle,
           project_handle: project_handle,
-          app_bundle_id: app_bundle_id
+          bundle_identifier: bundle_identifier
         })
       end
     })
@@ -554,7 +554,7 @@ defmodule Runner.QA.Tools do
          auth_token: auth_token,
          account_handle: account_handle,
          project_handle: project_handle,
-         app_bundle_id: app_bundle_id
+         bundle_identifier: bundle_identifier
        }) do
     Function.new!(%{
       name: "gesture",
@@ -648,7 +648,9 @@ defmodule Runner.QA.Tools do
               else: &1
             )
           )
-          |> then(&if(delta = Map.get(params, "delta"), do: &1 ++ ["--delta", "#{delta}"], else: &1))
+          |> then(
+            &if(delta = Map.get(params, "delta"), do: &1 ++ ["--delta", "#{delta}"], else: &1)
+          )
           |> then(
             &if(screen_height = Map.get(params, "screen_height"),
               do: &1 ++ ["--screen-height", "#{screen_height}"],
@@ -672,7 +674,7 @@ defmodule Runner.QA.Tools do
           auth_token: auth_token,
           account_handle: account_handle,
           project_handle: project_handle,
-          app_bundle_id: app_bundle_id
+          bundle_identifier: bundle_identifier
         })
       end
     })
@@ -738,7 +740,8 @@ defmodule Runner.QA.Tools do
         FunctionParam.new!(%{
           name: "details",
           type: :string,
-          description: "Detailed test plan including specific areas and interactions to be tested",
+          description:
+            "Detailed test plan including specific areas and interactions to be tested",
           required: true
         })
       ],
@@ -772,7 +775,9 @@ defmodule Runner.QA.Tools do
           {:ok,
            [
              screenshot_content,
-             ContentPart.text!("The QA plan has been documented and the initial app state screenshot has been captured.")
+             ContentPart.text!(
+               "The QA plan has been documented and the initial app state screenshot has been captured."
+             )
            ]}
         else
           {:error, reason} -> {:error, "Failed to report QA plan: #{reason}"}
@@ -807,7 +812,8 @@ defmodule Runner.QA.Tools do
         FunctionParam.new!(%{
           name: "result",
           type: :string,
-          description: "Detailed description of what happened - did the action achieve its expected outcome?",
+          description:
+            "Detailed description of what happened - did the action achieve its expected outcome?",
           required: true
         }),
         FunctionParam.new!(%{
@@ -819,7 +825,8 @@ defmodule Runner.QA.Tools do
           required: true
         })
       ],
-      function: fn %{"step_id" => step_id, "result" => result, "issues" => issues} = _params, _context ->
+      function: fn %{"step_id" => step_id, "result" => result, "issues" => issues} = _params,
+                   _context ->
         case Client.update_step(%{
                step_id: step_id,
                result: result,
@@ -906,109 +913,6 @@ defmodule Runner.QA.Tools do
     })
   end
 
-  defp should_scan_webview(ui_content) do
-    case JSON.decode(ui_content) do
-      {:ok, ui_data} when is_list(ui_data) ->
-        case ui_data do
-          [%{"role" => "AXApplication", "children" => []}] -> true
-          _ -> false
-        end
-
-      _ ->
-        false
-    end
-  end
-
-  defp describe_webview_ui(ui_content, simulator_uuid) do
-    grid_size = 50
-
-    case screen_dimensions(ui_content) do
-      {:ok, {width, height}} ->
-        scan_points_with_idb(simulator_uuid, width, height, grid_size)
-
-      {:error, reason} ->
-        {:error, "Failed to get screen dimensions: #{reason}"}
-    end
-  end
-
-  defp screen_dimensions(ui_content) do
-    case JSON.decode(ui_content) do
-      {:ok, ui_data} ->
-        find_window_frame(ui_data)
-
-      {:error, reason} ->
-        {:error, reason}
-    end
-  end
-
-  defp find_window_frame(elements) do
-    Enum.find_value(elements, {:error, :window_frame_not_found}, fn element ->
-      case element do
-        %{"type" => type, "frame" => frame} when type in ["Window", "Application"] ->
-          {:ok, {frame["width"], frame["height"]}}
-
-        _ ->
-          nil
-      end
-    end)
-  end
-
-  defp scan_points_with_idb(simulator_uuid, width, height, grid_size) do
-    points =
-      for x <- 0..trunc(width)//grid_size,
-          y <- 0..trunc(height)//grid_size do
-        {x, y}
-      end
-
-    ui_description =
-      points
-      |> Enum.map(fn {x, y} ->
-        Task.async(fn ->
-          case run_idb_describe_point(simulator_uuid, x, y) do
-            {:ok, point_info} ->
-              case JSON.decode(point_info) do
-                {:ok, element} -> {:ok, element}
-                {:error, _} -> :error
-              end
-
-            {:error, _} ->
-              :error
-          end
-        end)
-      end)
-      |> Task.await_many(20_000)
-      |> Enum.filter(fn
-        {:ok, _element} -> true
-        :error -> false
-      end)
-      |> Enum.map(fn {:ok, element} -> element end)
-      |> Enum.uniq_by(fn element ->
-        element["AXUniqueId"] || {element["frame"], element["AXLabel"]}
-      end)
-      |> JSON.encode!()
-      |> simplify_ui_description()
-
-    {:ok, "Current UI state: #{ui_description}"}
-  end
-
-  defp run_idb_describe_point(simulator_uuid, x, y) do
-    case System.cmd("idb", [
-           "ui",
-           "describe-point",
-           "--udid",
-           simulator_uuid,
-           "--json",
-           "#{x}",
-           "#{y}"
-         ]) do
-      {output, 0} ->
-        {:ok, String.trim(output)}
-
-      {error, status} ->
-        {:error, "idb describe-point failed (status #{status}): #{error}"}
-    end
-  end
-
   defp run_axe_command(simulator_uuid, args) do
     full_params = args ++ ["--udid", simulator_uuid]
 
@@ -1021,65 +925,6 @@ defmodule Runner.QA.Tools do
     end
   end
 
-  defp simplify_ui_description(describe_ui_output) when is_binary(describe_ui_output) do
-    case JSON.decode(describe_ui_output) do
-      {:ok, ui_data} ->
-        simplified = simplify_ui_tree(ui_data)
-
-        JSON.encode!(simplified)
-
-      {:error, _} ->
-        describe_ui_output
-    end
-  end
-
-  defp simplify_ui_tree(elements) when is_list(elements) do
-    Enum.map(elements, &simplify_ui_element/1)
-  end
-
-  defp simplify_ui_tree(element) when is_map(element) do
-    simplify_ui_element(element)
-  end
-
-  defp simplify_ui_element(element) when is_map(element) do
-    %{}
-    |> then(&if type = element["type"], do: Map.put(&1, "type", type), else: &1)
-    |> then(
-      &if label = element["AXLabel"],
-        do: Map.put(&1, "label", label),
-        else: &1
-    )
-    |> then(fn simplified ->
-      # Add role if it's different from type
-      role = element["role"]
-
-      if role && role != "AX#{element["type"]}",
-        do: Map.put(simplified, "role", role),
-        else: simplified
-    end)
-    |> then(
-      &if frame = element["frame"] do
-        Map.put(&1, "frame", %{
-          "x" => round_if_needed(frame["x"]),
-          "y" => round_if_needed(frame["y"]),
-          "width" => round_if_needed(frame["width"]),
-          "height" => round_if_needed(frame["height"])
-        })
-      else
-        &1
-      end
-    )
-    |> then(&if element["enabled"] == false, do: Map.put(&1, "enabled", false), else: &1)
-    |> then(fn simplified ->
-      children = element["children"]
-
-      if children && children != [] do
-        Map.put(simplified, "children", simplify_ui_tree(children))
-      else
-        simplified
-      end
-    end)
-  end
 
   defp round_if_needed(value) when is_float(value) do
     # Round to 2 decimal places to avoid floating point precision issues
@@ -1088,8 +933,8 @@ defmodule Runner.QA.Tools do
 
   defp round_if_needed(value), do: value
 
-  defp get_ui_description(simulator_uuid, app_bundle_id) do
-    case get_appium_session(simulator_uuid, app_bundle_id) do
+  defp get_ui_description(simulator_uuid, bundle_identifier) do
+    case get_appium_session(simulator_uuid, bundle_identifier) do
       {:ok, session} ->
         case AppiumClient.get_page_source(session) do
           {:ok, xml_content} ->
@@ -1102,7 +947,7 @@ defmodule Runner.QA.Tools do
 
       {:error, reason} when is_binary(reason) ->
         {:error, "Failed to create Appium session: #{reason}"}
-        
+
       {:error, reason} ->
         {:error, "Failed to create Appium session: #{inspect(reason)}"}
     end
@@ -1116,7 +961,7 @@ defmodule Runner.QA.Tools do
          auth_token: auth_token,
          account_handle: account_handle,
          project_handle: project_handle,
-         app_bundle_id: app_bundle_id
+         bundle_identifier: bundle_identifier
        }) do
     with {:ok, _} <- action_result,
          {:ok, step_id} <-
@@ -1139,7 +984,7 @@ defmodule Runner.QA.Tools do
              project_handle: project_handle,
              step_id: step_id
            }),
-         {:ok, ui_description} <- get_ui_description(simulator_uuid, app_bundle_id) do
+         {:ok, ui_description} <- get_ui_description(simulator_uuid, bundle_identifier) do
       {:ok,
        [
          screenshot_content,
@@ -1149,7 +994,7 @@ defmodule Runner.QA.Tools do
     end
   end
 
-  defp get_appium_session(simulator_uuid, app_bundle_id) do
+  defp get_appium_session(simulator_uuid, bundle_identifier) do
     # Initialize ETS table if not exists
     if :ets.info(@session_cache_table) == :undefined do
       :ets.new(@session_cache_table, [:set, :public, :named_table])
@@ -1160,16 +1005,16 @@ defmodule Runner.QA.Tools do
         # Verify session is still valid
         case AppiumClient.get_page_source(session) do
           {:ok, _} -> {:ok, session}
-          {:error, _} -> create_new_session(simulator_uuid, app_bundle_id)
+          {:error, _} -> create_new_session(simulator_uuid, bundle_identifier)
         end
 
       [] ->
-        create_new_session(simulator_uuid, app_bundle_id)
+        create_new_session(simulator_uuid, bundle_identifier)
     end
   end
 
-  defp create_new_session(simulator_uuid, app_bundle_id) do
-    case AppiumClient.start_session(simulator_uuid, app_bundle_id) do
+  defp create_new_session(simulator_uuid, bundle_identifier) do
+    case AppiumClient.start_session(simulator_uuid, bundle_identifier) do
       {:ok, session} ->
         :ets.insert(@session_cache_table, {simulator_uuid, session})
         {:ok, session}
@@ -1191,49 +1036,100 @@ defmodule Runner.QA.Tools do
   end
 
   defp parse_appium_xml(xml_content) do
-    try do
-      # Parse XML and extract element information
-      # This is a simplified version - you may want to use a proper XML parser
-      elements = extract_elements_from_xml(xml_content)
-      {:ok, elements}
-    rescue
-      e -> {:error, e}
+    case SAXMap.from_string(xml_content, ignore_attribute: false) do
+      {:ok, parsed} ->
+        elements = extract_elements_from_parsed_xml(parsed)
+        {:ok, elements}
+
+      {:error, reason} ->
+        {:error, reason}
     end
+  rescue
+    e -> {:error, e}
   end
 
-  defp extract_elements_from_xml(xml_content) do
-    # Extract elements using regex patterns
-    # This is a basic implementation - consider using :xmerl or another XML parser
-    ~r/<(XCUIElementType\w+)[^>]*>/
-    |> Regex.scan(xml_content)
-    |> Enum.map(fn [full_match, element_type] ->
-      attrs = extract_attributes(full_match)
-      
-      %{
-        "type" => element_type,
-        "label" => attrs["name"] || attrs["label"],
-        "frame" => %{
-          "x" => parse_number(attrs["x"]),
-          "y" => parse_number(attrs["y"]),
-          "width" => parse_number(attrs["width"]),
-          "height" => parse_number(attrs["height"])
-        },
-        "enabled" => attrs["enabled"] == "true",
-        "visible" => attrs["visible"] == "true"
-      }
-      |> Enum.filter(fn {_, v} -> v != nil end)
-      |> Map.new()
+  defp extract_elements_from_parsed_xml(parsed) do
+    # Traverse the parsed XML tree and extract UI elements
+    extract_elements_from_map(parsed, [])
+    |> List.flatten()
+  end
+
+  defp extract_elements_from_map(parsed, acc) when is_map(parsed) do
+    parsed
+    |> Enum.reduce(acc, fn {key, value}, acc ->
+      if String.starts_with?(key, "XCUIElementType") do
+        # This is a UI element - handle both single element and lists
+        elements = extract_ui_elements(key, value)
+        
+        # Continue processing nested elements
+        child_elements = extract_elements_from_value(value, [])
+        
+        elements ++ child_elements ++ acc
+      else
+        # Not a UI element, but may contain UI elements
+        extract_elements_from_value(value, acc)
+      end
     end)
   end
 
-  defp extract_attributes(element_string) do
-    ~r/(\w+)="([^"]+)"/
-    |> Regex.scan(element_string)
-    |> Enum.map(fn [_, key, value] -> {key, value} end)
+  defp extract_elements_from_map(_, acc), do: acc
+
+  defp extract_elements_from_value(value, acc) when is_map(value) do
+    # Check if this has a "content" key (SAXMap structure when attributes are preserved)
+    case Map.get(value, "content") do
+      nil -> extract_elements_from_map(value, acc)
+      content -> extract_elements_from_value(content, acc)
+    end
+  end
+
+  defp extract_elements_from_value(value, acc) when is_list(value) do
+    Enum.reduce(value, acc, fn item, acc ->
+      extract_elements_from_value(item, acc)
+    end)
+  end
+
+  defp extract_elements_from_value(_, acc), do: acc
+
+  # Handle both single elements and lists of elements with same tag
+  defp extract_ui_elements(tag, elements) when is_list(elements) do
+    Enum.map(elements, &extract_ui_element(tag, &1))
+  end
+
+  defp extract_ui_elements(tag, element) do
+    [extract_ui_element(tag, element)]
+  end
+
+  defp extract_ui_element(tag, attrs) when is_map(attrs) do
+    # When ignore_attribute: false, attributes are at the same level as "content"
+    name = attrs["name"]
+    label = attrs["label"] 
+    x = attrs["x"]
+    y = attrs["y"]
+    width = attrs["width"]
+    height = attrs["height"]
+    enabled = attrs["enabled"]
+    visible = attrs["visible"]
+    
+    %{
+      "type" => tag,
+      "label" => name || label,
+      "frame" => %{
+        "x" => parse_number(x),
+        "y" => parse_number(y),
+        "width" => parse_number(width),
+        "height" => parse_number(height)
+      },
+      "enabled" => enabled == "true",
+      "visible" => visible == "true"
+    }
+    |> Enum.filter(fn {_, v} -> v != nil end)
     |> Map.new()
   end
 
+  defp extract_ui_element(tag, _), do: %{"type" => tag}
+
   defp parse_number(nil), do: nil
+
   defp parse_number(str) do
     case Float.parse(str) do
       {num, _} -> round_if_needed(num)
