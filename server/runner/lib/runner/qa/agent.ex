@@ -154,7 +154,8 @@ defmodule Runner.QA.Agent do
           run_id: run_id,
           auth_token: auth_token,
           account_handle: account_handle,
-          project_handle: project_handle
+          project_handle: project_handle,
+          app_bundle_id: bundle_identifier
         })
 
       case run_llm(
@@ -219,7 +220,12 @@ defmodule Runner.QA.Agent do
     end
   end
 
-  defp process_llm_result({:error, _chain, %LangChain.LangChainError{message: message}}, _attrs, _handler, _tools) do
+  defp process_llm_result(
+         {:error, _chain, %LangChain.LangChainError{message: message}},
+         _attrs,
+         _handler,
+         _tools
+       ) do
     {:error, "LLM chain execution failed: #{message}"}
   end
 
@@ -279,9 +285,17 @@ defmodule Runner.QA.Agent do
 
     messages =
       Enum.map(messages, fn message ->
-        tool_results = Enum.filter(message.tool_results || [], &(&1.tool_call_id not in tool_call_ids_with_no_content))
+        tool_results =
+          Enum.filter(
+            message.tool_results || [],
+            &(&1.tool_call_id not in tool_call_ids_with_no_content)
+          )
 
-        tool_calls = Enum.filter(message.tool_calls || [], &(&1.call_id not in tool_call_ids_with_no_content))
+        tool_calls =
+          Enum.filter(
+            message.tool_calls || [],
+            &(&1.call_id not in tool_call_ids_with_no_content)
+          )
 
         %{
           message

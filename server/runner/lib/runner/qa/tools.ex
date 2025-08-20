@@ -6,12 +6,16 @@ defmodule Runner.QA.Tools do
   alias LangChain.FunctionParam
   alias LangChain.Message.ContentPart
   alias Runner.QA.Client
+  alias Runner.QA.AppiumClient
 
   require Logger
 
+  # Cache for Appium sessions
+  @session_cache_table :appium_sessions
+
   def tools(params) do
     [
-      describe_ui_tool(),
+      describe_ui_tool(params),
       tap_tool(params),
       long_press_tool(params),
       swipe_tool(params),
@@ -27,7 +31,7 @@ defmodule Runner.QA.Tools do
     ]
   end
 
-  defp describe_ui_tool do
+  defp describe_ui_tool(%{app_bundle_id: app_bundle_id}) do
     Function.new!(%{
       name: "describe_ui",
       description:
@@ -41,18 +45,22 @@ defmodule Runner.QA.Tools do
         })
       ],
       function: fn %{"simulator_uuid" => simulator_uuid} = _params, _context ->
-        case run_axe_command(simulator_uuid, ["describe-ui"]) do
-          {:ok, content} ->
-            simplified_content = simplify_ui_description(content)
+        case get_appium_session(simulator_uuid, app_bundle_id) do
+          {:ok, session} ->
+            case AppiumClient.get_page_source(session) do
+              {:ok, xml_content} ->
+                simplified_content = simplify_appium_ui_description(xml_content)
+                {:ok, [ContentPart.text!("Current UI state: #{simplified_content}")]}
 
-            if should_scan_webview(content) do
-              describe_webview_ui(content, simulator_uuid)
-            else
-              {:ok, [ContentPart.text!(simplified_content)]}
+              {:error, reason} ->
+                {:error, reason}
             end
 
+          {:error, reason} when is_binary(reason) ->
+            {:error, "Failed to create Appium session: #{reason}"}
+            
           {:error, reason} ->
-            {:error, reason}
+            {:error, "Failed to create Appium session: #{inspect(reason)}"}
         end
       end
     })
@@ -63,7 +71,8 @@ defmodule Runner.QA.Tools do
          run_id: run_id,
          auth_token: auth_token,
          account_handle: account_handle,
-         project_handle: project_handle
+         project_handle: project_handle,
+         app_bundle_id: app_bundle_id
        }) do
     Function.new!(%{
       name: "tap",
@@ -111,7 +120,8 @@ defmodule Runner.QA.Tools do
           run_id: run_id,
           auth_token: auth_token,
           account_handle: account_handle,
-          project_handle: project_handle
+          project_handle: project_handle,
+          app_bundle_id: app_bundle_id
         })
       end
     })
@@ -122,7 +132,8 @@ defmodule Runner.QA.Tools do
          run_id: run_id,
          auth_token: auth_token,
          account_handle: account_handle,
-         project_handle: project_handle
+         project_handle: project_handle,
+         app_bundle_id: app_bundle_id
        }) do
     Function.new!(%{
       name: "long_press",
@@ -185,7 +196,8 @@ defmodule Runner.QA.Tools do
           run_id: run_id,
           auth_token: auth_token,
           account_handle: account_handle,
-          project_handle: project_handle
+          project_handle: project_handle,
+          app_bundle_id: app_bundle_id
         })
       end
     })
@@ -196,7 +208,8 @@ defmodule Runner.QA.Tools do
          run_id: run_id,
          auth_token: auth_token,
          account_handle: account_handle,
-         project_handle: project_handle
+         project_handle: project_handle,
+         app_bundle_id: app_bundle_id
        }) do
     Function.new!(%{
       name: "swipe",
@@ -279,7 +292,8 @@ defmodule Runner.QA.Tools do
           run_id: run_id,
           auth_token: auth_token,
           account_handle: account_handle,
-          project_handle: project_handle
+          project_handle: project_handle,
+          app_bundle_id: app_bundle_id
         })
       end
     })
@@ -290,7 +304,8 @@ defmodule Runner.QA.Tools do
          run_id: run_id,
          auth_token: auth_token,
          account_handle: account_handle,
-         project_handle: project_handle
+         project_handle: project_handle,
+         app_bundle_id: app_bundle_id
        }) do
     Function.new!(%{
       name: "type_text",
@@ -327,7 +342,8 @@ defmodule Runner.QA.Tools do
           run_id: run_id,
           auth_token: auth_token,
           account_handle: account_handle,
-          project_handle: project_handle
+          project_handle: project_handle,
+          app_bundle_id: app_bundle_id
         })
       end
     })
@@ -338,7 +354,8 @@ defmodule Runner.QA.Tools do
          run_id: run_id,
          auth_token: auth_token,
          account_handle: account_handle,
-         project_handle: project_handle
+         project_handle: project_handle,
+         app_bundle_id: app_bundle_id
        }) do
     Function.new!(%{
       name: "key_press",
@@ -395,7 +412,8 @@ defmodule Runner.QA.Tools do
           run_id: run_id,
           auth_token: auth_token,
           account_handle: account_handle,
-          project_handle: project_handle
+          project_handle: project_handle,
+          app_bundle_id: app_bundle_id
         })
       end
     })
@@ -406,7 +424,8 @@ defmodule Runner.QA.Tools do
          run_id: run_id,
          auth_token: auth_token,
          account_handle: account_handle,
-         project_handle: project_handle
+         project_handle: project_handle,
+         app_bundle_id: app_bundle_id
        }) do
     Function.new!(%{
       name: "button",
@@ -447,7 +466,8 @@ defmodule Runner.QA.Tools do
           run_id: run_id,
           auth_token: auth_token,
           account_handle: account_handle,
-          project_handle: project_handle
+          project_handle: project_handle,
+          app_bundle_id: app_bundle_id
         })
       end
     })
@@ -458,7 +478,8 @@ defmodule Runner.QA.Tools do
          run_id: run_id,
          auth_token: auth_token,
          account_handle: account_handle,
-         project_handle: project_handle
+         project_handle: project_handle,
+         app_bundle_id: app_bundle_id
        }) do
     Function.new!(%{
       name: "touch",
@@ -520,7 +541,8 @@ defmodule Runner.QA.Tools do
           run_id: run_id,
           auth_token: auth_token,
           account_handle: account_handle,
-          project_handle: project_handle
+          project_handle: project_handle,
+          app_bundle_id: app_bundle_id
         })
       end
     })
@@ -531,7 +553,8 @@ defmodule Runner.QA.Tools do
          run_id: run_id,
          auth_token: auth_token,
          account_handle: account_handle,
-         project_handle: project_handle
+         project_handle: project_handle,
+         app_bundle_id: app_bundle_id
        }) do
     Function.new!(%{
       name: "gesture",
@@ -648,7 +671,8 @@ defmodule Runner.QA.Tools do
           run_id: run_id,
           auth_token: auth_token,
           account_handle: account_handle,
-          project_handle: project_handle
+          project_handle: project_handle,
+          app_bundle_id: app_bundle_id
         })
       end
     })
@@ -1064,19 +1088,23 @@ defmodule Runner.QA.Tools do
 
   defp round_if_needed(value), do: value
 
-  defp get_ui_description(simulator_uuid) do
-    case run_axe_command(simulator_uuid, ["describe-ui"]) do
-      {:ok, content} ->
-        simplified_content = simplify_ui_description(content)
+  defp get_ui_description(simulator_uuid, app_bundle_id) do
+    case get_appium_session(simulator_uuid, app_bundle_id) do
+      {:ok, session} ->
+        case AppiumClient.get_page_source(session) do
+          {:ok, xml_content} ->
+            simplified_content = simplify_appium_ui_description(xml_content)
+            {:ok, "Current UI state: #{simplified_content}"}
 
-        if should_scan_webview(content) do
-          describe_webview_ui(content, simulator_uuid)
-        else
-          {:ok, "Current UI state: #{simplified_content}"}
+          {:error, reason} ->
+            {:error, reason}
         end
 
+      {:error, reason} when is_binary(reason) ->
+        {:error, "Failed to create Appium session: #{reason}"}
+        
       {:error, reason} ->
-        {:error, reason}
+        {:error, "Failed to create Appium session: #{inspect(reason)}"}
     end
   end
 
@@ -1087,7 +1115,8 @@ defmodule Runner.QA.Tools do
          run_id: run_id,
          auth_token: auth_token,
          account_handle: account_handle,
-         project_handle: project_handle
+         project_handle: project_handle,
+         app_bundle_id: app_bundle_id
        }) do
     with {:ok, _} <- action_result,
          {:ok, step_id} <-
@@ -1110,13 +1139,105 @@ defmodule Runner.QA.Tools do
              project_handle: project_handle,
              step_id: step_id
            }),
-         {:ok, ui_description} <- get_ui_description(simulator_uuid) do
+         {:ok, ui_description} <- get_ui_description(simulator_uuid, app_bundle_id) do
       {:ok,
        [
          screenshot_content,
          ContentPart.text!(ui_description),
          ContentPart.text!(step_id)
        ]}
+    end
+  end
+
+  defp get_appium_session(simulator_uuid, app_bundle_id) do
+    # Initialize ETS table if not exists
+    if :ets.info(@session_cache_table) == :undefined do
+      :ets.new(@session_cache_table, [:set, :public, :named_table])
+    end
+
+    case :ets.lookup(@session_cache_table, simulator_uuid) do
+      [{^simulator_uuid, session}] ->
+        # Verify session is still valid
+        case AppiumClient.get_page_source(session) do
+          {:ok, _} -> {:ok, session}
+          {:error, _} -> create_new_session(simulator_uuid, app_bundle_id)
+        end
+
+      [] ->
+        create_new_session(simulator_uuid, app_bundle_id)
+    end
+  end
+
+  defp create_new_session(simulator_uuid, app_bundle_id) do
+    case AppiumClient.start_session(simulator_uuid, app_bundle_id) do
+      {:ok, session} ->
+        :ets.insert(@session_cache_table, {simulator_uuid, session})
+        {:ok, session}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp simplify_appium_ui_description(xml_content) do
+    case parse_appium_xml(xml_content) do
+      {:ok, elements} ->
+        JSON.encode!(elements)
+
+      {:error, _} ->
+        # Fallback to raw content if parsing fails
+        xml_content
+    end
+  end
+
+  defp parse_appium_xml(xml_content) do
+    try do
+      # Parse XML and extract element information
+      # This is a simplified version - you may want to use a proper XML parser
+      elements = extract_elements_from_xml(xml_content)
+      {:ok, elements}
+    rescue
+      e -> {:error, e}
+    end
+  end
+
+  defp extract_elements_from_xml(xml_content) do
+    # Extract elements using regex patterns
+    # This is a basic implementation - consider using :xmerl or another XML parser
+    ~r/<(XCUIElementType\w+)[^>]*>/
+    |> Regex.scan(xml_content)
+    |> Enum.map(fn [full_match, element_type] ->
+      attrs = extract_attributes(full_match)
+      
+      %{
+        "type" => element_type,
+        "label" => attrs["name"] || attrs["label"],
+        "frame" => %{
+          "x" => parse_number(attrs["x"]),
+          "y" => parse_number(attrs["y"]),
+          "width" => parse_number(attrs["width"]),
+          "height" => parse_number(attrs["height"])
+        },
+        "enabled" => attrs["enabled"] == "true",
+        "visible" => attrs["visible"] == "true"
+      }
+      |> Enum.filter(fn {_, v} -> v != nil end)
+      |> Map.new()
+    end)
+  end
+
+  defp extract_attributes(element_string) do
+    ~r/(\w+)="([^"]+)"/
+    |> Regex.scan(element_string)
+    |> Enum.map(fn [_, key, value] -> {key, value} end)
+    |> Map.new()
+  end
+
+  defp parse_number(nil), do: nil
+  defp parse_number(str) do
+    case Float.parse(str) do
+      {num, _} -> round_if_needed(num)
+      :error -> nil
     end
   end
 end
