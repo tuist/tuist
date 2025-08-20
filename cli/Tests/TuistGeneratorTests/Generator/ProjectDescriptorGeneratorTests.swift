@@ -578,10 +578,10 @@ struct ProjectDescriptorGeneratorTests {
         let remotePackageNames = rootObject.remotePackages.compactMap(\.name)
         let remoteSwiftPackageReferenceNames = pbxobjects.remoteSwiftPackageReferences.values.compactMap(\.name)
         #expect(localPackagePaths == [
-            "/LocalPackages/LocalPackageA",
+            "../LocalPackages/LocalPackageA",
         ])
         #expect(localSwiftPackageReferencePaths == [
-            "/LocalPackages/LocalPackageA",
+            "../LocalPackages/LocalPackageA",
         ])
         #expect(remotePackageNames.isEmpty == true)
         #expect(remoteSwiftPackageReferenceNames.isEmpty == true)
