@@ -21,7 +21,7 @@ defmodule Runner.QA.AppiumClientTest do
                      "appium:udid" => simulator_uuid,
                      "appium:bundleId" => app_bundle_id,
                      "appium:noReset" => true,
-                     "appium:newCommandTimeout" => 30
+                     "appium:newCommandTimeout" => 90
                    }
                  }
                }
