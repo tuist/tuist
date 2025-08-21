@@ -5,11 +5,15 @@ defmodule Runner.QA.ToolsTest do
   alias LangChain.Message.ContentPart
   alias Runner.QA.AppiumClient
   alias Runner.QA.Client
+  alias Runner.QA.Sleeper
   alias Runner.QA.Tools
 
   setup :verify_on_exit!
 
   setup do
+    # Stub the Sleeper module to avoid delays in tests
+    stub(Sleeper, :sleep, fn _ -> :ok end)
+
     tools =
       Tools.tools(%{
         server_url: "http://test.com",

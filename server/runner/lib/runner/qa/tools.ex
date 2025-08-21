@@ -7,6 +7,7 @@ defmodule Runner.QA.Tools do
   alias LangChain.Message.ContentPart
   alias Runner.QA.AppiumClient
   alias Runner.QA.Client
+  alias Runner.QA.Sleeper
 
   require Logger
 
@@ -839,6 +840,9 @@ defmodule Runner.QA.Tools do
          project_handle: project_handle,
          appium_session: appium_session
        }) do
+    # It can take for the action to happen, so we want to wait before capturing the screenshot and describing the UI
+    Sleeper.sleep(500)
+
     with {:ok, _} <- action_result,
          {:ok, step_id} <-
            Client.create_step(%{
