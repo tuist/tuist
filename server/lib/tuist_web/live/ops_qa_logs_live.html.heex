@@ -32,7 +32,7 @@
             <div :for={log <- @logs} data-part="log-entry" data-type={log.type}>
               <span data-part="timestamp">{format_log_timestamp_short(log.timestamp)}</span>
               <span data-part="log-type" data-type={log.type}>
-                {log_type_short(log)}
+                {log_type_short(log.type)}
               </span>
               <%= if log.type == :tool_call or log.type == :tool_call_result do %>
                 <div data-part="tool-call-content">

@@ -15,6 +15,10 @@ defmodule TuistWeb.OpsQALogsLive do
       qa_run ->
         logs = QA.logs_for_run(qa_run_id)
 
+        if connected?(socket) do
+          Tuist.PubSub.subscribe("qa_logs:#{qa_run_id}")
+        end
+
         {:ok,
          socket
          |> assign(:qa_run, qa_run)
@@ -38,20 +42,34 @@ defmodule TuistWeb.OpsQALogsLive do
     {:noreply, assign(socket, :expanded_tools, new_expanded_tools)}
   end
 
+  @impl true
+  def handle_info({:qa_log_created, log}, socket) do
+    current_logs = socket.assigns.logs
+    updated_logs = current_logs ++ [log]
+
+    {:noreply, assign(socket, :logs, updated_logs)}
+  end
+
+  def handle_info(_event, socket) do
+    {:noreply, socket}
+  end
+
   defp map_qa_status_to_badge_status("failed"), do: "error"
   defp map_qa_status_to_badge_status("completed"), do: "success"
   defp map_qa_status_to_badge_status("running"), do: "attention"
   defp map_qa_status_to_badge_status("pending"), do: "warning"
   defp map_qa_status_to_badge_status(_), do: "disabled"
 
-  defp log_type_short(log) do
-    case log.type do
+  defp log_type_short(log_type) when is_atom(log_type) do
+    case log_type do
       :usage -> "TOKENS"
       :tool_call -> "TOOL"
       :tool_call_result -> "RESULT"
       :message -> "ASSISTANT"
     end
   end
+
+  defp log_type_short(log_type) when is_binary(log_type), do: log_type_short(String.to_existing_atom(log_type))
 
   defp format_log_message(log) do
     case JSON.decode!(log.data) do
