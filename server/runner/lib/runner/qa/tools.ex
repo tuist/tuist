@@ -173,14 +173,7 @@ defmodule Runner.QA.Tools do
 
   defp swipe_tool(
          %{
-           server_url: _server_url,
-           run_id: _run_id,
-           auth_token: _auth_token,
-           account_handle: _account_handle,
-           project_handle: _project_handle,
-           bundle_identifier: _bundle_identifier,
            simulator_uuid: simulator_uuid,
-           appium_session: _appium_session
          } = all_params
        ) do
     Function.new!(%{
@@ -848,7 +841,6 @@ defmodule Runner.QA.Tools do
          auth_token: auth_token,
          account_handle: account_handle,
          project_handle: project_handle,
-         bundle_identifier: _bundle_identifier,
          appium_session: appium_session
        }) do
     with {:ok, _} <- action_result,
