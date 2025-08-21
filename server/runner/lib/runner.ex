@@ -13,8 +13,12 @@ defmodule Runner do
         result = execute_command(command, args)
 
         case result do
-          :ok -> System.halt(0)
-          {:error, _reason} -> System.halt(1)
+          :ok ->
+            System.halt(0)
+
+          {:error, reason} ->
+            IO.puts(:stderr, "Runner failed with the following error: #{inspect(reason)}")
+            System.halt(1)
         end
 
       {:error, :help} ->

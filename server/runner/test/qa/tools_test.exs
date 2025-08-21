@@ -123,7 +123,6 @@ defmodule Runner.QA.ToolsTest do
       expect(Client, :screenshot_upload, fn _ -> {:ok, %{"url" => upload_url}} end)
       expect(Req, :put, fn ^upload_url, _ -> {:ok, %{status: 200}} end)
 
-      # Mock get_ui_description with Appium
       session = %{id: "mock-session"}
       expect(AppiumClient, :page_source, fn ^session -> {:ok, "<XCUIElementTypeApplication/>"} end)
 
@@ -236,7 +235,6 @@ defmodule Runner.QA.ToolsTest do
       expect(Client, :screenshot_upload, fn _ -> {:ok, %{"url" => upload_url}} end)
       expect(Req, :put, fn ^upload_url, _ -> {:ok, %{status: 200}} end)
 
-      # Mock get_ui_description with Appium
       session = %{id: "mock-session"}
       expect(AppiumClient, :page_source, fn ^session -> {:ok, "<XCUIElementTypeApplication/>"} end)
 
@@ -299,7 +297,6 @@ defmodule Runner.QA.ToolsTest do
       expect(Client, :screenshot_upload, fn _ -> {:ok, %{"url" => upload_url}} end)
       expect(Req, :put, fn ^upload_url, _ -> {:ok, %{status: 200}} end)
 
-      # Mock get_ui_description with Appium
       session = %{id: "mock-session"}
       expect(AppiumClient, :page_source, fn ^session -> {:ok, "<XCUIElementTypeApplication/>"} end)
 
@@ -363,7 +360,6 @@ defmodule Runner.QA.ToolsTest do
       expect(Client, :screenshot_upload, fn _ -> {:ok, %{"url" => upload_url}} end)
       expect(Req, :put, fn ^upload_url, _ -> {:ok, %{status: 200}} end)
 
-      # Mock get_ui_description with Appium
       session = %{id: "mock-session"}
       expect(AppiumClient, :page_source, fn ^session -> {:ok, "<XCUIElementTypeApplication/>"} end)
 
@@ -415,7 +411,6 @@ defmodule Runner.QA.ToolsTest do
       expect(Client, :screenshot_upload, fn _ -> {:ok, %{"url" => upload_url}} end)
       expect(Req, :put, fn ^upload_url, _ -> {:ok, %{status: 200}} end)
 
-      # Mock get_ui_description with Appium
       session = %{id: "mock-session"}
       expect(AppiumClient, :page_source, fn ^session -> {:ok, "<XCUIElementTypeApplication/>"} end)
 
@@ -471,7 +466,6 @@ defmodule Runner.QA.ToolsTest do
       expect(Client, :screenshot_upload, fn _ -> {:ok, %{"url" => upload_url}} end)
       expect(Req, :put, fn ^upload_url, _ -> {:ok, %{status: 200}} end)
 
-      # Mock get_ui_description with Appium
       session = %{id: "mock-session"}
       expect(AppiumClient, :page_source, fn ^session -> {:ok, "<XCUIElementTypeApplication/>"} end)
 
@@ -521,7 +515,6 @@ defmodule Runner.QA.ToolsTest do
       expect(Client, :screenshot_upload, fn _ -> {:ok, %{"url" => upload_url}} end)
       expect(Req, :put, fn ^upload_url, _ -> {:ok, %{status: 200}} end)
 
-      # Mock get_ui_description with Appium
       session = %{id: "mock-session"}
       expect(AppiumClient, :page_source, fn ^session -> {:ok, "<XCUIElementTypeApplication/>"} end)
 
@@ -573,7 +566,7 @@ defmodule Runner.QA.ToolsTest do
         )
 
       # Then
-      assert {:ok, "Step report successfully."} = result_response
+      assert {:ok, "Step report submitted successfully."} = result_response
     end
 
     test "returns error on failure", %{tools: tools} do

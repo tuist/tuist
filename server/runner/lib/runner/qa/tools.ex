@@ -742,7 +742,7 @@ defmodule Runner.QA.Tools do
                project_handle: project_handle
              }) do
           {:ok, _} ->
-            {:ok, "Step report successfully."}
+            {:ok, "Step report submitted successfully."}
 
           {:error, reason} ->
             {:error, "Failed to submit step report: #{reason}"}

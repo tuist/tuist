@@ -6,7 +6,7 @@ defmodule Runner.QA.AppiumClient do
   alias WebDriverClient.Config
 
   @appium_server_url "http://localhost:4723"
-  @session_timeout 30_000
+  @session_timeout 90_000
 
   def start_session(simulator_uuid, app_bundle_id) do
     config =
@@ -26,7 +26,7 @@ defmodule Runner.QA.AppiumClient do
           "appium:udid" => simulator_uuid,
           "appium:bundleId" => app_bundle_id,
           "appium:noReset" => true,
-          "appium:newCommandTimeout" => 30
+          "appium:newCommandTimeout" => 90
         }
       }
     }
