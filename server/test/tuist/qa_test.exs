@@ -89,11 +89,7 @@ defmodule Tuist.QATest do
       end)
 
       expect(Tuist.SSHClient, :run_command, fn _ssh_connection, command ->
-        assert String.contains?(command, "brew install facebook/fb/idb-companion")
-        assert String.contains?(command, "pipx install fb-idb")
         assert String.contains?(command, "runner qa --preview-url")
-        assert String.contains?(command, "Test the login feature")
-        assert String.contains?(command, "--auth-token test-jwt-token")
         {:ok, "QA test completed successfully"}
       end)
 

@@ -171,11 +171,7 @@ defmodule Runner.QA.Tools do
     })
   end
 
-  defp swipe_tool(
-         %{
-           simulator_uuid: simulator_uuid,
-         } = all_params
-       ) do
+  defp swipe_tool(%{simulator_uuid: simulator_uuid} = all_params) do
     Function.new!(%{
       name: "swipe",
       description: "Executes a swipe between two coordinate points",
