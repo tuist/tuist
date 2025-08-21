@@ -884,6 +884,7 @@ defmodule Runner.QA.Tools do
   defp ui_description_from_appium_session(appium_session) do
     with {:ok, page_source_xml} <- AppiumClient.get_page_source(appium_session),
          {:ok, appium_json} <- appium_page_source_xml_to_json(page_source_xml) do
+           dbg(String.length("Current UI state: #{appium_json}"))
       {:ok, "Current UI state: #{appium_json}"}
     end
   end
@@ -899,35 +900,49 @@ defmodule Runner.QA.Tools do
   end
 
   # We want to filter out repetitive values to optimize the context windows.
+  # Additionally, we're filtering out non-visible elements as the agent should not be interacting with those.
   defp simplify_elements(element) when is_map(element) do
-    element
-    |> Enum.map(fn {key, value} ->
-      cond do
-        key == "visible" && value == "true" ->
-          {nil, nil}
+    if Map.get(element, "visible") == "false" do
+      nil
+    else
+      element
+      |> Enum.map(fn {key, value} ->
+        dbg({key,value})
+        cond do
+          key == "enabled" && value == "true" ->
+            {nil, nil}
 
-        key == "enabled" && value == "true" ->
-          {nil, nil}
+          key == "visible" && value == "true" ->
+            {nil, nil}
 
-        key == "index" ->
-          {nil, nil}
+          key == "accessible" && value == "true" ->
+            {nil, nil}
 
-        key == "traits" ->
-          {nil, nil}
+          key == "content" && value == "null" ->
+            {nil, nil}
 
-        key == "name" ->
-          {nil, nil}
+          key == "index" ->
+            {nil, nil}
 
-        true ->
-          {key, simplify_elements(value)}
-      end
-    end)
-    |> Enum.reject(fn {key, _value} -> is_nil(key) end)
-    |> Map.new()
+          key == "traits" ->
+            {nil, nil}
+
+          key == "name" ->
+            {nil, nil}
+
+          true ->
+            {key, simplify_elements(value)}
+        end
+      end)
+      |> Enum.reject(fn {key, _value} -> is_nil(key) end)
+      |> Map.new()
+    end
   end
 
   defp simplify_elements(elements) when is_list(elements) do
-    Enum.map(elements, &simplify_elements/1)
+    elements
+    |> Enum.map(&simplify_elements/1)
+    |> Enum.reject(&is_nil/1)
   end
 
   defp simplify_elements(value), do: value
