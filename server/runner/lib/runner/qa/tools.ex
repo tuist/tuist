@@ -621,7 +621,8 @@ defmodule Runner.QA.Tools do
   defp screenshot_tool(%{simulator_uuid: simulator_uuid}) do
     Function.new!(%{
       name: "screenshot",
-      description: "Captures a screenshot of the current view. Use this tool only if you don't have an existing screenshot – you will typically use this only before interacting with the app with tools like tap.",
+      description:
+        "Captures a screenshot of the current view. Use this tool only if you don't have an existing screenshot – you will typically use this only before interacting with the app with tools like tap.",
       parameters: [],
       function: fn _params, _context ->
         with {:ok, temp_path} <- Briefly.create(),

@@ -190,7 +190,8 @@ defmodule Runner.QA.Agent do
   end
 
   defp run_llm(attrs, handler, messages, tools) do
-    tools_without_step_report = tools |> Enum.filter(& &1.name != "step_report")
+    tools_without_step_report = Enum.filter(tools, &(&1.name != "step_report"))
+
     attrs
     |> LLMChain.new!()
     |> LLMChain.add_messages(messages)
