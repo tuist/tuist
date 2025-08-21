@@ -39,6 +39,14 @@
               navigate={~p"/ops/sent_emails"}
             />
           <% end %>
+          <%= if not Tuist.Environment.dev_use_remote_storage?() do %>
+            <.tab_menu_horizontal_item
+              label={gettext("Storage")}
+              href={"http://localhost:#{Tuist.Environment.minio_console_port()}"}
+              target="_blank"
+              rel="noopener noreferrer"
+            />
+          <% end %>
           <.tab_menu_horizontal_item
             label={gettext("Errors")}
             href="https://appsignal.com/tuist-cloud/sites/6607b64d83eb6789e61c8ba7/dashboard"
