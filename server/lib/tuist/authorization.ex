@@ -121,10 +121,10 @@ defmodule Tuist.Authorization do
 
   object :registry do
     action :create do
-      desc("Allows users of an account to read its registry.")
+      desc("Allows users of an account to create entries in its registry.")
       allow([:authenticated_as_user, user_role: :user])
 
-      desc("Allows the admin of an account to read its registry.")
+      desc("Allows the admin of an account to create entries in its registry.")
       allow([:authenticated_as_user, user_role: :admin])
 
       desc(
@@ -318,12 +318,12 @@ defmodule Tuist.Authorization do
   object :billing do
     action :read do
       desc("Allows admins to read billing information for Tuist hosted accounts.")
-      allow([:authenticated_as_user, :tuist_hosted_billing])
+      allow([:authenticated_as_user, :billing_access])
     end
 
     action :update do
       desc("Allows admins to update billing information for Tuist hosted accounts.")
-      allow([:authenticated_as_user, :tuist_hosted_billing])
+      allow([:authenticated_as_user, :billing_access])
     end
 
     action :usage_read do

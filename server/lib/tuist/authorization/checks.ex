@@ -104,7 +104,7 @@ defmodule Tuist.Authorization.Checks do
     false
   end
 
-  def tuist_hosted_billing(%User{} = user, %Account{} = account) do
+  def billing_access(%User{} = user, %Account{} = account) do
     subscription = Tuist.Billing.get_current_active_subscription(account)
 
     if not Tuist.Environment.tuist_hosted?() or
