@@ -1,19 +1,20 @@
 ---
-{
-  "title": "依存関係の追加",
-  "titleTemplate": ":title · クイックスタート · ガイド · Tuist",
-  "description": "最初のSwiftプロジェクトに依存関係を追加する方法を学ぶ"
-}
+{ "title": "Add dependencies", "titleTemplate": ":title · Quick-start · Guides ·
+Tuist", "description": "Learn how to add dependencies to your first Swift
+project" }
 ---
-# 依存関係の追加 {#add-dependencies}
+# Add dependencies {#add-dependencies}
 
-プロジェクトが追加機能を提供するためにサードパーティのライブラリに依存することは一般的です。 そのために、プロジェクトを編集するための最適な体験を得るために、次のコマンドを実行します。 そのために、プロジェクトを編集するための最適な体験を得るために、次のコマンドを実行します。
+It's common for projects to depend on third-party libraries to provide
+additional functionality. To do so, run the following command to have the best
+experience editing your project:
 
 ```bash
 tuist edit
 ```
 
-Xcodeプロジェクトが開き、プロジェクトファイルが表示されます。 Package.swiftを編集し、以下を追加します。
+An Xcode project will open containing your project files. Edit the
+`Package.swift` and add the
 
 ```swift
 // swift-tools-version: 5.9
@@ -41,7 +42,8 @@ let package = Package(
 )
 ```
 
-次に、プロジェクト内のアプリケーションターゲットを編集して、`Kingfisher` を依存関係として宣言します。
+Then edit the application target in your project to declare `Kingfisher` as a
+dependency:
 
 ```swift
 import ProjectDescription
@@ -53,14 +55,16 @@ let project = Project(
             name: "MyApp",
             destinations: .iOS,
             product: .app,
-            bundleId: "io.tuist.MyApp",
+            bundleId: "dev.tuist.MyApp",
             infoPlist: .extendingDefault(
                 with: [
                     "UILaunchStoryboardName": "LaunchScreen.storyboard",
                 ]
             ),
-            sources: ["MyApp/Sources/**"],
-            resources: ["MyApp/Resources/**"],
+            buildableFolders: [
+                "MyApp/Sources",
+                "MyApp/Resources",
+            ],
             dependencies: [
                 .external(name: "Kingfisher") // [!code ++]
             ]
@@ -69,7 +73,7 @@ let project = Project(
             name: "MyAppTests",
             destinations: .iOS,
             product: .unitTests,
-            bundleId: "io.tuist.MyAppTests",
+            bundleId: "dev.tuist.MyAppTests",
             infoPlist: .default,
             sources: ["MyApp/Tests/**"],
             resources: [],
@@ -79,26 +83,30 @@ let project = Project(
 )
 ```
 
-次に、`tuist install` を実行して、[Swift Package Manager](https://www.swift.org/documentation/package-manager/) を使用して依存関係を解決し、取得します。
+Then run `tuist install` to resolve and pull the dependencies using the [Swift
+Package Manager](https://www.swift.org/documentation/package-manager/).
 
-> [!NOTE] 依存関係解決ツールとしてのSPM
-> Tuistの推奨する依存関係のアプローチは、依存関係を解決するためにSwift Package Manager (SPM) を使用することです。 TuistはそれらをXcodeプロジェクトとターゲットに変換し、最大限の構成可能性と制御を提供します。 TuistはそれらをXcodeプロジェクトとターゲットに変換し、最大限の構成可能性と制御を提供します。 TuistはそれらをXcodeプロジェクトとターゲットに変換し、最大限の構成可能性と制御を提供します。 TuistはそれらをXcodeプロジェクトとターゲットに変換し、最大限の構成可能性と制御を提供します。 TuistはそれらをXcodeプロジェクトとターゲットに変換し、最大限の構成可能性と制御を提供します。
+> [!NOTE] SPM AS A DEPENDENCY RESOLVER Tuist recommended approach to
+> dependencies uses the Swift Package Manager (SPM) only to resolve
+> dependencies. Tuist then converts them into Xcode projects and targets for
+> maximum configurability and control.
 
-## プロジェクトの可視化 {#visualize-the-project}
+## Visualize the project {#visualize-the-project}
 
-次のコマンドを実行してプロジェクト構造を可視化できます。
+You can visualize the project structure by running:
 
 ```bash
 tuist graph
 ```
 
-このコマンドは、プロジェクトのディレクトリ内に `graph.png` ファイルを出力して開きます：
+The command will output and open a `graph.png` file in the project's directory:
 
 ![Project graph](/images/guides/quick-start/graph.png)
 
-## 依存関係の使用 {#use-the-dependency}
+## Use the dependency {#use-the-dependency}
 
-`tuist generate` を実行してプロジェクトをXcodeで開き、`ContentView.swift` ファイルに次の変更を加えます。
+Run `tuist generate` to open the project in Xcode, and make the following
+changes to the `ContentView.swift` file:
 
 ```swift
 import SwiftUI
@@ -122,4 +130,4 @@ struct ContentView_Previews: PreviewProvider {
 }
 ```
 
-Xcodeからアプリを実行すると、URLから読み込まれた画像が表示されるはずです。
+Run the app from Xcode, and you should see the image loaded from the URL.
