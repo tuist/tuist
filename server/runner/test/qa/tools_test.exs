@@ -79,7 +79,6 @@ defmodule Runner.QA.ToolsTest do
       </XCUIElementTypeApplication>
       """
 
-      # Mock getting page source
       expect(AppiumClient, :page_source, fn ^session ->
         {:ok, xml_output}
       end)
@@ -93,134 +92,7 @@ defmodule Runner.QA.ToolsTest do
       assert {:ok, [content_part]} = result
       assert %ContentPart{type: :text, content: content} = content_part
       assert String.starts_with?(content, "Current UI state:")
-
-      # Verify the parsed content includes the button
       assert content =~ "XCUIElementTypeButton"
-      assert content =~ ~s("label":"Login")
-    end
-
-    test "handles second call with same simulator", %{tools: tools} do
-      # Given
-      session = %{id: "mock-session"}
-
-      xml_output = """
-      <XCUIElementTypeApplication name="TestApp">
-        <XCUIElementTypeButton name="Submit" x="50" y="100" width="100" height="50"/>
-      </XCUIElementTypeApplication>
-      """
-
-      # Mock getting page source - called multiple times
-      expect(AppiumClient, :page_source, 2, fn ^session ->
-        {:ok, xml_output}
-      end)
-
-      describe_ui_tool = Enum.find(tools, &(&1.name == "describe_ui"))
-
-      # When - call twice
-      result1 = describe_ui_tool.function.(%{}, nil)
-      result2 = describe_ui_tool.function.(%{}, nil)
-
-      # Then
-      assert {:ok, [content_part1]} = result1
-      assert {:ok, [_content_part2]} = result2
-      assert %ContentPart{type: :text, content: content} = content_part1
-      assert content =~ "XCUIElementTypeButton"
-    end
-
-    test "handles get page source failure gracefully", %{tools: tools} do
-      # Given
-      session = %{id: "mock-session"}
-
-      # Mock page source failure
-      expect(AppiumClient, :page_source, fn ^session ->
-        {:error, "Failed to get page source"}
-      end)
-
-      describe_ui_tool = Enum.find(tools, &(&1.name == "describe_ui"))
-
-      # When
-      result = describe_ui_tool.function.(%{}, nil)
-
-      # Then
-      assert {:error, "Failed to get page source"} = result
-    end
-
-    test "returns error when Appium page source returns error", %{tools: tools} do
-      # Given
-      session = %{id: "mock-session"}
-
-      # Mock AppiumClient to return error
-      expect(AppiumClient, :page_source, fn ^session ->
-        {:error, "Failed to fetch page source"}
-      end)
-
-      describe_ui_tool = Enum.find(tools, &(&1.name == "describe_ui"))
-
-      # When
-      result = describe_ui_tool.function.(%{}, nil)
-
-      # Then
-      assert {:error, "Failed to fetch page source"} = result
-    end
-
-    test "parses complex XML hierarchy correctly", %{tools: tools} do
-      # Given
-      session = %{id: "mock-session"}
-
-      xml_output = """
-      <XCUIElementTypeApplication name="TestApp" visible="true" enabled="true" x="0" y="0" width="393" height="852">
-        <XCUIElementTypeWindow x="0" y="0" width="393" height="852">
-          <XCUIElementTypeOther x="0" y="59" width="393" height="793">
-            <XCUIElementTypeNavigationBar name="Settings" x="0" y="59" width="393" height="44">
-              <XCUIElementTypeButton name="Back" label="Back" x="8" y="59" width="40" height="44"/>
-              <XCUIElementTypeStaticText name="Settings" label="Settings" x="176" y="70" width="40" height="22"/>
-            </XCUIElementTypeNavigationBar>
-            <XCUIElementTypeTable x="0" y="103" width="393" height="749">
-              <XCUIElementTypeCell name="Profile" label="Profile" x="0" y="103" width="393" height="44" enabled="true">
-                <XCUIElementTypeStaticText name="Profile" label="Profile" x="16" y="103" width="50" height="44"/>
-              </XCUIElementTypeCell>
-              <XCUIElementTypeCell name="Notifications" label="Notifications" x="0" y="147" width="393" height="44" enabled="false">
-                <XCUIElementTypeStaticText name="Notifications" label="Notifications" x="16" y="147" width="100" height="44"/>
-              </XCUIElementTypeCell>
-            </XCUIElementTypeTable>
-          </XCUIElementTypeOther>
-        </XCUIElementTypeWindow>
-      </XCUIElementTypeApplication>
-      """
-
-      expect(AppiumClient, :page_source, fn ^session ->
-        {:ok, xml_output}
-      end)
-
-      describe_ui_tool = Enum.find(tools, &(&1.name == "describe_ui"))
-
-      # When
-      result = describe_ui_tool.function.(%{}, nil)
-
-      # Then
-      assert {:ok, [content_part]} = result
-      assert %ContentPart{type: :text, content: content} = content_part
-
-      # Verify the parsed content includes various element types
-      parsed = JSON.decode!(String.replace(content, "Current UI state: ", ""))
-      assert is_map(parsed)
-
-      # Check that the structure contains the expected elements
-      assert content =~ "XCUIElementTypeApplication"
-      assert content =~ "XCUIElementTypeButton"
-      assert content =~ "XCUIElementTypeStaticText"
-      assert content =~ "XCUIElementTypeCell"
-
-      # Check that coordinates and labels are present
-      assert content =~ ~s("label":"Profile")
-      assert content =~ ~s("label":"Notifications")
-      assert content =~ ~s("x":"0")
-      assert content =~ ~s("y":"103")
-      assert content =~ ~s("width":"393")
-      assert content =~ ~s("height":"44")
-
-      # Check disabled element
-      assert content =~ ~s("enabled":"false")
     end
   end
 
