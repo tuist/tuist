@@ -53,11 +53,13 @@
                     <div data-part="tool-call-details">
                       <%= if log.type == :tool_call_result and has_screenshot?(log) do %>
                         <div data-part="screenshot-content">
-                          <img
-                            src={"data:image/png;base64,#{get_screenshot_data(log)}"}
-                            alt="Screenshot"
-                            style="max-width: 100%; max-height: 400px; height: auto; border-radius: 6px; margin-bottom: 12px;"
-                          />
+                           <%= if screenshot = get_screenshot_data(log, @screenshots) do %>
+                             <img
+                               src={screenshot.s3_url}
+                               alt="Screenshot"
+                               style="max-width: 100%; max-height: 400px; height: auto; border-radius: 6px; margin-bottom: 12px;"
+                             />
+                           <% end %>
                         </div>
                       <% else %>
                         <pre data-part="json-content">{prettify_json(log.data)}</pre>

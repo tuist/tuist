@@ -225,6 +225,19 @@ defmodule Tuist.QA do
   end
 
   @doc """
+  Gets QA screenshots for a given QA run ID.
+  """
+  def screenshots_for_run(qa_run_id) do
+    query =
+      from(screenshot in Screenshot,
+        where: screenshot.qa_run_id == ^qa_run_id,
+        order_by: [asc: screenshot.inserted_at]
+      )
+
+    Repo.all(query)
+  end
+
+  @doc """
   Gets QA runs chart data for the last 30 days.
   Returns a list of [date, count] pairs for each day.
   """

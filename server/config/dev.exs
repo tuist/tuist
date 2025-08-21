@@ -34,7 +34,7 @@ config :tuist, Tuist.Mailer, adapter: Bamboo.LocalAdapter
 
 # Configure your database
 config :tuist, Tuist.Repo,
-  hostname: "localhost",
+  hostname: "tahani",
   database: "tuist_development",
   stacktrace: true,
   show_sensitive_data_on_connection_error: true,

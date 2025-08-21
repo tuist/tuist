@@ -7,25 +7,32 @@ defmodule TuistWeb.OpsQALogsLive do
   alias TuistWeb.Errors.NotFoundError
 
   @impl true
-  def mount(%{"qa_run_id" => qa_run_id}, _session, socket) do
+  def handle_params(%{"qa_run_id" => qa_run_id}, _uri, socket) do
     case QA.qa_run_for_ops(qa_run_id) do
       nil ->
         raise NotFoundError, gettext("QA run not found")
 
       qa_run ->
         logs = QA.logs_for_run(qa_run_id)
+        screenshots = QA.screenshots_for_run(qa_run_id)
 
         if connected?(socket) do
           Tuist.PubSub.subscribe("qa_logs:#{qa_run_id}")
         end
 
-        {:ok,
+        {:noreply,
          socket
          |> assign(:qa_run, qa_run)
          |> assign(:logs, logs)
+         |> assign(:screenshots, screenshots)
          |> assign(:expanded_tools, MapSet.new())
          |> assign(:head_title, "#{gettext("QA Logs")} · #{qa_run.project_name} · Tuist")}
     end
+  end
+
+  @impl true
+  def mount(_params, _session, socket) do
+    {:ok, socket}
   end
 
   @impl true
@@ -47,7 +54,17 @@ defmodule TuistWeb.OpsQALogsLive do
     current_logs = socket.assigns.logs
     updated_logs = current_logs ++ [log]
 
-    {:noreply, assign(socket, :logs, updated_logs)}
+    # Refresh screenshots if this is a screenshot log
+    updated_screenshots = if log.type == :screenshot do
+      QA.screenshots_for_run(socket.assigns.qa_run.id)
+    else
+      socket.assigns.screenshots
+    end
+
+    {:noreply,
+     socket
+     |> assign(:logs, updated_logs)
+     |> assign(:screenshots, updated_screenshots)}
   end
 
   def handle_info(_event, socket) do
@@ -66,6 +83,7 @@ defmodule TuistWeb.OpsQALogsLive do
       :tool_call -> "TOOL"
       :tool_call_result -> "RESULT"
       :message -> "ASSISTANT"
+      :screenshot -> "SCREENSHOT"
     end
   end
 
@@ -130,33 +148,28 @@ defmodule TuistWeb.OpsQALogsLive do
   defp prettify_json(data), do: inspect(data)
 
   defp has_screenshot?(log) do
-    case JSON.decode!(log.data) do
-      %{"name" => "screenshot", "content" => content} when is_list(content) ->
-        Enum.any?(content, fn
-          %{"type" => "image", "content" => _} -> true
-          _ -> false
-        end)
-
-      _ ->
-        false
-    end
+    log.type == :screenshot
   end
 
-  defp get_screenshot_data(log) do
+  defp get_screenshot_data(log, screenshots) do
     case JSON.decode!(log.data) do
       %{"name" => "screenshot", "content" => content} when is_list(content) ->
-        content
-        |> Enum.find(fn
-          %{"type" => "image", "content" => _} -> true
-          _ -> false
+        # Find the first screenshot reference and return the corresponding screenshot record
+        Enum.find(content, fn item ->
+          match?(%{"type" => "image", "content" => "s3_reference"}, item)
         end)
         |> case do
-          %{"content" => base64_data} -> base64_data
-          _ -> ""
+          %{"type" => "image", "content" => "s3_reference", "timestamp" => timestamp} ->
+            # Find the matching screenshot by timestamp
+            Enum.find(screenshots, fn screenshot ->
+              # Compare timestamps (simplified - in practice you might want more sophisticated matching)
+              DateTime.to_iso8601(screenshot.inserted_at) == timestamp
+            end)
+          _ -> nil
         end
 
       _ ->
-        ""
+        nil
     end
   end
 end

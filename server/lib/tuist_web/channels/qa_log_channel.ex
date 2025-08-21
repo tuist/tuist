@@ -7,6 +7,7 @@ defmodule TuistWeb.QALogChannel do
   alias Tuist.QA
   alias Tuist.QA.Log
   alias Tuist.QA.Logs.Buffer
+  alias Tuist.Storage
 
   require Logger
 
@@ -42,9 +43,15 @@ defmodule TuistWeb.QALogChannel do
 
       "message" ->
         :ok
+
+      "screenshot" ->
+        handle_screenshot_log(qa_run, data, timestamp)
     end
 
-    persist_log_to_clickhouse(project_id, qa_run.id, data, type, timestamp)
+    # Modify data for ClickHouse storage - replace full PNG with reference
+    processed_data = process_log_data_for_storage(data, type, qa_run.id, timestamp)
+
+    persist_log_to_clickhouse(project_id, qa_run.id, processed_data, type, timestamp)
     {:reply, :ok, socket}
   end
 
@@ -132,6 +139,89 @@ defmodule TuistWeb.QALogChannel do
           qa_run_id: qa_run.id,
           changeset_errors: inspect(changeset.errors)
         })
+    end
+  end
+
+  defp handle_screenshot_log(qa_run, data, timestamp) do
+    case JSON.decode!(data) do
+      %{"name" => "screenshot", "content" => content} when is_list(content) ->
+        Enum.each(content, fn
+          %{"type" => "image", "content" => base64_data} ->
+            upload_screenshot_to_s3(qa_run, base64_data, timestamp)
+          _ ->
+            :ok
+        end)
+
+      _ ->
+        :ok
+    end
+  end
+
+  defp upload_screenshot_to_s3(qa_run, base64_data, _timestamp) do
+    try do
+      # Decode base64 data
+      decoded_data = Base.decode64!(base64_data)
+
+      # Generate unique filename
+      timestamp_str = DateTime.to_iso8601(DateTime.utc_now(), :basic)
+      filename = "qa_#{qa_run.id}_#{timestamp_str}.png"
+      s3_key = "qa_screenshots/#{filename}"
+
+      # Upload to S3
+      case Tuist.Storage.upload(decoded_data, s3_key) do
+        {:ok, _} ->
+          # Generate S3 URL
+          s3_url = Tuist.Storage.generate_upload_url(s3_key)
+
+          # Create screenshot record
+          attrs = %{
+            qa_run_id: qa_run.id,
+            file_name: filename,
+            title: "QA Screenshot",
+            s3_url: s3_url
+          }
+
+          case QA.create_qa_screenshot(attrs) do
+            {:ok, screenshot} ->
+              Logger.info("Screenshot uploaded and recorded for QA run #{qa_run.id}: #{filename}")
+              {:ok, screenshot}
+
+            {:error, changeset} ->
+              Logger.error("Failed to create screenshot record for QA run #{qa_run.id}: #{inspect(changeset.errors)}")
+              {:error, :database_error}
+          end
+
+        {:error, reason} ->
+          Logger.error("Failed to upload screenshot to S3 for QA run #{qa_run.id}: #{inspect(reason)}")
+          {:error, :upload_failed}
+      end
+    rescue
+      e ->
+        Logger.error("Error processing screenshot for QA run #{qa_run.id}: #{inspect(e)}")
+        {:error, :processing_error}
+    end
+  end
+
+  defp process_log_data_for_storage(data, type, qa_run_id, timestamp) do
+    case type do
+      "screenshot" ->
+        case JSON.decode!(data) do
+          %{"name" => "screenshot", "content" => content} when is_list(content) ->
+            # Replace image content with a reference
+            processed_content = Enum.map(content, fn
+              %{"type" => "image", "content" => _base64_data} ->
+                %{"type" => "image", "content" => "s3_reference", "qa_run_id" => qa_run_id, "timestamp" => timestamp}
+              item ->
+                item
+            end)
+            JSON.encode!(%{name: "screenshot", content: processed_content})
+
+          _ ->
+            data
+        end
+
+      _ ->
+        data
     end
   end
 end

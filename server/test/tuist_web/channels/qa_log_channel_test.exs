@@ -184,5 +184,41 @@ defmodule TuistWeb.QALogChannelTest do
       assert token_usage.total_output_tokens == 150
       assert token_usage.average_tokens == 450
     end
+
+    test "handles screenshot logs and uploads to S3", %{socket: socket, qa_run: qa_run} do
+      {:ok, _, socket} = subscribe_and_join(socket, QALogChannel, "qa_logs:#{qa_run.id}")
+
+      # Mock the Storage module to avoid actual S3 calls
+      Mimic.stub(Tuist.Storage, :upload, fn _data, _key -> {:ok, nil} end)
+      Mimic.stub(Tuist.Storage, :generate_upload_url, fn _key -> "https://s3.example.com/screenshot.png" end)
+
+      # Create a base64 encoded 1x1 PNG for testing
+      base64_png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
+
+      screenshot_message = %{
+        "data" =>
+          JSON.encode!(%{
+            "name" => "screenshot",
+            "content" => [
+              %{"type" => "image", "content" => base64_png}
+            ]
+          }),
+        "type" => "screenshot",
+        "timestamp" => DateTime.to_iso8601(DateTime.utc_now())
+      }
+
+      ref = push(socket, "log", screenshot_message)
+      assert_reply(ref, :ok)
+
+      # Verify that a screenshot record was created
+      screenshots = Tuist.QA.screenshots_for_run(qa_run.id)
+      assert length(screenshots) == 1
+
+      screenshot = List.first(screenshots)
+      assert screenshot.qa_run_id == qa_run.id
+      assert screenshot.file_name =~ "qa_#{qa_run.id}"
+      assert screenshot.title == "QA Screenshot"
+      assert screenshot.s3_url == "https://s3.example.com/screenshot.png"
+    end
   end
 end
