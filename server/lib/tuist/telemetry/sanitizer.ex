@@ -24,6 +24,6 @@ defmodule Tuist.Telemetry.Sanitizer do
   end
 
   def sanitize_value(value) do
-    to_string(value)
+    inspect(value)
   end
 end

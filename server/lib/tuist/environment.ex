@@ -84,7 +84,7 @@ defmodule Tuist.Environment do
     prometheus_enabled = System.get_env("TUIST_PROMETHEUS_ENABLED")
 
     if is_nil(prometheus_enabled) do
-      not dev?() and not test?()
+      not dev?() and not test?() and web?()
     else
       truthy?(prometheus_enabled)
     end
@@ -302,6 +302,10 @@ defmodule Tuist.Environment do
       true ->
         nil
     end
+  end
+
+  def minio_console_port(secrets \\ secrets()) do
+    get([:minio, :console_port], secrets, default_value: 9098)
   end
 
   def mautic_username(secrets \\ secrets()) do

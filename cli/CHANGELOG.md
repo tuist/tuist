@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.64.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* relative path for local package by [@mikhailmulyar](https://github.com/mikhailmulyar) in [#8059](https://github.com/tuist/tuist/pull/8059)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.64.0...4.64.1
+
 ## What's Changed in 4.64.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
