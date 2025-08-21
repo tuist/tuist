@@ -35,6 +35,7 @@ defmodule Runner.QA.Tools do
         "Retrieves the entire view hierarchy with precise frame coordinates for all visible elements. Use this tool only if you don't have a recent UI state description.",
       function: fn _params, _context ->
         appium_session = Map.get(params, :appium_session)
+
         case AppiumClient.get_page_source(appium_session) do
           {:ok, xml_content} ->
             simplified_content = simplify_appium_ui_description(xml_content)
@@ -177,16 +178,18 @@ defmodule Runner.QA.Tools do
     })
   end
 
-  defp swipe_tool(%{
-         server_url: _server_url,
-         run_id: _run_id,
-         auth_token: _auth_token,
-         account_handle: _account_handle,
-         project_handle: _project_handle,
-         bundle_identifier: _bundle_identifier,
-         simulator_uuid: simulator_uuid,
-         appium_session: _appium_session
-       } = all_params) do
+  defp swipe_tool(
+         %{
+           server_url: _server_url,
+           run_id: _run_id,
+           auth_token: _auth_token,
+           account_handle: _account_handle,
+           project_handle: _project_handle,
+           bundle_identifier: _bundle_identifier,
+           simulator_uuid: simulator_uuid,
+           appium_session: _appium_session
+         } = all_params
+       ) do
     Function.new!(%{
       name: "swipe",
       description: "Executes a swipe between two coordinate points",
@@ -254,7 +257,7 @@ defmodule Runner.QA.Tools do
             "#{duration}"
           ])
 
-        execute_action_with_step_report(action_result, all_params |> Map.put(:action, action))
+        execute_action_with_step_report(action_result, Map.put(all_params, :action, action))
       end
     })
   end

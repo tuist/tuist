@@ -178,9 +178,12 @@ defmodule Runner.QA.Agent do
             project_handle: project_handle
           })
 
+          AppiumClient.stop_session(appium_session)
+
           {:error, error_message}
 
         result ->
+          AppiumClient.stop_session(appium_session)
           result
       end
     end

@@ -78,6 +78,7 @@ Mimic.copy(UAParser)
 Mimic.copy(UeberauthApple)
 Mimic.copy(Zstream)
 Mimic.copy(Slipstream)
+Mimic.copy(WebDriverClient)
 
 ExUnit.start(exclude: [:skip])
 Ecto.Adapters.SQL.Sandbox.mode(Tuist.Repo, :manual)

@@ -148,7 +148,7 @@ defmodule Runner.QA.ToolsTest do
     test "returns error when Appium page source returns error", %{tools: tools} do
       # Given
       session = %{id: "mock-session"}
-      
+
       # Mock AppiumClient to return error
       expect(AppiumClient, :get_page_source, fn ^session ->
         {:error, "Failed to fetch page source"}
@@ -162,7 +162,6 @@ defmodule Runner.QA.ToolsTest do
       # Then
       assert {:error, "Failed to fetch page source"} = result
     end
-
 
     test "parses complex XML hierarchy correctly", %{tools: tools} do
       # Given
