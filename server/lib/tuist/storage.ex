@@ -30,6 +30,8 @@ defmodule Tuist.Storage do
     bucket_name = Environment.s3_bucket_name()
     config = ExAws.Config.new(:s3)
 
+    dbg(config)
+
     {:ok, url} =
       ExAws.S3.presigned_url(config, method, bucket_name, object_key,
         query_params: query_params,
