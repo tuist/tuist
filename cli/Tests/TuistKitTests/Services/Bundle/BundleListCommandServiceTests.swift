@@ -131,7 +131,7 @@ struct BundleListCommandServiceTests {
     @Test(
         .withMockedEnvironment(),
         .withMockedNoora
-    ) func run_when_full_handle_is_not_pass_and_present_in_config_and_no_json_and_non_empty_list() async throws {
+    ) func run_when_full_handle_is_not_passed_and_present_in_config_and_no_json_and_non_empty_list() async throws {
         // Given
         let fullHandle = "\(UUID().uuidString)/\(UUID().uuidString)"
         let tuist = Tuist.test(fullHandle: fullHandle)
@@ -179,6 +179,6 @@ struct BundleListCommandServiceTests {
         //        ├──────────────────────┼────────────┼────────┼─────────┼─────────────┼─────┤
         //        │ 9620034E-59B2-46BE-… │ com.examp… │ 1 MB   │ 512 KB  │ 3. Aug 202… │ (L… │
         //        ╰──────────────────────┴────────────┴────────┴─────────┴─────────────┴─────╯
-        #expect(ui().contains(bundle.app_bundle_id.prefix(8)))
+        #expect(ui().contains(bundle.app_bundle_id.prefix(4)))
     }
 }

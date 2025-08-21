@@ -279,9 +279,17 @@ defmodule Runner.QA.Agent do
 
     messages =
       Enum.map(messages, fn message ->
-        tool_results = Enum.filter(message.tool_results || [], &(&1.tool_call_id not in tool_call_ids_with_no_content))
+        tool_results =
+          Enum.filter(
+            message.tool_results || [],
+            &(&1.tool_call_id not in tool_call_ids_with_no_content)
+          )
 
-        tool_calls = Enum.filter(message.tool_calls || [], &(&1.call_id not in tool_call_ids_with_no_content))
+        tool_calls =
+          Enum.filter(
+            message.tool_calls || [],
+            &(&1.call_id not in tool_call_ids_with_no_content)
+          )
 
         %{
           message

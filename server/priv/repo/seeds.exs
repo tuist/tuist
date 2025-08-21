@@ -448,7 +448,6 @@ qa_runs =
     status = Enum.random(qa_statuses)
     prompt = Enum.random(qa_prompts)
 
-
     git_refs = ["main", "develop", "feature/new-ui", "feature/qa-testing", "release/v1.2.0"]
     vcs_providers = [:github]
 
