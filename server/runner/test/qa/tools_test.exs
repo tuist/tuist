@@ -17,7 +17,9 @@ defmodule Runner.QA.ToolsTest do
         auth_token: "test-token",
         account_handle: "test-account",
         project_handle: "test-project",
-        bundle_identifier: "com.test.app"
+        bundle_identifier: "com.test.app",
+        appium_session: %{id: "mock-session"},
+        simulator_uuid: "test-uuid"
       })
 
     %{tools: tools}
@@ -50,7 +52,9 @@ defmodule Runner.QA.ToolsTest do
           auth_token: "test-token",
           account_handle: "test-account",
           project_handle: "test-project",
-          bundle_identifier: "com.test.app"
+          bundle_identifier: "com.test.app",
+          appium_session: %{id: "mock-session"},
+          simulator_uuid: "test-uuid"
         })
 
       tool_names = Enum.map(tools, & &1.name)
@@ -67,20 +71,14 @@ defmodule Runner.QA.ToolsTest do
   describe "describe_ui tool" do
     test "successfully gets page source from Appium", %{tools: tools} do
       # Given
-      simulator_uuid = "test-uuid"
-      session = %{id: "test-session"}
-      
+      session = %{id: "mock-session"}
+
       xml_output = """
       <XCUIElementTypeApplication name="TestApp" label="TestApp" visible="true" enabled="true" x="0" y="0" width="393" height="852">
         <XCUIElementTypeButton name="Login" label="Login" visible="true" enabled="true" x="100" y="200" width="80" height="40"/>
       </XCUIElementTypeApplication>
       """
-      
-      # Mock Appium session creation (first call for new session)
-      expect(AppiumClient, :start_session, fn ^simulator_uuid, "com.test.app" ->
-        {:ok, session}
-      end)
-      
+
       # Mock getting page source
       expect(AppiumClient, :get_page_source, fn ^session ->
         {:ok, xml_output}
@@ -89,13 +87,13 @@ defmodule Runner.QA.ToolsTest do
       describe_ui_tool = Enum.find(tools, &(&1.name == "describe_ui"))
 
       # When
-      result = describe_ui_tool.function.(%{"simulator_uuid" => simulator_uuid}, nil)
+      result = describe_ui_tool.function.(%{}, nil)
 
       # Then
       assert {:ok, [content_part]} = result
       assert %ContentPart{type: :text, content: content} = content_part
       assert String.starts_with?(content, "Current UI state:")
-      
+
       # Verify the parsed content includes the button
       assert content =~ "XCUIElementTypeButton"
       assert content =~ "Login"
@@ -103,30 +101,24 @@ defmodule Runner.QA.ToolsTest do
 
     test "handles second call with same simulator", %{tools: tools} do
       # Given
-      simulator_uuid = "test-uuid"
-      session = %{id: "existing-session"}
-      
+      session = %{id: "mock-session"}
+
       xml_output = """
       <XCUIElementTypeApplication name="TestApp">
         <XCUIElementTypeButton name="Submit" x="50" y="100" width="100" height="50"/>
       </XCUIElementTypeApplication>
       """
-      
-      # First call creates session
-      expect(AppiumClient, :start_session, fn ^simulator_uuid, "com.test.app" ->
-        {:ok, session}
-      end)
-      
-      # Mock getting page source - called multiple times due to session validation
-      expect(AppiumClient, :get_page_source, 3, fn ^session ->
+
+      # Mock getting page source - called multiple times
+      expect(AppiumClient, :get_page_source, 2, fn ^session ->
         {:ok, xml_output}
       end)
 
       describe_ui_tool = Enum.find(tools, &(&1.name == "describe_ui"))
 
       # When - call twice
-      result1 = describe_ui_tool.function.(%{"simulator_uuid" => simulator_uuid}, nil)
-      result2 = describe_ui_tool.function.(%{"simulator_uuid" => simulator_uuid}, nil)
+      result1 = describe_ui_tool.function.(%{}, nil)
+      result2 = describe_ui_tool.function.(%{}, nil)
 
       # Then
       assert {:ok, [content_part1]} = result1
@@ -135,53 +127,11 @@ defmodule Runner.QA.ToolsTest do
       assert content =~ "Submit"
     end
 
-    test "handles session creation failure gracefully", %{tools: tools} do
+    test "handles get page source failure gracefully", %{tools: tools} do
       # Given
-      simulator_uuid = "test-uuid"
-      
-      # Mock session creation failure
-      expect(AppiumClient, :start_session, fn ^simulator_uuid, "com.test.app" ->
-        {:error, "Failed to create session"}
-      end)
+      session = %{id: "mock-session"}
 
-      describe_ui_tool = Enum.find(tools, &(&1.name == "describe_ui"))
-
-      # When
-      result = describe_ui_tool.function.(%{"simulator_uuid" => simulator_uuid}, nil)
-
-      # Then
-      assert {:error, "Failed to create Appium session: Failed to create session"} = result
-    end
-
-    test "returns error when Appium connection fails", %{tools: tools} do
-      # Given
-      simulator_uuid = "test-uuid"
-      
-      # Mock Appium session creation failure
-      expect(AppiumClient, :start_session, fn ^simulator_uuid, "com.test.app" ->
-        {:error, "Appium connection failed: unable to complete HTTP request: :timeout"}
-      end)
-
-      describe_ui_tool = Enum.find(tools, &(&1.name == "describe_ui"))
-
-      # When
-      result = describe_ui_tool.function.(%{"simulator_uuid" => simulator_uuid}, nil)
-
-      # Then
-      assert {:error, "Failed to create Appium session: Appium connection failed: unable to complete HTTP request: :timeout"} = result
-    end
-
-    test "returns error when page source retrieval fails", %{tools: tools} do
-      # Given
-      simulator_uuid = "test-uuid"
-      session = %{id: "test-session"}
-      
-      # Mock successful session creation
-      expect(AppiumClient, :start_session, fn ^simulator_uuid, "com.test.app" ->
-        {:ok, session}
-      end)
-      
-      # Mock page source retrieval failure
+      # Mock page source failure
       expect(AppiumClient, :get_page_source, fn ^session ->
         {:error, "Failed to get page source"}
       end)
@@ -189,17 +139,35 @@ defmodule Runner.QA.ToolsTest do
       describe_ui_tool = Enum.find(tools, &(&1.name == "describe_ui"))
 
       # When
-      result = describe_ui_tool.function.(%{"simulator_uuid" => simulator_uuid}, nil)
+      result = describe_ui_tool.function.(%{}, nil)
 
       # Then
       assert {:error, "Failed to get page source"} = result
     end
 
+    test "returns error when Appium page source returns error", %{tools: tools} do
+      # Given
+      session = %{id: "mock-session"}
+      
+      # Mock AppiumClient to return error
+      expect(AppiumClient, :get_page_source, fn ^session ->
+        {:error, "Failed to fetch page source"}
+      end)
+
+      describe_ui_tool = Enum.find(tools, &(&1.name == "describe_ui"))
+
+      # When
+      result = describe_ui_tool.function.(%{}, nil)
+
+      # Then
+      assert {:error, "Failed to fetch page source"} = result
+    end
+
+
     test "parses complex XML hierarchy correctly", %{tools: tools} do
       # Given
-      simulator_uuid = "test-uuid"
-      session = %{id: "test-session"}
-      
+      session = %{id: "mock-session"}
+
       xml_output = """
       <XCUIElementTypeApplication name="TestApp" visible="true" enabled="true" x="0" y="0" width="393" height="852">
         <XCUIElementTypeWindow x="0" y="0" width="393" height="852">
@@ -220,11 +188,7 @@ defmodule Runner.QA.ToolsTest do
         </XCUIElementTypeWindow>
       </XCUIElementTypeApplication>
       """
-      
-      expect(AppiumClient, :start_session, fn ^simulator_uuid, "com.test.app" ->
-        {:ok, session}
-      end)
-      
+
       expect(AppiumClient, :get_page_source, fn ^session ->
         {:ok, xml_output}
       end)
@@ -232,33 +196,33 @@ defmodule Runner.QA.ToolsTest do
       describe_ui_tool = Enum.find(tools, &(&1.name == "describe_ui"))
 
       # When
-      result = describe_ui_tool.function.(%{"simulator_uuid" => simulator_uuid}, nil)
+      result = describe_ui_tool.function.(%{}, nil)
 
       # Then
       assert {:ok, [content_part]} = result
       assert %ContentPart{type: :text, content: content} = content_part
-      
+
       # Verify the parsed content includes various element types
       parsed = JSON.decode!(String.replace(content, "Current UI state: ", ""))
       assert is_list(parsed)
-      
+
       # Should include all element types from XML
-      element_types = Enum.map(parsed, & &1["type"]) |> Enum.uniq()
+      element_types = parsed |> Enum.map(& &1["type"]) |> Enum.uniq()
       assert "XCUIElementTypeApplication" in element_types
       assert "XCUIElementTypeButton" in element_types
       assert "XCUIElementTypeStaticText" in element_types
       assert "XCUIElementTypeCell" in element_types
-      
+
       # Check that coordinates are parsed correctly
-      profile_cell = Enum.find(parsed, & &1["label"] == "Profile" && &1["type"] == "XCUIElementTypeCell")
+      profile_cell = Enum.find(parsed, &(&1["label"] == "Profile" && &1["type"] == "XCUIElementTypeCell"))
       assert profile_cell["frame"]["x"] == 0
       assert profile_cell["frame"]["y"] == 103
       assert profile_cell["frame"]["width"] == 393
       assert profile_cell["frame"]["height"] == 44
       assert profile_cell["enabled"] == true
-      
+
       # Check disabled element
-      notifications_cell = Enum.find(parsed, & &1["label"] == "Notifications" && &1["type"] == "XCUIElementTypeCell")
+      notifications_cell = Enum.find(parsed, &(&1["label"] == "Notifications" && &1["type"] == "XCUIElementTypeCell"))
       assert notifications_cell["enabled"] == false
     end
   end
@@ -291,17 +255,15 @@ defmodule Runner.QA.ToolsTest do
       expect(Req, :put, fn ^upload_url, _ -> {:ok, %{status: 200}} end)
 
       # Mock get_ui_description with Appium
-      expect(AppiumClient, :start_session, fn ^simulator_uuid, "com.test.app" ->
-        {:ok, %{id: "session"}}
-      end)
-      expect(AppiumClient, :get_page_source, fn _ -> {:ok, "<XCUIElementTypeApplication/>"} end)
+      session = %{id: "mock-session"}
+      expect(AppiumClient, :get_page_source, fn ^session -> {:ok, "<XCUIElementTypeApplication/>"} end)
 
       tap_tool = Enum.find(tools, &(&1.name == "tap"))
 
       # When
       result =
         tap_tool.function.(
-          %{"simulator_uuid" => simulator_uuid, "x" => x, "y" => y, "action" => "Test tap"},
+          %{"x" => x, "y" => y, "action" => "Test tap"},
           nil
         )
 
@@ -322,7 +284,7 @@ defmodule Runner.QA.ToolsTest do
       # When
       result =
         tap_tool.function.(
-          %{"simulator_uuid" => simulator_uuid, "x" => 100, "y" => 200, "action" => "Test tap"},
+          %{"x" => 100, "y" => 200, "action" => "Test tap"},
           nil
         )
 
@@ -350,7 +312,7 @@ defmodule Runner.QA.ToolsTest do
 
       # When
       result =
-        screenshot_tool.function.(%{"simulator_uuid" => simulator_uuid}, nil)
+        screenshot_tool.function.(%{}, nil)
 
       # Then
       assert {:ok, [%ContentPart{type: :image}]} = result
@@ -371,7 +333,7 @@ defmodule Runner.QA.ToolsTest do
 
       # When
       result =
-        screenshot_tool.function.(%{"simulator_uuid" => simulator_uuid}, nil)
+        screenshot_tool.function.(%{}, nil)
 
       # Then
       assert {:error, "Failed to capture screenshot: Screenshot command failed"} = result
@@ -406,17 +368,15 @@ defmodule Runner.QA.ToolsTest do
       expect(Req, :put, fn ^upload_url, _ -> {:ok, %{status: 200}} end)
 
       # Mock get_ui_description with Appium
-      expect(AppiumClient, :start_session, fn ^simulator_uuid, "com.test.app" ->
-        {:ok, %{id: "session"}}
-      end)
-      expect(AppiumClient, :get_page_source, fn _ -> {:ok, "<XCUIElementTypeApplication/>"} end)
+      session = %{id: "mock-session"}
+      expect(AppiumClient, :get_page_source, fn ^session -> {:ok, "<XCUIElementTypeApplication/>"} end)
 
       type_text_tool = Enum.find(tools, &(&1.name == "type_text"))
 
       # When
       result =
         type_text_tool.function.(
-          %{"simulator_uuid" => simulator_uuid, "text" => text, "action" => "Test typing"},
+          %{"text" => text, "action" => "Test typing"},
           nil
         )
 
@@ -471,10 +431,8 @@ defmodule Runner.QA.ToolsTest do
       expect(Req, :put, fn ^upload_url, _ -> {:ok, %{status: 200}} end)
 
       # Mock get_ui_description with Appium
-      expect(AppiumClient, :start_session, fn ^simulator_uuid, "com.test.app" ->
-        {:ok, %{id: "session"}}
-      end)
-      expect(AppiumClient, :get_page_source, fn _ -> {:ok, "<XCUIElementTypeApplication/>"} end)
+      session = %{id: "mock-session"}
+      expect(AppiumClient, :get_page_source, fn ^session -> {:ok, "<XCUIElementTypeApplication/>"} end)
 
       swipe_tool = Enum.find(tools, &(&1.name == "swipe"))
 
@@ -482,7 +440,6 @@ defmodule Runner.QA.ToolsTest do
       result =
         swipe_tool.function.(
           %{
-            "simulator_uuid" => simulator_uuid,
             "from_x" => from_x,
             "from_y" => from_y,
             "to_x" => to_x,
@@ -538,10 +495,8 @@ defmodule Runner.QA.ToolsTest do
       expect(Req, :put, fn ^upload_url, _ -> {:ok, %{status: 200}} end)
 
       # Mock get_ui_description with Appium
-      expect(AppiumClient, :start_session, fn ^simulator_uuid, "com.test.app" ->
-        {:ok, %{id: "session"}}
-      end)
-      expect(AppiumClient, :get_page_source, fn _ -> {:ok, "<XCUIElementTypeApplication/>"} end)
+      session = %{id: "mock-session"}
+      expect(AppiumClient, :get_page_source, fn ^session -> {:ok, "<XCUIElementTypeApplication/>"} end)
 
       swipe_tool = Enum.find(tools, &(&1.name == "swipe"))
 
@@ -549,7 +504,6 @@ defmodule Runner.QA.ToolsTest do
       result =
         swipe_tool.function.(
           %{
-            "simulator_uuid" => simulator_uuid,
             "from_x" => 100,
             "from_y" => 200,
             "to_x" => 300,
@@ -593,15 +547,12 @@ defmodule Runner.QA.ToolsTest do
       expect(Req, :put, fn ^upload_url, _ -> {:ok, %{status: 200}} end)
 
       # Mock get_ui_description with Appium
-      expect(AppiumClient, :start_session, fn ^simulator_uuid, "com.test.app" ->
-        {:ok, %{id: "session"}}
-      end)
-      expect(AppiumClient, :get_page_source, fn _ -> {:ok, "<XCUIElementTypeApplication/>"} end)
+      session = %{id: "mock-session"}
+      expect(AppiumClient, :get_page_source, fn ^session -> {:ok, "<XCUIElementTypeApplication/>"} end)
 
       gesture_tool = Enum.find(tools, &(&1.name == "gesture"))
 
       params = %{
-        "simulator_uuid" => simulator_uuid,
         "preset" => preset,
         "action" => "Test gesture"
       }
@@ -652,10 +603,8 @@ defmodule Runner.QA.ToolsTest do
       expect(Req, :put, fn ^upload_url, _ -> {:ok, %{status: 200}} end)
 
       # Mock get_ui_description with Appium
-      expect(AppiumClient, :start_session, fn ^simulator_uuid, "com.test.app" ->
-        {:ok, %{id: "session"}}
-      end)
-      expect(AppiumClient, :get_page_source, fn _ -> {:ok, "<XCUIElementTypeApplication/>"} end)
+      session = %{id: "mock-session"}
+      expect(AppiumClient, :get_page_source, fn ^session -> {:ok, "<XCUIElementTypeApplication/>"} end)
 
       gesture_tool = Enum.find(tools, &(&1.name == "gesture"))
 
@@ -663,7 +612,6 @@ defmodule Runner.QA.ToolsTest do
       result =
         gesture_tool.function.(
           %{
-            "simulator_uuid" => simulator_uuid,
             "preset" => preset,
             "duration" => duration,
             "delta" => delta,
@@ -705,17 +653,15 @@ defmodule Runner.QA.ToolsTest do
       expect(Req, :put, fn ^upload_url, _ -> {:ok, %{status: 200}} end)
 
       # Mock get_ui_description with Appium
-      expect(AppiumClient, :start_session, fn ^simulator_uuid, "com.test.app" ->
-        {:ok, %{id: "session"}}
-      end)
-      expect(AppiumClient, :get_page_source, fn _ -> {:ok, "<XCUIElementTypeApplication/>"} end)
+      session = %{id: "mock-session"}
+      expect(AppiumClient, :get_page_source, fn ^session -> {:ok, "<XCUIElementTypeApplication/>"} end)
 
       button_tool = Enum.find(tools, &(&1.name == "button"))
 
       # When
       result =
         button_tool.function.(
-          %{"simulator_uuid" => simulator_uuid, "button" => button, "action" => "Test button"},
+          %{"button" => button, "action" => "Test button"},
           nil
         )
 
@@ -843,7 +789,6 @@ defmodule Runner.QA.ToolsTest do
       result =
         plan_report_tool.function.(
           %{
-            "simulator_uuid" => simulator_uuid,
             "summary" => summary,
             "details" => details
           },

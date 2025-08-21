@@ -8,6 +8,7 @@ defmodule Runner.QA.Agent do
   alias LangChain.Message
   alias LangChain.Message.ContentPart
   alias LangChain.TokenUsage
+  alias Runner.QA.AppiumClient
   alias Runner.QA.Client
   alias Runner.QA.Simulators
   alias Runner.QA.Tools
@@ -67,7 +68,8 @@ defmodule Runner.QA.Agent do
              server_url: server_url,
              run_id: run_id,
              auth_token: auth_token
-           }) do
+           }),
+         {:ok, appium_session} <- AppiumClient.start_session(simulator_device.udid, bundle_identifier) do
       handler = %{
         on_message_processed: fn _chain,
                                  %Message{
@@ -131,8 +133,6 @@ defmodule Runner.QA.Agent do
 
       First, understand what you need to test. Then, set up a plan to test the feature and execute on it without asking for additional instructions. Take screenshots to analyze whether there are any visual inconsistencies.
 
-      When using tools, use the following udid: #{simulator_device.udid}.
-
       When interacting with the app, make sure to follow the these guidelines:
       - Prefer using describe_ui over screenshot to interact with the app
       - Don't read labels from screenshots. Always read them from the UI description.
@@ -155,7 +155,9 @@ defmodule Runner.QA.Agent do
           auth_token: auth_token,
           account_handle: account_handle,
           project_handle: project_handle,
-          bundle_identifier: bundle_identifier
+          bundle_identifier: bundle_identifier,
+          appium_session: appium_session,
+          simulator_uuid: simulator_device.udid
         })
 
       case run_llm(
@@ -220,12 +222,7 @@ defmodule Runner.QA.Agent do
     end
   end
 
-  defp process_llm_result(
-         {:error, _chain, %LangChain.LangChainError{message: message}},
-         _attrs,
-         _handler,
-         _tools
-       ) do
+  defp process_llm_result({:error, _chain, %LangChain.LangChainError{message: message}}, _attrs, _handler, _tools) do
     {:error, "LLM chain execution failed: #{message}"}
   end
 

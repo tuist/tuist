@@ -342,9 +342,7 @@ defmodule Tuist.QA do
 
     screenshot =
       if qa_run_id do
-        Repo.one(
-          from(s in Screenshot, where: s.id == ^screenshot_id and s.qa_run_id == ^qa_run_id)
-        )
+        Repo.one(from(s in Screenshot, where: s.id == ^screenshot_id and s.qa_run_id == ^qa_run_id))
       else
         Repo.get(Screenshot, screenshot_id)
       end
