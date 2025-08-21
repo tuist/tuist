@@ -80,7 +80,7 @@ defmodule Runner.QA.ToolsTest do
       """
 
       # Mock getting page source
-      expect(AppiumClient, :get_page_source, fn ^session ->
+      expect(AppiumClient, :page_source, fn ^session ->
         {:ok, xml_output}
       end)
 
@@ -110,7 +110,7 @@ defmodule Runner.QA.ToolsTest do
       """
 
       # Mock getting page source - called multiple times
-      expect(AppiumClient, :get_page_source, 2, fn ^session ->
+      expect(AppiumClient, :page_source, 2, fn ^session ->
         {:ok, xml_output}
       end)
 
@@ -132,7 +132,7 @@ defmodule Runner.QA.ToolsTest do
       session = %{id: "mock-session"}
 
       # Mock page source failure
-      expect(AppiumClient, :get_page_source, fn ^session ->
+      expect(AppiumClient, :page_source, fn ^session ->
         {:error, "Failed to get page source"}
       end)
 
@@ -150,7 +150,7 @@ defmodule Runner.QA.ToolsTest do
       session = %{id: "mock-session"}
 
       # Mock AppiumClient to return error
-      expect(AppiumClient, :get_page_source, fn ^session ->
+      expect(AppiumClient, :page_source, fn ^session ->
         {:error, "Failed to fetch page source"}
       end)
 
@@ -188,7 +188,7 @@ defmodule Runner.QA.ToolsTest do
       </XCUIElementTypeApplication>
       """
 
-      expect(AppiumClient, :get_page_source, fn ^session ->
+      expect(AppiumClient, :page_source, fn ^session ->
         {:ok, xml_output}
       end)
 
@@ -255,7 +255,7 @@ defmodule Runner.QA.ToolsTest do
 
       # Mock get_ui_description with Appium
       session = %{id: "mock-session"}
-      expect(AppiumClient, :get_page_source, fn ^session -> {:ok, "<XCUIElementTypeApplication/>"} end)
+      expect(AppiumClient, :page_source, fn ^session -> {:ok, "<XCUIElementTypeApplication/>"} end)
 
       tap_tool = Enum.find(tools, &(&1.name == "tap"))
 
@@ -368,7 +368,7 @@ defmodule Runner.QA.ToolsTest do
 
       # Mock get_ui_description with Appium
       session = %{id: "mock-session"}
-      expect(AppiumClient, :get_page_source, fn ^session -> {:ok, "<XCUIElementTypeApplication/>"} end)
+      expect(AppiumClient, :page_source, fn ^session -> {:ok, "<XCUIElementTypeApplication/>"} end)
 
       type_text_tool = Enum.find(tools, &(&1.name == "type_text"))
 
@@ -431,7 +431,7 @@ defmodule Runner.QA.ToolsTest do
 
       # Mock get_ui_description with Appium
       session = %{id: "mock-session"}
-      expect(AppiumClient, :get_page_source, fn ^session -> {:ok, "<XCUIElementTypeApplication/>"} end)
+      expect(AppiumClient, :page_source, fn ^session -> {:ok, "<XCUIElementTypeApplication/>"} end)
 
       swipe_tool = Enum.find(tools, &(&1.name == "swipe"))
 
@@ -495,7 +495,7 @@ defmodule Runner.QA.ToolsTest do
 
       # Mock get_ui_description with Appium
       session = %{id: "mock-session"}
-      expect(AppiumClient, :get_page_source, fn ^session -> {:ok, "<XCUIElementTypeApplication/>"} end)
+      expect(AppiumClient, :page_source, fn ^session -> {:ok, "<XCUIElementTypeApplication/>"} end)
 
       swipe_tool = Enum.find(tools, &(&1.name == "swipe"))
 
@@ -547,7 +547,7 @@ defmodule Runner.QA.ToolsTest do
 
       # Mock get_ui_description with Appium
       session = %{id: "mock-session"}
-      expect(AppiumClient, :get_page_source, fn ^session -> {:ok, "<XCUIElementTypeApplication/>"} end)
+      expect(AppiumClient, :page_source, fn ^session -> {:ok, "<XCUIElementTypeApplication/>"} end)
 
       gesture_tool = Enum.find(tools, &(&1.name == "gesture"))
 
@@ -603,7 +603,7 @@ defmodule Runner.QA.ToolsTest do
 
       # Mock get_ui_description with Appium
       session = %{id: "mock-session"}
-      expect(AppiumClient, :get_page_source, fn ^session -> {:ok, "<XCUIElementTypeApplication/>"} end)
+      expect(AppiumClient, :page_source, fn ^session -> {:ok, "<XCUIElementTypeApplication/>"} end)
 
       gesture_tool = Enum.find(tools, &(&1.name == "gesture"))
 
@@ -653,7 +653,7 @@ defmodule Runner.QA.ToolsTest do
 
       # Mock get_ui_description with Appium
       session = %{id: "mock-session"}
-      expect(AppiumClient, :get_page_source, fn ^session -> {:ok, "<XCUIElementTypeApplication/>"} end)
+      expect(AppiumClient, :page_source, fn ^session -> {:ok, "<XCUIElementTypeApplication/>"} end)
 
       button_tool = Enum.find(tools, &(&1.name == "button"))
 

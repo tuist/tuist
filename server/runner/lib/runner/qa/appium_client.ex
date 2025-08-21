@@ -38,7 +38,7 @@ defmodule Runner.QA.AppiumClient do
     WebDriverClient.end_session(session)
   end
 
-  def get_page_source(session) do
+  def page_source(session) do
     WebDriverClient.fetch_page_source(session)
   end
 end

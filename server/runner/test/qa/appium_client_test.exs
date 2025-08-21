@@ -54,7 +54,7 @@ defmodule Runner.QA.AppiumClientTest do
     end
   end
 
-  describe "get_page_source/1" do
+  describe "page_source/1" do
     test "fetches page source from session" do
       # Given
       session = %{id: "session-123"}
@@ -65,7 +65,7 @@ defmodule Runner.QA.AppiumClientTest do
       end)
 
       # When
-      result = AppiumClient.get_page_source(session)
+      result = AppiumClient.page_source(session)
 
       # Then
       assert result == {:ok, page_source}

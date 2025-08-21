@@ -875,7 +875,7 @@ defmodule Runner.QA.Tools do
   end
 
   defp ui_description_from_appium_session(appium_session) do
-    with {:ok, page_source_xml} <- AppiumClient.get_page_source(appium_session),
+    with {:ok, page_source_xml} <- AppiumClient.page_source(appium_session),
          {:ok, appium_json} <- appium_page_source_xml_to_json(page_source_xml) do
       {:ok, "Current UI state: #{appium_json}"}
     end
