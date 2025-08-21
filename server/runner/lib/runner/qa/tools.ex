@@ -28,21 +28,14 @@ defmodule Runner.QA.Tools do
     ]
   end
 
-  defp describe_ui_tool(params) do
+  defp describe_ui_tool(%{appium_session: appium_session}) do
     Function.new!(%{
       name: "describe_ui",
       description:
         "Retrieves the entire view hierarchy with precise frame coordinates for all visible elements. Use this tool only if you don't have a recent UI state description.",
       function: fn _params, _context ->
-        appium_session = Map.get(params, :appium_session)
-
-        case AppiumClient.get_page_source(appium_session) do
-          {:ok, xml_content} ->
-            simplified_content = simplify_appium_ui_description(xml_content)
-            {:ok, [ContentPart.text!("Current UI state: #{simplified_content}")]}
-
-          {:error, reason} ->
-            {:error, reason}
+        with {:ok, ui_description} <- ui_description_from_appium_session(appium_session) do
+          {:ok, [ContentPart.text!(ui_description)]}
         end
       end
     })
@@ -846,24 +839,6 @@ defmodule Runner.QA.Tools do
     end
   end
 
-  defp round_if_needed(value) when is_float(value) do
-    # Round to 2 decimal places to avoid floating point precision issues
-    Float.round(value, 2)
-  end
-
-  defp round_if_needed(value), do: value
-
-  defp ui_description_from_appium_session(appium_session) do
-    case AppiumClient.get_page_source(appium_session) do
-      {:ok, xml_content} ->
-        simplified_content = simplify_appium_ui_description(xml_content)
-        {:ok, "Current UI state: #{simplified_content}"}
-
-      {:error, reason} ->
-        {:error, reason}
-    end
-  end
-
   defp execute_action_with_step_report(action_result, %{
          simulator_uuid: simulator_uuid,
          action: action,
@@ -906,115 +881,54 @@ defmodule Runner.QA.Tools do
     end
   end
 
-  defp simplify_appium_ui_description(xml_content) do
-    case parse_appium_xml(xml_content) do
-      {:ok, elements} ->
-        JSON.encode!(elements)
-
-      {:error, _} ->
-        # Fallback to raw content if parsing fails
-        xml_content
+  defp ui_description_from_appium_session(appium_session) do
+    with {:ok, page_source_xml} <- AppiumClient.get_page_source(appium_session),
+         {:ok, appium_json} <- appium_page_source_xml_to_json(page_source_xml) do
+      {:ok, "Current UI state: #{appium_json}"}
     end
   end
 
-  defp parse_appium_xml(xml_content) do
-    case SAXMap.from_string(xml_content, ignore_attribute: false) do
-      {:ok, parsed} ->
-        elements = extract_elements_from_parsed_xml(parsed)
-        {:ok, elements}
+  defp appium_page_source_xml_to_json(page_source_xml) do
+    case SAXMap.from_string(page_source_xml, ignore_attribute: false) do
+      {:ok, ui_state_map} ->
+        {:ok, JSON.encode!(simplify_elements(ui_state_map))}
 
       {:error, reason} ->
         {:error, reason}
     end
-  rescue
-    e -> {:error, e}
   end
 
-  defp extract_elements_from_parsed_xml(parsed) do
-    # Traverse the parsed XML tree and extract UI elements
-    parsed
-    |> extract_elements_from_map([])
-    |> List.flatten()
-  end
+  # We want to filter out repetitive values to optimize the context windows.
+  defp simplify_elements(element) when is_map(element) do
+    element
+    |> Enum.map(fn {key, value} ->
+      cond do
+        key == "visible" && value == "true" ->
+          {nil, nil}
 
-  defp extract_elements_from_map(parsed, acc) when is_map(parsed) do
-    Enum.reduce(parsed, acc, fn {key, value}, acc ->
-      if String.starts_with?(key, "XCUIElementType") do
-        # This is a UI element - handle both single element and lists
-        elements = extract_ui_elements(key, value)
-        # Continue processing nested elements
-        child_elements = extract_elements_from_value(value, [])
+        key == "enabled" && value == "true" ->
+          {nil, nil}
 
-        elements ++ child_elements ++ acc
-      else
-        # Not a UI element, but may contain UI elements
-        extract_elements_from_value(value, acc)
+        key == "index" ->
+          {nil, nil}
+
+        key == "traits" ->
+          {nil, nil}
+
+        key == "name" ->
+          {nil, nil}
+
+        true ->
+          {key, simplify_elements(value)}
       end
     end)
-  end
-
-  defp extract_elements_from_map(_, acc), do: acc
-
-  defp extract_elements_from_value(value, acc) when is_map(value) do
-    # Check if this has a "content" key (SAXMap structure when attributes are preserved)
-    case Map.get(value, "content") do
-      nil -> extract_elements_from_map(value, acc)
-      content -> extract_elements_from_value(content, acc)
-    end
-  end
-
-  defp extract_elements_from_value(value, acc) when is_list(value) do
-    Enum.reduce(value, acc, fn item, acc ->
-      extract_elements_from_value(item, acc)
-    end)
-  end
-
-  defp extract_elements_from_value(_, acc), do: acc
-
-  # Handle both single elements and lists of elements with same tag
-  defp extract_ui_elements(tag, elements) when is_list(elements) do
-    Enum.map(elements, &extract_ui_element(tag, &1))
-  end
-
-  defp extract_ui_elements(tag, element) do
-    [extract_ui_element(tag, element)]
-  end
-
-  defp extract_ui_element(tag, attrs) when is_map(attrs) do
-    # When ignore_attribute: false, attributes are at the same level as "content"
-    name = attrs["name"]
-    label = attrs["label"]
-    x = attrs["x"]
-    y = attrs["y"]
-    width = attrs["width"]
-    height = attrs["height"]
-    enabled = attrs["enabled"]
-    visible = attrs["visible"]
-
-    %{
-      "type" => tag,
-      "label" => name || label,
-      "frame" => %{
-        "x" => parse_number(x),
-        "y" => parse_number(y),
-        "width" => parse_number(width),
-        "height" => parse_number(height)
-      },
-      "enabled" => enabled == "true",
-      "visible" => visible == "true"
-    }
-    |> Enum.filter(fn {_, v} -> v != nil end)
+    |> Enum.reject(fn {key, _value} -> is_nil(key) end)
     |> Map.new()
   end
 
-  defp extract_ui_element(tag, _), do: %{"type" => tag}
-
-  defp parse_number(nil), do: nil
-
-  defp parse_number(str) do
-    case Float.parse(str) do
-      {num, _} -> round_if_needed(num)
-      :error -> nil
-    end
+  defp simplify_elements(elements) when is_list(elements) do
+    Enum.map(elements, &simplify_elements/1)
   end
+
+  defp simplify_elements(value), do: value
 end
