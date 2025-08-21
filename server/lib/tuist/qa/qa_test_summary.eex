@@ -1,6 +1,6 @@
 ### 🤖 QA Test Summary
 **Prompt:** <%= @prompt %>
-**Issues:** <%= if @issue_count > 0 do %>⚠️ <%= @issue_count %><% else %>0<% end %>
+**Issues:** <%= if @issue_count > 0 do %>⚠️ <%= @issue_count %><% else %>✅ 0<% end %>
 **Preview:** [<%= @preview_display_name %>](<%= @preview_url %>)
 **Commit:** [<%= String.slice(@commit_sha, 0, 9) %>](<%= @git_remote_url_origin %>/commit/<%= @commit_sha %>)
 
