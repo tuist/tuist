@@ -131,14 +131,14 @@ defmodule Runner.QA.Agent do
       prompt = """
       You are a QA agent. Test the following: #{prompt}.
 
-      First, understand what you need to test. Then, set up a plan to test the feature and execute on it without asking for additional instructions. Take screenshots to analyze whether there are any visual inconsistencies.
+      First, understand what you need to test. Then, set up a plan to test the feature and execute on it without asking for additional instructions.
 
-      When interacting with the app, make sure to follow the these guidelines:
+      When interacting with the app, you must follow these guidelines:
       - Prefer using describe_ui over screenshot to interact with the app
       - Don't read labels from screenshots. Always read them from the UI description.
       - To dismiss a system sheet, tap within the visible screen area but outside the sheet, such in the dark/grayed area above the sheet
       - If a button includes text, prefer tapping on the text to interact with the button
-      - When you recognize a placeholder/pre-filled fields, never try to clear the placeholder value. Instead, replace the text directly with type_text tool.
+      - When you recognize placeholder/pre-filled fields, you must never clear the placeholder value. Instead, replace the text directly with type_text tool.
       """
 
       llm =
@@ -190,12 +190,13 @@ defmodule Runner.QA.Agent do
   end
 
   defp run_llm(attrs, handler, messages, tools) do
+    tools_without_step_report = tools |> Enum.filter(& &1.name != "step_report")
     attrs
     |> LLMChain.new!()
     |> LLMChain.add_messages(messages)
-    |> LLMChain.add_tools(tools)
+    |> LLMChain.add_tools(tools_without_step_report)
     |> LLMChain.add_callback(handler)
-    |> LLMChain.run_until_tool_used(Enum.map(tools, & &1.name))
+    |> LLMChain.run_until_tool_used(Enum.map(tools_without_step_report, & &1.name))
     |> process_llm_result(attrs, handler, tools)
   end
 
@@ -270,7 +271,7 @@ defmodule Runner.QA.Agent do
     )
     |> LLMChain.add_tools(tools)
     |> LLMChain.add_callback(handler)
-    |> LLMChain.run_until_tool_used("step_report")
+    |> LLMChain.run(mode: :until_success)
   end
 
   defp clear_ui_and_screenshot_messages(messages) do

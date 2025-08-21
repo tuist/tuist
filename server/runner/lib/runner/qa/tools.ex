@@ -32,7 +32,7 @@ defmodule Runner.QA.Tools do
     Function.new!(%{
       name: "describe_ui",
       description:
-        "Retrieves the entire view hierarchy with precise frame coordinates for all visible elements. Use this tool only if you don't have a recent UI state description.",
+        "Retrieves the entire view hierarchy with precise frame coordinates for all visible elements. Use this tool only if you don't have an existing Current UI state description – you will typically use this only before interacting with the app with tools like tap.",
       function: fn _params, _context ->
         with {:ok, ui_description} <- ui_description_from_appium_session(appium_session) do
           {:ok, [ContentPart.text!(ui_description)]}
@@ -621,7 +621,7 @@ defmodule Runner.QA.Tools do
   defp screenshot_tool(%{simulator_uuid: simulator_uuid}) do
     Function.new!(%{
       name: "screenshot",
-      description: "Captures a screenshot of the current view.",
+      description: "Captures a screenshot of the current view. Use this tool only if you don't have an existing screenshot – you will typically use this only before interacting with the app with tools like tap.",
       parameters: [],
       function: fn _params, _context ->
         with {:ok, temp_path} <- Briefly.create(),
@@ -752,7 +752,7 @@ defmodule Runner.QA.Tools do
                project_handle: project_handle
              }) do
           {:ok, _} ->
-            {:ok, "Step report submitted successfully."}
+            {:ok, "Step report successfully."}
 
           {:error, reason} ->
             {:error, "Failed to submit step report: #{reason}"}
@@ -884,7 +884,6 @@ defmodule Runner.QA.Tools do
   defp ui_description_from_appium_session(appium_session) do
     with {:ok, page_source_xml} <- AppiumClient.get_page_source(appium_session),
          {:ok, appium_json} <- appium_page_source_xml_to_json(page_source_xml) do
-           dbg(String.length("Current UI state: #{appium_json}"))
       {:ok, "Current UI state: #{appium_json}"}
     end
   end
@@ -907,7 +906,6 @@ defmodule Runner.QA.Tools do
     else
       element
       |> Enum.map(fn {key, value} ->
-        dbg({key,value})
         cond do
           key == "enabled" && value == "true" ->
             {nil, nil}
@@ -918,7 +916,7 @@ defmodule Runner.QA.Tools do
           key == "accessible" && value == "true" ->
             {nil, nil}
 
-          key == "content" && value == "null" ->
+          key == "content" && is_nil(value) ->
             {nil, nil}
 
           key == "index" ->
