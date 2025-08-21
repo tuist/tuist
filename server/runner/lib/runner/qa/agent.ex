@@ -5,6 +5,7 @@ defmodule Runner.QA.Agent do
 
   alias LangChain.Chains.LLMChain
   alias LangChain.ChatModels.ChatAnthropic
+  alias LangChain.ChatModels.ChatOpenAI
   alias LangChain.Message
   alias LangChain.Message.ContentPart
   alias LangChain.TokenUsage
@@ -17,6 +18,7 @@ defmodule Runner.QA.Agent do
   require Logger
 
   @claude_model "claude-sonnet-4-20250514"
+  @openai_model "gpt-5"
   @action_tool_names [
     "tap",
     "swipe",
@@ -52,6 +54,7 @@ defmodule Runner.QA.Agent do
         opts
       ) do
     anthropic_api_key = Keyword.get(opts, :anthropic_api_key)
+    openai_api_key = Keyword.get(opts, :openai_api_key)
 
     with {:ok, simulator_device} <- simulator_device(),
          :ok <- run_preview(preview_url, bundle_identifier, simulator_device),
@@ -148,6 +151,19 @@ defmodule Runner.QA.Agent do
           api_key: anthropic_api_key
         })
 
+      with_fallbacks =
+        if openai_api_key do
+          [
+            ChatOpenAI.new!(%{
+              model: @openai_model,
+              max_completion_tokens: 2000,
+              api_key: openai_api_key
+            })
+          ]
+        else
+          []
+        end
+
       tools =
         Tools.tools(%{
           server_url: server_url,
@@ -161,7 +177,7 @@ defmodule Runner.QA.Agent do
         })
 
       case run_llm(
-             %{llm: llm, max_retry_count: 10},
+             %{llm: llm, with_fallbacks: with_fallbacks, max_retry_count: 10},
              handler,
              [Message.new_user!(prompt)],
              tools
@@ -189,7 +205,7 @@ defmodule Runner.QA.Agent do
     end
   end
 
-  defp run_llm(attrs, handler, messages, tools) do
+  defp run_llm(%{with_fallbacks: with_fallbacks} = attrs, handler, messages, tools) do
     tools_without_step_report = Enum.filter(tools, &(&1.name != "step_report"))
 
     attrs
@@ -197,7 +213,9 @@ defmodule Runner.QA.Agent do
     |> LLMChain.add_messages(messages)
     |> LLMChain.add_tools(tools_without_step_report)
     |> LLMChain.add_callback(handler)
-    |> LLMChain.run_until_tool_used(Enum.map(tools_without_step_report, & &1.name))
+    |> LLMChain.run_until_tool_used(Enum.map(tools_without_step_report, & &1.name),
+      with_fallbacks: with_fallbacks
+    )
     |> process_llm_result(attrs, handler, tools)
   end
 

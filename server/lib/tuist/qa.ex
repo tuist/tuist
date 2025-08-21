@@ -64,7 +64,10 @@ defmodule Tuist.QA do
           qa_run(qa_run.id)
         end
       else
-        case Agent.test(attrs, anthropic_api_key: Environment.anthropic_api_key()) do
+        case Agent.test(attrs,
+               anthropic_api_key: Environment.anthropic_api_key(),
+               openai_api_key: Environment.openai_api_key()
+             ) do
           :ok ->
             qa_run(qa_run.id)
 
@@ -123,7 +126,7 @@ defmodule Tuist.QA do
     npm i --location=global appium
     appium driver install xcuitest
     tmux new-session -d -s appium 'appium'
-    runner qa --preview-url "#{app_build_url}" --bundle-identifier #{bundle_identifier} --server-url #{server_url} --run-id #{run_id} --auth-token #{auth_token} --account-handle #{account_handle} --project-handle #{project_handle} --prompt "#{prompt}" --anthropic-api-key #{Environment.anthropic_api_key()}
+    runner qa --preview-url "#{app_build_url}" --bundle-identifier #{bundle_identifier} --server-url #{server_url} --run-id #{run_id} --auth-token #{auth_token} --account-handle #{account_handle} --project-handle #{project_handle} --prompt "#{prompt}" --anthropic-api-key #{Environment.anthropic_api_key()} --openai-api-key #{Environment.openai_api_key()}
     """
   end
 
