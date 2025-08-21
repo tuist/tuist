@@ -1,42 +1,67 @@
 ---
-{
-  "title": "Accounts and projects",
-  "titleTemplate": ":title | Server | Guides | Tuist",
-  "description": "Tuist에서 계정과 프로젝트를 생성하고 관리하는 방법을 배워봅니다."
-}
+{ "title": "Accounts and projects", "titleTemplate": ":title | Server | Guides |
+Tuist", "description": "Learn how to create and manage accounts and projects in
+Tuist." }
 ---
-# Accounts and projects {#accounts-and-projects}
+# 계정과 프로젝트 {#accounts-and-projects}
 
-## 계정 {#accounts}
+Some Tuist features require a server which adds persistence of data and can
+interact with other services. To interact with the server, you need an account
+and a project that you connect to your local project.
 
-서버를 사용하려면 계정이 필요합니다. 계정은 두 가지 타입이 있습니다:
+## Accounts {#accounts}
 
-- **개인 계정:** 이러한 계정은 회원 가입 시 자동으로 생성되고 아이디는 제공하는 서비스 (예: GitHub) 에서 얻거나 이메일 주소의 첫번째 부분으로 설정됩니다.
-- **조직 계정:** 이러한 계정은 수동으로 생성되고 개발자가 지정한 아이디로 설정합니다. 조직 계정은 프로젝트의 협업자로 멤버를 추가할 수 있습니다.
+To use the server, you'll need an account. There are two types of accounts:
 
-[GitHub](https://github.com)에 익숙하다면 개인 계정과 조직 계정을 가질 수 있고 이 계정들은 URL을 구성할 때 식별자로 사용된다는 개념과 유사합니다.
+- **Personal account:** Those accounts are created automaticaly when you sign up
+  and are identified by a handle that's obtained either from the identity
+  provider (e.g. GitHub) or the first part of the email address.
+- **Organization account:** Those accounts are manually created and are
+  identified by a handle that's defined by the developer. Organizations allow
+  inviting other members to collaborate on projects.
 
-> [!NOTE] CLI-FIRST\
-> 계정과 프로젝트를 관리하기 위한 동작은 대부분 CLI를 통해서 수행됩니다. 우리는 계정과 프로젝트를 쉽게 관리하기 위한 웹 인터페이스를 개발 중입니다.
+If you are familiar with [GitHub](https://github.com), the concept is similar to
+theirs, where you can have personal and organization accounts, and they are
+identified by a *handle* that's used when constructing URLs.
 
-<LocalizedLink href="/cli/organization">`tuist organization`</LocalizedLink> 하위 명령어를 통해 조직을 관리할 수 있습니다. 새로운 조직 계정을 생성하기 위해 다음과 같이 수행합니다:
+> [!NOTE] CLI-FIRST Most operations to manage accounts and projects are done
+> through the CLI. We are working on a web interface that will make it easier to
+> manage accounts and projects.
 
+You can manage the organization through the subcommands under
+<LocalizedLink href="/cli/organization">`tuist organization`</LocalizedLink>. To
+create a new organization account, run:
 ```bash
 tuist organization create {account-handle}
 ```
 
-## 프로젝트 {#projects}
+## Projects {#projects}
 
-Tuist 프로젝트든 Xcode 프로젝트든 원격 프로젝트를 통해 계정과 통합되어야 합니다. GitHub와 계속 비교해 보면, 변경 사항을 푸시할 수 있는 로컬 리포지토리와 원격 리포지토리와 비슷합니다. 프로젝트를 생성하고 관리하기 위해 <LocalizedLink href="/cli/project">`tuist project`</LocalizedLink>를 사용할 수 있습니다.
+Your projects, either Tuist's or raw Xcode's, need to be integrated with your
+account through a remote project. Continuing with the comparison with GitHub,
+it's like having a local and a remote repository where you push your changes.
+You can use the <LocalizedLink href="/cli/project">`tuist
+project`</LocalizedLink> to create and manage projects.
 
-프로젝트는 조직 식별자와 프로젝트 식별자를 결합한 전체 식별자로 식별됩니다. 예를 들어, `tuist`라는 식별자를 가진 조직과 `tuist`라는 식별자를 가지는 프로젝트가 있다면, 전체 식별자는 `tuist/tuist` 입니다.
+Projects are identified by a full handle, which is the result of concatenating
+the organization handle and the project handle. For example, if you have an
+organization with the handle `tuist`, and a project with the handle `tuist`, the
+full handle would be `tuist/tuist`.
 
-로컬 프로젝트와 원격 프로젝트 간의 연결은 구성 파일을 통해 이루어집니다. 아무런 구성 파일이 없다면 `Tuist.swift` 파일을 생성하고 다음의 내용을 추가합니다:
+The binding between the local and the remote project is done through the
+configuration file. If you don't have any, create it at `Tuist.swift` and add
+the following content:
 
 ```swift
 let tuist = Tuist(fullHandle: "{account-handle}/{project-handle}") // e.g. tuist/tuist
 ```
 
-> [!IMPORTANT] TUIST 프로젝트 전용 기능\ <LocalizedLink href="/guides/features/build/cache">바이너리 캐싱</LocalizedLink>과 같은 기능은 Tuist 프로젝트가 있어야 사용할 수 있습니다. Xcode 프로젝트를 사용한다면 해당 기능을 사용할 수 없습니다.
+> [!IMPORTANT] TUIST PROJECT-ONLY FEATURES Note that there are some features
+> like <LocalizedLink href="/guides/features/cache">binary
+> caching</LocalizedLink> that require you having a Tuist project. If you are
+> using raw Xcode projects, you won't be able to use those features.
 
-프로젝트 URL은 전체 식별자를 사용하여 구성됩니다. 예를 들어, Tuist 대시보드는 프로젝트의 전체 식별자가 `tuist/tuist`라면 [cloud.tuist.io/tuist/tuist](https://cloud.tuist.io/tuist/tuist)으로 접근할 수 있습니다.
+Your project's URL is constructed by using the full handle. For example, Tuist's
+dashboard, which is public, is accessible at
+[tuist.dev/tuist/tuist](https://tuist.dev/tuist/tuist), where `tuist/tuist` is
+the project's full handle.
