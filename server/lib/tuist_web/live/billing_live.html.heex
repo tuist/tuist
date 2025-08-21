@@ -236,7 +236,10 @@
             <.external_link />
           </:icon_right>
         </.button>
-        <div :if={not is_nil(@payment_method)} data-part="payment-card-details">
+        <div
+          :if={not is_nil(@payment_method) and not is_nil(@payment_method.card)}
+          data-part="payment-card-details"
+        >
           <span data-part="name">
             {@payment_method.card.cardholder_name}
           </span>
