@@ -154,6 +154,25 @@ defmodule Tuist.QA do
   end
 
   @doc """
+  Returns a QA step by ID.
+  """
+  def step(id) do
+    case Repo.get(Step, id) do
+      nil -> {:error, :not_found}
+      step -> {:ok, step}
+    end
+  end
+
+  @doc """
+  Updates a QA step.
+  """
+  def update_step(%Step{} = step, attrs) do
+    step
+    |> Step.changeset(attrs)
+    |> Repo.update()
+  end
+
+  @doc """
   Gets a QA run by ID.
   """
   def qa_run(id, opts \\ []) do
@@ -350,9 +369,9 @@ defmodule Tuist.QA do
         account_handle: account_handle,
         project_handle: project_handle,
         qa_run_id: qa_run_id,
-        file_name: file_name
+        screenshot_id: screenshot_id
       }) do
-    "#{String.downcase(account_handle)}/#{String.downcase(project_handle)}/qa/screenshots/#{qa_run_id}/#{file_name}.png"
+    "#{String.downcase(account_handle)}/#{String.downcase(project_handle)}/qa/screenshots/#{qa_run_id}/#{screenshot_id}.png"
   end
 
   @doc """
@@ -388,7 +407,7 @@ defmodule Tuist.QA do
     qa_run =
       Repo.preload(qa_run,
         app_build: [preview: [project: :account]],
-        run_steps: :screenshots
+        run_steps: :screenshot
       )
 
     preview = qa_run.app_build.preview
@@ -419,8 +438,8 @@ defmodule Tuist.QA do
       "#{Environment.app_url()}/#{project.account.name}/#{project.name}/previews/#{preview.id}"
 
     render_qa_summary(%{
-      summary: qa_run.summary,
-      run_steps: qa_run.run_steps,
+      run_steps: Enum.sort_by(qa_run.run_steps, & &1.inserted_at, DateTime),
+      issue_count: qa_run.run_steps |> Enum.flat_map(& &1.issues) |> Enum.count(),
       app_url: Environment.app_url(),
       account_handle: project.account.name,
       project_handle: project.name,
@@ -452,6 +471,7 @@ defmodule Tuist.QA do
       "scopes" => [
         "project_qa_run_update",
         "project_qa_step_create",
+        "project_qa_step_update",
         "project_qa_screenshot_create"
       ],
       "project_id" => app_build.preview.project.id

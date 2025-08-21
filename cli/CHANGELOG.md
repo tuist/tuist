@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.64.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* improve passthrough argument documentation with usage examples by [@pepicrft](https://github.com/pepicrft) in [#8047](https://github.com/tuist/tuist/pull/8047)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.63.3...4.64.0
+
 ## What's Changed in 4.63.3<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes

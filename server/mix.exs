@@ -62,8 +62,12 @@ defmodule Tuist.MixProject do
       {:castore, "~> 1.0.12"},
       {:uniq, "~> 0.6"},
       {:encrypted_secrets, "~> 0.3.0"},
-      {:ex_aws, "~> 2.5.7"},
-      {:ex_aws_s3, "~> 2.5.7"},
+      # The trunk version of ex_aws has a bug that causes pre-fixing the bucket name to the object key
+      # when using custom domains:
+      # Fix: https://github.com/ex-aws/ex_aws/pull/1162/
+      {:ex_aws, git: "https://github.com/tuist/ex_aws/", ref: "76b39d8651408a40e6ca40eec63bb49d1dde5713", override: true},
+      {:ex_aws_s3,
+       git: "https://github.com/tuist/ex_aws_s3/", ref: "7f3278bef49cc3fa6b4138a4077804d328a41c9c", override: true},
       {:number, "~> 1.0"},
       {:mimic, "~> 2.0", only: :test},
       {:ymlr, "~> 5.0"},
@@ -129,12 +133,13 @@ defmodule Tuist.MixProject do
       {:ecto_ch, "~> 0.7"},
       (System.get_env("NOORA_LOCAL") &&
          {:noora, path: "../../Noora/web"}) ||
-        {:noora, "== 0.12.0"},
+        {:noora, "== 0.12.1"},
       {:zstream, "~> 0.6"},
       {:cloak_ecto, "~> 1.3.0"},
       {:boruta, git: "https://github.com/malach-it/boruta_auth", branch: "master"},
       {:minio_server, github: "LostKobrakai/minio_server", only: :dev},
       {:runner, path: "runner", runtime: false},
+      {:slipstream, "~> 1.2.0"},
       {:lazy_html, ">= 0.1.0", only: :test}
     ]
   end

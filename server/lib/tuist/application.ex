@@ -77,6 +77,7 @@ defmodule Tuist.Application do
       else
         %{port: minio_port, scheme: minio_scheme} = URI.parse(Environment.s3_endpoint())
         port = minio_port || 9095
+        console_port = Environment.minio_console_port()
 
         {minio_path, 0} = System.cmd("mise", ["which", "minio"])
 
@@ -90,7 +91,8 @@ defmodule Tuist.Application do
            region: Environment.s3_region(),
            access_key_id: Environment.s3_access_key_id(),
            secret_access_key: Environment.s3_secret_access_key(),
-           minio_executable: minio_path},
+           minio_executable: minio_path,
+           console_address: ":#{console_port}"},
           Tuist.MinioBucketCreator
         ]
       end

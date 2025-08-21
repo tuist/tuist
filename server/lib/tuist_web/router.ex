@@ -291,8 +291,9 @@ defmodule TuistWeb.Router do
 
         scope "/qa" do
           post "/runs/:qa_run_id/steps", QAController, :create_step
+          patch "/runs/:qa_run_id/steps/:step_id", QAController, :update_step
           patch "/runs/:qa_run_id", QAController, :update_run
-          post "/runs/:qa_run_id/screenshots/upload", QAController, :screenshot_upload
+          post "/runs/:qa_run_id/screenshots/:screenshot_id/upload", QAController, :screenshot_upload
           post "/runs/:qa_run_id/screenshots", QAController, :create_screenshot
         end
 

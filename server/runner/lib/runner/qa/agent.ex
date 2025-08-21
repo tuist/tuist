@@ -16,6 +16,16 @@ defmodule Runner.QA.Agent do
   require Logger
 
   @claude_model "claude-sonnet-4-20250514"
+  @action_tool_names [
+    "tap",
+    "swipe",
+    "long_press",
+    "type_text",
+    "key_press",
+    "button",
+    "touch",
+    "gesture"
+  ]
 
   defp log_and_stream(data, log_streamer, type) do
     Logger.info(inspect(data))
@@ -123,12 +133,12 @@ defmodule Runner.QA.Agent do
 
       When using tools, use the following udid: #{simulator_device.udid}.
 
-      When interacting with the app:
+      When interacting with the app, make sure to follow the these guidelines:
       - Prefer using describe_ui over screenshot to interact with the app
+      - Don't read labels from screenshots. Always read them from the UI description.
       - To dismiss a system sheet, tap within the visible screen area but outside the sheet, such in the dark/grayed area above the sheet
       - If a button includes text, prefer tapping on the text to interact with the button
-      - To clear fields, use the 42 keycode (backspace) with a longer duration
-      - Don't clear pre-filled/placeholder values in fields – instead start typing the text directly
+      - When you recognize a placeholder/pre-filled fields, never try to clear the placeholder value. Instead, replace the text directly with type_text tool.
       """
 
       llm =
@@ -147,7 +157,12 @@ defmodule Runner.QA.Agent do
           project_handle: project_handle
         })
 
-      case run_llm(%{llm: llm, max_retry_count: 10}, handler, [Message.new_user!(prompt)], tools) do
+      case run_llm(
+             %{llm: llm, max_retry_count: 10},
+             handler,
+             [Message.new_user!(prompt)],
+             tools
+           ) do
         {:error, error_message} ->
           log_and_stream(%{message: error_message}, log_streamer, "message")
 
@@ -174,18 +189,33 @@ defmodule Runner.QA.Agent do
     |> LLMChain.add_messages(messages)
     |> LLMChain.add_tools(tools)
     |> LLMChain.add_callback(handler)
-    |> LLMChain.run_until_tool_used(["describe_ui", "screenshot", "finalize"])
+    |> LLMChain.run_until_tool_used(Enum.map(tools, & &1.name))
     |> process_llm_result(attrs, handler, tools)
   end
 
-  defp process_llm_result({:ok, %LLMChain{last_message: last_message} = chain, tool_result}, attrs, handler, tools) do
+  defp process_llm_result(
+         {:ok, %LLMChain{last_message: last_message, messages: messages} = _chain, tool_result},
+         attrs,
+         handler,
+         tools
+       ) do
     case tool_result.name do
-      tool_name when tool_name in ["describe_ui", "screenshot"] ->
-        trimmed_messages = trim_tool_messages(Enum.drop(chain.messages, -1), tool_name)
-        run_llm(attrs, handler, trimmed_messages ++ [last_message], tools)
-
       "finalize" ->
         :ok
+
+      tool_name ->
+        messages =
+          clear_ui_and_screenshot_messages(Enum.drop(messages, -1)) ++ [List.last(messages)]
+
+        messages =
+          if tool_name in @action_tool_names and
+               last_message.tool_results != nil do
+            reporting_step_for_last_action_tool(messages, attrs, handler, tools)
+          else
+            messages
+          end
+
+        run_llm(attrs, handler, messages, tools)
     end
   end
 
@@ -193,35 +223,117 @@ defmodule Runner.QA.Agent do
     {:error, "LLM chain execution failed: #{message}"}
   end
 
-  defp trim_tool_messages(messages, tool_name) do
+  defp reporting_step_for_last_action_tool(messages, attrs, handler, tools) do
+    {messages, step_id} = messages_with_step_id(messages)
+
+    report_step(attrs, handler, tools, messages, step_id)
+
     messages
-    |> Enum.with_index()
-    |> Enum.reject(fn {message, index} ->
-      # Check if this is a tool result message with the specified tool
-      if has_message_tool_result_with_name(message, tool_name) do
-        true
-      else
-        next_message = Enum.at(messages, index + 1)
-
-        # Check if the next message (if exists) is a tool result with the specified tool
-        # If so, and this message has the corresponding tool_call, remove it too
-        next_message && has_message_tool_result_with_name(next_message, tool_name) &&
-          has_message_tool_call_with_name(message, tool_name)
-      end
-    end)
-    |> Enum.map(&elem(&1, 0))
   end
 
-  defp has_message_tool_call_with_name(message, tool_name) do
-    Enum.any?(message.tool_calls || [], fn tool_call ->
-      tool_call.name == tool_name
-    end)
+  # Extracts step_id from the last message and removes the step_id from the last message
+  defp messages_with_step_id(messages) do
+    last_message = List.last(messages)
+    last_tool_result = List.last(last_message.tool_results)
+    %{content: content_parts} = last_tool_result
+    %ContentPart{type: :text, content: step_id} = List.last(content_parts)
+
+    last_tool_result = %{
+      last_tool_result
+      | content: Enum.drop(content_parts, -1)
+    }
+
+    last_message = %{
+      last_message
+      | tool_results: Enum.drop(last_message.tool_results, -1) ++ [last_tool_result]
+    }
+
+    {Enum.drop(messages, -1) ++ [last_message], step_id}
   end
 
-  defp has_message_tool_result_with_name(message, tool_name) do
-    Enum.any?(message.tool_results || [], fn tool_result ->
-      tool_result.name == tool_name
-    end)
+  defp report_step(attrs, handler, tools, messages, step_id) do
+    attrs
+    |> LLMChain.new!()
+    |> LLMChain.add_messages(
+      messages ++
+        [
+          Message.new_user!(
+            "Use the returned image to analyze visual inconsistencies and report the result for step_id #{step_id} with the step_report tool."
+          )
+        ]
+    )
+    |> LLMChain.add_tools(tools)
+    |> LLMChain.add_callback(handler)
+    |> LLMChain.run_until_tool_used("step_report")
+  end
+
+  defp clear_ui_and_screenshot_messages(messages) do
+    messages = Enum.map(messages, &clear_ui_and_screenshot_content/1)
+
+    tool_call_ids_with_no_content =
+      messages
+      |> Enum.reject(&is_nil(&1.tool_results))
+      |> Enum.flat_map(& &1.tool_results)
+      |> Enum.filter(&Enum.empty?(&1.content))
+      |> MapSet.new(& &1.tool_call_id)
+
+    messages =
+      Enum.map(messages, fn message ->
+        tool_results =
+          Enum.filter(
+            message.tool_results || [],
+            &(&1.tool_call_id not in tool_call_ids_with_no_content)
+          )
+
+        tool_calls =
+          Enum.filter(
+            message.tool_calls || [],
+            &(&1.call_id not in tool_call_ids_with_no_content)
+          )
+
+        %{
+          message
+          | tool_results: tool_results,
+            tool_calls: tool_calls
+        }
+      end)
+
+    Enum.reject(messages, &is_message_empty?/1)
+  end
+
+  defp is_message_empty?(message) do
+    Enum.empty?(message.content || []) && Enum.empty?(message.tool_calls || []) &&
+      Enum.empty?(message.tool_results || [])
+  end
+
+  defp clear_ui_and_screenshot_content(message) do
+    tool_results =
+      Enum.map(message.tool_results || [], fn tool_result ->
+        content =
+          case tool_result.content do
+            content_parts when is_list(content_parts) ->
+              Enum.reject(content_parts, fn
+                %ContentPart{type: :image} ->
+                  true
+
+                %ContentPart{type: :text, content: text_content} ->
+                  String.starts_with?(text_content, "Current UI")
+
+                _ ->
+                  false
+              end)
+
+            other ->
+              other
+          end
+
+        %{tool_result | content: content}
+      end)
+
+    %{
+      message
+      | tool_results: tool_results
+    }
   end
 
   defp run_preview(preview_url, bundle_identifier, simulator_device) do

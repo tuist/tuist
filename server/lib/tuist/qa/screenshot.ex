@@ -13,9 +13,6 @@ defmodule Tuist.QA.Screenshot do
   @foreign_key_type UUIDv7
 
   schema "qa_screenshots" do
-    field :file_name, :string
-    field :title, :string
-
     belongs_to :qa_run, Run, foreign_key: :qa_run_id, type: UUIDv7
     belongs_to :qa_step, Step, foreign_key: :qa_step_id, type: UUIDv7
 
@@ -24,10 +21,9 @@ defmodule Tuist.QA.Screenshot do
 
   def changeset(screenshot, attrs) do
     screenshot
-    |> cast(attrs, [:qa_run_id, :qa_step_id, :file_name, :title])
-    |> validate_required([:qa_run_id, :file_name, :title])
+    |> cast(attrs, [:qa_run_id, :qa_step_id])
+    |> validate_required([:qa_run_id])
     |> foreign_key_constraint(:qa_run_id)
     |> foreign_key_constraint(:qa_step_id)
-    |> unique_constraint(:file_name, name: :qa_screenshots_qa_run_id_file_name_index)
   end
 end

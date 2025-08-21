@@ -8,8 +8,8 @@ defmodule Runner.QA.ClientTest do
   describe "create_step/6" do
     test "makes POST request with correct parameters" do
       # Given
-      summary = "Login test completed successfully"
-      description = "Successfully completed login test with valid credentials"
+      action = "Login test completed successfully"
+      result = "Successfully completed login test with valid credentials"
       issues = ["Minor UI alignment issue in button"]
       server_url = "https://example.com"
       run_id = "test-run-123"
@@ -19,7 +19,7 @@ defmodule Runner.QA.ClientTest do
         assert opts[:url] ==
                  "#{server_url}/api/projects/test-account/test-project/qa/runs/#{run_id}/steps"
 
-        assert opts[:json] == %{summary: summary, description: description, issues: issues}
+        assert opts[:json] == %{action: action, result: result, issues: issues}
         assert opts[:headers] == %{"Authorization" => "Bearer #{auth_token}"}
         {:ok, %{status: 201, body: ""}}
       end)
@@ -27,8 +27,8 @@ defmodule Runner.QA.ClientTest do
       # When
       result =
         Client.create_step(%{
-          summary: summary,
-          description: description,
+          action: action,
+          result: result,
           issues: issues,
           server_url: server_url,
           run_id: run_id,
@@ -38,13 +38,13 @@ defmodule Runner.QA.ClientTest do
         })
 
       # Then
-      assert result == :ok
+      assert result == {:ok, ""}
     end
 
     test "returns error on server failure" do
       # Given
-      summary = "Failed test step"
-      description = "Test failed due to timeout"
+      action = "Failed test step"
+      result = "Test failed due to timeout"
       issues = ["Timeout error", "Server unresponsive"]
       server_url = "https://example.com"
       run_id = "test-run-123"
@@ -57,8 +57,8 @@ defmodule Runner.QA.ClientTest do
       # When
       result =
         Client.create_step(%{
-          summary: summary,
-          description: description,
+          action: action,
+          result: result,
           issues: issues,
           server_url: server_url,
           run_id: run_id,
@@ -99,7 +99,7 @@ defmodule Runner.QA.ClientTest do
         })
 
       # Then
-      assert result == :ok
+      assert result == {:ok, ""}
     end
   end
 
@@ -115,7 +115,7 @@ defmodule Runner.QA.ClientTest do
         assert opts[:url] ==
                  "#{server_url}/api/projects/test-account/test-project/qa/runs/#{run_id}"
 
-        assert opts[:json] == %{status: "completed", summary: summary}
+        assert opts[:json] == %{status: "completed"}
         assert opts[:headers] == %{"Authorization" => "Bearer #{auth_token}"}
         {:ok, %{status: 201, body: ""}}
       end)
@@ -132,24 +132,22 @@ defmodule Runner.QA.ClientTest do
         })
 
       # Then
-      assert result == :ok
+      assert result == {:ok, ""}
     end
   end
 
-  describe "screenshot_upload/6" do
+  describe "screenshot_upload/7" do
     test "makes POST request and returns upload URL" do
       # Given
-      name = "login_screen"
-      title = "Login Screen"
       server_url = "https://example.com"
       run_id = "test-run-123"
       auth_token = "test-token"
+      screenshot_id = "screenshot-456"
 
       expect(Req, :post, fn opts ->
         assert opts[:url] ==
-                 "#{server_url}/api/projects/test-account/test-project/qa/runs/#{run_id}/screenshots/upload"
+                 "#{server_url}/api/projects/test-account/test-project/qa/runs/#{run_id}/screenshots/#{screenshot_id}/upload"
 
-        assert opts[:json] == %{file_name: name, title: title}
         assert opts[:headers] == %{"Authorization" => "Bearer #{auth_token}"}
 
         {:ok,
@@ -162,13 +160,12 @@ defmodule Runner.QA.ClientTest do
       # When
       result =
         Client.screenshot_upload(%{
-          file_name: name,
-          title: title,
           server_url: server_url,
           run_id: run_id,
           auth_token: auth_token,
           account_handle: "test-account",
-          project_handle: "test-project"
+          project_handle: "test-project",
+          screenshot_id: screenshot_id
         })
 
       # Then
@@ -180,8 +177,7 @@ defmodule Runner.QA.ClientTest do
   describe "create_screenshot/6" do
     test "makes POST request successfully" do
       # Given
-      name = "success_screen"
-      title = "Success Screen"
+      step_id = "test-step-123"
       server_url = "https://example.com"
       run_id = "test-run-123"
       auth_token = "test-token"
@@ -190,7 +186,7 @@ defmodule Runner.QA.ClientTest do
         assert opts[:url] ==
                  "#{server_url}/api/projects/test-account/test-project/qa/runs/#{run_id}/screenshots"
 
-        assert opts[:json] == %{file_name: name, title: title}
+        assert opts[:json] == %{step_id: step_id}
         assert opts[:headers] == %{"Authorization" => "Bearer #{auth_token}"}
         {:ok, %{status: 201, body: ""}}
       end)
@@ -198,8 +194,7 @@ defmodule Runner.QA.ClientTest do
       # When
       result =
         Client.create_screenshot(%{
-          file_name: name,
-          title: title,
+          step_id: step_id,
           server_url: server_url,
           run_id: run_id,
           auth_token: auth_token,
@@ -208,7 +203,7 @@ defmodule Runner.QA.ClientTest do
         })
 
       # Then
-      assert result == :ok
+      assert result == {:ok, ""}
     end
   end
 
