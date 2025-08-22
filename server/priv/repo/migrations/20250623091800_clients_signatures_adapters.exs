@@ -1,5 +1,23 @@
 defmodule Tuist.Repo.Migrations.ClientsSignaturesAdapters do
   use Ecto.Migration
 
-  use Boruta.Migrations.ClientsSignaturesAdapters
+  def up do
+    alter table(:oauth_clients) do
+      add :signatures_adapter, :string, null: false, default: "Elixir.Boruta.Internal.Signatures"
+    end
+
+    alter table(:oauth_clients) do
+      modify :did, :text
+    end
+  end
+
+  def down do
+    alter table(:oauth_clients) do
+      modify :did, :string
+    end
+
+    alter table(:oauth_clients) do
+      remove :signatures_adapter
+    end
+  end
 end
