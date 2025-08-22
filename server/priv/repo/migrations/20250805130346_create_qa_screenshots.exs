@@ -21,7 +21,6 @@ defmodule Tuist.Repo.Migrations.CreateQAScreenshots do
   end
 
   def down do
-    drop unique_index(:qa_screenshots, [:qa_run_id, :file_name])
     drop index(:qa_screenshots, [:inserted_at])
     drop index(:qa_screenshots, [:qa_step_id])
     drop index(:qa_screenshots, [:qa_run_id])
