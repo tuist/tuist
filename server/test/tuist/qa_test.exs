@@ -2,9 +2,13 @@ defmodule Tuist.QATest do
   use TuistTestSupport.Cases.DataCase
   use Mimic
 
+  alias LangChain.Chains.LLMChain
+  alias LangChain.Message
+  alias LangChain.Message.ContentPart
   alias Runner.QA.Agent
   alias Tuist.Authentication
   alias Tuist.QA
+  alias Tuist.QA.LaunchArgumentGroup
   alias Tuist.QA.Run
   alias Tuist.Repo
   alias Tuist.Storage
@@ -269,6 +273,235 @@ defmodule Tuist.QATest do
 
       # Then
       assert {:error, "Token creation failed"} == result
+    end
+
+    test "includes launch arguments when project has launch argument groups" do
+      # Given
+      app_build =
+        Repo.preload(AppBuildsFixtures.app_build_fixture(), preview: [project: :account])
+
+      project = app_build.preview.project
+
+      {:ok, _login_group} =
+        %LaunchArgumentGroup{}
+        |> LaunchArgumentGroup.create_changeset(%{
+          project_id: project.id,
+          name: "login-credentials",
+          description: "Skip login with prefilled credentials",
+          value: "--email user@example.com --password test123"
+        })
+        |> Repo.insert()
+
+      {:ok, _debug_group} =
+        %LaunchArgumentGroup{}
+        |> LaunchArgumentGroup.create_changeset(%{
+          project_id: project.id,
+          name: "debug-mode",
+          description: "Enable debug logging",
+          value: "--debug --verbose"
+        })
+        |> Repo.insert()
+
+      prompt = "Test the login feature"
+
+      expect(Storage, :generate_download_url, fn _ -> "https://example.com/preview.zip" end)
+
+      expect(Authentication, :encode_and_sign, fn _account, claims, _opts ->
+        {:ok, "test-jwt-token", claims}
+      end)
+
+      expect(Tuist.Environment, :namespace_enabled?, fn -> false end)
+      expect(Tuist.Environment, :anthropic_api_key, 2, fn -> "test-anthropic-key" end)
+
+      expect(LLMChain, :new!, fn %{llm: _llm} -> %LLMChain{} end)
+
+      expect(LLMChain, :add_messages, fn chain, messages ->
+        assert length(messages) == 2
+        assert %Message{role: :system} = List.first(messages)
+        assert %Message{role: :user} = List.last(messages)
+        chain
+      end)
+
+      expect(LLMChain, :run, fn _chain, _opts ->
+        {:ok,
+         %LLMChain{
+           last_message: %Message{
+             content: [%ContentPart{content: "login-credentials"}]
+           }
+         }}
+      end)
+
+      expect(Agent, :test, fn attrs, _opts ->
+        assert attrs.launch_arguments == "--email user@example.com --password test123"
+        :ok
+      end)
+
+      # When
+      {:ok, qa_run} =
+        QA.test(%{
+          app_build: app_build,
+          prompt: prompt
+        })
+
+      # Then
+      assert qa_run.prompt == prompt
+    end
+
+    test "selects multiple launch argument groups" do
+      # Given
+      app_build =
+        Repo.preload(AppBuildsFixtures.app_build_fixture(), preview: [project: :account])
+
+      project = app_build.preview.project
+
+      {:ok, _login_group} =
+        %LaunchArgumentGroup{}
+        |> LaunchArgumentGroup.create_changeset(%{
+          project_id: project.id,
+          name: "login-credentials",
+          description: "Skip login with prefilled credentials",
+          value: "--email user@example.com --password test123"
+        })
+        |> Repo.insert()
+
+      {:ok, _debug_group} =
+        %LaunchArgumentGroup{}
+        |> LaunchArgumentGroup.create_changeset(%{
+          project_id: project.id,
+          name: "debug-mode",
+          description: "Enable debug logging",
+          value: "--debug --verbose"
+        })
+        |> Repo.insert()
+
+      prompt = "Test the login feature with debug mode enabled"
+
+      expect(Storage, :generate_download_url, fn _ -> "https://example.com/preview.zip" end)
+
+      expect(Authentication, :encode_and_sign, fn _account, claims, _opts ->
+        {:ok, "test-jwt-token", claims}
+      end)
+
+      expect(Tuist.Environment, :namespace_enabled?, fn -> false end)
+      expect(Tuist.Environment, :anthropic_api_key, 2, fn -> "test-anthropic-key" end)
+
+      expect(LLMChain, :new!, fn %{llm: _llm} -> %LLMChain{} end)
+
+      expect(LLMChain, :add_messages, fn chain, _messages -> chain end)
+
+      expect(LLMChain, :run, fn _chain, _opts ->
+        {:ok,
+         %LLMChain{
+           last_message: %Message{
+             content: [%ContentPart{content: "login-credentials, debug-mode"}]
+           }
+         }}
+      end)
+
+      expect(Agent, :test, fn attrs, _opts ->
+        assert attrs.launch_arguments ==
+                 "--email user@example.com --password test123 --debug --verbose"
+
+        :ok
+      end)
+
+      # When
+      {:ok, qa_run} =
+        QA.test(%{
+          app_build: app_build,
+          prompt: prompt
+        })
+
+      # Then
+      assert qa_run.prompt == prompt
+    end
+
+    test "handles empty launch arguments when no groups match" do
+      # Given
+      app_build =
+        Repo.preload(AppBuildsFixtures.app_build_fixture(), preview: [project: :account])
+
+      project = app_build.preview.project
+
+      {:ok, _special_group} =
+        %LaunchArgumentGroup{}
+        |> LaunchArgumentGroup.create_changeset(%{
+          project_id: project.id,
+          name: "special-feature",
+          description: "Enable special feature",
+          value: "--special-feature"
+        })
+        |> Repo.insert()
+
+      prompt = "Test basic navigation"
+
+      expect(Storage, :generate_download_url, fn _ -> "https://example.com/preview.zip" end)
+
+      expect(Authentication, :encode_and_sign, fn _account, claims, _opts ->
+        {:ok, "test-jwt-token", claims}
+      end)
+
+      expect(Tuist.Environment, :namespace_enabled?, fn -> false end)
+      expect(Tuist.Environment, :anthropic_api_key, 2, fn -> "test-anthropic-key" end)
+
+      expect(LLMChain, :new!, fn %{llm: _llm} -> %LLMChain{} end)
+
+      expect(LLMChain, :add_messages, fn chain, _messages -> chain end)
+
+      expect(LLMChain, :run, fn _chain, _opts ->
+        {:ok,
+         %LLMChain{
+           last_message: %Message{
+             content: [%ContentPart{content: ""}]
+           }
+         }}
+      end)
+
+      expect(Agent, :test, fn attrs, _opts ->
+        assert attrs.launch_arguments == ""
+        :ok
+      end)
+
+      # When
+      {:ok, qa_run} =
+        QA.test(%{
+          app_build: app_build,
+          prompt: prompt
+        })
+
+      # Then
+      assert qa_run.prompt == prompt
+    end
+
+    test "doesn't try to select launch argument group when project doesn't have any" do
+      # Given
+      app_build =
+        Repo.preload(AppBuildsFixtures.app_build_fixture(), preview: [project: :account])
+
+      prompt = "Test the app"
+
+      expect(Storage, :generate_download_url, fn _ -> "https://example.com/preview.zip" end)
+
+      expect(Authentication, :encode_and_sign, fn _account, claims, _opts ->
+        {:ok, "test-jwt-token", claims}
+      end)
+
+      expect(Tuist.Environment, :namespace_enabled?, fn -> false end)
+
+      expect(Agent, :test, fn attrs, _opts ->
+        assert attrs.launch_arguments == ""
+        :ok
+      end)
+
+      # When
+      {:ok, qa_run} =
+        QA.test(%{
+          app_build: app_build,
+          prompt: prompt
+        })
+
+      # Then
+      assert qa_run.prompt == prompt
     end
   end
 

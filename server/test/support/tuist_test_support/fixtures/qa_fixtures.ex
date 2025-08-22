@@ -3,11 +3,13 @@ defmodule TuistTestSupport.Fixtures.QAFixtures do
 
   alias Tuist.ClickHouseRepo
   alias Tuist.QA
+  alias Tuist.QA.LaunchArgumentGroup
   alias Tuist.QA.Log
   alias Tuist.QA.Screenshot
   alias Tuist.QA.Step
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AppBuildsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   def qa_run_fixture(opts \\ []) do
     app_build =
@@ -77,5 +79,23 @@ defmodule TuistTestSupport.Fixtures.QAFixtures do
     ClickHouseRepo.insert_stream("qa_logs", [log_attrs])
 
     struct(Log, log_attrs)
+  end
+
+  def launch_argument_group_fixture(opts \\ []) do
+    project =
+      Keyword.get_lazy(opts, :project, fn ->
+        ProjectsFixtures.project_fixture()
+      end)
+
+    attrs = %{
+      project_id: project.id,
+      name: Keyword.get(opts, :name, "test-launch-args-#{TuistTestSupport.Utilities.unique_integer()}"),
+      description: Keyword.get(opts, :description, "Test launch arguments group"),
+      value: Keyword.get(opts, :value, "--test-flag value")
+    }
+
+    %LaunchArgumentGroup{}
+    |> LaunchArgumentGroup.create_changeset(attrs)
+    |> Repo.insert!()
   end
 end

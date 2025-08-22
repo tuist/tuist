@@ -50,14 +50,15 @@ defmodule Runner.QA.Agent do
           auth_token: auth_token,
           account_handle: account_handle,
           project_handle: project_handle
-        },
+        } = attrs,
         opts
       ) do
     anthropic_api_key = Keyword.get(opts, :anthropic_api_key)
     openai_api_key = Keyword.get(opts, :openai_api_key)
+    launch_arguments = Map.get(attrs, :launch_arguments, "")
 
     with {:ok, simulator_device} <- simulator_device(),
-         :ok <- run_preview(preview_url, bundle_identifier, simulator_device),
+         :ok <- run_preview(preview_url, bundle_identifier, simulator_device, launch_arguments),
          {:ok, _} <-
            Client.start_run(%{
              server_url: server_url,
@@ -362,12 +363,12 @@ defmodule Runner.QA.Agent do
     }
   end
 
-  defp run_preview(preview_url, bundle_identifier, simulator_device) do
+  defp run_preview(preview_url, bundle_identifier, simulator_device, launch_arguments) do
     with {:ok, preview_path} <- download_preview(preview_url),
          {:ok, app_path} <- extract_app_from_preview(preview_path, bundle_identifier),
          :ok <- Simulators.boot_simulator(simulator_device),
          :ok <- Simulators.install_app(app_path, simulator_device) do
-      Simulators.launch_app(bundle_identifier, simulator_device)
+      Simulators.launch_app(bundle_identifier, simulator_device, launch_arguments)
     end
   end
 

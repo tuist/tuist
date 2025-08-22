@@ -380,7 +380,7 @@ defmodule Runner.QA.Simulators.SimulatorsTest do
         runtime_identifier: "com.apple.CoreSimulator.SimRuntime.iOS-18-4"
       }
 
-      stub(System, :cmd, fn "xcrun", ["simctl", "launch", "8491E652-18FC-4C0F-8AFA-2AEAFC3D4FF1", ^bundle_identifier] ->
+      stub(System, :cmd, fn "xcrun", ["simctl", "launch", "8491E652-18FC-4C0F-8AFA-2AEAFC3D4FF1", ^bundle_identifier, ""] ->
         {"com.example.myapp: 12345", 0}
       end)
 
@@ -402,7 +402,7 @@ defmodule Runner.QA.Simulators.SimulatorsTest do
         runtime_identifier: "com.apple.CoreSimulator.SimRuntime.iOS-18-4"
       }
 
-      stub(System, :cmd, fn "xcrun", ["simctl", "launch", "8491E652-18FC-4C0F-8AFA-2AEAFC3D4FF1", ^bundle_identifier] ->
+      stub(System, :cmd, fn "xcrun", ["simctl", "launch", "8491E652-18FC-4C0F-8AFA-2AEAFC3D4FF1", ^bundle_identifier, ""] ->
         {"Unable to launch com.example.myapp", 1}
       end)
 

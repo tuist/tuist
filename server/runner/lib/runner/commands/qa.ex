@@ -36,7 +36,9 @@ defmodule Runner.Commands.QA do
           account_handle: :string,
           project_handle: :string,
           prompt: :string,
+          launch_arguments: :string,
           anthropic_api_key: :string,
+          openai_api_key: :string,
           help: :boolean
         ],
         aliases: [h: :help]
@@ -89,7 +91,9 @@ defmodule Runner.Commands.QA do
       --prompt "<prompt>"          Test prompt describing what to test
       --anthropic-api-key <key>    Anthropic API key for AI testing
 
-    Options:
+    Optional:
+      --launch-arguments "<args>"  Launch arguments to pass to the app
+      --openai-api-key <key>       OpenAI API key (fallback if Anthropic fails)
       --help, -h                   Show this help message
 
     Example:

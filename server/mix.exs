@@ -145,7 +145,8 @@ defmodule Tuist.MixProject do
       # causing runime errors when processing the telemetry events. We opened
       # a PR (https://github.com/rkallos/peep/pull/54) but it's still pending to
       # be merged.
-      {:peep, git: "https://github.com/pepicrft/peep", ref: "cae2ddd2349ae0766352d106c4ebebc29949f110", override: true}
+      {:peep, git: "https://github.com/pepicrft/peep", ref: "cae2ddd2349ae0766352d106c4ebebc29949f110", override: true},
+      {:langchain, git: "https://github.com/brainlid/langchain", branch: "main"}
     ]
   end
 
