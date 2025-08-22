@@ -9,8 +9,7 @@ public struct ContentView: View {
     }
 }
 
-struct ContentView_Previews: PreviewProvider {
-    static var previews: some View {
-        ContentView()
-    }
+@available(*, introduced: iOS 17, macOS 14, tvOS 17, watchOS 10)
+#Preview {
+    ContentView()
 }
