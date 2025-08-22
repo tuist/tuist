@@ -1,9 +1,10 @@
 ---
-title: Technologies
-titleTemplate: :title | Engineering | Tuist Handbook
-description: This document includes a list of technologies that are approved for use in Tuist projects along with the rationale behind each decision.
+{
+  "title": "Technologies",
+  "titleTemplate": ":title | Engineering | Tuist Handbook",
+  "description": "This document includes a list of technologies that are approved for use in Tuist projects along with the rationale behind each decision."
+}
 ---
-
 # Technologies
 
 When deciding a technology to use in a new project, we try to be pragmatic ensuring we prevent technology fragmentation.

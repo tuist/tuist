@@ -14,6 +14,54 @@ defmodule Tuist.ProjectTest do
     assert "Project name can't contain a dot. Please use a different name, such as project-name." in errors_on(changeset).name
   end
 
+  test "name cannot contain spaces" do
+    changeset =
+      Project.create_changeset(%Project{}, %{token: "token", name: "my project", account_id: 0})
+
+    assert changeset.valid? == false
+
+    assert "must contain only alphanumeric characters, hyphens, and underscores" in errors_on(changeset).name
+  end
+
+  test "name cannot contain other invalid characters" do
+    changeset =
+      Project.create_changeset(%Project{}, %{token: "token", name: "project@name", account_id: 0})
+
+    assert changeset.valid? == false
+
+    assert "must contain only alphanumeric characters, hyphens, and underscores" in errors_on(changeset).name
+  end
+
+  test "name can contain underscores" do
+    changeset =
+      Project.create_changeset(%Project{}, %{token: "token", name: "project_name", account_id: 0})
+
+    assert changeset.valid? == true
+  end
+
+  test "name must be at least 1 character long" do
+    changeset =
+      Project.create_changeset(%Project{}, %{token: "token", name: "", account_id: 0})
+
+    assert changeset.valid? == false
+    assert "can't be blank" in errors_on(changeset).name
+  end
+
+  test "name cannot exceed 32 characters" do
+    changeset =
+      Project.create_changeset(%Project{}, %{token: "token", name: String.duplicate("a", 33), account_id: 0})
+
+    assert changeset.valid? == false
+    assert "should be at most 32 character(s)" in errors_on(changeset).name
+  end
+
+  test "name with exactly 32 characters is valid" do
+    changeset =
+      Project.create_changeset(%Project{}, %{token: "token", name: String.duplicate("a", 32), account_id: 0})
+
+    assert changeset.valid? == true
+  end
+
   describe "validation of handle validity" do
     test "it fails when the handle is included in the block list" do
       # Given/When

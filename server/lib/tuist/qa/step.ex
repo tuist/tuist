@@ -13,20 +13,20 @@ defmodule Tuist.QA.Step do
   @foreign_key_type UUIDv7
 
   schema "qa_steps" do
-    field :summary, :string
-    field :description, :string
+    field :action, :string
+    field :result, :string
     field :issues, {:array, :string}
 
     belongs_to :qa_run, Run, foreign_key: :qa_run_id, type: UUIDv7
-    has_many :screenshots, Screenshot, foreign_key: :qa_step_id
+    has_one :screenshot, Screenshot, foreign_key: :qa_step_id
 
     timestamps(type: :utc_datetime, updated_at: false)
   end
 
   def changeset(qa_step, attrs) do
     qa_step
-    |> cast(attrs, [:qa_run_id, :summary, :description, :issues])
-    |> validate_required([:qa_run_id, :summary, :description, :issues])
+    |> cast(attrs, [:qa_run_id, :action, :result, :issues])
+    |> validate_required([:qa_run_id, :action, :issues])
     |> foreign_key_constraint(:qa_run_id)
   end
 end

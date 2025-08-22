@@ -1,9 +1,10 @@
 ---
-title: Installation
-titleTemplate: :title | Self-hosting | Server | Guides | Tuist
-description: Learn how to install Tuist on your infrastructure.
+{
+  "title": "Installation",
+  "titleTemplate": ":title | Self-hosting | Server | Guides | Tuist",
+  "description": "Learn how to install Tuist on your infrastructure."
+}
 ---
-
 # On-premise installation {#onpremise-installation}
 
 We offer a self-hosted version of the Tuist server for organizations that require more control over their infrastructure. This version allows you to host Tuist on your own infrastructure, ensuring that your data remains secure and private.

@@ -80,14 +80,6 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
             super.tearDown()
         }
 
-        func test_default_contains_the_update_workspace_projects_graph_mapper() {
-            // When
-            let got = subject.default(config: .test())
-
-            // Then
-            XCTAssertContainsElementOfType(got, UpdateWorkspaceProjectsGraphMapper.self)
-        }
-
         func test_generation_contains_the_graph_mapper_to_auto_generate_schemes() {
             // Given
             let includedTargets: Set<TargetQuery> = Set([.named("MyTarget")])

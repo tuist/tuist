@@ -103,6 +103,9 @@ public struct Target: Codable, Equatable, Sendable {
     /// The target's metadata.
     public var metadata: TargetMetadata
 
+    /// The target's buildable folders.
+    public var buildableFolders: [BuildableFolder]
+
     public static func target(
         name: String,
         destinations: Destinations,
@@ -113,6 +116,7 @@ public struct Target: Codable, Equatable, Sendable {
         infoPlist: InfoPlist? = .default,
         sources: SourceFilesList? = nil,
         resources: ResourceFileElements? = nil,
+        buildableFolders: [BuildableFolder] = [],
         copyFiles: [CopyFilesAction]? = nil,
         headers: Headers? = nil,
         entitlements: Entitlements? = nil,
@@ -153,7 +157,8 @@ public struct Target: Codable, Equatable, Sendable {
             mergedBinaryType: mergedBinaryType,
             mergeable: mergeable,
             onDemandResourcesTags: onDemandResourcesTags,
-            metadata: metadata
+            metadata: metadata,
+            buildableFolders: buildableFolders
         )
     }
 }

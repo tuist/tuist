@@ -40,6 +40,13 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
                 archiveVersion: Xcode.LastKnown.archiveVersion
             )
         }
+
+        static var xcode16: ProjectConstants {
+            ProjectConstants(
+                objectVersion: 70,
+                archiveVersion: Xcode.LastKnown.archiveVersion
+            )
+        }
     }
 
     // MARK: - Attributes
@@ -270,15 +277,16 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
         for package in project.packages {
             switch package {
             case let .local(path):
+                let relativePath = path.relative(to: project.sourceRootPath).pathString
                 let reference = PBXFileReference(
                     sourceTree: .group,
                     name: path.components.last,
                     lastKnownFileType: "folder",
-                    path: path.relative(to: project.sourceRootPath).pathString
+                    path: relativePath
                 )
 
                 let packageReference = XCLocalSwiftPackageReference(
-                    relativePath: path.pathString
+                    relativePath: relativePath
                 )
                 pbxproj.add(object: packageReference)
                 localPackageReferences[path.pathString] = packageReference
@@ -337,6 +345,6 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
 
     private func determineProjectConstants() throws -> ProjectConstants {
         // TODO: Determine if this can be inferred by the set Xcode version
-        .xcode13
+        .xcode16
     }
 }

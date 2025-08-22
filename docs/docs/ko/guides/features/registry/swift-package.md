@@ -1,9 +1,10 @@
 ---
-title: Swift package
-titleTemplate: :title · Registry · Develop · Guides · Tuist
-description: Swift Package에서 Tuist Registry를 사용하는 방법을 학습합니다.
+{
+  "title": "Swift package",
+  "titleTemplate": ":title · Registry · Develop · Guides · Tuist",
+  "description": "Swift Package에서 Tuist Registry를 사용하는 방법을 학습합니다."
+}
 ---
-
 # Swift package {#swift-package}
 
 Swift Package를 작업 중이라면, 레지스트리에 해당 의존성이 등록되어 있는 경우 `--replace-scm-with-registry` 플래그를 사용하여 레지스트리에서 의존성을 가져올 수 있습니다.

@@ -217,26 +217,28 @@ end
 
 # Ex.AWS
 if Tuist.Environment.env() not in [:test] do
-  %{host: s3_endpoint_host, scheme: s3_scheme, port: s3_port} = secrets |> Tuist.Environment.s3_endpoint() |> URI.parse()
+  %{host: s3_endpoint_host, scheme: s3_scheme, port: s3_port} =
+    secrets |> Tuist.Environment.s3_endpoint() |> URI.parse()
 
-  s3_config = [
-    scheme: "#{s3_scheme}://",
-    host: s3_endpoint_host
-  ]
-
-  s3_config = if s3_port, do: Keyword.put(s3_config, :port, s3_port), else: s3_config
+  s3_config =
+    then(
+      [
+        scheme: "#{s3_scheme}://",
+        host: s3_endpoint_host,
+        virtual_host: Tuist.Environment.s3_virtual_host(secrets),
+        bucket_as_host: Tuist.Environment.s3_bucket_as_host(secrets)
+      ],
+      &if(is_nil(s3_port), do: &1, else: Keyword.put(&1, :port, s3_port))
+    )
 
   config :ex_aws, :req_opts,
     receive_timeout: to_timeout(second: Tuist.Environment.s3_request_timeout(secrets)),
     pool_timeout: to_timeout(second: Tuist.Environment.s3_pool_timeout(secrets))
 
   config :ex_aws, :s3, s3_config
-  config :ex_aws, :s3, virtual_host: Tuist.Environment.s3_virtual_host()
 
   config :ex_aws,
-    http_client: Tuist.AWS.Client
-
-  config :ex_aws,
+    http_client: Tuist.AWS.Client,
     region: Tuist.Environment.s3_region(secrets)
 
   case Tuist.Environment.s3_authentication_method(secrets) do
@@ -336,13 +338,8 @@ config :tuist, Tuist.PromEx,
   # Larger numbers might lead to internal tasks timing out.
   # By keeping it small we might loose some granularity of the data, but I think it's a good tradeoff.
   # Use default value to avoid over-compacting
-  ets_flush_interval: 500,
+  ets_flush_interval: 7_500,
   metrics_server: [
     port: 9091,
     auth_strategy: :none
   ]
-
-# Error tracker
-if not Tuist.Environment.tuist_hosted?() do
-  config :error_tracker, enabled: true
-end

@@ -85,7 +85,8 @@ import TuistSupport
             settings: Settings? = nil,
             coreDataModels: [CoreDataModel] = [],
             environment: [String: String] = [:],
-            metadata: TargetMetadata = .default
+            metadata: TargetMetadata = .default,
+            buildableFolders: [BuildableFolder] = []
         ) -> Target {
             .target(
                 name: name,
@@ -96,6 +97,7 @@ import TuistSupport
                 infoPlist: infoPlist,
                 sources: sources,
                 resources: resources,
+                buildableFolders: buildableFolders,
                 headers: headers,
                 entitlements: entitlements,
                 scripts: scripts,
@@ -187,6 +189,8 @@ import TuistSupport
         public static func test(
             configuration: ConfigurationName = .debug,
             executable: TargetReference? = nil,
+            customWorkingDirectory: Path? = nil,
+            filePath: Path? = nil,
             arguments: Arguments? = nil,
             options: RunActionOptions = .options(),
             appClipInvocationURLString: String? = nil
@@ -194,6 +198,8 @@ import TuistSupport
             RunAction(
                 configuration: configuration,
                 executable: executable,
+                customWorkingDirectory: customWorkingDirectory,
+                filePath: filePath,
                 arguments: arguments,
                 options: options,
                 appClipInvocationURLString: appClipInvocationURLString

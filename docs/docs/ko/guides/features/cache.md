@@ -1,9 +1,10 @@
 ---
-title: Cache
-titleTemplate: :title · Develop · Guides · Tuist
-description: 컴파일된 바이너리를 캐싱하고 다양한 환경 간에 공유하여 빌드 시간을 최적화 하세요.
+{
+  "title": "Cache",
+  "titleTemplate": ":title · Develop · Guides · Tuist",
+  "description": "컴파일된 바이너리를 캐싱하고 다양한 환경 간에 공유하여 빌드 시간을 최적화 하세요."
+}
 ---
-
 # Cache {#cache}
 
 > [!IMPORTANT] 요구사항

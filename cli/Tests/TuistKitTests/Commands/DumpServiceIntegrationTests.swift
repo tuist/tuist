@@ -186,6 +186,9 @@ final class DumpServiceTests: TuistTestCase {
               },
               "project": {
                 "tuist": {
+                  "cacheOptions": {
+                    "keepSourceTargets": false
+                  },
                   "compatibleXcodeVersions": {
                     "all": {
 
@@ -196,6 +199,7 @@ final class DumpServiceTests: TuistTestCase {
                     "disablePackageVersionLocking": false,
                     "disableSandbox": false,
                     "enforceExplicitDependencies": false,
+                    "includeGenerateScheme": true,
                     "optionalAuthentication": false,
                     "resolveDependenciesWithSystemScm": false,
                     "staticSideEffectsWarningTargets": {

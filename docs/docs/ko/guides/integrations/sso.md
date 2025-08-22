@@ -1,9 +1,10 @@
 ---
-title: SSO
-titleTemplate: :title | Integrations | Guides | Tuist
-description: Learn how to set up Single Sign-On (SSO) with your organization.
+{
+  "title": "SSO",
+  "titleTemplate": ":title | Integrations | Guides | Tuist",
+  "description": "Learn how to set up Single Sign-On (SSO) with your organization."
+}
 ---
-
 # SSO {#sso}
 
 If you have a Google Workspace organization and you want any developer who signs in with the same Google hosted domain to be added to your Tuist organization, you can set it up with:

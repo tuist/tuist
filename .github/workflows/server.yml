@@ -4,11 +4,15 @@ on:
   push:
     branches:
       - main
+    paths:
+      - server/**
+      - .github/workflows/server.yml
+      - server/pnpm-lock.yaml
   pull_request:
     paths:
       - server/**
       - .github/workflows/server.yml
-      - pnpm-lock.yaml
+      - server/pnpm-lock.yaml
   merge_group: {}
 
 permissions:
@@ -63,7 +67,7 @@ jobs:
         with:
           path: |
             ~/.pnpm/store
-          key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+          key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
       - uses: jdx/mise-action@v2
       - run: mise run server:clickhouse:start
       - run: mise run server:db:reset
@@ -90,7 +94,7 @@ jobs:
         with:
           path: |
             ~/.pnpm/store
-          key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+          key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
       - uses: jdx/mise-action@v2
       - name: Run Credo
         run: mix credo
@@ -115,7 +119,7 @@ jobs:
         with:
           path: |
             ~/.pnpm/store
-          key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+          key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
       - uses: jdx/mise-action@v2
       - name: Check format
         run: mise run server:format --check
@@ -140,17 +144,24 @@ jobs:
         with:
           path: |
             ~/.pnpm/store
-          key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+          key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
       - uses: jdx/mise-action@v2
       - name: Install esbuild
         run: mix esbuild.install
       - name: Check esbuild output
         run: |
-          if ! mix esbuild app --log-level=warning | grep .; then
+          # Run esbuild and capture output
+          output=$(mix esbuild app --log-level=warning 2>&1 || true)
+
+          # Filter out known non-warning messages
+          warnings=$(echo "$output" | grep -v "^==> " | grep -v "^Compiling" | grep -v "^Generated" | grep -v "Downloading esbuild" | grep -v "^$" || true)
+
+          if [ -z "$warnings" ]; then
             echo "No esbuild warnings detected."
             exit 0
           else
-            echo "::error title=esbuild output detected::asset build has warnings."
+            echo "::error title=esbuild warnings detected::asset build has warnings."
+            echo "$warnings"
             exit 1
           fi
   security:
@@ -174,7 +185,7 @@ jobs:
         with:
           path: |
             ~/.pnpm/store
-          key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+          key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
       - uses: jdx/mise-action@v2
       - name: Check
         run: mise run server:security
@@ -201,8 +212,10 @@ jobs:
         with:
           path: |
             ~/.pnpm/store
-          key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+          key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
       - uses: jdx/mise-action@v2
+      # We move it so that we can copy it inside the Docker image for
+      # reproducibility of dependency resolution.
       - name: Docker build
         uses: docker/build-push-action@v6
         with:
@@ -250,7 +263,7 @@ jobs:
         with:
           path: |
             ~/.pnpm/store
-          key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+          key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
       - uses: jdx/mise-action@v2
       - run: mise run server:clickhouse:start
       - run: mise run server:db:reset

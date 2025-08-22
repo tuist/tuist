@@ -161,11 +161,17 @@ defmodule Tuist.Authorization do
       desc("Allows an account token with project_qa_step_create scope to create QA steps.")
       allow([:authenticated_as_account, scopes_permit: :project_qa_step_create])
     end
+
+    action :update do
+      desc("Allows an account token with project_qa_step_update scope to update QA steps.")
+      allow([:authenticated_as_account, scopes_permit: :project_qa_step_update])
+    end
   end
 
   object :project_qa_screenshot do
     action :create do
       desc("Allows an account token with project_qa_screenshot_create scope to create QA screenshots.")
+
       allow([:authenticated_as_account, scopes_permit: :project_qa_screenshot_create])
     end
   end

@@ -18,7 +18,6 @@ defmodule Tuist do
       Marketing.Changelog,
       Marketing.OpenGraph,
       Marketing.Newsletter,
-
       # App
       # -----
       # This module contains Tuist features that are not expected to have inter-dependencies
@@ -57,6 +56,10 @@ defmodule Tuist do
       QA,
       QA.Run,
       QA.Step,
+      QA.Screenshot,
+      QA.Log,
+      QA.Logs.Buffer,
+      QA.Workers.TestWorker,
       Apple,
       Xcode,
       Xcode.Postgres,
@@ -67,6 +70,8 @@ defmodule Tuist do
       Xcode.Clickhouse.XcodeGraph,
       Xcode.Clickhouse.XcodeProject,
       Xcode.Clickhouse.XcodeTarget,
+      Namespace,
+      Namespace.JWTToken,
       # Support
       # -----
       # These modules represent Tuist-agnostic utilities that are used by other features.

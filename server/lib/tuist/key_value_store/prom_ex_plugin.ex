@@ -32,7 +32,7 @@ defmodule Tuist.KeyValueStore.PromExPlugin do
           counter(
             [:tuist, :key_value_store, :redis, :pipeline_completed],
             event_name: [:redix, :pipeline, :stop],
-            tags: [:connection_name, :commands, :kind, :reason],
+            tags: [:connection_name, :kind, :reason],
             description: "A pipeline has been completed.",
             measurement: fn _ -> 1 end
           )

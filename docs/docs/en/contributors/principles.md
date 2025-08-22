@@ -1,9 +1,10 @@
 ---
-title: Principles
-titleTemplate: :title · Contributors · Tuist
-description: This document describes the principles that guide the development of Tuist.
+{
+  "title": "Principles",
+  "titleTemplate": ":title · Contributors · Tuist",
+  "description": "This document describes the principles that guide the development of Tuist."
+}
 ---
-
 # Principles {#principles}
 
 This page describes principles that are pillars to the design and development of Tuist. They evolve with the project and are meant to ensure a sustainable growth that is well-aligned with the project foundation.

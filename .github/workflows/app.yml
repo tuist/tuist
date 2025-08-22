@@ -4,13 +4,14 @@ on:
   push:
     branches:
       - main
+    paths:
+      - "app/**"
+      - ".github/workflows/app.yml"
+      - "Tuist/**"
   pull_request:
     paths:
       - "app/**"
-      - "*.swift"
-      - "Package.resolved"
       - ".github/workflows/app.yml"
-      - "mise.toml"
       - "Tuist/**"
 
 permissions:
@@ -37,8 +38,16 @@ jobs:
         id: check
         uses: actions/github-script@v7
         with:
-          github-token: ${{ secrets.TUIST_GITHUB_TOKEN }}
+          github-token: ${{ secrets.TUIST_GITHUB_TOKEN || github.token }}
           script: |
+            // If TUIST_GITHUB_TOKEN is not available (e.g., from a fork), treat as non-member
+            const token = '${{ secrets.TUIST_GITHUB_TOKEN }}';
+            if (!token || token === '') {
+              console.log(`Running from fork - treating ${context.payload.pull_request.user.login} as non-member`);
+              core.setOutput('is-member', 'false');
+              return;
+            }
+
             try {
               const { data: membership } = await github.rest.teams.getMembershipForUserInOrg({
                 org: 'tuist',
@@ -82,7 +91,7 @@ jobs:
       - name: Generate TuistApp
         run: mise x -- tuist generate TuistApp
       - name: Build TuistApp
-        run: mise x -- tuist xcodebuild build -scheme TuistApp -destination "generic/platform=iOS Simulator" -workspace Tuist.xcworkspace CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
+        run: mise x -- tuist xcodebuild build -scheme TuistApp -destination "generic/platform=iOS Simulator" -workspace Tuist.xcworkspace CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO ARCHS="arm64"
       - name: Share TuistApp
         if: |
           github.event_name == 'push' ||

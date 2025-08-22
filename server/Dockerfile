@@ -31,8 +31,15 @@ RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
 FROM ${BUILDER_IMAGE} AS builder
 
 # install build dependencies
-RUN apt-get update -y && apt-get upgrade -y && apt-get install -y build-essential git \
+RUN apt-get update -y && apt-get upgrade -y && apt-get install -y build-essential git xz-utils p7zip-full wget \
   && apt-get clean && rm -f /var/lib/apt/lists/*_*
+
+# install zig manually since it's not available via apt-get
+RUN wget -q https://ziglang.org/download/0.14.1/zig-x86_64-linux-0.14.1.tar.xz \
+  && tar -xf zig-x86_64-linux-0.14.1.tar.xz \
+  && mv zig-x86_64-linux-0.14.1 /usr/local/zig \
+  && ln -s /usr/local/zig/zig /usr/local/bin/zig \
+  && rm zig-x86_64-linux-0.14.1.tar.xz
 
 # prepare build dir
 WORKDIR /app
@@ -51,6 +58,18 @@ ENV TUIST_HOSTED=$TUIST_HOSTED
 COPY mix.exs mix.lock ./
 RUN mix deps.get --only $MIX_ENV
 RUN mkdir config
+
+# Copy runner source before building
+COPY runner runner
+
+# Build runner binary
+WORKDIR /app/runner
+RUN mix deps.get --only $MIX_ENV
+RUN MIX_ENV=prod mix release runner
+RUN mkdir -p /app/build
+RUN cp burrito_out/runner_macos /app/build/runner
+
+WORKDIR /app
 
 # copy compile-time config files before we compile dependencies
 # to ensure any relevant config change will trigger the dependencies
@@ -124,6 +143,8 @@ RUN if [ "$TUIST_HOSTED" = "0" ]; then \
 
 ENV SECRETS_DIRECTORY=/app/priv/secrets/
 COPY priv/repo/structure.sql /app/priv/repo/structure.sql
+
+COPY --from=builder /app/build/runner /app/bin/runner
 
 USER nobody
 

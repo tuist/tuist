@@ -1,9 +1,10 @@
 ---
-title: Accounts and projects
-titleTemplate: :title | Server | Guides | Tuist
-description: Tuist에서 계정과 프로젝트를 생성하고 관리하는 방법을 배워봅니다.
+{
+  "title": "Accounts and projects",
+  "titleTemplate": ":title | Server | Guides | Tuist",
+  "description": "Tuist에서 계정과 프로젝트를 생성하고 관리하는 방법을 배워봅니다."
+}
 ---
-
 # Accounts and projects {#accounts-and-projects}
 
 ## 계정 {#accounts}

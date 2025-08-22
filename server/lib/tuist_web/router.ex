@@ -1,6 +1,5 @@
 defmodule TuistWeb.Router do
   use TuistWeb, :router
-  use ErrorTracker.Web, :router
 
   import Oban.Web.Router
   import Phoenix.LiveDashboard.Router
@@ -36,7 +35,7 @@ defmodule TuistWeb.Router do
   end
 
   pipeline :browser_app do
-    plug :accepts, ["html"]
+    plug :accepts, ["html", "svg", "png"]
     plug :disable_robot_indexing
     plug :fetch_session
     plug :fetch_live_flash
@@ -216,15 +215,19 @@ defmodule TuistWeb.Router do
     end
   end
 
-  scope "/" do
+  scope "/", TuistWeb do
     pipe_through [:open_api, :browser_app]
 
-    get "/ready", TuistWeb.PageController, :ready
-    get "/api/docs", TuistWeb.APIController, :docs
+    get "/ready", PageController, :ready
+    get "/api/docs", APIController, :docs
+  end
 
-    get "/.well-known/apple-app-site-association",
-        TuistWeb.AppleAppSiteAssociationController,
-        :show
+  scope "/.well-known", TuistWeb do
+    pipe_through [:open_api, :non_authenticated_api]
+
+    get "/openid-configuration", WellKnownController, :openid_configuration
+    get "/jwks.json", WellKnownController, :jwks
+    get "/apple-app-site-association", WellKnownController, :apple_app_site_association
   end
 
   scope path: "/api",
@@ -266,6 +269,8 @@ defmodule TuistWeb.Router do
         put "/", ProjectsController, :update
 
         scope "/bundles" do
+          get "/", BundlesController, :index
+          get "/:bundle_id", BundlesController, :show
           post "/", BundlesController, :create
         end
 
@@ -286,8 +291,9 @@ defmodule TuistWeb.Router do
 
         scope "/qa" do
           post "/runs/:qa_run_id/steps", QAController, :create_step
+          patch "/runs/:qa_run_id/steps/:step_id", QAController, :update_step
           patch "/runs/:qa_run_id", QAController, :update_run
-          post "/runs/:qa_run_id/screenshots/upload", QAController, :screenshot_upload
+          post "/runs/:qa_run_id/screenshots/:screenshot_id/upload", QAController, :screenshot_upload
           post "/runs/:qa_run_id/screenshots", QAController, :create_screenshot
         end
 
@@ -386,6 +392,7 @@ defmodule TuistWeb.Router do
   # Ops Routes
   pipeline :ops do
     plug TuistWeb.Authorization, [:current_user, :read, :ops]
+    plug :assign_current_path
   end
 
   scope "/ops" do
@@ -412,12 +419,16 @@ defmodule TuistWeb.Router do
         script: :csp_nonce
       }
 
-    error_tracker_dashboard("/errors",
+    live_session :ops_qa,
+      layout: {TuistWeb.Layouts, :ops},
       on_mount: [
         {TuistWeb.Authentication, :ensure_authenticated},
-        {TuistWeb.Authorization, [:current_user, :read, :ops]}
-      ]
-    )
+        {TuistWeb.Authorization, [:current_user, :read, :ops]},
+        {TuistWeb.LayoutLive, :ops}
+      ] do
+      live "/qa", TuistWeb.OpsQALive
+      live "/qa/:qa_run_id/logs", TuistWeb.OpsQALogsLive
+    end
   end
 
   if Tuist.Environment.dev?() do
@@ -451,8 +462,6 @@ defmodule TuistWeb.Router do
     live_session :require_authenticated_user,
       on_mount: [{TuistWeb.Authentication, :ensure_authenticated}] do
       get "/dashboard", DashboardController, :dashboard
-      live "/users/settings", UserSettingsLive, :edit
-      live "/users/settings/confirm_email/:token", UserSettingsLive, :confirm_email
       live "/organizations/new", CreateOrganizationLive, :new
       live "/projects/new", CreateProjectLive, :new
     end
@@ -466,7 +475,6 @@ defmodule TuistWeb.Router do
     live_session :current_user,
       on_mount: [{TuistWeb.Authentication, :mount_current_user}] do
       live "/users/confirm/:token", UserConfirmationLive, :edit
-      live "/users/confirm", UserConfirmationInstructionsLive, :new
     end
   end
 
@@ -515,6 +523,16 @@ defmodule TuistWeb.Router do
     get "/:id/icon.png", PreviewController, :download_icon
   end
 
+  scope "/:account_handle/:project_handle/qa/runs/:qa_run_id/screenshots", TuistWeb do
+    pipe_through [
+      :open_api,
+      :browser_app,
+      :analytics
+    ]
+
+    get "/:screenshot_id", QAController, :download_screenshot
+  end
+
   scope "/:account_handle/:project_handle/previews/:id", TuistWeb do
     pipe_through [
       :open_api,
@@ -525,9 +543,18 @@ defmodule TuistWeb.Router do
 
     get "/manifest.plist", PreviewController, :manifest
     get "/app.ipa", PreviewController, :download_archive
+    get "/download", PreviewController, :download_preview
+  end
+
+  scope "/:account_handle/:project_handle/previews/:id", TuistWeb do
+    pipe_through [
+      :open_api,
+      :browser_app,
+      :analytics
+    ]
+
     get "/qr-code.svg", PreviewController, :download_qr_code_svg
     get "/qr-code.png", PreviewController, :download_qr_code_png
-    get "/download", PreviewController, :download_preview
   end
 
   scope "/:account_handle/:project_handle/previews/:id", TuistWeb do

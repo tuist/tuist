@@ -1,9 +1,10 @@
 ---
-title: Human resource security policy
-titleTemplate: :title  | Human and incident management | Security | Tuist Handbook
-description: To ensure that personnel and contractors meet security requirements, understand their responsibilities, and are suitable for their roles.
+{
+  "title": "Human resource security policy",
+  "titleTemplate": ":title  | Human and incident management | Security | Tuist Handbook",
+  "description": "To ensure that personnel and contractors meet security requirements, understand their responsibilities, and are suitable for their roles."
+}
 ---
-
 # Human resource security policy
 
 - **Policy owner:** Pedro Piñera Buendía

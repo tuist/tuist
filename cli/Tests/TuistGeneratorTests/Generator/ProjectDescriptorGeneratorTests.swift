@@ -129,7 +129,7 @@ struct ProjectDescriptorGeneratorTests {
 
         // Then
         let pbxproj = got.xcodeProj.pbxproj
-        #expect(pbxproj.objectVersion == 55)
+        #expect(pbxproj.objectVersion == 70)
         #expect(pbxproj.archiveVersion == Xcode.LastKnown.archiveVersion)
     }
 
@@ -160,7 +160,7 @@ struct ProjectDescriptorGeneratorTests {
 
         // Then
         let pbxproj = got.xcodeProj.pbxproj
-        #expect(pbxproj.objectVersion == 55)
+        #expect(pbxproj.objectVersion == 70)
         #expect(pbxproj.archiveVersion == Xcode.LastKnown.archiveVersion)
     }
 
@@ -191,7 +191,7 @@ struct ProjectDescriptorGeneratorTests {
 
         // Then
         let pbxproj = got.xcodeProj.pbxproj
-        #expect(pbxproj.objectVersion == 55)
+        #expect(pbxproj.objectVersion == 70)
         #expect(pbxproj.archiveVersion == Xcode.LastKnown.archiveVersion)
     }
 
@@ -578,10 +578,10 @@ struct ProjectDescriptorGeneratorTests {
         let remotePackageNames = rootObject.remotePackages.compactMap(\.name)
         let remoteSwiftPackageReferenceNames = pbxobjects.remoteSwiftPackageReferences.values.compactMap(\.name)
         #expect(localPackagePaths == [
-            "/LocalPackages/LocalPackageA",
+            "../LocalPackages/LocalPackageA",
         ])
         #expect(localSwiftPackageReferencePaths == [
-            "/LocalPackages/LocalPackageA",
+            "../LocalPackages/LocalPackageA",
         ])
         #expect(remotePackageNames.isEmpty == true)
         #expect(remoteSwiftPackageReferenceNames.isEmpty == true)

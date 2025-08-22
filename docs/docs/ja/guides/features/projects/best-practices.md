@@ -1,9 +1,10 @@
 ---
-title: ベストプラクティス
-titleTemplate: :title · Projects · Develop · Guides · Tuist
-description: Tuist プロジェクトと Xcode プロジェクトのベストプラクティスについて学ぶ
+{
+  "title": "ベストプラクティス",
+  "titleTemplate": ":title · Projects · Develop · Guides · Tuist",
+  "description": "Tuist プロジェクトと Xcode プロジェクトのベストプラクティスについて学ぶ"
+}
 ---
-
 # ベストプラクティス {#best-practices}
 
 Over the years working with different teams and projects, we've identified a set of best practices that we recommend following when working with Tuist and Xcode projects. These practices are not mandatory, but they can help you structure your projects in a way that makes them easier to maintain and scale.

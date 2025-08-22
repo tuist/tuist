@@ -5,28 +5,28 @@ on:
     branches:
       - main
     paths:
+      - .github/workflows/cli-cache-ee.yml
+      - mise/tasks/cli/ee.sh
       - "cli/TuistCacheEE"
       - "cli/TuistCacheEE/**"
       - "cli/Sources/**"
       - "cli/Tests/**"
       - "*.swift"
-      - "Package.resolved"
       - ".github/workflows/cli.yml"
       - "mise/tasks/cli/lint.sh"
-      - "mise.toml"
       - "cli/Fixtures/**"
       - "Tuist/**"
   pull_request:
     paths:
+      - .github/workflows/cli-cache-ee.yml
+      - mise/tasks/cli/ee.sh
       - "cli/TuistCacheEE"
       - "cli/TuistCacheEE/**"
       - "cli/Sources/**"
       - "cli/Tests/**"
       - "*.swift"
-      - "Package.resolved"
       - ".github/workflows/cli.yml"
       - "mise/tasks/cli/lint.sh"
-      - "mise.toml"
       - "cli/Fixtures/**"
       - "Tuist/**"
   workflow_dispatch:
@@ -42,6 +42,7 @@ env:
   TUIST_CONFIG_TOKEN: ${{ secrets.TUIST_CONFIG_TOKEN }}
   MISE_SOPS_AGE_KEY: ${{ secrets.MISE_SOPS_AGE_KEY }}
   GITHUB_TOKEN: ${{ secrets.TUIST_GITHUB_TOKEN }}
+  TUIST_GITHUB_TOKEN: ${{ secrets.TUIST_GITHUB_TOKEN }}
 
 concurrency:
   group: cli-cache-ee-${{ github.head_ref }}
@@ -59,8 +60,16 @@ jobs:
         id: check
         uses: actions/github-script@v7
         with:
-          github-token: ${{ secrets.TUIST_GITHUB_TOKEN }}
+          github-token: ${{ secrets.TUIST_GITHUB_TOKEN || github.token }}
           script: |
+            // If TUIST_GITHUB_TOKEN is not available (e.g., from a fork), treat as non-member
+            const token = '${{ secrets.TUIST_GITHUB_TOKEN }}';
+            if (!token || token === '') {
+              console.log(`Running from fork - treating ${context.payload.pull_request.user.login} as non-member`);
+              core.setOutput('is-member', 'false');
+              return;
+            }
+
             try {
               const { data: membership } = await github.rest.teams.getMembershipForUserInOrg({
                 org: 'tuist',
@@ -108,6 +117,8 @@ jobs:
           key: ${{ runner.os }}-cli-cache-ee-${{ hashFiles('Package.resolved') }}
           restore-keys: ${{ runner.os }}-cli-
       - uses: jdx/mise-action@v2
+      - name: Initialize TuistCacheEE submodule
+        run: mise run cli:ee
       - name: Run tests
         run: mise x -- tuist inspect implicit-imports
         env:
@@ -149,6 +160,8 @@ jobs:
           key: ${{ runner.os }}-cli-cache-ee-${{ hashFiles('Package.resolved') }}
           restore-keys: ${{ runner.os }}-cli-
       - uses: jdx/mise-action@v2
+      - name: Initialize TuistCacheEE submodule
+        run: mise run cli:ee
       - name: Run tests
         run: mise x -- tuist test TuistCacheEEAcceptanceTests
         env:
@@ -190,6 +203,8 @@ jobs:
           key: ${{ runner.os }}-cli-cache-ee-${{ hashFiles('Package.resolved') }}
           restore-keys: ${{ runner.os }}-cli-
       - uses: jdx/mise-action@v2
+      - name: Initialize TuistCacheEE submodule
+        run: mise run cli:ee
       - name: Run tests
         run: mise x -- tuist test TuistCacheEEUnitTests
         env:

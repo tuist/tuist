@@ -1,9 +1,10 @@
 ---
-title: Shell completions
-titleTemplate: :title · CLI · Tuist
-description: Learn how to configure your shell to auto-complete Tuist commands.
+{
+  "title": "Shell completions",
+  "titleTemplate": ":title · CLI · Tuist",
+  "description": "Learn how to configure your shell to auto-complete Tuist commands."
+}
 ---
-
 # Shell completions
 
 Tuistを**グローバルにインストールしている**場合 (例えば、Homebrew経由で)、BashやZsh用のシェル補完をインストールして、コマンドやオプションを自動補完できます。

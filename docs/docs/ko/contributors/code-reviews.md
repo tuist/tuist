@@ -1,9 +1,10 @@
 ---
-title: Code reviwes
-titleTemplate: :title · Contributors · Tuist
-description: 코드 리뷰를 통해 Tuist에 어떻게 기여하는지 알아봅니다.
+{
+  "title": "Code reviwes",
+  "titleTemplate": ":title · Contributors · Tuist",
+  "description": "코드 리뷰를 통해 Tuist에 어떻게 기여하는지 알아봅니다."
+}
 ---
-
 # Code reviwes {#code-reviews}
 
 Pull Reqeust 검토는 코드에 기여하는 일반적인 방식입니다. CI (Continuous Integration) 를 통해 코드의 동작을 확인하더라도 이 방식은 충분하지 않습니다. 디자인, 코드 구조 및 아키텍처, 테스트 품질, 또는 오타는 기여 특성을 자동화 할 수 없습니다. 다음 섹션에서 코드 리뷰 프로세스의 다양한 부분을 설명합니다.

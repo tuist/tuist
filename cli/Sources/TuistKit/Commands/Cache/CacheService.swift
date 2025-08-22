@@ -846,10 +846,8 @@ final class EmptyCacheService: CacheServicing {
 
         private func xcargs(for architectures: [MacArchitecture]) -> [XcodeBuildArgument] {
             if architectures.isEmpty {
-                return [
-                    // We're building for arm64 by default
-                    .xcarg("ARCHS", "arm64"),
-                ]
+                // Defaulting to Xcode's default.
+                return []
             } else {
                 return [
                     .xcarg("ARCHS", architectures.map(\.rawValue).joined(separator: " ")),

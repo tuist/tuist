@@ -1,9 +1,10 @@
 ---
-title: Open Source
-titleTemplate: :title | Engineering | Tuist Handbook
-description: Open source is a powerful force that drives innovation and collaboration. At Tuist, we are committed to building a world-class open source productivity platform for app developers.
+{
+  "title": "Open Source",
+  "titleTemplate": ":title | Engineering | Tuist Handbook",
+  "description": "Open source is a powerful force that drives innovation and collaboration. At Tuist, we are committed to building a world-class open source productivity platform for app developers."
+}
 ---
-
 # Open Soure
 
 Throughout history, [open source](https://en.wikipedia.org/wiki/Open_source) has demonstrated its incredible power in creating enduring software. It unites a diverse community of dedicated crafters, driven by a passion to make a meaningful impact on the world. **The value of open source often transcends financial metrics**, though it has proven to be a catalyst for thriving business markets. For instance, [Linux](https://en.wikipedia.org/wiki/Open_source) became a cornerstone of the modern Internet, showcasing the profound influence of open source. Companies like [Apple](https://opensource.apple.com/) and [Microsoft](https://opensource.microsoft.com/) were slow to recognize this, and many still hesitate, fearing the exposure of their innovations to the public.

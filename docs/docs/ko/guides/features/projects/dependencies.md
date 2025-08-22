@@ -1,9 +1,10 @@
 ---
-title: Dependencies
-titleTemplate: :title · Projects · Develop · Guides · Tuist
-description: Tuist 프로젝트에서 의존성을 선언하는 방법을 알아보세요.
+{
+  "title": "Dependencies",
+  "titleTemplate": ":title · Projects · Develop · Guides · Tuist",
+  "description": "Tuist 프로젝트에서 의존성을 선언하는 방법을 알아보세요."
+}
 ---
-
 # 의존성 {#dependencies}
 
 프로젝트 규모가 커지면 코드를 공유하고, 경계를 명확히 하며, 빌드 시간을 개선하기 위해 여러 타겟으로 나누는 것이 일반적입니다.

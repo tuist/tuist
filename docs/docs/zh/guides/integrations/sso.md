@@ -1,9 +1,10 @@
 ---
-title: SSO
-titleTemplate: :title | Integrations | Guides | Tuist
-description: Learn how to set up Single Sign-On (SSO) with your organization.
+{
+  "title": "SSO",
+  "titleTemplate": ":title | Integrations | Guides | Tuist",
+  "description": "Learn how to set up Single Sign-On (SSO) with your organization."
+}
 ---
-
 # SSO {#sso}
 
 ## Google {#google}

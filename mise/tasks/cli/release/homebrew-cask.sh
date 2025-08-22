@@ -1,6 +1,6 @@
 #!/bin/bash
 # mise description="Triggers the GitHub Actions workflow to release a new version of the Homebrew cask."
-set -euo pipefail
+set -eo pipefail
 
 # Parse command line arguments
 VERSION=""

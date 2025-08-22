@@ -18,7 +18,7 @@ public struct XcodeBuildArchiveCommand: AsyncParsableCommand, TrackableParsableC
 
     @Argument(
         parsing: .captureForPassthrough,
-        help: "xcodebuild arguments that will be passed through to the xcodebuild CLI."
+        help: "Arguments that will be passed through to the xcodebuild CLI. All arguments are forwarded to xcodebuild. Example: tuist xcodebuild archive -scheme MyApp -archivePath ./build/MyApp.xcarchive"
     )
     public var passthroughXcodebuildArguments: [String] = []
 

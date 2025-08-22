@@ -1,9 +1,10 @@
 ---
-title: Secure development policy
-titleTemplate: :title | Secure development and operations | Security | Tuist Handbook
-description:
+{
+  "title": "Secure development policy",
+  "titleTemplate": ":title | Secure development and operations | Security | Tuist Handbook",
+  "description": null
+}
 ---
-
 # Secure development policy
 
 - **Policy owner:** Pedro Piñera Buendía

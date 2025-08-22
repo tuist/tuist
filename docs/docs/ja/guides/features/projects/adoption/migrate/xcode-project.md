@@ -1,9 +1,10 @@
 ---
-title: Migrate an Xcode project
-titleTemplate: :title · Migrate · Adoption · Projects · Develop · Guides · Tuist
-description: Xcode プロジェクトを Tuist プロジェクトに移行する方法を学びます
+{
+  "title": "Migrate an Xcode project",
+  "titleTemplate": ":title · Migrate · Adoption · Projects · Develop · Guides · Tuist",
+  "description": "Xcode プロジェクトを Tuist プロジェクトに移行する方法を学びます"
+}
 ---
-
 # Xcode プロジェクトの移行 {#migrate-an-xcode-project}
 
 Xcode プロジェクトの移行 {#migrate-an-xcode-project} このプロセスがどれほど退屈かは、プロジェクトの複雑さによって異なります。

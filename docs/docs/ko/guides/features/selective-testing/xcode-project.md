@@ -1,9 +1,10 @@
 ---
-title: Xcode project
-titleTemplate: :title · Selective testing · Develop · Guides · Tuist
-description: "`xcodebuild`를 이용한 선택적 테스팅을 활용하는 방법 배우기."
+{
+  "title": "Xcode project",
+  "titleTemplate": ":title · Selective testing · Develop · Guides · Tuist",
+  "description": "`xcodebuild`를 이용한 선택적 테스팅을 활용하는 방법 배우기."
+}
 ---
-
 # Xcode project {#xcode-project}
 
 > [!IMPORTANT] 요구 사항

@@ -241,6 +241,38 @@ final class DeviceControllerTests: TuistUnitTestCase {
           {
             "capabilities" : [
               {
+                "featureIdentifier" : "com.apple.coredevice.feature.tags",
+                "name" : "Modify Tags"
+              },
+              {
+                "featureIdentifier" : "com.apple.coredevice.feature.default.user.credentials",
+                "name" : "Modify credentials for default users for a device"
+              }
+            ],
+            "connectionProperties" : {
+              "isMobileDeviceOnly" : false,
+              "pairingState" : "unsupported",
+              "potentialHostnames" : [
+                "67946E7A-2A5D-5B91-9E34-ECD8AC0E4D09.coredevice.local"
+              ],
+              "tunnelState" : "unavailable"
+            },
+            "deviceProperties" : {
+              "bootState" : "booted",
+              "ddiServicesAvailable" : false
+            },
+            "hardwareProperties" : {
+
+            },
+            "identifier" : "67946E7A-2A5D-5B91-9E34-ECD8AC0E4D09",
+            "tags" : [
+
+            ],
+            "visibilityClass" : "default"
+          },
+          {
+            "capabilities" : [
+              {
                 "featureIdentifier" : "com.apple.coredevice.feature.connectdevice",
                 "name" : "Connect to Device"
               },

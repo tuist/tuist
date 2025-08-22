@@ -1,9 +1,10 @@
 ---
-title: Error handling
-titleTemplate: :title | Server | Engineering | Tuist Handbook
-description: Our approach to error handling using Elixir on the server.
+{
+  "title": "Error handling",
+  "titleTemplate": ":title | Server | Engineering | Tuist Handbook",
+  "description": "Our approach to error handling using Elixir on the server."
+}
 ---
-
 # Error handling
 
 Matching Elixir conventions, Tuist server functions should return success and errors as values in form of `{:ok, result}` and `{:error, reason}` tuples.  

@@ -1,9 +1,10 @@
 ---
-title: Migrate a Bazel project
-titleTemplate: :title · Migrate · Adoption · Projects · Features · Guides · Tuist
-description: Learn how to migrate your projects from Bazel to Tuist.
+{
+  "title": "Migrate a Bazel project",
+  "titleTemplate": ":title · Migrate · Adoption · Projects · Features · Guides · Tuist",
+  "description": "Learn how to migrate your projects from Bazel to Tuist."
+}
 ---
-
 # Migrate a Bazel project {#migrate-a-bazel-project}
 
 [Bazel](https://bazel.build) is a build system that Google open-sourced in 2015. It's a powerful tool that allows you to build and test software of any size, quickly and reliably. Some large organizations like [Spotify](https://engineering.atspotify.com/2023/10/switching-build-systems-seamlessly/), [Tinder](https://medium.com/tinder/bazel-hermetic-toolchain-and-tooling-migration-c244dc0d3ae), or [Lyft](https://semaphoreci.com/blog/keith-smiley-bazel) use it, however, it requires an upfront (i.e., learning the technology) and ongoing investment (i.e., keeping up with Xcode updates) to introduce and maintain. While this works for some organizations that treat it as a cross-cutting concern, it might not be the best fit for others that want to focus on their product development. For instance, we've seen organizations whose iOS platform team introduced Bazel and had to drop it after the engineers that led the effort left the company. Apple's stance on the strong coupling between Xcode and the build system is another factor that makes it hard to maintain Bazel projects over time.

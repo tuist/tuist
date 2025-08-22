@@ -1,9 +1,10 @@
 ---
-title: Code sharing
-titleTemplate: :title · Projects · Features · Guides · Tuist
-description: Learn how to share code across manifest files to reduce duplications and ensure consistency
+{
+  "title": "Code sharing",
+  "titleTemplate": ":title · Projects · Features · Guides · Tuist",
+  "description": "Learn how to share code across manifest files to reduce duplications and ensure consistency"
+}
 ---
-
 # Code sharing {#code-sharing}
 
 One of the inconveniences of Xcode when we use it with large projects is that it doesn't allow reusing elements of the projects other than the build settings through `.xcconfig` files. Being able to reuse project definitions is useful for the following reasons:

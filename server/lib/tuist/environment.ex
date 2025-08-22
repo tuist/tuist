@@ -84,7 +84,7 @@ defmodule Tuist.Environment do
     prometheus_enabled = System.get_env("TUIST_PROMETHEUS_ENABLED")
 
     if is_nil(prometheus_enabled) do
-      not dev?() and not test?()
+      not dev?() and not test?() and web?()
     else
       truthy?(prometheus_enabled)
     end
@@ -259,6 +259,14 @@ defmodule Tuist.Environment do
     end
   end
 
+  def s3_bucket_as_host(secrets \\ secrets()) do
+    if dev_use_remote_storage?() do
+      [:s3, :bucket_as_host] |> get(secrets) |> truthy?()
+    else
+      false
+    end
+  end
+
   def slack_tuist_token(secrets \\ secrets()) do
     get([:slack, :tuist, :token], secrets)
   end
@@ -296,6 +304,10 @@ defmodule Tuist.Environment do
     end
   end
 
+  def minio_console_port(secrets \\ secrets()) do
+    get([:minio, :console_port], secrets, default_value: 9098)
+  end
+
   def mautic_username(secrets \\ secrets()) do
     get([:mautic, :username], secrets)
   end
@@ -322,6 +334,10 @@ defmodule Tuist.Environment do
 
   def github_app_private_key(secrets \\ secrets()) do
     get([:github, :app_private_key], secrets)
+  end
+
+  def github_app_webhook_secret(secrets \\ secrets()) do
+    get([:github, :app_webhook_secret], secrets)
   end
 
   def github_oauth_configured?(secrets \\ secrets()) do
@@ -417,6 +433,10 @@ defmodule Tuist.Environment do
 
   def anthropic_api_key(secrets \\ secrets()) do
     get([:anthropic, :api_key], secrets)
+  end
+
+  def openai_api_key(secrets \\ secrets()) do
+    get([:openai, :api_key], secrets)
   end
 
   def clickhouse_flush_interval_ms(secrets \\ secrets()) do
@@ -527,6 +547,44 @@ defmodule Tuist.Environment do
       oauth_client_name(secrets) != nil and
       oauth_jwt_public_key(secrets) != nil and
       oauth_private_key(secrets) != nil
+  end
+
+  @doc """
+  Returns the Namespace SSH private key used to establish secure SSH connections between the server and the Namespace runner.
+  """
+  def namespace_ssh_private_key(secrets \\ secrets()) do
+    get([:namespace, :ssh_private_key], secrets)
+  end
+
+  @doc """
+  Returns the Namespace SSH public key used to establish secure SSH connections between the server and the Namespace runner.
+  """
+  def namespace_ssh_public_key(secrets \\ secrets()) do
+    get([:namespace, :ssh_public_key], secrets)
+  end
+
+  @doc """
+  Returns the Namespace partner ID that identifies this Tuist instance
+  as an authorized partner in the Namespace ecosystem. This ID is used
+  when issuing Namespace tenant tokens.
+  """
+  def namespace_partner_id(secrets \\ secrets()) do
+    get([:namespace, :partner_id], secrets)
+  end
+
+  @doc """
+  Returns the Namespace JWT private key used for signing authentication tokens
+  that are exchanged between Tuist and Namespace services when issuing Namespace tenant tokens.
+  """
+  def namespace_jwt_private_key(secrets \\ secrets()) do
+    case get([:namespace, :jwt_private_key], secrets) do
+      nil -> nil
+      base64_key -> Base.decode64!(base64_key)
+    end
+  end
+
+  def namespace_enabled?(secrets \\ secrets()) do
+    namespace_partner_id(secrets) != nil and namespace_jwt_private_key(secrets) != nil
   end
 
   def get(keys, secrets \\ secrets(), opts \\ []) do

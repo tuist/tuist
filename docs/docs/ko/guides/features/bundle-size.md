@@ -1,9 +1,10 @@
 ---
-title: Bundle Size
-titleTemplate: :title · Develop · Guides · Tuist
-description: 앱의 메모리 사용량을 최소화하고 이를 유지하는 방법을 배워봅니다.
+{
+  "title": "Bundle Size",
+  "titleTemplate": ":title · Develop · Guides · Tuist",
+  "description": "앱의 메모리 사용량을 최소화하고 이를 유지하는 방법을 배워봅니다."
+}
 ---
-
 # Bundle Size {#bundle-size}
 
 > [!IMPORTANT] 요구사항

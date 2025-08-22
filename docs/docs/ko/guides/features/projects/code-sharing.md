@@ -1,9 +1,10 @@
 ---
-title: Code sharing
-titleTemplate: :title · Projects · Develop · Guides · Tuist
-description: manifest 파일 간의 코드 공유를 통해 중복을 줄이고 일관성을 유지하는 방법을 알아보세요
+{
+  "title": "Code sharing",
+  "titleTemplate": ":title · Projects · Develop · Guides · Tuist",
+  "description": "manifest 파일 간의 코드 공유를 통해 중복을 줄이고 일관성을 유지하는 방법을 알아보세요"
+}
 ---
-
 # Code sharing {#code-sharing}
 
 Xcode를 대규모 프로젝트에서 사용할 때의 한계점 중 하나는 `.xcconfig` 파일을 통한 빌드 설정 외에는 프로젝트의 다른 요소들을 재사용할 수 없다는 점입니다. 프로젝트 정의를 재사용할 수 있으면 다음과 같은 장점이 있습니다:

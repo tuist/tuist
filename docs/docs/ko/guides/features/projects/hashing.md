@@ -1,9 +1,10 @@
 ---
-title: Hashing
-titleTemplate: :title · Projects · Develop · Guides · Tuist
-description: 바이너리 캐싱과 선택적 테스트 기능의 기반이 되는 Tuist의 해싱 로직에 대해 배워봅니다.
+{
+  "title": "Hashing",
+  "titleTemplate": ":title · Projects · Develop · Guides · Tuist",
+  "description": "바이너리 캐싱과 선택적 테스트 기능의 기반이 되는 Tuist의 해싱 로직에 대해 배워봅니다."
+}
 ---
-
 # Hashing {#hashing}
 
 <LocalizedLink href="/guides/features/build/cache">캐싱</LocalizedLink>이나 선택적 테스트 수행과 같은 기능은 타겟이 변경되었는지 확인하는 방법이 필요합니다. Tuist는 타겟이 변경되었는지 확인하기 위해 의존성 그래프에서 각 타겟의 해시를 계산합니다. 해시는 다음의 속성을 기반으로 계산됩니다:

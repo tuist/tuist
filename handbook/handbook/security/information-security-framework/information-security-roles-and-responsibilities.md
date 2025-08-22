@@ -1,9 +1,10 @@
 ---
-title: Information Security Roles and Responsibilities
-titleTemplate: :title | Information security framework | Security | Tuist Handbook
-description: This document outlines the roles and responsibilities within Tuist GmbH, which is critical for effective communication of information security policies and standards.
+{
+  "title": "Information Security Roles and Responsibilities",
+  "titleTemplate": ":title | Information security framework | Security | Tuist Handbook",
+  "description": "This document outlines the roles and responsibilities within Tuist GmbH, which is critical for effective communication of information security policies and standards."
+}
 ---
-
 # Information Security Roles and Responsibilities
 
 - **Policy owner:** Pedro Piñera Buendía

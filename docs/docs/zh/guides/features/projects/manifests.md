@@ -1,9 +1,10 @@
 ---
-title: Manifests
-titleTemplate: :title · Projects · Features · Guides · Tuist
-description: Learn about the manifest files that Tuist uses to define projects and workspaces and configure the generation process.
+{
+  "title": "Manifests",
+  "titleTemplate": ":title · Projects · Features · Guides · Tuist",
+  "description": "Learn about the manifest files that Tuist uses to define projects and workspaces and configure the generation process."
+}
 ---
-
 # Manifests {#manifests}
 
 Tuist defaults to Swift files as the primary way to define projects and workspaces and configure the generation process. These files are referred to as **manifest files** throughout the documentation.

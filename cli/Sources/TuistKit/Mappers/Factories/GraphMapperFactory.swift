@@ -208,6 +208,9 @@ public final class GraphMapperFactory: GraphMapperFactorying {
                 mappers.append(TreeShakePrunedTargetsGraphMapper())
             }
             mappers.append(contentsOf: defaultPostMappers(config: config))
+            mappers.append(AutogenerateTuistGenerateSchemeMapper(includeGenerateScheme: config.project.generatedProject?
+                    .generationOptions.includeGenerateScheme ?? false
+            ))
             return mappers
         }
 

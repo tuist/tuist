@@ -1,8 +1,9 @@
 ---
-title: Tuist란?
-description: Apple의 기본 도구를 확장하여 더 나은 앱을 효과적으로 개발하세요.
+{
+  "title": "Tuist란?",
+  "description": "Apple의 기본 도구를 확장하여 더 나은 앱을 효과적으로 개발하세요."
+}
 ---
-
 <script setup>
 import VPFeatures from "vitepress/dist/client/theme-default/components/VPFeatures.vue"</script>
 

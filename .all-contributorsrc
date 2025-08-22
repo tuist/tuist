@@ -1879,6 +1879,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "plu",
+      "name": "Johannes Plunien",
+      "avatar_url": "https://avatars.githubusercontent.com/u/31597?v=4",
+      "profile": "https://johannes.plunien.com",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,

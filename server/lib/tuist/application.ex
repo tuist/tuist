@@ -10,6 +10,7 @@ defmodule Tuist.Application do
   alias Tuist.CommandEvents
   alias Tuist.DBConnection.TelemetryListener
   alias Tuist.Environment
+  alias Tuist.QA.Logs
   alias Tuist.Xcode.XcodeGraph
   alias Tuist.Xcode.XcodeProject
   alias Tuist.Xcode.XcodeTarget
@@ -58,10 +59,11 @@ defmodule Tuist.Application do
         Tuist.IngestRepo,
         Tuist.Vault,
         {Oban, Application.fetch_env!(:tuist, Oban)},
-        {Cachex, [:tuist, cachex_opts()]},
+        {Cachex, [:tuist, []]},
         {Finch, name: Tuist.Finch, pools: finch_pools()},
         {Phoenix.PubSub, name: Tuist.PubSub},
         Supervisor.child_spec(CommandEvents.Buffer, id: CommandEvents.Buffer),
+        Supervisor.child_spec(Logs.Buffer, id: Logs.Buffer),
         Supervisor.child_spec(XcodeGraph.Buffer, id: XcodeGraph.Buffer),
         Supervisor.child_spec(XcodeProject.Buffer, id: XcodeProject.Buffer),
         Supervisor.child_spec(XcodeTarget.Buffer, id: XcodeTarget.Buffer),
@@ -75,6 +77,7 @@ defmodule Tuist.Application do
       else
         %{port: minio_port, scheme: minio_scheme} = URI.parse(Environment.s3_endpoint())
         port = minio_port || 9095
+        console_port = Environment.minio_console_port()
 
         {minio_path, 0} = System.cmd("mise", ["which", "minio"])
 
@@ -88,7 +91,8 @@ defmodule Tuist.Application do
            region: Environment.s3_region(),
            access_key_id: Environment.s3_access_key_id(),
            secret_access_key: Environment.s3_secret_access_key(),
-           minio_executable: minio_path},
+           minio_executable: minio_path,
+           console_address: ":#{console_port}"},
           Tuist.MinioBucketCreator
         ]
       end
@@ -109,7 +113,6 @@ defmodule Tuist.Application do
         ],
         else: []
     )
-    |> Kernel.++(if Environment.analytics_enabled?(), do: [Tuist.Analytics.Posthog], else: [])
     |> Kernel.++(
       if Environment.tuist_hosted?(),
         do: [{DNSCluster, query: Application.get_env(:tuist, :dns_cluster_query) || :ignore}],
@@ -123,24 +126,6 @@ defmodule Tuist.Application do
         ],
         else: []
     )
-  end
-
-  def cachex_opts do
-    if Environment.tuist_hosted?() do
-      # Tuist-managed instances are configured to support a multi-node cluster.
-      [
-        router:
-          router(
-            module: Cachex.Router.Ring,
-            options: [
-              monitor: true
-            ]
-          )
-      ]
-    else
-      # In on-premise environments we assume a single Node.
-      []
-    end
   end
 
   defp finch_pools do
