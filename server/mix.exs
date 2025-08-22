@@ -140,7 +140,12 @@ defmodule Tuist.MixProject do
       {:minio_server, github: "LostKobrakai/minio_server", only: :dev},
       {:runner, path: "runner", runtime: false},
       {:slipstream, "~> 1.2.0"},
-      {:lazy_html, ">= 0.1.0", only: :test}
+      {:lazy_html, ">= 0.1.0", only: :test},
+      # peep assumes all telemetry events' data conforms to the String.Chars,
+      # causing runime errors when processing the telemetry events. We opened
+      # a PR (https://github.com/rkallos/peep/pull/54) but it's still pending to
+      # be merged.
+      {:peep, git: "https://github.com/pepicrft/peep", ref: "cae2ddd2349ae0766352d106c4ebebc29949f110", override: true}
     ]
   end
 
