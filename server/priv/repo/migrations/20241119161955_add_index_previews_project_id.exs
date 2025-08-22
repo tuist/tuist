@@ -9,7 +9,6 @@ defmodule Tuist.Repo.Migrations.AddIndexPreviewsProjectId do
   end
 
   def down do
-    # Table was renamed to app_builds and recreated, nothing to rollback
-    :ok
+    drop_if_exists index(:previews, [:project_id])
   end
 end
