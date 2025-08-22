@@ -1,3 +1,4 @@
+import ArgumentParser
 import SwiftUI
 import TuistAuthentication
 import TuistServer
@@ -98,11 +99,39 @@ import TuistServer
                                 .accentColor(Noora.Colors.accent)
                             } else {
                                 LogInView()
+                                    .task {
+                                        await checkForAutomaticLogin()
+                                    }
                             }
                         }
                         .withErrorHandling()
                     }
                 }
+            }
+        }
+        
+        private func checkForAutomaticLogin() async {
+            struct LaunchArguments: ParsableArguments {
+                @Option var email: String?
+                @Option var password: String?
+            }
+            
+            do {
+                let parsedArguments = try LaunchArguments.parse(Array(ProcessInfo.processInfo.arguments.dropFirst()))
+                
+                guard let email = parsedArguments.email,
+                      let password = parsedArguments.password else {
+                    return
+                }
+                
+                try await authenticationService.signInWithEmailAndPassword(email: email, password: password)
+            } catch is ArgumentParser.ValidationError {
+                // No valid arguments provided, which is normal
+                return
+            } catch {
+                print(error)
+                // Silently fail for UI testing purposes
+                print("Automatic login failed: \(error)")
             }
         }
     }

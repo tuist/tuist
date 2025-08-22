@@ -5,6 +5,11 @@ defmodule Tuist.QA do
 
   import Ecto.Query
 
+  alias LangChain.Chains.LLMChain
+  alias LangChain.ChatModels.ChatAnthropic
+  alias LangChain.ChatModels.ChatOpenAI
+  alias LangChain.Message
+  alias LangChain.Message.ContentPart
   alias Runner.QA.Agent
   alias Tuist.Accounts
   alias Tuist.AppBuilds
@@ -36,6 +41,8 @@ defmodule Tuist.QA do
     app_build = Repo.preload(app_build, preview: [project: :account])
     issue_comment_id = Map.get(params, :issue_comment_id)
 
+    launch_argument_groups = select_launch_arguments(prompt, app_build.preview.project)
+
     with {:ok, qa_run} <-
            create_qa_run(%{
              app_build_id: app_build_id,
@@ -52,6 +59,7 @@ defmodule Tuist.QA do
         preview_url: app_build_url,
         bundle_identifier: app_build.preview.bundle_identifier,
         prompt: prompt,
+        launch_arguments: launch_argument_groups |> Enum.map(& &1.value) |> Enum.join(" "),
         server_url: Environment.app_url(),
         run_id: qa_run.id,
         auth_token: auth_token,
@@ -113,12 +121,16 @@ defmodule Tuist.QA do
          preview_url: app_build_url,
          bundle_identifier: bundle_identifier,
          prompt: prompt,
+         launch_arguments: launch_arguments,
          server_url: server_url,
          run_id: run_id,
          auth_token: auth_token,
          account_handle: account_handle,
          project_handle: project_handle
        }) do
+    launch_args_option =
+      if launch_arguments && launch_arguments != "", do: " --launch-arguments \"#{launch_arguments}\"", else: ""
+
     """
     set -e
 
@@ -126,7 +138,7 @@ defmodule Tuist.QA do
     npm i --location=global appium
     appium driver install xcuitest
     tmux new-session -d -s appium 'appium'
-    runner qa --preview-url "#{app_build_url}" --bundle-identifier #{bundle_identifier} --server-url #{server_url} --run-id #{run_id} --auth-token #{auth_token} --account-handle #{account_handle} --project-handle #{project_handle} --prompt "#{prompt}" --anthropic-api-key #{Environment.anthropic_api_key()} --openai-api-key #{Environment.openai_api_key()}
+    runner qa --preview-url "#{app_build_url}" --bundle-identifier #{bundle_identifier} --server-url #{server_url} --run-id #{run_id} --auth-token #{auth_token} --account-handle #{account_handle} --project-handle #{project_handle} --prompt "#{prompt}"#{launch_args_option} --anthropic-api-key #{Environment.anthropic_api_key()} --openai-api-key #{Environment.openai_api_key()}
     """
   end
 
@@ -485,5 +497,91 @@ defmodule Tuist.QA do
       {:ok, token, _claims} -> {:ok, token}
       {:error, reason} -> {:error, reason}
     end
+  end
+
+  defp select_launch_arguments(prompt, project) do
+    # Preload launch argument groups for the project
+    project = Repo.preload(project, :qa_launch_arguments_groups)
+
+    case project.qa_launch_arguments_groups do
+      [] ->
+        []
+
+      groups ->
+        analyze_prompt_for_launch_arguments(prompt, groups)
+    end
+  end
+
+  defp analyze_prompt_for_launch_arguments(prompt, launch_argument_groups) do
+    # Build the system prompt
+    system_prompt = """
+    You are a helpful assistant that analyzes test prompts and selects appropriate launch argument groups.
+    Given a test prompt and a list of available launch argument groups, determine which groups should be used.
+
+    Available launch argument groups:
+    #{Enum.map_join(launch_argument_groups, "\n", fn group -> "- Name: #{group.name}, Description: #{group.description}, Arguments: #{group.value}" end)}
+
+    Analyze the user's prompt and respond with ONLY the launch argument group names that should be used.
+    If multiple groups should be used, delimit them with a comma.
+    If no groups match, respond with an empty string.
+    Do not include any explanation, just the launch arguments.
+    """
+
+    user_message = "Test prompt: #{prompt}"
+
+    # Use LangChain to analyze
+    llm =
+      if Environment.anthropic_api_key() do
+        ChatAnthropic.new!(%{
+          model: "claude-3-haiku-20240307",
+          api_key: Environment.anthropic_api_key()
+        })
+      else
+        ChatOpenAI.new!(%{
+          model: "gpt-4o-mini",
+          api_key: Environment.openai_api_key()
+        })
+      end
+
+    chain =
+      %{llm: llm}
+      |> LLMChain.new!()
+      |> LLMChain.add_messages([
+        Message.new_system!(system_prompt),
+        Message.new_user!(user_message)
+      ])
+
+    case LLMChain.run(chain) do
+      {:ok, updated_chain} ->
+        case updated_chain.last_message do
+          %{content: [%ContentPart{content: content}]} ->
+            String.trim(content) |> String.split(",")
+            |> Enum.map(fn group_name ->
+              group_name = String.trim(group_name)
+              Enum.find(launch_argument_groups, fn group -> group.name == group_name end)
+            end)
+            |> Enum.filter(& &1)
+
+          _ ->
+            ""
+        end
+
+      {:error, _} ->
+        # If LLM fails, fallback to simple keyword matching
+        fallback_launch_arguments_selection(prompt, launch_argument_groups)
+    end
+  end
+
+  defp fallback_launch_arguments_selection(prompt, launch_argument_groups) do
+    # Simple keyword matching as fallback
+    downcase_prompt = String.downcase(prompt)
+
+    selected_groups =
+      Enum.filter(launch_argument_groups, fn group ->
+        keywords = String.split(String.downcase(group.name), ~r/[-_]/)
+        Enum.any?(keywords, &String.contains?(downcase_prompt, &1))
+      end)
+
+    Enum.map_join(selected_groups, " ", & &1.value)
   end
 end

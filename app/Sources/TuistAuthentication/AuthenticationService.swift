@@ -143,6 +143,34 @@ public final class AuthenticationService: ObservableObject {
         )
     }
 
+    public func signInWithEmailAndPassword(email: String, password: String) async throws {
+        let url = serverEnvironmentService.url().appending(path: "api/auth")
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let parameters = [
+            "email": email,
+            "password": password,
+        ]
+
+        let jsonData = try JSONSerialization.data(withJSONObject: parameters)
+        request.httpBody = jsonData
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw AuthenticationError.invalidTokenResponse
+        }
+
+        if httpResponse.statusCode == 200 {
+            try await handleTokenResponse(data)
+        } else {
+            throw AuthenticationError.tokenExchangeFailed(statusCode: httpResponse.statusCode)
+        }
+    }
+
     private func exchangeAppleTokenForServerToken(
         identityToken: String,
         authorizationCode: String

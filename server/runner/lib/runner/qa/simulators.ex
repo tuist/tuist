@@ -106,11 +106,23 @@ defmodule Runner.QA.Simulators do
   Parameters:
     - bundle_identifier: Bundle identifier of the app to launch
     - device: SimulatorDevice struct
+    - launch_arguments: Optional string of launch arguments (default: "")
 
   Returns `:ok` on success or `{:error, reason}` on failure.
   """
-  def launch_app(bundle_identifier, %SimulatorDevice{udid: device_udid}) do
-    case System.cmd("xcrun", ["simctl", "launch", device_udid, bundle_identifier]) do
+  def launch_app(bundle_identifier, %SimulatorDevice{udid: device_udid}, launch_arguments \\ "") do
+    args = ["simctl", "launch", device_udid, bundle_identifier]
+    
+    # Add launch arguments if provided
+    args = if launch_arguments != "" do
+      # Split the launch arguments string into individual arguments
+      launch_args_list = String.split(launch_arguments, ~r/\s+/, trim: true)
+      args ++ launch_args_list
+    else
+      args
+    end
+    
+    case System.cmd("xcrun", args) do
       {_output, 0} ->
         :ok
 

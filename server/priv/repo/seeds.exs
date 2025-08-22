@@ -97,6 +97,18 @@ tuist_project =
       )
   end
 
+# Create launch arguments group for tuist project
+if is_nil(Repo.get_by(QA.LaunchArgumentsGroup, project_id: tuist_project.id, name: "login-credentials")) do
+  %QA.LaunchArgumentsGroup{}
+  |> QA.LaunchArgumentsGroup.create_changeset(%{
+    project_id: tuist_project.id,
+    name: "login-credentials",
+    value: "--email tuistrocks@tuist.dev --password tuistrocks",
+    description: "Log in credentials that can be used to skip the login"
+  })
+  |> Repo.insert!()
+end
+
 builds =
   Enum.map(1..2000, fn _ ->
     status = Enum.random([:success, :failure])
