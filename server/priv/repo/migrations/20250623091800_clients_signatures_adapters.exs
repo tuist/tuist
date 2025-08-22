@@ -4,9 +4,6 @@ defmodule Tuist.Repo.Migrations.ClientsSignaturesAdapters do
   def up do
     alter table(:oauth_clients) do
       add :signatures_adapter, :string, null: false, default: "Elixir.Boruta.Internal.Signatures"
-    end
-
-    alter table(:oauth_clients) do
       modify :did, :text
     end
   end
@@ -14,9 +11,6 @@ defmodule Tuist.Repo.Migrations.ClientsSignaturesAdapters do
   def down do
     alter table(:oauth_clients) do
       modify :did, :string
-    end
-
-    alter table(:oauth_clients) do
       remove :signatures_adapter
     end
   end
