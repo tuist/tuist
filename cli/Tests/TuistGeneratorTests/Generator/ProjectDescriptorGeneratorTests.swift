@@ -129,7 +129,7 @@ struct ProjectDescriptorGeneratorTests {
 
         // Then
         let pbxproj = got.xcodeProj.pbxproj
-        #expect(pbxproj.objectVersion == 70)
+        #expect(pbxproj.objectVersion == 55)
         #expect(pbxproj.archiveVersion == Xcode.LastKnown.archiveVersion)
     }
 
@@ -160,7 +160,7 @@ struct ProjectDescriptorGeneratorTests {
 
         // Then
         let pbxproj = got.xcodeProj.pbxproj
-        #expect(pbxproj.objectVersion == 70)
+        #expect(pbxproj.objectVersion == 55)
         #expect(pbxproj.archiveVersion == Xcode.LastKnown.archiveVersion)
     }
 
@@ -191,7 +191,7 @@ struct ProjectDescriptorGeneratorTests {
 
         // Then
         let pbxproj = got.xcodeProj.pbxproj
-        #expect(pbxproj.objectVersion == 70)
+        #expect(pbxproj.objectVersion == 55)
         #expect(pbxproj.archiveVersion == Xcode.LastKnown.archiveVersion)
     }
 
