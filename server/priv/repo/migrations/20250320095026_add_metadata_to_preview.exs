@@ -14,6 +14,7 @@ defmodule Tuist.Repo.Migrations.AddMetadataToPreview do
 
   def down do
     drop_if_exists index(:previews, [:project_id, :git_branch])
+
     alter table(:previews) do
       remove_if_exists :ran_by_account_id, references(:accounts, on_delete: :nilify_all)
       remove_if_exists :git_commit_sha, :string

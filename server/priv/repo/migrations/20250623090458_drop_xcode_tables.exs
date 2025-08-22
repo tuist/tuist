@@ -35,8 +35,10 @@ defmodule Tuist.Repo.Migrations.DropXcodeTables do
       create table(:xcode_projects, primary_key: false) do
         add :id, :uuid, primary_key: true, null: false
         add :name, :string, null: false
+
         add :xcode_graph_id, references(:xcode_graphs, type: :uuid, on_delete: :delete_all),
           null: false
+
         timestamps(type: :timestamptz)
       end
 
@@ -49,9 +51,11 @@ defmodule Tuist.Repo.Migrations.DropXcodeTables do
         add :binary_cache_hit, :integer
         add :selective_testing_hash, :string
         add :selective_testing_hit, :integer
+
         add :xcode_project_id,
             references(:xcode_projects, type: :uuid, on_delete: :delete_all),
             null: false
+
         timestamps(type: :timestamptz)
       end
 
