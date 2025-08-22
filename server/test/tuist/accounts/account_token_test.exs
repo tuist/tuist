@@ -58,7 +58,7 @@ defmodule Tuist.Accounts.AccountTokenTest do
         AccountToken.create_changeset(token, %{
           account_id: 1,
           encrypted_token_hash: "hash",
-          scopes: [:account_registry_read]
+          scopes: [:registry_read]
         })
 
       # Then

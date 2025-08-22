@@ -19,7 +19,7 @@ defmodule TuistWeb.API.Registry.SwiftControllerTest do
     user = AccountsFixtures.user_fixture(preload: [:account])
     account = user.account
 
-    conn = assign(conn, :current_subject, %AuthenticatedAccount{account: account, scopes: [:account_registry_read]})
+    conn = assign(conn, :current_subject, %AuthenticatedAccount{account: account, scopes: [:registry_read]})
 
     %{conn: conn, account: account}
   end

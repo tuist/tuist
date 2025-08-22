@@ -8,7 +8,6 @@ defmodule TuistWeb.App do
   import Phoenix.Component
 
   alias Tuist.Accounts
-  alias Tuist.Authorization
   alias Tuist.Projects
 
   def on_mount(:mount_app, %{"owner" => owner_handle, "project" => project_handle}, session, socket)
@@ -31,8 +30,6 @@ defmodule TuistWeb.App do
     project =
       Projects.get_project_by_account_and_project_handles(owner_handle, project_handle)
 
-    owner_account = Accounts.get_account_by_handle(owner_handle)
-
     projects =
       if is_nil(user) do
         []
@@ -48,10 +45,6 @@ defmodule TuistWeb.App do
      |> assign(
        :projects,
        projects
-     )
-     |> assign(
-       :can_update_billing,
-       Authorization.can(user, :update, owner_account, :billing)
      )}
   end
 

@@ -2626,7 +2626,7 @@ defmodule Tuist.AccountsTest do
       account = AccountsFixtures.user_fixture(preload: [:account]).account
 
       {:ok, {account_token, account_token_value}} =
-        Accounts.create_account_token(%{account: account, scopes: [:account_registry_read]})
+        Accounts.create_account_token(%{account: account, scopes: [:registry_read]})
 
       # When
       {:ok, got} = Accounts.account_token(account_token_value)
@@ -2669,7 +2669,7 @@ defmodule Tuist.AccountsTest do
 
       # When
       {:ok, {_, got_token_value}} =
-        Accounts.create_account_token(%{account: account, scopes: [:account_registry_read]})
+        Accounts.create_account_token(%{account: account, scopes: [:registry_read]})
 
       # Then
       %{id: token_id} = Repo.one(AccountToken)

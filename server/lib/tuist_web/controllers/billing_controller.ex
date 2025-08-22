@@ -41,7 +41,11 @@ defmodule TuistWeb.BillingController do
   end
 
   def authorize(%{assigns: %{billing_account: billing_account}} = conn, _opts) do
-    if Authorization.can(Authentication.current_user(conn), :update, billing_account, :billing) do
+    if Authorization.authorize(
+         :billing_update,
+         Authentication.current_user(conn),
+         billing_account
+       ) == :ok do
       conn
     else
       raise TuistWeb.Errors.UnauthorizedError,

@@ -54,7 +54,7 @@ defmodule TuistWeb.API.AccountController do
     with {:ok, account} <- get_account(handle),
          :ok <-
            Authorization.authorize(
-             :account_organization_update,
+             :organization_update,
              conn.assigns.current_user,
              account
            ),

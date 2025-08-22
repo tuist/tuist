@@ -30,7 +30,7 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlugTest do
       |> assign(:selected_account, account)
       |> assign(:current_subject, %AuthenticatedAccount{
         account: account,
-        scopes: [:account_registry_read]
+        scopes: [:registry_read]
       })
 
     # When
@@ -96,7 +96,9 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlugTest do
         AuthorizationPlug.init(category: :cache, caching: true, cache_ttl: to_timeout(minute: 5))
 
       # We check that the authorization API, which hits the DB, is onnly invoked once.
-      expect(Authorization, :can?, 1, fn :project_cache_read, _, _ -> false end)
+      expect(Authorization, :authorize, 1, fn :cache_read, _, _ ->
+        {:error, :forbidden}
+      end)
 
       conn =
         build_conn()

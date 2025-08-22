@@ -10,7 +10,7 @@ defmodule TuistWeb.RunsController do
 
     with {:ok, command_event} <-
            CommandEvents.get_command_event_by_id(command_event_id, preload: :project),
-         :ok <- Authorization.authorize(:project_run_read, user, command_event.project) do
+         :ok <- Authorization.authorize(:run_read, user, command_event.project) do
       url = CommandEvents.generate_result_bundle_url(command_event)
 
       conn

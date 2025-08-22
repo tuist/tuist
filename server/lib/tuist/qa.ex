@@ -473,10 +473,10 @@ defmodule Tuist.QA do
     claims = %{
       "type" => "account",
       "scopes" => [
-        "project_qa_run_update",
-        "project_qa_step_create",
-        "project_qa_step_update",
-        "project_qa_screenshot_create"
+        "qa_run_update",
+        "qa_step_create",
+        "qa_step_update",
+        "qa_screenshot_create"
       ],
       "project_id" => app_build.preview.project.id
     }
