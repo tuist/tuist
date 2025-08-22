@@ -52,7 +52,14 @@ public struct XCFrameworkSignatureProvider {
     }
 
     private static let signedWithAppleCertificateString = "Authority=Apple Root CA"
-    private static let teamNameRegExPattern = #"Authority=[^:]+?:\s*([^()]+)\s*\(([A-Z0-9]+)\)"#
+
+    /// Regex to find team name in signature description. Examples:
+    /// 1. Authority=iPhone Distribution: Tuist GmbH
+    /// 2. Authority=Developer ID Application: Tuist GmbH (U6LC622NKF)
+    private static let teamNameRegExPattern = #"Authority=[^:]+?:\s*([^()|^\n]+)\s*(\(([A-Z0-9]+)\))?"#
+
+    /// Regex to find team id in signature description. Example
+    /// TeamIdentifier=U6LC622NKF
     private static let teamIdentifierRegExPattern = #"TeamIdentifier=([A-Z0-9]+)"#
 
     /// Returns the signature of the XCFramework at the given `xcframeworkPath`.
