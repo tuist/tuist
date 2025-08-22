@@ -5,13 +5,15 @@ defmodule Runner.QA.Tools do
   alias LangChain.Function
   alias LangChain.FunctionParam
   alias LangChain.Message.ContentPart
+  alias Runner.QA.AppiumClient
   alias Runner.QA.Client
+  alias Runner.QA.Sleeper
 
   require Logger
 
   def tools(params) do
     [
-      describe_ui_tool(),
+      describe_ui_tool(params),
       tap_tool(params),
       long_press_tool(params),
       swipe_tool(params),
@@ -27,32 +29,14 @@ defmodule Runner.QA.Tools do
     ]
   end
 
-  defp describe_ui_tool do
+  defp describe_ui_tool(%{appium_session: appium_session}) do
     Function.new!(%{
       name: "describe_ui",
       description:
-        "Retrieves the entire view hierarchy with precise frame coordinates for all visible elements. Use this tool only if you don't have a recent UI state description.",
-      parameters: [
-        FunctionParam.new!(%{
-          name: "simulator_uuid",
-          type: :string,
-          description: "The UUID of the simulator",
-          required: true
-        })
-      ],
-      function: fn %{"simulator_uuid" => simulator_uuid} = _params, _context ->
-        case run_axe_command(simulator_uuid, ["describe-ui"]) do
-          {:ok, content} ->
-            simplified_content = simplify_ui_description(content)
-
-            if should_scan_webview(content) do
-              describe_webview_ui(content, simulator_uuid)
-            else
-              {:ok, [ContentPart.text!(simplified_content)]}
-            end
-
-          {:error, reason} ->
-            {:error, reason}
+        "Retrieves the entire view hierarchy with precise frame coordinates for all visible elements. Use this tool only if you don't have an existing Current UI state description – you will typically use this only before interacting with the app with tools like tap.",
+      function: fn _params, _context ->
+        with {:ok, ui_description} <- ui_description_from_appium_session(appium_session) do
+          {:ok, [ContentPart.text!(ui_description)]}
         end
       end
     })
@@ -63,19 +47,16 @@ defmodule Runner.QA.Tools do
          run_id: run_id,
          auth_token: auth_token,
          account_handle: account_handle,
-         project_handle: project_handle
+         project_handle: project_handle,
+         bundle_identifier: bundle_identifier,
+         simulator_uuid: simulator_uuid,
+         appium_session: appium_session
        }) do
     Function.new!(%{
       name: "tap",
       description:
         "Simulates a tap at specific x, y coordinates. Use describe_ui for precise coordinates (don't guess from screenshots). Use the exact x, y coordinates from the UI state description.",
       parameters: [
-        FunctionParam.new!(%{
-          name: "simulator_uuid",
-          type: :string,
-          description: "The UUID of the simulator",
-          required: true
-        }),
         FunctionParam.new!(%{
           name: "x",
           type: :number,
@@ -96,7 +77,6 @@ defmodule Runner.QA.Tools do
         })
       ],
       function: fn %{
-                     "simulator_uuid" => simulator_uuid,
                      "x" => x,
                      "y" => y,
                      "action" => action
@@ -111,7 +91,9 @@ defmodule Runner.QA.Tools do
           run_id: run_id,
           auth_token: auth_token,
           account_handle: account_handle,
-          project_handle: project_handle
+          project_handle: project_handle,
+          bundle_identifier: bundle_identifier,
+          appium_session: appium_session
         })
       end
     })
@@ -122,18 +104,15 @@ defmodule Runner.QA.Tools do
          run_id: run_id,
          auth_token: auth_token,
          account_handle: account_handle,
-         project_handle: project_handle
+         project_handle: project_handle,
+         bundle_identifier: bundle_identifier,
+         simulator_uuid: simulator_uuid,
+         appium_session: appium_session
        }) do
     Function.new!(%{
       name: "long_press",
       description: "Performs a long press at coordinates with configurable duration",
       parameters: [
-        FunctionParam.new!(%{
-          name: "simulator_uuid",
-          type: :string,
-          description: "The UUID of the simulator",
-          required: true
-        }),
         FunctionParam.new!(%{
           name: "x",
           type: :number,
@@ -160,7 +139,7 @@ defmodule Runner.QA.Tools do
           required: true
         })
       ],
-      function: fn %{"simulator_uuid" => simulator_uuid, "x" => x, "y" => y, "action" => action} =
+      function: fn %{"x" => x, "y" => y, "action" => action} =
                      params,
                    _context ->
         duration = Map.get(params, "duration", 1.0)
@@ -185,29 +164,19 @@ defmodule Runner.QA.Tools do
           run_id: run_id,
           auth_token: auth_token,
           account_handle: account_handle,
-          project_handle: project_handle
+          project_handle: project_handle,
+          bundle_identifier: bundle_identifier,
+          appium_session: appium_session
         })
       end
     })
   end
 
-  defp swipe_tool(%{
-         server_url: server_url,
-         run_id: run_id,
-         auth_token: auth_token,
-         account_handle: account_handle,
-         project_handle: project_handle
-       }) do
+  defp swipe_tool(%{simulator_uuid: simulator_uuid} = all_params) do
     Function.new!(%{
       name: "swipe",
       description: "Executes a swipe between two coordinate points",
       parameters: [
-        FunctionParam.new!(%{
-          name: "simulator_uuid",
-          type: :string,
-          description: "The UUID of the simulator",
-          required: true
-        }),
         FunctionParam.new!(%{
           name: "from_x",
           type: :number,
@@ -247,7 +216,6 @@ defmodule Runner.QA.Tools do
         })
       ],
       function: fn %{
-                     "simulator_uuid" => simulator_uuid,
                      "from_x" => from_x,
                      "from_y" => from_y,
                      "to_x" => to_x,
@@ -272,15 +240,7 @@ defmodule Runner.QA.Tools do
             "#{duration}"
           ])
 
-        execute_action_with_step_report(action_result, %{
-          simulator_uuid: simulator_uuid,
-          server_url: server_url,
-          action: action,
-          run_id: run_id,
-          auth_token: auth_token,
-          account_handle: account_handle,
-          project_handle: project_handle
-        })
+        execute_action_with_step_report(action_result, Map.put(all_params, :action, action))
       end
     })
   end
@@ -290,18 +250,15 @@ defmodule Runner.QA.Tools do
          run_id: run_id,
          auth_token: auth_token,
          account_handle: account_handle,
-         project_handle: project_handle
+         project_handle: project_handle,
+         bundle_identifier: bundle_identifier,
+         simulator_uuid: simulator_uuid,
+         appium_session: appium_session
        }) do
     Function.new!(%{
       name: "type_text",
       description: "Types text using the US keyboard",
       parameters: [
-        FunctionParam.new!(%{
-          name: "simulator_uuid",
-          type: :string,
-          description: "The UUID of the simulator",
-          required: true
-        }),
         FunctionParam.new!(%{
           name: "text",
           type: :string,
@@ -315,7 +272,7 @@ defmodule Runner.QA.Tools do
           required: true
         })
       ],
-      function: fn %{"simulator_uuid" => simulator_uuid, "text" => text, "action" => action} =
+      function: fn %{"text" => text, "action" => action} =
                      _params,
                    _context ->
         action_result = run_axe_command(simulator_uuid, ["type", text])
@@ -327,7 +284,9 @@ defmodule Runner.QA.Tools do
           run_id: run_id,
           auth_token: auth_token,
           account_handle: account_handle,
-          project_handle: project_handle
+          project_handle: project_handle,
+          bundle_identifier: bundle_identifier,
+          appium_session: appium_session
         })
       end
     })
@@ -338,18 +297,15 @@ defmodule Runner.QA.Tools do
          run_id: run_id,
          auth_token: auth_token,
          account_handle: account_handle,
-         project_handle: project_handle
+         project_handle: project_handle,
+         bundle_identifier: bundle_identifier,
+         simulator_uuid: simulator_uuid,
+         appium_session: appium_session
        }) do
     Function.new!(%{
       name: "key_press",
       description: "Presses a specific key by its HID keycode",
       parameters: [
-        FunctionParam.new!(%{
-          name: "simulator_uuid",
-          type: :string,
-          description: "The UUID of the simulator",
-          required: true
-        }),
         FunctionParam.new!(%{
           name: "keycode",
           type: :string,
@@ -380,7 +336,7 @@ defmodule Runner.QA.Tools do
           required: true
         })
       ],
-      function: fn %{"simulator_uuid" => simulator_uuid, "keycode" => keycode, "action" => action} =
+      function: fn %{"keycode" => keycode, "action" => action} =
                      params,
                    _context ->
         duration = Map.get(params, "duration", 0.1)
@@ -395,7 +351,9 @@ defmodule Runner.QA.Tools do
           run_id: run_id,
           auth_token: auth_token,
           account_handle: account_handle,
-          project_handle: project_handle
+          project_handle: project_handle,
+          bundle_identifier: bundle_identifier,
+          appium_session: appium_session
         })
       end
     })
@@ -406,18 +364,15 @@ defmodule Runner.QA.Tools do
          run_id: run_id,
          auth_token: auth_token,
          account_handle: account_handle,
-         project_handle: project_handle
+         project_handle: project_handle,
+         bundle_identifier: bundle_identifier,
+         simulator_uuid: simulator_uuid,
+         appium_session: appium_session
        }) do
     Function.new!(%{
       name: "button",
       description: "Simulates hardware button presses (home, lock, side-button, etc.)",
       parameters: [
-        FunctionParam.new!(%{
-          name: "simulator_uuid",
-          type: :string,
-          description: "The UUID of the simulator",
-          required: true
-        }),
         FunctionParam.new!(%{
           name: "button",
           type: :string,
@@ -433,7 +388,6 @@ defmodule Runner.QA.Tools do
         })
       ],
       function: fn %{
-                     "simulator_uuid" => simulator_uuid,
                      "button" => button_name,
                      "action" => action
                    } = _params,
@@ -447,7 +401,9 @@ defmodule Runner.QA.Tools do
           run_id: run_id,
           auth_token: auth_token,
           account_handle: account_handle,
-          project_handle: project_handle
+          project_handle: project_handle,
+          bundle_identifier: bundle_identifier,
+          appium_session: appium_session
         })
       end
     })
@@ -458,18 +414,15 @@ defmodule Runner.QA.Tools do
          run_id: run_id,
          auth_token: auth_token,
          account_handle: account_handle,
-         project_handle: project_handle
+         project_handle: project_handle,
+         bundle_identifier: bundle_identifier,
+         simulator_uuid: simulator_uuid,
+         appium_session: appium_session
        }) do
     Function.new!(%{
       name: "touch",
       description: "Provides granular touch down/up events",
       parameters: [
-        FunctionParam.new!(%{
-          name: "simulator_uuid",
-          type: :string,
-          description: "The UUID of the simulator",
-          required: true
-        }),
         FunctionParam.new!(%{
           name: "x",
           type: :number,
@@ -498,7 +451,7 @@ defmodule Runner.QA.Tools do
           required: true
         })
       ],
-      function: fn %{"simulator_uuid" => simulator_uuid, "x" => x, "y" => y, "action" => _action} =
+      function: fn %{"x" => x, "y" => y, "action" => _action} =
                      params,
                    _context ->
         action = Map.get(params, "action", "down-up")
@@ -520,7 +473,9 @@ defmodule Runner.QA.Tools do
           run_id: run_id,
           auth_token: auth_token,
           account_handle: account_handle,
-          project_handle: project_handle
+          project_handle: project_handle,
+          bundle_identifier: bundle_identifier,
+          appium_session: appium_session
         })
       end
     })
@@ -531,18 +486,15 @@ defmodule Runner.QA.Tools do
          run_id: run_id,
          auth_token: auth_token,
          account_handle: account_handle,
-         project_handle: project_handle
+         project_handle: project_handle,
+         bundle_identifier: bundle_identifier,
+         simulator_uuid: simulator_uuid,
+         appium_session: appium_session
        }) do
     Function.new!(%{
       name: "gesture",
       description: "Perform preset gesture patterns on the simulator",
       parameters: [
-        FunctionParam.new!(%{
-          name: "simulator_uuid",
-          type: :string,
-          description: "The UUID of the simulator",
-          required: true
-        }),
         FunctionParam.new!(%{
           name: "preset",
           type: :string,
@@ -602,7 +554,7 @@ defmodule Runner.QA.Tools do
           required: true
         })
       ],
-      function: fn %{"simulator_uuid" => simulator_uuid, "preset" => preset, "action" => action} =
+      function: fn %{"preset" => preset, "action" => action} =
                      params,
                    _context ->
         args =
@@ -648,31 +600,21 @@ defmodule Runner.QA.Tools do
           run_id: run_id,
           auth_token: auth_token,
           account_handle: account_handle,
-          project_handle: project_handle
+          project_handle: project_handle,
+          bundle_identifier: bundle_identifier,
+          appium_session: appium_session
         })
       end
     })
   end
 
-  defp screenshot_tool(%{
-         server_url: _server_url,
-         run_id: _run_id,
-         auth_token: _auth_token,
-         account_handle: _account_handle,
-         project_handle: _project_handle
-       }) do
+  defp screenshot_tool(%{simulator_uuid: simulator_uuid}) do
     Function.new!(%{
       name: "screenshot",
-      description: "Captures a screenshot of the current view.",
-      parameters: [
-        FunctionParam.new!(%{
-          name: "simulator_uuid",
-          type: :string,
-          description: "The UUID of the simulator",
-          required: true
-        })
-      ],
-      function: fn %{"simulator_uuid" => simulator_uuid}, _context ->
+      description:
+        "Captures a screenshot of the current view. Use this tool only if you don't have an existing screenshot – you will typically use this only before interacting with the app with tools like tap.",
+      parameters: [],
+      function: fn _params, _context ->
         with {:ok, temp_path} <- Briefly.create(),
              {_, 0} <-
                System.cmd("xcrun", ["simctl", "io", simulator_uuid, "screenshot", temp_path]),
@@ -692,19 +634,14 @@ defmodule Runner.QA.Tools do
          run_id: run_id,
          auth_token: auth_token,
          account_handle: account_handle,
-         project_handle: project_handle
+         project_handle: project_handle,
+         simulator_uuid: simulator_uuid
        }) do
     Function.new!(%{
       name: "plan_report",
       description:
         "Reports the initial QA plan. Call this after creating your test plan but before executing any actions.",
       parameters: [
-        FunctionParam.new!(%{
-          name: "simulator_uuid",
-          type: :string,
-          description: "The UUID of the simulator",
-          required: true
-        }),
         FunctionParam.new!(%{
           name: "summary",
           type: :string,
@@ -719,10 +656,9 @@ defmodule Runner.QA.Tools do
         })
       ],
       function: fn %{
-                     "simulator_uuid" => simulator_uuid,
                      "summary" => summary,
                      "details" => details
-                   } = _params,
+                   },
                    _context ->
         with {:ok, step_id} <-
                Client.create_step(%{
@@ -882,109 +818,6 @@ defmodule Runner.QA.Tools do
     })
   end
 
-  defp should_scan_webview(ui_content) do
-    case JSON.decode(ui_content) do
-      {:ok, ui_data} when is_list(ui_data) ->
-        case ui_data do
-          [%{"role" => "AXApplication", "children" => []}] -> true
-          _ -> false
-        end
-
-      _ ->
-        false
-    end
-  end
-
-  defp describe_webview_ui(ui_content, simulator_uuid) do
-    grid_size = 50
-
-    case screen_dimensions(ui_content) do
-      {:ok, {width, height}} ->
-        scan_points_with_idb(simulator_uuid, width, height, grid_size)
-
-      {:error, reason} ->
-        {:error, "Failed to get screen dimensions: #{reason}"}
-    end
-  end
-
-  defp screen_dimensions(ui_content) do
-    case JSON.decode(ui_content) do
-      {:ok, ui_data} ->
-        find_window_frame(ui_data)
-
-      {:error, reason} ->
-        {:error, reason}
-    end
-  end
-
-  defp find_window_frame(elements) do
-    Enum.find_value(elements, {:error, :window_frame_not_found}, fn element ->
-      case element do
-        %{"type" => type, "frame" => frame} when type in ["Window", "Application"] ->
-          {:ok, {frame["width"], frame["height"]}}
-
-        _ ->
-          nil
-      end
-    end)
-  end
-
-  defp scan_points_with_idb(simulator_uuid, width, height, grid_size) do
-    points =
-      for x <- 0..trunc(width)//grid_size,
-          y <- 0..trunc(height)//grid_size do
-        {x, y}
-      end
-
-    ui_description =
-      points
-      |> Enum.map(fn {x, y} ->
-        Task.async(fn ->
-          case run_idb_describe_point(simulator_uuid, x, y) do
-            {:ok, point_info} ->
-              case JSON.decode(point_info) do
-                {:ok, element} -> {:ok, element}
-                {:error, _} -> :error
-              end
-
-            {:error, _} ->
-              :error
-          end
-        end)
-      end)
-      |> Task.await_many(20_000)
-      |> Enum.filter(fn
-        {:ok, _element} -> true
-        :error -> false
-      end)
-      |> Enum.map(fn {:ok, element} -> element end)
-      |> Enum.uniq_by(fn element ->
-        element["AXUniqueId"] || {element["frame"], element["AXLabel"]}
-      end)
-      |> JSON.encode!()
-      |> simplify_ui_description()
-
-    {:ok, "Current UI state: #{ui_description}"}
-  end
-
-  defp run_idb_describe_point(simulator_uuid, x, y) do
-    case System.cmd("idb", [
-           "ui",
-           "describe-point",
-           "--udid",
-           simulator_uuid,
-           "--json",
-           "#{x}",
-           "#{y}"
-         ]) do
-      {output, 0} ->
-        {:ok, String.trim(output)}
-
-      {error, status} ->
-        {:error, "idb describe-point failed (status #{status}): #{error}"}
-    end
-  end
-
   defp run_axe_command(simulator_uuid, args) do
     full_params = args ++ ["--udid", simulator_uuid]
 
@@ -997,89 +830,6 @@ defmodule Runner.QA.Tools do
     end
   end
 
-  defp simplify_ui_description(describe_ui_output) when is_binary(describe_ui_output) do
-    case JSON.decode(describe_ui_output) do
-      {:ok, ui_data} ->
-        simplified = simplify_ui_tree(ui_data)
-
-        JSON.encode!(simplified)
-
-      {:error, _} ->
-        describe_ui_output
-    end
-  end
-
-  defp simplify_ui_tree(elements) when is_list(elements) do
-    Enum.map(elements, &simplify_ui_element/1)
-  end
-
-  defp simplify_ui_tree(element) when is_map(element) do
-    simplify_ui_element(element)
-  end
-
-  defp simplify_ui_element(element) when is_map(element) do
-    %{}
-    |> then(&if type = element["type"], do: Map.put(&1, "type", type), else: &1)
-    |> then(
-      &if label = element["AXLabel"],
-        do: Map.put(&1, "label", label),
-        else: &1
-    )
-    |> then(fn simplified ->
-      # Add role if it's different from type
-      role = element["role"]
-
-      if role && role != "AX#{element["type"]}",
-        do: Map.put(simplified, "role", role),
-        else: simplified
-    end)
-    |> then(
-      &if frame = element["frame"] do
-        Map.put(&1, "frame", %{
-          "x" => round_if_needed(frame["x"]),
-          "y" => round_if_needed(frame["y"]),
-          "width" => round_if_needed(frame["width"]),
-          "height" => round_if_needed(frame["height"])
-        })
-      else
-        &1
-      end
-    )
-    |> then(&if element["enabled"] == false, do: Map.put(&1, "enabled", false), else: &1)
-    |> then(fn simplified ->
-      children = element["children"]
-
-      if children && children != [] do
-        Map.put(simplified, "children", simplify_ui_tree(children))
-      else
-        simplified
-      end
-    end)
-  end
-
-  defp round_if_needed(value) when is_float(value) do
-    # Round to 2 decimal places to avoid floating point precision issues
-    Float.round(value, 2)
-  end
-
-  defp round_if_needed(value), do: value
-
-  defp get_ui_description(simulator_uuid) do
-    case run_axe_command(simulator_uuid, ["describe-ui"]) do
-      {:ok, content} ->
-        simplified_content = simplify_ui_description(content)
-
-        if should_scan_webview(content) do
-          describe_webview_ui(content, simulator_uuid)
-        else
-          {:ok, "Current UI state: #{simplified_content}"}
-        end
-
-      {:error, reason} ->
-        {:error, reason}
-    end
-  end
-
   defp execute_action_with_step_report(action_result, %{
          simulator_uuid: simulator_uuid,
          action: action,
@@ -1087,8 +837,12 @@ defmodule Runner.QA.Tools do
          run_id: run_id,
          auth_token: auth_token,
          account_handle: account_handle,
-         project_handle: project_handle
+         project_handle: project_handle,
+         appium_session: appium_session
        }) do
+    # It can take for the action to happen, so we want to wait before capturing the screenshot and describing the UI
+    Sleeper.sleep(500)
+
     with {:ok, _} <- action_result,
          {:ok, step_id} <-
            Client.create_step(%{
@@ -1110,7 +864,7 @@ defmodule Runner.QA.Tools do
              project_handle: project_handle,
              step_id: step_id
            }),
-         {:ok, ui_description} <- get_ui_description(simulator_uuid) do
+         {:ok, ui_description} <- ui_description_from_appium_session(appium_session) do
       {:ok,
        [
          screenshot_content,
@@ -1119,4 +873,68 @@ defmodule Runner.QA.Tools do
        ]}
     end
   end
+
+  defp ui_description_from_appium_session(appium_session) do
+    with {:ok, page_source_xml} <- AppiumClient.page_source(appium_session),
+         {:ok, appium_json} <- appium_page_source_xml_to_json(page_source_xml) do
+      {:ok, "Current UI state: #{appium_json}"}
+    end
+  end
+
+  defp appium_page_source_xml_to_json(page_source_xml) do
+    case SAXMap.from_string(page_source_xml, ignore_attribute: false) do
+      {:ok, ui_state_map} ->
+        {:ok, JSON.encode!(simplify_elements(ui_state_map))}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  # We want to filter out repetitive values to optimize the context windows.
+  # Additionally, we're filtering out non-visible elements as the agent should not be interacting with those.
+  defp simplify_elements(element) when is_map(element) do
+    if Map.get(element, "visible") == "false" do
+      nil
+    else
+      element
+      |> Enum.map(fn {key, value} ->
+        cond do
+          key == "enabled" && value == "true" ->
+            {nil, nil}
+
+          key == "visible" && value == "true" ->
+            {nil, nil}
+
+          key == "accessible" && value == "true" ->
+            {nil, nil}
+
+          key == "content" && is_nil(value) ->
+            {nil, nil}
+
+          key == "index" ->
+            {nil, nil}
+
+          key == "traits" ->
+            {nil, nil}
+
+          key == "name" ->
+            {nil, nil}
+
+          true ->
+            {key, simplify_elements(value)}
+        end
+      end)
+      |> Enum.reject(fn {key, _value} -> is_nil(key) end)
+      |> Map.new()
+    end
+  end
+
+  defp simplify_elements(elements) when is_list(elements) do
+    elements
+    |> Enum.map(&simplify_elements/1)
+    |> Enum.reject(&is_nil/1)
+  end
+
+  defp simplify_elements(value), do: value
 end

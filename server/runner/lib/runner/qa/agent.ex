@@ -5,9 +5,11 @@ defmodule Runner.QA.Agent do
 
   alias LangChain.Chains.LLMChain
   alias LangChain.ChatModels.ChatAnthropic
+  alias LangChain.ChatModels.ChatOpenAI
   alias LangChain.Message
   alias LangChain.Message.ContentPart
   alias LangChain.TokenUsage
+  alias Runner.QA.AppiumClient
   alias Runner.QA.Client
   alias Runner.QA.Simulators
   alias Runner.QA.Tools
@@ -16,6 +18,7 @@ defmodule Runner.QA.Agent do
   require Logger
 
   @claude_model "claude-sonnet-4-20250514"
+  @openai_model "gpt-5"
   @action_tool_names [
     "tap",
     "swipe",
@@ -51,6 +54,7 @@ defmodule Runner.QA.Agent do
         opts
       ) do
     anthropic_api_key = Keyword.get(opts, :anthropic_api_key)
+    openai_api_key = Keyword.get(opts, :openai_api_key)
 
     with {:ok, simulator_device} <- simulator_device(),
          :ok <- run_preview(preview_url, bundle_identifier, simulator_device),
@@ -67,7 +71,8 @@ defmodule Runner.QA.Agent do
              server_url: server_url,
              run_id: run_id,
              auth_token: auth_token
-           }) do
+           }),
+         {:ok, appium_session} <- AppiumClient.start_session(simulator_device.udid, bundle_identifier) do
       handler = %{
         on_message_processed: fn _chain,
                                  %Message{
@@ -129,16 +134,14 @@ defmodule Runner.QA.Agent do
       prompt = """
       You are a QA agent. Test the following: #{prompt}.
 
-      First, understand what you need to test. Then, set up a plan to test the feature and execute on it without asking for additional instructions. Take screenshots to analyze whether there are any visual inconsistencies.
+      First, understand what you need to test. Then, set up a plan to test the feature and execute on it without asking for additional instructions.
 
-      When using tools, use the following udid: #{simulator_device.udid}.
-
-      When interacting with the app, make sure to follow the these guidelines:
+      When interacting with the app, you must follow these guidelines:
       - Prefer using describe_ui over screenshot to interact with the app
       - Don't read labels from screenshots. Always read them from the UI description.
       - To dismiss a system sheet, tap within the visible screen area but outside the sheet, such in the dark/grayed area above the sheet
       - If a button includes text, prefer tapping on the text to interact with the button
-      - When you recognize a placeholder/pre-filled fields, never try to clear the placeholder value. Instead, replace the text directly with type_text tool.
+      - When you recognize placeholder/pre-filled fields, you must never clear the placeholder value. Instead, replace the text directly with type_text tool.
       """
 
       llm =
@@ -148,17 +151,33 @@ defmodule Runner.QA.Agent do
           api_key: anthropic_api_key
         })
 
+      with_fallbacks =
+        if openai_api_key do
+          [
+            ChatOpenAI.new!(%{
+              model: @openai_model,
+              max_completion_tokens: 2000,
+              api_key: openai_api_key
+            })
+          ]
+        else
+          []
+        end
+
       tools =
         Tools.tools(%{
           server_url: server_url,
           run_id: run_id,
           auth_token: auth_token,
           account_handle: account_handle,
-          project_handle: project_handle
+          project_handle: project_handle,
+          bundle_identifier: bundle_identifier,
+          appium_session: appium_session,
+          simulator_uuid: simulator_device.udid
         })
 
       case run_llm(
-             %{llm: llm, max_retry_count: 10},
+             %{llm: llm, with_fallbacks: with_fallbacks, max_retry_count: 10},
              handler,
              [Message.new_user!(prompt)],
              tools
@@ -175,21 +194,28 @@ defmodule Runner.QA.Agent do
             project_handle: project_handle
           })
 
+          AppiumClient.stop_session(appium_session)
+
           {:error, error_message}
 
         result ->
+          AppiumClient.stop_session(appium_session)
           result
       end
     end
   end
 
-  defp run_llm(attrs, handler, messages, tools) do
+  defp run_llm(%{with_fallbacks: with_fallbacks} = attrs, handler, messages, tools) do
+    tools_without_step_report = Enum.filter(tools, &(&1.name != "step_report"))
+
     attrs
     |> LLMChain.new!()
     |> LLMChain.add_messages(messages)
-    |> LLMChain.add_tools(tools)
+    |> LLMChain.add_tools(tools_without_step_report)
     |> LLMChain.add_callback(handler)
-    |> LLMChain.run_until_tool_used(Enum.map(tools, & &1.name))
+    |> LLMChain.run_until_tool_used(Enum.map(tools_without_step_report, & &1.name),
+      with_fallbacks: with_fallbacks
+    )
     |> process_llm_result(attrs, handler, tools)
   end
 
@@ -264,7 +290,7 @@ defmodule Runner.QA.Agent do
     )
     |> LLMChain.add_tools(tools)
     |> LLMChain.add_callback(handler)
-    |> LLMChain.run_until_tool_used("step_report")
+    |> LLMChain.run(mode: :until_success)
   end
 
   defp clear_ui_and_screenshot_messages(messages) do

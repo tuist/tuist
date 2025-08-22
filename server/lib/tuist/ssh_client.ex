@@ -3,6 +3,8 @@ defmodule Tuist.SSHClient do
   SSH client module for executing commands on remote servers and managing SSH connections.
   """
 
+  require Logger
+
   @doc """
   Establishes an SSH connection to a remote host.
 
@@ -30,6 +32,7 @@ defmodule Tuist.SSHClient do
   end
 
   def run_command(connection, command, timeout \\ 60_000) do
+    Logger.info("Running command: #{command}")
     {:ok, channel} = :ssh_connection.session_channel(connection, timeout)
     :ssh_connection.exec(connection, channel, String.to_charlist(command), timeout)
     receive_message()
@@ -38,6 +41,7 @@ defmodule Tuist.SSHClient do
   defp receive_message(return_message \\ "") do
     receive do
       {:ssh_cm, _pid, {:data, _cid, 1, data}} ->
+        Logger.error("SSH stderr data received: #{inspect(data)}")
         updated_message = return_message <> data
         receive_message(updated_message)
 
@@ -57,7 +61,7 @@ defmodule Tuist.SSHClient do
       {:ssh_cm, _pid, {:exit_status, _cid, code}} ->
         {:error, "return from command failed with code #{code}"}
     after
-      to_timeout(minute: 1) ->
+      to_timeout(minute: 2) ->
         {:error, "no return from command after 60 seconds"}
     end
   end

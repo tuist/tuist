@@ -8,6 +8,7 @@ defmodule Runner.QA.AgentTest do
   alias LangChain.Message.ContentPart
   alias LangChain.Message.ToolResult
   alias Runner.QA.Agent
+  alias Runner.QA.AppiumClient
   alias Runner.QA.Client
   alias Runner.QA.Simulators
   alias Runner.QA.Simulators.SimulatorDevice
@@ -39,6 +40,9 @@ defmodule Runner.QA.AgentTest do
     stub(Simulators, :boot_simulator, fn ^device -> :ok end)
     stub(Simulators, :install_app, fn ^app_path, ^device -> :ok end)
 
+    stub(AppiumClient, :start_session, fn _, _ -> {:ok, %{id: "mock-session"}} end)
+    stub(AppiumClient, :stop_session, fn _ -> :ok end)
+
     stub(ChatAnthropic, :new!, fn _ ->
       %ChatAnthropic{api_key: "test-api-key", model: "claude-sonnet-4-20250514"}
     end)
@@ -50,6 +54,7 @@ defmodule Runner.QA.AgentTest do
     stub(LLMChain, :add_messages, fn chain, _messages -> chain end)
     stub(LLMChain, :add_tools, fn chain, _ -> chain end)
     stub(LLMChain, :add_callback, fn chain, _ -> chain end)
+    stub(LLMChain, :run, fn chain, _opts -> {:ok, chain} end)
 
     stub(Tools, :tools, fn _params ->
       [
@@ -120,7 +125,7 @@ defmodule Runner.QA.AgentTest do
       expect(LLMChain, :add_tools, fn chain, _tools -> chain end)
       expect(LLMChain, :add_callback, fn chain, _handler -> chain end)
 
-      expect(LLMChain, :run_until_tool_used, fn _chain, _tool_names ->
+      expect(LLMChain, :run_until_tool_used, fn _chain, _tool_names, _opts ->
         {:ok, chain_result, %ToolResult{name: "finalize", content: ["Test completed successfully"]}}
       end)
 
@@ -277,7 +282,7 @@ defmodule Runner.QA.AgentTest do
         %{chain | messages: [user_msg]}
       end)
 
-      expect(LLMChain, :run_until_tool_used, 1, fn input_chain, _tool_names ->
+      expect(LLMChain, :run_until_tool_used, 1, fn input_chain, _tool_names, _opts ->
         chain_with_messages = %{
           input_chain
           | messages: messages,
@@ -353,7 +358,7 @@ defmodule Runner.QA.AgentTest do
         %{chain | messages: cleared_messages}
       end)
 
-      expect(LLMChain, :run_until_tool_used, 1, fn chain, _tool_names ->
+      expect(LLMChain, :run_until_tool_used, 1, fn chain, _tool_names, _opts ->
         {:ok, chain, %ToolResult{name: "finalize", content: ["Test completed"]}}
       end)
 
@@ -393,7 +398,7 @@ defmodule Runner.QA.AgentTest do
         %{chain | messages: [user_msg]}
       end)
 
-      expect(LLMChain, :run_until_tool_used, 1, fn chain, _tool_names ->
+      expect(LLMChain, :run_until_tool_used, 1, fn chain, _tool_names, _opts ->
         {:ok,
          %{
            chain
@@ -459,9 +464,8 @@ defmodule Runner.QA.AgentTest do
         %{chain | messages: messages}
       end)
 
-      expect(LLMChain, :run_until_tool_used, 1, fn chain, tool_name ->
-        assert tool_name == "step_report"
-        {:ok, chain, %ToolResult{name: "step_report", content: ["Step reported successfully"]}}
+      expect(LLMChain, :run, 1, fn chain, [mode: :until_success] ->
+        {:ok, chain}
       end)
 
       expect(LLMChain, :new!, 1, fn %{llm: llm} ->
@@ -472,7 +476,7 @@ defmodule Runner.QA.AgentTest do
         %{chain | messages: []}
       end)
 
-      expect(LLMChain, :run_until_tool_used, 1, fn chain, _tool_names ->
+      expect(LLMChain, :run_until_tool_used, 1, fn chain, _tool_names, _opts ->
         {:ok, chain, %ToolResult{name: "finalize", content: ["Test completed"]}}
       end)
 

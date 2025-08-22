@@ -9,7 +9,8 @@ defmodule Runner.Commands.QA do
     case parse_args(args) do
       {:ok, params} ->
         {anthropic_api_key, agent_params} = Map.pop(params, :anthropic_api_key)
-        opts = [anthropic_api_key: anthropic_api_key]
+        {openai_api_key, agent_params} = Map.pop(agent_params, :openai_api_key)
+        opts = [anthropic_api_key: anthropic_api_key, openai_api_key: openai_api_key]
         Agent.test(agent_params, opts)
 
       {:error, :help} ->

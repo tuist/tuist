@@ -435,6 +435,10 @@ defmodule Tuist.Environment do
     get([:anthropic, :api_key], secrets)
   end
 
+  def openai_api_key(secrets \\ secrets()) do
+    get([:openai, :api_key], secrets)
+  end
+
   def clickhouse_flush_interval_ms(secrets \\ secrets()) do
     case get([:clickhouse, :flush_interval_ms], secrets) do
       flush_interval when is_binary(flush_interval) -> String.to_integer(flush_interval)
