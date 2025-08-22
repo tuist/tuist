@@ -1,6 +1,17 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.65.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add filePath and customWorkingDirectory support to RunAction by [@plu](https://github.com/plu) in [#8071](https://github.com/tuist/tuist/pull/8071)
+
+## New Contributors
+* [@plu](https://github.com/plu) made their first contribution in [#8071](https://github.com/tuist/tuist/pull/8071)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.64.2...4.65.0
+
 ## What's Changed in 4.64.2<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
