@@ -60,6 +60,7 @@ public class GraphLinter: GraphLinting {
         issues.append(contentsOf: lintWatchBundleIndentifiers(graphTraverser: graphTraverser))
         issues.append(contentsOf: lintCodeCoverageMode(graphTraverser: graphTraverser))
         issues.append(contentsOf: lintSchemesUnknownTargets(graphTraverser: graphTraverser))
+        issues.append(contentsOf: lintSchemesRunAction(graphTraverser: graphTraverser))
         return issues
     }
 
@@ -89,6 +90,21 @@ public class GraphLinter: GraphLinting {
                 reason: "Cannot find targets \(targetsDescriptionStrings.joined(separator: ", "))  defined in \(scheme.name)",
                 severity: .warning
             )
+        }
+    }
+
+    private func lintSchemesRunAction(graphTraverser: GraphTraversing) -> [LintingIssue] {
+        return graphTraverser.schemes().compactMap { scheme in
+            guard let runAction = scheme.runAction else { return nil }
+
+            if let filePath = runAction.filePath, let executable = runAction.executable {
+                return LintingIssue(
+                    reason: "On scheme '\(scheme.name)', filePath ('\(filePath.pathString)') takes precedence over executable ('\(executable.name)').",
+                    severity: .warning
+                )
+            }
+
+            return nil
         }
     }
 
