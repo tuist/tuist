@@ -1,10 +1,7 @@
 defmodule TuistWeb.Marketing.MarketingQALive do
   @moduledoc false
   use TuistWeb, :live_view
-
-  import TuistWeb.Marketing.StructuredMarkup
-
-  alias Tuist.Marketing.Blog
+  use Noora
 
   def mount(params, _session, socket) do
     socket =

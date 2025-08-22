@@ -1,8 +1,89 @@
 #qa {
-  & > .header {
-    background-image: url('../../svg/qa/header.svg');
-      background-size: cover;
-      background-position: center;
-      background-repeat: no-repeat;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+
+  & > [data-part="header"] {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--noora-spacing-6);
+    position: relative;
+    & > [data-part="background"] {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;  /* Changed from 1000px */
+      z-index: -1;
+      background: linear-gradient(180deg, #F4F5FE 0%, #EFE8FF 100%);
+      mask-image: linear-gradient(to bottom, black 80%, transparent 100%);
+
+      & > img {
+        position: absolute;
+        top: 0;
+        left: 0;
+        height: 100%;
+        width: 100%;
+        object-fit: cover;
+      }
+    }
+      & > [data-part="logo"] {
+        height: 200px;
+        width: 200px;
+      }
+
+      & > [data-part="title"] {
+        margin: 0px;
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-medium) var(--noora-font-heading-xlarge);
+        text-align: center;
+      }
+
+      & > [data-part="description"] {
+        margin: 0px;
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-medium) var(--noora-font-body-large);
+        text-align: center;
+      }
+
+      & > [data-part="form"] {
+        display: flex;
+        flex-direction: row;
+        gap: var(--noora-spacing-4);
+      }
+  }
+
+  & > [data-part="main"] {
+    display: flex;
+    flex-direction: column;
+
+    & > [data-part="feature"] {
+      padding: 40px;
+      display: flex;
+      flex-direction: row;
+
+      & > [data-part="text"] {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+
+        & > [data-part="title"] {
+          margin: 0;
+          font: var(--noora-font-weight-medium) var(--noora-font-heading-small);
+
+        }
+        & > [data-part="description"] {
+
+        }
+      }
+
+      & > [data-part="image"] {
+        flex: 1;
+        width: 100%;
+            height: 100%;
+            object-fit: contain; /* or 'cover', 'fill', 'scale-down' */
+      }
+    }
   }
 }
