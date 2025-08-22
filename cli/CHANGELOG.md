@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.64.2<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* use XcodeGraph for XcodeKit SDK support by [@navtoj](https://github.com/navtoj) in [#8029](https://github.com/tuist/tuist/pull/8029)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.64.1...4.64.2
+
 ## What's Changed in 4.64.1<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
