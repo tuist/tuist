@@ -98,4 +98,31 @@ final class SchemeManifestMapperTests: TuistUnitTestCase {
         // Then
         try assert(scheme: model, matches: manifest, path: projectPath, generatorPaths: generatorPaths)
     }
+
+    func test_from_when_the_scheme_uses_custom_executable_and_working_directory() async throws {
+        // Given
+        let projectPath = try AbsolutePath(validating: "/somepath/Project")
+        let runAction = ProjectDescription.RunAction.test(
+            customWorkingDirectory: "/home/user/dev/project",
+            filePath: "/usr/bin/my-script"
+        )
+        let manifest = ProjectDescription.Scheme.test(
+            name: "Scheme",
+            shared: false,
+            runAction: runAction
+        )
+        let rootDirectory = try temporaryPath()
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: projectPath,
+            rootDirectory: rootDirectory
+        )
+
+        // When
+        let model = try await XcodeGraph.Scheme.from(manifest: manifest, generatorPaths: generatorPaths)
+
+        // Then
+        XCTAssertNil(model.runAction?.executable)
+        XCTAssertEqual(model.runAction?.customWorkingDirectory, "/home/user/dev/project")
+        XCTAssertEqual(model.runAction?.filePath, "/usr/bin/my-script")
+    }
 }
