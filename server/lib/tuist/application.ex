@@ -59,7 +59,7 @@ defmodule Tuist.Application do
         Tuist.IngestRepo,
         Tuist.Vault,
         {Oban, Application.fetch_env!(:tuist, Oban)},
-        {Cachex, [:tuist, cachex_opts()]},
+        {Cachex, [:tuist, []]},
         {Finch, name: Tuist.Finch, pools: finch_pools()},
         {Phoenix.PubSub, name: Tuist.PubSub},
         Supervisor.child_spec(CommandEvents.Buffer, id: CommandEvents.Buffer),
@@ -126,24 +126,6 @@ defmodule Tuist.Application do
         ],
         else: []
     )
-  end
-
-  def cachex_opts do
-    if Environment.tuist_hosted?() do
-      # Tuist-managed instances are configured to support a multi-node cluster.
-      [
-        router:
-          router(
-            module: Cachex.Router.Ring,
-            options: [
-              monitor: true
-            ]
-          )
-      ]
-    else
-      # In on-premise environments we assume a single Node.
-      []
-    end
   end
 
   defp finch_pools do
