@@ -1,5 +1,40 @@
 <main id="qa">
-  <div class="header">
-    Foo
+  <div data-part="header">
+    <div data-part="background" aria-hidden="true">
+      <img src="/marketing/images/qa/header-background.webp" alt="Background decoration" />
+    </div>
+
+    <img data-part="logo" src="/marketing/images/qa/header-logo.webp" />
+    <h1 data-part="title">
+      {gettext("Agentic QA")}<br /> {gettext("Right Inside Your Workflow")}
+    </h1>
+    <p data-part="description">
+      {gettext(
+        "Tuist QA runs AI-powered tests from your PRs, giving you summaries with issues, steps, and screenshots — so bugs are caught before they reach main."
+      )}
+    </p>
+    <form data-part="form">
+      <.text_input
+        id="text-input-types-email"
+        name="email"
+        type="email"
+        placeholder="hello@tuist.dev"
+      />
+      <.button label={gettext("Get early access")} variant="primary" />
+    </form>
+  </div>
+
+  <div data-part="main">
+    <div data-part="feature">
+      <div data-part="text">
+        <h2 data-part="title">{gettext("Concise Summary")}</h2>
+        <p data-part="description">
+          {gettext("see what was tested, issues found, and results at a glance")}
+        </p>
+      </div>
+
+      <img  data-part="image" src="/marketing/images/qa/summary.webp" />
+
+    </div>
   </div>
 </main>
