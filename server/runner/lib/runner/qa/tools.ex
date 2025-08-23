@@ -618,9 +618,9 @@ defmodule Runner.QA.Tools do
         with {:ok, temp_path} <- Briefly.create(),
              {_, 0} <-
                System.cmd("xcrun", ["simctl", "io", simulator_uuid, "screenshot", temp_path]),
-             {:ok, image_data} <- File.read(temp_path) do
-          base64_image = Base.encode64(image_data)
-          {:ok, [ContentPart.image!(base64_image, media: :png)]}
+             {:ok, _image_data} <- File.read(temp_path) do
+          # Return a simple confirmation instead of base64 data to avoid storing large data in logs
+          {:ok, [ContentPart.text!("Screenshot captured successfully")]}
         else
           {:error, reason} -> {:error, "Failed to capture screenshot: #{reason}"}
           {reason, _status} -> {:error, "Failed to capture screenshot: #{reason}"}
@@ -784,8 +784,8 @@ defmodule Runner.QA.Tools do
            }),
          {:ok, _response} <-
            Req.put(upload_url, body: image_data, headers: [{"Content-Type", "image/png"}]) do
-      base64_image = Base.encode64(image_data)
-      {:ok, ContentPart.image!(base64_image, media: :png)}
+      # Return screenshot metadata instead of base64 data
+      {:ok, ContentPart.text!("{\"screenshot_id\":\"#{screenshot_id}\",\"qa_run_id\":\"#{run_id}\",\"account_handle\":\"#{account_handle}\",\"project_handle\":\"#{project_handle}\"}")}
     else
       {:error, reason} -> {:error, "Failed to capture screenshot: #{reason}"}
       {reason, _status} -> {:error, "Failed to capture screenshot: #{reason}"}

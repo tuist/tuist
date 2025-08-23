@@ -14,6 +14,7 @@ defmodule TuistWeb.OpsQALogsLive do
 
       qa_run ->
         logs = QA.logs_for_run(qa_run_id)
+        logs_with_metadata = prepare_logs_with_metadata(logs)
 
         if connected?(socket) do
           Tuist.PubSub.subscribe("qa_logs:#{qa_run_id}")
@@ -22,7 +23,7 @@ defmodule TuistWeb.OpsQALogsLive do
         {:ok,
          socket
          |> assign(:qa_run, qa_run)
-         |> assign(:logs, logs)
+         |> assign(:logs, logs_with_metadata)
          |> assign(:expanded_tools, MapSet.new())
          |> assign(:head_title, "#{gettext("QA Logs")} · #{qa_run.project_name} · Tuist")}
     end
@@ -45,7 +46,8 @@ defmodule TuistWeb.OpsQALogsLive do
   @impl true
   def handle_info({:qa_log_created, log}, socket) do
     current_logs = socket.assigns.logs
-    updated_logs = current_logs ++ [log]
+    processed_log = prepare_log_with_metadata(log)
+    updated_logs = current_logs ++ [processed_log]
 
     {:noreply, assign(socket, :logs, updated_logs)}
   end
@@ -131,9 +133,23 @@ defmodule TuistWeb.OpsQALogsLive do
 
   defp has_screenshot?(log) do
     case JSON.decode!(log.data) do
-      %{"name" => "screenshot", "content" => content} when is_list(content) ->
+      # Check for screenshot tool calls
+      %{"name" => "screenshot", "content" => _} ->
+        true
+
+      # Check for action tool results that include screenshot metadata
+      %{"name" => name, "content" => content} when is_list(content) and name in ["tap", "swipe", "long_press", "type_text", "key_press", "button", "touch", "gesture", "plan_report"] ->
         Enum.any?(content, fn
-          %{"type" => "image", "content" => _} -> true
+          %{"type" => "text", "content" => text_content} ->
+            try do
+              case JSON.decode!(text_content) do
+                %{"screenshot_id" => _} -> true
+                _ -> false
+              end
+            rescue
+              _ -> false
+            end
+
           _ -> false
         end)
 
@@ -142,21 +158,42 @@ defmodule TuistWeb.OpsQALogsLive do
     end
   end
 
-  defp get_screenshot_data(log) do
+  defp get_screenshot_metadata(log) do
     case JSON.decode!(log.data) do
-      %{"name" => "screenshot", "content" => content} when is_list(content) ->
+      # Handle action tool results with screenshot metadata
+      %{"name" => name, "content" => content} when is_list(content) and name in ["tap", "swipe", "long_press", "type_text", "key_press", "button", "touch", "gesture", "plan_report"] ->
         content
-        |> Enum.find(fn
-          %{"type" => "image", "content" => _} -> true
-          _ -> false
+        |> Enum.find_value(fn
+          %{"type" => "text", "content" => text_content} ->
+            try do
+              case JSON.decode!(text_content) do
+                %{"screenshot_id" => screenshot_id, "qa_run_id" => qa_run_id, "account_handle" => account_handle, "project_handle" => project_handle} ->
+                  %{
+                    screenshot_id: screenshot_id,
+                    qa_run_id: qa_run_id,
+                    account_handle: account_handle,
+                    project_handle: project_handle
+                  }
+                _ -> nil
+              end
+            rescue
+              _ -> nil
+            end
+
+          _ -> nil
         end)
-        |> case do
-          %{"content" => base64_data} -> base64_data
-          _ -> ""
-        end
 
       _ ->
-        ""
+        nil
     end
+  end
+
+  defp prepare_logs_with_metadata(logs) do
+    Enum.map(logs, &prepare_log_with_metadata/1)
+  end
+
+  defp prepare_log_with_metadata(log) do
+    screenshot_metadata = if has_screenshot?(log), do: get_screenshot_metadata(log), else: nil
+    Map.put(log, :screenshot_metadata, screenshot_metadata)
   end
 end
