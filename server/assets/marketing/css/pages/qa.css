@@ -4,10 +4,11 @@
   flex-direction: column;
 
   & > [data-part="header"] {
+    padding: 48px 72px;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: var(--noora-spacing-6);
+    gap: 32px;
     position: relative;
     & > [data-part="background"] {
       position: absolute;
@@ -36,7 +37,7 @@
       & > [data-part="title"] {
         margin: 0px;
         color: var(--noora-surface-label-primary);
-        font: var(--noora-font-weight-medium) var(--noora-font-heading-xlarge);
+        font: var(--noora-font-weight-medium) var(--noora-font-display-xlarge);
         text-align: center;
       }
 
@@ -57,11 +58,18 @@
   & > [data-part="main"] {
     display: flex;
     flex-direction: column;
+    padding: 48px 72px;
+    gap: 48px;
 
     & > [data-part="feature"] {
       padding: 40px;
       display: flex;
       flex-direction: row;
+      gap: 40px;
+
+      &[data-reverse] {
+             flex-direction: row-reverse;
+         }
 
       & > [data-part="text"] {
         flex: 1;
@@ -70,11 +78,16 @@
 
         & > [data-part="title"] {
           margin: 0;
-          font: var(--noora-font-weight-medium) var(--noora-font-heading-small);
-
+          font: var(--noora-font-weight-medium) var(--noora-font-display-small);
+          color: var(--noora-surface-label-primary);
+          & a {
+            text-decoration: none;
+            color: var(--noora-surface-label-primary);
+          }
         }
         & > [data-part="description"] {
-
+          font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
+          color: var(--noora-surface-label-secondary);
         }
       }
 
@@ -85,5 +98,48 @@
             object-fit: contain; /* or 'cover', 'fill', 'scale-down' */
       }
     }
+  }
+
+  & > [data-part="footer"] {
+    display: flex;
+    flex-direction: column;
+    padding: 48px 72px;
+    align-items: center;
+    position: relative;
+    margin: 72px;
+
+    & > [data-part="background"] {
+      border-radius: 12px;
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;  /* Changed from 1000px */
+      z-index: -1;
+      background: linear-gradient(180deg, #F4F5FE 0%, #EFE8FF 100%);
+      mask-image: linear-gradient(to bottom, black 80%, transparent 100%);
+
+      & > img {
+        position: absolute;
+        top: 0;
+        left: 0;
+        height: 100%;
+        width: 100%;
+        object-fit: cover;
+      }
+    }
+
+    & > [data-part="title"] {
+      font: var(--noora-font-weight-medium) var(--noora-font-display-large);
+      color: var(--noora-surface-label-primary);
+      text-align: center;
+    }
+
+    & > [data-part="form"] {
+      display: flex;
+      flex-direction: row;
+      gap: var(--noora-spacing-4);
+    }
+
   }
 }

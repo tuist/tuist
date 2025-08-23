@@ -1,3 +1,6 @@
+<% current_user = Map.get(assigns, :current_user) %>
+<% in_list_message = Map.get(assigns, :in_list_message) %>
+
 <main id="qa">
   <div data-part="header">
     <div data-part="background" aria-hidden="true">
@@ -13,28 +16,111 @@
         "Tuist QA runs AI-powered tests from your PRs, giving you summaries with issues, steps, and screenshots — so bugs are caught before they reach main."
       )}
     </p>
-    <form data-part="form">
+    <.alert
+      :if={not is_nil(in_list_message)}
+      id="alert-status-primary-success"
+      status="success"
+      title={in_list_message}
+    />
+    <.form
+      :if={is_nil(in_list_message)}
+      for={@form}
+      data-part="form"
+      phx-submit="add-to-waiting-list"
+    >
       <.text_input
-        id="text-input-types-email"
-        name="email"
+        :if={is_nil(current_user)}
+        field={@form[:email]}
         type="email"
         placeholder="hello@tuist.dev"
       />
-      <.button label={gettext("Get early access")} variant="primary" />
-    </form>
+      <.button
+        label={
+          if(is_nil(current_user),
+            do: gettext("Get early access"),
+            else: gettext("Add me to the waiting list")
+          )
+        }
+        variant="primary"
+      />
+    </.form>
   </div>
 
   <div data-part="main">
     <div data-part="feature">
       <div data-part="text">
-        <h2 data-part="title">{gettext("Concise Summary")}</h2>
+        <h2 id="summary" data-part="title">
+          <a href="#summary">{gettext("Concise Summary")}</a>
+        </h2>
         <p data-part="description">
           {gettext("see what was tested, issues found, and results at a glance")}
         </p>
       </div>
 
-      <img  data-part="image" src="/marketing/images/qa/summary.webp" />
-
+      <img data-part="image" src="/marketing/images/qa/summary.webp" />
     </div>
+
+    <div data-part="feature" data-reverse>
+      <div data-part="text">
+        <h2 id="screenshots" data-part="title">
+          <a href="#screenshots">{gettext("Screenshots & Replays")}</a>
+        </h2>
+        <p data-part="description">
+          {gettext("review every step the agent took with visual context")}
+        </p>
+      </div>
+
+      <img data-part="image" src="/marketing/images/qa/screenshots.webp" />
+    </div>
+
+    <div data-part="feature">
+      <div data-part="text">
+        <h2 id="issue-tracking" data-part="title">
+          <a href="#issue-tracking">{gettext("Issue Tracking")}</a>
+        </h2>
+        <p data-part="description">
+          {gettext("pinpoint the exact moment of the issue during testing")}
+        </p>
+      </div>
+
+      <img data-part="image" src="/marketing/images/qa/issue-tracking.webp" />
+    </div>
+  </div>
+
+  <div data-part="footer">
+    <div data-part="background" aria-hidden="true">
+      <img src="/marketing/images/qa/footer-background.webp" alt="Background decoration" />
+    </div>
+
+    <h2 data-part="title">{gettext("Sign up to get early access to Tuist QA")}</h2>
+
+    <.alert
+      :if={not is_nil(in_list_message)}
+      id="alert-status-primary-success"
+      status="success"
+      title={in_list_message}
+    />
+    <.form
+      :if={is_nil(in_list_message)}
+      for={@form}
+      data-part="form"
+      phx-submit="add-to-waiting-list"
+    >
+      <.text_input
+        :if={is_nil(current_user)}
+        field={@form[:email]}
+        type="email"
+        placeholder="hello@tuist.dev"
+      />
+      <.button
+        label={
+          if(is_nil(current_user),
+            do: gettext("Get early access"),
+            else: gettext("Add me to the waiting list")
+          )
+        }
+        variant="primary"
+      />
+    </.form>
   </div>
 </main>
