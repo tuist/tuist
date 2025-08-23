@@ -1,493 +1,495 @@
-<!-- Hero section -->
-<div class="marketing__home__section__hero">
-  <h1 class="font-xxxl-strong marketing__home__section__hero__title">
-    {gettext("A virtual platform team for mobile devs who ship")}
-  </h1>
-  <p class="marketing__home__section__hero__subtitle">
-    {gettext(
-      "We are an integrated and open core toolchain that extends Apple's official tools with insights, optimizations, and workflows to help you build better apps faster"
-    )}
-  </p>
-  <.primary_button size="big" href="https://docs.tuist.io">
-    {gettext("Get started")}
-  </.primary_button>
+<TuistWeb.Marketing.Layouts.marketing {assigns}>
+  <!-- Hero section -->
+  <div class="marketing__home__section__hero">
+    <h1 class="font-xxxl-strong marketing__home__section__hero__title">
+      {gettext("A virtual platform team for mobile devs who ship")}
+    </h1>
+    <p class="marketing__home__section__hero__subtitle">
+      {gettext(
+        "We are an integrated and open core toolchain that extends Apple's official tools with insights, optimizations, and workflows to help you build better apps faster"
+      )}
+    </p>
+    <.primary_button size="big" href="https://docs.tuist.io">
+      {gettext("Get started")}
+    </.primary_button>
 
-  <div class="marketing__home__section__hero__terminal">
-    <TuistWeb.Marketing.MarketingHomeComponents.terminal terminal_id="hero-terminal">
-      <span data-ty="input" data-ty-prompt=">">tuist test</span>
-      <span data-ty>
-        <span class="marketing__home__section__hero__terminal__main__prompt__info">
-          {gettext("INFO:")}
-        </span>
-        {gettext("Pulling cache binaries...")}
-      </span>
-      <span data-ty>
-        <span class="marketing__home__section__hero__terminal__main__prompt__info">
-          {gettext("INFO:")}
-        </span>
-        {gettext("You'll save 60% of compilation time")}
-      </span>
-      <span data-ty>
-        <span class="marketing__home__section__hero__terminal__main__prompt__info">
-          {gettext("INFO:")}
-        </span>
-        {gettext("Running tests - 4.200 tests skipped (already run)")}
-      </span>
-      <span data-ty="progress"></span>
-      <span data-ty>
-        <span class="marketing__home__section__hero__terminal__main__prompt__success">
-          {gettext("SUCCESS:")}
-        </span>
-        {gettext("1250 tests ran successfully")}
-      </span>
-      <span data-ty>📝 {gettext("Report: https://tuist.dev/tuist/tuist/runs/589318")}</span>
-    </TuistWeb.Marketing.MarketingHomeComponents.terminal>
-  </div>
-</div>
-<!-- Companies section -->
-<div class="marketing__home__section__companies">
-  <h2 class="marketing__home__section__companies__title">
-    {gettext("Trusted by the following organizations")}
-  </h2>
-  <div class="marketing__home__section__companies__logos">
-    <a
-      class="marketing__home__section__companies__logos__logo"
-      href="https://www.trendyol.com"
-      target="_blank"
-    >
-      <.trendyol_logo />
-    </a>
-
-    <a
-      class="marketing__home__section__companies__logos__logo"
-      href="https://www.adidas.com"
-      target="_blank"
-    >
-      <.adidas_logo />
-    </a>
-
-    <a
-      class="marketing__home__section__companies__logos__logo"
-      href="https://www.free-now.com"
-      target="_blank"
-    >
-      <.freenow_logo />
-    </a>
-
-    <a
-      class="marketing__home__section__companies__logos__logo"
-      href="https://www.asana.com"
-      target="_blank"
-    >
-      <.asana_logo />
-    </a>
-
-    <a
-      class="marketing__home__section__companies__logos__logo"
-      href="https://www.badoo.com"
-      target="_blank"
-    >
-      <.badoo_logo />
-    </a>
-
-    <a
-      class="marketing__home__section__companies__logos__logo"
-      href="https://www.bumble.com"
-      target="_blank"
-    >
-      <.bumble_logo />
-    </a>
-
-    <a
-      class="marketing__home__section__companies__logos__logo"
-      href="https://www.monday.com"
-      target="_blank"
-    >
-      <.monday_logo />
-    </a>
-
-    <a
-      class="marketing__home__section__companies__logos__logo"
-      href="https://snoonu.com/"
-      target="_blank"
-    >
-      <.snoonu_logo />
-    </a>
-
-    <a
-      class="marketing__home__section__companies__logos__logo"
-      href="https://www.depop.com"
-      target="_blank"
-    >
-      <.depop_logo />
-    </a>
-
-    <a
-      class="marketing__home__section__companies__logos__logo"
-      href="https://www.justeat.com"
-      target="_blank"
-    >
-      <.just_eat_logo />
-    </a>
-
-    <a
-      class="marketing__home__section__companies__logos__logo"
-      href="https://www.zulily.com"
-      target="_blank"
-    >
-      <.zulify_logo />
-    </a>
-
-    <a
-      class="marketing__home__section__companies__logos__logo"
-      href="https://www.ford.com/"
-      target="_blank"
-    >
-      <.ford_logo />
-    </a>
-
-    <a
-      class="marketing__home__section__companies__logos__logo"
-      href="https://www.etsy.com/"
-      target="_blank"
-    >
-      <.etsy_logo />
-    </a>
-
-    <a
-      class="marketing__home__section__companies__logos__logo"
-      href="https://www.waze.com/"
-      target="_blank"
-    >
-      <.waze_logo />
-    </a>
-
-    <a
-      class="marketing__home__section__companies__logos__logo"
-      href="https://www.target.com/"
-      target="_blank"
-    >
-      <.target_logo />
-    </a>
-
-    <a
-      class="marketing__home__section__companies__logos__logo"
-      href="https://www.chegg.com"
-      target="_blank"
-    >
-      <.chegg_logo />
-    </a>
-
-    <a
-      class="marketing__home__section__companies__logos__logo"
-      href="https://bendingspoons.com/"
-      target="_blank"
-    >
-      <.bending_spoons_logo />
-    </a>
-
-    <a
-      class="marketing__home__section__companies__logos__logo"
-      href="https://altel.kz"
-      target="_blank"
-    >
-      <.altel_logo />
-    </a>
-
-    <a
-      class="marketing__home__section__companies__logos__logo"
-      href="https://tele2.kz"
-      target="_blank"
-    >
-      <.tele2_logo />
-    </a>
-
-    <a
-      class="marketing__home__section__companies__logos__logo"
-      href="https://izi.me/kz"
-      target="_blank"
-    >
-      <.izi_logo />
-    </a>
-
-    <a
-      class="marketing__home__section__companies__logos__logo"
-      href="https://zapis.kz"
-      target="_blank"
-    >
-      <.zapis_logo />
-    </a>
-  </div>
-</div>
-<!-- Features section -->
-<div class="marketing__home__section__features">
-  <h2 class="marketing__home__section__features__title">
-    {gettext("The secret ingredients")}
-  </h2>
-  <TuistWeb.Marketing.MarketingHomeComponents.feature
-    name={gettext("Generated Projects")}
-    id="features-projects"
-    description={
-      gettext(
-        "Conceptually compress the complexities of modular Xcode projects and make them more accessible to maintain and scale."
-      )
-    }
-    traits={[
-      gettext("Swift DSL"),
-      gettext("Simple dependency definition"),
-      gettext("Xcode-native language")
-    ]}
-  >
-    <:logo :let={%{class: class}}>
-      <TuistWeb.Marketing.MarketingComponents.feature_generated_projects_artwork class={class} />
-    </:logo>
-    <div class="marketing__home__section__features__feature__projects">
-      <TuistWeb.Marketing.MarketingHomeComponents.feature_projects_row_1 class="marketing__home__section__features__feature__projects__artwork" />
-      <TuistWeb.Marketing.MarketingHomeComponents.feature_projects_row_1_small_viewport
-        class="marketing__home__section__features__feature__projects__artwork"
-        data_small_view_port
-      />
-      <TuistWeb.Marketing.MarketingHomeComponents.feature_projects_row_2 class="marketing__home__section__features__feature__projects__artwork" />
-      <TuistWeb.Marketing.MarketingHomeComponents.feature_projects_row_2_small_viewport
-        class="marketing__home__section__features__feature__projects__artwork"
-        data_small_view_port
-      />
-    </div>
-  </TuistWeb.Marketing.MarketingHomeComponents.feature>
-
-  <TuistWeb.Marketing.MarketingHomeComponents.feature
-    name={gettext("Tuist Cache")}
-    requires_projects={true}
-    id="features-cache"
-    description={gettext("Speed up clean builds by reusing binaries across environments.")}
-    traits={[
-      gettext("Local targets and dependencies"),
-      gettext("CI and local environments"),
-      gettext("Xcode-native")
-    ]}
-  >
-    <:logo :let={%{class: class}}>
-      <TuistWeb.Marketing.MarketingComponents.feature_cache_artwork class={class} />
-    </:logo>
-    <div class="marketing__home__section__features__feature__cache">
-      <TuistWeb.Marketing.MarketingHomeComponents.feature_cache_row_1 class="marketing__home__section__features__feature__cache__artwork" />
-      <TuistWeb.Marketing.MarketingHomeComponents.feature_cache_row_1_small_viewport
-        class="marketing__home__section__features__feature__cache__artwork"
-        data_small_view_port
-      />
-      <TuistWeb.Marketing.MarketingHomeComponents.feature_cache_row_2 class="marketing__home__section__features__feature__cache__artwork" />
-      <TuistWeb.Marketing.MarketingHomeComponents.feature_cache_row_2_small_viewport
-        class="marketing__home__section__features__feature__cache__artwork"
-        data_small_view_port
-      />
-    </div>
-  </TuistWeb.Marketing.MarketingHomeComponents.feature>
-  <TuistWeb.Marketing.MarketingHomeComponents.feature
-    name={gettext("Tuist Selective Testing")}
-    id="features-selective-tests"
-    description={
-      gettext("Speed up test runs by running only the test targets impacted by the changes.")
-    }
-    traits={[
-      gettext("XCTest and Swift Testing"),
-      gettext("Target-level selection")
-    ]}
-  >
-    <:logo :let={%{class: class}}>
-      <TuistWeb.Marketing.MarketingComponents.feature_insights_artwork class={class} />
-    </:logo>
-    <div class="marketing__home__section__features__feature__selective_testing">
-      <TuistWeb.Marketing.MarketingHomeComponents.feature_selective_testing_row_1 class="marketing__home__section__features__feature__selective_testing__artwork" />
-      <TuistWeb.Marketing.MarketingHomeComponents.feature_selective_testing_row_1_small_viewport
-        class="marketing__home__section__features__feature__selective_testing__artwork"
-        data_small_view_port
-      />
-      <TuistWeb.Marketing.MarketingHomeComponents.feature_selective_testing_row_2 class="marketing__home__section__features__feature__selective_testing__artwork" />
-      <TuistWeb.Marketing.MarketingHomeComponents.feature_selective_testing_row_2_small_viewport
-        class="marketing__home__section__features__feature__selective_testing__artwork"
-        data_small_view_port
-      />
-    </div>
-  </TuistWeb.Marketing.MarketingHomeComponents.feature>
-  <TuistWeb.Marketing.MarketingHomeComponents.feature
-    name={gettext("Tuist Previews")}
-    id="features-previews"
-    description={
-      gettext(
-        "Instantly share your app using a URL. Tuist lets you create and share previews of your apps with ease."
-      )
-    }
-    traits={[
-      gettext("One-click launch"),
-      gettext("Shareable"),
-      gettext("Shortcuts to latest previews")
-    ]}
-  >
-    <:logo :let={%{class: class}}>
-      <TuistWeb.Marketing.MarketingComponents.feature_previews_artwork class={class} />
-    </:logo>
-
-    <div class="marketing__home__section__features__feature__previews">
-      <div class="marketing__home__section__features__feature__previews__triggers">
-        <TuistWeb.Marketing.MarketingHomeComponents.terminal terminal_id="preview-terminal">
-          <span data-ty="input" data-ty-prompt=">">tuist share</span>
-          <span data-ty>
-            📱 {gettext("Share: https://tuist.dev/tuist/app/previews/12")}
+    <div class="marketing__home__section__hero__terminal">
+      <TuistWeb.Marketing.MarketingHomeComponents.terminal terminal_id="hero-terminal">
+        <span data-ty="input" data-ty-prompt=">">tuist test</span>
+        <span data-ty>
+          <span class="marketing__home__section__hero__terminal__main__prompt__info">
+            {gettext("INFO:")}
           </span>
-        </TuistWeb.Marketing.MarketingHomeComponents.terminal>
+          {gettext("Pulling cache binaries...")}
+        </span>
+        <span data-ty>
+          <span class="marketing__home__section__hero__terminal__main__prompt__info">
+            {gettext("INFO:")}
+          </span>
+          {gettext("You'll save 60% of compilation time")}
+        </span>
+        <span data-ty>
+          <span class="marketing__home__section__hero__terminal__main__prompt__info">
+            {gettext("INFO:")}
+          </span>
+          {gettext("Running tests - 4.200 tests skipped (already run)")}
+        </span>
+        <span data-ty="progress"></span>
+        <span data-ty>
+          <span class="marketing__home__section__hero__terminal__main__prompt__success">
+            {gettext("SUCCESS:")}
+          </span>
+          {gettext("1250 tests ran successfully")}
+        </span>
+        <span data-ty>📝 {gettext("Report: https://tuist.dev/tuist/tuist/runs/589318")}</span>
+      </TuistWeb.Marketing.MarketingHomeComponents.terminal>
+    </div>
+  </div>
+  <!-- Companies section -->
+  <div class="marketing__home__section__companies">
+    <h2 class="marketing__home__section__companies__title">
+      {gettext("Trusted by the following organizations")}
+    </h2>
+    <div class="marketing__home__section__companies__logos">
+      <a
+        class="marketing__home__section__companies__logos__logo"
+        href="https://www.trendyol.com"
+        target="_blank"
+      >
+        <.trendyol_logo />
+      </a>
 
-        <TuistWeb.Marketing.MarketingHomeComponents.feature_previews_triggers class="marketing__home__section__features__feature__previews__artwork" />
-      </div>
-      <video
-        muted
-        playsinline
-        id="previews-video"
-        class="marketing__home__section__features__feature__previews__video"
+      <a
+        class="marketing__home__section__companies__logos__logo"
+        href="https://www.adidas.com"
+        target="_blank"
       >
-        <source src="/marketing/videos/simulator-with-preview.mp4" type="video/mp4" />
-        {gettext("Your browser doesn't support videos")}
-      </video>
+        <.adidas_logo />
+      </a>
+
+      <a
+        class="marketing__home__section__companies__logos__logo"
+        href="https://www.free-now.com"
+        target="_blank"
+      >
+        <.freenow_logo />
+      </a>
+
+      <a
+        class="marketing__home__section__companies__logos__logo"
+        href="https://www.asana.com"
+        target="_blank"
+      >
+        <.asana_logo />
+      </a>
+
+      <a
+        class="marketing__home__section__companies__logos__logo"
+        href="https://www.badoo.com"
+        target="_blank"
+      >
+        <.badoo_logo />
+      </a>
+
+      <a
+        class="marketing__home__section__companies__logos__logo"
+        href="https://www.bumble.com"
+        target="_blank"
+      >
+        <.bumble_logo />
+      </a>
+
+      <a
+        class="marketing__home__section__companies__logos__logo"
+        href="https://www.monday.com"
+        target="_blank"
+      >
+        <.monday_logo />
+      </a>
+
+      <a
+        class="marketing__home__section__companies__logos__logo"
+        href="https://snoonu.com/"
+        target="_blank"
+      >
+        <.snoonu_logo />
+      </a>
+
+      <a
+        class="marketing__home__section__companies__logos__logo"
+        href="https://www.depop.com"
+        target="_blank"
+      >
+        <.depop_logo />
+      </a>
+
+      <a
+        class="marketing__home__section__companies__logos__logo"
+        href="https://www.justeat.com"
+        target="_blank"
+      >
+        <.just_eat_logo />
+      </a>
+
+      <a
+        class="marketing__home__section__companies__logos__logo"
+        href="https://www.zulily.com"
+        target="_blank"
+      >
+        <.zulify_logo />
+      </a>
+
+      <a
+        class="marketing__home__section__companies__logos__logo"
+        href="https://www.ford.com/"
+        target="_blank"
+      >
+        <.ford_logo />
+      </a>
+
+      <a
+        class="marketing__home__section__companies__logos__logo"
+        href="https://www.etsy.com/"
+        target="_blank"
+      >
+        <.etsy_logo />
+      </a>
+
+      <a
+        class="marketing__home__section__companies__logos__logo"
+        href="https://www.waze.com/"
+        target="_blank"
+      >
+        <.waze_logo />
+      </a>
+
+      <a
+        class="marketing__home__section__companies__logos__logo"
+        href="https://www.target.com/"
+        target="_blank"
+      >
+        <.target_logo />
+      </a>
+
+      <a
+        class="marketing__home__section__companies__logos__logo"
+        href="https://www.chegg.com"
+        target="_blank"
+      >
+        <.chegg_logo />
+      </a>
+
+      <a
+        class="marketing__home__section__companies__logos__logo"
+        href="https://bendingspoons.com/"
+        target="_blank"
+      >
+        <.bending_spoons_logo />
+      </a>
+
+      <a
+        class="marketing__home__section__companies__logos__logo"
+        href="https://altel.kz"
+        target="_blank"
+      >
+        <.altel_logo />
+      </a>
+
+      <a
+        class="marketing__home__section__companies__logos__logo"
+        href="https://tele2.kz"
+        target="_blank"
+      >
+        <.tele2_logo />
+      </a>
+
+      <a
+        class="marketing__home__section__companies__logos__logo"
+        href="https://izi.me/kz"
+        target="_blank"
+      >
+        <.izi_logo />
+      </a>
+
+      <a
+        class="marketing__home__section__companies__logos__logo"
+        href="https://zapis.kz"
+        target="_blank"
+      >
+        <.zapis_logo />
+      </a>
     </div>
-  </TuistWeb.Marketing.MarketingHomeComponents.feature>
-  <TuistWeb.Marketing.MarketingHomeComponents.feature
-    name={gettext("Tuist Registry")}
-    id="features-registry"
-    description={
-      gettext(
-        "Optimizes the resolution of Swift packages in your projects. Download only source archives of the package versions you need – saving both time and disk space, locally or on the CI."
-      )
-    }
-    traits={[
-      gettext("SwiftPM standard"),
-      gettext("All open source Swift packages")
-    ]}
-  >
-    <:logo :let={%{class: class}}>
-      <TuistWeb.Marketing.MarketingComponents.feature_insights_artwork class={class} />
-    </:logo>
-    <div class="marketing__home__section__features__feature__registry">
-      <TuistWeb.Marketing.MarketingHomeComponents.feature_registry_row_1 class="marketing__home__section__features__feature__registry__artwork" />
-      <TuistWeb.Marketing.MarketingHomeComponents.feature_registry_row_1_small_viewport
-        class="marketing__home__section__features__feature__registry__artwork"
-        data_small_view_port
-      />
-      <TuistWeb.Marketing.MarketingHomeComponents.feature_registry_row_2 class="marketing__home__section__features__feature__registry__artwork" />
-      <TuistWeb.Marketing.MarketingHomeComponents.feature_registry_row_2_small_viewport
-        class="marketing__home__section__features__feature__registry__artwork"
-        data_small_view_port
-      />
-    </div>
-  </TuistWeb.Marketing.MarketingHomeComponents.feature>
-</div>
-<!-- Testimonials section -->
-<div class="marketing__home__section__testimonials">
-  <h2 class="font-xxl marketing__home__section__testimonials__title">
-    {gettext("Users 💜 Tuist")}
-  </h2>
-  <div class="marketing__home__section__testimonials__main">
-    <div
-      :for={testimonials_column <- @testimonials}
-      class="marketing__home__section__testimonials__column"
+  </div>
+  <!-- Features section -->
+  <div class="marketing__home__section__features">
+    <h2 class="marketing__home__section__features__title">
+      {gettext("The secret ingredients")}
+    </h2>
+    <TuistWeb.Marketing.MarketingHomeComponents.feature
+      name={gettext("Generated Projects")}
+      id="features-projects"
+      description={
+        gettext(
+          "Conceptually compress the complexities of modular Xcode projects and make them more accessible to maintain and scale."
+        )
+      }
+      traits={[
+        gettext("Swift DSL"),
+        gettext("Simple dependency definition"),
+        gettext("Xcode-native language")
+      ]}
     >
+      <:logo :let={%{class: class}}>
+        <TuistWeb.Marketing.MarketingComponents.feature_generated_projects_artwork class={class} />
+      </:logo>
+      <div class="marketing__home__section__features__feature__projects">
+        <TuistWeb.Marketing.MarketingHomeComponents.feature_projects_row_1 class="marketing__home__section__features__feature__projects__artwork" />
+        <TuistWeb.Marketing.MarketingHomeComponents.feature_projects_row_1_small_viewport
+          class="marketing__home__section__features__feature__projects__artwork"
+          data_small_view_port
+        />
+        <TuistWeb.Marketing.MarketingHomeComponents.feature_projects_row_2 class="marketing__home__section__features__feature__projects__artwork" />
+        <TuistWeb.Marketing.MarketingHomeComponents.feature_projects_row_2_small_viewport
+          class="marketing__home__section__features__feature__projects__artwork"
+          data_small_view_port
+        />
+      </div>
+    </TuistWeb.Marketing.MarketingHomeComponents.feature>
+
+    <TuistWeb.Marketing.MarketingHomeComponents.feature
+      name={gettext("Tuist Cache")}
+      requires_projects={true}
+      id="features-cache"
+      description={gettext("Speed up clean builds by reusing binaries across environments.")}
+      traits={[
+        gettext("Local targets and dependencies"),
+        gettext("CI and local environments"),
+        gettext("Xcode-native")
+      ]}
+    >
+      <:logo :let={%{class: class}}>
+        <TuistWeb.Marketing.MarketingComponents.feature_cache_artwork class={class} />
+      </:logo>
+      <div class="marketing__home__section__features__feature__cache">
+        <TuistWeb.Marketing.MarketingHomeComponents.feature_cache_row_1 class="marketing__home__section__features__feature__cache__artwork" />
+        <TuistWeb.Marketing.MarketingHomeComponents.feature_cache_row_1_small_viewport
+          class="marketing__home__section__features__feature__cache__artwork"
+          data_small_view_port
+        />
+        <TuistWeb.Marketing.MarketingHomeComponents.feature_cache_row_2 class="marketing__home__section__features__feature__cache__artwork" />
+        <TuistWeb.Marketing.MarketingHomeComponents.feature_cache_row_2_small_viewport
+          class="marketing__home__section__features__feature__cache__artwork"
+          data_small_view_port
+        />
+      </div>
+    </TuistWeb.Marketing.MarketingHomeComponents.feature>
+    <TuistWeb.Marketing.MarketingHomeComponents.feature
+      name={gettext("Tuist Selective Testing")}
+      id="features-selective-tests"
+      description={
+        gettext("Speed up test runs by running only the test targets impacted by the changes.")
+      }
+      traits={[
+        gettext("XCTest and Swift Testing"),
+        gettext("Target-level selection")
+      ]}
+    >
+      <:logo :let={%{class: class}}>
+        <TuistWeb.Marketing.MarketingComponents.feature_insights_artwork class={class} />
+      </:logo>
+      <div class="marketing__home__section__features__feature__selective_testing">
+        <TuistWeb.Marketing.MarketingHomeComponents.feature_selective_testing_row_1 class="marketing__home__section__features__feature__selective_testing__artwork" />
+        <TuistWeb.Marketing.MarketingHomeComponents.feature_selective_testing_row_1_small_viewport
+          class="marketing__home__section__features__feature__selective_testing__artwork"
+          data_small_view_port
+        />
+        <TuistWeb.Marketing.MarketingHomeComponents.feature_selective_testing_row_2 class="marketing__home__section__features__feature__selective_testing__artwork" />
+        <TuistWeb.Marketing.MarketingHomeComponents.feature_selective_testing_row_2_small_viewport
+          class="marketing__home__section__features__feature__selective_testing__artwork"
+          data_small_view_port
+        />
+      </div>
+    </TuistWeb.Marketing.MarketingHomeComponents.feature>
+    <TuistWeb.Marketing.MarketingHomeComponents.feature
+      name={gettext("Tuist Previews")}
+      id="features-previews"
+      description={
+        gettext(
+          "Instantly share your app using a URL. Tuist lets you create and share previews of your apps with ease."
+        )
+      }
+      traits={[
+        gettext("One-click launch"),
+        gettext("Shareable"),
+        gettext("Shortcuts to latest previews")
+      ]}
+    >
+      <:logo :let={%{class: class}}>
+        <TuistWeb.Marketing.MarketingComponents.feature_previews_artwork class={class} />
+      </:logo>
+
+      <div class="marketing__home__section__features__feature__previews">
+        <div class="marketing__home__section__features__feature__previews__triggers">
+          <TuistWeb.Marketing.MarketingHomeComponents.terminal terminal_id="preview-terminal">
+            <span data-ty="input" data-ty-prompt=">">tuist share</span>
+            <span data-ty>
+              📱 {gettext("Share: https://tuist.dev/tuist/app/previews/12")}
+            </span>
+          </TuistWeb.Marketing.MarketingHomeComponents.terminal>
+
+          <TuistWeb.Marketing.MarketingHomeComponents.feature_previews_triggers class="marketing__home__section__features__feature__previews__artwork" />
+        </div>
+        <video
+          muted
+          playsinline
+          id="previews-video"
+          class="marketing__home__section__features__feature__previews__video"
+        >
+          <source src="/marketing/videos/simulator-with-preview.mp4" type="video/mp4" />
+          {gettext("Your browser doesn't support videos")}
+        </video>
+      </div>
+    </TuistWeb.Marketing.MarketingHomeComponents.feature>
+    <TuistWeb.Marketing.MarketingHomeComponents.feature
+      name={gettext("Tuist Registry")}
+      id="features-registry"
+      description={
+        gettext(
+          "Optimizes the resolution of Swift packages in your projects. Download only source archives of the package versions you need – saving both time and disk space, locally or on the CI."
+        )
+      }
+      traits={[
+        gettext("SwiftPM standard"),
+        gettext("All open source Swift packages")
+      ]}
+    >
+      <:logo :let={%{class: class}}>
+        <TuistWeb.Marketing.MarketingComponents.feature_insights_artwork class={class} />
+      </:logo>
+      <div class="marketing__home__section__features__feature__registry">
+        <TuistWeb.Marketing.MarketingHomeComponents.feature_registry_row_1 class="marketing__home__section__features__feature__registry__artwork" />
+        <TuistWeb.Marketing.MarketingHomeComponents.feature_registry_row_1_small_viewport
+          class="marketing__home__section__features__feature__registry__artwork"
+          data_small_view_port
+        />
+        <TuistWeb.Marketing.MarketingHomeComponents.feature_registry_row_2 class="marketing__home__section__features__feature__registry__artwork" />
+        <TuistWeb.Marketing.MarketingHomeComponents.feature_registry_row_2_small_viewport
+          class="marketing__home__section__features__feature__registry__artwork"
+          data_small_view_port
+        />
+      </div>
+    </TuistWeb.Marketing.MarketingHomeComponents.feature>
+  </div>
+  <!-- Testimonials section -->
+  <div class="marketing__home__section__testimonials">
+    <h2 class="font-xxl marketing__home__section__testimonials__title">
+      {gettext("Users 💜 Tuist")}
+    </h2>
+    <div class="marketing__home__section__testimonials__main">
       <div
-        :for={testimonial <- testimonials_column}
-        class="marketing__home__section__testimonials__testimonial"
+        :for={testimonials_column <- @testimonials}
+        class="marketing__home__section__testimonials__column"
       >
-        <div class="marketing__home__section__testimonials__testimonial__header">
-          <img
-            src={testimonial.avatar_src}
-            alt={testimonial.author}
-            class="marketing__home__section__testimonials__testimonial__header__avatar"
-          />
-          <div class="marketing__home__section__testimonials__testimonial__author_info">
-            <a
-              class="font-m-strong marketing__home__section__testimonials__testimonial__author_info__name"
-              target="_blank"
-              href={testimonial.author_link}
-            >
-              {testimonial.author}
-            </a>
-            <div class="font-xs marketing__home__section__testimonials__testimonial__author_info__title">
-              {testimonial.author_title}
+        <div
+          :for={testimonial <- testimonials_column}
+          class="marketing__home__section__testimonials__testimonial"
+        >
+          <div class="marketing__home__section__testimonials__testimonial__header">
+            <img
+              src={testimonial.avatar_src}
+              alt={testimonial.author}
+              class="marketing__home__section__testimonials__testimonial__header__avatar"
+            />
+            <div class="marketing__home__section__testimonials__testimonial__author_info">
+              <a
+                class="font-m-strong marketing__home__section__testimonials__testimonial__author_info__name"
+                target="_blank"
+                href={testimonial.author_link}
+              >
+                {testimonial.author}
+              </a>
+              <div class="font-xs marketing__home__section__testimonials__testimonial__author_info__title">
+                {testimonial.author_title}
+              </div>
             </div>
           </div>
-        </div>
-        <div class="font-xs marketing__home__section__testimonials__testimonial__body">
-          {raw(testimonial.body)}
+          <div class="font-xs marketing__home__section__testimonials__testimonial__body">
+            {raw(testimonial.body)}
+          </div>
         </div>
       </div>
     </div>
   </div>
-</div>
-<!-- Time saved section -->
-<div class="marketing__home__section__time_saved">
-  <.marketing_shell class="marketing__home__section__time_saved__logo" />
-  <h2 class="font-xxl marketing__home__section__time_saved__title">
-    <span class="font-xxl-strong">{gettext("Millions")}</span>{gettext(" of minutes saved")}
-  </h2>
-  <.marketing_shell class="marketing__home__section__time_saved__logo" />
-</div>
-<!-- Highlights section -->
-<% highlights = [
-  %{
-    title: "70%",
-    subtitle: gettext("Faster builds"),
-    cta_href: "/blog/2024/12/16/trendyol",
-    cta_text: gettext("Read Trendyol's story"),
-    cta_variant: "dark",
-    cta_target: ""
-  },
-  %{
-    title: gettext("Happier devs"),
-    subtitle: gettext("We aim to empower developers to create great products."),
-    cta_href: "https://medium.com/bumble-tech/scaling-ios-at-bumble-6f0602682903",
-    cta_text: gettext("Read Bumble's story"),
-    cta_variant: "light",
-    cta_target: "_blank"
-  },
-  %{title: "7+", subtitle: gettext("Years building an OSS foundation")},
-  %{title: "10K", subtitle: gettext("Teams using Tuist")},
-  %{title: "300+", subtitle: gettext("Contributors")}
-] %>
-
-<div class="marketing__home__section__highlights">
-  <TuistWeb.Marketing.MarketingHomeComponents.highlight_card
-    :for={highlight <- highlights}
-    title={highlight.title}
-    subtitle={highlight.subtitle}
-    cta_href={Map.get(highlight, :cta_href)}
-    cta_text={Map.get(highlight, :cta_text)}
-    cta_target={Map.get(highlight, :cta_target)}
-    cta_variant={Map.get(highlight, :cta_variant)}
-  />
-</div>
-<!-- Learn section -->
-<div class="marketing__home__section__learn_more">
-  <div class="marketing__home__section__learn_more__header">
-    <h2 class="marketing__home__section__learn_more__header__title font-xxxl-strong">
-      {gettext("Learn more")}
+  <!-- Time saved section -->
+  <div class="marketing__home__section__time_saved">
+    <.marketing_shell class="marketing__home__section__time_saved__logo" />
+    <h2 class="font-xxl marketing__home__section__time_saved__title">
+      <span class="font-xxl-strong">{gettext("Millions")}</span>{gettext(" of minutes saved")}
     </h2>
-    <.home_more_link class="marketing__home__section__learn_more__header__link" href={~p"/blog"}>
-      {gettext("View all")}
-    </.home_more_link>
+    <.marketing_shell class="marketing__home__section__time_saved__logo" />
   </div>
-  <div class="marketing__home__section__learn_more__body">
-    <div class="marketing__home__section__learn_more__cards">
-      <.more_card
-        :for={post <- @read_more_posts}
-        category={post.category}
-        title={post.title}
-        description={post.excerpt}
-        href={post.slug}
-        class="marketing__home__section__learn_more__cards__card"
-      />
+  <!-- Highlights section -->
+  <% highlights = [
+    %{
+      title: "70%",
+      subtitle: gettext("Faster builds"),
+      cta_href: "/blog/2024/12/16/trendyol",
+      cta_text: gettext("Read Trendyol's story"),
+      cta_variant: "dark",
+      cta_target: ""
+    },
+    %{
+      title: gettext("Happier devs"),
+      subtitle: gettext("We aim to empower developers to create great products."),
+      cta_href: "https://medium.com/bumble-tech/scaling-ios-at-bumble-6f0602682903",
+      cta_text: gettext("Read Bumble's story"),
+      cta_variant: "light",
+      cta_target: "_blank"
+    },
+    %{title: "7+", subtitle: gettext("Years building an OSS foundation")},
+    %{title: "10K", subtitle: gettext("Teams using Tuist")},
+    %{title: "300+", subtitle: gettext("Contributors")}
+  ] %>
+
+  <div class="marketing__home__section__highlights">
+    <TuistWeb.Marketing.MarketingHomeComponents.highlight_card
+      :for={highlight <- highlights}
+      title={highlight.title}
+      subtitle={highlight.subtitle}
+      cta_href={Map.get(highlight, :cta_href)}
+      cta_text={Map.get(highlight, :cta_text)}
+      cta_target={Map.get(highlight, :cta_target)}
+      cta_variant={Map.get(highlight, :cta_variant)}
+    />
+  </div>
+  <!-- Learn section -->
+  <div class="marketing__home__section__learn_more">
+    <div class="marketing__home__section__learn_more__header">
+      <h2 class="marketing__home__section__learn_more__header__title font-xxxl-strong">
+        {gettext("Learn more")}
+      </h2>
+      <.home_more_link class="marketing__home__section__learn_more__header__link" href={~p"/blog"}>
+        {gettext("View all")}
+      </.home_more_link>
+    </div>
+    <div class="marketing__home__section__learn_more__body">
+      <div class="marketing__home__section__learn_more__cards">
+        <.more_card
+          :for={post <- @read_more_posts}
+          category={post.category}
+          title={post.title}
+          description={post.excerpt}
+          href={post.slug}
+          class="marketing__home__section__learn_more__cards__card"
+        />
+      </div>
+    </div>
+    <div class="marketing__home__section__learn_more__footer">
+      <.home_more_link class="marketing__home__section__learn_more__footer__link" href={~p"/blog"}>
+        {gettext("View all")}
+      </.home_more_link>
     </div>
   </div>
-  <div class="marketing__home__section__learn_more__footer">
-    <.home_more_link class="marketing__home__section__learn_more__footer__link" href={~p"/blog"}>
-      {gettext("View all")}
-    </.home_more_link>
-  </div>
-</div>
-<!-- CTA section -->
-<.cta />
+  <!-- CTA section -->
+  <.cta />
+</TuistWeb.Marketing.Layouts.marketing>
