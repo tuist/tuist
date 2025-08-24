@@ -732,25 +732,18 @@ defmodule Runner.QA.Tools do
         })
       ],
       function: fn %{"step_id" => step_id, "result" => result, "issues" => issues} = _params, _context ->
-        case Client.update_step(%{
-               step_id: step_id,
-               result: result,
-               issues: issues,
-               server_url: server_url,
-               run_id: run_id,
-               auth_token: auth_token,
-               account_handle: account_handle,
-               project_handle: project_handle
-             }) do
-          {:ok, :async} ->
-            {:ok, "Step report submitted asynchronously."}
+        Client.update_step(%{
+          step_id: step_id,
+          result: result,
+          issues: issues,
+          server_url: server_url,
+          run_id: run_id,
+          auth_token: auth_token,
+          account_handle: account_handle,
+          project_handle: project_handle
+        })
 
-          {:ok, _} ->
-            {:ok, "Step report submitted successfully."}
-
-          {:error, reason} ->
-            {:error, "Failed to submit step report: #{reason}"}
-        end
+        {:ok, "Step report submitted asynchronously."}
       end
     })
   end
