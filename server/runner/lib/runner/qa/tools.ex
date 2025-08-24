@@ -742,6 +742,9 @@ defmodule Runner.QA.Tools do
                account_handle: account_handle,
                project_handle: project_handle
              }) do
+          {:ok, :async} ->
+            {:ok, "Step report submitted asynchronously."}
+
           {:ok, _} ->
             {:ok, "Step report submitted successfully."}
 

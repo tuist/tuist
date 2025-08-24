@@ -4,6 +4,7 @@ defmodule Runner.QA.Client do
   """
 
   alias Runner.QA.LogStreamer
+  require Logger
 
   def create_step(
         %{
@@ -41,7 +42,20 @@ defmodule Runner.QA.Client do
       }) do
     step_url = qa_run_url(server_url, account_handle, project_handle, run_id, "/steps/#{step_id}")
 
-    qa_server_request(:patch, step_url, auth_token, json: %{result: result, issues: issues})
+    # Spawn an async task to update the step in the background
+    Task.start(fn ->
+      case qa_server_request(:patch, step_url, auth_token, json: %{result: result, issues: issues}) do
+        {:ok, _} ->
+          Logger.debug("Successfully updated step #{step_id}")
+
+        {:error, reason} ->
+          # Log the error but don't fail the overall process
+          Logger.error("Failed to update step #{step_id}: #{inspect(reason)}")
+      end
+    end)
+
+    # Return immediately with success
+    {:ok, :async}
   end
 
   def start_run(%{
