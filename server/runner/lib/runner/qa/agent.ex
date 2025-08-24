@@ -363,9 +363,11 @@ defmodule Runner.QA.Agent do
   end
 
   defp run_preview(preview_url, bundle_identifier, simulator_device) do
+    boot_task = Task.async(fn -> Simulators.boot_simulator(simulator_device) end)
+
     with {:ok, preview_path} <- download_preview(preview_url),
          {:ok, app_path} <- extract_app_from_preview(preview_path, bundle_identifier),
-         :ok <- Simulators.boot_simulator(simulator_device),
+         :ok <- Task.await(boot_task, 60_000),
          :ok <- Simulators.install_app(app_path, simulator_device) do
       Simulators.launch_app(bundle_identifier, simulator_device)
     end

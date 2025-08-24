@@ -784,9 +784,17 @@ defmodule Runner.QA.Tools do
              account_handle: account_handle,
              project_handle: project_handle,
              screenshot_id: screenshot_id
-           }),
-         {:ok, _response} <-
-           Req.put(upload_url, body: image_data, headers: [{"Content-Type", "image/png"}]) do
+           }) do
+      Task.start(fn ->
+        case Req.put(upload_url, body: image_data, headers: [{"Content-Type", "image/png"}]) do
+          {:ok, _response} ->
+            Logger.debug("Successfully uploaded screenshot #{screenshot_id}")
+
+          {:error, reason} ->
+            Logger.error("Failed to upload screenshot #{screenshot_id}: #{inspect(reason)}")
+        end
+      end)
+
       base64_image = Base.encode64(image_data)
       {:ok, ContentPart.image!(base64_image, media: :png)}
     else
@@ -856,24 +864,34 @@ defmodule Runner.QA.Tools do
              auth_token: auth_token,
              account_handle: account_handle,
              project_handle: project_handle
-           }),
-         {:ok, screenshot_content} <-
-           capture_and_upload_screenshot(%{
-             simulator_uuid: simulator_uuid,
-             server_url: server_url,
-             run_id: run_id,
-             auth_token: auth_token,
-             account_handle: account_handle,
-             project_handle: project_handle,
-             step_id: step_id
-           }),
-         {:ok, ui_description} <- ui_description_from_appium_session(appium_session) do
-      {:ok,
-       [
-         screenshot_content,
-         ContentPart.text!(ui_description),
-         ContentPart.text!(step_id)
-       ]}
+           }) do
+      screenshot_task =
+        Task.async(fn ->
+          capture_and_upload_screenshot(%{
+            simulator_uuid: simulator_uuid,
+            server_url: server_url,
+            run_id: run_id,
+            auth_token: auth_token,
+            account_handle: account_handle,
+            project_handle: project_handle,
+            step_id: step_id
+          })
+        end)
+
+      ui_task =
+        Task.async(fn ->
+          ui_description_from_appium_session(appium_session)
+        end)
+
+      with {:ok, screenshot_content} <- Task.await(screenshot_task, 30_000),
+           {:ok, ui_description} <- Task.await(ui_task, 30_000) do
+        {:ok,
+         [
+           screenshot_content,
+           ContentPart.text!(ui_description),
+           ContentPart.text!(step_id)
+         ]}
+      end
     end
   end
 
