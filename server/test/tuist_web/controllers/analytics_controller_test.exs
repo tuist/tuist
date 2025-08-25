@@ -1267,4 +1267,228 @@ defmodule TuistWeb.AnalyticsControllerTest do
       assert Enum.empty?(test_case_runs) == true
     end
   end
+
+  describe "POST /api/projects/:account_handle/:project_handle/runs/:run_id/start" do
+    test "starts multipart upload using project from URL - postgres", %{conn: conn, user: user} do
+      stub(Environment, :clickhouse_configured?, fn -> false end)
+      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> false end)
+
+      # Given
+      account = Accounts.get_account_from_user(user)
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+      command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
+      upload_id = "12344"
+
+      object_key =
+        "#{account.name}/#{project.name}/runs/#{command_event.legacy_id}/result_bundle.zip"
+
+      expect(Storage, :multipart_start, fn ^object_key ->
+        upload_id
+      end)
+
+      # Authenticate with user instead of project token
+      conn = Authentication.put_current_user(conn, user)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          ~p"/api/projects/#{account.name}/#{project.name}/runs/#{command_event.id}/start",
+          type: "result_bundle"
+        )
+
+      response = json_response(conn, :ok)
+      assert response["status"] == "success"
+      response_data = response["data"]
+      assert response_data["upload_id"] == upload_id
+    end
+
+    test "starts multipart upload for a result_bundle_object using project from URL - postgres", %{conn: conn, user: user} do
+      stub(Environment, :clickhouse_configured?, fn -> false end)
+      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> false end)
+
+      # Given
+      account = Accounts.get_account_from_user(user)
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+      command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
+      upload_id = "12344"
+
+      object_key =
+        "#{account.name}/#{project.name}/runs/#{command_event.legacy_id}/some-id.json"
+
+      expect(Storage, :multipart_start, fn ^object_key ->
+        upload_id
+      end)
+
+      # Authenticate with user instead of project token
+      conn = Authentication.put_current_user(conn, user)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          ~p"/api/projects/#{account.name}/#{project.name}/runs/#{command_event.id}/start",
+          type: "result_bundle_object",
+          name: "some-id"
+        )
+
+      response = json_response(conn, :ok)
+      assert response["status"] == "success"
+      response_data = response["data"]
+      assert response_data["upload_id"] == upload_id
+    end
+  end
+
+  describe "POST /api/projects/:account_handle/:project_handle/runs/:run_id/generate-url" do
+    test "generates URL for a part of the multipart upload using project from URL - postgres", %{conn: conn, user: user} do
+      stub(Environment, :clickhouse_configured?, fn -> false end)
+      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> false end)
+
+      # Given
+      account = Accounts.get_account_from_user(user)
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+      command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
+      upload_id = "12344"
+      part_number = 3
+      upload_url = "https://url.com"
+
+      object_key =
+        "#{account.name}/#{project.name}/runs/#{command_event.legacy_id}/result_bundle.zip"
+
+      expect(Storage, :multipart_generate_url, fn ^object_key,
+                                                  ^upload_id,
+                                                  ^part_number,
+                                                  [expires_in: _, content_length: 100] ->
+        upload_url
+      end)
+
+      # Authenticate with user instead of project token
+      conn = Authentication.put_current_user(conn, user)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          ~p"/api/projects/#{account.name}/#{project.name}/runs/#{command_event.id}/generate-url",
+          command_event_artifact: %{type: "result_bundle"},
+          multipart_upload_part: %{
+            part_number: part_number,
+            upload_id: upload_id,
+            content_length: 100
+          }
+        )
+
+      response = json_response(conn, :ok)
+      assert response["status"] == "success"
+      response_data = response["data"]
+      assert response_data["url"] == upload_url
+    end
+  end
+
+  describe "POST /api/projects/:account_handle/:project_handle/runs/:run_id/complete" do
+    test "completes a multipart upload using project from URL - postgres", %{conn: conn, user: user} do
+      stub(Environment, :clickhouse_configured?, fn -> false end)
+      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> false end)
+
+      # Given
+      account = Accounts.get_account_from_user(user)
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+      command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
+      upload_id = "1234"
+
+      object_key =
+        "#{account.name}/#{project.name}/runs/#{command_event.legacy_id}/result_bundle.zip"
+
+      parts = [
+        %{part_number: 1, etag: "etag1"},
+        %{part_number: 2, etag: "etag2"},
+        %{part_number: 3, etag: "etag3"}
+      ]
+
+      expect(Storage, :multipart_complete_upload, fn ^object_key,
+                                                     ^upload_id,
+                                                     [{1, "etag1"}, {2, "etag2"}, {3, "etag3"}] ->
+        :ok
+      end)
+
+      # Authenticate with user instead of project token
+      conn = Authentication.put_current_user(conn, user)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          ~p"/api/projects/#{account.name}/#{project.name}/runs/#{command_event.id}/complete",
+          command_event_artifact: %{type: "result_bundle"},
+          multipart_upload_parts: %{
+            parts: parts,
+            upload_id: upload_id
+          }
+        )
+
+      # Then
+      response = json_response(conn, :no_content)
+      assert response == %{}
+    end
+  end
+
+  describe "PUT /api/projects/:account_handle/:project_handle/runs/:run_id/complete_artifacts_uploads" do
+    test "completes artifacts uploads using project from URL - postgres", %{conn: conn, user: user} do
+      stub(Environment, :clickhouse_configured?, fn -> false end)
+      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> false end)
+
+      # Given
+      account = Accounts.get_account_from_user(user)
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+      command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
+
+      # Authenticate with user instead of project token
+      conn = Authentication.put_current_user(conn, user)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> put(~p"/api/projects/#{account.name}/#{project.name}/runs/#{command_event.id}/complete_artifacts_uploads")
+
+      # Then
+      response = json_response(conn, :no_content)
+      assert response == %{}
+    end
+  end
+
+  describe "Backward compatibility" do
+    test "old routes still work with project-scoped authentication", %{conn: conn} do
+      stub(Environment, :clickhouse_configured?, fn -> false end)
+      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> false end)
+
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      account = Accounts.get_account_by_id(project.account_id)
+      command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
+      upload_id = "12344"
+
+      object_key =
+        "#{account.name}/#{project.name}/runs/#{command_event.legacy_id}/result_bundle.zip"
+
+      expect(Storage, :multipart_start, fn ^object_key ->
+        upload_id
+      end)
+
+      # Using project authentication (old way)
+      conn = Authentication.put_current_project(conn, project)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          ~p"/api/runs/#{command_event.id}/start",
+          type: "result_bundle"
+        )
+
+      response = json_response(conn, :ok)
+      assert response["status"] == "success"
+      response_data = response["data"]
+      assert response_data["upload_id"] == upload_id
+    end
+  end
 end
