@@ -277,6 +277,10 @@ defmodule TuistWeb.Router do
         scope "/runs" do
           get "/", RunsController, :index
           post "/", RunsController, :create
+          post "/:run_id/start", AnalyticsController, :multipart_start
+          post "/:run_id/generate-url", AnalyticsController, :multipart_generate_url
+          post "/:run_id/complete", AnalyticsController, :multipart_complete
+          put "/:run_id/complete_artifacts_uploads", AnalyticsController, :complete_artifacts_uploads
         end
 
         scope "/previews" do
