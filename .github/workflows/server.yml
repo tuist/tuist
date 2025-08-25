@@ -68,7 +68,7 @@ jobs:
           path: |
             ~/.pnpm/store
           key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
-      - uses: jdx/mise-action@v3
+      - uses: jdx/mise-action@v3.2.0
         with:
           cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
       - run: mise run server:clickhouse:start
@@ -91,13 +91,13 @@ jobs:
             _site
           key: mix-${{ hashFiles('mix.lock') }}
       - name: Restore PNPM Cache
-        uses: actions/cache@v3
+        uses: actions/cache@v3.2.0
         id: pnpm-cache
         with:
           path: |
             ~/.pnpm/store
           key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
-      - uses: jdx/mise-action@v3
+      - uses: jdx/mise-action@v3.2.0
         with:
           cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
       - name: Run Credo
@@ -118,13 +118,13 @@ jobs:
             _site
           key: mix-${{ hashFiles('mix.lock') }}
       - name: Restore PNPM Cache
-        uses: actions/cache@v3
+        uses: actions/cache@v3.2.0
         id: pnpm-cache
         with:
           path: |
             ~/.pnpm/store
           key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
-      - uses: jdx/mise-action@v3
+      - uses: jdx/mise-action@v3.2.0
         with:
           cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
       - name: Check format
@@ -151,7 +151,7 @@ jobs:
           path: |
             ~/.pnpm/store
           key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
-      - uses: jdx/mise-action@v3
+      - uses: jdx/mise-action@v3.2.0
         with:
           cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
       - name: Install esbuild
@@ -188,13 +188,13 @@ jobs:
             _site
           key: mix-${{ hashFiles('mix.lock') }}
       - name: Restore PNPM Cache
-        uses: actions/cache@v3
+        uses: actions/cache@v3.2.0
         id: pnpm-cache
         with:
           path: |
             ~/.pnpm/store
           key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
-      - uses: jdx/mise-action@v3
+      - uses: jdx/mise-action@v3.2.0
         with:
           cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
       - name: Check
@@ -208,7 +208,7 @@ jobs:
         with:
           submodules: false
       - name: Restore Mix Cache
-        uses: actions/cache@v3
+        uses: actions/cache@v3.2.0
         id: mix-cache
         with:
           path: |
@@ -217,13 +217,13 @@ jobs:
             _site
           key: mix-${{ hashFiles('mix.lock') }}
       - name: Restore PNPM Cache
-        uses: actions/cache@v3
+        uses: actions/cache@v3.2.0
         id: pnpm-cache
         with:
           path: |
             ~/.pnpm/store
           key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
-      - uses: jdx/mise-action@v3
+      - uses: jdx/mise-action@v3.2.0
         with:
           cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
       # We move it so that we can copy it inside the Docker image for
@@ -276,7 +276,7 @@ jobs:
           path: |
             ~/.pnpm/store
           key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
-      - uses: jdx/mise-action@v3
+      - uses: jdx/mise-action@v3.2.0
         with:
           cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
       - run: mise run server:clickhouse:start
