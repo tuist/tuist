@@ -96,7 +96,7 @@ defmodule Tuist.KeyValueStore do
       case Cachex.transaction(cachex_cache(opts), [cache_key(cache_key)], read_or_update) do
         {:ok, value} -> value
         # If the cache is unavailable, we handle it gracefully by obtaining the value without caching it.
-        {:error, reason} -> func.()
+        {:error, _reason} -> func.()
       end
     else
       read_or_update.(cachex_cache(opts))
