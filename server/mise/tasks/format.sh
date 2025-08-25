@@ -7,7 +7,7 @@ if [ "$usage_check" = "true" ]; then
   prettier -c priv/static/app
   prettier -c assets
 else
-  mix format)
+  mix format
   prettier --write priv/static/app
   prettier --write assets
 fi
