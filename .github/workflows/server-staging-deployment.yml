@@ -51,6 +51,7 @@ jobs:
             ~/.pnpm/store
           key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
       - uses: jdx/mise-action@v2
+      - run: mise run install
       - name: "Get version"
         id: version
         run: |
