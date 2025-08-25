@@ -39,7 +39,7 @@ defmodule TuistWeb.API.AnalyticsController do
       ]
     ],
     request_body:
-      {"Command event params", "application/json",
+      {"Run params", "application/json",
        %Schema{
          type: :object,
          properties: %{
@@ -265,7 +265,7 @@ defmodule TuistWeb.API.AnalyticsController do
          ]
        }},
     responses: %{
-      ok: {"The command event was created", "application/json", CommandEvent},
+      ok: {"The run was created", "application/json", CommandEvent},
       unauthorized:
         {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden:
@@ -557,11 +557,11 @@ defmodule TuistWeb.API.AnalyticsController do
         in: :path,
         type: :string,
         required: true,
-        description: "The id of the command event."
+        description: "The id of the run."
       ]
     ],
     request_body:
-      {"Command event artifact multipart upload completion", "application/json",
+      {"Run artifact multipart upload completion", "application/json",
        %Schema{
          type: :object,
          properties: %{
@@ -613,9 +613,9 @@ defmodule TuistWeb.API.AnalyticsController do
   end
 
   operation(:complete_artifacts_uploads,
-    summary: "Completes artifacts uploads for a given command event",
+    summary: "Completes artifacts uploads for a given run",
     description:
-      "Given a command event, it marks all artifact uploads as finished and does extra processing of a given command run, such as test flakiness detection.",
+      "Given a run, it marks all artifact uploads as finished and does extra processing of a given command run, such as test flakiness detection.",
     deprecated: true,
     operation_id: "completeAnalyticsArtifactsUploads",
     parameters: [
@@ -623,11 +623,11 @@ defmodule TuistWeb.API.AnalyticsController do
         in: :path,
         type: :string,
         required: true,
-        description: "The id of the command event."
+        description: "The id of the run."
       ]
     ],
     request_body:
-      {"Extra metadata for the post-processing of a command event.", "application/json",
+      {"Extra metadata for the post-processing of a run.", "application/json",
        %Schema{
          deprecated: true,
          type: :object,
@@ -635,13 +635,13 @@ defmodule TuistWeb.API.AnalyticsController do
          required: []
        }},
     responses: %{
-      no_content: "The command event artifact uploads were successfully finished",
+      no_content: "The run artifact uploads were successfully finished",
       unauthorized:
         {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden:
         {"The authenticated subject is not authorized to perform this action", "application/json",
          Error},
-      not_found: {"The command event doesn't exist", "application/json", Error}
+      not_found: {"The run doesn't exist", "application/json", Error}
     }
   )
 
@@ -654,7 +654,7 @@ defmodule TuistWeb.API.AnalyticsController do
   # New operations for project-scoped routes (not deprecated)
 
   operation(:multipart_start_project,
-    summary: "It initiates a multipart upload for a command event artifact.",
+    summary: "It initiates a multipart upload for a run artifact",
     description:
       "The endpoint returns an upload ID that can be used to generate URLs for the individual parts and complete the upload.",
     operation_id: "startAnalyticsArtifactMultipartUploadProject",
@@ -675,7 +675,7 @@ defmodule TuistWeb.API.AnalyticsController do
         in: :path,
         type: :string,
         required: true,
-        description: "The id of the command event UUID."
+        description: "The id of the run."
       ]
     ],
     request_body: {"Artifact to upload", "application/json", CommandEventArtifact},
@@ -686,14 +686,14 @@ defmodule TuistWeb.API.AnalyticsController do
       forbidden:
         {"The authenticated subject is not authorized to perform this action", "application/json",
          Error},
-      not_found: {"The command event doesn't exist", "application/json", Error}
+      not_found: {"The run doesn't exist", "application/json", Error}
     }
   )
 
   def multipart_start_project(conn, params), do: multipart_start(conn, params)
 
   operation(:multipart_generate_url_project,
-    summary: "It generates a signed URL for uploading a part.",
+    summary: "It generates a signed URL for uploading a part",
     description:
       "Given an upload ID and a part number, this endpoint returns a signed URL that can be used to upload a part of a multipart upload. The URL is short-lived and expires in 120 seconds.",
     operation_id: "generateAnalyticsArtifactMultipartUploadURLProject",
@@ -714,7 +714,7 @@ defmodule TuistWeb.API.AnalyticsController do
         in: :path,
         type: :string,
         required: true,
-        description: "The id of the command event."
+        description: "The id of the run."
       ]
     ],
     request_body:
@@ -741,7 +741,7 @@ defmodule TuistWeb.API.AnalyticsController do
   def multipart_generate_url_project(conn, params), do: multipart_generate_url(conn, params)
 
   operation(:multipart_complete_project,
-    summary: "It completes a multi-part upload.",
+    summary: "It completes a multi-part upload",
     description:
       "Given the upload ID and all the parts with their ETags, this endpoint completes the multipart upload.",
     operation_id: "completeAnalyticsArtifactMultipartUploadProject",
@@ -762,11 +762,11 @@ defmodule TuistWeb.API.AnalyticsController do
         in: :path,
         type: :string,
         required: true,
-        description: "The id of the command event."
+        description: "The id of the run."
       ]
     ],
     request_body:
-      {"Command event artifact multipart upload completion", "application/json",
+      {"Run artifact multipart upload completion", "application/json",
        %Schema{
          type: :object,
          properties: %{
@@ -790,9 +790,9 @@ defmodule TuistWeb.API.AnalyticsController do
   def multipart_complete_project(conn, params), do: multipart_complete(conn, params)
 
   operation(:complete_artifacts_uploads_project,
-    summary: "Completes artifacts uploads for a given command event",
+    summary: "Completes artifacts uploads for a given run",
     description:
-      "Given a command event, it marks all artifact uploads as finished and does extra processing of a given command run, such as test flakiness detection.",
+      "Given a run, it marks all artifact uploads as finished and does extra processing of a given command run, such as test flakiness detection.",
     operation_id: "completeAnalyticsArtifactsUploadsProject",
     parameters: [
       account_handle: [
@@ -811,7 +811,7 @@ defmodule TuistWeb.API.AnalyticsController do
         in: :path,
         type: :string,
         required: true,
-        description: "The id of the command event."
+        description: "The id of the run."
       ]
     ],
     request_body:
@@ -822,13 +822,13 @@ defmodule TuistWeb.API.AnalyticsController do
          required: []
        }},
     responses: %{
-      no_content: "The command event artifact uploads were successfully finished",
+      no_content: "The run artifact uploads were successfully finished",
       unauthorized:
         {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden:
         {"The authenticated subject is not authorized to perform this action", "application/json",
          Error},
-      not_found: {"The command event doesn't exist", "application/json", Error}
+      not_found: {"The run doesn't exist", "application/json", Error}
     }
   )
 
