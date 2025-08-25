@@ -335,10 +335,10 @@ defmodule Tuist.Environment do
   def github_app_private_key(secrets \\ secrets()) do
     base_64_key = get([:github, :app_private_key_base64], secrets)
 
-    if not is_nil(base_64_key) do
-      Base.decode64!(base_64_key)
-    else
+    if is_nil(base_64_key) do
       get([:github, :app_private_key], secrets)
+    else
+      Base.decode64!(base_64_key)
     end
   end
 
