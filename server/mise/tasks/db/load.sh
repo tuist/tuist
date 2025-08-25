@@ -3,4 +3,4 @@
 
 set -euo pipefail
 
-(cd server/ && mix ecto.load)
+mix ecto.load
