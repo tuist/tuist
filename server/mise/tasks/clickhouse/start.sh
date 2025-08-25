@@ -3,4 +3,4 @@
 
 set -euo pipefail
 
-TZ=UTC clickhouse server --daemon --pidfile=server/.clickhouse.pid
+TZ=UTC clickhouse server --daemon --pidfile=.clickhouse.pid
