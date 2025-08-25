@@ -10,6 +10,8 @@
     public protocol AnalyticsArtifactUploadServicing {
         func uploadResultBundle(
             _ resultBundle: AbsolutePath,
+            accountHandle: String,
+            projectHandle: String,
             commandEventId: String,
             serverURL: URL
         ) async throws
@@ -67,6 +69,8 @@
 
         public func uploadResultBundle(
             _ resultBundle: AbsolutePath,
+            accountHandle: String,
+            projectHandle: String,
             commandEventId: String,
             serverURL: URL
         ) async throws {
@@ -75,6 +79,8 @@
                     type: .resultBundle
                 ),
                 artifactPath: resultBundle,
+                accountHandle: accountHandle,
+                projectHandle: projectHandle,
                 commandEventId: commandEventId,
                 serverURL: serverURL
             )
@@ -107,6 +113,8 @@
                             name: id
                         ),
                         artifactPath: resultBundleObjectPath,
+                        accountHandle: accountHandle,
+                        projectHandle: projectHandle,
                         commandEventId: commandEventId,
                         serverURL: serverURL
                     )
@@ -117,11 +125,15 @@
                         type: .invocationRecord
                     ),
                     artifactPath: invocationRecordPath,
+                    accountHandle: accountHandle,
+                    projectHandle: projectHandle,
                     commandEventId: commandEventId,
                     serverURL: serverURL
                 )
 
                 try await completeAnalyticsArtifactsUploadsService.completeAnalyticsArtifactsUploads(
+                    accountHandle: accountHandle,
+                    projectHandle: projectHandle,
                     commandEventId: commandEventId,
                     serverURL: serverURL
                 )
@@ -132,6 +144,8 @@
             _ artifact: ServerCommandEvent.Artifact,
             artifactPath: AbsolutePath,
             name _: String? = nil,
+            accountHandle: String,
+            projectHandle: String,
             commandEventId: String,
             serverURL: URL
         ) async throws {
@@ -149,6 +163,8 @@
             try await retryProvider.runWithRetries { [self] in
                 let uploadId = try await multipartUploadStartAnalyticsService.uploadAnalyticsArtifact(
                     artifact,
+                    accountHandle: accountHandle,
+                    projectHandle: projectHandle,
                     commandEventId: commandEventId,
                     serverURL: serverURL
                 )
@@ -158,6 +174,8 @@
                     generateUploadURL: { part in
                         try await self.multipartUploadGenerateURLAnalyticsService.uploadAnalytics(
                             artifact,
+                            accountHandle: accountHandle,
+                            projectHandle: projectHandle,
                             commandEventId: commandEventId,
                             partNumber: part.number,
                             uploadId: uploadId,
@@ -170,6 +188,8 @@
 
                 try await multipartUploadCompleteAnalyticsService.uploadAnalyticsArtifact(
                     artifact,
+                    accountHandle: accountHandle,
+                    projectHandle: projectHandle,
                     commandEventId: commandEventId,
                     uploadId: uploadId,
                     parts: parts,

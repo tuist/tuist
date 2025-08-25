@@ -63,6 +63,8 @@ final class AnalyticsArtifactUploadServiceTests: TuistTestCase {
         let temporaryDirectory = try temporaryPath()
         let resultBundle = temporaryDirectory.appending(component: "artifact.bundle")
         try FileHandler.shared.touch(resultBundle)
+        let accountHandle = "account-\(UUID().uuidString)"
+        let projectHandle = "project-\(UUID().uuidString)"
 
         let serverURL: URL = .test()
         let commandEventID = UUID().uuidString
@@ -81,6 +83,8 @@ final class AnalyticsArtifactUploadServiceTests: TuistTestCase {
         given(multipartUploadStartAnalyticsService)
             .uploadAnalyticsArtifact(
                 .value(.init(type: .resultBundle)),
+                accountHandle: .value(accountHandle),
+                projectHandle: .value(projectHandle),
                 commandEventId: .value(commandEventID),
                 serverURL: .value(serverURL)
             )
@@ -101,6 +105,8 @@ final class AnalyticsArtifactUploadServiceTests: TuistTestCase {
         given(multipartUploadCompleteAnalyticsService)
             .uploadAnalyticsArtifact(
                 .any,
+                accountHandle: .value(accountHandle),
+                projectHandle: .value(projectHandle),
                 commandEventId: .value(commandEventID),
                 uploadId: .value("upload-id"),
                 parts: .matching { parts in
@@ -113,6 +119,8 @@ final class AnalyticsArtifactUploadServiceTests: TuistTestCase {
         given(multipartUploadStartAnalyticsService)
             .uploadAnalyticsArtifact(
                 .value(.init(type: .invocationRecord)),
+                accountHandle: .value(accountHandle),
+                projectHandle: .value(projectHandle),
                 commandEventId: .value(commandEventID),
                 serverURL: .value(serverURL)
             )
@@ -140,6 +148,8 @@ final class AnalyticsArtifactUploadServiceTests: TuistTestCase {
         given(multipartUploadStartAnalyticsService)
             .uploadAnalyticsArtifact(
                 .value(.init(type: .resultBundleObject, name: testResultBundleObjectId)),
+                accountHandle: .value(accountHandle),
+                projectHandle: .value(projectHandle),
                 commandEventId: .value(commandEventID),
                 serverURL: .value(serverURL)
             )
@@ -147,6 +157,8 @@ final class AnalyticsArtifactUploadServiceTests: TuistTestCase {
 
         given(completeAnalyticsArtifactsUploadsService)
             .completeAnalyticsArtifactsUploads(
+                accountHandle: .value(accountHandle),
+                projectHandle: .value(projectHandle),
                 commandEventId: .any,
                 serverURL: .value(serverURL)
             )
@@ -167,6 +179,8 @@ final class AnalyticsArtifactUploadServiceTests: TuistTestCase {
                         type: .resultBundle
                     )
                 ),
+                accountHandle: .value(accountHandle),
+                projectHandle: .value(projectHandle),
                 commandEventId: .value(commandEventID),
                 partNumber: .value(1),
                 uploadId: .value("upload-id"),
@@ -178,6 +192,8 @@ final class AnalyticsArtifactUploadServiceTests: TuistTestCase {
         // When / Then
         try await subject.uploadResultBundle(
             resultBundle,
+            accountHandle: accountHandle,
+            projectHandle: projectHandle,
             commandEventId: commandEventID,
             serverURL: serverURL
         )

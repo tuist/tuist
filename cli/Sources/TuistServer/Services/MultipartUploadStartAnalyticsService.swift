@@ -5,6 +5,8 @@ import Mockable
 public protocol MultipartUploadStartAnalyticsServicing {
     func uploadAnalyticsArtifact(
         _ artifact: ServerCommandEvent.Artifact,
+        accountHandle: String,
+        projectHandle: String,
         commandEventId: String,
         serverURL: URL
     ) async throws -> String
@@ -32,13 +34,15 @@ public final class MultipartUploadStartAnalyticsService: MultipartUploadStartAna
 
     public func uploadAnalyticsArtifact(
         _ artifact: ServerCommandEvent.Artifact,
+        accountHandle: String,
+        projectHandle: String,
         commandEventId: String,
         serverURL: URL
     ) async throws -> String {
         let client = Client.authenticated(serverURL: serverURL)
-        let response = try await client.startAnalyticsArtifactMultipartUpload(
+        let response = try await client.startAnalyticsArtifactMultipartUploadProject(
             .init(
-                path: .init(run_id: commandEventId),
+                path: .init(account_handle: accountHandle, project_handle: projectHandle, run_id: commandEventId),
                 body: .json(.init(artifact))
             )
         )

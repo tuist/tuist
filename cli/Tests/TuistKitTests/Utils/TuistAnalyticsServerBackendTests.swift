@@ -121,6 +121,8 @@ struct TuistAnalyticsServerBackendTests {
             given(analyticsArtifactUploadService)
                 .uploadResultBundle(
                     .value(resultBundle),
+                    accountHandle: .any,
+                    projectHandle: .any,
                     commandEventId: .value(eventID),
                     serverURL: .value(Constants.URLs.production)
                 )

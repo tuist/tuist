@@ -6,6 +6,17 @@ import TuistCore
 import TuistServer
 import TuistSupport
 
+enum TuistAnalyticsServerBackendError: LocalizedError {
+    case invalidHandle(String)
+
+    var errorDescription: String? {
+        switch self {
+        case let .invalidHandle(handle):
+            return "The provided handle \(handle) is invalid. It should be in the format 'account/project'."
+        }
+    }
+}
+
 public class TuistAnalyticsServerBackend: TuistAnalyticsBackend {
     private let fullHandle: String
     private let url: URL
@@ -69,9 +80,14 @@ public class TuistAnalyticsServerBackend: TuistAnalyticsBackend {
                 ?? runDirectory
                 .appending(component: "\(Constants.resultBundleName).xcresult")
 
+        let handles = fullHandle.split(separator: "/")
+        guard handles.count == 2 else { throw TuistAnalyticsServerBackendError.invalidHandle(fullHandle) }
+
         if try await fileSystem.exists(resultBundlePath) {
             try await analyticsArtifactUploadService.uploadResultBundle(
                 resultBundlePath,
+                accountHandle: String(handles[0]),
+                projectHandle: String(handles[1]),
                 commandEventId: serverCommandEvent.id,
                 serverURL: url
             )
