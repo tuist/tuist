@@ -1269,6 +1269,37 @@ defmodule TuistWeb.AnalyticsControllerTest do
   end
 
   describe "POST /api/projects/:account_handle/:project_handle/runs/:run_id/start" do
+    test "returns unauthorized if authenticated subject doesn't have access to the project", %{conn: conn} do
+      stub(Environment, :clickhouse_configured?, fn -> false end)
+      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> false end)
+
+      # Given - Create two users and their accounts
+      user1 = AccountsFixtures.user_fixture(email: "user1@example.com")
+      user2 = AccountsFixtures.user_fixture(email: "user2@example.com")
+      
+      account1 = Accounts.get_account_from_user(user1)
+      
+      # Create a project under user1's account
+      project = ProjectsFixtures.project_fixture(account_id: account1.id)
+      command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
+      
+      # Authenticate as user2 (who doesn't have access to user1's project)
+      conn = Authentication.put_current_user(conn, user2)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          ~p"/api/projects/#{account1.name}/#{project.name}/runs/#{command_event.id}/start",
+          type: "result_bundle"
+        )
+
+      # Then - Should return forbidden
+      assert json_response(conn, :forbidden) == %{
+        "message" => "user2 is not authorized to create run"
+      }
+    end
+
     test "starts multipart upload using project from URL - postgres", %{conn: conn, user: user} do
       stub(Environment, :clickhouse_configured?, fn -> false end)
       stub(FunWithFlags, :enabled?, fn :clickhouse_events -> false end)
@@ -1340,6 +1371,42 @@ defmodule TuistWeb.AnalyticsControllerTest do
   end
 
   describe "POST /api/projects/:account_handle/:project_handle/runs/:run_id/generate-url" do
+    test "returns unauthorized if authenticated subject doesn't have access to the project", %{conn: conn} do
+      stub(Environment, :clickhouse_configured?, fn -> false end)
+      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> false end)
+
+      # Given - Create two users and their accounts
+      user1 = AccountsFixtures.user_fixture(email: "user3@example.com")
+      user2 = AccountsFixtures.user_fixture(email: "user4@example.com")
+      
+      account1 = Accounts.get_account_from_user(user1)
+      
+      # Create a project under user1's account
+      project = ProjectsFixtures.project_fixture(account_id: account1.id)
+      command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
+      
+      # Authenticate as user2 (who doesn't have access to user1's project)
+      conn = Authentication.put_current_user(conn, user2)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          ~p"/api/projects/#{account1.name}/#{project.name}/runs/#{command_event.id}/generate-url",
+          command_event_artifact: %{type: "result_bundle"},
+          multipart_upload_part: %{
+            part_number: 1,
+            upload_id: "test-upload",
+            content_length: 100
+          }
+        )
+
+      # Then - Should return forbidden
+      assert json_response(conn, :forbidden) == %{
+        "message" => "user4 is not authorized to create run"
+      }
+    end
+
     test "generates URL for a part of the multipart upload using project from URL - postgres", %{conn: conn, user: user} do
       stub(Environment, :clickhouse_configured?, fn -> false end)
       stub(FunWithFlags, :enabled?, fn :clickhouse_events -> false end)
@@ -1386,6 +1453,46 @@ defmodule TuistWeb.AnalyticsControllerTest do
   end
 
   describe "POST /api/projects/:account_handle/:project_handle/runs/:run_id/complete" do
+    test "returns unauthorized if authenticated subject doesn't have access to the project", %{conn: conn} do
+      stub(Environment, :clickhouse_configured?, fn -> false end)
+      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> false end)
+
+      # Given - Create two users and their accounts
+      user1 = AccountsFixtures.user_fixture(email: "user5@example.com")
+      user2 = AccountsFixtures.user_fixture(email: "user6@example.com")
+      
+      account1 = Accounts.get_account_from_user(user1)
+      
+      # Create a project under user1's account
+      project = ProjectsFixtures.project_fixture(account_id: account1.id)
+      command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
+      
+      # Authenticate as user2 (who doesn't have access to user1's project)
+      conn = Authentication.put_current_user(conn, user2)
+
+      parts = [
+        %{part_number: 1, etag: "etag1"},
+        %{part_number: 2, etag: "etag2"}
+      ]
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          ~p"/api/projects/#{account1.name}/#{project.name}/runs/#{command_event.id}/complete",
+          command_event_artifact: %{type: "result_bundle"},
+          multipart_upload_parts: %{
+            parts: parts,
+            upload_id: "test-upload"
+          }
+        )
+
+      # Then - Should return forbidden
+      assert json_response(conn, :forbidden) == %{
+        "message" => "user6 is not authorized to create run"
+      }
+    end
+
     test "completes a multipart upload using project from URL - postgres", %{conn: conn, user: user} do
       stub(Environment, :clickhouse_configured?, fn -> false end)
       stub(FunWithFlags, :enabled?, fn :clickhouse_events -> false end)
@@ -1433,6 +1540,34 @@ defmodule TuistWeb.AnalyticsControllerTest do
   end
 
   describe "PUT /api/projects/:account_handle/:project_handle/runs/:run_id/complete_artifacts_uploads" do
+    test "returns unauthorized if authenticated subject doesn't have access to the project", %{conn: conn} do
+      stub(Environment, :clickhouse_configured?, fn -> false end)
+      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> false end)
+
+      # Given - Create two users and their accounts
+      user1 = AccountsFixtures.user_fixture(email: "user7@example.com")
+      user2 = AccountsFixtures.user_fixture(email: "user8@example.com")
+      
+      account1 = Accounts.get_account_from_user(user1)
+      
+      # Create a project under user1's account
+      project = ProjectsFixtures.project_fixture(account_id: account1.id)
+      command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
+      
+      # Authenticate as user2 (who doesn't have access to user1's project)
+      conn = Authentication.put_current_user(conn, user2)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> put(~p"/api/projects/#{account1.name}/#{project.name}/runs/#{command_event.id}/complete_artifacts_uploads")
+
+      # Then - Should return forbidden
+      assert json_response(conn, :forbidden) == %{
+        "message" => "user8 is not authorized to update run"
+      }
+    end
+
     test "completes artifacts uploads using project from URL - postgres", %{conn: conn, user: user} do
       stub(Environment, :clickhouse_configured?, fn -> false end)
       stub(FunWithFlags, :enabled?, fn :clickhouse_events -> false end)
