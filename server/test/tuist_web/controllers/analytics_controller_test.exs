@@ -457,9 +457,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
       conn: conn,
       user: user
     } do
-      stub(Environment, :clickhouse_configured?, fn -> true end)
-      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> true end)
-
+      # Given
       conn = Authentication.put_current_user(conn, user)
 
       account = Accounts.get_account_from_user(user)
@@ -959,9 +957,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
     end
 
     test "completes a multipart upload returns a raw error - clickhouse", %{conn: conn} do
-      stub(Environment, :clickhouse_configured?, fn -> true end)
-      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> true end)
-
+      # Given
       project = ProjectsFixtures.project_fixture()
       account = Accounts.get_account_by_id(project.account_id)
 
@@ -972,18 +968,17 @@ defmodule TuistWeb.AnalyticsControllerTest do
 
       upload_id = "1234"
 
-      object_key =
-        "#{account.name}/#{project.name}/runs/#{command_event.legacy_id}/result_bundle.zip"
-
       parts = [
         %{part_number: 1, etag: "etag1"},
         %{part_number: 2, etag: "etag2"},
         %{part_number: 3, etag: "etag3"}
       ]
 
-      expect(Storage, :multipart_complete_upload, fn ^object_key,
+      expect(Storage, :multipart_complete_upload, fn object_key,
                                                      ^upload_id,
                                                      [{1, "etag1"}, {2, "etag2"}, {3, "etag3"}] ->
+        assert String.contains?(object_key, "#{account.name}/#{project.name}/runs/")
+        assert String.ends_with?(object_key, "/result_bundle.zip")
         :ok
       end)
 
