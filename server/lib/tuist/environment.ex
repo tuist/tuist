@@ -333,7 +333,13 @@ defmodule Tuist.Environment do
   end
 
   def github_app_private_key(secrets \\ secrets()) do
-    get([:github, :app_private_key], secrets)
+    base_64_key = get([:github, :app_private_key_base64], secrets)
+
+    if not is_nil(base_64_key) do
+      Base.decode64!(base_64_key)
+    else
+      get([:github, :app_private_key], secrets)
+    end
   end
 
   def github_app_webhook_secret(secrets \\ secrets()) do
