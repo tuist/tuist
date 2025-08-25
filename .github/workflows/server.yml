@@ -91,7 +91,7 @@ jobs:
             _site
           key: mix-${{ hashFiles('mix.lock') }}
       - name: Restore PNPM Cache
-        uses: actions/cache@v3.2.0
+        uses: actions/cache@v3
         id: pnpm-cache
         with:
           path: |
@@ -118,7 +118,7 @@ jobs:
             _site
           key: mix-${{ hashFiles('mix.lock') }}
       - name: Restore PNPM Cache
-        uses: actions/cache@v3.2.0
+        uses: actions/cache@v3
         id: pnpm-cache
         with:
           path: |
@@ -188,7 +188,7 @@ jobs:
             _site
           key: mix-${{ hashFiles('mix.lock') }}
       - name: Restore PNPM Cache
-        uses: actions/cache@v3.2.0
+        uses: actions/cache@v3
         id: pnpm-cache
         with:
           path: |
@@ -208,7 +208,7 @@ jobs:
         with:
           submodules: false
       - name: Restore Mix Cache
-        uses: actions/cache@v3.2.0
+        uses: actions/cache@v3
         id: mix-cache
         with:
           path: |
@@ -217,7 +217,7 @@ jobs:
             _site
           key: mix-${{ hashFiles('mix.lock') }}
       - name: Restore PNPM Cache
-        uses: actions/cache@v3.2.0
+        uses: actions/cache@v3
         id: pnpm-cache
         with:
           path: |
