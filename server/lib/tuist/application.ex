@@ -55,22 +55,30 @@ defmodule Tuist.Application do
       [
         {DBConnection.TelemetryListener, name: TelemetryListener},
         {Tuist.Repo, connection_listeners: [TelemetryListener]},
-        Tuist.ClickHouseRepo,
-        Tuist.IngestRepo,
         Tuist.Vault,
         {Oban, Application.fetch_env!(:tuist, Oban)},
         {Cachex, [:tuist, []]},
         {Finch, name: Tuist.Finch, pools: finch_pools()},
         {Phoenix.PubSub, name: Tuist.PubSub},
-        Supervisor.child_spec(CommandEvents.Buffer, id: CommandEvents.Buffer),
-        Supervisor.child_spec(Logs.Buffer, id: Logs.Buffer),
-        Supervisor.child_spec(XcodeGraph.Buffer, id: XcodeGraph.Buffer),
-        Supervisor.child_spec(XcodeProject.Buffer, id: XcodeProject.Buffer),
-        Supervisor.child_spec(XcodeTarget.Buffer, id: XcodeTarget.Buffer),
         TuistWeb.Telemetry
       ]
 
     children
+    |> Kernel.++(
+      if Environment.clickhouse_configured?() do
+        [
+          Tuist.ClickHouseRepo,
+          Tuist.IngestRepo,
+          Supervisor.child_spec(CommandEvents.Buffer, id: CommandEvents.Buffer),
+          Supervisor.child_spec(Logs.Buffer, id: Logs.Buffer),
+          Supervisor.child_spec(XcodeGraph.Buffer, id: XcodeGraph.Buffer),
+          Supervisor.child_spec(XcodeProject.Buffer, id: XcodeProject.Buffer),
+          Supervisor.child_spec(XcodeTarget.Buffer, id: XcodeTarget.Buffer)
+        ]
+      else
+        []
+      end
+    )
     |> Kernel.++(
       if Environment.dev_use_remote_storage?() do
         []
