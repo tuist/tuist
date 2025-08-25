@@ -4,7 +4,6 @@ defmodule Tuist.Application do
   use Application
   use Boundary, top_level?: true, deps: [Tuist, TuistWeb]
 
-  import Cachex.Spec
   import Tuist.Environment, only: [run_if_error_tracking_enabled: 1]
 
   alias Tuist.CommandEvents
