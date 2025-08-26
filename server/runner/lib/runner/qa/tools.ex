@@ -766,7 +766,7 @@ defmodule Runner.QA.Tools do
     with {:ok, temp_path} <- Briefly.create(),
          {_, 0} <- System.cmd("xcrun", ["simctl", "io", simulator_uuid, "screenshot", temp_path]),
          {:ok, image_data} <- File.read(temp_path),
-         {:ok, %{"id" => screenshot_id}} <-
+         {:ok, %{"id" => screenshot_id, "upload_url" => upload_url}} <-
            Client.create_screenshot(%{
              server_url: server_url,
              run_id: run_id,
@@ -774,15 +774,6 @@ defmodule Runner.QA.Tools do
              account_handle: account_handle,
              project_handle: project_handle,
              step_id: step_id
-           }),
-         {:ok, %{"url" => upload_url}} <-
-           Client.screenshot_upload(%{
-             server_url: server_url,
-             run_id: run_id,
-             auth_token: auth_token,
-             account_handle: account_handle,
-             project_handle: project_handle,
-             screenshot_id: screenshot_id
            }),
          {:ok, _response} <-
            Req.put(upload_url, body: image_data, headers: [{"Content-Type", "image/png"}]) do

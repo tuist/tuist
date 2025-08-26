@@ -10,7 +10,7 @@ defmodule TuistWeb.API.QAController do
   plug :load_qa_run
   plug AuthorizationPlug, :qa_step when action in [:create_step, :update_step]
   plug AuthorizationPlug, :qa_run when action in [:update_run]
-  plug AuthorizationPlug, :qa_screenshot when action in [:screenshot_upload, :create_screenshot]
+  plug AuthorizationPlug, :qa_screenshot when action in [:create_screenshot]
 
   defp load_qa_run(%{assigns: %{selected_project: project}} = conn, _opts) do
     case conn.path_params do
@@ -152,29 +152,10 @@ defmodule TuistWeb.API.QAController do
     end
   end
 
-  def screenshot_upload(conn, %{"screenshot_id" => screenshot_id}) do
-    %{selected_project: project, selected_qa_run: qa_run} = conn.assigns
-    expires_in = 3600
-
-    storage_key =
-      QA.screenshot_storage_key(%{
-        account_handle: project.account.name,
-        project_handle: project.name,
-        qa_run_id: qa_run.id,
-        screenshot_id: screenshot_id
-      })
-
-    upload_url = Storage.generate_upload_url(storage_key, expires_in: expires_in)
-
-    conn
-    |> put_status(:ok)
-    |> json(%{
-      url: upload_url,
-      expires_at: System.system_time(:second) + expires_in
-    })
-  end
-
-  def create_screenshot(%{assigns: %{selected_qa_run: qa_run}} = conn, %{"step_id" => step_id} = _params) do
+  def create_screenshot(
+        %{assigns: %{selected_qa_run: qa_run, selected_project: project}} = conn,
+        %{"step_id" => step_id} = _params
+      ) do
     attrs = %{
       qa_run_id: qa_run.id,
       qa_step_id: step_id
@@ -182,13 +163,27 @@ defmodule TuistWeb.API.QAController do
 
     case QA.create_qa_screenshot(attrs) do
       {:ok, screenshot} ->
+        expires_in = 3600
+
+        storage_key =
+          QA.screenshot_storage_key(%{
+            account_handle: project.account.name,
+            project_handle: project.name,
+            qa_run_id: qa_run.id,
+            screenshot_id: screenshot.id
+          })
+
+        upload_url = Storage.generate_upload_url(storage_key, expires_in: expires_in)
+
         conn
         |> put_status(:created)
         |> json(%{
           id: screenshot.id,
           qa_run_id: screenshot.qa_run_id,
           qa_step_id: screenshot.qa_step_id,
-          inserted_at: screenshot.inserted_at
+          inserted_at: screenshot.inserted_at,
+          upload_url: upload_url,
+          expires_at: System.system_time(:second) + expires_in
         })
 
       {:error, changeset} ->

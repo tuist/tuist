@@ -136,44 +136,6 @@ defmodule Runner.QA.ClientTest do
     end
   end
 
-  describe "screenshot_upload/7" do
-    test "makes POST request and returns upload URL" do
-      # Given
-      server_url = "https://example.com"
-      run_id = "test-run-123"
-      auth_token = "test-token"
-      screenshot_id = "screenshot-456"
-
-      expect(Req, :post, fn opts ->
-        assert opts[:url] ==
-                 "#{server_url}/api/projects/test-account/test-project/qa/runs/#{run_id}/screenshots/#{screenshot_id}/upload"
-
-        assert opts[:headers] == %{"Authorization" => "Bearer #{auth_token}"}
-
-        {:ok,
-         %{
-           status: 200,
-           body: %{"url" => "https://s3.example.com/upload-url", "expires_at" => 1_234_567_890}
-         }}
-      end)
-
-      # When
-      result =
-        Client.screenshot_upload(%{
-          server_url: server_url,
-          run_id: run_id,
-          auth_token: auth_token,
-          account_handle: "test-account",
-          project_handle: "test-project",
-          screenshot_id: screenshot_id
-        })
-
-      # Then
-      assert {:ok, %{"url" => "https://s3.example.com/upload-url", "expires_at" => 1_234_567_890}} =
-               result
-    end
-  end
-
   describe "create_screenshot/6" do
     test "makes POST request successfully" do
       # Given

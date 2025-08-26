@@ -164,101 +164,6 @@ defmodule TuistWeb.API.QAControllerTest do
     end
   end
 
-  describe "POST /api/projects/:account_handle/:project_handle/qa/runs/:run_id/screenshots/upload" do
-    test "returns upload URL successfully", %{
-      conn: conn,
-      user: user,
-      qa_run: qa_run,
-      account_handle: account_handle,
-      project_handle: project_handle
-    } do
-      # Given
-      conn =
-        assign(conn, :current_subject, %AuthenticatedAccount{
-          account: user.account,
-          scopes: [:qa_screenshot_create]
-        })
-
-      screenshot_id = Ecto.UUID.generate()
-
-      expect(Storage, :generate_upload_url, fn storage_key, _options ->
-        "https://s3.example.com/#{storage_key}?presigned-params"
-      end)
-
-      # When
-      conn =
-        conn
-        |> put_req_header("content-type", "application/json")
-        |> post(
-          ~p"/api/projects/#{account_handle}/#{project_handle}/qa/runs/#{qa_run.id}/screenshots/#{screenshot_id}/upload",
-          %{}
-        )
-
-      # Then
-      response = json_response(conn, :ok)
-
-      assert String.contains?(response["url"], "qa/screenshots/#{qa_run.id}/#{screenshot_id}.png")
-    end
-
-    test "returns not found when QA run does not exist", %{
-      conn: conn,
-      user: user,
-      account_handle: account_handle,
-      project_handle: project_handle
-    } do
-      # Given
-      conn =
-        assign(conn, :current_subject, %AuthenticatedAccount{
-          account: user.account,
-          scopes: [:qa_screenshot_create]
-        })
-
-      non_existent_run_id = Ecto.UUID.generate()
-
-      # When
-      screenshot_id = Ecto.UUID.generate()
-
-      conn =
-        conn
-        |> put_req_header("content-type", "application/json")
-        |> post(
-          ~p"/api/projects/#{account_handle}/#{project_handle}/qa/runs/#{non_existent_run_id}/screenshots/#{screenshot_id}/upload",
-          %{}
-        )
-
-      # Then
-      response = json_response(conn, :not_found)
-      assert response["error"] == "QA run not found"
-    end
-
-    test "returns forbidden when user doesn't have permission", %{
-      conn: conn
-    } do
-      # Given
-      other_user = AccountsFixtures.user_fixture(email: "other@tuist.io", preload: [:account])
-      other_project = ProjectsFixtures.project_fixture(account_id: other_user.account.id)
-      other_preview = AppBuildsFixtures.preview_fixture(project: other_project)
-      other_app_build = AppBuildsFixtures.app_build_fixture(preview: other_preview)
-      other_qa_run = QAFixtures.qa_run_fixture(app_build: other_app_build)
-
-      unauthorized_user = AccountsFixtures.user_fixture(email: "unauthorized@tuist.io")
-      conn = Authentication.put_current_user(conn, unauthorized_user)
-
-      # When
-      conn =
-        conn
-        |> put_req_header("content-type", "application/json")
-        |> post(
-          ~p"/api/projects/#{other_project.account.name}/#{other_project.name}/qa/runs/#{other_qa_run.id}/screenshots/#{Ecto.UUID.generate()}/upload",
-          %{}
-        )
-
-      # Then
-      response = json_response(conn, :forbidden)
-      assert String.contains?(response["message"], "not authorized")
-    end
-  end
-
   describe "POST /api/projects/:account_handle/:project_handle/qa/runs/:run_id/screenshots" do
     test "creates screenshot record successfully", %{
       conn: conn,
@@ -277,6 +182,10 @@ defmodule TuistWeb.API.QAControllerTest do
       # Given a QA step
       qa_step = QAFixtures.qa_step_fixture(qa_run_id: qa_run.id)
 
+      expect(Storage, :generate_upload_url, fn storage_key, _options ->
+        "https://s3.example.com/#{storage_key}?presigned-params"
+      end)
+
       # When
       conn =
         conn
@@ -293,6 +202,9 @@ defmodule TuistWeb.API.QAControllerTest do
 
       assert response["qa_run_id"] == qa_run.id
       assert response["qa_step_id"] == qa_step.id
+      assert response["id"]
+      assert String.contains?(response["upload_url"], "qa/screenshots/#{qa_run.id}")
+      assert response["expires_at"]
     end
 
     test "returns not found when QA run does not exist", %{
