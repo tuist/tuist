@@ -470,10 +470,8 @@ qa_runs =
         )
       )
 
-    # Calculate finished_at for completed/failed runs
     finished_at = 
       if status in ["completed", "failed"] do
-        # Add realistic duration: 5-45 minutes for QA runs
         duration_minutes = Enum.random(5..45)
         DateTime.add(inserted_at, duration_minutes * 60, :second)
       else

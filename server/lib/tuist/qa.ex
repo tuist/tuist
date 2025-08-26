@@ -865,7 +865,6 @@ defmodule Tuist.QA do
         _ -> where(base_query, [qa, ab, pr], pr.display_name == ^app_name)
       end
 
-    # Get individual durations, then group by date and calculate average
     durations = Repo.all(query)
     
     durations
@@ -905,7 +904,6 @@ defmodule Tuist.QA do
         _ -> where(base_query, [qa, ab, pr], pr.display_name == ^app_name)
       end
 
-    # Get individual durations, then group by date and calculate average
     durations = Repo.all(query)
     
     durations

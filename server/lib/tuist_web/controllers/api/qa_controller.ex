@@ -129,7 +129,6 @@ defmodule TuistWeb.API.QAController do
   def update_run(%{assigns: %{selected_qa_run: qa_run}} = conn, %{"status" => status}) do
     update_attrs = %{status: status}
     
-    # Set finished_at timestamp when QA run completes
     update_attrs = 
       if status in ["completed", "failed"] do
         Map.put(update_attrs, :finished_at, DateTime.utc_now())

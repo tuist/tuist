@@ -1107,7 +1107,6 @@ defmodule Tuist.QATest do
       result = List.first(results)
       assert result.id == qa_run.id
 
-      # Verify preloads are loaded
       refute match?(%Ecto.Association.NotLoaded{}, result.app_build)
       refute match?(%Ecto.Association.NotLoaded{}, result.app_build.preview)
       refute match?(%Ecto.Association.NotLoaded{}, result.run_steps)
@@ -1186,7 +1185,6 @@ defmodule Tuist.QATest do
 
       # Then
       assert length(results) == 2
-      # Most recent should be first (qa_run2 was created after qa_run1)
       assert List.first(results).id == qa_run2.id
       assert List.last(results).id == qa_run1.id
     end
@@ -1208,7 +1206,7 @@ defmodule Tuist.QATest do
       result = List.first(results)
       assert result.id == qa_run.id
       assert result.prompt == "Test login"
-      assert result.input_tokens == 0  # No token usage created
+      assert result.input_tokens == 0
       assert result.output_tokens == 0
     end
 
@@ -1297,7 +1295,6 @@ defmodule Tuist.QATest do
 
       # Then
       assert length(results) == 2
-      # Most recent should be first (qa_run2 was created after qa_run1)
       assert List.first(results).id == qa_run2.id
       assert List.last(results).id == qa_run1.id
     end
