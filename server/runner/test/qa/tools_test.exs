@@ -187,7 +187,7 @@ defmodule Runner.QA.ToolsTest do
         screenshot_tool.function.(%{}, nil)
 
       # Then
-      assert {:ok, [%ContentPart{type: :image}]} = result
+      assert {:ok, [%ContentPart{type: :text, content: "Screenshot captured successfully"}]} = result
     end
 
     test "returns error when screenshot command fails", %{tools: tools} do
