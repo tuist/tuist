@@ -48,6 +48,10 @@ defmodule TuistWeb.QALogChannel do
     {:reply, :ok, socket}
   end
 
+  def handle_info({:qa_log_created, _log}, socket) do
+    {:noreply, socket}
+  end
+
   defp authorize_qa_run(socket, qa_run_id) do
     with {:ok, subject} <- extract_subject_from_socket(socket),
          {:ok, qa_run} <-
