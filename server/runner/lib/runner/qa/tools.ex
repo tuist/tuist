@@ -880,8 +880,7 @@ defmodule Runner.QA.Tools do
           ui_description_from_appium_session(appium_session)
         end)
 
-      with {:ok, screenshot_content} <- Task.await(screenshot_task, 30_000),
-           {:ok, ui_description} <- Task.await(ui_task, 30_000) do
+       with [{:ok, screenshot_content}, {:ok, ui_description}] <- Task.await_many([screenshot_task, ui_task], 30_000) do
         {:ok,
          [
            screenshot_content,
