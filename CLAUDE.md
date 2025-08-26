@@ -343,13 +343,13 @@ Each provider handles security at their infrastructure layer, while Tuist focuse
 
 # Data Export Documentation Maintenance
 
-## Important: Keep data-export.md Up to Date
+## Important: Keep server/data-export.md Up to Date
 
-The `data-export.md` file documents all personal and organizational data that Tuist stores and can export for customers upon legal request. **This file must be kept current whenever database schema changes or new data storage is introduced.**
+The `server/data-export.md` file documents all personal and organizational data that Tuist stores and can export for customers upon legal request. **This file must be kept current whenever database schema changes or new data storage is introduced.**
 
-### When to Update data-export.md
+### When to Update server/data-export.md
 
-You **MUST** update `data-export.md` when making any of the following changes:
+You **MUST** update `server/data-export.md` when making any of the following changes:
 
 #### Database Schema Changes
 - Adding new tables to PostgreSQL or ClickHouse
@@ -370,12 +370,12 @@ You **MUST** update `data-export.md` when making any of the following changes:
 - Adding new integrations that store customer data
 - New features that generate customer-owned content
 
-### How to Update data-export.md
+### How to Update server/data-export.md
 
 When making qualifying changes:
 
 1. **Review the change**: Identify what new data is being stored or how existing data storage is modified
-2. **Update the documentation**: Add or modify the relevant sections in `data-export.md`
+2. **Update the documentation**: Add or modify the relevant sections in `server/data-export.md`
 3. **Be comprehensive**: Include:
    - Data type and purpose
    - Storage location (database table, S3 path structure, etc.)
