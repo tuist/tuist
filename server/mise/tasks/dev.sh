@@ -3,4 +3,4 @@
 
 set -euo pipefail
 
-(cd server && mix phx.server)
+mix phx.server

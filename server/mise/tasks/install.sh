@@ -3,6 +3,9 @@
 
 set -eo pipefail
 
-if [[ "$OSTYPE" == "darwin"* ]]; then
-  tuist install
+mix deps.get
+pnpm install --ignore-workspace
+
+if [ -z "$CI" ]; then
+  mise run db:reset
 fi

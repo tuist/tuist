@@ -71,8 +71,9 @@ jobs:
       - uses: jdx/mise-action@v3.2.0
         with:
           cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
-      - run: mise run server:clickhouse:start
-      - run: mise run server:db:reset
+      - run: mise run install
+      - run: mise run clickhouse:start
+      - run: mise run db:reset
       - name: Run tests
         run: mix test --warnings-as-errors
   credo:
@@ -100,6 +101,7 @@ jobs:
       - uses: jdx/mise-action@v3.2.0
         with:
           cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
+      - run: mise run install
       - name: Run Credo
         run: mix credo
   format:
@@ -127,8 +129,9 @@ jobs:
       - uses: jdx/mise-action@v3.2.0
         with:
           cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
+      - run: mise run install
       - name: Check format
-        run: mise run server:format --check
+        run: mise run format --check
   esbuild:
     name: esbuild
     runs-on: namespace-profile-default
@@ -154,6 +157,7 @@ jobs:
       - uses: jdx/mise-action@v3.2.0
         with:
           cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
+      - run: mise run install
       - name: Install esbuild
         run: mix esbuild.install
       - name: Check esbuild output
@@ -197,8 +201,9 @@ jobs:
       - uses: jdx/mise-action@v3.2.0
         with:
           cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
+      - run: mise run install
       - name: Check
-        run: mise run server:security
+        run: mise run security
   docker_build:
     name: Docker build
     runs-on: namespace-profile-default
@@ -226,6 +231,7 @@ jobs:
       - uses: jdx/mise-action@v3.2.0
         with:
           cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
+      - run: mise run install
       # We move it so that we can copy it inside the Docker image for
       # reproducibility of dependency resolution.
       - name: Docker build
@@ -279,8 +285,9 @@ jobs:
       - uses: jdx/mise-action@v3.2.0
         with:
           cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
-      - run: mise run server:clickhouse:start
-      - run: mise run server:db:reset
+      - run: mise run install
+      - run: mise run clickhouse:start
+      - run: mise run db:reset
       - name: Run migrations
         run: mix ecto.migrate
       - name: Seed the database

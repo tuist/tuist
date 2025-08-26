@@ -29,7 +29,7 @@ public enum Module: String, CaseIterable {
     case git = "TuistGit"
     case rootDirectoryLocator = "TuistRootDirectoryLocator"
     case process = "TuistProcess"
-    
+
     func forceStaticLinking() -> Bool {
         return Environment.forceStaticLinking.getBoolean(default: false)
     }
@@ -67,7 +67,6 @@ public enum Module: String, CaseIterable {
                     .external(name: "SwiftECC"),
                 ],
                 settings: .settings(
-                    base: ["ARCHS": "arm64"],
                     configurations: [
                         .debug(
                             name: "Debug",
@@ -102,7 +101,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "XcodeGraph"),
                     .external(name: "Path"),
                     .external(name: "FileSystem"),
-                    .external(name: "Mockable")
+                    .external(name: "Mockable"),
                 ]
             ),
             .target(
@@ -123,9 +122,9 @@ public enum Module: String, CaseIterable {
                     .external(name: "Path"),
                     .external(name: "FileSystem"),
                     .external(name: "Mockable"),
-                    .external(name: "TSCTestSupport")
+                    .external(name: "TSCTestSupport"),
                 ]
-            )
+            ),
         ]
     }
 
@@ -230,7 +229,7 @@ public enum Module: String, CaseIterable {
         case .tuist, .tuistBenchmark, .tuistFixtureGenerator:
             return .commandLineTool
         case .projectAutomation, .projectDescription:
-            return  forceStaticLinking() ? .staticFramework : .framework
+            return forceStaticLinking() ? .staticFramework : .framework
         default:
             return .staticFramework
         }
@@ -808,8 +807,7 @@ public enum Module: String, CaseIterable {
 
         var baseSettings = settings.base
         baseSettings["MACOSX_DEPLOYMENT_TARGET"] = "14.0"
-        baseSettings["ARCHS"] = "arm64"
-        
+
         let settings = Settings.settings(
             base: baseSettings,
             configurations: [
@@ -856,8 +854,7 @@ public enum Module: String, CaseIterable {
         case .tuist:
             return .settings(
                 base: [
-                    "LD_RUNPATH_SEARCH_PATHS": "$(FRAMEWORK_SEARCH_PATHS)",
-                    "ARCHS": "arm64"
+                    "LD_RUNPATH_SEARCH_PATHS": "$(FRAMEWORK_SEARCH_PATHS)"
                 ],
                 configurations: [
                     .debug(name: "Debug", settings: [:], xcconfig: nil),
@@ -882,7 +879,6 @@ public enum Module: String, CaseIterable {
             )
         default:
             return .settings(
-                base: ["ARCHS": "arm64"],
                 configurations: [
                     .debug(
                         name: "Debug",

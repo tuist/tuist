@@ -3,4 +3,4 @@
 
 set -euo pipefail
 
-kill $(cat server/.clickhouse.pid) || echo "ClickHouse is not running"
+kill $(cat .clickhouse.pid) || echo "ClickHouse is not running"
