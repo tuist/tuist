@@ -17,14 +17,14 @@ defmodule TuistWeb.API.AccountTokensControllerTest do
         conn
         |> put_req_header("content-type", "application/json")
         |> post("/api/accounts/#{user.account.name}/tokens", %{
-          scopes: ["account_registry_read"]
+          scopes: ["registry_read"]
         })
 
       # Then
       response = json_response(conn, :ok)
       {:ok, token} = Accounts.account_token(response["token"], preload: [:account])
       assert token.account == user.account
-      assert token.scopes == [:account_registry_read]
+      assert token.scopes == [:registry_read]
     end
 
     test "returns new account token for the given organization", %{conn: conn} do
@@ -41,14 +41,14 @@ defmodule TuistWeb.API.AccountTokensControllerTest do
         conn
         |> put_req_header("content-type", "application/json")
         |> post("/api/accounts/#{organization.account.name}/tokens", %{
-          scopes: ["account_registry_read"]
+          scopes: ["registry_read"]
         })
 
       # Then
       response = json_response(conn, :ok)
       {:ok, token} = Accounts.account_token(response["token"], preload: [:account])
       assert token.account == organization.account
-      assert token.scopes == [:account_registry_read]
+      assert token.scopes == [:registry_read]
     end
 
     test "returns not_found when an account does not exist", %{conn: conn} do
@@ -63,7 +63,7 @@ defmodule TuistWeb.API.AccountTokensControllerTest do
           conn
           |> put_req_header("content-type", "application/json")
           |> post("/api/accounts/tuist/tokens", %{
-            scopes: ["account_registry_read"]
+            scopes: ["registry_read"]
           })
         end
 
@@ -86,7 +86,7 @@ defmodule TuistWeb.API.AccountTokensControllerTest do
         conn
         |> put_req_header("content-type", "application/json")
         |> post("/api/accounts/#{organization.account.name}/tokens", %{
-          scopes: ["account_registry_read"]
+          scopes: ["registry_read"]
         })
 
       # Then

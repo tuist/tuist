@@ -19,7 +19,7 @@
     postinstall = "mise run install"
 
 [env]
-    _.file = ".env.json"
+    _.file = { path = ".env.json", redact = true }
     TUIST_HOSTED = 1
     ERL_AFLAGS = "-kernel shell_history enabled -kernel shell_history_file_bytes 1024000"
 

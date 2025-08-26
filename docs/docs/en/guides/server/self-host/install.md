@@ -101,7 +101,8 @@ As an on-premise user, you'll receive a license key that you'll need to expose a
 | `TUIST_SECRET_KEY_ENCRYPTION` | 32-byte key for AES-GCM encryption of sensitive data | No | `$TUIST_SECRET_KEY_BASE` | |
 | `TUIST_USE_IPV6` | When `1` it configures the app to use IPv6 addresses | No | `0` | `1`|
 | `TUIST_LOG_LEVEL` | The log level to use for the app | No | `info` | [Log levels](https://hexdocs.pm/logger/1.12.3/Logger.html#module-levels) |
-| `TUIST_GITHUB_APP_PRIVATE_KEY` | The private key used for the GitHub app to unlock extra functionality such as posting automatic PR comments | No | `-----BEGIN RSA...` | |
+| `TUIST_GITHUB_APP_PRIVATE_KEY_BASE64` | The base64-encoded private key used for the GitHub app to unlock extra functionality such as posting automatic PR comments | No | `LS0tLS1CRUdJTiBSU0EgUFJJVkFUR...` | |
+| `TUIST_GITHUB_APP_PRIVATE_KEY` | The private key used for the GitHub app to unlock extra functionality such as posting automatic PR comments. **We recommend using the base64-encoded version instead to avoid issues with special characters** | No | `-----BEGIN RSA...` | |
 | `TUIST_OPS_USER_HANDLES` | A comma-separated list of user handles that have access to the operations URLs | No | | `user1,user2` |
 | `TUIST_WEB` | Whether to run the web server component | No | `1` | `1` or `0` |
 | `TUIST_WORKER` | Whether to run the background job processing component | No | `1` | `1` or `0` |
@@ -110,7 +111,7 @@ As an on-premise user, you'll receive a license key that you'll need to expose a
 > By default, both the web server and background job processing run in the same process for simplicity. However, you can separate them by running multiple instances of the Docker image with different configurations:
 > - **Web server only:** Set `TUIST_WEB=1` and `TUIST_WORKER=0`
 > - **Background workers only:** Set `TUIST_WEB=0` and `TUIST_WORKER=1`
-> 
+>
 > This separation allows you to scale web servers and background workers independently based on your workload requirements.
 
 ### Database configuration {#database-configuration}
