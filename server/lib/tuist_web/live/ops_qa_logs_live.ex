@@ -14,7 +14,7 @@ defmodule TuistWeb.OpsQALogsLive do
 
       qa_run ->
         logs = QA.logs_for_run(qa_run_id)
-        logs_with_metadata = prepare_logs_with_metadata(logs)
+        lsgs_with_metadata = prepare_logs_with_metadata(logs)
 
         if connected?(socket) do
           Tuist.PubSub.subscribe("qa_logs:#{qa_run_id}")
@@ -131,62 +131,67 @@ defmodule TuistWeb.OpsQALogsLive do
 
   defp prettify_json(data), do: inspect(data)
 
+  @action_tools ["tap", "swipe", "long_press", "type_text", "key_press", "button", "touch", "gesture", "plan_report"]
+
   defp has_screenshot?(log) do
-    case JSON.decode!(log.data) do
-      # Check for screenshot tool calls
-      %{"name" => "screenshot", "content" => _} ->
-        true
-
-      # Check for action tool results that include screenshot metadata
-      %{"name" => name, "content" => content} when is_list(content) and name in ["tap", "swipe", "long_press", "type_text", "key_press", "button", "touch", "gesture", "plan_report"] ->
-        Enum.any?(content, fn
-          %{"type" => "text", "content" => text_content} ->
-            try do
-              case JSON.decode!(text_content) do
-                %{"screenshot_id" => _} -> true
-                _ -> false
-              end
-            rescue
-              _ -> false
-            end
-
-          _ -> false
-        end)
-
-      _ ->
-        false
+    with {:ok, data} <- JSON.decode(log.data) do
+      case data do
+        %{"name" => "screenshot"} -> true
+        %{"name" => name, "content" => content} when name in @action_tools -> has_screenshot_in_content?(content)
+        _ -> false
+      end
+    else
+      _ -> false
     end
   end
+
+  defp has_screenshot_in_content?(content) when is_list(content) do
+    Enum.any?(content, &has_screenshot_in_text_content?/1)
+  end
+
+  defp has_screenshot_in_content?(_), do: false
+
+  defp has_screenshot_in_text_content?(%{"type" => "text", "content" => text_content}) do
+    with {:ok, nested_data} <- JSON.decode(text_content) do
+      Map.has_key?(nested_data, "screenshot_id")
+    else
+      _ -> false
+    end
+  end
+
+  defp has_screenshot_in_text_content?(_), do: false
 
   defp get_screenshot_metadata(log) do
-    case JSON.decode!(log.data) do
-      # Handle action tool results with screenshot metadata
-      %{"name" => name, "content" => content} when is_list(content) and name in ["tap", "swipe", "long_press", "type_text", "key_press", "button", "touch", "gesture", "plan_report"] ->
-        content
-        |> Enum.find_value(fn
-          %{"type" => "text", "content" => text_content} ->
-            try do
-              case JSON.decode!(text_content) do
-                %{"screenshot_id" => screenshot_id, "qa_run_id" => qa_run_id, "account_handle" => account_handle, "project_handle" => project_handle} ->
-                  %{
-                    screenshot_id: screenshot_id,
-                    qa_run_id: qa_run_id,
-                    account_handle: account_handle,
-                    project_handle: project_handle
-                  }
-                _ -> nil
-              end
-            rescue
-              _ -> nil
-            end
-
-          _ -> nil
-        end)
-
-      _ ->
-        nil
+    with {:ok, data} <- JSON.decode(log.data),
+         %{"name" => name, "content" => content} when name in @action_tools <- data do
+      extract_screenshot_metadata(content)
+    else
+      _ -> nil
     end
   end
+
+  defp extract_screenshot_metadata(content) when is_list(content) do
+    Enum.find_value(content, &extract_from_text_content/1)
+  end
+
+  defp extract_screenshot_metadata(_), do: nil
+
+  defp extract_from_text_content(%{"type" => "text", "content" => text_content}) do
+    with {:ok, nested_data} <- JSON.decode(text_content),
+         %{"screenshot_id" => screenshot_id, "qa_run_id" => qa_run_id,
+           "account_handle" => account_handle, "project_handle" => project_handle} <- nested_data do
+      %{
+        screenshot_id: screenshot_id,
+        qa_run_id: qa_run_id,
+        account_handle: account_handle,
+        project_handle: project_handle
+      }
+    else
+      _ -> nil
+    end
+  end
+
+  defp extract_from_text_content(_), do: nil
 
   defp prepare_logs_with_metadata(logs) do
     Enum.map(logs, &prepare_log_with_metadata/1)
