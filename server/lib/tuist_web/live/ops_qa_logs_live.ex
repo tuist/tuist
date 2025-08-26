@@ -118,14 +118,14 @@ defmodule TuistWeb.OpsQALogsLive do
 
   defp prettify_json(data) when is_binary(data) do
     case JSON.decode(data) do
-      {:ok, %{"name" => "describe_ui", "content" => [%{"content" => nested_content, "type" => "text"}]} = decoded} ->
-        handle_describe_ui_content(decoded, nested_content)
+      {:ok, %{"name" => _name, "content" => content} = decoded} when is_list(content) ->
+        prettified_content = Enum.map(content, &prettify_content_part/1)
+        Jason.encode!(%{decoded | "content" => prettified_content}, pretty: true)
 
       {:ok, [%{"content" => nested_json, "type" => "text"}]} ->
         case JSON.decode(nested_json) do
           {:ok, parsed_data} ->
             Jason.encode!(parsed_data, pretty: true)
-
           {:error, _} ->
             nested_json
         end
@@ -138,15 +138,16 @@ defmodule TuistWeb.OpsQALogsLive do
     end
   end
 
-  defp handle_describe_ui_content(decoded, nested_content) do
-    case JSON.decode(nested_content) do
-      {:ok, ui_data} ->
-        Jason.encode!(%{decoded | "content" => ui_data}, pretty: true)
-
+  defp prettify_content_part(%{"type" => "text", "content" => content}) do
+    case JSON.decode(content) do
+      {:ok, parsed_json} ->
+        %{"type" => "text", "content" => parsed_json}
       {:error, _} ->
-        Jason.encode!(decoded, pretty: true)
+        %{"type" => "text", "content" => content}
     end
   end
+
+  defp prettify_content_part(part), do: part
 
   @action_tools ["tap", "swipe", "long_press", "type_text", "key_press", "button", "touch", "gesture", "plan_report"]
 

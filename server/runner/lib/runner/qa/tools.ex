@@ -790,11 +790,14 @@ defmodule Runner.QA.Tools do
            }),
          {:ok, _response} <-
            Req.put(upload_url, body: image_data, headers: [{"Content-Type", "image/png"}]) do
-      # Return screenshot metadata instead of base64 data
-      {:ok,
-       ContentPart.text!(
-         "{\"screenshot_id\":\"#{screenshot_id}\",\"qa_run_id\":\"#{run_id}\",\"account_handle\":\"#{account_handle}\",\"project_handle\":\"#{project_handle}\"}"
-       )}
+       metadata = %{
+         screenshot_id: screenshot_id,
+         qa_run_id: run_id,
+         account_handle: account_handle,
+         project_handle: project_handle
+       }
+       
+       {:ok, ContentPart.text!(Jason.encode!(metadata))}
     else
       {:error, reason} -> {:error, "Failed to capture screenshot: #{reason}"}
       {reason, _status} -> {:error, "Failed to capture screenshot: #{reason}"}
