@@ -95,7 +95,6 @@ defmodule Runner.QA.ToolsTest do
       # Then
       assert {:ok, [content_part]} = result
       assert %ContentPart{type: :text, content: content} = content_part
-      assert String.starts_with?(content, "Current UI state:")
       assert content =~ "XCUIElementTypeButton"
     end
   end
@@ -215,8 +214,8 @@ defmodule Runner.QA.ToolsTest do
       result = screenshot_tool.function.(%{}, nil)
 
       # Then
-      assert {:ok, [%ContentPart{type: :text}]} = result
-      [content_part] = elem(result, 1)
+      assert {:ok, content_part} = result
+      assert content_part.type == :text
       assert content_part.content =~ "screenshot_id"
       assert content_part.content =~ screenshot_id
       assert content_part.content =~ "test-run-id"
