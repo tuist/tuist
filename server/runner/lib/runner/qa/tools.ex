@@ -608,23 +608,29 @@ defmodule Runner.QA.Tools do
     })
   end
 
-  defp screenshot_tool(%{simulator_uuid: simulator_uuid}) do
+  defp screenshot_tool(%{
+         simulator_uuid: simulator_uuid,
+         server_url: server_url,
+         run_id: run_id,
+         auth_token: auth_token,
+         account_handle: account_handle,
+         project_handle: project_handle
+       }) do
     Function.new!(%{
       name: "screenshot",
       description:
         "Captures a screenshot of the current view. Use this tool only if you don't have an existing screenshot – you will typically use this only before interacting with the app with tools like tap.",
       parameters: [],
       function: fn _params, _context ->
-        with {:ok, temp_path} <- Briefly.create(),
-             {_, 0} <-
-               System.cmd("xcrun", ["simctl", "io", simulator_uuid, "screenshot", temp_path]),
-             {:ok, image_data} <- File.read(temp_path) do
-          base64_image = Base.encode64(image_data)
-          {:ok, [ContentPart.image!(base64_image, media: :png)]}
-        else
-          {:error, reason} -> {:error, "Failed to capture screenshot: #{reason}"}
-          {reason, _status} -> {:error, "Failed to capture screenshot: #{reason}"}
-        end
+        capture_and_upload_screenshot(%{
+          simulator_uuid: simulator_uuid,
+          server_url: server_url,
+          run_id: run_id,
+          auth_token: auth_token,
+          account_handle: account_handle,
+          project_handle: project_handle,
+          step_id: "screenshot_#{System.system_time(:millisecond)}"
+        })
       end
     })
   end
@@ -777,19 +783,17 @@ defmodule Runner.QA.Tools do
              account_handle: account_handle,
              project_handle: project_handle,
              screenshot_id: screenshot_id
-           }) do
-      Task.start(fn ->
-        case Req.put(upload_url, body: image_data, headers: [{"Content-Type", "image/png"}]) do
-          {:ok, _response} ->
-            Logger.debug("Successfully uploaded screenshot #{screenshot_id}")
+           }),
+         {:ok, _response} <-
+           Req.put(upload_url, body: image_data, headers: [{"Content-Type", "image/png"}]) do
+      metadata = %{
+        screenshot_id: screenshot_id,
+        qa_run_id: run_id,
+        account_handle: account_handle,
+        project_handle: project_handle
+      }
 
-          {:error, reason} ->
-            Logger.error("Failed to upload screenshot #{screenshot_id}: #{inspect(reason)}")
-        end
-      end)
-
-      base64_image = Base.encode64(image_data)
-      {:ok, ContentPart.image!(base64_image, media: :png)}
+      {:ok, ContentPart.text!(Jason.encode!(metadata))}
     else
       {:error, reason} -> {:error, "Failed to capture screenshot: #{reason}"}
       {reason, _status} -> {:error, "Failed to capture screenshot: #{reason}"}
@@ -889,9 +893,8 @@ defmodule Runner.QA.Tools do
   end
 
   defp ui_description_from_appium_session(appium_session) do
-    with {:ok, page_source_xml} <- AppiumClient.page_source(appium_session),
-         {:ok, appium_json} <- appium_page_source_xml_to_json(page_source_xml) do
-      {:ok, "Current UI state: #{appium_json}"}
+    with {:ok, page_source_xml} <- AppiumClient.page_source(appium_session) do
+      appium_page_source_xml_to_json(page_source_xml)
     end
   end
 

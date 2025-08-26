@@ -14,6 +14,7 @@ defmodule TuistWeb.OpsQALogsLive do
 
       qa_run ->
         logs = QA.logs_for_run(qa_run_id)
+        logs_with_metadata = prepare_logs_with_metadata(logs)
 
         if connected?(socket) do
           Tuist.PubSub.subscribe("qa_logs:#{qa_run_id}")
@@ -22,7 +23,7 @@ defmodule TuistWeb.OpsQALogsLive do
         {:ok,
          socket
          |> assign(:qa_run, qa_run)
-         |> assign(:logs, logs)
+         |> assign(:logs, logs_with_metadata)
          |> assign(:expanded_tools, MapSet.new())
          |> assign(:head_title, "#{gettext("QA Logs")} · #{qa_run.project_name} · Tuist")}
     end
@@ -45,7 +46,8 @@ defmodule TuistWeb.OpsQALogsLive do
   @impl true
   def handle_info({:qa_log_created, log}, socket) do
     current_logs = socket.assigns.logs
-    updated_logs = current_logs ++ [log]
+    processed_log = prepare_log_with_metadata(log)
+    updated_logs = current_logs ++ [processed_log]
 
     {:noreply, assign(socket, :logs, updated_logs)}
   end
@@ -60,8 +62,11 @@ defmodule TuistWeb.OpsQALogsLive do
   defp map_qa_status_to_badge_status("pending"), do: "warning"
   defp map_qa_status_to_badge_status(_), do: "disabled"
 
-  defp log_type_short(log_type) when is_atom(log_type) do
-    case log_type do
+  defp to_atom(type) when is_binary(type), do: String.to_existing_atom(type)
+  defp to_atom(type) when is_atom(type), do: type
+
+  defp log_type_short(log_type) do
+    case to_atom(log_type) do
       :usage -> "TOKENS"
       :tool_call -> "TOOL"
       :tool_call_result -> "RESULT"
@@ -69,7 +74,8 @@ defmodule TuistWeb.OpsQALogsLive do
     end
   end
 
-  defp log_type_short(log_type) when is_binary(log_type), do: log_type_short(String.to_existing_atom(log_type))
+  defp is_tool_log?(log), do: to_atom(log.type) in [:tool_call, :tool_call_result]
+  defp is_tool_result_log?(log), do: to_atom(log.type) == :tool_call_result
 
   defp format_log_message(log) do
     case JSON.decode!(log.data) do
@@ -111,52 +117,150 @@ defmodule TuistWeb.OpsQALogsLive do
   end
 
   defp prettify_json(data) when is_binary(data) do
-    case JSON.decode!(data) do
-      %{"name" => "describe_ui", "content" => [%{"content" => nested_json, "type" => "text"}]} =
-          decoded ->
-        ui_data = JSON.decode!(nested_json)
-        Jason.encode!(%{decoded | "content" => ui_data}, pretty: true)
+    case JSON.decode(data) do
+      {:ok, %{"name" => _name, "content" => content} = decoded} when is_list(content) ->
+        prettified_content = Enum.map(content, &prettify_content_part/1)
+        Jason.encode!(%{decoded | "content" => prettified_content}, pretty: true)
 
-      [%{"content" => nested_json, "type" => "text"}] ->
-        nested_json
-        |> JSON.decode!()
-        |> Jason.encode!(pretty: true)
+      {:ok, [%{"content" => nested_json, "type" => "text"}]} ->
+        case JSON.decode(nested_json) do
+          {:ok, parsed_data} ->
+            Jason.encode!(parsed_data, pretty: true)
 
-      decoded ->
+          {:error, _} ->
+            nested_json
+        end
+
+      {:ok, decoded} ->
         Jason.encode!(decoded, pretty: true)
+
+      {:error, _} ->
+        data
     end
   end
 
-  defp prettify_json(data), do: inspect(data)
+  defp prettify_content_part(%{"type" => "text", "content" => content}) do
+    case JSON.decode(content) do
+      {:ok, parsed_json} ->
+        %{"type" => "text", "content" => parsed_json}
+
+      {:error, _} ->
+        %{"type" => "text", "content" => content}
+    end
+  end
+
+  defp prettify_content_part(part), do: part
+
+  @action_tools ["tap", "swipe", "long_press", "type_text", "key_press", "button", "touch", "gesture", "plan_report"]
 
   defp has_screenshot?(log) do
-    case JSON.decode!(log.data) do
-      %{"name" => "screenshot", "content" => content} when is_list(content) ->
-        Enum.any?(content, fn
-          %{"type" => "image", "content" => _} -> true
+    case JSON.decode(log.data) do
+      {:ok, data} ->
+        case data do
+          %{"name" => "screenshot"} -> true
+          %{"name" => name, "content" => content} when name in @action_tools -> has_screenshot_in_content?(content)
           _ -> false
-        end)
+        end
 
       _ ->
         false
     end
   end
 
-  defp get_screenshot_data(log) do
-    case JSON.decode!(log.data) do
-      %{"name" => "screenshot", "content" => content} when is_list(content) ->
-        content
-        |> Enum.find(fn
-          %{"type" => "image", "content" => _} -> true
-          _ -> false
-        end)
-        |> case do
-          %{"content" => base64_data} -> base64_data
-          _ -> ""
+  defp has_screenshot_in_content?(content) when is_list(content) do
+    Enum.any?(content, &has_screenshot_in_text_content?/1)
+  end
+
+  defp has_screenshot_in_content?(_), do: false
+
+  defp has_screenshot_in_text_content?(%{"type" => "text", "content" => text_content}) do
+    case JSON.decode(text_content) do
+      {:ok, nested_data} -> Map.has_key?(nested_data, "screenshot_id")
+      _ -> false
+    end
+  end
+
+  defp has_screenshot_in_text_content?(_), do: false
+
+  defp get_screenshot_metadata(log) do
+    case JSON.decode(log.data) do
+      {:ok, data} ->
+        case data do
+          %{"name" => "screenshot", "content" => content} ->
+            extract_screenshot_metadata_from_standalone(content)
+
+          %{"name" => name, "content" => content} when name in @action_tools ->
+            extract_screenshot_metadata(content)
+
+          _ ->
+            nil
         end
 
       _ ->
-        ""
+        nil
     end
+  end
+
+  defp extract_screenshot_metadata_from_standalone(content) when is_list(content) do
+    Enum.find_value(content, fn
+      %{"type" => "text", "content" => text_content} ->
+        with {:ok, nested_data} <- JSON.decode(text_content),
+             %{
+               "screenshot_id" => screenshot_id,
+               "qa_run_id" => qa_run_id,
+               "account_handle" => account_handle,
+               "project_handle" => project_handle
+             } <- nested_data do
+          %{
+            screenshot_id: screenshot_id,
+            qa_run_id: qa_run_id,
+            account_handle: account_handle,
+            project_handle: project_handle
+          }
+        else
+          _ -> nil
+        end
+
+      _ ->
+        nil
+    end)
+  end
+
+  defp extract_screenshot_metadata_from_standalone(_), do: nil
+
+  defp extract_screenshot_metadata(content) when is_list(content) do
+    Enum.find_value(content, &extract_from_text_content/1)
+  end
+
+  defp extract_screenshot_metadata(_), do: nil
+
+  defp extract_from_text_content(%{"type" => "text", "content" => text_content}) do
+    with {:ok, nested_data} <- JSON.decode(text_content),
+         %{
+           "screenshot_id" => screenshot_id,
+           "qa_run_id" => qa_run_id,
+           "account_handle" => account_handle,
+           "project_handle" => project_handle
+         } <- nested_data do
+      %{
+        screenshot_id: screenshot_id,
+        qa_run_id: qa_run_id,
+        account_handle: account_handle,
+        project_handle: project_handle
+      }
+    else
+      _ -> nil
+    end
+  end
+
+  defp extract_from_text_content(_), do: nil
+
+  defp prepare_logs_with_metadata(logs) do
+    Enum.map(logs, &prepare_log_with_metadata/1)
+  end
+
+  defp prepare_log_with_metadata(log) do
+    screenshot_metadata = if has_screenshot?(log), do: get_screenshot_metadata(log)
+    Map.put(log, :screenshot_metadata, screenshot_metadata)
   end
 end
