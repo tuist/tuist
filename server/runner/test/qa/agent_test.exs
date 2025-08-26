@@ -19,7 +19,7 @@ defmodule Runner.QA.AgentTest do
       name: "iPhone 16",
       udid: "42172B88-9A53-46C8-B560-75609012CF0D",
       state: "Booted",
-      runtime_identifier: "com.apple.CoreSimulator.SimRuntime.iOS-18-6"
+      runtime_identifier: "com.apple.CoreSimulator.SimRuntime.iOS-18-5"
     }
 
     preview_path = "/tmp/preview.zip"
