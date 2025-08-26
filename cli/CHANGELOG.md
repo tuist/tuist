@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.65.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* revert caching only the default architecture by [@pepicrft](https://github.com/pepicrft) in [#8048](https://github.com/tuist/tuist/pull/8048)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.65.0...4.65.1
+
 ## What's Changed in 4.65.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
