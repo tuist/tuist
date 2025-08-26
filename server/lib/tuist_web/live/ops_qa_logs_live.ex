@@ -62,8 +62,11 @@ defmodule TuistWeb.OpsQALogsLive do
   defp map_qa_status_to_badge_status("pending"), do: "warning"
   defp map_qa_status_to_badge_status(_), do: "disabled"
 
-  defp log_type_short(log_type) when is_atom(log_type) do
-    case log_type do
+  defp to_atom(type) when is_binary(type), do: String.to_existing_atom(type)
+  defp to_atom(type) when is_atom(type), do: type
+
+  defp log_type_short(log_type) do
+    case to_atom(log_type) do
       :usage -> "TOKENS"
       :tool_call -> "TOOL"
       :tool_call_result -> "RESULT"
@@ -71,7 +74,8 @@ defmodule TuistWeb.OpsQALogsLive do
     end
   end
 
-  defp log_type_short(log_type) when is_binary(log_type), do: log_type_short(String.to_existing_atom(log_type))
+  defp is_tool_log?(log), do: to_atom(log.type) in [:tool_call, :tool_call_result]
+  defp is_tool_result_log?(log), do: to_atom(log.type) == :tool_call_result
 
   defp format_log_message(log) do
     case JSON.decode!(log.data) do
@@ -113,35 +117,50 @@ defmodule TuistWeb.OpsQALogsLive do
   end
 
   defp prettify_json(data) when is_binary(data) do
-    case JSON.decode!(data) do
-      %{"name" => "describe_ui", "content" => [%{"content" => nested_json, "type" => "text"}]} =
-          decoded ->
-        ui_data = JSON.decode!(nested_json)
+    case JSON.decode(data) do
+      {:ok, %{"name" => "describe_ui", "content" => [%{"content" => nested_content, "type" => "text"}]} = decoded} ->
+        handle_describe_ui_content(decoded, nested_content)
+
+      {:ok, [%{"content" => nested_json, "type" => "text"}]} ->
+        case JSON.decode(nested_json) do
+          {:ok, parsed_data} ->
+            Jason.encode!(parsed_data, pretty: true)
+
+          {:error, _} ->
+            nested_json
+        end
+
+      {:ok, decoded} ->
+        Jason.encode!(decoded, pretty: true)
+
+      {:error, _} ->
+        data
+    end
+  end
+
+  defp handle_describe_ui_content(decoded, nested_content) do
+    case JSON.decode(nested_content) do
+      {:ok, ui_data} ->
         Jason.encode!(%{decoded | "content" => ui_data}, pretty: true)
 
-      [%{"content" => nested_json, "type" => "text"}] ->
-        nested_json
-        |> JSON.decode!()
-        |> Jason.encode!(pretty: true)
-
-      decoded ->
+      {:error, _} ->
         Jason.encode!(decoded, pretty: true)
     end
   end
 
-  defp prettify_json(data), do: inspect(data)
-
   @action_tools ["tap", "swipe", "long_press", "type_text", "key_press", "button", "touch", "gesture", "plan_report"]
 
   defp has_screenshot?(log) do
-    with {:ok, data} <- JSON.decode(log.data) do
-      case data do
-        %{"name" => "screenshot"} -> true
-        %{"name" => name, "content" => content} when name in @action_tools -> has_screenshot_in_content?(content)
-        _ -> false
-      end
-    else
-      _ -> false
+    case JSON.decode(log.data) do
+      {:ok, data} ->
+        case data do
+          %{"name" => "screenshot"} -> true
+          %{"name" => name, "content" => content} when name in @action_tools -> has_screenshot_in_content?(content)
+          _ -> false
+        end
+
+      _ ->
+        false
     end
   end
 
@@ -152,9 +171,8 @@ defmodule TuistWeb.OpsQALogsLive do
   defp has_screenshot_in_content?(_), do: false
 
   defp has_screenshot_in_text_content?(%{"type" => "text", "content" => text_content}) do
-    with {:ok, nested_data} <- JSON.decode(text_content) do
-      Map.has_key?(nested_data, "screenshot_id")
-    else
+    case JSON.decode(text_content) do
+      {:ok, nested_data} -> Map.has_key?(nested_data, "screenshot_id")
       _ -> false
     end
   end
@@ -162,13 +180,51 @@ defmodule TuistWeb.OpsQALogsLive do
   defp has_screenshot_in_text_content?(_), do: false
 
   defp get_screenshot_metadata(log) do
-    with {:ok, data} <- JSON.decode(log.data),
-         %{"name" => name, "content" => content} when name in @action_tools <- data do
-      extract_screenshot_metadata(content)
-    else
-      _ -> nil
+    case JSON.decode(log.data) do
+      {:ok, data} ->
+        case data do
+          %{"name" => "screenshot", "content" => content} ->
+            extract_screenshot_metadata_from_standalone(content)
+
+          %{"name" => name, "content" => content} when name in @action_tools ->
+            extract_screenshot_metadata(content)
+
+          _ ->
+            nil
+        end
+
+      _ ->
+        nil
     end
   end
+
+  defp extract_screenshot_metadata_from_standalone(content) when is_list(content) do
+    # For standalone screenshot tool - look for ContentPart with text containing metadata JSON
+    Enum.find_value(content, fn
+      %{"type" => "text", "content" => text_content} ->
+        with {:ok, nested_data} <- JSON.decode(text_content),
+             %{
+               "screenshot_id" => screenshot_id,
+               "qa_run_id" => qa_run_id,
+               "account_handle" => account_handle,
+               "project_handle" => project_handle
+             } <- nested_data do
+          %{
+            screenshot_id: screenshot_id,
+            qa_run_id: qa_run_id,
+            account_handle: account_handle,
+            project_handle: project_handle
+          }
+        else
+          _ -> nil
+        end
+
+      _ ->
+        nil
+    end)
+  end
+
+  defp extract_screenshot_metadata_from_standalone(_), do: nil
 
   defp extract_screenshot_metadata(content) when is_list(content) do
     Enum.find_value(content, &extract_from_text_content/1)
@@ -178,8 +234,12 @@ defmodule TuistWeb.OpsQALogsLive do
 
   defp extract_from_text_content(%{"type" => "text", "content" => text_content}) do
     with {:ok, nested_data} <- JSON.decode(text_content),
-         %{"screenshot_id" => screenshot_id, "qa_run_id" => qa_run_id,
-           "account_handle" => account_handle, "project_handle" => project_handle} <- nested_data do
+         %{
+           "screenshot_id" => screenshot_id,
+           "qa_run_id" => qa_run_id,
+           "account_handle" => account_handle,
+           "project_handle" => project_handle
+         } <- nested_data do
       %{
         screenshot_id: screenshot_id,
         qa_run_id: qa_run_id,
@@ -198,7 +258,7 @@ defmodule TuistWeb.OpsQALogsLive do
   end
 
   defp prepare_log_with_metadata(log) do
-    screenshot_metadata = if has_screenshot?(log), do: get_screenshot_metadata(log), else: nil
+    screenshot_metadata = if has_screenshot?(log), do: get_screenshot_metadata(log)
     Map.put(log, :screenshot_metadata, screenshot_metadata)
   end
 end

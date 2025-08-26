@@ -34,7 +34,7 @@
               <span data-part="log-type" data-type={log.type}>
                 {log_type_short(log.type)}
               </span>
-              <%= if log.type == :tool_call or log.type == :tool_call_result do %>
+              <%= if is_tool_log?(log) do %>
                 <div data-part="tool-call-content">
                   <div data-part="tool-call-header">
                     <button
@@ -51,17 +51,21 @@
                   </div>
                   <%= if expanded?(log, @expanded_tools) do %>
                     <div data-part="tool-call-details">
-                      <%= if log.type == :tool_call_result and log.screenshot_metadata do %>
+                      <%= if is_tool_result_log?(log) and log.screenshot_metadata do %>
                         <div data-part="screenshot-content">
                           <%= case log.screenshot_metadata do %>
                             <% %{screenshot_id: screenshot_id, qa_run_id: qa_run_id, account_handle: account_handle, project_handle: project_handle} -> %>
                               <img
-                                src={~p"/#{account_handle}/#{project_handle}/qa/runs/#{qa_run_id}/screenshots/#{screenshot_id}"}
+                                src={
+                                  ~p"/#{account_handle}/#{project_handle}/qa/runs/#{qa_run_id}/screenshots/#{screenshot_id}"
+                                }
                                 alt="Screenshot"
                                 style="max-width: 100%; max-height: 400px; height: auto; border-radius: 6px; margin-bottom: 12px;"
                               />
                             <% nil -> %>
-                              <p style="color: #666; font-style: italic;">Screenshot captured (metadata unavailable)</p>
+                              <p style="color: #666; font-style: italic;">
+                                Screenshot captured (metadata unavailable)
+                              </p>
                           <% end %>
                         </div>
                       <% else %>

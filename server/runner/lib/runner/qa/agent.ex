@@ -377,7 +377,7 @@ defmodule Runner.QA.Agent do
         device =
           Enum.find(devices, fn device ->
             device.name == "iPhone 16" and
-              device.runtime_identifier == "com.apple.CoreSimulator.SimRuntime.iOS-18-5"
+              device.runtime_identifier == "com.apple.CoreSimulator.SimRuntime.iOS-18-6"
           end)
 
         case device do
