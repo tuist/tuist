@@ -16,7 +16,7 @@ defmodule TuistWeb.QALive do
       socket
       |> assign(:head_title, "#{gettext("Tuist QA")} · #{slug} · Tuist")
       |> assign(:qa_runs, [])
-      |> assign(:available_apps, [{"any", gettext("Any")} | QA.available_apps_for_project(project.id)])
+      |> assign(:available_apps, QA.available_apps_for_project(project.id))
       |> load_qa_runs()
 
     {:ok, socket}
@@ -35,10 +35,8 @@ defmodule TuistWeb.QALive do
   defp load_qa_runs(socket) do
     project = socket.assigns.selected_project
     qa_runs = QA.qa_runs_for_project(project, preload: [
-      app_build: [
-        preview: []
-      ],
-      run_steps: []
+      :run_steps,
+      app_build: :preview
     ])
 
     assign(socket, :qa_runs, qa_runs)
