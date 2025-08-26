@@ -63,8 +63,7 @@ public final class ListBundlesService: ListBundlesServicing {
                 ),
                 query: .init(
                     page: page,
-                    git_branch: gitBranch,
-                    page_size: pageSize
+                    page_size: pageSize, git_branch: gitBranch
                 )
             )
         )

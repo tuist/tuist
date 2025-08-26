@@ -470,7 +470,7 @@ let targets: [Target] = [
             "ArgumentParser": .staticFramework,
             "Mockable": .staticFramework,
         ],
-        baseSettings: .settings(base: ["GENERATE_MASTER_OBJECT_FILE": "YES", "ARCHS": "arm64"])
+        baseSettings: .settings(base: ["GENERATE_MASTER_OBJECT_FILE": "YES"])
     )
 
 #endif

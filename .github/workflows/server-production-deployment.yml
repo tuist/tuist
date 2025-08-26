@@ -55,7 +55,7 @@ jobs:
             deps
             _build
             _site
-          key: mix-${{ hashFiles('mix.lock') }}
+          key: mix-${{ hashFiles('server/mix.lock') }}
       - name: Restore PNPM Cache
         uses: actions/cache@v3
         id: pnpm-cache
@@ -64,10 +64,11 @@ jobs:
             ~/.pnpm/store
           key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
       - uses: jdx/mise-action@v2
+      - run: mise run install
       - name: "Get version"
         id: version
         run: |
-          version=$(../mise/tasks/server/generate-version.sh)
+          version=$(./mise/tasks/generate-version.sh)
           echo "::set-output name=version::$version"
       - uses: superfly/flyctl-actions/setup-flyctl@master
       - name: Fly
@@ -129,7 +130,7 @@ jobs:
             deps
             _build
             _site
-          key: mix-${{ hashFiles('mix.lock') }}
+          key: mix-${{ hashFiles('server/mix.lock') }}
       - name: Restore PNPM Cache
         uses: actions/cache@v3
         id: pnpm-cache
@@ -138,10 +139,11 @@ jobs:
             ~/.pnpm/store
           key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
       - uses: jdx/mise-action@v2
+      - run: mise run install
       - name: "Get version"
         id: version
         run: |
-          version=$(../mise/tasks/server/generate-version.sh)
+          version=$(./mise/tasks/generate-version.sh)
           echo "::set-output name=version::$version"
       - uses: superfly/flyctl-actions/setup-flyctl@master
       - name: Fly
@@ -181,7 +183,7 @@ jobs:
             deps
             _build
             _site
-          key: mix-${{ hashFiles('mix.lock') }}
+          key: mix-${{ hashFiles('server/mix.lock') }}
       - name: Restore PNPM Cache
         uses: actions/cache@v3
         id: pnpm-cache
@@ -190,14 +192,15 @@ jobs:
             ~/.pnpm/store
           key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
       - uses: jdx/mise-action@v2
+      - run: mise run install
       - name: "Get version"
         id: version
         run: |
-          version=$(../mise/tasks/server/generate-version.sh)
+          version=$(./mise/tasks/generate-version.sh)
           echo "::set-output name=version::$version"
       - uses: superfly/flyctl-actions/setup-flyctl@master
       - name: Fly
-        run: flyctl deploy -c fly.prod.toml --build-arg TUIST_HOSTED=1 --build-arg MIX_ENV=prod --build-arg TUIST_VERSION=${{ steps.version.outputs.version }} --build-arg APP_REVISION=$GITHUB_SHA --wait-timeout 3600
+        run: flyctl deploy --local-only -c fly.prod.toml --build-arg TUIST_HOSTED=1 --build-arg MIX_ENV=prod --build-arg TUIST_VERSION=${{ steps.version.outputs.version }} --build-arg APP_REVISION=$GITHUB_SHA --wait-timeout 3600
       - name: Notify about the deployment in Slack
         uses: slackapi/slack-github-action@v2.0.0
         with:

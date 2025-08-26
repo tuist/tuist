@@ -1,28 +1,13 @@
 [tools]
-    tuist = "4.65.0"
+    tuist = "4.65.1"
     swiftlint = "0.59.1"
     swiftformat = "0.57.2"
-    pnpm = "10.14"
-    node = "24"
     git-cliff = "2.6.0"
     sops = "3.9.3"
     age = "1.2.1"
-    "ubi:aquasecurity/trivy" = "0.63.0"
-    "clickhouse" = "25.5.1"
-    "npm:prettier" = "3.4.2"
-    "elixir" = "1.18.3"
-    "flyctl" = "0.3.149"
-    "erlang" = "27.3.2"
-    "asdf:aeons/asdf-minio" = "latest"
-    "npm:appium" = "3.0.1"
-
-[hooks]
-    postinstall = "mise run install"
 
 [env]
     _.file = { path = ".env.json", redact = true }
-    TUIST_HOSTED = 1
-    ERL_AFLAGS = "-kernel shell_history enabled -kernel shell_history_file_bytes 1024000"
 
 [settings]
     jobs = 6
