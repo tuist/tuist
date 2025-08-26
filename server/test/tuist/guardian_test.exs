@@ -22,14 +22,14 @@ defmodule Tuist.GuardianTest do
       claims = %{
         "sub" => to_string(account.id),
         "type" => "account",
-        "scopes" => ["project_qa_run_update", "project_qa_step_create"]
+        "scopes" => ["qa_run_update", "qa_step_create"]
       }
 
       assert {:ok, %AuthenticatedAccount{account: %Account{id: account_id}, scopes: scopes}} =
                Guardian.resource_from_claims(claims)
 
       assert account_id == account.id
-      assert scopes == [:project_qa_run_update, :project_qa_step_create]
+      assert scopes == [:qa_run_update, :qa_step_create]
     end
 
     test "returns error when account not found" do
@@ -38,7 +38,7 @@ defmodule Tuist.GuardianTest do
       claims = %{
         "sub" => to_string(non_existent_id),
         "type" => "account",
-        "scopes" => ["project_qa_run_update"]
+        "scopes" => ["qa_run_update"]
       }
 
       assert {:error, :resource_not_found} = Guardian.resource_from_claims(claims)

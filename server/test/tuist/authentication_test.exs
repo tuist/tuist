@@ -64,11 +64,11 @@ defmodule Tuist.AuthenticationTest do
     account = AccountsFixtures.organization_fixture(preload: [:account]).account
 
     {:ok, {_, token_value}} =
-      Accounts.create_account_token(%{account: account, scopes: [:account_registry_read]})
+      Accounts.create_account_token(%{account: account, scopes: [:registry_read]})
 
     # When/Then
     assert Authentication.authenticated_subject(token_value) == %AuthenticatedAccount{
-             scopes: [:account_registry_read],
+             scopes: [:registry_read],
              account: account
            }
   end
@@ -82,7 +82,7 @@ defmodule Tuist.AuthenticationTest do
         account,
         %{
           "type" => "account",
-          "scopes" => ["project_qa_run_update", "project_qa_step_create", "project_qa_screenshot_create"]
+          "scopes" => ["qa_run_update", "qa_step_create", "qa_screenshot_create"]
         },
         token_type: :access,
         ttl: {1, :hour}
@@ -91,7 +91,7 @@ defmodule Tuist.AuthenticationTest do
     # When
     %AuthenticatedAccount{
       account: %Account{id: account_id},
-      scopes: [:project_qa_run_update, :project_qa_step_create, :project_qa_screenshot_create]
+      scopes: [:qa_run_update, :qa_step_create, :qa_screenshot_create]
     } = Authentication.authenticated_subject(jwt_token)
 
     # Then

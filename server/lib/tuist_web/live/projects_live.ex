@@ -18,7 +18,7 @@ defmodule TuistWeb.ProjectsLive do
     selected_account = socket.assigns[:selected_account]
     current_user = socket.assigns[:current_user]
 
-    if not Authorization.can(current_user, :read, selected_account, :projects) do
+    if Authorization.authorize(:projects_read, current_user, selected_account) != :ok do
       raise TuistWeb.Errors.NotFoundError,
             gettext("The page you are looking for doesn't exist or has been moved.")
     end
@@ -353,7 +353,7 @@ defmodule TuistWeb.ProjectsLive do
   def handle_event("create-project", %{"project" => %{"name" => name}}, socket) do
     account = socket.assigns.selected_account
 
-    with true <- Authorization.can(socket.assigns.current_user, :create, account, :project),
+    with :ok <- Authorization.authorize(:project_create, socket.assigns.current_user, account),
          {:ok, _project} <- Projects.create_project(%{name: name, account: account}) do
       socket =
         socket
