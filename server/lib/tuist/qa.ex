@@ -299,9 +299,41 @@ defmodule Tuist.QA do
 
   @doc """
   Gets QA runs for a specific project.
-  Returns paginated list of QA runs with associated app build and preview data.
+  Returns paginated list of QA run structs with preloaded associations.
+
+  ## Options
+  - `:limit` - Maximum number of runs to return (default: 50)
+  - `:offset` - Number of runs to skip (default: 0)
+  - `:preload` - Associations to preload (default: [])
   """
   def qa_runs_for_project(project, opts \\ []) do
+    limit = Keyword.get(opts, :limit, 50)
+    offset = Keyword.get(opts, :offset, 0)
+    preload = Keyword.get(opts, :preload, [])
+
+    query =
+      from(qa in Run,
+        join: ab in assoc(qa, :app_build),
+        join: pr in assoc(ab, :preview),
+        where: pr.project_id == ^project.id,
+        order_by: [desc: qa.inserted_at],
+        limit: ^limit,
+        offset: ^offset,
+        preload: ^preload
+      )
+
+    Repo.all(query)
+  end
+
+  @doc """
+  Gets QA runs for a specific project with token usage data.
+  Returns paginated list of flattened maps containing run data and token usage totals.
+
+  ## Options
+  - `:limit` - Maximum number of runs to return (default: 50)
+  - `:offset` - Number of runs to skip (default: 0)
+  """
+  def qa_runs_with_token_usage_for_project(project, opts \\ []) do
     limit = Keyword.get(opts, :limit, 50)
     offset = Keyword.get(opts, :offset, 0)
 

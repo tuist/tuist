@@ -1089,4 +1089,218 @@ defmodule Tuist.QATest do
       assert :ok == result
     end
   end
+
+  describe "qa_runs_for_project/2" do
+    test "returns QA runs with preloaded associations" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      preview = AppBuildsFixtures.preview_fixture(project: project)
+      app_build = AppBuildsFixtures.app_build_fixture(preview: preview)
+      qa_run = QAFixtures.qa_run_fixture(app_build: app_build, prompt: "Test login")
+      _qa_step = QAFixtures.qa_step_fixture(qa_run: qa_run, action: "Login attempt")
+
+      # When
+      results = QA.qa_runs_for_project(project, preload: [app_build: [preview: []], run_steps: []])
+
+      # Then
+      assert length(results) == 1
+      result = List.first(results)
+      assert result.id == qa_run.id
+
+      # Verify preloads are loaded
+      refute match?(%Ecto.Association.NotLoaded{}, result.app_build)
+      refute match?(%Ecto.Association.NotLoaded{}, result.app_build.preview)
+      refute match?(%Ecto.Association.NotLoaded{}, result.run_steps)
+    end
+
+    test "returns QA runs for specific project only" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      other_project = ProjectsFixtures.project_fixture()
+
+      preview = AppBuildsFixtures.preview_fixture(project: project)
+      other_preview = AppBuildsFixtures.preview_fixture(project: other_project)
+      
+      app_build = AppBuildsFixtures.app_build_fixture(preview: preview)
+      other_app_build = AppBuildsFixtures.app_build_fixture(preview: other_preview)
+
+      qa_run = QAFixtures.qa_run_fixture(app_build: app_build, prompt: "Test login")
+      _qa_run_other = QAFixtures.qa_run_fixture(app_build: other_app_build, prompt: "Other project")
+
+      # When
+      results = QA.qa_runs_for_project(project)
+
+      # Then
+      assert length(results) == 1
+      assert List.first(results).id == qa_run.id
+    end
+
+    test "returns empty list when project has no QA runs" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # When
+      results = QA.qa_runs_for_project(project)
+
+      # Then
+      assert results == []
+    end
+
+    test "respects limit and offset options" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      preview = AppBuildsFixtures.preview_fixture(project: project)
+      app_build = AppBuildsFixtures.app_build_fixture(preview: preview)
+
+      _qa_run1 = QAFixtures.qa_run_fixture(app_build: app_build, prompt: "Test 1")
+      qa_run2 = QAFixtures.qa_run_fixture(app_build: app_build, prompt: "Test 2")
+      _qa_run3 = QAFixtures.qa_run_fixture(app_build: app_build, prompt: "Test 3")
+
+      # When
+      results = QA.qa_runs_for_project(project, limit: 1, offset: 1)
+
+      # Then
+      assert length(results) == 1
+      assert List.first(results).id == qa_run2.id
+    end
+
+    test "orders QA runs by most recent first" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      preview = AppBuildsFixtures.preview_fixture(project: project)
+      app_build = AppBuildsFixtures.app_build_fixture(preview: preview)
+
+      older_time = DateTime.utc_now() |> DateTime.add(-1, :hour) |> DateTime.truncate(:second)
+      newer_time = DateTime.utc_now() |> DateTime.truncate(:second)
+
+      {:ok, qa_run1} = QAFixtures.qa_run_fixture(app_build: app_build, prompt: "Test 1") 
+                       |> Ecto.Changeset.change(inserted_at: older_time) 
+                       |> Tuist.Repo.update()
+      
+      {:ok, qa_run2} = QAFixtures.qa_run_fixture(app_build: app_build, prompt: "Test 2")
+                       |> Ecto.Changeset.change(inserted_at: newer_time)
+                       |> Tuist.Repo.update()
+
+      # When
+      results = QA.qa_runs_for_project(project)
+
+      # Then
+      assert length(results) == 2
+      # Most recent should be first (qa_run2 was created after qa_run1)
+      assert List.first(results).id == qa_run2.id
+      assert List.last(results).id == qa_run1.id
+    end
+  end
+
+  describe "qa_runs_with_token_usage_for_project/2" do
+    test "returns QA runs with token usage data" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      preview = AppBuildsFixtures.preview_fixture(project: project)
+      app_build = AppBuildsFixtures.app_build_fixture(preview: preview)
+      qa_run = QAFixtures.qa_run_fixture(app_build: app_build, prompt: "Test login")
+
+      # When
+      results = QA.qa_runs_with_token_usage_for_project(project)
+
+      # Then
+      assert length(results) == 1
+      result = List.first(results)
+      assert result.id == qa_run.id
+      assert result.prompt == "Test login"
+      assert result.input_tokens == 0  # No token usage created
+      assert result.output_tokens == 0
+    end
+
+    test "returns QA runs for specific project only" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      other_project = ProjectsFixtures.project_fixture()
+
+      preview = AppBuildsFixtures.preview_fixture(project: project)
+      other_preview = AppBuildsFixtures.preview_fixture(project: other_project)
+      
+      app_build = AppBuildsFixtures.app_build_fixture(preview: preview)
+      other_app_build = AppBuildsFixtures.app_build_fixture(preview: other_preview)
+
+      qa_run = QAFixtures.qa_run_fixture(app_build: app_build, prompt: "Test login")
+      _qa_run_other = QAFixtures.qa_run_fixture(app_build: other_app_build, prompt: "Other project")
+
+      # When
+      results = QA.qa_runs_with_token_usage_for_project(project)
+
+      # Then
+      assert length(results) == 1
+      assert List.first(results).id == qa_run.id
+    end
+
+    test "returns empty list when project has no QA runs" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # When
+      results = QA.qa_runs_with_token_usage_for_project(project)
+
+      # Then
+      assert results == []
+    end
+
+    test "respects limit and offset options" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      preview = AppBuildsFixtures.preview_fixture(project: project)
+      app_build = AppBuildsFixtures.app_build_fixture(preview: preview)
+
+      oldest_time = DateTime.utc_now() |> DateTime.add(-2, :hour) |> DateTime.truncate(:second)
+      middle_time = DateTime.utc_now() |> DateTime.add(-1, :hour) |> DateTime.truncate(:second)
+      newest_time = DateTime.utc_now() |> DateTime.truncate(:second)
+
+      {:ok, _qa_run1} = QAFixtures.qa_run_fixture(app_build: app_build, prompt: "Test 1")
+                        |> Ecto.Changeset.change(inserted_at: oldest_time)
+                        |> Tuist.Repo.update()
+      
+      {:ok, qa_run2} = QAFixtures.qa_run_fixture(app_build: app_build, prompt: "Test 2")
+                       |> Ecto.Changeset.change(inserted_at: middle_time)
+                       |> Tuist.Repo.update()
+      
+      {:ok, _qa_run3} = QAFixtures.qa_run_fixture(app_build: app_build, prompt: "Test 3")
+                        |> Ecto.Changeset.change(inserted_at: newest_time)
+                        |> Tuist.Repo.update()
+
+      # When
+      results = QA.qa_runs_with_token_usage_for_project(project, limit: 1, offset: 1)
+
+      # Then
+      assert length(results) == 1
+      assert List.first(results).id == qa_run2.id
+    end
+
+    test "orders QA runs by most recent first" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      preview = AppBuildsFixtures.preview_fixture(project: project)
+      app_build = AppBuildsFixtures.app_build_fixture(preview: preview)
+
+      older_time = DateTime.utc_now() |> DateTime.add(-1, :hour) |> DateTime.truncate(:second)
+      newer_time = DateTime.utc_now() |> DateTime.truncate(:second)
+
+      {:ok, qa_run1} = QAFixtures.qa_run_fixture(app_build: app_build, prompt: "Test 1")
+                       |> Ecto.Changeset.change(inserted_at: older_time)
+                       |> Tuist.Repo.update()
+      
+      {:ok, qa_run2} = QAFixtures.qa_run_fixture(app_build: app_build, prompt: "Test 2")
+                       |> Ecto.Changeset.change(inserted_at: newer_time)
+                       |> Tuist.Repo.update()
+
+      # When
+      results = QA.qa_runs_with_token_usage_for_project(project)
+
+      # Then
+      assert length(results) == 2
+      # Most recent should be first (qa_run2 was created after qa_run1)
+      assert List.first(results).id == qa_run2.id
+      assert List.last(results).id == qa_run1.id
+    end
+  end
+
 end

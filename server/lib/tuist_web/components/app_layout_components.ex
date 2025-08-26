@@ -74,8 +74,9 @@ defmodule TuistWeb.AppLayoutComponents do
         }
       />
       <.sidebar_item
+        :if={FunWithFlags.enabled?(:qa, for: @selected_account)}
         label={gettext("Tuist QA")}
-        icon="smart_toy"
+        icon="device_watch"
         navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/qa"}
         selected={
           String.starts_with?(
