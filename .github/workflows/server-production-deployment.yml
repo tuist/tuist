@@ -200,7 +200,7 @@ jobs:
           echo "::set-output name=version::$version"
       - uses: superfly/flyctl-actions/setup-flyctl@master
       - name: Fly
-        run: flyctl deploy -c fly.prod.toml --build-arg TUIST_HOSTED=1 --build-arg MIX_ENV=prod --build-arg TUIST_VERSION=${{ steps.version.outputs.version }} --build-arg APP_REVISION=$GITHUB_SHA --wait-timeout 3600
+        run: flyctl deploy --local-only -c fly.prod.toml --build-arg TUIST_HOSTED=1 --build-arg MIX_ENV=prod --build-arg TUIST_VERSION=${{ steps.version.outputs.version }} --build-arg APP_REVISION=$GITHUB_SHA --wait-timeout 3600
       - name: Notify about the deployment in Slack
         uses: slackapi/slack-github-action@v2.0.0
         with:
