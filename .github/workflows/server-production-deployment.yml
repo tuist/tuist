@@ -55,7 +55,7 @@ jobs:
             deps
             _build
             _site
-          key: mix-${{ hashFiles('mix.lock') }}
+          key: mix-${{ hashFiles('server/mix.lock') }}
       - name: Restore PNPM Cache
         uses: actions/cache@v3
         id: pnpm-cache
@@ -64,6 +64,7 @@ jobs:
             ~/.pnpm/store
           key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
       - uses: jdx/mise-action@v2
+      - run: mise run install
       - name: "Get version"
         id: version
         run: |
@@ -129,7 +130,7 @@ jobs:
             deps
             _build
             _site
-          key: mix-${{ hashFiles('mix.lock') }}
+          key: mix-${{ hashFiles('server/mix.lock') }}
       - name: Restore PNPM Cache
         uses: actions/cache@v3
         id: pnpm-cache
@@ -138,6 +139,7 @@ jobs:
             ~/.pnpm/store
           key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
       - uses: jdx/mise-action@v2
+      - run: mise run install
       - name: "Get version"
         id: version
         run: |
@@ -181,7 +183,7 @@ jobs:
             deps
             _build
             _site
-          key: mix-${{ hashFiles('mix.lock') }}
+          key: mix-${{ hashFiles('server/mix.lock') }}
       - name: Restore PNPM Cache
         uses: actions/cache@v3
         id: pnpm-cache
@@ -190,6 +192,7 @@ jobs:
             ~/.pnpm/store
           key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
       - uses: jdx/mise-action@v2
+      - run: mise run install
       - name: "Get version"
         id: version
         run: |

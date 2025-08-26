@@ -3,5 +3,5 @@
 
 set -euo pipefail
 
-(cd server && mix run priv/repo/timezone.exs)
-(cd server && mix run priv/repo/seeds.exs)
+mix run priv/repo/timezone.exs
+mix run priv/repo/seeds.exs
