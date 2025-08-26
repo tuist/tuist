@@ -116,37 +116,9 @@ if Enum.member?([:prod, :stag, :can], env) do
       database_options
     end
 
-  port = "8080"
-  app_url = Tuist.Environment.app_url([route_type: :app], secrets)
-  %{host: app_url_host, port: app_url_port, scheme: app_url_scheme} = URI.parse(app_url)
-
-  # We migrated from {...}.tuist.io to {...}.tuist.dev, so we need to make sure we include
-  # the old origins for a while to avoid breaking the app for users that have the old origins
-  checkable_origins =
-    [app_url] ++
-      case {Tuist.Environment.tuist_hosted?(), Tuist.Environment.env()} do
-        {true, :stag} -> ["https://staging.tuist.io"]
-        {true, :prod} -> ["https://cloud.tuist.io"]
-        {true, :can} -> ["https://canary.tuist.io"]
-        _ -> []
-      end
-
   config :logger, level: Tuist.Environment.log_level()
 
   config :tuist, Tuist.Repo, database_options
-
-  config :tuist, TuistWeb.Endpoint,
-    url: [host: app_url_host, port: app_url_port, scheme: app_url_scheme],
-    check_origin: checkable_origins,
-    http: [
-      # Enable IPv6 and bind on all interfaces.
-      # Set it to  {0, 0, 0, 0, 0, 0, 0, 1} for local network only access.
-      # See the documentation on https://hexdocs.pm/bandit/Bandit.html#t:options/0
-      # for details about using IPv6 vs IPv4 and loopback vs public addresses.
-      ip: {0, 0, 0, 0, 0, 0, 0, 0},
-      port: port
-    ]
-
   config :tuist, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
 
   # ## SSL Support
@@ -180,6 +152,39 @@ if Enum.member?([:prod, :stag, :can], env) do
   #       force_ssl: [hsts: true]
   #
   # Check `Plug.SSL` for all available options in `force_ssl`.
+end
+
+if Enum.member?([:prod, :stag, :can, :dev], env) do
+  port = "8080"
+  app_url = Tuist.Environment.app_url([route_type: :app], secrets)
+  %{host: app_url_host, port: app_url_port, scheme: app_url_scheme} = URI.parse(app_url)
+
+  # We migrated from {...}.tuist.io to {...}.tuist.dev, so we need to make sure we include
+  # the old origins for a while to avoid breaking the app for users that have the old origins
+  checkable_origins =
+    [app_url] ++
+      case {Tuist.Environment.tuist_hosted?(), Tuist.Environment.env()} do
+        {true, :stag} -> ["https://staging.tuist.io"]
+        {true, :prod} -> ["https://cloud.tuist.io"]
+        {true, :can} -> ["https://canary.tuist.io"]
+        _ -> []
+      end
+
+  http_ip =
+    case {env, app_url_host} do
+      {:dev, "localhost"} -> {127, 0, 0, 1}
+      {:dev, _host} -> {0, 0, 0, 0}
+      # Enable IPv6 and bind on all interfaces.
+      {_env, _host} -> {0, 0, 0, 0, 0, 0, 0, 0}
+    end
+
+  config :tuist, TuistWeb.Endpoint,
+    url: [host: app_url_host, port: app_url_port, scheme: app_url_scheme],
+    check_origin: checkable_origins,
+    http: [
+      ip: http_ip,
+      port: port
+    ]
 
   # ## Configuring the mailer
   #
