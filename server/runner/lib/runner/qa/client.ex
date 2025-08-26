@@ -4,6 +4,7 @@ defmodule Runner.QA.Client do
   """
 
   alias Runner.QA.LogStreamer
+
   require Logger
 
   def create_step(

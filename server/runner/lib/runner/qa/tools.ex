@@ -861,33 +861,30 @@ defmodule Runner.QA.Tools do
              auth_token: auth_token,
              account_handle: account_handle,
              project_handle: project_handle
-           }) do
-      screenshot_task =
-        Task.async(fn ->
-          capture_and_upload_screenshot(%{
-            simulator_uuid: simulator_uuid,
-            server_url: server_url,
-            run_id: run_id,
-            auth_token: auth_token,
-            account_handle: account_handle,
-            project_handle: project_handle,
-            step_id: step_id
-          })
-        end)
-
-      ui_task =
-        Task.async(fn ->
-          ui_description_from_appium_session(appium_session)
-        end)
-
-       with [{:ok, screenshot_content}, {:ok, ui_description}] <- Task.await_many([screenshot_task, ui_task], 30_000) do
-        {:ok,
-         [
-           screenshot_content,
-           ContentPart.text!(ui_description),
-           ContentPart.text!(step_id)
-         ]}
-      end
+           }),
+         screenshot_task =
+           Task.async(fn ->
+             capture_and_upload_screenshot(%{
+               simulator_uuid: simulator_uuid,
+               server_url: server_url,
+               run_id: run_id,
+               auth_token: auth_token,
+               account_handle: account_handle,
+               project_handle: project_handle,
+               step_id: step_id
+             })
+           end),
+         ui_task =
+           Task.async(fn ->
+             ui_description_from_appium_session(appium_session)
+           end),
+         [{:ok, screenshot_content}, {:ok, ui_description}] <- Task.await_many([screenshot_task, ui_task], 30_000) do
+      {:ok,
+       [
+         screenshot_content,
+         ContentPart.text!(ui_description),
+         ContentPart.text!(step_id)
+       ]}
     end
   end
 
