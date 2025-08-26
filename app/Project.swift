@@ -53,7 +53,7 @@ let bundleId =
 let project = Project(
     name: "TuistApp",
     settings: .settings(
-        base: ["ARCHS": "arm64"],
+        base: ["ARCHS": "arm64 x86_64"],
         debug: [
             "SWIFT_ACTIVE_COMPILATION_CONDITIONS": "$(inherited) MOCKING",
         ]
@@ -112,7 +112,8 @@ let project = Project(
                     "DEVELOPMENT_TEAM": "U6LC622NKF",
                     "CODE_SIGN_STYLE": "Automatic",
                     "CODE_SIGN_IDENTITY": "Apple Development",
-                    "CODE_SIGN_ENTITLEMENTS[sdk=iphone*]": "Resources/TuistApp/TuistApp.entitlements",
+                    "CODE_SIGN_ENTITLEMENTS[sdk=iphone*]":
+                        "Resources/TuistApp/TuistApp.entitlements",
                 ],
                 release: [
                     // Needed for the app notarization
