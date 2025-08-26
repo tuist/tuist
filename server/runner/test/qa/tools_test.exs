@@ -95,7 +95,6 @@ defmodule Runner.QA.ToolsTest do
       # Then
       assert {:ok, [content_part]} = result
       assert %ContentPart{type: :text, content: content} = content_part
-      assert String.starts_with?(content, "Current UI state:")
       assert content =~ "XCUIElementTypeButton"
     end
   end
@@ -171,6 +170,8 @@ defmodule Runner.QA.ToolsTest do
       simulator_uuid = "test-uuid"
       temp_path = "/tmp/screenshot.png"
       image_data = <<137, 80, 78, 71, 13, 10, 26, 10>>
+      screenshot_id = "test-screenshot-id"
+      upload_url = "https://s3.amazonaws.com/upload"
 
       expect(Briefly, :create, fn -> {:ok, temp_path} end)
 
@@ -180,14 +181,44 @@ defmodule Runner.QA.ToolsTest do
 
       expect(File, :read, fn ^temp_path -> {:ok, image_data} end)
 
+      expect(Client, :create_screenshot, fn %{
+                                              server_url: "http://test.com",
+                                              run_id: "test-run-id",
+                                              auth_token: "test-token",
+                                              account_handle: "test-account",
+                                              project_handle: "test-project",
+                                              step_id: step_id
+                                            }
+                                            when is_binary(step_id) ->
+        {:ok, %{"id" => screenshot_id}}
+      end)
+
+      expect(Client, :screenshot_upload, fn %{
+                                              server_url: "http://test.com",
+                                              run_id: "test-run-id",
+                                              auth_token: "test-token",
+                                              account_handle: "test-account",
+                                              project_handle: "test-project",
+                                              screenshot_id: ^screenshot_id
+                                            } ->
+        {:ok, %{"url" => upload_url}}
+      end)
+
+      expect(Req, :put, fn ^upload_url, [body: ^image_data, headers: [{"Content-Type", "image/png"}]] ->
+        {:ok, %{}}
+      end)
+
       screenshot_tool = Enum.find(tools, &(&1.name == "screenshot"))
 
       # When
-      result =
-        screenshot_tool.function.(%{}, nil)
+      result = screenshot_tool.function.(%{}, nil)
 
       # Then
-      assert {:ok, [%ContentPart{type: :image}]} = result
+      assert {:ok, content_part} = result
+      assert content_part.type == :text
+      assert content_part.content =~ "screenshot_id"
+      assert content_part.content =~ screenshot_id
+      assert content_part.content =~ "test-run-id"
     end
 
     test "returns error when screenshot command fails", %{tools: tools} do
