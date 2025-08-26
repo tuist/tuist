@@ -651,7 +651,6 @@ defmodule TuistWeb.API.AnalyticsController do
     |> json(%{})
   end
 
-  # New operations for project-scoped routes (not deprecated)
 
   operation(:multipart_start_project,
     summary: "It initiates a multipart upload for a run artifact",
