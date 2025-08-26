@@ -14,7 +14,7 @@ defmodule TuistWeb.OpsQALogsLive do
 
       qa_run ->
         logs = QA.logs_for_run(qa_run_id)
-        lsgs_with_metadata = prepare_logs_with_metadata(logs)
+        logs_with_metadata = prepare_logs_with_metadata(logs)
 
         if connected?(socket) do
           Tuist.PubSub.subscribe("qa_logs:#{qa_run_id}")
