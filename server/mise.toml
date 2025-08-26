@@ -1,6 +1,6 @@
 [tools]
   pnpm = "10.14"
-  node = "20.12.0"
+  node = "24"
   sops = "3.9.3"
   age = "1.2.1"
   "ubi:aquasecurity/trivy" = "0.63.0"
@@ -10,6 +10,7 @@
   "flyctl" = "0.3.172"
   "erlang" = "27.3.2"
   "asdf:aeons/asdf-minio" = "latest"
+  "npm:appium" = "3.0.1"
 
 [env]
   TUIST_HOSTED = 1
