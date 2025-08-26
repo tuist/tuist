@@ -857,7 +857,7 @@ public enum Module: String, CaseIterable {
             return .settings(
                 base: [
                     "LD_RUNPATH_SEARCH_PATHS": "$(FRAMEWORK_SEARCH_PATHS)",
-                    "ARCHS": "arm64",
+                    "ARCHS": "arm64 x86_64",
                 ],
                 configurations: [
                     .debug(name: "Debug", settings: [:], xcconfig: nil),
