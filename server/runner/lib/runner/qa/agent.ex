@@ -363,11 +363,9 @@ defmodule Runner.QA.Agent do
   end
 
   defp run_preview(preview_url, bundle_identifier, simulator_device) do
-    boot_task = Task.async(fn -> Simulators.boot_simulator(simulator_device) end)
-
     with {:ok, preview_path} <- download_preview(preview_url),
          {:ok, app_path} <- extract_app_from_preview(preview_path, bundle_identifier),
-         :ok <- Task.await(boot_task, 60_000),
+         :ok <- Simulators.boot_simulator(simulator_device),
          :ok <- Simulators.install_app(app_path, simulator_device) do
       Simulators.launch_app(bundle_identifier, simulator_device)
     end
@@ -379,7 +377,7 @@ defmodule Runner.QA.Agent do
         device =
           Enum.find(devices, fn device ->
             device.name == "iPhone 16" and
-              device.runtime_identifier == "com.apple.CoreSimulator.SimRuntime.iOS-18-6"
+              device.runtime_identifier == "com.apple.CoreSimulator.SimRuntime.iOS-18-5"
           end)
 
         case device do
