@@ -126,6 +126,7 @@ defmodule TuistWeb.OpsQALogsLive do
         case JSON.decode(nested_json) do
           {:ok, parsed_data} ->
             Jason.encode!(parsed_data, pretty: true)
+
           {:error, _} ->
             nested_json
         end
@@ -142,6 +143,7 @@ defmodule TuistWeb.OpsQALogsLive do
     case JSON.decode(content) do
       {:ok, parsed_json} ->
         %{"type" => "text", "content" => parsed_json}
+
       {:error, _} ->
         %{"type" => "text", "content" => content}
     end
@@ -200,7 +202,6 @@ defmodule TuistWeb.OpsQALogsLive do
   end
 
   defp extract_screenshot_metadata_from_standalone(content) when is_list(content) do
-    # For standalone screenshot tool - look for ContentPart with text containing metadata JSON
     Enum.find_value(content, fn
       %{"type" => "text", "content" => text_content} ->
         with {:ok, nested_data} <- JSON.decode(text_content),
