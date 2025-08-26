@@ -23,64 +23,49 @@
   <div data-part="logs-section">
     <.card title={gettext("Logs")} icon="file">
       <.card_section>
-        <%= if Enum.empty?(@logs) do %>
-          <div data-part="empty-logs">
-            <span>{gettext("No logs found for this QA run")}</span>
-          </div>
-        <% else %>
-          <div data-part="logs-container">
-            <div :for={log <- @logs} data-part="log-entry" data-type={log.type}>
-              <span data-part="timestamp">{format_log_timestamp_short(log.timestamp)}</span>
-              <span data-part="log-type" data-type={log.type}>
-                {log_type_short(log.type)}
-              </span>
-              <%= if is_tool_log?(log) do %>
-                <div data-part="tool-call-content">
-                  <div data-part="tool-call-header">
-                    <button
-                      type="button"
-                      data-part="expand-toggle"
-                      phx-click="toggle_tool_details"
-                      phx-value-log-id={log_id(log)}
-                    >
-                      <span class="expand-icon">
-                        {if expanded?(log, @expanded_tools), do: "−", else: "+"}
-                      </span>
-                    </button>
-                    <span data-part="tool-name">{format_log_message(log)}</span>
-                  </div>
-                  <%= if expanded?(log, @expanded_tools) do %>
-                    <div data-part="tool-call-details">
-                      <%= if is_tool_result_log?(log) and log.screenshot_metadata do %>
-                        <div data-part="screenshot-content">
-                          <%= case log.screenshot_metadata do %>
-                            <% %{screenshot_id: screenshot_id, qa_run_id: qa_run_id, account_handle: account_handle, project_handle: project_handle} -> %>
-                              <img
-                                src={
-                                  ~p"/#{account_handle}/#{project_handle}/qa/runs/#{qa_run_id}/screenshots/#{screenshot_id}"
-                                }
-                                alt="Screenshot"
-                                style="max-width: 100%; max-height: 400px; height: auto; border-radius: 6px; margin-bottom: 12px;"
-                              />
-                            <% nil -> %>
-                              <p style="color: #666; font-style: italic;">
-                                Screenshot captured (metadata unavailable)
-                              </p>
-                          <% end %>
-                        </div>
-                        <pre data-part="json-content">{prettify_json(log.data)}</pre>
-                      <% else %>
-                        <pre data-part="json-content">{prettify_json(log.data)}</pre>
-                      <% end %>
-                    </div>
-                  <% end %>
+        <div :if={Enum.empty?(@logs)} data-part="empty-logs">
+          <span>{gettext("No logs found for this QA run")}</span>
+        </div>
+        <div :if={!Enum.empty?(@logs)} data-part="logs-container">
+          <div :for={log <- @logs} data-part="log-entry" data-type={log.type}>
+            <span data-part="timestamp">{format_log_timestamp_short(log.timestamp)}</span>
+            <span data-part="log-type" data-type={log.type}>
+              {log_type_short(log.type)}
+            </span>
+            <div :if={is_tool_log?(log)} data-part="tool-call-content">
+              <div data-part="tool-call-header">
+                <button
+                  type="button"
+                  data-part="expand-toggle"
+                  phx-click="toggle_tool_details"
+                  phx-value-log-id={log_id(log)}
+                >
+                  <span class="expand-icon">
+                    {if expanded?(log, @expanded_tools), do: "−", else: "+"}
+                  </span>
+                </button>
+                <span data-part="tool-name">{format_log_message(log)}</span>
+              </div>
+              <div :if={expanded?(log, @expanded_tools)} data-part="tool-call-details">
+                <div :if={is_tool_result_log?(log) and log.screenshot_metadata} data-part="screenshot-content">
+                  <img
+                    :if={log.screenshot_metadata[:screenshot_id]}
+                    src={
+                      ~p"/#{log.screenshot_metadata[:account_handle]}/#{log.screenshot_metadata[:project_handle]}/qa/runs/#{log.screenshot_metadata[:qa_run_id]}/screenshots/#{log.screenshot_metadata[:screenshot_id]}"
+                    }
+                    alt="Screenshot"
+                    style="max-width: 100%; max-height: 400px; height: auto; border-radius: 6px; margin-bottom: 12px;"
+                  />
+                  <p :if={!log.screenshot_metadata[:screenshot_id]} style="color: #666; font-style: italic;">
+                    Screenshot captured (metadata unavailable)
+                  </p>
                 </div>
-              <% else %>
-                <div data-part="log-message" data-type={log.type}>{format_log_message(log)}</div>
-              <% end %>
+                <pre data-part="json-content">{prettify_json(log.data)}</pre>
+              </div>
             </div>
+            <div :if={!is_tool_log?(log)} data-part="log-message" data-type={log.type}>{format_log_message(log)}</div>
           </div>
-        <% end %>
+        </div>
       </.card_section>
     </.card>
   </div>
