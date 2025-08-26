@@ -298,6 +298,39 @@ defmodule Tuist.QA do
   end
 
   @doc """
+  Gets QA runs for a specific project.
+  Returns paginated list of QA runs with associated app build and preview data.
+  """
+  def qa_runs_for_project(project, opts \\ []) do
+    limit = Keyword.get(opts, :limit, 50)
+    offset = Keyword.get(opts, :offset, 0)
+
+    query =
+      from(qa in Run,
+        join: ab in assoc(qa, :app_build),
+        join: pr in assoc(ab, :preview),
+        where: pr.project_id == ^project.id,
+        left_join: tu in TokenUsage,
+        on: tu.feature_resource_id == qa.id and tu.feature == "qa",
+        group_by: [qa.id, qa.status, qa.inserted_at, qa.prompt, qa.git_ref],
+        select: %{
+          id: qa.id,
+          status: qa.status,
+          inserted_at: qa.inserted_at,
+          prompt: qa.prompt,
+          git_ref: qa.git_ref,
+          input_tokens: coalesce(sum(tu.input_tokens), 0),
+          output_tokens: coalesce(sum(tu.output_tokens), 0)
+        },
+        order_by: [desc: qa.inserted_at],
+        limit: ^limit,
+        offset: ^offset
+      )
+
+    Repo.all(query)
+  end
+
+  @doc """
   Gets recent QA runs for ops interface.
   Returns up to 50 most recent runs with project and account info.
   """

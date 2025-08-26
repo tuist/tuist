@@ -1,0 +1,57 @@
+<div id="qa">
+  <%= if Enum.empty?(@qa_runs) do %>
+    <.empty_state
+      command="tuist qa"
+      id="qa-empty-state"
+      title={gettext("No QA runs yet")}
+      subtitle={gettext("QA runs will appear here once you start testing your app with Tuist QA")}
+      learn_more_href={Tuist.Environment.get_url(:documentation) <> "/guides/qa"}
+    >
+      <:light_background>
+        <.empty_state_light_background />
+      </:light_background>
+      <:dark_background>
+        <.empty_state_dark_background />
+      </:dark_background>
+    </.empty_state>
+  <% else %>
+    <.card title={gettext("QA Runs")} icon="smart_toy">
+      <.table id="qa-runs-table" rows={@qa_runs}>
+        <:col :let={run} label={gettext("Prompt")}>
+          <span class="truncate max-w-md" title={run.prompt}>
+            <%= run.prompt %>
+          </span>
+        </:col>
+
+        <:col :let={run} label={gettext("Status")}>
+          <.badge label={String.capitalize(run.status)} color={map_status_to_badge_color(run.status)} style="fill" />
+        </:col>
+
+        <:col :let={run} label={gettext("Git Reference")}>
+          <code class="code"><%= run.git_ref || "—" %></code>
+        </:col>
+
+        <:col :let={run} label={gettext("Tokens")}>
+          <span class="text-sm text-secondary">
+            <%= run.input_tokens + run.output_tokens %>
+          </span>
+        </:col>
+
+        <:col :let={run} label={gettext("Started")}>
+          <span class="text-sm text-secondary">
+            <%= format_datetime(run.inserted_at) %>
+          </span>
+        </:col>
+
+        <:col :let={run} label="">
+          <.link
+            navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/qa/#{run.id}"}
+            class="button button--secondary button--small"
+          >
+            <%= gettext("View") %>
+          </.link>
+        </:col>
+      </.table>
+    </.card>
+  <% end %>
+</div>

@@ -73,6 +73,17 @@ defmodule TuistWeb.AppLayoutComponents do
           )
         }
       />
+      <.sidebar_item
+        label={gettext("Tuist QA")}
+        icon="smart_toy"
+        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/qa"}
+        selected={
+          String.starts_with?(
+            @current_path,
+            ~p"/#{@selected_account.name}/#{@selected_project.name}/qa"
+          )
+        }
+      />
       <.sidebar_group
         id="sidebar-builds"
         label={gettext("Builds")}
