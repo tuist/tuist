@@ -23,10 +23,10 @@ func tuistMenuBarDependencies() -> [TargetDependency] {
 let inspectBuildPostAction: ExecutionAction = .executionAction(
     title: "Inspect build",
     scriptText: """
-        eval "$($HOME/.local/bin/mise activate -C $SRCROOT bash --shims)"
+    eval "$($HOME/.local/bin/mise activate -C $SRCROOT bash --shims)"
 
-        tuist inspect build
-        """
+    tuist inspect build
+    """
 )
 
 let oauthClientIdEnvironmentVariable: EnvironmentVariable =
@@ -55,7 +55,7 @@ let project = Project(
     settings: .settings(
         base: ["ARCHS": "arm64 x86_64"],
         debug: [
-            "SWIFT_ACTIVE_COMPILATION_CONDITIONS": "$(inherited) MOCKING"
+            "SWIFT_ACTIVE_COMPILATION_CONDITIONS": "$(inherited) MOCKING",
         ]
     ),
     targets: [
@@ -76,7 +76,7 @@ let project = Project(
                                 "CFBundleURLName": .string(bundleId),
                                 "CFBundleURLSchemes": ["tuist"],
                             ]
-                        )
+                        ),
                     ],
                     "LSUIElement": true,
                     "LSApplicationCategoryType": "public.app-category.developer-tools",
@@ -87,7 +87,7 @@ let project = Project(
                     "CFBundleVersion": "0.20.2",
                     "UILaunchStoryboardName": "LaunchScreen.storyboard",
                     "UISupportedInterfaceOrientations": [
-                        "UIInterfaceOrientationPortrait"
+                        "UIInterfaceOrientationPortrait",
                     ],
                 ]
             ),
@@ -149,7 +149,7 @@ let project = Project(
             sources: ["Sources/TuistNoora/**"],
             resources: ["Resources/TuistNoora/**"],
             dependencies: [
-                .external(name: "NukeUI")
+                .external(name: "NukeUI"),
             ]
         ),
         .target(
@@ -200,7 +200,7 @@ let project = Project(
             deploymentTargets: .multiplatform(iOS: "18.0", macOS: "14.0.0"),
             sources: ["Sources/TuistAppStorage/**"],
             dependencies: [
-                .external(name: "Mockable")
+                .external(name: "Mockable"),
             ]
         ),
         .target(
@@ -245,16 +245,16 @@ let project = Project(
             name: "TuistApp",
             buildAction: .buildAction(
                 targets: [
-                    .target("TuistApp")
+                    .target("TuistApp"),
                 ],
                 postActions: [
-                    inspectBuildPostAction
+                    inspectBuildPostAction,
                 ],
                 runPostActionsOnFailure: true
             ),
             testAction: .targets(
                 [
-                    .testableTarget(target: "TuistMenuBarTests")
+                    .testableTarget(target: "TuistMenuBarTests"),
                 ],
                 options: .options(
                     language: "en"
@@ -270,6 +270,6 @@ let project = Project(
                     ]
                 )
             )
-        )
+        ),
     ]
 )
