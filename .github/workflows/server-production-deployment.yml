@@ -68,7 +68,7 @@ jobs:
       - name: "Get version"
         id: version
         run: |
-          version=$(../mise/tasks/server/generate-version.sh)
+          version=$(./mise/tasks/generate-version.sh)
           echo "::set-output name=version::$version"
       - uses: superfly/flyctl-actions/setup-flyctl@master
       - name: Fly
@@ -143,7 +143,7 @@ jobs:
       - name: "Get version"
         id: version
         run: |
-          version=$(../mise/tasks/server/generate-version.sh)
+          version=$(./mise/tasks/generate-version.sh)
           echo "::set-output name=version::$version"
       - uses: superfly/flyctl-actions/setup-flyctl@master
       - name: Fly
@@ -196,7 +196,7 @@ jobs:
       - name: "Get version"
         id: version
         run: |
-          version=$(../mise/tasks/server/generate-version.sh)
+          version=$(./mise/tasks/generate-version.sh)
           echo "::set-output name=version::$version"
       - uses: superfly/flyctl-actions/setup-flyctl@master
       - name: Fly
