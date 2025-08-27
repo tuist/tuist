@@ -556,7 +556,7 @@ defmodule Runner.QA.ToolsTest do
       result = "Successfully completed login test"
       issues = ["Minor UI alignment issue in login button"]
 
-      expect(Client, :update_step, fn %{
+      expect(Client, :start_update_step, fn %{
                                         step_id: ^step_id,
                                         result: ^result,
                                         issues: ^issues,
@@ -592,7 +592,7 @@ defmodule Runner.QA.ToolsTest do
       result = "Failed test step"
       issues = ["Timeout error", "Server unresponsive"]
 
-      expect(Client, :update_step, fn %{
+      expect(Client, :start_update_step, fn %{
                                         step_id: ^step_id,
                                         result: ^result,
                                         issues: ^issues,

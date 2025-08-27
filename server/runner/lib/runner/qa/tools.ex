@@ -738,7 +738,7 @@ defmodule Runner.QA.Tools do
         })
       ],
       function: fn %{"step_id" => step_id, "result" => result, "issues" => issues} = _params, _context ->
-        Client.update_step(%{
+        {:ok, async} = Client.start_update_step(%{
           step_id: step_id,
           result: result,
           issues: issues,

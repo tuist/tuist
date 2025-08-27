@@ -31,7 +31,7 @@ defmodule Runner.QA.Client do
     end
   end
 
-  def update_step(%{
+  def start_update_step(%{
         step_id: step_id,
         result: result,
         issues: issues,
