@@ -159,17 +159,6 @@ if Enum.member?([:prod, :stag, :can, :dev], env) do
   app_url = Tuist.Environment.app_url([route_type: :app], secrets)
   %{host: app_url_host, port: app_url_port, scheme: app_url_scheme} = URI.parse(app_url)
 
-  # We migrated from {...}.tuist.io to {...}.tuist.dev, so we need to make sure we include
-  # the old origins for a while to avoid breaking the app for users that have the old origins
-  checkable_origins =
-    [app_url] ++
-      case {Tuist.Environment.tuist_hosted?(), Tuist.Environment.env()} do
-        {true, :stag} -> ["https://staging.tuist.io"]
-        {true, :prod} -> ["https://cloud.tuist.io"]
-        {true, :can} -> ["https://canary.tuist.io"]
-        _ -> []
-      end
-
   http_ip =
     case {env, app_url_host} do
       {:dev, "localhost"} -> {127, 0, 0, 1}
@@ -180,7 +169,7 @@ if Enum.member?([:prod, :stag, :can, :dev], env) do
 
   config :tuist, TuistWeb.Endpoint,
     url: [host: app_url_host, port: app_url_port, scheme: app_url_scheme],
-    check_origin: checkable_origins,
+    check_origin: [app_url],
     http: [
       ip: http_ip,
       port: port
