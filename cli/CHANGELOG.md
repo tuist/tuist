@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.65.2<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* caching issues due to incompatible architectures by [@pepicrft](https://github.com/pepicrft) in [#8094](https://github.com/tuist/tuist/pull/8094)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.65.1...4.65.2
+
 ## What's Changed in 4.65.1<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
