@@ -12,15 +12,19 @@ defmodule TuistTestSupport.Fixtures.QAFixtures do
   def qa_run_fixture(opts \\ []) do
     app_build =
       Keyword.get_lazy(opts, :app_build, fn ->
-        AppBuildsFixtures.app_build_fixture()
+        project = Keyword.get(opts, :project)
+        if project do
+          AppBuildsFixtures.app_build_fixture(project: project)
+        else
+          AppBuildsFixtures.app_build_fixture()
+        end
       end)
 
-    {:ok, qa_run} =
-      QA.create_qa_run(%{
-        app_build_id: app_build.id,
-        prompt: Keyword.get(opts, :prompt, "Test the login feature"),
-        status: Keyword.get(opts, :status, "pending")
-      })
+    {:ok, qa_run} = QA.create_qa_run(%{
+      app_build_id: app_build.id,
+      prompt: Keyword.get(opts, :prompt, "Test the login feature"),
+      status: Keyword.get(opts, :status, "pending")
+    })
 
     qa_run
   end

@@ -556,22 +556,19 @@ defmodule Tuist.QA do
   Returns QA runs analytics for a given project and time period.
   """
   def qa_runs_analytics(project_id, opts \\ []) do
-    start_date = Keyword.get(opts, :start_date, Date.add(Date.utc_today(), -30))
-    end_date = Keyword.get(opts, :end_date, Date.utc_today())
+    {start_date, end_date} = date_range(opts)
+    app_name = Keyword.get(opts, :app_name)
 
-    days_delta = Date.diff(end_date, start_date)
-    date_period = date_period(start_date: start_date, end_date: end_date)
+    current_count = count_qa_runs(project_id, start_date, end_date, app_name)
+    previous_count = count_qa_runs(project_id, Date.add(start_date, -Date.diff(end_date, start_date)), start_date, app_name)
 
-    current_count = qa_runs_total_count(project_id, start_date, end_date, opts)
-    previous_count = qa_runs_total_count(project_id, Date.add(start_date, -days_delta), start_date, opts)
-
-    runs_data = qa_runs_count_by_period(project_id, start_date, end_date, date_period, opts)
+    runs_data = qa_runs_by_day(project_id, start_date, end_date, app_name)
 
     %{
-      trend: trend(previous_value: previous_count, current_value: current_count),
+      trend: calculate_trend(previous_count, current_count),
       count: current_count,
       values: Enum.map(runs_data, & &1.count),
-      dates: Enum.map(runs_data, & &1.date)
+      dates: Enum.map(runs_data, &Date.to_string(&1.date))
     }
   end
 
@@ -579,22 +576,19 @@ defmodule Tuist.QA do
   Returns QA issues analytics for a given project and time period.
   """
   def qa_issues_analytics(project_id, opts \\ []) do
-    start_date = Keyword.get(opts, :start_date, Date.add(Date.utc_today(), -30))
-    end_date = Keyword.get(opts, :end_date, Date.utc_today())
+    {start_date, end_date} = date_range(opts)
+    app_name = Keyword.get(opts, :app_name)
 
-    days_delta = Date.diff(end_date, start_date)
-    date_period = date_period(start_date: start_date, end_date: end_date)
+    current_count = count_qa_issues(project_id, start_date, end_date, app_name)
+    previous_count = count_qa_issues(project_id, Date.add(start_date, -Date.diff(end_date, start_date)), start_date, app_name)
 
-    current_count = qa_issues_total_count(project_id, start_date, end_date, opts)
-    previous_count = qa_issues_total_count(project_id, Date.add(start_date, -days_delta), start_date, opts)
-
-    issues_data = qa_issues_count_by_period(project_id, start_date, end_date, date_period, opts)
+    issues_data = qa_issues_by_day(project_id, start_date, end_date, app_name)
 
     %{
-      trend: trend(previous_value: previous_count, current_value: current_count),
+      trend: calculate_trend(previous_count, current_count),
       count: current_count,
       values: Enum.map(issues_data, & &1.count),
-      dates: Enum.map(issues_data, & &1.date)
+      dates: Enum.map(issues_data, &Date.to_string(&1.date))
     }
   end
 
@@ -602,22 +596,19 @@ defmodule Tuist.QA do
   Returns QA duration analytics for a given project and time period.
   """
   def qa_duration_analytics(project_id, opts \\ []) do
-    start_date = Keyword.get(opts, :start_date, Date.add(Date.utc_today(), -30))
-    end_date = Keyword.get(opts, :end_date, Date.utc_today())
+    {start_date, end_date} = date_range(opts)
+    app_name = Keyword.get(opts, :app_name)
 
-    days_delta = Date.diff(end_date, start_date)
-    date_period = date_period(start_date: start_date, end_date: end_date)
+    current_avg = average_qa_duration(project_id, start_date, end_date, app_name)
+    previous_avg = average_qa_duration(project_id, Date.add(start_date, -Date.diff(end_date, start_date)), start_date, app_name)
 
-    current_avg = qa_average_duration(project_id, start_date, end_date, opts)
-    previous_avg = qa_average_duration(project_id, Date.add(start_date, -days_delta), start_date, opts)
-
-    duration_data = qa_duration_by_period(project_id, start_date, end_date, date_period, opts)
+    duration_data = qa_duration_by_day(project_id, start_date, end_date, app_name)
 
     %{
-      trend: trend(previous_value: previous_avg, current_value: current_avg),
+      trend: calculate_trend(previous_avg, current_avg),
       total_average_duration: current_avg,
-      values: Enum.map(duration_data, & &1.value),
-      dates: Enum.map(duration_data, & &1.date)
+      values: Enum.map(duration_data, & &1.average_duration),
+      dates: Enum.map(duration_data, &Date.to_string(&1.date))
     }
   end
 
@@ -650,9 +641,21 @@ defmodule Tuist.QA do
     Enum.map(apps, fn app_name -> {app_name, app_name} end)
   end
 
-  defp qa_runs_total_count(project_id, start_date, end_date, opts) do
-    app_name = Keyword.get(opts, :app_name)
+  defp date_range(opts) do
+    start_date = Keyword.get(opts, :start_date, Date.add(Date.utc_today(), -10))
+    end_date = Keyword.get(opts, :end_date, Date.utc_today())
+    {start_date, end_date}
+  end
 
+  defp calculate_trend(previous_value, current_value) do
+    case {previous_value, current_value} do
+      {0, _} -> 0.0
+      {_, 0} -> 0.0
+      {prev, curr} -> Float.round(curr / prev * 100, 1) - 100.0
+    end
+  end
+
+  defp count_qa_runs(project_id, start_date, end_date, app_name) do
     query =
       from(qa in Run,
         join: ab in assoc(qa, :app_build),
@@ -664,19 +667,11 @@ defmodule Tuist.QA do
         select: count(qa.id)
       )
 
-    query =
-      case app_name do
-        nil -> query
-        "any" -> query
-        _ -> where(query, [qa, ab, pr], pr.display_name == ^app_name)
-      end
-
+    query = apply_app_filter(query, app_name, [:qa, :ab, :pr])
     Repo.one(query) || 0
   end
 
-  defp qa_issues_total_count(project_id, start_date, end_date, opts) do
-    app_name = Keyword.get(opts, :app_name)
-
+  defp count_qa_issues(project_id, start_date, end_date, app_name) do
     query =
       from(qa in Run,
         join: ab in assoc(qa, :app_build),
@@ -690,19 +685,11 @@ defmodule Tuist.QA do
         select: fragment("SUM(array_length(?, 1))", step.issues)
       )
 
-    query =
-      case app_name do
-        nil -> query
-        "any" -> query
-        _ -> where(query, [qa, ab, pr, step], pr.display_name == ^app_name)
-      end
-
+    query = apply_app_filter(query, app_name, [:qa, :ab, :pr, :step])
     Repo.one(query) || 0
   end
 
-  defp qa_average_duration(project_id, start_date, end_date, opts) do
-    app_name = Keyword.get(opts, :app_name)
-
+  defp average_qa_duration(project_id, start_date, end_date, app_name) do
     query =
       from(qa in Run,
         join: ab in assoc(qa, :app_build),
@@ -715,302 +702,130 @@ defmodule Tuist.QA do
             not is_nil(qa.finished_at),
         select:
           fragment(
-            "EXTRACT(EPOCH FROM (? - ?)) * 1000",
+            "ABS(EXTRACT(EPOCH FROM (? - ?))) * 1000",
             qa.finished_at,
             qa.inserted_at
           )
       )
 
-    query =
-      case app_name do
-        nil -> query
-        "any" -> query
-        _ -> where(query, [qa, ab, pr], pr.display_name == ^app_name)
-      end
-
+    query = apply_app_filter(query, app_name, [:qa, :ab, :pr])
     durations = Repo.all(query)
 
     if Enum.empty?(durations) do
       0
     else
-      durations_as_floats = Enum.map(durations, &Decimal.to_float/1)
-      avg_duration = Enum.sum(durations_as_floats) / length(durations)
-      trunc(avg_duration)
-    end
-  end
-
-  defp qa_runs_count_by_period(project_id, start_date, end_date, date_period, opts) do
-    app_name = Keyword.get(opts, :app_name)
-
-    query = build_qa_runs_query(project_id, start_date, end_date, date_period, app_name)
-    results = Repo.all(query)
-    results_map = Map.new(results, fn result -> {normalize_date(result.date, date_period), result.count} end)
-
-    date_period
-    |> date_range_for_date_period(start_date: start_date, end_date: end_date)
-    |> Enum.map(fn date ->
-      count = Map.get(results_map, date, 0)
-      %{date: date, count: count}
-    end)
-  end
-
-  defp build_qa_runs_query(project_id, start_date, end_date, :day, app_name) do
-    base_query =
-      from(qa in Run,
-        join: ab in assoc(qa, :app_build),
-        join: pr in assoc(ab, :preview),
-        where:
-          pr.project_id == ^project_id and
-            qa.inserted_at >= ^DateTime.new!(start_date, ~T[00:00:00]) and
-            qa.inserted_at < ^DateTime.new!(end_date, ~T[23:59:59]),
-        group_by: fragment("DATE(?)", qa.inserted_at),
-        select: %{
-          date: fragment("DATE(?)", qa.inserted_at),
-          count: count(qa.id)
-        },
-        order_by: [asc: fragment("DATE(?)", qa.inserted_at)]
-      )
-
-    apply_app_name_filter(base_query, app_name, [:qa, :ab, :pr])
-  end
-
-  defp build_qa_runs_query(project_id, start_date, end_date, :month, app_name) do
-    base_query =
-      from(qa in Run,
-        join: ab in assoc(qa, :app_build),
-        join: pr in assoc(ab, :preview),
-        where:
-          pr.project_id == ^project_id and
-            qa.inserted_at >= ^DateTime.new!(start_date, ~T[00:00:00]) and
-            qa.inserted_at < ^DateTime.new!(end_date, ~T[23:59:59]),
-        group_by: fragment("date_trunc('month', ?)", qa.inserted_at),
-        select: %{
-          date: fragment("date_trunc('month', ?)", qa.inserted_at),
-          count: count(qa.id)
-        },
-        order_by: [asc: fragment("date_trunc('month', ?)", qa.inserted_at)]
-      )
-
-    apply_app_name_filter(base_query, app_name, [:qa, :ab, :pr])
-  end
-
-  defp qa_duration_by_period(project_id, start_date, end_date, date_period, opts) do
-    app_name = Keyword.get(opts, :app_name)
-
-    query = build_qa_duration_query(project_id, start_date, end_date, date_period, app_name)
-    durations = Repo.all(query)
-
-    results =
       durations
-      |> Enum.group_by(& &1.date)
-      |> Enum.map(fn {date, runs} ->
-        durations_as_floats = Enum.map(runs, &Decimal.to_float(&1.duration))
-        avg_duration = Enum.sum(durations_as_floats) / length(runs)
-        %{date: date, value: avg_duration}
-      end)
-      |> Enum.sort_by(& &1.date)
-
-    results_map =
-      Map.new(results, fn result ->
-        value =
-          case result.value do
-            nil -> 0
-            %Decimal{} = avg -> Decimal.to_float(avg)
-            avg when is_float(avg) -> avg
-            _ -> 0
-          end
-
-        {normalize_date(result.date, date_period), value}
-      end)
-
-    date_period
-    |> date_range_for_date_period(start_date: start_date, end_date: end_date)
-    |> Enum.map(fn date ->
-      value = Map.get(results_map, date, 0)
-      %{date: date, value: value}
-    end)
+      |> Enum.map(&Decimal.to_float/1)
+      |> Enum.sum()
+      |> Kernel./(length(durations))
+      |> trunc()
+    end
   end
 
-  defp build_qa_duration_query(project_id, start_date, end_date, :day, app_name) do
-    base_query =
+  defp qa_runs_by_day(project_id, start_date, end_date, app_name) do
+    query =
       from(qa in Run,
         join: ab in assoc(qa, :app_build),
         join: pr in assoc(ab, :preview),
         where:
           pr.project_id == ^project_id and
             qa.inserted_at >= ^DateTime.new!(start_date, ~T[00:00:00]) and
-            qa.inserted_at < ^DateTime.new!(end_date, ~T[23:59:59]) and
-            qa.status in ["completed", "failed"] and
-            not is_nil(qa.finished_at),
-        select: %{
-          date: fragment("DATE(?)", qa.inserted_at),
-          duration:
-            fragment(
-              "EXTRACT(EPOCH FROM (? - ?)) * 1000",
-              qa.finished_at,
-              qa.inserted_at
-            )
-        }
-      )
-
-    apply_app_name_filter(base_query, app_name, [:qa, :ab, :pr])
-  end
-
-  defp build_qa_duration_query(project_id, start_date, end_date, :month, app_name) do
-    base_query =
-      from(qa in Run,
-        join: ab in assoc(qa, :app_build),
-        join: pr in assoc(ab, :preview),
-        where:
-          pr.project_id == ^project_id and
-            qa.inserted_at >= ^DateTime.new!(start_date, ~T[00:00:00]) and
-            qa.inserted_at < ^DateTime.new!(end_date, ~T[23:59:59]) and
-            qa.status in ["completed", "failed"] and
-            not is_nil(qa.finished_at),
-        select: %{
-          date: fragment("date_trunc('month', ?)", qa.inserted_at),
-          duration:
-            fragment(
-              "EXTRACT(EPOCH FROM (? - ?)) * 1000",
-              qa.finished_at,
-              qa.inserted_at
-            )
-        }
-      )
-
-    apply_app_name_filter(base_query, app_name, [:qa, :ab, :pr])
-  end
-
-  defp qa_issues_count_by_period(project_id, start_date, end_date, date_period, opts) do
-    app_name = Keyword.get(opts, :app_name)
-
-    query = build_qa_issues_query(project_id, start_date, end_date, date_period, app_name)
-    results = Repo.all(query)
-    results_map = Map.new(results, fn result -> {normalize_date(result.date, date_period), result.count} end)
-
-    date_period
-    |> date_range_for_date_period(start_date: start_date, end_date: end_date)
-    |> Enum.map(fn date ->
-      count = Map.get(results_map, date, 0)
-      %{date: date, count: count}
-    end)
-  end
-
-  defp build_qa_issues_query(project_id, start_date, end_date, :day, app_name) do
-    base_query =
-      from(qa in Run,
-        join: ab in assoc(qa, :app_build),
-        join: pr in assoc(ab, :preview),
-        join: step in assoc(qa, :run_steps),
-        where:
-          pr.project_id == ^project_id and
-            qa.inserted_at >= ^DateTime.new!(start_date, ~T[00:00:00]) and
-            qa.inserted_at < ^DateTime.new!(end_date, ~T[23:59:59]) and
-            fragment("array_length(?, 1)", step.issues) > 0,
+            qa.inserted_at < ^DateTime.new!(end_date, ~T[23:59:59]),
         group_by: fragment("DATE(?)", qa.inserted_at),
         select: %{
           date: fragment("DATE(?)", qa.inserted_at),
-          count: fragment("SUM(array_length(?, 1))", step.issues)
+          count: count(qa.id)
         },
         order_by: [asc: fragment("DATE(?)", qa.inserted_at)]
       )
 
-    apply_app_name_filter(base_query, app_name, [:qa, :ab, :pr, :step])
-  end
+    query = apply_app_filter(query, app_name, [:qa, :ab, :pr])
+    results = Repo.all(query)
+    results_map = Map.new(results, fn result -> {result.date, result.count} end)
 
-  defp build_qa_issues_query(project_id, start_date, end_date, :month, app_name) do
-    base_query =
-      from(qa in Run,
-        join: ab in assoc(qa, :app_build),
-        join: pr in assoc(ab, :preview),
-        join: step in assoc(qa, :run_steps),
-        where:
-          pr.project_id == ^project_id and
-            qa.inserted_at >= ^DateTime.new!(start_date, ~T[00:00:00]) and
-            qa.inserted_at < ^DateTime.new!(end_date, ~T[23:59:59]) and
-            fragment("array_length(?, 1)", step.issues) > 0,
-        group_by: fragment("date_trunc('month', ?)", qa.inserted_at),
-        select: %{
-          date: fragment("date_trunc('month', ?)", qa.inserted_at),
-          count: fragment("SUM(array_length(?, 1))", step.issues)
-        },
-        order_by: [asc: fragment("date_trunc('month', ?)", qa.inserted_at)]
-      )
-
-    apply_app_name_filter(base_query, app_name, [:qa, :ab, :pr, :step])
-  end
-
-  defp trend(opts) do
-    previous_value = Keyword.get(opts, :previous_value)
-    current_value = Keyword.get(opts, :current_value)
-
-    case {previous_value, current_value} do
-      {0, _} ->
-        0.0
-
-      {_, 0} ->
-        0.0
-
-      {+0.0, _} ->
-        0.0
-
-      {_, +0.0} ->
-        0.0
-
-      {previous_value, current_value} ->
-        Float.round(current_value / previous_value * 100, 1) - 100.0
-    end
-  end
-
-  defp date_period(opts) do
-    start_date = Keyword.get(opts, :start_date)
-    end_date = Keyword.get(opts, :end_date)
-    days_delta = Date.diff(end_date, start_date)
-
-    if days_delta >= 60 do
-      :month
-    else
-      :day
-    end
-  end
-
-  defp apply_app_name_filter(query, nil, _bindings), do: query
-  defp apply_app_name_filter(query, "any", _bindings), do: query
-
-  defp apply_app_name_filter(query, app_name, bindings) when length(bindings) == 3 do
-    where(query, [qa, ab, pr], pr.display_name == ^app_name)
-  end
-
-  defp apply_app_name_filter(query, app_name, bindings) when length(bindings) == 4 do
-    where(query, [qa, ab, pr, step], pr.display_name == ^app_name)
-  end
-
-  defp date_range_for_date_period(date_period, opts) do
-    start_date = Keyword.get(opts, :start_date)
-    end_date = Keyword.get(opts, :end_date)
-
+    # Fill in missing days with zero counts
     start_date
     |> Date.range(end_date)
-    |> Enum.filter(fn date ->
-      case date_period do
-        :month -> date.day == 1
-        :day -> true
-      end
+    |> Enum.map(fn date ->
+      count = Map.get(results_map, date, 0)
+      %{date: date, count: count}
     end)
   end
 
-  defp normalize_date(date_input, date_period) do
-    date =
-      case date_input do
-        %DateTime{} = dt -> DateTime.to_date(dt)
-        %NaiveDateTime{} = dt -> NaiveDateTime.to_date(dt)
-        date_string when is_binary(date_string) -> Date.from_iso8601!(date_string)
-        %Date{} = d -> d
-      end
+  defp qa_duration_by_day(project_id, start_date, end_date, app_name) do
+    query =
+      from(qa in Run,
+        join: ab in assoc(qa, :app_build),
+        join: pr in assoc(ab, :preview),
+        where:
+          pr.project_id == ^project_id and
+            qa.inserted_at >= ^DateTime.new!(start_date, ~T[00:00:00]) and
+            qa.inserted_at < ^DateTime.new!(end_date, ~T[23:59:59]) and
+            qa.status in ["completed", "failed"] and
+            not is_nil(qa.finished_at),
+        group_by: fragment("DATE(?)", qa.inserted_at),
+        select: %{
+          date: fragment("DATE(?)", qa.inserted_at),
+          average_duration: fragment("AVG(EXTRACT(EPOCH FROM (? - ?)) * 1000)", qa.finished_at, qa.inserted_at)
+        },
+        order_by: [asc: fragment("DATE(?)", qa.inserted_at)]
+      )
 
-    case date_period do
-      :day -> date
-      :month -> Date.beginning_of_month(date)
-    end
+    query = apply_app_filter(query, app_name, [:qa, :ab, :pr])
+    results = Repo.all(query)
+    results_map = Map.new(results, fn result ->
+      value = case result.average_duration do
+        nil -> 0
+        %Decimal{} = avg -> Decimal.to_float(avg)
+        avg when is_float(avg) -> avg
+        _ -> 0
+      end
+      {result.date, value}
+    end)
+
+    # Fill in missing days with zero averages
+    start_date
+    |> Date.range(end_date)
+    |> Enum.map(fn date ->
+      value = Map.get(results_map, date, 0)
+      %{date: date, average_duration: value}
+    end)
   end
+
+  defp qa_issues_by_day(project_id, start_date, end_date, app_name) do
+    query =
+      from(qa in Run,
+        join: ab in assoc(qa, :app_build),
+        join: pr in assoc(ab, :preview),
+        join: step in assoc(qa, :run_steps),
+        where:
+          pr.project_id == ^project_id and
+            qa.inserted_at >= ^DateTime.new!(start_date, ~T[00:00:00]) and
+            qa.inserted_at < ^DateTime.new!(end_date, ~T[23:59:59]) and
+            fragment("array_length(?, 1)", step.issues) > 0,
+        group_by: fragment("DATE(?)", qa.inserted_at),
+        select: %{
+          date: fragment("DATE(?)", qa.inserted_at),
+          count: fragment("SUM(array_length(?, 1))", step.issues)
+        },
+        order_by: [asc: fragment("DATE(?)", qa.inserted_at)]
+      )
+
+    query = apply_app_filter(query, app_name, [:qa, :ab, :pr, :step])
+    results = Repo.all(query)
+    results_map = Map.new(results, fn result -> {result.date, result.count} end)
+
+    # Fill in missing days with zero counts
+    start_date
+    |> Date.range(end_date)
+    |> Enum.map(fn date ->
+      count = Map.get(results_map, date, 0)
+      %{date: date, count: count}
+    end)
+  end
+
+  defp apply_app_filter(query, nil, _bindings), do: query
+  defp apply_app_filter(query, "any", _bindings), do: query
+  defp apply_app_filter(query, app_name, [:qa, :ab, :pr]), do: where(query, [qa, ab, pr], pr.display_name == ^app_name)
+  defp apply_app_filter(query, app_name, [:qa, :ab, :pr, :step]), do: where(query, [qa, ab, pr, step], pr.display_name == ^app_name)
 end
