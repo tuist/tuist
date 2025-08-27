@@ -7,7 +7,18 @@ final class ConfigTests: XCTestCase {
         let config = Config(
             cloud: Cloud(url: "https://cloud.tuist.io", projectId: "123", options: []),
             generationOptions: .options(
-                resolveDependenciesWithSystemScm: false,
+                additionalPackageResolutionArguments: ["--some-test-flag"]
+            )
+        )
+
+        XCTAssertCodable(config)
+    }
+
+    func test_config_toJSON_backwardsCompatibility() throws {
+        let config = Config(
+            cloud: Cloud(url: "https://cloud.tuist.io", projectId: "123", options: []),
+            generationOptions: .options(
+                resolveDependenciesWithSystemScm: true,
                 disablePackageVersionLocking: true,
                 clonedSourcePackagesDirPath: .relativeToRoot("SourcePackages")
             )

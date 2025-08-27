@@ -11,6 +11,7 @@ extension Tuist {
 
         /// When passed, Xcode will resolve its Package Manager dependencies using the system-defined
         /// accounts (for example, git) instead of the Xcode-defined accounts
+        @available(*, deprecated, message: "Use `additionalPackageResolutionArguments` instead.")
         public var resolveDependenciesWithSystemScm: Bool
 
         /// Disables locking Swift packages. This can speed up generation but does increase risk if packages are not locked
@@ -19,7 +20,11 @@ extension Tuist {
 
         /// Allows setting a custom directory to be used when resolving package dependencies
         /// This path is passed to `xcodebuild` via the `-clonedSourcePackagesDirPath` argument
+        @available(*, deprecated, message: "Use `additionalPackageResolutionArguments` instead.")
         public var clonedSourcePackagesDirPath: Path?
+
+        /// A list of arguments to be passed to `xcodebuild` when resolving package dependencies.
+        public var additionalPackageResolutionArguments: [String]
 
         /// Allows configuring which targets Tuist checks for potential side effects due multiple branches of the graph
         /// including the same static library of framework as a transitive dependency.
@@ -54,6 +59,36 @@ extension Tuist {
         public var includeGenerateScheme: Bool
 
         public static func options(
+            disablePackageVersionLocking: Bool = false,
+            staticSideEffectsWarningTargets: StaticSideEffectsWarningTargets = .all,
+            defaultConfiguration: String? = nil,
+            optionalAuthentication: Bool = false,
+            buildInsightsDisabled: Bool = false,
+            disableSandbox: Bool = false,
+            includeGenerateScheme: Bool = true,
+            additionalPackageResolutionArguments: [String] = []
+        ) -> Self {
+            self.init(
+                resolveDependenciesWithSystemScm: false,
+                disablePackageVersionLocking: disablePackageVersionLocking,
+                clonedSourcePackagesDirPath: nil,
+                additionalPackageResolutionArguments: additionalPackageResolutionArguments,
+                staticSideEffectsWarningTargets: staticSideEffectsWarningTargets,
+                enforceExplicitDependencies: false,
+                defaultConfiguration: defaultConfiguration,
+                optionalAuthentication: optionalAuthentication,
+                buildInsightsDisabled: buildInsightsDisabled,
+                disableSandbox: disableSandbox,
+                includeGenerateScheme: includeGenerateScheme
+            )
+        }
+
+        @available(
+            *,
+            deprecated,
+            message: "Use `options(disablePackageVersionLocking:staticSideEffectsWarningTargets:defaultConfiguration:optionalAuthentication:buildInsightsDisabled:disableSandbox:includeGenerateScheme:additionalPackageResolutionArguments)` instead."
+        )
+        public static func options(
             resolveDependenciesWithSystemScm: Bool = false,
             disablePackageVersionLocking: Bool = false,
             clonedSourcePackagesDirPath: Path? = nil,
@@ -64,10 +99,19 @@ extension Tuist {
             disableSandbox: Bool = false,
             includeGenerateScheme: Bool = true
         ) -> Self {
-            self.init(
+            var additionalPackageResolutionArguments: [String] = []
+            if resolveDependenciesWithSystemScm {
+                additionalPackageResolutionArguments.append("-resolvePackageDependenciesWithSystemScm")
+            }
+            if let clonedSourcePackagesDirPath {
+                additionalPackageResolutionArguments.append("-clonedSourcePackagesDirPath")
+                additionalPackageResolutionArguments.append(clonedSourcePackagesDirPath.pathString)
+            }
+            return self.init(
                 resolveDependenciesWithSystemScm: resolveDependenciesWithSystemScm,
                 disablePackageVersionLocking: disablePackageVersionLocking,
                 clonedSourcePackagesDirPath: clonedSourcePackagesDirPath,
+                additionalPackageResolutionArguments: additionalPackageResolutionArguments,
                 staticSideEffectsWarningTargets: staticSideEffectsWarningTargets,
                 enforceExplicitDependencies: false,
                 defaultConfiguration: defaultConfiguration,
@@ -96,6 +140,7 @@ extension Tuist {
                 resolveDependenciesWithSystemScm: resolveDependenciesWithSystemScm,
                 disablePackageVersionLocking: disablePackageVersionLocking,
                 clonedSourcePackagesDirPath: clonedSourcePackagesDirPath,
+                additionalPackageResolutionArguments: [],
                 staticSideEffectsWarningTargets: staticSideEffectsWarningTargets,
                 enforceExplicitDependencies: enforceExplicitDependencies,
                 defaultConfiguration: defaultConfiguration,

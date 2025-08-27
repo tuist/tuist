@@ -64,18 +64,8 @@ public class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting {
         Logger.current.notice("Resolving package dependencies using xcodebuild")
         // -list parameter is a workaround to resolve package dependencies for given workspace without specifying scheme
         var arguments = ["xcodebuild", "-resolvePackageDependencies"]
-
-        // This allows using the system-defined git credentials instead of using Xcode's accounts permissions
-        if configGeneratedProjectOptions.generationOptions.resolveDependenciesWithSystemScm {
-            arguments.append(contentsOf: ["-scmProvider", "system"])
-        }
-
-        // Set specific clone directory for Xcode managed SPM dependencies
-        if let clonedSourcePackagesDirPath = configGeneratedProjectOptions.generationOptions.clonedSourcePackagesDirPath {
-            let workspace = (workspaceName as NSString).deletingPathExtension
-            let path = "\(clonedSourcePackagesDirPath.pathString)/\(workspace)"
-            arguments.append(contentsOf: ["-clonedSourcePackagesDirPath", path])
-        }
+        
+        arguments.append(contentsOf: configGeneratedProjectOptions.generationOptions.additionalPackageResolutionArguments)
 
         arguments.append(contentsOf: ["-workspace", workspacePath.pathString, "-list"])
 

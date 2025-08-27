@@ -15,10 +15,19 @@ extension TuistCore.TuistGeneratedProjectOptions.GenerationOptions {
                 return nil
             }
         }()
+        var additionalPackageResolutionArguments = manifest.additionalPackageResolutionArguments
+        if manifest.resolveDependenciesWithSystemScm {
+            additionalPackageResolutionArguments.append("-resolvePackageDependenciesWithSystemScm")
+        }
+        if let clonedSourcePackagesDirPath {
+            additionalPackageResolutionArguments.append("-clonedSourcePackagesDirPath")
+            additionalPackageResolutionArguments.append(clonedSourcePackagesDirPath.pathString)
+        }
         return .init(
             resolveDependenciesWithSystemScm: manifest.resolveDependenciesWithSystemScm,
             disablePackageVersionLocking: manifest.disablePackageVersionLocking,
             clonedSourcePackagesDirPath: clonedSourcePackagesDirPath,
+            additionalPackageResolutionArguments: additionalPackageResolutionArguments,
             staticSideEffectsWarningTargets: TuistCore.TuistGeneratedProjectOptions.GenerationOptions
                 .StaticSideEffectsWarningTargets
                 .from(manifest: manifest.staticSideEffectsWarningTargets),

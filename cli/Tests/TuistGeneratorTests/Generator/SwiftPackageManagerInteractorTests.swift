@@ -99,7 +99,7 @@ final class SwiftPackageManagerInteractorTests: TuistTestCase {
         XCTAssertTrue(exists)
     }
 
-    func test_generate_usesSystemGitCredentials() async throws {
+    func test_install_forwards_additional_arguments() async throws {
         // Given
         let temporaryPath = try temporaryPath()
 
@@ -126,8 +126,7 @@ final class SwiftPackageManagerInteractorTests: TuistTestCase {
             .succeedCommand([
                 "xcodebuild",
                 "-resolvePackageDependencies",
-                "-scmProvider",
-                "system",
+                "--some-extra-argument",
                 "-workspace",
                 workspacePath.pathString,
                 "-list",
@@ -140,7 +139,7 @@ final class SwiftPackageManagerInteractorTests: TuistTestCase {
             workspaceName: workspacePath.basename,
             configGeneratedProjectOptions: .test(
                 compatibleXcodeVersions: .all,
-                generationOptions: .test(resolveDependenciesWithSystemScm: true)
+                generationOptions: .test(additionalPackageResolutionArguments: ["--some-extra-argument"])
             )
         )
 
@@ -221,55 +220,6 @@ final class SwiftPackageManagerInteractorTests: TuistTestCase {
         // Then
         let exists = try await fileSystem.exists(temporaryPath.appending(component: ".package.resolved"))
         XCTAssertFalse(exists)
-    }
-
-    func test_generate_sets_cloned_source_packages_dir_path() async throws {
-        // Given
-        let temporaryPath = try temporaryPath()
-        let spmPath = temporaryPath.appending(component: "spm")
-        let target = anyTarget(dependencies: [
-            .package(product: "Example", type: .runtime),
-        ])
-        let package = Package.remote(url: "http://some.remote/repo.git", requirement: .exact("branch"))
-        let project = Project.test(
-            path: temporaryPath,
-            name: "Test",
-            settings: .default,
-            targets: [target],
-            packages: [package]
-        )
-        let graph = Graph.test(
-            path: project.path,
-            packages: [project.path: ["Test": package]],
-            dependencies: [GraphDependency.packageProduct(path: project.path, product: "Test", type: .runtime): Set()]
-        )
-        let graphTraverser = GraphTraverser(graph: graph)
-
-        let workspacePath = temporaryPath.appending(component: "\(project.name).xcworkspace")
-        system.succeedCommand([
-            "xcodebuild",
-            "-resolvePackageDependencies",
-            "-clonedSourcePackagesDirPath",
-            "\(spmPath.pathString)/\(project.name)",
-            "-workspace",
-            workspacePath.pathString,
-            "-list",
-        ])
-        try await createFiles(["\(workspacePath.basename)/xcshareddata/swiftpm/Package.resolved"])
-
-        // When
-        try await subject.install(
-            graphTraverser: graphTraverser,
-            workspaceName: workspacePath.basename,
-            configGeneratedProjectOptions: .test(generationOptions: .test(
-                clonedSourcePackagesDirPath: temporaryPath
-                    .appending(component: "spm")
-            ))
-        )
-
-        // Then
-        let exists = try await fileSystem.exists(temporaryPath.appending(component: ".package.resolved"))
-        XCTAssertTrue(exists)
     }
 
     // MARK: - Helpers
