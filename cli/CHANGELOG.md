@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.65.3<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* arch incompatibilities when using the cache by [@pepicrft](https://github.com/pepicrft) in [#8096](https://github.com/tuist/tuist/pull/8096)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.65.2...4.65.3
+
 ## What's Changed in 4.65.2<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
