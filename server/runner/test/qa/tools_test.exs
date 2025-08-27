@@ -557,15 +557,15 @@ defmodule Runner.QA.ToolsTest do
       issues = ["Minor UI alignment issue in login button"]
 
       expect(Client, :start_update_step, fn %{
-                                        step_id: ^step_id,
-                                        result: ^result,
-                                        issues: ^issues,
-                                        server_url: "http://test.com",
-                                        run_id: "test-run-id",
-                                        auth_token: "test-token",
-                                        account_handle: "test-account",
-                                        project_handle: "test-project"
-                                      } ->
+                                              step_id: ^step_id,
+                                              result: ^result,
+                                              issues: ^issues,
+                                              server_url: "http://test.com",
+                                              run_id: "test-run-id",
+                                              auth_token: "test-token",
+                                              account_handle: "test-account",
+                                              project_handle: "test-project"
+                                            } ->
         {:ok, :async}
       end)
 
@@ -593,15 +593,15 @@ defmodule Runner.QA.ToolsTest do
       issues = ["Timeout error", "Server unresponsive"]
 
       expect(Client, :start_update_step, fn %{
-                                        step_id: ^step_id,
-                                        result: ^result,
-                                        issues: ^issues,
-                                        server_url: "http://test.com",
-                                        run_id: "test-run-id",
-                                        auth_token: "test-token",
-                                        account_handle: "test-account",
-                                        project_handle: "test-project"
-                                      } ->
+                                              step_id: ^step_id,
+                                              result: ^result,
+                                              issues: ^issues,
+                                              server_url: "http://test.com",
+                                              run_id: "test-run-id",
+                                              auth_token: "test-token",
+                                              account_handle: "test-account",
+                                              project_handle: "test-project"
+                                            } ->
         {:ok, :async}
       end)
 

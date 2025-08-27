@@ -560,7 +560,9 @@ defmodule Tuist.QA do
     app_name = Keyword.get(opts, :app_name)
 
     current_count = count_qa_runs(project_id, start_date, end_date, app_name)
-    previous_count = count_qa_runs(project_id, Date.add(start_date, -Date.diff(end_date, start_date)), start_date, app_name)
+
+    previous_count =
+      count_qa_runs(project_id, Date.add(start_date, -Date.diff(end_date, start_date)), start_date, app_name)
 
     runs_data = qa_runs_by_day(project_id, start_date, end_date, app_name)
 
@@ -580,7 +582,9 @@ defmodule Tuist.QA do
     app_name = Keyword.get(opts, :app_name)
 
     current_count = count_qa_issues(project_id, start_date, end_date, app_name)
-    previous_count = count_qa_issues(project_id, Date.add(start_date, -Date.diff(end_date, start_date)), start_date, app_name)
+
+    previous_count =
+      count_qa_issues(project_id, Date.add(start_date, -Date.diff(end_date, start_date)), start_date, app_name)
 
     issues_data = qa_issues_by_day(project_id, start_date, end_date, app_name)
 
@@ -600,7 +604,9 @@ defmodule Tuist.QA do
     app_name = Keyword.get(opts, :app_name)
 
     current_avg = average_qa_duration(project_id, start_date, end_date, app_name)
-    previous_avg = average_qa_duration(project_id, Date.add(start_date, -Date.diff(end_date, start_date)), start_date, app_name)
+
+    previous_avg =
+      average_qa_duration(project_id, Date.add(start_date, -Date.diff(end_date, start_date)), start_date, app_name)
 
     duration_data = qa_duration_by_day(project_id, start_date, end_date, app_name)
 
@@ -773,15 +779,19 @@ defmodule Tuist.QA do
 
     query = apply_app_filter(query, app_name, [:qa, :ab, :pr])
     results = Repo.all(query)
-    results_map = Map.new(results, fn result ->
-      value = case result.average_duration do
-        nil -> 0
-        %Decimal{} = avg -> Decimal.to_float(avg)
-        avg when is_float(avg) -> avg
-        _ -> 0
-      end
-      {result.date, value}
-    end)
+
+    results_map =
+      Map.new(results, fn result ->
+        value =
+          case result.average_duration do
+            nil -> 0
+            %Decimal{} = avg -> Decimal.to_float(avg)
+            avg when is_float(avg) -> avg
+            _ -> 0
+          end
+
+        {result.date, value}
+      end)
 
     # Fill in missing days with zero averages
     start_date
@@ -827,5 +837,7 @@ defmodule Tuist.QA do
   defp apply_app_filter(query, nil, _bindings), do: query
   defp apply_app_filter(query, "any", _bindings), do: query
   defp apply_app_filter(query, app_name, [:qa, :ab, :pr]), do: where(query, [qa, ab, pr], pr.display_name == ^app_name)
-  defp apply_app_filter(query, app_name, [:qa, :ab, :pr, :step]), do: where(query, [qa, ab, pr, step], pr.display_name == ^app_name)
+
+  defp apply_app_filter(query, app_name, [:qa, :ab, :pr, :step]),
+    do: where(query, [qa, ab, pr, step], pr.display_name == ^app_name)
 end

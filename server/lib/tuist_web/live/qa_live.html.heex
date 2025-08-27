@@ -14,7 +14,8 @@
         >
           <:right_icon><.check /></:right_icon>
         </.dropdown_item>
-        <.dropdown_item :for={{app_name, app_label} <- @available_apps}
+        <.dropdown_item
+          :for={{app_name, app_label} <- @available_apps}
           value={app_name}
           label={app_label}
           patch={"?#{TuistWeb.Utilities.Query.put(@uri.query, "analytics_app", app_name)}"}
@@ -198,10 +199,10 @@
             <.text_cell label={run.git_ref || gettext("None")} />
           </:col>
           <:col :let={run} label={gettext("SHA")}>
-            <.text_cell label=
-                  {(run.app_build.preview.git_commit_sha || "None")
-                  |> String.slice(0, 7)}
-             />
+            <.text_cell label={
+              (run.app_build.preview.git_commit_sha || "None")
+              |> String.slice(0, 7)
+            } />
           </:col>
           <:col :let={run} label={gettext("Tested")}>
             <.text_cell label={format_datetime(run.inserted_at)} />

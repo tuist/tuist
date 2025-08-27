@@ -2,6 +2,7 @@ defmodule Tuist.QATest do
   use TuistTestSupport.Cases.DataCase
   use Mimic
 
+  alias Ecto.Association.NotLoaded
   alias Runner.QA.Agent
   alias Tuist.Authentication
   alias Tuist.QA
@@ -1107,9 +1108,9 @@ defmodule Tuist.QATest do
       result = List.first(results)
       assert result.id == qa_run.id
 
-      refute match?(%Ecto.Association.NotLoaded{}, result.app_build)
-      refute match?(%Ecto.Association.NotLoaded{}, result.app_build.preview)
-      refute match?(%Ecto.Association.NotLoaded{}, result.run_steps)
+      refute match?(%NotLoaded{}, result.app_build)
+      refute match?(%NotLoaded{}, result.app_build.preview)
+      refute match?(%NotLoaded{}, result.run_steps)
     end
 
     test "returns QA runs for specific project only" do
@@ -1119,7 +1120,7 @@ defmodule Tuist.QATest do
 
       preview = AppBuildsFixtures.preview_fixture(project: project)
       other_preview = AppBuildsFixtures.preview_fixture(project: other_project)
-      
+
       app_build = AppBuildsFixtures.app_build_fixture(preview: preview)
       other_app_build = AppBuildsFixtures.app_build_fixture(preview: other_preview)
 
@@ -1170,15 +1171,19 @@ defmodule Tuist.QATest do
       app_build = AppBuildsFixtures.app_build_fixture(preview: preview)
 
       older_time = DateTime.utc_now() |> DateTime.add(-1, :hour) |> DateTime.truncate(:second)
-      newer_time = DateTime.utc_now() |> DateTime.truncate(:second)
+      newer_time = DateTime.truncate(DateTime.utc_now(), :second)
 
-      {:ok, qa_run1} = QAFixtures.qa_run_fixture(app_build: app_build, prompt: "Test 1") 
-                       |> Ecto.Changeset.change(inserted_at: older_time) 
-                       |> Tuist.Repo.update()
-      
-      {:ok, qa_run2} = QAFixtures.qa_run_fixture(app_build: app_build, prompt: "Test 2")
-                       |> Ecto.Changeset.change(inserted_at: newer_time)
-                       |> Tuist.Repo.update()
+      {:ok, qa_run1} =
+        [app_build: app_build, prompt: "Test 1"]
+        |> QAFixtures.qa_run_fixture()
+        |> Ecto.Changeset.change(inserted_at: older_time)
+        |> Repo.update()
+
+      {:ok, qa_run2} =
+        [app_build: app_build, prompt: "Test 2"]
+        |> QAFixtures.qa_run_fixture()
+        |> Ecto.Changeset.change(inserted_at: newer_time)
+        |> Repo.update()
 
       # When
       results = QA.qa_runs_for_project(project)
@@ -1217,7 +1222,7 @@ defmodule Tuist.QATest do
 
       preview = AppBuildsFixtures.preview_fixture(project: project)
       other_preview = AppBuildsFixtures.preview_fixture(project: other_project)
-      
+
       app_build = AppBuildsFixtures.app_build_fixture(preview: preview)
       other_app_build = AppBuildsFixtures.app_build_fixture(preview: other_preview)
 
@@ -1251,19 +1256,25 @@ defmodule Tuist.QATest do
 
       oldest_time = DateTime.utc_now() |> DateTime.add(-2, :hour) |> DateTime.truncate(:second)
       middle_time = DateTime.utc_now() |> DateTime.add(-1, :hour) |> DateTime.truncate(:second)
-      newest_time = DateTime.utc_now() |> DateTime.truncate(:second)
+      newest_time = DateTime.truncate(DateTime.utc_now(), :second)
 
-      {:ok, _qa_run1} = QAFixtures.qa_run_fixture(app_build: app_build, prompt: "Test 1")
-                        |> Ecto.Changeset.change(inserted_at: oldest_time)
-                        |> Tuist.Repo.update()
-      
-      {:ok, qa_run2} = QAFixtures.qa_run_fixture(app_build: app_build, prompt: "Test 2")
-                       |> Ecto.Changeset.change(inserted_at: middle_time)
-                       |> Tuist.Repo.update()
-      
-      {:ok, _qa_run3} = QAFixtures.qa_run_fixture(app_build: app_build, prompt: "Test 3")
-                        |> Ecto.Changeset.change(inserted_at: newest_time)
-                        |> Tuist.Repo.update()
+      {:ok, _qa_run1} =
+        [app_build: app_build, prompt: "Test 1"]
+        |> QAFixtures.qa_run_fixture()
+        |> Ecto.Changeset.change(inserted_at: oldest_time)
+        |> Repo.update()
+
+      {:ok, qa_run2} =
+        [app_build: app_build, prompt: "Test 2"]
+        |> QAFixtures.qa_run_fixture()
+        |> Ecto.Changeset.change(inserted_at: middle_time)
+        |> Repo.update()
+
+      {:ok, _qa_run3} =
+        [app_build: app_build, prompt: "Test 3"]
+        |> QAFixtures.qa_run_fixture()
+        |> Ecto.Changeset.change(inserted_at: newest_time)
+        |> Repo.update()
 
       # When
       results = QA.qa_runs_with_token_usage_for_project(project, limit: 1, offset: 1)
@@ -1280,25 +1291,29 @@ defmodule Tuist.QATest do
       app_build = AppBuildsFixtures.app_build_fixture(preview: preview)
 
       older_time = DateTime.utc_now() |> DateTime.add(-1, :hour) |> DateTime.truncate(:second)
-      newer_time = DateTime.utc_now() |> DateTime.truncate(:second)
+      newer_time = DateTime.truncate(DateTime.utc_now(), :second)
 
-      {:ok, qa_run1} = QAFixtures.qa_run_fixture(app_build: app_build, prompt: "Test 1")
-                       |> Ecto.Changeset.change(inserted_at: older_time)
-                       |> Tuist.Repo.update()
-      
-      {:ok, qa_run2} = QAFixtures.qa_run_fixture(app_build: app_build, prompt: "Test 2")
-                       |> Ecto.Changeset.change(inserted_at: newer_time)
-                       |> Tuist.Repo.update()
+      {:ok, qa_run1} =
+        [app_build: app_build, prompt: "Test 1"]
+        |> QAFixtures.qa_run_fixture()
+        |> Ecto.Changeset.change(inserted_at: older_time)
+        |> Repo.update()
+
+      {:ok, qa_run2} =
+        [app_build: app_build, prompt: "Test 2"]
+        |> QAFixtures.qa_run_fixture()
+        |> Ecto.Changeset.change(inserted_at: newer_time)
+        |> Repo.update()
 
       # When
       results = QA.qa_runs_with_token_usage_for_project(project)
 
       # Then
-       assert length(results) == 2
-       assert List.first(results).id == qa_run2.id
-       assert List.last(results).id == qa_run1.id
-     end
-   end
+      assert length(results) == 2
+      assert List.first(results).id == qa_run2.id
+      assert List.last(results).id == qa_run1.id
+    end
+  end
 
   describe "analytics functions" do
     setup do
@@ -1306,30 +1321,31 @@ defmodule Tuist.QATest do
       preview = AppBuildsFixtures.preview_fixture(project: project)
       app_build = AppBuildsFixtures.app_build_fixture(preview: preview, preload: [:preview])
 
-      base_date = Date.utc_today() |> Date.add(-10)
+      base_date = Date.add(Date.utc_today(), -10)
 
-      run1 = QAFixtures.qa_run_fixture(
-        app_build: app_build,
-        status: "completed",
-        inserted_at: DateTime.new!(base_date, ~T[10:00:00], "Etc/UTC")
-      )
+      run1 =
+        QAFixtures.qa_run_fixture(
+          app_build: app_build,
+          status: "completed",
+          inserted_at: DateTime.new!(base_date, ~T[10:00:00], "Etc/UTC")
+        )
 
-      run2 = QAFixtures.qa_run_fixture(
-        app_build: app_build,
-        status: "completed",
-        inserted_at: DateTime.new!(base_date, ~T[11:00:00], "Etc/UTC")
-      )
+      run2 =
+        QAFixtures.qa_run_fixture(
+          app_build: app_build,
+          status: "completed",
+          inserted_at: DateTime.new!(base_date, ~T[11:00:00], "Etc/UTC")
+        )
 
-      _step = QAFixtures.qa_step_fixture(
-        qa_run: run2,
-        issues: ["Issue 1", "Issue 2"]
-      )
+      _step =
+        QAFixtures.qa_step_fixture(
+          qa_run: run2,
+          issues: ["Issue 1", "Issue 2"]
+        )
 
       {:ok, run2} =
         run2
-        |> Ecto.Changeset.change(
-          finished_at: DateTime.new!(base_date |> Date.add(5), ~T[10:30:00], "Etc/UTC")
-        )
+        |> Ecto.Changeset.change(finished_at: base_date |> Date.add(5) |> DateTime.new!(~T[10:30:00], "Etc/UTC"))
         |> Repo.update()
 
       %{project: project, app_build: app_build, run1: run1, run2: run2}
@@ -1357,7 +1373,7 @@ defmodule Tuist.QATest do
     end
 
     test "qa_runs_analytics with date range", %{project: project} do
-      start_date = Date.utc_today() |> Date.add(-5)
+      start_date = Date.add(Date.utc_today(), -5)
       end_date = Date.utc_today()
 
       # When

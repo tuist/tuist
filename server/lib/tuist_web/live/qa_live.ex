@@ -3,8 +3,8 @@ defmodule TuistWeb.QALive do
   use TuistWeb, :live_view
   use Noora
 
-  import TuistWeb.Previews.PlatformIcon
   import TuistWeb.Components.EmptyCardSection
+  import TuistWeb.Previews.PlatformIcon
 
   alias Tuist.AppBuilds.Preview
   alias Tuist.QA
@@ -34,10 +34,14 @@ defmodule TuistWeb.QALive do
 
   defp load_qa_runs(socket) do
     project = socket.assigns.selected_project
-    qa_runs = QA.qa_runs_for_project(project, preload: [
-      :run_steps,
-      app_build: :preview
-    ])
+
+    qa_runs =
+      QA.qa_runs_for_project(project,
+        preload: [
+          :run_steps,
+          app_build: :preview
+        ]
+      )
 
     assign(socket, :qa_runs, qa_runs)
   end
@@ -49,10 +53,11 @@ defmodule TuistWeb.QALive do
     opts = [
       project_id: project.id,
       start_date: start_date(date_range),
-      app_name: case analytics_app do
-        "any" -> nil
-        app_name -> app_name
-      end
+      app_name:
+        case analytics_app do
+          "any" -> nil
+          app_name -> app_name
+        end
     ]
 
     uri = URI.new!("?" <> URI.encode_query(params))

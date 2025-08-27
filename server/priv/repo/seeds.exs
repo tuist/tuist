@@ -470,12 +470,10 @@ qa_runs =
         )
       )
 
-    finished_at = 
+    finished_at =
       if status in ["completed", "failed"] do
         duration_minutes = Enum.random(5..45)
         DateTime.add(inserted_at, duration_minutes * 60, :second)
-      else
-        nil
       end
 
     base_attrs = %{
