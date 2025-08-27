@@ -3,7 +3,7 @@ defmodule Tuist.PromEx.StripedPeepTest do
 
   alias Tuist.PromEx.StripedPeep
 
-  defp unique_id(), do: String.replace(UUIDv7.generate(), "-", "_")
+  defp unique_id, do: String.replace(UUIDv7.generate(), "-", "_")
 
   describe "scrape/1" do
     test "clears striped ETS tables after scraping metrics" do
