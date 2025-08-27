@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.65.4<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* CocoaPods unable to install dependencies due to project's `objectVersion` by [@pepicrft](https://github.com/pepicrft) in [#8051](https://github.com/tuist/tuist/pull/8051)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.65.3...4.65.4
+
 ## What's Changed in 4.65.3<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
