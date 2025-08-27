@@ -18,7 +18,6 @@ public protocol CacheServicing {
     func run(
         path directory: String?,
         configuration: String?,
-        architectures: [MacArchitecture],
         targetsToBinaryCache: Set<String>,
         externalOnly: Bool,
         generateOnly: Bool
@@ -29,7 +28,6 @@ final class EmptyCacheService: CacheServicing {
     func run(
         path _: String?,
         configuration _: String?,
-        architectures _: [MacArchitecture],
         targetsToBinaryCache _: Set<String>,
         externalOnly _: Bool,
         generateOnly _: Bool
@@ -119,7 +117,6 @@ final class EmptyCacheService: CacheServicing {
         func run(
             path directory: String?,
             configuration: String?,
-            architectures: [MacArchitecture],
             targetsToBinaryCache: Set<String>,
             externalOnly: Bool,
             generateOnly: Bool
@@ -198,7 +195,6 @@ final class EmptyCacheService: CacheServicing {
                 updatedGraph,
                 projectPath: projectPath,
                 configuration: configuration,
-                architectures: architectures,
                 hashesByTargetToBeCached: cacheableTargets,
                 cacheStorage: cacheStorage,
                 isReleaseConfiguration: isReleaseConfiguration
@@ -215,7 +211,6 @@ final class EmptyCacheService: CacheServicing {
             _ graph: Graph,
             projectPath: AbsolutePath,
             configuration: String,
-            architectures: [MacArchitecture],
             hashesByTargetToBeCached: [(GraphTarget, String)],
             cacheStorage: CacheStoring,
             isReleaseConfiguration: Bool
@@ -251,7 +246,6 @@ final class EmptyCacheService: CacheServicing {
                     try await buildBinarySchemes(
                         scheme,
                         configuration: configuration,
-                        architectures: architectures,
                         xcodebuildTarget: xcodebuildTarget,
                         graph: graph,
                         binaryArtifactDirectories: &binaryArtifactDirectories,
@@ -267,7 +261,6 @@ final class EmptyCacheService: CacheServicing {
                     artifactsToStore.append(contentsOf: try await buildBundles(
                         scheme,
                         configuration: configuration,
-                        architectures: architectures,
                         xcodebuildTarget: xcodebuildTarget,
                         derivedDataPath: derivedDataPath,
                         cacheableTargets: hashesByTargetToBeCached
@@ -280,7 +273,6 @@ final class EmptyCacheService: CacheServicing {
                     artifactsToStore.append(contentsOf: try await buildMacros(
                         scheme,
                         configuration: configuration,
-                        architectures: architectures,
                         xcodebuildTarget: xcodebuildTarget,
                         derivedDataPath: derivedDataPath,
                         cacheableTargets: hashesByTargetToBeCached,
@@ -344,7 +336,6 @@ final class EmptyCacheService: CacheServicing {
         private func buildMacros(
             _ scheme: Scheme,
             configuration: String,
-            architectures: [MacArchitecture],
             xcodebuildTarget: XcodeBuildTarget,
             derivedDataPath: AbsolutePath,
             cacheableTargets: [(GraphTarget, String)],
@@ -354,11 +345,12 @@ final class EmptyCacheService: CacheServicing {
             let arguments: [XcodeBuildArgument] = [
                 .xcarg("SKIP_INSTALL", "NO"),
                 .configuration(configuration),
+                .xcarg("ONLY_ACTIVE_ARCH", "NO"),
                 .xcarg("CODE_SIGN_IDENTITY", ""),
                 .xcarg("CODE_SIGN_ENTITLEMENTS", ""),
                 .xcarg("CODE_SIGNING_ALLOWED", "NO"),
                 .xcarg("CODE_SIGNING_REQUIRED", "NO"),
-            ] + xcargs(for: architectures)
+            ]
             try await xcodeBuildController.build(
                 xcodebuildTarget,
                 scheme: scheme.name,
@@ -401,7 +393,6 @@ final class EmptyCacheService: CacheServicing {
         private func buildBundles(
             _ scheme: Scheme,
             configuration: String,
-            architectures: [MacArchitecture],
             xcodebuildTarget: XcodeBuildTarget,
             derivedDataPath: AbsolutePath,
             cacheableTargets: [(GraphTarget, String)]
@@ -414,12 +405,13 @@ final class EmptyCacheService: CacheServicing {
 
             var arguments: [XcodeBuildArgument] = [
                 .xcarg("SKIP_INSTALL", "NO"),
+                .xcarg("ONLY_ACTIVE_ARCH", "NO"),
                 .xcarg("CODE_SIGN_IDENTITY", ""),
                 .xcarg("CODE_SIGN_ENTITLEMENTS", ""),
                 .xcarg("CODE_SIGNING_ALLOWED", "NO"),
                 .xcarg("CODE_SIGNING_REQUIRED", "NO"),
                 .configuration(configuration),
-            ] + xcargs(for: architectures)
+            ]
             // We currently skip building for maccatalyst as we prefer to generate a bundle for iOS instead.
             // iOS bundles should be compatible with maccatalyst ones
 //        let macCatalystSupportedTargets = macCatalystTargets(graph: graph, scheme: scheme)
@@ -522,7 +514,6 @@ final class EmptyCacheService: CacheServicing {
         private func buildBinarySchemes(
             _ scheme: Scheme,
             configuration: String,
-            architectures: [MacArchitecture],
             xcodebuildTarget: XcodeBuildTarget,
             graph: Graph,
             binaryArtifactDirectories: inout [Platform: Set<AbsolutePath>],
@@ -554,6 +545,7 @@ final class EmptyCacheService: CacheServicing {
                         .destination("generic/platform=\(platform.caseValue) Simulator"),
                         .xcarg("SKIP_INSTALL", "NO"),
                         .xcarg("DEBUG_INFORMATION_FORMAT", "dwarf-with-dsym"),
+                        .xcarg("ONLY_ACTIVE_ARCH", "NO"),
                         .xcarg("CODE_SIGN_IDENTITY", ""),
                         .xcarg("CODE_SIGN_ENTITLEMENTS", ""),
                         .xcarg("CODE_SIGNING_ALLOWED", "NO"),
@@ -565,7 +557,7 @@ final class EmptyCacheService: CacheServicing {
                     ] + (isReleaseConfiguration ? [
                         .xcarg("GCC_INSTRUMENT_PROGRAM_FLOW_ARCS", "NO"),
                         .xcarg("CLANG_ENABLE_CODE_COVERAGE", "NO"),
-                    ] : []) + xcargs(for: architectures),
+                    ] : []),
                     passthroughXcodeBuildArguments: [
                         "-resultBundlePath",
                         derivedDataPath.appending(component: UUID().uuidString).pathString,
@@ -605,6 +597,7 @@ final class EmptyCacheService: CacheServicing {
                         .destination("platform=macOS,variant=Mac Catalyst"),
                         .xcarg("SKIP_INSTALL", "NO"),
                         .xcarg("DEBUG_INFORMATION_FORMAT", "dwarf-with-dsym"),
+                        .xcarg("ONLY_ACTIVE_ARCH", "NO"),
                         .xcarg("CODE_SIGN_IDENTITY", ""),
                         .xcarg("CODE_SIGN_ENTITLEMENTS", ""),
                         .xcarg("CODE_SIGNING_ALLOWED", "NO"),
@@ -616,7 +609,7 @@ final class EmptyCacheService: CacheServicing {
                     ] + (isReleaseConfiguration ? [
                         .xcarg("GCC_INSTRUMENT_PROGRAM_FLOW_ARCS", "NO"),
                         .xcarg("CLANG_ENABLE_CODE_COVERAGE", "NO"),
-                    ] : []) + xcargs(for: architectures),
+                    ] : []),
                     passthroughXcodeBuildArguments: [
                         "-resultBundlePath",
                         derivedDataPath.appending(component: UUID().uuidString).pathString,
@@ -646,6 +639,7 @@ final class EmptyCacheService: CacheServicing {
 
             var deviceArguments: [XcodeBuildArgument] = [
                 .xcarg("SKIP_INSTALL", "NO"),
+                .xcarg("ONLY_ACTIVE_ARCH", "NO"),
                 .xcarg("CODE_SIGN_IDENTITY", ""),
                 .xcarg("CODE_SIGN_ENTITLEMENTS", ""),
                 .xcarg("CODE_SIGNING_ALLOWED", "NO"),
@@ -657,10 +651,11 @@ final class EmptyCacheService: CacheServicing {
             ] + (isReleaseConfiguration ? [
                 .xcarg("GCC_INSTRUMENT_PROGRAM_FLOW_ARCS", "NO"),
                 .xcarg("CLANG_ENABLE_CODE_COVERAGE", "NO"),
-            ] : []) + xcargs(for: architectures)
+            ] : [])
             if platform == .macOS {
                 deviceArguments.append(contentsOf: [
                     .xcarg("DEBUG_INFORMATION_FORMAT", "dwarf-with-dsym"),
+                    .xcarg("ONLY_ACTIVE_ARCH", "NO"),
                 ])
             } else {
                 deviceArguments.append(.destination("generic/platform=\(platform.caseValue)"))
@@ -841,19 +836,6 @@ final class EmptyCacheService: CacheServicing {
 
             return cacheableTargets.compactMap {
                 existingTargetHashes.contains($0.hash) ? nil : ($0.target, $0.hash)
-            }
-        }
-
-        private func xcargs(for architectures: [MacArchitecture]) -> [XcodeBuildArgument] {
-            if architectures.isEmpty {
-                return [
-                    // We're building for arm64 by default
-                    .xcarg("ARCHS", "arm64"),
-                ]
-            } else {
-                return [
-                    .xcarg("ARCHS", architectures.map(\.rawValue).joined(separator: " ")),
-                ]
             }
         }
     }
