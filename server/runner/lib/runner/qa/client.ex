@@ -5,6 +5,8 @@ defmodule Runner.QA.Client do
 
   alias Runner.QA.LogStreamer
 
+  require Logger
+
   def create_step(
         %{
           action: action,
@@ -29,7 +31,7 @@ defmodule Runner.QA.Client do
     end
   end
 
-  def update_step(%{
+  def start_update_step(%{
         step_id: step_id,
         result: result,
         issues: issues,
@@ -41,7 +43,17 @@ defmodule Runner.QA.Client do
       }) do
     step_url = qa_run_url(server_url, account_handle, project_handle, run_id, "/steps/#{step_id}")
 
-    qa_server_request(:patch, step_url, auth_token, json: %{result: result, issues: issues})
+    Task.start(fn ->
+      case qa_server_request(:patch, step_url, auth_token, json: %{result: result, issues: issues}) do
+        {:ok, _} ->
+          Logger.debug("Successfully updated step #{step_id}")
+
+        {:error, reason} ->
+          Logger.error("Failed to update step #{step_id}: #{inspect(reason)}")
+      end
+    end)
+
+    {:ok, :async}
   end
 
   def start_run(%{
@@ -81,29 +93,6 @@ defmodule Runner.QA.Client do
     qa_server_request(:patch, run_url, auth_token, json: %{status: "failed", error_message: error_message})
   end
 
-  def screenshot_upload(%{
-        server_url: server_url,
-        run_id: run_id,
-        auth_token: auth_token,
-        account_handle: account_handle,
-        project_handle: project_handle,
-        screenshot_id: screenshot_id
-      }) do
-    upload_url =
-      qa_run_url(
-        server_url,
-        account_handle,
-        project_handle,
-        run_id,
-        "/screenshots/#{screenshot_id}/upload"
-      )
-
-    case qa_server_request(:post, upload_url, auth_token) do
-      {:ok, response} -> {:ok, response}
-      {:error, reason} -> {:error, reason}
-    end
-  end
-
   def create_screenshot(
         %{
           server_url: server_url,
@@ -140,7 +129,7 @@ defmodule Runner.QA.Client do
     "#{server_url}/api/projects/#{account_handle}/#{project_handle}/qa/runs/#{run_id}#{path}"
   end
 
-  defp qa_server_request(method, url, auth_token, params \\ []) do
+  defp qa_server_request(method, url, auth_token, params) do
     opts =
       [
         url: url,

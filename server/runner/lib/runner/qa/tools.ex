@@ -738,22 +738,18 @@ defmodule Runner.QA.Tools do
         })
       ],
       function: fn %{"step_id" => step_id, "result" => result, "issues" => issues} = _params, _context ->
-        case Client.update_step(%{
-               step_id: step_id,
-               result: result,
-               issues: issues,
-               server_url: server_url,
-               run_id: run_id,
-               auth_token: auth_token,
-               account_handle: account_handle,
-               project_handle: project_handle
-             }) do
-          {:ok, _} ->
-            {:ok, "Step report submitted successfully."}
+        {:ok, :async} = Client.start_update_step(%{
+          step_id: step_id,
+          result: result,
+          issues: issues,
+          server_url: server_url,
+          run_id: run_id,
+          auth_token: auth_token,
+          account_handle: account_handle,
+          project_handle: project_handle
+        })
 
-          {:error, reason} ->
-            {:error, "Failed to submit step report: #{reason}"}
-        end
+        {:ok, "Step report submitted asynchronously."}
       end
     })
   end
@@ -770,7 +766,7 @@ defmodule Runner.QA.Tools do
     with {:ok, temp_path} <- Briefly.create(),
          {_, 0} <- System.cmd("xcrun", ["simctl", "io", simulator_uuid, "screenshot", temp_path]),
          {:ok, image_data} <- File.read(temp_path),
-         {:ok, %{"id" => screenshot_id}} <-
+         {:ok, %{"id" => screenshot_id, "upload_url" => upload_url}} <-
            Client.create_screenshot(%{
              server_url: server_url,
              run_id: run_id,
@@ -778,15 +774,6 @@ defmodule Runner.QA.Tools do
              account_handle: account_handle,
              project_handle: project_handle,
              step_id: step_id
-           }),
-         {:ok, %{"url" => upload_url}} <-
-           Client.screenshot_upload(%{
-             server_url: server_url,
-             run_id: run_id,
-             auth_token: auth_token,
-             account_handle: account_handle,
-             project_handle: project_handle,
-             screenshot_id: screenshot_id
            }),
          {:ok, _response} <-
            Req.put(upload_url, body: image_data, headers: [{"Content-Type", "image/png"}]) do
@@ -866,17 +853,23 @@ defmodule Runner.QA.Tools do
              account_handle: account_handle,
              project_handle: project_handle
            }),
-         {:ok, screenshot_content} <-
-           capture_and_upload_screenshot(%{
-             simulator_uuid: simulator_uuid,
-             server_url: server_url,
-             run_id: run_id,
-             auth_token: auth_token,
-             account_handle: account_handle,
-             project_handle: project_handle,
-             step_id: step_id
-           }),
-         {:ok, ui_description} <- ui_description_from_appium_session(appium_session) do
+         screenshot_task =
+           Task.async(fn ->
+             capture_and_upload_screenshot(%{
+               simulator_uuid: simulator_uuid,
+               server_url: server_url,
+               run_id: run_id,
+               auth_token: auth_token,
+               account_handle: account_handle,
+               project_handle: project_handle,
+               step_id: step_id
+             })
+           end),
+         ui_task =
+           Task.async(fn ->
+             ui_description_from_appium_session(appium_session)
+           end),
+         [{:ok, screenshot_content}, {:ok, ui_description}] <- Task.await_many([screenshot_task, ui_task], 30_000) do
       {:ok,
        [
          screenshot_content,

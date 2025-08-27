@@ -122,9 +122,8 @@ defmodule Runner.QA.ToolsTest do
       end)
 
       expect(File, :read, fn ^temp_path -> {:ok, image_data} end)
-      expect(Client, :create_screenshot, fn _ -> {:ok, %{"id" => "screenshot-123"}} end)
-      expect(Client, :screenshot_upload, fn _ -> {:ok, %{"url" => upload_url}} end)
-      expect(Req, :put, fn ^upload_url, _ -> {:ok, %{status: 200}} end)
+      expect(Client, :create_screenshot, fn _ -> {:ok, %{"id" => "screenshot-123", "upload_url" => upload_url}} end)
+      stub(Req, :put, fn ^upload_url, _ -> {:ok, %{status: 200}} end)
 
       session = %{id: "mock-session"}
       expect(AppiumClient, :page_source, fn ^session -> {:ok, "<XCUIElementTypeApplication/>"} end)
@@ -190,18 +189,7 @@ defmodule Runner.QA.ToolsTest do
                                               step_id: step_id
                                             }
                                             when is_binary(step_id) ->
-        {:ok, %{"id" => screenshot_id}}
-      end)
-
-      expect(Client, :screenshot_upload, fn %{
-                                              server_url: "http://test.com",
-                                              run_id: "test-run-id",
-                                              auth_token: "test-token",
-                                              account_handle: "test-account",
-                                              project_handle: "test-project",
-                                              screenshot_id: ^screenshot_id
-                                            } ->
-        {:ok, %{"url" => upload_url}}
+        {:ok, %{"id" => screenshot_id, "upload_url" => upload_url}}
       end)
 
       expect(Req, :put, fn ^upload_url, [body: ^image_data, headers: [{"Content-Type", "image/png"}]] ->
@@ -266,9 +254,8 @@ defmodule Runner.QA.ToolsTest do
       end)
 
       expect(File, :read, fn ^temp_path -> {:ok, image_data} end)
-      expect(Client, :create_screenshot, fn _ -> {:ok, %{"id" => "screenshot-123"}} end)
-      expect(Client, :screenshot_upload, fn _ -> {:ok, %{"url" => upload_url}} end)
-      expect(Req, :put, fn ^upload_url, _ -> {:ok, %{status: 200}} end)
+      expect(Client, :create_screenshot, fn _ -> {:ok, %{"id" => "screenshot-123", "upload_url" => upload_url}} end)
+      stub(Req, :put, fn ^upload_url, _ -> {:ok, %{status: 200}} end)
 
       session = %{id: "mock-session"}
       expect(AppiumClient, :page_source, fn ^session -> {:ok, "<XCUIElementTypeApplication/>"} end)
@@ -328,9 +315,8 @@ defmodule Runner.QA.ToolsTest do
       end)
 
       expect(File, :read, fn ^temp_path -> {:ok, image_data} end)
-      expect(Client, :create_screenshot, fn _ -> {:ok, %{"id" => "screenshot-123"}} end)
-      expect(Client, :screenshot_upload, fn _ -> {:ok, %{"url" => upload_url}} end)
-      expect(Req, :put, fn ^upload_url, _ -> {:ok, %{status: 200}} end)
+      expect(Client, :create_screenshot, fn _ -> {:ok, %{"id" => "screenshot-123", "upload_url" => upload_url}} end)
+      stub(Req, :put, fn ^upload_url, _ -> {:ok, %{status: 200}} end)
 
       session = %{id: "mock-session"}
       expect(AppiumClient, :page_source, fn ^session -> {:ok, "<XCUIElementTypeApplication/>"} end)
@@ -391,9 +377,8 @@ defmodule Runner.QA.ToolsTest do
       end)
 
       expect(File, :read, fn ^temp_path -> {:ok, image_data} end)
-      expect(Client, :create_screenshot, fn _ -> {:ok, %{"id" => "screenshot-123"}} end)
-      expect(Client, :screenshot_upload, fn _ -> {:ok, %{"url" => upload_url}} end)
-      expect(Req, :put, fn ^upload_url, _ -> {:ok, %{status: 200}} end)
+      expect(Client, :create_screenshot, fn _ -> {:ok, %{"id" => "screenshot-123", "upload_url" => upload_url}} end)
+      stub(Req, :put, fn ^upload_url, _ -> {:ok, %{status: 200}} end)
 
       session = %{id: "mock-session"}
       expect(AppiumClient, :page_source, fn ^session -> {:ok, "<XCUIElementTypeApplication/>"} end)
@@ -442,9 +427,8 @@ defmodule Runner.QA.ToolsTest do
       end)
 
       expect(File, :read, fn ^temp_path -> {:ok, image_data} end)
-      expect(Client, :create_screenshot, fn _ -> {:ok, %{"id" => "screenshot-123"}} end)
-      expect(Client, :screenshot_upload, fn _ -> {:ok, %{"url" => upload_url}} end)
-      expect(Req, :put, fn ^upload_url, _ -> {:ok, %{status: 200}} end)
+      expect(Client, :create_screenshot, fn _ -> {:ok, %{"id" => "screenshot-123", "upload_url" => upload_url}} end)
+      stub(Req, :put, fn ^upload_url, _ -> {:ok, %{status: 200}} end)
 
       session = %{id: "mock-session"}
       expect(AppiumClient, :page_source, fn ^session -> {:ok, "<XCUIElementTypeApplication/>"} end)
@@ -497,9 +481,8 @@ defmodule Runner.QA.ToolsTest do
       end)
 
       expect(File, :read, fn ^temp_path -> {:ok, image_data} end)
-      expect(Client, :create_screenshot, fn _ -> {:ok, %{"id" => "screenshot-123"}} end)
-      expect(Client, :screenshot_upload, fn _ -> {:ok, %{"url" => upload_url}} end)
-      expect(Req, :put, fn ^upload_url, _ -> {:ok, %{status: 200}} end)
+      expect(Client, :create_screenshot, fn _ -> {:ok, %{"id" => "screenshot-123", "upload_url" => upload_url}} end)
+      stub(Req, :put, fn ^upload_url, _ -> {:ok, %{status: 200}} end)
 
       session = %{id: "mock-session"}
       expect(AppiumClient, :page_source, fn ^session -> {:ok, "<XCUIElementTypeApplication/>"} end)
@@ -546,9 +529,8 @@ defmodule Runner.QA.ToolsTest do
       end)
 
       expect(File, :read, fn ^temp_path -> {:ok, image_data} end)
-      expect(Client, :create_screenshot, fn _ -> {:ok, %{"id" => "screenshot-123"}} end)
-      expect(Client, :screenshot_upload, fn _ -> {:ok, %{"url" => upload_url}} end)
-      expect(Req, :put, fn ^upload_url, _ -> {:ok, %{status: 200}} end)
+      expect(Client, :create_screenshot, fn _ -> {:ok, %{"id" => "screenshot-123", "upload_url" => upload_url}} end)
+      stub(Req, :put, fn ^upload_url, _ -> {:ok, %{status: 200}} end)
 
       session = %{id: "mock-session"}
       expect(AppiumClient, :page_source, fn ^session -> {:ok, "<XCUIElementTypeApplication/>"} end)
@@ -574,7 +556,7 @@ defmodule Runner.QA.ToolsTest do
       result = "Successfully completed login test"
       issues = ["Minor UI alignment issue in login button"]
 
-      expect(Client, :update_step, fn %{
+      expect(Client, :start_update_step, fn %{
                                         step_id: ^step_id,
                                         result: ^result,
                                         issues: ^issues,
@@ -584,7 +566,7 @@ defmodule Runner.QA.ToolsTest do
                                         account_handle: "test-account",
                                         project_handle: "test-project"
                                       } ->
-        {:ok, nil}
+        {:ok, :async}
       end)
 
       step_report_tool = Enum.find(tools, &(&1.name == "step_report"))
@@ -601,16 +583,16 @@ defmodule Runner.QA.ToolsTest do
         )
 
       # Then
-      assert {:ok, "Step report submitted successfully."} = result_response
+      assert {:ok, "Step report submitted asynchronously."} = result_response
     end
 
-    test "returns error on failure", %{tools: tools} do
+    test "returns success even for error cases (async)", %{tools: tools} do
       # Given
       step_id = "test-step-id"
       result = "Failed test step"
       issues = ["Timeout error", "Server unresponsive"]
 
-      expect(Client, :update_step, fn %{
+      expect(Client, :start_update_step, fn %{
                                         step_id: ^step_id,
                                         result: ^result,
                                         issues: ^issues,
@@ -620,7 +602,7 @@ defmodule Runner.QA.ToolsTest do
                                         account_handle: "test-account",
                                         project_handle: "test-project"
                                       } ->
-        {:error, "Server returned unexpected status 500"}
+        {:ok, :async}
       end)
 
       step_report_tool = Enum.find(tools, &(&1.name == "step_report"))
@@ -637,8 +619,7 @@ defmodule Runner.QA.ToolsTest do
         )
 
       # Then
-      assert {:error, "Failed to submit step report: Server returned unexpected status 500"} =
-               result_response
+      assert {:ok, "Step report submitted asynchronously."} = result_response
     end
   end
 
@@ -676,9 +657,8 @@ defmodule Runner.QA.ToolsTest do
       end)
 
       expect(File, :read, fn ^temp_path -> {:ok, image_data} end)
-      expect(Client, :create_screenshot, fn _ -> {:ok, %{"id" => "screenshot-123"}} end)
-      expect(Client, :screenshot_upload, fn _ -> {:ok, %{"url" => upload_url}} end)
-      expect(Req, :put, fn ^upload_url, _ -> {:ok, %{status: 200}} end)
+      expect(Client, :create_screenshot, fn _ -> {:ok, %{"id" => "screenshot-123", "upload_url" => upload_url}} end)
+      stub(Req, :put, fn ^upload_url, _ -> {:ok, %{status: 200}} end)
 
       plan_report_tool = Enum.find(tools, &(&1.name == "plan_report"))
 
