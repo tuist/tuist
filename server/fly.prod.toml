@@ -30,7 +30,7 @@ console_command = "/app/bin/tuist remote"
   TUIST_DATABASE_POOL_SIZE = "10"
   TUIST_S3_POOL_COUNT = "1"
   TUIST_S3_POOL_SIZE = "50"
-  TUIST_PROMETHEUS_ENABLED = "0"
+  TUIST_PROMETHEUS_ENABLED = "1"
 
 [[vm]]
   size = "shared-cpu-4x"
