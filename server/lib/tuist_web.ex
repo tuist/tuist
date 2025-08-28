@@ -118,11 +118,12 @@ defmodule TuistWeb do
       use Gettext, backend: TuistWeb.Gettext
       # HTML escaping functionality
       import Phoenix.HTML
-      import TuistWeb.AppAuthComponents
-      # Core UI components and translation
-      import TuistWeb.AppComponents
-      import TuistWeb.Components.IconComponents
-      import TuistWeb.HeadlessComponents
+       import TuistWeb.AppAuthComponents
+       # Core UI components and translation
+       import TuistWeb.AppComponents
+       import TuistWeb.Components.IconComponents
+       import TuistWeb.Components.Logs
+       import TuistWeb.HeadlessComponents
 
       # Shortcut for generating JS commands
       alias Phoenix.LiveView.JS

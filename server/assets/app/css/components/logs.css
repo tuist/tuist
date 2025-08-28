@@ -1,0 +1,181 @@
+/* Logs Component Styles */
+
+[data-part="logs-container"] {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+[data-part="log-entry"] {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background-color: var(--color-gray-50);
+  border: 1px solid var(--color-gray-200);
+}
+
+[data-part="timestamp"] {
+  font-family: var(--font-family-mono);
+  font-size: 12px;
+  color: var(--color-gray-500);
+  white-space: nowrap;
+  min-width: 60px;
+}
+
+[data-part="log-type"] {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 3px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+
+/* Log type colors - generic approach */
+[data-part="log-type"][data-type="usage"] {
+  background-color: var(--color-blue-100);
+  color: var(--color-blue-800);
+}
+
+[data-part="log-type"][data-type="tool_call"] {
+  background-color: var(--color-purple-100);
+  color: var(--color-purple-800);
+}
+
+[data-part="log-type"][data-type="tool_call_result"] {
+  background-color: var(--color-green-100);
+  color: var(--color-green-800);
+}
+
+[data-part="log-type"][data-type="message"] {
+  background-color: var(--color-gray-100);
+  color: var(--color-gray-800);
+}
+
+[data-part="log-message"] {
+  flex: 1;
+  font-family: var(--font-family-mono);
+  font-size: 13px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Expandable content styles */
+[data-part="expandable-content"] {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+[data-part="content-header"] {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+[data-part="expand-toggle"] {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 3px;
+  color: var(--color-gray-600);
+  font-size: 14px;
+  line-height: 1;
+  transition: background-color 0.15s ease;
+}
+
+[data-part="expand-toggle"]:hover {
+  background-color: var(--color-gray-200);
+}
+
+[data-part="expand-toggle"]:focus {
+  outline: 2px solid var(--color-blue-500);
+  outline-offset: 1px;
+}
+
+.expand-icon {
+  font-weight: bold;
+  min-width: 12px;
+  text-align: center;
+}
+
+[data-part="content"] {
+  flex: 1;
+  font-family: var(--font-family-mono);
+  font-size: 13px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+[data-part="expanded-details"] {
+  margin-top: 12px;
+  padding: 12px;
+  background-color: var(--color-gray-25);
+  border-radius: 6px;
+  border: 1px solid var(--color-gray-150);
+}
+
+/* JSON content styling */
+[data-part="json-content"] {
+  font-family: var(--font-family-mono);
+  font-size: 12px;
+  line-height: 1.5;
+  background-color: var(--color-gray-900);
+  color: var(--color-gray-100);
+  padding: 12px;
+  border-radius: 4px;
+  overflow-x: auto;
+  white-space: pre-wrap;
+}
+
+/* Screenshot content styling */
+[data-part="screenshot-content"] {
+  margin-bottom: 12px;
+}
+
+[data-part="screenshot-content"] img {
+  max-width: 100%;
+  max-height: 400px;
+  height: auto;
+  border-radius: 6px;
+  margin-bottom: 12px;
+  border: 1px solid var(--color-gray-200);
+}
+
+/* Empty logs styling */
+[data-part="empty-logs"] {
+  text-align: center;
+  padding: 24px;
+  color: var(--color-gray-500);
+  font-style: italic;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  [data-part="log-entry"] {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  [data-part="timestamp"] {
+    align-self: flex-start;
+    min-width: auto;
+  }
+
+  [data-part="content-header"] {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+  }
+
+  [data-part="expand-toggle"] {
+    align-self: flex-start;
+  }
+}

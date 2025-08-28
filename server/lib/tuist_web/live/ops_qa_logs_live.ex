@@ -6,6 +6,8 @@ defmodule TuistWeb.OpsQALogsLive do
   alias Tuist.QA
   alias TuistWeb.Errors.NotFoundError
 
+
+
   @impl true
   def mount(%{"qa_run_id" => qa_run_id}, _session, socket) do
     case QA.qa_run_for_ops(qa_run_id) do
@@ -15,22 +17,24 @@ defmodule TuistWeb.OpsQALogsLive do
       qa_run ->
         logs = QA.logs_for_run(qa_run_id)
         logs_with_metadata = prepare_logs_with_metadata(logs)
+        formatted_logs = format_logs_for_display(logs_with_metadata)
 
         if connected?(socket) do
-          Tuist.PubSub.subscribe("qa_logs:#{qa_run_id}")
+           Tuist.PubSub.subscribe("qa_logs:#{qa_run_id}")
         end
 
         {:ok,
          socket
          |> assign(:qa_run, qa_run)
          |> assign(:logs, logs_with_metadata)
+         |> assign(:formatted_logs, formatted_logs)
          |> assign(:expanded_tools, MapSet.new())
          |> assign(:head_title, "#{gettext("QA Logs")} · #{qa_run.project_name} · Tuist")}
     end
   end
 
   @impl true
-  def handle_event("toggle_tool_details", %{"log-id" => log_id}, socket) do
+  def handle_event("toggle_log_expansion", %{"log-id" => log_id}, socket) do
     expanded_tools = socket.assigns.expanded_tools
 
     new_expanded_tools =
@@ -48,8 +52,12 @@ defmodule TuistWeb.OpsQALogsLive do
     current_logs = socket.assigns.logs
     processed_log = prepare_log_with_metadata(log)
     updated_logs = current_logs ++ [processed_log]
+    updated_formatted_logs = format_logs_for_display(updated_logs)
 
-    {:noreply, assign(socket, :logs, updated_logs)}
+    {:noreply,
+     socket
+     |> assign(:logs, updated_logs)
+     |> assign(:formatted_logs, updated_formatted_logs)}
   end
 
   def handle_info(_event, socket) do
@@ -75,7 +83,7 @@ defmodule TuistWeb.OpsQALogsLive do
   end
 
   defp is_tool_log?(log), do: to_atom(log.type) in [:tool_call, :tool_call_result]
-  defp is_tool_result_log?(log), do: to_atom(log.type) == :tool_call_result
+
 
   defp format_log_message(log) do
     case JSON.decode!(log.data) do
@@ -107,14 +115,7 @@ defmodule TuistWeb.OpsQALogsLive do
 
   defp format_log_timestamp_short(_), do: "??:??:??"
 
-  defp log_id(log) do
-    data_hash = :md5 |> :crypto.hash(log.data) |> Base.encode16(case: :lower)
-    "#{log.timestamp}_#{log.type}_#{String.slice(data_hash, 0, 8)}"
-  end
 
-  defp expanded?(log, expanded_tools) do
-    MapSet.member?(expanded_tools, log_id(log))
-  end
 
   defp prettify_json(data) when is_binary(data) do
     case JSON.decode(data) do
@@ -262,5 +263,31 @@ defmodule TuistWeb.OpsQALogsLive do
   defp prepare_log_with_metadata(log) do
     screenshot_metadata = if has_screenshot?(log), do: get_screenshot_metadata(log)
     Map.put(log, :screenshot_metadata, screenshot_metadata)
+  end
+
+  defp format_logs_for_display(logs) do
+    Enum.map(logs, &format_log_for_display/1)
+  end
+
+  defp format_log_for_display(log) do
+    base_log = %{
+      type: log_type_short(log.type),
+      message: format_log_message(log),
+      timestamp: format_log_timestamp_short(log.timestamp)
+    }
+
+    if is_tool_log?(log) do
+      context = format_log_context(log)
+      Map.put(base_log, :context, context)
+    else
+      base_log
+    end
+  end
+
+  defp format_log_context(log) do
+    %{
+      screenshot_metadata: log.screenshot_metadata,
+      json_data: prettify_json(log.data)
+    }
   end
 end
