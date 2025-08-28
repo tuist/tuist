@@ -339,10 +339,9 @@ config :tuist, Tuist.PromEx,
   manual_metrics_start_delay: :no_delay,
   drop_metrics_groups: [],
   grafana: :disabled,
-  # Larger numbers might lead to internal tasks timing out.
-  # By keeping it small we might loose some granularity of the data, but I think it's a good tradeoff.
-  # Use default value to avoid over-compacting
-  ets_flush_interval: 7_500,
+  # Fly.io polls every 15 seconds, so I'm setting the interval to 20 seconds to avoid
+  # missing data.
+  ets_flush_interval: 20_000,
   metrics_server: [
     port: 9091,
     auth_strategy: :none
