@@ -1428,4 +1428,383 @@ defmodule Tuist.QATest do
       assert length(dates) == 11
     end
   end
+
+  describe "prepare_logs_with_metadata/1" do
+    test "adds screenshot metadata to logs with screenshots" do
+      # Given
+      qa_run = QAFixtures.qa_run_fixture()
+
+      log_data =
+        Jason.encode!(%{
+          "name" => "screenshot",
+          "content" => [
+            %{
+              "type" => "text",
+              "content" =>
+                Jason.encode!(%{
+                  "screenshot_id" => "test-screenshot-123",
+                  "qa_run_id" => qa_run.id,
+                  "account_handle" => "test-account",
+                  "project_handle" => "test-project"
+                })
+            }
+          ]
+        })
+
+      logs = [
+        %{
+          id: Ecto.UUID.generate(),
+          qa_run_id: qa_run.id,
+          type: :tool_call,
+          data: log_data,
+          timestamp: ~N[2024-01-01 10:00:00]
+        }
+      ]
+
+      # When
+      result = QA.prepare_logs_with_metadata(logs)
+
+      # Then
+      assert [processed_log] = result
+
+      assert processed_log.screenshot_metadata == %{
+               screenshot_id: "test-screenshot-123",
+               qa_run_id: qa_run.id,
+               account_handle: "test-account",
+               project_handle: "test-project"
+             }
+    end
+
+    test "adds nil screenshot metadata to logs without screenshots" do
+      # Given
+      qa_run = QAFixtures.qa_run_fixture()
+
+      log_data = Jason.encode!(%{"message" => "Regular log message"})
+
+      logs = [
+        %{
+          id: Ecto.UUID.generate(),
+          qa_run_id: qa_run.id,
+          type: :message,
+          data: log_data,
+          timestamp: ~N[2024-01-01 10:00:00]
+        }
+      ]
+
+      # When
+      result = QA.prepare_logs_with_metadata(logs)
+
+      # Then
+      assert [processed_log] = result
+      assert processed_log.screenshot_metadata == nil
+    end
+
+    test "handles action tool logs with screenshots" do
+      # Given
+      qa_run = QAFixtures.qa_run_fixture()
+
+      log_data =
+        Jason.encode!(%{
+          "name" => "tap",
+          "content" => [
+            %{
+              "type" => "text",
+              "content" =>
+                Jason.encode!(%{
+                  "screenshot_id" => "action-screenshot-456",
+                  "qa_run_id" => qa_run.id,
+                  "account_handle" => "test-account",
+                  "project_handle" => "test-project"
+                })
+            }
+          ]
+        })
+
+      logs = [
+        %{
+          id: Ecto.UUID.generate(),
+          qa_run_id: qa_run.id,
+          type: :tool_call,
+          data: log_data,
+          timestamp: ~N[2024-01-01 10:00:00]
+        }
+      ]
+
+      # When
+      result = QA.prepare_logs_with_metadata(logs)
+
+      # Then
+      assert [processed_log] = result
+      assert processed_log.screenshot_metadata.screenshot_id == "action-screenshot-456"
+    end
+  end
+
+  describe "format_logs_for_display/2" do
+    test "formats logs for display without filtering" do
+      # Given
+      qa_run = QAFixtures.qa_run_fixture()
+
+      logs = [
+        %{
+          id: Ecto.UUID.generate(),
+          qa_run_id: qa_run.id,
+          type: :message,
+          data: Jason.encode!(%{"message" => "Test message"}),
+          timestamp: ~N[2024-01-01 10:30:45],
+          screenshot_metadata: nil
+        },
+        %{
+          id: Ecto.UUID.generate(),
+          qa_run_id: qa_run.id,
+          type: :usage,
+          data: Jason.encode!(%{"input" => 100, "output" => 50}),
+          timestamp: ~N[2024-01-01 10:31:00],
+          screenshot_metadata: nil
+        }
+      ]
+
+      # When
+      result = QA.format_logs_for_display(logs)
+
+      # Then
+      assert [
+               %{type: "ASSISTANT", message: "Test message", timestamp: "10:30:45"},
+               %{type: "TOKENS", message: "100/50", timestamp: "10:31:00"}
+             ] = result
+    end
+
+    test "filters out usage logs when hide_usage_logs is true" do
+      # Given
+      qa_run = QAFixtures.qa_run_fixture()
+
+      logs = [
+        %{
+          id: Ecto.UUID.generate(),
+          qa_run_id: qa_run.id,
+          type: :message,
+          data: Jason.encode!(%{"message" => "Test message"}),
+          timestamp: ~N[2024-01-01 10:30:45],
+          screenshot_metadata: nil
+        },
+        %{
+          id: Ecto.UUID.generate(),
+          qa_run_id: qa_run.id,
+          type: :usage,
+          data: Jason.encode!(%{"input" => 100, "output" => 50}),
+          timestamp: ~N[2024-01-01 10:31:00],
+          screenshot_metadata: nil
+        }
+      ]
+
+      # When
+      result = QA.format_logs_for_display(logs, hide_usage_logs: true)
+
+      # Then
+      assert length(result) == 1
+
+      [message_log] = result
+      assert message_log.type == "ASSISTANT"
+      assert message_log.message == "Test message"
+    end
+
+    test "adds context to tool logs" do
+      # Given
+      qa_run = QAFixtures.qa_run_fixture()
+
+      log_data =
+        Jason.encode!(%{
+          "name" => "screenshot",
+          "arguments" => %{"device" => "iPhone"}
+        })
+
+      logs = [
+        %{
+          id: Ecto.UUID.generate(),
+          qa_run_id: qa_run.id,
+          type: :tool_call,
+          data: log_data,
+          timestamp: ~N[2024-01-01 10:30:45],
+          screenshot_metadata: nil
+        }
+      ]
+
+      # When
+      result = QA.format_logs_for_display(logs)
+
+      # Then
+      assert [formatted_log] = result
+      assert formatted_log.type == "TOOL"
+      assert formatted_log.message == "screenshot"
+      assert formatted_log.context.json_data =~ "screenshot"
+      assert formatted_log.context.json_data =~ "iPhone"
+    end
+
+    test "adds screenshot image URLs when screenshot metadata exists" do
+      # Given
+      qa_run = QAFixtures.qa_run_fixture()
+
+      logs = [
+        %{
+          id: Ecto.UUID.generate(),
+          qa_run_id: qa_run.id,
+          type: :tool_call,
+          data: Jason.encode!(%{"name" => "screenshot"}),
+          timestamp: ~N[2024-01-01 10:30:45],
+          screenshot_metadata: %{
+            screenshot_id: "screenshot-789",
+            qa_run_id: qa_run.id,
+            account_handle: "test-account",
+            project_handle: "test-project"
+          }
+        }
+      ]
+
+      # When
+      result = QA.format_logs_for_display(logs)
+
+      # Then
+      assert [formatted_log] = result
+      assert formatted_log.image == "/test-account/test-project/qa/runs/#{qa_run.id}/screenshots/screenshot-789"
+    end
+
+    test "handles various log message formats" do
+      # Given
+      qa_run = QAFixtures.qa_run_fixture()
+
+      logs = [
+        # Message log
+        %{
+          id: Ecto.UUID.generate(),
+          qa_run_id: qa_run.id,
+          type: :message,
+          data: Jason.encode!(%{"message" => "Simple message"}),
+          timestamp: ~N[2024-01-01 10:00:00],
+          screenshot_metadata: nil
+        },
+        # Tool call with type and name
+        %{
+          id: Ecto.UUID.generate(),
+          qa_run_id: qa_run.id,
+          type: :tool_call,
+          data: Jason.encode!(%{"type" => "call", "name" => "tap_element"}),
+          timestamp: ~N[2024-01-01 10:01:00],
+          screenshot_metadata: nil
+        },
+        # Tool result
+        %{
+          id: Ecto.UUID.generate(),
+          qa_run_id: qa_run.id,
+          type: :tool_call_result,
+          data: Jason.encode!(%{"type" => "result", "name" => "tap_result"}),
+          timestamp: ~N[2024-01-01 10:02:00],
+          screenshot_metadata: nil
+        },
+        # Tool with arguments
+        %{
+          id: Ecto.UUID.generate(),
+          qa_run_id: qa_run.id,
+          type: :tool_call,
+          data: Jason.encode!(%{"arguments" => %{"x" => 100}, "name" => "click"}),
+          timestamp: ~N[2024-01-01 10:03:00],
+          screenshot_metadata: nil
+        }
+      ]
+
+      # When
+      result = QA.format_logs_for_display(logs)
+
+      # Then
+      assert [
+               %{type: "ASSISTANT", message: "Simple message"},
+               %{type: "TOOL", message: "tap_element"},
+               %{type: "RESULT", message: "tap_result"},
+               %{type: "TOOL", message: "click"}
+             ] = result
+    end
+
+    test "handles malformed timestamp gracefully" do
+      # Given
+      qa_run = QAFixtures.qa_run_fixture()
+
+      logs = [
+        %{
+          id: Ecto.UUID.generate(),
+          qa_run_id: qa_run.id,
+          type: :message,
+          data: Jason.encode!(%{"message" => "Test message"}),
+          timestamp: nil,
+          screenshot_metadata: nil
+        }
+      ]
+
+      # When
+      result = QA.format_logs_for_display(logs)
+
+      # Then
+      assert [formatted_log] = result
+      assert formatted_log.timestamp == "??:??:??"
+    end
+  end
+
+  describe "prepare_log_with_metadata/1" do
+    test "processes a single log with screenshot metadata" do
+      # Given
+      qa_run = QAFixtures.qa_run_fixture()
+
+      log_data =
+        Jason.encode!(%{
+          "name" => "screenshot",
+          "content" => [
+            %{
+              "type" => "text",
+              "content" =>
+                Jason.encode!(%{
+                  "screenshot_id" => "single-screenshot-123",
+                  "qa_run_id" => qa_run.id,
+                  "account_handle" => "test-account",
+                  "project_handle" => "test-project"
+                })
+            }
+          ]
+        })
+
+      log = %{
+        id: Ecto.UUID.generate(),
+        qa_run_id: qa_run.id,
+        type: :tool_call,
+        data: log_data,
+        timestamp: ~N[2024-01-01 10:00:00]
+      }
+
+      # When
+      result = QA.prepare_log_with_metadata(log)
+
+      # Then
+      assert result.screenshot_metadata == %{
+               screenshot_id: "single-screenshot-123",
+               qa_run_id: qa_run.id,
+               account_handle: "test-account",
+               project_handle: "test-project"
+             }
+    end
+
+    test "processes a single log without screenshot metadata" do
+      # Given
+      qa_run = QAFixtures.qa_run_fixture()
+
+      log = %{
+        id: Ecto.UUID.generate(),
+        qa_run_id: qa_run.id,
+        type: :message,
+        data: Jason.encode!(%{"message" => "Simple message"}),
+        timestamp: ~N[2024-01-01 10:00:00]
+      }
+
+      # When
+      result = QA.prepare_log_with_metadata(log)
+
+      # Then
+      assert result.screenshot_metadata == nil
+    end
+  end
 end
