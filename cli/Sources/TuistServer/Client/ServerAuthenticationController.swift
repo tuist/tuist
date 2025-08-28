@@ -254,7 +254,7 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
         forceRefresh: Bool,
         inBackground: Bool,
         locking: Bool,
-        forceInProcessLock: Bool = false,
+        forceInProcessLock: Bool = false
     ) async throws
         -> AuthenticationToken?
     {

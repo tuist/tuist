@@ -54,7 +54,7 @@ final class HashCacheCommandService {
         clock: Clock,
         configLoader: ConfigLoading,
         manifestLoader: ManifestLoading,
-        manifestGraphLoader: ManifestGraphLoading,
+        manifestGraphLoader: ManifestGraphLoading
     ) {
         self.generatorFactory = generatorFactory
         self.cacheGraphContentHasher = cacheGraphContentHasher
