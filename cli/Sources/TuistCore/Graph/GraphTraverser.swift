@@ -353,7 +353,14 @@ public class GraphTraverser: GraphTraversing {
         // Precompiled frameworks
         var precompiledFrameworks = filterDependencies(
             from: .target(name: name, path: path),
-            test: \.isPrecompiledDynamicAndLinkable,
+            test: or(\.isPrecompiledDynamicAndLinkable) { dependency in
+                return switch dependency {
+                case let .sdk(name, path, _, source):
+                    name == "XcodeKit.framework" && path == "/Library/Frameworks/XcodeKit.framework" && source == .developer
+                default:
+                    false
+                }
+            },
             skip: or(canDependencyEmbedBinaries, isDependencyPrecompiledMacro)
         )
         // Skip merged precompiled libraries from merging into the runnable binary

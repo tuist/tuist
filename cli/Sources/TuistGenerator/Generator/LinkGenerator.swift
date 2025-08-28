@@ -252,8 +252,24 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
                 pbxproj.add(object: buildFile)
                 embedPhase.files?.append(buildFile)
             case .library, .bundle, .sdk, .macro:
-                // Do nothing
-                break
+                guard case let .sdk(path, _, source, condition) = dependency,
+                      path == "/Library/Frameworks/XcodeKit.framework",
+                      source == .developer
+                else {
+                    // Do nothing
+                    break
+                }
+
+                guard let fileRef = fileElements.sdk(path: path) else {
+                    throw LinkGeneratorError.missingReference(path: path)
+                }
+                let buildFile = PBXBuildFile(
+                    file: fileRef,
+                    settings: ["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]]
+                )
+                buildFile.applyCondition(condition, applicableTo: target)
+                pbxproj.add(object: buildFile)
+                embedPhase.files?.append(buildFile)
             }
         }
 
