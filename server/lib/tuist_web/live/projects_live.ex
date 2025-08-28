@@ -9,6 +9,7 @@ defmodule TuistWeb.ProjectsLive do
   alias Tuist.Authorization
   alias Tuist.Projects
   alias Tuist.Projects.Project
+  alias Tuist.Utilities.DateFormatter
   alias TuistWeb.Utilities.Query
 
   @pagination_threshold 6
@@ -162,11 +163,13 @@ defmodule TuistWeb.ProjectsLive do
             </div>
             <span :if={project.last_interacted_at} data-part="time">
               {gettext("Last interacted with %{time}", %{
-                time: Timex.from_now(project.last_interacted_at)
+                time: DateFormatter.from_now(project.last_interacted_at)
               })}
             </span>
             <span :if={!project.last_interacted_at} data-part="time">
-              {gettext("Created %{time}", %{time: Timex.from_now(project.created_at)})}
+              {gettext("Created %{time}", %{
+                time: DateFormatter.from_now(project.created_at)
+              })}
             </span>
           </div>
         </div>
@@ -203,11 +206,13 @@ defmodule TuistWeb.ProjectsLive do
               </div>
               <span :if={project.last_interacted_at} data-part="time">
                 {gettext("Last interacted with %{time}", %{
-                  time: Timex.from_now(project.last_interacted_at)
+                  time: DateFormatter.from_now(project.last_interacted_at)
                 })}
               </span>
               <span :if={!project.last_interacted_at} data-part="time">
-                {gettext("Created %{time}", %{time: Timex.from_now(project.created_at)})}
+                {gettext("Created %{time}", %{
+                  time: DateFormatter.from_now(project.created_at)
+                })}
               </span>
             </div>
           </div>
@@ -268,11 +273,13 @@ defmodule TuistWeb.ProjectsLive do
               </div>
               <span :if={project.last_interacted_at} data-part="time">
                 {gettext("Last interacted with %{time}", %{
-                  time: Timex.from_now(project.last_interacted_at)
+                  time: DateFormatter.from_now(project.last_interacted_at)
                 })}
               </span>
               <span :if={!project.last_interacted_at} data-part="time">
-                {gettext("Created %{time}", %{time: Timex.from_now(project.created_at)})}
+                {gettext("Created %{time}", %{
+                  time: DateFormatter.from_now(project.created_at)
+                })}
               </span>
             </div>
           </div>

@@ -9,6 +9,7 @@ defmodule TuistWeb.BundlesLive do
 
   alias Tuist.Bundles
   alias Tuist.Projects
+  alias Tuist.Utilities.DateFormatter
   alias TuistWeb.Utilities.Query
 
   def mount(_params, _session, %{assigns: %{selected_project: project}} = socket) do
