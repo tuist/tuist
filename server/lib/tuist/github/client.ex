@@ -10,20 +10,16 @@ defmodule Tuist.GitHub.Client do
   alias Tuist.VCS.Repositories.Content
   alias Tuist.VCS.Repositories.Tag
 
-  defp retry_on_closed_for_writing(_request, %Req.HTTPError{protocol: :http2, reason: :closed_for_writing}) do
-    {:delay, 100}
-  end
-
-  defp retry_on_closed_for_writing(request, response_or_exception) do
-    # Fall back to default retry logic for other errors
+  defp retry(request, response_or_exception) do
     case request.method do
       method when method in [:get, :head] ->
         case response_or_exception do
           %Req.Response{status: status} when status in [408, 429, 500, 502, 503, 504] -> true
           %Req.TransportError{reason: reason} when reason in [:timeout, :econnrefused, :closed] -> true
-          %Req.HTTPError{protocol: :http2, reason: :unprocessed} -> true
+          %Req.HTTPError{protocol: :http2, reason: reason} when reason in [:unprocessed, :closed_for_writing] -> true
           _ -> false
         end
+
       _ ->
         false
     end
@@ -131,7 +127,7 @@ defmodule Tuist.GitHub.Client do
            decode_body: false,
            finch: Tuist.Finch,
            into: File.stream!(path, [:write]),
-           retry: &retry_on_closed_for_writing/2
+           retry: &retry/2
          ) do
       {:ok, %{status: 200}} ->
         {:ok, path}
@@ -162,7 +158,7 @@ defmodule Tuist.GitHub.Client do
            url: url,
            headers: default_headers(token),
            finch: Tuist.Finch,
-           retry: &retry_on_closed_for_writing/2
+           retry: &retry/2
          ) do
       {:ok, %{status: 200, body: %{"content" => content, "path" => path}}} ->
         {:ok, %Content{path: path, content: Base64.decode(content)}}
@@ -193,7 +189,7 @@ defmodule Tuist.GitHub.Client do
             {"Authorization", "token #{token}"}
           ])
           |> Keyword.put(:finch, Tuist.Finch)
-          |> Keyword.put(:retry, &retry_on_closed_for_writing/2)
+          |> Keyword.put(:retry, &retry/2)
           |> Keyword.delete(:repository_full_handle)
 
         attrs_with_headers |> method.() |> handle_github_response(method, attrs)
@@ -244,7 +240,7 @@ defmodule Tuist.GitHub.Client do
   end
 
   defp get_all_tags_recursively(%{url: url, token: token, tags: tags}) do
-    case Req.get(url: url, headers: default_headers(token), finch: Tuist.Finch, retry: &retry_on_closed_for_writing/2) do
+    case Req.get(url: url, headers: default_headers(token), finch: Tuist.Finch, retry: &retry/2) do
       {:ok, %Req.Response{status: 200, body: page_tags, headers: response_headers}} ->
         page_tags = Enum.map(page_tags, &%Tag{name: &1["name"]})
 

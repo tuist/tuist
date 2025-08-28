@@ -35,7 +35,7 @@ defmodule Tuist.GitHub.ClientTest do
         assert opts[:finch] == Tuist.Finch
         assert opts[:headers] == @default_headers
         assert opts[:url] == "https://api.github.com/repos/tuist/tuist/issues/1/comments"
-        
+
         {:ok,
          %Req.Response{
            status: 200,
@@ -143,7 +143,7 @@ defmodule Tuist.GitHub.ClientTest do
         assert opts[:headers] == @default_headers
         assert opts[:json] == %{body: "comment"}
         assert opts[:url] == "https://api.github.com/repos/tuist/tuist/issues/1/comments"
-        
+
         {:ok, %Req.Response{status: 201}}
       end)
 
@@ -168,7 +168,7 @@ defmodule Tuist.GitHub.ClientTest do
         assert opts[:headers] == @default_headers
         assert opts[:json] == %{body: "comment"}
         assert opts[:url] == "https://api.github.com/repos/tuist/tuist/issues/comments/1"
-        
+
         {:ok, %Req.Response{status: 201}}
       end)
 
@@ -192,7 +192,7 @@ defmodule Tuist.GitHub.ClientTest do
         assert opts[:finch] == Tuist.Finch
         assert opts[:headers] == @default_headers
         assert opts[:url] == "https://api.github.com/user/123"
-        
+
         {:ok, %Req.Response{status: 200, body: %{"login" => "tuist"}}}
       end)
 
@@ -209,7 +209,7 @@ defmodule Tuist.GitHub.ClientTest do
         assert opts[:finch] == Tuist.Finch
         assert opts[:headers] == @default_headers
         assert opts[:url] == "https://api.github.com/user/123"
-        
+
         {:ok, %Req.Response{status: 404, body: "Not found"}}
       end)
 
@@ -228,6 +228,7 @@ defmodule Tuist.GitHub.ClientTest do
         case opts[:url] do
           "https://api.github.com/user/123" ->
             {:ok, %Req.Response{status: 200, body: %{"login" => "tuist"}}}
+
           "https://api.github.com/repos/tuist/tuist/collaborators/tuist/permission" ->
             {:ok, %Req.Response{status: 200, body: %{"permission" => "admin"}}}
         end
@@ -249,7 +250,7 @@ defmodule Tuist.GitHub.ClientTest do
         assert opts[:finch] == Tuist.Finch
         assert opts[:headers] == @default_headers
         assert opts[:url] == "https://api.github.com/repos/tuist/tuist"
-        
+
         {:ok,
          %Req.Response{
            status: 200,

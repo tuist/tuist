@@ -392,7 +392,7 @@ defmodule Tuist.VCSTest do
         assert opts[:headers] == @default_headers
         assert opts[:url] == "https://api.github.com/repos/tuist/tuist/issues/1/comments"
         assert opts[:json] == %{body: expected_body}
-        
+
         {:ok, %Req.Response{status: 200, body: %{}}}
       end)
 
@@ -480,7 +480,7 @@ defmodule Tuist.VCSTest do
         assert opts[:headers] == @default_headers
         assert opts[:url] == "https://api.github.com/repos/tuist/tuist/issues/1/comments"
         assert opts[:json] == %{body: expected_body}
-        
+
         {:ok, %Req.Response{status: 200, body: %{}}}
       end)
 
@@ -645,13 +645,15 @@ defmodule Tuist.VCSTest do
 
       stub(Req, :patch, fn opts ->
         assert opts[:finch] == Tuist.Finch
+
         assert opts[:headers] == [
-          {"Accept", "application/vnd.github.v3+json"},
-          {"Authorization", "token github_token"}
-        ]
+                 {"Accept", "application/vnd.github.v3+json"},
+                 {"Authorization", "token github_token"}
+               ]
+
         assert opts[:url] == "https://api.github.com/repos/tuist/tuist/issues/comments/1"
         assert Map.has_key?(opts[:json], :body)
-        
+
         {:ok, %Req.Response{status: 200, body: %{}}}
       end)
 
@@ -903,7 +905,7 @@ defmodule Tuist.VCSTest do
         assert opts[:headers] == @default_headers
         assert opts[:url] == "https://api.github.com/repos/tuist/tuist/issues/1/comments"
         assert opts[:json] == %{body: expected_body}
-        
+
         {:ok, %Req.Response{status: 200, body: %{}}}
       end)
 
@@ -965,7 +967,7 @@ defmodule Tuist.VCSTest do
         assert opts[:headers] == @default_headers
         assert opts[:url] == "https://api.github.com/repos/tuist/tuist/issues/1/comments"
         assert opts[:json] == %{body: expected_body}
-        
+
         {:ok, %Req.Response{status: 200, body: %{}}}
       end)
 
@@ -1024,7 +1026,7 @@ defmodule Tuist.VCSTest do
         assert opts[:headers] == @default_headers
         assert opts[:url] == "https://api.github.com/repos/tuist/tuist/issues/1/comments"
         assert opts[:json] == %{body: expected_body}
-        
+
         {:ok, %Req.Response{status: 200, body: %{}}}
       end)
 
@@ -1083,7 +1085,7 @@ defmodule Tuist.VCSTest do
         assert opts[:headers] == @default_headers
         assert opts[:url] == "https://api.github.com/repos/tuist/tuist/issues/1/comments"
         assert opts[:json] == %{body: expected_body}
-        
+
         {:ok, %Req.Response{status: 200, body: %{}}}
       end)
 
