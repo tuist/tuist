@@ -8,23 +8,23 @@ defmodule TuistWeb.Components.TrendBadge do
   attr :trend_value, :integer, required: true
   attr :trend_inverse, :boolean, default: false
 
-  defp format_trend_value(value) do
-    rounded = Float.round(value, 1)
-    if abs(rounded) < 0.1 and rounded != 0.0 do
-      "0.0"
-    else
-      :erlang.float_to_binary(rounded, decimals: if(abs(rounded) >= 1000, do: 0, else: 1))
-    end
-  end
-
   def trend_badge(assigns) do
+    rounded = Float.round(assigns.trend_value, 1)
+
+    formatted_value =
+      if abs(rounded) < 0.1 and rounded != 0.0 do
+        "0.0"
+      else
+        :erlang.float_to_binary(rounded, decimals: if(abs(rounded) >= 1000, do: 0, else: 1))
+      end
+
     ~H"""
     <.badge
       size="large"
       label={
         if @trend_value > 0,
-          do: "+#{format_trend_value(@trend_value)}%",
-          else: "#{format_trend_value(@trend_value)}%"
+          do: "+#{formatted_value}%",
+          else: "#{formatted_value}%"
       }
       color={
         cond do
