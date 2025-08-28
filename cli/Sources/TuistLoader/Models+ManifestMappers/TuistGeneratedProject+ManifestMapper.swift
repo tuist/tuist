@@ -20,8 +20,9 @@ extension TuistCore.TuistGeneratedProjectOptions.GenerationOptions {
             additionalPackageResolutionArguments.append("-resolvePackageDependenciesWithSystemScm")
         }
         if let clonedSourcePackagesDirPath {
-            additionalPackageResolutionArguments.append("-clonedSourcePackagesDirPath")
-            additionalPackageResolutionArguments.append(clonedSourcePackagesDirPath.pathString)
+            // let workspace = (workspaceName as NSString).deletingPathExtension
+            // let path = "\(clonedSourcePackagesDirPath.pathString)/\(workspace)"
+            // additionalPackageResolutionArguments.append(contentsOf: ["-clonedSourcePackagesDirPath", path])
         }
         return .init(
             resolveDependenciesWithSystemScm: manifest.resolveDependenciesWithSystemScm,
