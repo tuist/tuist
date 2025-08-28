@@ -8,6 +8,10 @@
   width: 100%;
   overflow-x: hidden;
 
+  & > div {
+    width: 100%;
+  }
+
   & > [data-part="action-buttons"] {
     display: flex;
     justify-content: space-between;
@@ -53,6 +57,7 @@
         right: -136px;
         bottom: 0;
         left: -136px;
+
         & svg {
           display: none;
         }
@@ -61,14 +66,17 @@
           &[data-theme="light"] {
             display: block;
           }
+
           &[data-theme="dark"] {
             display: none;
           }
         }
+
         html[data-theme="dark"] & svg {
           &[data-theme="light"] {
             display: none;
           }
+
           &[data-theme="dark"] {
             display: block;
           }
@@ -190,14 +198,17 @@
     & > [data-part="empty-issues-card-section"] {
       padding-top: var(--noora-spacing-8);
       padding-bottom: var(--noora-spacing-8);
+
       & > [data-part="title"] {
         padding-top: var(--noora-spacing-5);
       }
+
       & > [data-part="image"] {
         & > img {
           &[data-theme="light"] {
             box-shadow: unset;
           }
+
           &[data-theme="dark"] {
             box-shadow: unset;
           }
@@ -328,7 +339,16 @@
     }
   }
 
-  & > div:not([data-part]) {
-    width: 100%;
+  & .noora-logs {
+    [data-part="log-type"][data-type="assistant"] {
+      color: var(--noora-terminal-text-info);
+    }
+    [data-part="log-type"][data-type="tool"] {
+      color: var(--noora-terminal-text-attention);
+    }
+
+    [data-part="log-type"][data-type="result"] {
+      color: var(--noora-terminal-text-success);
+    }
   }
 }

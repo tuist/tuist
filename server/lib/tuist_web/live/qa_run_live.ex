@@ -14,7 +14,7 @@ defmodule TuistWeb.QARunLive do
 
   @impl true
   def mount(
-        %{"qa_run_id" => qa_run_id, "account_handle" => account_handle, "project_handle" => project_handle} = params,
+        %{"qa_run_id" => qa_run_id, "account_handle" => account_handle, "project_handle" => project_handle},
         _session,
         socket
       ) do
@@ -28,12 +28,9 @@ defmodule TuistWeb.QARunLive do
           raise NotFoundError, gettext("QA run not found")
         end
 
-        tab = Map.get(params, "tab", "overview")
-
         {:ok,
          socket
          |> assign(:qa_run, qa_run)
-         |> assign(:selected_tab, tab)
          |> assign(:duration, calculate_duration(qa_run))
          |> assign(:pr_comment_url, build_pr_comment_url(qa_run))
          |> assign(:pr_number, extract_pr_number(qa_run))
@@ -43,12 +40,30 @@ defmodule TuistWeb.QARunLive do
   end
 
   @impl true
-  def handle_params(%{"tab" => tab}, _uri, socket) do
-    {:noreply, assign(socket, :selected_tab, tab)}
+  def handle_params(_params, _uri, socket) do
+    socket = maybe_load_logs(socket, socket.assigns.live_action)
+
+    {:noreply, socket}
   end
 
-  def handle_params(_params, _uri, socket) do
-    {:noreply, assign(socket, :selected_tab, "overview")}
+  @impl true
+  def handle_info({:qa_log_created, log}, socket) do
+    if socket.assigns.live_action == :logs do
+      current_logs = socket.assigns[:logs] || []
+      updated_logs = current_logs ++ [log]
+      updated_formatted_logs = QA.prepare_and_format_logs(updated_logs, hide_usage_logs: true)
+
+      {:noreply,
+       socket
+       |> assign(:logs, updated_logs)
+       |> assign(:formatted_logs, updated_formatted_logs)}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_info(_event, socket) do
+    {:noreply, socket}
   end
 
   defp calculate_duration(%{inserted_at: start_time, updated_at: end_time}) do
@@ -112,4 +127,21 @@ defmodule TuistWeb.QARunLive do
   end
 
   defp format_commit_sha(sha), do: SHA.format_commit_sha(sha)
+
+  defp maybe_load_logs(socket, :logs) do
+    qa_run_id = socket.assigns.qa_run.id
+
+    logs = QA.logs_for_run(qa_run_id)
+    formatted_logs = QA.prepare_and_format_logs(logs, hide_usage_logs: true)
+
+    if connected?(socket) do
+      Tuist.PubSub.subscribe("qa_logs:#{qa_run_id}")
+    end
+
+    socket
+    |> assign(:logs, logs)
+    |> assign(:formatted_logs, formatted_logs)
+  end
+
+  defp maybe_load_logs(socket, _action), do: socket
 end

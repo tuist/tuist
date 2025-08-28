@@ -1,0 +1,158 @@
+.noora-logs {
+  --noora-terminal-background: light-dark(var(--noora-neutral-light-200), var(--noora-neutral-dark-1200));
+  --noora-terminal-text-description: light-dark(var(--noora-neutral-light-1100), var(--noora-neutral-light-400));
+  --noora-terminal-text-timestamp: light-dark(var(--noora-neutral-light-900), var(--noora-neutral-light-500));
+  --noora-terminal-text-info: light-dark(var(--noora-azure-500), var(--noora-azure-400));
+  --noora-terminal-text-attention: light-dark(var(--noora-yellow-600), var(--noora-yellow-400));
+  --noora-terminal-text-success: light-dark(var(--noora-green-500), var(--noora-green-400));
+
+  & .noora-card {
+    & .noora-card-section {
+      padding: var(--noora-spacing-0);
+    }
+  }
+
+  & [data-part="empty-logs"] {
+    display: flex;
+    justify-content: center;
+    padding: var(--noora-spacing-8);
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-medium);
+  }
+
+  & [data-part="logs-container"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-4);
+    border-radius: var(--noora-radius-large);
+    background: var(--noora-terminal-background);
+    padding: 21px 38px;
+    max-width: 100%;
+    overflow-y: scroll;
+    color: var(--noora-terminal-text-description);
+    font: var(--noora-font-code-medium);
+  }
+
+  & [data-part="log-entry"] {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--noora-spacing-7);
+    min-width: 0;
+  }
+
+  & [data-part="timestamp"] {
+    flex-shrink: 0;
+    color: var(--noora-terminal-text-timestamp);
+    font-family: var(--noora-font-code-medium);
+  }
+
+  & [data-part="log-type"] {
+    flex-shrink: 0;
+    width: 80px;
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-weight-bold) var(--noora-font-code-medium);
+  }
+
+  & [data-part="log-message"] {
+    flex: 1;
+    color: var(--noora-surface-label-primary);
+  }
+
+  & [data-part="expandable-content"] {
+    display: flex;
+    flex-grow: 1;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  & [data-part="content-header"] {
+    display: flex;
+    gap: var(--noora-spacing-3);
+  }
+
+  & [data-part="expand-toggle"] {
+    display: flex;
+    flex-shrink: 0;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    border: 1px solid var(--noora-surface-border-primary);
+    border-radius: var(--noora-radius-xsmall);
+    background: none;
+    padding: var(--noora-spacing-0);
+    width: var(--noora-icon-size-medium);
+    height: var(--noora-icon-size-medium);
+    color: var(--noora-surface-label-tertiary);
+    font-family: var(--noora-font-code);
+
+    &:hover {
+      border-color: var(--noora-surface-border-primary);
+      background: var(--noora-button-neutral-background-hover);
+      color: var(--noora-surface-label-primary);
+    }
+
+    &:active {
+      background: var(--noora-button-neutral-background-active);
+    }
+  }
+
+  & [data-part="expand-icon"] {
+    font-weight: bold;
+    line-height: 1;
+  }
+
+  & [data-part="expanded-details"] {
+    display: flex;
+    flex-grow: 1;
+    gap: var(--noora-spacing-2);
+    margin-top: var(--noora-spacing-3);
+  }
+
+  & [data-part="image-content"] {
+    border-radius: var(--noora-radius-large);
+    width: 300px;
+
+    & img {
+      border-radius: var(--noora-radius-large);
+      width: 100%;
+    }
+  }
+
+  & [data-part="context-content"] {
+    border-radius: var(--noora-radius-medium);
+    background: var(--noora-surface-background-tertiary);
+    padding: var(--noora-spacing-1) var(--noora-spacing-5);
+    width: 100%;
+    max-width: 100%;
+    overflow-x: scroll;
+    color: var(--noora-surface-label-primary);
+  }
+}
+
+@media (max-width: 768px) {
+  & > [data-part="header"] {
+    gap: var(--noora-spacing-4);
+
+    & > [data-part="title-section"] {
+      gap: var(--noora-spacing-3);
+
+      & > [data-part="title"] {
+        font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
+      }
+
+      & > [data-part="meta"] {
+        gap: var(--noora-spacing-3);
+      }
+    }
+  }
+
+  & > [data-part="logs-section"] {
+    & [data-part="logs-container"] {
+      max-height: 400px;
+    }
+
+    & [data-part="log-entry"] {
+      padding: var(--noora-spacing-3) var(--noora-spacing-4);
+    }
+  }
+}

@@ -875,4 +875,230 @@ defmodule Tuist.QA do
 
   defp apply_app_filter(query, app_name, [:qa, :ab, :pr, :step]),
     do: where(query, [qa, ab, pr, step], pr.display_name == ^app_name)
+
+  @doc """
+  Prepares logs with metadata (screenshot information) for display and formats them.
+  Combines both metadata preparation and formatting into a single pass.
+  """
+  def prepare_and_format_logs(logs, opts \\ []) do
+    hide_usage_logs = Keyword.get(opts, :hide_usage_logs, false)
+
+    logs
+    |> filter_usage_logs_if_needed(hide_usage_logs)
+    |> Enum.map(&prepare_and_format_log/1)
+  end
+
+  @doc """
+  Prepares logs with metadata (screenshot information) for display.
+  """
+  def prepare_logs_with_metadata(logs) do
+    Enum.map(logs, &prepare_log_with_metadata/1)
+  end
+
+  @doc """
+  Prepares a single log with metadata (screenshot information) for display.
+  """
+  def prepare_log_with_metadata(log) do
+    screenshot_metadata = if has_screenshot?(log), do: get_screenshot_metadata(log)
+    Map.put(log, :screenshot_metadata, screenshot_metadata)
+  end
+
+  @doc """
+  Formats logs for display in the logs component.
+  Optionally filters out usage logs for public dashboards.
+  """
+  def format_logs_for_display(logs, opts \\ []) do
+    hide_usage_logs = Keyword.get(opts, :hide_usage_logs, false)
+
+    logs
+    |> filter_usage_logs_if_needed(hide_usage_logs)
+    |> Enum.map(&format_log_for_display/1)
+  end
+
+  defp filter_usage_logs_if_needed(logs, true), do: Enum.reject(logs, &(to_atom(&1.type) == :usage))
+  defp filter_usage_logs_if_needed(logs, false), do: logs
+
+  defp prepare_and_format_log(log) do
+    screenshot_metadata = if has_screenshot?(log), do: get_screenshot_metadata(log)
+    log_with_metadata = Map.put(log, :screenshot_metadata, screenshot_metadata)
+    format_log_for_display(log_with_metadata)
+  end
+
+  defp format_log_for_display(log) do
+    type_atom = to_atom(log.type)
+
+    formatted = %{
+      type: log_type_display(type_atom),
+      message: extract_log_message(log),
+      timestamp: format_timestamp(log.timestamp)
+    }
+
+    formatted
+    |> add_context_if_tool_log(log, type_atom)
+    |> add_screenshot_image_if_available(log)
+  end
+
+  defp to_atom(type) when is_binary(type), do: String.to_existing_atom(type)
+  defp to_atom(type) when is_atom(type), do: type
+
+  defp log_type_display(type) do
+    case type do
+      :usage -> "TOKENS"
+      :tool_call -> "TOOL"
+      :tool_call_result -> "RESULT"
+      :message -> "ASSISTANT"
+    end
+  end
+
+  defp extract_log_message(log) do
+    case JSON.decode!(log.data) do
+      %{"message" => message} -> message
+      %{"name" => name} -> name
+      %{"input" => input, "output" => output} -> "#{input}/#{output}"
+      data -> inspect(data)
+    end
+  end
+
+  defp format_timestamp(%NaiveDateTime{} = ndt) do
+    %{hour: h, minute: m, second: s} = NaiveDateTime.to_time(ndt)
+    "#{pad_number(h)}:#{pad_number(m)}:#{pad_number(s)}"
+  end
+
+  defp format_timestamp(_), do: "??:??:??"
+
+  defp pad_number(n), do: String.pad_leading(to_string(n), 2, "0")
+
+  defp add_context_if_tool_log(formatted, log, type) when type in [:tool_call, :tool_call_result] do
+    Map.put(formatted, :context, %{json_data: prettify_json(log.data)})
+  end
+
+  defp add_context_if_tool_log(formatted, _log, _type), do: formatted
+
+  defp add_screenshot_image_if_available(formatted, %{screenshot_metadata: %{screenshot_id: screenshot_id}} = log)
+       when is_binary(screenshot_id) do
+    %{
+      account_handle: account_handle,
+      project_handle: project_handle,
+      qa_run_id: qa_run_id
+    } = log.screenshot_metadata
+
+    image_url = "/#{account_handle}/#{project_handle}/qa/runs/#{qa_run_id}/screenshots/#{screenshot_id}"
+    Map.put(formatted, :image, image_url)
+  end
+
+  defp add_screenshot_image_if_available(formatted, _log), do: formatted
+
+  defp prettify_json(data) when is_binary(data) do
+    case JSON.decode(data) do
+      {:ok, %{"name" => _name, "content" => content} = decoded} when is_list(content) ->
+        prettified_content = Enum.map(content, &prettify_content_part/1)
+        Jason.encode!(%{decoded | "content" => prettified_content}, pretty: true)
+
+      {:ok, [%{"content" => nested_json, "type" => "text"}]} ->
+        case JSON.decode(nested_json) do
+          {:ok, parsed_data} ->
+            Jason.encode!(parsed_data, pretty: true)
+
+          {:error, _} ->
+            nested_json
+        end
+
+      {:ok, decoded} ->
+        Jason.encode!(decoded, pretty: true)
+
+      {:error, _} ->
+        data
+    end
+  end
+
+  defp prettify_content_part(%{"type" => "text", "content" => content}) when is_binary(content) do
+    case JSON.decode(content) do
+      {:ok, parsed_json} ->
+        %{"type" => "text", "content" => parsed_json}
+
+      {:error, _} ->
+        %{"type" => "text", "content" => content}
+    end
+  end
+
+  defp prettify_content_part(part), do: part
+
+  @action_tools ["tap", "swipe", "long_press", "type_text", "key_press", "button", "touch", "gesture", "plan_report"]
+
+  defp has_screenshot?(log) do
+    case JSON.decode(log.data) do
+      {:ok, data} ->
+        case data do
+          %{"name" => "screenshot"} -> true
+          %{"name" => name, "content" => content} when name in @action_tools -> has_screenshot_in_content?(content)
+          _ -> false
+        end
+
+      {:error, _} ->
+        false
+    end
+  end
+
+  defp has_screenshot_in_content?(content) when is_list(content) do
+    Enum.any?(content, &has_screenshot_in_text_content?/1)
+  end
+
+  defp has_screenshot_in_content?(_), do: false
+
+  defp has_screenshot_in_text_content?(%{"type" => "text", "content" => text_content}) do
+    case JSON.decode(text_content) do
+      {:ok, nested_data} -> Map.has_key?(nested_data, "screenshot_id")
+      {:error, _} -> false
+    end
+  end
+
+  defp has_screenshot_in_text_content?(_), do: false
+
+  defp get_screenshot_metadata(log) do
+    case JSON.decode(log.data) do
+      {:ok, data} ->
+        case data do
+          %{"name" => "screenshot", "content" => content} ->
+            find_screenshot_metadata_in_content(content)
+
+          %{"name" => name, "content" => content} when name in @action_tools ->
+            find_screenshot_metadata_in_content(content)
+
+          _ ->
+            nil
+        end
+
+      {:error, _} ->
+        nil
+    end
+  end
+
+  defp find_screenshot_metadata_in_content(content) when is_list(content) do
+    Enum.find_value(content, &extract_metadata_from_text_content/1)
+  end
+
+  defp find_screenshot_metadata_in_content(_), do: nil
+
+  defp extract_metadata_from_text_content(%{"type" => "text", "content" => text_content}) do
+    case JSON.decode(text_content) do
+      {:ok,
+       %{
+         "screenshot_id" => screenshot_id,
+         "qa_run_id" => qa_run_id,
+         "account_handle" => account_handle,
+         "project_handle" => project_handle
+       }} ->
+        %{
+          screenshot_id: screenshot_id,
+          qa_run_id: qa_run_id,
+          account_handle: account_handle,
+          project_handle: project_handle
+        }
+
+      _ ->
+        nil
+    end
+  end
+
+  defp extract_metadata_from_text_content(_), do: nil
 end
