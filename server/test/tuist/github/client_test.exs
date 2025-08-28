@@ -31,11 +31,11 @@ defmodule Tuist.GitHub.ClientTest do
   describe "get_comments/1" do
     test "returns comments" do
       # Given
-      expect(Req, :get, fn [
-                             finch: Tuist.Finch,
-                             headers: @default_headers,
-                             url: "https://api.github.com/repos/tuist/tuist/issues/1/comments"
-                           ] ->
+      expect(Req, :get, fn opts ->
+        assert opts[:finch] == Tuist.Finch
+        assert opts[:headers] == @default_headers
+        assert opts[:url] == "https://api.github.com/repos/tuist/tuist/issues/1/comments"
+        
         {:ok,
          %Req.Response{
            status: 200,
@@ -138,12 +138,12 @@ defmodule Tuist.GitHub.ClientTest do
   describe "create_comment/1" do
     test "creates a new comment" do
       # Given
-      expect(Req, :post, fn [
-                              finch: Tuist.Finch,
-                              headers: @default_headers,
-                              url: "https://api.github.com/repos/tuist/tuist/issues/1/comments",
-                              json: %{body: "comment"}
-                            ] ->
+      expect(Req, :post, fn opts ->
+        assert opts[:finch] == Tuist.Finch
+        assert opts[:headers] == @default_headers
+        assert opts[:json] == %{body: "comment"}
+        assert opts[:url] == "https://api.github.com/repos/tuist/tuist/issues/1/comments"
+        
         {:ok, %Req.Response{status: 201}}
       end)
 
@@ -163,12 +163,12 @@ defmodule Tuist.GitHub.ClientTest do
   describe "update_comment/1" do
     test "updates comment" do
       # Given
-      expect(Req, :patch, fn [
-                               finch: Tuist.Finch,
-                               headers: @default_headers,
-                               url: "https://api.github.com/repos/tuist/tuist/issues/comments/1",
-                               json: %{body: "comment"}
-                             ] ->
+      expect(Req, :patch, fn opts ->
+        assert opts[:finch] == Tuist.Finch
+        assert opts[:headers] == @default_headers
+        assert opts[:json] == %{body: "comment"}
+        assert opts[:url] == "https://api.github.com/repos/tuist/tuist/issues/comments/1"
+        
         {:ok, %Req.Response{status: 201}}
       end)
 
@@ -188,11 +188,11 @@ defmodule Tuist.GitHub.ClientTest do
   describe "get_user_by_id/1" do
     test "returns user" do
       # Given
-      expect(Req, :get, fn [
-                             finch: Tuist.Finch,
-                             headers: @default_headers,
-                             url: "https://api.github.com/user/123"
-                           ] ->
+      expect(Req, :get, fn opts ->
+        assert opts[:finch] == Tuist.Finch
+        assert opts[:headers] == @default_headers
+        assert opts[:url] == "https://api.github.com/user/123"
+        
         {:ok, %Req.Response{status: 200, body: %{"login" => "tuist"}}}
       end)
 
@@ -205,44 +205,33 @@ defmodule Tuist.GitHub.ClientTest do
 
     test "returns ok with 404 error" do
       # Given
-      expect(Req, :get, fn [
-                             finch: Tuist.Finch,
-                             headers: @default_headers,
-                             url: "https://api.github.com/user/123"
-                           ] ->
-        {:ok, %Req.Response{status: 404}}
+      expect(Req, :get, fn opts ->
+        assert opts[:finch] == Tuist.Finch
+        assert opts[:headers] == @default_headers
+        assert opts[:url] == "https://api.github.com/user/123"
+        
+        {:ok, %Req.Response{status: 404, body: "Not found"}}
       end)
 
       # When
       user = Client.get_user_by_id(%{id: "123", repository_full_handle: "tuist/tuist"})
 
       # Then
-      assert user == {:error, "Unexpected status code: 404. Body: \"\""}
+      assert user == {:error, "Unexpected status code: 404. Body: \"Not found\""}
     end
   end
 
   describe "get_user_permission/1" do
     test "returns user permission" do
       # Given
-      stub(Req, :get, fn [
-                           finch: Tuist.Finch,
-                           headers: @default_headers,
-                           url: "https://api.github.com/user/123"
-                         ] ->
-        {:ok, %Req.Response{status: 200, body: %{"login" => "tuist"}}}
-      end)
-
-      stub(
-        Req,
-        :get,
-        fn [
-             finch: Tuist.Finch,
-             headers: @default_headers,
-             url: "https://api.github.com/repos/tuist/tuist/collaborators/tuist/permission"
-           ] ->
-          {:ok, %Req.Response{status: 200, body: %{"permission" => "admin"}}}
+      stub(Req, :get, fn opts ->
+        case opts[:url] do
+          "https://api.github.com/user/123" ->
+            {:ok, %Req.Response{status: 200, body: %{"login" => "tuist"}}}
+          "https://api.github.com/repos/tuist/tuist/collaborators/tuist/permission" ->
+            {:ok, %Req.Response{status: 200, body: %{"permission" => "admin"}}}
         end
-      )
+      end)
 
       # When
       permission =
@@ -256,11 +245,11 @@ defmodule Tuist.GitHub.ClientTest do
   describe "get_repository/1" do
     test "returns repository" do
       # Given
-      expect(Req, :get, fn [
-                             finch: Tuist.Finch,
-                             headers: @default_headers,
-                             url: "https://api.github.com/repos/tuist/tuist"
-                           ] ->
+      expect(Req, :get, fn opts ->
+        assert opts[:finch] == Tuist.Finch
+        assert opts[:headers] == @default_headers
+        assert opts[:url] == "https://api.github.com/repos/tuist/tuist"
+        
         {:ok,
          %Req.Response{
            status: 200,
@@ -292,7 +281,8 @@ defmodule Tuist.GitHub.ClientTest do
           [
             url: "https://api.github.com/repos/tuist/tuist/tags?page_size=100",
             headers: @default_api_headers,
-            finch: Tuist.Finch
+            finch: Tuist.Finch,
+            retry: _
           ] ->
             {:ok,
              %Req.Response{
@@ -311,7 +301,8 @@ defmodule Tuist.GitHub.ClientTest do
           [
             url: "https://api.github.com/repos/tuist/tuist/tags?page=2&page_size=100",
             headers: @default_api_headers,
-            finch: Tuist.Finch
+            finch: Tuist.Finch,
+            retry: _
           ] ->
             {:ok,
              %Req.Response{
@@ -344,7 +335,8 @@ defmodule Tuist.GitHub.ClientTest do
           [
             url: "https://api.github.com/repos/tuist/tuist/tags?page_size=100",
             headers: @default_api_headers,
-            finch: Tuist.Finch
+            finch: Tuist.Finch,
+            retry: _
           ] ->
             {:ok,
              %Req.Response{
