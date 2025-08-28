@@ -90,8 +90,8 @@ defmodule Tuist.Registry.Swift.Packages do
     }
   end
 
-  def create_missing_package_releases(%{
-        package: %Package{repository_full_handle: repository_full_handle} = package,
+  def get_missing_package_versions(%{
+        package: %Package{repository_full_handle: repository_full_handle, scope: scope, name: name} = package,
         token: token
       }) do
     %{
@@ -111,11 +111,7 @@ defmodule Tuist.Registry.Swift.Packages do
     end)
     |> Enum.uniq_by(&semantic_version(&1))
     |> Enum.map(fn version ->
-      create_package_release(%{
-        package: package,
-        version: version,
-        token: token
-      })
+      %{scope: scope, name: name, version: version}
     end)
   end
 
