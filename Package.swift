@@ -110,16 +110,16 @@ let targets: [Target] = [
             pathDependency,
             swiftToolsSupportDependency,
         ],
-        path: "cli/Sources/tuist",
+        path: "cli/Sources/tuist"
     ),
     .target(
         name: "ProjectDescription",
         dependencies: [],
-        path: "cli/Sources/ProjectDescription",
+        path: "cli/Sources/ProjectDescription"
     ),
     .target(
         name: "ProjectAutomation",
-        path: "cli/Sources/ProjectAutomation",
+        path: "cli/Sources/ProjectAutomation"
     ),
     .target(
         name: "TuistSupport",

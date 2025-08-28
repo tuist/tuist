@@ -43,7 +43,7 @@ public class TrackableCommand {
         clock: Clock = WallClock(),
         commandEventFactory: CommandEventFactory = CommandEventFactory(),
         asyncQueue: AsyncQueuing = AsyncQueue.sharedInstance,
-        fileHandler: FileHandling = FileHandler.shared,
+        fileHandler: FileHandling = FileHandler.shared
     ) {
         self.command = command
         self.commandArguments = commandArguments

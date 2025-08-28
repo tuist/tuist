@@ -695,7 +695,7 @@ final class EmptyCacheService: CacheServicing {
             artifacts: [CacheGraphTargetBuiltArtifact],
             projectDerivedDataDirectory _: AbsolutePath,
             xcresultPaths _: [AbsolutePath] = [],
-            activityLogsDirectory: AbsolutePath,
+            activityLogsDirectory: AbsolutePath
         ) async throws -> [CacheGraphTargetBuiltArtifact] {
             let activityLogs = try await fileSystem.glob(directory: activityLogsDirectory, include: ["*.xcactivitylog"]).collect()
             let buildTimes = try await activityLogController
