@@ -13,6 +13,6 @@ final class CacheVersionFetcherTests: TuistUnitTestCase {
         let got = subject.version()
 
         // Then
-        XCTAssertEqual(got, .version2)
+        XCTAssertEqual(got, .version3)
     }
 }
