@@ -99,10 +99,10 @@ final class SwiftPackageManagerInteractorTests: TuistTestCase {
         XCTAssertTrue(exists)
     }
 
-    func test_install_forwards_additional_arguments() async throws {
+    func test_install_forwards_arguments_to_xcodebuild() async throws {
         // Given
         let temporaryPath = try temporaryPath()
-
+        let spmPath = temporaryPath.appending(component: "spm")
         let target = anyTarget(dependencies: [
             .package(product: "Example", type: .runtime),
         ])
@@ -117,30 +117,34 @@ final class SwiftPackageManagerInteractorTests: TuistTestCase {
         let graph = Graph.test(
             path: project.path,
             packages: [project.path: ["Test": package]],
-            dependencies: [GraphDependency.packageProduct(path: project.path, product: "Test", type: .macro): Set()]
+            dependencies: [GraphDependency.packageProduct(path: project.path, product: "Test", type: .runtime): Set()]
         )
         let graphTraverser = GraphTraverser(graph: graph)
 
         let workspacePath = temporaryPath.appending(component: "\(project.name).xcworkspace")
-        system
-            .succeedCommand([
-                "xcodebuild",
-                "-resolvePackageDependencies",
-                "--some-extra-argument",
-                "-workspace",
-                workspacePath.pathString,
-                "-list",
-            ])
+        system.succeedCommand([
+            "xcodebuild",
+            "-resolvePackageDependencies",
+            "-scmProvider",
+            "system",
+            "-clonedSourcePackagesDirPath",
+            "\(spmPath.pathString)/\(project.name)",
+            "--some-extra-argument",
+            "-workspace",
+            workspacePath.pathString,
+            "-list",
+        ])
         try await createFiles(["\(workspacePath.basename)/xcshareddata/swiftpm/Package.resolved"])
 
         // When
         try await subject.install(
             graphTraverser: graphTraverser,
             workspaceName: workspacePath.basename,
-            configGeneratedProjectOptions: .test(
-                compatibleXcodeVersions: .all,
-                generationOptions: .test(additionalPackageResolutionArguments: ["--some-extra-argument"])
-            )
+            configGeneratedProjectOptions: .test(generationOptions: .test(
+                resolveDependenciesWithSystemScm: true,
+                clonedSourcePackagesDirPath: spmPath,
+                additionalPackageResolutionArguments: ["--some-extra-argument"]
+            ))
         )
 
         // Then
