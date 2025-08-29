@@ -180,7 +180,7 @@
           rows={@qa_runs}
           row_navigate={
             fn run ->
-              url(~p"/ops/qa/#{run.id}/overview")
+              url(~p"/#{@selected_project.account.name}/#{@selected_project.name}/qa/#{run.id}/overview")
             end
           }
         >
