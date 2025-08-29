@@ -99,19 +99,11 @@ extension Tuist {
             disableSandbox: Bool = false,
             includeGenerateScheme: Bool = true
         ) -> Self {
-            var additionalPackageResolutionArguments: [String] = []
-            if resolveDependenciesWithSystemScm {
-                additionalPackageResolutionArguments.append("-resolvePackageDependenciesWithSystemScm")
-            }
-            if let clonedSourcePackagesDirPath {
-                additionalPackageResolutionArguments.append("-clonedSourcePackagesDirPath")
-                additionalPackageResolutionArguments.append(clonedSourcePackagesDirPath.pathString)
-            }
-            return self.init(
+            self.init(
                 resolveDependenciesWithSystemScm: resolveDependenciesWithSystemScm,
                 disablePackageVersionLocking: disablePackageVersionLocking,
                 clonedSourcePackagesDirPath: clonedSourcePackagesDirPath,
-                additionalPackageResolutionArguments: additionalPackageResolutionArguments,
+                additionalPackageResolutionArguments: [],
                 staticSideEffectsWarningTargets: staticSideEffectsWarningTargets,
                 enforceExplicitDependencies: false,
                 defaultConfiguration: defaultConfiguration,

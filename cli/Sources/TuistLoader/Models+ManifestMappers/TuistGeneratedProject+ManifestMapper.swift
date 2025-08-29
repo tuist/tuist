@@ -15,20 +15,11 @@ extension TuistCore.TuistGeneratedProjectOptions.GenerationOptions {
                 return nil
             }
         }()
-        var additionalPackageResolutionArguments = manifest.additionalPackageResolutionArguments
-        if manifest.resolveDependenciesWithSystemScm {
-            additionalPackageResolutionArguments.append("-resolvePackageDependenciesWithSystemScm")
-        }
-        if let clonedSourcePackagesDirPath {
-            // let workspace = (workspaceName as NSString).deletingPathExtension
-            // let path = "\(clonedSourcePackagesDirPath.pathString)/\(workspace)"
-            // additionalPackageResolutionArguments.append(contentsOf: ["-clonedSourcePackagesDirPath", path])
-        }
         return .init(
             resolveDependenciesWithSystemScm: manifest.resolveDependenciesWithSystemScm,
             disablePackageVersionLocking: manifest.disablePackageVersionLocking,
             clonedSourcePackagesDirPath: clonedSourcePackagesDirPath,
-            additionalPackageResolutionArguments: additionalPackageResolutionArguments,
+            additionalPackageResolutionArguments: manifest.additionalPackageResolutionArguments,
             staticSideEffectsWarningTargets: TuistCore.TuistGeneratedProjectOptions.GenerationOptions
                 .StaticSideEffectsWarningTargets
                 .from(manifest: manifest.staticSideEffectsWarningTargets),
