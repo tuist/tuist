@@ -55,13 +55,13 @@ struct TuistGeneratedProjectManifestMapperTests {
 
     @Test func from_mapsKeepSourceTargets_true() throws {
         let manifest = ProjectDescription.Config.CacheOptions.options(keepSourceTargets: true)
-        let got = TuistCore.TuistGeneratedProjectOptions.CacheOptions.from(manifest: manifest)
+        let got = try TuistCore.TuistGeneratedProjectOptions.CacheOptions.from(manifest: manifest)
         #expect(got.keepSourceTargets == true)
     }
 
     @Test func from_mapsKeepSourceTargets_false() throws {
         let manifest = ProjectDescription.Config.CacheOptions.options(keepSourceTargets: false)
-        let got = TuistCore.TuistGeneratedProjectOptions.CacheOptions.from(manifest: manifest)
+        let got = try TuistCore.TuistGeneratedProjectOptions.CacheOptions.from(manifest: manifest)
         #expect(got.keepSourceTargets == false)
     }
 }

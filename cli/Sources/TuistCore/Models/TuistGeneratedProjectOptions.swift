@@ -98,12 +98,39 @@ extension TuistGeneratedProjectOptions {
     }
 
     public struct CacheOptions: Codable, Equatable, Sendable, Hashable {
+        public struct DownloadOptions: Codable, Equatable, Sendable, Hashable {
+            public var chunked: Bool
+            public var chunkSize: Int
+            public var concurrencyLimit: Int?
+            
+            public static var defaultChunked: Bool {
+                false
+            }
+            
+            public static var defaultChunkSize: Int {
+                8 * 1024 * 1024
+            }
+            
+            public static var defaultConcurrencyLimit: Int? {
+                20
+            }
+            
+            public init(chunked: Bool = Self.defaultChunked, chunkSize: Int = Self.defaultChunkSize, concurrencyLimit: Int? = Self.defaultConcurrencyLimit) {
+                self.chunked = chunked
+                self.chunkSize = chunkSize
+                self.concurrencyLimit = concurrencyLimit
+            }
+        }
+        
         public var keepSourceTargets: Bool
-
+        public var downloadOptions: DownloadOptions
+        
         public init(
-            keepSourceTargets: Bool = false
+            keepSourceTargets: Bool = false,
+            downloadOptions: DownloadOptions = DownloadOptions()
         ) {
             self.keepSourceTargets = keepSourceTargets
+            self.downloadOptions = downloadOptions
         }
     }
 

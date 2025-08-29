@@ -1,6 +1,7 @@
 import Path
 import ProjectDescription
 import TuistCore
+import Foundation
 
 extension TuistCore.TuistGeneratedProjectOptions.GenerationOptions {
     static func from(
@@ -42,13 +43,35 @@ extension TuistCore.TuistGeneratedProjectOptions.InstallOptions {
     }
 }
 
+enum TuistGeneratedProjectOptionsCacheOptionsError: LocalizedError {
+    case nonSupportedConcurrencyValue(String)
+    
+    var errorDescription: String? {
+        switch self {
+        case .nonSupportedConcurrencyValue(let value):
+            return "Couldn't parse non-supported the following concurrency value from cache options: \(value)"
+        }
+    }
+}
+
 extension TuistCore.TuistGeneratedProjectOptions.CacheOptions {
     static func from(
         manifest: ProjectDescription.Config.CacheOptions
-    ) -> Self {
+    ) throws -> Self {
         return .init(
-            keepSourceTargets: manifest.keepSourceTargets
+            keepSourceTargets: manifest.keepSourceTargets,
+            downloadOptions: .init(chunked: manifest.downloadOptions.chunked,
+                                   chunkSize: manifest.downloadOptions.chunkSize,
+                                   concurrencyLimit: manifest.downloadOptions.concurrencyLimit)
         )
+    }
+}
+
+extension TuistCore.TuistGeneratedProjectOptions.CacheOptions.DownloadOptions {
+    static func from(
+        manifest: ProjectDescription.Config.CacheOptions.DownloadOptions
+    ) throws -> Self {
+        return Self(chunked: manifest.chunked, chunkSize: manifest.chunkSize, concurrencyLimit: manifest.concurrencyLimit)
     }
 }
 
