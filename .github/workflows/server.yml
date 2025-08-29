@@ -247,6 +247,46 @@ jobs:
             TUIST_HOSTED=0
             TUIST_VERSION=1.24.11.11
             MIX_ENV=prod
+  api-codegen:
+    name: API Codegen Check
+    runs-on: namespace-profile-default
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore Mix Cache
+        uses: actions/cache@v4
+        id: mix-cache
+        with:
+          path: |
+            deps
+            _build
+            _site
+          key: mix-${{ hashFiles('mix.lock') }}
+      - name: Restore PNPM Cache
+        uses: actions/cache@v4
+        id: pnpm-cache
+        with:
+          path: |
+            ~/.pnpm/store
+          key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
+      - run: mise run install
+      - name: Generate API CLI code
+        run: mise run generate-api-cli-code
+      - name: Check for uncommitted changes
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "::error title=API codegen out of sync::The generated API code is not up-to-date. Please run 'mise run generate-api-cli-code' in the server directory and commit the changes."
+            echo "Changed files:"
+            git status --porcelain
+            echo "Diff:"
+            git diff
+            exit 1
+          else
+            echo "✅ Generated API code is up-to-date"
+          fi
   seed:
     name: Seed
     runs-on: namespace-profile-default
