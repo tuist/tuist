@@ -127,7 +127,16 @@ defmodule TuistWeb.API.QAController do
   end
 
   def update_run(%{assigns: %{selected_qa_run: qa_run}} = conn, %{"status" => status}) do
-    case QA.update_qa_run(qa_run, %{status: status}) do
+    update_attrs = %{status: status}
+
+    update_attrs =
+      if status in ["completed", "failed"] do
+        Map.put(update_attrs, :finished_at, DateTime.utc_now())
+      else
+        update_attrs
+      end
+
+    case QA.update_qa_run(qa_run, update_attrs) do
       {:ok, updated_qa_run} ->
         conn
         |> put_status(:ok)

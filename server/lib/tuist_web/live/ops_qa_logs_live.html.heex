@@ -47,7 +47,10 @@
                 <span data-part="tool-name">{format_log_message(log)}</span>
               </div>
               <div :if={expanded?(log, @expanded_tools)} data-part="tool-call-details">
-                <div :if={is_tool_result_log?(log) and log.screenshot_metadata} data-part="screenshot-content">
+                <div
+                  :if={is_tool_result_log?(log) and log.screenshot_metadata}
+                  data-part="screenshot-content"
+                >
                   <img
                     :if={log.screenshot_metadata[:screenshot_id]}
                     src={
@@ -56,14 +59,19 @@
                     alt="Screenshot"
                     style="max-width: 100%; max-height: 400px; height: auto; border-radius: 6px; margin-bottom: 12px;"
                   />
-                  <p :if={!log.screenshot_metadata[:screenshot_id]} style="color: #666; font-style: italic;">
+                  <p
+                    :if={!log.screenshot_metadata[:screenshot_id]}
+                    style="color: #666; font-style: italic;"
+                  >
                     Screenshot captured (metadata unavailable)
                   </p>
                 </div>
                 <pre data-part="json-content">{prettify_json(log.data)}</pre>
               </div>
             </div>
-            <div :if={!is_tool_log?(log)} data-part="log-message" data-type={log.type}>{format_log_message(log)}</div>
+            <div :if={!is_tool_log?(log)} data-part="log-message" data-type={log.type}>
+              {format_log_message(log)}
+            </div>
           </div>
         </div>
       </.card_section>

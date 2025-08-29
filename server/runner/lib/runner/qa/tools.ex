@@ -738,16 +738,17 @@ defmodule Runner.QA.Tools do
         })
       ],
       function: fn %{"step_id" => step_id, "result" => result, "issues" => issues} = _params, _context ->
-        {:ok, :async} = Client.start_update_step(%{
-          step_id: step_id,
-          result: result,
-          issues: issues,
-          server_url: server_url,
-          run_id: run_id,
-          auth_token: auth_token,
-          account_handle: account_handle,
-          project_handle: project_handle
-        })
+        {:ok, :async} =
+          Client.start_update_step(%{
+            step_id: step_id,
+            result: result,
+            issues: issues,
+            server_url: server_url,
+            run_id: run_id,
+            auth_token: auth_token,
+            account_handle: account_handle,
+            project_handle: project_handle
+          })
 
         {:ok, "Step report submitted asynchronously."}
       end

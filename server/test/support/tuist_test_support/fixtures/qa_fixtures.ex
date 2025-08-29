@@ -12,7 +12,13 @@ defmodule TuistTestSupport.Fixtures.QAFixtures do
   def qa_run_fixture(opts \\ []) do
     app_build =
       Keyword.get_lazy(opts, :app_build, fn ->
-        AppBuildsFixtures.app_build_fixture()
+        project = Keyword.get(opts, :project)
+
+        if project do
+          AppBuildsFixtures.app_build_fixture(project: project)
+        else
+          AppBuildsFixtures.app_build_fixture()
+        end
       end)
 
     {:ok, qa_run} =

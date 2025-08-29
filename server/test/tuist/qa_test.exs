@@ -2,6 +2,7 @@ defmodule Tuist.QATest do
   use TuistTestSupport.Cases.DataCase
   use Mimic
 
+  alias Ecto.Association.NotLoaded
   alias Runner.QA.Agent
   alias Tuist.Authentication
   alias Tuist.QA
@@ -1087,6 +1088,372 @@ defmodule Tuist.QATest do
 
       # Then
       assert :ok == result
+    end
+  end
+
+  describe "qa_runs_for_project/2" do
+    test "returns QA runs with preloaded associations" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      preview = AppBuildsFixtures.preview_fixture(project: project)
+      app_build = AppBuildsFixtures.app_build_fixture(preview: preview)
+      qa_run = QAFixtures.qa_run_fixture(app_build: app_build, prompt: "Test login")
+      _qa_step = QAFixtures.qa_step_fixture(qa_run: qa_run, action: "Login attempt")
+
+      # When
+      results = QA.qa_runs_for_project(project, preload: [app_build: [preview: []], run_steps: []])
+
+      # Then
+      assert length(results) == 1
+      result = List.first(results)
+      assert result.id == qa_run.id
+
+      refute match?(%NotLoaded{}, result.app_build)
+      refute match?(%NotLoaded{}, result.app_build.preview)
+      refute match?(%NotLoaded{}, result.run_steps)
+    end
+
+    test "returns QA runs for specific project only" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      other_project = ProjectsFixtures.project_fixture()
+
+      preview = AppBuildsFixtures.preview_fixture(project: project)
+      other_preview = AppBuildsFixtures.preview_fixture(project: other_project)
+
+      app_build = AppBuildsFixtures.app_build_fixture(preview: preview)
+      other_app_build = AppBuildsFixtures.app_build_fixture(preview: other_preview)
+
+      qa_run = QAFixtures.qa_run_fixture(app_build: app_build, prompt: "Test login")
+      _qa_run_other = QAFixtures.qa_run_fixture(app_build: other_app_build, prompt: "Other project")
+
+      # When
+      results = QA.qa_runs_for_project(project)
+
+      # Then
+      assert length(results) == 1
+      assert List.first(results).id == qa_run.id
+    end
+
+    test "returns empty list when project has no QA runs" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # When
+      results = QA.qa_runs_for_project(project)
+
+      # Then
+      assert results == []
+    end
+
+    test "respects limit and offset options" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      preview = AppBuildsFixtures.preview_fixture(project: project)
+      app_build = AppBuildsFixtures.app_build_fixture(preview: preview)
+
+      _qa_run1 = QAFixtures.qa_run_fixture(app_build: app_build, prompt: "Test 1")
+      qa_run2 = QAFixtures.qa_run_fixture(app_build: app_build, prompt: "Test 2")
+      _qa_run3 = QAFixtures.qa_run_fixture(app_build: app_build, prompt: "Test 3")
+
+      # When
+      results = QA.qa_runs_for_project(project, limit: 1, offset: 1)
+
+      # Then
+      assert length(results) == 1
+      assert List.first(results).id == qa_run2.id
+    end
+
+    test "orders QA runs by most recent first" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      preview = AppBuildsFixtures.preview_fixture(project: project)
+      app_build = AppBuildsFixtures.app_build_fixture(preview: preview)
+
+      older_time = DateTime.utc_now() |> DateTime.add(-1, :hour) |> DateTime.truncate(:second)
+      newer_time = DateTime.truncate(DateTime.utc_now(), :second)
+
+      {:ok, qa_run1} =
+        [app_build: app_build, prompt: "Test 1"]
+        |> QAFixtures.qa_run_fixture()
+        |> Ecto.Changeset.change(inserted_at: older_time)
+        |> Repo.update()
+
+      {:ok, qa_run2} =
+        [app_build: app_build, prompt: "Test 2"]
+        |> QAFixtures.qa_run_fixture()
+        |> Ecto.Changeset.change(inserted_at: newer_time)
+        |> Repo.update()
+
+      # When
+      results = QA.qa_runs_for_project(project)
+
+      # Then
+      assert length(results) == 2
+      assert List.first(results).id == qa_run2.id
+      assert List.last(results).id == qa_run1.id
+    end
+  end
+
+  describe "qa_runs_with_token_usage_for_project/2" do
+    test "returns QA runs with token usage data" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      preview = AppBuildsFixtures.preview_fixture(project: project)
+      app_build = AppBuildsFixtures.app_build_fixture(preview: preview)
+      qa_run = QAFixtures.qa_run_fixture(app_build: app_build, prompt: "Test login")
+
+      # When
+      results = QA.qa_runs_with_token_usage_for_project(project)
+
+      # Then
+      assert length(results) == 1
+      result = List.first(results)
+      assert result.id == qa_run.id
+      assert result.prompt == "Test login"
+      assert result.input_tokens == 0
+      assert result.output_tokens == 0
+    end
+
+    test "returns QA runs for specific project only" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      other_project = ProjectsFixtures.project_fixture()
+
+      preview = AppBuildsFixtures.preview_fixture(project: project)
+      other_preview = AppBuildsFixtures.preview_fixture(project: other_project)
+
+      app_build = AppBuildsFixtures.app_build_fixture(preview: preview)
+      other_app_build = AppBuildsFixtures.app_build_fixture(preview: other_preview)
+
+      qa_run = QAFixtures.qa_run_fixture(app_build: app_build, prompt: "Test login")
+      _qa_run_other = QAFixtures.qa_run_fixture(app_build: other_app_build, prompt: "Other project")
+
+      # When
+      results = QA.qa_runs_with_token_usage_for_project(project)
+
+      # Then
+      assert length(results) == 1
+      assert List.first(results).id == qa_run.id
+    end
+
+    test "returns empty list when project has no QA runs" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # When
+      results = QA.qa_runs_with_token_usage_for_project(project)
+
+      # Then
+      assert results == []
+    end
+
+    test "respects limit and offset options" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      preview = AppBuildsFixtures.preview_fixture(project: project)
+      app_build = AppBuildsFixtures.app_build_fixture(preview: preview)
+
+      oldest_time = DateTime.utc_now() |> DateTime.add(-2, :hour) |> DateTime.truncate(:second)
+      middle_time = DateTime.utc_now() |> DateTime.add(-1, :hour) |> DateTime.truncate(:second)
+      newest_time = DateTime.truncate(DateTime.utc_now(), :second)
+
+      {:ok, _qa_run1} =
+        [app_build: app_build, prompt: "Test 1"]
+        |> QAFixtures.qa_run_fixture()
+        |> Ecto.Changeset.change(inserted_at: oldest_time)
+        |> Repo.update()
+
+      {:ok, qa_run2} =
+        [app_build: app_build, prompt: "Test 2"]
+        |> QAFixtures.qa_run_fixture()
+        |> Ecto.Changeset.change(inserted_at: middle_time)
+        |> Repo.update()
+
+      {:ok, _qa_run3} =
+        [app_build: app_build, prompt: "Test 3"]
+        |> QAFixtures.qa_run_fixture()
+        |> Ecto.Changeset.change(inserted_at: newest_time)
+        |> Repo.update()
+
+      # When
+      results = QA.qa_runs_with_token_usage_for_project(project, limit: 1, offset: 1)
+
+      # Then
+      assert length(results) == 1
+      assert List.first(results).id == qa_run2.id
+    end
+
+    test "orders QA runs by most recent first" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      preview = AppBuildsFixtures.preview_fixture(project: project)
+      app_build = AppBuildsFixtures.app_build_fixture(preview: preview)
+
+      older_time = DateTime.utc_now() |> DateTime.add(-1, :hour) |> DateTime.truncate(:second)
+      newer_time = DateTime.truncate(DateTime.utc_now(), :second)
+
+      {:ok, qa_run1} =
+        [app_build: app_build, prompt: "Test 1"]
+        |> QAFixtures.qa_run_fixture()
+        |> Ecto.Changeset.change(inserted_at: older_time)
+        |> Repo.update()
+
+      {:ok, qa_run2} =
+        [app_build: app_build, prompt: "Test 2"]
+        |> QAFixtures.qa_run_fixture()
+        |> Ecto.Changeset.change(inserted_at: newer_time)
+        |> Repo.update()
+
+      # When
+      results = QA.qa_runs_with_token_usage_for_project(project)
+
+      # Then
+      assert length(results) == 2
+      assert List.first(results).id == qa_run2.id
+      assert List.last(results).id == qa_run1.id
+    end
+  end
+
+  describe "analytics functions" do
+    setup do
+      project = ProjectsFixtures.project_fixture()
+      preview = AppBuildsFixtures.preview_fixture(project: project)
+      app_build = AppBuildsFixtures.app_build_fixture(preview: preview, preload: [:preview])
+
+      base_date = Date.add(Date.utc_today(), -10)
+
+      run1 =
+        QAFixtures.qa_run_fixture(
+          app_build: app_build,
+          status: "completed",
+          inserted_at: DateTime.new!(base_date, ~T[10:00:00], "Etc/UTC")
+        )
+
+      run2 =
+        QAFixtures.qa_run_fixture(
+          app_build: app_build,
+          status: "completed",
+          inserted_at: DateTime.new!(base_date, ~T[11:00:00], "Etc/UTC")
+        )
+
+      _step =
+        QAFixtures.qa_step_fixture(
+          qa_run: run2,
+          issues: ["Issue 1", "Issue 2"]
+        )
+
+      {:ok, run2} =
+        run2
+        |> Ecto.Changeset.change(finished_at: base_date |> Date.add(5) |> DateTime.new!(~T[10:30:00], "Etc/UTC"))
+        |> Repo.update()
+
+      %{project: project, app_build: app_build, run1: run1, run2: run2}
+    end
+
+    test "qa_runs_analytics returns correct analytics data", %{project: project} do
+      # When
+      result = QA.qa_runs_analytics(project.id)
+
+      # Then
+      assert result.count == 2
+      assert result.trend == 0.0
+      assert length(result.values) == 11
+      assert length(result.dates) == 11
+      assert Enum.sum(result.values) == 2
+    end
+
+    test "qa_runs_analytics with app filter", %{project: project, app_build: app_build} do
+      # When
+      result = QA.qa_runs_analytics(project.id, app_name: app_build.preview.display_name)
+
+      # Then
+      assert result.count == 2
+      assert result.trend == 0.0
+    end
+
+    test "qa_runs_analytics with date range", %{project: project} do
+      start_date = Date.add(Date.utc_today(), -5)
+      end_date = Date.utc_today()
+
+      # When
+      result = QA.qa_runs_analytics(project.id, start_date: start_date, end_date: end_date)
+
+      # Then
+      assert result.count >= 0
+      assert length(result.values) == 6
+    end
+
+    test "qa_issues_analytics returns correct analytics data", %{project: project} do
+      # When
+      result = QA.qa_issues_analytics(project.id)
+
+      # Then
+      assert result.count == 2
+      assert result.trend == 0.0
+      assert length(result.values) == 11
+      assert length(result.dates) == 11
+    end
+
+    test "qa_duration_analytics returns correct analytics data", %{project: project} do
+      # When
+      result = QA.qa_duration_analytics(project.id)
+
+      # Then
+      assert result.total_average_duration > 0
+      assert result.trend == 0.0
+      assert length(result.values) == 11
+      assert length(result.dates) == 11
+    end
+
+    test "combined_qa_analytics returns all analytics", %{project: project} do
+      # When
+      [runs, issues, duration] = QA.combined_qa_analytics(project.id)
+
+      # Then
+      assert runs.count == 2
+      assert runs.trend == 0.0
+      assert length(runs.values) == 11
+      assert length(runs.dates) == 11
+      assert issues.count == 2
+      assert issues.trend == 0.0
+      assert length(issues.values) == 11
+      assert length(issues.dates) == 11
+      assert duration.total_average_duration > 0
+      assert duration.trend == 0.0
+      assert length(duration.values) == 11
+      assert length(duration.dates) == 11
+    end
+
+    test "available_apps_for_project returns app names", %{project: project} do
+      # When
+      apps = QA.available_apps_for_project(project.id)
+
+      # Then
+      assert length(apps) == 1
+      assert {app_name, app_name} = List.first(apps)
+      assert is_binary(app_name)
+    end
+
+    test "analytics functions handle empty data" do
+      empty_project = ProjectsFixtures.project_fixture()
+
+      runs_result = QA.qa_runs_analytics(empty_project.id)
+      issues_result = QA.qa_issues_analytics(empty_project.id)
+      duration_result = QA.qa_duration_analytics(empty_project.id)
+
+      assert runs_result.count == 0
+      assert runs_result.trend == 0.0
+      assert length(runs_result.values) == 11
+      assert length(runs_result.dates) == 11
+      assert issues_result.count == 0
+      assert issues_result.trend == 0.0
+      assert length(issues_result.values) == 11
+      assert length(issues_result.dates) == 11
+      assert duration_result.total_average_duration == 0
+      assert duration_result.trend == 0.0
+      assert length(duration_result.values) == 11
+      assert length(duration_result.dates) == 11
     end
   end
 end
