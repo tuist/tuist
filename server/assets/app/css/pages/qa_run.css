@@ -104,6 +104,8 @@
   }
 
   & [data-part="details-card"] {
+    margin-bottom: var(--noora-spacing-6);
+
     & > [data-part="details-card-section"] {
       & > [data-part="metadata-grid"] {
         display: flex;
@@ -147,46 +149,123 @@
     }
   }
 
-  & > [data-part="issues-card"] {
+  & [data-part="issues-card"] {
     & > [data-part="issues-card-section"] {
-      & > [data-part="issues-category"] {
+      & > [data-part="issue-item"] {
+        border-radius: var(--noora-radius-large);
+        box-shadow: var(--noora-border-light-default);
+        padding: var(--noora-spacing-4);
+
+
         & > [data-part="root"] {
-          & > [data-part="content"] {
-            & > [data-part="issue-item"] {
+          & > [data-part="trigger"] {
+            display: flex;
+            align-items: center;
+            gap: var(--noora-spacing-3);
+            padding: var(--noora-spacing-4) 0;
+            cursor: pointer;
+
+            & [data-part="issue-icon"] {
               display: flex;
-              flex-direction: column;
-              gap: var(--noora-spacing-4);
-              padding: var(--noora-spacing-5);
-              margin-bottom: var(--noora-spacing-4);
-              border-radius: var(--noora-radius-medium);
-              background: var(--noora-surface-background-secondary);
-              border: 1px solid var(--noora-surface-border-primary);
+padding: var(--noora-spacing-3);
+border-radius: var(--noora-radius-large);
+justify-content: center;
+align-items: center;
+gap: 10px;
+background: var(--noora-icon-warning-background);
+color: var(--noora-icon-warning-label);
 
-              & > [data-part="issue-header"] {
+              & svg {
+                width: 20px;
+                height: 20px;
+              }
+            }
+
+            & [data-part="issue-title"] {
+              flex: 1;
+              color: var(--noora-surface-label-primary);
+              font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+            }
+
+            & [data-part="issue-toggle"] {
+              flex-shrink: 0;
+            }
+
+            &[data-state="open"] {
+              & [data-part="closed-collapsible-button"] {
+                display: none;
+              }
+            }
+
+            &[data-state="closed"] {
+              & [data-part="open-collapsible-button"] {
+                display: none;
+              }
+            }
+          }
+
+          & > [data-part="content"] {
+            padding-top: var(--noora-spacing-4);
+
+            &[data-state="closed"] {
+              display: none;
+            }
+
+            & [data-part="issue-content-wrapper"] {
+              display: flex;
+              gap: var(--noora-spacing-5);
+              align-items: flex-start;
+
+              & [data-part="screenshots-column"] {
                 display: flex;
-                justify-content: space-between;
-                align-items: flex-start;
-                gap: var(--noora-spacing-4);
+                gap: var(--noora-spacing-3);
+                flex-shrink: 0;
 
-                & > [data-part="issue-title"] {
-                  color: var(--noora-surface-label-primary);
-                  font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
-                  margin: 0;
-                }
+                & [data-part="screenshot-thumb"] {
+                  width: 140px;
+                  height: auto;
 
-                & > [data-part="issue-number"] {
-                  color: var(--noora-surface-label-secondary);
-                  font: var(--noora-font-weight-regular) var(--noora-font-body-small);
-                  flex-shrink: 0;
+                  & img {
+                    width: 100%;
+                    height: auto;
+                    border-radius: var(--noora-radius-small);
+                    border: 1px solid var(--noora-surface-stroke-secondary);
+                  }
                 }
               }
 
-              & > [data-part="issue-description"] {
-                color: var(--noora-surface-label-secondary);
-                font: var(--noora-font-weight-regular) var(--noora-font-body-small);
-                line-height: 1.5;
-                white-space: pre-wrap;
-                margin: 0;
+              & [data-part="step-details"] {
+                flex: 1;
+                display: flex;
+                flex-direction: column;
+                gap: var(--noora-spacing-3);
+
+                & [data-part="detail-row"] {
+                  display: flex;
+                  align-items: flex-start;
+                  gap: var(--noora-spacing-3);
+
+                  & .noora-badge {
+                    flex-shrink: 0;
+                    min-width: 80px;
+                  }
+
+                  & [data-part="detail-value"] {
+                    flex: 1;
+                    color: var(--noora-surface-label-primary);
+                    font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+                    line-height: 1.5;
+                    padding-top: 2px;
+
+                    &[data-variant="success"] {
+                      color: var(--noora-feedback-success);
+                    }
+
+                    &[data-variant="warning"] {
+                      color: var(--noora-feedback-warning);
+                    }
+                  }
+                }
               }
             }
           }
@@ -195,17 +274,8 @@
     }
   }
 
-  & > [data-part="logs-tab"] {
-    width: 100%;
-  }
-
   & .noora-tab-menu-horizontal {
     width: 100%;
-  }
-
-  & .noora-tab-menu-horizontal-item {
-    min-width: auto;
-    width: auto;
   }
 
   & > div:not([data-part]) {
