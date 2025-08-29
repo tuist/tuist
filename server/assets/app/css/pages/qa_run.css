@@ -79,11 +79,22 @@
       font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
     }
 
-    & > [data-part="status"] {
+    & > [data-part="version"] {
       display: flex;
       flex-direction: row;
       align-items: center;
       gap: var(--noora-spacing-2);
+
+      & > [data-part="icon"] {
+        width: 18px;
+        height: 18px;
+        color: var(--noora-surface-label-secondary);
+
+        & > svg {
+          width: 100%;
+          height: 100%;
+        }
+      }
 
       & > [data-part="label"] {
         color: var(--noora-surface-label-secondary);
