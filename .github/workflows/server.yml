@@ -249,7 +249,7 @@ jobs:
             MIX_ENV=prod
   api-codegen:
     name: API Codegen Check
-    runs-on: namespace-profile-default
+    runs-on: macos-latest
     timeout-minutes: 15
     services:
       postgres:
