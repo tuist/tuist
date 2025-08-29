@@ -16,6 +16,7 @@
 @import "./pages/qa.css";
 @import "./pages/ops/qa.css";
 @import "./pages/ops/qa_logs.css";
+@import "./pages/qa_run.css";
 @import "./pages/run_detail.css";
 @import "./pages/connect.css";
 @import "./pages/test_runs.css";
