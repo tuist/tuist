@@ -51,11 +51,11 @@
       selected={@selected_tab == "overview"}
       navigate={~p"/#{@qa_run.app_build.preview.project.account.name}/#{@qa_run.app_build.preview.project.name}/qa/#{@qa_run.id}/overview"}
     />
-    <.tab_menu_horizontal_item
-      label={gettext("Logs")}
-      selected={@selected_tab == "logs"}
-      navigate={~p"/#{@qa_run.app_build.preview.project.account.name}/#{@qa_run.app_build.preview.project.name}/qa/#{@qa_run.id}/logs"}
-    />
+    <%!-- <.tab_menu_horizontal_item --%>
+    <%!--   label={gettext("Logs")} --%>
+    <%!--   selected={@selected_tab == "logs"} --%>
+    <%!--   navigate={~p"/#{@qa_run.app_build.preview.project.account.name}/#{@qa_run.app_build.preview.project.name}/qa/#{@qa_run.id}/logs"} --%>
+    <%!-- /> --%>
   </.tab_menu_horizontal>
 
   <div :if={@selected_tab == "overview"}>
@@ -115,7 +115,7 @@
     </.card_section>
   </.card>
 
-    <.card icon="bulb" title={gettext("Issues Identified")} data-part="issues-card">
+    <.card icon="alert_triangle" title={gettext("Issues identified")} data-part="issues-card">
       <.empty_card_section
         :if={Enum.empty?(@issues)}
         title={gettext("No issues identified")}
@@ -128,95 +128,72 @@
       </.empty_card_section>
 
       <.card_section :if={not Enum.empty?(@issues)} data-part="issues-card-section">
-        <div
-          data-part="issues-category"
-          id="issues-list"
-          phx-hook="NooraCollapsible"
-          class="collapsible"
-        >
-          <div data-part="root">
-            <div data-part="trigger" data-state="closed">
-              <div data-part="header">
-                <h2 data-part="title">{gettext("QA Issues")}</h2>
-                <span data-part="count-label">{gettext("Total issues")}</span>
-                <span data-part="count-value">
-                  {Enum.count(@issues)}
-                </span>
-                <.badge
-                  label={
-                    gettext("%{count} issues",
-                      count: Enum.count(@issues)
-                    )
-                  }
-                  color={if Enum.count(@issues) > 0, do: "destructive", else: "success"}
-                  style="light-fill"
-                  size="large"
-                />
+        <%= for {issue_data, index} <- @issues do %>
+          <div
+            id={"issue-#{index}-collapsible"}
+            phx-hook="NooraCollapsible"
+            data-part="issue-item"
+          >
+            <div data-part="root">
+              <div data-part="trigger" data-state="closed">
+                <div data-part="issue-icon">
+                  <.icon name="alert_hexagon" />
+                </div>
+                <div data-part="issue-title">{gettext("Temporary visual inconsistency")}</div>
+                <div data-part="issue-toggle">
+                  <.neutral_button
+                    data-part="closed-collapsible-button"
+                    icon_only
+                    size="medium"
+                  >
+                    <.chevron_down />
+                  </.neutral_button>
+                  <.neutral_button
+                    data-part="open-collapsible-button"
+                    icon_only
+                    size="medium"
+                  >
+                    <.chevron_up />
+                  </.neutral_button>
+                </div>
               </div>
-              <.button
-                data-part="closed-collapsible-button"
-                icon_only
-                variant="secondary"
-                size="medium"
-              >
-                <.chevron_down />
-              </.button>
-              <.button
-                data-part="open-collapsible-button"
-                icon_only
-                variant="secondary"
-                size="medium"
-              >
-                <.chevron_up />
-              </.button>
-            </div>
-            <div data-part="content" data-state="closed">
-              <%= for {issue, index} <- @issues do %>
-                <div
-                  id={"issue-#{index}-collapsible"}
-                  phx-hook="NooraCollapsible"
-                  data-part="collapsible"
-                  data-state="closed"
-                >
-                  <div data-part="root">
-                    <div data-part="trigger">
-                      <div data-part="header">
-                        <h3 data-part="title">
-                          {gettext("Issue #%{number}", number: index)}
-                        </h3>
-                        <.badge
-                          label="medium"
-                          color="warning"
-                          style="light-fill"
-                          size="small"
-                        />
-                      </div>
-                      <.neutral_button
-                        data-part="closed-collapsible-button"
-                        variant="secondary"
-                        size="small"
-                      >
-                        <.chevron_down />
-                      </.neutral_button>
-                      <.neutral_button
-                        data-part="open-collapsible-button"
-                        variant="secondary"
-                        size="small"
-                      >
-                        <.chevron_up />
-                      </.neutral_button>
+              <div data-part="content" data-state="closed">
+                <div data-part="issue-content-wrapper">
+                  <div data-part="screenshots-column" :if={issue_data.screenshot}>
+                    <div data-part="screenshot-thumb">
+                      <img
+                        src={~p"/#{@qa_run.app_build.preview.project.account.name}/#{@qa_run.app_build.preview.project.name}/qa/runs/#{@qa_run.id}/screenshots/#{issue_data.screenshot.id}"}
+                        alt="Screenshot"
+                      />
                     </div>
-                    <div data-part="content">
-                      <div data-part="issue">
-                        <span data-part="description">{issue}</span>
-                      </div>
+                  </div>
+
+                  <div data-part="step-details">
+                    <div data-part="detail-row">
+                      <.badge label="Action" color="neutral" style="light-fill" size="small" />
+                      <span data-part="detail-value">{issue_data.step.action || gettext("Tap on Tuist preview item to open detail view")}</span>
+                    </div>
+
+                    <div data-part="detail-row">
+                      <.badge label="Result" color="success" style="light-fill" size="small" />
+                      <span data-part="detail-value" data-variant="success">{gettext("Successfully navigated to the preview detail view.")}</span>
+                    </div>
+
+                    <div data-part="detail-row">
+                      <.badge label="Issue" color="destructive" style="light-fill" size="small" />
+                      <span data-part="detail-value" data-variant="warning">{issue_data.issue || gettext("Navigation functionality appears broken - tapping on the preview item does not navigate to a detail screen as expected")}</span>
+                    </div>
+
+                    <div data-part="detail-row">
+                      <.badge label="Timestamp" color="neutral" style="light-fill" size="small" />
+                      <span data-part="detail-value">{gettext("05:30/15:28")}</span>
                     </div>
                   </div>
                 </div>
-              <% end %>
+              </div>
             </div>
           </div>
-        </div>
+        <% end %>
       </.card_section>
     </.card>
   </div>

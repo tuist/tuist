@@ -11,7 +11,7 @@ defmodule TuistWeb.QARunLive do
 
   @impl true
   def mount(%{"qa_run_id" => qa_run_id, "account_handle" => account_handle, "project_handle" => project_handle} = params, _session, socket) do
-    case QA.qa_run(qa_run_id, preload: [:run_steps, app_build: [preview: [project: :account]]]) do
+    case QA.qa_run(qa_run_id, preload: [run_steps: :screenshot, app_build: [preview: [project: :account]]]) do
       {:error, :not_found} ->
         raise NotFoundError, gettext("QA run not found")
 
@@ -69,7 +69,16 @@ defmodule TuistWeb.QARunLive do
 
   defp extract_issues(run_steps) do
     run_steps
-    |> Enum.flat_map(& &1.issues)
+    |> Enum.flat_map(fn step ->
+      step.issues
+      |> Enum.map(fn issue ->
+        %{
+          issue: issue,
+          step: step,
+          screenshot: step.screenshot
+        }
+      end)
+    end)
     |> Enum.with_index(1)
   end
 
