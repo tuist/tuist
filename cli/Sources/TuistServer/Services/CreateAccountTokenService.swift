@@ -40,7 +40,7 @@ public final class CreateAccountTokenService: CreateAccountTokenServicing {
         let scopes: Operations.createAccountToken.Input.Body.jsonPayload.scopesPayload = scopes.map {
             switch $0 {
             case .accountRegistryRead:
-                .account_registry_read
+                .registry_read
             }
         }
 

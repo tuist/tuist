@@ -1214,7 +1214,7 @@ components:
     AccountTokenScope:
       description: The scope of the token.
       enum:
-        - account_registry_read
+        - registry_read
       title: AccountTokenScope
       type: string
       x-struct:
@@ -1990,7 +1990,7 @@ components:
           items:
             description: The scope of the token.
             enum:
-              - account_registry_read
+              - registry_read
             title: AccountTokenScope
             type: string
             x-struct:
@@ -4354,7 +4354,7 @@ paths:
                   items:
                     description: The scope of the token.
                     enum:
-                      - account_registry_read
+                      - registry_read
                     title: AccountTokenScope
                     type: string
                     x-struct:

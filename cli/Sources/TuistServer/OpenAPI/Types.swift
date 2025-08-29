@@ -3101,7 +3101,7 @@ public enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/AccountTokenScope`.
         @frozen public enum AccountTokenScope: String, Codable, Hashable, Sendable, CaseIterable {
-            case account_registry_read = "account_registry_read"
+            case registry_read = "registry_read"
         }
         /// The usage of an organization.
         ///
@@ -4179,7 +4179,7 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/CreateAccountToken/scopesPayload`.
             @frozen public enum scopesPayloadPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                case account_registry_read = "account_registry_read"
+                case registry_read = "registry_read"
             }
             /// The scopes for the new account token.
             ///
@@ -14091,7 +14091,7 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/tokens/POST/requestBody/json/scopesPayload`.
                     @frozen public enum scopesPayloadPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                        case account_registry_read = "account_registry_read"
+                        case registry_read = "registry_read"
                     }
                     /// The scopes for the new account token.
                     ///
