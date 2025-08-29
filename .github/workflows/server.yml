@@ -251,6 +251,19 @@ jobs:
     name: API Codegen Check
     runs-on: namespace-profile-default
     timeout-minutes: 15
+    services:
+      postgres:
+        image: timescale/timescaledb-ha:pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v4
       - name: Restore Mix Cache
@@ -273,6 +286,8 @@ jobs:
         with:
           cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
       - run: mise run install
+      - run: mise run clickhouse:start
+      - run: mise run db:reset
       - name: Generate API CLI code
         run: mise run generate-api-cli-code
       - name: Check for uncommitted changes
