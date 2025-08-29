@@ -30,7 +30,7 @@ config :esbuild,
   ],
   marketing: [
     args:
-      ~w(marketing.js --bundle --target=es2017 --outfile=../../priv/static/marketing/assets/bundle.js --external:/fonts/* --external:/images/*),
+      ~w(marketing.js --bundle --loader:.svg=dataurl --loader:.jpg=dataurl --loader:.png=dataurl --loader:.webp=dataurl --target=es2017 --outfile=../../priv/static/marketing/assets/bundle.js --external:/fonts/* --external:/images/*),
     cd: Path.expand("../assets/marketing", __DIR__),
     env: %{"NODE_PATH" => Path.expand("../deps", __DIR__)}
   ],
