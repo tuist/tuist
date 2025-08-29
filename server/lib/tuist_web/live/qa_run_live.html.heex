@@ -19,16 +19,29 @@
         <.dots_light />
         <.dots_dark />
       </div>
-      <div data-part="icon">
-        <.icon name="devices_code" />
-      </div>
+      <img
+        id="qa-run-header-icon"
+        src={~p"/app/images/app-icon-placeholder.svg"}
+        data-image-src={
+          url(
+            ~p"/#{@qa_run.app_build.preview.project.account.name}/#{@qa_run.app_build.preview.project.name}/previews/#{@qa_run.app_build.preview.id}/icon.png"
+          )
+        }
+        phx-hook="ImageFallback"
+        alt={
+          gettext("%{app_name} icon",
+            app_name: @qa_run.app_build.preview.display_name
+          )
+        }
+        data-part="icon"
+      />
     </div>
-    <h1 data-part="title">QA Run</h1>
+    <h1 data-part="title">{@qa_run.app_build.preview.display_name}</h1>
     <div data-part="version">
       <div data-part="icon">
-        <.icon name="devices_code" />
+        <.brand_apple />
       </div>
-      <span data-part="label">{gettext("Status: %{status}", status: String.capitalize(@qa_run.status))}</span>
+      <span data-part="label">{gettext("V %{version}", version: @qa_run.app_build.preview.version)}</span>
     </div>
   </div>
 
