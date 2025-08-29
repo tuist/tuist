@@ -15,13 +15,14 @@ enum CreateAccountTokenServiceError: LocalizedError {
     case unknownError(Int)
     case notFound(String)
     case forbidden(String)
+    case badRequest(String)
     case unauthorized(String)
 
     var errorDescription: String? {
         switch self {
         case let .unknownError(statusCode):
             return "We could not create a new account token due to an unknown Tuist response of \(statusCode)."
-        case let .forbidden(message), let .notFound(message), let .unauthorized(message):
+        case let .forbidden(message), let .notFound(message), let .unauthorized(message), let .badRequest(message):
             return message
         }
     }
@@ -72,6 +73,11 @@ public final class CreateAccountTokenService: CreateAccountTokenServicing {
             switch unauthorized.body {
             case let .json(error):
                 throw CreateAccountTokenServiceError.unauthorized(error.message)
+            }
+        case let .badRequest(badRequest):
+            switch badRequest.body {
+            case let .json(error):
+                throw CreateAccountTokenServiceError.badRequest(error.message)
             }
         case let .undocumented(statusCode: statusCode, _):
             throw CreateAccountTokenServiceError.unknownError(statusCode)
