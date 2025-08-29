@@ -10,13 +10,18 @@ defmodule TuistWeb.QARunLive do
   alias TuistWeb.Errors.NotFoundError
 
   @impl true
-  def mount(%{"qa_run_id" => qa_run_id} = params, _session, socket) do
-    case QA.qa_run_for_ops(qa_run_id) do
-      nil ->
+  def mount(%{"qa_run_id" => qa_run_id, "account_handle" => account_handle, "project_handle" => project_handle} = params, _session, socket) do
+    case QA.qa_run(qa_run_id, preload: [:run_steps, app_build: [preview: [project: :account]]]) do
+      {:error, :not_found} ->
         raise NotFoundError, gettext("QA run not found")
 
-      qa_run ->
-        qa_run = Repo.preload(qa_run, [:run_steps, app_build: [preview: [project: :account]]])
+      {:ok, qa_run} ->
+        # Verify the QA run belongs to the requested project
+        if qa_run.app_build.preview.project.account.name != account_handle or 
+           qa_run.app_build.preview.project.name != project_handle do
+          raise NotFoundError, gettext("QA run not found")
+        end
+
         tab = Map.get(params, "tab", "overview")
 
         {:ok,
@@ -26,7 +31,7 @@ defmodule TuistWeb.QARunLive do
          |> assign(:duration, calculate_duration(qa_run))
          |> assign(:pr_comment_url, build_pr_comment_url(qa_run))
          |> assign(:issues, extract_issues(qa_run.run_steps))
-         |> assign(:head_title, "#{gettext("QA Run")} · #{qa_run.project_name} · Tuist")}
+         |> assign(:head_title, "#{gettext("QA Run")} · #{qa_run.app_build.preview.project.name} · Tuist")}
     end
   end
 
