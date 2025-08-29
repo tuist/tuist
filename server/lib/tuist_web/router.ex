@@ -430,8 +430,9 @@ defmodule TuistWeb.Router do
         {TuistWeb.Authorization, [:current_user, :read, :ops]},
         {TuistWeb.LayoutLive, :ops}
       ] do
-      live "/qa", TuistWeb.OpsQALive
-      live "/qa/:qa_run_id/logs", TuistWeb.OpsQALogsLive
+       live "/qa", TuistWeb.OpsQALive
+       live "/qa/:qa_run_id/overview", TuistWeb.QARunLive
+       live "/qa/:qa_run_id/logs", TuistWeb.QARunLive
     end
   end
 

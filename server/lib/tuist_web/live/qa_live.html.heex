@@ -175,7 +175,15 @@
   <.card title={gettext("QA Sessions")} icon="devices_code" data-part="qa-runs">
     <.card_section data-part="qa-runs-section">
       <div :if={not Enum.empty?(@qa_runs)} data-part="qa-runs-table">
-        <.table id="qa-runs-table" rows={@qa_runs}>
+        <.table
+          id="qa-runs-table"
+          rows={@qa_runs}
+          row_navigate={
+            fn run ->
+              url(~p"/ops/qa/#{run.id}/overview")
+            end
+          }
+        >
           <:col :let={run} label={gettext("Name")}>
             <.text_cell label={run.app_build.preview.display_name} />
           </:col>

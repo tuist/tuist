@@ -1,0 +1,241 @@
+<div id="qa-run">
+  <div data-part="action-buttons">
+    <.button
+      label={gettext("QA Runs")}
+      data-part="back-button"
+      variant="secondary"
+      size="medium"
+      navigate={~p"/ops/qa"}
+    >
+      <:icon_left>
+        <.icon name="arrow_left" />
+      </:icon_left>
+    </.button>
+  </div>
+
+  <div data-part="header">
+    <div data-part="icon-with-dots">
+      <div data-part="dots">
+        <.dots_light />
+        <.dots_dark />
+      </div>
+      <div data-part="icon">
+        <.icon name="test_tube" />
+      </div>
+    </div>
+    <h1 data-part="title">QA Run</h1>
+    <div data-part="version">
+      <div data-part="icon">
+        <.icon name="test_tube" />
+      </div>
+      <span data-part="label">{gettext("Status: %{status}", status: String.capitalize(@qa_run.status))}</span>
+    </div>
+  </div>
+
+  <.tab_menu_horizontal>
+    <.tab_menu_horizontal_item
+      label={gettext("Overview")}
+      selected={@selected_tab == "overview"}
+      navigate={~p"/ops/qa/#{@qa_run.id}/overview"}
+    />
+    <.tab_menu_horizontal_item
+      label={gettext("Logs")}
+      selected={@selected_tab == "logs"}
+      navigate={~p"/ops/qa/#{@qa_run.id}/logs"}
+    />
+  </.tab_menu_horizontal>
+
+  <div :if={@selected_tab == "overview"}>
+    <.card data-part="details-card" icon="chart_arcs" title={gettext("Details")}>
+      <.card_section data-part="details-card-section">
+        <div data-part="metadata-grid">
+          <div data-part="metadata-row">
+            <div data-part="metadata">
+              <div data-part="title">{gettext("Duration")}</div>
+              <span data-part="label">
+                {@duration}
+              </span>
+            </div>
+            <div data-part="metadata">
+              <div data-part="title">{gettext("Branch")}</div>
+              <span data-part="label">
+                <.git_branch />
+                {@qa_run.app_build.preview.git_branch || gettext("None")}
+              </span>
+            </div>
+          </div>
+          <div data-part="metadata-row">
+            <div data-part="metadata">
+              <div data-part="title">{gettext("PR Comment")}</div>
+              <span data-part="label">
+                <%= if @pr_comment_url do %>
+                  <.link href={@pr_comment_url} target="_blank" class="underline">
+                    {gettext("View PR Comment")}
+                  </.link>
+                <% else %>
+                  {gettext("None")}
+                <% end %>
+              </span>
+            </div>
+            <div data-part="metadata">
+              <div data-part="title">{gettext("Time")}</div>
+              <span data-part="label">
+                {format_datetime(@qa_run.inserted_at)}
+              </span>
+            </div>
+          </div>
+          <div data-part="metadata-row">
+            <div data-part="metadata">
+              <div data-part="title">{gettext("SHA")}</div>
+              <span data-part="label">
+                {format_commit_sha(@qa_run.app_build.preview.git_commit_sha)}
+              </span>
+            </div>
+            <div data-part="metadata">
+              <div data-part="title">{gettext("Bundle identifier")}</div>
+              <span data-part="label">
+                {@qa_run.app_build.preview.bundle_identifier || gettext("Unknown")}
+              </span>
+            </div>
+          </div>
+        </div>
+      </.card_section>
+    </.card>
+
+    <.card icon="bulb" title={gettext("Issues Identified")} data-part="issues-card">
+      <.empty_card_section
+        :if={Enum.empty?(@issues)}
+        title={gettext("No issues identified")}
+        data-part="empty-issues-card-section"
+      >
+        <:image>
+          <img src="/images/empty_insights_light.png" data-theme="light" />
+          <img src="/images/empty_insights_dark.png" data-theme="dark" />
+        </:image>
+      </.empty_card_section>
+
+      <.card_section :if={not Enum.empty?(@issues)} data-part="issues-card-section">
+        <div
+          data-part="issues-category"
+          id="issues-list"
+          phx-hook="NooraCollapsible"
+          class="collapsible"
+        >
+          <div data-part="root">
+            <div data-part="trigger" data-state="closed">
+              <div data-part="header">
+                <h2 data-part="title">{gettext("QA Issues")}</h2>
+                <span data-part="count-label">{gettext("Total issues")}</span>
+                <span data-part="count-value">
+                  {Enum.count(@issues)}
+                </span>
+                <.badge
+                  label={
+                    gettext("%{count} issues",
+                      count: Enum.count(@issues)
+                    )
+                  }
+                  color={if Enum.count(@issues) > 0, do: "destructive", else: "success"}
+                  style="light-fill"
+                  size="large"
+                />
+              </div>
+              <.button
+                data-part="closed-collapsible-button"
+                icon_only
+                variant="secondary"
+                size="medium"
+              >
+                <.chevron_down />
+              </.button>
+              <.button
+                data-part="open-collapsible-button"
+                icon_only
+                variant="secondary"
+                size="medium"
+              >
+                <.chevron_up />
+              </.button>
+            </div>
+            <div data-part="content" data-state="closed">
+              <%= for {issue, index} <- @issues do %>
+                <div
+                  id={"issue-#{index}-collapsible"}
+                  phx-hook="NooraCollapsible"
+                  data-part="collapsible"
+                  data-state="closed"
+                >
+                  <div data-part="root">
+                    <div data-part="trigger">
+                      <div data-part="header">
+                        <h3 data-part="title">
+                          {gettext("Issue #%{number}", number: index)}
+                        </h3>
+                        <.badge
+                          label={Map.get(issue, "severity", "medium")}
+                          color={
+                            case Map.get(issue, "severity", "medium") do
+                              "high" -> "destructive"
+                              "medium" -> "warning"
+                              "low" -> "information"
+                              _ -> "information"
+                            end
+                          }
+                          style="light-fill"
+                          size="small"
+                        />
+                      </div>
+                      <.neutral_button
+                        data-part="closed-collapsible-button"
+                        variant="secondary"
+                        size="small"
+                      >
+                        <.chevron_down />
+                      </.neutral_button>
+                      <.neutral_button
+                        data-part="open-collapsible-button"
+                        variant="secondary"
+                        size="small"
+                      >
+                        <.chevron_up />
+                      </.neutral_button>
+                    </div>
+                    <div data-part="content">
+                      <div data-part="issue">
+                        <span data-part="description">{Map.get(issue, "description", "No description available")}</span>
+                        <%= if Map.get(issue, "location") do %>
+                          <div data-part="location">
+                            <strong>Location:</strong> {Map.get(issue, "location")}
+                          </div>
+                        <% end %>
+                        <%= if Map.get(issue, "recommendation") do %>
+                          <div data-part="recommendation">
+                            <strong>Recommendation:</strong> {Map.get(issue, "recommendation")}
+                          </div>
+                        <% end %>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              <% end %>
+            </div>
+          </div>
+        </div>
+      </.card_section>
+    </.card>
+  </div>
+
+  <div :if={@selected_tab == "logs"} data-part="logs-tab">
+    <.card icon="terminal" title={gettext("Logs")}>
+      <.empty_card_section
+        title={gettext("Logs coming soon")}
+        data-part="empty-logs-section"
+      >
+        <:image>
+          <img src="/images/empty_insights_light.png" data-theme="light" />
+          <img src="/images/empty_insights_dark.png" data-theme="dark" />
+        </:image>
+      </.empty_card_section>
+    </.card>
+  </div>
+</div>

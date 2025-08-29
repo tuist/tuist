@@ -1,0 +1,81 @@
+defmodule TuistWeb.QARunLive do
+  @moduledoc false
+  use TuistWeb, :live_view
+  use Noora
+
+  import TuistWeb.Components.EmptyCardSection
+
+  alias Tuist.QA
+  alias Tuist.Repo
+  alias TuistWeb.Errors.NotFoundError
+
+  @impl true
+  def mount(%{"qa_run_id" => qa_run_id} = params, _session, socket) do
+    case QA.qa_run_for_ops(qa_run_id) do
+      nil ->
+        raise NotFoundError, gettext("QA run not found")
+
+      qa_run ->
+        qa_run = Repo.preload(qa_run, [:run_steps, app_build: [preview: [project: :account]]])
+        tab = Map.get(params, "tab", "overview")
+
+        {:ok,
+         socket
+         |> assign(:qa_run, qa_run)
+         |> assign(:selected_tab, tab)
+         |> assign(:duration, calculate_duration(qa_run))
+         |> assign(:pr_comment_url, build_pr_comment_url(qa_run))
+         |> assign(:issues, extract_issues(qa_run.run_steps))
+         |> assign(:head_title, "#{gettext("QA Run")} · #{qa_run.project_name} · Tuist")}
+    end
+  end
+
+  @impl true
+  def handle_params(%{"tab" => tab}, _uri, socket) do
+    {:noreply, assign(socket, :selected_tab, tab)}
+  end
+
+  def handle_params(_params, _uri, socket) do
+    {:noreply, assign(socket, :selected_tab, "overview")}
+  end
+
+  defp calculate_duration(%{inserted_at: start_time, updated_at: end_time}) do
+    case DateTime.diff(end_time, start_time, :second) do
+      0 -> "< 1s"
+      seconds when seconds < 60 -> "#{seconds}s"
+      seconds when seconds < 3600 -> "#{div(seconds, 60)}m #{rem(seconds, 60)}s"
+      seconds -> "#{div(seconds, 3600)}h #{div(rem(seconds, 3600), 60)}m"
+    end
+  end
+
+  defp build_pr_comment_url(%{issue_comment_id: nil}), do: nil
+  defp build_pr_comment_url(%{vcs_repository_full_handle: nil}), do: nil
+
+  defp build_pr_comment_url(%{
+         issue_comment_id: comment_id,
+         vcs_repository_full_handle: repo_handle,
+         vcs_provider: :github
+       })
+       when is_integer(comment_id) do
+    "https://github.com/#{repo_handle}/pull/#{comment_id}"
+  end
+
+  defp build_pr_comment_url(_), do: nil
+
+  defp extract_issues(run_steps) do
+    run_steps
+    |> Enum.flat_map(& &1.issues)
+    |> Enum.with_index(1)
+  end
+
+  defp format_datetime(%DateTime{} = datetime) do
+    Timex.format!(datetime, "{WDshort} {D} {Mfull} {h24}:{m}:{s}")
+  end
+
+  defp format_datetime(_), do: gettext("Unknown")
+
+  defp format_commit_sha(nil), do: gettext("None")
+  defp format_commit_sha(sha) when is_binary(sha) do
+    String.slice(sha, 0, 7)
+  end
+end

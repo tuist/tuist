@@ -1,0 +1,219 @@
+#qa-run {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--noora-spacing-6);
+  padding: var(--noora-spacing-7) var(--noora-spacing-0);
+
+  & > [data-part="action-buttons"] {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    align-self: stretch;
+    gap: var(--noora-spacing-4);
+  }
+
+  & .noora-card {
+    width: 100%;
+  }
+
+  & > [data-part="header"] {
+    display: flex;
+    position: relative;
+    flex-direction: column;
+    align-items: center;
+    align-self: stretch;
+    gap: var(--noora-spacing-4);
+    padding-top: var(--noora-spacing-7);
+
+    & > [data-part="icon-with-dots"] {
+      position: relative;
+      height: 56px;
+
+      & > [data-part="icon"] {
+        position: relative;
+        z-index: 103;
+        box-shadow:
+          0px 20px 6px 0px oklch(0% 0 0 / 0),
+          0px 13px 5px 0px oklch(0% 0 0 / 0.01),
+          0px 7px 4px 0px oklch(0% 0 0 / 0.05),
+          0px 3px 3px 0px oklch(0% 0 0 / 0.09),
+          0px 1px 2px 0px oklch(0% 0 0 / 0.1);
+        border-radius: 9.82px;
+        width: 56px;
+        height: 56px;
+      }
+
+      & [data-part="dots"] {
+        position: absolute;
+        top: 0;
+        right: -136px;
+        bottom: 0;
+        left: -136px;
+        & svg {
+          display: none;
+        }
+
+        html[data-theme="light"] & svg {
+          &[data-theme="light"] {
+            display: block;
+          }
+          &[data-theme="dark"] {
+            display: none;
+          }
+        }
+        html[data-theme="dark"] & svg {
+          &[data-theme="light"] {
+            display: none;
+          }
+          &[data-theme="dark"] {
+            display: block;
+          }
+        }
+      }
+    }
+
+    & > [data-part="title"] {
+      margin: var(--noora-spacing-0);
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
+    }
+
+    & > [data-part="status"] {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: var(--noora-spacing-2);
+
+      & > [data-part="label"] {
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+      }
+    }
+  }
+
+  & > [data-part="details-card"] {
+    & > [data-part="details-card-section"] {
+      & > [data-part="metadata-grid"] {
+        display: flex;
+        flex-direction: column;
+        gap: var(--noora-spacing-9);
+
+        & > [data-part="metadata-row"] {
+          display: flex;
+          flex-direction: row;
+          gap: var(--noora-spacing-7);
+
+          @media (max-width: 768px) {
+            & {
+              flex-direction: column;
+            }
+          }
+
+          & > [data-part="metadata"] {
+            display: flex;
+            flex: 1;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: var(--noora-spacing-4);
+
+            & > [data-part="title"] {
+              color: var(--noora-surface-label-secondary);
+              font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+            }
+
+            & > [data-part="label"] {
+              display: flex;
+              flex-direction: row;
+              align-items: center;
+              gap: var(--noora-spacing-2);
+              color: var(--noora-surface-label-primary);
+              font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+
+              & > svg {
+                width: var(--noora-icon-size-medium);
+                height: var(--noora-icon-size-medium);
+                color: var(--noora-surface-label-secondary);
+              }
+            }
+
+            & > [data-part="link"] {
+              display: flex;
+              flex-direction: row;
+              align-items: center;
+              gap: var(--noora-spacing-2);
+
+              & > a {
+                color: var(--noora-surface-label-accent);
+                font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+                text-decoration: none;
+
+                &:hover {
+                  text-decoration: underline;
+                }
+              }
+
+              & > svg {
+                width: var(--noora-icon-size-small);
+                height: var(--noora-icon-size-small);
+                color: var(--noora-surface-label-secondary);
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  & > [data-part="issues-card"] {
+    & > [data-part="issues-card-section"] {
+      & > [data-part="issues-category"] {
+        & > [data-part="root"] {
+          & > [data-part="content"] {
+            & > [data-part="issue-item"] {
+              display: flex;
+              flex-direction: column;
+              gap: var(--noora-spacing-4);
+              padding: var(--noora-spacing-5);
+              margin-bottom: var(--noora-spacing-4);
+              border-radius: var(--noora-radius-medium);
+              background: var(--noora-surface-background-secondary);
+              border: 1px solid var(--noora-surface-border-primary);
+
+              & > [data-part="issue-header"] {
+                display: flex;
+                justify-content: space-between;
+                align-items: flex-start;
+                gap: var(--noora-spacing-4);
+
+                & > [data-part="issue-title"] {
+                  color: var(--noora-surface-label-primary);
+                  font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+                  margin: 0;
+                }
+
+                & > [data-part="issue-number"] {
+                  color: var(--noora-surface-label-secondary);
+                  font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+                  flex-shrink: 0;
+                }
+              }
+
+              & > [data-part="issue-description"] {
+                color: var(--noora-surface-label-secondary);
+                font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+                line-height: 1.5;
+                white-space: pre-wrap;
+                margin: 0;
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  & > [data-part="logs-tab"] {
+    width: 100%;
+  }
+}
