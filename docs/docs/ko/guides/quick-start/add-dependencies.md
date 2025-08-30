@@ -1,19 +1,20 @@
 ---
-{
-  "title": "Add dependencies",
-  "titleTemplate": ":title · Quick-start · Guides · Tuist",
-  "description": "첫 번째 Swift 프로젝트에 의존성을 추가하는 방법을 배웁니다."
-}
+{ "title": "Add dependencies", "titleTemplate": ":title · Quick-start · Guides ·
+Tuist", "description": "Learn how to add dependencies to your first Swift
+project" }
 ---
-# 의존성 추가하기 {#add-dependencies}
+# Add dependencies {#add-dependencies}
 
-프로젝트에서 추가 기능을 제공하기 위해 서드 파티 라이브러리에 의존하는 것은 일반적입니다. 의존성을 추가하기 위해서는 다음의 명령어를 수행하여 프로젝트를 편집합니다:
+It's common for projects to depend on third-party libraries to provide
+additional functionality. To do so, run the following command to have the best
+experience editing your project:
 
 ```bash
 tuist edit
 ```
 
-프로젝트 파일이 포함된 Xcode 프로젝트가 열립니다. `Package.swift`를 수정하고 추가
+An Xcode project will open containing your project files. Edit the
+`Package.swift` and add the
 
 ```swift
 // swift-tools-version: 5.9
@@ -41,7 +42,8 @@ let package = Package(
 )
 ```
 
-그런 다음에 프로젝트의 애플리케이션 타겟을 수정하여 의존성으로 `Kingfisher`를 선언합니다:
+Then edit the application target in your project to declare `Kingfisher` as a
+dependency:
 
 ```swift
 import ProjectDescription
@@ -53,14 +55,16 @@ let project = Project(
             name: "MyApp",
             destinations: .iOS,
             product: .app,
-            bundleId: "io.tuist.MyApp",
+            bundleId: "dev.tuist.MyApp",
             infoPlist: .extendingDefault(
                 with: [
                     "UILaunchStoryboardName": "LaunchScreen.storyboard",
                 ]
             ),
-            sources: ["MyApp/Sources/**"],
-            resources: ["MyApp/Resources/**"],
+            buildableFolders: [
+                "MyApp/Sources",
+                "MyApp/Resources",
+            ],
             dependencies: [
                 .external(name: "Kingfisher") // [!code ++]
             ]
@@ -69,7 +73,7 @@ let project = Project(
             name: "MyAppTests",
             destinations: .iOS,
             product: .unitTests,
-            bundleId: "io.tuist.MyAppTests",
+            bundleId: "dev.tuist.MyAppTests",
             infoPlist: .default,
             sources: ["MyApp/Tests/**"],
             resources: [],
@@ -79,26 +83,30 @@ let project = Project(
 )
 ```
 
-그런 다음에 `tuist install`을 수행해서 [Swift Package Manager](https://www.swift.org/documentation/package-manager/)를 사용하여 의존성을 해결하고 가져옵니다.
+Then run `tuist install` to resolve and pull the dependencies using the [Swift
+Package Manager](https://www.swift.org/documentation/package-manager/).
 
-> [!NOTE] 의존성 해결 도구로 SPM
-> Tuist는 의존성을 해결하는 데에만 Swift Package Manager (SPM) 을 사용하도록 권장합니다. 그런 다음에 Tuist는 이를 최대한의 구성 가능성과 제어를 위해 Xcode 프로젝트와 타겟으로 변환합니다.
+> [!NOTE] SPM AS A DEPENDENCY RESOLVER Tuist recommended approach to
+> dependencies uses the Swift Package Manager (SPM) only to resolve
+> dependencies. Tuist then converts them into Xcode projects and targets for
+> maximum configurability and control.
 
-## 프로젝트 시각화 {#visualize-the-project}
+## Visualize the project {#visualize-the-project}
 
-다음 명령어를 통해 프로젝트를 시각화 할 수 있습니다:
+You can visualize the project structure by running:
 
 ```bash
 tuist graph
 ```
 
-이 명령어는 프로젝트의 디렉토리에 `graph.png` 파일을 생성하고 엽니다.
+The command will output and open a `graph.png` file in the project's directory:
 
 ![Project graph](/images/guides/quick-start/graph.png)
 
-## 의존성 사용 {#use-the-dependency}
+## Use the dependency {#use-the-dependency}
 
-Xcode에서 프로젝트를 열기 위해 `tuist generate`를 수행하고 `ContentView.swift` 파일에 다음의 변경 사항을 적용합니다:
+Run `tuist generate` to open the project in Xcode, and make the following
+changes to the `ContentView.swift` file:
 
 ```swift
 import SwiftUI
@@ -122,4 +130,4 @@ struct ContentView_Previews: PreviewProvider {
 }
 ```
 
-Xcode에서 앱을 실행하고 URL로 이미지가 출력되는 것을 볼 수 있습니다.
+Run the app from Xcode, and you should see the image loaded from the URL.
