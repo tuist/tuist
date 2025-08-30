@@ -402,6 +402,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 skipUnitTests: .any,
                 configuration: .any,
                 ignoreBinaryCache: .any,
+                cacheProfile: .any,
                 ignoreSelectiveTesting: .any,
                 cacheStorage: .any,
                 destination: .value(.test(device: .test(name: "Test iPhone")))
@@ -1362,6 +1363,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 skipUnitTests: .any,
                 configuration: .any,
                 ignoreBinaryCache: .any,
+                cacheProfile: .any,
                 ignoreSelectiveTesting: .any,
                 cacheStorage: .any,
                 destination: .any
@@ -2380,6 +2382,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 skipUnitTests: .any,
                 configuration: .any,
                 ignoreBinaryCache: .any,
+                cacheProfile: .any,
                 ignoreSelectiveTesting: .any,
                 cacheStorage: .any,
                 destination: .any

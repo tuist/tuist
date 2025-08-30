@@ -241,7 +241,7 @@ final class TestService { // swiftlint:disable:this type_body_length
             osVersion: osVersion
         )
 
-        _ = try config.resolveCacheProfile(
+        let resolvedCacheProfile = try config.resolveCacheProfile(
             ignoreBinaryCache: ignoreBinaryCache,
             includedTargets: Set(testTargets.map(\.target).map(TargetQuery.init(stringLiteral:))),
             cacheProfile: cacheProfile
@@ -256,6 +256,7 @@ final class TestService { // swiftlint:disable:this type_body_length
             skipUnitTests: skipUnitTests,
             configuration: configuration,
             ignoreBinaryCache: ignoreBinaryCache,
+            cacheProfile: resolvedCacheProfile,
             ignoreSelectiveTesting: ignoreSelectiveTesting,
             cacheStorage: cacheStorage,
             destination: destination

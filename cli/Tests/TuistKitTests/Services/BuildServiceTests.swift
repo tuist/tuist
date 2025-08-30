@@ -51,6 +51,7 @@ struct BuildServiceTests {
                 config: .any,
                 configuration: .any,
                 ignoreBinaryCache: .any,
+                cacheProfile: .any,
                 cacheStorage: .any
             )
             .willReturn(generator)

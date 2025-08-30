@@ -73,7 +73,7 @@ public final class BuildService {
             )
         let cacheStorage = try await cacheStorageFactory.cacheStorage(config: config)
 
-        _ = try config.resolveCacheProfile(
+        let resolvedCacheProfile = try config.resolveCacheProfile(
             ignoreBinaryCache: ignoreBinaryCache,
             includedTargets: [],
             cacheProfile: cacheProfile
@@ -83,6 +83,7 @@ public final class BuildService {
             config: config,
             configuration: configuration,
             ignoreBinaryCache: ignoreBinaryCache,
+            cacheProfile: resolvedCacheProfile,
             cacheStorage: cacheStorage
         )
         let workspacePath = try await buildGraphInspector.workspacePath(directory: path)
