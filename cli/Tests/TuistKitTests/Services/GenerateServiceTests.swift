@@ -31,7 +31,6 @@ struct GenerateServiceTests {
                 config: .any,
                 includedTargets: .any,
                 configuration: .any,
-                ignoreBinaryCache: .any,
                 cacheProfile: .any,
                 cacheStorage: .any
             )

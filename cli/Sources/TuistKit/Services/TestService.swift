@@ -253,7 +253,6 @@ final class TestService { // swiftlint:disable:this type_body_length
             excludedTargets: Set(skipTestTargets.filter { $0.class == nil }.map(\.target)),
             skipUITests: skipUITests,
             configuration: configuration,
-            ignoreBinaryCache: ignoreBinaryCache,
             cacheProfile: resolvedCacheProfile,
             ignoreSelectiveTesting: ignoreSelectiveTesting,
             cacheStorage: cacheStorage,

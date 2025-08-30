@@ -62,7 +62,6 @@ final class GenerateService {
             config: config,
             includedTargets: includedTargets,
             configuration: configuration,
-            ignoreBinaryCache: ignoreBinaryCache,
             cacheProfile: resolvedCacheProfile,
             cacheStorage: cacheStorage
         )
