@@ -17,7 +17,7 @@ public protocol GeneratorFactorying {
     /// Returns the generator to generate a project to run tests on.
     /// - Parameter config: The project configuration
     /// - Parameter skipUITests: Whether UI tests should be skipped.
-    /// - Parameter cacheProfile: Cache profile to use for binary replacement.
+    /// - Parameter ignoreBinaryCache: True to not include binaries from the cache.
     /// - Parameter ignoreSelectiveTesting: True to run all tests
     /// - Parameter cacheStorage: The cache storage instance.
     /// - Returns: A Generator instance.
@@ -28,7 +28,7 @@ public protocol GeneratorFactorying {
         excludedTargets: Set<String>,
         skipUITests: Bool,
         configuration: String?,
-        cacheProfile: TuistGeneratedProjectOptions.CacheProfile,
+        ignoreBinaryCache: Bool,
         ignoreSelectiveTesting: Bool,
         cacheStorage: CacheStoring,
         destination: SimulatorDeviceAndRuntime?
@@ -87,7 +87,7 @@ public class GeneratorFactory: GeneratorFactorying {
         excludedTargets: Set<String>,
         skipUITests: Bool,
         configuration _: String?,
-        cacheProfile _: TuistGeneratedProjectOptions.CacheProfile,
+        ignoreBinaryCache _: Bool,
         ignoreSelectiveTesting _: Bool,
         cacheStorage _: CacheStoring,
         destination _: SimulatorDeviceAndRuntime?
@@ -207,7 +207,7 @@ public class GeneratorFactory: GeneratorFactorying {
         /// Returns the generator to generate a project to run tests on.
         /// - Parameter config: The project configuration
         /// - Parameter skipUITests: Whether UI tests should be skipped.
-        /// - Parameter cacheProfile: Cache profile to use for binary replacement.
+        /// - Parameter ignoreBinaryCache: True to not include binaries from the cache.
         /// - Parameter ignoreSelectiveTesting: True to run all tests
         /// - Parameter cacheStorage: The cache storage instance.
         /// - Returns: A Generator instance.
@@ -218,7 +218,7 @@ public class GeneratorFactory: GeneratorFactorying {
             excludedTargets: Set<String>,
             skipUITests: Bool,
             configuration: String?,
-            cacheProfile: TuistGeneratedProjectOptions.CacheProfile,
+            ignoreBinaryCache: Bool,
             ignoreSelectiveTesting: Bool,
             cacheStorage: CacheStoring,
             destination: SimulatorDeviceAndRuntime?
@@ -324,7 +324,7 @@ public class GeneratorFactory: GeneratorFactorying {
             excludedTargets: Set<String>,
             skipUITests: Bool,
             configuration: String?,
-            cacheProfile: TuistGeneratedProjectOptions.CacheProfile,
+            ignoreBinaryCache: Bool,
             ignoreSelectiveTesting: Bool,
             cacheStorage: CacheStoring,
             destination: SimulatorDeviceAndRuntime?
@@ -337,7 +337,7 @@ public class GeneratorFactory: GeneratorFactorying {
 
             let graphMappers = graphMapperFactory.automation(
                 config: config,
-                cacheProfile: cacheProfile,
+                ignoreBinaryCache: ignoreBinaryCache,
                 ignoreSelectiveTesting: ignoreSelectiveTesting,
                 testPlan: testPlan,
                 includedTargets: Set(includedTargets.map(TargetQuery.init(stringLiteral:))),
