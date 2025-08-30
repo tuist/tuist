@@ -1,33 +1,59 @@
 ---
-{
-  "title": "Код ревью",
-  "titleTemplate": ":title · Участникам проекта · Tuist",
-  "description": "Узнайте, как внести вклад в Tuist, проводя ревью на пулл-реквесты"
-}
+{ "title": "Code reviews", "titleTemplate": ":title · Contributors · Tuist",
+"description": "Learn how to contribute to Tuist by reviewing code" }
 ---
-# Код ревью {#code-reviews}
+# Code reviews {#code-reviews}
 
-Просмотр пулл-реквестов — это распространенный способ внесения вклада. Несмотря на то, что непрерывная интеграция (CI) гарантирует выполнение кода в соответствии с его задачами, этого всё же недостаточно. Существуют аспекты вклада, которые невозможно автоматизировать: дизайн, структура и архитектура кода, качество тестов или опечатки. Следующие разделы представляют различные аспекты процесса код ревью.
+Reviewing pull requests is a common type of contribution. Despite continuous
+integration (CI) ensuring the code does what’s supposed to do, it’s not enough.
+There are contribution traits that can’t be automated: design, code structure &
+architecture, tests quality, or typos. The following sections represent
+different aspects of the code review process.
 
-## Читаемость {#readability}
+## Readability {#readability}
 
-Ясно ли код выражает свои намерения? **Если вам нужно потратить много времени на то, чтобы понять, что делает код, его реализацию следует улучшить.** Предложите разделить код на более мелкие абстракции, которые проще понять. В качестве альтернативы, и как крайнюю меру, они могут добавить комментарий, объясняющий логику кода. Спросите себя, сможете ли вы понять этот код в ближайшем будущем без какого-либо контекста, например, описания пулл-реквеста.
+Does the code express its intention clearly? **If you need to spend a bunch of
+time figuring out what the code does, the code implementation needs to be
+improved.** Suggest splitting the code into smaller abstractions that are easier
+to understand. Alternative, and as a last resource, they can add a comment
+explaining the reasoning behind it. Ask yourself if you’d be able to understand
+the code in a near future, without any surrounding context like the pull request
+description.
 
-## Маленькие пулл-реквесты {#small-pull-requests}
+## Small pull requests {#small-pull-requests}
 
-Большие пулл-реквесты сложно рецензировать, и легче упустить детали. Если пулл-реквест становится слишком большим и неуправляемым, предложите автору разбить его на более мелкие части.
+Large pull requests are hard to review and it’s easier to miss out details. If a
+pull request becomes too large and unmanageable, suggest the author to break it
+down.
 
-> [!NOTE] Исключения
-> Существуют некоторые сценарии, когда разбить pull request невозможно, например, когда изменения тесно связаны и не могут быть разделены. В таких случаях автор должен предоставить четкое объяснение изменений и причин, стоящих за ними.
+> [!NOTE] EXCEPTIONS There are few scenarios where splitting up the pull request
+> is not possible, like when the changes are tightly coupled and can’t be split.
+> In those cases, the author should provide a clear explanation of the changes
+> and the reasoning behind them.
 
-## Согласованность {#consistency}
+## Consistency {#consistency}
 
-Важно, чтобы изменения были согласованы с остальной частью проекта. Несоответствия усложняют обслуживание, поэтому их следует избегать. Если в проекте уже есть подход к выводу сообщений или показу ошибок, нам следует придерживаться его. Если автор не согласен со стандартами проекта, предложите ему открыть проблему в разделе "Issues", чтобы мы могли обсудить их более подробно.
+It’s important that the changes are consistent with the rest of the project.
+Inconsistencies complicate maintenance, and therefore we should avoid them. If
+there’s an approach to output messages to the user, or report errors, we should
+stick to that. If the author disagrees with the project’s standards, suggest
+them to open an issue where we can discuss them further.
 
-## Тесты {#tests}
+## Tests {#tests}
 
-Тесты позволяют быть уверенным в написанном коде. Код в пулл-реквестах должен быть протестирован, и все тесты должны пройти успешно. Хороший тест — это тот, который стабильно дает один и тот же результат, а также является легким для понимания и сопровождения. Ревьюеры проводят большую часть времени, рассматривая код реализации, но тесты не менее важны, потому что они тоже являются кодом.
+Tests allow changing code with confidence. The code on pull requests should be
+tested, and all tests should pass. A good test is a test that consistently
+produces the same result and that it’s easy to understand and maintain.
+Reviewers spend most of the review time in the implementation code, but tests
+are equally important because they are code too.
 
-## Изменения, нарушающие обратную совместимость {#breaking-changes}
+## Breaking changes {#breaking-changes}
 
-Изменения, нарушающие обратную совместимость, создают плохой пользовательский опыт для пользователей Tuist. Пулл-реквесты в проект должны избегать введения изменений, нарушающих обратную совместимость, если это не строго необходимо. Существует множество возможностей языка, которые мы можем использовать для развития интерфейса Tuist, не прибегая к изменениям, нарушающим обратную совместимость. Не всегда очевидно, нарушает ли изменение обратную совместимость. Один из способов проверить, является ли изменение нарушающим обратную совместимость, — это запустить Tuist на тестовых проектах в каталоге fixtures. Это требует от нас поставить себя на место пользователя и представить, как изменения повлияют на его работу.
+Breaking changes are a bad user experience for users of Tuist. Contributions
+should avoid introducing breaking changes unless it’s strictly necessary. There
+are many language features that we can leverage to evolve the interface of Tuist
+without resorting to a breaking change. Whether a change is breaking or not
+might not be obvious. A method to verify whether the change is breaking is
+running Tuist against the fixture projects in the fixtures directory. It
+requires putting ourselves in the user’s shoes and imagine how the changes would
+impact them.
