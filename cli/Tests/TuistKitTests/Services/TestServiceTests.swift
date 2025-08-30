@@ -400,7 +400,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 excludedTargets: .any,
                 skipUITests: .any,
                 configuration: .any,
-                cacheProfile: .any,
+                ignoreBinaryCache: .any,
                 ignoreSelectiveTesting: .any,
                 cacheStorage: .any,
                 destination: .value(.test(device: .test(name: "Test iPhone")))
@@ -1359,7 +1359,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 excludedTargets: .value([]),
                 skipUITests: .any,
                 configuration: .any,
-                cacheProfile: .any,
+                ignoreBinaryCache: .any,
                 ignoreSelectiveTesting: .any,
                 cacheStorage: .any,
                 destination: .any
@@ -2376,7 +2376,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 excludedTargets: .any,
                 skipUITests: .any,
                 configuration: .any,
-                cacheProfile: .any,
+                ignoreBinaryCache: .any,
                 ignoreSelectiveTesting: .any,
                 cacheStorage: .any,
                 destination: .any
@@ -2427,7 +2427,6 @@ final class TestServiceTests: TuistUnitTestCase {
                 skipTestTargets: skipTestTargets,
                 testPlanConfiguration: testPlanConfiguration,
                 ignoreBinaryCache: false,
-                cacheProfile: nil,
                 ignoreSelectiveTesting: false,
                 generateOnly: generateOnly,
                 passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
