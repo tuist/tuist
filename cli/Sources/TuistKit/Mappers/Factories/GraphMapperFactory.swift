@@ -102,6 +102,7 @@ public final class GraphMapperFactory: GraphMapperFactorying {
         func automation(
             config: Tuist,
             ignoreBinaryCache: Bool,
+            cacheProfile: TuistGeneratedProjectOptions.CacheProfile,
             ignoreSelectiveTesting: Bool,
             testPlan: String?,
             includedTargets: Set<TargetQuery>,
@@ -144,16 +145,16 @@ public final class GraphMapperFactory: GraphMapperFactorying {
                 )
             )
 
-            if !ignoreBinaryCache {
-                let focusTargetsGraphMapper = TargetsToCacheBinariesGraphMapper(
-                    config: config,
-                    decider: AllPossibleTargetReplacementDecider(exceptions: includedTargets),
-                    configuration: configuration,
-                    cacheStorage: cacheStorage
-                )
-                mappers.append(focusTargetsGraphMapper)
-                mappers.append(TreeShakePrunedTargetsGraphMapper())
-            }
+            let focusTargetsGraphMapper = TargetsToCacheBinariesGraphMapper(
+                config: config,
+                decider: CacheProfileTargetReplacementDecider(
+                    profile: cacheProfile,
+                    exceptions: includedTargets
+                ),
+                configuration: configuration,
+                cacheStorage: cacheStorage
+            )
+            mappers.append(focusTargetsGraphMapper)
 
             mappers.append(UpdateWorkspaceProjectsGraphMapper())
 
@@ -169,6 +170,7 @@ public final class GraphMapperFactory: GraphMapperFactorying {
         func build(
             config: Tuist,
             ignoreBinaryCache: Bool,
+            cacheProfile: TuistGeneratedProjectOptions.CacheProfile,
             configuration: String?,
             cacheStorage: CacheStoring
         ) -> [GraphMapping] {
@@ -180,16 +182,16 @@ public final class GraphMapperFactory: GraphMapperFactorying {
             mappers.append(PruneOrphanExternalTargetsGraphMapper())
             mappers.append(TreeShakePrunedTargetsGraphMapper())
 
-            if !ignoreBinaryCache {
-                let focusTargetsGraphMapper = TargetsToCacheBinariesGraphMapper(
-                    config: config,
-                    decider: ExternalOnlyTargetReplacementDecider(),
-                    configuration: configuration,
-                    cacheStorage: cacheStorage
-                )
-                mappers.append(focusTargetsGraphMapper)
-                mappers.append(TreeShakePrunedTargetsGraphMapper())
-            }
+            let focusTargetsGraphMapper = TargetsToCacheBinariesGraphMapper(
+                config: config,
+                decider: CacheProfileTargetReplacementDecider(
+                    profile: cacheProfile,
+                    exceptions: []
+                ),
+                configuration: configuration,
+                cacheStorage: cacheStorage
+            )
+            mappers.append(focusTargetsGraphMapper)
 
             mappers.append(UpdateWorkspaceProjectsGraphMapper())
 
@@ -211,6 +213,7 @@ public final class GraphMapperFactory: GraphMapperFactorying {
         func generation(
             config: Tuist,
             ignoreBinaryCache: Bool,
+            cacheProfile: TuistGeneratedProjectOptions.CacheProfile,
             cacheSources: Set<TargetQuery>,
             configuration: String?,
             cacheStorage: CacheStoring
@@ -228,16 +231,17 @@ public final class GraphMapperFactory: GraphMapperFactorying {
                 mappers.append(TreeShakePrunedTargetsGraphMapper())
             }
 
-            if !ignoreBinaryCache {
-                let focusTargetsGraphMapper = TargetsToCacheBinariesGraphMapper(
-                    config: config,
-                    decider: AllPossibleTargetReplacementDecider(exceptions: cacheSources),
-                    configuration: configuration,
-                    cacheStorage: cacheStorage
-                )
-                mappers.append(focusTargetsGraphMapper)
-                mappers.append(TreeShakePrunedTargetsGraphMapper())
-            }
+            let focusTargetsGraphMapper = TargetsToCacheBinariesGraphMapper(
+                config: config,
+                decider: CacheProfileTargetReplacementDecider(
+                    profile: cacheProfile,
+                    exceptions: cacheSources
+                ),
+                configuration: configuration,
+                cacheStorage: cacheStorage
+            )
+            mappers.append(focusTargetsGraphMapper)
+            mappers.append(TreeShakePrunedTargetsGraphMapper())
 
             mappers.append(UpdateWorkspaceProjectsGraphMapper())
 
@@ -274,7 +278,10 @@ public final class GraphMapperFactory: GraphMapperFactorying {
 
             let focusTargetsGraphMapper = TargetsToCacheBinariesGraphMapper(
                 config: config,
-                decider: AllPossibleTargetReplacementDecider(exceptions: cacheSources),
+                decider: CacheProfileTargetReplacementDecider(
+                    profile: .init(base: .allPossible, targets: []),
+                    exceptions: cacheSources
+                ),
                 configuration: configuration,
                 cacheStorage: cacheStorage
             )
