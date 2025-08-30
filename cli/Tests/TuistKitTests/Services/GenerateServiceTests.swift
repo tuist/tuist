@@ -32,6 +32,7 @@ struct GenerateServiceTests {
                 includedTargets: .any,
                 configuration: .any,
                 ignoreBinaryCache: .any,
+                cacheProfile: .any,
                 cacheStorage: .any
             )
             .willReturn(generator)

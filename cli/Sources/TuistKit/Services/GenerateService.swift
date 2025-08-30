@@ -52,7 +52,7 @@ final class GenerateService {
             )
         let cacheStorage = try await cacheStorageFactory.cacheStorage(config: config)
 
-        _ = try config.resolveCacheProfile(
+        let resolvedCacheProfile = try config.resolveCacheProfile(
             ignoreBinaryCache: ignoreBinaryCache,
             includedTargets: includedTargets,
             cacheProfile: cacheProfile
@@ -63,6 +63,7 @@ final class GenerateService {
             includedTargets: includedTargets,
             configuration: configuration,
             ignoreBinaryCache: ignoreBinaryCache,
+            cacheProfile: resolvedCacheProfile,
             cacheStorage: cacheStorage
         )
         let (workspacePath, _, _) = try await generator.generateWithGraph(
