@@ -247,6 +247,61 @@ jobs:
             TUIST_HOSTED=0
             TUIST_VERSION=1.24.11.11
             MIX_ENV=prod
+  api-codegen:
+    name: API Codegen Check
+    runs-on: namespace-profile-default
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: timescale/timescaledb-ha:pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore Mix Cache
+        uses: actions/cache@v4
+        id: mix-cache
+        with:
+          path: |
+            deps
+            _build
+            _site
+          key: mix-${{ hashFiles('mix.lock') }}
+      - name: Restore PNPM Cache
+        uses: actions/cache@v4
+        id: pnpm-cache
+        with:
+          path: |
+            ~/.pnpm/store
+          key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
+      - run: mise run install
+      - run: mise run clickhouse:start
+      - run: mise run db:reset
+      - name: Generate OpenAPI spec
+        run: MIX_ENV=dev mix openapi.spec.yaml --spec TuistWeb.API.Spec ../cli/Sources/TuistServer/OpenAPI/server.yml
+      - name: Check for uncommitted changes
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "::error title=OpenAPI spec out of sync::The generated OpenAPI spec is not up-to-date. Please run 'mise run generate-api-cli-code' in the server directory and commit the changes."
+            echo "Changed files:"
+            git status --porcelain
+            echo "Diff:"
+            git diff
+            exit 1
+          else
+            echo "✅ Generated OpenAPI spec is up-to-date"
+          fi
   seed:
     name: Seed
     runs-on: namespace-profile-default
