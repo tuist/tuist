@@ -50,7 +50,6 @@ struct BuildServiceTests {
             .building(
                 config: .any,
                 configuration: .any,
-                ignoreBinaryCache: .any,
                 cacheProfile: .any,
                 cacheStorage: .any
             )
