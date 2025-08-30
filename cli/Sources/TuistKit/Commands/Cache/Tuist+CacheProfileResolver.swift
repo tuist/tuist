@@ -1,4 +1,5 @@
 import Foundation
+import Logging
 import TuistCore
 
 enum CacheProfileError: LocalizedError, Equatable {
@@ -26,27 +27,30 @@ extension Tuist {
         cacheProfile: String?
     ) throws -> TuistGeneratedProjectOptions.CacheProfile {
         if ignoreBinaryCache {
+            Logger.current.debug("Using cache profile none")
             return .init(base: .none, targets: [])
         }
 
         if !includedTargets.isEmpty {
+            Logger.current.debug("Using cache profile all-possible")
             return .init(base: .allPossible, targets: [])
         }
 
         let profiles = project.generatedProject?.cacheOptions.profiles
+
         if let cacheProfile {
-            return try resolveFromProfileType(
-                .from(commandLineValue: cacheProfile),
-                profiles: profiles
-            )
+            Logger.current.debug("Using cache profile \(cacheProfile)")
+            return try resolveFromProfileType(.from(commandLineValue: cacheProfile), profiles: profiles)
         }
 
         // The default profile was already validated when loaded
         if let configDefault = profiles?.defaultProfile,
-           let cacheProfile = try? resolveFromProfileType(configDefault, profiles: profiles) {
-            return cacheProfile
+           let profile = try? resolveFromProfileType(configDefault, profiles: profiles) {
+            Logger.current.debug("Using cache profile \(configDefault)")
+            return profile
         }
 
+        Logger.current.debug("Using cache profile only-external")
         return .init(base: .onlyExternal, targets: [])
     }
 
