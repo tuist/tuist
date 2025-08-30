@@ -13,5 +13,8 @@
   "npm:appium" = "3.0.1"
 
 [env]
-  TUIST_HOSTED = 1
+  TUIST_HOSTED = "1"
+  TUIST_S3_VIRTUAL_HOST = "1"
+  TUIST_S3_BUCKET_AS_HOST = "1"
+  TUIST_S3_REGION = "auto"
   ERL_AFLAGS = "-kernel shell_history enabled -kernel shell_history_file_bytes 1024000"
