@@ -170,4 +170,169 @@ struct GenerateServiceTests {
             try TuistTest.expectLogs("Total time taken: 0.234s")
         }
     }
+
+    @Test func passes_allPossible_when_targets_focused_overrides_explicit_profile() async throws {
+        // Given
+        let workspacePath = try AbsolutePath(validating: "/test.xcworkspace")
+        let environment = MapperEnvironment()
+        given(configLoader).loadConfig(path: .any).willReturn(
+            .test(project: .testGeneratedProject())
+        )
+        given(generator)
+            .generateWithGraph(path: .any, options: .any)
+            .willReturn(
+                (
+                    workspacePath,
+                    .test(),
+                    environment
+                )
+            )
+
+        // When
+        try await subject.run(
+            path: nil,
+            includedTargets: ["App"],
+            noOpen: true,
+            configuration: nil,
+            ignoreBinaryCache: false,
+            cacheProfile: "none"
+        )
+
+        // Then
+        verify(generatorFactory)
+            .generation(
+                config: .any,
+                includedTargets: .value(["App"]),
+                configuration: .any,
+                cacheProfile: .matching { $0 == .init(base: .allPossible, targets: []) },
+                cacheStorage: .any
+            )
+            .called(1)
+    }
+
+    @Test func passes_explicit_builtin_profile_all_possible() async throws {
+        // Given
+        let workspacePath = try AbsolutePath(validating: "/test.xcworkspace")
+        let environment = MapperEnvironment()
+        given(configLoader).loadConfig(path: .any).willReturn(
+            .test(project: .testGeneratedProject())
+        )
+        given(generator)
+            .generateWithGraph(path: .any, options: .any)
+            .willReturn(
+                (
+                    workspacePath,
+                    .test(),
+                    environment
+                )
+            )
+
+        // When
+        try await subject.run(
+            path: nil,
+            includedTargets: [],
+            noOpen: true,
+            configuration: nil,
+            ignoreBinaryCache: false,
+            cacheProfile: "all-possible"
+        )
+
+        // Then
+        verify(generatorFactory)
+            .generation(
+                config: .any,
+                includedTargets: .value([]),
+                configuration: .any,
+                cacheProfile: .matching { $0 == .init(base: .allPossible, targets: []) },
+                cacheStorage: .any
+            )
+            .called(1)
+    }
+
+    @Test func passes_none_when_no_binary_cache_flag() async throws {
+        // Given
+        let workspacePath = try AbsolutePath(validating: "/test.xcworkspace")
+        let environment = MapperEnvironment()
+        given(configLoader).loadConfig(path: .any).willReturn(
+            .test(project: .testGeneratedProject())
+        )
+        given(generator)
+            .generateWithGraph(path: .any, options: .any)
+            .willReturn(
+                (
+                    workspacePath,
+                    .test(),
+                    environment
+                )
+            )
+
+        // When
+        try await subject.run(
+            path: nil,
+            includedTargets: [],
+            noOpen: true,
+            configuration: nil,
+            ignoreBinaryCache: true,
+            cacheProfile: nil
+        )
+
+        // Then
+        verify(generatorFactory)
+            .generation(
+                config: .any,
+                includedTargets: .value([]),
+                configuration: .any,
+                cacheProfile: .matching { $0 == .init(base: .none, targets: []) },
+                cacheStorage: .any
+            )
+            .called(1)
+    }
+
+    @Test func passes_config_default_custom_when_no_flag_and_no_focus() async throws {
+        // Given
+        let workspacePath = try AbsolutePath(validating: "/test.xcworkspace")
+        let environment = MapperEnvironment()
+        let tuist = Tuist.test(project:
+            .generated(.test(cacheOptions: .test(
+                keepSourceTargets: false,
+                profiles: .init(
+                    [
+                        "ci": .init(base: .onlyExternal, targets: ["tag:cacheable"]),
+                    ],
+                    default: .custom("ci")
+                )
+            )))
+        )
+        given(configLoader).loadConfig(path: .any).willReturn(tuist)
+        given(generator)
+            .generateWithGraph(path: .any, options: .any)
+            .willReturn(
+                (
+                    workspacePath,
+                    .test(),
+                    environment
+                )
+            )
+
+        // When
+        try await subject.run(
+            path: nil,
+            includedTargets: [],
+            noOpen: true,
+            configuration: nil,
+            ignoreBinaryCache: false,
+            cacheProfile: nil
+        )
+
+        // Then
+        verify(generatorFactory)
+            .generation(
+                config: .any,
+                includedTargets: .value([]),
+                configuration: .any,
+                cacheProfile: .matching { $0 == .init(base: .onlyExternal, targets: ["tag:cacheable"]) },
+                cacheStorage: .any
+            )
+            .called(1)
+    }
 }
