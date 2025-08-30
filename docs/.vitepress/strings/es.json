@@ -73,7 +73,7 @@
                     "text": "Colaboradores"
                 },
                 "changelog": {
-                    "text": "Changelog"
+                    "text": "Registro de cambios"
                 }
             }
         }
@@ -228,13 +228,13 @@
                                             "text": "Crea un nuevo proyecto"
                                         },
                                         "swift-package": {
-                                            "text": "Try with a Swift Package"
+                                            "text": "Pruebe con un paquete Swift"
                                         },
                                         "migrate": {
-                                            "text": "Migrate",
+                                            "text": "Migrar",
                                             "items": {
                                                 "xcode-project": {
-                                                    "text": "An Xcode project"
+                                                    "text": "Un proyecto Xcode"
                                                 },
                                                 "swift-package": {
                                                     "text": "A Swift package"
