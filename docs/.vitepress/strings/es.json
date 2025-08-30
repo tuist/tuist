@@ -200,7 +200,7 @@
                             "text": "Instala Tuist"
                         },
                         "get-started": {
-                            "text": "Get started"
+                            "text": "Comienza"
                         }
                     }
                 },
@@ -222,10 +222,10 @@
                             "text": "Proyectos generados",
                             "items": {
                                 "adoption": {
-                                    "text": "Adoption",
+                                    "text": "Adopcción",
                                     "items": {
                                         "new-project": {
-                                            "text": "Create a new project"
+                                            "text": "Crea un nuevo proyecto"
                                         },
                                         "swift-package": {
                                             "text": "Try with a Swift Package"
