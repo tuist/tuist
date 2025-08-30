@@ -108,7 +108,7 @@ struct TuistCacheProfileResolverTests {
         let config = Tuist.test(project: .testGeneratedProject())
 
         // When / Then
-        #expect(throws: CacheProfileError.profileNotFound("missing")) {
+        #expect(throws: CacheProfileError.profileNotFound(profile: "missing", available: [])) {
             _ = try config.resolveCacheProfile(
                 ignoreBinaryCache: false,
                 includedTargets: [],
@@ -155,17 +155,17 @@ struct TuistCacheProfileResolverTests {
                 keepSourceTargets: false,
                 profiles: .init(
                     [:],
-                    default: .custom("missing")
+                    default: .allPossible
                 )
             )))
         )
 
         // When / Then
-        #expect(throws: CacheProfileError.profileNotFound("missing")) {
+        #expect(throws: CacheProfileError.profileNotFound(profile: "missing", available: [])) {
             _ = try config.resolveCacheProfile(
                 ignoreBinaryCache: false,
                 includedTargets: [],
-                cacheProfile: nil
+                cacheProfile: "missing"
             )
         }
     }

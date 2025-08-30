@@ -1,13 +1,19 @@
 import Foundation
 import TuistCore
 
-enum CacheProfileError: Error, LocalizedError, Equatable {
-    case profileNotFound(String)
+enum CacheProfileError: LocalizedError, Equatable {
+    case profileNotFound(profile: String, available: [String])
 
     var errorDescription: String? {
         switch self {
-        case let .profileNotFound(profile):
-            return "Cache profile '\(profile)' not found. Available profiles: 'only-external', 'all-possible', 'none', or custom profiles defined in profiles."
+        case let .profileNotFound(profile, available):
+            let builtins = "only-external, all-possible, none"
+            if available.isEmpty {
+                return "Cache profile '\(profile)' not found. Available profiles: \(builtins), or custom profiles defined in profiles."
+            } else {
+                let custom = available.sorted().joined(separator: ", ")
+                return "Cache profile '\(profile)' not found. Available profiles: \(builtins), or custom profiles: \(custom)."
+            }
         }
     }
 }
@@ -35,8 +41,10 @@ extension Tuist {
             )
         }
 
-        if let configDefault = profiles?.defaultProfile {
-            return try resolveFromProfileType(configDefault, profiles: profiles)
+        // The default profile was already validated when loaded
+        if let configDefault = profiles?.defaultProfile,
+           let cacheProfile = try? resolveFromProfileType(configDefault, profiles: profiles) {
+            return cacheProfile
         }
 
         return .init(base: .onlyExternal, targets: [])
@@ -57,7 +65,10 @@ extension Tuist {
             if let custom = profiles?.profileByName[name] {
                 return custom
             }
-            throw CacheProfileError.profileNotFound(name)
+            throw CacheProfileError.profileNotFound(
+                profile: name,
+                available: profiles?.profileByName.map(\.key) ?? []
+            )
         }
     }
 }
