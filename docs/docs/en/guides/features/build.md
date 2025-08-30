@@ -30,5 +30,7 @@ tuist build MyScheme -- -configuration Debug
 ```bash [Build all schemes without binary cache]
 tuist build --no-binary-cache
 ```
-<!-- -->
+```bash [Build with cache profile]
+tuist build --cache-profile all-possible
+```
 :::
