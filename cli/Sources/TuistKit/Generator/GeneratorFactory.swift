@@ -221,6 +221,7 @@ public class GeneratorFactory: GeneratorFactorying {
         /// - Parameter config: The project configuration
         /// - Parameter skipUITests: Whether UI tests should be skipped.
         /// - Parameter ignoreBinaryCache: True to not include binaries from the cache.
+        /// - Parameter cacheProfile: Cache profile to use for binary replacement.
         /// - Parameter ignoreSelectiveTesting: True to run all tests
         /// - Parameter cacheStorage: The cache storage instance.
         /// - Returns: A Generator instance.
@@ -233,6 +234,7 @@ public class GeneratorFactory: GeneratorFactorying {
             skipUnitTests: Bool,
             configuration: String?,
             ignoreBinaryCache: Bool,
+            cacheProfile: TuistGeneratedProjectOptions.CacheProfile,
             ignoreSelectiveTesting: Bool,
             cacheStorage: CacheStoring,
             destination: SimulatorDeviceAndRuntime?
@@ -243,6 +245,7 @@ public class GeneratorFactory: GeneratorFactorying {
         /// - Parameter includedTargets: The list of targets whose sources should be included.
         /// - Parameter configuration: The configuration to generate for.
         /// - Parameter ignoreBinaryCache: True to not include binaries from the cache.
+        /// - Parameter cacheProfile: Cache profile to use for binary replacement.
         /// - Parameter cacheStorage: The cache storage instance.
         /// - Returns: The generator for focused projects.
         func generation(
@@ -250,17 +253,23 @@ public class GeneratorFactory: GeneratorFactorying {
             includedTargets: Set<TargetQuery>,
             configuration: String?,
             ignoreBinaryCache: Bool,
+            cacheProfile: TuistGeneratedProjectOptions.CacheProfile,
             cacheStorage: CacheStoring
         ) -> Generating
 
         /// Returns a generator for building a project.
         /// - Parameters:
         ///     - config: The project configuration
+        ///     - configuration: The configuration to build for.
+        ///     - ignoreBinaryCache: True to not include binaries from the cache.
+        ///     - cacheProfile: Cache profile to use for binary replacement.
+        ///     - cacheStorage: The cache storage instance.
         /// - Returns: A Generator instance
         func building(
             config: Tuist,
             configuration: String?,
             ignoreBinaryCache: Bool,
+            cacheProfile: TuistGeneratedProjectOptions.CacheProfile,
             cacheStorage: CacheStoring
         ) -> Generating
 
@@ -301,6 +310,7 @@ public class GeneratorFactory: GeneratorFactorying {
             includedTargets: Set<TargetQuery>,
             configuration: String?,
             ignoreBinaryCache: Bool,
+            cacheProfile: TuistGeneratedProjectOptions.CacheProfile,
             cacheStorage: CacheStoring
         ) -> Generating {
             let contentHasher = ContentHasher()
@@ -312,6 +322,7 @@ public class GeneratorFactory: GeneratorFactorying {
             let graphMappers = graphMapperFactory.generation(
                 config: config,
                 ignoreBinaryCache: ignoreBinaryCache,
+                cacheProfile: cacheProfile,
                 cacheSources: includedTargets,
                 configuration: configuration,
                 cacheStorage: cacheStorage
@@ -337,6 +348,7 @@ public class GeneratorFactory: GeneratorFactorying {
             skipUnitTests: Bool,
             configuration: String?,
             ignoreBinaryCache: Bool,
+            cacheProfile: TuistGeneratedProjectOptions.CacheProfile,
             ignoreSelectiveTesting: Bool,
             cacheStorage: CacheStoring,
             destination: SimulatorDeviceAndRuntime?
@@ -354,6 +366,7 @@ public class GeneratorFactory: GeneratorFactorying {
             let graphMappers = graphMapperFactory.automation(
                 config: config,
                 ignoreBinaryCache: ignoreBinaryCache,
+                cacheProfile: cacheProfile,
                 ignoreSelectiveTesting: ignoreSelectiveTesting,
                 testPlan: testPlan,
                 includedTargets: Set(includedTargets.map(TargetQuery.init(stringLiteral:))),
@@ -378,6 +391,7 @@ public class GeneratorFactory: GeneratorFactorying {
             config: Tuist,
             configuration: String?,
             ignoreBinaryCache: Bool,
+            cacheProfile: TuistGeneratedProjectOptions.CacheProfile,
             cacheStorage: CacheStoring
         ) -> Generating {
             let contentHasher = ContentHasher()
@@ -389,6 +403,7 @@ public class GeneratorFactory: GeneratorFactorying {
             let graphMappers = graphMapperFactory.build(
                 config: config,
                 ignoreBinaryCache: ignoreBinaryCache,
+                cacheProfile: cacheProfile,
                 configuration: configuration,
                 cacheStorage: cacheStorage
             )
