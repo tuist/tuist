@@ -190,6 +190,13 @@ public struct TestCommand: AsyncParsableCommand, LogConfigurableCommand,
     )
     var binaryCache: Bool = true
 
+    @Option(
+        name: .long,
+        help: "Binary cache profile to use: only-external, all-possible, none, or a custom profile name",
+        envKey: .testCacheProfile
+    )
+    var cacheProfile: String?
+
     @Flag(
         help:
         "When --no-selective-testing is passed, tuist runs all tests without using selective testing.",

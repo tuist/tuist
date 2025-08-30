@@ -6,6 +6,7 @@ public enum EnvKey: String, CaseIterable {
     // BUILD
 
     case buildBinaryCache = "TUIST_BUILD_BINARY_CACHE"
+    case buildCacheProfile = "TUIST_BUILD_CACHE_PROFILE"
 
     // BUILD OPTIONS
 
@@ -51,6 +52,7 @@ public enum EnvKey: String, CaseIterable {
     case generatePath = "TUIST_GENERATE_PATH"
     case generateOpen = "TUIST_GENERATE_OPEN"
     case generateBinaryCache = "TUIST_GENERATE_BINARY_CACHE"
+    case generateCacheProfile = "TUIST_GENERATE_CACHE_PROFILE"
 
     // GRAPH
 
@@ -165,6 +167,7 @@ public enum EnvKey: String, CaseIterable {
     case testSkipConfigurations = "TUIST_TEST_SKIP_CONFIGURATIONS"
     case testGenerateOnly = "TUIST_TEST_GENERATE_ONLY"
     case testBinaryCache = "TUIST_TEST_BINARY_CACHE"
+    case testCacheProfile = "TUIST_TEST_CACHE_PROFILE"
     case testSelectiveTesting = "TUIST_TEST_SELECTIVE_TESTING"
     case testWithoutBuilding = "TUIST_TEST_WITHOUT_BUILDING"
     case testBuildOnly = "TUIST_TEST_BUILD_ONLY"
