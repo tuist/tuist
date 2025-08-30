@@ -4,7 +4,12 @@ import TuistSupport
 public final class ManifestLoaderFactory {
     private let useCache: Bool
     public convenience init() {
-        self.init(useCache: Environment.current.isVariableTruthy(Constants.EnvironmentVariables.cacheManifests))
+        let useCache = if Environment.current.variables[Constants.EnvironmentVariables.cacheManifests] != nil {
+            Environment.current.isVariableTruthy(Constants.EnvironmentVariables.cacheManifests)
+        } else {
+            true
+        }
+        self.init(useCache: useCache)
     }
 
     public init(useCache: Bool) {
