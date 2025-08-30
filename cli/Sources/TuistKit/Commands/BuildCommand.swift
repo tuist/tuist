@@ -191,6 +191,7 @@ public struct BuildCommand: AsyncParsableCommand, LogConfigurableCommand,
             clean: buildOptions.clean,
             configuration: buildOptions.configuration,
             ignoreBinaryCache: !binaryCache,
+            cacheProfile: cacheProfile,
             buildOutputPath: buildOptions.buildOutputPath.map {
                 try AbsolutePath(
                     validating: $0,
