@@ -289,11 +289,11 @@ jobs:
       - run: mise run clickhouse:start
       - run: mise run db:reset
       - name: Generate OpenAPI spec
-        run: mix openapi.spec.yaml --spec TuistWeb.API.Spec ../cli/Sources/TuistServer/OpenAPI/server.yml
+        run: MIX_ENV=dev mix openapi.spec.yaml --spec TuistWeb.API.Spec ../cli/Sources/TuistServer/OpenAPI/server.yml
       - name: Check for uncommitted changes
         run: |
           if [ -n "$(git status --porcelain)" ]; then
-            echo "::error title=OpenAPI spec out of sync::The generated OpenAPI spec is not up-to-date. Please run 'mix openapi.spec.yaml --spec TuistWeb.API.Spec ../cli/Sources/TuistServer/OpenAPI/server.yml' in the server directory and commit the changes."
+            echo "::error title=OpenAPI spec out of sync::The generated OpenAPI spec is not up-to-date. Please run 'mise run generate-api-cli-code' in the server directory and commit the changes."
             echo "Changed files:"
             git status --porcelain
             echo "Diff:"
