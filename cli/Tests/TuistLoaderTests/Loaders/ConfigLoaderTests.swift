@@ -145,9 +145,14 @@ final class ConfigLoaderTests: TuistUnitTestCase {
         try await fileSystem.makeDirectory(at: configPath.parentDirectory)
         try await fileSystem.touch(configPath)
         stub(path: configPath, exists: true)
-        let invalidProfiles = Tuist.CacheProfiles.profiles([:], default: .custom("missing"))
+        let invalidProfiles = Tuist.CacheProfiles.profiles(
+            [
+                "development": .profile(base: .allPossible, targets: ["tag:cacheable"]),
+            ],
+            default: .custom("missing")
+        )
         stub(
-            config: ProjectDescription.Config(project: .tuist(cacheOptions: .options(keepSourceTargets: false, profiles: invalidProfiles))), 
+            config: ProjectDescription.Config(project: .tuist(cacheOptions: .options(keepSourceTargets: false, profiles: invalidProfiles))),
             at: configPath.parentDirectory
         )
         stub(rootDirectory: projectPath)
@@ -155,7 +160,7 @@ final class ConfigLoaderTests: TuistUnitTestCase {
         // When / Then
         await XCTAssertThrowsSpecific(
             try await self.subject.loadConfig(path: configPath),
-            ConfigManifestMapperError.cacheProfileNotFound("missing")
+            ConfigManifestMapperError.defaultCacheProfileNotFound(profile: "missing", available: ["development"])
         )
     }
 
