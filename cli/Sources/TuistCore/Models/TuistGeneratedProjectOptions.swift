@@ -61,9 +61,12 @@ extension TuistGeneratedProjectOptions {
             case excluding([String])
         }
 
+        @available(*, deprecated, message: "Use `additionalPackageResolutionArguments` instead.")
         public let resolveDependenciesWithSystemScm: Bool
         public let disablePackageVersionLocking: Bool
+        @available(*, deprecated, message: "Use `additionalPackageResolutionArguments` instead.")
         public let clonedSourcePackagesDirPath: AbsolutePath?
+        public let additionalPackageResolutionArguments: [String]
         public let staticSideEffectsWarningTargets: StaticSideEffectsWarningTargets
         public let enforceExplicitDependencies: Bool
         public let defaultConfiguration: String?
@@ -76,6 +79,7 @@ extension TuistGeneratedProjectOptions {
             resolveDependenciesWithSystemScm: Bool,
             disablePackageVersionLocking: Bool,
             clonedSourcePackagesDirPath: AbsolutePath? = nil,
+            additionalPackageResolutionArguments: [String] = [],
             staticSideEffectsWarningTargets: StaticSideEffectsWarningTargets = .all,
             enforceExplicitDependencies: Bool = false,
             defaultConfiguration: String? = nil,
@@ -87,6 +91,7 @@ extension TuistGeneratedProjectOptions {
             self.resolveDependenciesWithSystemScm = resolveDependenciesWithSystemScm
             self.disablePackageVersionLocking = disablePackageVersionLocking
             self.clonedSourcePackagesDirPath = clonedSourcePackagesDirPath
+            self.additionalPackageResolutionArguments = additionalPackageResolutionArguments
             self.staticSideEffectsWarningTargets = staticSideEffectsWarningTargets
             self.enforceExplicitDependencies = enforceExplicitDependencies
             self.defaultConfiguration = defaultConfiguration
@@ -144,6 +149,7 @@ extension TuistGeneratedProjectOptions {
             resolveDependenciesWithSystemScm: Bool = false,
             disablePackageVersionLocking: Bool = false,
             clonedSourcePackagesDirPath: AbsolutePath? = nil,
+            additionalPackageResolutionArguments: [String] = [],
             staticSideEffectsWarningTargets: TuistGeneratedProjectOptions.GenerationOptions
                 .StaticSideEffectsWarningTargets = .all,
             enforceExplicitDependencies: Bool = false,
@@ -157,6 +163,7 @@ extension TuistGeneratedProjectOptions {
                 resolveDependenciesWithSystemScm: resolveDependenciesWithSystemScm,
                 disablePackageVersionLocking: disablePackageVersionLocking,
                 clonedSourcePackagesDirPath: clonedSourcePackagesDirPath,
+                additionalPackageResolutionArguments: additionalPackageResolutionArguments,
                 staticSideEffectsWarningTargets: staticSideEffectsWarningTargets,
                 enforceExplicitDependencies: enforceExplicitDependencies,
                 defaultConfiguration: defaultConfiguration,

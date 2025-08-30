@@ -22,7 +22,7 @@
 /// ```swift
 /// import ProjectDescription
 ///
-/// let tuist = Config(project: .tuist(generationOptions: .options(resolveDependenciesWithSystemScm: false)))
+/// let tuist = Config(project: .tuist(generationOptions: .options(additionalPackageResolutionArguments: ["--some-argument"])))
 ///
 /// ```
 public typealias Config = Tuist

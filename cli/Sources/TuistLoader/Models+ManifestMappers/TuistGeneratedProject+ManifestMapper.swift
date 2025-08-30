@@ -19,6 +19,7 @@ extension TuistCore.TuistGeneratedProjectOptions.GenerationOptions {
             resolveDependenciesWithSystemScm: manifest.resolveDependenciesWithSystemScm,
             disablePackageVersionLocking: manifest.disablePackageVersionLocking,
             clonedSourcePackagesDirPath: clonedSourcePackagesDirPath,
+            additionalPackageResolutionArguments: manifest.additionalPackageResolutionArguments,
             staticSideEffectsWarningTargets: TuistCore.TuistGeneratedProjectOptions.GenerationOptions
                 .StaticSideEffectsWarningTargets
                 .from(manifest: manifest.staticSideEffectsWarningTargets),

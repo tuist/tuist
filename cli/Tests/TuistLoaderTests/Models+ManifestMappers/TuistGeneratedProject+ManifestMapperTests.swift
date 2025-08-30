@@ -64,4 +64,40 @@ struct TuistGeneratedProjectManifestMapperTests {
         let got = TuistCore.TuistGeneratedProjectOptions.CacheOptions.from(manifest: manifest)
         #expect(got.keepSourceTargets == false)
     }
+
+    @Test func additionalPackageResolutionArguments_includes_resolveDependenciesWithSystemScm() async throws {
+        try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryDirectory in
+            // When
+            let got = try TuistCore.TuistGeneratedProjectOptions.GenerationOptions.from(
+                manifest: .options(
+                    resolveDependenciesWithSystemScm: true,
+                    additionalPackageResolutionArguments: ["-verbose"]
+                ),
+                generatorPaths: GeneratorPaths(manifestDirectory: temporaryDirectory, rootDirectory: temporaryDirectory),
+                fullHandle: nil
+            )
+
+            // Then
+            #expect(got.additionalPackageResolutionArguments.contains("-resolvePackageDependenciesWithSystemScm"))
+            #expect(got.additionalPackageResolutionArguments.contains("-verbose"))
+        }
+    }
+
+    @Test func additionalPackageResolutionArguments_without_deprecated_flags() async throws {
+        try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryDirectory in
+            // When
+            let got = try TuistCore.TuistGeneratedProjectOptions.GenerationOptions.from(
+                manifest: .options(
+                    resolveDependenciesWithSystemScm: false,
+                    additionalPackageResolutionArguments: ["-verbose", "-configuration", "debug"]
+                ),
+                generatorPaths: GeneratorPaths(manifestDirectory: temporaryDirectory, rootDirectory: temporaryDirectory),
+                fullHandle: nil
+            )
+
+            // Then
+            #expect(got.additionalPackageResolutionArguments == ["-verbose", "-configuration", "debug"])
+            #expect(!got.additionalPackageResolutionArguments.contains("-resolvePackageDependenciesWithSystemScm"))
+        }
+    }
 }
