@@ -148,7 +148,7 @@ public struct BuildCommand: AsyncParsableCommand, LogConfigurableCommand,
 
     @Option(
         name: .long,
-        help: "Binary cache profile to use: only-external, all-possible, none, or a custom profile name",
+        help: "Binary cache profile to use: 'only-external', 'all-possible', 'none', or a custom profile name",
         envKey: .buildCacheProfile
     )
     var cacheProfile: String?

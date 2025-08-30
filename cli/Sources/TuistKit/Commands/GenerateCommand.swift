@@ -56,7 +56,7 @@ public struct GenerateCommand: AsyncParsableCommand, RecentPathRememberableComma
 
     @Option(
         name: .long,
-        help: "Binary cache profile to use: only-external, all-possible, none, or a custom profile name",
+        help: "Binary cache profile to use: 'only-external', 'all-possible', 'none', or a custom profile name",
         envKey: .generateCacheProfile
     )
     var cacheProfile: String?
