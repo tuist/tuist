@@ -76,7 +76,8 @@ public struct GenerateCommand: AsyncParsableCommand, RecentPathRememberableComma
             includedTargets: Set(includedTargets),
             noOpen: !open,
             configuration: configuration,
-            ignoreBinaryCache: !binaryCache
+            ignoreBinaryCache: !binaryCache,
+            cacheProfile: cacheProfile
         )
     }
 }

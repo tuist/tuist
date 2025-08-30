@@ -11,9 +11,9 @@ struct TuistCacheProfileResolverTests {
 
         // When
         let result = try config.resolveCacheProfile(
-            binaryCache: true,
+            ignoreBinaryCache: false,
             includedTargets: ["App"],
-            explicitCacheProfile: "none"
+            cacheProfile: "none"
         )
 
         // Then
@@ -25,9 +25,9 @@ struct TuistCacheProfileResolverTests {
         let config = Tuist.test(project: .testGeneratedProject())
 
         // When / Then
-        #expect(try config.resolveCacheProfile(binaryCache: true, includedTargets: [], explicitCacheProfile: "only-external") == .init(base: .onlyExternal, targets: []))
-        #expect(try config.resolveCacheProfile(binaryCache: true, includedTargets: [], explicitCacheProfile: "all-possible") == .init(base: .allPossible, targets: []))
-        #expect(try config.resolveCacheProfile(binaryCache: true, includedTargets: [], explicitCacheProfile: "none") == .init(base: .none, targets: []))
+        #expect(try config.resolveCacheProfile(ignoreBinaryCache: false, includedTargets: [], cacheProfile: "only-external") == .init(base: .onlyExternal, targets: []))
+        #expect(try config.resolveCacheProfile(ignoreBinaryCache: false, includedTargets: [], cacheProfile: "all-possible") == .init(base: .allPossible, targets: []))
+        #expect(try config.resolveCacheProfile(ignoreBinaryCache: false, includedTargets: [], cacheProfile: "none") == .init(base: .none, targets: []))
     }
 
     @Test func resolves_from_explicit_custom_profile() throws {
@@ -46,9 +46,9 @@ struct TuistCacheProfileResolverTests {
 
         // When
         let result = try config.resolveCacheProfile(
-            binaryCache: true,
+            ignoreBinaryCache: false,
             includedTargets: [],
-            explicitCacheProfile: "development"
+            cacheProfile: "development"
         )
 
         // Then
@@ -69,9 +69,9 @@ struct TuistCacheProfileResolverTests {
 
         // When
         let result = try config.resolveCacheProfile(
-            binaryCache: true,
+            ignoreBinaryCache: false,
             includedTargets: [],
-            explicitCacheProfile: nil
+            cacheProfile: nil
         )
 
         // Then
@@ -94,9 +94,9 @@ struct TuistCacheProfileResolverTests {
 
         // When
         let result = try config.resolveCacheProfile(
-            binaryCache: true,
+            ignoreBinaryCache: false,
             includedTargets: [],
-            explicitCacheProfile: nil
+            cacheProfile: nil
         )
 
         // Then
@@ -110,9 +110,9 @@ struct TuistCacheProfileResolverTests {
         // When / Then
         #expect(throws: CacheProfileError.profileNotFound("missing")) {
             _ = try config.resolveCacheProfile(
-                binaryCache: true,
+                ignoreBinaryCache: false,
                 includedTargets: [],
-                explicitCacheProfile: "missing"
+                cacheProfile: "missing"
             )
         }
     }
@@ -124,9 +124,9 @@ struct TuistCacheProfileResolverTests {
 
         // When
         let result = try config.resolveCacheProfile(
-            binaryCache: false,
+            ignoreBinaryCache: true,
             includedTargets: included,
-            explicitCacheProfile: "all-possible"
+            cacheProfile: "all-possible"
         )
 
         // Then
@@ -139,9 +139,9 @@ struct TuistCacheProfileResolverTests {
 
         // When
         let result = try config.resolveCacheProfile(
-            binaryCache: true,
+            ignoreBinaryCache: false,
             includedTargets: [],
-            explicitCacheProfile: nil
+            cacheProfile: nil
         )
 
         // Then
@@ -163,9 +163,9 @@ struct TuistCacheProfileResolverTests {
         // When / Then
         #expect(throws: CacheProfileError.profileNotFound("missing")) {
             _ = try config.resolveCacheProfile(
-                binaryCache: true,
+                ignoreBinaryCache: false,
                 includedTargets: [],
-                explicitCacheProfile: nil
+                cacheProfile: nil
             )
         }
     }

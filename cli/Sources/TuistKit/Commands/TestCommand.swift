@@ -334,6 +334,7 @@ public struct TestCommand: AsyncParsableCommand, LogConfigurableCommand,
             },
             validateTestTargetsParameters: false,
             ignoreBinaryCache: !binaryCache,
+            cacheProfile: cacheProfile,
             ignoreSelectiveTesting: !selectiveTesting,
             generateOnly: generateOnly,
             passthroughXcodeBuildArguments: passthroughXcodeBuildArguments

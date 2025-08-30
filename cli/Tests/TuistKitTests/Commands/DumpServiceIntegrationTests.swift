@@ -187,7 +187,17 @@ final class DumpServiceTests: TuistTestCase {
               "project": {
                 "tuist": {
                   "cacheOptions": {
-                    "keepSourceTargets": false
+                    "keepSourceTargets": false,
+                    "profiles": {
+                      "defaultProfile": {
+                        "onlyExternal": {
+
+                        }
+                      },
+                      "profileByName": {
+
+                      }
+                    }
                   },
                   "compatibleXcodeVersions": {
                     "all": {
