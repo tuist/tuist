@@ -40,7 +40,8 @@ final class GenerateService {
         includedTargets: Set<TargetQuery>,
         noOpen: Bool,
         configuration: String?,
-        ignoreBinaryCache: Bool
+        ignoreBinaryCache: Bool,
+        cacheProfile: String?
     ) async throws {
         let timer = clock.startTimer()
         let path = try self.path(path)
@@ -50,6 +51,13 @@ final class GenerateService {
                 "The 'tuist generate' command is only available for generated projects and Swift packages."
             )
         let cacheStorage = try await cacheStorageFactory.cacheStorage(config: config)
+
+        _ = try config.resolveCacheProfile(
+            ignoreBinaryCache: ignoreBinaryCache,
+            includedTargets: includedTargets,
+            cacheProfile: cacheProfile
+        )
+
         let generator = generatorFactory.generation(
             config: config,
             includedTargets: includedTargets,

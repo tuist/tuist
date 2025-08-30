@@ -66,7 +66,8 @@ struct GenerateServiceTests {
                         includedTargets: [],
                         noOpen: true,
                         configuration: nil,
-                        ignoreBinaryCache: false
+                        ignoreBinaryCache: false,
+                        cacheProfile: nil
                     )
             }
         )
@@ -90,7 +91,8 @@ struct GenerateServiceTests {
                         includedTargets: [],
                         noOpen: true,
                         configuration: nil,
-                        ignoreBinaryCache: false
+                        ignoreBinaryCache: false,
+                        cacheProfile: nil
                     )
             }
         )
@@ -123,7 +125,8 @@ struct GenerateServiceTests {
             includedTargets: [],
             noOpen: false,
             configuration: nil,
-            ignoreBinaryCache: false
+            ignoreBinaryCache: false,
+            cacheProfile: nil
         )
 
         // Then
@@ -159,7 +162,8 @@ struct GenerateServiceTests {
                 includedTargets: [],
                 noOpen: false,
                 configuration: nil,
-                ignoreBinaryCache: false
+                ignoreBinaryCache: false,
+                cacheProfile: nil
             )
 
             // Then

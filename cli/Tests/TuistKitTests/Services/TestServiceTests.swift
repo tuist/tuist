@@ -2427,6 +2427,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 skipTestTargets: skipTestTargets,
                 testPlanConfiguration: testPlanConfiguration,
                 ignoreBinaryCache: false,
+                cacheProfile: nil,
                 ignoreSelectiveTesting: false,
                 generateOnly: generateOnly,
                 passthroughXcodeBuildArguments: passthroughXcodeBuildArguments

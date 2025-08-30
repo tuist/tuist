@@ -15,11 +15,11 @@ enum CacheProfileError: Error, LocalizedError, Equatable {
 extension Tuist {
     /// Resolve the effective cache profile based on CLI flags, target focus, config default, and system default.
     func resolveCacheProfile(
-        binaryCache: Bool,
+        ignoreBinaryCache: Bool,
         includedTargets: Set<TargetQuery>,
-        explicitCacheProfile: String?
+        cacheProfile: String?
     ) throws -> TuistGeneratedProjectOptions.CacheProfile {
-        if !binaryCache {
+        if ignoreBinaryCache {
             return .init(base: .none, targets: [])
         }
 
@@ -28,9 +28,9 @@ extension Tuist {
         }
 
         let profiles = project.generatedProject?.cacheOptions.profiles
-        if let explicitCacheProfile {
+        if let cacheProfile {
             return try resolveFromProfileType(
-                .from(commandLineValue: explicitCacheProfile),
+                .from(commandLineValue: cacheProfile),
                 profiles: profiles
             )
         }
