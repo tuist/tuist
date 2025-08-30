@@ -103,7 +103,7 @@ public final class GraphMapperFactory: GraphMapperFactorying {
 
         func automation(
             config: Tuist,
-            cacheProfile: TuistGeneratedProjectOptions.CacheProfile,
+            ignoreBinaryCache: Bool,
             ignoreSelectiveTesting: Bool,
             testPlan: String?,
             includedTargets: Set<TargetQuery>,
@@ -147,16 +147,18 @@ public final class GraphMapperFactory: GraphMapperFactorying {
                 )
             )
 
-            let focusTargetsGraphMapper = TargetsToCacheBinariesGraphMapper(
-                config: config,
-                decider: CacheProfileTargetReplacementDecider(
-                    profile: cacheProfile,
-                    exceptions: includedTargets
-                ),
-                configuration: configuration,
-                cacheStorage: cacheStorage
-            )
-            mappers.append(focusTargetsGraphMapper)
+            if !ignoreBinaryCache {
+                let focusTargetsGraphMapper = TargetsToCacheBinariesGraphMapper(
+                    config: config,
+                    decider: CacheProfileTargetReplacementDecider(
+                        profile: .init(base: .allPossible, targets: []),
+                        exceptions: includedTargets
+                    ),
+                    configuration: configuration,
+                    cacheStorage: cacheStorage
+                )
+                mappers.append(focusTargetsGraphMapper)
+            }
 
             mappers.append(UpdateWorkspaceProjectsGraphMapper())
 

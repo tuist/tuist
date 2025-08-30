@@ -216,7 +216,6 @@ final class TestService { // swiftlint:disable:this type_body_length
         testPlanConfiguration: TestPlanConfiguration?,
         validateTestTargetsParameters: Bool = true,
         ignoreBinaryCache: Bool,
-        cacheProfile: String?,
         ignoreSelectiveTesting: Bool,
         generateOnly: Bool,
         passthroughXcodeBuildArguments: [String]
@@ -241,12 +240,6 @@ final class TestService { // swiftlint:disable:this type_body_length
             osVersion: osVersion
         )
 
-        let resolvedCacheProfile = try config.resolveCacheProfile(
-            ignoreBinaryCache: ignoreBinaryCache,
-            includedTargets: Set(testTargets.map(\.target).map(TargetQuery.init(stringLiteral:))),
-            cacheProfile: cacheProfile
-        )
-
         let testGenerator = generatorFactory.testing(
             config: config,
             testPlan: testPlanConfiguration?.testPlan,
@@ -255,7 +248,7 @@ final class TestService { // swiftlint:disable:this type_body_length
             skipUITests: skipUITests,
             skipUnitTests: skipUnitTests,
             configuration: configuration,
-            cacheProfile: resolvedCacheProfile,
+            ignoreBinaryCache: ignoreBinaryCache,
             ignoreSelectiveTesting: ignoreSelectiveTesting,
             cacheStorage: cacheStorage,
             destination: destination
