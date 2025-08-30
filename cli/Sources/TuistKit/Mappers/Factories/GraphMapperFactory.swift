@@ -15,7 +15,7 @@ import XcodeGraph
 /// The GraphMapperFactorying describes the interface of a factory of graph mappers.
 /// Methods in the interface map with workflows exposed to the user.
 protocol GraphMapperFactorying {
-    ///  Returns the graph mapper that should be used for automation tasks such as build and test.
+    /// Returns the graph mapper that should be used for automation tasks such as build and test.
     /// - Returns: A graph mapper.
     func automation(
         config: Tuist,
@@ -103,7 +103,6 @@ public final class GraphMapperFactory: GraphMapperFactorying {
 
         func automation(
             config: Tuist,
-            ignoreBinaryCache: Bool,
             cacheProfile: TuistGeneratedProjectOptions.CacheProfile,
             ignoreSelectiveTesting: Bool,
             testPlan: String?,
@@ -174,7 +173,6 @@ public final class GraphMapperFactory: GraphMapperFactorying {
 
         func build(
             config: Tuist,
-            ignoreBinaryCache: Bool,
             cacheProfile: TuistGeneratedProjectOptions.CacheProfile,
             configuration: String?,
             cacheStorage: CacheStoring
@@ -220,7 +218,6 @@ public final class GraphMapperFactory: GraphMapperFactorying {
 
         func generation(
             config: Tuist,
-            ignoreBinaryCache: Bool,
             cacheProfile: TuistGeneratedProjectOptions.CacheProfile,
             cacheSources: Set<TargetQuery>,
             configuration: String?,

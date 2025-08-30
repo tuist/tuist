@@ -87,7 +87,7 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
             // When
             let got = subject.generation(
                 config: .test(project: .testGeneratedProject()),
-                ignoreBinaryCache: false,
+                cacheProfile: .init(base: .onlyExternal, targets: []),
                 cacheSources: includedTargets,
                 configuration: "Debug",
                 cacheStorage: cacheStorage
@@ -141,7 +141,7 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
             // When
             let got = subject.generation(
                 config: config,
-                ignoreBinaryCache: true,
+                cacheProfile: .init(base: .none, targets: []),
                 cacheSources: cacheSources,
                 configuration: "Debug",
                 cacheStorage: cacheStorage
@@ -160,7 +160,7 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
             // When
             let got = subject.generation(
                 config: config,
-                ignoreBinaryCache: false,
+                cacheProfile: .init(base: .onlyExternal, targets: []),
                 cacheSources: cacheSources,
                 configuration: "Debug",
                 cacheStorage: cacheStorage
@@ -185,7 +185,7 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
             // When
             let got = subject.generation(
                 config: config,
-                ignoreBinaryCache: false,
+                cacheProfile: .init(base: .onlyExternal, targets: []),
                 cacheSources: cacheSources,
                 configuration: "Debug",
                 cacheStorage: cacheStorage
@@ -204,7 +204,7 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
             // When
             let got = subject.automation(
                 config: config,
-                ignoreBinaryCache: true,
+                cacheProfile: .init(base: .none, targets: []),
                 ignoreSelectiveTesting: false,
                 testPlan: nil,
                 includedTargets: [],
@@ -225,7 +225,7 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
             // When
             let got = subject.automation(
                 config: config,
-                ignoreBinaryCache: true,
+                cacheProfile: .init(base: .none, targets: []),
                 ignoreSelectiveTesting: true,
                 testPlan: nil,
                 includedTargets: [],
@@ -238,6 +238,29 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
             // Then
             XCTAssertContainsElementOfType(
                 got, FocusTargetsGraphMappers.self, after: TestsCacheGraphMapper.self
+            )
+        }
+
+        func test_automation_contains_the_tests_cache_tree_shaking_mapper() throws {
+            // Given
+            let config = Tuist.test()
+
+            // When
+            let got = subject.automation(
+                config: config,
+                cacheProfile: .init(base: .none, targets: []),
+                ignoreSelectiveTesting: false,
+                testPlan: nil,
+                includedTargets: [],
+                excludedTargets: [],
+                configuration: "Debug",
+                cacheStorage: cacheStorage,
+                destination: nil
+            )
+
+            // Then
+            XCTAssertContainsElementOfType(
+                got, TreeShakePrunedTargetsGraphMapper.self, after: FocusTargetsGraphMappers.self
             )
         }
     }

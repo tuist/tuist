@@ -82,7 +82,6 @@ public final class BuildService {
         let generator = generatorFactory.building(
             config: config,
             configuration: configuration,
-            ignoreBinaryCache: ignoreBinaryCache,
             cacheProfile: resolvedCacheProfile,
             cacheStorage: cacheStorage
         )

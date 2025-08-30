@@ -255,7 +255,6 @@ final class TestService { // swiftlint:disable:this type_body_length
             skipUITests: skipUITests,
             skipUnitTests: skipUnitTests,
             configuration: configuration,
-            ignoreBinaryCache: ignoreBinaryCache,
             cacheProfile: resolvedCacheProfile,
             ignoreSelectiveTesting: ignoreSelectiveTesting,
             cacheStorage: cacheStorage,
