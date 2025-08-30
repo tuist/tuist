@@ -138,6 +138,27 @@ final class ConfigLoaderTests: TuistUnitTestCase {
         await XCTAssertThrowsSpecific({ try await self.subject.loadConfig(path: configPath) }, TestError.testError)
     }
 
+    func test_loadConfig_invalid_default_cache_profile_throws() async throws {
+        // Given
+        let projectPath = try temporaryPath().appending(component: "project")
+        let configPath = projectPath.appending(components: Constants.tuistManifestFileName)
+        try await fileSystem.makeDirectory(at: configPath.parentDirectory)
+        try await fileSystem.touch(configPath)
+        stub(path: configPath, exists: true)
+        let invalidProfiles = Tuist.CacheProfiles.profiles([:], default: .custom("missing"))
+        stub(
+            config: ProjectDescription.Config(project: .tuist(cacheOptions: .options(keepSourceTargets: false, profiles: invalidProfiles))), 
+            at: configPath.parentDirectory
+        )
+        stub(rootDirectory: projectPath)
+
+        // When / Then
+        await XCTAssertThrowsSpecific(
+            try await self.subject.loadConfig(path: configPath),
+            ConfigManifestMapperError.cacheProfileNotFound("missing")
+        )
+    }
+
     func test_loadConfig_loadConfigInRootDirectory() async throws {
         // Given
         let projectPath = try temporaryPath().appending(component: "project")

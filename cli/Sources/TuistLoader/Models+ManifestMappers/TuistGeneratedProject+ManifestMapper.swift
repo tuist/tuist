@@ -52,10 +52,14 @@ extension TuistCore.TuistGeneratedProjectOptions.InstallOptions {
 extension TuistCore.TuistGeneratedProjectOptions.CacheOptions {
     static func from(
         manifest: ProjectDescription.Config.CacheOptions
-    ) -> Self {
+    ) throws -> Self {
+        let profiles = TuistCore.TuistGeneratedProjectOptions.CacheProfiles.from(manifest: manifest.profiles)
+        if case let .custom(name) = profiles.defaultProfile, profiles.profileByName[name] == nil {
+            throw ConfigManifestMapperError.cacheProfileNotFound(name)
+        }
         return .init(
             keepSourceTargets: manifest.keepSourceTargets,
-            profiles: .from(manifest: manifest.profiles)
+            profiles: profiles
         )
     }
 }
