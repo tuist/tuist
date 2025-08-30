@@ -54,8 +54,66 @@ extension TuistCore.TuistGeneratedProjectOptions.CacheOptions {
         manifest: ProjectDescription.Config.CacheOptions
     ) -> Self {
         return .init(
-            keepSourceTargets: manifest.keepSourceTargets
+            keepSourceTargets: manifest.keepSourceTargets,
+            profiles: .from(manifest: manifest.profiles)
         )
+    }
+}
+extension TuistCore.TuistGeneratedProjectOptions.CacheProfiles {
+    static func from(
+        manifest: ProjectDescription.Tuist.CacheProfiles
+    ) -> Self {
+        .init(
+            manifest.profileByName.mapValues { .from(manifest: $0) },
+            default: .from(manifest: manifest.defaultProfile)
+        )
+    }
+}
+
+extension TuistCore.TuistGeneratedProjectOptions.CacheProfile {
+    static func from(
+        manifest: ProjectDescription.Tuist.CacheProfile
+    ) -> Self {
+        .init(
+            base: .from(manifest: manifest.base),
+            targets: manifest.targets.map { .from(manifest: $0) }
+        )
+    }
+}
+
+extension TuistCore.TuistGeneratedProjectOptions.BaseCacheProfile {
+    static func from(
+        manifest: ProjectDescription.Tuist.BaseCacheProfile
+    ) -> Self {
+        switch manifest {
+        case .onlyExternal: return .onlyExternal
+        case .allPossible: return .allPossible
+        case .none: return .none
+        }
+    }
+}
+
+extension TuistCore.TuistGeneratedProjectOptions.CacheProfileType {
+    static func from(
+        manifest: ProjectDescription.Tuist.CacheProfileType
+    ) -> Self {
+        switch manifest {
+        case .onlyExternal: return .onlyExternal
+        case .allPossible: return .allPossible
+        case .none: return .none
+        case let .custom(name): return .custom(name)
+        }
+    }
+}
+
+extension TuistCore.TargetQuery {
+    static func from(
+        manifest: ProjectDescription.TargetQuery
+    ) -> Self {
+        switch manifest {
+        case let .named(name): return .named(name)
+        case let .tagged(tag): return .tagged(tag)
+        }
     }
 }
 
