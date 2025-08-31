@@ -13,6 +13,7 @@ let project = Project(
             dependencies: [
                 .target(name: "NonCacheableModule"),
                 .target(name: "TaggedModule"),
+                .external(name: "Alamofire"),
             ]
         ),
         .target(
