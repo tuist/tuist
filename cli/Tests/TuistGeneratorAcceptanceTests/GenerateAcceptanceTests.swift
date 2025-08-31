@@ -115,6 +115,21 @@ final class GenerateAcceptanceTestInvalidWorkspaceManifestName: TuistAcceptanceT
     }
 }
 
+final class GenerateAcceptanceTestCacheProfilesInvalidDefault: TuistAcceptanceTestCase {
+    func test_ios_app_with_cache_profiles_invalid_default() async throws {
+        try await setUpFixture(.iosAppWithCacheProfilesInvalidDefault)
+        do {
+            try await run(GenerateCommand.self)
+            XCTFail("Generate command should have failed")
+        } catch {
+            XCTAssertEqual(
+                String(describing: error),
+                "Default cache profile 'missing' not found. Available profiles: .onlyExternal, .allPossible, .none, or custom profiles: development."
+            )
+        }
+    }
+}
+
 // TODO: Fix (this test has an issue in GitHub actions due to a missing tvOS platform)
 // final class GenerateAcceptanceTestiOSAppWithSDK: TuistAcceptanceTestCase {
 //    func test_ios_app_with_sdk() async throws {
