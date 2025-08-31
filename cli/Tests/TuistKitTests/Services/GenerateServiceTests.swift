@@ -4,11 +4,11 @@ import Path
 import Testing
 import TuistCache
 import TuistCore
-import TuistLoader
 import TuistServer
 import TuistSupport
 import XcodeProj
 
+@testable import TuistLoader
 @testable import TuistKit
 @testable import TuistTesting
 
@@ -334,5 +334,43 @@ struct GenerateServiceTests {
                 cacheStorage: .any
             )
             .called(1)
+    }
+
+    @Test func user_facing_error_when_default_custom_missing_from_cli_path() async throws {
+        // Given
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willThrow(ConfigManifestMapperError.defaultCacheProfileNotFound(profile: "missing", available: []))
+
+        // When / Then
+        await #expect(throws: ConfigManifestMapperError.defaultCacheProfileNotFound(profile: "missing", available: [])) {
+            try await subject.run(
+                path: nil,
+                includedTargets: [],
+                noOpen: true,
+                configuration: nil,
+                ignoreBinaryCache: false,
+                cacheProfile: nil
+            )
+        }
+    }
+
+    @Test func throws_when_explicit_custom_profile_missing() async throws {
+        // Given
+        given(configLoader).loadConfig(path: .any).willReturn(
+            .test(project: .testGeneratedProject())
+        )
+
+        // When / Then
+        await #expect(throws: CacheProfileError.profileNotFound(profile: "missing", available: [])) {
+            try await subject.run(
+                path: nil,
+                includedTargets: [],
+                noOpen: true,
+                configuration: nil,
+                ignoreBinaryCache: false,
+                cacheProfile: "missing"
+            )
+        }
     }
 }

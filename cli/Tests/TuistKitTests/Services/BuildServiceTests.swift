@@ -212,6 +212,26 @@ struct BuildServiceTests {
         }
     }
 
+    @Test func throws_when_explicit_custom_profile_missing() async throws {
+        try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryDirectory in
+            // Given
+            given(configLoader).loadConfig(path: .value(temporaryDirectory)).willReturn(
+                .test(project: .testGeneratedProject())
+            )
+
+            // When / Then
+            await #expect(throws: CacheProfileError.profileNotFound(profile: "missing", available: [])) {
+                try await subject.testRun(
+                    schemeName: nil,
+                    configuration: nil,
+                    ignoreBinaryCache: false,
+                    cacheProfile: "missing",
+                    path: temporaryDirectory
+                )
+            }
+        }
+    }
+
     @Test func throws_an_error_if_the_project_is_not_generated() async throws {
         // Given
         try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) {
