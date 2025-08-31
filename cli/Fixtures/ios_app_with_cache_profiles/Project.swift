@@ -11,7 +11,8 @@ let project = Project(
             infoPlist: .default,
             sources: ["App/Sources/**"],
             dependencies: [
-                .target(name: "ExpensiveModule"),
+                .target(name: "NonCacheableModule"),
+                .target(name: "TaggedModule"),
             ]
         ),
         .target(
@@ -20,6 +21,24 @@ let project = Project(
             product: .framework,
             bundleId: "com.example.ExpensiveModule",
             sources: ["ExpensiveModule/Sources/**"]
+        ),
+        .target(
+            name: "TaggedModule",
+            destinations: .iOS,
+            product: .framework,
+            bundleId: "com.example.TaggedModule",
+            sources: ["TaggedModule/Sources/**"],
+            metadata: .metadata(tags: ["cacheable"])
+        ),
+        .target(
+            name: "NonCacheableModule",
+            destinations: .iOS,
+            product: .framework,
+            bundleId: "com.example.NonCacheableModule",
+            sources: ["NonCacheableModule/Sources/**"],
+            dependencies: [
+                .target(name: "ExpensiveModule"),
+            ]
         ),
     ]
 )
