@@ -172,6 +172,74 @@
       </:image>
     </.empty_card_section>
   </.card>
+
+  <.card title={gettext("Launch Arguments")} icon="smart_home" data-part="launch-arguments">
+    <:actions>
+      <.button
+      label="Add"
+        variant="primary"
+        size="small"
+        phx-click="show_launch_args_modal"
+      >
+        <:icon_left><.icon name="smart_home" /></:icon_left>
+        {gettext("Add Group")}
+      </.button>
+    </:actions>
+    <.card_section data-part="launch-arguments-section">
+      <div :if={not Enum.empty?(@launch_argument_groups)} data-part="launch-arguments-table">
+        <.table id="launch-arguments-table" rows={@launch_argument_groups}>
+          <:col :let={group} label={gettext("Name")}>
+            <.text_cell label={group.name} />
+          </:col>
+          <:col :let={group} label={gettext("Description")}>
+            <.text_cell label={group.description || gettext("No description")} />
+          </:col>
+          <:col :let={group} label={gettext("Arguments")}>
+            <.text_cell label={group.value} />
+          </:col>
+          <:col :let={group} label={gettext("Actions")}>
+            <div class="launch-args-actions">
+              <.button
+              label="Edit"
+                variant="secondary"
+                size="small"
+                phx-click="edit_launch_args_group"
+                phx-value-id={group.id}
+              >
+                <:icon_left><.icon name="pencil" /></:icon_left>
+                {gettext("Edit")}
+              </.button>
+              <.button
+                variant="destructive"
+                size="small"
+                label="Delete"
+                phx-click="delete_launch_args_group"
+                phx-value-id={group.id}
+                data-confirm={gettext("Are you sure you want to delete this launch argument group?")}
+              >
+                <:icon_left><.icon name="trash" /></:icon_left>
+                {gettext("Delete")}
+              </.button>
+            </div>
+          </:col>
+        </.table>
+      </div>
+
+      <div :if={Enum.empty?(@launch_argument_groups)} data-part="empty-launch-arguments">
+        <.empty_card_section
+          title={gettext("No launch argument groups yet")}
+          data-part="empty-launch-arguments-table-card-section"
+        >
+          <:image>
+            <img src="/images/empty_table_light.png" data-theme="light" />
+            <img src="/images/empty_table_dark.png" data-theme="dark" />
+          </:image>
+          {gettext("Create launch argument groups to automatically configure app startup parameters for your QA tests.")}
+        </.empty_card_section>
+      </div>
+    </.card_section>
+  </.card>
+
   <.card title={gettext("QA Runs")} icon="devices_code" data-part="qa-runs">
     <.card_section data-part="qa-runs-section">
       <div :if={not Enum.empty?(@qa_runs)} data-part="qa-runs-table">
@@ -223,4 +291,62 @@
       </div>
     </.card_section>
   </.card>
+
+  <.modal
+    :if={@show_launch_args_modal}
+    id="launch-args-modal"
+    title={if @editing_launch_args_group_id, do: gettext("Edit Launch Arguments Group"), else: gettext("Add Launch Arguments Group")}
+    description={gettext("Configure launch arguments that can be automatically selected for QA tests based on the test prompt.")}
+    on_dismiss="hide_launch_args_modal"
+  >
+    <:trigger></:trigger>
+    <form id="launch-args-form" phx-submit="save_launch_args_group" phx-change="form_change" data-part="launch-args-form">
+      <div class="launch-args-form-fields">
+        <.text_input
+          name="launch_args_form[name]"
+          label={gettext("Name")}
+          placeholder="e.g., login-credentials"
+          value={@launch_args_form_data["name"]}
+          required
+          hint={gettext("A unique name for this group (alphanumeric, hyphens, underscores only)")}
+        />
+
+        <.text_input
+          name="launch_args_form[description]"
+          label={gettext("Description")}
+          placeholder="e.g., Skip login with prefilled credentials"
+          value={@launch_args_form_data["description"]}
+          hint={gettext("Describe when this group should be used (optional)")}
+        />
+
+        <.text_input
+          name="launch_args_form[value]"
+          label={gettext("Launch Arguments")}
+          placeholder="e.g., --email hello@tuist.dev --password 123456"
+          value={@launch_args_form_data["value"]}
+          required
+          hint={gettext("The actual command-line arguments to pass to your app")}
+        />
+      </div>
+    </form>
+
+    <:footer>
+      <.modal_footer>
+        <:action>
+          <.button variant="secondary" phx-click="hide_launch_args_modal">
+            {gettext("Cancel")}
+          </.button>
+          <.button
+            variant="primary"
+            phx-click="save_launch_args_group"
+            phx-value-name={@launch_args_form_data["name"]}
+            phx-value-description={@launch_args_form_data["description"]}
+            phx-value-value={@launch_args_form_data["value"]}
+          >
+            {if @editing_launch_args_group_id, do: gettext("Update Group"), else: gettext("Create Group")}
+          </.button>
+        </:action>
+      </.modal_footer>
+    </:footer>
+  </.modal>
 </div>

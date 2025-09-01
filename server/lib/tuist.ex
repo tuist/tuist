@@ -55,6 +55,7 @@ defmodule Tuist do
       Projects.Workers.CleanProjectWorker,
       QA,
       QA.Run,
+      QA.LaunchArgumentsGroup,
       QA.Step,
       QA.Screenshot,
       QA.Log,

@@ -5,9 +5,11 @@ defmodule TuistWeb.QALive do
 
   import TuistWeb.Components.EmptyCardSection
   import TuistWeb.Previews.PlatformIcon
+  import Ecto.Query
 
   alias Tuist.AppBuilds.Preview
   alias Tuist.QA
+  alias Tuist.QA.LaunchArgumentsGroup
 
   def mount(_params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
     slug = "#{account.name}/#{project.name}"
@@ -17,7 +19,12 @@ defmodule TuistWeb.QALive do
       |> assign(:head_title, "#{gettext("Tuist QA")} · #{slug} · Tuist")
       |> assign(:qa_runs, [])
       |> assign(:available_apps, QA.available_apps_for_project(project.id))
+      |> assign(:launch_argument_groups, [])
+      |> assign(:show_launch_args_modal, false)
+      |> assign(:launch_args_form_data, %{})
+      |> assign(:editing_launch_args_group_id, nil)
       |> load_qa_runs()
+      |> load_launch_argument_groups()
 
     {:ok, socket}
   end
@@ -32,6 +39,104 @@ defmodule TuistWeb.QALive do
     }
   end
 
+  def handle_event("show_launch_args_modal", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(:show_launch_args_modal, true)
+     |> assign(:launch_args_form_data, %{"name" => "", "description" => "", "value" => ""})
+     |> assign(:editing_launch_args_group_id, nil)}
+  end
+
+  def handle_event("hide_launch_args_modal", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(:show_launch_args_modal, false)
+     |> assign(:launch_args_form_data, %{})
+     |> assign(:editing_launch_args_group_id, nil)}
+  end
+
+  def handle_event("edit_launch_args_group", %{"id" => id}, socket) do
+    group = Enum.find(socket.assigns.launch_argument_groups, &(&1.id == id))
+    
+    form_data = %{
+      "name" => group.name,
+      "description" => group.description || "",
+      "value" => group.value
+    }
+
+    {:noreply,
+     socket
+     |> assign(:show_launch_args_modal, true)
+     |> assign(:launch_args_form_data, form_data)
+     |> assign(:editing_launch_args_group_id, id)}
+  end
+
+  def handle_event("delete_launch_args_group", %{"id" => id}, socket) do
+    group = Enum.find(socket.assigns.launch_argument_groups, &(&1.id == id))
+    
+    case Tuist.Repo.delete(group) do
+      {:ok, _} ->
+        {:noreply, 
+         socket
+         |> load_launch_argument_groups()
+         |> put_flash(:info, gettext("Launch argument group deleted successfully"))}
+      
+      {:error, _changeset} ->
+        {:noreply, 
+         socket
+         |> put_flash(:error, gettext("Failed to delete launch argument group"))}
+    end
+  end
+
+  def handle_event("form_change", %{"launch_args_form" => params}, socket) do
+    {:noreply, assign(socket, :launch_args_form_data, params)}
+  end
+  
+  def handle_event("save_launch_args_group", params, socket) do
+    project = socket.assigns.selected_project
+    editing_id = socket.assigns.editing_launch_args_group_id
+    
+    attrs = %{
+      project_id: project.id,
+      name: params["name"],
+      description: params["description"],
+      value: params["value"]
+    }
+    
+    result = if editing_id do
+      group = Enum.find(socket.assigns.launch_argument_groups, &(&1.id == editing_id))
+      LaunchArgumentsGroup.update_changeset(group, attrs)
+      |> Tuist.Repo.update()
+    else
+      LaunchArgumentsGroup.create_changeset(%LaunchArgumentsGroup{}, attrs)
+      |> Tuist.Repo.insert()
+    end
+    
+    case result do
+      {:ok, _group} ->
+        {:noreply,
+         socket
+         |> assign(:show_launch_args_modal, false)
+         |> assign(:launch_args_form_data, %{})
+         |> assign(:editing_launch_args_group_id, nil)
+         |> load_launch_argument_groups()
+         |> put_flash(:info, 
+           if(editing_id, 
+             do: gettext("Launch argument group updated successfully"),
+             else: gettext("Launch argument group created successfully")))}
+      
+      {:error, changeset} ->
+        errors = 
+          changeset.errors
+          |> Enum.map(fn {field, {msg, _}} -> "#{field}: #{msg}" end)
+          |> Enum.join(", ")
+        
+        {:noreply, 
+         socket
+         |> put_flash(:error, gettext("Failed to save launch argument group: %{errors}", errors: errors))}
+    end
+  end
+
   defp load_qa_runs(socket) do
     project = socket.assigns.selected_project
 
@@ -44,6 +149,20 @@ defmodule TuistWeb.QALive do
       )
 
     assign(socket, :qa_runs, qa_runs)
+  end
+
+  defp load_launch_argument_groups(socket) do
+    project = socket.assigns.selected_project
+    
+    groups = 
+      Tuist.Repo.all(
+        from(g in LaunchArgumentsGroup,
+          where: g.project_id == ^project.id,
+          order_by: [asc: g.name]
+        )
+      )
+    
+    assign(socket, :launch_argument_groups, groups)
   end
 
   defp assign_analytics(%{assigns: %{selected_project: project}} = socket, params) do
