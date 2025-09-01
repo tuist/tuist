@@ -1,30 +1,35 @@
 ---
-{
-  "title": "로깅",
-  "titleTemplate": ":title · CLI · Tuist",
-  "description": "Tuist의 로깅 활성화와 설정 방법 배우기."
-}
+{ "title": "Logging", "titleTemplate": ":title · CLI · Tuist", "description":
+"Learn how to enable and configure logging in Tuist." }
 ---
-# 로깅 {#logging}
+# Logging {#logging}
 
-CLI는 내부적으로 메세지를 기록하여 문제 확인에 도움을 줍니다.
+The CLI logs messages internally to help you diagnose issues.
 
-## 로깅 사용하여 문제 진단하기 {#diagnose-issues-using-logs}
+## Diagnose issues using logs {#diagnose-issues-using-logs}
 
-명령어 수행이 원하는 결과를 가져오지 못한다면, 로그를 살펴보면서 문제의 원인을 파악해 볼 수 있습니다. CLI가 로그를 [OSLog](https://developer.apple.com/documentation/os/oslog)와 파일 시스템으로 전달해줍니다.
+If a command invocation doesn't yield the intended results, you can diagnose the
+issue by inspecting the logs. The CLI forwards the logs to
+[OSLog](https://developer.apple.com/documentation/os/oslog) and the file-system.
 
-실행 시 마다, `$XDG_STATE_HOME/tuist/logs/{uuid}.log`경로에 로그 파일을 생성합니다. 환경 변수가 설정되어 있지 않다면, `$XDG_STATE_HOME`는 `~/.local/state`로 되어 있습니다.
+In every run, it creates a log file at `$XDG_STATE_HOME/tuist/logs/{uuid}.log`
+where `$XDG_STATE_HOME` takes the value `~/.local/state` if the environment
+variable is not set.
 
-예기치 않게 실행이 종료되었을 때, 기본적으로 CLI는 로그 경로를 출력합니다. 만일 로그 경로가 출력되지 않았다면, 위에 명시된 경로에서 로그(가장 최근의 로그)를 확인할 수 있습니다.
+By default, the CLI outputs the logs path when the execution exits unexpectedly.
+If it doesn't, you can find the logs in the path mentioned above (i.e., the most
+recent log file).
 
-> [!중요]
-> 민감한 정보는 지워지지 않으니, 로그를 공유할 때 주의하세요.
+> [!IMPORTANT] Sensitive information is not redacted, so be cautious when
+> sharing logs.
 
-### 지속적인 통합 {#diagnose-issues-using-logs-ci}
+### Continuous integration {#diagnose-issues-using-logs-ci}
 
-환경 설정이 일회용인 CI에서, Tuist 로그를 추출하기 위해서 CI 파이프라인 설정을 할 수 있습니다.
-아티팩트(artifacts) 추출은 CI 서비스에서 일반적으로 사용되는 기능이고, 서비스맏 설정이 다릅니다.
-예를 들어, 깃헙 액션(GitHub Actions)에서는 `actions/upload-artifact` 액션을 사용해서 로그를 아티팩트로 업로드할 수 있습니다:
+In CI, where environments are disposable, you might want to configure your CI
+pipeline to export Tuist logs. Exporting artifacts is a common capability across
+CI services, and the configuration depends on the service you use. For example,
+in GitHub Actions, you can use the `actions/upload-artifact` action to upload
+the logs as an artifact:
 
 ```yaml
 name: Node CI
