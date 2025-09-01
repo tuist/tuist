@@ -77,7 +77,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
             additionalTargets.append(resourcesTarget)
         }
 
-        if target.sources.containsSwiftFiles {
+        if target.sources.containsSwiftFiles || !target.buildableFolders.isEmpty {
             let (filePath, data) = synthesizedSwiftFile(bundleName: bundleName, target: target, project: project)
 
             let hash = try data.map(contentHasher.hash)
