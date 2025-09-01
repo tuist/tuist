@@ -1,21 +1,26 @@
 ---
-{
-  "title": "Непрерывная интеграция (CI)",
-  "titleTemplate": ":title · Разработка · Руководства · Tuist",
-  "description": "Узнайте, как использовать Tuist в ваших рабочих процессах CI."
-}
+{ "title": "Continuous Integration (CI)", "titleTemplate": ":title · Automate ·
+Guides · Tuist", "description": "Learn how to use Tuist in your CI workflows." }
 ---
-# Непрерывная интеграция (CI) {#continuous-integration-ci}
+# Continuous Integration (CI) {#continuous-integration-ci}
 
-Вы можете использовать Tuist в окружениях [непрерывной интеграции](https://ru.wikipedia.org/wiki/%D0%9D%D0%B5%D0%BF%D1%80%D0%B5%D1%80%D1%8B%D0%B2%D0%BD%D0%B0%D1%8F_%D0%B8%D0%BD%D1%82%D0%B5%D0%B3%D1%80%D0%B0%D1%86%D0%B8%D1%8F). В следующих разделах приведены примеры того, как это можно сделать на различных платформах CI.
+You can use Tuist in [continuous
+integration](https://en.wikipedia.org/wiki/Continuous_integration) environments.
+The following sections provide examples of how to do this on different CI
+platforms.
 
-## Примеры {#examples}
+## Examples {#examples}
 
-Чтобы запускать Tuist команды в ваших рабочих процессах CI, вам нужно установить Tuist в вашей среде CI.
+To run Tuist commands in your CI workflows, you’ll need to install it in your CI
+environment.
 
 ### Xcode Cloud {#xcode-cloud}
 
-В [Xcode Cloud](https://developer.apple.com/xcode-cloud/), который использует Xcode проекты, вам нужно будет добавить [post-clone](https://developer.apple.com/documentation/xcode/writing-custom-build-scripts#Create-a-custom-build-script) скрипт для установки Tuist и запуска необходимых команд, например `tuist generate`:
+In [Xcode Cloud](https://developer.apple.com/xcode-cloud/), which uses Xcode
+projects as the source of truth, you'll need to add a
+[post-clone](https://developer.apple.com/documentation/xcode/writing-custom-build-scripts#Create-a-custom-build-script)
+script to install Tuist and run the commands you need, for example `tuist
+generate`:
 
 :::code-group
 
@@ -27,22 +32,19 @@ mise install # Installs the version from .mise.toml
 # Runs the version of Tuist indicated in the .mise.toml file {#runs-the-version-of-tuist-indicated-in-the-misetoml-file}
 mise exec -- tuist generate
 ```
-
 ```bash [Homebrew]
 #!/bin/sh
 brew install --formula tuist@x.y.z
 
 tuist generate
 ```
-
 :::
-
 ### Codemagic {#codemagic}
 
-В [Codemagic](https://codemagic.io) вы можете добавить дополнительный шаг в рабочий процесс для установки Tuist:
+In [Codemagic](https://codemagic.io), you can add an additional step to your
+workflow to install Tuist:
 
 ::: code-group
-
 ```yaml [Mise]
 workflows:
   lint:
@@ -58,7 +60,6 @@ workflows:
       - name: Build
         script: mise exec -- tuist build
 ```
-
 ```yaml [Homebrew]
 workflows:
   lint:
@@ -73,15 +74,16 @@ workflows:
       - name: Build
         script: tuist build
 ```
-
 :::
 
 ### GitHub Actions {#github-actions}
 
-В [GitHub Actions](https://docs.github.com/en/actions) можно добавить дополнительный шаг для установки Tuist, а в случае управления установкой Mise можно использовать [mise-action](https://github.com/jdx/mise-action), который абстрагирует установку Mise и Tuist:
+On [GitHub Actions](https://docs.github.com/en/actions) you can add an
+additional step to install Tuist, and in the case of managing the installation
+of Mise, you can use the [mise-action](https://github.com/jdx/mise-action),
+which abstracts the installation of Mise and Tuist:
 
 ::: code-group
-
 ```yaml [Mise]
 name: Build Application
 on:
@@ -99,7 +101,6 @@ jobs:
       - uses: jdx/mise-action@v2
       - run: tuist build
 ```
-
 ```yaml [Homebrew]
 name: test
 on:
@@ -117,23 +118,29 @@ jobs:
       - run: brew install --formula tuist@x.y.z
       - run: tuist build
 ```
-
 :::
 
-:::tip
-Мы рекомендуем использовать `mise use --pin` в ваших проектах, чтобы закрепить версию Tuist в разных окружениях. Команда создаст файл `.tool-versions`, содержащий версию Tuist.
-:::
+::: tip We recommend using `mise use --pin` in your Tuist projects to pin the
+version of Tuist across environments. The command will create a `.tool-versions`
+file containing the version of Tuist. :::
 
-## Аутентификация {#authentication}
+## Authentication {#authentication}
 
-При использовании серверных функций, таких как <LocalizedLink href="/guides/features/build/cache">cache</LocalizedLink>, вам понадобится способ аутентификации запросов, идущих с ваших рабочих процессов CI на сервер. Для этого можно сгенерировать токен, привязанный к проекту, выполнив следующую команду:
+When using server-side features such as
+<LocalizedLink href="/guides/features/cache">cache</LocalizedLink>, you'll need
+a way to authenticate requests going from your CI workflows to the server. For
+that, you can generate a project-scoped token by running the following command:
 
 ```bash
 tuist project tokens create my-handle/MyApp
 ```
 
-Команда создаст токен для проекта с полным названием `my-account/my-project`. Установите значение переменной окружения
-`TUIST_CONFIG_TOKEN` в вашей среде CI, так что бы она не была раскрыта.
+The command will generate a token for the project with full handle
+`my-account/my-project`. Set the value to the environment variable
+`TUIST_CONFIG_TOKEN` in your CI environment ensuring it's configured as a secret
+so it's not exposed.
 
-> [!IMPORTANT] ОБНАРУЖЕНИЕ СРЕДЫ CI
-> Tuist использует токен только в том случае, если обнаруживает, что работает в среде CI. Если ваше окружение CI не обнаружено, вы можете принудительно использовать токен, установив переменную окружения `CI` в значение `1`.
+> [!IMPORTANT] CI ENVIRONMENT DETECTION Tuist only uses the token when it
+> detects it's running on a CI environment. If your CI environment is not
+> detected, you can force the token usage by setting the environment variable
+> `CI` to `1`.
