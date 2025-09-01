@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# mise description="Start ClickHouse server as daemon"
+#MISE description="Start ClickHouse server as daemon"
 
 set -euo pipefail
 

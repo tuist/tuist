@@ -1,5 +1,5 @@
 #!/bin/bash
-# mise description="Run the 'tuistfixturegenerator' tool"
+#MISE description="Run the 'tuistfixturegenerator' tool"
 set -euo pipefail
 
 source $MISE_PROJECT_ROOT/mise/utilities/setup.sh

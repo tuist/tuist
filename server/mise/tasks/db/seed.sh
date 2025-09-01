@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# mise description="Seeds data into the database for local development"
+#MISE description="Seeds data into the database for local development"
 
 set -euo pipefail
 
