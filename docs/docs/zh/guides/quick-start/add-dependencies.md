@@ -1,19 +1,20 @@
 ---
-{
-  "title": "Add dependencies",
-  "titleTemplate": ":title · Quick-start · Guides · Tuist",
-  "description": "Learn how to add dependencies to your first Swift project"
-}
+{ "title": "Add dependencies", "titleTemplate": ":title · Quick-start · Guides ·
+Tuist", "description": "Learn how to add dependencies to your first Swift
+project" }
 ---
 # Add dependencies {#add-dependencies}
 
-It's common for projects to depend on third-party libraries to provide additional functionality. To do so, run the following command to have the best experience editing your project:
+It's common for projects to depend on third-party libraries to provide
+additional functionality. To do so, run the following command to have the best
+experience editing your project:
 
 ```bash
 tuist edit
 ```
 
-An Xcode project will open containing your project files. Edit the `Package.swift` and add the
+An Xcode project will open containing your project files. Edit the
+`Package.swift` and add the
 
 ```swift
 // swift-tools-version: 5.9
@@ -41,7 +42,8 @@ let package = Package(
 )
 ```
 
-Then edit the application target in your project to declare `Kingfisher` as a dependency:
+Then edit the application target in your project to declare `Kingfisher` as a
+dependency:
 
 ```swift
 import ProjectDescription
@@ -59,8 +61,10 @@ let project = Project(
                     "UILaunchStoryboardName": "LaunchScreen.storyboard",
                 ]
             ),
-            sources: ["MyApp/Sources/**"],
-            resources: ["MyApp/Resources/**"],
+            buildableFolders: [
+                "MyApp/Sources",
+                "MyApp/Resources",
+            ],
             dependencies: [
                 .external(name: "Kingfisher") // [!code ++]
             ]
@@ -79,10 +83,13 @@ let project = Project(
 )
 ```
 
-Then run `tuist install` to resolve and pull the dependencies using the [Swift Package Manager](https://www.swift.org/documentation/package-manager/).
+Then run `tuist install` to resolve and pull the dependencies using the [Swift
+Package Manager](https://www.swift.org/documentation/package-manager/).
 
-> [!NOTE] SPM AS A DEPENDENCY RESOLVER
-> Tuist recommended approach to dependencies uses the Swift Package Manager (SPM) only to resolve dependencies. Tuist then converts them into Xcode projects and targets for maximum configurability and control.
+> [!NOTE] SPM AS A DEPENDENCY RESOLVER Tuist recommended approach to
+> dependencies uses the Swift Package Manager (SPM) only to resolve
+> dependencies. Tuist then converts them into Xcode projects and targets for
+> maximum configurability and control.
 
 ## Visualize the project {#visualize-the-project}
 
@@ -98,7 +105,8 @@ The command will output and open a `graph.png` file in the project's directory:
 
 ## Use the dependency {#use-the-dependency}
 
-Run `tuist generate` to open the project in Xcode, and make the following changes to the `ContentView.swift` file:
+Run `tuist generate` to open the project in Xcode, and make the following
+changes to the `ContentView.swift` file:
 
 ```swift
 import SwiftUI
