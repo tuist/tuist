@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.65.6<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* missing bundle accessor when the target uses buildable folders by [@pepicrft](https://github.com/pepicrft) in [#8092](https://github.com/tuist/tuist/pull/8092)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.65.5...4.65.6
+
 ## What's Changed in 4.65.5<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
