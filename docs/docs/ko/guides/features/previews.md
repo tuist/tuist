@@ -1,116 +1,153 @@
 ---
-{
-  "title": "Previews",
-  "titleTemplate": ":title · Share · Guides · Tuist",
-  "description": "앱 미리보기를 생성하고 다른 사람과 공유하는 방법을 알아보세요."
-}
+{ "title": "Previews", "titleTemplate": ":title · Features · Guides · Tuist",
+"description": "Learn how to generate and share previews of your apps with
+anyone." }
 ---
 # Previews {#previews}
 
-> [!IMPORTANT] 요구사항
->
-> - <LocalizedLink href="/server/introduction/accounts-and-projects">Tuist 계정과 프로젝트</LocalizedLink>
+> [!IMPORTANT] REQUIREMENTS
+> - A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account
+>   and project</LocalizedLink>
 
-앱을 개발할 때 다른 사람들의 피드백을 받기 위해 앱을 공유하고 싶을 수 있습니다.
-전통적으로, 팀들은 앱을 빌드하고 서명한 후 Apple의 [TestFlight](https://developer.apple.com/testflight/)와 같은 플랫폼에 업로드하여 이 작업을 수행해왔습니다.
-하지만, 이 과정은 번거롭고 느릴 수 있으며, 특히 동료나 친구로부터 빠른 피드백을 받고자 할 때는 더욱 그렇습니다.
+When building an app, you may want to share it with others to get feedback.
+Traditionally, this is something that teams do by building, signing, and pushing
+their apps to platforms like Apple's
+[TestFlight](https://developer.apple.com/testflight/). However, this process can
+be cumbersome and slow, especially when you're just looking for quick feedback
+from a colleague or a friend.
 
-Tuist는 이러한 과정을 간소화하기 위해 앱 미리보기를 생성하고 다른 사람과 공유할 수 있는 방법을 제공합니다.
+To make this process more streamlined, Tuist provides a way to generate and
+share previews of your apps with anyone.
 
-> [!IMPORTANT] DEVICE(실기기) 빌드 시 서명 필요
-> DEVICE용으로 빌드할 때, 앱이 올바르게 서명되었는지 확인하는 책임은 사용자에게 있습니다. 우리는 향후 이 과정을 더 간소화할 계획입니다.
+> [!IMPORTANT] DEVICE BUILDS NEED TO BE SIGNED When building for device, it is
+> currently your responsibility to ensure the app is signed correctly. We plan
+> to streamline this in the future.
 
 :::code-group
-
 ```bash [Tuist Project]
-xcodebuild -scheme App -project App.xcodeproj -configuration Debug # simulator용 앱 빌드
-xcodebuild -scheme App -project App.xcodeproj -configuration Debug -destination 'generic/platform=iOS' # device용 앱 빌드
-tuist share App --configuration Debug --platforms iOS
-```
-
-```bash [Xcode Project]
-tuist build App # simulator용 앱 빌드
-tuist build App -- -destination 'generic/platform=iOS' # device용 앱 빌드
+tuist build App # Build the app for the simulator
+tuist build App -- -destination 'generic/platform=iOS' # Build the app for the device
 tuist share App
 ```
-
+```bash [Xcode Project]
+xcodebuild -scheme App -project App.xcodeproj -configuration Debug # Build the app for the simulator
+xcodebuild -scheme App -project App.xcodeproj -configuration Debug -destination 'generic/platform=iOS' # Build the app for the device
+tuist share App --configuration Debug --platforms iOS
+tuist share App.ipa # Share an existing .ipa file
+```
 :::
 
-이 명령어는 앱을 시뮬레이터나 실기기에서 실행할 수 있는 공유 가능한 링크를 생성합니다. 사용자가 해야 할 일은 아래 명령어를 실행하는 것뿐입니다:
+The command will generate a link that you can share with anyone to run the app –
+either on a simulator or an actual device. All they'll need to do is to run the
+command below:
 
 ```bash
 tuist run {url}
-tuist run {url} --device "My iPhone" # 특정 기기에서 앱 실행하기
+tuist run --device "My iPhone" {url} # Run the app on a specific device
 ```
 
-Preview 링크를 통해 모바일 기기에서 직접 `.ipa` 파일을 다운로드하여 앱을 설치할 수 있습니다.
-`.ipa` preview 링크는 기본적으로 _public_ 으로 설정되어 있어 누구나 접근할 수 있습니다. 추후에는 링크를 private으로 설정할 수 있는 옵션이 제공될 예정이며, 이 경우 Tuist 계정으로 인증해야만 앱을 다운로드할 수 있습니다.
+When sharing an `.ipa` file, you can download the app directly from the mobile
+device using the Preview link. The links to `.ipa` previews are by default
+_public_. In the future, you will have an option to make them private, so that
+the recipient of the link would need to authenticate with their Tuist account to
+download the app.
 
-`tuist run` 명령어를 사용하면 `latest`, branch 이름, 또는 특정 커밋 해시와 같은 지정자를 기반으로 최신 preview를 실행할 수 있습니다.
+`tuist run` also enables you to run a latest preview based on a specifier such
+as `latest`, branch name, or a specific commit hash:
 
 ```bash
-tuist run App@latest # 프로젝트의 기본 branch와 연결된 최신 App preview 실행
-tuist run App@my-feature-branch # 지정된 branch와 연결된 최신 App preview 실행
-tuist run App@00dde7f56b1b8795a26b8085a781fb3715e834be # 특정 Git 커밋 SHA와 연결된 최신 App preview 실행
+tuist run App@latest # Runs latest App preview associated with the project's default branch
+tuist run App@my-feature-branch # Runs latest App preview associated with a given branch
+tuist run App@00dde7f56b1b8795a26b8085a781fb3715e834be # Runs latest App preview associated with a given git commit sha
 ```
 
-> [!IMPORTANT] Preview 공개 범위
-> 프로젝트가 속한 조직에 접근 권한이 있는 사람만 preview를 볼 수 있습니다. 링크 만료 기능에 대한 지원을 추가할 계획입니다.
+> [!IMPORTANT] PREVIEWS' VISIBILITY Only people with access to the organization
+> the project belongs to can access the previews. We plan to add support for
+> expiring links.
 
 ## Tuist macOS app {#tuist-macos-app}
 
 <div style="display: flex; flex-direction: column; align-items: center;">
     <img src="/logo.png" style="height: 100px;" />
     <h1>Tuist</h1>
-
-
-    <a href="https://cloud.tuist.io/download" style="text-decoration: none;">Download</a>
+    <a href="https://tuist.dev/download" style="text-decoration: none;">Download</a>
     <img src="/images/guides/features/menu-bar-app.png" style="width: 300px;" />
 </div>
 
-Tuist Previews를 더욱 쉽게 실행할 수 있도록, 우리는 Tuist macOS menu bar 앱을 개발했습니다. Tuist CLI를 통해 Preview를 실행하는 대신, macOS 앱을 [다운로드](https://tuist.dev/download)하여 사용할 수 있습니다. `brew install --cask tuist/tuist/tuist` 명령어를 실행하여 설치할 수도 있습니다.
+To make running Tuist Previews even easier, we developed a Tuist macOS menu bar
+app. Instead of running Previews via the Tuist CLI, you can
+[download](https://tuist.dev/download) the macOS app. You can also install the
+app by running `brew install --cask tuist/tuist/tuist`.
 
-Preview 페이지에서 "Run"을 클릭하면, macOS 앱이 현재 선택된 디바이스에서 자동으로 실행됩니다
+When you now click on "Run" in the Preview page, the macOS app will
+automatically launch it on your currently selected device.
 
-> [!IMPORTANT] 요구 사항\
-> Preview를 다운로드하려면, `tuist auth login` 명령어를 사용해 인증해야 합니다.
-> 앞으로는 앱에서 직접 인증할 수 있게 될 예정입니다.
->
-> 추가로, 로컬에 Xcode가 설치되어 있어야 합니다.
+> [!IMPORTANT] REQUIREMENTS
+> 
+> You need to have Xcode locally installed and be on macOS 14 or later.
 
-## Pull/merge request 코멘트 {#pullmerge-request-comments}
+## Tuist iOS app {#tuist-ios-app}
 
-> [!IMPORTANT] Git 플랫폼 연동 필요
-> 자동으로 pull/merge request에 대한 코멘트를 받으려면, <LocalizedLink href="/server/introduction/accounts-and-projects">remote project</LocalizedLink>를 <LocalizedLink href="/server/introduction/integrations#git-platforms"> Git 플랫폼</LocalizedLink>과 연동해야 합니다.
+<div style="display: flex; flex-direction: column; align-items: center;">
+    <img src="/images/guides/features/ios-icon.png" style="height: 100px;" />
+    <h1 style="padding-top: 2px;">Tuist</h1>
+    <img src="/images/guides/features/tuist-app.png" style="width: 300px; padding-top: 8px;" />
+    <a href="https://apps.apple.com/us/app/tuist/id6748460335" target="_blank" style="padding-top: 10px;">
+        <img src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg" alt="Download on the App Store" style="height: 40px;">
+    </a>
+</div>
 
-새로운 기능에 대한 테스트는 모든 코드 리뷰에서 필수 과정이어야 합니다. 그러나 앱을 로컬에서 빌드하는 과정은 번거로워 개발자들이 실기기에서 기능을 전혀 테스트하지 않게 되는 경우가 많습니다. But _what if each pull request contained a link to the build that would automatically run the app on a device you selected in the Tuist macOS app?_
+Similarly to the macOS app, the Tuist iOS apps streamlines accessing and running
+your previews.
 
-[GitHub](https://github.com)와 같은 Git 플랫폼에 Tuist 프로젝트를 연결한 후, CI workflow에 <LocalizedLink href="/cli/share">`tuist share MyApp`</LocalizedLink>을 추가하세요. 이후 Tuist는 Pull request에 Preview 링크를 직접 게시합니다:
-![GitHub app comment with a Tuist Preview link](/images/guides/features/github-app-with-preview.png)
+## Pull/merge request comments {#pullmerge-request-comments}
 
-## README 배지 {#readme-badge}
+> [!IMPORTANT] INTEGRATION WITH GIT PLATFORM REQUIRED To get automatic
+> pull/merge request comments, integrate your
+> <LocalizedLink href="/guides/server/accounts-and-projects">remote
+> project</LocalizedLink> with a
+> <LocalizedLink href="/guides/server/authentication">Git
+> platform</LocalizedLink>.
 
-Tuist Previews를 repository에서 더 잘 보이게 하려면, `README` 파일에 최신 TUIST Preview를 가리키는 배지를 추가할 수 있습니다:
+Testing new functionality should be a part of any code review. But having to
+build an app locally adds unnecessary friction, often leading to developers
+skipping testing functionality on their device at all. But *what if each pull
+request contained a link to the build that would automatically run the app on a
+device you selected in the Tuist macOS app?*
 
-[![Tuist Preview](https://tuist.dev/Dimillian/IcySky/previews/latest/badge.svg)](https://tuist.dev/Dimillian/IcySky/previews/latest)
+Once your Tuist project is connected with your Git platform such as
+[GitHub](https://github.com), add a <LocalizedLink href="/cli/share">`tuist
+share MyApp`</LocalizedLink> to your CI workflow. Tuist will then post a Preview
+link directly in your pull requests: ![GitHub app comment with a Tuist Preview
+link](/images/guides/features/github-app-with-preview.png)
 
-`README`에 배지를 추가하려면, 아래의 markdown을 사용하고 계정 및 프로젝트 핸들을 여러분의 것으로 교체하세요:
+## README badge {#readme-badge}
 
+To make Tuist Previews more visible in your repository, you can add a badge to
+your `README` file that points to the latest Tuist Preview:
+
+[![Tuist
+Preview](https://tuist.dev/Dimillian/IcySky/previews/latest/badge.svg)](https://tuist.dev/Dimillian/IcySky/previews/latest)
+
+To add the badge to your `README`, use the following markdown and replace the
+account and project handles with your own:
 ```
 [![Tuist Preview](https://tuist.dev/{account-handle}/{project-handle}/previews/latest/badge.svg)](https://tuist.dev/{account-handle}/{project-handle}/previews/latest)
 ```
 
-## 자동화 {#automations}
+## Automations {#automations}
 
-`tuist share` 명령어에서 `--json` 플래그를 사용하면 JSON 형식의 출력을 얻을 수 있습니다:
-
+You can use the `--json` flag to get a JSON output from the `tuist share`
+command:
 ```
 tuist share --json
 ```
 
-JSON 출력은 CI provider를 사용해 Slack 메시지를 보내는 등 같은 커스텀 자동화를 만드는 데 유용합니다.
-JSON에는 전체 preview 링크가 포함된 `url` 키와 실기기에서 preview를 쉽게 다운로드할 수 있도록 QR 코드 이미지 URL이 포함된 `qrCodeURL` 키가 있습니다. JSON 출력 예시는 아래와 같습니다:
-
+The JSON output is useful to create custom automations, such as posting a Slack
+message using your CI provider. The JSON contains a `url` key with the full
+preview link and a `qrCodeURL` key with the URL to the QR code image to make it
+easier to download previews from a real device. An example of a JSON output is
+below:
 ```json
 {
   "id": 1234567890,
