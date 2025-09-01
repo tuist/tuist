@@ -1,52 +1,74 @@
 ---
-{
-  "title": "Issue reporting",
-  "titleTemplate": ":title · Contributors · Tuist",
-  "description": "버그 리포트를 통해 Tuist에 어떻게 기여하는지 알아봅니다."
-}
+{ "title": "Issue reporting", "titleTemplate": ":title · Contributors · Tuist",
+"description": "Learn how to contribute to Tuist by reporting bugs" }
 ---
 # Issue reporting {#issue-reporting}
 
-Tuist를 사용하면 버그나 예상치 못한 동작을 경험할 수 있습니다.
-이런 경우, 문제를 리포트 해주면 수정할 수 있습니다.
+As user of Tuist, you might come across bugs or unexpected behaviors. If you do,
+we encourage you to report them so that we can fix them.
 
-## GitHub 이슈는 티켓팅 플랫폼 {#github-issues-is-our-ticketing-platform}
+## GitHub issues is our ticketing platform {#github-issues-is-our-ticketing-platform}
 
-문제는 Slack 이나 다른 플랫폼이 아닌 [GitHub issues](https://github.com/tuist/tuist/issues)에 리포트 해야 합니다. GitHub는 문제를 추적하고 관리하는데 유용하고, 코드베이스에 가까우며, 문제 진행 사항을 추적할 수 있게 합니다. 또한, GitHub는 문제에 대해 더 생각하고 더 많은 내용을 제공하도록 문제의 설명을 자세하게 적도록 유도합니다.
+Issues should be reported on GitHub as [GitHub
+issues](https://github.com/tuist/tuist/issues) and not on Slack or other
+platforms. GitHub is better for tracing and managing issues, is closer to the
+codebase, and allows us to track the progress of the issue. Moreover, it
+encourages a long-form description of the problem, which forces the reporter to
+think about the problem and provide more context.
 
-## 설명의 중요성 {#context-is-crucial}
+## Context is crucial {#context-is-crucial}
 
-충분한 설명이 없는 문제는 불완전한 것으로 간주되고 추가 내용을 제공해야 될 수도 있습니다. 추가 내용을 제공하지 않으면, 문제는 종료될 수 있습니다. 다음과 같이 생각해보시기 바랍니다: 더 많은 내용을 제공하면 문제를 더 쉽게 이해하고 해결할 수 있습니다. 그래서 문제가 해결되길 원하면, 가능한 자세한 내용을 제공해야 합니다. 다음 질문에 답변 해보시기 바랍니다:
+An issue without enough context will be deemed incomplete and the author will be
+asked for additional context. If not provided, the issue will be closed. Think
+about it this way: the more context you provide, the easier it is for us to
+understand the problem and fix it. So if you want your issue to be fixed,
+provide as much context as possible. Try to answer the following questions:
 
-- 무엇을 하려고 했나요?
-- 그래프는 어떻게 생겼나요?
-- Tuist의 어떤 버전을 사용하고 있나요?
-- 이것이 당신을 방해하나요?
+- What were you trying to do?
+- How does your graph look?
+- What version of Tuist are you using?
+- Is this blocking you?
 
-우리는 또한 최소한의 **재현 가능한 프로젝트**를 요구할 수도 있습니다.
+We also require you to provide a minimal **reproducible project**.
 
-## 재현 가능한 프로젝트 {#reproducible-project}
+## Reproducible project {#reproducible-project}
 
-### 재현 가능한 프로젝트란 무엇입니까? {#what-is-a-reproducible-project}
+### What is a reproducible project? {#what-is-a-reproducible-project}
 
-재현 가능한 프로젝트는 문제를 보여주는 작은 Tuist 프로젝트 입니다 - 이런 문제는 Tuist의 버그일 수도 있습니다. 재현 가능한 프로젝트는 버그를 명확하게 보여주는 최소한의 기능을 포함해야 합니다.
+A reproducible project is a small Tuist project to demonstrate a problem - often
+this problem is caused by a bug in Tuist. Your reproducible project should
+contain the bare minimum features needed to clearly demonstrate the bug.
 
-### 왜 재현 가능한 테스트 케이스를 만들어야 합니까? {#why-should-you-create-a-reproducible-test-case}
+### Why should you create a reproducible test case? {#why-should-you-create-a-reproducible-test-case}
 
-재현 가능한 프로젝트로 문제의 원인을 분리할 수 있으며, 이는 문제를 해결하는 첫 번째 단계입니다. 버그 리포트에서 가장 중요한 것은 버그를 재현하는 경로를 정확하게 설명하는 것입니다.
+A reproducible projects lets us isolate the cause of a problem, which is the
+first step towards fixing it! The most important part of any bug report is to
+describe the exact steps needed to reproduce the bug.
 
-재현 가능한 프로젝트는 버그를 유발하는 특정 환경을 공유하는 좋은 방법입니다. 재현 가능한 프로젝트는 문제 해결에 도움을 줄 수 있는 사람들에게 도움을 주는 가장 좋은 방법입니다.
+A reproducible project is a great way to share a specific environment that
+causes a bug. Your reproducible project is the best way to help people that want
+to help you.
 
-### 재현 가능한 프로젝트를 생성하는 방법 {#steps-to-create-a-reproducible-project}
+### Steps to create a reproducible project {#steps-to-create-a-reproducible-project}
 
-- 새로운 git 리포지터리를 생성합니다.
-- 리포지터리 디렉토리에서 `tuist init`을 사용하여 프로젝트를 초기화 합니다.
-- 발견된 오류를 재현하는데 필요한 코드를 추가합니다.
-- 코드를 게시 (당신의 GitHub 계정이 이 작업을 수행하기 좋습니다) 한 다음에 이슈를 생성할 때 링크를 게시합니다.
+- Create a new git repository.
+- Initialize a project using `tuist init` in the repository directory.
+- Add the code needed to recreate the error you’ve seen.
+- Publish the code (your GitHub account is a good place to do this) and then
+  link to it when creating an issue.
 
-### 재현 가능한 프로젝트의 이점 {#benefits-of-reproducible-projects}
+### Benefits of reproducible projects {#benefits-of-reproducible-projects}
 
-- **더 작은 크기:** 오류만 남기고 모두 삭제했으므로, 버그를 찾기 위해 복잡한 과정을 수행하지 않아도 됩니다.
-- **비밀 코드를 게시할 필요가 없음:** 많은 이유로 사이트에 게시할 수 없을 수 있습니다. 작은 부분으로 재현 가능한 테스트 케이스를 만들면 비밀 코드를 노출하지 않고 문제를 확인할 수 있습니다.
-- **버그 증명:** 버그는 컴퓨터의 설정 조합으로 인해 발생할 수 있습니다. 재현 가능한 테스트 케이스는 기여자가 해당 빌드를 다운 받아 빌드하고 테스트할 수 있습니다. 이것은 문제의 원인을 확인하고 범위를 좁히는데 도움을 줍니다.
-- **버그 해결에 대한 도움 받기:** 문제를 재현할 수 있으면, 문제를 해결할 가능성이 있습니다. 버그를 재현하지 않고는 문제를 해결하는 것은 거의 불가능 합니다.
+- **Smaller surface area:** By removing everything but the error, you don’t have
+  to dig to find the bug.
+- **No need to publish secret code:** You might not be able to publish your main
+  site (for many reasons). Remaking a small part of it as a reproducible test
+  case allows you to publicly demonstrate a problem without exposing any secret
+  code.
+- **Proof of the bug:** Sometimes a bug is caused by some combination of
+  settings on your machine. A reproducible test case allows contributors to pull
+  down your build and test it on their machines as well. This helps verify and
+  narrow down the cause of a problem.
+- **Get help with fixing your bug:** If someone else can reproduce your problem,
+  they often have a good chance of fixing the problem. It’s almost impossible to
+  fix a bug without first being able to reproduce it.
