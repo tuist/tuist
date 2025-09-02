@@ -137,8 +137,9 @@
               <div data-part="title">{gettext("PR Comment")}</div>
               <span data-part="label">
                 <%= if @pr_comment_url do %>
-                  <.link href={@pr_comment_url} target="_blank" class="underline">
-                    {gettext("View PR Comment")}
+                  <.link href={@pr_comment_url} target="_blank">
+                    #{@pr_number}
+                    <.external_link />
                   </.link>
                 <% else %>
                   {gettext("None")}

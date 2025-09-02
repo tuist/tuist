@@ -36,6 +36,7 @@ defmodule TuistWeb.QARunLive do
          |> assign(:selected_tab, tab)
          |> assign(:duration, calculate_duration(qa_run))
          |> assign(:pr_comment_url, build_pr_comment_url(qa_run))
+         |> assign(:pr_number, extract_pr_number(qa_run))
          |> assign(:issues, extract_issues(qa_run.run_steps))
          |> assign(:head_title, "#{gettext("QA Run")} · #{qa_run.app_build.preview.project.name} · Tuist")}
     end
@@ -61,17 +62,40 @@ defmodule TuistWeb.QARunLive do
 
   defp build_pr_comment_url(%{issue_comment_id: nil}), do: nil
   defp build_pr_comment_url(%{vcs_repository_full_handle: nil}), do: nil
+  defp build_pr_comment_url(%{git_ref: nil}), do: nil
 
   defp build_pr_comment_url(%{
          issue_comment_id: comment_id,
          vcs_repository_full_handle: repo_handle,
-         vcs_provider: :github
+         vcs_provider: :github,
+         git_ref: git_ref
        })
        when is_integer(comment_id) do
-    "https://github.com/#{repo_handle}/pull/#{comment_id}"
+    case extract_pr_number_from_git_ref(git_ref) do
+      {:ok, pr_number} -> "https://github.com/#{repo_handle}/pull/#{pr_number}#issuecomment-#{comment_id}"
+      :error -> nil
+    end
   end
 
   defp build_pr_comment_url(_), do: nil
+
+  defp extract_pr_number(%{git_ref: git_ref}) do
+    case extract_pr_number_from_git_ref(git_ref) do
+      {:ok, pr_number} -> pr_number
+      :error -> nil
+    end
+  end
+
+  defp extract_pr_number_from_git_ref(nil), do: :error
+
+  defp extract_pr_number_from_git_ref(git_ref) do
+    if String.starts_with?(git_ref, "refs/pull/") do
+      [pr_number, _merge] = git_ref |> String.split("/") |> Enum.take(-2)
+      {:ok, pr_number}
+    else
+      :error
+    end
+  end
 
   defp extract_issues(run_steps) do
     run_steps

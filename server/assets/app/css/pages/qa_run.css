@@ -158,6 +158,19 @@
               font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
             }
 
+            & a {
+              display: inline-flex;
+              align-items: center;
+              gap: var(--noora-spacing-1);
+            text-decoration: underline;
+            color: var(--noora-surface-label-primary);
+
+            svg {
+              width: var(--noora-icon-size-medium);
+              height: var(--noora-icon-size-medium);
+            }
+            }
+
             & [data-part="label"] {
               display: flex;
               flex-direction: row;
