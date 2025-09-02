@@ -182,7 +182,7 @@ defmodule TuistWeb.API.QAController do
             screenshot_id: screenshot.id
           })
 
-        upload_url = Storage.generate_upload_url(storage_key, expires_in: expires_in)
+        upload_url = Storage.generate_upload_url(storage_key, project.account, expires_in: expires_in)
 
         conn
         |> put_status(:created)

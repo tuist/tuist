@@ -207,7 +207,7 @@ defmodule Tuist.Registry.Swift.Packages do
         path: "source_archive.zip"
       )
 
-    Storage.put_object(object_key, data)
+    Storage.put_object(object_key, data, :registry)
 
     checksum =
       :sha256
@@ -309,7 +309,8 @@ defmodule Tuist.Registry.Swift.Packages do
 
     Storage.put_object(
       package_object_key(%{scope: scope, name: name}, version: version, path: path),
-      replace_package_by_name_references_with_product_in_package_manifest(package_manifest_content)
+      replace_package_by_name_references_with_product_in_package_manifest(package_manifest_content),
+      :registry
     )
 
     swift_tools_version =
@@ -457,9 +458,9 @@ defmodule Tuist.Registry.Swift.Packages do
     object_key =
       package_object_key(%{scope: scope, name: name}, version: version, path: "Package.swift")
 
-    if Storage.object_exists?(object_key) do
+    if Storage.object_exists?(object_key, :registry) do
       package_manifest =
-        Storage.get_object_as_string(object_key)
+        Storage.get_object_as_string(object_key, :registry)
 
       packages =
         ~r/url:\s*"([^"]+)"/

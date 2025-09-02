@@ -176,6 +176,4 @@ defmodule Tuist.Registry.Swift.Workers.SyncPackagesWorker do
 
     Logger.info("Spawned #{total_missing} CreatePackageReleaseWorker jobs")
   end
-
-
 end

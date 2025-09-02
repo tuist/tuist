@@ -24,8 +24,8 @@ defmodule Tuist.Projects.Workers.CleanProjectWorkerTest do
 
       binaries_objects = "#{project_slug}/builds"
       tests_objects = "#{project_slug}/tests"
-      expect(Storage, :delete_all_objects, 1, fn ^binaries_objects -> :ok end)
-      expect(Storage, :delete_all_objects, 1, fn ^tests_objects -> :ok end)
+      expect(Storage, :delete_all_objects, fn ^binaries_objects, _actor -> :ok end)
+      expect(Storage, :delete_all_objects, fn ^tests_objects, _actor -> :ok end)
 
       # When
       result = CleanProjectWorker.perform(%Oban.Job{args: %{"project_id" => project.id}})

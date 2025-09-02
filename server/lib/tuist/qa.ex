@@ -481,7 +481,7 @@ defmodule Tuist.QA do
         app_build_id: app_build.id
       })
 
-    Storage.generate_download_url(storage_key)
+    Storage.generate_download_url(storage_key, app_build.preview.project.account)
   end
 
   defp create_qa_auth_token(%AppBuild{} = app_build) do
@@ -569,8 +569,6 @@ defmodule Tuist.QA do
       dates: Enum.map(duration_data, &Date.to_string(&1.date))
     }
   end
-
-
 
   @doc """
   Returns available apps for analytics filtering.
