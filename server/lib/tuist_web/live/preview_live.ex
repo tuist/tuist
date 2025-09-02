@@ -4,7 +4,7 @@ defmodule TuistWeb.PreviewLive do
   use Noora
 
   import TuistWeb.Components.Terminal
-  import TuistWeb.Previews.PlatformIcon
+  import TuistWeb.Previews.PlatformTag
   import TuistWeb.Previews.RanByBadge
 
   alias Tuist.AppBuilds
@@ -85,13 +85,7 @@ defmodule TuistWeb.PreviewLive do
     end
   end
 
-  attr(:platform, :atom, required: true)
 
-  def platform_tag(assigns) do
-    ~H"""
-    <.tag label={AppBuilds.platform_string(@platform)} icon={platform_icon_name(@platform)} />
-    """
-  end
 
   def handle_event(
         "delete_preview",

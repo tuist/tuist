@@ -5,7 +5,7 @@ defmodule TuistWeb.PreviewsLive do
 
   import TuistWeb.EmptyState
   import TuistWeb.Previews.AppPreview
-  import TuistWeb.Previews.PlatformIcon
+  import TuistWeb.Previews.PlatformTag
   import TuistWeb.Previews.RanByBadge
   import TuistWeb.Previews.RunButton
 

@@ -5,7 +5,7 @@ defmodule TuistWeb.BundlesLive do
 
   import TuistWeb.Components.EmptyCardSection
   import TuistWeb.EmptyState
-  import TuistWeb.Previews.PlatformIcon
+  import TuistWeb.Previews.PlatformTag
 
   alias Tuist.Bundles
   alias Tuist.Projects

@@ -4,7 +4,7 @@ defmodule TuistWeb.QALive do
   use Noora
 
   import TuistWeb.Components.EmptyCardSection
-  import TuistWeb.Previews.PlatformIcon
+  import TuistWeb.Previews.PlatformTag
 
   alias Tuist.AppBuilds.Preview
   alias Tuist.QA

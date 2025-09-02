@@ -4,9 +4,10 @@ defmodule TuistWeb.QARunLive do
   use Noora
 
   import TuistWeb.Components.EmptyCardSection
+  import TuistWeb.Previews.PlatformTag
 
   alias Tuist.QA
-  alias Tuist.Repo
+  alias Tuist.AppBuilds.Preview
   alias TuistWeb.Errors.NotFoundError
 
   @impl true
@@ -16,8 +17,7 @@ defmodule TuistWeb.QARunLive do
         raise NotFoundError, gettext("QA run not found")
 
       {:ok, qa_run} ->
-        # Verify the QA run belongs to the requested project
-        if qa_run.app_build.preview.project.account.name != account_handle or 
+        if qa_run.app_build.preview.project.account.name != account_handle or
            qa_run.app_build.preview.project.name != project_handle do
           raise NotFoundError, gettext("QA run not found")
         end

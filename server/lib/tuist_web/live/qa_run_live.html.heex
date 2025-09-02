@@ -5,7 +5,9 @@
       data-part="back-button"
       variant="secondary"
       size="medium"
-      navigate={~p"/#{@qa_run.app_build.preview.project.account.name}/#{@qa_run.app_build.preview.project.name}/qa"}
+      navigate={
+        ~p"/#{@qa_run.app_build.preview.project.account.name}/#{@qa_run.app_build.preview.project.name}/qa"
+      }
     >
       <:icon_left>
         <.icon name="arrow_left" />
@@ -41,7 +43,9 @@
       <div data-part="icon">
         <.brand_apple />
       </div>
-      <span data-part="label">{gettext("V %{version}", version: @qa_run.app_build.preview.version)}</span>
+      <span data-part="label">
+        {gettext("V %{version}", version: @qa_run.app_build.preview.version)}
+      </span>
     </div>
   </div>
 
@@ -49,7 +53,9 @@
     <.tab_menu_horizontal_item
       label={gettext("Overview")}
       selected={@selected_tab == "overview"}
-      navigate={~p"/#{@qa_run.app_build.preview.project.account.name}/#{@qa_run.app_build.preview.project.name}/qa/#{@qa_run.id}/overview"}
+      navigate={
+        ~p"/#{@qa_run.app_build.preview.project.account.name}/#{@qa_run.app_build.preview.project.name}/qa/#{@qa_run.id}/overview"
+      }
     />
     <%!-- <.tab_menu_horizontal_item --%>
     <%!--   label={gettext("Logs")} --%>
@@ -59,61 +65,74 @@
   </.tab_menu_horizontal>
 
   <div :if={@selected_tab == "overview"}>
-  <.card data-part="details-card" icon="chart_arcs" title={gettext("Details")}>
-    <.card_section data-part="details-card-section">
-      <div data-part="metadata-grid">
-        <div data-part="metadata-row">
-          <div data-part="metadata">
-            <div data-part="title">{gettext("Duration")}</div>
-            <span data-part="label">
-              {@duration}
-            </span>
+    <.card data-part="details-card" icon="chart_arcs" title={gettext("Details")}>
+      <.card_section data-part="details-card-section">
+        <div data-part="metadata-grid">
+          <div data-part="metadata-row">
+            <div data-part="metadata">
+              <div data-part="title">{gettext("Supported platforms")}</div>
+              <.platform_tag
+                :for={
+                  platform <-
+                    @qa_run.app_build.preview.supported_platforms
+                    |> Preview.map_simulators_to_devices()
+                }
+                platform={platform}
+              />
+            </div>
           </div>
-          <div data-part="metadata">
-            <div data-part="title">{gettext("Time")}</div>
-            <span data-part="label">
-              {format_datetime(@qa_run.inserted_at)}
-            </span>
+          <div data-part="metadata-row">
+            <div data-part="metadata">
+              <div data-part="title">{gettext("QA duration")}</div>
+              <span data-part="label">
+                {@duration}
+              </span>
+            </div>
+            <div data-part="metadata">
+              <div data-part="title">{gettext("Created at")}</div>
+              <span data-part="label">
+                {format_datetime(@qa_run.inserted_at)}
+              </span>
+            </div>
+          </div>
+          <div data-part="metadata-row">
+            <div data-part="metadata">
+              <div data-part="title">{gettext("Branch")}</div>
+              <span data-part="label">
+                <.git_branch />
+                {@qa_run.app_build.preview.git_branch || gettext("None")}
+              </span>
+            </div>
+            <div data-part="metadata">
+              <div data-part="title">{gettext("Commit SHA")}</div>
+              <span data-part="label">
+                {format_commit_sha(@qa_run.app_build.preview.git_commit_sha)}
+              </span>
+            </div>
+          </div>
+          <div data-part="metadata-row">
+            <div data-part="metadata">
+              <div data-part="title">{gettext("PR Comment")}</div>
+              <span data-part="label">
+                <%= if @pr_comment_url do %>
+                  <.link href={@pr_comment_url} target="_blank" class="underline">
+                    {gettext("View PR Comment")}
+                  </.link>
+                <% else %>
+                  {gettext("None")}
+                <% end %>
+              </span>
+            </div>
+            <div data-part="metadata">
+              <div data-part="title">{gettext("Bundle identifier")}</div>
+              <span data-part="label">
+                {@qa_run.app_build.preview.bundle_identifier || gettext("Unknown")}
+              </span>
+            </div>
           </div>
         </div>
-        <div data-part="metadata-row">
-          <div data-part="metadata">
-            <div data-part="title">{gettext("Bundle identifier")}</div>
-            <span data-part="label">
-              {@qa_run.app_build.preview.bundle_identifier || gettext("Unknown")}
-            </span>
-          </div>
-          <div data-part="metadata">
-            <div data-part="title">{gettext("Branch")}</div>
-            <span data-part="label">
-              <.git_branch />
-              {@qa_run.app_build.preview.git_branch || gettext("None")}
-            </span>
-          </div>
-        </div>
-        <div data-part="metadata-row">
-          <div data-part="metadata">
-            <div data-part="title">{gettext("Commit SHA")}</div>
-            <span data-part="label">
-              {format_commit_sha(@qa_run.app_build.preview.git_commit_sha)}
-            </span>
-          </div>
-          <div data-part="metadata">
-            <div data-part="title">{gettext("PR Comment")}</div>
-            <span data-part="label">
-              <%= if @pr_comment_url do %>
-                <.link href={@pr_comment_url} target="_blank" class="underline">
-                  {gettext("View PR Comment")}
-                </.link>
-              <% else %>
-                {gettext("None")}
-              <% end %>
-            </span>
-          </div>
-        </div>
-      </div>
-    </.card_section>
-  </.card>
+      </.card_section>
+    </.card>
 
     <.card icon="alert_triangle" title={gettext("Issues identified")} data-part="issues-card">
       <.empty_card_section
@@ -141,28 +160,22 @@
                 </div>
                 <div data-part="issue-title">{gettext("Temporary visual inconsistency")}</div>
                 <div data-part="issue-toggle">
-                  <.neutral_button
-                    data-part="closed-collapsible-button"
-                    icon_only
-                    size="medium"
-                  >
+                  <.neutral_button data-part="closed-collapsible-button" icon_only size="medium">
                     <.chevron_down />
                   </.neutral_button>
-                  <.neutral_button
-                    data-part="open-collapsible-button"
-                    icon_only
-                    size="medium"
-                  >
+                  <.neutral_button data-part="open-collapsible-button" icon_only size="medium">
                     <.chevron_up />
                   </.neutral_button>
                 </div>
               </div>
               <div data-part="content" data-state="closed">
                 <div data-part="issue-content-wrapper">
-                  <div data-part="screenshots-column" :if={issue_data.screenshot}>
+                  <div :if={issue_data.screenshot} data-part="screenshots-column">
                     <div data-part="screenshot-thumb">
                       <img
-                        src={~p"/#{@qa_run.app_build.preview.project.account.name}/#{@qa_run.app_build.preview.project.name}/qa/runs/#{@qa_run.id}/screenshots/#{issue_data.screenshot.id}"}
+                        src={
+                          ~p"/#{@qa_run.app_build.preview.project.account.name}/#{@qa_run.app_build.preview.project.name}/qa/runs/#{@qa_run.id}/screenshots/#{issue_data.screenshot.id}"
+                        }
                         alt="Screenshot"
                       />
                     </div>
@@ -171,22 +184,30 @@
                   <div data-part="step-details">
                     <div data-part="detail-row">
                       <.badge label="Action" color="neutral" style="light-fill" size="small" />
-                      <span data-part="detail-value">{issue_data.step.action || gettext("Tap on Tuist preview item to open detail view")}</span>
+                      <span data-part="detail-value">
+                        {issue_data.step.action}
+                      </span>
                     </div>
 
                     <div data-part="detail-row">
                       <.badge label="Result" color="success" style="light-fill" size="small" />
-                      <span data-part="detail-value" data-variant="success">{gettext("Successfully navigated to the preview detail view.")}</span>
+                      <span data-part="detail-value" data-variant="success">
+{issue_data.step.result}
+
+                      </span>
                     </div>
 
                     <div data-part="detail-row">
                       <.badge label="Issue" color="destructive" style="light-fill" size="small" />
-                      <span data-part="detail-value" data-variant="warning">{issue_data.issue || gettext("Navigation functionality appears broken - tapping on the preview item does not navigate to a detail screen as expected")}</span>
+                      <span data-part="detail-value" data-variant="warning">
+                        {issue_data.issue
+                      }
+                      </span>
                     </div>
 
                     <div data-part="detail-row">
                       <.badge label="Timestamp" color="neutral" style="light-fill" size="small" />
-                      <span data-part="detail-value">{gettext("05:30/15:28")}</span>
+                      <span data-part="detail-value">{format_datetime(issue_data.step.inserted_at)}</span>
                     </div>
                   </div>
                 </div>
@@ -200,10 +221,7 @@
 
   <div :if={@selected_tab == "logs"} data-part="logs-tab">
     <.card icon="terminal" title={gettext("Logs")}>
-      <.empty_card_section
-        title={gettext("Logs coming soon")}
-        data-part="empty-logs-section"
-      >
+      <.empty_card_section title={gettext("Logs coming soon")} data-part="empty-logs-section">
         <:image>
           <img src="/images/empty_insights_light.png" data-theme="light" />
           <img src="/images/empty_insights_dark.png" data-theme="dark" />
