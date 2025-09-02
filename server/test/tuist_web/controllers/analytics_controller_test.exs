@@ -974,9 +974,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
         %{part_number: 3, etag: "etag3"}
       ]
 
-      expect(Storage, :multipart_complete_upload, fn object_key,
-                                                     ^upload_id,
-                                                     [{1, "etag1"}, {2, "etag2"}, {3, "etag3"}] ->
+      expect(Storage, :multipart_complete_upload, fn object_key, ^upload_id, [{1, "etag1"}, {2, "etag2"}, {3, "etag3"}] ->
         assert String.contains?(object_key, "#{account.name}/#{project.name}/runs/")
         assert String.ends_with?(object_key, "/result_bundle.zip")
         :ok
@@ -1271,13 +1269,13 @@ defmodule TuistWeb.AnalyticsControllerTest do
       # Given - Create two users and their accounts
       user1 = AccountsFixtures.user_fixture(email: "user1@example.com")
       user2 = AccountsFixtures.user_fixture(email: "user2@example.com")
-      
+
       account1 = Accounts.get_account_from_user(user1)
-      
+
       # Create a project under user1's account
       project = ProjectsFixtures.project_fixture(account_id: account1.id)
       command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
-      
+
       # Authenticate as user2 (who doesn't have access to user1's project)
       conn = Authentication.put_current_user(conn, user2)
 
@@ -1291,8 +1289,8 @@ defmodule TuistWeb.AnalyticsControllerTest do
 
       # Then - Should return forbidden
       assert json_response(conn, :forbidden) == %{
-        "message" => "user2 is not authorized to create run"
-      }
+               "message" => "user2 is not authorized to create run"
+             }
     end
 
     test "starts multipart upload using project from URL - postgres", %{conn: conn, user: user} do
@@ -1373,13 +1371,13 @@ defmodule TuistWeb.AnalyticsControllerTest do
       # Given - Create two users and their accounts
       user1 = AccountsFixtures.user_fixture(email: "user3@example.com")
       user2 = AccountsFixtures.user_fixture(email: "user4@example.com")
-      
+
       account1 = Accounts.get_account_from_user(user1)
-      
+
       # Create a project under user1's account
       project = ProjectsFixtures.project_fixture(account_id: account1.id)
       command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
-      
+
       # Authenticate as user2 (who doesn't have access to user1's project)
       conn = Authentication.put_current_user(conn, user2)
 
@@ -1398,8 +1396,8 @@ defmodule TuistWeb.AnalyticsControllerTest do
 
       # Then - Should return forbidden
       assert json_response(conn, :forbidden) == %{
-        "message" => "user4 is not authorized to create run"
-      }
+               "message" => "user4 is not authorized to create run"
+             }
     end
 
     test "generates URL for a part of the multipart upload using project from URL - postgres", %{conn: conn, user: user} do
@@ -1455,13 +1453,13 @@ defmodule TuistWeb.AnalyticsControllerTest do
       # Given - Create two users and their accounts
       user1 = AccountsFixtures.user_fixture(email: "user5@example.com")
       user2 = AccountsFixtures.user_fixture(email: "user6@example.com")
-      
+
       account1 = Accounts.get_account_from_user(user1)
-      
+
       # Create a project under user1's account
       project = ProjectsFixtures.project_fixture(account_id: account1.id)
       command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
-      
+
       # Authenticate as user2 (who doesn't have access to user1's project)
       conn = Authentication.put_current_user(conn, user2)
 
@@ -1484,8 +1482,8 @@ defmodule TuistWeb.AnalyticsControllerTest do
 
       # Then - Should return forbidden
       assert json_response(conn, :forbidden) == %{
-        "message" => "user6 is not authorized to create run"
-      }
+               "message" => "user6 is not authorized to create run"
+             }
     end
 
     test "completes a multipart upload using project from URL - postgres", %{conn: conn, user: user} do
@@ -1542,13 +1540,13 @@ defmodule TuistWeb.AnalyticsControllerTest do
       # Given - Create two users and their accounts
       user1 = AccountsFixtures.user_fixture(email: "user7@example.com")
       user2 = AccountsFixtures.user_fixture(email: "user8@example.com")
-      
+
       account1 = Accounts.get_account_from_user(user1)
-      
+
       # Create a project under user1's account
       project = ProjectsFixtures.project_fixture(account_id: account1.id)
       command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
-      
+
       # Authenticate as user2 (who doesn't have access to user1's project)
       conn = Authentication.put_current_user(conn, user2)
 
@@ -1559,8 +1557,8 @@ defmodule TuistWeb.AnalyticsControllerTest do
 
       # Then - Should return forbidden
       assert json_response(conn, :forbidden) == %{
-        "message" => "user8 is not authorized to update run"
-      }
+               "message" => "user8 is not authorized to update run"
+             }
     end
 
     test "completes artifacts uploads using project from URL - postgres", %{conn: conn, user: user} do
