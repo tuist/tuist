@@ -1182,8 +1182,9 @@ defmodule Tuist.QATest do
       preview = AppBuildsFixtures.preview_fixture(project: project)
       app_build = AppBuildsFixtures.app_build_fixture(preview: preview)
 
-      older_time = DateTime.utc_now() |> DateTime.add(-1, :hour) |> DateTime.truncate(:second)
-      newer_time = DateTime.truncate(DateTime.utc_now(), :second)
+      base_time = DateTime.utc_now()
+      older_time = base_time |> DateTime.add(-2, :hour) |> DateTime.truncate(:second)
+      newer_time = base_time |> DateTime.add(-1, :hour) |> DateTime.truncate(:second)
 
       {:ok, qa_run1} =
         [app_build: app_build, prompt: "Test 1"]
@@ -1198,7 +1199,7 @@ defmodule Tuist.QATest do
         |> Repo.update()
 
       # When
-      {results, _meta} = QA.list_qa_runs_for_project(project, %{})
+      {results, _meta} = QA.list_qa_runs_for_project(project, %{order_by: [:inserted_at], order_directions: [:desc]})
 
       # Then
       assert length(results) == 2
