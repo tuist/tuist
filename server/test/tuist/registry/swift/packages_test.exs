@@ -364,7 +364,7 @@ defmodule Tuist.Registry.Swift.PackagesTest do
                "5.10.2-beta+1",
                "5.10.2-beta+2",
                "5.10.2-beta-3"
-              ]
+             ]
     end
 
     test "skips dev versions like 0.9.3-dev1985" do

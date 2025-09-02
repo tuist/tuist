@@ -974,9 +974,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
         %{part_number: 3, etag: "etag3"}
       ]
 
-      expect(Storage, :multipart_complete_upload, fn object_key,
-                                                     ^upload_id,
-                                                     [{1, "etag1"}, {2, "etag2"}, {3, "etag3"}] ->
+      expect(Storage, :multipart_complete_upload, fn object_key, ^upload_id, [{1, "etag1"}, {2, "etag2"}, {3, "etag3"}] ->
         assert String.contains?(object_key, "#{account.name}/#{project.name}/runs/")
         assert String.ends_with?(object_key, "/result_bundle.zip")
         :ok
@@ -1271,13 +1269,13 @@ defmodule TuistWeb.AnalyticsControllerTest do
       # Given - Create two users and their accounts
       user1 = AccountsFixtures.user_fixture(email: "user1@example.com")
       user2 = AccountsFixtures.user_fixture(email: "user2@example.com")
-      
+
       account1 = Accounts.get_account_from_user(user1)
-      
+
       # Create a project under user1's account
       project = ProjectsFixtures.project_fixture(account_id: account1.id)
       command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
-      
+
       # Authenticate as user2 (who doesn't have access to user1's project)
       conn = Authentication.put_current_user(conn, user2)
 
@@ -1291,8 +1289,8 @@ defmodule TuistWeb.AnalyticsControllerTest do
 
       # Then - Should return forbidden
       assert json_response(conn, :forbidden) == %{
-        "message" => "user2 is not authorized to create run"
-      }
+               "message" => "user2 is not authorized to create run"
+             }
     end
 
     test "starts multipart upload using project from URL - postgres", %{conn: conn, user: user} do
@@ -1373,13 +1371,13 @@ defmodule TuistWeb.AnalyticsControllerTest do
       # Given - Create two users and their accounts
       user1 = AccountsFixtures.user_fixture(email: "user3@example.com")
       user2 = AccountsFixtures.user_fixture(email: "user4@example.com")
-      
+
       account1 = Accounts.get_account_from_user(user1)
-      
+
       # Create a project under user1's account
       project = ProjectsFixtures.project_fixture(account_id: account1.id)
       command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
-      
+
       # Authenticate as user2 (who doesn't have access to user1's project)
       conn = Authentication.put_current_user(conn, user2)
 
@@ -1398,8 +1396,8 @@ defmodule TuistWeb.AnalyticsControllerTest do
 
       # Then - Should return forbidden
       assert json_response(conn, :forbidden) == %{
-        "message" => "user4 is not authorized to create run"
-      }
+               "message" => "user4 is not authorized to create run"
+             }
     end
 
     test "generates URL for a part of the multipart upload using project from URL - postgres", %{conn: conn, user: user} do
@@ -1445,6 +1443,52 @@ defmodule TuistWeb.AnalyticsControllerTest do
       response_data = response["data"]
       assert response_data["url"] == upload_url
     end
+
+    test "generates URL for multipart upload when run doesn't exist (async insertion)", %{conn: conn, user: user} do
+      stub(Environment, :clickhouse_configured?, fn -> false end)
+      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> false end)
+
+      # Given
+      account = Accounts.get_account_from_user(user)
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+      # Use a random UUID that doesn't exist in the database
+      nonexistent_run_id = Ecto.UUID.generate()
+      upload_id = "12344"
+      part_number = 3
+      upload_url = "https://url.com"
+
+      # The endpoint should construct the object key even without the run existing
+      # It converts the UUID to an integer ID for the object key
+      normalized_run_id = Tuist.UUIDv7.to_int64(nonexistent_run_id)
+      object_key = "#{account.name}/#{project.name}/runs/#{normalized_run_id}/result_bundle.zip"
+
+      expect(Storage, :multipart_generate_url, fn ^object_key,
+                                                  ^upload_id,
+                                                  ^part_number,
+                                                  [expires_in: _, content_length: 100] ->
+        upload_url
+      end)
+
+      conn = Authentication.put_current_user(conn, user)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          ~p"/api/projects/#{account.name}/#{project.name}/runs/#{nonexistent_run_id}/generate-url",
+          command_event_artifact: %{type: "result_bundle"},
+          multipart_upload_part: %{
+            part_number: part_number,
+            upload_id: upload_id,
+            content_length: 100
+          }
+        )
+
+      response = json_response(conn, :ok)
+      assert response["status"] == "success"
+      response_data = response["data"]
+      assert response_data["url"] == upload_url
+    end
   end
 
   describe "POST /api/projects/:account_handle/:project_handle/runs/:run_id/complete" do
@@ -1455,13 +1499,13 @@ defmodule TuistWeb.AnalyticsControllerTest do
       # Given - Create two users and their accounts
       user1 = AccountsFixtures.user_fixture(email: "user5@example.com")
       user2 = AccountsFixtures.user_fixture(email: "user6@example.com")
-      
+
       account1 = Accounts.get_account_from_user(user1)
-      
+
       # Create a project under user1's account
       project = ProjectsFixtures.project_fixture(account_id: account1.id)
       command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
-      
+
       # Authenticate as user2 (who doesn't have access to user1's project)
       conn = Authentication.put_current_user(conn, user2)
 
@@ -1484,8 +1528,8 @@ defmodule TuistWeb.AnalyticsControllerTest do
 
       # Then - Should return forbidden
       assert json_response(conn, :forbidden) == %{
-        "message" => "user6 is not authorized to create run"
-      }
+               "message" => "user6 is not authorized to create run"
+             }
     end
 
     test "completes a multipart upload using project from URL - postgres", %{conn: conn, user: user} do
@@ -1542,13 +1586,13 @@ defmodule TuistWeb.AnalyticsControllerTest do
       # Given - Create two users and their accounts
       user1 = AccountsFixtures.user_fixture(email: "user7@example.com")
       user2 = AccountsFixtures.user_fixture(email: "user8@example.com")
-      
+
       account1 = Accounts.get_account_from_user(user1)
-      
+
       # Create a project under user1's account
       project = ProjectsFixtures.project_fixture(account_id: account1.id)
       command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
-      
+
       # Authenticate as user2 (who doesn't have access to user1's project)
       conn = Authentication.put_current_user(conn, user2)
 
@@ -1559,8 +1603,8 @@ defmodule TuistWeb.AnalyticsControllerTest do
 
       # Then - Should return forbidden
       assert json_response(conn, :forbidden) == %{
-        "message" => "user8 is not authorized to update run"
-      }
+               "message" => "user8 is not authorized to update run"
+             }
     end
 
     test "completes artifacts uploads using project from URL - postgres", %{conn: conn, user: user} do
