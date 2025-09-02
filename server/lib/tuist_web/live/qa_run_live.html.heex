@@ -212,28 +212,28 @@
 
                   <div data-part="step-details">
                     <div data-part="step-detail">
-                      <.badge label="Action" color="neutral" style="light-fill" size="small" />
+                      <.badge label="Action" color="neutral" style="light-fill" size="large" />
                       <span data-part="detail-value">
                         {raw(Earmark.as_html!(issue_data.step.action))}
                       </span>
                     </div>
 
                     <div data-part="step-detail">
-                      <.badge label="Result" color="information" style="light-fill" size="small" />
+                      <.badge label="Result" color="information" style="light-fill" size="large" />
                       <span data-part="detail-value" data-variant="success">
                         {raw(Earmark.as_html!(issue_data.step.result))}
                       </span>
                     </div>
 
                     <div data-part="step-detail">
-                      <.badge label="Issue" color="warning" style="light-fill" size="small" />
+                      <.badge label="Issue" color="warning" style="light-fill" size="large" />
                       <span data-part="detail-value" data-variant="warning">
                         {raw(Earmark.as_html!(issue_data.issue))}
                       </span>
                     </div>
 
                     <div data-part="step-detail">
-                      <.badge label="Timestamp" color="focus" style="light-fill" size="small" />
+                      <.badge label="Timestamp" color="focus" style="light-fill" size="large" />
                       <span data-part="detail-value">
                         {DateFormatter.format_full(issue_data.step.inserted_at)}
                       </span>
