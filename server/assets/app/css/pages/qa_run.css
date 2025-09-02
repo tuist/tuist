@@ -104,6 +104,27 @@
         font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
       }
     }
+
+    & > [data-part="preview-link"] {
+      display: flex;
+      padding: var(--noora-spacing-4);
+      gap: var(--noora-spacing-5);
+      border-radius: var(--noora-radius-large);
+      background: var(--noora-surface-background-secondary);
+      margin-top: var(--noora-spacing-7);
+
+      font: var(--noora-font-body-small);
+
+      &  [data-part="icon"] {
+        width: var(--noora-icon-size-medium);
+        height: var(--noora-icon-size-medium);
+
+        & > svg {
+          width: 100%;
+          height: 100%;
+        }
+      }
+    }
   }
 
   & [data-part="details-card"] {

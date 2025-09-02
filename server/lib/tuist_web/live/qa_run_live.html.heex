@@ -47,6 +47,26 @@
         {gettext("V %{version}", version: @qa_run.app_build.preview.version)}
       </span>
     </div>
+    <div data-part="preview-link">
+      {@qa_run.app_build.preview.display_name} QA
+      <div data-part="icon">
+        <.arrows_exchange_2 />
+      </div>
+
+      <.link_button
+        navigate={
+          ~p"/#{@selected_account.name}/#{@selected_project.name}/previews/#{@qa_run.app_build.preview.id}"
+        }
+        variant="secondary"
+        size="medium"
+        label={
+"#{@qa_run.app_build.preview.display_name} Preview"}
+      >
+        <:icon_right>
+          <.external_link />
+        </:icon_right>
+      </.link_button>
+    </div>
   </div>
 
   <.tab_menu_horizontal>
