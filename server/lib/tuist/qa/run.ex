@@ -7,6 +7,7 @@ defmodule Tuist.QA.Run do
   import Ecto.Changeset
 
   alias Tuist.AppBuilds.AppBuild
+  alias Tuist.QA.Recording
   alias Tuist.QA.Screenshot
   alias Tuist.QA.Step
 
@@ -33,6 +34,7 @@ defmodule Tuist.QA.Run do
     field :finished_at, :utc_datetime
 
     belongs_to :app_build, AppBuild, type: UUIDv7
+    has_one :recording, Recording, foreign_key: :qa_run_id
     has_many :run_steps, Step, foreign_key: :qa_run_id
     has_many :screenshots, Screenshot, foreign_key: :qa_run_id
 

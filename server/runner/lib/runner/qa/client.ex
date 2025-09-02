@@ -109,6 +109,191 @@ defmodule Runner.QA.Client do
     qa_server_request(:post, screenshot_url, auth_token, json: %{step_id: step_id})
   end
 
+  def start_recording_upload(
+        %{
+          server_url: server_url,
+          run_id: run_id,
+          auth_token: auth_token,
+          account_handle: account_handle,
+          project_handle: project_handle
+        } = _params
+      ) do
+    upload_url =
+      qa_run_url(server_url, account_handle, project_handle, run_id, "/recordings/upload/start")
+
+    qa_server_request(:post, upload_url, auth_token, json: %{})
+  end
+
+  def generate_recording_upload_url(
+        %{
+          server_url: server_url,
+          run_id: run_id,
+          auth_token: auth_token,
+          account_handle: account_handle,
+          project_handle: project_handle,
+          upload_id: upload_id,
+          storage_key: storage_key,
+          part_number: part_number
+        } = params
+      ) do
+    generate_url =
+      qa_run_url(server_url, account_handle, project_handle, run_id, "/recordings/upload/generate-url")
+
+    content_length = Map.get(params, :content_length)
+
+    json_body = %{
+      upload_id: upload_id,
+      storage_key: storage_key,
+      part_number: part_number
+    }
+
+    json_body =
+      if content_length do
+        Map.put(json_body, :content_length, content_length)
+      else
+        json_body
+      end
+
+    qa_server_request(:post, generate_url, auth_token, json: json_body)
+  end
+
+  def complete_recording_upload(
+        %{
+          server_url: server_url,
+          run_id: run_id,
+          auth_token: auth_token,
+          account_handle: account_handle,
+          project_handle: project_handle,
+          upload_id: upload_id,
+          storage_key: storage_key,
+          parts: parts
+        } = params
+      ) do
+    complete_url =
+      qa_run_url(server_url, account_handle, project_handle, run_id, "/recordings/upload/complete")
+
+    json_body = %{
+      upload_id: upload_id,
+      storage_key: storage_key,
+      parts: parts
+    }
+
+    # Add started_at and duration if provided
+    json_body =
+      if started_at = Map.get(params, :started_at) do
+        Map.put(json_body, :started_at, DateTime.to_iso8601(started_at))
+      else
+        json_body
+      end
+
+    json_body =
+      if duration = Map.get(params, :duration) do
+        Map.put(json_body, :duration, duration)
+      else
+        json_body
+      end
+
+    qa_server_request(:post, complete_url, auth_token, json: json_body)
+  end
+
+  def upload_recording(
+        %{
+          server_url: server_url,
+          run_id: run_id,
+          auth_token: auth_token,
+          account_handle: account_handle,
+          project_handle: project_handle,
+          recording_path: recording_path
+        } = params
+      ) do
+    with {:ok, file_size} <- File.stat(recording_path, [:size]) do
+      # 5MB chunks
+      chunk_size = 5 * 1024 * 1024
+
+      # Start multipart upload
+      with {:ok, %{"upload_id" => upload_id, "storage_key" => storage_key}} <-
+             start_recording_upload(%{
+               server_url: server_url,
+               run_id: run_id,
+               auth_token: auth_token,
+               account_handle: account_handle,
+               project_handle: project_handle
+             }),
+           # Upload parts
+           {:ok, parts} <-
+             upload_recording_parts(recording_path, file_size.size, chunk_size, %{
+               server_url: server_url,
+               run_id: run_id,
+               auth_token: auth_token,
+               account_handle: account_handle,
+               project_handle: project_handle,
+               upload_id: upload_id,
+               storage_key: storage_key
+             }),
+           # Complete upload
+           {:ok, _} <-
+             complete_recording_upload(%{
+               server_url: server_url,
+               run_id: run_id,
+               auth_token: auth_token,
+               account_handle: account_handle,
+               project_handle: project_handle,
+               upload_id: upload_id,
+               storage_key: storage_key,
+               parts: parts,
+               started_at: Map.get(params, :started_at),
+               duration: Map.get(params, :duration_ms)
+             }) do
+        {:ok, %{upload_id: upload_id, storage_key: storage_key}}
+      end
+    end
+  end
+
+  defp upload_recording_parts(file_path, file_size, chunk_size, upload_params) do
+    _total_parts = div(file_size + chunk_size - 1, chunk_size)
+
+    file_stream = File.stream!(file_path, chunk_size, [])
+
+    parts =
+      file_stream
+      |> Stream.with_index(1)
+      |> Enum.map(fn {chunk, part_number} ->
+        with {:ok, %{"url" => upload_url}} <-
+               generate_recording_upload_url(
+                 Map.merge(upload_params, %{
+                   part_number: part_number,
+                   content_length: byte_size(chunk)
+                 })
+               ),
+             {:ok, response} <- Req.put(upload_url, body: chunk, headers: [{"Content-Type", "video/quicktime"}]) do
+          etag = get_etag_from_response(response)
+          %{part_number: part_number, etag: etag}
+        else
+          error -> throw({:upload_part_error, part_number, error})
+        end
+      end)
+
+    {:ok, parts}
+  catch
+    {:upload_part_error, part_number, error} ->
+      {:error, "Failed to upload part #{part_number}: #{inspect(error)}"}
+  end
+
+  defp get_etag_from_response(%{headers: headers}) do
+    headers
+    |> Enum.find(fn {key, _value} -> String.downcase(key) == "etag" end)
+    |> case do
+      {_key, etag} when is_list(etag) ->
+        etag |> List.first() |> String.trim("\"")
+
+      {_key, etag} when is_binary(etag) ->
+        String.trim(etag, "\"")
+
+      nil ->
+        ""
+    end
+  end
+
   def start_log_stream(%{server_url: server_url, run_id: run_id, auth_token: auth_token}) do
     LogStreamer.start_link(%{
       server_url: server_url,

@@ -93,22 +93,6 @@ jobs:
               body: comment
             });
 
-      - name: Comment on PR if CLA passed
-        if: steps.cla_check.outputs.cla_required == 'false'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const comment = `## ✅ CLA Check Passed
-
-            Thank you @${{ github.event.pull_request.user.login }}! Your contribution is ready to be reviewed. The CLA requirement has been satisfied.`;
-
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: comment
-            });
-
       - name: Complete CLA check
         run: |
           if [ "${{ steps.cla_check.outputs.cla_required }}" = "true" ]; then

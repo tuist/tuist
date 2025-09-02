@@ -73,7 +73,8 @@ defmodule Runner.QA.Agent do
              run_id: run_id,
              auth_token: auth_token
            }),
-         {:ok, appium_session} <- AppiumClient.start_session(simulator_device.udid, bundle_identifier) do
+         {:ok, appium_session} <-
+           AppiumClient.start_session(simulator_device.udid, bundle_identifier) do
       handler = %{
         on_message_processed: fn _chain,
                                  %Message{
@@ -177,8 +178,25 @@ defmodule Runner.QA.Agent do
           simulator_uuid: simulator_device.udid
         })
 
+      # Create recording path before run_llm to prevent Briefly cleanup
+      {:ok, recording_path} = Briefly.create()
+
+      initial_attrs = %{
+        llm: llm,
+        with_fallbacks: with_fallbacks,
+        max_retry_count: 10,
+        simulator_device: simulator_device,
+        log_streamer: log_streamer,
+        server_url: server_url,
+        run_id: run_id,
+        auth_token: auth_token,
+        account_handle: account_handle,
+        project_handle: project_handle,
+        recording_path: recording_path
+      }
+
       case run_llm(
-             %{llm: llm, with_fallbacks: with_fallbacks, max_retry_count: 10},
+             initial_attrs,
              handler,
              [Message.new_user!(prompt)],
              tools
@@ -200,8 +218,63 @@ defmodule Runner.QA.Agent do
           {:error, error_message}
 
         result ->
+          {:ok, final_attrs} = result
+          # Stop and upload recording if it was started
+          if Map.has_key?(final_attrs, :recording_port) do
+            :timer.sleep(1)
+            Simulators.stop_recording(final_attrs.recording_port)
+
+            # Fix frame rate issues with ffmpeg
+            {:ok, fixed_recording_path} = Briefly.create(extname: ".mp4")
+
+            {_, 0} =
+              System.cmd("ffmpeg", [
+                "-y",
+                "-i",
+                final_attrs.recording_path,
+                "-r",
+                "30",
+                "-c:v",
+                "libx264",
+                "-preset",
+                "veryfast",
+                "-crf",
+                "23",
+                "-vsync",
+                "cfr",
+                fixed_recording_path
+              ])
+
+            # Get video duration using ffprobe
+            {output, 0} =
+              System.cmd("ffprobe", [
+                "-v",
+                "error",
+                "-show_entries",
+                "format=duration",
+                "-of",
+                "default=noprint_wrappers=1:nokey=1",
+                fixed_recording_path
+              ])
+
+            duration_seconds = output |> String.trim() |> String.to_float()
+            duration_ms = round(duration_seconds * 1000)
+
+            {:ok, _} =
+              Client.upload_recording(%{
+                server_url: server_url,
+                run_id: run_id,
+                auth_token: auth_token,
+                account_handle: account_handle,
+                project_handle: project_handle,
+                recording_path: fixed_recording_path,
+                started_at: final_attrs.recording_started_at,
+                duration_ms: duration_ms
+              })
+          end
+
           AppiumClient.stop_session(appium_session)
-          result
+          :ok
       end
     end
   end
@@ -228,7 +301,23 @@ defmodule Runner.QA.Agent do
        ) do
     case tool_result.name do
       "finalize" ->
-        :ok
+        {:ok, attrs}
+
+      "plan_report" ->
+        # Start recording after plan_report using the pre-created recording_path
+        {:ok, recording_port} =
+          attrs.simulator_device |> Simulators.start_recording(attrs.recording_path) |> dbg()
+
+        # Add recording port and started_at to attrs
+        attrs =
+          attrs
+          |> Map.put(:recording_port, recording_port)
+          |> Map.put(:recording_started_at, DateTime.utc_now())
+
+        messages =
+          clear_ui_and_screenshot_messages(Enum.drop(messages, -1)) ++ [List.last(messages)]
+
+        run_llm(attrs, handler, messages, tools)
 
       tool_name ->
         messages =
@@ -246,7 +335,12 @@ defmodule Runner.QA.Agent do
     end
   end
 
-  defp process_llm_result({:error, _chain, %LangChain.LangChainError{message: message}}, _attrs, _handler, _tools) do
+  defp process_llm_result(
+         {:error, _chain, %LangChain.LangChainError{message: message}},
+         _attrs,
+         _handler,
+         _tools
+       ) do
     {:error, "LLM chain execution failed: #{message}"}
   end
 
@@ -344,7 +438,7 @@ defmodule Runner.QA.Agent do
                   true
 
                 %ContentPart{type: :text, content: text_content} ->
-                  String.starts_with?(text_content, "Current UI")
+                  String.starts_with?(text_content, "{\"AppiumAUT\"")
 
                 _ ->
                   false
@@ -378,7 +472,7 @@ defmodule Runner.QA.Agent do
         device =
           Enum.find(devices, fn device ->
             device.name == "iPhone 16" and
-              device.runtime_identifier == "com.apple.CoreSimulator.SimRuntime.iOS-18-6"
+              device.runtime_identifier == "com.apple.CoreSimulator.SimRuntime.iOS-26-0"
           end)
 
         case device do

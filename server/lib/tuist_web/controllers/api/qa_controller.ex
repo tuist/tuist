@@ -126,11 +126,18 @@ defmodule TuistWeb.API.QAController do
     end
   end
 
-  def update_run(%{assigns: %{selected_qa_run: qa_run}} = conn, %{"status" => status}) do
-    update_attrs = %{status: status}
+  def update_run(%{assigns: %{selected_qa_run: qa_run}} = conn, params) do
+    update_attrs = %{}
 
     update_attrs =
-      if status in ["completed", "failed"] do
+      if Map.has_key?(params, "status") do
+        Map.put(update_attrs, :status, params["status"])
+      else
+        update_attrs
+      end
+
+    update_attrs =
+      if Map.has_key?(params, "status") and params["status"] in ["completed", "failed"] do
         Map.put(update_attrs, :finished_at, DateTime.utc_now())
       else
         update_attrs
@@ -182,7 +189,8 @@ defmodule TuistWeb.API.QAController do
             screenshot_id: screenshot.id
           })
 
-        upload_url = Storage.generate_upload_url(storage_key, project.account, expires_in: expires_in)
+        upload_url =
+          Storage.generate_upload_url(storage_key, project.account, expires_in: expires_in)
 
         conn
         |> put_status(:created)
@@ -206,6 +214,101 @@ defmodule TuistWeb.API.QAController do
         |> put_status(:bad_request)
         |> json(%{
           message: "QA screenshot #{message}"
+        })
+    end
+  end
+
+  def start_recording_upload(%{assigns: %{selected_qa_run: qa_run, selected_project: project}} = conn, _params) do
+    storage_key =
+      QA.recording_storage_key(%{
+        account_handle: project.account.name,
+        project_handle: project.name,
+        qa_run_id: qa_run.id
+      })
+
+    upload_id = Storage.multipart_start(storage_key, project.account)
+
+    conn
+    |> put_status(:created)
+    |> json(%{
+      upload_id: upload_id,
+      storage_key: storage_key
+    })
+  end
+
+  def generate_recording_upload_url(
+        %{assigns: %{selected_project: project}} = conn,
+        %{"upload_id" => upload_id, "part_number" => part_number, "storage_key" => storage_key} = params
+      ) do
+    expires_in = 120
+    content_length = Map.get(params, "content_length")
+
+    # Convert part_number to integer if it's a string
+    part_number_int =
+      case part_number do
+        n when is_integer(n) -> n
+        n when is_binary(n) -> String.to_integer(n)
+      end
+
+    # Convert content_length to integer if it's a string
+    content_length_int =
+      case content_length do
+        nil -> nil
+        n when is_integer(n) -> n
+        n when is_binary(n) -> String.to_integer(n)
+      end
+
+    url =
+      Storage.multipart_generate_url(
+        storage_key,
+        upload_id,
+        part_number_int,
+        project.account,
+        expires_in: expires_in,
+        content_length: content_length_int
+      )
+
+    json(conn, %{url: url})
+  end
+
+  def complete_recording_upload(%{assigns: %{selected_qa_run: qa_run, selected_project: project}} = conn, %{
+        "upload_id" => upload_id,
+        "storage_key" => storage_key,
+        "parts" => parts,
+        "started_at" => started_at,
+        "duration" => duration
+      }) do
+    # Convert parts from maps to tuples for ExAws
+    parts_tuples =
+      Enum.map(parts, fn %{"part_number" => part_number, "etag" => etag} ->
+        {part_number, etag}
+      end)
+
+    Storage.multipart_complete_upload(storage_key, upload_id, parts_tuples, project.account)
+
+    # Parse started_at datetime
+    {:ok, started_at_datetime, _} = DateTime.from_iso8601(started_at)
+
+    # Create the recording
+    case QA.create_qa_recording(%{
+           qa_run_id: qa_run.id,
+           started_at: started_at_datetime,
+           duration: duration
+         }) do
+      {:ok, _recording} ->
+        json(conn, %{status: "success"})
+
+      {:error, changeset} ->
+        message =
+          changeset
+          |> Ecto.Changeset.traverse_errors(fn {message, _opts} -> message end)
+          |> Enum.flat_map(fn {_key, value} -> value end)
+          |> Enum.join(", ")
+
+        conn
+        |> put_status(:bad_request)
+        |> json(%{
+          message: "Recording #{message}"
         })
     end
   end

@@ -21,6 +21,7 @@ defmodule Tuist.QA do
   alias Tuist.Namespace
   alias Tuist.Projects
   alias Tuist.QA.Log
+  alias Tuist.QA.Recording
   alias Tuist.QA.Run
   alias Tuist.QA.Screenshot
   alias Tuist.QA.Step
@@ -132,10 +133,11 @@ defmodule Tuist.QA do
     set -e
 
     brew install cameroncooke/axe/axe --quiet || true
+    brew install ffmpeg
     npm i --location=global appium
     appium driver install xcuitest
     tmux new-session -d -s appium 'appium'
-    runner qa --preview-url "#{app_build_url}" --bundle-identifier #{bundle_identifier} --server-url #{server_url} --run-id #{run_id} --auth-token #{auth_token} --account-handle #{account_handle} --project-handle #{project_handle} --prompt "#{prompt}" --launch-arguments #{launch_arguments} --anthropic-api-key #{Environment.anthropic_api_key()} --openai-api-key #{Environment.openai_api_key()}
+    runner qa --preview-url "#{app_build_url}" --bundle-identifier #{bundle_identifier} --server-url #{server_url} --run-id #{run_id} --auth-token #{auth_token} --account-handle #{account_handle} --project-handle #{project_handle} --prompt "#{prompt}" --launch-arguments "\\"#{launch_arguments}\\"" --anthropic-api-key #{Environment.anthropic_api_key()} --openai-api-key #{Environment.openai_api_key()}
     """
   end
 
@@ -155,6 +157,15 @@ defmodule Tuist.QA do
     qa_run
     |> Run.update_changeset(attrs)
     |> Repo.update()
+  end
+
+  @doc """
+  Creates a new QA recording.
+  """
+  def create_qa_recording(attrs) do
+    %Recording{}
+    |> Recording.create_changeset(attrs)
+    |> Repo.insert()
   end
 
   @doc """
@@ -371,7 +382,9 @@ defmodule Tuist.QA do
 
     screenshot =
       if qa_run_id do
-        Repo.one(from(s in Screenshot, where: s.id == ^screenshot_id and s.qa_run_id == ^qa_run_id))
+        Repo.one(
+          from(s in Screenshot, where: s.id == ^screenshot_id and s.qa_run_id == ^qa_run_id)
+        )
       else
         Repo.get(Screenshot, screenshot_id)
       end
@@ -401,7 +414,18 @@ defmodule Tuist.QA do
         qa_run_id: qa_run_id,
         screenshot_id: screenshot_id
       }) do
-    "#{String.downcase(account_handle)}/#{String.downcase(project_handle)}/qa/screenshots/#{qa_run_id}/#{screenshot_id}.png"
+    "#{String.downcase(account_handle)}/#{String.downcase(project_handle)}/qa/#{qa_run_id}/screenshots/#{screenshot_id}.png"
+  end
+
+  @doc """
+  Generates a storage key for a QA recording.
+  """
+  def recording_storage_key(%{
+        account_handle: account_handle,
+        project_handle: project_handle,
+        qa_run_id: qa_run_id
+      }) do
+    "#{String.downcase(account_handle)}/#{String.downcase(project_handle)}/qa/#{qa_run_id}/recording.mp4"
   end
 
   @doc """
@@ -579,7 +603,10 @@ defmodule Tuist.QA do
     |> Enum.filter(& &1)
   end
 
-  defp process_llm_launch_argument_groups_result({:ok, %LLMChain{last_message: %{content: []}}}, _launch_argument_groups) do
+  defp process_llm_launch_argument_groups_result(
+         {:ok, %LLMChain{last_message: %{content: []}}},
+         _launch_argument_groups
+       ) do
     []
   end
 
@@ -806,7 +833,8 @@ defmodule Tuist.QA do
         group_by: fragment("DATE(?)", qa.inserted_at),
         select: %{
           date: fragment("DATE(?)", qa.inserted_at),
-          average_duration: fragment("AVG(EXTRACT(EPOCH FROM (? - ?)) * 1000)", qa.finished_at, qa.inserted_at)
+          average_duration:
+            fragment("AVG(EXTRACT(EPOCH FROM (? - ?)) * 1000)", qa.finished_at, qa.inserted_at)
         },
         order_by: [asc: fragment("DATE(?)", qa.inserted_at)]
       )
@@ -871,7 +899,8 @@ defmodule Tuist.QA do
   defp apply_app_filter(query, nil, _bindings), do: query
   defp apply_app_filter(query, "any", _bindings), do: query
 
-  defp apply_app_filter(query, app_name, [:qa, :ab, :pr]), do: where(query, [qa, ab, pr], pr.display_name == ^app_name)
+  defp apply_app_filter(query, app_name, [:qa, :ab, :pr]),
+    do: where(query, [qa, ab, pr], pr.display_name == ^app_name)
 
   defp apply_app_filter(query, app_name, [:qa, :ab, :pr, :step]),
     do: where(query, [qa, ab, pr, step], pr.display_name == ^app_name)
@@ -915,7 +944,9 @@ defmodule Tuist.QA do
     |> Enum.map(&format_log_for_display/1)
   end
 
-  defp filter_usage_logs_if_needed(logs, true), do: Enum.reject(logs, &(to_atom(&1.type) == :usage))
+  defp filter_usage_logs_if_needed(logs, true),
+    do: Enum.reject(logs, &(to_atom(&1.type) == :usage))
+
   defp filter_usage_logs_if_needed(logs, false), do: logs
 
   defp prepare_and_format_log(log) do
@@ -968,13 +999,17 @@ defmodule Tuist.QA do
 
   defp pad_number(n), do: String.pad_leading(to_string(n), 2, "0")
 
-  defp add_context_if_tool_log(formatted, log, type) when type in [:tool_call, :tool_call_result] do
+  defp add_context_if_tool_log(formatted, log, type)
+       when type in [:tool_call, :tool_call_result] do
     Map.put(formatted, :context, %{json_data: prettify_json(log.data)})
   end
 
   defp add_context_if_tool_log(formatted, _log, _type), do: formatted
 
-  defp add_screenshot_image_if_available(formatted, %{screenshot_metadata: %{screenshot_id: screenshot_id}} = log)
+  defp add_screenshot_image_if_available(
+         formatted,
+         %{screenshot_metadata: %{screenshot_id: screenshot_id}} = log
+       )
        when is_binary(screenshot_id) do
     %{
       account_handle: account_handle,
@@ -982,7 +1017,9 @@ defmodule Tuist.QA do
       qa_run_id: qa_run_id
     } = log.screenshot_metadata
 
-    image_url = "/#{account_handle}/#{project_handle}/qa/runs/#{qa_run_id}/screenshots/#{screenshot_id}"
+    image_url =
+      "/#{account_handle}/#{project_handle}/qa/runs/#{qa_run_id}/screenshots/#{screenshot_id}"
+
     Map.put(formatted, :image, image_url)
   end
 
@@ -1023,15 +1060,30 @@ defmodule Tuist.QA do
 
   defp prettify_content_part(part), do: part
 
-  @action_tools ["tap", "swipe", "long_press", "type_text", "key_press", "button", "touch", "gesture", "plan_report"]
+  @action_tools [
+    "tap",
+    "swipe",
+    "long_press",
+    "type_text",
+    "key_press",
+    "button",
+    "touch",
+    "gesture",
+    "plan_report"
+  ]
 
   defp has_screenshot?(log) do
     case JSON.decode(log.data) do
       {:ok, data} ->
         case data do
-          %{"name" => "screenshot"} -> true
-          %{"name" => name, "content" => content} when name in @action_tools -> has_screenshot_in_content?(content)
-          _ -> false
+          %{"name" => "screenshot"} ->
+            true
+
+          %{"name" => name, "content" => content} when name in @action_tools ->
+            has_screenshot_in_content?(content)
+
+          _ ->
+            false
         end
 
       {:error, _} ->

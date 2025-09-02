@@ -195,7 +195,7 @@
             } />
           </:col>
           <:col :let={run} label={gettext("Issues")}>
-            <% issue_count = length(run.run_steps) %>
+            <% issue_count = length(Enum.flat_map(run.run_steps, & &1.issues)) %>
             <.badge_cell
               label={"#{issue_count} #{ngettext("issue", "issues", issue_count)}"}
               color={if issue_count > 0, do: "warning", else: "success"}
