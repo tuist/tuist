@@ -9,8 +9,15 @@ extension Tuist {
             case excluding([String])
         }
 
-        /// When passed, Xcode will resolve its Package Manager dependencies using the system-defined
-        /// accounts (for example, git) instead of the Xcode-defined accounts
+        /// This is now deprecated.
+        ///
+        /// To achieve the same behaviour, use `additionalPackageResolutionArguments` like so:
+        ///
+        /// ```swift
+        /// .options(
+        ///     additionalPackageResolutionArguments: ["-scmProvider", "system"]
+        /// )
+        /// ```
         @available(*, deprecated, message: "Use `additionalPackageResolutionArguments` instead.")
         public var resolveDependenciesWithSystemScm: Bool
 
@@ -18,8 +25,17 @@ extension Tuist {
         /// in their declarations.
         public var disablePackageVersionLocking: Bool
 
-        /// Allows setting a custom directory to be used when resolving package dependencies
-        /// This path is passed to `xcodebuild` via the `-clonedSourcePackagesDirPath` argument
+        /// This is now deprecated.
+        ///
+        /// To achieve the same behaviour, use `additionalPackageResolutionArguments` like so:
+        ///
+        /// ```swift
+        /// .options(
+        ///     additionalPackageResolutionArguments: ["-clonedSourcePackagesDirPath", "/path/to/dir/MyWorkspace"]
+        /// )
+        /// ```
+        ///
+        /// Note that `/path/to/dir` is the path you would have passed to `clonedSourcePackagesDirPath`, and `MyWorkspace` is the name of your workspace.
         @available(*, deprecated, message: "Use `additionalPackageResolutionArguments` instead.")
         public var clonedSourcePackagesDirPath: Path?
 
