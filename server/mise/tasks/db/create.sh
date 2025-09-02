@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# mise description="Creates the database"
+#MISE description="Creates the database"
 
 set -euo pipefail
 

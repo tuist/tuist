@@ -1,5 +1,5 @@
 #!/bin/bash
-# mise description="Bundles the CLI"
+#MISE description="Bundles the CLI"
 
 set -e
 

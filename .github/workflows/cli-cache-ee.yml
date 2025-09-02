@@ -117,6 +117,7 @@ jobs:
           key: ${{ runner.os }}-cli-cache-ee-${{ hashFiles('Package.resolved') }}
           restore-keys: ${{ runner.os }}-cli-
       - uses: jdx/mise-action@v2
+      - run: tuist install
       - name: Initialize TuistCacheEE submodule
         run: mise run cli:ee
       - name: Run tests
@@ -160,6 +161,7 @@ jobs:
           key: ${{ runner.os }}-cli-cache-ee-${{ hashFiles('Package.resolved') }}
           restore-keys: ${{ runner.os }}-cli-
       - uses: jdx/mise-action@v2
+      - run: tuist install
       - name: Initialize TuistCacheEE submodule
         run: mise run cli:ee
       - name: Run tests
@@ -203,6 +205,7 @@ jobs:
           key: ${{ runner.os }}-cli-cache-ee-${{ hashFiles('Package.resolved') }}
           restore-keys: ${{ runner.os }}-cli-
       - uses: jdx/mise-action@v2
+      - run: tuist install
       - name: Initialize TuistCacheEE submodule
         run: mise run cli:ee
       - name: Run tests

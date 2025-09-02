@@ -1,5 +1,5 @@
 #!/bin/bash
-# mise description="Install all necessary dependencies"
+#MISE description="Install all necessary dependencies"
 
 set -eo pipefail
 

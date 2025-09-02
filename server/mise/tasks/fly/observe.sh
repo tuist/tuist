@@ -1,5 +1,5 @@
 #!/bin/bash
-# mise description="Run Erlang's observer tool on a remote Fly.io instance"
+#MISE description="Run Erlang's observer tool on a remote Fly.io instance"
 
 # After opening a Wireguard connection to your Fly network, run this script to
 # open a BEAM Observer from your local machine to the remote server. This creates
