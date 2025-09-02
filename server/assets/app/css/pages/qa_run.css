@@ -238,23 +238,23 @@
                 display: flex;
                 flex: 1;
                 flex-direction: column;
-                gap: var(--noora-spacing-3);
+                gap: var(--noora-spacing-5);
+                background: var(--noora-surface-background-tertiary);
+                padding: var(--noora-spacing-5);
+                border-radius: var(--noora-radius-large);
+                box-shadow: var(--noora-border-light-default);
 
-                & [data-part="detail-row"] {
+                & [data-part="step-detail"] {
                   display: flex;
+                  flex-direction: column;
                   align-items: flex-start;
-                  gap: var(--noora-spacing-3);
-
-                  .noora-badge {
-                    margin-top: var(--noora-spacing-2);
-                  }
+                  gap: var(--noora-spacing-4);
 
                   & [data-part="detail-value"] {
                     flex: 1;
                     padding-top: 2px;
                     color: var(--noora-surface-label-primary);
                     font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
-                    line-height: 1.5;
 
                     &[data-variant="success"] {
                       color: var(--noora-feedback-success);
