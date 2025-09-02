@@ -326,7 +326,8 @@ oban_plugins =
 
 config :tuist, Oban,
   queues: oban_queues,
-  plugins: oban_plugins
+  plugins: oban_plugins,
+  peer: !Tuist.Environment.web?()
 
 # Guardian
 config :tuist, Tuist.Guardian,
