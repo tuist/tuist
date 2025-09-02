@@ -10,9 +10,19 @@ defmodule Tuist.QA.Run do
   alias Tuist.QA.Screenshot
   alias Tuist.QA.Step
 
+  @derive {
+    Flop.Schema,
+    filterable: [
+      :id,
+      :status,
+      :vcs_provider,
+      :git_ref
+    ],
+    sortable: [:inserted_at, :finished_at],
+  }
+
   @primary_key {:id, UUIDv7, autogenerate: true}
   @foreign_key_type UUIDv7
-
   schema "qa_runs" do
     field :prompt, :string
     field :status, :string, default: "pending"

@@ -63,17 +63,6 @@ defmodule TuistWeb.AppLayoutComponents do
         }
       />
       <.sidebar_item
-        label={gettext("Bundles")}
-        icon="chart_donut_4"
-        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/bundles"}
-        selected={
-          String.starts_with?(
-            @current_path,
-            ~p"/#{@selected_account.name}/#{@selected_project.name}/bundles"
-          )
-        }
-      />
-      <.sidebar_item
         :if={FunWithFlags.enabled?(:qa, for: @selected_account)}
         label={gettext("Tuist QA")}
         icon="devices_code"
@@ -82,6 +71,17 @@ defmodule TuistWeb.AppLayoutComponents do
           String.starts_with?(
             @current_path,
             ~p"/#{@selected_account.name}/#{@selected_project.name}/qa"
+          )
+        }
+      />
+      <.sidebar_item
+        label={gettext("Bundles")}
+        icon="chart_donut_4"
+        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/bundles"}
+        selected={
+          String.starts_with?(
+            @current_path,
+            ~p"/#{@selected_account.name}/#{@selected_project.name}/bundles"
           )
         }
       />

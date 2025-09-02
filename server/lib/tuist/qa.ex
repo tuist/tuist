@@ -182,10 +182,27 @@ defmodule Tuist.QA do
   def qa_run(id, opts \\ []) do
     preload = Keyword.get(opts, :preload, [])
 
-    case Run |> Repo.get(id) |> Repo.preload(preload) do
+    case Repo.get(Run, id) do
       nil -> {:error, :not_found}
-      run -> {:ok, run}
+      qa_run -> {:ok, Repo.preload(qa_run, preload)}
     end
+  end
+
+  @doc """
+  Lists QA runs for a specific project with Flop pagination.
+  """
+  def list_qa_runs_for_project(project, options \\ %{}, opts \\ []) do
+    preload = Keyword.get(opts, :preload, [])
+
+    base_query =
+      from(qa in Run,
+        join: ab in assoc(qa, :app_build),
+        join: pr in assoc(ab, :preview),
+        where: pr.project_id == ^project.id,
+        preload: ^preload
+      )
+
+    Flop.validate_and_run!(base_query, options, for: Run)
   end
 
   @doc """
@@ -295,71 +312,6 @@ defmodule Tuist.QA do
       end)
 
     Enum.reverse(acc)
-  end
-
-  @doc """
-  Gets QA runs for a specific project.
-  Returns paginated list of QA run structs with preloaded associations.
-
-  ## Options
-  - `:limit` - Maximum number of runs to return (default: 50)
-  - `:offset` - Number of runs to skip (default: 0)
-  - `:preload` - Associations to preload (default: [])
-  """
-  def qa_runs_for_project(project, opts \\ []) do
-    limit = Keyword.get(opts, :limit, 50)
-    offset = Keyword.get(opts, :offset, 0)
-    preload = Keyword.get(opts, :preload, [])
-
-    query =
-      from(qa in Run,
-        join: ab in assoc(qa, :app_build),
-        join: pr in assoc(ab, :preview),
-        where: pr.project_id == ^project.id,
-        order_by: [desc: qa.inserted_at],
-        limit: ^limit,
-        offset: ^offset,
-        preload: ^preload
-      )
-
-    Repo.all(query)
-  end
-
-  @doc """
-  Gets QA runs for a specific project with token usage data.
-  Returns paginated list of flattened maps containing run data and token usage totals.
-
-  ## Options
-  - `:limit` - Maximum number of runs to return (default: 50)
-  - `:offset` - Number of runs to skip (default: 0)
-  """
-  def qa_runs_with_token_usage_for_project(project, opts \\ []) do
-    limit = Keyword.get(opts, :limit, 50)
-    offset = Keyword.get(opts, :offset, 0)
-
-    query =
-      from(qa in Run,
-        join: ab in assoc(qa, :app_build),
-        join: pr in assoc(ab, :preview),
-        where: pr.project_id == ^project.id,
-        left_join: tu in TokenUsage,
-        on: tu.feature_resource_id == qa.id and tu.feature == "qa",
-        group_by: [qa.id, qa.status, qa.inserted_at, qa.prompt, qa.git_ref],
-        select: %{
-          id: qa.id,
-          status: qa.status,
-          inserted_at: qa.inserted_at,
-          prompt: qa.prompt,
-          git_ref: qa.git_ref,
-          input_tokens: coalesce(sum(tu.input_tokens), 0),
-          output_tokens: coalesce(sum(tu.output_tokens), 0)
-        },
-        order_by: [desc: qa.inserted_at],
-        limit: ^limit,
-        offset: ^offset
-      )
-
-    Repo.all(query)
   end
 
   @doc """
@@ -618,16 +570,7 @@ defmodule Tuist.QA do
     }
   end
 
-  @doc """
-  Returns combined QA analytics for a given project.
-  """
-  def combined_qa_analytics(project_id, opts \\ []) do
-    [
-      qa_runs_analytics(project_id, opts),
-      qa_issues_analytics(project_id, opts),
-      qa_duration_analytics(project_id, opts)
-    ]
-  end
+
 
   @doc """
   Returns available apps for analytics filtering.
@@ -638,9 +581,9 @@ defmodule Tuist.QA do
         join: ab in assoc(qa, :app_build),
         join: pr in assoc(ab, :preview),
         where: pr.project_id == ^project_id,
-        distinct: pr.display_name,
-        select: pr.display_name,
-        order_by: pr.display_name
+        distinct: pr.bundle_identifier,
+        select: pr.bundle_identifier,
+        order_by: pr.bundle_identifier
       )
 
     apps = Repo.all(query)

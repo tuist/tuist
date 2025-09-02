@@ -16,6 +16,7 @@ defmodule TuistWeb.QALive do
       socket
       |> assign(:head_title, "#{gettext("Tuist QA")} · #{slug} · Tuist")
       |> assign(:qa_runs, [])
+      |> assign(:qa_runs_meta, %{})
       |> assign(:available_apps, QA.available_apps_for_project(project.id))
       |> load_qa_runs()
 
@@ -28,22 +29,47 @@ defmodule TuistWeb.QALive do
       socket
       |> assign(:current_params, params)
       |> assign_analytics(params)
-      |> load_qa_runs()
+      |> load_qa_runs(params)
     }
   end
 
-  defp load_qa_runs(socket) do
+  defp load_qa_runs(socket, params \\ %{}) do
     project = socket.assigns.selected_project
 
-    qa_runs =
-      QA.qa_runs_for_project(project,
+    options = %{
+      order_by: [:inserted_at],
+      order_directions: [:desc]
+    }
+
+    options =
+      cond do
+        not is_nil(Map.get(params, "before")) ->
+          options
+          |> Map.put(:last, 20)
+          |> Map.put(:before, Map.get(params, "before"))
+
+        not is_nil(Map.get(params, "after")) ->
+          options
+          |> Map.put(:first, 20)
+          |> Map.put(:after, Map.get(params, "after"))
+
+        true ->
+          Map.put(options, :first, 20)
+      end
+
+    {qa_runs, qa_runs_meta} =
+      QA.list_qa_runs_for_project(
+        project,
+        options,
         preload: [
           :run_steps,
           app_build: :preview
         ]
       )
 
-    assign(socket, :qa_runs, qa_runs)
+    socket
+    |> assign(:qa_runs, qa_runs)
+    |> assign(:qa_runs_meta, qa_runs_meta)
   end
 
   defp assign_analytics(%{assigns: %{selected_project: project}} = socket, params) do
@@ -62,8 +88,9 @@ defmodule TuistWeb.QALive do
 
     uri = URI.new!("?" <> URI.encode_query(params))
 
-    [qa_runs_analytics, qa_issues_analytics, qa_duration_analytics] =
-      QA.combined_qa_analytics(project.id, opts)
+    qa_runs_analytics = QA.qa_runs_analytics(project.id, opts)
+    qa_issues_analytics = QA.qa_issues_analytics(project.id, opts)
+    qa_duration_analytics = QA.qa_duration_analytics(project.id, opts)
 
     analytics_selected_widget = analytics_selected_widget(params)
 

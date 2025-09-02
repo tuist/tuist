@@ -172,7 +172,7 @@
       </:image>
     </.empty_card_section>
   </.card>
-  <.card title={gettext("QA Runs")} icon="devices_code" data-part="qa-runs">
+  <.card title={gettext("QA Sessions")} icon="devices_code" data-part="qa-runs">
     <.card_section data-part="qa-runs-section">
       <div :if={not Enum.empty?(@qa_runs)} data-part="qa-runs-table">
         <.table id="qa-runs-table" rows={@qa_runs}>
@@ -196,9 +196,9 @@
             />
           </:col>
           <:col :let={run} label={gettext("Branch")}>
-            <.text_cell label={run.git_ref || gettext("None")} />
+            <.text_cell icon="git_branch" label={run.git_ref || gettext("None")} />
           </:col>
-          <:col :let={run} label={gettext("SHA")}>
+          <:col :let={run} label={gettext("Commit SHA")}>
             <.text_cell label={
               (run.app_build.preview.git_commit_sha || "None")
               |> String.slice(0, 7)
@@ -208,6 +208,13 @@
             <.text_cell label={format_datetime(run.inserted_at)} />
           </:col>
         </.table>
+        <.pagination
+          uri={@uri}
+          has_previous_page={Map.get(@qa_runs_meta, :has_previous_page?, false)}
+          has_next_page={Map.get(@qa_runs_meta, :has_next_page?, false)}
+          start_cursor={Map.get(@qa_runs_meta, :start_cursor)}
+          end_cursor={Map.get(@qa_runs_meta, :end_cursor)}
+        />
       </div>
 
       <div :if={Enum.empty?(@qa_runs)} data-part="empty-qa-runs">

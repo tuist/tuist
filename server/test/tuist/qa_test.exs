@@ -1091,7 +1091,7 @@ defmodule Tuist.QATest do
     end
   end
 
-  describe "qa_runs_for_project/2" do
+  describe "list_qa_runs_for_project/3" do
     test "returns QA runs with preloaded associations" do
       # Given
       project = ProjectsFixtures.project_fixture()
@@ -1101,7 +1101,7 @@ defmodule Tuist.QATest do
       _qa_step = QAFixtures.qa_step_fixture(qa_run: qa_run, action: "Login attempt")
 
       # When
-      results = QA.qa_runs_for_project(project, preload: [app_build: [preview: []], run_steps: []])
+      {results, _meta} = QA.list_qa_runs_for_project(project, %{}, [preload: [app_build: [preview: []], run_steps: []]])
 
       # Then
       assert length(results) == 1
@@ -1128,7 +1128,7 @@ defmodule Tuist.QATest do
       _qa_run_other = QAFixtures.qa_run_fixture(app_build: other_app_build, prompt: "Other project")
 
       # When
-      results = QA.qa_runs_for_project(project)
+      {results, _meta} = QA.list_qa_runs_for_project(project, %{})
 
       # Then
       assert length(results) == 1
@@ -1140,28 +1140,40 @@ defmodule Tuist.QATest do
       project = ProjectsFixtures.project_fixture()
 
       # When
-      results = QA.qa_runs_for_project(project)
+      {results, _meta} = QA.list_qa_runs_for_project(project, %{})
 
       # Then
       assert results == []
     end
 
-    test "respects limit and offset options" do
+    test "respects Flop pagination parameters" do
       # Given
       project = ProjectsFixtures.project_fixture()
       preview = AppBuildsFixtures.preview_fixture(project: project)
       app_build = AppBuildsFixtures.app_build_fixture(preview: preview)
 
       _qa_run1 = QAFixtures.qa_run_fixture(app_build: app_build, prompt: "Test 1")
-      qa_run2 = QAFixtures.qa_run_fixture(app_build: app_build, prompt: "Test 2")
+      _qa_run2 = QAFixtures.qa_run_fixture(app_build: app_build, prompt: "Test 2")
       _qa_run3 = QAFixtures.qa_run_fixture(app_build: app_build, prompt: "Test 3")
 
-      # When
-      results = QA.qa_runs_for_project(project, limit: 1, offset: 1)
+      # When - First page
+      {first_page, meta} = QA.list_qa_runs_for_project(project, %{page_size: 2})
 
       # Then
-      assert length(results) == 1
-      assert List.first(results).id == qa_run2.id
+      assert length(first_page) == 2
+      assert meta.has_next_page?
+      assert meta.current_page == 1
+      refute meta.has_previous_page?
+      assert meta.current_page == 1
+
+      # When - Second page
+      {second_page, meta2} = QA.list_qa_runs_for_project(project, %{page_size: 2, page: 2})
+
+      # Then
+      assert length(second_page) == 1
+      refute meta2.has_next_page?
+      assert meta2.has_previous_page?
+      assert meta2.current_page == 2
     end
 
     test "orders QA runs by most recent first" do
@@ -1186,7 +1198,7 @@ defmodule Tuist.QATest do
         |> Repo.update()
 
       # When
-      results = QA.qa_runs_for_project(project)
+      {results, _meta} = QA.list_qa_runs_for_project(project, %{})
 
       # Then
       assert length(results) == 2
@@ -1195,125 +1207,7 @@ defmodule Tuist.QATest do
     end
   end
 
-  describe "qa_runs_with_token_usage_for_project/2" do
-    test "returns QA runs with token usage data" do
-      # Given
-      project = ProjectsFixtures.project_fixture()
-      preview = AppBuildsFixtures.preview_fixture(project: project)
-      app_build = AppBuildsFixtures.app_build_fixture(preview: preview)
-      qa_run = QAFixtures.qa_run_fixture(app_build: app_build, prompt: "Test login")
 
-      # When
-      results = QA.qa_runs_with_token_usage_for_project(project)
-
-      # Then
-      assert length(results) == 1
-      result = List.first(results)
-      assert result.id == qa_run.id
-      assert result.prompt == "Test login"
-      assert result.input_tokens == 0
-      assert result.output_tokens == 0
-    end
-
-    test "returns QA runs for specific project only" do
-      # Given
-      project = ProjectsFixtures.project_fixture()
-      other_project = ProjectsFixtures.project_fixture()
-
-      preview = AppBuildsFixtures.preview_fixture(project: project)
-      other_preview = AppBuildsFixtures.preview_fixture(project: other_project)
-
-      app_build = AppBuildsFixtures.app_build_fixture(preview: preview)
-      other_app_build = AppBuildsFixtures.app_build_fixture(preview: other_preview)
-
-      qa_run = QAFixtures.qa_run_fixture(app_build: app_build, prompt: "Test login")
-      _qa_run_other = QAFixtures.qa_run_fixture(app_build: other_app_build, prompt: "Other project")
-
-      # When
-      results = QA.qa_runs_with_token_usage_for_project(project)
-
-      # Then
-      assert length(results) == 1
-      assert List.first(results).id == qa_run.id
-    end
-
-    test "returns empty list when project has no QA runs" do
-      # Given
-      project = ProjectsFixtures.project_fixture()
-
-      # When
-      results = QA.qa_runs_with_token_usage_for_project(project)
-
-      # Then
-      assert results == []
-    end
-
-    test "respects limit and offset options" do
-      # Given
-      project = ProjectsFixtures.project_fixture()
-      preview = AppBuildsFixtures.preview_fixture(project: project)
-      app_build = AppBuildsFixtures.app_build_fixture(preview: preview)
-
-      oldest_time = DateTime.utc_now() |> DateTime.add(-2, :hour) |> DateTime.truncate(:second)
-      middle_time = DateTime.utc_now() |> DateTime.add(-1, :hour) |> DateTime.truncate(:second)
-      newest_time = DateTime.truncate(DateTime.utc_now(), :second)
-
-      {:ok, _qa_run1} =
-        [app_build: app_build, prompt: "Test 1"]
-        |> QAFixtures.qa_run_fixture()
-        |> Ecto.Changeset.change(inserted_at: oldest_time)
-        |> Repo.update()
-
-      {:ok, qa_run2} =
-        [app_build: app_build, prompt: "Test 2"]
-        |> QAFixtures.qa_run_fixture()
-        |> Ecto.Changeset.change(inserted_at: middle_time)
-        |> Repo.update()
-
-      {:ok, _qa_run3} =
-        [app_build: app_build, prompt: "Test 3"]
-        |> QAFixtures.qa_run_fixture()
-        |> Ecto.Changeset.change(inserted_at: newest_time)
-        |> Repo.update()
-
-      # When
-      results = QA.qa_runs_with_token_usage_for_project(project, limit: 1, offset: 1)
-
-      # Then
-      assert length(results) == 1
-      assert List.first(results).id == qa_run2.id
-    end
-
-    test "orders QA runs by most recent first" do
-      # Given
-      project = ProjectsFixtures.project_fixture()
-      preview = AppBuildsFixtures.preview_fixture(project: project)
-      app_build = AppBuildsFixtures.app_build_fixture(preview: preview)
-
-      older_time = DateTime.utc_now() |> DateTime.add(-1, :hour) |> DateTime.truncate(:second)
-      newer_time = DateTime.truncate(DateTime.utc_now(), :second)
-
-      {:ok, qa_run1} =
-        [app_build: app_build, prompt: "Test 1"]
-        |> QAFixtures.qa_run_fixture()
-        |> Ecto.Changeset.change(inserted_at: older_time)
-        |> Repo.update()
-
-      {:ok, qa_run2} =
-        [app_build: app_build, prompt: "Test 2"]
-        |> QAFixtures.qa_run_fixture()
-        |> Ecto.Changeset.change(inserted_at: newer_time)
-        |> Repo.update()
-
-      # When
-      results = QA.qa_runs_with_token_usage_for_project(project)
-
-      # Then
-      assert length(results) == 2
-      assert List.first(results).id == qa_run2.id
-      assert List.last(results).id == qa_run1.id
-    end
-  end
 
   describe "analytics functions" do
     setup do
@@ -1334,7 +1228,7 @@ defmodule Tuist.QATest do
         QAFixtures.qa_run_fixture(
           app_build: app_build,
           status: "completed",
-          inserted_at: DateTime.new!(base_date, ~T[11:00:00], "Etc/UTC")
+          inserted_at: DateTime.new!(Date.add(base_date, 4), ~T[11:00:00], "Etc/UTC")
         )
 
       _step =
@@ -1360,7 +1254,7 @@ defmodule Tuist.QATest do
       assert result.trend == 0.0
       assert length(result.values) == 11
       assert length(result.dates) == 11
-      assert Enum.sum(result.values) == 2
+      assert result.values == [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2]
     end
 
     test "qa_runs_analytics with app filter", %{project: project, app_build: app_build} do
@@ -1406,24 +1300,7 @@ defmodule Tuist.QATest do
       assert length(result.dates) == 11
     end
 
-    test "combined_qa_analytics returns all analytics", %{project: project} do
-      # When
-      [runs, issues, duration] = QA.combined_qa_analytics(project.id)
 
-      # Then
-      assert runs.count == 2
-      assert runs.trend == 0.0
-      assert length(runs.values) == 11
-      assert length(runs.dates) == 11
-      assert issues.count == 2
-      assert issues.trend == 0.0
-      assert length(issues.values) == 11
-      assert length(issues.dates) == 11
-      assert duration.total_average_duration > 0
-      assert duration.trend == 0.0
-      assert length(duration.values) == 11
-      assert length(duration.dates) == 11
-    end
 
     test "available_apps_for_project returns app names", %{project: project} do
       # When

@@ -26,6 +26,9 @@
   }
 
   & [data-part="qa-runs-table"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-6);
     margin-top: var(--noora-spacing-6);
   }
 
