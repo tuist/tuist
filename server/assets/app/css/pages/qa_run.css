@@ -1,9 +1,12 @@
 #qa-run {
   display: flex;
   flex-direction: column;
+  box-sizing: border-box;
   align-items: flex-start;
   gap: var(--noora-spacing-6);
   padding: var(--noora-spacing-7) var(--noora-spacing-5);
+  width: 100%;
+  overflow-x: hidden;
 
   & > [data-part="action-buttons"] {
     display: flex;
@@ -271,10 +274,6 @@
         }
       }
     }
-  }
-
-  & .noora-tab-menu-horizontal {
-    width: 100%;
   }
 
   & > div:not([data-part]) {
