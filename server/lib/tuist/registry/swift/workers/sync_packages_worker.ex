@@ -39,13 +39,13 @@ defmodule Tuist.Registry.Swift.Workers.SyncPackagesWorker do
     token_packages = Environment.github_token_update_packages()
     token_releases = Environment.github_token_update_package_releases()
 
-    missing_versions_from_packages =
+    missing_versions_from_new_packages =
       if update_packages, do: sync_packages_from_spi(token_packages, token_releases), else: []
 
-    missing_versions_from_releases =
+    missing_versions_from_existing_packages =
       if update_releases, do: find_missing_releases_for_existing_packages(limit, token_releases), else: []
 
-    all_missing_versions = missing_versions_from_packages ++ missing_versions_from_releases
+    all_missing_versions = missing_versions_from_new_packages ++ missing_versions_from_existing_packages
 
     spawn_release_workers(all_missing_versions)
 
