@@ -13,7 +13,7 @@ defmodule Tuist.Registry.Swift.Workers.CreatePackageReleaseWorkerTest do
   defp setup_standard_stubs(_scope, _name, _version, directory_name) do
     directory_path = "/tmp/briefly--123-test/briefly-456-test/#{directory_name}"
     package_swift_path = "#{directory_path}/Package.swift"
-    
+
     stub(Storage, :put_object, fn _, _ -> :ok end)
 
     stub(VCS, :get_source_archive_by_tag_and_repository_full_handle, fn _ ->
@@ -24,20 +24,23 @@ defmodule Tuist.Registry.Swift.Workers.CreatePackageReleaseWorkerTest do
       {:ok, "/tmp/briefly--123-test/briefly-456-test"}
     end)
 
-    stub(System, :cmd, fn cmd, args -> 
+    stub(System, :cmd, fn cmd, args ->
       case {cmd, args} do
-        {"unzip", ["/tmp/source_archive.zip", "-d", "/tmp/briefly--123-test/briefly-456-test"]} -> 
+        {"unzip", ["/tmp/source_archive.zip", "-d", "/tmp/briefly--123-test/briefly-456-test"]} ->
           {"", 0}
-        _ -> 
+
+        _ ->
           {"", 0}
       end
     end)
 
-    stub(System, :cmd, fn cmd, args, opts -> 
+    stub(System, :cmd, fn cmd, args, opts ->
       case {cmd, args, opts} do
-        {"zip", ["--symlinks", "-r", "/tmp/briefly--123-test/briefly-456-test/source_archive.zip", ^directory_name], [cd: "/tmp/briefly--123-test/briefly-456-test"]} -> 
+        {"zip", ["--symlinks", "-r", "/tmp/briefly--123-test/briefly-456-test/source_archive.zip", ^directory_name],
+         [cd: "/tmp/briefly--123-test/briefly-456-test"]} ->
           {"", 0}
-        _ -> 
+
+        _ ->
           {"", 0}
       end
     end)
@@ -229,13 +232,16 @@ defmodule Tuist.Registry.Swift.Workers.CreatePackageReleaseWorkerTest do
       setup_standard_stubs("alamofire", "alamofire", "5.10.2", "Alamofire")
 
       stub(File, :ls!, fn
-        "/tmp/briefly--123-test/briefly-456-test" -> ["Alamofire"]
-        "/tmp/briefly--123-test/briefly-456-test/Alamofire" -> [
-          "Package.swift",
-          "Package@swift-5.9.swift",
-          "Package@swift-5.8.swift", 
-          "Package@swift-5.7.swift"
-        ]
+        "/tmp/briefly--123-test/briefly-456-test" ->
+          ["Alamofire"]
+
+        "/tmp/briefly--123-test/briefly-456-test/Alamofire" ->
+          [
+            "Package.swift",
+            "Package@swift-5.9.swift",
+            "Package@swift-5.8.swift",
+            "Package@swift-5.7.swift"
+          ]
       end)
 
       stub(VCS, :get_repository_content, fn
@@ -252,12 +258,13 @@ defmodule Tuist.Registry.Swift.Workers.CreatePackageReleaseWorkerTest do
           {:ok, %Content{content: "// swift-tools-version:5.7\ncontent", path: "Package@swift-5.7.swift"}}
 
         _, [reference: "5.10.2"] ->
-          {:ok, [
-            %Content{content: nil, path: "Package.swift"},
-            %Content{content: nil, path: "Package@swift-5.9.swift"},
-            %Content{content: nil, path: "Package@swift-5.8.swift"},
-            %Content{content: nil, path: "Package@swift-5.7.swift"}
-          ]}
+          {:ok,
+           [
+             %Content{content: nil, path: "Package.swift"},
+             %Content{content: nil, path: "Package@swift-5.9.swift"},
+             %Content{content: nil, path: "Package@swift-5.8.swift"},
+             %Content{content: nil, path: "Package@swift-5.7.swift"}
+           ]}
       end)
 
       job = %Oban.Job{
@@ -274,14 +281,16 @@ defmodule Tuist.Registry.Swift.Workers.CreatePackageReleaseWorkerTest do
       # Then
       assert result == :ok
 
-      package_release = Packages.get_package_release_by_version(%{package: package, version: "5.10.2"})
-      |> Repo.preload(:manifests)
-      
+      package_release =
+        %{package: package, version: "5.10.2"}
+        |> Packages.get_package_release_by_version()
+        |> Repo.preload(:manifests)
+
       assert package_release
       assert package_release.version == "5.10.2"
       assert Enum.count(package_release.manifests) == 4
-      
-      swift_versions = Enum.map(package_release.manifests, & &1.swift_tools_version) |> Enum.sort()
+
+      swift_versions = package_release.manifests |> Enum.map(& &1.swift_tools_version) |> Enum.sort()
       assert swift_versions == [nil, "5.7", "5.8", "5.9"]
     end
 
@@ -379,9 +388,11 @@ defmodule Tuist.Registry.Swift.Workers.CreatePackageReleaseWorkerTest do
       # Then
       assert result == :ok
 
-      package_release = Packages.get_package_release_by_version(%{package: package, version: "1.0.0"})
-      |> Repo.preload(:manifests)
-      
+      package_release =
+        %{package: package, version: "1.0.0"}
+        |> Packages.get_package_release_by_version()
+        |> Repo.preload(:manifests)
+
       assert package_release
       assert package_release.version == "1.0.0"
       assert Enum.count(package_release.manifests) == 0
@@ -505,11 +516,12 @@ defmodule Tuist.Registry.Swift.Workers.CreatePackageReleaseWorkerTest do
         "/tmp/briefly--123-test/briefly-456-test/source_archive.zip" -> "zip_content"
       end)
 
-      stub(File, :write!, fn 
+      stub(File, :write!, fn
         "/tmp/briefly--123-test/briefly-456-test/TestPackage/Package.swift", content ->
           # Verify the manifest was transformed correctly
           assert content == expected_manifest_content
           :ok
+
         _, _ ->
           :ok
       end)
@@ -605,6 +617,7 @@ defmodule Tuist.Registry.Swift.Workers.CreatePackageReleaseWorkerTest do
           # Verify the .byName references were replaced correctly
           assert content == expected_manifest_content
           :ok
+
         _, _ ->
           :ok
       end)
@@ -719,6 +732,7 @@ defmodule Tuist.Registry.Swift.Workers.CreatePackageReleaseWorkerTest do
           # Verify all transformations were applied correctly
           assert content == expected_manifest_content
           :ok
+
         _, _ ->
           :ok
       end)

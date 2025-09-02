@@ -6,6 +6,7 @@ defmodule Tuist.Registry.Swift.PackagesTest do
   alias Tuist.Repo
   alias Tuist.Storage
   alias Tuist.VCS
+  alias Tuist.VCS.Repositories.Tag
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.Registry.Swift.PackagesFixtures
 
@@ -108,11 +109,11 @@ defmodule Tuist.Registry.Swift.PackagesTest do
 
       stub(VCS, :get_tags, fn _ ->
         [
-          %VCS.Repositories.Tag{name: "5.10.2"},
-          %VCS.Repositories.Tag{name: "5.10.1"},
-          %VCS.Repositories.Tag{name: "5.10.0"},
-          %VCS.Repositories.Tag{name: "5.11"},
-          %VCS.Repositories.Tag{name: "tag@5.0.0"}
+          %Tag{name: "5.10.2"},
+          %Tag{name: "5.10.1"},
+          %Tag{name: "5.10.0"},
+          %Tag{name: "5.11"},
+          %Tag{name: "tag@5.0.0"}
         ]
       end)
 
@@ -146,8 +147,8 @@ defmodule Tuist.Registry.Swift.PackagesTest do
 
       stub(VCS, :get_tags, fn _ ->
         [
-          %VCS.Repositories.Tag{name: "v5.10.2"},
-          %VCS.Repositories.Tag{name: "5.10.2"}
+          %Tag{name: "v5.10.2"},
+          %Tag{name: "5.10.2"}
         ]
       end)
 
@@ -172,7 +173,7 @@ defmodule Tuist.Registry.Swift.PackagesTest do
 
       stub(VCS, :get_tags, fn _ ->
         [
-          %VCS.Repositories.Tag{name: "v5.10.2"}
+          %Tag{name: "v5.10.2"}
         ]
       end)
 
@@ -199,10 +200,10 @@ defmodule Tuist.Registry.Swift.PackagesTest do
 
       stub(VCS, :get_tags, fn _ ->
         [
-          %VCS.Repositories.Tag{name: "5.10.2-beta"},
-          %VCS.Repositories.Tag{name: "5.10.2-beta.1"},
-          %VCS.Repositories.Tag{name: "v5.10.2-beta.2"},
-          %VCS.Repositories.Tag{name: "5.10.2-beta-3"}
+          %Tag{name: "5.10.2-beta"},
+          %Tag{name: "5.10.2-beta.1"},
+          %Tag{name: "v5.10.2-beta.2"},
+          %Tag{name: "5.10.2-beta-3"}
         ]
       end)
 
@@ -222,64 +223,6 @@ defmodule Tuist.Registry.Swift.PackagesTest do
              ]
     end
 
-    test "skips dev versions like 0.9.3-dev1985" do
-      # Given
-      package =
-        PackagesFixtures.package_fixture(
-          scope: "TestScope",
-          name: "TestPackage",
-          preload: [:package_releases]
-        )
-
-      stub(Storage, :put_object, fn
-        "registry/swift/testscope/testpackage/1.0.0/Package.swift", _ -> :ok
-        "registry/swift/testscope/testpackage/1.0.0/source_archive.zip", _ -> :ok
-        "registry/swift/testscope/testpackage/2.0.0-alpha/Package.swift", _ -> :ok
-        "registry/swift/testscope/testpackage/2.0.0-alpha/source_archive.zip", _ -> :ok
-      end)
-
-      stub(VCS, :get_tags, fn _ ->
-        [
-          %Tag{name: "1.0.0"},
-          %Tag{name: "0.9.3-dev1985"},
-          %Tag{name: "1.2.3-dev"},
-          %Tag{name: "2.0.0-dev456"},
-          %Tag{name: "2.0.0-alpha"}
-        ]
-      end)
-
-      stub(VCS, :get_source_archive_by_tag_and_repository_full_handle, fn _ ->
-        {:ok, "/tmp/source_archive.zip"}
-      end)
-
-      stub(System, :cmd, fn _, _ -> {"", 0} end)
-      stub(System, :cmd, fn _, _, _ -> {"", 0} end)
-
-      stub(File, :ls!, fn _ ->
-        ["TestPackage"]
-      end)
-
-      stub(File, :read!, fn _ ->
-        "content"
-      end)
-
-      stub(VCS, :get_repository_content, fn _, _ ->
-        {:ok, [%Content{path: "File.swift", content: "content"}]}
-      end)
-
-      stub(Base64, :decode, fn "content" -> "content" end)
-
-      # When
-      got = Packages.create_missing_package_releases(%{package: package, token: "github_token"})
-
-      # Then
-      # Should only include 1.0.0 and 2.0.0-alpha, excluding all dev versions
-      assert Enum.map(got, & &1.version) == [
-               "1.0.0",
-               "2.0.0-alpha"
-             ]
-    end
-
     test "filters out dev versions" do
       # Given
       package =
@@ -290,9 +233,9 @@ defmodule Tuist.Registry.Swift.PackagesTest do
 
       stub(VCS, :get_tags, fn _ ->
         [
-          %VCS.Repositories.Tag{name: "5.10.2"},
-          %VCS.Repositories.Tag{name: "0.9.3-dev1985"},
-          %VCS.Repositories.Tag{name: "1.0.0-dev123"}
+          %Tag{name: "5.10.2"},
+          %Tag{name: "0.9.3-dev1985"},
+          %Tag{name: "1.0.0-dev123"}
         ]
       end)
 
