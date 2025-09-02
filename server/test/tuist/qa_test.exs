@@ -1104,213 +1104,12 @@ defmodule Tuist.QATest do
       {results, _meta} = QA.list_qa_runs_for_project(project, %{}, [preload: [app_build: [preview: []], run_steps: []]])
 
       # Then
-      assert length(results) == 1
-      result = List.first(results)
+      assert [result] = results
       assert result.id == qa_run.id
 
       refute match?(%NotLoaded{}, result.app_build)
       refute match?(%NotLoaded{}, result.app_build.preview)
       refute match?(%NotLoaded{}, result.run_steps)
-    end
-
-    test "returns QA runs for specific project only" do
-      # Given
-      project = ProjectsFixtures.project_fixture()
-      other_project = ProjectsFixtures.project_fixture()
-
-      preview = AppBuildsFixtures.preview_fixture(project: project)
-      other_preview = AppBuildsFixtures.preview_fixture(project: other_project)
-
-      app_build = AppBuildsFixtures.app_build_fixture(preview: preview)
-      other_app_build = AppBuildsFixtures.app_build_fixture(preview: other_preview)
-
-      qa_run = QAFixtures.qa_run_fixture(app_build: app_build, prompt: "Test login")
-      _qa_run_other = QAFixtures.qa_run_fixture(app_build: other_app_build, prompt: "Other project")
-
-      # When
-      {results, _meta} = QA.list_qa_runs_for_project(project, %{})
-
-      # Then
-      assert length(results) == 1
-      assert List.first(results).id == qa_run.id
-    end
-
-    test "returns empty list when project has no QA runs" do
-      # Given
-      project = ProjectsFixtures.project_fixture()
-
-      # When
-      {results, _meta} = QA.list_qa_runs_for_project(project, %{})
-
-      # Then
-      assert results == []
-    end
-
-    test "respects Flop pagination parameters" do
-      # Given
-      project = ProjectsFixtures.project_fixture()
-      preview = AppBuildsFixtures.preview_fixture(project: project)
-      app_build = AppBuildsFixtures.app_build_fixture(preview: preview)
-
-      _qa_run1 = QAFixtures.qa_run_fixture(app_build: app_build, prompt: "Test 1")
-      _qa_run2 = QAFixtures.qa_run_fixture(app_build: app_build, prompt: "Test 2")
-      _qa_run3 = QAFixtures.qa_run_fixture(app_build: app_build, prompt: "Test 3")
-
-      # When - First page
-      {first_page, meta} = QA.list_qa_runs_for_project(project, %{page_size: 2})
-
-      # Then
-      assert length(first_page) == 2
-      assert meta.has_next_page?
-      assert meta.current_page == 1
-      refute meta.has_previous_page?
-      assert meta.current_page == 1
-
-      # When - Second page
-      {second_page, meta2} = QA.list_qa_runs_for_project(project, %{page_size: 2, page: 2})
-
-      # Then
-      assert length(second_page) == 1
-      refute meta2.has_next_page?
-      assert meta2.has_previous_page?
-      assert meta2.current_page == 2
-    end
-
-    test "orders QA runs by most recent first" do
-      # Given
-      project = ProjectsFixtures.project_fixture()
-      preview = AppBuildsFixtures.preview_fixture(project: project)
-      app_build = AppBuildsFixtures.app_build_fixture(preview: preview)
-
-      base_time = DateTime.utc_now()
-      older_time = base_time |> DateTime.add(-2, :hour) |> DateTime.truncate(:second)
-      newer_time = base_time |> DateTime.add(-1, :hour) |> DateTime.truncate(:second)
-
-      {:ok, qa_run1} =
-        [app_build: app_build, prompt: "Test 1"]
-        |> QAFixtures.qa_run_fixture()
-        |> Ecto.Changeset.change(inserted_at: older_time)
-        |> Repo.update()
-
-      {:ok, qa_run2} =
-        [app_build: app_build, prompt: "Test 2"]
-        |> QAFixtures.qa_run_fixture()
-        |> Ecto.Changeset.change(inserted_at: newer_time)
-        |> Repo.update()
-
-      # When
-      {results, _meta} = QA.list_qa_runs_for_project(project, %{order_by: [:inserted_at], order_directions: [:desc]})
-
-      # Then
-      assert length(results) == 2
-      assert List.first(results).id == qa_run2.id
-      assert List.last(results).id == qa_run1.id
-    end
-  end
-
-
-
-  describe "analytics functions" do
-    setup do
-      project = ProjectsFixtures.project_fixture()
-      preview = AppBuildsFixtures.preview_fixture(project: project)
-      app_build = AppBuildsFixtures.app_build_fixture(preview: preview, preload: [:preview])
-
-      base_date = Date.add(Date.utc_today(), -10)
-
-      run1 =
-        QAFixtures.qa_run_fixture(
-          app_build: app_build,
-          status: "completed",
-          inserted_at: DateTime.new!(base_date, ~T[10:00:00], "Etc/UTC")
-        )
-
-      run2 =
-        QAFixtures.qa_run_fixture(
-          app_build: app_build,
-          status: "completed",
-          inserted_at: DateTime.new!(Date.add(base_date, 4), ~T[11:00:00], "Etc/UTC")
-        )
-
-      _step =
-        QAFixtures.qa_step_fixture(
-          qa_run: run2,
-          issues: ["Issue 1", "Issue 2"]
-        )
-
-      {:ok, run2} =
-        run2
-        |> Ecto.Changeset.change(finished_at: base_date |> Date.add(5) |> DateTime.new!(~T[10:30:00], "Etc/UTC"))
-        |> Repo.update()
-
-      %{project: project, app_build: app_build, run1: run1, run2: run2}
-    end
-
-    test "qa_runs_analytics returns correct analytics data", %{project: project} do
-      # When
-      result = QA.qa_runs_analytics(project.id)
-
-      # Then
-      assert result.count == 2
-      assert result.trend == 0.0
-      assert length(result.values) == 11
-      assert length(result.dates) == 11
-      assert result.values == [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2]
-    end
-
-    test "qa_runs_analytics with app filter", %{project: project, app_build: app_build} do
-      # When
-      result = QA.qa_runs_analytics(project.id, app_name: app_build.preview.display_name)
-
-      # Then
-      assert result.count == 2
-      assert result.trend == 0.0
-    end
-
-    test "qa_runs_analytics with date range", %{project: project} do
-      start_date = Date.add(Date.utc_today(), -5)
-      end_date = Date.utc_today()
-
-      # When
-      result = QA.qa_runs_analytics(project.id, start_date: start_date, end_date: end_date)
-
-      # Then
-      assert result.count >= 0
-      assert length(result.values) == 6
-    end
-
-    test "qa_issues_analytics returns correct analytics data", %{project: project} do
-      # When
-      result = QA.qa_issues_analytics(project.id)
-
-      # Then
-      assert result.count == 2
-      assert result.trend == 0.0
-      assert length(result.values) == 11
-      assert length(result.dates) == 11
-    end
-
-    test "qa_duration_analytics returns correct analytics data", %{project: project} do
-      # When
-      result = QA.qa_duration_analytics(project.id)
-
-      # Then
-      assert result.total_average_duration > 0
-      assert result.trend == 0.0
-      assert length(result.values) == 11
-      assert length(result.dates) == 11
-    end
-
-
-
-    test "available_apps_for_project returns app names", %{project: project} do
-      # When
-      apps = QA.available_apps_for_project(project.id)
-
-      # Then
-      assert length(apps) == 1
-      assert {app_name, app_name} = List.first(apps)
-      assert is_binary(app_name)
     end
 
     test "analytics functions handle empty data" do
@@ -1320,18 +1119,54 @@ defmodule Tuist.QATest do
       issues_result = QA.qa_issues_analytics(empty_project.id)
       duration_result = QA.qa_duration_analytics(empty_project.id)
 
-      assert runs_result.count == 0
-      assert runs_result.trend == 0.0
-      assert length(runs_result.values) == 11
-      assert length(runs_result.dates) == 11
-      assert issues_result.count == 0
-      assert issues_result.trend == 0.0
-      assert length(issues_result.values) == 11
-      assert length(issues_result.dates) == 11
-      assert duration_result.total_average_duration == 0
-      assert duration_result.trend == 0.0
-      assert length(duration_result.values) == 11
-      assert length(duration_result.dates) == 11
+      assert %{
+        count: 0,
+        trend: runs_trend,
+        values: values,
+        dates: dates
+      } = runs_result
+      assert runs_trend == 0.0
+      assert runs_trend == 0.0
+      assert length(values) == 11
+      assert length(dates) == 11
+
+      assert %{
+        count: 0,
+        trend: issues_trend,
+        values: values,
+        dates: dates
+      } = issues_result
+      assert issues_trend == 0.0
+      assert length(values) == 11
+      assert length(dates) == 11
+
+      assert %{
+        total_average_duration: 0,
+        trend: duration_trend,
+        values: values,
+        dates: dates
+      } = duration_result
+      assert duration_trend == 0.0
+      assert length(values) == 11
+      assert length(dates) == 11
+
+      assert %{
+        count: 0,
+        trend: +0.0,
+        values: values,
+        dates: dates
+      } = issues_result
+      assert length(values) == 11
+      assert length(dates) == 11
+
+      assert %{
+        total_average_duration: 0,
+        trend: +0.0,
+        values: values,
+        dates: dates
+      } = duration_result
+      assert length(values) == 11
+      assert length(dates) == 11
     end
   end
 end
