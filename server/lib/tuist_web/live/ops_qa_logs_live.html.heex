@@ -15,7 +15,7 @@
           status={map_qa_status_to_badge_status(@qa_run.status)}
           label={String.capitalize(@qa_run.status)}
         />
-        <span data-part="time">{format_datetime(@qa_run.inserted_at)}</span>
+        <span data-part="time">{DateFormatter.format_iso(@qa_run.inserted_at)}</span>
       </div>
     </div>
   </div>

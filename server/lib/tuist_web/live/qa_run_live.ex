@@ -6,19 +6,24 @@ defmodule TuistWeb.QARunLive do
   import TuistWeb.Components.EmptyCardSection
   import TuistWeb.Previews.PlatformTag
 
-  alias Tuist.QA
   alias Tuist.AppBuilds.Preview
+  alias Tuist.QA
+  alias Tuist.Utilities.DateFormatter
   alias TuistWeb.Errors.NotFoundError
 
   @impl true
-  def mount(%{"qa_run_id" => qa_run_id, "account_handle" => account_handle, "project_handle" => project_handle} = params, _session, socket) do
+  def mount(
+        %{"qa_run_id" => qa_run_id, "account_handle" => account_handle, "project_handle" => project_handle} = params,
+        _session,
+        socket
+      ) do
     case QA.qa_run(qa_run_id, preload: [run_steps: :screenshot, app_build: [preview: [project: :account]]]) do
       {:error, :not_found} ->
         raise NotFoundError, gettext("QA run not found")
 
       {:ok, qa_run} ->
         if qa_run.app_build.preview.project.account.name != account_handle or
-           qa_run.app_build.preview.project.name != project_handle do
+             qa_run.app_build.preview.project.name != project_handle do
           raise NotFoundError, gettext("QA run not found")
         end
 
@@ -70,8 +75,7 @@ defmodule TuistWeb.QARunLive do
   defp extract_issues(run_steps) do
     run_steps
     |> Enum.flat_map(fn step ->
-      step.issues
-      |> Enum.map(fn issue ->
+      Enum.map(step.issues, fn issue ->
         %{
           issue: issue,
           step: step,
@@ -82,13 +86,8 @@ defmodule TuistWeb.QARunLive do
     |> Enum.with_index(1)
   end
 
-  defp format_datetime(%DateTime{} = datetime) do
-    Timex.format!(datetime, "{WDshort} {D} {Mfull} {h24}:{m}:{s}")
-  end
-
-  defp format_datetime(_), do: gettext("Unknown")
-
   defp format_commit_sha(nil), do: gettext("None")
+
   defp format_commit_sha(sha) when is_binary(sha) do
     String.slice(sha, 0, 7)
   end

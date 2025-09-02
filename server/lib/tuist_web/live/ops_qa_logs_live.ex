@@ -4,6 +4,7 @@ defmodule TuistWeb.OpsQALogsLive do
   use Noora
 
   alias Tuist.QA
+  alias Tuist.Utilities.DateFormatter
   alias TuistWeb.Errors.NotFoundError
 
   @impl true
@@ -88,16 +89,6 @@ defmodule TuistWeb.OpsQALogsLive do
       data -> inspect(data)
     end
   end
-
-  defp format_datetime(%DateTime{} = datetime) do
-    datetime
-    |> DateTime.truncate(:second)
-    |> DateTime.to_string()
-    |> String.replace("T", " ")
-    |> String.replace("Z", " UTC")
-  end
-
-  defp format_datetime(_), do: "Unknown"
 
   defp format_log_timestamp_short(%NaiveDateTime{} = ndt) do
     time = NaiveDateTime.to_time(ndt)

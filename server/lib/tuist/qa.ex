@@ -570,8 +570,6 @@ defmodule Tuist.QA do
     }
   end
 
-
-
   @doc """
   Returns available apps for analytics filtering.
   """

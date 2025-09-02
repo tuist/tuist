@@ -180,7 +180,9 @@
           rows={@qa_runs}
           row_navigate={
             fn run ->
-              url(~p"/#{@selected_project.account.name}/#{@selected_project.name}/qa/#{run.id}/overview")
+              url(
+                ~p"/#{@selected_project.account.name}/#{@selected_project.name}/qa/#{run.id}/overview"
+              )
             end
           }
         >
@@ -213,7 +215,7 @@
             } />
           </:col>
           <:col :let={run} label={gettext("Tested")}>
-            <.text_cell label={format_datetime(run.inserted_at)} />
+            <.text_cell label={DateFormatter.from_now(run.inserted_at)} />
           </:col>
         </.table>
         <.pagination

@@ -5,7 +5,6 @@ defmodule TuistWeb.Previews.PlatformIcon do
   use Phoenix.Component
   use Noora
 
-
   attr :platform, :map, required: true
 
   def platform_icon(assigns) do
@@ -13,8 +12,6 @@ defmodule TuistWeb.Previews.PlatformIcon do
     <.icon name={platform_icon_name(@platform)} />
     """
   end
-
-
 
   def platform_icon_name(:ios), do: "device_mobile"
   def platform_icon_name(:ios_simulator), do: "device_mobile_share"

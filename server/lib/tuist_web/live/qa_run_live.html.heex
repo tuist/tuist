@@ -91,7 +91,7 @@
             <div data-part="metadata">
               <div data-part="title">{gettext("Created at")}</div>
               <span data-part="label">
-                {format_datetime(@qa_run.inserted_at)}
+                {DateFormatter.format_full(@qa_run.inserted_at)}
               </span>
             </div>
           </div>
@@ -160,10 +160,18 @@
                 </div>
                 <div data-part="issue-title">{gettext("Temporary visual inconsistency")}</div>
                 <div data-part="issue-toggle">
-                  <.neutral_button data-part="closed-collapsible-button" icon_only size="medium">
+                  <.neutral_button
+                    data-part="closed-collapsible-button"
+                    variant="secondary"
+                    size="medium"
+                  >
                     <.chevron_down />
                   </.neutral_button>
-                  <.neutral_button data-part="open-collapsible-button" icon_only size="medium">
+                  <.neutral_button
+                    data-part="open-collapsible-button"
+                    variant="secondary"
+                    size="medium"
+                  >
                     <.chevron_up />
                   </.neutral_button>
                 </div>
@@ -190,24 +198,24 @@
                     </div>
 
                     <div data-part="detail-row">
-                      <.badge label="Result" color="success" style="light-fill" size="small" />
+                      <.badge label="Result" color="information" style="light-fill" size="small" />
                       <span data-part="detail-value" data-variant="success">
-{issue_data.step.result}
-
+                        {issue_data.step.result}
                       </span>
                     </div>
 
                     <div data-part="detail-row">
-                      <.badge label="Issue" color="destructive" style="light-fill" size="small" />
+                      <.badge label="Issue" color="warning" style="light-fill" size="small" />
                       <span data-part="detail-value" data-variant="warning">
-                        {issue_data.issue
-                      }
+                        {issue_data.issue}
                       </span>
                     </div>
 
                     <div data-part="detail-row">
-                      <.badge label="Timestamp" color="neutral" style="light-fill" size="small" />
-                      <span data-part="detail-value">{format_datetime(issue_data.step.inserted_at)}</span>
+                      <.badge label="Timestamp" color="focus" style="light-fill" size="small" />
+                      <span data-part="detail-value">
+                        {DateFormatter.format_full(issue_data.step.inserted_at)}
+                      </span>
                     </div>
                   </div>
                 </div>

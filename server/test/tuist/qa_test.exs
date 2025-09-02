@@ -1101,7 +1101,7 @@ defmodule Tuist.QATest do
       _qa_step = QAFixtures.qa_step_fixture(qa_run: qa_run, action: "Login attempt")
 
       # When
-      {results, _meta} = QA.list_qa_runs_for_project(project, %{}, [preload: [app_build: [preview: []], run_steps: []]])
+      {results, _meta} = QA.list_qa_runs_for_project(project, %{}, preload: [app_build: [preview: []], run_steps: []])
 
       # Then
       assert [result] = results
@@ -1120,51 +1120,56 @@ defmodule Tuist.QATest do
       duration_result = QA.qa_duration_analytics(empty_project.id)
 
       assert %{
-        count: 0,
-        trend: runs_trend,
-        values: values,
-        dates: dates
-      } = runs_result
+               count: 0,
+               trend: runs_trend,
+               values: values,
+               dates: dates
+             } = runs_result
+
       assert runs_trend == 0.0
       assert runs_trend == 0.0
       assert length(values) == 11
       assert length(dates) == 11
 
       assert %{
-        count: 0,
-        trend: issues_trend,
-        values: values,
-        dates: dates
-      } = issues_result
+               count: 0,
+               trend: issues_trend,
+               values: values,
+               dates: dates
+             } = issues_result
+
       assert issues_trend == 0.0
       assert length(values) == 11
       assert length(dates) == 11
 
       assert %{
-        total_average_duration: 0,
-        trend: duration_trend,
-        values: values,
-        dates: dates
-      } = duration_result
+               total_average_duration: 0,
+               trend: duration_trend,
+               values: values,
+               dates: dates
+             } = duration_result
+
       assert duration_trend == 0.0
       assert length(values) == 11
       assert length(dates) == 11
 
       assert %{
-        count: 0,
-        trend: +0.0,
-        values: values,
-        dates: dates
-      } = issues_result
+               count: 0,
+               trend: +0.0,
+               values: values,
+               dates: dates
+             } = issues_result
+
       assert length(values) == 11
       assert length(dates) == 11
 
       assert %{
-        total_average_duration: 0,
-        trend: +0.0,
-        values: values,
-        dates: dates
-      } = duration_result
+               total_average_duration: 0,
+               trend: +0.0,
+               values: values,
+               dates: dates
+             } = duration_result
+
       assert length(values) == 11
       assert length(dates) == 11
     end

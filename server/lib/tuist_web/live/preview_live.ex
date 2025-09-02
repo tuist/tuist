@@ -85,8 +85,6 @@ defmodule TuistWeb.PreviewLive do
     end
   end
 
-
-
   def handle_event(
         "delete_preview",
         _params,

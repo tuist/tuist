@@ -152,28 +152,27 @@
   & [data-part="issues-card"] {
     & > [data-part="issues-card-section"] {
       & > [data-part="issue-item"] {
-        border-radius: var(--noora-radius-large);
         box-shadow: var(--noora-border-light-default);
+        border-radius: var(--noora-radius-large);
         padding: var(--noora-spacing-4);
-
 
         & > [data-part="root"] {
           & > [data-part="trigger"] {
             display: flex;
             align-items: center;
             gap: var(--noora-spacing-3);
-            padding: var(--noora-spacing-4) 0;
             cursor: pointer;
+            padding: var(--noora-spacing-4) 0;
 
             & [data-part="issue-icon"] {
               display: flex;
-padding: var(--noora-spacing-3);
-border-radius: var(--noora-radius-large);
-justify-content: center;
-align-items: center;
-gap: 10px;
-background: var(--noora-icon-warning-background);
-color: var(--noora-icon-warning-label);
+              justify-content: center;
+              align-items: center;
+              gap: 10px;
+              border-radius: var(--noora-radius-large);
+              background: var(--noora-icon-warning-background);
+              padding: var(--noora-spacing-3);
+              color: var(--noora-icon-warning-label);
 
               & svg {
                 width: 20px;
@@ -206,6 +205,7 @@ color: var(--noora-icon-warning-label);
 
           & > [data-part="content"] {
             padding-top: var(--noora-spacing-4);
+            padding-left: var(--noora-spacing-10);
 
             &[data-state="closed"] {
               display: none;
@@ -213,30 +213,30 @@ color: var(--noora-icon-warning-label);
 
             & [data-part="issue-content-wrapper"] {
               display: flex;
-              gap: var(--noora-spacing-5);
               align-items: flex-start;
+              gap: var(--noora-spacing-5);
 
               & [data-part="screenshots-column"] {
                 display: flex;
-                gap: var(--noora-spacing-3);
                 flex-shrink: 0;
+                gap: var(--noora-spacing-3);
 
                 & [data-part="screenshot-thumb"] {
                   width: 140px;
                   height: auto;
 
                   & img {
+                    box-shadow: var(--noora-border-light-default);
+                    border-radius: var(--noora-radius-xlarge);
                     width: 100%;
                     height: auto;
-                    border-radius: var(--noora-radius-small);
-                    border: 1px solid var(--noora-surface-stroke-secondary);
                   }
                 }
               }
 
               & [data-part="step-details"] {
-                flex: 1;
                 display: flex;
+                flex: 1;
                 flex-direction: column;
                 gap: var(--noora-spacing-3);
 
@@ -245,17 +245,16 @@ color: var(--noora-icon-warning-label);
                   align-items: flex-start;
                   gap: var(--noora-spacing-3);
 
-                  & .noora-badge {
-                    flex-shrink: 0;
-                    min-width: 80px;
+                  .noora-badge {
+                    margin-top: var(--noora-spacing-2);
                   }
 
                   & [data-part="detail-value"] {
                     flex: 1;
+                    padding-top: 2px;
                     color: var(--noora-surface-label-primary);
                     font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
                     line-height: 1.5;
-                    padding-top: 2px;
 
                     &[data-variant="success"] {
                       color: var(--noora-feedback-success);
