@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# mise description="Deploys the app to staging"
+#MISE description="Deploys the app to staging"
 
 set -euo pipefail
 

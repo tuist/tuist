@@ -1,5 +1,5 @@
 #!/bin/bash
-# mise description="Run the 'tuistbenchmark' tool"
+#MISE description="Run the 'tuistbenchmark' tool"
 set -euo pipefail
 
 FIXTURES_DIRECTORY=cli/Fixtures

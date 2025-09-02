@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# mise description="Releases the macOS image"
+#MISE description="Releases the macOS image"
 
 echo "Make sure you are authenticated against the GitHub registry: https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry"
 

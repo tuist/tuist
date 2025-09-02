@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# mise description="Generates the markdown documentation for the manifest files"
+#MISE description="Generates the markdown documentation for the manifest files"
 
 set -euo pipefail
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# mise description="Clean the Docker images"
+#MISE description="Clean the Docker images"
 
 # Remove all Docker images
 docker_images=$(docker images -aq)

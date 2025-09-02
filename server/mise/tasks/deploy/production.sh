@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# mise description="Deploys the app to production"
+#MISE description="Deploys the app to production"
 
 set -euo pipefail
 

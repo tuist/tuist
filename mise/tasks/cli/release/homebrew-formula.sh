@@ -1,5 +1,5 @@
 #!/bin/bash
-# mise description="Triggers the GitHub Actions workflow to release a new version of the Homebrew formula."
+#MISE description="Triggers the GitHub Actions workflow to release a new version of the Homebrew formula."
 set -eo pipefail
 
 # Parse command line arguments
