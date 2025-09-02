@@ -1,9 +1,9 @@
 #qa-run {
   display: flex;
   flex-direction: column;
-  box-sizing: border-box;
   align-items: flex-start;
   gap: var(--noora-spacing-6);
+  box-sizing: border-box;
   padding: var(--noora-spacing-7) var(--noora-spacing-5);
   width: 100%;
   overflow-x: hidden;
@@ -107,15 +107,15 @@
 
     & > [data-part="preview-link"] {
       display: flex;
-      padding: var(--noora-spacing-4);
       gap: var(--noora-spacing-5);
+      margin-top: var(--noora-spacing-7);
       border-radius: var(--noora-radius-large);
       background: var(--noora-surface-background-secondary);
-      margin-top: var(--noora-spacing-7);
+      padding: var(--noora-spacing-4);
 
       font: var(--noora-font-body-small);
 
-      &  [data-part="icon"] {
+      & [data-part="icon"] {
         width: var(--noora-icon-size-medium);
         height: var(--noora-icon-size-medium);
 
@@ -157,13 +157,13 @@
               display: inline-flex;
               align-items: center;
               gap: var(--noora-spacing-1);
-            text-decoration: underline;
-            color: var(--noora-surface-label-primary);
+              color: var(--noora-surface-label-primary);
+              text-decoration: underline;
 
-            svg {
-              width: var(--noora-icon-size-medium);
-              height: var(--noora-icon-size-medium);
-            }
+              svg {
+                width: var(--noora-icon-size-medium);
+                height: var(--noora-icon-size-medium);
+              }
             }
 
             & [data-part="label"] {
@@ -294,10 +294,10 @@
                 flex: 1;
                 flex-direction: column;
                 gap: var(--noora-spacing-5);
+                box-shadow: var(--noora-border-light-default);
+                border-radius: var(--noora-radius-large);
                 background: var(--noora-surface-background-tertiary);
                 padding: var(--noora-spacing-5);
-                border-radius: var(--noora-radius-large);
-                box-shadow: var(--noora-border-light-default);
 
                 & [data-part="step-detail"] {
                   display: flex;
@@ -326,7 +326,6 @@
         }
       }
     }
-
   }
 
   & > div:not([data-part]) {
