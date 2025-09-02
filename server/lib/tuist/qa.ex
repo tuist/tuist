@@ -570,8 +570,6 @@ defmodule Tuist.QA do
     }
   end
 
-
-
   @doc """
   Returns available apps for analytics filtering.
   """
@@ -582,12 +580,11 @@ defmodule Tuist.QA do
         join: pr in assoc(ab, :preview),
         where: pr.project_id == ^project_id,
         distinct: pr.bundle_identifier,
-        select: pr.bundle_identifier,
-        order_by: pr.bundle_identifier
+        select: {pr.bundle_identifier, pr.display_name},
+        order_by: pr.display_name
       )
 
-    apps = Repo.all(query)
-    Enum.map(apps, fn app_name -> {app_name, app_name} end)
+    Repo.all(query)
   end
 
   defp date_range(opts) do
