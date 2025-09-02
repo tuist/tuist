@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.65.7<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* generate bundle accessor for modules with metal files by [@fortmarek](https://github.com/fortmarek) in [#8125](https://github.com/tuist/tuist/pull/8125)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.65.6...4.65.7
+
 ## What's Changed in 4.65.6<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
