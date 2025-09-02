@@ -143,14 +143,12 @@
                 <div data-part="issue-toggle">
                   <.neutral_button
                     data-part="closed-collapsible-button"
-                    icon_only
                     size="medium"
                   >
                     <.chevron_down />
                   </.neutral_button>
                   <.neutral_button
                     data-part="open-collapsible-button"
-                    icon_only
                     size="medium"
                   >
                     <.chevron_up />
@@ -194,6 +192,227 @@
             </div>
           </div>
         <% end %>
+      </.card_section>
+    </.card>
+
+    <.card icon="file_spreadsheet" title={gettext("Issues identified")} data-part="issues-card">
+      <.card_section data-part="issues-card-section">
+
+      <div class="qa-timeline-container">
+            <div class="timeline-wrapper">
+              <!-- Header -->
+              <div class="timeline-header">
+                <h2>QA Agent Test Run - Login Flow</h2>
+                <p>Recording: simulator_run_2024_08_22.mp4</p>
+              </div>
+
+              <div class="content-grid">
+                <!-- iOS Simulator -->
+                <div class="simulator-section">
+                  <div class="simulator-container">
+                    <div class="iphone-frame">
+                      <div class="screen">
+
+
+                        <%= if @video_exists do %>
+                          <!-- Video Player -->
+                          <video
+                          id="qa-recording-video"
+                          style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; border-radius: 48px; background-color: #000;"
+                          phx-hook="VideoPlayer"
+                          data-current-time={@current_time}
+                          data-is-playing={@is_playing}
+                          data-video-url={@video_url}
+                        >
+                            <source src={@video_url} type="video/mp4">
+                            Your browser does not support the video tag.
+                          </video>
+                        <% else %>
+                          <!-- Video not found message -->
+                          <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: white; text-align: center;">
+                            <p>Video file not found at: qa/test.mp4</p>
+                            <p>Please upload a video file to this storage location.</p>
+                          </div>
+                        <% end %>
+
+                        <!-- Recording Indicator Overlay -->
+                        <div class="recording-indicator" style="position: absolute; top: 20px; right: 20px; z-index: 20;">
+                          <div class="rec-dot"></div>
+                          <span>REC</span>
+                        </div>
+
+                        <!-- Playback Time Overlay -->
+                        <div class="playback-time" style="position: absolute; bottom: 20px; left: 20px; background: rgba(0,0,0,0.7); padding: 4px 8px; border-radius: 4px; z-index: 20;">
+                          <%= format_time(@current_time) %> / <%= format_time(@duration) %>
+                        </div>
+                      </div>
+
+                      <!-- Home Indicator -->
+                      <div class="home-indicator"></div>
+                    </div>
+
+                    <!-- Device Label -->
+                    <div class="device-label">iPhone 15 Pro Simulator</div>
+                  </div>
+
+                  <!-- Timeline Controls -->
+                  <div class="timeline-controls">
+                    <div class="controls-row">
+                      <div class="control-buttons">
+                        <button phx-click="play_pause" class="control-btn play-pause">
+                          <%= if @is_playing do %>
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                              <rect x="6" y="4" width="4" height="16"/>
+                              <rect x="14" y="4" width="4" height="16"/>
+                            </svg>
+                          <% else %>
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                              <polygon points="5,3 19,12 5,21"/>
+                            </svg>
+                          <% end %>
+                        </button>
+                        <button phx-click="reset" class="control-btn reset">
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="1,4 1,10 7,10"/>
+                            <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+                          </svg>
+                        </button>
+                        <span class="time-display">
+                          <%= format_time(@current_time) %> / <%= format_time(@duration) %>
+                        </span>
+                      </div>
+                      <div class="action-counter">
+                        <%= length(Enum.filter(@agent_actions, &(&1.time <= @current_time))) %> / <%= length(@agent_actions) %> actions completed
+                      </div>
+                    </div>
+
+                    <!-- Timeline Track -->
+                    <div id="timeline-track" class="timeline-track" phx-click="seek" phx-hook="TimelineSeek" data-duration={@duration}>
+                      <!-- Progress Bar -->
+                      <div class="progress-bar" style={"width: #{timeline_progress(@current_time, @duration)}%"}></div>
+
+                      <!-- Screenshot Thumbnails -->
+                      <%= for {action, index} <- Enum.with_index(@agent_actions) do %>
+                        <% start_position = (action.time / @duration) * 100 %>
+                        <% next_action = Enum.at(@agent_actions, index + 1) %>
+                        <% end_position = if next_action, do: (next_action.time / @duration) * 100, else: 100 %>
+                        <% width = end_position - start_position %>
+                        <% is_active = action.time <= @current_time %>
+                        <% is_current = @current_action && @current_action.time == action.time %>
+
+                        <div class="thumbnail-container" style={"left: #{start_position}%; width: #{width}%"}>
+                          <div class={"thumbnail #{if is_current, do: "current", else: (if is_active, do: "active", else: "inactive")}"}>
+                            <img src={action.screenshot} alt={"Screenshot at #{format_time(action.time)}"} />
+
+                            <!-- Action Type Badge -->
+                            <div class={"action-badge #{action_color(action.type)}"}>
+                              <span><%= action_icon(action.type) %></span>
+                            </div>
+
+                            <!-- Time Label -->
+                            <div class="time-label">
+                              <%= format_time(action.time) %>
+                            </div>
+
+                            <!-- Hover Preview -->
+                            <div class="hover-preview">
+                              <img src={action.screenshot} alt="Preview" />
+                              <div class="preview-details">
+                                <div class="preview-title"><%= format_time(action.time) %> - <%= action.type %></div>
+                                <div class="preview-description"><%= action.description %></div>
+                                <%= if next_action do %>
+                                  <div class="preview-duration">
+                                    Duration: <%= format_time(next_action.time - action.time) %>
+                                  </div>
+                                <% end %>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      <% end %>
+
+                      <!-- Playhead -->
+                      <div class="playhead" style={"left: #{timeline_progress(@current_time, @duration)}%"}>
+                        <div class="playhead-indicator"></div>
+                      </div>
+
+                      <!-- Time Markers -->
+                      <div class="time-markers">
+                        <%= for time <- [0, 30, 60, 90, 120] do %>
+                          <span class="time-marker"><%= format_time(time) %></span>
+                        <% end %>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Action Details Panel -->
+                <div class="details-panel">
+                  <!-- Current Action -->
+                  <%= if @current_action do %>
+                    <div class="current-action">
+                      <div class="action-header">
+                        <span class="action-icon"><%= action_icon(@current_action.type) %></span>
+                        <span class="action-type"><%= String.capitalize(@current_action.type) %></span>
+                        <span class="action-time"><%= format_time(@current_action.time) %></span>
+                      </div>
+                      <p class="action-description"><%= @current_action.description %></p>
+                      <img src={@current_action.screenshot} alt="Current screenshot" class="current-screenshot" />
+                    </div>
+                  <% end %>
+
+                  <!-- Action List -->
+                  <div class="action-list">
+                    <div class="action-list-header">
+                      <h3>Test Actions</h3>
+                    </div>
+                    <div class="action-items">
+                      <%= for {action, _index} <- Enum.with_index(@agent_actions) do %>
+                        <% is_completed = action.time <= @current_time %>
+                        <% is_current = @current_action && @current_action.time == action.time %>
+
+                        <div class={"action-item #{if is_current, do: "current", else: (if is_completed, do: "completed", else: "pending")}"}>
+                          <div class="action-item-content">
+                            <div class={"action-status #{if is_completed, do: "completed", else: "pending"}"}>
+                              <%= action_icon(action.type) %>
+                            </div>
+                            <div class="action-details">
+                              <div class="action-meta">
+                                <span class="action-timestamp"><%= format_time(action.time) %></span>
+                                <span class="action-type-badge"><%= String.capitalize(action.type) %></span>
+                              </div>
+                              <p class="action-text"><%= action.description %></p>
+                            </div>
+                          </div>
+                        </div>
+                      <% end %>
+                    </div>
+                  </div>
+
+                  <!-- Legend -->
+                  <div class="legend">
+                    <h4>Action Types</h4>
+                    <div class="legend-items">
+                      <%= for {type, description} <- [
+                        {"click", "User interactions"},
+                        {"input", "Text input"},
+                        {"wait", "Waiting periods"},
+                        {"assertion", "Test verifications"},
+                        {"scroll", "Page navigation"}
+                      ] do %>
+                        <div class="legend-item">
+                          <div class={"legend-color #{action_color(type)}"}></div>
+                          <span class="legend-type"><%= String.capitalize(type) %>:</span>
+                          <span class="legend-desc"><%= description %></span>
+                        </div>
+                      <% end %>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            </div>
       </.card_section>
     </.card>
   </div>

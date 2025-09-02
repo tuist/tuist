@@ -28,6 +28,8 @@ import ImageFallback from "./js/ImageFallback.js";
 import DeeplinkValidation from "./js/DeeplinkValidation.js";
 import Clipboard from "./js/Clipboard.js";
 import BundleSizeSunburstChartLegend from "./js/BundleSizeSunburstChartLegend.js";
+import VideoPlayer from "./js/VideoPlayer.js";
+import TimelineSeek from "./js/TimelineSeek.js";
 
 let csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content");
 let cspNonce = document.querySelector("meta[name='csp-nonce']").getAttribute("content");
@@ -37,6 +39,8 @@ Hooks.ImageFallback = ImageFallback;
 Hooks.Clipboard = Clipboard;
 Hooks.DeeplinkValidation = DeeplinkValidation;
 Hooks.BundleSizeSunburstChartLegend = BundleSizeSunburstChartLegend;
+Hooks.VideoPlayer = VideoPlayer;
+Hooks.TimelineSeek = TimelineSeek;
 
 observeThemeChanges();
 Hooks.ThemeSwitcher = ThemeSwitcher;

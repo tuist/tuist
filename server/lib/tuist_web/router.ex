@@ -19,7 +19,7 @@ defmodule TuistWeb.Router do
     plug :put_content_security_policy,
       img_src:
         "'self' data: https://github.com https://*.githubusercontent.com https://*.gravatar.com https://*.s3.amazonaws.com",
-      media_src: "'self' https://*.mastodon.social https://hachyderm.io https://fosstodon.org",
+      media_src: "'self' https://*.mastodon.social https://hachyderm.io https://fosstodon.org http://localhost:9095",
       style_src:
         "'self' 'unsafe-inline' https://fonts.googleapis.com https://chat.cdn-plain.com https://cdn.jsdelivr.net https://rsms.me",
       style_src_attr: "'unsafe-inline'",
