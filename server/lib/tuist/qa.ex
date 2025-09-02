@@ -401,7 +401,7 @@ defmodule Tuist.QA do
         qa_run_id: qa_run_id,
         screenshot_id: screenshot_id
       }) do
-    "#{String.downcase(account_handle)}/#{String.downcase(project_handle)}/qa/screenshots/#{qa_run_id}/#{screenshot_id}.png"
+    "#{String.downcase(account_handle)}/#{String.downcase(project_handle)}/qa/#{qa_run_id}/screenshots/#{screenshot_id}.png"
   end
 
   @doc """

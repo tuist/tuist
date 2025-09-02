@@ -73,7 +73,10 @@ defmodule Runner.QA.Agent do
              run_id: run_id,
              auth_token: auth_token
            }),
-         {:ok, appium_session} <- AppiumClient.start_session(simulator_device.udid, bundle_identifier) do
+         {:ok, appium_session} <-
+           AppiumClient.start_session(simulator_device.udid, bundle_identifier),
+         {:ok, recording_path} <- Briefly.create(),
+         {:ok, recording_port} <- Simulators.start_recording(simulator_device, recording_path) do
       handler = %{
         on_message_processed: fn _chain,
                                  %Message{
@@ -195,11 +198,24 @@ defmodule Runner.QA.Agent do
             project_handle: project_handle
           })
 
+          Simulators.stop_recording(recording_port)
           AppiumClient.stop_session(appium_session)
 
           {:error, error_message}
 
         result ->
+          Simulators.stop_recording(recording_port)
+
+          {:ok, _} =
+            Client.upload_recording(%{
+              server_url: server_url,
+              run_id: run_id,
+              auth_token: auth_token,
+              account_handle: account_handle,
+              project_handle: project_handle,
+              recording_path: recording_path
+            })
+
           AppiumClient.stop_session(appium_session)
           result
       end
@@ -246,7 +262,12 @@ defmodule Runner.QA.Agent do
     end
   end
 
-  defp process_llm_result({:error, _chain, %LangChain.LangChainError{message: message}}, _attrs, _handler, _tools) do
+  defp process_llm_result(
+         {:error, _chain, %LangChain.LangChainError{message: message}},
+         _attrs,
+         _handler,
+         _tools
+       ) do
     {:error, "LLM chain execution failed: #{message}"}
   end
 

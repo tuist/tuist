@@ -242,6 +242,99 @@
         <% end %>
       </.card_section>
     </.card>
+
+    <.card icon="file_spreadsheet" title={gettext("Steps")} data-part="steps-card">
+      <.card_section data-part="steps-card-section">
+
+      <.card_section data-part="recording-card-section">
+        <div data-part="device">
+          <video
+            id="qa-recording"
+            phx-hook="VideoPlayer"
+            data-current-time={@current_time}
+            data-is-playing={@is_playing}
+            data-video-url={@video_url || ""}
+            controls={false}
+          >
+            <source src={@video_url} type="video/mp4" />
+          </video>
+          <img src={~p"/images/iphone-16-pro.png"} alt="iPhone frame" class="iphone-frame-image" />
+        </div>
+        </.card_section>
+        <.card_section data-part="timeline-card-section">
+        <div data-part="video-main-panel">
+          <span data-part="time-display">
+            {format_time(@current_time)}/{format_time(@duration)}
+          </span>
+          <div data-part="seek-controls">
+          <.button variant="secondary" size="small" icon_only id="seek-prev-button" phx-hook="BlurOnClick">
+            <.player_track_prev />
+          </.button>
+          <.button variant="secondary" size="small" icon_only id="play-pause-button" phx-hook="BlurOnClick" phx-click="play_pause">
+          <%= if @is_playing do %>
+            <.player_pause />
+          <% else %>
+            <.player_play />
+          <% end %>
+          </.button>
+          <.button variant="secondary" size="small" icon_only id="seek-next-button" phx-hook="BlurOnClick">
+            <.player_track_next />
+          </.button>
+          </div>
+          <span data-part="steps-counter">
+            {gettext("%{current_step}/%{total_steps} steps", current_step: 0, total_steps: length(@qa_run.run_steps))}
+          </span>
+        </div>
+        <div id="timeline-track" data-part="timeline" >
+
+          <div data-part="time-markers" id="time-markers" phx-click="seek"
+          phx-hook="TimelineSeek" data-duration={@duration}>
+            <%= cond do %>
+              <% @duration < 60 -> %>
+                <%!-- Show markers every 5 seconds for videos under 1 minute --%>
+                <%= for time <- 0..floor(@duration)//5 do %>
+                  <span data-part="time-marker">
+                    {format_time(time)}
+                  </span>
+                  <%= for _ <- 1..4 do %>
+                    <span data-part="dot">
+                      •
+                    </span>
+                  <% end %>
+                <% end %>
+              <% true -> %>
+                <%!-- Show markers every 30 seconds for videos 1 minute or longer --%>
+                <%= for time <- 0..ceil(@duration)//30 do %>
+                  <span data-part="time-marker">
+                    {format_time(time)}
+                  </span>
+                  <%= for _ <- 1..29 do %>
+                    <span data-part="dot">
+                      •
+                    </span>
+                  <% end %>
+                <% end %>
+            <% end %>
+          </div>
+          <!--
+          <div
+            id="timeline-track"
+            class="timeline-track scrollable"
+            data-duration={@duration}
+            style={"width: #{max(100, ceil(@duration) * 40)}px"}
+          >
+          -->
+          <svg data-part="playhead" id="playhead" width="11" height="179" viewBox="0 0 11 179" fill="none" xmlns="http://www.w3.org/2000/svg" phx-update="ignore">
+            <path d="M5.5 0.453125C8.53753 0.453168 11 2.91559 11 5.95312C11 7.53058 10.3358 8.95234 9.2719 9.95472C7.76529 11.3742 6 13.0143 6 15.0843V177.953C6 178.229 5.77614 178.453 5.5 178.453V178.453C5.22386 178.453 5 178.229 5 177.953V15.0844C5 13.0144 3.23462 11.3742 1.72801 9.95471C0.664121 8.95233 0 7.53058 0 5.95312C0 2.91556 2.46243 0.453125 5.5 0.453125Z" fill="#6F2CFF"/>
+          </svg>
+          <!--
+          </div>
+          -->
+
+        </div>
+        </.card_section>
+      </.card_section>
+    </.card>
   </div>
 
   <div :if={@selected_tab == "logs"} data-part="logs-tab">

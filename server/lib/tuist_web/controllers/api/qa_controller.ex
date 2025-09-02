@@ -182,7 +182,8 @@ defmodule TuistWeb.API.QAController do
             screenshot_id: screenshot.id
           })
 
-        upload_url = Storage.generate_upload_url(storage_key, project.account, expires_in: expires_in)
+        upload_url =
+          Storage.generate_upload_url(storage_key, project.account, expires_in: expires_in)
 
         conn
         |> put_status(:created)
@@ -208,5 +209,82 @@ defmodule TuistWeb.API.QAController do
           message: "QA screenshot #{message}"
         })
     end
+  end
+
+  def start_recording_upload(
+        %{assigns: %{selected_qa_run: qa_run, selected_project: project}} = conn,
+        _params
+      ) do
+    storage_key = recording_storage_key(project.account.name, project.name, qa_run.id)
+    upload_id = Storage.multipart_start(storage_key, project.account)
+
+    conn
+    |> put_status(:created)
+    |> json(%{
+      upload_id: upload_id,
+      storage_key: storage_key
+    })
+  end
+
+  def generate_recording_upload_url(
+        %{assigns: %{selected_project: project}} = conn,
+        %{
+          "upload_id" => upload_id,
+          "part_number" => part_number,
+          "storage_key" => storage_key
+        } = params
+      ) do
+    expires_in = 120
+    content_length = Map.get(params, "content_length")
+
+    # Convert part_number to integer if it's a string
+    part_number_int =
+      case part_number do
+        n when is_integer(n) -> n
+        n when is_binary(n) -> String.to_integer(n)
+      end
+
+    # Convert content_length to integer if it's a string
+    content_length_int =
+      case content_length do
+        nil -> nil
+        n when is_integer(n) -> n
+        n when is_binary(n) -> String.to_integer(n)
+      end
+
+    url =
+      Storage.multipart_generate_url(
+        storage_key,
+        upload_id,
+        part_number_int,
+        project.account,
+        expires_in: expires_in,
+        content_length: content_length_int
+      )
+
+    json(conn, %{url: url})
+  end
+
+  def complete_recording_upload(
+        %{assigns: %{selected_project: project}} = conn,
+        %{
+          "upload_id" => upload_id,
+          "storage_key" => storage_key,
+          "parts" => parts
+        }
+      ) do
+    # Convert parts from maps to tuples for ExAws
+    parts_tuples =
+      Enum.map(parts, fn %{"part_number" => part_number, "etag" => etag} ->
+        {part_number, etag}
+      end)
+
+    Storage.multipart_complete_upload(storage_key, upload_id, parts_tuples, project.account)
+
+    json(conn, %{status: "success"})
+  end
+
+  defp recording_storage_key(account_handle, project_handle, qa_run_id) do
+    "#{account_handle}/#{project_handle}/qa/#{qa_run_id}/recording.mp4"
   end
 end
