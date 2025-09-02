@@ -1,5 +1,5 @@
 #!/bin/bash
-# mise description="Updates the TuistCacheEE submodule to ensure it's up to date"
+#MISE description="Updates the TuistCacheEE submodule to ensure it's up to date"
 
 set -euo pipefail
 

@@ -193,8 +193,8 @@ struct ContentHashingIntegrationTests {
         )
 
         // Then
-        #expect(contentHash[framework1] == "95f6c14ea2410a34fcc83b1845e15762")
-        #expect(contentHash[framework2] == "ebdaa10588d6f2553873df53b7e34d55")
+        #expect(contentHash[framework1] == "dfd895484c1f2989d685d5cdf0398a98")
+        #expect(contentHash[framework2] == "54e249f8a9d796b24401ec671ec1a97d")
     }
 
     // MARK: - Resources

@@ -1,3 +1,3 @@
-public struct Bundle {
+public struct MyBundle {
     public init() {}
 }

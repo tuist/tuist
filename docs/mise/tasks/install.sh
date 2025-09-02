@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
-# mise description="Install the documentation dependencies"
+#MISE description="Install the documentation dependencies"
 
 pnpm install

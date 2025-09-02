@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# mise description="Creates Tuist iOS app .ipa archive."
+#MISE description="Creates Tuist iOS app .ipa archive."
 
 set -eo pipefail
 

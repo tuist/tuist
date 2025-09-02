@@ -314,8 +314,7 @@ oban_plugins =
            do: [
              {"0 10 * * 1-5", Tuist.Ops.DailySlackReportWorker},
              {"0 * * * 1-5", Tuist.Ops.HourlySlackReportWorker},
-             {"@hourly", Tuist.Registry.Swift.Workers.UpdatePackagesWorker},
-             {"@hourly", Tuist.Registry.Swift.Workers.UpdatePackageReleasesWorker},
+             {"@hourly", Tuist.Registry.Swift.Workers.SyncPackagesWorker},
              {"@daily", Tuist.Billing.UpdateAllCustomersRemoteCacheHitsCountWorker},
              {"@daily", Tuist.Accounts.Workers.UpdateAllAccountsUsageWorker},
              {"@daily", Tuist.Mautic.Workers.SyncCompaniesAndContactsWorker}
@@ -326,7 +325,8 @@ oban_plugins =
 
 config :tuist, Oban,
   queues: oban_queues,
-  plugins: oban_plugins
+  plugins: oban_plugins,
+  peer: !Tuist.Environment.web?()
 
 # Guardian
 config :tuist, Tuist.Guardian,
