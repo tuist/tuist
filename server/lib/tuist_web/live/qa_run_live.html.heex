@@ -156,9 +156,8 @@
       </.card_section>
     </.card>
 
-    <.card icon="alert_triangle" title={gettext("Issues identified")} data-part="issues-card">
+    <.card icon="file_alert" title={gettext("Issues identified")} data-part="issues-card">
       <.empty_card_section
-        :if={Enum.empty?(@issues)}
         title={gettext("No issues identified")}
         data-part="empty-issues-card-section"
       >
@@ -168,7 +167,7 @@
         </:image>
       </.empty_card_section>
 
-      <.card_section :if={not Enum.empty?(@issues)} data-part="issues-card-section">
+      <.card_section :if={false} data-part="issues-card-section">
         <%= for {issue_data, index} <- @issues do %>
           <div
             id={"issue-#{index}-collapsible"}

@@ -179,6 +179,24 @@
   }
 
   & [data-part="issues-card"] {
+    & > [data-part="empty-issues-card-section"] {
+      padding-top: var(--noora-spacing-8);
+      padding-bottom: var(--noora-spacing-8);
+      & > [data-part="title"] {
+        padding-top: var(--noora-spacing-5);
+      }
+      & > [data-part="image"] {
+        & > img {
+          &[data-theme="light"] {
+            box-shadow: unset;
+          }
+          &[data-theme="dark"] {
+            box-shadow: unset;
+          }
+        }
+      }
+    }
+
     & > [data-part="issues-card-section"] {
       & > [data-part="issue-item"] {
         box-shadow: var(--noora-border-light-default);
@@ -300,6 +318,7 @@
         }
       }
     }
+
   }
 
   & > div:not([data-part]) {
