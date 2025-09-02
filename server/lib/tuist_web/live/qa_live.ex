@@ -9,6 +9,7 @@ defmodule TuistWeb.QALive do
   alias Tuist.AppBuilds.Preview
   alias Tuist.QA
   alias Tuist.Utilities.DateFormatter
+  alias TuistWeb.Utilities.SHA
 
   def mount(_params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
     slug = "#{account.name}/#{project.name}"

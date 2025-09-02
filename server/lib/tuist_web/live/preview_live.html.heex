@@ -136,8 +136,7 @@
           <div data-part="metadata">
             <div data-part="title">{gettext("Commit SHA")}</div>
             <span data-part="label">
-              {(@preview.git_commit_sha || "None")
-              |> String.slice(0, 7)}
+              {SHA.format_commit_sha(@preview.git_commit_sha)}
             </span>
           </div>
         </div>

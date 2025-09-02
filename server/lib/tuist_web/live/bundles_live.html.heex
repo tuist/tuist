@@ -271,10 +271,7 @@
             <.text_cell label={format_bytes(bundle.install_size)} />
           </:col>
           <:col :let={bundle} label={gettext("Commit SHA")}>
-            <.text_cell label={
-              (bundle.git_commit_sha || "None")
-              |> String.slice(0, 7)
-            } />
+            <.text_cell label={SHA.format_commit_sha(bundle.git_commit_sha)} />
           </:col>
           <:col :let={bundle} label={gettext("Platform")}>
             <.platform_cell

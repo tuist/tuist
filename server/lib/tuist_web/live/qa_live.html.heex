@@ -209,10 +209,7 @@
             <.text_cell icon="git_branch" label={run.git_ref || gettext("None")} />
           </:col>
           <:col :let={run} label={gettext("Commit SHA")}>
-            <.text_cell label={
-              (run.app_build.preview.git_commit_sha || "None")
-              |> String.slice(0, 7)
-            } />
+            <.text_cell label={SHA.format_commit_sha(run.app_build.preview.git_commit_sha)} />
           </:col>
           <:col :let={run} label={gettext("Tested")}>
             <.text_cell label={DateFormatter.from_now(run.inserted_at)} />

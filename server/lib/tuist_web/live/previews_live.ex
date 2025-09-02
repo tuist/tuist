@@ -11,6 +11,7 @@ defmodule TuistWeb.PreviewsLive do
 
   alias Tuist.AppBuilds
   alias Tuist.Projects
+  alias TuistWeb.Utilities.SHA
 
   def mount(params, _session, %{assigns: %{selected_project: project}} = socket) do
     {previews, previews_meta} =

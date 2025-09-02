@@ -10,6 +10,7 @@ defmodule TuistWeb.QARunLive do
   alias Tuist.QA
   alias Tuist.Utilities.DateFormatter
   alias TuistWeb.Errors.NotFoundError
+  alias TuistWeb.Utilities.SHA
 
   @impl true
   def mount(
@@ -86,9 +87,5 @@ defmodule TuistWeb.QARunLive do
     |> Enum.with_index(1)
   end
 
-  defp format_commit_sha(nil), do: gettext("None")
-
-  defp format_commit_sha(sha) when is_binary(sha) do
-    String.slice(sha, 0, 7)
-  end
+  defp format_commit_sha(sha), do: SHA.format_commit_sha(sha)
 end

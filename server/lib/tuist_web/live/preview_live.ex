@@ -10,6 +10,7 @@ defmodule TuistWeb.PreviewLive do
   alias Tuist.AppBuilds
   alias Tuist.AppBuilds.AppBuild
   alias TuistWeb.Errors.NotFoundError
+  alias TuistWeb.Utilities.SHA
 
   def mount(%{"id" => preview_id} = _params, _session, %{assigns: %{selected_project: selected_project}} = socket) do
     preview =
