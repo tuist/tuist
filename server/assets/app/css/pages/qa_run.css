@@ -148,11 +148,6 @@
             align-items: flex-start;
             gap: var(--noora-spacing-4);
 
-            & > [data-part="platforms"] {
-              display: flex;
-              gap: var(--noora-spacing-3);
-            }
-
             & [data-part="title"] {
               color: var(--noora-surface-label-secondary);
               font: var(--noora-font-weight-medium) var(--noora-font-body-medium);

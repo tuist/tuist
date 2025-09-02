@@ -90,17 +90,12 @@
         <div data-part="metadata-grid">
           <div data-part="metadata-row">
             <div data-part="metadata">
-              <div data-part="title">{gettext("Supported platforms")}</div>
-              <div data-part="platforms">
-                <.platform_tag
-                  :for={
-                    platform <-
-                      @qa_run.app_build.preview.supported_platforms
-                      |> Preview.map_simulators_to_devices()
-                  }
-                  platform={platform}
-                />
-              </div>
+              <div data-part="title">{gettext("Platform")}</div>
+              <.platform_tag platform={
+                @qa_run.app_build.preview.supported_platforms
+                |> Preview.map_simulators_to_devices()
+                |> List.first()
+              } />
             </div>
           </div>
           <div data-part="metadata-row">
