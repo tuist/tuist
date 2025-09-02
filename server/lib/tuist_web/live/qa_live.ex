@@ -14,7 +14,7 @@ defmodule TuistWeb.QALive do
 
     socket =
       socket
-      |> assign(:head_title, "#{gettext("Tuist QA")} · #{slug} · Tuist")
+      |> assign(:head_title, "#{gettext("QA")} · #{slug} · Tuist")
       |> assign(:qa_runs, [])
       |> assign(:qa_runs_meta, %{})
       |> assign(:available_apps, QA.available_apps_for_project(project.id))
