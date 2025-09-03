@@ -96,6 +96,7 @@ if Enum.member?([:prod, :stag, :can], env) do
     username: username,
     password: password,
     hostname: parsed_url.host,
+    port: parsed_url.port || 5432,
     socket_options: socket_opts,
     parameters: [
       tcp_keepalives_idle: "60",
