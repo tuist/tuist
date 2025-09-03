@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# mise description="Sets up the database"
+#MISE description="Sets up the database"
 
 set -euo pipefail
 

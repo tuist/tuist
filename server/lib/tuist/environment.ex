@@ -190,6 +190,81 @@ defmodule Tuist.Environment do
     end
   end
 
+  def s3_pool_size(secrets \\ secrets()) do
+    case get([:s3, :pool_size], secrets) do
+      pool_size when is_binary(pool_size) -> String.to_integer(pool_size)
+      # Since we use http2, which allows multi-plexing, the size of the pool can be smaller
+      _ -> 500
+    end
+  end
+
+  def s3_pool_count(secrets \\ secrets()) do
+    case get([:s3, :pool_count], secrets) do
+      pool_count when is_binary(pool_count) -> String.to_integer(pool_count)
+      _ -> 1
+    end
+  end
+
+  def s3_protocols(secrets \\ secrets()) do
+    case get([:s3, :protocol], secrets) do
+      protocol when is_binary(protocol) -> [String.to_atom(protocol)]
+      _ -> [:http2, :http1]
+    end
+  end
+
+  def s3_access_key_id(provider, secrets) do
+    if dev_use_remote_storage?() do
+      get([:s3, provider, :access_key_id], secrets)
+    else
+      s3_access_key_id(secrets)
+    end
+  end
+
+  def s3_secret_access_key(provider, secrets) do
+    if dev_use_remote_storage?() do
+      get([:s3, provider, :secret_access_key], secrets)
+    else
+      s3_secret_access_key(secrets)
+    end
+  end
+
+  def s3_region(provider, secrets) do
+    get([:s3, provider, :region], secrets) ||
+      "auto"
+  end
+
+  def s3_bucket_name(provider, secrets) do
+    if dev_use_remote_storage?() do
+      get([:aws, :bucket_name], secrets) || get([:s3, provider, :bucket_name], secrets)
+    else
+      s3_bucket_name(secrets)
+    end
+  end
+
+  def s3_endpoint(provider, secrets) do
+    if dev_use_remote_storage?() do
+      get([:s3, provider, :endpoint], secrets)
+    else
+      s3_endpoint(secrets)
+    end
+  end
+
+  def s3_virtual_host(provider, secrets) do
+    if dev_use_remote_storage?() do
+      [:s3, provider, :virtual_host] |> get(secrets) |> truthy?()
+    else
+      s3_virtual_host(secrets)
+    end
+  end
+
+  def s3_bucket_as_host(provider, secrets) do
+    if dev_use_remote_storage?() do
+      [:s3, provider, :bucket_as_host] |> get(secrets) |> truthy?()
+    else
+      s3_bucket_as_host(secrets)
+    end
+  end
+
   def s3_access_key_id(secrets \\ secrets()) do
     if dev_use_remote_storage?() do
       System.get_env("AWS_ACCESS_KEY_ID") || get([:aws, :access_key_id], secrets) ||
@@ -226,28 +301,6 @@ defmodule Tuist.Environment do
       get([:aws, :endpoint], secrets) || get([:s3, :endpoint], secrets)
     else
       get([:local_s3_endpoint], secrets) || "http://localhost:9095"
-    end
-  end
-
-  def s3_pool_size(secrets \\ secrets()) do
-    case get([:s3, :pool_size], secrets) do
-      pool_size when is_binary(pool_size) -> String.to_integer(pool_size)
-      # Since we use http2, which allows multi-plexing, the size of the pool can be smaller
-      _ -> 500
-    end
-  end
-
-  def s3_pool_count(secrets \\ secrets()) do
-    case get([:s3, :pool_count], secrets) do
-      pool_count when is_binary(pool_count) -> String.to_integer(pool_count)
-      _ -> 1
-    end
-  end
-
-  def s3_protocols(secrets \\ secrets()) do
-    case get([:s3, :protocol], secrets) do
-      protocol when is_binary(protocol) -> [String.to_atom(protocol)]
-      _ -> [:http2, :http1]
     end
   end
 

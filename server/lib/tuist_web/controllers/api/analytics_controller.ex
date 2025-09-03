@@ -269,17 +269,12 @@ defmodule TuistWeb.API.AnalyticsController do
        }},
     responses: %{
       ok: {"The run was created", "application/json", CommandEvent},
-      unauthorized:
-        {"You need to be authenticated to access this resource", "application/json", Error},
-      forbidden:
-        {"You don't have permission to create runs for the project.", "application/json", Error}
+      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
+      forbidden: {"You don't have permission to create runs for the project.", "application/json", Error}
     }
   )
 
-  def create(
-        %{body_params: body_params, assigns: %{selected_project: selected_project}} = conn,
-        _params
-      ) do
+  def create(%{body_params: body_params, assigns: %{selected_project: selected_project}} = conn, _params) do
     current_user = Authentication.current_user(conn)
 
     user_id =
@@ -342,10 +337,8 @@ defmodule TuistWeb.API.AnalyticsController do
         git_remote_url_origin: git_remote_url_origin,
         project_id: selected_project.id,
         preview_url_template: "#{url(~p"/")}:account_name/:project_name/previews/:preview_id",
-        preview_qr_code_url_template:
-          "#{url(~p"/")}:account_name/:project_name/previews/:preview_id/qr-code.png",
-        command_run_url_template:
-          "#{url(~p"/")}:account_name/:project_name/runs/:command_event_id",
+        preview_qr_code_url_template: "#{url(~p"/")}:account_name/:project_name/previews/:preview_id/qr-code.png",
+        command_run_url_template: "#{url(~p"/")}:account_name/:project_name/runs/:command_event_id",
         bundle_url_template: "#{url(~p"/")}:account_name/:project_name/bundles/:bundle_id",
         build_url_template: "#{url(~p"/")}:account_name/:project_name/builds/build-runs/:build_id"
       })
@@ -353,9 +346,7 @@ defmodule TuistWeb.API.AnalyticsController do
 
     url =
       if is_nil(build_run_id) do
-        url(
-          ~p"/#{selected_project.account.name}/#{selected_project.name}/runs/#{command_event.id}"
-        )
+        url(~p"/#{selected_project.account.name}/#{selected_project.name}/runs/#{command_event.id}")
       else
         url(
           ~p"/#{selected_project.account.name}/#{selected_project.name}/builds/build-runs/#{String.downcase(build_run_id)}"
@@ -451,11 +442,8 @@ defmodule TuistWeb.API.AnalyticsController do
     request_body: {"Artifact to upload", "application/json", CommandEventArtifact},
     responses: %{
       ok: {"The upload has been started", "application/json", ArtifactUploadId},
-      unauthorized:
-        {"You need to be authenticated to access this resource", "application/json", Error},
-      forbidden:
-        {"The authenticated subject is not authorized to perform this action", "application/json",
-         Error},
+      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
+      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
       not_found: {"The run doesn't exist", "application/json", Error}
     }
   )
@@ -474,13 +462,16 @@ defmodule TuistWeb.API.AnalyticsController do
   end
 
   def multipart_start(
-        %{path_params: %{"run_id" => run_id}, body_params: %{type: type} = command_event_artifact} =
-          conn,
+        %{
+          assigns: %{selected_project: selected_project},
+          path_params: %{"run_id" => run_id},
+          body_params: %{type: type} = command_event_artifact
+        } = conn,
         _params
       ) do
     with {:ok, object_key} <-
            get_object_key(%{type: type, run_id: run_id, name: command_event_artifact.name}, conn) do
-      upload_id = Storage.multipart_start(object_key)
+      upload_id = Storage.multipart_start(object_key, selected_project.account)
       json(conn, %{status: "success", data: %{upload_id: upload_id}})
     end
   end
@@ -511,22 +502,19 @@ defmodule TuistWeb.API.AnalyticsController do
        }},
     responses: %{
       ok: {"The URL has been generated", "application/json", ArtifactMultipartUploadUrl},
-      unauthorized:
-        {"You need to be authenticated to access this resource", "application/json", Error},
-      forbidden:
-        {"The authenticated subject is not authorized to perform this action", "application/json",
-         Error},
+      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
+      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
       not_found: {"The project doesn't exist", "application/json", Error}
     }
   )
 
   def multipart_generate_url(
         %{
+          assigns: %{selected_project: selected_project},
           path_params: %{"run_id" => run_id},
           body_params: %{
             command_event_artifact: %{type: type} = command_event_artifact,
-            multipart_upload_part:
-              %{part_number: part_number, upload_id: upload_id} = multipart_upload_part
+            multipart_upload_part: %{part_number: part_number, upload_id: upload_id} = multipart_upload_part
           }
         } = conn,
         _params
@@ -541,6 +529,7 @@ defmodule TuistWeb.API.AnalyticsController do
           object_key,
           upload_id,
           part_number,
+          selected_project.account,
           expires_in: expires_in,
           content_length: content_length
         )
@@ -551,8 +540,7 @@ defmodule TuistWeb.API.AnalyticsController do
 
   operation(:multipart_complete,
     summary: "It completes a multi-part upload.",
-    description:
-      "Given the upload ID and all the parts with their ETags, this endpoint completes the multipart upload.",
+    description: "Given the upload ID and all the parts with their ETags, this endpoint completes the multipart upload.",
     deprecated: true,
     operation_id: "completeAnalyticsArtifactMultipartUpload",
     parameters: [
@@ -575,11 +563,8 @@ defmodule TuistWeb.API.AnalyticsController do
        }},
     responses: %{
       no_content: "The upload has been completed",
-      unauthorized:
-        {"You need to be authenticated to access this resource", "application/json", Error},
-      forbidden:
-        {"The authenticated subject is not authorized to perform this action", "application/json",
-         Error},
+      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
+      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
       not_found: {"The project doesn't exist", "application/json", Error},
       internal_server_error: {"An internal server error occurred", "application/json", Error}
     }
@@ -587,13 +572,11 @@ defmodule TuistWeb.API.AnalyticsController do
 
   def multipart_complete(
         %{
+          assigns: %{selected_project: selected_project},
           path_params: %{"run_id" => run_id},
           body_params: %{
             command_event_artifact: %{type: type} = command_event_artifact,
-            multipart_upload_parts: %ArtifactMultipartUploadParts{
-              parts: parts,
-              upload_id: upload_id
-            }
+            multipart_upload_parts: %ArtifactMultipartUploadParts{parts: parts, upload_id: upload_id}
           }
         } = conn,
         _params
@@ -606,7 +589,8 @@ defmodule TuistWeb.API.AnalyticsController do
           upload_id,
           Enum.map(parts, fn %{part_number: part_number, etag: etag} ->
             {part_number, etag}
-          end)
+          end),
+          selected_project.account
         )
 
       conn
@@ -639,11 +623,8 @@ defmodule TuistWeb.API.AnalyticsController do
        }},
     responses: %{
       no_content: "The run artifact uploads were successfully finished",
-      unauthorized:
-        {"You need to be authenticated to access this resource", "application/json", Error},
-      forbidden:
-        {"The authenticated subject is not authorized to perform this action", "application/json",
-         Error},
+      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
+      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
       not_found: {"The run doesn't exist", "application/json", Error}
     }
   )
@@ -682,11 +663,8 @@ defmodule TuistWeb.API.AnalyticsController do
     request_body: {"Artifact to upload", "application/json", CommandEventArtifact},
     responses: %{
       ok: {"The upload has been started", "application/json", ArtifactUploadId},
-      unauthorized:
-        {"You need to be authenticated to access this resource", "application/json", Error},
-      forbidden:
-        {"The authenticated subject is not authorized to perform this action", "application/json",
-         Error},
+      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
+      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
       not_found: {"The run doesn't exist", "application/json", Error}
     }
   )
@@ -730,11 +708,8 @@ defmodule TuistWeb.API.AnalyticsController do
        }},
     responses: %{
       ok: {"The URL has been generated", "application/json", ArtifactMultipartUploadUrl},
-      unauthorized:
-        {"You need to be authenticated to access this resource", "application/json", Error},
-      forbidden:
-        {"The authenticated subject is not authorized to perform this action", "application/json",
-         Error},
+      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
+      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
       not_found: {"The project doesn't exist", "application/json", Error}
     }
   )
@@ -743,8 +718,7 @@ defmodule TuistWeb.API.AnalyticsController do
 
   operation(:multipart_complete_project,
     summary: "It completes a multi-part upload",
-    description:
-      "Given the upload ID and all the parts with their ETags, this endpoint completes the multipart upload.",
+    description: "Given the upload ID and all the parts with their ETags, this endpoint completes the multipart upload.",
     operation_id: "completeAnalyticsArtifactMultipartUploadProject",
     parameters: [
       account_handle: [
@@ -778,11 +752,8 @@ defmodule TuistWeb.API.AnalyticsController do
        }},
     responses: %{
       no_content: "The upload has been completed",
-      unauthorized:
-        {"You need to be authenticated to access this resource", "application/json", Error},
-      forbidden:
-        {"The authenticated subject is not authorized to perform this action", "application/json",
-         Error},
+      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
+      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
       not_found: {"The project doesn't exist", "application/json", Error},
       internal_server_error: {"An internal server error occurred", "application/json", Error}
     }
@@ -824,17 +795,13 @@ defmodule TuistWeb.API.AnalyticsController do
        }},
     responses: %{
       no_content: "The run artifact uploads were successfully finished",
-      unauthorized:
-        {"You need to be authenticated to access this resource", "application/json", Error},
-      forbidden:
-        {"The authenticated subject is not authorized to perform this action", "application/json",
-         Error},
+      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
+      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
       not_found: {"The run doesn't exist", "application/json", Error}
     }
   )
 
-  def complete_artifacts_uploads_project(conn, params),
-    do: complete_artifacts_uploads(conn, params)
+  def complete_artifacts_uploads_project(conn, params), do: complete_artifacts_uploads(conn, params)
 
   defp get_object_key(%{type: type, run_id: run_id, name: name}, conn) do
     # Use selected_project from URL if available (new routes), otherwise fall back to authenticated project (old routes)
@@ -906,10 +873,7 @@ defmodule TuistWeb.API.AnalyticsController do
     end
   end
 
-  defp bad_request_when_project_authenticated_from_non_ci_environment(
-         %{body_params: body_params} = conn,
-         _opts
-       ) do
+  defp bad_request_when_project_authenticated_from_non_ci_environment(%{body_params: body_params} = conn, _opts) do
     if is_nil(Authentication.current_project(conn)) or
          body_params.is_ci do
       conn

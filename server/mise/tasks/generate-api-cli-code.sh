@@ -1,5 +1,5 @@
 #!/bin/bash
-# mise description="Generates the Swift code off the Open API specification."
+#MISE description="Generates the Swift code off the Open API specification."
 
 set -euo pipefail
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# mise description="Re-creates and migrates the database and seeds it with data"
+#MISE description="Re-creates and migrates the database and seeds it with data"
 
 set -eo pipefail
 

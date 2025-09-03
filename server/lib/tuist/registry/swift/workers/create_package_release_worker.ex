@@ -1,0 +1,54 @@
+defmodule Tuist.Registry.Swift.Workers.CreatePackageReleaseWorker do
+  @moduledoc """
+  A worker that creates a single Swift package release.
+  """
+  use Oban.Worker,
+    unique: [
+      period: 60,
+      states: [:available, :scheduled, :executing, :retryable],
+      keys: [:scope, :name, :version]
+    ],
+    max_attempts: 3
+
+  import Tuist.Environment, only: [run_if_error_tracking_enabled: 1]
+
+  alias Tuist.Environment
+  alias Tuist.Registry.Swift.Packages
+
+  require Logger
+
+  @impl Oban.Worker
+  def perform(%Oban.Job{args: %{"scope" => scope, "name" => name, "version" => version}}) do
+    Logger.info("Creating package release for #{scope}/#{name}@#{version}")
+
+    run_if_error_tracking_enabled do
+      Appsignal.Span.set_sample_data(
+        Appsignal.Tracer.root_span(),
+        "tags",
+        %{
+          package: scope <> "/" <> name,
+          version: version
+        }
+      )
+    end
+
+    case Packages.get_package_by_scope_and_name(%{scope: scope, name: name}) do
+      nil ->
+        Logger.error("Package #{scope}/#{name} not found")
+        {:error, :package_not_found}
+
+      package ->
+        Packages.create_package_release(%{
+          package: package,
+          version: version,
+          token: Environment.github_token_update_package_releases()
+        })
+
+        :ok
+    end
+  rescue
+    error ->
+      Logger.error("Failed to create package release for #{scope}/#{name}@#{version}: #{Exception.message(error)}")
+      {:error, error}
+  end
+end

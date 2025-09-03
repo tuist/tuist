@@ -135,29 +135,28 @@ defmodule Tuist.CommandEvents do
   end
 
   def has_result_bundle?(command_event) do
-    Storage.object_exists?(get_result_bundle_key(command_event))
+    {:ok, project} = get_project_for_command_event(command_event, preload: :account)
+    Storage.object_exists?(get_result_bundle_key(command_event), project.account)
   end
 
   def generate_result_bundle_url(command_event) do
-    Storage.generate_download_url(get_result_bundle_key(command_event))
+    {:ok, project} = get_project_for_command_event(command_event, preload: :account)
+    Storage.generate_download_url(get_result_bundle_key(command_event), project.account)
   end
 
   def get_result_bundle_key(command_event) do
-    project = Repo.get!(Project, command_event.project_id)
-    account = Repo.get!(Account, project.account_id)
-    "#{account.name}/#{project.name}/runs/#{command_event.id}/result_bundle.zip"
+    {:ok, project} = get_project_for_command_event(command_event, preload: :account)
+    "#{project.account.name}/#{project.name}/runs/#{command_event.id}/result_bundle.zip"
   end
 
   def get_result_bundle_invocation_record_key(command_event) do
-    project = Repo.get!(Project, command_event.project_id)
-    account = Repo.get!(Account, project.account_id)
-    "#{account.name}/#{project.name}/runs/#{command_event.id}/invocation_record.json"
+    {:ok, project} = get_project_for_command_event(command_event, preload: :account)
+    "#{project.account.name}/#{project.name}/runs/#{command_event.id}/invocation_record.json"
   end
 
   def get_result_bundle_object_key(command_event, result_bundle_object_id) do
-    project = Repo.get!(Project, command_event.project_id)
-    account = Repo.get!(Account, project.account_id)
-    "#{account.name}/#{project.name}/runs/#{command_event.id}/#{result_bundle_object_id}.json"
+    {:ok, project} = get_project_for_command_event(command_event, preload: :account)
+    "#{project.account.name}/#{project.name}/runs/#{command_event.id}/#{result_bundle_object_id}.json"
   end
 
   def get_result_bundle_key(run_id, project) do
@@ -317,9 +316,11 @@ defmodule Tuist.CommandEvents do
     test_plan_summaries_object_key =
       get_result_bundle_object_key(command_event, action.action_result.tests_ref.id)
 
-    if Storage.object_exists?(test_plan_summaries_object_key) do
+    {:ok, project} = get_project_for_command_event(command_event, preload: :account)
+
+    if Storage.object_exists?(test_plan_summaries_object_key, project.account) do
       test_plan_summaries_string =
-        Storage.get_object_as_string(test_plan_summaries_object_key)
+        Storage.get_object_as_string(test_plan_summaries_object_key, project.account)
 
       {:ok, test_plan_summaries} = Jason.decode(test_plan_summaries_string)
       get_actions_test_plan_run_summaries(test_plan_summaries)
@@ -338,9 +339,10 @@ defmodule Tuist.CommandEvents do
 
   defp do_get_test_summary(command_event) do
     invocation_record_key = get_result_bundle_invocation_record_key(command_event)
+    {:ok, project} = get_project_for_command_event(command_event, preload: :account)
 
-    if Storage.object_exists?(invocation_record_key) do
-      invocation_record_string = Storage.get_object_as_string(invocation_record_key)
+    if Storage.object_exists?(invocation_record_key, project.account) do
+      invocation_record_string = Storage.get_object_as_string(invocation_record_key, project.account)
       {:ok, invocation_record} = Jason.decode(invocation_record_string)
 
       invocation_record = get_actions_invocation_record(invocation_record)

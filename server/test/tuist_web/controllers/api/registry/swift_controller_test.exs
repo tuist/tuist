@@ -214,13 +214,13 @@ defmodule TuistWeb.API.Registry.SwiftControllerTest do
 
       PackagesFixtures.package_release_fixture(package_id: package.id, version: "5.0.0")
 
-      stub(Storage, :object_exists?, fn "registry/swift/alamofire/alamofire/5.0.0/Package.swift" ->
+      stub(Storage, :object_exists?, fn "registry/swift/alamofire/alamofire/5.0.0/Package.swift", _actor ->
         true
       end)
 
       package_swift_content = "Package.swift content"
 
-      stub(Storage, :stream_object, fn _ ->
+      stub(Storage, :stream_object, fn _object_key, _actor ->
         Stream.map([package_swift_content], fn chunk -> chunk end)
       end)
 
@@ -244,14 +244,14 @@ defmodule TuistWeb.API.Registry.SwiftControllerTest do
       stub(
         Storage,
         :object_exists?,
-        fn "registry/swift/alamofire/alamofire/5.0.0/Package@swift-5.2.swift" ->
+        fn "registry/swift/alamofire/alamofire/5.0.0/Package@swift-5.2.swift", _actor ->
           true
         end
       )
 
       package_swift_content = "Package.swift@5.2 content"
 
-      stub(Storage, :stream_object, fn _ ->
+      stub(Storage, :stream_object, fn _object_key, _actor ->
         Stream.map([package_swift_content], fn chunk -> chunk end)
       end)
 
@@ -281,20 +281,20 @@ defmodule TuistWeb.API.Registry.SwiftControllerTest do
         Storage,
         :object_exists?,
         fn
-          "registry/swift/alamofire/alamofire/5.0.0/Package@swift-5.0.0.swift" ->
+          "registry/swift/alamofire/alamofire/5.0.0/Package@swift-5.0.0.swift", _actor ->
             false
 
-          "registry/swift/alamofire/alamofire/5.0.0/Package@swift-5.0.swift" ->
+          "registry/swift/alamofire/alamofire/5.0.0/Package@swift-5.0.swift", _actor ->
             false
 
-          "registry/swift/alamofire/alamofire/5.0.0/Package@swift-5.swift" ->
+          "registry/swift/alamofire/alamofire/5.0.0/Package@swift-5.swift", _actor ->
             true
         end
       )
 
       package_swift_content = "Package.swift@5 content"
 
-      stub(Storage, :stream_object, fn _ ->
+      stub(Storage, :stream_object, fn _object_key, _actor ->
         Stream.map([package_swift_content], fn chunk -> chunk end)
       end)
 
@@ -320,7 +320,7 @@ defmodule TuistWeb.API.Registry.SwiftControllerTest do
       stub(
         Storage,
         :object_exists?,
-        fn "registry/swift/alamofire/alamofire/5.0.0/Package@swift-5.2.swift" ->
+        fn "registry/swift/alamofire/alamofire/5.0.0/Package@swift-5.2.swift", _actor ->
           false
         end
       )
@@ -361,13 +361,13 @@ defmodule TuistWeb.API.Registry.SwiftControllerTest do
         swift_tools_version: "5.2"
       )
 
-      stub(Storage, :object_exists?, fn "registry/swift/alamofire/alamofire/5.0.0/Package.swift" ->
+      stub(Storage, :object_exists?, fn "registry/swift/alamofire/alamofire/5.0.0/Package.swift", _actor ->
         true
       end)
 
       package_swift_content = "Package.swift content"
 
-      stub(Storage, :stream_object, fn _ ->
+      stub(Storage, :stream_object, fn _object_key, _actor ->
         Stream.map([package_swift_content], fn chunk -> chunk end)
       end)
 
@@ -389,7 +389,7 @@ defmodule TuistWeb.API.Registry.SwiftControllerTest do
       # Given
       PackagesFixtures.package_fixture(scope: "Alamofire", name: "Alamofire")
 
-      stub(Storage, :object_exists?, fn "registry/swift/alamofire/alamofire/5.0.0/Package.swift" ->
+      stub(Storage, :object_exists?, fn "registry/swift/alamofire/alamofire/5.0.0/Package.swift", _actor ->
         false
       end)
 
@@ -413,13 +413,13 @@ defmodule TuistWeb.API.Registry.SwiftControllerTest do
           version: "5.0.0"
         )
 
-      stub(Storage, :object_exists?, fn "registry/swift/alamofire/alamofire/5.0.0/source_archive.zip" ->
+      stub(Storage, :object_exists?, fn "registry/swift/alamofire/alamofire/5.0.0/source_archive.zip", _actor ->
         true
       end)
 
       source_archive_content = "Source archive content"
 
-      stub(Storage, :stream_object, fn _ ->
+      stub(Storage, :stream_object, fn _object_key, _actor ->
         Stream.map([source_archive_content], fn chunk -> chunk end)
       end)
 
@@ -449,7 +449,7 @@ defmodule TuistWeb.API.Registry.SwiftControllerTest do
       # Given
       PackagesFixtures.package_fixture(scope: "Alamofire", name: "Alamofire")
 
-      stub(Storage, :object_exists?, fn "registry/swift/alamofire/alamofire/5.0.0/source_archive.zip" ->
+      stub(Storage, :object_exists?, fn "registry/swift/alamofire/alamofire/5.0.0/source_archive.zip", _actor ->
         false
       end)
 
@@ -479,13 +479,13 @@ defmodule TuistWeb.API.Registry.SwiftControllerTest do
         version: "5.0.0"
       )
 
-      stub(Storage, :object_exists?, fn "registry/swift/alamofire/alamofire/5.0.0/source_archive.zip" ->
+      stub(Storage, :object_exists?, fn "registry/swift/alamofire/alamofire/5.0.0/source_archive.zip", _actor ->
         true
       end)
 
       source_archive_content = "Source archive content"
 
-      stub(Storage, :stream_object, fn _ ->
+      stub(Storage, :stream_object, fn _object_key, _actor ->
         Stream.map([source_archive_content], fn chunk -> chunk end)
       end)
 

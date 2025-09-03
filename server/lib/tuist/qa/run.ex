@@ -10,9 +10,19 @@ defmodule Tuist.QA.Run do
   alias Tuist.QA.Screenshot
   alias Tuist.QA.Step
 
+  @derive {
+    Flop.Schema,
+    filterable: [
+      :id,
+      :status,
+      :vcs_provider,
+      :git_ref
+    ],
+    sortable: [:inserted_at, :finished_at]
+  }
+
   @primary_key {:id, UUIDv7, autogenerate: true}
   @foreign_key_type UUIDv7
-
   schema "qa_runs" do
     field :prompt, :string
     field :status, :string, default: "pending"
@@ -20,6 +30,7 @@ defmodule Tuist.QA.Run do
     field :vcs_provider, Ecto.Enum, values: [github: 0]
     field :git_ref, :string
     field :issue_comment_id, :integer
+    field :finished_at, :utc_datetime
 
     belongs_to :app_build, AppBuild, type: UUIDv7
     has_many :run_steps, Step, foreign_key: :qa_run_id
@@ -45,6 +56,6 @@ defmodule Tuist.QA.Run do
   end
 
   def update_changeset(qa_run, attrs) do
-    cast(qa_run, attrs, [:app_build_id, :status])
+    cast(qa_run, attrs, [:app_build_id, :status, :finished_at])
   end
 end

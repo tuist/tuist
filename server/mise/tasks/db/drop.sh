@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# mise description="Drops the database"
+#MISE description="Drops the database"
 
 set -euo pipefail
 

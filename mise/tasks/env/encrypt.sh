@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# mise description="Encrypts the .env file"
+#MISE description="Encrypts the .env file"
 
 set -eo pipefail
 

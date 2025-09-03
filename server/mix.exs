@@ -133,7 +133,7 @@ defmodule Tuist.MixProject do
       {:ecto_ch, "~> 0.7"},
       (System.get_env("NOORA_LOCAL") &&
          {:noora, path: "../../Noora/web"}) ||
-        {:noora, "== 0.12.1"},
+        {:noora, "== 0.14.0"},
       {:zstream, "~> 0.6"},
       {:cloak_ecto, "~> 1.3.0"},
       {:boruta, git: "https://github.com/malach-it/boruta_auth", branch: "master"},
@@ -145,7 +145,8 @@ defmodule Tuist.MixProject do
       # causing runime errors when processing the telemetry events. We opened
       # a PR (https://github.com/rkallos/peep/pull/54) but it's still pending to
       # be merged.
-      {:peep, git: "https://github.com/pepicrft/peep", ref: "cae2ddd2349ae0766352d106c4ebebc29949f110", override: true}
+      {:peep, git: "https://github.com/pepicrft/peep", ref: "cae2ddd2349ae0766352d106c4ebebc29949f110", override: true},
+      {:oban_met, "~> 1.0"}
     ]
   end
 

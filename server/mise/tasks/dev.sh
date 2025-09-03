@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# mise description="Devs the application"
+#MISE description="Devs the application"
 
 set -euo pipefail
 
