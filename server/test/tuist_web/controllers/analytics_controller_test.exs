@@ -1482,6 +1482,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
       expect(Storage, :multipart_generate_url, fn ^object_key,
                                                   ^upload_id,
                                                   ^part_number,
+                                                  _actor,
                                                   [expires_in: _, content_length: 100] ->
         upload_url
       end)
