@@ -15,7 +15,7 @@ defmodule TuistWeb.RunsControllerTest do
       project = ProjectsFixtures.project_fixture(account_id: user.account.id)
       command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
 
-      stub(Storage, :generate_download_url, fn _ -> "https://tuist.io" end)
+      stub(Storage, :generate_download_url, fn _object_key, _actor -> "https://tuist.io" end)
 
       # When
       conn =

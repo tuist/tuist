@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
-# mise description="Deploy the handbook"
+#MISE description="Deploy the handbook"
 
 pnpm run deploy

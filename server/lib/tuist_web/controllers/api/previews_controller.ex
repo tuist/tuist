@@ -175,7 +175,8 @@ defmodule TuistWeb.API.PreviewsController do
           account_handle: account_handle,
           project_handle: project_handle,
           app_build_id: app_build.id
-        })
+        }),
+        selected_project.account
       )
 
     # We're returning app_build.id as preview_id, so we don't break CLI pre-4.54.0 version.
@@ -232,6 +233,7 @@ defmodule TuistWeb.API.PreviewsController do
 
   def multipart_generate_url(
         %{
+          assigns: %{selected_project: selected_project},
           path_params: %{"account_handle" => account_handle, "project_handle" => project_handle},
           body_params:
             %{
@@ -258,6 +260,7 @@ defmodule TuistWeb.API.PreviewsController do
         object_key,
         upload_id,
         part_number,
+        selected_project.account,
         expires_in: expires_in,
         content_length: content_length
       )
@@ -312,6 +315,7 @@ defmodule TuistWeb.API.PreviewsController do
 
   def multipart_complete(
         %{
+          assigns: %{selected_project: selected_project},
           path_params: %{"account_handle" => account_handle, "project_handle" => project_handle},
           body_params:
             %{
@@ -336,7 +340,8 @@ defmodule TuistWeb.API.PreviewsController do
             upload_id,
             Enum.map(parts, fn %{part_number: part_number, etag: etag} ->
               {part_number, etag}
-            end)
+            end),
+            selected_project.account
           )
 
         AppBuilds.update_preview_with_app_build(app_build.preview.id, app_build)
@@ -352,7 +357,7 @@ defmodule TuistWeb.API.PreviewsController do
 
         conn
         |> put_status(:ok)
-        |> json(map_preview(preview, account_handle, project_handle))
+        |> json(map_preview(preview, account_handle, project_handle, selected_project.account))
 
       {:error, :not_found} ->
         conn
@@ -401,6 +406,7 @@ defmodule TuistWeb.API.PreviewsController do
 
   def show(
         %{
+          assigns: %{selected_project: selected_project},
           path_params: %{
             "account_handle" => account_handle,
             "project_handle" => project_handle,
@@ -414,7 +420,7 @@ defmodule TuistWeb.API.PreviewsController do
       {:ok, preview} ->
         Tuist.Analytics.preview_download(Authentication.authenticated_subject(conn))
 
-        response = map_preview(preview, account_handle, project_handle)
+        response = map_preview(preview, account_handle, project_handle, selected_project.account)
 
         response =
           if Enum.empty?(response.builds) do
@@ -558,7 +564,7 @@ defmodule TuistWeb.API.PreviewsController do
       previews:
         Enum.map(
           previews,
-          &map_preview(&1, account_handle, project_handle)
+          &map_preview(&1, account_handle, project_handle, selected_project.account)
         ),
       pagination_metadata: %{
         has_next_page: meta.has_next_page?,
@@ -631,7 +637,10 @@ defmodule TuistWeb.API.PreviewsController do
   )
 
   def upload_icon(
-        %{params: %{account_handle: account_handle, project_handle: project_handle, preview_id: preview_id}} = conn,
+        %{
+          assigns: %{selected_project: selected_project},
+          params: %{account_handle: account_handle, project_handle: project_handle, preview_id: preview_id}
+        } = conn,
         _params
       ) do
     case AppBuilds.preview_by_id(preview_id) do
@@ -645,6 +654,7 @@ defmodule TuistWeb.API.PreviewsController do
               project_handle: project_handle,
               preview_id: preview.id
             }),
+            selected_project.account,
             expires_in: expires_in
           )
 
@@ -666,7 +676,7 @@ defmodule TuistWeb.API.PreviewsController do
     Regex.match?(~r/^[a-fA-F0-9]{40}$/, hash)
   end
 
-  defp map_app_build(app_build, account_handle, project_handle, opts) do
+  defp map_app_build(app_build, account_handle, project_handle, account, opts) do
     expires_in = Keyword.get(opts, :expires_in, 3600)
 
     key =
@@ -678,7 +688,7 @@ defmodule TuistWeb.API.PreviewsController do
 
     %{
       id: app_build.id,
-      url: Storage.generate_download_url(key, expires_in: expires_in),
+      url: Storage.generate_download_url(key, account, expires_in: expires_in),
       type: app_build.type,
       supported_platforms: app_build.supported_platforms,
       inserted_at: app_build.inserted_at
@@ -748,10 +758,10 @@ defmodule TuistWeb.API.PreviewsController do
     end
   end
 
-  defp map_preview(preview, account_handle, project_handle, opts \\ []) do
+  defp map_preview(preview, account_handle, project_handle, account, opts \\ []) do
     builds =
       preview.app_builds
-      |> Enum.map(&map_app_build(&1, account_handle, project_handle, opts))
+      |> Enum.map(&map_app_build(&1, account_handle, project_handle, account, opts))
       |> Enum.sort_by(& &1.inserted_at, {:desc, DateTime})
 
     %{

@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
-# mise description="Install the handbook dependencies"
+#MISE description="Install the handbook dependencies"
 
 pnpm install

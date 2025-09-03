@@ -191,10 +191,27 @@ defmodule Tuist.QA do
   def qa_run(id, opts \\ []) do
     preload = Keyword.get(opts, :preload, [])
 
-    case Run |> Repo.get(id) |> Repo.preload(preload) do
+    case Repo.get(Run, id) do
       nil -> {:error, :not_found}
-      run -> {:ok, run}
+      qa_run -> {:ok, Repo.preload(qa_run, preload)}
     end
+  end
+
+  @doc """
+  Lists QA runs for a specific project with Flop pagination.
+  """
+  def list_qa_runs_for_project(project, options \\ %{}, opts \\ []) do
+    preload = Keyword.get(opts, :preload, [])
+
+    base_query =
+      from(qa in Run,
+        join: ab in assoc(qa, :app_build),
+        join: pr in assoc(ab, :preview),
+        where: pr.project_id == ^project.id,
+        preload: ^preload
+      )
+
+    Flop.validate_and_run!(base_query, options, for: Run)
   end
 
   @doc """
@@ -354,9 +371,7 @@ defmodule Tuist.QA do
 
     screenshot =
       if qa_run_id do
-        Repo.one(
-          from(s in Screenshot, where: s.id == ^screenshot_id and s.qa_run_id == ^qa_run_id)
-        )
+        Repo.one(from(s in Screenshot, where: s.id == ^screenshot_id and s.qa_run_id == ^qa_run_id))
       else
         Repo.get(Screenshot, screenshot_id)
       end
@@ -475,7 +490,7 @@ defmodule Tuist.QA do
         app_build_id: app_build.id
       })
 
-    Storage.generate_download_url(storage_key)
+    Storage.generate_download_url(storage_key, app_build.preview.project.account)
   end
 
   defp create_qa_auth_token(%AppBuild{} = app_build) do
@@ -535,7 +550,8 @@ defmodule Tuist.QA do
             Message.new_user!(user_message)
           ])
 
-        LLMChain.run(chain,
+        chain
+        |> LLMChain.run(
           with_fallbacks: [
             ChatOpenAI.new!(%{
               model: "gpt-5",
@@ -563,10 +579,301 @@ defmodule Tuist.QA do
     |> Enum.filter(& &1)
   end
 
-  defp process_llm_launch_argument_groups_result(
-         {:ok, %LLMChain{last_message: %{content: []}}},
-         _launch_argument_groups
-       ) do
+  defp process_llm_launch_argument_groups_result({:ok, %LLMChain{last_message: %{content: []}}}, _launch_argument_groups) do
     []
   end
+
+  @doc """
+  Returns QA runs analytics for a given project and time period.
+  """
+  def qa_runs_analytics(project_id, opts \\ []) do
+    {start_date, end_date} = date_range(opts)
+    app_name = Keyword.get(opts, :app_name)
+
+    current_count = count_qa_runs(project_id, start_date, end_date, app_name)
+
+    previous_count =
+      count_qa_runs(
+        project_id,
+        Date.add(start_date, -Date.diff(end_date, start_date)),
+        start_date,
+        app_name
+      )
+
+    runs_data = qa_runs_by_day(project_id, start_date, end_date, app_name)
+
+    %{
+      trend: calculate_trend(previous_count, current_count),
+      count: current_count,
+      values: Enum.map(runs_data, & &1.count),
+      dates: Enum.map(runs_data, &Date.to_string(&1.date))
+    }
+  end
+
+  @doc """
+  Returns QA issues analytics for a given project and time period.
+  """
+  def qa_issues_analytics(project_id, opts \\ []) do
+    {start_date, end_date} = date_range(opts)
+    app_name = Keyword.get(opts, :app_name)
+
+    current_count = count_qa_issues(project_id, start_date, end_date, app_name)
+
+    previous_count =
+      count_qa_issues(
+        project_id,
+        Date.add(start_date, -Date.diff(end_date, start_date)),
+        start_date,
+        app_name
+      )
+
+    issues_data = qa_issues_by_day(project_id, start_date, end_date, app_name)
+
+    %{
+      trend: calculate_trend(previous_count, current_count),
+      count: current_count,
+      values: Enum.map(issues_data, & &1.count),
+      dates: Enum.map(issues_data, &Date.to_string(&1.date))
+    }
+  end
+
+  @doc """
+  Returns QA duration analytics for a given project and time period.
+  """
+  def qa_duration_analytics(project_id, opts \\ []) do
+    {start_date, end_date} = date_range(opts)
+    app_name = Keyword.get(opts, :app_name)
+
+    current_avg = average_qa_duration(project_id, start_date, end_date, app_name)
+
+    previous_avg =
+      average_qa_duration(
+        project_id,
+        Date.add(start_date, -Date.diff(end_date, start_date)),
+        start_date,
+        app_name
+      )
+
+    duration_data = qa_duration_by_day(project_id, start_date, end_date, app_name)
+
+    %{
+      trend: calculate_trend(previous_avg, current_avg),
+      total_average_duration: current_avg,
+      values: Enum.map(duration_data, & &1.average_duration),
+      dates: Enum.map(duration_data, &Date.to_string(&1.date))
+    }
+  end
+
+  @doc """
+  Returns available apps for analytics filtering.
+  """
+  def available_apps_for_project(project_id) do
+    query =
+      from(qa in Run,
+        join: ab in assoc(qa, :app_build),
+        join: pr in assoc(ab, :preview),
+        where: pr.project_id == ^project_id,
+        distinct: pr.bundle_identifier,
+        select: pr.bundle_identifier,
+        order_by: pr.bundle_identifier
+      )
+
+    apps = Repo.all(query)
+    Enum.map(apps, fn app_name -> {app_name, app_name} end)
+  end
+
+  defp date_range(opts) do
+    start_date = Keyword.get(opts, :start_date, Date.add(Date.utc_today(), -10))
+    end_date = Keyword.get(opts, :end_date, Date.utc_today())
+    {start_date, end_date}
+  end
+
+  defp calculate_trend(previous_value, current_value) do
+    case {previous_value, current_value} do
+      {0, _} -> 0.0
+      {_, 0} -> 0.0
+      {prev, curr} -> Float.round(curr / prev * 100, 1) - 100.0
+    end
+  end
+
+  defp count_qa_runs(project_id, start_date, end_date, app_name) do
+    query =
+      from(qa in Run,
+        join: ab in assoc(qa, :app_build),
+        join: pr in assoc(ab, :preview),
+        where:
+          pr.project_id == ^project_id and
+            qa.inserted_at >= ^DateTime.new!(start_date, ~T[00:00:00]) and
+            qa.inserted_at < ^DateTime.new!(end_date, ~T[23:59:59]),
+        select: count(qa.id)
+      )
+
+    query = apply_app_filter(query, app_name, [:qa, :ab, :pr])
+    Repo.one(query) || 0
+  end
+
+  defp count_qa_issues(project_id, start_date, end_date, app_name) do
+    query =
+      from(qa in Run,
+        join: ab in assoc(qa, :app_build),
+        join: pr in assoc(ab, :preview),
+        join: step in assoc(qa, :run_steps),
+        where:
+          pr.project_id == ^project_id and
+            qa.inserted_at >= ^DateTime.new!(start_date, ~T[00:00:00]) and
+            qa.inserted_at < ^DateTime.new!(end_date, ~T[23:59:59]) and
+            fragment("array_length(?, 1)", step.issues) > 0,
+        select: fragment("SUM(array_length(?, 1))", step.issues)
+      )
+
+    query = apply_app_filter(query, app_name, [:qa, :ab, :pr, :step])
+    Repo.one(query) || 0
+  end
+
+  defp average_qa_duration(project_id, start_date, end_date, app_name) do
+    query =
+      from(qa in Run,
+        join: ab in assoc(qa, :app_build),
+        join: pr in assoc(ab, :preview),
+        where:
+          pr.project_id == ^project_id and
+            qa.inserted_at >= ^DateTime.new!(start_date, ~T[00:00:00]) and
+            qa.inserted_at < ^DateTime.new!(end_date, ~T[23:59:59]) and
+            qa.status in ["completed", "failed"] and
+            not is_nil(qa.finished_at),
+        select:
+          fragment(
+            "ABS(EXTRACT(EPOCH FROM (? - ?))) * 1000",
+            qa.finished_at,
+            qa.inserted_at
+          )
+      )
+
+    query = apply_app_filter(query, app_name, [:qa, :ab, :pr])
+    durations = Repo.all(query)
+
+    if Enum.empty?(durations) do
+      0
+    else
+      durations
+      |> Enum.map(&Decimal.to_float/1)
+      |> Enum.sum()
+      |> Kernel./(length(durations))
+      |> trunc()
+    end
+  end
+
+  defp qa_runs_by_day(project_id, start_date, end_date, app_name) do
+    query =
+      from(qa in Run,
+        join: ab in assoc(qa, :app_build),
+        join: pr in assoc(ab, :preview),
+        where:
+          pr.project_id == ^project_id and
+            qa.inserted_at >= ^DateTime.new!(start_date, ~T[00:00:00]) and
+            qa.inserted_at < ^DateTime.new!(end_date, ~T[23:59:59]),
+        group_by: fragment("DATE(?)", qa.inserted_at),
+        select: %{
+          date: fragment("DATE(?)", qa.inserted_at),
+          count: count(qa.id)
+        },
+        order_by: [asc: fragment("DATE(?)", qa.inserted_at)]
+      )
+
+    query = apply_app_filter(query, app_name, [:qa, :ab, :pr])
+    results = Repo.all(query)
+    results_map = Map.new(results, fn result -> {result.date, result.count} end)
+
+    # Fill in missing days with zero counts
+    start_date
+    |> Date.range(end_date)
+    |> Enum.map(fn date ->
+      count = Map.get(results_map, date, 0)
+      %{date: date, count: count}
+    end)
+  end
+
+  defp qa_duration_by_day(project_id, start_date, end_date, app_name) do
+    query =
+      from(qa in Run,
+        join: ab in assoc(qa, :app_build),
+        join: pr in assoc(ab, :preview),
+        where:
+          pr.project_id == ^project_id and
+            qa.inserted_at >= ^DateTime.new!(start_date, ~T[00:00:00]) and
+            qa.inserted_at < ^DateTime.new!(end_date, ~T[23:59:59]) and
+            qa.status in ["completed", "failed"] and
+            not is_nil(qa.finished_at),
+        group_by: fragment("DATE(?)", qa.inserted_at),
+        select: %{
+          date: fragment("DATE(?)", qa.inserted_at),
+          average_duration: fragment("AVG(EXTRACT(EPOCH FROM (? - ?)) * 1000)", qa.finished_at, qa.inserted_at)
+        },
+        order_by: [asc: fragment("DATE(?)", qa.inserted_at)]
+      )
+
+    query = apply_app_filter(query, app_name, [:qa, :ab, :pr])
+    results = Repo.all(query)
+
+    results_map =
+      Map.new(results, fn result ->
+        value =
+          case result.average_duration do
+            nil -> 0
+            %Decimal{} = avg -> Decimal.to_float(avg)
+            avg when is_float(avg) -> avg
+            _ -> 0
+          end
+
+        {result.date, value}
+      end)
+
+    # Fill in missing days with zero averages
+    start_date
+    |> Date.range(end_date)
+    |> Enum.map(fn date ->
+      value = Map.get(results_map, date, 0)
+      %{date: date, average_duration: value}
+    end)
+  end
+
+  defp qa_issues_by_day(project_id, start_date, end_date, app_name) do
+    query =
+      from(qa in Run,
+        join: ab in assoc(qa, :app_build),
+        join: pr in assoc(ab, :preview),
+        join: step in assoc(qa, :run_steps),
+        where:
+          pr.project_id == ^project_id and
+            qa.inserted_at >= ^DateTime.new!(start_date, ~T[00:00:00]) and
+            qa.inserted_at < ^DateTime.new!(end_date, ~T[23:59:59]) and
+            fragment("array_length(?, 1)", step.issues) > 0,
+        group_by: fragment("DATE(?)", qa.inserted_at),
+        select: %{
+          date: fragment("DATE(?)", qa.inserted_at),
+          count: fragment("SUM(array_length(?, 1))", step.issues)
+        },
+        order_by: [asc: fragment("DATE(?)", qa.inserted_at)]
+      )
+
+    query = apply_app_filter(query, app_name, [:qa, :ab, :pr, :step])
+    results = Repo.all(query)
+    results_map = Map.new(results, fn result -> {result.date, result.count} end)
+
+    # Fill in missing days with zero counts
+    start_date
+    |> Date.range(end_date)
+    |> Enum.map(fn date ->
+      count = Map.get(results_map, date, 0)
+      %{date: date, count: count}
+    end)
+  end
+
+  defp apply_app_filter(query, nil, _bindings), do: query
+  defp apply_app_filter(query, "any", _bindings), do: query
+
+  defp apply_app_filter(query, app_name, [:qa, :ab, :pr]), do: where(query, [qa, ab, pr], pr.display_name == ^app_name)
+
+  defp apply_app_filter(query, app_name, [:qa, :ab, :pr, :step]),
+    do: where(query, [qa, ab, pr, step], pr.display_name == ^app_name)
 end

@@ -10,7 +10,7 @@ defmodule TuistWeb.QAController do
   plug :assign_selected_qa_screenshot
 
   def download_screenshot(
-        %{assigns: %{selected_qa_screenshot: screenshot}} = conn,
+        %{assigns: %{selected_qa_screenshot: screenshot, selected_project: selected_project}} = conn,
         %{"account_handle" => account_handle, "project_handle" => project_handle, "qa_run_id" => qa_run_id} = _params
       ) do
     object_key =
@@ -24,12 +24,12 @@ defmodule TuistWeb.QAController do
     conn
     |> put_resp_content_type("image/png", nil)
     |> send_chunked(:ok)
-    |> stream_object(object_key)
+    |> stream_object(object_key, selected_project.account)
   end
 
-  defp stream_object(conn, object_key) do
+  defp stream_object(conn, object_key, account) do
     object_key
-    |> Storage.stream_object()
+    |> Storage.stream_object(account)
     |> Enum.reduce_while(conn, fn chunk, conn ->
       case chunk(conn, chunk) do
         {:ok, conn} -> {:cont, conn}

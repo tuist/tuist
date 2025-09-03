@@ -20,6 +20,7 @@ email = "tuistrocks@tuist.dev"
 password = "tuistrocks"
 
 FunWithFlags.enable(:clickhouse_events)
+FunWithFlags.enable(:qa)
 
 _account =
   if is_nil(Accounts.get_user_by_email(email)) do
@@ -480,7 +481,13 @@ qa_runs =
         )
       )
 
-    %{
+    finished_at =
+      if status in ["completed", "failed"] do
+        duration_minutes = Enum.random(5..45)
+        DateTime.add(inserted_at, duration_minutes * 60, :second)
+      end
+
+    base_attrs = %{
       id: UUIDv7.generate(),
       app_build_id: app_build.id,
       prompt: prompt,
@@ -492,6 +499,12 @@ qa_runs =
       inserted_at: inserted_at,
       updated_at: inserted_at
     }
+
+    if finished_at do
+      Map.put(base_attrs, :finished_at, finished_at)
+    else
+      base_attrs
+    end
   end)
 
 Repo.insert_all(Run, qa_runs)
