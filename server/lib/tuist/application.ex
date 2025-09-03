@@ -171,6 +171,21 @@ defmodule Tuist.Application do
           protocols: Environment.s3_protocols(),
           start_pool_metrics?: true
         ],
+        Environment.s3_endpoint(:tigris, Environment.decrypt_secrets()) => [
+          conn_opts: [
+            log: true,
+            protocols: Environment.s3_protocols(),
+            transport_opts: [
+              inet6: Environment.use_ipv6?() in ~w(true 1),
+              cacertfile: CAStore.file_path(),
+              verify: :verify_peer
+            ]
+          ],
+          size: Environment.s3_pool_size(),
+          count: Environment.s3_pool_count(),
+          protocols: Environment.s3_protocols(),
+          start_pool_metrics?: true
+        ],
         "https://marketing.tuist.dev" => [
           conn_opts: [
             log: true,

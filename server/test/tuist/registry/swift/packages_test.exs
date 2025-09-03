@@ -6,6 +6,7 @@ defmodule Tuist.Registry.Swift.PackagesTest do
   alias Tuist.Repo
   alias Tuist.Storage
   alias Tuist.VCS
+  alias Tuist.VCS.Repositories.Tag
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.Registry.Swift.PackagesFixtures
 
@@ -108,11 +109,11 @@ defmodule Tuist.Registry.Swift.PackagesTest do
 
       stub(VCS, :get_tags, fn _ ->
         [
-          %VCS.Repositories.Tag{name: "5.10.2"},
-          %VCS.Repositories.Tag{name: "5.10.1"},
-          %VCS.Repositories.Tag{name: "5.10.0"},
-          %VCS.Repositories.Tag{name: "5.11"},
-          %VCS.Repositories.Tag{name: "tag@5.0.0"}
+          %Tag{name: "5.10.2"},
+          %Tag{name: "5.10.1"},
+          %Tag{name: "5.10.0"},
+          %Tag{name: "5.11"},
+          %Tag{name: "tag@5.0.0"}
         ]
       end)
 
@@ -146,8 +147,8 @@ defmodule Tuist.Registry.Swift.PackagesTest do
 
       stub(VCS, :get_tags, fn _ ->
         [
-          %VCS.Repositories.Tag{name: "v5.10.2"},
-          %VCS.Repositories.Tag{name: "5.10.2"}
+          %Tag{name: "v5.10.2"},
+          %Tag{name: "5.10.2"}
         ]
       end)
 
@@ -172,7 +173,7 @@ defmodule Tuist.Registry.Swift.PackagesTest do
 
       stub(VCS, :get_tags, fn _ ->
         [
-          %VCS.Repositories.Tag{name: "v5.10.2"}
+          %Tag{name: "v5.10.2"}
         ]
       end)
 
@@ -199,10 +200,10 @@ defmodule Tuist.Registry.Swift.PackagesTest do
 
       stub(VCS, :get_tags, fn _ ->
         [
-          %VCS.Repositories.Tag{name: "5.10.2-beta"},
-          %VCS.Repositories.Tag{name: "5.10.2-beta.1"},
-          %VCS.Repositories.Tag{name: "v5.10.2-beta.2"},
-          %VCS.Repositories.Tag{name: "5.10.2-beta-3"}
+          %Tag{name: "5.10.2-beta"},
+          %Tag{name: "5.10.2-beta.1"},
+          %Tag{name: "v5.10.2-beta.2"},
+          %Tag{name: "5.10.2-beta-3"}
         ]
       end)
 
@@ -232,9 +233,9 @@ defmodule Tuist.Registry.Swift.PackagesTest do
 
       stub(VCS, :get_tags, fn _ ->
         [
-          %VCS.Repositories.Tag{name: "5.10.2"},
-          %VCS.Repositories.Tag{name: "0.9.3-dev1985"},
-          %VCS.Repositories.Tag{name: "1.0.0-dev123"}
+          %Tag{name: "5.10.2"},
+          %Tag{name: "0.9.3-dev1985"},
+          %Tag{name: "1.0.0-dev123"}
         ]
       end)
 
@@ -327,9 +328,9 @@ defmodule Tuist.Registry.Swift.PackagesTest do
   describe "package_manifest_as_string/1" do
     test "returns the package manifest as string" do
       # Given
-      stub(Storage, :object_exists?, fn _ -> true end)
+      stub(Storage, :object_exists?, fn _object_key, _actor -> true end)
 
-      stub(Storage, :get_object_as_string, fn _ ->
+      stub(Storage, :get_object_as_string, fn _object_key, _actor ->
         """
         // swift-tools-version:5.9
         import PackageDescription

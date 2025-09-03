@@ -18,7 +18,7 @@ defmodule Tuist.QA.Run do
       :vcs_provider,
       :git_ref
     ],
-    sortable: [:inserted_at, :finished_at],
+    sortable: [:inserted_at, :finished_at]
   }
 
   @primary_key {:id, UUIDv7, autogenerate: true}

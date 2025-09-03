@@ -62,18 +62,14 @@ defmodule TuistWeb.API.AccountTokensController do
           required: [:token]
         }
       },
-      unauthorized:
-        {"You need to be authenticated to issue new tokens", "application/json", Error},
+      unauthorized: {"You need to be authenticated to issue new tokens", "application/json", Error},
       forbidden: {"You need to be authorized to issue new tokens", "application/json", Error},
       not_found: {"The account was not found", "application/json", Error},
       bad_request: {"The request is invalid", "application/json", Error}
     }
   )
 
-  def create(
-        %{params: %{"scopes" => scopes}, assigns: %{selected_account: selected_account}} = conn,
-        _opts
-      ) do
+  def create(%{params: %{"scopes" => scopes}, assigns: %{selected_account: selected_account}} = conn, _opts) do
     current_user = Authentication.current_user(conn)
 
     with :ok <- Authorization.authorize(:account_token_create, current_user, selected_account),

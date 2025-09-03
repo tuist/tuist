@@ -459,12 +459,16 @@ defmodule TuistWeb.API.AnalyticsController do
   end
 
   def multipart_start(
-        %{path_params: %{"run_id" => run_id}, body_params: %{type: type} = command_event_artifact} = conn,
+        %{
+          assigns: %{selected_project: selected_project},
+          path_params: %{"run_id" => run_id},
+          body_params: %{type: type} = command_event_artifact
+        } = conn,
         _params
       ) do
     with {:ok, object_key} <-
            get_object_key(%{type: type, run_id: run_id, name: command_event_artifact.name}, conn) do
-      upload_id = Storage.multipart_start(object_key)
+      upload_id = Storage.multipart_start(object_key, selected_project.account)
       json(conn, %{status: "success", data: %{upload_id: upload_id}})
     end
   end
@@ -503,6 +507,7 @@ defmodule TuistWeb.API.AnalyticsController do
 
   def multipart_generate_url(
         %{
+          assigns: %{selected_project: selected_project},
           path_params: %{"run_id" => run_id},
           body_params: %{
             command_event_artifact: %{type: type} = command_event_artifact,
@@ -521,6 +526,7 @@ defmodule TuistWeb.API.AnalyticsController do
           object_key,
           upload_id,
           part_number,
+          selected_project.account,
           expires_in: expires_in,
           content_length: content_length
         )
@@ -563,6 +569,7 @@ defmodule TuistWeb.API.AnalyticsController do
 
   def multipart_complete(
         %{
+          assigns: %{selected_project: selected_project},
           path_params: %{"run_id" => run_id},
           body_params: %{
             command_event_artifact: %{type: type} = command_event_artifact,
@@ -579,7 +586,8 @@ defmodule TuistWeb.API.AnalyticsController do
           upload_id,
           Enum.map(parts, fn %{part_number: part_number, etag: etag} ->
             {part_number, etag}
-          end)
+          end),
+          selected_project.account
         )
 
       conn

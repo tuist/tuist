@@ -811,7 +811,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
       object_key =
         "#{account.name}/#{project.name}/runs/#{command_event.legacy_id}/result_bundle.zip"
 
-      expect(Storage, :multipart_start, fn ^object_key ->
+      expect(Storage, :multipart_start, fn ^object_key, _actor ->
         upload_id
       end)
 
@@ -844,7 +844,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
       object_key =
         "#{account.name}/#{project.name}/runs/#{command_event.legacy_id}/some-id.json"
 
-      expect(Storage, :multipart_start, fn ^object_key ->
+      expect(Storage, :multipart_start, fn ^object_key, _actor ->
         upload_id
       end)
 
@@ -885,6 +885,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
       expect(Storage, :multipart_generate_url, fn ^object_key,
                                                   ^upload_id,
                                                   ^part_number,
+                                                  _actor,
                                                   [expires_in: _, content_length: 100] ->
         upload_url
       end)
@@ -933,7 +934,8 @@ defmodule TuistWeb.AnalyticsControllerTest do
 
       expect(Storage, :multipart_complete_upload, fn ^object_key,
                                                      ^upload_id,
-                                                     [{1, "etag1"}, {2, "etag2"}, {3, "etag3"}] ->
+                                                     [{1, "etag1"}, {2, "etag2"}, {3, "etag3"}],
+                                                     _actor ->
         :ok
       end)
 
@@ -974,7 +976,10 @@ defmodule TuistWeb.AnalyticsControllerTest do
         %{part_number: 3, etag: "etag3"}
       ]
 
-      expect(Storage, :multipart_complete_upload, fn object_key, ^upload_id, [{1, "etag1"}, {2, "etag2"}, {3, "etag3"}] ->
+      expect(Storage, :multipart_complete_upload, fn object_key,
+                                                     ^upload_id,
+                                                     [{1, "etag1"}, {2, "etag2"}, {3, "etag3"}],
+                                                     _actor ->
         assert String.contains?(object_key, "#{account.name}/#{project.name}/runs/")
         assert String.ends_with?(object_key, "/result_bundle.zip")
         :ok
@@ -1059,7 +1064,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
       test_plan_object_key =
         "#{base_path}/0~_nJcMfmYtL75ZA_SPkjI1RYzgbEkjbq_o2hffLy4RQuPOW81Uu0xIwZX0ntR4Tof5xv2Jwe8opnwD7IVBQ_VOQ==.json"
 
-      stub(Storage, :object_exists?, fn object_key ->
+      stub(Storage, :object_exists?, fn object_key, _actor ->
         case object_key do
           ^invocation_record_object_key ->
             true
@@ -1069,7 +1074,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
         end
       end)
 
-      stub(Storage, :get_object_as_string, fn object_key ->
+      stub(Storage, :get_object_as_string, fn object_key, _ ->
         case object_key do
           ^invocation_record_object_key ->
             CommandEventsFixtures.invocation_record_fixture()
@@ -1165,7 +1170,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
       test_plan_object_key =
         "#{base_path}/0~_nJcMfmYtL75ZA_SPkjI1RYzgbEkjbq_o2hffLy4RQuPOW81Uu0xIwZX0ntR4Tof5xv2Jwe8opnwD7IVBQ_VOQ==.json"
 
-      stub(Storage, :object_exists?, fn object_key ->
+      stub(Storage, :object_exists?, fn object_key, _actor ->
         case object_key do
           ^invocation_record_object_key ->
             true
@@ -1175,7 +1180,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
         end
       end)
 
-      stub(Storage, :get_object_as_string, fn object_key ->
+      stub(Storage, :get_object_as_string, fn object_key, _ ->
         case object_key do
           ^invocation_record_object_key ->
             CommandEventsFixtures.invocation_record_fixture()
@@ -1242,7 +1247,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
         |> CommandEventsFixtures.command_event_fixture()
         |> Repo.preload(project: :account)
 
-      stub(Storage, :object_exists?, fn _ -> false end)
+      stub(Storage, :object_exists?, fn _object_key, _actor -> false end)
       conn = Authentication.put_current_project(conn, project)
 
       conn =
@@ -1306,7 +1311,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
       object_key =
         "#{account.name}/#{project.name}/runs/#{command_event.legacy_id}/result_bundle.zip"
 
-      expect(Storage, :multipart_start, fn ^object_key ->
+      expect(Storage, :multipart_start, fn ^object_key, _actor ->
         upload_id
       end)
 
@@ -1340,7 +1345,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
       object_key =
         "#{account.name}/#{project.name}/runs/#{command_event.legacy_id}/some-id.json"
 
-      expect(Storage, :multipart_start, fn ^object_key ->
+      expect(Storage, :multipart_start, fn ^object_key, _actor ->
         upload_id
       end)
 
@@ -1418,6 +1423,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
       expect(Storage, :multipart_generate_url, fn ^object_key,
                                                   ^upload_id,
                                                   ^part_number,
+                                                  _actor,
                                                   [expires_in: _, content_length: 100] ->
         upload_url
       end)
@@ -1507,7 +1513,8 @@ defmodule TuistWeb.AnalyticsControllerTest do
 
       expect(Storage, :multipart_complete_upload, fn ^object_key,
                                                      ^upload_id,
-                                                     [{1, "etag1"}, {2, "etag2"}, {3, "etag3"}] ->
+                                                     [{1, "etag1"}, {2, "etag2"}, {3, "etag3"}],
+                                                     _actor ->
         :ok
       end)
 
@@ -1598,7 +1605,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
       object_key =
         "#{account.name}/#{project.name}/runs/#{command_event.legacy_id}/result_bundle.zip"
 
-      expect(Storage, :multipart_start, fn ^object_key ->
+      expect(Storage, :multipart_start, fn ^object_key, _actor ->
         upload_id
       end)
 
