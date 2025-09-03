@@ -5,6 +5,11 @@ defmodule Tuist.QA do
 
   import Ecto.Query
 
+  alias LangChain.Chains.LLMChain
+  alias LangChain.ChatModels.ChatAnthropic
+  alias LangChain.ChatModels.ChatOpenAI
+  alias LangChain.Message
+  alias LangChain.Message.ContentPart
   alias Runner.QA.Agent
   alias Tuist.Accounts
   alias Tuist.AppBuilds
@@ -36,6 +41,8 @@ defmodule Tuist.QA do
     app_build = Repo.preload(app_build, preview: [project: :account])
     issue_comment_id = Map.get(params, :issue_comment_id)
 
+    launch_argument_groups = select_launch_argument_groups(prompt, app_build.preview.project)
+
     with {:ok, qa_run} <-
            create_qa_run(%{
              app_build_id: app_build_id,
@@ -52,6 +59,7 @@ defmodule Tuist.QA do
         preview_url: app_build_url,
         bundle_identifier: app_build.preview.bundle_identifier,
         prompt: prompt,
+        launch_arguments: Enum.map_join(launch_argument_groups, " ", & &1.value),
         server_url: Environment.app_url(),
         run_id: qa_run.id,
         auth_token: auth_token,
@@ -113,6 +121,7 @@ defmodule Tuist.QA do
          preview_url: app_build_url,
          bundle_identifier: bundle_identifier,
          prompt: prompt,
+         launch_arguments: launch_arguments,
          server_url: server_url,
          run_id: run_id,
          auth_token: auth_token,
@@ -126,7 +135,7 @@ defmodule Tuist.QA do
     npm i --location=global appium
     appium driver install xcuitest
     tmux new-session -d -s appium 'appium'
-    runner qa --preview-url "#{app_build_url}" --bundle-identifier #{bundle_identifier} --server-url #{server_url} --run-id #{run_id} --auth-token #{auth_token} --account-handle #{account_handle} --project-handle #{project_handle} --prompt "#{prompt}" --anthropic-api-key #{Environment.anthropic_api_key()} --openai-api-key #{Environment.openai_api_key()}
+    runner qa --preview-url "#{app_build_url}" --bundle-identifier #{bundle_identifier} --server-url #{server_url} --run-id #{run_id} --auth-token #{auth_token} --account-handle #{account_handle} --project-handle #{project_handle} --prompt "#{prompt}" --launch-arguments #{launch_arguments} --anthropic-api-key #{Environment.anthropic_api_key()} --openai-api-key #{Environment.openai_api_key()}
     """
   end
 
@@ -504,6 +513,76 @@ defmodule Tuist.QA do
     end
   end
 
+  defp select_launch_argument_groups(prompt, project) do
+    project = Repo.preload(project, :qa_launch_argument_groups)
+
+    case project.qa_launch_argument_groups do
+      [] ->
+        []
+
+      launch_argument_groups ->
+        system_prompt = """
+        Given a test prompt and a list of available launch argument groups, determine which groups should be used.
+
+        Available launch argument groups:
+        #{Enum.map_join(launch_argument_groups, "\n", fn group -> "- Name: #{group.name}, Description: #{group.description}, Arguments: #{group.value}" end)}
+
+        Analyze the user's prompt and respond with ONLY the launch argument group names that should be used.
+        Unless prompt mentions the log in flow or a signed out user, include launch argument groups to automatically log in when available.
+        If multiple groups should be used, delimit them with a comma.
+        If no groups match, respond with an empty string.
+        Do not include any explanation, just the launch arguments.
+        """
+
+        user_message = "Test prompt: #{prompt}"
+
+        llm =
+          ChatAnthropic.new!(%{
+            model: "claude-sonnet-4-20250514",
+            api_key: Environment.anthropic_api_key()
+          })
+
+        chain =
+          %{llm: llm}
+          |> LLMChain.new!()
+          |> LLMChain.add_messages([
+            Message.new_system!(system_prompt),
+            Message.new_user!(user_message)
+          ])
+
+        chain
+        |> LLMChain.run(
+          with_fallbacks: [
+            ChatOpenAI.new!(%{
+              model: "gpt-5",
+              max_completion_tokens: 2000,
+              api_key: Environment.openai_api_key()
+            })
+          ]
+        )
+        |> process_llm_launch_argument_groups_result(launch_argument_groups)
+    end
+  end
+
+  defp process_llm_launch_argument_groups_result(
+         {:ok, %LLMChain{last_message: %{content: [%ContentPart{content: content}]}}},
+         launch_argument_groups
+       ) do
+    content
+    |> String.trim()
+    |> String.split(",")
+    |> Enum.map(fn group_name ->
+      Enum.find(launch_argument_groups, fn group ->
+        group.name == String.trim(group_name)
+      end)
+    end)
+    |> Enum.filter(& &1)
+  end
+
+  defp process_llm_launch_argument_groups_result({:ok, %LLMChain{last_message: %{content: []}}}, _launch_argument_groups) do
+    []
+  end
+
   @doc """
   Returns QA runs analytics for a given project and time period.
   """
@@ -514,7 +593,12 @@ defmodule Tuist.QA do
     current_count = count_qa_runs(project_id, start_date, end_date, app_name)
 
     previous_count =
-      count_qa_runs(project_id, Date.add(start_date, -Date.diff(end_date, start_date)), start_date, app_name)
+      count_qa_runs(
+        project_id,
+        Date.add(start_date, -Date.diff(end_date, start_date)),
+        start_date,
+        app_name
+      )
 
     runs_data = qa_runs_by_day(project_id, start_date, end_date, app_name)
 
@@ -536,7 +620,12 @@ defmodule Tuist.QA do
     current_count = count_qa_issues(project_id, start_date, end_date, app_name)
 
     previous_count =
-      count_qa_issues(project_id, Date.add(start_date, -Date.diff(end_date, start_date)), start_date, app_name)
+      count_qa_issues(
+        project_id,
+        Date.add(start_date, -Date.diff(end_date, start_date)),
+        start_date,
+        app_name
+      )
 
     issues_data = qa_issues_by_day(project_id, start_date, end_date, app_name)
 
@@ -558,7 +647,12 @@ defmodule Tuist.QA do
     current_avg = average_qa_duration(project_id, start_date, end_date, app_name)
 
     previous_avg =
-      average_qa_duration(project_id, Date.add(start_date, -Date.diff(end_date, start_date)), start_date, app_name)
+      average_qa_duration(
+        project_id,
+        Date.add(start_date, -Date.diff(end_date, start_date)),
+        start_date,
+        app_name
+      )
 
     duration_data = qa_duration_by_day(project_id, start_date, end_date, app_name)
 
@@ -777,6 +871,7 @@ defmodule Tuist.QA do
 
   defp apply_app_filter(query, nil, _bindings), do: query
   defp apply_app_filter(query, "any", _bindings), do: query
+
   defp apply_app_filter(query, app_name, [:qa, :ab, :pr]), do: where(query, [qa, ab, pr], pr.display_name == ^app_name)
 
   defp apply_app_filter(query, app_name, [:qa, :ab, :pr, :step]),

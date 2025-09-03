@@ -105,6 +105,7 @@ let project = Project(
                 .target(name: "TuistOnboarding", condition: .when([.ios])),
                 .target(name: "TuistErrorHandling", condition: .when([.ios])),
                 .target(name: "TuistProfile", condition: .when([.ios])),
+                .external(name: "ArgumentParser", condition: .when([.ios])),
             ],
             settings: .settings(
                 base: [

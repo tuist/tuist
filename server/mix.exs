@@ -146,6 +146,7 @@ defmodule Tuist.MixProject do
       # a PR (https://github.com/rkallos/peep/pull/54) but it's still pending to
       # be merged.
       {:peep, git: "https://github.com/pepicrft/peep", ref: "cae2ddd2349ae0766352d106c4ebebc29949f110", override: true},
+      {:langchain, git: "https://github.com/brainlid/langchain", branch: "main"},
       {:oban_met, "~> 1.0"}
     ]
   end
