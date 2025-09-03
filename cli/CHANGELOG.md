@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.66.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* XCFramework signature by [@mikhailmulyar](https://github.com/mikhailmulyar) in [#7999](https://github.com/tuist/tuist/pull/7999)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.66.0...4.66.1
+
 ## What's Changed in 4.66.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
