@@ -15,6 +15,8 @@ defmodule Tuist.GitHub.Releases do
 
   alias Tuist.KeyValueStore
 
+  require Logger
+
   @releases_url "https://api.github.com/repos/tuist/tuist/releases"
   @ttl to_timeout(hour: 1)
 
@@ -34,13 +36,13 @@ defmodule Tuist.GitHub.Releases do
   end
 
   def get_latest_app_release(opts \\ []) do
-    opts
-    |> fetch_releases()
-    |> Enum.map(&map_release/1)
-    |> Enum.find(fn release ->
-      String.contains?(release.name, "app@") and
-        Enum.find(release.assets, &String.ends_with?(&1.browser_download_url, "dmg"))
-    end)
+    KeyValueStore.get_or_update(
+      [__MODULE__, "github_latest_app_release"],
+      [ttl: Keyword.get(opts, :ttl, @ttl)],
+      fn ->
+        fetch_latest_app_release()
+      end
+    )
   end
 
   defp fetch_releases(opts) do
@@ -77,5 +79,57 @@ defmodule Tuist.GitHub.Releases do
           &%{name: &1["name"], browser_download_url: &1["browser_download_url"]}
         )
     }
+  end
+
+  defp fetch_latest_app_release(opts \\ []) do
+    url = Keyword.get(opts, :url, releases_url())
+
+    case Req.get(url, finch: Tuist.Finch) do
+      {:ok, %Req.Response{status: 200, body: releases, headers: headers}} ->
+        next_url = extract_next_url(headers)
+
+        releases = Enum.map(releases, &map_release/1)
+
+        case find_app_release_from_releases(releases) do
+          nil when next_url != nil ->
+            fetch_latest_app_release(url: next_url)
+
+          result ->
+            result
+        end
+
+      {:ok, %Req.Response{status: status}} when status in 500..599 ->
+        Logger.error("Failed to fetch GitHub releases, status: #{status}")
+        nil
+
+      {:error, reason} ->
+        Logger.error("Failed to fetch GitHub releases, reason: #{inspect(reason)}")
+        nil
+    end
+  end
+
+  defp find_app_release_from_releases(releases) do
+    Enum.find(releases, fn release ->
+      String.contains?(release.name, "app@") and
+        Enum.find(release.assets, &String.ends_with?(&1.browser_download_url, "dmg"))
+    end)
+  end
+
+  defp extract_next_url(headers) do
+    Enum.find_value(headers, fn
+      {"link", [link_header | _]} ->
+        parse_link_header(link_header)
+
+      _ ->
+        nil
+    end)
+  end
+
+  defp parse_link_header(link_header) do
+    # Parse GitHub's Link header format: <url>; rel="next"
+    case Regex.run(~r/<([^>]+)>;\s*rel="next"/, link_header) do
+      [_, next_url] -> next_url
+      _ -> nil
+    end
   end
 end
