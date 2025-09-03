@@ -202,6 +202,8 @@ defmodule Tuist.Application do
           start_pool_metrics?: true
         ]
       }
+      |> Enum.reject(fn {key, _value} -> is_nil(key) end)
+      |> Map.new()
     end
   end
 
