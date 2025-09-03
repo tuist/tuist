@@ -4,10 +4,12 @@ defmodule TuistWeb.QALive do
   use Noora
 
   import TuistWeb.Components.EmptyCardSection
-  import TuistWeb.Previews.PlatformIcon
+  import TuistWeb.Previews.PlatformTag
 
   alias Tuist.AppBuilds.Preview
   alias Tuist.QA
+  alias Tuist.Utilities.DateFormatter
+  alias TuistWeb.Utilities.SHA
 
   def mount(_params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
     slug = "#{account.name}/#{project.name}"
@@ -179,10 +181,4 @@ defmodule TuistWeb.QALive do
       analytics_selected_widget
     end
   end
-
-  defp format_datetime(datetime) when is_struct(datetime, DateTime) do
-    Timex.from_now(datetime)
-  end
-
-  defp format_datetime(_), do: "Unknown"
 end

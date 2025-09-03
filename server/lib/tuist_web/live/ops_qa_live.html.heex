@@ -148,7 +148,7 @@
             <.text_cell label={format_qa_run_token_usage(qa_run)} />
           </:col>
           <:col :let={qa_run} label={gettext("Ran at")}>
-            <.text_cell label={format_datetime(qa_run.inserted_at)} />
+            <.text_cell label={DateFormatter.format_iso(qa_run.inserted_at)} />
           </:col>
           <:col :let={qa_run} label={gettext("Actions")}>
             <.button

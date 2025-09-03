@@ -1,0 +1,257 @@
+<div id="qa-run">
+  <div data-part="action-buttons">
+    <.button
+      label={gettext("QA")}
+      data-part="back-button"
+      variant="secondary"
+      size="medium"
+      navigate={
+        ~p"/#{@qa_run.app_build.preview.project.account.name}/#{@qa_run.app_build.preview.project.name}/qa"
+      }
+    >
+      <:icon_left>
+        <.icon name="arrow_left" />
+      </:icon_left>
+    </.button>
+  </div>
+
+  <div data-part="header">
+    <div data-part="icon-with-dots">
+      <div data-part="dots">
+        <.dots_light />
+        <.dots_dark />
+      </div>
+      <img
+        id="qa-run-header-icon"
+        src={~p"/app/images/app-icon-placeholder.svg"}
+        data-image-src={
+          url(
+            ~p"/#{@qa_run.app_build.preview.project.account.name}/#{@qa_run.app_build.preview.project.name}/previews/#{@qa_run.app_build.preview.id}/icon.png"
+          )
+        }
+        phx-hook="ImageFallback"
+        alt={
+          gettext("%{app_name} icon",
+            app_name: @qa_run.app_build.preview.display_name
+          )
+        }
+        data-part="icon"
+      />
+    </div>
+    <h1 data-part="title">{@qa_run.app_build.preview.display_name}</h1>
+    <div data-part="version">
+      <div data-part="icon">
+        <.brand_apple />
+      </div>
+      <span data-part="label">
+        {gettext("V %{version}", version: @qa_run.app_build.preview.version)}
+      </span>
+    </div>
+    <div data-part="preview-link">
+      {@qa_run.app_build.preview.display_name} QA
+      <div data-part="icon">
+        <.arrows_exchange_2 />
+      </div>
+
+      <.link_button
+        navigate={
+          ~p"/#{@selected_account.name}/#{@selected_project.name}/previews/#{@qa_run.app_build.preview.id}"
+        }
+        variant="secondary"
+        size="medium"
+        label={
+"#{@qa_run.app_build.preview.display_name} Preview"}
+      >
+        <:icon_right>
+          <.external_link />
+        </:icon_right>
+      </.link_button>
+    </div>
+  </div>
+
+  <.tab_menu_horizontal>
+    <.tab_menu_horizontal_item
+      label={gettext("Overview")}
+      selected={@selected_tab == "overview"}
+      navigate={
+        ~p"/#{@qa_run.app_build.preview.project.account.name}/#{@qa_run.app_build.preview.project.name}/qa/#{@qa_run.id}/overview"
+      }
+    />
+    <%!-- <.tab_menu_horizontal_item --%>
+    <%!--   label={gettext("Logs")} --%>
+    <%!--   selected={@selected_tab == "logs"} --%>
+    <%!--   navigate={~p"/#{@qa_run.app_build.preview.project.account.name}/#{@qa_run.app_build.preview.project.name}/qa/#{@qa_run.id}/logs"} --%>
+    <%!-- /> --%>
+  </.tab_menu_horizontal>
+
+  <div :if={@selected_tab == "overview"}>
+    <.card data-part="details-card" icon="chart_arcs" title={gettext("Details")}>
+      <.card_section data-part="details-card-section">
+        <div data-part="metadata-grid">
+          <div data-part="metadata-row">
+            <div data-part="metadata">
+              <div data-part="title">{gettext("Platform")}</div>
+              <.platform_tag platform={
+                @qa_run.app_build.preview.supported_platforms
+                |> Preview.map_simulators_to_devices()
+                |> List.first()
+              } />
+            </div>
+          </div>
+          <div data-part="metadata-row">
+            <div data-part="metadata">
+              <div data-part="title">{gettext("QA duration")}</div>
+              <span data-part="label">
+                {@duration}
+              </span>
+            </div>
+            <div data-part="metadata">
+              <div data-part="title">{gettext("Created at")}</div>
+              <span data-part="label">
+                {DateFormatter.format_full(@qa_run.inserted_at)}
+              </span>
+            </div>
+          </div>
+          <div data-part="metadata-row">
+            <div data-part="metadata">
+              <div data-part="title">{gettext("Branch")}</div>
+              <span data-part="label">
+                <.git_branch />
+                {@qa_run.app_build.preview.git_branch || gettext("None")}
+              </span>
+            </div>
+            <div data-part="metadata">
+              <div data-part="title">{gettext("Commit SHA")}</div>
+              <span data-part="label">
+                {format_commit_sha(@qa_run.app_build.preview.git_commit_sha)}
+              </span>
+            </div>
+          </div>
+          <div data-part="metadata-row">
+            <div data-part="metadata">
+              <div data-part="title">{gettext("PR Comment")}</div>
+              <span data-part="label">
+                <%= if @pr_comment_url do %>
+                  <.link href={@pr_comment_url} target="_blank">
+                    #{@pr_number}
+                    <.external_link />
+                  </.link>
+                <% else %>
+                  {gettext("None")}
+                <% end %>
+              </span>
+            </div>
+            <div data-part="metadata">
+              <div data-part="title">{gettext("Bundle identifier")}</div>
+              <span data-part="label">
+                {@qa_run.app_build.preview.bundle_identifier || gettext("Unknown")}
+              </span>
+            </div>
+          </div>
+        </div>
+      </.card_section>
+    </.card>
+
+    <.card icon="file_alert" title={gettext("Issues identified")} data-part="issues-card">
+      <.empty_card_section
+        :if={Enum.empty?(@issues)}
+        title={gettext("No issues identified")}
+        data-part="empty-issues-card-section"
+      >
+        <:image>
+          <img src="/images/empty_insights_light.png" data-theme="light" />
+          <img src="/images/empty_insights_dark.png" data-theme="dark" />
+        </:image>
+      </.empty_card_section>
+      <.card_section :if={not Enum.empty?(@issues)} data-part="issues-card-section">
+        <%= for {issue_data, index} <- @issues do %>
+          <div
+            id={"issue-#{index}-collapsible"}
+            phx-hook="NooraCollapsible"
+            data-part="issue-item"
+          >
+            <div data-part="root">
+              <div data-part="trigger" data-state="closed">
+                <div data-part="issue-icon">
+                  <.icon name="alert_hexagon" />
+                </div>
+                <div data-part="issue-title">{gettext("Temporary visual inconsistency")}</div>
+                <div data-part="issue-toggle">
+                  <.neutral_button
+                    data-part="closed-collapsible-button"
+                    variant="secondary"
+                    size="medium"
+                  >
+                    <.chevron_down />
+                  </.neutral_button>
+                  <.neutral_button
+                    data-part="open-collapsible-button"
+                    variant="secondary"
+                    size="medium"
+                  >
+                    <.chevron_up />
+                  </.neutral_button>
+                </div>
+              </div>
+              <div data-part="content" data-state="closed">
+                <div data-part="issue-content-wrapper">
+                  <div :if={issue_data.screenshot} data-part="screenshots-column">
+                    <div data-part="screenshot-thumb">
+                      <img
+                        src={
+                          ~p"/#{@qa_run.app_build.preview.project.account.name}/#{@qa_run.app_build.preview.project.name}/qa/runs/#{@qa_run.id}/screenshots/#{issue_data.screenshot.id}"
+                        }
+                        alt="Screenshot"
+                      />
+                    </div>
+                  </div>
+
+                  <div data-part="step-details">
+                    <div data-part="step-detail">
+                      <.badge label="Action" color="neutral" style="light-fill" size="large" />
+                      <span data-part="detail-value">
+                        {raw(Earmark.as_html!(issue_data.step.action))}
+                      </span>
+                    </div>
+
+                    <div data-part="step-detail">
+                      <.badge label="Result" color="information" style="light-fill" size="large" />
+                      <span data-part="detail-value" data-variant="success">
+                        {raw(Earmark.as_html!(issue_data.step.result))}
+                      </span>
+                    </div>
+
+                    <div data-part="step-detail">
+                      <.badge label="Issue" color="warning" style="light-fill" size="large" />
+                      <span data-part="detail-value" data-variant="warning">
+                        {raw(Earmark.as_html!(issue_data.issue))}
+                      </span>
+                    </div>
+
+                    <div data-part="step-detail">
+                      <.badge label="Timestamp" color="focus" style="light-fill" size="large" />
+                      <span data-part="detail-value">
+                        {DateFormatter.format_full(issue_data.step.inserted_at)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        <% end %>
+      </.card_section>
+    </.card>
+  </div>
+
+  <div :if={@selected_tab == "logs"} data-part="logs-tab">
+    <.card icon="terminal" title={gettext("Logs")}>
+      <.empty_card_section title={gettext("Logs coming soon")} data-part="empty-logs-section">
+        <:image>
+          <img src="/images/empty_insights_light.png" data-theme="light" />
+          <img src="/images/empty_insights_dark.png" data-theme="dark" />
+        </:image>
+      </.empty_card_section>
+    </.card>
+  </div>
+</div>

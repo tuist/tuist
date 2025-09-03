@@ -175,7 +175,17 @@
   <.card title={gettext("QA Sessions")} icon="devices_code" data-part="qa-runs">
     <.card_section data-part="qa-runs-section">
       <div :if={not Enum.empty?(@qa_runs)} data-part="qa-runs-table">
-        <.table id="qa-runs-table" rows={@qa_runs}>
+        <.table
+          id="qa-runs-table"
+          rows={@qa_runs}
+          row_navigate={
+            fn run ->
+              url(
+                ~p"/#{@selected_project.account.name}/#{@selected_project.name}/qa/#{run.id}/overview"
+              )
+            end
+          }
+        >
           <:col :let={run} label={gettext("Name")}>
             <.text_cell label={run.app_build.preview.display_name} />
           </:col>
@@ -199,13 +209,10 @@
             <.text_cell icon="git_branch" label={run.git_ref || gettext("None")} />
           </:col>
           <:col :let={run} label={gettext("Commit SHA")}>
-            <.text_cell label={
-              (run.app_build.preview.git_commit_sha || "None")
-              |> String.slice(0, 7)
-            } />
+            <.text_cell label={SHA.format_commit_sha(run.app_build.preview.git_commit_sha)} />
           </:col>
           <:col :let={run} label={gettext("Tested")}>
-            <.text_cell label={format_datetime(run.inserted_at)} />
+            <.text_cell label={DateFormatter.from_now(run.inserted_at)} />
           </:col>
         </.table>
         <.pagination

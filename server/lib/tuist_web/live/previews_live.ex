@@ -5,12 +5,13 @@ defmodule TuistWeb.PreviewsLive do
 
   import TuistWeb.EmptyState
   import TuistWeb.Previews.AppPreview
-  import TuistWeb.Previews.PlatformIcon
+  import TuistWeb.Previews.PlatformTag
   import TuistWeb.Previews.RanByBadge
   import TuistWeb.Previews.RunButton
 
   alias Tuist.AppBuilds
   alias Tuist.Projects
+  alias TuistWeb.Utilities.SHA
 
   def mount(params, _session, %{assigns: %{selected_project: project}} = socket) do
     {previews, previews_meta} =
