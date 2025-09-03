@@ -15,13 +15,16 @@ defmodule TuistWeb.API.AnalyticsController do
   alias TuistWeb.API.Schemas.CommandEventArtifact
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.Authentication
+  alias TuistWeb.Plugs.LoaderPlug
 
   plug(OpenApiSpex.Plug.CastAndValidate,
     json_render_error_v2: true,
     render_error: TuistWeb.RenderAPIErrorPlug
   )
 
-  plug(TuistWeb.Plugs.LoaderPlug)
+  # We don't want to try and load the run when generating the mulitpart URL as the run might not exist, yet, at this point
+  plug(LoaderPlug, [:project, :account] when action in [:multipart_generate_url_project])
+  plug(LoaderPlug when action not in [:multipart_generate_url_project])
   plug(TuistWeb.API.Authorization.AuthorizationPlug, :run)
   plug :bad_request_when_project_authenticated_from_non_ci_environment when action in [:create]
 
@@ -841,7 +844,14 @@ defmodule TuistWeb.API.AnalyticsController do
           {:ok, command_event.legacy_id}
 
         _ ->
-          {:error, :not_found}
+          # For multipart upload operations, we can work with the run_id even if the run doesn't exist yet
+          # since these operations are used during async run insertion
+          if Tuist.UUIDv7.valid?(run_id) do
+            {:ok, Tuist.UUIDv7.to_int64(run_id)}
+          else
+            # If it's already an integer ID (string), use it as-is
+            {:ok, run_id}
+          end
       end
     end
   end

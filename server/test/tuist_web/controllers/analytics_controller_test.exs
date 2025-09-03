@@ -1267,7 +1267,9 @@ defmodule TuistWeb.AnalyticsControllerTest do
   end
 
   describe "POST /api/projects/:account_handle/:project_handle/runs/:run_id/start" do
-    test "returns unauthorized if authenticated subject doesn't have access to the project", %{conn: conn} do
+    test "returns unauthorized if authenticated subject doesn't have access to the project", %{
+      conn: conn
+    } do
       stub(Environment, :clickhouse_configured?, fn -> false end)
       stub(FunWithFlags, :enabled?, fn :clickhouse_events -> false end)
 
@@ -1332,7 +1334,8 @@ defmodule TuistWeb.AnalyticsControllerTest do
       assert response_data["upload_id"] == upload_id
     end
 
-    test "starts multipart upload for a result_bundle_object using project from URL - postgres", %{conn: conn, user: user} do
+    test "starts multipart upload for a result_bundle_object using project from URL - postgres",
+         %{conn: conn, user: user} do
       stub(Environment, :clickhouse_configured?, fn -> false end)
       stub(FunWithFlags, :enabled?, fn :clickhouse_events -> false end)
 
@@ -1369,7 +1372,9 @@ defmodule TuistWeb.AnalyticsControllerTest do
   end
 
   describe "POST /api/projects/:account_handle/:project_handle/runs/:run_id/generate-url" do
-    test "returns unauthorized if authenticated subject doesn't have access to the project", %{conn: conn} do
+    test "returns unauthorized if authenticated subject doesn't have access to the project", %{
+      conn: conn
+    } do
       stub(Environment, :clickhouse_configured?, fn -> false end)
       stub(FunWithFlags, :enabled?, fn :clickhouse_events -> false end)
 
@@ -1405,7 +1410,10 @@ defmodule TuistWeb.AnalyticsControllerTest do
              }
     end
 
-    test "generates URL for a part of the multipart upload using project from URL - postgres", %{conn: conn, user: user} do
+    test "generates URL for a part of the multipart upload using project from URL - postgres", %{
+      conn: conn,
+      user: user
+    } do
       stub(Environment, :clickhouse_configured?, fn -> false end)
       stub(FunWithFlags, :enabled?, fn :clickhouse_events -> false end)
 
@@ -1449,10 +1457,62 @@ defmodule TuistWeb.AnalyticsControllerTest do
       response_data = response["data"]
       assert response_data["url"] == upload_url
     end
+
+    test "generates URL for multipart upload when run doesn't exist (async insertion)", %{
+      conn: conn,
+      user: user
+    } do
+      stub(Environment, :clickhouse_configured?, fn -> false end)
+      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> false end)
+
+      # Given
+      account = Accounts.get_account_from_user(user)
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+      # Use a random UUID that doesn't exist in the database
+      nonexistent_run_id = Ecto.UUID.generate()
+      upload_id = "12344"
+      part_number = 3
+      upload_url = "https://url.com"
+
+      # The endpoint should construct the object key even without the run existing
+      # It converts the UUID to an integer ID for the object key
+      normalized_run_id = Tuist.UUIDv7.to_int64(nonexistent_run_id)
+      object_key = "#{account.name}/#{project.name}/runs/#{normalized_run_id}/result_bundle.zip"
+
+      expect(Storage, :multipart_generate_url, fn ^object_key,
+                                                  ^upload_id,
+                                                  ^part_number,
+                                                  _actor,
+                                                  [expires_in: _, content_length: 100] ->
+        upload_url
+      end)
+
+      conn = Authentication.put_current_user(conn, user)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          ~p"/api/projects/#{account.name}/#{project.name}/runs/#{nonexistent_run_id}/generate-url",
+          command_event_artifact: %{type: "result_bundle"},
+          multipart_upload_part: %{
+            part_number: part_number,
+            upload_id: upload_id,
+            content_length: 100
+          }
+        )
+
+      response = json_response(conn, :ok)
+      assert response["status"] == "success"
+      response_data = response["data"]
+      assert response_data["url"] == upload_url
+    end
   end
 
   describe "POST /api/projects/:account_handle/:project_handle/runs/:run_id/complete" do
-    test "returns unauthorized if authenticated subject doesn't have access to the project", %{conn: conn} do
+    test "returns unauthorized if authenticated subject doesn't have access to the project", %{
+      conn: conn
+    } do
       stub(Environment, :clickhouse_configured?, fn -> false end)
       stub(FunWithFlags, :enabled?, fn :clickhouse_events -> false end)
 
@@ -1492,7 +1552,10 @@ defmodule TuistWeb.AnalyticsControllerTest do
              }
     end
 
-    test "completes a multipart upload using project from URL - postgres", %{conn: conn, user: user} do
+    test "completes a multipart upload using project from URL - postgres", %{
+      conn: conn,
+      user: user
+    } do
       stub(Environment, :clickhouse_configured?, fn -> false end)
       stub(FunWithFlags, :enabled?, fn :clickhouse_events -> false end)
 
@@ -1540,7 +1603,9 @@ defmodule TuistWeb.AnalyticsControllerTest do
   end
 
   describe "PUT /api/projects/:account_handle/:project_handle/runs/:run_id/complete_artifacts_uploads" do
-    test "returns unauthorized if authenticated subject doesn't have access to the project", %{conn: conn} do
+    test "returns unauthorized if authenticated subject doesn't have access to the project", %{
+      conn: conn
+    } do
       stub(Environment, :clickhouse_configured?, fn -> false end)
       stub(FunWithFlags, :enabled?, fn :clickhouse_events -> false end)
 
@@ -1568,7 +1633,10 @@ defmodule TuistWeb.AnalyticsControllerTest do
              }
     end
 
-    test "completes artifacts uploads using project from URL - postgres", %{conn: conn, user: user} do
+    test "completes artifacts uploads using project from URL - postgres", %{
+      conn: conn,
+      user: user
+    } do
       stub(Environment, :clickhouse_configured?, fn -> false end)
       stub(FunWithFlags, :enabled?, fn :clickhouse_events -> false end)
 
