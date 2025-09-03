@@ -26,7 +26,9 @@ defmodule Tuist.QATest do
 
       prompt = "Test the login feature"
 
-      expect(Storage, :generate_download_url, fn _object_key, _actor -> "https://example.com/preview.zip" end)
+      expect(Storage, :generate_download_url, fn _object_key, _actor ->
+        "https://example.com/preview.zip"
+      end)
 
       expect(Authentication, :encode_and_sign, fn _account, claims, _opts ->
         {:ok, "test-jwt-token", claims}
@@ -65,7 +67,9 @@ defmodule Tuist.QATest do
       account = app_build.preview.project.account
       prompt = "Test the login feature"
 
-      expect(Storage, :generate_download_url, fn _object_key, _actor -> "https://example.com/preview.zip" end)
+      expect(Storage, :generate_download_url, fn _object_key, _actor ->
+        "https://example.com/preview.zip"
+      end)
 
       expect(Authentication, :encode_and_sign, fn _account, claims, _opts ->
         {:ok, "test-jwt-token", claims}
@@ -124,7 +128,9 @@ defmodule Tuist.QATest do
       app_build = put_in(app_build.preview.project.account, account)
       prompt = "Test the login feature"
 
-      expect(Storage, :generate_download_url, fn _object_key, _actor -> "https://example.com/preview.zip" end)
+      expect(Storage, :generate_download_url, fn _object_key, _actor ->
+        "https://example.com/preview.zip"
+      end)
 
       expect(Authentication, :encode_and_sign, fn _account, claims, _opts ->
         {:ok, "test-jwt-token", claims}
@@ -174,7 +180,9 @@ defmodule Tuist.QATest do
 
       prompt = "Test the login feature"
 
-      expect(Storage, :generate_download_url, fn _object_key, _actor -> "https://example.com/preview.zip" end)
+      expect(Storage, :generate_download_url, fn _object_key, _actor ->
+        "https://example.com/preview.zip"
+      end)
 
       expect(Authentication, :encode_and_sign, fn _account, claims, _opts ->
         {:ok, "test-jwt-token", claims}
@@ -207,7 +215,9 @@ defmodule Tuist.QATest do
       account = app_build.preview.project.account
       prompt = "Test the login feature"
 
-      expect(Storage, :generate_download_url, fn _object_key, _actor -> "https://example.com/preview.zip" end)
+      expect(Storage, :generate_download_url, fn _object_key, _actor ->
+        "https://example.com/preview.zip"
+      end)
 
       expect(Authentication, :encode_and_sign, fn _account, claims, _opts ->
         {:ok, "test-jwt-token", claims}
@@ -259,7 +269,9 @@ defmodule Tuist.QATest do
       app_build =
         Repo.preload(AppBuildsFixtures.app_build_fixture(), preview: [project: :account])
 
-      expect(Storage, :generate_download_url, fn _object_key, _actor -> "https://example.com/preview.zip" end)
+      expect(Storage, :generate_download_url, fn _object_key, _actor ->
+        "https://example.com/preview.zip"
+      end)
 
       expect(Authentication, :encode_and_sign, fn _account, _claims, _opts ->
         {:error, "Token creation failed"}
@@ -305,7 +317,9 @@ defmodule Tuist.QATest do
 
       prompt = "Test the login feature"
 
-      expect(Storage, :generate_download_url, fn _ -> "https://example.com/preview.zip" end)
+      expect(Storage, :generate_download_url, fn _, _actor ->
+        "https://example.com/preview.zip"
+      end)
 
       expect(Authentication, :encode_and_sign, fn _account, claims, _opts ->
         {:ok, "test-jwt-token", claims}
@@ -377,7 +391,9 @@ defmodule Tuist.QATest do
 
       prompt = "Test the login feature with debug mode enabled"
 
-      expect(Storage, :generate_download_url, fn _ -> "https://example.com/preview.zip" end)
+      expect(Storage, :generate_download_url, fn _, _actor ->
+        "https://example.com/preview.zip"
+      end)
 
       expect(Authentication, :encode_and_sign, fn _account, claims, _opts ->
         {:ok, "test-jwt-token", claims}
@@ -436,7 +452,9 @@ defmodule Tuist.QATest do
 
       prompt = "Test basic navigation"
 
-      expect(Storage, :generate_download_url, fn _ -> "https://example.com/preview.zip" end)
+      expect(Storage, :generate_download_url, fn _, _actor ->
+        "https://example.com/preview.zip"
+      end)
 
       expect(Authentication, :encode_and_sign, fn _account, claims, _opts ->
         {:ok, "test-jwt-token", claims}
@@ -481,7 +499,9 @@ defmodule Tuist.QATest do
 
       prompt = "Test the app"
 
-      expect(Storage, :generate_download_url, fn _ -> "https://example.com/preview.zip" end)
+      expect(Storage, :generate_download_url, fn _, _actor ->
+        "https://example.com/preview.zip"
+      end)
 
       expect(Authentication, :encode_and_sign, fn _account, claims, _opts ->
         {:ok, "test-jwt-token", claims}
@@ -1334,7 +1354,8 @@ defmodule Tuist.QATest do
       _qa_step = QAFixtures.qa_step_fixture(qa_run: qa_run, action: "Login attempt")
 
       # When
-      {results, _meta} = QA.list_qa_runs_for_project(project, %{}, preload: [app_build: [preview: []], run_steps: []])
+      {results, _meta} =
+        QA.list_qa_runs_for_project(project, %{}, preload: [app_build: [preview: []], run_steps: []])
 
       # Then
       assert [result] = results
