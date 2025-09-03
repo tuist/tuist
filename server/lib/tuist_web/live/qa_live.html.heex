@@ -206,7 +206,10 @@
             />
           </:col>
           <:col :let={run} label={gettext("Branch")}>
-            <.text_cell icon="git_branch" label={run.git_ref || gettext("None")} />
+            <.text_cell
+              icon="git_branch"
+              label={run.app_build.preview.git_branch || gettext("None")}
+            />
           </:col>
           <:col :let={run} label={gettext("Commit SHA")}>
             <.text_cell label={SHA.format_commit_sha(run.app_build.preview.git_commit_sha)} />

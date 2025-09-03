@@ -131,7 +131,7 @@ defmodule TuistWeb.QALive do
     |> assign(:analytics_date_range, date_range)
     |> assign(:analytics_trend_label, analytics_trend_label(date_range))
     |> assign(:analytics_app, analytics_app)
-    |> assign(:analytics_app_label, analytics_app_label(analytics_app))
+    |> assign(:analytics_app_label, analytics_app_label(analytics_app, socket.assigns.available_apps))
     |> assign(:analytics_selected_widget, analytics_selected_widget)
     |> assign(:qa_runs_analytics, qa_runs_analytics)
     |> assign(:qa_issues_analytics, qa_issues_analytics)
@@ -148,9 +148,16 @@ defmodule TuistWeb.QALive do
   defp analytics_trend_label("last_12_months"), do: gettext("since last year")
   defp analytics_trend_label(_), do: gettext("since last month")
 
-  defp analytics_app_label("any"), do: gettext("Any")
-  defp analytics_app_label(app_name) when is_binary(app_name), do: app_name
-  defp analytics_app_label(_), do: gettext("Any")
+  defp analytics_app_label("any", _available_apps), do: gettext("Any")
+
+  defp analytics_app_label(app_name, available_apps) when is_binary(app_name) do
+    case Enum.find(available_apps, fn {bundle_id, _display_name} -> bundle_id == app_name end) do
+      {_bundle_id, display_name} -> display_name
+      nil -> app_name
+    end
+  end
+
+  defp analytics_app_label(_app_name, _available_apps), do: gettext("Any")
 
   defp date_range(params) do
     analytics_date_range = params["analytics_date_range"]
