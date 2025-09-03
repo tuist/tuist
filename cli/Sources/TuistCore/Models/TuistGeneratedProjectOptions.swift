@@ -66,7 +66,7 @@ extension TuistGeneratedProjectOptions {
         public let disablePackageVersionLocking: Bool
         @available(*, deprecated, message: "Use `additionalPackageResolutionArguments` instead.")
         public let clonedSourcePackagesDirPath: AbsolutePath?
-        public let additionalPackageResolutionArguments: [String]
+        public var additionalPackageResolutionArguments: [String]
         public let staticSideEffectsWarningTargets: StaticSideEffectsWarningTargets
         public let enforceExplicitDependencies: Bool
         public let defaultConfiguration: String?
@@ -124,6 +124,28 @@ extension TuistGeneratedProjectOptions {
 }
 
 #if DEBUG
+    extension TuistGeneratedProjectOptions.GenerationOptions {
+        public func withWorkspaceName(_ workspaceName: String) -> Self {
+            var options = self
+            if let clonedSourcePackagesDirPath {
+                var workspaceName = workspaceName
+                if workspaceName.hasSuffix(".xcworkspace") {
+                    workspaceName = String(workspaceName.dropLast(".xcworkspace".count))
+                }
+                let mangledWorkspaceName = workspaceName.spm_mangledToC99ExtendedIdentifier()
+                var additionalPackageResolutionArguments = options.additionalPackageResolutionArguments
+                additionalPackageResolutionArguments.append(
+                    contentsOf: [
+                        "-clonedSourcePackagesDirPath",
+                        clonedSourcePackagesDirPath.appending(component: mangledWorkspaceName).pathString,
+                    ]
+                )
+                options.additionalPackageResolutionArguments = additionalPackageResolutionArguments
+            }
+            return options
+        }
+    }
+
     extension TuistGeneratedProjectOptions {
         public static func test(
             compatibleXcodeVersions: CompatibleXcodeVersions = .all,

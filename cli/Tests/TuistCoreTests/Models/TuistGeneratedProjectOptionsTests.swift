@@ -1,9 +1,9 @@
+import FileSystem
 import Foundation
 import Path
 import Testing
 import TuistCore
 import TuistSupport
-import FileSystem
 
 @testable import TuistCore
 
@@ -36,7 +36,7 @@ struct TuistGeneratedProjectOptionsTests {
             #expect(result.additionalPackageResolutionArguments.contains("-verbose"))
             #expect(result.additionalPackageResolutionArguments.contains("-clonedSourcePackagesDirPath"))
             #expect(result.additionalPackageResolutionArguments.contains(expectedPath))
-            
+
             // Check that original arguments are preserved
             let arguments = result.additionalPackageResolutionArguments
             let clonedDirIndex = arguments.firstIndex(of: "-clonedSourcePackagesDirPath")!
@@ -127,7 +127,7 @@ struct TuistGeneratedProjectOptionsTests {
             #expect(result.buildInsightsDisabled == true)
             #expect(result.disableSandbox == true)
             #expect(result.includeGenerateScheme == true)
-            
+
             // Original arguments should be preserved plus new ones
             #expect(result.additionalPackageResolutionArguments.contains("-verbose"))
             #expect(result.additionalPackageResolutionArguments.contains("-configuration"))

@@ -3,7 +3,7 @@ import XCTest
 @testable import ProjectDescription
 
 final class ConfigTests: XCTestCase {
-     func test_config_toJSON() {
+    func test_config_toJSON() {
         let config = Config(
             generationOptions: .options(
                 resolveDependenciesWithSystemScm: true,

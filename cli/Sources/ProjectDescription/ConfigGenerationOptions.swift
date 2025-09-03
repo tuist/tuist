@@ -35,7 +35,8 @@ extension Tuist {
         /// )
         /// ```
         ///
-        /// Note that `/path/to/dir` is the path you would have passed to `clonedSourcePackagesDirPath`, and `MyWorkspace` is the name of your workspace.
+        /// Note that `/path/to/dir` is the path you would have passed to `clonedSourcePackagesDirPath`,
+        /// and `MyWorkspace` is the name of your workspace.
         @available(*, deprecated, message: "Use `additionalPackageResolutionArguments` instead.")
         public var clonedSourcePackagesDirPath: Path?
 

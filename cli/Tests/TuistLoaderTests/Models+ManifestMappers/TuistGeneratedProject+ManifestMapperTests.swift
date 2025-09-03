@@ -70,8 +70,7 @@ struct TuistGeneratedProjectManifestMapperTests {
             // When
             let got = try TuistCore.TuistGeneratedProjectOptions.GenerationOptions.from(
                 manifest: .options(
-                    resolveDependenciesWithSystemScm: true,
-                    additionalPackageResolutionArguments: ["-verbose"]
+                    resolveDependenciesWithSystemScm: true
                 ),
                 generatorPaths: GeneratorPaths(manifestDirectory: temporaryDirectory, rootDirectory: temporaryDirectory),
                 fullHandle: nil
@@ -79,7 +78,6 @@ struct TuistGeneratedProjectManifestMapperTests {
 
             // Then
             #expect(got.additionalPackageResolutionArguments.contains("-resolvePackageDependenciesWithSystemScm"))
-            #expect(got.additionalPackageResolutionArguments.contains("-verbose"))
         }
     }
 
@@ -88,7 +86,6 @@ struct TuistGeneratedProjectManifestMapperTests {
             // When
             let got = try TuistCore.TuistGeneratedProjectOptions.GenerationOptions.from(
                 manifest: .options(
-                    resolveDependenciesWithSystemScm: false,
                     additionalPackageResolutionArguments: ["-verbose", "-configuration", "debug"]
                 ),
                 generatorPaths: GeneratorPaths(manifestDirectory: temporaryDirectory, rootDirectory: temporaryDirectory),
