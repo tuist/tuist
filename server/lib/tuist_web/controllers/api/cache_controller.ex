@@ -159,13 +159,14 @@ defmodule TuistWeb.API.CacheController do
     url =
       Storage.generate_download_url(
         get_object_key(item),
+        selected_project.account,
         expires_in: expires_in
       )
 
     object_key = get_object_key(item)
 
-    if Storage.object_exists?(object_key) do
-      size = Storage.get_object_size(object_key)
+    if Storage.object_exists?(object_key, selected_project.account) do
+      size = Storage.get_object_size(object_key, selected_project.account)
 
       :ok =
         Pipeline.async_push(
@@ -263,6 +264,7 @@ defmodule TuistWeb.API.CacheController do
 
   def exists(
         %{
+          assigns: %{selected_project: selected_project},
           query_params: %{
             "hash" => hash,
             "name" => name,
@@ -279,7 +281,8 @@ defmodule TuistWeb.API.CacheController do
           name: name,
           project_slug: project_slug,
           cache_category: cache_category
-        })
+        }),
+        selected_project.account
       )
 
     if exists do
@@ -429,6 +432,7 @@ defmodule TuistWeb.API.CacheController do
 
   def multipart_start(
         %{
+          assigns: %{selected_project: selected_project},
           query_params: %{
             "hash" => hash,
             "name" => name,
@@ -448,7 +452,8 @@ defmodule TuistWeb.API.CacheController do
               name: name,
               project_slug: project_slug,
               cache_category: cache_category
-            })
+            }),
+            selected_project.account
           )
       }
     })
@@ -513,6 +518,7 @@ defmodule TuistWeb.API.CacheController do
 
   def multipart_generate_url(
         %{
+          assigns: %{selected_project: selected_project},
           query_params:
             %{
               "hash" => hash,
@@ -538,6 +544,7 @@ defmodule TuistWeb.API.CacheController do
         }),
         upload_id,
         part_number,
+        selected_project.account,
         expires_in: expires_in,
         content_length: if(is_nil(content_length), do: nil, else: String.to_integer(content_length))
       )
@@ -648,10 +655,11 @@ defmodule TuistWeb.API.CacheController do
         upload_id,
         Enum.map(parts, fn %{part_number: part_number, etag: etag} ->
           {part_number, etag}
-        end)
+        end),
+        selected_project.account
       )
 
-    size = Storage.get_object_size(get_object_key(item))
+    size = Storage.get_object_size(get_object_key(item), selected_project.account)
 
     :ok =
       Pipeline.async_push(

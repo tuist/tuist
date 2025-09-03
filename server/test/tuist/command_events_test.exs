@@ -347,7 +347,7 @@ defmodule Tuist.CommandEventsTest do
       object_key =
         "#{project.account.name}/#{project.name}/runs/#{command_event.id}/result_bundle.zip"
 
-      stub(Storage, :object_exists?, fn ^object_key -> true end)
+      stub(Storage, :object_exists?, fn ^object_key, _actor -> true end)
 
       # When
       got = CommandEvents.has_result_bundle?(command_event)
@@ -365,7 +365,7 @@ defmodule Tuist.CommandEventsTest do
       object_key =
         "#{project.account.name}/#{project.name}/runs/#{command_event.id}/result_bundle.zip"
 
-      stub(Storage, :object_exists?, fn ^object_key -> false end)
+      stub(Storage, :object_exists?, fn ^object_key, _actor -> false end)
 
       # When
       got = CommandEvents.has_result_bundle?(command_event)
@@ -385,7 +385,7 @@ defmodule Tuist.CommandEventsTest do
       object_key =
         "#{project.account.name}/#{project.name}/runs/#{command_event.id}/result_bundle.zip"
 
-      stub(Storage, :generate_download_url, fn ^object_key -> "https://tuist.io" end)
+      stub(Storage, :generate_download_url, fn ^object_key, _actor -> "https://tuist.io" end)
 
       # When
       got = CommandEvents.generate_result_bundle_url(command_event)
@@ -1021,7 +1021,7 @@ defmodule Tuist.CommandEventsTest do
       invocation_record_object_key =
         "#{base_path}/invocation_record.json"
 
-      stub(Storage, :object_exists?, fn ^invocation_record_object_key ->
+      stub(Storage, :object_exists?, fn ^invocation_record_object_key, _actor ->
         false
       end)
 
@@ -1047,7 +1047,7 @@ defmodule Tuist.CommandEventsTest do
       test_plan_object_key =
         "#{base_path}/0~_nJcMfmYtL75ZA_SPkjI1RYzgbEkjbq_o2hffLy4RQuPOW81Uu0xIwZX0ntR4Tof5xv2Jwe8opnwD7IVBQ_VOQ==.json"
 
-      stub(Storage, :object_exists?, fn object_key ->
+      stub(Storage, :object_exists?, fn object_key, _actor ->
         case object_key do
           ^invocation_record_object_key ->
             true
@@ -1057,7 +1057,7 @@ defmodule Tuist.CommandEventsTest do
         end
       end)
 
-      stub(Storage, :get_object_as_string, fn object_key ->
+      stub(Storage, :get_object_as_string, fn object_key, _actor ->
         case object_key do
           ^invocation_record_object_key ->
             CommandEventsFixtures.invocation_record_fixture()
@@ -1142,7 +1142,7 @@ defmodule Tuist.CommandEventsTest do
       test_plan_object_key =
         "#{base_path}/0~_nJcMfmYtL75ZA_SPkjI1RYzgbEkjbq_o2hffLy4RQuPOW81Uu0xIwZX0ntR4Tof5xv2Jwe8opnwD7IVBQ_VOQ==.json"
 
-      stub(Storage, :object_exists?, fn object_key ->
+      stub(Storage, :object_exists?, fn object_key, _actor ->
         case object_key do
           ^invocation_record_object_key ->
             true
@@ -1152,7 +1152,7 @@ defmodule Tuist.CommandEventsTest do
         end
       end)
 
-      stub(Storage, :get_object_as_string, fn object_key ->
+      stub(Storage, :get_object_as_string, fn object_key, _actor ->
         case object_key do
           ^invocation_record_object_key ->
             CommandEventsFixtures.invocation_record_fixture()

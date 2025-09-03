@@ -14,7 +14,7 @@ defmodule Tuist.Registry.Swift.Workers.CreatePackageReleaseWorkerTest do
     directory_path = "/tmp/briefly--123-test/briefly-456-test/#{directory_name}"
     package_swift_path = "#{directory_path}/Package.swift"
 
-    stub(Storage, :put_object, fn _, _ -> :ok end)
+    stub(Storage, :put_object, fn _object_key, _content, _actor -> :ok end)
 
     stub(VCS, :get_source_archive_by_tag_and_repository_full_handle, fn _ ->
       {:ok, "/tmp/source_archive.zip"}

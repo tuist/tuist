@@ -481,7 +481,7 @@ defmodule Tuist.QA do
         app_build_id: app_build.id
       })
 
-    Storage.generate_download_url(storage_key)
+    Storage.generate_download_url(storage_key, app_build.preview.project.account)
   end
 
   defp create_qa_auth_token(%AppBuild{} = app_build) do

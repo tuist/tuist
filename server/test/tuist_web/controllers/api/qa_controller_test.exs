@@ -182,7 +182,7 @@ defmodule TuistWeb.API.QAControllerTest do
       # Given a QA step
       qa_step = QAFixtures.qa_step_fixture(qa_run_id: qa_run.id)
 
-      expect(Storage, :generate_upload_url, fn storage_key, _options ->
+      expect(Storage, :generate_upload_url, fn storage_key, _actor, _options ->
         "https://s3.example.com/#{storage_key}?presigned-params"
       end)
 

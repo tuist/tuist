@@ -328,9 +328,9 @@ defmodule Tuist.Registry.Swift.PackagesTest do
   describe "package_manifest_as_string/1" do
     test "returns the package manifest as string" do
       # Given
-      stub(Storage, :object_exists?, fn _ -> true end)
+      stub(Storage, :object_exists?, fn _object_key, _actor -> true end)
 
-      stub(Storage, :get_object_as_string, fn _ ->
+      stub(Storage, :get_object_as_string, fn _object_key, _actor ->
         """
         // swift-tools-version:5.9
         import PackageDescription
