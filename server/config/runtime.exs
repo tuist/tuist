@@ -322,34 +322,25 @@ if Tuist.Environment.mail_configured?(secrets) and Tuist.Environment.env() in [:
 end
 
 # Oban
-oban_queues =
-  if Tuist.Environment.web?() and !Tuist.Environment.worker?(), do: [], else: [default: 10]
-
-oban_plugins =
-  if Tuist.Environment.web?() and !Tuist.Environment.worker?(),
-    do: [],
-    else: [
-      {Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 7},
-      {Oban.Plugins.Lifeline, rescue_after: to_timeout(minute: 30)},
-      {Oban.Plugins.Cron,
-       crontab:
-         if(Tuist.Environment.tuist_hosted?() and env == :prod,
-           do: [
-             {"0 10 * * 1-5", Tuist.Ops.DailySlackReportWorker},
-             {"0 * * * 1-5", Tuist.Ops.HourlySlackReportWorker},
-             {"@hourly", Tuist.Registry.Swift.Workers.SyncPackagesWorker},
-             {"@daily", Tuist.Billing.UpdateAllCustomersRemoteCacheHitsCountWorker},
-             {"@daily", Tuist.Accounts.Workers.UpdateAllAccountsUsageWorker},
-             {"@daily", Tuist.Mautic.Workers.SyncCompaniesAndContactsWorker}
-           ],
-           else: []
-         )}
-    ]
-
 config :tuist, Oban,
-  queues: oban_queues,
-  plugins: oban_plugins,
-  peer: !Tuist.Environment.web?()
+  queues: [default: 10, registry: 2],
+  plugins: [
+    {Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 7},
+    {Oban.Plugins.Lifeline, rescue_after: to_timeout(minute: 30)},
+    {Oban.Plugins.Cron,
+     crontab:
+       if(Tuist.Environment.tuist_hosted?() and env == :prod,
+         do: [
+           {"0 10 * * 1-5", Tuist.Ops.DailySlackReportWorker},
+           {"0 * * * 1-5", Tuist.Ops.HourlySlackReportWorker},
+           {"@hourly", Tuist.Registry.Swift.Workers.SyncPackagesWorker},
+           {"@daily", Tuist.Billing.UpdateAllCustomersRemoteCacheHitsCountWorker},
+           {"@daily", Tuist.Accounts.Workers.UpdateAllAccountsUsageWorker},
+           {"@daily", Tuist.Mautic.Workers.SyncCompaniesAndContactsWorker}
+         ],
+         else: []
+       )}
+  ]
 
 # Guardian
 config :tuist, Tuist.Guardian,

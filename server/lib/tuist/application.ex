@@ -59,7 +59,11 @@ defmodule Tuist.Application do
         {Cachex, [:tuist, []]},
         {Finch, name: Tuist.Finch, pools: finch_pools()},
         {Phoenix.PubSub, name: Tuist.PubSub},
-        TuistWeb.Telemetry
+        {TuistWeb.RateLimit.InMemory, [clean_period: to_timeout(hour: 1)]},
+        {Tuist.API.Pipeline, []},
+        {Guardian.DB.Sweeper, [interval: 60 * 60 * 1000]},
+        TuistWeb.Telemetry,
+        TuistWeb.Endpoint
       ]
 
     children
@@ -103,22 +107,6 @@ defmodule Tuist.Application do
           Tuist.MinioBucketCreator
         ]
       end
-    )
-    |> Kernel.++(
-      if Environment.web?(),
-        do: [
-          {TuistWeb.RateLimit.InMemory, [clean_period: to_timeout(hour: 1)]},
-          {Tuist.API.Pipeline, []},
-          TuistWeb.Endpoint
-        ],
-        else: []
-    )
-    |> Kernel.++(
-      if Environment.worker?(),
-        do: [
-          {Guardian.DB.Sweeper, [interval: 60 * 60 * 1000]}
-        ],
-        else: []
     )
     |> Kernel.++(
       if Environment.tuist_hosted?(),

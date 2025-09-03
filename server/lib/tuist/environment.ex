@@ -47,10 +47,6 @@ defmodule Tuist.Environment do
     Enum.member?(["1", "true", "TRUE", "yes", "YES"], value)
   end
 
-  def worker? do
-    "TUIST_WORKER" |> System.get_env("1") |> truthy?()
-  end
-
   def web? do
     "TUIST_WEB" |> System.get_env("1") |> truthy?()
   end

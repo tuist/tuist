@@ -7,6 +7,7 @@ defmodule Tuist.Registry.Swift.Workers.SyncPackagesWorker do
   4. Spawning individual workers to create missing releases
   """
   use Oban.Worker,
+    queue: :registry,
     unique: [
       period: :infinity,
       states: [:available, :scheduled, :executing, :retryable]

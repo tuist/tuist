@@ -3,6 +3,7 @@ defmodule Tuist.Registry.Swift.Workers.CreatePackageReleaseWorker do
   A worker that creates a single Swift package release.
   """
   use Oban.Worker,
+    queue: :registry,
     unique: [
       period: 60,
       states: [:available, :scheduled, :executing, :retryable],
