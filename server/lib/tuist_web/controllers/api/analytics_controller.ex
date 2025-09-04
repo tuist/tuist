@@ -23,8 +23,27 @@ defmodule TuistWeb.API.AnalyticsController do
   )
 
   # We don't want to try and load the run when generating the mulitpart URL as the run might not exist, yet, at this point
-  plug(LoaderPlug, [:project, :account] when action in [:multipart_generate_url_project])
-  plug(LoaderPlug when action not in [:multipart_generate_url_project])
+  plug(
+    LoaderPlug,
+    [:project, :account]
+    when action in [
+           :multipart_start_project,
+           :multipart_generate_url_project,
+           :multipart_complete_project,
+           :complete_artifacts_uploads_project
+         ]
+  )
+
+  plug(
+    LoaderPlug
+    when action not in [
+           :multipart_start_project,
+           :multipart_generate_url_project,
+           :multipart_complete_project,
+           :complete_artifacts_uploads_project
+         ]
+  )
+
   plug(TuistWeb.API.Authorization.AuthorizationPlug, :run)
   plug :bad_request_when_project_authenticated_from_non_ci_environment when action in [:create]
 

@@ -97,6 +97,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
       project = ProjectsFixtures.project_fixture(account_id: account.id)
 
       conn = Authentication.put_current_project(conn, project)
+      conn = assign(conn, :selected_project, project)
 
       ran_at_string = "2025-02-28T15:51:12Z"
 
@@ -316,6 +317,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
       project = ProjectsFixtures.project_fixture(account_id: account.id)
 
       conn = Authentication.put_current_project(conn, project)
+      conn = assign(conn, :selected_project, project)
 
       conn =
         conn
@@ -816,6 +818,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
       end)
 
       conn = Authentication.put_current_project(conn, project)
+      conn = assign(conn, :selected_project, project)
 
       conn =
         conn
@@ -849,6 +852,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
       end)
 
       conn = Authentication.put_current_project(conn, project)
+      conn = assign(conn, :selected_project, project)
 
       conn =
         conn
@@ -891,6 +895,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
       end)
 
       conn = Authentication.put_current_project(conn, project)
+      conn = assign(conn, :selected_project, project)
 
       conn =
         conn
@@ -940,6 +945,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
       end)
 
       conn = Authentication.put_current_project(conn, project)
+      conn = assign(conn, :selected_project, project)
 
       conn =
         conn
@@ -986,6 +992,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
       end)
 
       conn = Authentication.put_current_project(conn, project)
+      conn = assign(conn, :selected_project, project)
 
       conn =
         conn
@@ -1085,6 +1092,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
       end)
 
       conn = Authentication.put_current_project(conn, project)
+      conn = assign(conn, :selected_project, project)
 
       FunWithFlags.enable(:flaky_test_detection, for_actor: project)
 
@@ -1191,6 +1199,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
       end)
 
       conn = Authentication.put_current_project(conn, project)
+      conn = assign(conn, :selected_project, project)
 
       FunWithFlags.enable(:flaky_test_detection, for_actor: project)
 
@@ -1249,6 +1258,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
 
       stub(Storage, :object_exists?, fn _object_key, _actor -> false end)
       conn = Authentication.put_current_project(conn, project)
+      conn = assign(conn, :selected_project, project)
 
       conn =
         conn
@@ -1362,6 +1372,45 @@ defmodule TuistWeb.AnalyticsControllerTest do
           ~p"/api/projects/#{account.name}/#{project.name}/runs/#{command_event.id}/start",
           type: "result_bundle_object",
           name: "some-id"
+        )
+
+      response = json_response(conn, :ok)
+      assert response["status"] == "success"
+      response_data = response["data"]
+      assert response_data["upload_id"] == upload_id
+    end
+
+    test "starts multipart upload when run doesn't exist (async insertion)", %{
+      conn: conn,
+      user: user
+    } do
+      stub(Environment, :clickhouse_configured?, fn -> false end)
+      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> false end)
+
+      # Given
+      account = Accounts.get_account_from_user(user)
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+      # Use a random UUID that doesn't exist in the database
+      nonexistent_run_id = Ecto.UUID.generate()
+      upload_id = "12344"
+
+      # The endpoint should construct the object key even without the run existing
+      # It converts the UUID to an integer ID for the object key
+      normalized_run_id = Tuist.UUIDv7.to_int64(nonexistent_run_id)
+      object_key = "#{account.name}/#{project.name}/runs/#{normalized_run_id}/result_bundle.zip"
+
+      expect(Storage, :multipart_start, fn ^object_key, _actor ->
+        upload_id
+      end)
+
+      conn = Authentication.put_current_user(conn, user)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          ~p"/api/projects/#{account.name}/#{project.name}/runs/#{nonexistent_run_id}/start",
+          type: "result_bundle"
         )
 
       response = json_response(conn, :ok)
@@ -1679,6 +1728,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
 
       # Using project authentication (old way)
       conn = Authentication.put_current_project(conn, project)
+      conn = assign(conn, :selected_project, project)
 
       conn =
         conn
