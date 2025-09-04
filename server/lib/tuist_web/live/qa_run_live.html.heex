@@ -72,19 +72,21 @@
   <.tab_menu_horizontal>
     <.tab_menu_horizontal_item
       label={gettext("Overview")}
-      selected={@selected_tab == "overview"}
+      selected={@live_action == :overview}
       navigate={
-        ~p"/#{@qa_run.app_build.preview.project.account.name}/#{@qa_run.app_build.preview.project.name}/qa/#{@qa_run.id}/overview"
+        ~p"/#{@qa_run.app_build.preview.project.account.name}/#{@qa_run.app_build.preview.project.name}/qa/#{@qa_run.id}"
       }
     />
-    <%!-- <.tab_menu_horizontal_item --%>
-    <%!--   label={gettext("Logs")} --%>
-    <%!--   selected={@selected_tab == "logs"} --%>
-    <%!--   navigate={~p"/#{@qa_run.app_build.preview.project.account.name}/#{@qa_run.app_build.preview.project.name}/qa/#{@qa_run.id}/logs"} --%>
-    <%!-- /> --%>
+    <.tab_menu_horizontal_item
+      label={gettext("Logs")}
+      selected={@live_action == :logs}
+      navigate={
+        ~p"/#{@qa_run.app_build.preview.project.account.name}/#{@qa_run.app_build.preview.project.name}/qa/#{@qa_run.id}/logs"
+      }
+    />
   </.tab_menu_horizontal>
 
-  <div :if={@selected_tab == "overview"}>
+  <div :if={@live_action in [:overview]}>
     <.card data-part="details-card" icon="chart_arcs" title={gettext("Details")}>
       <.card_section data-part="details-card-section">
         <div data-part="metadata-grid">
@@ -244,14 +246,12 @@
     </.card>
   </div>
 
-  <div :if={@selected_tab == "logs"} data-part="logs-tab">
-    <.card icon="terminal" title={gettext("Logs")}>
-      <.empty_card_section title={gettext("Logs coming soon")} data-part="empty-logs-section">
-        <:image>
-          <img src="/images/empty_insights_light.png" data-theme="light" />
-          <img src="/images/empty_insights_dark.png" data-theme="dark" />
-        </:image>
-      </.empty_card_section>
-    </.card>
+  <div :if={@live_action == :logs} data-part="logs-tab">
+    <.live_component
+      module={TuistWeb.Components.Logs}
+      logs={@formatted_logs || []}
+      empty_message={gettext("No logs found")}
+      id="qa-run-logs"
+    />
   </div>
 </div>

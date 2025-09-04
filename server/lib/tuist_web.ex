@@ -122,7 +122,6 @@ defmodule TuistWeb do
       # Core UI components and translation
       import TuistWeb.AppComponents
       import TuistWeb.Components.IconComponents
-      import TuistWeb.HeadlessComponents
 
       # Shortcut for generating JS commands
       alias Phoenix.LiveView.JS
