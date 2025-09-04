@@ -2,6 +2,8 @@ defmodule Tuist.Registry.Swift.Workers.CreatePackageReleaseWorkerTest do
   use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
 
+  import Ecto.Query
+
   alias Tuist.Registry.Swift.Packages
   alias Tuist.Registry.Swift.Workers.CreatePackageReleaseWorker
   alias Tuist.Repo
@@ -762,6 +764,73 @@ defmodule Tuist.Registry.Swift.Workers.CreatePackageReleaseWorkerTest do
       package_release = Packages.get_package_release_by_version(%{package: package, version: "1.0.0"})
       assert package_release
       assert package_release.version == "1.0.0"
+    end
+
+    test "perform/1 skips creation when package release already exists" do
+      # Given
+      package = PackagesFixtures.package_fixture()
+
+      existing_package_release = PackagesFixtures.package_release_fixture(
+        package_id: package.id,
+        version: "1.0.0",
+        checksum: "existing_checksum"
+      )
+
+      setup_standard_stubs("TestPackage", "TestPackage", "1.0.0", "TestPackage-1.0.0")
+
+      job = %Oban.Job{
+        args: %{
+          "scope" => package.scope,
+          "name" => package.name,
+          "version" => "1.0.0"
+        }
+      }
+
+      # When
+      result = CreatePackageReleaseWorker.perform(job)
+
+      # Then
+      assert result == :ok
+
+      package_release = Packages.get_package_release_by_version(%{package: package, version: "1.0.0"})
+      assert package_release.id == existing_package_release.id
+      assert package_release.checksum == "existing_checksum"
+
+      all_releases = Repo.all(from pr in Tuist.Registry.Swift.Packages.PackageRelease, where: pr.package_id == ^package.id and pr.version == "1.0.0")
+      assert length(all_releases) == 1
+    end
+
+    test "perform/1 skips creation when package release already exists with version normalization" do
+      # Given
+      package = PackagesFixtures.package_fixture()
+
+      existing_package_release = PackagesFixtures.package_release_fixture(
+        package_id: package.id,
+        version: "1.0.0",
+        checksum: "existing_checksum"
+      )
+
+      setup_standard_stubs("TestPackage", "TestPackage", "1.0", "TestPackage-1.0")
+
+      job = %Oban.Job{
+        args: %{
+          "scope" => package.scope,
+          "name" => package.name,
+          "version" => "1.0"  # This will be normalized to "1.0.0"
+        }
+      }
+
+      # When
+      result = CreatePackageReleaseWorker.perform(job)
+
+      # Then
+      assert result == :ok
+
+      package_release = Packages.get_package_release_by_version(%{package: package, version: "1.0.0"})
+      assert package_release.id == existing_package_release.id
+      assert package_release.checksum == "existing_checksum"
+      all_releases = Repo.all(from pr in Tuist.Registry.Swift.Packages.PackageRelease, where: pr.package_id == ^package.id and pr.version == "1.0.0")
+      assert length(all_releases) == 1
     end
   end
 end

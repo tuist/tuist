@@ -39,11 +39,17 @@ defmodule Tuist.Registry.Swift.Workers.CreatePackageReleaseWorker do
         {:error, :package_not_found}
 
       package ->
-        Packages.create_package_release(%{
-          package: package,
-          version: version,
-          token: Environment.github_token_update_package_releases()
-        })
+        case Packages.get_package_release_by_version(%{package: package, version: Packages.semantic_version(version)}) do
+          nil ->
+            Packages.create_package_release(%{
+              package: package,
+              version: version,
+              token: Environment.github_token_update_package_releases()
+            })
+
+          _existing_release ->
+            Logger.info("Package release #{scope}/#{name}@#{version} already exists, skipping")
+        end
 
         :ok
     end

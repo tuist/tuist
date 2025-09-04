@@ -115,7 +115,7 @@ defmodule Tuist.Registry.Swift.Packages do
     end)
   end
 
-  defp semantic_version(version) do
+  def semantic_version(version) do
     version = String.trim_leading(version, "v")
 
     case String.split(version, "-") do
