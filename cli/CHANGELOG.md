@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.67.2<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* generate bundle accessor when a module has only buildable folders by [@fortmarek](https://github.com/fortmarek) in [#8156](https://github.com/tuist/tuist/pull/8156)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.67.1...4.67.2
+
 ## What's Changed in 4.67.1<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
