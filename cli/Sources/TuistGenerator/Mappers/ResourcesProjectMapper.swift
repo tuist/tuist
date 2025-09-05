@@ -7,11 +7,14 @@ import XcodeGraph
 /// A project mapper that adds support for defining resources in targets that don't support it
 public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this type_body_length
     private let contentHasher: ContentHashing
-    public init(contentHasher: ContentHashing) {
+    private let buildableFolderChecker: BuildableFolderChecking
+
+    public init(contentHasher: ContentHashing, buildableFolderChecker: BuildableFolderChecking = BuildableFolderChecker()) {
         self.contentHasher = contentHasher
+        self.buildableFolderChecker = buildableFolderChecker
     }
 
-    public func map(project: Project) throws -> (Project, [SideEffectDescriptor]) {
+    public func map(project: Project) async throws -> (Project, [SideEffectDescriptor]) {
         guard !project.options.disableBundleAccessors else {
             return (project, [])
         }
@@ -21,7 +24,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         var targets: [String: Target] = [:]
 
         for target in project.targets.values {
-            let (mappedTargets, targetSideEffects) = try mapTarget(target, project: project)
+            let (mappedTargets, targetSideEffects) = try await mapTarget(target, project: project)
             mappedTargets.forEach { targets[$0.name] = $0 }
             sideEffects.append(contentsOf: targetSideEffects)
         }
@@ -33,9 +36,10 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
     }
 
     // swiftlint:disable:next function_body_length
-    public func mapTarget(_ target: Target, project: Project) throws -> ([Target], [SideEffectDescriptor]) {
+    public func mapTarget(_ target: Target, project: Project) async throws -> ([Target], [SideEffectDescriptor]) {
         if target.resources.resources.isEmpty, target.coreDataModels.isEmpty,
-           !target.sources.contains(where: { $0.path.extension == "metal" }), target.buildableFolders.isEmpty
+           !target.sources.contains(where: { $0.path.extension == "metal" }),
+           !(try await buildableFolderChecker.containsResources(target.buildableFolders))
         { return (
             [target],
             []
@@ -82,7 +86,8 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
             additionalTargets.append(resourcesTarget)
         }
 
-        if target.sources.containsSwiftFiles || !target.buildableFolders.isEmpty {
+        let containSourcesInBuildableFolders = try await buildableFolderChecker.containsSources(target.buildableFolders)
+        if target.sources.containsSwiftFiles || containSourcesInBuildableFolders {
             let (filePath, data) = synthesizedSwiftFile(bundleName: bundleName, target: target, project: project)
 
             let hash = try data.map(contentHasher.hash)

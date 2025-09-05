@@ -31,7 +31,7 @@ protocol BuildPhaseGenerating: AnyObject {
         pbxTarget: PBXTarget,
         fileElements: ProjectFileElements,
         pbxproj: PBXProj
-    ) throws
+    ) async throws
 
     /// Generates target actions
     ///
@@ -51,7 +51,11 @@ protocol BuildPhaseGenerating: AnyObject {
 
 // swiftlint:disable:next type_body_length
 final class BuildPhaseGenerator: BuildPhaseGenerating {
-    // MARK: - Attributes
+    private let buildableFolderChecker: BuildableFolderChecking
+
+    init(buildableFolderChecker: BuildableFolderChecking = BuildableFolderChecker()) {
+        self.buildableFolderChecker = buildableFolderChecker
+    }
 
     // swiftlint:disable:next function_body_length
     func generateBuildPhases(
@@ -61,7 +65,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         pbxTarget: PBXTarget,
         fileElements: ProjectFileElements,
         pbxproj: PBXProj
-    ) throws {
+    ) async throws {
         if target.shouldIncludeHeadersBuildPhase, let headers = target.headers {
             try generateHeadersBuildPhase(
                 headers: headers,
@@ -86,7 +90,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
             pbxproj: pbxproj
         )
 
-        try generateSourcesBuildPhase(
+        try await generateSourcesBuildPhase(
             files: target.sources,
             coreDataModels: target.coreDataModels,
             target: target,
@@ -251,7 +255,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         pbxTarget: PBXTarget,
         fileElements: ProjectFileElements,
         pbxproj: PBXProj
-    ) throws {
+    ) async throws {
         let sourcesBuildPhase = PBXSourcesBuildPhase()
 
         var buildFilesCache = Set<AbsolutePath>()
@@ -308,7 +312,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         pbxBuildFiles.forEach { pbxproj.add(object: $0) }
         sourcesBuildPhase.files = pbxBuildFiles
 
-        if !target.buildableFolders.isEmpty {
+        if try await buildableFolderChecker.containsSources(target.buildableFolders) {
             pbxproj.add(object: sourcesBuildPhase)
             pbxTarget.buildPhases.append(sourcesBuildPhase)
             return

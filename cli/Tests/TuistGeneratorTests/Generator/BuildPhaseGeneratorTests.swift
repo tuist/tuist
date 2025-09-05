@@ -49,7 +49,7 @@ struct BuildPhaseGeneratorTests {
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
         .inTemporaryDirectory
-    ) func test_generateSourcesBuildPhase() throws {
+    ) func test_generateSourcesBuildPhase() async throws {
         // Given
         let pbxTarget = PBXNativeTarget(name: "Test")
         let pbxproj = PBXProj()
@@ -69,7 +69,7 @@ struct BuildPhaseGeneratorTests {
         let fileElements = createFileElements(for: sources.map(\.path))
 
         // When
-        try subject.generateSourcesBuildPhase(
+        try await subject.generateSourcesBuildPhase(
             files: sources,
             coreDataModels: [],
             target: target,
@@ -110,7 +110,7 @@ struct BuildPhaseGeneratorTests {
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
         .inTemporaryDirectory
-    ) func generateSourcesBuildPhase_whenMultiPlatformSourceFiles() throws {
+    ) func generateSourcesBuildPhase_whenMultiPlatformSourceFiles() async throws {
         // Given
         let pbxTarget = PBXNativeTarget(name: "Test")
         let pbxproj = PBXProj()
@@ -130,7 +130,7 @@ struct BuildPhaseGeneratorTests {
         let fileElements = createFileElements(for: sourceFiles.map(\.path))
 
         // When
-        try subject.generateSourcesBuildPhase(
+        try await subject.generateSourcesBuildPhase(
             files: sourceFiles,
             coreDataModels: [],
             target: target,
@@ -171,7 +171,7 @@ struct BuildPhaseGeneratorTests {
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
         .inTemporaryDirectory
-    ) func generateSourcesBuildPhase_whenBundleWithMetalFiles() throws {
+    ) func generateSourcesBuildPhase_whenBundleWithMetalFiles() async throws {
         // Given
         let pbxTarget = PBXNativeTarget(name: "Test")
         let pbxproj = PBXProj()
@@ -186,7 +186,7 @@ struct BuildPhaseGeneratorTests {
         let fileElements = createFileElements(for: sourceFiles.map(\.path))
 
         // When
-        try subject.generateSourcesBuildPhase(
+        try await subject.generateSourcesBuildPhase(
             files: sourceFiles,
             coreDataModels: [],
             target: target,
@@ -211,7 +211,7 @@ struct BuildPhaseGeneratorTests {
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
         .inTemporaryDirectory
-    ) func doesntGenerateSourcesBuildPhase_whenWatchKitTarget() throws {
+    ) func doesntGenerateSourcesBuildPhase_whenWatchKitTarget() async throws {
         // Given
         let pbxTarget = PBXNativeTarget(name: "Test")
         let pbxproj = PBXProj()
@@ -220,7 +220,7 @@ struct BuildPhaseGeneratorTests {
         let target = Target.test(product: .watch2App)
 
         // When
-        try subject.generateSourcesBuildPhase(
+        try await subject.generateSourcesBuildPhase(
             files: [],
             coreDataModels: [],
             target: target,
@@ -239,7 +239,7 @@ struct BuildPhaseGeneratorTests {
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
         .inTemporaryDirectory
-    ) func generatesSourcesBuildPhase_whenFramework_withNoSources() throws {
+    ) func generatesSourcesBuildPhase_whenFramework_withNoSources() async throws {
         // Given
         let pbxTarget = PBXNativeTarget(name: "Test")
         let pbxproj = PBXProj()
@@ -248,7 +248,7 @@ struct BuildPhaseGeneratorTests {
         let target = Target.test(product: .framework)
 
         // When
-        try subject.generateSourcesBuildPhase(
+        try await subject.generateSourcesBuildPhase(
             files: [],
             coreDataModels: [],
             target: target,
@@ -321,7 +321,7 @@ struct BuildPhaseGeneratorTests {
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
         .inTemporaryDirectory
-    ) func generateSourcesBuildPhase_throws_when_theFileReferenceIsMissing() {
+    ) func generateSourcesBuildPhase_throws_when_theFileReferenceIsMissing() async throws {
         let path = try! AbsolutePath(validating: "/test/file.swift")
         let pbxTarget = PBXNativeTarget(name: "Test")
         let pbxproj = PBXProj()
@@ -330,8 +330,8 @@ struct BuildPhaseGeneratorTests {
         let target = Target.test()
         let fileElements = ProjectFileElements()
 
-        #expect(throws: BuildPhaseGenerationError.missingFileReference(path), performing: {
-            try subject.generateSourcesBuildPhase(
+        await #expect(throws: BuildPhaseGenerationError.missingFileReference(path), performing: {
+            try await subject.generateSourcesBuildPhase(
                 files: [SourceFile(path: path, compilerFlags: nil)],
                 coreDataModels: [],
                 target: target,
@@ -346,7 +346,7 @@ struct BuildPhaseGeneratorTests {
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
         .inTemporaryDirectory
-    ) func generateSourcesBuildPhase_withDocCArchive() throws {
+    ) func generateSourcesBuildPhase_withDocCArchive() async throws {
         // Given
         let pbxTarget = PBXNativeTarget(name: "Test")
         let pbxproj = PBXProj()
@@ -361,7 +361,7 @@ struct BuildPhaseGeneratorTests {
         let fileElements = createFileElements(for: sources.map(\.path))
 
         // When
-        try subject.generateSourcesBuildPhase(
+        try await subject.generateSourcesBuildPhase(
             files: sources,
             coreDataModels: [],
             target: target,
@@ -384,7 +384,7 @@ struct BuildPhaseGeneratorTests {
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
         .inTemporaryDirectory
-    ) func generateSourcesBuildPhase_whenLocalizedFile() throws {
+    ) func generateSourcesBuildPhase_whenLocalizedFile() async throws {
         // Given
         let pbxTarget = PBXNativeTarget(name: "Test")
         let pbxproj = PBXProj()
@@ -401,7 +401,7 @@ struct BuildPhaseGeneratorTests {
         ])
 
         // When
-        try subject.generateSourcesBuildPhase(
+        try await subject.generateSourcesBuildPhase(
             files: sources,
             coreDataModels: [],
             target: target,
@@ -423,7 +423,7 @@ struct BuildPhaseGeneratorTests {
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
         .inTemporaryDirectory
-    ) func generateSourcesBuildPhase_throws_whenLocalizedFileAndFileReferenceIsMissing() {
+    ) func generateSourcesBuildPhase_throws_whenLocalizedFileAndFileReferenceIsMissing() async throws {
         let path = try! AbsolutePath(validating: "/test/Base.lproj/file.intentdefinition")
         let pbxTarget = PBXNativeTarget(name: "Test")
         let pbxproj = PBXProj()
@@ -432,8 +432,8 @@ struct BuildPhaseGeneratorTests {
         let target = Target.test()
         let fileElements = ProjectFileElements()
 
-        #expect(throws: BuildPhaseGenerationError.missingFileReference(path), performing: {
-            try subject.generateSourcesBuildPhase(
+        await #expect(throws: BuildPhaseGenerationError.missingFileReference(path), performing: {
+            try await subject.generateSourcesBuildPhase(
                 files: [SourceFile(path: path, compilerFlags: nil)],
                 coreDataModels: [],
                 target: target,
@@ -497,7 +497,7 @@ struct BuildPhaseGeneratorTests {
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
         .inTemporaryDirectory
-    ) func generateHeadersBuildPhase_empty_when_iOSAppTarget() throws {
+    ) func generateHeadersBuildPhase_empty_when_iOSAppTarget() async throws {
         let tmpDir = try #require(FileSystem.temporaryTestDirectory)
         let pbxTarget = PBXNativeTarget(name: "Test")
         let pbxproj = PBXProj()
@@ -524,7 +524,7 @@ struct BuildPhaseGeneratorTests {
         let graph = Graph.test(path: tmpDir)
         let graphTraverser = GraphTraverser(graph: graph)
 
-        try subject.generateBuildPhases(
+        try await subject.generateBuildPhases(
             path: tmpDir,
             target: target,
             graphTraverser: graphTraverser,
@@ -540,7 +540,7 @@ struct BuildPhaseGeneratorTests {
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
         .inTemporaryDirectory
-    ) func generateHeadersBuildPhase_before_generateSourceBuildPhase() throws {
+    ) func generateHeadersBuildPhase_before_generateSourceBuildPhase() async throws {
         let tmpDir = try #require(FileSystem.temporaryTestDirectory)
         let pbxTarget = PBXNativeTarget(name: "Test")
         let pbxproj = PBXProj()
@@ -567,7 +567,7 @@ struct BuildPhaseGeneratorTests {
         let graph = Graph.test(path: tmpDir)
         let graphTraverser = GraphTraverser(graph: graph)
 
-        try subject.generateBuildPhases(
+        try await subject.generateBuildPhases(
             path: tmpDir,
             target: target,
             graphTraverser: graphTraverser,
@@ -731,7 +731,7 @@ struct BuildPhaseGeneratorTests {
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
         .inTemporaryDirectory
-    ) func generateSourcesBuildPhase_whenCoreDataModel() throws {
+    ) func generateSourcesBuildPhase_whenCoreDataModel() async throws {
         // Given
         let coreDataModel = CoreDataModel(
             path: try AbsolutePath(validating: "/Model.xcdatamodeld"),
@@ -754,7 +754,7 @@ struct BuildPhaseGeneratorTests {
         let nativeTarget = PBXNativeTarget(name: "Test")
 
         // When
-        try subject.generateSourcesBuildPhase(
+        try await subject.generateSourcesBuildPhase(
             files: target.sources,
             coreDataModels: target.coreDataModels,
             target: target,
@@ -1809,7 +1809,7 @@ struct BuildPhaseGeneratorTests {
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
         .inTemporaryDirectory
-    ) func generateBuildPhases_whenStaticFrameworkWithCoreDataModels() throws {
+    ) func generateBuildPhases_whenStaticFrameworkWithCoreDataModels() async throws {
         // Given
         let path = try AbsolutePath(validating: "/path/to/project")
         let coreDataModel = CoreDataModel(
@@ -1827,7 +1827,7 @@ struct BuildPhaseGeneratorTests {
         let pbxTarget = PBXNativeTarget(name: target.name)
 
         // When
-        try subject.generateBuildPhases(
+        try await subject.generateBuildPhases(
             path: "/path/to/target",
             target: target,
             graphTraverser: graphTraverser,
@@ -1855,7 +1855,7 @@ struct BuildPhaseGeneratorTests {
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
         .inTemporaryDirectory
-    ) func generateBuildPhases_whenBundleWithCoreDataModels() throws {
+    ) func generateBuildPhases_whenBundleWithCoreDataModels() async throws {
         // Given
         let path = try AbsolutePath(validating: "/path/to/project")
         let coreDataModel = CoreDataModel(
@@ -1873,7 +1873,7 @@ struct BuildPhaseGeneratorTests {
         let pbxTarget = PBXNativeTarget(name: target.name)
 
         // When
-        try subject.generateBuildPhases(
+        try await subject.generateBuildPhases(
             path: "/path/to/target",
             target: target,
             graphTraverser: graphTraverser,
@@ -1902,7 +1902,7 @@ struct BuildPhaseGeneratorTests {
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
         .inTemporaryDirectory
-    ) func generateLinks_generatesAShellScriptBuildPhase_when_targetIsAMacroFramework() throws {
+    ) func generateLinks_generatesAShellScriptBuildPhase_when_targetIsAMacroFramework() async throws {
         // Given
         let app = Target.test(name: "app", platform: .iOS, product: .app)
         let macroFramework = Target.test(name: "framework", platform: .iOS, product: .staticFramework)
@@ -1923,7 +1923,7 @@ struct BuildPhaseGeneratorTests {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        try subject.generateBuildPhases(
+        try await subject.generateBuildPhases(
             path: "/Project",
             target: macroFramework,
             graphTraverser: graphTraverser,
