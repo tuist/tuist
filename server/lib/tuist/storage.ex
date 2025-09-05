@@ -256,7 +256,7 @@ defmodule Tuist.Storage do
 
   defp use_tigris?(actor) do
     case actor do
-      :registry -> false
+      :registry -> FunWithFlags.enabled?(:tigris)
       _ -> FunWithFlags.enabled?(:tigris, for: actor)
     end
   end
