@@ -17,7 +17,7 @@ liveSocket.connect();
 
 // Analytics
 window.addEventListener("phx:navigate", (info) => {
-  if (globalThis.analyticsEnabled) {
+  if (globalThis.analytics.enabled) {
     // https://hexdocs.pm/phoenix_live_view/js-interop.html#live-navigation-events
     posthog.capture("$pageview");
   }
