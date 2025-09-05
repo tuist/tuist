@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.67.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* default to caching the manifests by [@pepicrft](https://github.com/pepicrft) in [#8116](https://github.com/tuist/tuist/pull/8116)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.67.0...4.67.1
+
 ## What's Changed in 4.67.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
