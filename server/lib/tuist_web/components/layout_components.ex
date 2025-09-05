@@ -101,6 +101,8 @@ defmodule TuistWeb.LayoutComponents do
     """
   end
 
+  attr :page_section, :string, default: nil
+
   def head_analytics_scripts(assigns) do
     posthog_opts =
       Map.merge(
@@ -130,7 +132,8 @@ defmodule TuistWeb.LayoutComponents do
       |> maybe_add_group("account", assigns[:selected_account])
 
     analytics_opts = %{
-      enabled: Tuist.Environment.analytics_enabled?()
+      enabled: Tuist.Environment.analytics_enabled?(),
+      page_section: assigns.page_section
     }
 
     assigns =
@@ -167,6 +170,12 @@ defmodule TuistWeb.LayoutComponents do
       nonce={get_csp_nonce()}
     >
       posthog.group('<%= group_type %>', '<%= group_key %>', <%= raw JSON.encode!(group_properties) %>)
+    </script>
+    <script
+      :if={Tuist.Environment.analytics_enabled?() and not is_nil(@analytics_opts.page_section)}
+      nonce={get_csp_nonce()}
+    >
+      posthog.register({page_section: '<%= @analytics_opts.page_section %>'})
     </script>
     """
   end
