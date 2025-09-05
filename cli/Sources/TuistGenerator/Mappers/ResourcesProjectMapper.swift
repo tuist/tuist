@@ -35,7 +35,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
     // swiftlint:disable:next function_body_length
     public func mapTarget(_ target: Target, project: Project) throws -> ([Target], [SideEffectDescriptor]) {
         if target.resources.resources.isEmpty, target.coreDataModels.isEmpty,
-           !target.sources.contains(where: { $0.path.extension == "metal" })
+           !target.sources.contains(where: { $0.path.extension == "metal" }), target.buildableFolders.isEmpty
         { return (
             [target],
             []
