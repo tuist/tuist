@@ -9,6 +9,68 @@
 [env]
     _.file = { path = ".env.json", redact = true }
 
+[tasks.cla-sign]
+    description = "Sign the CLA by adding current user to signatures.json"
+    run = '''
+    #!/usr/bin/env bash
+    set -euo pipefail
+    
+    SIGNATURES_FILE="server/cla/signatures.json"
+    REPO_ID="250427618"  # tuist/tuist repository ID
+    
+    echo "Adding your signature to the CLA..."
+    
+    # Get current user info from GitHub
+    user_info=$(gh api user)
+    user_login=$(echo "$user_info" | jq -r '.login')
+    user_name=$(echo "$user_info" | jq -r '.name // .login')
+    user_id=$(echo "$user_info" | jq -r '.id')
+    
+    echo "Signing CLA for: $user_name ($user_login)"
+    
+    # Check if user already signed
+    if [[ -f "$SIGNATURES_FILE" ]]; then
+        existing_signature=$(jq -r --arg login "$user_login" '.signedContributors[]? | select(.id == ($login | tonumber))' "$SIGNATURES_FILE" 2>/dev/null || echo "")
+        if [[ -n "$existing_signature" ]]; then
+            echo "✅ You have already signed the CLA!"
+            exit 0
+        fi
+    fi
+    
+    # Create signatures file if it doesn't exist
+    if [[ ! -f "$SIGNATURES_FILE" ]]; then
+        echo '{"signedContributors":[]}' > "$SIGNATURES_FILE"
+    fi
+    
+    # Create new signature entry
+    current_time=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+    new_signature=$(jq -n \
+        --arg name "$user_name" \
+        --arg id "$user_id" \
+        --arg created_at "$current_time" \
+        --arg repo_id "$REPO_ID" \
+        '{
+            name: $name,
+            id: ($id | tonumber),
+            comment_id: "",
+            created_at: $created_at,
+            repoId: ($repo_id | tonumber),
+            pullRequestNo: null
+        }')
+    
+    # Add signature to the file
+    temp_file=$(mktemp)
+    jq --argjson new_sig "$new_signature" '.signedContributors += [$new_sig]' "$SIGNATURES_FILE" > "$temp_file"
+    mv "$temp_file" "$SIGNATURES_FILE"
+    
+    echo "✅ CLA signature added successfully!"
+    echo "📝 Your signature has been recorded in $SIGNATURES_FILE"
+    echo ""
+    echo "Next steps:"
+    echo "1. Commit the updated signatures file: git add $SIGNATURES_FILE && git commit -m \"add CLA signature for $user_name\""
+    echo "2. Push your changes to complete the CLA signing process"
+    '''
+
 [settings]
     jobs = 6
     http_timeout = "60"
