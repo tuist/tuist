@@ -148,7 +148,7 @@ defmodule Tuist.MixProject do
       {:peep, git: "https://github.com/pepicrft/peep", ref: "cae2ddd2349ae0766352d106c4ebebc29949f110", override: true},
       {:langchain, git: "https://github.com/brainlid/langchain", branch: "main"},
       {:oban_met, "~> 1.0"},
-      {:posthog, "~> 1.0"}
+      {:posthog, "~> 1.0", runtime: false}
     ]
   end
 

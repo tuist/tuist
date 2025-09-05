@@ -21,6 +21,7 @@ defmodule Tuist.Application do
     Logger.info("Starting Tuist version #{Environment.version()}")
 
     load_secrets_in_application()
+    start_posthog()
     start_error_tracking()
     start_telemetry()
 
@@ -36,6 +37,21 @@ defmodule Tuist.Application do
 
   defp load_secrets_in_application do
     Environment.put_application_secrets(Environment.decrypt_secrets())
+  end
+
+  defp start_posthog do
+    if Environment.analytics_enabled?() do
+      case Application.start(:posthog) do
+        :ok ->
+          Logger.info("PostHog analytics started")
+
+        {:error, {:already_started, _}} ->
+          Logger.info("PostHog analytics already started")
+
+        {:error, reason} ->
+          Logger.warning("Failed to start PostHog analytics: #{inspect(reason)}")
+      end
+    end
   end
 
   defp start_error_tracking do
