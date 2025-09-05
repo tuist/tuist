@@ -188,6 +188,21 @@ defmodule Tuist.Application do
           count: 1,
           protocols: [:http2, :http1],
           start_pool_metrics?: true
+        ],
+        Environment.posthog_url() => [
+          conn_opts: [
+            log: true,
+            protocols: [:http2, :http1],
+            transport_opts: [
+              inet6: Environment.use_ipv6?() in ~w(true 1),
+              cacertfile: CAStore.file_path(),
+              verify: :verify_peer
+            ]
+          ],
+          size: 5,
+          count: 1,
+          protocols: [:http2, :http1],
+          start_pool_metrics?: true
         ]
       }
       |> Enum.reject(fn {key, _value} -> is_nil(key) end)
