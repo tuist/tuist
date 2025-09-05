@@ -122,4 +122,117 @@ defmodule Runner.QA.Simulators do
         {:error, "Failed to launch app: #{output}"}
     end
   end
+
+  @doc """
+  Starts recording video from a simulator device.
+
+  Parameters:
+    - device: SimulatorDevice struct
+    - output_path: Path where the video file will be saved
+
+  Returns `{:ok, pid}` with the recording process PID on success or `{:error, reason}` on failure.
+  """
+  def start_recording(%SimulatorDevice{udid: device_udid}, output_path) do
+    # Use Port directly since MuonTrap has issues with the recording command
+    port =
+      Port.open({:spawn_executable, System.find_executable("xcrun")}, [
+        :binary,
+        :stderr_to_stdout,
+        :exit_status,
+        args: ["simctl", "io", device_udid, "recordVideo", output_path, "--force"]
+      ])
+
+    case port do
+      port when is_port(port) ->
+        # Store the output path and port for later reference
+        Process.put({:recording_port, port}, output_path)
+        IO.puts("Recording started for simulator #{device_udid} to #{output_path}")
+        # Give the recording a moment to start
+        :timer.sleep(1000)
+        {:ok, port}
+
+      error ->
+        {:error, "Failed to start recording: #{inspect(error)}"}
+    end
+  end
+
+  @doc """
+  Stops a recording that was started with start_recording/2.
+
+  Parameters:
+    - port: The Port returned by start_recording/2
+
+  Returns `:ok` on success.
+  """
+  def stop_recording(port) when is_port(port) do
+    # Get the OS process ID from the port
+    case :erlang.port_info(port, :os_pid) do
+      {:os_pid, os_pid} ->
+        IO.puts("Sending SIGINT to recording process (OS PID: #{os_pid})")
+
+        # Send SIGINT to the xcrun process to gracefully stop recording
+        case System.cmd("kill", ["-INT", Integer.to_string(os_pid)]) do
+          {_output, 0} ->
+            IO.puts("SIGINT sent successfully")
+
+          {output, exit_code} ->
+            IO.puts("Failed to send SIGINT: #{output}, exit code: #{exit_code}")
+        end
+
+        # Wait for the process to finish and collect output
+        result = receive_port_data(port, "", 10000)
+
+        # Close port if it's still open
+        try do
+          Port.close(port)
+        catch
+          # Port already closed
+          :error, :badarg -> :ok
+        end
+
+        IO.puts("Recording process output:")
+        IO.puts(result)
+
+        # Check if the video file was created and has content
+        recording_path = get_recording_path_from_port(port)
+
+        case File.stat(recording_path) do
+          {:ok, %{size: size}} when size > 0 ->
+            IO.puts("Recording file created successfully at #{recording_path} (#{size} bytes)")
+
+          {:ok, %{size: 0}} ->
+            IO.puts("Warning: Recording file is empty at #{recording_path}")
+
+          {:error, reason} ->
+            IO.puts("Warning: Recording file not found at #{recording_path}: #{inspect(reason)}")
+        end
+
+        :ok
+
+      error ->
+        IO.puts("Could not get OS PID: #{inspect(error)}")
+        :ok
+    end
+  end
+
+  # Helper function to get recording path from port
+  defp get_recording_path_from_port(port) do
+    Process.get({:recording_port, port}, "/tmp/unknown_recording.mov")
+  end
+
+  defp receive_port_data(port, acc, timeout) do
+    receive do
+      {^port, {:data, data}} ->
+        new_acc = acc <> data
+        receive_port_data(port, new_acc, timeout)
+
+      {^port, {:exit_status, status}} ->
+        IO.puts("Port exited with status: #{status}")
+        acc
+    after
+      timeout ->
+        IO.puts("Port receive timeout")
+        acc
+    end
+  end
 end
