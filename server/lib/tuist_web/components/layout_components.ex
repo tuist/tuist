@@ -118,6 +118,17 @@ defmodule TuistWeb.LayoutComponents do
         {assigns[:current_user].id, %{email: assigns[:current_user].email}}
       end
 
+    posthog_alias =
+      case assigns[:current_user] do
+        %{account: %{name: name}} when is_binary(name) -> name
+        _ -> nil
+      end
+
+    posthog_groups =
+      []
+      |> maybe_add_group("project", assigns[:selected_project])
+      |> maybe_add_group("account", assigns[:selected_account])
+
     analytics_opts = %{
       enabled: Tuist.Environment.analytics_enabled?()
     }
@@ -127,6 +138,8 @@ defmodule TuistWeb.LayoutComponents do
       |> assign(:posthog_opts, posthog_opts)
       |> assign(:analytics_opts, analytics_opts)
       |> assign(:posthog_identity, posthog_identity)
+      |> assign(:posthog_alias, posthog_alias)
+      |> assign(:posthog_groups, posthog_groups)
 
     ~H"""
     <script nonce={get_csp_nonce()}>
@@ -142,6 +155,29 @@ defmodule TuistWeb.LayoutComponents do
     >
       posthog.identify('<%= elem(@posthog_identity, 0) %>', <%= raw JSON.encode!(elem(@posthog_identity, 1)) %>)
     </script>
+    <script
+      :if={Tuist.Environment.analytics_enabled?() and not is_nil(@posthog_alias)}
+      nonce={get_csp_nonce()}
+    >
+      posthog.alias('<%= @posthog_alias %>')
+    </script>
+    <script
+      :for={{group_type, group_key, group_properties} <- @posthog_groups}
+      :if={Tuist.Environment.analytics_enabled?() and length(@posthog_groups) > 0}
+      nonce={get_csp_nonce()}
+    >
+      posthog.group('<%= group_type %>', '<%= group_key %>', <%= raw JSON.encode!(group_properties) %>)
+    </script>
     """
   end
+
+  defp maybe_add_group(groups, _group_type, nil), do: groups
+
+  defp maybe_add_group(groups, group_type, %{name: name} = entity) when is_binary(name) do
+    group_key = entity.id
+    group_properties = %{name: name}
+    groups ++ [{group_type, group_key, group_properties}]
+  end
+
+  defp maybe_add_group(groups, _group_type, _entity), do: groups
 end
