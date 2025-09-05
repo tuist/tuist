@@ -10,8 +10,8 @@
   <div>
     <a href="https://cal.com/team/tuist/cloud?utm_source=banner&utm_campaign=oss" target="_blank"><img alt="Book us with Cal.com" src="https://cal.com/book-with-cal-dark.svg" width="150"/></a>
   </div>
-  <a href="https://translate.tuist.dev/engage/documentation/">
-  <img src="https://translate.tuist.dev/widget/documentation/svg-badge.svg" alt="Translation status" />
+  <a href="https://translate.tuist.dev/engage/tuist/">
+  <img src="https://translate.tuist.dev/widget/tuist/svg-badge.svg" alt="Translation status" />
   </a>
 </div>
 
