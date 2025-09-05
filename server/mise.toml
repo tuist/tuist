@@ -6,7 +6,7 @@
   "ubi:aquasecurity/trivy" = "0.63.0"
   "clickhouse" = "25.5.1"
   "npm:prettier" = "3.4.2"
-  "elixir" = "1.18.4"
+  "elixir" = "1.18.4-otp-28"
   "flyctl" = "0.3.172"
   "erlang" = "27.3.2"
   "asdf:aeons/asdf-minio" = "latest"
