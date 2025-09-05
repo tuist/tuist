@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.67.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* optimize dependency conditions calculation by [@mikhailmulyar](https://github.com/mikhailmulyar) in [#8146](https://github.com/tuist/tuist/pull/8146)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.66.1...4.67.0
+
 ## What's Changed in 4.66.1<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
