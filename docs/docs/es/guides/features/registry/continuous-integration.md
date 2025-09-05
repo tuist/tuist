@@ -66,10 +66,17 @@ across CI builds. Note that thanks to the registry, the size of the directory
 that you need to store and restore is much smaller than without the registry,
 taking significantly less time. To cache dependencies when using the default
 Xcode package integration, the best way is to specify a custom
-`-clonedSourcePackagesDirPath` when resolving dependencies via `xcodebuild`,
-such as:
-```sh
-xcodebuild -resolvePackageDependencies -clonedSourcePackagesDirPath .build
+`clonedSourcePackagesDirPath` when resolving dependencies via `xcodebuild`. This
+can be done by adding the following to your `Config.swift` file:
+
+```swift
+import ProjectDescription
+
+let config = Config(
+    generationOptions: .options(
+        additionalPackageResolutionArguments: ["-clonedSourcePackagesDirPath", ".build"]
+    )
+)
 ```
 
 Additionally, you will need to find a path of the `Package.resolved`. You can
