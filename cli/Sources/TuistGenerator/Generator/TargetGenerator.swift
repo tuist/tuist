@@ -102,7 +102,7 @@ final class TargetGenerator: TargetGenerating {
         )
 
         // Build phases
-        try buildPhaseGenerator.generateBuildPhases(
+        try await buildPhaseGenerator.generateBuildPhases(
             path: path,
             target: target,
             graphTraverser: graphTraverser,
