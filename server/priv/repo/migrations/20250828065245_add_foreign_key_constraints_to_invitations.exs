@@ -23,16 +23,16 @@ defmodule Tuist.Repo.Migrations.AddForeignKeyConstraintsToInvitations do
 
     # Add foreign key constraint for inviter_id -> users.id with cascade delete
     alter table(:invitations) do
-      modify :inviter_id, references(:users, on_delete: :delete_all), 
-             null: false, 
-             from: {:bigint, null: false}
+      modify :inviter_id, references(:users, on_delete: :delete_all),
+        null: false,
+        from: {:bigint, null: false}
     end
 
     # Add foreign key constraint for organization_id -> organizations.id with cascade delete  
     alter table(:invitations) do
-      modify :organization_id, references(:organizations, on_delete: :delete_all), 
-             null: false, 
-             from: {:bigint, null: false}
+      modify :organization_id, references(:organizations, on_delete: :delete_all),
+        null: false,
+        from: {:bigint, null: false}
     end
   end
 
