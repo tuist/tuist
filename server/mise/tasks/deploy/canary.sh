@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# mise description="Deploys the app to canary"
+#MISE description="Deploys the app to canary"
 
 set -euo pipefail
 

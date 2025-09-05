@@ -59,7 +59,11 @@ defmodule Tuist.Application do
         {Cachex, [:tuist, []]},
         {Finch, name: Tuist.Finch, pools: finch_pools()},
         {Phoenix.PubSub, name: Tuist.PubSub},
-        TuistWeb.Telemetry
+        {TuistWeb.RateLimit.InMemory, [clean_period: to_timeout(hour: 1)]},
+        {Tuist.API.Pipeline, []},
+        {Guardian.DB.Sweeper, [interval: 60 * 60 * 1000]},
+        TuistWeb.Telemetry,
+        TuistWeb.Endpoint
       ]
 
     children
@@ -105,22 +109,6 @@ defmodule Tuist.Application do
       end
     )
     |> Kernel.++(
-      if Environment.web?(),
-        do: [
-          {TuistWeb.RateLimit.InMemory, [clean_period: to_timeout(hour: 1)]},
-          {Tuist.API.Pipeline, []},
-          TuistWeb.Endpoint
-        ],
-        else: []
-    )
-    |> Kernel.++(
-      if Environment.worker?(),
-        do: [
-          {Guardian.DB.Sweeper, [interval: 60 * 60 * 1000]}
-        ],
-        else: []
-    )
-    |> Kernel.++(
       if Environment.tuist_hosted?(),
         do: [{DNSCluster, query: Application.get_env(:tuist, :dns_cluster_query) || :ignore}],
         else: []
@@ -151,12 +139,27 @@ defmodule Tuist.Application do
               verify: :verify_peer
             ]
           ],
-          size: 10,
-          count: 1,
+          size: 2,
+          count: 10,
           protocols: [:http2, :http1],
           start_pool_metrics?: true
         ],
         Environment.s3_endpoint() => [
+          conn_opts: [
+            log: true,
+            protocols: Environment.s3_protocols(),
+            transport_opts: [
+              inet6: Environment.use_ipv6?() in ~w(true 1),
+              cacertfile: CAStore.file_path(),
+              verify: :verify_peer
+            ]
+          ],
+          size: Environment.s3_pool_size(),
+          count: Environment.s3_pool_count(),
+          protocols: Environment.s3_protocols(),
+          start_pool_metrics?: true
+        ],
+        Environment.s3_endpoint(:tigris, Environment.decrypt_secrets()) => [
           conn_opts: [
             log: true,
             protocols: Environment.s3_protocols(),
@@ -187,6 +190,8 @@ defmodule Tuist.Application do
           start_pool_metrics?: true
         ]
       }
+      |> Enum.reject(fn {key, _value} -> is_nil(key) end)
+      |> Map.new()
     end
   end
 

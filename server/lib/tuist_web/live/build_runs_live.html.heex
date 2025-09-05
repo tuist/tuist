@@ -65,10 +65,7 @@
             <.text_cell icon="git_branch" label={build_run.git_branch || "None"} />
           </:col>
           <:col :let={build_run} label={gettext("Commit SHA")}>
-            <.text_cell label={
-              (build_run.git_commit_sha || "None")
-              |> String.slice(0, 7)
-            } />
+            <.text_cell label={SHA.format_commit_sha(build_run.git_commit_sha)} />
           </:col>
           <:col :let={build_run} label={gettext("Ran by")}>
             <.build_ran_by_badge_cell build={build_run} />

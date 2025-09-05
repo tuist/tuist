@@ -360,11 +360,7 @@ defmodule Tuist.VCSTest do
           status: :failure
         )
 
-      stub(Req, :get, fn [
-                           finch: Tuist.Finch,
-                           headers: @default_headers,
-                           url: "https://api.github.com/repos/tuist/tuist/issues/1/comments"
-                         ] ->
+      stub(Req, :get, fn _opts ->
         {:ok, %Req.Response{status: 200, body: []}}
       end)
 
@@ -391,12 +387,12 @@ defmodule Tuist.VCSTest do
 
         """
 
-      stub(Req, :post, fn [
-                            finch: Tuist.Finch,
-                            headers: @default_headers,
-                            url: "https://api.github.com/repos/tuist/tuist/issues/1/comments",
-                            json: %{body: ^expected_body}
-                          ] ->
+      stub(Req, :post, fn opts ->
+        assert opts[:finch] == Tuist.Finch
+        assert opts[:headers] == @default_headers
+        assert opts[:url] == "https://api.github.com/repos/tuist/tuist/issues/1/comments"
+        assert opts[:json] == %{body: expected_body}
+
         {:ok, %Req.Response{status: 200, body: %{}}}
       end)
 
@@ -460,11 +456,7 @@ defmodule Tuist.VCSTest do
           display_name: "WatchApp"
         )
 
-      stub(Req, :get, fn [
-                           finch: Tuist.Finch,
-                           headers: @default_headers,
-                           url: "https://api.github.com/repos/tuist/tuist/issues/1/comments"
-                         ] ->
+      stub(Req, :get, fn _opts ->
         {:ok, %Req.Response{status: 200, body: []}}
       end)
 
@@ -483,12 +475,12 @@ defmodule Tuist.VCSTest do
 
         """
 
-      expect(Req, :post, fn [
-                              finch: Tuist.Finch,
-                              headers: @default_headers,
-                              url: "https://api.github.com/repos/tuist/tuist/issues/1/comments",
-                              json: %{body: ^expected_body}
-                            ] ->
+      expect(Req, :post, fn opts ->
+        assert opts[:finch] == Tuist.Finch
+        assert opts[:headers] == @default_headers
+        assert opts[:url] == "https://api.github.com/repos/tuist/tuist/issues/1/comments"
+        assert opts[:json] == %{body: expected_body}
+
         {:ok, %Req.Response{status: 200, body: %{}}}
       end)
 
@@ -651,15 +643,17 @@ defmodule Tuist.VCSTest do
         {:ok, %{token: "github_token", expires_at: ~U[2024-04-30 10:30:31Z]}}
       end)
 
-      stub(Req, :patch, fn [
-                             finch: Tuist.Finch,
-                             headers: [
-                               {"Accept", "application/vnd.github.v3+json"},
-                               {"Authorization", "token github_token"}
-                             ],
-                             url: "https://api.github.com/repos/tuist/tuist/issues/comments/1",
-                             json: %{body: _}
-                           ] ->
+      stub(Req, :patch, fn opts ->
+        assert opts[:finch] == Tuist.Finch
+
+        assert opts[:headers] == [
+                 {"Accept", "application/vnd.github.v3+json"},
+                 {"Authorization", "token github_token"}
+               ]
+
+        assert opts[:url] == "https://api.github.com/repos/tuist/tuist/issues/comments/1"
+        assert Map.has_key?(opts[:json], :body)
+
         {:ok, %Req.Response{status: 200, body: %{}}}
       end)
 
@@ -888,11 +882,7 @@ defmodule Tuist.VCSTest do
           inserted_at: ~U[2024-01-01 05:00:00Z]
         )
 
-      stub(Req, :get, fn [
-                           finch: Tuist.Finch,
-                           headers: @default_headers,
-                           url: "https://api.github.com/repos/tuist/tuist/issues/1/comments"
-                         ] ->
+      stub(Req, :get, fn _opts ->
         {:ok, %Req.Response{status: 200, body: []}}
       end)
 
@@ -910,12 +900,12 @@ defmodule Tuist.VCSTest do
 
         """
 
-      expect(Req, :post, fn [
-                              finch: Tuist.Finch,
-                              headers: @default_headers,
-                              url: "https://api.github.com/repos/tuist/tuist/issues/1/comments",
-                              json: %{body: ^expected_body}
-                            ] ->
+      expect(Req, :post, fn opts ->
+        assert opts[:finch] == Tuist.Finch
+        assert opts[:headers] == @default_headers
+        assert opts[:url] == "https://api.github.com/repos/tuist/tuist/issues/1/comments"
+        assert opts[:json] == %{body: expected_body}
+
         {:ok, %Req.Response{status: 200, body: %{}}}
       end)
 
@@ -954,11 +944,7 @@ defmodule Tuist.VCSTest do
           git_ref: @git_ref
         )
 
-      stub(Req, :get, fn [
-                           finch: Tuist.Finch,
-                           headers: @default_headers,
-                           url: "https://api.github.com/repos/tuist/tuist/issues/1/comments"
-                         ] ->
+      stub(Req, :get, fn _opts ->
         {:ok, %Req.Response{status: 200, body: []}}
       end)
 
@@ -976,12 +962,12 @@ defmodule Tuist.VCSTest do
 
         """
 
-      expect(Req, :post, fn [
-                              finch: Tuist.Finch,
-                              headers: @default_headers,
-                              url: "https://api.github.com/repos/tuist/tuist/issues/1/comments",
-                              json: %{body: ^expected_body}
-                            ] ->
+      expect(Req, :post, fn opts ->
+        assert opts[:finch] == Tuist.Finch
+        assert opts[:headers] == @default_headers
+        assert opts[:url] == "https://api.github.com/repos/tuist/tuist/issues/1/comments"
+        assert opts[:json] == %{body: expected_body}
+
         {:ok, %Req.Response{status: 200, body: %{}}}
       end)
 
@@ -1017,11 +1003,7 @@ defmodule Tuist.VCSTest do
           inserted_at: ~U[2024-01-01 04:00:00Z]
         )
 
-      stub(Req, :get, fn [
-                           finch: Tuist.Finch,
-                           headers: @default_headers,
-                           url: "https://api.github.com/repos/tuist/tuist/issues/1/comments"
-                         ] ->
+      stub(Req, :get, fn _opts ->
         {:ok, %Req.Response{status: 200, body: []}}
       end)
 
@@ -1039,12 +1021,12 @@ defmodule Tuist.VCSTest do
 
         """
 
-      expect(Req, :post, fn [
-                              finch: Tuist.Finch,
-                              headers: @default_headers,
-                              url: "https://api.github.com/repos/tuist/tuist/issues/1/comments",
-                              json: %{body: ^expected_body}
-                            ] ->
+      expect(Req, :post, fn opts ->
+        assert opts[:finch] == Tuist.Finch
+        assert opts[:headers] == @default_headers
+        assert opts[:url] == "https://api.github.com/repos/tuist/tuist/issues/1/comments"
+        assert opts[:json] == %{body: expected_body}
+
         {:ok, %Req.Response{status: 200, body: %{}}}
       end)
 
@@ -1080,11 +1062,7 @@ defmodule Tuist.VCSTest do
           inserted_at: ~U[2024-01-01 04:00:00Z]
         )
 
-      stub(Req, :get, fn [
-                           finch: Tuist.Finch,
-                           headers: @default_headers,
-                           url: "https://api.github.com/repos/tuist/tuist/issues/1/comments"
-                         ] ->
+      stub(Req, :get, fn _opts ->
         {:ok, %Req.Response{status: 200, body: []}}
       end)
 
@@ -1102,12 +1080,12 @@ defmodule Tuist.VCSTest do
 
         """
 
-      expect(Req, :post, fn [
-                              finch: Tuist.Finch,
-                              headers: @default_headers,
-                              url: "https://api.github.com/repos/tuist/tuist/issues/1/comments",
-                              json: %{body: ^expected_body}
-                            ] ->
+      expect(Req, :post, fn opts ->
+        assert opts[:finch] == Tuist.Finch
+        assert opts[:headers] == @default_headers
+        assert opts[:url] == "https://api.github.com/repos/tuist/tuist/issues/1/comments"
+        assert opts[:json] == %{body: expected_body}
+
         {:ok, %Req.Response{status: 200, body: %{}}}
       end)
 

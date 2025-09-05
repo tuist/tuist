@@ -1,3 +1,4 @@
+import ArgumentParser
 import SwiftUI
 import TuistAuthentication
 import TuistServer
@@ -98,11 +99,39 @@ import TuistServer
                                 .accentColor(Noora.Colors.accent)
                             } else {
                                 LogInView()
+                                #if DEBUG
+                                    .task {
+                                        await checkForAutomaticLogin()
+                                    }
+                                #endif
                             }
                         }
                         .withErrorHandling()
                     }
                 }
+            }
+        }
+
+        /// When launch arguments with credentials are passed, such as when running QA tests, we can skip the log in and
+        /// automatically log in
+        private func checkForAutomaticLogin() async {
+            struct LaunchArguments: ParsableArguments {
+                @Option var email: String?
+                @Option var password: String?
+            }
+
+            do {
+                let parsedArguments = try LaunchArguments.parse(Array(ProcessInfo.processInfo.arguments.dropFirst()))
+
+                guard let email = parsedArguments.email,
+                      let password = parsedArguments.password
+                else {
+                    return
+                }
+
+                try await authenticationService.signInWithEmailAndPassword(email: email, password: password)
+            } catch {
+                // Skipping automatic log in, such as when the credentials are not passed.
             }
         }
     }

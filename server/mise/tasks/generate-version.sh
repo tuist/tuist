@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# mise description="Generate version for server deployments"
+#MISE description="Generate version for server deployments"
 
 # Get the latest server@x.y.z tag
 latest_tag=$(git tag -l "server@*" | sort -V | tail -n 1)

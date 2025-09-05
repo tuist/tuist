@@ -38,12 +38,12 @@ defmodule TuistWeb.API.CacheControllerTest do
       stub(Tuist.License, :sign, fn ^signed_fields -> "signature" end)
       stub(NaiveDateTime, :utc_now, fn :second -> date end)
 
-      expect(Storage, :generate_download_url, fn ^object_key, _ ->
+      expect(Storage, :generate_download_url, fn ^object_key, _, _ ->
         download_url
       end)
 
-      expect(Storage, :object_exists?, fn ^object_key -> true end)
-      expect(Storage, :get_object_size, fn ^object_key -> size end)
+      expect(Storage, :object_exists?, fn ^object_key, _actor -> true end)
+      expect(Storage, :get_object_size, fn ^object_key, _actor -> size end)
 
       expect(Pipeline, :async_push, fn {:create_cache_event,
                                         %{
@@ -142,12 +142,12 @@ defmodule TuistWeb.API.CacheControllerTest do
 
       stub(NaiveDateTime, :utc_now, fn :second -> date end)
 
-      expect(Storage, :generate_download_url, fn ^object_key, _ ->
+      expect(Storage, :generate_download_url, fn ^object_key, _, _ ->
         download_url
       end)
 
-      expect(Storage, :object_exists?, fn ^object_key -> true end)
-      expect(Storage, :get_object_size, fn ^object_key -> size end)
+      expect(Storage, :object_exists?, fn ^object_key, _actor -> true end)
+      expect(Storage, :get_object_size, fn ^object_key, _actor -> size end)
 
       expect(Pipeline, :async_push, fn {:create_cache_event,
                                         %{
@@ -449,7 +449,7 @@ defmodule TuistWeb.API.CacheControllerTest do
       upload_id = "12344"
       object_key = "#{project_id}/#{cache_category}/#{hash}/#{name}"
 
-      expect(Storage, :multipart_start, fn ^object_key ->
+      expect(Storage, :multipart_start, fn ^object_key, _actor ->
         upload_id
       end)
 
@@ -522,6 +522,7 @@ defmodule TuistWeb.API.CacheControllerTest do
       expect(Storage, :multipart_generate_url, fn ^object_key,
                                                   ^upload_id,
                                                   ^part_number,
+                                                  _actor,
                                                   [expires_in: _, content_length: 20] ->
         upload_url
       end)
@@ -604,11 +605,12 @@ defmodule TuistWeb.API.CacheControllerTest do
 
       expect(Storage, :multipart_complete_upload, fn ^object_key,
                                                      ^upload_id,
-                                                     [{1, "etag1"}, {2, "etag2"}, {3, "etag3"}] ->
+                                                     [{1, "etag1"}, {2, "etag2"}, {3, "etag3"}],
+                                                     _actor ->
         :ok
       end)
 
-      expect(Storage, :get_object_size, fn ^object_key ->
+      expect(Storage, :get_object_size, fn ^object_key, _ ->
         size
       end)
 
@@ -662,8 +664,8 @@ defmodule TuistWeb.API.CacheControllerTest do
         %{part_number: 3, etag: "etag3"}
       ]
 
-      stub(Storage, :multipart_complete_upload, fn _, _, _ -> :ok end)
-      stub(Storage, :get_object_size, fn _ -> {:ok, 1024} end)
+      stub(Storage, :multipart_complete_upload, fn _object_key, _upload_id, _parts, _actor -> :ok end)
+      stub(Storage, :get_object_size, fn _, _ -> 1024 end)
       conn = Authentication.put_current_project(conn, project)
 
       CommandEvents.create_cache_event(%{

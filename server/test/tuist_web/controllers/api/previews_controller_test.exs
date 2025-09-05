@@ -25,7 +25,7 @@ defmodule TuistWeb.PreviewsControllerTest do
       # Given
       upload_id = "upload-id"
 
-      expect(Storage, :multipart_start, fn _ ->
+      expect(Storage, :multipart_start, fn _object_key, _actor ->
         upload_id
       end)
 
@@ -85,7 +85,7 @@ defmodule TuistWeb.PreviewsControllerTest do
       # Given
       upload_id = "upload-id"
 
-      expect(Storage, :multipart_start, fn _ ->
+      expect(Storage, :multipart_start, fn _object_key, _actor ->
         upload_id
       end)
 
@@ -115,7 +115,7 @@ defmodule TuistWeb.PreviewsControllerTest do
       # Given
       upload_id = "upload-id"
 
-      expect(Storage, :multipart_start, fn _ ->
+      expect(Storage, :multipart_start, fn _object_key, _actor ->
         upload_id
       end)
 
@@ -155,7 +155,7 @@ defmodule TuistWeb.PreviewsControllerTest do
           supported_platforms: [:ios]
         )
 
-      expect(Storage, :multipart_start, fn _ ->
+      expect(Storage, :multipart_start, fn _object_key, _actor ->
         upload_id
       end)
 
@@ -243,6 +243,7 @@ defmodule TuistWeb.PreviewsControllerTest do
       expect(Storage, :multipart_generate_url, fn ^object_key,
                                                   ^upload_id,
                                                   ^part_number,
+                                                  _actor,
                                                   [expires_in: _, content_length: 100] ->
         upload_url
       end)
@@ -287,6 +288,7 @@ defmodule TuistWeb.PreviewsControllerTest do
       expect(Storage, :multipart_generate_url, fn ^object_key,
                                                   ^upload_id,
                                                   ^part_number,
+                                                  _actor,
                                                   [expires_in: _, content_length: 100] ->
         upload_url
       end)
@@ -399,11 +401,12 @@ defmodule TuistWeb.PreviewsControllerTest do
 
       expect(Storage, :multipart_complete_upload, fn ^object_key,
                                                      ^upload_id,
-                                                     [{1, "etag1"}, {2, "etag2"}, {3, "etag3"}] ->
+                                                     [{1, "etag1"}, {2, "etag2"}, {3, "etag3"}],
+                                                     _actor ->
         :ok
       end)
 
-      expect(Storage, :generate_download_url, fn _, _ -> "https://mocked-url.com" end)
+      expect(Storage, :generate_download_url, fn _object_key, _actor, _opts -> "https://mocked-url.com" end)
 
       conn = Authentication.put_current_user(conn, user)
 
@@ -577,11 +580,11 @@ defmodule TuistWeb.PreviewsControllerTest do
         prompt: "Test login functionality"
       })
 
-      expect(Storage, :multipart_complete_upload, fn _object_key, _upload_id, _parts ->
+      expect(Storage, :multipart_complete_upload, fn _object_key, _upload_id, _parts, _actor ->
         :ok
       end)
 
-      expect(Storage, :generate_download_url, fn _, _ -> "https://mocked-url.com" end)
+      expect(Storage, :generate_download_url, fn _object_key, _actor, _opts -> "https://mocked-url.com" end)
 
       expect(Oban, :insert, fn job ->
         assert job.changes.worker == "Tuist.QA.Workers.TestWorker"
@@ -634,7 +637,7 @@ defmodule TuistWeb.PreviewsControllerTest do
       object_key =
         "#{account.name}/#{project.name}/previews/#{app_build.id}.zip"
 
-      expect(Storage, :generate_download_url, fn ^object_key, [expires_in: 3600] ->
+      expect(Storage, :generate_download_url, fn ^object_key, _actor, [expires_in: 3600] ->
         "https://url.com"
       end)
 
@@ -763,7 +766,7 @@ defmodule TuistWeb.PreviewsControllerTest do
 
       app_build_two = AppBuildsFixtures.app_build_fixture(preview: preview_two)
 
-      expect(Storage, :generate_download_url, fn _, _ -> "https://mocked-url.com" end)
+      expect(Storage, :generate_download_url, fn _object_key, _actor, _opts -> "https://mocked-url.com" end)
 
       _preview_three =
         AppBuildsFixtures.preview_fixture(
@@ -1254,7 +1257,7 @@ defmodule TuistWeb.PreviewsControllerTest do
       object_key =
         "#{account.name}/#{project.name}/previews/#{preview.id}/icon.png"
 
-      expect(Storage, :generate_upload_url, fn ^object_key, [expires_in: 3600] ->
+      expect(Storage, :generate_upload_url, fn ^object_key, _actor, [expires_in: 3600] ->
         "https://url.com"
       end)
 

@@ -5,6 +5,7 @@ defmodule TuistWeb.OpsQALive do
 
   alias Tuist.Billing
   alias Tuist.QA
+  alias Tuist.Utilities.DateFormatter
 
   @impl true
   def mount(_params, _session, socket) do
@@ -16,16 +17,6 @@ defmodule TuistWeb.OpsQALive do
      |> assign(:token_usage_by_account, Billing.feature_token_usage_by_account("qa"))
      |> assign(:head_title, "#{gettext("QA Operations")} · Tuist")}
   end
-
-  defp format_datetime(%DateTime{} = datetime) do
-    datetime
-    |> DateTime.truncate(:second)
-    |> DateTime.to_string()
-    |> String.replace("T", " ")
-    |> String.replace("Z", " UTC")
-  end
-
-  defp format_datetime(_), do: "Unknown"
 
   defp format_number(number) when is_integer(number) do
     number

@@ -12,6 +12,7 @@ defmodule TuistWeb.BuildRunsLive do
   alias Tuist.Projects
   alias Tuist.Runs
   alias TuistWeb.Utilities.Query
+  alias TuistWeb.Utilities.SHA
 
   def mount(_params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
     slug = Projects.get_project_slug_from_id(project.id)

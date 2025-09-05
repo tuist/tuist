@@ -12,6 +12,7 @@ defmodule TuistWeb.TestRunsLive do
   alias Tuist.CommandEvents
   alias Tuist.Runs.Analytics
   alias TuistWeb.Utilities.Query
+  alias TuistWeb.Utilities.SHA
 
   def mount(_params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
     slug = "#{account.name}/#{project.name}"
@@ -43,10 +44,10 @@ defmodule TuistWeb.TestRunsLive do
         field: :status,
         display_name: gettext("Status"),
         type: :option,
-        options: [:success, :failure],
+        options: [0, 1],
         options_display_names: %{
-          success: gettext("Passed"),
-          failure: gettext("Failed")
+          0 => gettext("Passed"),
+          1 => gettext("Failed")
         },
         operator: :==,
         value: nil

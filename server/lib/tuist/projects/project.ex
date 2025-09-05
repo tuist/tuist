@@ -9,6 +9,7 @@ defmodule Tuist.Projects.Project do
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.User
   alias Tuist.AppBuilds.Preview
+  alias Tuist.QA.LaunchArgumentGroup
 
   @derive {
     Flop.Schema,
@@ -27,6 +28,7 @@ defmodule Tuist.Projects.Project do
     belongs_to :account, Account
 
     has_many :previews, Preview
+    has_many :qa_launch_argument_groups, LaunchArgumentGroup
 
     has_many :users_with_last_visited_projects, User,
       foreign_key: :last_visited_project_id,

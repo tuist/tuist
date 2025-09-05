@@ -164,7 +164,7 @@ defmodule TuistWeb.API.Registry.SwiftController do
           path: "Package.swift"
         )
 
-      if Storage.object_exists?(object_key) do
+      if Storage.object_exists?(object_key, :registry) do
         object_key
       end
     else
@@ -180,7 +180,7 @@ defmodule TuistWeb.API.Registry.SwiftController do
           path: "Package@swift-#{&1}.swift"
         )
       )
-      |> Enum.find(&Storage.object_exists?/1)
+      |> Enum.find(&Storage.object_exists?(&1, :registry))
     end
   end
 
@@ -235,7 +235,7 @@ defmodule TuistWeb.API.Registry.SwiftController do
         path: "source_archive.zip"
       )
 
-    if Storage.object_exists?(object_key) do
+    if Storage.object_exists?(object_key, :registry) do
       :telemetry.execute(
         [:analytics, :registry, :swift, :source_archive_download],
         %{},
@@ -269,7 +269,7 @@ defmodule TuistWeb.API.Registry.SwiftController do
 
   defp stream_object(conn, object_key) do
     object_key
-    |> Storage.stream_object()
+    |> Storage.stream_object(:registry)
     |> Enum.reduce_while(conn, fn chunk, conn ->
       case chunk(conn, chunk) do
         {:ok, conn} -> {:cont, conn}

@@ -90,8 +90,8 @@ defmodule Tuist.Registry.Swift.Packages do
     }
   end
 
-  def create_missing_package_releases(%{
-        package: %Package{repository_full_handle: repository_full_handle} = package,
+  def get_missing_package_versions(%{
+        package: %Package{repository_full_handle: repository_full_handle, scope: scope, name: name} = package,
         token: token
       }) do
     %{
@@ -104,20 +104,18 @@ defmodule Tuist.Registry.Swift.Packages do
     |> Enum.filter(fn version ->
       # Matches semantic version as per: https://semver.org/
       # Examples: 1.0.0, 1.0.0-alpha, 1.0.0-alpha.1, 1.1
+      # Skip dev versions like 0.9.3-dev1985
       Regex.match?(~r/^v?\d+\.\d+(\.\d+)?[0-9A-Za-z-]*(\.[0-9A-Za-z]*)?$/, version) and
+        not Regex.match?(~r/-dev/, version) and
         not Enum.any?(package.package_releases, &(&1.version == semantic_version(version)))
     end)
     |> Enum.uniq_by(&semantic_version(&1))
     |> Enum.map(fn version ->
-      create_package_release(%{
-        package: package,
-        version: version,
-        token: token
-      })
+      %{scope: scope, name: name, version: version}
     end)
   end
 
-  defp semantic_version(version) do
+  def semantic_version(version) do
     version = String.trim_leading(version, "v")
 
     case String.split(version, "-") do
@@ -209,7 +207,7 @@ defmodule Tuist.Registry.Swift.Packages do
         path: "source_archive.zip"
       )
 
-    Storage.put_object(object_key, data)
+    Storage.put_object(object_key, data, :registry)
 
     checksum =
       :sha256
@@ -311,7 +309,8 @@ defmodule Tuist.Registry.Swift.Packages do
 
     Storage.put_object(
       package_object_key(%{scope: scope, name: name}, version: version, path: path),
-      replace_package_by_name_references_with_product_in_package_manifest(package_manifest_content)
+      replace_package_by_name_references_with_product_in_package_manifest(package_manifest_content),
+      :registry
     )
 
     swift_tools_version =
@@ -459,9 +458,9 @@ defmodule Tuist.Registry.Swift.Packages do
     object_key =
       package_object_key(%{scope: scope, name: name}, version: version, path: "Package.swift")
 
-    if Storage.object_exists?(object_key) do
+    if Storage.object_exists?(object_key, :registry) do
       package_manifest =
-        Storage.get_object_as_string(object_key)
+        Storage.get_object_as_string(object_key, :registry)
 
       packages =
         ~r/url:\s*"([^"]+)"/

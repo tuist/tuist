@@ -5,11 +5,13 @@ defmodule TuistWeb.BundlesLive do
 
   import TuistWeb.Components.EmptyCardSection
   import TuistWeb.EmptyState
-  import TuistWeb.Previews.PlatformIcon
+  import TuistWeb.Previews.PlatformTag
 
   alias Tuist.Bundles
   alias Tuist.Projects
+  alias Tuist.Utilities.DateFormatter
   alias TuistWeb.Utilities.Query
+  alias TuistWeb.Utilities.SHA
 
   def mount(_params, _session, %{assigns: %{selected_project: project}} = socket) do
     {:ok,

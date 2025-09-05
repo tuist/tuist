@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# mise description="Run security static checks"
+#MISE description="Run security static checks"
 #USAGE flag "-l --update-lockfile" help="Update the lockfile .sobelow-skips with new findings that have been verified."
 
 if [ "$usage_update_lockfile" = "true" ]; then

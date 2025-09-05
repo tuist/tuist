@@ -280,7 +280,10 @@ defmodule TuistWeb.Router do
           post "/:run_id/start", AnalyticsController, :multipart_start_project
           post "/:run_id/generate-url", AnalyticsController, :multipart_generate_url_project
           post "/:run_id/complete", AnalyticsController, :multipart_complete_project
-          put "/:run_id/complete_artifacts_uploads", AnalyticsController, :complete_artifacts_uploads_project
+
+          put "/:run_id/complete_artifacts_uploads",
+              AnalyticsController,
+              :complete_artifacts_uploads_project
         end
 
         scope "/previews" do
@@ -541,22 +544,11 @@ defmodule TuistWeb.Router do
     pipe_through [
       :open_api,
       :browser_app,
-      :require_authenticated_user_for_previews,
       :analytics
     ]
 
     get "/manifest.plist", PreviewController, :manifest
     get "/app.ipa", PreviewController, :download_archive
-    get "/download", PreviewController, :download_preview
-  end
-
-  scope "/:account_handle/:project_handle/previews/:id", TuistWeb do
-    pipe_through [
-      :open_api,
-      :browser_app,
-      :analytics
-    ]
-
     get "/qr-code.svg", PreviewController, :download_qr_code_svg
     get "/qr-code.png", PreviewController, :download_qr_code_png
   end
@@ -568,6 +560,8 @@ defmodule TuistWeb.Router do
       :require_authenticated_user_for_previews,
       :analytics
     ]
+
+    get "/download", PreviewController, :download_preview
 
     live_session :preview_detail,
       layout: {TuistWeb.Layouts, :project},
@@ -632,6 +626,9 @@ defmodule TuistWeb.Router do
       live "/builds/build-runs", BuildRunsLive
       live "/builds/build-runs/:build_run_id", BuildRunLive
       live "/previews", PreviewsLive
+      live "/qa", QALive
+      live "/qa/:qa_run_id/overview", QARunLive
+      live "/qa/:qa_run_id/logs", QARunLive
       live "/runs/:run_id", RunDetailLive
       get "/runs/:run_id/download", RunsController, :download
     end

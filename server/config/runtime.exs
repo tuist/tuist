@@ -96,6 +96,7 @@ if Enum.member?([:prod, :stag, :can], env) do
     username: username,
     password: password,
     hostname: parsed_url.host,
+    port: parsed_url.port || 5432,
     socket_options: socket_opts,
     parameters: [
       tcp_keepalives_idle: "60",
@@ -229,6 +230,7 @@ if Tuist.Environment.env() not in [:test] do
       [
         scheme: "#{s3_scheme}://",
         host: s3_endpoint_host,
+        region: Tuist.Environment.s3_region(secrets),
         virtual_host: Tuist.Environment.s3_virtual_host(secrets),
         bucket_as_host: Tuist.Environment.s3_bucket_as_host(secrets)
       ],
@@ -242,8 +244,7 @@ if Tuist.Environment.env() not in [:test] do
   config :ex_aws, :s3, s3_config
 
   config :ex_aws,
-    http_client: Tuist.AWS.Client,
-    region: Tuist.Environment.s3_region(secrets)
+    http_client: Tuist.AWS.Client
 
   case Tuist.Environment.s3_authentication_method(secrets) do
     :env_access_key_id_and_secret_access_key ->
@@ -260,6 +261,29 @@ if Tuist.Environment.env() not in [:test] do
     _ ->
       nil
       # Noop
+  end
+
+  tigris_endpoint = Tuist.Environment.s3_endpoint(:tigris, secrets)
+
+  if tigris_endpoint && tigris_endpoint != "" do
+    %{host: tigris_endpoint_host, scheme: tigris_scheme, port: tigris_port} =
+      URI.parse(tigris_endpoint)
+
+    tigris_config =
+      then(
+        [
+          scheme: "#{tigris_scheme}://",
+          host: tigris_endpoint_host,
+          region: Tuist.Environment.s3_region(:tigris, secrets),
+          virtual_host: Tuist.Environment.s3_virtual_host(:tigris, secrets),
+          bucket_as_host: Tuist.Environment.s3_bucket_as_host(:tigris, secrets),
+          secret_access_key: Tuist.Environment.s3_secret_access_key(:tigris, secrets),
+          access_key_id: Tuist.Environment.s3_access_key_id(:tigris, secrets)
+        ],
+        &if(is_nil(tigris_port), do: &1, else: Keyword.put(&1, :port, tigris_port))
+      )
+
+    config :ex_aws, :s3_tigris, tigris_config
   end
 end
 
@@ -299,34 +323,25 @@ if Tuist.Environment.mail_configured?(secrets) and Tuist.Environment.env() in [:
 end
 
 # Oban
-oban_queues =
-  if Tuist.Environment.web?() and !Tuist.Environment.worker?(), do: [], else: [default: 10]
-
-oban_plugins =
-  if Tuist.Environment.web?() and !Tuist.Environment.worker?(),
-    do: [],
-    else: [
-      {Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 7},
-      {Oban.Plugins.Lifeline, rescue_after: to_timeout(minute: 30)},
-      {Oban.Plugins.Cron,
-       crontab:
-         if(Tuist.Environment.tuist_hosted?() and env == :prod,
-           do: [
-             {"0 10 * * 1-5", Tuist.Ops.DailySlackReportWorker},
-             {"0 * * * 1-5", Tuist.Ops.HourlySlackReportWorker},
-             {"@hourly", Tuist.Registry.Swift.Workers.UpdatePackagesWorker},
-             {"@hourly", Tuist.Registry.Swift.Workers.UpdatePackageReleasesWorker},
-             {"@daily", Tuist.Billing.UpdateAllCustomersRemoteCacheHitsCountWorker},
-             {"@daily", Tuist.Accounts.Workers.UpdateAllAccountsUsageWorker},
-             {"@daily", Tuist.Mautic.Workers.SyncCompaniesAndContactsWorker}
-           ],
-           else: []
-         )}
-    ]
-
 config :tuist, Oban,
-  queues: oban_queues,
-  plugins: oban_plugins
+  queues: [default: 10, registry: 2],
+  plugins: [
+    {Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 7},
+    {Oban.Plugins.Lifeline, rescue_after: to_timeout(minute: 30)},
+    {Oban.Plugins.Cron,
+     crontab:
+       if(Tuist.Environment.tuist_hosted?() and env == :prod,
+         do: [
+           {"0 10 * * 1-5", Tuist.Ops.DailySlackReportWorker},
+           {"0 * * * 1-5", Tuist.Ops.HourlySlackReportWorker},
+           {"@hourly", Tuist.Registry.Swift.Workers.SyncPackagesWorker},
+           {"@daily", Tuist.Billing.UpdateAllCustomersRemoteCacheHitsCountWorker},
+           {"@daily", Tuist.Accounts.Workers.UpdateAllAccountsUsageWorker},
+           {"@daily", Tuist.Mautic.Workers.SyncCompaniesAndContactsWorker}
+         ],
+         else: []
+       )}
+  ]
 
 # Guardian
 config :tuist, Tuist.Guardian,
@@ -339,10 +354,9 @@ config :tuist, Tuist.PromEx,
   manual_metrics_start_delay: :no_delay,
   drop_metrics_groups: [],
   grafana: :disabled,
-  # Larger numbers might lead to internal tasks timing out.
-  # By keeping it small we might loose some granularity of the data, but I think it's a good tradeoff.
-  # Use default value to avoid over-compacting
-  ets_flush_interval: 7_500,
+  # Fly.io polls every 15 seconds, so I'm setting the interval to 20 seconds to avoid
+  # missing data.
+  ets_flush_interval: 20_000,
   metrics_server: [
     port: 9091,
     auth_strategy: :none

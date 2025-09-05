@@ -2,9 +2,14 @@ defmodule Tuist.QATest do
   use TuistTestSupport.Cases.DataCase
   use Mimic
 
+  alias Ecto.Association.NotLoaded
+  alias LangChain.Chains.LLMChain
+  alias LangChain.Message
+  alias LangChain.Message.ContentPart
   alias Runner.QA.Agent
   alias Tuist.Authentication
   alias Tuist.QA
+  alias Tuist.QA.LaunchArgumentGroup
   alias Tuist.QA.Run
   alias Tuist.Repo
   alias Tuist.Storage
@@ -21,7 +26,9 @@ defmodule Tuist.QATest do
 
       prompt = "Test the login feature"
 
-      expect(Storage, :generate_download_url, fn _ -> "https://example.com/preview.zip" end)
+      expect(Storage, :generate_download_url, fn _object_key, _actor ->
+        "https://example.com/preview.zip"
+      end)
 
       expect(Authentication, :encode_and_sign, fn _account, claims, _opts ->
         {:ok, "test-jwt-token", claims}
@@ -60,7 +67,9 @@ defmodule Tuist.QATest do
       account = app_build.preview.project.account
       prompt = "Test the login feature"
 
-      expect(Storage, :generate_download_url, fn _ -> "https://example.com/preview.zip" end)
+      expect(Storage, :generate_download_url, fn _object_key, _actor ->
+        "https://example.com/preview.zip"
+      end)
 
       expect(Authentication, :encode_and_sign, fn _account, claims, _opts ->
         {:ok, "test-jwt-token", claims}
@@ -119,7 +128,9 @@ defmodule Tuist.QATest do
       app_build = put_in(app_build.preview.project.account, account)
       prompt = "Test the login feature"
 
-      expect(Storage, :generate_download_url, fn _ -> "https://example.com/preview.zip" end)
+      expect(Storage, :generate_download_url, fn _object_key, _actor ->
+        "https://example.com/preview.zip"
+      end)
 
       expect(Authentication, :encode_and_sign, fn _account, claims, _opts ->
         {:ok, "test-jwt-token", claims}
@@ -169,7 +180,9 @@ defmodule Tuist.QATest do
 
       prompt = "Test the login feature"
 
-      expect(Storage, :generate_download_url, fn _ -> "https://example.com/preview.zip" end)
+      expect(Storage, :generate_download_url, fn _object_key, _actor ->
+        "https://example.com/preview.zip"
+      end)
 
       expect(Authentication, :encode_and_sign, fn _account, claims, _opts ->
         {:ok, "test-jwt-token", claims}
@@ -202,7 +215,9 @@ defmodule Tuist.QATest do
       account = app_build.preview.project.account
       prompt = "Test the login feature"
 
-      expect(Storage, :generate_download_url, fn _ -> "https://example.com/preview.zip" end)
+      expect(Storage, :generate_download_url, fn _object_key, _actor ->
+        "https://example.com/preview.zip"
+      end)
 
       expect(Authentication, :encode_and_sign, fn _account, claims, _opts ->
         {:ok, "test-jwt-token", claims}
@@ -254,7 +269,9 @@ defmodule Tuist.QATest do
       app_build =
         Repo.preload(AppBuildsFixtures.app_build_fixture(), preview: [project: :account])
 
-      expect(Storage, :generate_download_url, fn _ -> "https://example.com/preview.zip" end)
+      expect(Storage, :generate_download_url, fn _object_key, _actor ->
+        "https://example.com/preview.zip"
+      end)
 
       expect(Authentication, :encode_and_sign, fn _account, _claims, _opts ->
         {:error, "Token creation failed"}
@@ -269,6 +286,243 @@ defmodule Tuist.QATest do
 
       # Then
       assert {:error, "Token creation failed"} == result
+    end
+
+    test "includes launch arguments when project has launch argument groups" do
+      # Given
+      app_build =
+        Repo.preload(AppBuildsFixtures.app_build_fixture(), preview: [project: :account])
+
+      project = app_build.preview.project
+
+      {:ok, _login_group} =
+        %LaunchArgumentGroup{}
+        |> LaunchArgumentGroup.create_changeset(%{
+          project_id: project.id,
+          name: "login-credentials",
+          description: "Skip login with prefilled credentials",
+          value: "--email user@example.com --password test123"
+        })
+        |> Repo.insert()
+
+      {:ok, _debug_group} =
+        %LaunchArgumentGroup{}
+        |> LaunchArgumentGroup.create_changeset(%{
+          project_id: project.id,
+          name: "debug-mode",
+          description: "Enable debug logging",
+          value: "--debug --verbose"
+        })
+        |> Repo.insert()
+
+      prompt = "Test the login feature"
+
+      expect(Storage, :generate_download_url, fn _, _actor ->
+        "https://example.com/preview.zip"
+      end)
+
+      expect(Authentication, :encode_and_sign, fn _account, claims, _opts ->
+        {:ok, "test-jwt-token", claims}
+      end)
+
+      expect(Tuist.Environment, :namespace_enabled?, fn -> false end)
+      expect(Tuist.Environment, :anthropic_api_key, 2, fn -> "test-anthropic-key" end)
+
+      expect(LLMChain, :new!, fn %{llm: _llm} -> %LLMChain{} end)
+
+      expect(LLMChain, :add_messages, fn chain, messages ->
+        assert length(messages) == 2
+        assert %Message{role: :system} = List.first(messages)
+        assert %Message{role: :user} = List.last(messages)
+        chain
+      end)
+
+      expect(LLMChain, :run, fn _chain, _opts ->
+        {:ok,
+         %LLMChain{
+           last_message: %Message{
+             content: [%ContentPart{content: "login-credentials"}]
+           }
+         }}
+      end)
+
+      expect(Agent, :test, fn attrs, _opts ->
+        assert attrs.launch_arguments == "--email user@example.com --password test123"
+        :ok
+      end)
+
+      # When
+      {:ok, qa_run} =
+        QA.test(%{
+          app_build: app_build,
+          prompt: prompt
+        })
+
+      # Then
+      assert qa_run.prompt == prompt
+    end
+
+    test "selects multiple launch argument groups" do
+      # Given
+      app_build =
+        Repo.preload(AppBuildsFixtures.app_build_fixture(), preview: [project: :account])
+
+      project = app_build.preview.project
+
+      {:ok, _login_group} =
+        %LaunchArgumentGroup{}
+        |> LaunchArgumentGroup.create_changeset(%{
+          project_id: project.id,
+          name: "login-credentials",
+          description: "Skip login with prefilled credentials",
+          value: "--email user@example.com --password test123"
+        })
+        |> Repo.insert()
+
+      {:ok, _debug_group} =
+        %LaunchArgumentGroup{}
+        |> LaunchArgumentGroup.create_changeset(%{
+          project_id: project.id,
+          name: "debug-mode",
+          description: "Enable debug logging",
+          value: "--debug --verbose"
+        })
+        |> Repo.insert()
+
+      prompt = "Test the login feature with debug mode enabled"
+
+      expect(Storage, :generate_download_url, fn _, _actor ->
+        "https://example.com/preview.zip"
+      end)
+
+      expect(Authentication, :encode_and_sign, fn _account, claims, _opts ->
+        {:ok, "test-jwt-token", claims}
+      end)
+
+      expect(Tuist.Environment, :namespace_enabled?, fn -> false end)
+      expect(Tuist.Environment, :anthropic_api_key, 2, fn -> "test-anthropic-key" end)
+
+      expect(LLMChain, :new!, fn %{llm: _llm} -> %LLMChain{} end)
+
+      expect(LLMChain, :add_messages, fn chain, _messages -> chain end)
+
+      expect(LLMChain, :run, fn _chain, _opts ->
+        {:ok,
+         %LLMChain{
+           last_message: %Message{
+             content: [%ContentPart{content: "login-credentials, debug-mode"}]
+           }
+         }}
+      end)
+
+      expect(Agent, :test, fn attrs, _opts ->
+        assert attrs.launch_arguments ==
+                 "--email user@example.com --password test123 --debug --verbose"
+
+        :ok
+      end)
+
+      # When
+      {:ok, qa_run} =
+        QA.test(%{
+          app_build: app_build,
+          prompt: prompt
+        })
+
+      # Then
+      assert qa_run.prompt == prompt
+    end
+
+    test "handles empty launch arguments when no groups match" do
+      # Given
+      app_build =
+        Repo.preload(AppBuildsFixtures.app_build_fixture(), preview: [project: :account])
+
+      project = app_build.preview.project
+
+      {:ok, _special_group} =
+        %LaunchArgumentGroup{}
+        |> LaunchArgumentGroup.create_changeset(%{
+          project_id: project.id,
+          name: "special-feature",
+          description: "Enable special feature",
+          value: "--special-feature"
+        })
+        |> Repo.insert()
+
+      prompt = "Test basic navigation"
+
+      expect(Storage, :generate_download_url, fn _, _actor ->
+        "https://example.com/preview.zip"
+      end)
+
+      expect(Authentication, :encode_and_sign, fn _account, claims, _opts ->
+        {:ok, "test-jwt-token", claims}
+      end)
+
+      expect(Tuist.Environment, :namespace_enabled?, fn -> false end)
+      expect(Tuist.Environment, :anthropic_api_key, 2, fn -> "test-anthropic-key" end)
+
+      expect(LLMChain, :new!, fn %{llm: _llm} -> %LLMChain{} end)
+
+      expect(LLMChain, :add_messages, fn chain, _messages -> chain end)
+
+      expect(LLMChain, :run, fn _chain, _opts ->
+        {:ok,
+         %LLMChain{
+           last_message: %Message{
+             content: [%ContentPart{content: ""}]
+           }
+         }}
+      end)
+
+      expect(Agent, :test, fn attrs, _opts ->
+        assert attrs.launch_arguments == ""
+        :ok
+      end)
+
+      # When
+      {:ok, qa_run} =
+        QA.test(%{
+          app_build: app_build,
+          prompt: prompt
+        })
+
+      # Then
+      assert qa_run.prompt == prompt
+    end
+
+    test "doesn't try to select launch argument group when project doesn't have any" do
+      # Given
+      app_build =
+        Repo.preload(AppBuildsFixtures.app_build_fixture(), preview: [project: :account])
+
+      prompt = "Test the app"
+
+      expect(Storage, :generate_download_url, fn _, _actor ->
+        "https://example.com/preview.zip"
+      end)
+
+      expect(Authentication, :encode_and_sign, fn _account, claims, _opts ->
+        {:ok, "test-jwt-token", claims}
+      end)
+
+      expect(Tuist.Environment, :namespace_enabled?, fn -> false end)
+
+      expect(Agent, :test, fn attrs, _opts ->
+        assert attrs.launch_arguments == ""
+        :ok
+      end)
+
+      # When
+      {:ok, qa_run} =
+        QA.test(%{
+          app_build: app_build,
+          prompt: prompt
+        })
+
+      # Then
+      assert qa_run.prompt == prompt
     end
   end
 
@@ -1087,6 +1341,91 @@ defmodule Tuist.QATest do
 
       # Then
       assert :ok == result
+    end
+  end
+
+  describe "list_qa_runs_for_project/3" do
+    test "returns QA runs with preloaded associations" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      preview = AppBuildsFixtures.preview_fixture(project: project)
+      app_build = AppBuildsFixtures.app_build_fixture(preview: preview)
+      qa_run = QAFixtures.qa_run_fixture(app_build: app_build, prompt: "Test login")
+      _qa_step = QAFixtures.qa_step_fixture(qa_run: qa_run, action: "Login attempt")
+
+      # When
+      {results, _meta} =
+        QA.list_qa_runs_for_project(project, %{}, preload: [app_build: [preview: []], run_steps: []])
+
+      # Then
+      assert [result] = results
+      assert result.id == qa_run.id
+
+      refute match?(%NotLoaded{}, result.app_build)
+      refute match?(%NotLoaded{}, result.app_build.preview)
+      refute match?(%NotLoaded{}, result.run_steps)
+    end
+
+    test "analytics functions handle empty data" do
+      empty_project = ProjectsFixtures.project_fixture()
+
+      runs_result = QA.qa_runs_analytics(empty_project.id)
+      issues_result = QA.qa_issues_analytics(empty_project.id)
+      duration_result = QA.qa_duration_analytics(empty_project.id)
+
+      assert %{
+               count: 0,
+               trend: runs_trend,
+               values: values,
+               dates: dates
+             } = runs_result
+
+      assert runs_trend == 0.0
+      assert runs_trend == 0.0
+      assert length(values) == 11
+      assert length(dates) == 11
+
+      assert %{
+               count: 0,
+               trend: issues_trend,
+               values: values,
+               dates: dates
+             } = issues_result
+
+      assert issues_trend == 0.0
+      assert length(values) == 11
+      assert length(dates) == 11
+
+      assert %{
+               total_average_duration: 0,
+               trend: duration_trend,
+               values: values,
+               dates: dates
+             } = duration_result
+
+      assert duration_trend == 0.0
+      assert length(values) == 11
+      assert length(dates) == 11
+
+      assert %{
+               count: 0,
+               trend: +0.0,
+               values: values,
+               dates: dates
+             } = issues_result
+
+      assert length(values) == 11
+      assert length(dates) == 11
+
+      assert %{
+               total_average_duration: 0,
+               trend: +0.0,
+               values: values,
+               dates: dates
+             } = duration_result
+
+      assert length(values) == 11
+      assert length(dates) == 11
     end
   end
 end

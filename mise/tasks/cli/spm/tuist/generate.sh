@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# mise description="Generate the project using Tuist"
+#MISE description="Generate the project using Tuist"
 
 set -euo pipefail
 

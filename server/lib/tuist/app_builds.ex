@@ -29,14 +29,24 @@ defmodule Tuist.AppBuilds do
       from(p in Preview)
       |> where([p], p.project_id == ^project_id)
       |> then(&if(is_nil(display_name), do: &1, else: where(&1, [p], p.display_name == ^display_name)))
-      |> then(&if(is_nil(bundle_identifier), do: &1, else: where(&1, [p], p.bundle_identifier == ^bundle_identifier)))
+      |> then(
+        &if(is_nil(bundle_identifier),
+          do: &1,
+          else: where(&1, [p], p.bundle_identifier == ^bundle_identifier)
+        )
+      )
       |> then(
         &if(is_nil(created_by_account_id),
           do: &1,
           else: where(&1, [p], p.created_by_account_id == ^created_by_account_id)
         )
       )
-      |> then(&if(is_nil(git_commit_sha), do: &1, else: where(&1, [p], p.git_commit_sha == ^git_commit_sha)))
+      |> then(
+        &if(is_nil(git_commit_sha),
+          do: &1,
+          else: where(&1, [p], p.git_commit_sha == ^git_commit_sha)
+        )
+      )
       |> then(&if(is_nil(version), do: &1, else: where(&1, [p], p.version == ^version)))
       |> limit(1)
       |> Repo.one()
@@ -71,12 +81,9 @@ defmodule Tuist.AppBuilds do
   def update_preview_with_app_build(preview_id, app_build) do
     preview = Repo.get!(Preview, preview_id)
 
-    visibility = if app_build.type == :ipa, do: :public, else: preview.visibility
-
     preview
     |> Preview.create_changeset(%{
-      supported_platforms: Enum.uniq(preview.supported_platforms ++ app_build.supported_platforms),
-      visibility: visibility
+      supported_platforms: Enum.uniq(preview.supported_platforms ++ app_build.supported_platforms)
     })
     |> Repo.update!()
   end
@@ -132,7 +139,10 @@ defmodule Tuist.AppBuilds do
 
     order_direction = attrs |> Map.get(:order_directions, [:desc]) |> hd()
 
-    filters = attrs |> Map.get(:filters, []) |> Enum.map(&%Flop.Filter{field: &1.field, op: &1.op, value: &1.value})
+    filters =
+      attrs
+      |> Map.get(:filters, [])
+      |> Enum.map(&%Flop.Filter{field: &1.field, op: &1.op, value: &1.value})
 
     if distinct_bundle_identifier do
       preview_ids =
@@ -253,7 +263,11 @@ defmodule Tuist.AppBuilds do
         where:
           ab.preview_id == parent_as(:p).id and
             (is_nil(type(^supported_platform, ^enum_el_type)) or
-               fragment("? = ANY(?)", type(^supported_platform, ^enum_el_type), ab.supported_platforms)),
+               fragment(
+                 "? = ANY(?)",
+                 type(^supported_platform, ^enum_el_type),
+                 ab.supported_platforms
+               )),
         order_by: [desc: ab.inserted_at],
         limit: 1
 

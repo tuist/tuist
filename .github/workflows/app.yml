@@ -88,6 +88,7 @@ jobs:
           key: ${{ runner.os }}-app-${{ hashFiles('Package.resolved') }}
           restore-keys: .build
       - uses: jdx/mise-action@v2
+      - run: tuist install
       - name: Generate TuistApp
         run: mise x -- tuist generate TuistApp
       - name: Build TuistApp
@@ -129,6 +130,7 @@ jobs:
           key: ${{ runner.os }}-app-${{ hashFiles('Package.resolved') }}
           restore-keys: .build
       - uses: jdx/mise-action@v2
+      - run: tuist install
       - name: Test TuistApp
         run: mise x -- tuist test TuistApp -- CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
       - name: Save cache
@@ -162,6 +164,7 @@ jobs:
           key: ${{ runner.os }}-app-${{ hashFiles('Package.resolved') }}
           restore-keys: .build
       - uses: jdx/mise-action@v2
+      - run: tuist install
       - name: Generate TuistApp
         run: mise x -- tuist generate TuistApp
       - name: Bundle iOS app

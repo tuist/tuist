@@ -34,7 +34,12 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
 
     // swiftlint:disable:next function_body_length
     public func mapTarget(_ target: Target, project: Project) throws -> ([Target], [SideEffectDescriptor]) {
-        if target.resources.resources.isEmpty, target.coreDataModels.isEmpty { return ([target], []) }
+        if target.resources.resources.isEmpty, target.coreDataModels.isEmpty,
+           !target.sources.contains(where: { $0.path.extension == "metal" })
+        { return (
+            [target],
+            []
+        ) }
 
         var additionalTargets: [Target] = []
         var sideEffects: [SideEffectDescriptor] = []
@@ -77,7 +82,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
             additionalTargets.append(resourcesTarget)
         }
 
-        if target.sources.containsSwiftFiles {
+        if target.sources.containsSwiftFiles || !target.buildableFolders.isEmpty {
             let (filePath, data) = synthesizedSwiftFile(bundleName: bundleName, target: target, project: project)
 
             let hash = try data.map(contentHasher.hash)

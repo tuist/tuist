@@ -64,7 +64,8 @@ defmodule TuistWeb.API.AccountTokensController do
       },
       unauthorized: {"You need to be authenticated to issue new tokens", "application/json", Error},
       forbidden: {"You need to be authorized to issue new tokens", "application/json", Error},
-      not_found: {"The account was not found", "application/json", Error}
+      not_found: {"The account was not found", "application/json", Error},
+      bad_request: {"The request is invalid", "application/json", Error}
     }
   )
 

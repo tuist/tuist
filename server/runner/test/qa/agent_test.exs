@@ -39,6 +39,7 @@ defmodule Runner.QA.AgentTest do
 
     stub(Simulators, :boot_simulator, fn ^device -> :ok end)
     stub(Simulators, :install_app, fn ^app_path, ^device -> :ok end)
+    stub(Simulators, :launch_app, fn _bundle_identifier, ^device, _launch_arguments -> :ok end)
 
     stub(AppiumClient, :start_session, fn _, _ -> {:ok, %{id: "mock-session"}} end)
     stub(AppiumClient, :stop_session, fn _ -> :ok end)
@@ -104,7 +105,7 @@ defmodule Runner.QA.AgentTest do
       prompt = "Test the login feature"
 
       expect(Req, :get, fn ^preview_url, [into: :mocked_stream] -> {:ok, %{status: 200}} end)
-      expect(Simulators, :launch_app, fn ^bundle_identifier, ^device -> :ok end)
+      expect(Simulators, :launch_app, fn ^bundle_identifier, ^device, _launch_arguments -> :ok end)
 
       chain_result = %LLMChain{
         llm: %ChatAnthropic{api_key: "test-api-key", model: "claude-sonnet-4-20250514"},
@@ -272,7 +273,7 @@ defmodule Runner.QA.AgentTest do
       ]
 
       expect(Req, :get, fn ^preview_url, [into: :mocked_stream] -> {:ok, %{status: 200}} end)
-      expect(Simulators, :launch_app, fn ^bundle_identifier, ^device -> :ok end)
+      expect(Simulators, :launch_app, fn ^bundle_identifier, ^device, _launch_arguments -> :ok end)
 
       expect(LLMChain, :new!, 1, fn %{llm: llm} ->
         %LLMChain{llm: llm, messages: [], last_message: nil}
@@ -388,7 +389,7 @@ defmodule Runner.QA.AgentTest do
       prompt = "Test the login feature"
 
       expect(Req, :get, fn ^preview_url, [into: :mocked_stream] -> {:ok, %{status: 200}} end)
-      expect(Simulators, :launch_app, fn ^bundle_identifier, ^device -> :ok end)
+      expect(Simulators, :launch_app, fn ^bundle_identifier, ^device, _launch_arguments -> :ok end)
 
       expect(LLMChain, :new!, 1, fn %{llm: llm} ->
         %LLMChain{llm: llm, messages: [], last_message: nil}
