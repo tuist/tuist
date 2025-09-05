@@ -195,6 +195,9 @@ final class DumpServiceTests: TuistTestCase {
                     }
                   },
                   "generationOptions": {
+                    "additionalPackageResolutionArguments": [
+
+                    ],
                     "buildInsightsDisabled": false,
                     "disablePackageVersionLocking": false,
                     "disableSandbox": false,

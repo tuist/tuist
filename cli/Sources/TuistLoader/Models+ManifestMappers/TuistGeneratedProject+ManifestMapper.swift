@@ -8,6 +8,11 @@ extension TuistCore.TuistGeneratedProjectOptions.GenerationOptions {
         generatorPaths: GeneratorPaths,
         fullHandle: String?
     ) throws -> Self {
+        var additionalPackageResolutionArguments = manifest.additionalPackageResolutionArguments
+        if manifest.resolveDependenciesWithSystemScm {
+            additionalPackageResolutionArguments.append("-resolvePackageDependenciesWithSystemScm")
+        }
+
         let clonedSourcePackagesDirPath: AbsolutePath? = try {
             if let path = manifest.clonedSourcePackagesDirPath {
                 return try generatorPaths.resolve(path: path)
@@ -19,6 +24,7 @@ extension TuistCore.TuistGeneratedProjectOptions.GenerationOptions {
             resolveDependenciesWithSystemScm: manifest.resolveDependenciesWithSystemScm,
             disablePackageVersionLocking: manifest.disablePackageVersionLocking,
             clonedSourcePackagesDirPath: clonedSourcePackagesDirPath,
+            additionalPackageResolutionArguments: additionalPackageResolutionArguments,
             staticSideEffectsWarningTargets: TuistCore.TuistGeneratedProjectOptions.GenerationOptions
                 .StaticSideEffectsWarningTargets
                 .from(manifest: manifest.staticSideEffectsWarningTargets),

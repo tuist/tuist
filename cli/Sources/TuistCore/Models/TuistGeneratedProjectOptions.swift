@@ -61,9 +61,12 @@ extension TuistGeneratedProjectOptions {
             case excluding([String])
         }
 
+        @available(*, deprecated, message: "Use `additionalPackageResolutionArguments` instead.")
         public let resolveDependenciesWithSystemScm: Bool
         public let disablePackageVersionLocking: Bool
+        @available(*, deprecated, message: "Use `additionalPackageResolutionArguments` instead.")
         public let clonedSourcePackagesDirPath: AbsolutePath?
+        public var additionalPackageResolutionArguments: [String]
         public let staticSideEffectsWarningTargets: StaticSideEffectsWarningTargets
         public let enforceExplicitDependencies: Bool
         public let defaultConfiguration: String?
@@ -76,6 +79,7 @@ extension TuistGeneratedProjectOptions {
             resolveDependenciesWithSystemScm: Bool,
             disablePackageVersionLocking: Bool,
             clonedSourcePackagesDirPath: AbsolutePath? = nil,
+            additionalPackageResolutionArguments: [String] = [],
             staticSideEffectsWarningTargets: StaticSideEffectsWarningTargets = .all,
             enforceExplicitDependencies: Bool = false,
             defaultConfiguration: String? = nil,
@@ -87,6 +91,7 @@ extension TuistGeneratedProjectOptions {
             self.resolveDependenciesWithSystemScm = resolveDependenciesWithSystemScm
             self.disablePackageVersionLocking = disablePackageVersionLocking
             self.clonedSourcePackagesDirPath = clonedSourcePackagesDirPath
+            self.additionalPackageResolutionArguments = additionalPackageResolutionArguments
             self.staticSideEffectsWarningTargets = staticSideEffectsWarningTargets
             self.enforceExplicitDependencies = enforceExplicitDependencies
             self.defaultConfiguration = defaultConfiguration
@@ -119,6 +124,28 @@ extension TuistGeneratedProjectOptions {
 }
 
 #if DEBUG
+    extension TuistGeneratedProjectOptions.GenerationOptions {
+        public func withWorkspaceName(_ workspaceName: String) -> Self {
+            var options = self
+            if let clonedSourcePackagesDirPath {
+                var workspaceName = workspaceName
+                if workspaceName.hasSuffix(".xcworkspace") {
+                    workspaceName = String(workspaceName.dropLast(".xcworkspace".count))
+                }
+                let mangledWorkspaceName = workspaceName.spm_mangledToC99ExtendedIdentifier()
+                var additionalPackageResolutionArguments = options.additionalPackageResolutionArguments
+                additionalPackageResolutionArguments.append(
+                    contentsOf: [
+                        "-clonedSourcePackagesDirPath",
+                        clonedSourcePackagesDirPath.appending(component: mangledWorkspaceName).pathString,
+                    ]
+                )
+                options.additionalPackageResolutionArguments = additionalPackageResolutionArguments
+            }
+            return options
+        }
+    }
+
     extension TuistGeneratedProjectOptions {
         public static func test(
             compatibleXcodeVersions: CompatibleXcodeVersions = .all,
@@ -144,6 +171,7 @@ extension TuistGeneratedProjectOptions {
             resolveDependenciesWithSystemScm: Bool = false,
             disablePackageVersionLocking: Bool = false,
             clonedSourcePackagesDirPath: AbsolutePath? = nil,
+            additionalPackageResolutionArguments: [String] = [],
             staticSideEffectsWarningTargets: TuistGeneratedProjectOptions.GenerationOptions
                 .StaticSideEffectsWarningTargets = .all,
             enforceExplicitDependencies: Bool = false,
@@ -157,6 +185,7 @@ extension TuistGeneratedProjectOptions {
                 resolveDependenciesWithSystemScm: resolveDependenciesWithSystemScm,
                 disablePackageVersionLocking: disablePackageVersionLocking,
                 clonedSourcePackagesDirPath: clonedSourcePackagesDirPath,
+                additionalPackageResolutionArguments: additionalPackageResolutionArguments,
                 staticSideEffectsWarningTargets: staticSideEffectsWarningTargets,
                 enforceExplicitDependencies: enforceExplicitDependencies,
                 defaultConfiguration: defaultConfiguration,

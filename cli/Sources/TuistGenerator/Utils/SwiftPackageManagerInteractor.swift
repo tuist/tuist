@@ -77,6 +77,8 @@ public class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting {
             arguments.append(contentsOf: ["-clonedSourcePackagesDirPath", path])
         }
 
+        arguments.append(contentsOf: configGeneratedProjectOptions.generationOptions.additionalPackageResolutionArguments)
+
         arguments.append(contentsOf: ["-workspace", workspacePath.pathString, "-list"])
 
         try system.run(
