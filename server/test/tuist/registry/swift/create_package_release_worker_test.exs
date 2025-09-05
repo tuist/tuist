@@ -5,6 +5,7 @@ defmodule Tuist.Registry.Swift.Workers.CreatePackageReleaseWorkerTest do
   import Ecto.Query
 
   alias Tuist.Registry.Swift.Packages
+  alias Tuist.Registry.Swift.Packages.PackageRelease
   alias Tuist.Registry.Swift.Workers.CreatePackageReleaseWorker
   alias Tuist.Repo
   alias Tuist.Storage
@@ -770,11 +771,12 @@ defmodule Tuist.Registry.Swift.Workers.CreatePackageReleaseWorkerTest do
       # Given
       package = PackagesFixtures.package_fixture()
 
-      existing_package_release = PackagesFixtures.package_release_fixture(
-        package_id: package.id,
-        version: "1.0.0",
-        checksum: "existing_checksum"
-      )
+      existing_package_release =
+        PackagesFixtures.package_release_fixture(
+          package_id: package.id,
+          version: "1.0.0",
+          checksum: "existing_checksum"
+        )
 
       setup_standard_stubs("TestPackage", "TestPackage", "1.0.0", "TestPackage-1.0.0")
 
@@ -796,7 +798,7 @@ defmodule Tuist.Registry.Swift.Workers.CreatePackageReleaseWorkerTest do
       assert package_release.id == existing_package_release.id
       assert package_release.checksum == "existing_checksum"
 
-      all_releases = Repo.all(from pr in Tuist.Registry.Swift.Packages.PackageRelease, where: pr.package_id == ^package.id and pr.version == "1.0.0")
+      all_releases = Repo.all(from pr in PackageRelease, where: pr.package_id == ^package.id and pr.version == "1.0.0")
       assert length(all_releases) == 1
     end
 
@@ -804,11 +806,12 @@ defmodule Tuist.Registry.Swift.Workers.CreatePackageReleaseWorkerTest do
       # Given
       package = PackagesFixtures.package_fixture()
 
-      existing_package_release = PackagesFixtures.package_release_fixture(
-        package_id: package.id,
-        version: "1.0.0",
-        checksum: "existing_checksum"
-      )
+      existing_package_release =
+        PackagesFixtures.package_release_fixture(
+          package_id: package.id,
+          version: "1.0.0",
+          checksum: "existing_checksum"
+        )
 
       setup_standard_stubs("TestPackage", "TestPackage", "1.0", "TestPackage-1.0")
 
@@ -816,7 +819,8 @@ defmodule Tuist.Registry.Swift.Workers.CreatePackageReleaseWorkerTest do
         args: %{
           "scope" => package.scope,
           "name" => package.name,
-          "version" => "1.0"  # This will be normalized to "1.0.0"
+          # This will be normalized to "1.0.0"
+          "version" => "1.0"
         }
       }
 
@@ -829,7 +833,7 @@ defmodule Tuist.Registry.Swift.Workers.CreatePackageReleaseWorkerTest do
       package_release = Packages.get_package_release_by_version(%{package: package, version: "1.0.0"})
       assert package_release.id == existing_package_release.id
       assert package_release.checksum == "existing_checksum"
-      all_releases = Repo.all(from pr in Tuist.Registry.Swift.Packages.PackageRelease, where: pr.package_id == ^package.id and pr.version == "1.0.0")
+      all_releases = Repo.all(from pr in PackageRelease, where: pr.package_id == ^package.id and pr.version == "1.0.0")
       assert length(all_releases) == 1
     end
   end

@@ -942,7 +942,7 @@ defmodule Tuist.AppBuildsTest do
       assert updated_preview.visibility == :private
     end
 
-    test "sets visibility to public for ipa type and merges platforms" do
+    test "keeps visibility to private for ipa type and merges platforms" do
       # Given
       project = ProjectsFixtures.project_fixture()
 
@@ -966,7 +966,7 @@ defmodule Tuist.AppBuildsTest do
 
       # Then
       assert Enum.sort(updated_preview.supported_platforms) == [:ios, :watchos]
-      assert updated_preview.visibility == :public
+      assert updated_preview.visibility == :private
     end
 
     test "removes duplicate platforms when merging" do
