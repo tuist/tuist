@@ -1,33 +1,59 @@
 ---
-{
-  "title": "Code reviwes",
-  "titleTemplate": ":title · Contributors · Tuist",
-  "description": "코드 리뷰를 통해 Tuist에 어떻게 기여하는지 알아봅니다."
-}
+{ "title": "Code reviews", "titleTemplate": ":title · Contributors · Tuist",
+"description": "Learn how to contribute to Tuist by reviewing code" }
 ---
-# Code reviwes {#code-reviews}
+# Code reviews {#code-reviews}
 
-Pull Reqeust 검토는 코드에 기여하는 일반적인 방식입니다. CI (Continuous Integration) 를 통해 코드의 동작을 확인하더라도 이 방식은 충분하지 않습니다. 디자인, 코드 구조 및 아키텍처, 테스트 품질, 또는 오타는 기여 특성을 자동화 할 수 없습니다. 다음 섹션에서 코드 리뷰 프로세스의 다양한 부분을 설명합니다.
+Reviewing pull requests is a common type of contribution. Despite continuous
+integration (CI) ensuring the code does what’s supposed to do, it’s not enough.
+There are contribution traits that can’t be automated: design, code structure &
+architecture, tests quality, or typos. The following sections represent
+different aspects of the code review process.
 
-## 가독성 {#readability}
+## Readability {#readability}
 
-코드가 의도를 명확하게 표현하고 있는지? **코드를 파악하는데 많은 시간이 소요된다면, 이 코드 구현을 개선해야 합니다.** 이런 경우, 코드를 이해하기 쉽게 더 작은 추상화로 분리하는 것을 제안합니다. 다른 방법으로는, 코드 마지막에 구현에 대한 설명을 주석으로 추가할 수 있습니다. PR 설명과 같이 짧은 시간에 코드를 이해할 수 있는지 자문해 보시기 바랍니다.
+Does the code express its intention clearly? **If you need to spend a bunch of
+time figuring out what the code does, the code implementation needs to be
+improved.** Suggest splitting the code into smaller abstractions that are easier
+to understand. Alternative, and as a last resource, they can add a comment
+explaining the reasoning behind it. Ask yourself if you’d be able to understand
+the code in a near future, without any surrounding context like the pull request
+description.
 
-## 작은 PR {#small-pull-requests}
+## Small pull requests {#small-pull-requests}
 
-큰 PR은 검토하기 어렵고 세부 내용을 놓치기 쉽습니다. PR이 너무 커서 관리하기 어렵다면, 작성자에게 작게 나누도록 제안합니다.
+Large pull requests are hard to review and it’s easier to miss out details. If a
+pull request becomes too large and unmanageable, suggest the author to break it
+down.
 
-> [!NOTE] 예외\
-> 변경 사항이 밀접하게 결합되어 있어 분리할 수 없는 경우처럼, PR을 분리할 수 없는 몇 가지 사항이 존재합니다. 이러한 경우 작성자는 변경 사항과 그 이유를 자세히 설명해야 합니다.
+> [!NOTE] EXCEPTIONS There are few scenarios where splitting up the pull request
+> is not possible, like when the changes are tightly coupled and can’t be split.
+> In those cases, the author should provide a clear explanation of the changes
+> and the reasoning behind them.
 
-## 일관성 {#consistency}
+## Consistency {#consistency}
 
-변경 사항이 프로젝트의 다른 부분과 일관성을 유지하는 것이 중요합니다. 일관성을 유지하지 않으면 유지 보수에 복잡성을 증대하므로 이를 피해야 합니다. 사용자에게 메세지를 출력하거나 오류를 보고하는 접근 방식이 있다면 이 방식을 유지해야 합니다. 작성자가 이러한 프로젝트의 표준을 동의하지 않으면, 더 자세히 논의할 수 있는 이슈 (Issue) 생성을 제안합니다.
+It’s important that the changes are consistent with the rest of the project.
+Inconsistencies complicate maintenance, and therefore we should avoid them. If
+there’s an approach to output messages to the user, or report errors, we should
+stick to that. If the author disagrees with the project’s standards, suggest
+them to open an issue where we can discuss them further.
 
-## 테스트 {#tests}
+## Tests {#tests}
 
-테스트는 변경된 코드 자격을 증명합니다. PR의 코드는 테스트 되어야 하고 모두 통과해야 합니다. 좋은 테스트는 일관되게 같은 결과를 도출하고 이해하고 유지하기 쉬운 테스트 입니다. 검토자 (Reviewer) 는 코드 구현 리뷰에 많은 시간을 할애하지만, 테스트도 코드이므로 마찬가지로 중요합니다.
+Tests allow changing code with confidence. The code on pull requests should be
+tested, and all tests should pass. A good test is a test that consistently
+produces the same result and that it’s easy to understand and maintain.
+Reviewers spend most of the review time in the implementation code, but tests
+are equally important because they are code too.
 
-## 단절적 변경 사항 {#breaking-changes}
+## Breaking changes {#breaking-changes}
 
-단절적 변경 사항 (Breaking change) 은 Tuist 사용자에게 안 좋은 사용자 경험입니다. 코드 기여는 중대한 변경 사항이 없으면, 단절적 변경 사항 (Breaking change) 은 피해야 합니다. 단절적 변경 사항 (Breaking change) 없이 Tuist의 인터페이스를 발전시킬 수 있는 많은 언어적 특성이 있습니다. 변경 사항이 단절적 변경 사항 (Breaking change) 인지 아닌지 명확하지 않을 수 있습니다. 변경 사항이 단절적 변경 사항 (Breaking change) 인지 아닌지 확인하는 방법은 fixtures 디렉토리에 있는 fixture 프로젝트에 대해 Tuist를 실행해보는 것입니다. 단절적 변경 사항 (Breaking change) 은 사용자의 입장에서 생각하고 변경 사항이 사용자에게 어떠한 영향을 줄지 생각해야 합니다.
+Breaking changes are a bad user experience for users of Tuist. Contributions
+should avoid introducing breaking changes unless it’s strictly necessary. There
+are many language features that we can leverage to evolve the interface of Tuist
+without resorting to a breaking change. Whether a change is breaking or not
+might not be obvious. A method to verify whether the change is breaking is
+running Tuist against the fixture projects in the fixtures directory. It
+requires putting ourselves in the user’s shoes and imagine how the changes would
+impact them.
