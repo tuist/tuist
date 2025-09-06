@@ -45,7 +45,7 @@ final class LoginService: LoginServicing {
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         configLoader: ConfigLoading = ConfigLoader(),
         userInputReader: UserInputReading = UserInputReader(),
-        authenticateService: AuthenticateServicing = AuthenticateService(),
+        authenticateService: AuthenticateServicing = AuthenticateService()
     ) {
         self.serverSessionController = serverSessionController
         self.serverEnvironmentService = serverEnvironmentService

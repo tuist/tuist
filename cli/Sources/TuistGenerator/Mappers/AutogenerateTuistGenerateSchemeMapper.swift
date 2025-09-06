@@ -10,7 +10,7 @@ public final class AutogenerateTuistGenerateSchemeMapper: GraphMapping { // swif
     // MARK: - Init
 
     public init(
-        includeGenerateScheme: Bool,
+        includeGenerateScheme: Bool
     ) {
         self.includeGenerateScheme = includeGenerateScheme
     }
@@ -40,7 +40,7 @@ public final class AutogenerateTuistGenerateSchemeMapper: GraphMapping { // swif
                     diagnosticsOptions: SchemeDiagnosticsOptions(),
                     customWorkingDirectory: graph.path,
                     useCustomWorkingDirectory: true
-                ),
+                )
             ),
         ]
 
