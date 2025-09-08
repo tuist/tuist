@@ -1,7 +1,9 @@
 ---
-{ "title": "The cost of convenience", "titleTemplate": ":title · Projects ·
-Features · Guides · Tuist", "description": "Learn about the cost of convenience
-in Xcode and how Tuist helps you prevent the issues that come with it." }
+{
+  "title": "The cost of convenience",
+  "titleTemplate": ":title · Projects · Features · Guides · Tuist",
+  "description": "Learn about the cost of convenience in Xcode and how Tuist helps you prevent the issues that come with it."
+}
 ---
 # The cost of convenience {#the-cost-of-convenience}
 
