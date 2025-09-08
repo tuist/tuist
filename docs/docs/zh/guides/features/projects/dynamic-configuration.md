@@ -1,7 +1,9 @@
 ---
-{ "title": "Dynamic configuration", "titleTemplate": ":title · Projects ·
-Features · Guides · Tuist", "description": "Learn how how to use environment
-variables to dynamically configure your project." }
+{
+  "title": "Dynamic configuration",
+  "titleTemplate": ":title · Projects · Features · Guides · Tuist",
+  "description": "Learn how how to use environment variables to dynamically configure your project."
+}
 ---
 # Dynamic configuration {#dynamic-configuration}
 
