@@ -1,7 +1,9 @@
 ---
-{ "title": "Authentication", "titleTemplate": ":title | Server | Guides |
-Tuist", "description": "Learn how to authenticate with the Tuist server from the
-CLI." }
+{
+  "title": "Authentication",
+  "titleTemplate": ":title | Server | Guides | Tuist",
+  "description": "Learn how to authenticate with the Tuist server from the CLI."
+}
 ---
 # Authentication {#authentication}
 
