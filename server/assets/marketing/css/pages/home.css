@@ -213,10 +213,7 @@ html:not([data-noora]) #marketing-home {
   background: radial-gradient(62.73% 96.07% at 43.01% 61.96%, rgba(111, 44, 255, 0.14) 0%, rgba(244, 66, 119, 0.04) 100%), linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.00) 100%), var(--noora-purple-50, #F4F4FF);
   text-shadow: 0 0.5px 1px rgba(0, 0, 0, 0.25);
   box-shadow: 0 -1px 2px 0 rgba(61, 61, 61, 0.25) inset, 0 2px 4px 0 rgba(0, 0, 0, 0.06), 0 1px 2px 0 rgba(0, 0, 0, 0.06), 0 4px 5px 0 rgba(255, 255, 255, 0.03) inset, 0 1.5px 1.5px 0 rgba(255, 255, 255, 0.03) inset, 0 0.75px 0.75px 0 rgba(255, 255, 255, 0.04) inset, 0 0.25px 0.5px 0 rgba(255, 255, 255, 0.06) inset;
-  padding-left: var(--noora-spacing-4);
-  padding-right: var(--noora-spacing-4);
-  padding-top: var(--noora-spacing-2);
-  padding-bottom: var(--noora-spacing-2);
+  padding: var(--noora-spacing-2) var(--noora-spacing-4);
   border-radius: var(--noora-radius-xlarge);
   }
   }
@@ -517,9 +514,8 @@ html:not([data-noora]) #marketing-home {
         justify-content: center;
         flex-direction: column;
         gap: var(--noora-spacing-7);
-        padding-top: var(--noora-spacing-10);
-        padding-left: var(--noora-spacing-10);
-        padding-right: var(--noora-spacing-10);
+        padding: var(--noora-spacing-10);
+        padding-bottom: 0;
 
         & > [data-part="name"] {
           display: flex;
@@ -563,23 +559,22 @@ html:not([data-noora]) #marketing-home {
     justify-content: center;
     flex-direction: column;
     gap: var(--noora-spacing-5);
+    width: 100%;
 
-    & > [data-part="card"] {
+    & > [data-part="github-card"],
+    & > [data-part="oss-card"],
+    & > [data-part="minutes-card"],
+    & > [data-part="slack-card"],
+    & > [data-part="teams-card"],
+    & > [data-part="contributors-card"] {
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
       position: relative;
-      height: 174px;
-      width: 399.5px;
-      gap: var(--noora-spacing-4);
-      background: linear-gradient(279deg, #F0E8FF 0%, #FFF 108.26%);
       box-shadow: var(--noora-light-border-default);
       border-radius: var(--noora-radius-xlarge);
-      padding-top: var(--noora-spacing-9);
-      padding-left: var(--noora-spacing-10);
-      padding-right: var(--noora-spacing-10);
-      padding-bottom: var(--noora-spacing-9);
+      padding: var(--noora-spacing-9) var(--noora-spacing-10);
 
       & > [data-part="background"] {
         position: absolute;
@@ -588,26 +583,73 @@ html:not([data-noora]) #marketing-home {
         height: 100%;
 
         & > img {
-          position: absolute;   
-          top: 0;               
-          left: 0;              
-          height: 100%;         
-          width: 100%;         
-          object-fit: cover; 
+          position: absolute;
+          top: 0;
+          left: 0;
+          height: 100%;
+          width: 100%;
+          object-fit: cover;
           mix-blend-mode: overlay;
         }
       }
 
-      & > [data-part="content"] h1 {
-        font-family: var(--noora-font-display);
-        font: var(--noora-font-weight-semibold) var(--noora-font-display-xlarge);
-        text-shadow: 0 1px 1px rgba(0, 0, 0, 0.25);
-        background: linear-gradient(97deg, #171A1C 32.04%, #6B7982 64.08%);
-        background-clip: text;
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        
+      & > [data-part="content"] {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+        gap: var(--noora-spacing-4);
+
+        & > h1 {
+          font-family: var(--noora-font-display);
+          font: var(--noora-font-weight-semibold) var(--noora-font-display-xlarge);
+          letter-spacing: -0.045rem;
+          color: var(--noora-surface-label-primary);
+          text-shadow: 0px 1px 1px rgba(0, 0, 0, 0.25);
+        }
+
+        & > p {
+          font-family: var(--noora-font-body);
+          font: var(--noora-font-weight-semibold) var(--noora-font-body-large);
+          color: var(--noora-surface-label-primary);
+        }
       }
+    }
+
+    & > [data-part="github-card"] {
+      background: linear-gradient(279deg, #F0E8FF 0%, #FFF 108.26%);
+      gap: var(--noora-spacing-4);
+      width: 399.5px;
+    }
+
+    & > [data-part="oss-card"] {
+      background: linear-gradient(79deg, #FFF 0%, #F4F0FD 100.11%);
+      gap: var(--noora-spacing-4);
+      width: 399.5px; 
+    }
+
+    & > [data-part="minutes-card"] {
+      background: linear-gradient(112deg, #F8F5FF 0%, #F2EFFA 100.86%);
+      gap: var(--noora-spacing-8);
+      width: 473px;
+    }
+
+     & > [data-part="slack-card"] {
+      background: linear-gradient(0deg, #FFF 0%, #F4F0FD 100%);
+      gap: var(--noora-spacing-4);
+      width: 473px;
+    }
+
+    & > [data-part="teams-card"] {
+      background: linear-gradient(279deg, #FFF 0%, #F4F0FD 98.92%);
+      gap: var(--noora-spacing-4);
+      width: 399.5px;
+    }
+
+    & > [data-part="contributors-card"] {
+      background: linear-gradient(79deg, #F4F0FD 0%, #FFF 100.11%);
+      gap: var(--noora-spacing-4);
+      width: 399.5px;
     }
   }
 }
