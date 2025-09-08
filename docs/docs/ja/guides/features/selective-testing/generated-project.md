@@ -1,7 +1,9 @@
 ---
-{ "title": "Generated project", "titleTemplate": ":title · Selective testing ·
-Features · Guides · Tuist", "description": "Learn how to leverage selective
-testing with a generated project." }
+{
+  "title": "Generated project",
+  "titleTemplate": ":title · Selective testing · Features · Guides · Tuist",
+  "description": "Learn how to leverage selective testing with a generated project."
+}
 ---
 # Generated project {#generated-project}
 
