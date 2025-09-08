@@ -1,7 +1,9 @@
 ---
-{ "title": "Continuous integration", "titleTemplate": ":title · Registry ·
-Features · Guides · Tuist", "description": "Learn how to use the Tuist Registry
-in continuous integration." }
+{
+  "title": "Continuous integration",
+  "titleTemplate": ":title · Registry · Features · Guides · Tuist",
+  "description": "Learn how to use the Tuist Registry in continuous integration."
+}
 ---
 # Continuous Integration (CI) {#continuous-integration-ci}
 
