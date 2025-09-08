@@ -1,7 +1,9 @@
 ---
-{ "title": "Use Tuist with a Swift Package", "titleTemplate": ":title · Adoption
-· Projects · Features · Guides · Tuist", "description": "Learn how to use Tuist
-with a Swift Package." }
+{
+  "title": "Use Tuist with a Swift Package",
+  "titleTemplate": ":title · Adoption · Projects · Features · Guides · Tuist",
+  "description": "Learn how to use Tuist with a Swift Package."
+}
 ---
 # Using Tuist with a Swift Package <Badge type="warning" text="beta" /> {#using-tuist-with-a-swift-package-badge-typewarning-textbeta-}
 
