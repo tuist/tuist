@@ -1,7 +1,9 @@
 ---
-{ "title": "From v3 to v4", "titleTemplate": ":title · Migrations · References ·
-Tuist", "description": "This page documents how to migrate the Tuist CLI from
-the version 3 to version 4." }
+{
+  "title": "From v3 to v4",
+  "titleTemplate": ":title · Migrations · References · Tuist",
+  "description": "This page documents how to migrate the Tuist CLI from the version 3 to version 4."
+}
 ---
 # From Tuist v3 to v4 {#from-tuist-v3-to-v4}
 
