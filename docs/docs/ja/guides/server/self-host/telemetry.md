@@ -1,7 +1,9 @@
 ---
-{ "title": "Telemetry", "titleTemplate": ":title | Self-hosting | Server |
-Guides | Tuist", "description": "Monitor your Tuist server with Prometheus and
-Grafana telemetry." }
+{
+  "title": "Telemetry",
+  "titleTemplate": ":title | Self-hosting | Server | Guides | Tuist",
+  "description": "Monitor your Tuist server with Prometheus and Grafana telemetry."
+}
 ---
 # Telemetry {#telemetry}
 
