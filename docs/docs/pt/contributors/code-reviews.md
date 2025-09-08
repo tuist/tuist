@@ -1,6 +1,9 @@
 ---
-{ "title": "Code reviews", "titleTemplate": ":title · Contributors · Tuist",
-"description": "Learn how to contribute to Tuist by reviewing code" }
+{
+  "title": "Code reviews",
+  "titleTemplate": ":title · Contributors · Tuist",
+  "description": "Learn how to contribute to Tuist by reviewing code"
+}
 ---
 # Code reviews {#code-reviews}
 
