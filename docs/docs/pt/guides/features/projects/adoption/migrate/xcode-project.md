@@ -1,7 +1,9 @@
 ---
-{ "title": "Migrate an Xcode project", "titleTemplate": ":title · Migrate ·
-Adoption · Projects · Features · Guides · Tuist", "description": "Learn how to
-migrate an Xcode project to a Tuist project." }
+{
+  "title": "Migrate an Xcode project",
+  "titleTemplate": ":title · Migrate · Adoption · Projects · Features · Guides · Tuist",
+  "description": "Learn how to migrate an Xcode project to a Tuist project."
+}
 ---
 # Migrate an Xcode project {#migrate-an-xcode-project}
 
