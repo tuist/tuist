@@ -1,7 +1,9 @@
 ---
-{ "title": "Manifests", "titleTemplate": ":title · Projects · Features · Guides
-· Tuist", "description": "Learn about the manifest files that Tuist uses to
-define projects and workspaces and configure the generation process." }
+{
+  "title": "Manifests",
+  "titleTemplate": ":title · Projects · Features · Guides · Tuist",
+  "description": "Learn about the manifest files that Tuist uses to define projects and workspaces and configure the generation process."
+}
 ---
 # Manifests {#manifests}
 
