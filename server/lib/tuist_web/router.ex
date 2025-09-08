@@ -627,8 +627,8 @@ defmodule TuistWeb.Router do
       live "/builds/build-runs/:build_run_id", BuildRunLive
       live "/previews", PreviewsLive
       live "/qa", QALive
-      live "/qa/:qa_run_id/overview", QARunLive
-      live "/qa/:qa_run_id/logs", QARunLive
+      live "/qa/:qa_run_id", QARunLive, :overview
+      live "/qa/:qa_run_id/logs", QARunLive, :logs
       live "/runs/:run_id", RunDetailLive
       get "/runs/:run_id/download", RunsController, :download
     end
