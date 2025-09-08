@@ -1,7 +1,9 @@
 ---
-{ "title": "Implicit imports", "titleTemplate": ":title · Inspect · Projects ·
-Features · Guides · Tuist", "description": "Learn how to use Tuist to find
-implicit imports." }
+{
+  "title": "Implicit imports",
+  "titleTemplate": ":title · Inspect · Projects · Features · Guides · Tuist",
+  "description": "Learn how to use Tuist to find implicit imports."
+}
 ---
 # Implicit imports {#implicit-imports}
 
