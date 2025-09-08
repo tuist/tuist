@@ -19,6 +19,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: var(--noora-spacing-11);
+  box-sizing: border-box;
 }
 
 h1, h2, h3, p {
