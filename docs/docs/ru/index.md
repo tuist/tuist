@@ -1,6 +1,8 @@
 ---
-{ "title": "What is Tuist?", "description": "Extend your Apple native tooling to
-better apps at scale." }
+{
+  "title": "What is Tuist?",
+  "description": "Extend your Apple native tooling to better apps at scale."
+}
 ---
 <script setup>
 import VPFeatures from "vitepress/dist/client/theme-default/components/VPFeatures.vue"
