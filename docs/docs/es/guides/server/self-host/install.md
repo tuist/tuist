@@ -1,7 +1,9 @@
 ---
-{ "title": "Installation", "titleTemplate": ":title | Self-hosting | Server |
-Guides | Tuist", "description": "Learn how to install Tuist on your
-infrastructure." }
+{
+  "title": "Installation",
+  "titleTemplate": ":title | Self-hosting | Server | Guides | Tuist",
+  "description": "Learn how to install Tuist on your infrastructure."
+}
 ---
 # Self-host installation {#self-host-installation}
 
