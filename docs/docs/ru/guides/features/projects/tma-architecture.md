@@ -1,7 +1,9 @@
 ---
-{ "title": "The Modular Architecture (TMA)", "titleTemplate": ":title · Projects
-· Features · Guides · Tuist", "description": "Learn about The Modular
-Architecture (TMA) and how to structure your projects using it." }
+{
+  "title": "The Modular Architecture (TMA)",
+  "titleTemplate": ":title · Projects · Features · Guides · Tuist",
+  "description": "Learn about The Modular Architecture (TMA) and how to structure your projects using it."
+}
 ---
 # The Modular Architecture (TMA) {#the-modular-architecture-tma}
 
