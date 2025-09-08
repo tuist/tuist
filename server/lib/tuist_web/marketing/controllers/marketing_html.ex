@@ -4,6 +4,8 @@ defmodule TuistWeb.Marketing.MarketingHTML do
 
   import TuistWeb.Marketing.MarketingComponents
   import TuistWeb.Marketing.MarketingLogos
+  import TuistWeb.Marketing.MarketingOrgLogos
+  import TuistWeb.Marketing.TestimonialOrgLogos
 
   embed_templates "marketing_html/*"
 end
