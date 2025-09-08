@@ -1,7 +1,9 @@
 ---
-{ "title": "Bundle Size", "titleTemplate": ":title · Features · Guides · Tuist",
-"description": "Find out how to make and keep your app's memory footprint as
-small as possible." }
+{
+  "title": "Bundle Size",
+  "titleTemplate": ":title · Features · Guides · Tuist",
+  "description": "Find out how to make and keep your app's memory footprint as small as possible."
+}
 ---
 # Bundle Size {#bundle-size}
 
