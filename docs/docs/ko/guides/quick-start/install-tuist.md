@@ -1,6 +1,9 @@
 ---
-{ "title": "Install Tuist", "titleTemplate": ":title · Quick-start · Guides ·
-Tuist", "description": "Learn how to install Tuist in your environment." }
+{
+  "title": "Install Tuist",
+  "titleTemplate": ":title · Quick-start · Guides · Tuist",
+  "description": "Learn how to install Tuist in your environment."
+}
 ---
 # Install Tuist {#install-tuist}
 
