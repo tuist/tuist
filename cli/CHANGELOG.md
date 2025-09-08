@@ -1,6 +1,20 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.68.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* Add additionalPackageResolutionArguments for xcodebuild by [@ichikmarev](https://github.com/ichikmarev) in [#8099](https://github.com/tuist/tuist/pull/8099)
+### 🐛 Bug Fixes
+
+* not generate bundle accessors in when buildable folders don't resolve to any resources by [@pepicrft](https://github.com/pepicrft) in [#8158](https://github.com/tuist/tuist/pull/8158)
+
+## New Contributors
+* [@ichikmarev](https://github.com/ichikmarev) made their first contribution in [#8099](https://github.com/tuist/tuist/pull/8099)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.67.2...4.68.0
+
 ## What's Changed in 4.67.2<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
