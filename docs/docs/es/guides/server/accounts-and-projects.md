@@ -1,7 +1,9 @@
 ---
-{ "title": "Accounts and projects", "titleTemplate": ":title | Server | Guides |
-Tuist", "description": "Learn how to create and manage accounts and projects in
-Tuist." }
+{
+  "title": "Accounts and projects",
+  "titleTemplate": ":title | Server | Guides | Tuist",
+  "description": "Learn how to create and manage accounts and projects in Tuist."
+}
 ---
 # Accounts and projects {#accounts-and-projects}
 
