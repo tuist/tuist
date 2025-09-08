@@ -1,8 +1,9 @@
 ---
-{ "title": "Migrate a Swift Package", "titleTemplate": ":title · Migrate ·
-Adoption · Projects · Features · Guides · Tuist", "description": "Learn how to
-migrate from Swift Package Manager as a solution for managing your projects to
-Tuist projects." }
+{
+  "title": "Migrate a Swift Package",
+  "titleTemplate": ":title · Migrate · Adoption · Projects · Features · Guides · Tuist",
+  "description": "Learn how to migrate from Swift Package Manager as a solution for managing your projects to Tuist projects."
+}
 ---
 # Migrate a Swift Package {#migrate-a-swift-package}
 
