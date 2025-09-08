@@ -1,6 +1,9 @@
 ---
-{ "title": "Logging", "titleTemplate": ":title · CLI · Contributors · Tuist",
-"description": "Learn how to contribute to Tuist by reviewing code" }
+{
+  "title": "Logging",
+  "titleTemplate": ":title · CLI · Contributors · Tuist",
+  "description": "Learn how to contribute to Tuist by reviewing code"
+}
 ---
 # Logging {#logging}
 
