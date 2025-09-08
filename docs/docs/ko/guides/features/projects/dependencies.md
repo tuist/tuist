@@ -1,7 +1,9 @@
 ---
-{ "title": "Dependencies", "titleTemplate": ":title · Projects · Features ·
-Guides · Tuist", "description": "Learn how to declare dependencies in your Tuist
-project." }
+{
+  "title": "Dependencies",
+  "titleTemplate": ":title · Projects · Features · Guides · Tuist",
+  "description": "Learn how to declare dependencies in your Tuist project."
+}
 ---
 # Dependencies {#dependencies}
 
