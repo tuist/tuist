@@ -36,32 +36,14 @@ defmodule TuistWeb.Marketing.MarketingQALive do
   def handle_event("add-to-waiting-list", %{"email" => email}, socket) do
     {:ok, _} = Tuist.Mautic.add_email_to_segment(email, @mautic_qa_segment)
 
-    socket =
-      socket
-      |> assign(:in_waiting_list?, true)
-      |> assign(:email_submitted?, true)
+    socket = assign(socket, :email_submitted?, true)
 
     {:noreply, socket}
   end
 
   defp assign_initial_state(socket) do
     socket
-    |> assign_waiting_list_status()
     |> assign(:form, to_form(%{"email" => ""}))
     |> assign(:email_submitted?, false)
-  end
-
-  defp assign_waiting_list_status(socket) do
-    in_waiting_list? =
-      case socket.assigns[:current_user] do
-        nil -> false
-        current_user -> user_in_waiting_list?(current_user.email)
-      end
-
-    assign(socket, :in_waiting_list?, in_waiting_list?)
-  end
-
-  defp user_in_waiting_list?(email) do
-    Tuist.Mautic.email_in_segment?(email, @mautic_qa_segment)
   end
 end

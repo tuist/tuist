@@ -21,23 +21,7 @@
         "Tuist QA runs AI-powered tests from your PRs, giving you summaries with issues, steps, and screenshots — so bugs are caught before they reach main."
       )}
     </p>
-    <.alert
-      :if={@in_waiting_list?}
-      id="alert-status-primary-success"
-      status="success"
-      title={
-        if @current_user,
-          do: gettext("You are already in the waiting list"),
-          else: gettext("Added to the waiting list")
-      }
-    />
-    <.form
-      :if={!@in_waiting_list?}
-      id="header-form"
-      for={@form}
-      data-part="form"
-      phx-submit="add-to-waiting-list"
-    >
+    <.form id="header-form" for={@form} data-part="form" phx-submit="add-to-waiting-list">
       <.text_input
         id="header-form-email"
         field={@form[:email]}
@@ -97,23 +81,7 @@
 
     <h2 data-part="title">{gettext("Sign up to get early access to Tuist QA")}</h2>
 
-    <.alert
-      :if={@in_waiting_list?}
-      id="alert-status-primary-success"
-      status="success"
-      title={
-        if @current_user,
-          do: gettext("You are already in the waiting list"),
-          else: gettext("Added to the waiting list")
-      }
-    />
-    <.form
-      :if={!@in_waiting_list?}
-      id="footer-form"
-      for={@form}
-      data-part="form"
-      phx-submit="add-to-waiting-list"
-    >
+    <.form id="footer-form" for={@form} data-part="form" phx-submit="add-to-waiting-list">
       <.text_input
         id="footer-form-email"
         field={@form[:email]}

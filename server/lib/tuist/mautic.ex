@@ -83,51 +83,14 @@ defmodule Tuist.Mautic do
     end
   end
 
-  def email_in_segment?(email, segment_id) do
-    # IMPORTANT: The Mautic API has significant limitations:
-    # 1. The 'segment' parameter on /api/contacts doesn't actually filter - it returns ALL contacts
-    # 2. The 'lists' field in contact objects is always empty, even when contacts are in segments
-    # 3. No segment-specific member endpoints exist (all return 404)
-    #
-    # Due to these API limitations, we cannot dynamically query segment membership.
-    # For segment 3 ("Users interested in Tuist QA"), the known members are maintained here.
-    # TODO: This should be moved to a database table or configuration file when possible.
-
-    case segment_id do
-      3 ->
-        # Segment 3: "Users interested in Tuist QA" - verified members
-        # Note: There's also a third contact in this segment (verify email if needed)
-        email in ["tuistrocks@tuist.dev"]
-
-      _ ->
-        # For other segments, we attempt to use the lists field,
-        # but this is known to not work with the current Mautic API version
-        case Req.get!("#{@base_url}/contacts",
-               params: %{search: email},
-               auth: auth(),
-               retry: retry()
-             ) do
-          %{status: 200, body: %{"contacts" => contacts}} when map_size(contacts) > 0 ->
-            Enum.any?(contacts, fn {_id, contact} ->
-              if get_in(contact, ["fields", "core", "email", "value"]) == email do
-                lists = Map.get(contact, "lists", %{})
-                Map.has_key?(lists, to_string(segment_id))
-              else
-                false
-              end
-            end)
-
-          _ ->
-            false
-        end
-    end
-  end
-
   def add_email_to_segment(email, segment_id) do
-    with {:ok, contact_id} <- find_or_create_contact_by_email(email),
-         :ok <- add_contact_to_segment(contact_id, segment_id) do
-      {:ok, contact_id}
-    end
+    with_result =
+      with {:ok, contact_id} <- find_or_create_contact_by_email(email),
+           :ok <- add_contact_to_segment(contact_id, segment_id) do
+        {:ok, contact_id}
+      end
+
+    dbg(with_result)
   end
 
   defp find_or_create_contact_by_email(email) do
