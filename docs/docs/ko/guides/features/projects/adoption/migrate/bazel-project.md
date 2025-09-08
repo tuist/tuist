@@ -1,7 +1,9 @@
 ---
-{ "title": "Migrate a Bazel project", "titleTemplate": ":title · Migrate ·
-Adoption · Projects · Features · Guides · Tuist", "description": "Learn how to
-migrate your projects from Bazel to Tuist." }
+{
+  "title": "Migrate a Bazel project",
+  "titleTemplate": ":title · Migrate · Adoption · Projects · Features · Guides · Tuist",
+  "description": "Learn how to migrate your projects from Bazel to Tuist."
+}
 ---
 # Migrate a Bazel project {#migrate-a-bazel-project}
 
