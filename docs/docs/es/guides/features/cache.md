@@ -1,7 +1,9 @@
 ---
-{ "title": "Cache", "titleTemplate": ":title · Features · Guides · Tuist",
-"description": "Optimize your build times by caching compiled binaries and
-sharing them across different environments." }
+{
+  "title": "Cache",
+  "titleTemplate": ":title · Features · Guides · Tuist",
+  "description": "Optimize your build times by caching compiled binaries and sharing them across different environments."
+}
 ---
 # Cache {#cache}
 
