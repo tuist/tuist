@@ -1,7 +1,9 @@
 ---
-{ "title": "Shell completions", "titleTemplate": ":title · CLI · Tuist",
-"description": "Learn how to configure your shell to auto-complete Tuist
-commands." }
+{
+  "title": "Shell completions",
+  "titleTemplate": ":title · CLI · Tuist",
+  "description": "Learn how to configure your shell to auto-complete Tuist commands."
+}
 ---
 # Shell completions
 
