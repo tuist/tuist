@@ -1,7 +1,9 @@
 ---
-{ "title": "Directory structure", "titleTemplate": ":title · Projects · Features
-· Guides · Tuist", "description": "Learn about the structure of Tuist projects
-and how to organize them." }
+{
+  "title": "Directory structure",
+  "titleTemplate": ":title · Projects · Features · Guides · Tuist",
+  "description": "Learn about the structure of Tuist projects and how to organize them."
+}
 ---
 # Directory structure {#directory-structure}
 
