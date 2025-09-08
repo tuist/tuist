@@ -1,6 +1,9 @@
 ---
-{ "title": "Build", "titleTemplate": ":title · Features · Guides · Tuist",
-"description": "Learn how to use Tuist to build your projects efficiently." }
+{
+  "title": "Build",
+  "titleTemplate": ":title · Features · Guides · Tuist",
+  "description": "Learn how to use Tuist to build your projects efficiently."
+}
 ---
 # Build {#build}
 
