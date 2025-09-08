@@ -1,7 +1,9 @@
 ---
-{ "title": "Create a new project", "titleTemplate": ":title · Adoption ·
-Projects · Features · Guides · Tuist", "description": "Learn how to create a new
-project with Tuist." }
+{
+  "title": "Create a new project",
+  "titleTemplate": ":title · Adoption · Projects · Features · Guides · Tuist",
+  "description": "Learn how to create a new project with Tuist."
+}
 ---
 # Create a new project {#create-a-new-project}
 
