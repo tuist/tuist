@@ -1,7 +1,9 @@
 ---
-{ "title": "Code sharing", "titleTemplate": ":title · Projects · Features ·
-Guides · Tuist", "description": "Learn how to share code across manifest files
-to reduce duplications and ensure consistency" }
+{
+  "title": "Code sharing",
+  "titleTemplate": ":title · Projects · Features · Guides · Tuist",
+  "description": "Learn how to share code across manifest files to reduce duplications and ensure consistency"
+}
 ---
 # Code sharing {#code-sharing}
 
