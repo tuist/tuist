@@ -87,6 +87,7 @@ defmodule Tuist do
       PubSub,
       KeyValueStore,
       ClickHouseRepo,
+      Markdown,
       # We should not be exposing this one
       Repo,
       Storage,

@@ -7,6 +7,7 @@ defmodule TuistWeb.QARunLive do
   import TuistWeb.Previews.PlatformTag
 
   alias Tuist.AppBuilds.Preview
+  alias Tuist.Markdown
   alias Tuist.QA
   alias Tuist.Utilities.DateFormatter
   alias TuistWeb.Errors.NotFoundError

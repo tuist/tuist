@@ -31,6 +31,8 @@ defmodule TuistWeb.Components.Logs do
   use TuistWeb, :live_component
   use Noora
 
+  alias Tuist.Markdown
+
   @impl true
   def mount(socket) do
     {:ok, assign(socket, expanded_tools: MapSet.new())}
@@ -106,7 +108,7 @@ defmodule TuistWeb.Components.Logs do
               {if expanded?(@log, @expanded_tools), do: "−", else: "+"}
             </span>
           </button>
-          <span data-part="content">{raw(Earmark.as_html!(@log.message))}</span>
+          <span data-part="content">{raw(Markdown.to_html(@log.message))}</span>
         </div>
         <div :if={expanded?(@log, @expanded_tools)} data-part="expanded-details">
           <div :if={Map.get(@log, :image)} data-part="image-content">
@@ -120,7 +122,7 @@ defmodule TuistWeb.Components.Logs do
       """
     else
       ~H"""
-      <span data-part="log-message">{raw(Earmark.as_html!(@log.message))}</span>
+      <span data-part="log-message">{raw(Markdown.to_html(@log.message))}</span>
       """
     end
   end

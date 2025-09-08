@@ -147,7 +147,8 @@ defmodule Tuist.MixProject do
       # be merged.
       {:peep, git: "https://github.com/pepicrft/peep", ref: "cae2ddd2349ae0766352d106c4ebebc29949f110", override: true},
       {:langchain, git: "https://github.com/brainlid/langchain", branch: "main"},
-      {:oban_met, "~> 1.0"}
+      {:earmark, "~> 1.4"},
+      {:html_sanitize_ex, "~> 1.4"}
     ]
   end
 
