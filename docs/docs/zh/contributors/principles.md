@@ -1,7 +1,9 @@
 ---
-{ "title": "Principles", "titleTemplate": ":title · Contributors · Tuist",
-"description": "This document describes the principles that guide the
-development of Tuist." }
+{
+  "title": "Principles",
+  "titleTemplate": ":title · Contributors · Tuist",
+  "description": "This document describes the principles that guide the development of Tuist."
+}
 ---
 # Principles {#principles}
 
