@@ -1,7 +1,9 @@
 ---
-{ "title": "Migrate an XcodeGen project", "titleTemplate": ":title · Migrate ·
-Adoption · Projects · Features · Guides · Tuist", "description": "Learn how to
-migrate your projects from XcodeGen to Tuist." }
+{
+  "title": "Migrate an XcodeGen project",
+  "titleTemplate": ":title · Migrate · Adoption · Projects · Features · Guides · Tuist",
+  "description": "Learn how to migrate your projects from XcodeGen to Tuist."
+}
 ---
 # Migrate an XcodeGen project {#migrate-an-xcodegen-project}
 
