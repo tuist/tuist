@@ -1,6 +1,9 @@
 ---
-{ "title": "Get started", "titleTemplate": ":title · Quick-start · Guides ·
-Tuist", "description": "Learn how to install Tuist in your environment." }
+{
+  "title": "Get started",
+  "titleTemplate": ":title · Quick-start · Guides · Tuist",
+  "description": "Learn how to install Tuist in your environment."
+}
 ---
 # Get started {#get-started}
 
