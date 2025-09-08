@@ -1,7 +1,9 @@
 ---
-{ "title": "Previews", "titleTemplate": ":title · Features · Guides · Tuist",
-"description": "Learn how to generate and share previews of your apps with
-anyone." }
+{
+  "title": "Previews",
+  "titleTemplate": ":title · Features · Guides · Tuist",
+  "description": "Learn how to generate and share previews of your apps with anyone."
+}
 ---
 # Previews {#previews}
 
