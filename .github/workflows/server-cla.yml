@@ -1,31 +1,109 @@
-name: "CLA Assistant"
+name: "CLA Check"
 on:
-  issue_comment:
-    types: [created]
-    paths:
-      - "server/**"
   pull_request_target:
-    types: [opened, closed, synchronize]
+    types: [opened, synchronize]
     paths:
       - "server/**"
 
 permissions:
-  actions: write
-  contents: write # this can be 'read' if the signatures are in remote repository
+  contents: read
   pull-requests: write
-  statuses: write
 
 jobs:
-  CLAAssistant:
+  CLA:
     runs-on: ubuntu-latest
     steps:
-      - name: "CLA Assistant"
-        if: (github.event.comment.body == 'recheck' || github.event.comment.body == 'I have read the CLA Document and I hereby sign the CLA') || github.event_name == 'pull_request_target'
-        uses: contributor-assistant/github-action@v2.6.1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Checkout
+        uses: actions/checkout@v4
+        
+      - name: Check CLA Status
+        id: cla_check
+        run: |
+          # Get PR author info
+          PR_AUTHOR="${{ github.event.pull_request.user.login }}"
+          PR_AUTHOR_ID="${{ github.event.pull_request.user.id }}"
+          
+          echo "Checking CLA status for: $PR_AUTHOR (ID: $PR_AUTHOR_ID)"
+          
+          # Check allowlist first
+          ALLOWLIST="pepicrft,cschmatzler,asmitbm,fortmarek"
+          if echo "$ALLOWLIST" | grep -q "$PR_AUTHOR"; then
+            echo "✅ User $PR_AUTHOR is in allowlist, CLA not required"
+            echo "cla_required=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          # Check if signatures file exists
+          if [[ ! -f "server/cla/signatures.json" ]]; then
+            echo "❌ Signatures file not found, CLA required"
+            echo "cla_required=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          # Check if user has signed CLA
+          SIGNED=$(jq -r --arg author_id "$PR_AUTHOR_ID" '.signedContributors[]? | select(.id == ($author_id | tonumber)) | .name' server/cla/signatures.json || echo "")
+          
+          if [[ -n "$SIGNED" ]]; then
+            echo "✅ User $PR_AUTHOR has signed the CLA"
+            echo "cla_required=false" >> $GITHUB_OUTPUT
+          else
+            echo "❌ User $PR_AUTHOR has not signed the CLA"
+            echo "cla_required=true" >> $GITHUB_OUTPUT
+          fi
+          
+      - name: Comment on PR if CLA required
+        if: steps.cla_check.outputs.cla_required == 'true'
+        uses: actions/github-script@v7
         with:
-          path-to-signatures: "server/cla/signatures.json"
-          path-to-document: "https://github.com/tuist/server/blob/main/server/cla/document.md"
-          branch: ${{ github.head_ref || github.ref_name }}
-          allowlist: pepicrft,cschmatzler,asmitbm,fortmarek
+          script: |
+            const comment = `## ✍️ CLA Signature Required
+            
+            Hi @${{ github.event.pull_request.user.login }}! 👋
+            
+            Thank you for your contribution to Tuist! Before we can merge your PR that modifies server code, you'll need to sign our Contributor License Agreement (CLA).
+            
+            ### How to sign the CLA:
+            
+            1. **Read the CLA document**: [📄 Contributor License Agreement](https://github.com/tuist/tuist/blob/main/server/cla/document.md)
+            
+            2. **Sign using mise command** (if you have the repo locally):
+               \`\`\`bash
+               mise run cla-sign
+               git add server/cla/signatures.json
+               git commit -m "add CLA signature for ${{ github.event.pull_request.user.login }}"
+               git push
+               \`\`\`
+            
+            3. **Or fork the repo and manually add your signature**:
+               - Fork this repository
+               - Edit \`server/cla/signatures.json\`
+               - Add your signature entry to the \`signedContributors\` array
+               - Submit a PR with your signature
+            
+            Once you've signed the CLA, this check will automatically pass! 🎉
+            
+            ---
+            <sub>This is an automated message. The CLA is required for all contributions to server code to ensure we can continue to maintain and distribute Tuist under our chosen license.</sub>`;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+            
+      - name: Set status check
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const claRequired = '${{ steps.cla_check.outputs.cla_required }}' === 'true';
+            
+            github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: '${{ github.event.pull_request.head.sha }}',
+              state: claRequired ? 'failure' : 'success',
+              target_url: 'https://github.com/tuist/tuist/blob/main/server/cla/document.md',
+              description: claRequired ? 'CLA signature required' : 'CLA signed',
+              context: 'CLA'
+            });
