@@ -1,7 +1,9 @@
 ---
-{ "title": "GitHub", "titleTemplate": ":title | Git forges | Integrations |
-Guides | Tuist", "description": "Learn how to integrate Tuist with GitHub for
-enhanced workflows." }
+{
+  "title": "GitHub",
+  "titleTemplate": ":title | Git forges | Integrations | Guides | Tuist",
+  "description": "Learn how to integrate Tuist with GitHub for enhanced workflows."
+}
 ---
 # GitHub integration {#github}
 
