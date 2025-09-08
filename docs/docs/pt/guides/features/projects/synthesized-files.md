@@ -1,7 +1,9 @@
 ---
-{ "title": "Synthesized files", "titleTemplate": ":title · Projects · Features ·
-Guides · Tuist", "description": "Learn about synthesized files in Tuist
-projects." }
+{
+  "title": "Synthesized files",
+  "titleTemplate": ":title · Projects · Features · Guides · Tuist",
+  "description": "Learn about synthesized files in Tuist projects."
+}
 ---
 # Synthesized files {#synthesized-files}
 
