@@ -1,6 +1,9 @@
 ---
-{ "title": "Issue reporting", "titleTemplate": ":title · Contributors · Tuist",
-"description": "Learn how to contribute to Tuist by reporting bugs" }
+{
+  "title": "Issue reporting",
+  "titleTemplate": ":title · Contributors · Tuist",
+  "description": "Learn how to contribute to Tuist by reporting bugs"
+}
 ---
 # Issue reporting {#issue-reporting}
 
