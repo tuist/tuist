@@ -1,7 +1,9 @@
 ---
-{ "title": "Xcode project", "titleTemplate": ":title · Registry · Features ·
-Guides · Tuist", "description": "Learn how to use the Tuist Registry in an Xcode
-project." }
+{
+  "title": "Xcode project",
+  "titleTemplate": ":title · Registry · Features · Guides · Tuist",
+  "description": "Learn how to use the Tuist Registry in an Xcode project."
+}
 ---
 # Xcode project {#xcode-project}
 
