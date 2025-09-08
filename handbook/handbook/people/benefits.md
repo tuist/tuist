@@ -41,7 +41,7 @@ We believe in **continuous learning and professional development.** To support t
 
 ### 📚 A €1,000 annual learning budget
 
-This can be used for courses, books, certifications, or attending industry events. If you're traveling for a conference, we'll cover transport, tickets, and accommodation—as long as it stays within the budget. If you are speaking or giving a workshop at a conference, we'd cover the costs that are not covered by the organizers. A maximum of 5 days per year can be used as working time for attending conferences/events.
+This can be used for courses, books, certifications, or attending industry events. If you’re traveling for a conference, we’ll cover transport, tickets, and accommodation—as long as it stays within the budget. If you are speaking or giving a workshop at a conference, we’d cover the costs that are not covered by the organizers.
 
 ### 🛠️ A €500 one-time hardware budget
 To help you set up your ideal work environment, we provide a one-time budget that you can use for anything from a comfortable office chair to additional tech accessories.
