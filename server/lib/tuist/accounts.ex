@@ -611,8 +611,13 @@ defmodule Tuist.Accounts do
     Flop.validate_and_run!(query, attrs, for: Account)
   end
 
-  def list_customer_id_and_remote_cache_hits_count_pairs(attrs \\ %{}) do
-    CommandEvents.list_customer_id_and_remote_cache_hits_count_pairs(attrs)
+  def list_billable_customers do
+    Repo.all(
+      from(a in Account,
+        where: not is_nil(a.customer_id),
+        select: a.customer_id
+      )
+    )
   end
 
   defp create_oauth2_identity(%{

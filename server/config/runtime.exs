@@ -335,7 +335,7 @@ config :tuist, Oban,
            {"0 10 * * 1-5", Tuist.Ops.DailySlackReportWorker},
            {"0 * * * 1-5", Tuist.Ops.HourlySlackReportWorker},
            {"@hourly", Tuist.Registry.Swift.Workers.SyncPackagesWorker},
-           {"@daily", Tuist.Billing.UpdateAllCustomersRemoteCacheHitsCountWorker},
+           {"@daily", Tuist.Billing.SyncStripeMeters},
            {"@daily", Tuist.Accounts.Workers.UpdateAllAccountsUsageWorker},
            {"@daily", Tuist.Mautic.Workers.SyncCompaniesAndContactsWorker}
          ],

@@ -725,8 +725,12 @@ defmodule Tuist.CommandEvents do
     storage_module().delete_account_events(account_id)
   end
 
-  def list_customer_id_and_remote_cache_hits_count_pairs(attrs \\ %{}) do
-    storage_module().list_customer_id_and_remote_cache_hits_count_pairs(attrs)
+  def list_billable_customers do
+    storage_module().list_billable_customers()
+  end
+
+  def get_yesterdays_remote_cache_hits_count_for_customer(customer_id) do
+    storage_module().get_yesterdays_remote_cache_hits_count_for_customer(customer_id)
   end
 
   def delete_project_events(project_id) do
