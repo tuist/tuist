@@ -1,7 +1,9 @@
 ---
-{ "title": "Swift package", "titleTemplate": ":title · Registry · Features ·
-Guides · Tuist", "description": "Learn how to use the Tuist Registry in a Swift
-package." }
+{
+  "title": "Swift package",
+  "titleTemplate": ":title · Registry · Features · Guides · Tuist",
+  "description": "Learn how to use the Tuist Registry in a Swift package."
+}
 ---
 # Swift package {#swift-package}
 
