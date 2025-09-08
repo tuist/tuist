@@ -53,7 +53,7 @@ mkdir -p $BUILD_DIRECTORY
 
 build_project_desscription() {
     tuist install --path $TUIST_DIR
-    tuist generate --no-open --no-binary-cache --path $TUIST_DIR
+    mise x tuist@4.67.0 -- tuist generate --no-open --no-binary-cache --path $TUIST_DIR
 
     xcrun xcodebuild -workspace $TUIST_DIR/Tuist.xcworkspace -scheme ProjectDescription -derivedDataPath $DERIVED_DATA_PATH -configuration Release -destination platform=macOS BUILD_LIBRARY_FOR_DISTRIBUTION=YES ARCHS='arm64 x86_64' ONLY_ACTIVE_ARCH=NO clean build
 
@@ -87,7 +87,7 @@ echo "$(format_subsection "Installing Tuist dependencies")"
 DEVELOPER_DIR=$XCODE_PATH tuist install --path $MISE_PROJECT_ROOT
 
 echo "$(format_subsection "Generating Xcode project")"
-DEVELOPER_DIR=$XCODE_PATH TUIST_FORCE_STATIC_LINKING=1 tuist generate --no-binary-cache --path $MISE_PROJECT_ROOT --no-open
+DEVELOPER_DIR=$XCODE_PATH TUIST_FORCE_STATIC_LINKING=1 mise x tuist@4.67.0 -- tuist generate --no-binary-cache --path $MISE_PROJECT_ROOT --no-open
 
 echo "$(format_subsection "Building tuist executable")"
 build_cli
