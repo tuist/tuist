@@ -1,6 +1,9 @@
 ---
-{ "title": "Logging", "titleTemplate": ":title · CLI · Tuist", "description":
-"Learn how to enable and configure logging in Tuist." }
+{
+  "title": "Logging",
+  "titleTemplate": ":title · CLI · Tuist",
+  "description": "Learn how to enable and configure logging in Tuist."
+}
 ---
 # Logging {#logging}
 
