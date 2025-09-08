@@ -2,8 +2,13 @@
   display: flex;
   flex-direction: column;
   gap: var(--noora-spacing-11);
-
+  padding-bottom: var(--noora-spacing-10);
   width: 100%;
+
+  @media (min-width: 768px) {
+    padding-bottom: var(--noora-spacing-14);
+  }
+
   & * {
     box-sizing: border-box;
   }
@@ -13,7 +18,7 @@
     position: relative;
     flex-direction: column;
     align-items: center;
-    gap: 32px;
+    gap: var(--noora-spacing-9);
     padding: var(--noora-spacing-12) var(--noora-spacing-14);
 
     & > [data-part="background"] {
@@ -22,9 +27,10 @@
       left: 0;
       z-index: -1;
       mask-image: linear-gradient(to bottom, black 80%, transparent 100%);
-      background: linear-gradient(180deg, #f4f5fe 0%, #efe8ff 100%);
+      background: linear-gradient(180deg, oklch(97.2% 0.012 281.1) 0%, oklch(94.3% 0.032 299.7) 100%);
       width: 100%;
       height: 100%;
+      pointer-events: none;
 
       & > img {
         position: absolute;
@@ -112,8 +118,7 @@
           margin: 0;
           color: var(--noora-surface-label-primary);
           font: var(--noora-font-weight-medium) var(--noora-font-display-small);
-
-          text-shadow: 0 1px 1px rgba(0, 0, 0, 0.25);
+          text-shadow: 0 1px 1px oklch(0% 0 0 / 0.25);
 
           & a {
             color: var(--noora-surface-label-primary);
@@ -143,17 +148,23 @@
     flex-direction: column;
     align-items: center;
     margin: var(--noora-spacing-7) var(--noora-spacing-6) var(--noora-spacing-0) var(--noora-spacing-6);
+    box-shadow: var(--noora-border-light-default);
+    border-radius: var(--noora-radius-xlarge);
     padding: var(--noora-spacing-12) var(--noora-spacing-10);
+    max-width: 1296px;
+    overflow: hidden;
+
+    @media (min-width: 768px) {
+      left: 50%;
+      transform: translateX(-50%);
+      padding: var(--noora-spacing-15) var(--noora-spacing-10);
+    }
 
     & > [data-part="background"] {
       position: absolute;
       top: 0;
       left: 0;
-      /* Changed from 1000px */
       z-index: -1;
-      mask-image: linear-gradient(to bottom, black 80%, transparent 100%);
-      border-radius: 12px;
-      background: linear-gradient(180deg, #f4f5fe 0%, #efe8ff 100%);
       width: 100%;
       height: 100%;
 
@@ -192,5 +203,14 @@
         }
       }
     }
+  }
+
+  & > [data-part="confirmation"] {
+    display: flex;
+    position: absolute;
+    top: 0;
+    right: 0;
+    z-index: var(--noora-z-index-10);
+    padding: var(--noora-spacing-12) var(--noora-spacing-14);
   }
 }

@@ -1,7 +1,12 @@
-<% current_user = Map.get(assigns, :current_user) %>
-<% in_list_message = Map.get(assigns, :in_list_message) %>
-
 <main id="qa">
+  <div :if={@email_submitted?} data-part="confirmation">
+    <.alert
+      id="confirmation-alert"
+      status="information"
+      title={gettext("A confirmation email has been sent to your account with further details.")}
+      dismissible
+    />
+  </div>
   <div data-part="header">
     <div data-part="background" aria-hidden="true">
       <img src="/marketing/images/qa/header-background.webp" alt="Background decoration" />
@@ -17,22 +22,28 @@
       )}
     </p>
     <.alert
-      :if={not is_nil(in_list_message)}
+      :if={@in_waiting_list?}
       id="alert-status-primary-success"
       status="success"
-      title={in_list_message}
+      title={
+        if @current_user,
+          do: gettext("You are already in the waiting list"),
+          else: gettext("Added to the waiting list")
+      }
     />
     <.form
-      :if={is_nil(in_list_message)}
+      :if={!@in_waiting_list?}
+      id="header-form"
       for={@form}
       data-part="form"
       phx-submit="add-to-waiting-list"
     >
       <.text_input
+        id="header-form-email"
         field={@form[:email]}
         type="email"
         placeholder="hello@tuist.dev"
-        value={if(is_nil(current_user), do: "", else: current_user.email)}
+        value={if @current_user, do: @current_user.email, else: ""}
       />
       <.button label={gettext("Get early access")} variant="primary" size="large" />
     </.form>
@@ -87,22 +98,28 @@
     <h2 data-part="title">{gettext("Sign up to get early access to Tuist QA")}</h2>
 
     <.alert
-      :if={not is_nil(in_list_message)}
+      :if={@in_waiting_list?}
       id="alert-status-primary-success"
       status="success"
-      title={in_list_message}
+      title={
+        if @current_user,
+          do: gettext("You are already in the waiting list"),
+          else: gettext("Added to the waiting list")
+      }
     />
     <.form
-      :if={is_nil(in_list_message)}
+      :if={!@in_waiting_list?}
+      id="footer-form"
       for={@form}
       data-part="form"
       phx-submit="add-to-waiting-list"
     >
       <.text_input
+        id="footer-form-email"
         field={@form[:email]}
         type="email"
         placeholder="hello@tuist.dev"
-        value={if(is_nil(current_user), do: "", else: current_user.email)}
+        value={if @current_user, do: @current_user.email, else: ""}
       />
       <.button label={gettext("Get early access")} variant="primary" size="large" />
     </.form>
