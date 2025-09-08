@@ -1,7 +1,9 @@
 ---
-{ "title": "Generated Projects Examples", "titleTemplate": ":title · Examples ·
-Guides · Tuist", "description": "Examples of generated projects which we use as
-fixtures to run acceptance tests against." }
+{
+  "title": "Generated Projects Examples",
+  "titleTemplate": ":title · Examples · Guides · Tuist",
+  "description": "Examples of generated projects which we use as fixtures to run acceptance tests against."
+}
 ---
 # Generated Projects Examples
 
