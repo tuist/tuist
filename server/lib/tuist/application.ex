@@ -21,6 +21,7 @@ defmodule Tuist.Application do
     Logger.info("Starting Tuist version #{Environment.version()}")
 
     load_secrets_in_application()
+    start_posthog()
     start_error_tracking()
     start_telemetry()
 
@@ -36,6 +37,21 @@ defmodule Tuist.Application do
 
   defp load_secrets_in_application do
     Environment.put_application_secrets(Environment.decrypt_secrets())
+  end
+
+  defp start_posthog do
+    if Environment.analytics_enabled?() do
+      case Application.start(:posthog) do
+        :ok ->
+          Logger.info("PostHog analytics started")
+
+        {:error, {:already_started, _}} ->
+          Logger.info("PostHog analytics already started")
+
+        {:error, reason} ->
+          Logger.warning("Failed to start PostHog analytics: #{inspect(reason)}")
+      end
+    end
   end
 
   defp start_error_tracking do
@@ -185,6 +201,21 @@ defmodule Tuist.Application do
             ]
           ],
           size: 10,
+          count: 1,
+          protocols: [:http2, :http1],
+          start_pool_metrics?: true
+        ],
+        Environment.posthog_url() => [
+          conn_opts: [
+            log: true,
+            protocols: [:http2, :http1],
+            transport_opts: [
+              inet6: Environment.use_ipv6?() in ~w(true 1),
+              cacertfile: CAStore.file_path(),
+              verify: :verify_peer
+            ]
+          ],
+          size: 5,
           count: 1,
           protocols: [:http2, :http1],
           start_pool_metrics?: true

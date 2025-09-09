@@ -128,8 +128,8 @@ defmodule Tuist.Environment do
     end
   end
 
-  def analytics_enabled? do
-    tuist_hosted?() and @env == :prod
+  def analytics_enabled?(secrets \\ secrets()) do
+    not is_nil(posthog_api_key(secrets)) && not is_nil(posthog_url(secrets))
   end
 
   def error_tracking_enabled? do

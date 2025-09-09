@@ -195,9 +195,22 @@ reset_dopdowns_state_js =
       />
 
       <div class="marketing__header__bar__mobile__menu__main__footer">
-        <.primary_button size="big" type="primary" href={Tuist.Environment.get_url(:get_started)}>
-          {gettext("Get started")}
+        <% {cta_text, _cta_href} =
+          if is_nil(TuistWeb.Authentication.current_user(assigns)) do
+            {gettext("Log in"), ~p"/users/log_in"}
+          else
+            {gettext("Dashboard"),
+             TuistWeb.Authentication.signed_in_path(TuistWeb.Authentication.current_user(assigns))}
+          end %>
+
+        <.primary_button
+          class="marketing__header__bar__cta"
+          href={Tuist.Environment.get_url(:get_started)}
+          size="medium"
+        >
+          {cta_text}
         </.primary_button>
+
         <div class="marketing__header__bar__mobile__menu__main__footer__links">
           <div class="marketing__header__bar__mobile__menu__main__footer__links__header">
             {gettext("Stay in touch")}

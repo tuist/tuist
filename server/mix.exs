@@ -97,7 +97,7 @@ defmodule Tuist.MixProject do
       {:decorator, "~> 1.4"},
       {:jose, "~> 1.11"},
       {:ecto_psql_extras, "~> 0.8.1"},
-      {:cachex, "~> 4.1.0"},
+      {:cachex, "~> 4.0.4"},
       {:excellent_migrations, "~> 0.1.8"},
       {:ex_aws_sts, "~> 2.2"},
       {:qr_code, "~> 3.2.0"},
@@ -149,6 +149,8 @@ defmodule Tuist.MixProject do
       {:langchain, git: "https://github.com/brainlid/langchain", branch: "main"},
       {:earmark, "~> 1.4"},
       {:html_sanitize_ex, "~> 1.4"}
+      {:oban_met, "~> 1.0"},
+      {:posthog, "~> 1.0", runtime: false}
     ]
   end
 
