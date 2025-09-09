@@ -1,4 +1,4 @@
-name: "CLA Check"
+name: "CLA Check v2"
 on:
   pull_request_target:
     types: [opened, synchronize]
