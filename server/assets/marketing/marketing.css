@@ -6,6 +6,10 @@
 @import "./css/pages.css";
 @import "./css/content.css";
 
+:root {
+  color-scheme: only light;
+}
+
 body {
   margin: 0px;
   background: var(--white);
