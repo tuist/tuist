@@ -79,6 +79,39 @@ defmodule Tuist.Mautic do
            retry: retry()
          ) do
       %{status: status} when status in 200..299 -> :ok
+      %{status: status} -> {:error, "Failed with status #{status}"}
+    end
+  end
+
+  def add_email_to_segment(email, segment_id) do
+    with {:ok, contact_id} <- find_or_create_contact_by_email(email),
+         :ok <- add_contact_to_segment(contact_id, segment_id) do
+      {:ok, contact_id}
+    end
+  end
+
+  defp find_or_create_contact_by_email(email) do
+    case Req.get!("#{@base_url}/contacts",
+           params: %{search: email},
+           auth: auth(),
+           retry: retry()
+         ) do
+      %{status: 200, body: %{"contacts" => contacts}} when map_size(contacts) > 0 ->
+        {contact_id, _contact} =
+          Enum.find(contacts, fn {_id, contact} ->
+            contact["fields"]["core"]["email"]["value"] == email
+          end)
+
+        {:ok, contact_id}
+
+      %{status: 200} ->
+        case create_contact(%{"email" => email}) do
+          {:ok, %{"contact" => %{"id" => contact_id}}} -> {:ok, to_string(contact_id)}
+          error -> error
+        end
+
+      %{status: status, body: body} ->
+        {:error, %{status: status, body: body}}
     end
   end
 

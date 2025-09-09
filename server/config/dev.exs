@@ -90,6 +90,7 @@ config :tuist, TuistWeb.Endpoint,
       ~r"priv/static/(?!uploads/).*(js|css|png|jpeg|jpg|gif|svg)$",
       ~r"priv/gettext/.*(po)$",
       ~r"lib/tuist_web/(controllers|live|components)/.*(ex|heex)$",
+      ~r"lib/tuist_web/marketing/(controllers|live|components)/.*(ex|heex)$",
       ~r"priv/marketing/blog/*/.*(md)$"
     ]
   ]

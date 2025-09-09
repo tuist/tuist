@@ -14,6 +14,23 @@ defmodule TuistWeb.Marketing.MarketingController do
   plug(:put_resp_header_cache_control)
   plug(:put_resp_header_server)
 
+  def qa(conn, _params) do
+    read_more_posts = Enum.take(Blog.get_posts(), 3)
+    testimonials = home_testimonials()
+
+    conn
+    |> assign(:head_title, "Tuist · A virtual platform team for mobile devs who ship")
+    |> assign(
+      :head_image,
+      Tuist.Environment.app_url(path: "/marketing/images/og/home.jpg")
+    )
+    |> assign(:head_twitter_card, "summary_large_image")
+    |> assign_structured_data(get_testimonials_structured_data(testimonials))
+    |> assign(:testimonials, testimonials)
+    |> assign(:read_more_posts, read_more_posts)
+    |> render(:home, layout: false)
+  end
+
   def home(conn, _params) do
     read_more_posts = Enum.take(Blog.get_posts(), 3)
     testimonials = home_testimonials()
