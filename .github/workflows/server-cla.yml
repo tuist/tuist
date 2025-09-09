@@ -1,4 +1,4 @@
-name: "CLA Check v2"
+name: "CLA Check - Comment Only"
 on:
   pull_request_target:
     types: [opened, synchronize]
@@ -93,12 +93,27 @@ jobs:
               body: comment
             });
             
-      - name: Report CLA status
+      - name: Comment on PR if CLA passed
+        if: steps.cla_check.outputs.cla_required == 'false'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const comment = `## ✅ CLA Check Passed
+            
+            Thank you @${{ github.event.pull_request.user.login }}! Your contribution is ready to be reviewed. The CLA requirement has been satisfied.`;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+            
+      - name: Complete CLA check
         run: |
           if [ "${{ steps.cla_check.outputs.cla_required }}" = "true" ]; then
-            echo "❌ CLA signature is required before this PR can be merged"
-            echo "Please see the comment above for instructions on how to sign the CLA"
+            echo "❌ CLA signature required - see PR comment for instructions"
             exit 1
           else
-            echo "✅ CLA check passed - contributor has signed the CLA or is in allowlist"
+            echo "✅ CLA check passed"
           fi
