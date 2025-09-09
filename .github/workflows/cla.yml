@@ -1,10 +1,10 @@
-name: "CLA Comments Only - No Status API"
+name: "CLA Check"
 on:
   pull_request_target:
     types: [opened, synchronize]
     paths:
       - "server/**"
-      - ".github/workflows/cla-comment-only.yml"
+      - ".github/workflows/cla.yml"
 
 permissions:
   contents: read
@@ -16,16 +16,16 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        
+
       - name: Check CLA Status
         id: cla_check
         run: |
           # Get PR author info
           PR_AUTHOR="${{ github.event.pull_request.user.login }}"
           PR_AUTHOR_ID="${{ github.event.pull_request.user.id }}"
-          
+
           echo "Checking CLA status for: $PR_AUTHOR (ID: $PR_AUTHOR_ID)"
-          
+
           # Check allowlist first
           ALLOWLIST="pepicrft,cschmatzler,asmitbm,fortmarek"
           if echo "$ALLOWLIST" | grep -q "$PR_AUTHOR"; then
@@ -33,17 +33,17 @@ jobs:
             echo "cla_required=false" >> $GITHUB_OUTPUT
             exit 0
           fi
-          
+
           # Check if signatures file exists
           if [[ ! -f "server/cla/signatures.json" ]]; then
             echo "❌ Signatures file not found, CLA required"
             echo "cla_required=true" >> $GITHUB_OUTPUT
             exit 0
           fi
-          
+
           # Check if user has signed CLA
           SIGNED=$(jq -r --arg author_id "$PR_AUTHOR_ID" '.signedContributors[]? | select(.id == ($author_id | tonumber)) | .name' server/cla/signatures.json || echo "")
-          
+
           if [[ -n "$SIGNED" ]]; then
             echo "✅ User $PR_AUTHOR has signed the CLA"
             echo "cla_required=false" >> $GITHUB_OUTPUT
@@ -51,22 +51,22 @@ jobs:
             echo "❌ User $PR_AUTHOR has not signed the CLA"
             echo "cla_required=true" >> $GITHUB_OUTPUT
           fi
-          
+
       - name: Comment on PR if CLA required
         if: steps.cla_check.outputs.cla_required == 'true'
         uses: actions/github-script@v7
         with:
           script: |
             const comment = `## ✍️ CLA Signature Required
-            
+
             Hi @${{ github.event.pull_request.user.login }}! 👋
-            
+
             Thank you for your contribution to Tuist! Before we can merge your PR that modifies server code, you'll need to sign our Contributor License Agreement (CLA).
-            
+
             ### How to sign the CLA:
-            
+
             1. **Read the CLA document**: [📄 Contributor License Agreement](https://github.com/tuist/tuist/blob/main/server/cla/document.md)
-            
+
             2. **Sign using mise command** (if you have the repo locally):
                \`\`\`bash
                mise run cla-sign
@@ -74,41 +74,41 @@ jobs:
                git commit -m "add CLA signature for ${{ github.event.pull_request.user.login }}"
                git push
                \`\`\`
-            
+
             3. **Or fork the repo and manually add your signature**:
                - Fork this repository
                - Edit \`server/cla/signatures.json\`
                - Add your signature entry to the \`signedContributors\` array
                - Submit a PR with your signature
-            
+
             Once you've signed the CLA, this check will automatically pass! 🎉
-            
+
             ---
             <sub>This is an automated message. The CLA is required for all contributions to server code to ensure we can continue to maintain and distribute Tuist under our chosen license.</sub>`;
-            
+
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
               body: comment
             });
-            
+
       - name: Comment on PR if CLA passed
         if: steps.cla_check.outputs.cla_required == 'false'
         uses: actions/github-script@v7
         with:
           script: |
             const comment = `## ✅ CLA Check Passed
-            
+
             Thank you @${{ github.event.pull_request.user.login }}! Your contribution is ready to be reviewed. The CLA requirement has been satisfied.`;
-            
+
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
               body: comment
             });
-            
+
       - name: Complete CLA check
         run: |
           if [ "${{ steps.cla_check.outputs.cla_required }}" = "true" ]; then
