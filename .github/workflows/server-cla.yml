@@ -4,6 +4,7 @@ on:
     types: [opened, synchronize]
     paths:
       - "server/**"
+      - ".github/workflows/server-cla.yml"
 
 permissions:
   contents: read
