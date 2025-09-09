@@ -8,7 +8,6 @@ on:
 permissions:
   contents: read
   pull-requests: write
-  statuses: write
 
 jobs:
   CLA:
@@ -93,32 +92,12 @@ jobs:
               body: comment
             });
             
-      - name: Set status check
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const claRequired = '${{ steps.cla_check.outputs.cla_required }}' === 'true';
-            const isForkPR = '${{ github.event.pull_request.head.repo.full_name }}' !== '${{ github.repository }}';
-            
-            // Skip commit status for fork PRs due to GitHub security restrictions
-            if (isForkPR) {
-              console.log('Skipping commit status for fork PR - relying on workflow status instead');
-              return;
-            }
-            
-            github.rest.repos.createCommitStatus({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              sha: '${{ github.event.pull_request.head.sha }}',
-              state: claRequired ? 'failure' : 'success',
-              target_url: 'https://github.com/tuist/tuist/blob/main/server/cla/document.md',
-              description: claRequired ? 'CLA signature required' : 'CLA signed',
-              context: 'CLA'
-            });
-            
-      - name: Fail workflow if CLA required
-        if: steps.cla_check.outputs.cla_required == 'true'
+      - name: Report CLA status
         run: |
-          echo "❌ CLA signature is required before this PR can be merged"
-          echo "Please see the comment above for instructions on how to sign the CLA"
-          exit 1
+          if [ "${{ steps.cla_check.outputs.cla_required }}" = "true" ]; then
+            echo "❌ CLA signature is required before this PR can be merged"
+            echo "Please see the comment above for instructions on how to sign the CLA"
+            exit 1
+          else
+            echo "✅ CLA check passed - contributor has signed the CLA or is in allowlist"
+          fi
