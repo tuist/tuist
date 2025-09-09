@@ -39,8 +39,8 @@
 .marketing__home__section__hero__ctas {
   display: flex;
   flex-direction: row;
-  gap: var(--spacing-32);
   align-items: center;
+  gap: var(--spacing-32);
   @media (max-width: 1024px) {
     flex-direction: column;
   }
