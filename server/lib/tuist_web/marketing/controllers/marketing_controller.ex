@@ -36,7 +36,11 @@ defmodule TuistWeb.Marketing.MarketingController do
     testimonials = home_testimonials()
 
     conn
-    |> assign(:head_title, "Tuist · A virtual platform team for mobile devs who ship")
+    |> assign(:head_title, "Tuist · Make mobile your competitive advantage")
+    |> assign(
+      :head_description,
+      "The same iOS tooling that powers billion-user apps, delivered as a service for your team"
+    )
     |> assign(
       :head_image,
       Tuist.Environment.app_url(path: "/marketing/images/og/home.jpg")
