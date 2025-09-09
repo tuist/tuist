@@ -84,13 +84,10 @@ defmodule Tuist.Mautic do
   end
 
   def add_email_to_segment(email, segment_id) do
-    with_result =
-      with {:ok, contact_id} <- find_or_create_contact_by_email(email),
-           :ok <- add_contact_to_segment(contact_id, segment_id) do
-        {:ok, contact_id}
-      end
-
-    dbg(with_result)
+    with {:ok, contact_id} <- find_or_create_contact_by_email(email),
+         :ok <- add_contact_to_segment(contact_id, segment_id) do
+      {:ok, contact_id}
+    end
   end
 
   defp find_or_create_contact_by_email(email) do
