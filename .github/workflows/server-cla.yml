@@ -98,6 +98,13 @@ jobs:
         with:
           script: |
             const claRequired = '${{ steps.cla_check.outputs.cla_required }}' === 'true';
+            const isForkPR = '${{ github.event.pull_request.head.repo.full_name }}' !== '${{ github.repository }}';
+            
+            // Skip commit status for fork PRs due to GitHub security restrictions
+            if (isForkPR) {
+              console.log('Skipping commit status for fork PR - relying on workflow status instead');
+              return;
+            }
             
             github.rest.repos.createCommitStatus({
               owner: context.repo.owner,
@@ -108,3 +115,10 @@ jobs:
               description: claRequired ? 'CLA signature required' : 'CLA signed',
               context: 'CLA'
             });
+            
+      - name: Fail workflow if CLA required
+        if: steps.cla_check.outputs.cla_required == 'true'
+        run: |
+          echo "❌ CLA signature is required before this PR can be merged"
+          echo "Please see the comment above for instructions on how to sign the CLA"
+          exit 1
