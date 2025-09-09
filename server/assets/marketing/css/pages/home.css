@@ -36,6 +36,16 @@
   }
 }
 
+.marketing__home__section__hero__ctas {
+  display: flex;
+  flex-direction: row;
+  gap: var(--spacing-32);
+  align-items: center;
+  @media (max-width: 1024px) {
+    flex-direction: column;
+  }
+}
+
 .marketing__home__terminal__bar {
   display: flex;
   flex-direction: row;

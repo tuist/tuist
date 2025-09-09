@@ -6,12 +6,22 @@
     </h1>
     <p class="marketing__home__section__hero__subtitle">
       {gettext(
-        "The same iOS tooling that powers billion-user apps, delivered as a service for your team"
+        "The same iOS tooling that powers million apps, delivered as a service for your team"
       )}
     </p>
-    <.primary_button size="big" href="https://cal.tuist.dev/team/tuist/tuist" target="_blank">
-      {gettext("Talk to the founders")}
-    </.primary_button>
+
+    <div class="marketing__home__section__hero__ctas">
+      <.primary_button size="big" href="https://cal.tuist.dev/team/tuist/tuist" target="_blank">
+        {gettext("Talk to the founders")}
+      </.primary_button>
+      <.marketing_link
+        class="marketing__component__link font-l-strong"
+        data-flavor="primary"
+        href={~p"/users/log_in"}
+      >
+        {gettext("Get started")}
+      </.marketing_link>
+    </div>
 
     <div class="marketing__home__section__hero__terminal">
       <TuistWeb.Marketing.MarketingHomeComponents.terminal terminal_id="hero-terminal">
