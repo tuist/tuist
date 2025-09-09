@@ -195,7 +195,7 @@ reset_dopdowns_state_js =
       />
 
       <div class="marketing__header__bar__mobile__menu__main__footer">
-        <% {cta_text, cta_href} =
+        <% {cta_text, _cta_href} =
           if is_nil(TuistWeb.Authentication.current_user(assigns)) do
             {gettext("Log in"), ~p"/users/log_in"}
           else
@@ -206,6 +206,7 @@ reset_dopdowns_state_js =
         <.primary_button
           class="marketing__header__bar__cta"
           href={Tuist.Environment.get_url(:get_started)}
+          size="medium"
         >
           {cta_text}
         </.primary_button>
