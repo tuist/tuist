@@ -33,7 +33,44 @@ public struct XcodeBuildCommand: AsyncParsableCommand, TrackableParsableCommand,
 
     var analyticsRequired: Bool { true }
 
+    @Argument(
+        parsing: .captureForPassthrough,
+        help: "Arguments for xcodebuild. Can be used as fallback when subcommands are not first. Example: tuist xcodebuild -workspace MyApp.xcworkspace build -scheme MyApp"
+    )
+    public var arguments: [String] = []
+
     public init() {}
+
+    public func run() async throws {
+        guard !arguments.isEmpty else {
+            throw ValidationError("No arguments provided. Use 'tuist xcodebuild --help' for usage information.")
+        }
+
+        let validActions = Self.configuration.subcommands.compactMap { $0.configuration.commandName }
+        
+        guard let actionIndex = arguments.firstIndex(where: { validActions.contains($0) }) else {
+            throw ValidationError("No valid action found. Valid actions are: \(validActions.joined(separator: ", "))")
+        }
+        
+        guard actionIndex < arguments.count else {
+            throw ValidationError("Invalid action index.")
+        }
+        
+        let action = arguments[actionIndex]
+        
+        let preActionArgs = Array(arguments[..<actionIndex])
+        let postActionArgs = actionIndex + 1 < arguments.count ? Array(arguments[(actionIndex + 1)...]) : []
+        
+        let reorderedArgs = [action] + preActionArgs + postActionArgs
+        
+        guard reorderedArgs != arguments else {
+            throw ValidationError("Unable to reorder arguments to match subcommand format.")
+        }
+        
+        var parsedCommand = try Self.parseAsRoot(reorderedArgs)
+        
+        try await parsedCommand.run()
+    }
 }
 
 struct EmptySelectiveTestingGraphHasher: SelectiveTestingGraphHashing {
