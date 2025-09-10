@@ -31,10 +31,10 @@ public enum ServerAuthenticationControllerError: LocalizedError, Equatable {
 
 @Mockable
 public protocol ServerAuthenticationControlling: Sendable {
-    func authenticationToken(serverURL: URL) async throws
-        -> AuthenticationToken?
+    func authenticationToken(serverURL: URL) async throws -> AuthenticationToken?
     func refreshToken(serverURL: URL) async throws
     func refreshToken(serverURL: URL, inBackground: Bool, locking: Bool, forceInProcessLock: Bool) async throws
+    func deleteCredentials(serverURL: URL) async throws
 }
 
 public enum AuthenticationTokenStatus {
@@ -228,6 +228,10 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
                 locking: false
             )
         #endif
+    }
+
+    public func deleteCredentials(serverURL: URL) async throws {
+        try await ServerCredentialsStore.current.delete(serverURL: serverURL)
     }
 
     public func refreshToken(serverURL: URL, inBackground: Bool, locking: Bool, forceInProcessLock: Bool) async throws {

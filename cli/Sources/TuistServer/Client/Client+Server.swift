@@ -20,6 +20,7 @@ extension Client {
                 ServerClientAuthenticationMiddleware(),
                 ServerClientVerboseLoggingMiddleware(),
                 ServerClientOutputWarningsMiddleware(),
+                ServerDeleteCredentialsOnUnauthorizedMiddleware(),
             ]
         )
     }
