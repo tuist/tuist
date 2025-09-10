@@ -326,6 +326,11 @@
                     color: var(--noora-surface-label-primary);
                     font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
 
+                    &[data-link] {
+                      cursor: pointer;
+                      text-decoration: underline;
+                    }
+
                     &[data-variant="success"] {
                       color: var(--noora-feedback-success);
                     }
@@ -405,10 +410,12 @@
             flex-direction: row;
             align-items: stretch;
             justify-content: space-between;
+            gap: var(--noora-spacing-4);
 
             & > [data-part="spacer"] {
               flex-grow: 1;
             }
+
             & > [data-part="step-button-prev"] {
               align-items: flex-start;
             }
@@ -467,16 +474,16 @@
                 color: var(--noora-surface-label-primary);
                 display: -webkit-box;
                 line-clamp: 2;
-                  -webkit-line-clamp: 2;
-                  -webkit-box-orient: vertical;
-                  overflow: hidden;
+                -webkit-line-clamp: 2;
+                -webkit-box-orient: vertical;
+                overflow: hidden;
                 min-height: 32px;
               }
             }
           }
 
           & > [data-part="step-details-container"] {
-            flex: 1;
+            flex-grow: 1;
             overflow-y: auto;
             overflow-x: hidden;
             display: flex;
@@ -491,12 +498,16 @@
 
               & > [data-part="badge"] {
                 margin-top: var(--noora-spacing-1);
-                flex-shrink: 0;
               }
 
               & > [data-part="value"] {
                 font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
                 color: var(--noora-surface-label-primary);
+
+                &[data-link] {
+                  cursor: pointer;
+                  text-decoration: underline;
+                }
               }
             }
           }
@@ -550,7 +561,8 @@
               right: 0;
               left: 0;
               bottom: 0;
-              cursor: pointer;
+              user-select: none;
+              cursor: grab;
             }
 
             & > [data-part="time-markers"] {
@@ -587,7 +599,6 @@
                 align-items: center;
                 gap: var(--noora-spacing-4);
                 pointer-events: auto;
-                /* Use percentage of the parent container width */
                 left: calc(100% * var(--step-percentage, 0) / 100);
 
                 & [data-part="step-thumbnail"] {
@@ -635,15 +646,11 @@
             position: absolute;
             top: 0;
             bottom: 0;
-            z-index: 10;
+            z-index: var(--noora-z-index-2);
             pointer-events: none;
           }
         }
       }
     }
-  }
-
-  & > div:not([data-part]) {
-    width: 100%;
   }
 }

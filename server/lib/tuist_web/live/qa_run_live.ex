@@ -16,11 +16,7 @@ defmodule TuistWeb.QARunLive do
 
   @impl true
   def mount(
-        %{
-          "qa_run_id" => qa_run_id,
-          "account_handle" => account_handle,
-          "project_handle" => project_handle
-        } = _params,
+        %{"qa_run_id" => qa_run_id, "account_handle" => account_handle, "project_handle" => project_handle} = _params,
         _session,
         %{assigns: %{selected_account: selected_account}} = socket
       ) do
@@ -40,35 +36,26 @@ defmodule TuistWeb.QARunLive do
           raise NotFoundError, gettext("QA run not found")
         end
 
-        # Generate presigned URL for the video recording
-        video_key =
-          QA.recording_storage_key(%{
-            account_handle: account_handle,
-            project_handle: project_handle,
-            qa_run_id: qa_run_id
-          })
+        {video_url, video_duration} =
+          if qa_run.recording do
+            video_key =
+              QA.recording_storage_key(%{
+                account_handle: account_handle,
+                project_handle: project_handle,
+                qa_run_id: qa_run_id
+              })
 
-        video_exists = Storage.object_exists?(video_key, selected_account)
-
-        video_url =
-          if video_exists do
-            Storage.generate_download_url(video_key, selected_account, expires_in: 3600)
-          end
-
-        # Convert recording duration from milliseconds to seconds
-        video_duration =
-          if qa_run.recording && qa_run.recording.duration do
-            qa_run.recording.duration / 1000.0
+            {Storage.generate_download_url(video_key, selected_account, expires_in: 3600),
+             qa_run.recording.duration / 1000.0}
           else
-            0
+            {nil, 0}
           end
 
-        {step_positions, ordered_run_steps} = calculate_step_positions(qa_run)
+        steps = steps_with_times(qa_run)
 
         {:ok,
          socket
          |> assign(:qa_run, qa_run)
-         |> assign(:duration_display, calculate_duration(qa_run))
          |> assign(:pr_comment_url, build_pr_comment_url(qa_run))
          |> assign(:pr_number, extract_pr_number(qa_run))
          |> assign(:issues, extract_issues(qa_run.run_steps))
@@ -78,12 +65,10 @@ defmodule TuistWeb.QARunLive do
          )
          |> assign(:current_time, 0)
          |> assign(:duration, video_duration)
-         |> assign(:current_action, nil)
          |> assign(:video_url, video_url)
-         |> assign(:video_exists, video_exists)
-         |> assign(:step_positions, step_positions)
-         |> assign(:ordered_run_steps, ordered_run_steps)
-         |> assign(:current_step, nil)}
+         |> assign(:steps, steps)
+         |> assign(:current_step, List.first(steps))
+         |> assign(:is_playing, false)}
     end
   end
 
@@ -112,15 +97,6 @@ defmodule TuistWeb.QARunLive do
 
   def handle_info(_event, socket) do
     {:noreply, socket}
-  end
-
-  defp calculate_duration(%{inserted_at: start_time, updated_at: end_time}) do
-    case DateTime.diff(end_time, start_time, :second) do
-      0 -> "< 1s"
-      seconds when seconds < 60 -> "#{seconds}s"
-      seconds when seconds < 3600 -> "#{div(seconds, 60)}m #{rem(seconds, 60)}s"
-      seconds -> "#{div(seconds, 3600)}h #{div(rem(seconds, 3600), 60)}m"
-    end
   end
 
   defp build_pr_comment_url(%{issue_comment_id: nil}), do: nil
@@ -195,6 +171,7 @@ defmodule TuistWeb.QARunLive do
   end
 
   defp maybe_load_logs(socket, _action), do: socket
+
   @impl true
   def handle_event("play_pause", _params, socket) do
     socket = push_event(socket, "play-pause-toggle", %{id: "qa-recording"})
@@ -203,21 +180,8 @@ defmodule TuistWeb.QARunLive do
   end
 
   @impl true
-  def handle_event("reset", _params, socket) do
-    socket =
-      socket
-      |> assign(:current_time, 0)
-      |> assign(:current_action, nil)
-      |> assign(:current_step, nil)
-      |> push_event("seek_video", %{time: 0})
-
-    {:noreply, socket}
-  end
-
-  @impl true
-  def handle_event("seek", %{"time" => time_str}, socket) do
-    {time, _} = Float.parse(time_str)
-    current_step = find_current_step(socket.assigns.step_positions, time)
+  def handle_event("seek", %{"time" => time}, %{assigns: %{steps: steps}} = socket) do
+    current_step = find_current_step(steps, time)
 
     socket =
       socket
@@ -229,46 +193,26 @@ defmodule TuistWeb.QARunLive do
   end
 
   @impl true
-  def handle_event("seek_to_step", %{"step-index" => step_index_str} = params, socket) do
-    step_index = String.to_integer(step_index_str)
+  def handle_event("seek_to_step", %{"step-index" => step_index} = params, %{assigns: %{steps: steps}} = socket) do
+    step = Enum.at(steps, String.to_integer(step_index))
 
-    # Get the step position by array index (0-based)
-    step_position = Enum.at(socket.assigns.step_positions, step_index)
+    socket =
+      socket
+      |> assign(:current_time, step.time)
+      |> assign(:current_step, step)
+      |> push_event("seek-video", %{time: step.time, id: "qa-recording", auto_scroll: true})
+      |> then(
+        &if is_nil(params["scroll-to-element"]),
+          do: &1,
+          else: push_event(&1, "scroll-to-element", %{id: params["scroll-to-element"]})
+      )
 
-    if step_position do
-      # Use the time directly from the step
-      seek_time = step_position.time
-      current_step = step_position.step
-
-      socket =
-        socket
-        |> assign(:current_time, seek_time)
-        |> assign(:current_step, current_step)
-        |> push_event("seek-video", %{time: seek_time, id: "qa-recording", auto_scroll: true})
-
-      # Only scroll to element if scroll-to-element parameter is provided
-      socket =
-        case Map.get(params, "scroll-to-element") do
-          element_id when is_binary(element_id) ->
-            push_event(socket, "scroll-to-element", %{id: element_id})
-
-          _ ->
-            socket
-        end
-
-      {:noreply, socket}
-    else
-      {:noreply, socket}
-    end
+    {:noreply, socket}
   end
 
   @impl true
-  def handle_event(
-        "video_time_update",
-        %{"current_time" => current_time, "current_step_index" => step_index},
-        socket
-      ) do
-    current_step = get_step_by_index(socket.assigns.step_positions, step_index)
+  def handle_event("video_time_update", %{"current_time" => current_time}, %{assigns: %{steps: steps}} = socket) do
+    current_step = find_current_step(steps, current_time)
 
     socket =
       socket
@@ -279,62 +223,68 @@ defmodule TuistWeb.QARunLive do
   end
 
   @impl true
-  def handle_event("video_time_update", %{"current_time" => current_time}, socket) do
-    # Fallback for when step index is not provided
-    current_step = find_current_step(socket.assigns.step_positions, current_time)
-
-    socket =
-      socket
-      |> assign(:current_time, current_time)
-      |> assign(:current_step, current_step)
+  def handle_event("video_play", _params, socket) do
+    socket = assign(socket, :is_playing, true)
 
     {:noreply, socket}
   end
 
   @impl true
-  def handle_event("video_metadata", %{"duration" => _duration}, socket) do
-    # Duration is already set from the database, so we don't override it
+  def handle_event("video_pause", _params, socket) do
+    socket = assign(socket, :is_playing, false)
+
     {:noreply, socket}
   end
 
   @impl true
   def handle_event("video_ended", _params, socket) do
-    {:noreply, socket}
-  end
-
-  @impl true
-  def handle_event("seek_prev", _params, socket) do
-    socket = push_event(socket, "seek-prev-step", %{})
+    socket = assign(socket, :is_playing, false)
 
     {:noreply, socket}
   end
 
   @impl true
-  def handle_event("seek_next", _params, socket) do
-    socket = push_event(socket, "seek-next-step", %{})
+  def handle_event(
+        "seek_previous_step",
+        _params,
+        %{assigns: %{current_step: current_step, steps: steps, current_time: current_time}} = socket
+      ) do
+    step_to_seek =
+      if current_time - current_step.time > 1.0 do
+        current_step
+      else
+        Enum.at(steps, max(current_step.index - 1, 0))
+      end
+
+    socket =
+      push_event(socket, "seek-video", %{
+        time: step_to_seek.time,
+        id: "qa-recording",
+        auto_scroll: true
+      })
 
     {:noreply, socket}
   end
 
-  defp find_current_step(step_positions, current_time) do
-    # Find the step that is closest to the current time but not after it
-    step_positions
-    |> Enum.filter(fn step_position -> step_position.time <= current_time end)
-    |> Enum.max_by(fn step_position -> step_position.time end, fn -> nil end)
-    |> case do
-      nil -> nil
-      step_position -> step_position.step
-    end
+  @impl true
+  def handle_event("seek_next_step", _params, %{assigns: %{current_step: current_step, steps: steps}} = socket) do
+    next_step = Enum.at(steps, min(current_step.index + 1, length(steps) - 1))
+
+    socket =
+      push_event(socket, "seek-video", %{
+        time: next_step.time,
+        id: "qa-recording",
+        auto_scroll: true
+      })
+
+    {:noreply, socket}
   end
 
-  defp get_step_by_index(step_positions, step_index) when is_integer(step_index) do
-    case Enum.at(step_positions, step_index) do
-      nil -> nil
-      step_position -> step_position.step
-    end
+  defp find_current_step(steps, current_time) do
+    steps
+    |> Enum.filter(fn step -> step.time <= current_time end)
+    |> List.last()
   end
-
-  defp get_step_by_index(_step_positions, _step_index), do: nil
 
   def format_time(seconds) do
     total_seconds = trunc(seconds)
@@ -343,38 +293,26 @@ defmodule TuistWeb.QARunLive do
     "#{mins}:#{String.pad_leading(Integer.to_string(secs), 2, "0")}"
   end
 
-  defp calculate_step_positions(%{recording: nil} = _qa_run), do: {[], []}
+  defp steps_with_times(%{recording: nil} = _qa_run), do: []
 
-  defp calculate_step_positions(
-         %{
-           run_steps: run_steps,
-           recording: %{started_at: recording_started_at, duration: duration}
-         } = _qa_run
+  defp steps_with_times(
+         %{run_steps: run_steps, recording: %{started_at: recording_started_at, duration: duration}} = _qa_run
        )
        when not is_nil(recording_started_at) do
-    if Enum.empty?(run_steps) do
-      {[], []}
-    else
-      ordered_run_steps = Enum.sort_by(run_steps, & &1.inserted_at, DateTime)
+    run_steps
+    |> Enum.sort_by(& &1.inserted_at, DateTime)
+    |> Enum.with_index()
+    |> Enum.map(fn {step, index} ->
+      time_seconds =
+        max(
+          min(
+            DateTime.diff(step.inserted_at, recording_started_at, :millisecond) + 300,
+            duration
+          ) / 1000.0,
+          0
+        )
 
-      step_positions =
-        Enum.map(ordered_run_steps, fn step ->
-          # Calculate time based on timestamp relative to recording start
-          step_offset_ms =
-            min(
-              DateTime.diff(step.inserted_at, recording_started_at, :millisecond) + 300,
-              duration
-            )
-
-          # Convert milliseconds to seconds
-          time_seconds = step_offset_ms / 1000.0
-          # Ensure time is not negative
-          time_seconds = max(0, time_seconds)
-
-          %{step: step, time: time_seconds}
-        end)
-
-      {step_positions, ordered_run_steps}
-    end
+      step |> Map.put(:time, time_seconds) |> Map.put(:index, index)
+    end)
   end
 end

@@ -12,6 +12,7 @@ defmodule Runner.QA.Agent do
   alias Runner.QA.AppiumClient
   alias Runner.QA.Client
   alias Runner.QA.Simulators
+  alias Runner.QA.Sleeper
   alias Runner.QA.Tools
   alias Runner.Zip
 
@@ -178,25 +179,21 @@ defmodule Runner.QA.Agent do
           simulator_uuid: simulator_device.udid
         })
 
-      # Create recording path before run_llm to prevent Briefly cleanup
       {:ok, recording_path} = Briefly.create()
 
-      initial_attrs = %{
-        llm: llm,
-        with_fallbacks: with_fallbacks,
-        max_retry_count: 10,
-        simulator_device: simulator_device,
-        log_streamer: log_streamer,
-        server_url: server_url,
-        run_id: run_id,
-        auth_token: auth_token,
-        account_handle: account_handle,
-        project_handle: project_handle,
-        recording_path: recording_path
-      }
-
       case run_llm(
-             initial_attrs,
+             %{
+               llm: llm,
+               with_fallbacks: with_fallbacks,
+               max_retry_count: 10,
+               recording_path: recording_path,
+               simulator_device: simulator_device,
+               server_url: server_url,
+               run_id: run_id,
+               auth_token: auth_token,
+               account_handle: account_handle,
+               project_handle: project_handle
+             },
              handler,
              [Message.new_user!(prompt)],
              tools
@@ -217,66 +214,72 @@ defmodule Runner.QA.Agent do
 
           {:error, error_message}
 
-        result ->
-          {:ok, final_attrs} = result
-          # Stop and upload recording if it was started
-          if Map.has_key?(final_attrs, :recording_port) do
-            :timer.sleep(1)
-            Simulators.stop_recording(final_attrs.recording_port)
-
-            # Fix frame rate issues with ffmpeg
-            {:ok, fixed_recording_path} = Briefly.create(extname: ".mp4")
-
-            {_, 0} =
-              System.cmd("ffmpeg", [
-                "-y",
-                "-i",
-                final_attrs.recording_path,
-                "-r",
-                "30",
-                "-c:v",
-                "libx264",
-                "-preset",
-                "veryfast",
-                "-crf",
-                "23",
-                "-vsync",
-                "cfr",
-                fixed_recording_path
-              ])
-
-            # Get video duration using ffprobe
-            {output, 0} =
-              System.cmd("ffprobe", [
-                "-v",
-                "error",
-                "-show_entries",
-                "format=duration",
-                "-of",
-                "default=noprint_wrappers=1:nokey=1",
-                fixed_recording_path
-              ])
-
-            duration_seconds = output |> String.trim() |> String.to_float()
-            duration_ms = round(duration_seconds * 1000)
-
-            {:ok, _} =
-              Client.upload_recording(%{
-                server_url: server_url,
-                run_id: run_id,
-                auth_token: auth_token,
-                account_handle: account_handle,
-                project_handle: project_handle,
-                recording_path: fixed_recording_path,
-                started_at: final_attrs.recording_started_at,
-                duration_ms: duration_ms
-              })
-          end
-
+        {:ok, attrs} ->
+          upload_recording(attrs)
           AppiumClient.stop_session(appium_session)
           :ok
       end
     end
+  end
+
+  defp upload_recording(%{
+         recording_path: recording_path,
+         recording_port: recording_port,
+         recording_started_at: recording_started_at,
+         server_url: server_url,
+         run_id: run_id,
+         auth_token: auth_token,
+         account_handle: account_handle,
+         project_handle: project_handle
+       }) do
+    Sleeper.sleep(1)
+    Simulators.stop_recording(recording_port)
+
+    {:ok, fixed_recording_path} = Briefly.create(extname: ".mp4")
+
+    {_, 0} =
+      System.cmd("ffmpeg", [
+        "-y",
+        "-i",
+        recording_path,
+        "-r",
+        "30",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "veryfast",
+        "-crf",
+        "23",
+        "-vsync",
+        "cfr",
+        fixed_recording_path
+      ])
+
+    {output, 0} =
+      System.cmd("ffprobe", [
+        "-v",
+        "error",
+        "-show_entries",
+        "format=duration",
+        "-of",
+        "default=noprint_wrappers=1:nokey=1",
+        fixed_recording_path
+      ])
+
+    duration_seconds = output |> String.trim() |> String.to_float()
+    duration_ms = round(duration_seconds * 1000)
+
+    {:ok, _} =
+      Client.upload_recording(%{
+        server_url: server_url,
+        run_id: run_id,
+        auth_token: auth_token,
+        account_handle: account_handle,
+        project_handle: project_handle,
+        recording_path: fixed_recording_path,
+        started_at: recording_started_at,
+        duration_ms: duration_ms
+      })
   end
 
   defp run_llm(%{with_fallbacks: with_fallbacks} = attrs, handler, messages, tools) do
@@ -304,11 +307,9 @@ defmodule Runner.QA.Agent do
         {:ok, attrs}
 
       "plan_report" ->
-        # Start recording after plan_report using the pre-created recording_path
-        {:ok, recording_port} =
-          attrs.simulator_device |> Simulators.start_recording(attrs.recording_path) |> dbg()
+        recording_port =
+          Simulators.start_recording(attrs.simulator_device, attrs.recording_path)
 
-        # Add recording port and started_at to attrs
         attrs =
           attrs
           |> Map.put(:recording_port, recording_port)
@@ -335,12 +336,7 @@ defmodule Runner.QA.Agent do
     end
   end
 
-  defp process_llm_result(
-         {:error, _chain, %LangChain.LangChainError{message: message}},
-         _attrs,
-         _handler,
-         _tools
-       ) do
+  defp process_llm_result({:error, _chain, %LangChain.LangChainError{message: message}}, _attrs, _handler, _tools) do
     {:error, "LLM chain execution failed: #{message}"}
   end
 

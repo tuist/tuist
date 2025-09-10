@@ -14,13 +14,8 @@ defmodule Tuist.QA.Workers.TestWorker do
 
   @impl Oban.Worker
   def perform(
-        %Oban.Job{
-          args: %{
-            "app_build_id" => app_build_id,
-            "prompt" => prompt,
-            "issue_comment_id" => issue_comment_id
-          }
-        } = _job
+        %Oban.Job{args: %{"app_build_id" => app_build_id, "prompt" => prompt, "issue_comment_id" => issue_comment_id}} =
+          _job
       ) do
     {:ok, app_build} =
       AppBuilds.app_build_by_id(app_build_id, preload: [preview: [project: :account]])

@@ -1,6 +1,5 @@
 export default {
   mounted() {
-    // Handle scroll-to-element events
     this.handleScrollToElement = (event) => {
       if (event.detail.id === this.el.id) {
         this.el.scrollIntoView({

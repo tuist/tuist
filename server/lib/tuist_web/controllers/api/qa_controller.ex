@@ -127,21 +127,15 @@ defmodule TuistWeb.API.QAController do
   end
 
   def update_run(%{assigns: %{selected_qa_run: qa_run}} = conn, params) do
-    update_attrs = %{}
-
     update_attrs =
-      if Map.has_key?(params, "status") do
-        Map.put(update_attrs, :status, params["status"])
-      else
-        update_attrs
-      end
-
-    update_attrs =
-      if Map.has_key?(params, "status") and params["status"] in ["completed", "failed"] do
-        Map.put(update_attrs, :finished_at, DateTime.utc_now())
-      else
-        update_attrs
-      end
+      %{}
+      |> then(&if(is_nil(params["status"]), do: &1, else: Map.put(&1, :status, params["status"])))
+      |> then(
+        &if(is_nil(params["status"] in ["completed", "failed"]),
+          do: &1,
+          else: Map.put(&1, :finished_at, DateTime.utc_now())
+        )
+      )
 
     case QA.update_qa_run(qa_run, update_attrs) do
       {:ok, updated_qa_run} ->
@@ -229,7 +223,7 @@ defmodule TuistWeb.API.QAController do
     upload_id = Storage.multipart_start(storage_key, project.account)
 
     conn
-    |> put_status(:created)
+    |> put_status(:ok)
     |> json(%{
       upload_id: upload_id,
       storage_key: storage_key
@@ -243,29 +237,14 @@ defmodule TuistWeb.API.QAController do
     expires_in = 120
     content_length = Map.get(params, "content_length")
 
-    # Convert part_number to integer if it's a string
-    part_number_int =
-      case part_number do
-        n when is_integer(n) -> n
-        n when is_binary(n) -> String.to_integer(n)
-      end
-
-    # Convert content_length to integer if it's a string
-    content_length_int =
-      case content_length do
-        nil -> nil
-        n when is_integer(n) -> n
-        n when is_binary(n) -> String.to_integer(n)
-      end
-
     url =
       Storage.multipart_generate_url(
         storage_key,
         upload_id,
-        part_number_int,
+        part_number,
         project.account,
         expires_in: expires_in,
-        content_length: content_length_int
+        content_length: content_length
       )
 
     json(conn, %{url: url})
@@ -278,37 +257,42 @@ defmodule TuistWeb.API.QAController do
         "started_at" => started_at,
         "duration" => duration
       }) do
-    # Convert parts from maps to tuples for ExAws
     parts_tuples =
       Enum.map(parts, fn %{"part_number" => part_number, "etag" => etag} ->
         {part_number, etag}
       end)
 
-    Storage.multipart_complete_upload(storage_key, upload_id, parts_tuples, project.account)
+    :ok = Storage.multipart_complete_upload(storage_key, upload_id, parts_tuples, project.account)
 
-    # Parse started_at datetime
-    {:ok, started_at_datetime, _} = DateTime.from_iso8601(started_at)
+    case DateTime.from_iso8601(started_at) do
+      {:ok, started_at_datetime, _} ->
+        case QA.create_qa_recording(%{
+               qa_run_id: qa_run.id,
+               started_at: started_at_datetime,
+               duration: duration
+             }) do
+          {:ok, _recording} ->
+            json(conn, %{})
 
-    # Create the recording
-    case QA.create_qa_recording(%{
-           qa_run_id: qa_run.id,
-           started_at: started_at_datetime,
-           duration: duration
-         }) do
-      {:ok, _recording} ->
-        json(conn, %{status: "success"})
+          {:error, changeset} ->
+            message =
+              changeset
+              |> Ecto.Changeset.traverse_errors(fn {message, _opts} -> message end)
+              |> Enum.flat_map(fn {_key, value} -> value end)
+              |> Enum.join(", ")
 
-      {:error, changeset} ->
-        message =
-          changeset
-          |> Ecto.Changeset.traverse_errors(fn {message, _opts} -> message end)
-          |> Enum.flat_map(fn {_key, value} -> value end)
-          |> Enum.join(", ")
+            conn
+            |> put_status(:bad_request)
+            |> json(%{
+              message: "Recording #{message}"
+            })
+        end
 
+      {:error, _} ->
         conn
         |> put_status(:bad_request)
         |> json(%{
-          message: "Recording #{message}"
+          message: "Recording invalid started_at datetime format"
         })
     end
   end

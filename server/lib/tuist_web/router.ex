@@ -309,10 +309,15 @@ defmodule TuistWeb.Router do
 
           post "/runs/:qa_run_id/screenshots", QAController, :create_screenshot
 
-          # Recording multipart upload endpoints
           post "/runs/:qa_run_id/recordings/upload/start", QAController, :start_recording_upload
-          post "/runs/:qa_run_id/recordings/upload/generate-url", QAController, :generate_recording_upload_url
-          post "/runs/:qa_run_id/recordings/upload/complete", QAController, :complete_recording_upload
+
+          post "/runs/:qa_run_id/recordings/upload/generate-url",
+               QAController,
+               :generate_recording_upload_url
+
+          post "/runs/:qa_run_id/recordings/upload/complete",
+               QAController,
+               :complete_recording_upload
         end
 
         scope "/tokens" do

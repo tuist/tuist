@@ -32,6 +32,7 @@ import VideoPlayer from "./js/VideoPlayer.js";
 import TimelineSeek from "./js/TimelineSeek.js";
 import BlurOnClick from "./js/BlurOnClick.js";
 import ScrollIntoView from "./js/ScrollIntoView.js";
+import StopPropagationOnDrag from "./js/StopPropagationOnDrag.js";
 
 let csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content");
 let cspNonce = document.querySelector("meta[name='csp-nonce']").getAttribute("content");
@@ -45,6 +46,7 @@ Hooks.VideoPlayer = VideoPlayer;
 Hooks.TimelineSeek = TimelineSeek;
 Hooks.BlurOnClick = BlurOnClick;
 Hooks.ScrollIntoView = ScrollIntoView;
+Hooks.StopPropagationOnDrag = StopPropagationOnDrag;
 
 observeThemeChanges();
 Hooks.ThemeSwitcher = ThemeSwitcher;

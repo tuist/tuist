@@ -25,8 +25,4 @@ defmodule Tuist.QA.Recording do
     |> validate_required([:qa_run_id, :started_at, :duration])
     |> foreign_key_constraint(:qa_run_id)
   end
-
-  def update_changeset(recording, attrs) do
-    cast(recording, attrs, [:started_at, :duration])
-  end
 end

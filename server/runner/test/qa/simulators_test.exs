@@ -84,7 +84,8 @@ defmodule Runner.QA.Simulators.SimulatorsTest do
       end)
 
       # When
-      {:ok, devices} = Simulators.devices(runtime_identifier: "com.apple.CoreSimulator.SimRuntime.iOS-18-4")
+      {:ok, devices} =
+        Simulators.devices(runtime_identifier: "com.apple.CoreSimulator.SimRuntime.iOS-18-4")
 
       # Then
 
@@ -334,7 +335,13 @@ defmodule Runner.QA.Simulators.SimulatorsTest do
         runtime_identifier: "com.apple.CoreSimulator.SimRuntime.iOS-18-4"
       }
 
-      stub(System, :cmd, fn "xcrun", ["simctl", "install", "8491E652-18FC-4C0F-8AFA-2AEAFC3D4FF1", ^app_path] ->
+      stub(System, :cmd, fn "xcrun",
+                            [
+                              "simctl",
+                              "install",
+                              "8491E652-18FC-4C0F-8AFA-2AEAFC3D4FF1",
+                              ^app_path
+                            ] ->
         {"", 0}
       end)
 
@@ -356,7 +363,13 @@ defmodule Runner.QA.Simulators.SimulatorsTest do
         runtime_identifier: "com.apple.CoreSimulator.SimRuntime.iOS-18-4"
       }
 
-      stub(System, :cmd, fn "xcrun", ["simctl", "install", "8491E652-18FC-4C0F-8AFA-2AEAFC3D4FF1", ^app_path] ->
+      stub(System, :cmd, fn "xcrun",
+                            [
+                              "simctl",
+                              "install",
+                              "8491E652-18FC-4C0F-8AFA-2AEAFC3D4FF1",
+                              ^app_path
+                            ] ->
         {"Failed to install app", 1}
       end)
 
@@ -381,7 +394,13 @@ defmodule Runner.QA.Simulators.SimulatorsTest do
       }
 
       stub(System, :cmd, fn "xcrun",
-                            ["simctl", "launch", "8491E652-18FC-4C0F-8AFA-2AEAFC3D4FF1", ^bundle_identifier, ""] ->
+                            [
+                              "simctl",
+                              "launch",
+                              "8491E652-18FC-4C0F-8AFA-2AEAFC3D4FF1",
+                              ^bundle_identifier,
+                              ""
+                            ] ->
         {"com.example.myapp: 12345", 0}
       end)
 
@@ -404,7 +423,13 @@ defmodule Runner.QA.Simulators.SimulatorsTest do
       }
 
       stub(System, :cmd, fn "xcrun",
-                            ["simctl", "launch", "8491E652-18FC-4C0F-8AFA-2AEAFC3D4FF1", ^bundle_identifier, ""] ->
+                            [
+                              "simctl",
+                              "launch",
+                              "8491E652-18FC-4C0F-8AFA-2AEAFC3D4FF1",
+                              ^bundle_identifier,
+                              ""
+                            ] ->
         {"Unable to launch com.example.myapp", 1}
       end)
 
@@ -413,6 +438,32 @@ defmodule Runner.QA.Simulators.SimulatorsTest do
 
       # Then
       assert {:error, "Failed to launch app: Unable to launch com.example.myapp"} = result
+    end
+  end
+
+  describe "stop_recording/1" do
+    test "stops recording successfully" do
+      # Given
+      port = Port.open({:spawn, "sleep 10"}, [:binary])
+      os_pid = 12_345
+
+      stub(Port, :info, fn ^port, :os_pid ->
+        {:os_pid, os_pid}
+      end)
+
+      stub(System, :cmd, fn "kill", ["-INT", "12345"] ->
+        {"", 0}
+      end)
+
+      stub(Port, :close, fn ^port ->
+        true
+      end)
+
+      # When
+      result = Simulators.stop_recording(port)
+
+      # Then
+      assert result == :ok
     end
   end
 end
