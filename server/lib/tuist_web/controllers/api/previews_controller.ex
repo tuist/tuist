@@ -151,7 +151,6 @@ defmodule TuistWeb.API.PreviewsController do
         display_name: Map.get(body_params, :display_name),
         git_branch: Map.get(body_params, :git_branch),
         git_ref: Map.get(body_params, :git_ref),
-        visibility: selected_project.default_previews_visibility,
         supported_platforms: []
       })
 
