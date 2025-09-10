@@ -64,7 +64,8 @@ defmodule TuistWeb.PreviewsControllerTest do
                :git_branch,
                :git_commit_sha,
                :git_ref,
-               :created_by_account_id
+               :created_by_account_id,
+               :visibility
              ]) == %{
                display_name: "name",
                version: "1.0.0",
@@ -72,8 +73,48 @@ defmodule TuistWeb.PreviewsControllerTest do
                git_branch: "main",
                git_commit_sha: "commit-sha",
                git_ref: "git-ref",
-               created_by_account_id: account.id
+               created_by_account_id: account.id,
+               visibility: :private
              }
+    end
+
+    test "starts multipart upload when project's default preview visibility is public", %{
+      conn: conn,
+      user: user,
+      account: account
+    } do
+      # Given
+      project_with_public_default =
+        ProjectsFixtures.project_fixture(
+          account_id: account.id,
+          default_previews_visibility: :public
+        )
+
+      upload_id = "upload-id"
+
+      expect(Storage, :multipart_start, fn _object_key, _actor ->
+        upload_id
+      end)
+
+      # When
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/projects/#{account.name}/#{project_with_public_default.name}/previews/start",
+          display_name: "name",
+          version: "1.0.0",
+          bundle_identifier: "dev.tuist.app"
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+      assert response["status"] == "success"
+
+      {:ok, app_build} =
+        AppBuilds.app_build_by_id(response["data"]["preview_id"], preload: [:preview])
+
+      assert app_build.preview.visibility == :public
     end
 
     test "starts multipart upload of a bundle app build", %{
