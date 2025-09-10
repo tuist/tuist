@@ -15,7 +15,7 @@ try {
   schema = JSON.parse(schemaContent);
 } catch (error) {
   throw new Error(
-    `Failed to load CLI schema from ${schemaPath}. Please run 'mise run docs:generate-cli-schema' first.`,
+    `Failed to load CLI schema from ${schemaPath}. Please run 'mise run generate-cli-docs' first.`,
   );
 }
 
