@@ -54,7 +54,7 @@ struct ServerDeleteCredentialsOnUnauthorizedMiddlewareTests {
         })
     }
 
-    @Test func doesntDeleteCredentials_when_unAuthorizedResponse() async throws {
+    @Test func doesntDeleteCredentials_when_not_unauthorizedResponse() async throws {
         let request = HTTPRequest(method: .get, scheme: "https", authority: nil, path: "/api")
         let baseURL = URL(string: "https://tuist.dev")!
         let operationID = UUID().uuidString
