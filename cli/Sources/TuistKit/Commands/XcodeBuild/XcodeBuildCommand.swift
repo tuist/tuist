@@ -52,10 +52,6 @@ public struct XcodeBuildCommand: AsyncParsableCommand, TrackableParsableCommand,
             throw ValidationError("No valid action found. Valid actions are: \(validActions.joined(separator: ", "))")
         }
         
-        guard actionIndex < arguments.count else {
-            throw ValidationError("Invalid action index.")
-        }
-        
         let action = arguments[actionIndex]
         
         let preActionArgs = Array(arguments[..<actionIndex])
