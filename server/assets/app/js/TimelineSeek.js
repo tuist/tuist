@@ -2,7 +2,7 @@ export default {
   mounted() {
     this.el.addEventListener("click", (e) => {
       // Don't handle clicks when clicking on an element with phx-click as that should take precedence
-      if (e.target.closest('[phx-click]')) {
+      if (e.target.closest("[phx-click]")) {
         return;
       }
 
@@ -15,5 +15,5 @@ export default {
 
       this.pushEvent("seek", { time: percentage * duration });
     });
-  }
+  },
 };

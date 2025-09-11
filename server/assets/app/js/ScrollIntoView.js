@@ -3,8 +3,8 @@ export default {
     this.handleScrollToElement = (event) => {
       if (event.detail.id === this.el.id) {
         this.el.scrollIntoView({
-          behavior: 'smooth',
-          block: 'start'
+          behavior: "smooth",
+          block: "start",
         });
       }
     };
@@ -13,5 +13,5 @@ export default {
 
   destroyed() {
     window.removeEventListener("phx:scroll-to-element", this.handleScrollToElement);
-  }
+  },
 };

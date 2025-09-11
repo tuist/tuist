@@ -101,7 +101,7 @@ export default {
       }
 
       this.pushEvent("video_time_update", {
-        current_time: this.el.currentTime
+        current_time: this.el.currentTime,
       });
     };
 
@@ -117,9 +117,8 @@ export default {
         this.el.currentTime = this.seekTimeAfterDrag(element, playheadArea);
 
         this.pushEvent("video_time_update", {
-          current_time: this.el.currentTime
+          current_time: this.el.currentTime,
         });
-
 
         if (wasPlaying) {
           this.el.play();
@@ -143,7 +142,7 @@ export default {
   },
 
   updateProgressBar(currentTime, duration, shouldAutoScroll = false) {
-    const progress = Math.min((currentTime / duration), 1);
+    const progress = Math.min(currentTime / duration, 1);
 
     const playhead = document.querySelector("#playhead");
     const playheadArea = document.querySelector("#playhead-area");
@@ -155,7 +154,7 @@ export default {
     }
 
     this.pushEvent("video_time_update", {
-      current_time: currentTime
+      current_time: currentTime,
     });
   },
 
@@ -187,7 +186,7 @@ export default {
       const targetScroll = playheadPosition - containerWidth * 0.25;
       scrollContainer.scrollTo({
         left: Math.max(0, Math.min(targetScroll, trackWidth - containerWidth)),
-        behavior: "smooth"
+        behavior: "smooth",
       });
     }
     // Check if playhead is getting close to the left edge (when seeking backward)
@@ -196,7 +195,7 @@ export default {
       const targetScroll = playheadPosition - containerWidth * 0.75;
       scrollContainer.scrollTo({
         left: Math.max(0, targetScroll),
-        behavior: "smooth"
+        behavior: "smooth",
       });
     }
   },
@@ -212,5 +211,5 @@ export default {
     document.removeEventListener("mousemove", this.handleMouseMove);
     document.removeEventListener("mouseup", this.handleMouseUp);
     document.removeEventListener("handlePropagatedMouseMove", this.handleMouseDown);
-  }
+  },
 };

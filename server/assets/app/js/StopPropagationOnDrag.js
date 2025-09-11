@@ -9,8 +9,8 @@ export default {
       dragStartX = event.clientX;
       dragStartY = event.clientY;
       hasDragged = false;
-      this.el.addEventListener('mousemove', handleMouseMove);
-      this.el.addEventListener('mouseup', handleMouseUp);
+      this.el.addEventListener("mousemove", handleMouseMove);
+      this.el.addEventListener("mouseup", handleMouseUp);
     };
 
     const handleMouseMove = (event) => {
@@ -20,23 +20,23 @@ export default {
       if (!hasDragged && (deltaX > DRAG_THRESHOLD || deltaY > DRAG_THRESHOLD)) {
         hasDragged = true;
 
-        document.dispatchEvent(new CustomEvent('handlePropagatedMouseMove', event));
+        document.dispatchEvent(new CustomEvent("handlePropagatedMouseMove", event));
       }
     };
 
     const handleMouseUp = () => {
-      this.el.removeEventListener('mousemove', handleMouseMove);
-      this.el.removeEventListener('mouseup', handleMouseUp);
+      this.el.removeEventListener("mousemove", handleMouseMove);
+      this.el.removeEventListener("mouseup", handleMouseUp);
     };
 
-    this.el.addEventListener('click', (event) => {
-        if (hasDragged) {
-          event.preventDefault();
-          event.stopPropagation();
-          return false;
-        }
+    this.el.addEventListener("click", (event) => {
+      if (hasDragged) {
+        event.preventDefault();
+        event.stopPropagation();
+        return false;
+      }
     });
 
-    this.el.addEventListener('mousedown', handleMouseDown);
-  }
-}
+    this.el.addEventListener("mousedown", handleMouseDown);
+  },
+};
