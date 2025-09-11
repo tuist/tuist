@@ -50,10 +50,8 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
   end
 
   def call(conn, opts) do
-    case Keyword.fetch!(opts, :category) do
-      :cache ->
-        authorize_project(conn, :cache, opts)
-    end
+    :cache = Keyword.fetch!(opts, :category)
+    authorize_project(conn, :cache, opts)
   end
 
   defp authorize_account(%{assigns: %{selected_account: selected_account}} = conn, category) do
