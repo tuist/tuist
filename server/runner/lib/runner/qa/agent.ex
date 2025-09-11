@@ -12,7 +12,6 @@ defmodule Runner.QA.Agent do
   alias Runner.QA.AppiumClient
   alias Runner.QA.Client
   alias Runner.QA.Simulators
-  alias Runner.QA.Sleeper
   alias Runner.QA.Tools
   alias Runner.Zip
 
@@ -232,7 +231,6 @@ defmodule Runner.QA.Agent do
          account_handle: account_handle,
          project_handle: project_handle
        }) do
-    Sleeper.sleep(1)
     Simulators.stop_recording(recording_port)
 
     {:ok, fixed_recording_path} = Briefly.create(extname: ".mp4")

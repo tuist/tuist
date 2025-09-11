@@ -131,9 +131,9 @@ defmodule TuistWeb.API.QAController do
       %{}
       |> then(&if(is_nil(params["status"]), do: &1, else: Map.put(&1, :status, params["status"])))
       |> then(
-        &if(is_nil(params["status"] in ["completed", "failed"]),
-          do: &1,
-          else: Map.put(&1, :finished_at, DateTime.utc_now())
+        &if(params["status"] in ["completed", "failed"],
+          do: Map.put(&1, :finished_at, DateTime.utc_now()),
+          else: &1
         )
       )
 
@@ -264,35 +264,27 @@ defmodule TuistWeb.API.QAController do
 
     :ok = Storage.multipart_complete_upload(storage_key, upload_id, parts_tuples, project.account)
 
-    case DateTime.from_iso8601(started_at) do
-      {:ok, started_at_datetime, _} ->
-        case QA.create_qa_recording(%{
-               qa_run_id: qa_run.id,
-               started_at: started_at_datetime,
-               duration: duration
-             }) do
-          {:ok, _recording} ->
-            json(conn, %{})
+    {:ok, started_at_datetime, _} = DateTime.from_iso8601(started_at)
 
-          {:error, changeset} ->
-            message =
-              changeset
-              |> Ecto.Changeset.traverse_errors(fn {message, _opts} -> message end)
-              |> Enum.flat_map(fn {_key, value} -> value end)
-              |> Enum.join(", ")
+    case QA.create_qa_recording(%{
+           qa_run_id: qa_run.id,
+           started_at: started_at_datetime,
+           duration: duration
+         }) do
+      {:ok, _recording} ->
+        json(conn, %{})
 
-            conn
-            |> put_status(:bad_request)
-            |> json(%{
-              message: "Recording #{message}"
-            })
-        end
+      {:error, changeset} ->
+        message =
+          changeset
+          |> Ecto.Changeset.traverse_errors(fn {message, _opts} -> message end)
+          |> Enum.flat_map(fn {_key, value} -> value end)
+          |> Enum.join(", ")
 
-      {:error, _} ->
         conn
         |> put_status(:bad_request)
         |> json(%{
-          message: "Recording invalid started_at datetime format"
+          message: "Recording #{message}"
         })
     end
   end

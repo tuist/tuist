@@ -12,7 +12,6 @@ defmodule Runner.QA.AgentTest do
   alias Runner.QA.Client
   alias Runner.QA.Simulators
   alias Runner.QA.Simulators.SimulatorDevice
-  alias Runner.QA.Sleeper
   alias Runner.QA.Tools
 
   setup do
@@ -142,7 +141,6 @@ defmodule Runner.QA.AgentTest do
         {:ok, %LLMChain{}, %ToolResult{name: "finalize", content: ["Test completed successfully"]}}
       end)
 
-      expect(Sleeper, :sleep, fn 1 -> :ok end)
       expect(Simulators, :stop_recording, fn ^recording_port -> :ok end)
 
       expect(System, :cmd, 1, fn "ffmpeg", _args ->
@@ -407,7 +405,6 @@ defmodule Runner.QA.AgentTest do
         {:ok, chain, %ToolResult{name: "finalize", content: ["Test completed"]}}
       end)
 
-      expect(Sleeper, :sleep, fn 1 -> :ok end)
       expect(Simulators, :stop_recording, fn 12_345 -> :ok end)
 
       expect(System, :cmd, 1, fn "ffmpeg", _args ->
@@ -557,7 +554,6 @@ defmodule Runner.QA.AgentTest do
         {:ok, chain, %ToolResult{name: "finalize", content: ["Test completed"]}}
       end)
 
-      expect(Sleeper, :sleep, fn 1 -> :ok end)
       expect(Simulators, :stop_recording, fn 12_345 -> :ok end)
 
       expect(System, :cmd, 1, fn "ffmpeg", _args ->
