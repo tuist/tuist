@@ -7,7 +7,6 @@ defmodule Tuist.CommandEvents do
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.User
   alias Tuist.ClickHouseRepo
-  alias Tuist.CommandEvents.CacheEvent
   alias Tuist.CommandEvents.Clickhouse
   alias Tuist.CommandEvents.Postgres
   alias Tuist.CommandEvents.ResultBundle.ActionRecord

@@ -3,7 +3,6 @@ defmodule Tuist.API.PipelineTest do
 
   alias Tuist.API.Pipeline
   alias Tuist.CacheActionItems
-  alias Tuist.CommandEvents
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   setup do

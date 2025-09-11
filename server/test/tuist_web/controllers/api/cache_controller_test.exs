@@ -6,7 +6,6 @@ defmodule TuistWeb.API.CacheControllerTest do
   alias Tuist.API.Pipeline
   alias Tuist.CacheActionItems
   alias Tuist.CacheActionItems.CacheActionItem
-  alias Tuist.CommandEvents
   alias Tuist.Projects.Workers.CleanProjectWorker
   alias Tuist.Repo
   alias Tuist.Storage
@@ -23,7 +22,7 @@ defmodule TuistWeb.API.CacheControllerTest do
   describe "GET /api/cache" do
     test "returns download url", %{conn: conn, cache: cache} do
       # Given
-      project = %{id: project_id} = ProjectsFixtures.project_fixture()
+      project = ProjectsFixtures.project_fixture()
       account = Accounts.get_account_by_id(project.account_id)
       hash = "hash"
       name = "name"
@@ -112,7 +111,6 @@ defmodule TuistWeb.API.CacheControllerTest do
       organization = AccountsFixtures.organization_fixture(name: "MyAccount", preload: [:account])
 
       project =
-        %{id: project_id} =
         ProjectsFixtures.project_fixture(
           name: "MyProject",
           account_id: organization.account.id
@@ -558,7 +556,7 @@ defmodule TuistWeb.API.CacheControllerTest do
   describe "POST /api/cache/multipart/complete" do
     test "completes a multipart upload", %{conn: conn, cache: cache} do
       # Given
-      project = %{id: project_id} = ProjectsFixtures.project_fixture()
+      project = ProjectsFixtures.project_fixture()
       account = Accounts.get_account_by_id(project.account_id)
       hash = "hash"
       name = "name"
