@@ -5,6 +5,7 @@ defmodule TuistTestSupport.Fixtures.QAFixtures do
   alias Tuist.QA
   alias Tuist.QA.LaunchArgumentGroup
   alias Tuist.QA.Log
+  alias Tuist.QA.Recording
   alias Tuist.QA.Screenshot
   alias Tuist.QA.Step
   alias Tuist.Repo
@@ -102,6 +103,23 @@ defmodule TuistTestSupport.Fixtures.QAFixtures do
 
     %LaunchArgumentGroup{}
     |> LaunchArgumentGroup.create_changeset(attrs)
+    |> Repo.insert!()
+  end
+
+  def qa_recording_fixture(opts \\ []) do
+    qa_run =
+      Keyword.get_lazy(opts, :qa_run, fn ->
+        qa_run_fixture()
+      end)
+
+    attrs = %{
+      qa_run_id: qa_run.id,
+      started_at: Keyword.get(opts, :started_at, DateTime.utc_now()),
+      duration: Keyword.get(opts, :duration, 1500)
+    }
+
+    %Recording{}
+    |> Recording.create_changeset(attrs)
     |> Repo.insert!()
   end
 end

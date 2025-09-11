@@ -111,8 +111,10 @@ defmodule Runner.QA.Simulators do
   Returns `:ok` on success or `{:error, reason}` on failure.
   """
   def launch_app(bundle_identifier, %SimulatorDevice{udid: device_udid}, launch_arguments \\ "") do
+    launch_arguments = launch_arguments |> String.replace("\"", "") |> String.split(" ")
+
     args =
-      ["simctl", "launch", device_udid, bundle_identifier] ++ String.split(launch_arguments, " ")
+      ["simctl", "launch", device_udid, bundle_identifier] ++ launch_arguments
 
     case System.cmd("xcrun", args) do
       {_output, 0} ->
@@ -120,6 +122,47 @@ defmodule Runner.QA.Simulators do
 
       {output, _exit_code} ->
         {:error, "Failed to launch app: #{output}"}
+    end
+  end
+
+  @doc """
+  Starts recording video from a simulator device.
+
+  Parameters:
+    - device: SimulatorDevice struct
+    - output_path: Path where the video file will be saved
+  """
+  def start_recording(%SimulatorDevice{udid: device_udid}, output_path) do
+    Port.open({:spawn_executable, System.find_executable("xcrun")}, [
+      :binary,
+      :exit_status,
+      args: ["simctl", "io", device_udid, "recordVideo", output_path, "--force"]
+    ])
+  end
+
+  @doc """
+  Stops a recording that was started with start_recording/2.
+
+  Parameters:
+    - port: The Port returned by start_recording/2
+
+  Returns `:ok` on success.
+  """
+  def stop_recording(port) when is_port(port) do
+    # Get the OS process ID from the port
+    case Port.info(port, :os_pid) do
+      {:os_pid, os_pid} ->
+        case System.cmd("kill", ["-INT", Integer.to_string(os_pid)]) do
+          {_output, 0} ->
+            Port.close(port)
+            :ok
+
+          {output, exit_code} ->
+            {:error, "Failed to stop recording due to exit code #{exit_code}. Output: #{output}"}
+        end
+
+      error ->
+        {:error, "Failed to get OS PID: #{inspect(error)}"}
     end
   end
 end

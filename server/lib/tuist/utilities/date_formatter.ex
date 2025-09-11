@@ -9,6 +9,10 @@ defmodule Tuist.Utilities.DateFormatter do
     end
   end
 
+  def format_duration_from_seconds(duration_ms, opts \\ []) do
+    format_duration_from_milliseconds(duration_ms * 1000, opts)
+  end
+
   def format_duration_from_milliseconds(duration_ms, opts \\ []) do
     include_seconds = Keyword.get(opts, :include_seconds, true)
 

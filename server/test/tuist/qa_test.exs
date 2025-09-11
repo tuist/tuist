@@ -854,6 +854,61 @@ defmodule Tuist.QATest do
     end
   end
 
+  describe "create_qa_recording/1" do
+    test "creates a recording" do
+      # Given
+      qa_run = QAFixtures.qa_run_fixture()
+      started_at = DateTime.utc_now()
+
+      # When
+      {:ok, recording} =
+        QA.create_qa_recording(%{
+          qa_run_id: qa_run.id,
+          started_at: started_at,
+          duration: 120_000
+        })
+
+      # Then
+      assert recording.qa_run_id == qa_run.id
+      assert recording.started_at == DateTime.truncate(started_at, :second)
+      assert recording.duration == 120_000
+    end
+  end
+
+  describe "recording_storage_key/1" do
+    test "generates correct storage key for recording" do
+      # Given
+      qa_run_id = Ecto.UUID.generate()
+
+      # When
+      storage_key =
+        QA.recording_storage_key(%{
+          account_handle: "TestAccount",
+          project_handle: "TestProject",
+          qa_run_id: qa_run_id
+        })
+
+      # Then
+      assert storage_key == "testaccount/testproject/qa/#{qa_run_id}/recording.mp4"
+    end
+
+    test "downcases account and project handles" do
+      # Given
+      qa_run_id = Ecto.UUID.generate()
+
+      # When
+      storage_key =
+        QA.recording_storage_key(%{
+          account_handle: "MixedCASE-Account",
+          project_handle: "MiXeD-Project",
+          qa_run_id: qa_run_id
+        })
+
+      # Then
+      assert storage_key == "mixedcase-account/mixed-project/qa/#{qa_run_id}/recording.mp4"
+    end
+  end
+
   describe "create_qa_screenshot/1" do
     test "creates a screenshot with valid attributes" do
       # Given
@@ -956,7 +1011,7 @@ defmodule Tuist.QATest do
 
       # Then
       assert storage_key ==
-               "testaccount/testproject/qa/screenshots/#{qa_run_id}/#{screenshot_id}.png"
+               "testaccount/testproject/qa/#{qa_run_id}/screenshots/#{screenshot_id}.png"
     end
   end
 
@@ -1664,7 +1719,9 @@ defmodule Tuist.QATest do
 
       # Then
       assert [formatted_log] = result
-      assert formatted_log.image == "/test-account/test-project/qa/runs/#{qa_run.id}/screenshots/screenshot-789"
+
+      assert formatted_log.image ==
+               "/test-account/test-project/qa/runs/#{qa_run.id}/screenshots/screenshot-789"
     end
 
     test "handles various log message formats" do

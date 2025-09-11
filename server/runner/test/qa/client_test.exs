@@ -224,4 +224,79 @@ defmodule Runner.QA.ClientTest do
       assert result == :ok
     end
   end
+
+  describe "upload_recording/1" do
+    test "successfully uploads recording in chunks" do
+      # Given
+      server_url = "https://example.com"
+      run_id = "test-run-123"
+      auth_token = "test-token"
+      account_handle = "test-account"
+      project_handle = "test-project"
+      recording_path = "/tmp/recording.mp4"
+      file_size = 10_485_760
+      started_at = DateTime.utc_now()
+      duration_ms = 60_000
+
+      stub(File, :stat, fn ^recording_path, [:size] ->
+        {:ok, %{size: file_size}}
+      end)
+
+      stub(File, :stream!, fn ^recording_path, _chunk_size, [] ->
+        ["chunk1_data_5MB", "chunk2_data_5MB"]
+      end)
+
+      expect(Req, :post, 1, fn opts ->
+        if String.ends_with?(opts[:url], "/recordings/upload/start") do
+          {:ok, %{status: 201, body: %{"upload_id" => "upload-123", "storage_key" => "test-key"}}}
+        end
+      end)
+
+      expect(Req, :post, 2, fn opts ->
+        if String.ends_with?(opts[:url], "/recordings/upload/generate-url") do
+          part_number = opts[:json][:part_number]
+
+          {:ok,
+           %{
+             status: 200,
+             body: %{"url" => "https://s3.example.com/presigned-url-part-#{part_number}"}
+           }}
+        end
+      end)
+
+      expect(Req, :put, 2, fn url, _opts ->
+        assert String.starts_with?(url, "https://s3.example.com/presigned-url-part-")
+        {:ok, %{status: 200, headers: [{"etag", ["\"etag-for-part\""]}]}}
+      end)
+
+      expect(Req, :post, 1, fn opts ->
+        if String.ends_with?(opts[:url], "/recordings/upload/complete") do
+          assert opts[:json][:parts] == [
+                   %{part_number: 1, etag: "etag-for-part"},
+                   %{part_number: 2, etag: "etag-for-part"}
+                 ]
+
+          assert opts[:json][:started_at] == DateTime.to_iso8601(started_at)
+          assert opts[:json][:duration] == duration_ms
+          {:ok, %{status: 200, body: %{"status" => "success"}}}
+        end
+      end)
+
+      # When
+      result =
+        Client.upload_recording(%{
+          server_url: server_url,
+          run_id: run_id,
+          auth_token: auth_token,
+          account_handle: account_handle,
+          project_handle: project_handle,
+          recording_path: recording_path,
+          started_at: started_at,
+          duration_ms: duration_ms
+        })
+
+      # Then
+      assert result == {:ok, %{upload_id: "upload-123", storage_key: "test-key"}}
+    end
+  end
 end

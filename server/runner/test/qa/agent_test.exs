@@ -19,7 +19,7 @@ defmodule Runner.QA.AgentTest do
       name: "iPhone 16",
       udid: "42172B88-9A53-46C8-B560-75609012CF0D",
       state: "Booted",
-      runtime_identifier: "com.apple.CoreSimulator.SimRuntime.iOS-18-6"
+      runtime_identifier: "com.apple.CoreSimulator.SimRuntime.iOS-26-0"
     }
 
     preview_path = "/tmp/preview.zip"
@@ -31,6 +31,8 @@ defmodule Runner.QA.AgentTest do
     stub(Briefly, :create, fn
       [extname: ".zip"] -> {:ok, preview_path}
       [directory: true] -> {:ok, extract_dir}
+      [] -> {:ok, "/tmp/recording.mp4"}
+      [extname: ".mp4"] -> {:ok, "/tmp/recording_fixed.mp4"}
     end)
 
     stub(File, :stream!, fn ^preview_path -> :mocked_stream end)
@@ -98,36 +100,59 @@ defmodule Runner.QA.AgentTest do
   end
 
   describe "test/1" do
-    test "successfully runs QA test", %{device: device} do
+    test "successfully runs QA test", %{
+      device: device
+    } do
       # Given
       preview_url = "https://example.com/preview.zip"
       bundle_identifier = "com.example.app"
       prompt = "Test the login feature"
+      recording_port = 12_345
 
       expect(Req, :get, fn ^preview_url, [into: :mocked_stream] -> {:ok, %{status: 200}} end)
+
       expect(Simulators, :launch_app, fn ^bundle_identifier, ^device, _launch_arguments -> :ok end)
 
-      chain_result = %LLMChain{
-        llm: %ChatAnthropic{api_key: "test-api-key", model: "claude-sonnet-4-20250514"},
-        messages: [],
-        last_message: %Message{
-          role: :tool,
-          tool_results: [
-            %ToolResult{
-              name: "finalize",
-              content: ["Test completed successfully"]
-            }
-          ]
-        }
-      }
+      expect(LLMChain, :new!, fn attrs ->
+        %LLMChain{llm: attrs.llm, messages: [], last_message: nil}
+      end)
 
-      expect(LLMChain, :new!, fn attrs -> %{chain_result | llm: attrs.llm} end)
       expect(LLMChain, :add_messages, fn chain, _messages -> chain end)
       expect(LLMChain, :add_tools, fn chain, _tools -> chain end)
       expect(LLMChain, :add_callback, fn chain, _handler -> chain end)
 
       expect(LLMChain, :run_until_tool_used, fn _chain, _tool_names, _opts ->
-        {:ok, chain_result, %ToolResult{name: "finalize", content: ["Test completed successfully"]}}
+        {:ok, %LLMChain{}, %ToolResult{name: "plan_report", content: ["Test plan created"]}}
+      end)
+
+      expect(Simulators, :start_recording, fn _device_arg, _recording_path_arg ->
+        recording_port
+      end)
+
+      expect(LLMChain, :new!, fn attrs ->
+        %LLMChain{llm: attrs.llm, messages: [], last_message: nil}
+      end)
+
+      expect(LLMChain, :add_messages, fn chain, _messages -> chain end)
+      expect(LLMChain, :add_tools, fn chain, _tools -> chain end)
+      expect(LLMChain, :add_callback, fn chain, _handler -> chain end)
+
+      expect(LLMChain, :run_until_tool_used, fn _chain, _tool_names, _opts ->
+        {:ok, %LLMChain{}, %ToolResult{name: "finalize", content: ["Test completed successfully"]}}
+      end)
+
+      expect(Simulators, :stop_recording, fn ^recording_port -> :ok end)
+
+      expect(System, :cmd, 1, fn "ffmpeg", _args ->
+        {"", 0}
+      end)
+
+      expect(System, :cmd, 1, fn "ffprobe", _args ->
+        {"60.5", 0}
+      end)
+
+      expect(Client, :upload_recording, fn _params ->
+        {:ok, %{upload_id: "upload-123", storage_key: "test-key"}}
       end)
 
       # When / Then
@@ -239,7 +264,7 @@ defmodule Runner.QA.AgentTest do
               tool_call_id: "tap_id",
               content: [
                 "Previous tap result",
-                ContentPart.text!("Current UI state: UI data"),
+                ContentPart.text!(~s({"AppiumAUT": {"UI": "data"}})),
                 ContentPart.image!("image_data", media: :png)
               ]
             }
@@ -255,7 +280,7 @@ defmodule Runner.QA.AgentTest do
             %ToolResult{
               name: "describe_ui",
               tool_call_id: "describe_ui_id",
-              content: [ContentPart.text!("Current UI state: UI data")]
+              content: [ContentPart.text!(~s({"AppiumAUT": {"UI": "data"}}))]
             }
           ]
         },
@@ -273,6 +298,7 @@ defmodule Runner.QA.AgentTest do
       ]
 
       expect(Req, :get, fn ^preview_url, [into: :mocked_stream] -> {:ok, %{status: 200}} end)
+
       expect(Simulators, :launch_app, fn ^bundle_identifier, ^device, _launch_arguments -> :ok end)
 
       expect(LLMChain, :new!, 1, fn %{llm: llm} ->
@@ -297,7 +323,7 @@ defmodule Runner.QA.AgentTest do
          %ToolResult{
            name: "tap",
            content: [
-             ContentPart.text!("Current UI state: New data"),
+             ContentPart.text!(~s({"AppiumAUT": {"UI": "New data"}})),
              ContentPart.image!("screenshot_data", media: :png)
            ]
          }}
@@ -360,7 +386,37 @@ defmodule Runner.QA.AgentTest do
       end)
 
       expect(LLMChain, :run_until_tool_used, 1, fn chain, _tool_names, _opts ->
+        {:ok, chain, %ToolResult{name: "plan_report", content: ["Test plan created"]}}
+      end)
+
+      expect(Simulators, :start_recording, fn _device_arg, _recording_path_arg ->
+        12_345
+      end)
+
+      expect(LLMChain, :new!, 1, fn attrs ->
+        %LLMChain{llm: attrs.llm, messages: [], last_message: nil}
+      end)
+
+      expect(LLMChain, :add_messages, 1, fn chain, _messages -> chain end)
+      expect(LLMChain, :add_tools, 1, fn chain, _tools -> chain end)
+      expect(LLMChain, :add_callback, 1, fn chain, _handler -> chain end)
+
+      expect(LLMChain, :run_until_tool_used, 1, fn chain, _tool_names, _opts ->
         {:ok, chain, %ToolResult{name: "finalize", content: ["Test completed"]}}
+      end)
+
+      expect(Simulators, :stop_recording, fn 12_345 -> :ok end)
+
+      expect(System, :cmd, 1, fn "ffmpeg", _args ->
+        {"", 0}
+      end)
+
+      expect(System, :cmd, 1, fn "ffprobe", _args ->
+        {"60.5", 0}
+      end)
+
+      expect(Client, :upload_recording, fn _params ->
+        {:ok, %{upload_id: "upload-123", storage_key: "test-key"}}
       end)
 
       # When / Then
@@ -389,6 +445,7 @@ defmodule Runner.QA.AgentTest do
       prompt = "Test the login feature"
 
       expect(Req, :get, fn ^preview_url, [into: :mocked_stream] -> {:ok, %{status: 200}} end)
+
       expect(Simulators, :launch_app, fn ^bundle_identifier, ^device, _launch_arguments -> :ok end)
 
       expect(LLMChain, :new!, 1, fn %{llm: llm} ->
@@ -478,7 +535,37 @@ defmodule Runner.QA.AgentTest do
       end)
 
       expect(LLMChain, :run_until_tool_used, 1, fn chain, _tool_names, _opts ->
+        {:ok, chain, %ToolResult{name: "plan_report", content: ["Test plan created"]}}
+      end)
+
+      expect(Simulators, :start_recording, fn _device_arg, _recording_path_arg ->
+        12_345
+      end)
+
+      expect(LLMChain, :new!, 1, fn attrs ->
+        %LLMChain{llm: attrs.llm, messages: [], last_message: nil}
+      end)
+
+      expect(LLMChain, :add_messages, 1, fn chain, _messages -> chain end)
+      expect(LLMChain, :add_tools, 1, fn chain, _tools -> chain end)
+      expect(LLMChain, :add_callback, 1, fn chain, _handler -> chain end)
+
+      expect(LLMChain, :run_until_tool_used, 1, fn chain, _tool_names, _opts ->
         {:ok, chain, %ToolResult{name: "finalize", content: ["Test completed"]}}
+      end)
+
+      expect(Simulators, :stop_recording, fn 12_345 -> :ok end)
+
+      expect(System, :cmd, 1, fn "ffmpeg", _args ->
+        {"", 0}
+      end)
+
+      expect(System, :cmd, 1, fn "ffprobe", _args ->
+        {"60.5", 0}
+      end)
+
+      expect(Client, :upload_recording, fn _params ->
+        {:ok, %{upload_id: "upload-123", storage_key: "test-key"}}
       end)
 
       # When / Then
