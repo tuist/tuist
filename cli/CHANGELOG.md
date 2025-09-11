@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.69.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* update Swift package resolution to use -scmProvider system by [@pepicrft](https://github.com/pepicrft)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.68.0...4.69.0
+
 ## What's Changed in 4.68.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
