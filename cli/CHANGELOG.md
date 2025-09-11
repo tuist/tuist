@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.70.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* Don't focus when keeping the sources for targets replaced by binaries by [@pepicrft](https://github.com/pepicrft) in [#8180](https://github.com/tuist/tuist/pull/8180)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.69.0...4.70.0
+
 ## What's Changed in 4.69.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
