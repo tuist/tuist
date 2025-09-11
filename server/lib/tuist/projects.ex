@@ -192,7 +192,8 @@ defmodule Tuist.Projects do
       created_at: created_at,
       visibility: visibility,
       vcs_repository_full_handle: Keyword.get(opts, :vcs_repository_full_handle),
-      vcs_provider: Keyword.get(opts, :vcs_provider)
+      vcs_provider: Keyword.get(opts, :vcs_provider),
+      default_previews_visibility: Keyword.get(opts, :default_previews_visibility, :private)
     })
     |> Repo.insert!()
     |> Repo.preload(preload)

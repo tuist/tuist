@@ -213,5 +213,42 @@ defmodule Tuist.ProjectTest do
       assert changeset.valid? == false
       assert "is invalid" in errors_on(changeset).visibility
     end
+
+    test "update changeset is valid when default_previews_visibility is :private" do
+      # When
+      changeset =
+        Project.update_changeset(
+          %Project{},
+          %{default_previews_visibility: :private}
+        )
+
+      # Then
+      assert changeset.valid? == true
+    end
+
+    test "update changeset is valid when default_previews_visibility is :public" do
+      # When
+      changeset =
+        Project.update_changeset(
+          %Project{},
+          %{default_previews_visibility: :public}
+        )
+
+      # Then
+      assert changeset.valid? == true
+    end
+
+    test "update changeset is invalid when default_previews_visibility is not a valid value" do
+      # When
+      changeset =
+        Project.update_changeset(
+          %Project{},
+          %{default_previews_visibility: :invalid_visibility}
+        )
+
+      # Then
+      assert changeset.valid? == false
+      assert "is invalid" in errors_on(changeset).default_previews_visibility
+    end
   end
 end

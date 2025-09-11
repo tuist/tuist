@@ -24,6 +24,7 @@ defmodule Tuist.Projects.Project do
     field :vcs_repository_full_handle, :string
     field :vcs_provider, Ecto.Enum, values: [github: 0]
     field :last_interacted_at, :naive_datetime, virtual: true
+    field :default_previews_visibility, Ecto.Enum, values: [private: 0, public: 1], default: :private
 
     belongs_to :account, Account
 
@@ -49,7 +50,8 @@ defmodule Tuist.Projects.Project do
       :created_at,
       :visibility,
       :vcs_repository_full_handle,
-      :vcs_provider
+      :vcs_provider,
+      :default_previews_visibility
     ])
     |> validate_allowed_handle()
     |> validate_inclusion(:visibility, [:private, :public])
@@ -71,6 +73,7 @@ defmodule Tuist.Projects.Project do
     end)
     |> update_change(:name, &String.downcase/1)
     |> unique_constraint([:name, :account_id], name: "index_projects_on_name_and_account_id")
+    |> validate_inclusion(:default_previews_visibility, [:private, :public])
   end
 
   def validate_allowed_handle(changeset) do
@@ -79,8 +82,15 @@ defmodule Tuist.Projects.Project do
 
   def update_changeset(project, attrs) do
     project
-    |> cast(attrs, [:default_branch, :vcs_repository_full_handle, :vcs_provider, :visibility])
+    |> cast(attrs, [
+      :default_branch,
+      :vcs_repository_full_handle,
+      :vcs_provider,
+      :visibility,
+      :default_previews_visibility
+    ])
     |> validate_inclusion(:vcs_provider, [:github])
     |> validate_inclusion(:visibility, [:private, :public])
+    |> validate_inclusion(:default_previews_visibility, [:private, :public])
   end
 end
