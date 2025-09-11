@@ -10,7 +10,7 @@ extension TuistCore.TuistGeneratedProjectOptions.GenerationOptions {
     ) throws -> Self {
         var additionalPackageResolutionArguments = manifest.additionalPackageResolutionArguments
         if manifest.resolveDependenciesWithSystemScm {
-            additionalPackageResolutionArguments.append("-resolvePackageDependenciesWithSystemScm")
+            additionalPackageResolutionArguments.append(contentsOf: ["-scmProvider", "system"])
         }
 
         let clonedSourcePackagesDirPath: AbsolutePath? = try {
