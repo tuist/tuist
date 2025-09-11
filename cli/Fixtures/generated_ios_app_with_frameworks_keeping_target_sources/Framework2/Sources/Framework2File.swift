@@ -1,9 +1,9 @@
 import Foundation
 
-public class Framework1File {
+public class Framework2File {
     public init() {}
 
     public func hello() -> String {
-        "Framework1File.hello()"
+        "Framework2File.hello()"
     }
 }

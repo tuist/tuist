@@ -112,6 +112,40 @@ public enum TuistTest {
         }
     }
 
+    public static func expectLinked(
+        _ file: String,
+        by targetName: String,
+        inXcodeProj xcodeprojPath: AbsolutePath,
+        sourceLocation: SourceLocation = #_sourceLocation
+    ) throws {
+        let xcodeproj = try XcodeProj(pathString: xcodeprojPath.pathString)
+        let targets = xcodeproj.pbxproj.projects.flatMap(\.targets)
+        let target = try #require(targets.first(where: { $0.name == targetName }))
+        let targetLinkedFiles = try target.frameworksBuildPhase()?.files
+        let targetLinkedFileNames = targetLinkedFiles?.compactMap { $0.file?.name ?? $0.file?.path } ?? []
+        if targetLinkedFileNames.first(where: { $0 == file }) == nil {
+            Issue.record(
+                "Target \(targetName) doesn't link \(file)",
+                sourceLocation: sourceLocation
+            )
+        }
+    }
+
+    public static func expectContainsTarget(
+        _ targetName: String,
+        inXcodeProj xcodeprojPath: AbsolutePath,
+        sourceLocation: SourceLocation = #_sourceLocation
+    ) throws {
+        let xcodeproj = try XcodeProj(pathString: xcodeprojPath.pathString)
+        let targets = xcodeproj.pbxproj.projects.flatMap(\.targets)
+        if targets.first(where: { $0.name == targetName }) == nil {
+            Issue.record(
+                "Target \(targetName) not found in Xcode project at path \(xcodeprojPath.pathString)",
+                sourceLocation: sourceLocation
+            )
+        }
+    }
+
     public static func expectLogs(
         _ expected: String,
         at level: Logger.Level = .warning,
