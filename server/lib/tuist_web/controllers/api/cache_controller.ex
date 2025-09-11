@@ -168,20 +168,6 @@ defmodule TuistWeb.API.CacheController do
     if Storage.object_exists?(object_key, selected_project.account) do
       size = Storage.get_object_size(object_key, selected_project.account)
 
-      :ok =
-        Pipeline.async_push(
-          {:create_cache_event,
-           %{
-             event_type: :download,
-             hash: hash,
-             name: name,
-             project_id: selected_project.id,
-             size: size,
-             created_at: NaiveDateTime.utc_now(:second),
-             updated_at: NaiveDateTime.utc_now(:second)
-           }}
-        )
-
       Tuist.Analytics.cache_artifact_download(
         %{size: size, category: cache_category},
         TuistWeb.Authentication.authenticated_subject(conn)
@@ -660,20 +646,6 @@ defmodule TuistWeb.API.CacheController do
       )
 
     size = Storage.get_object_size(get_object_key(item), selected_project.account)
-
-    :ok =
-      Pipeline.async_push(
-        {:create_cache_event,
-         %{
-           event_type: :upload,
-           hash: hash,
-           name: name,
-           project_id: selected_project.id,
-           size: size,
-           created_at: NaiveDateTime.utc_now(:second),
-           updated_at: NaiveDateTime.utc_now(:second)
-         }}
-      )
 
     Tuist.Analytics.cache_artifact_upload(
       %{size: size, category: cache_category},
