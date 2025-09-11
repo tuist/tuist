@@ -77,7 +77,7 @@ struct TuistGeneratedProjectManifestMapperTests {
             )
 
             // Then
-            #expect(got.additionalPackageResolutionArguments.contains("-resolvePackageDependenciesWithSystemScm"))
+            #expect(got.additionalPackageResolutionArguments == ["-scmProvider", "system"])
         }
     }
 
