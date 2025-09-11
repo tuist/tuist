@@ -755,47 +755,6 @@ defmodule Tuist.CommandEventsTest do
     end
   end
 
-  describe "get_cache_event/1" do
-    test "returns cache download event" do
-      # Given
-      project = ProjectsFixtures.project_fixture()
-
-      item = %{
-        project_id: project.id,
-        name: "a",
-        event_type: :download,
-        size: 1000,
-        hash: "hash-1"
-      }
-
-      item_upload = %{
-        project_id: project.id,
-        name: "a",
-        event_type: :upload,
-        size: 1000,
-        hash: "hash-1"
-      }
-
-      item_two = %{
-        project_id: project.id,
-        name: "a",
-        event_type: :download,
-        size: 1000,
-        hash: "hash-2"
-      }
-
-      cache_event = CommandEvents.create_cache_event(item)
-      CommandEvents.create_cache_event(item_two)
-      CommandEvents.create_cache_event(item_upload)
-
-      # When
-      got = CommandEvents.get_cache_event(%{hash: "hash-1", event_type: :download})
-
-      # Then
-      assert got == cache_event
-    end
-  end
-
   describe "get_command_event_by_id/2 with parsing" do
     test "finds command event by legacy_id when passed an integer" do
       # Given

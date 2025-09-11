@@ -7,7 +7,6 @@ defmodule Tuist.CommandEvents do
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.User
   alias Tuist.ClickHouseRepo
-  alias Tuist.CommandEvents.CacheEvent
   alias Tuist.CommandEvents.Clickhouse
   alias Tuist.CommandEvents.Postgres
   alias Tuist.CommandEvents.ResultBundle.ActionRecord
@@ -36,47 +35,6 @@ defmodule Tuist.CommandEvents do
     else
       Postgres
     end
-  end
-
-  def create_cache_event(
-        %{name: name, event_type: event_type, size: size, hash: hash, project_id: project_id},
-        attrs \\ []
-      ) do
-    {:ok, cache_event} =
-      Repo.transaction(fn ->
-        if is_nil(get_cache_event(%{hash: hash, event_type: event_type})) do
-          %CacheEvent{}
-          |> CacheEvent.create_changeset(%{
-            project_id: project_id,
-            name: name,
-            hash: hash,
-            event_type: event_type,
-            size: size,
-            created_at: Keyword.get(attrs, :created_at, Time.utc_now())
-          })
-          |> Repo.insert!()
-        end
-      end)
-
-    cache_event
-  end
-
-  def create_cache_events(cache_events) do
-    Repo.insert_all(CacheEvent, cache_events)
-  end
-
-  def get_cache_event(%{hash: hash, event_type: event_type}) do
-    # Note
-    # We should have added a unique index on the hash and event_type columns.
-    # However, this was a design mistake, so we are taking the last event as the valid one.
-    # In a future iteration, we should delete duplicated rows, and add the unique index.
-    Repo.one(
-      from(c in CacheEvent,
-        where: c.hash == ^hash and c.event_type == ^event_type,
-        order_by: [desc: :created_at],
-        limit: 1
-      )
-    )
   end
 
   def list_command_events(attrs, _opts \\ []) do
@@ -156,6 +114,7 @@ defmodule Tuist.CommandEvents do
 
   def get_result_bundle_object_key(command_event, result_bundle_object_id) do
     {:ok, project} = get_project_for_command_event(command_event, preload: :account)
+
     "#{project.account.name}/#{project.name}/runs/#{command_event.id}/#{result_bundle_object_id}.json"
   end
 
@@ -342,7 +301,9 @@ defmodule Tuist.CommandEvents do
     {:ok, project} = get_project_for_command_event(command_event, preload: :account)
 
     if Storage.object_exists?(invocation_record_key, project.account) do
-      invocation_record_string = Storage.get_object_as_string(invocation_record_key, project.account)
+      invocation_record_string =
+        Storage.get_object_as_string(invocation_record_key, project.account)
+
       {:ok, invocation_record} = Jason.decode(invocation_record_string)
 
       invocation_record = get_actions_invocation_record(invocation_record)
