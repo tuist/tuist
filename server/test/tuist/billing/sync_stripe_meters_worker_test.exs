@@ -1,11 +1,11 @@
-defmodule Tuist.Billing.SyncStripeMetersTest do
+defmodule Tuist.Billing.Workers.SyncStripeMetersWorkerWorkerTest do
   use TuistTestSupport.Cases.DataCase, async: false
   use Mimic
 
   import TuistTestSupport.Utilities, only: [with_flushed_ingestion_buffers: 1]
 
-  alias Tuist.Billing.SyncCustomerStripeMeters
-  alias Tuist.Billing.SyncStripeMeters
+  alias Tuist.Billing.Workers.SyncCustomerStripeMetersWorker
+  alias Tuist.Billing.Workers.SyncStripeMetersWorker
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
@@ -18,7 +18,7 @@ defmodule Tuist.Billing.SyncStripeMetersTest do
     :ok
   end
 
-  test "enqueues SyncCustomerStripeMeters jobs for each billable customer with cache events" do
+  test "enqueues SyncCustomerStripeMetersWorker jobs for each billable customer with cache events" do
     first_account_customer_id = "account-1-#{UUIDv7.generate()}"
     second_account_customer_id = "account-2-#{UUIDv7.generate()}"
 
@@ -77,20 +77,20 @@ defmodule Tuist.Billing.SyncStripeMetersTest do
 
     # When
     Oban.Testing.with_testing_mode(:manual, fn ->
-      SyncStripeMeters.perform(%Oban.Job{args: %{}})
+      SyncStripeMetersWorker.perform(%Oban.Job{args: %{}})
 
       # Then
       assert_enqueued(
-        worker: SyncCustomerStripeMeters,
+        worker: SyncCustomerStripeMetersWorker,
         args: %{customer_id: first_account_customer_id}
       )
 
       assert_enqueued(
-        worker: SyncCustomerStripeMeters,
+        worker: SyncCustomerStripeMetersWorker,
         args: %{customer_id: second_account_customer_id}
       )
 
-      all_jobs = all_enqueued(worker: SyncCustomerStripeMeters)
+      all_jobs = all_enqueued(worker: SyncCustomerStripeMetersWorker)
       assert length(all_jobs) == 2
 
       customer_ids_in_jobs = all_jobs |> Enum.map(& &1.args["customer_id"]) |> Enum.sort()
@@ -99,7 +99,7 @@ defmodule Tuist.Billing.SyncStripeMetersTest do
     end)
   end
 
-  test "enqueues SyncCustomerStripeMeters jobs for each billable customer with LLM usage" do
+  test "enqueues SyncCustomerStripeMetersWorker jobs for each billable customer with LLM usage" do
     # Given
     customer_with_tokens = "customer-tokens-#{UUIDv7.generate()}"
     %{account: account_with_tokens} = AccountsFixtures.user_fixture(customer_id: customer_with_tokens)
@@ -120,15 +120,15 @@ defmodule Tuist.Billing.SyncStripeMetersTest do
 
     # When
     Oban.Testing.with_testing_mode(:manual, fn ->
-      SyncStripeMeters.perform(%Oban.Job{args: %{}})
+      SyncStripeMetersWorker.perform(%Oban.Job{args: %{}})
 
       # Then
       assert_enqueued(
-        worker: SyncCustomerStripeMeters,
+        worker: SyncCustomerStripeMetersWorker,
         args: %{customer_id: customer_with_tokens}
       )
 
-      all_jobs = all_enqueued(worker: SyncCustomerStripeMeters)
+      all_jobs = all_enqueued(worker: SyncCustomerStripeMetersWorker)
       assert length(all_jobs) == 1
     end)
   end
@@ -166,12 +166,12 @@ defmodule Tuist.Billing.SyncStripeMetersTest do
 
     # When
     Oban.Testing.with_testing_mode(:manual, fn ->
-      SyncStripeMeters.perform(%Oban.Job{args: %{}})
+      SyncStripeMetersWorker.perform(%Oban.Job{args: %{}})
 
       # Then
-      assert_enqueued(worker: SyncCustomerStripeMeters, args: %{customer_id: customer_id})
+      assert_enqueued(worker: SyncCustomerStripeMetersWorker, args: %{customer_id: customer_id})
 
-      all_jobs = all_enqueued(worker: SyncCustomerStripeMeters)
+      all_jobs = all_enqueued(worker: SyncCustomerStripeMetersWorker)
       assert length(all_jobs) == 1
     end)
   end
