@@ -1409,10 +1409,33 @@ extension PackageInfo.Target {
                 .map { packageFolder.appending(components: [$0, name]) }
                 .concurrentFilter { try await fileSystem.exists($0) }
                 .first
-            guard let mainPath = firstMatchingPath else {
-                throw PackageInfoMapperError.defaultPathNotFound(packageFolder, name, predefinedDirectories)
+            
+            if let mainPath = firstMatchingPath {
+                return mainPath
             }
-            return mainPath
+            
+            // SE-0162: Support custom target layouts where source files are directly in Sources/
+            // Check https://github.com/swiftlang/swift-evolution/blob/main/proposals/0162-package-manager-custom-target-layouts.md
+            let directSourcePath = try await predefinedDirectories
+                .map { packageFolder.appending(component: $0) }
+                .concurrentFilter { directory in
+                    guard try await fileSystem.exists(directory) else { return false }
+                    
+                    let sourceExtensions = ["swift", "c", "cpp", "cc", "cxx", "m", "mm"]
+                    let hasSourceFiles = try await fileSystem.glob(
+                        directory: directory,
+                        include: sourceExtensions.map { "*.\($0)" }
+                    ).collect().count > 0
+                    
+                    return hasSourceFiles
+                }
+                .first
+            
+            if let mainPath = directSourcePath {
+                return mainPath
+            }
+            
+            throw PackageInfoMapperError.defaultPathNotFound(packageFolder, name, predefinedDirectories)
         }
     }
 
