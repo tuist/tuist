@@ -6,6 +6,7 @@ defmodule Tuist.AccountsTest do
   import TuistTestSupport.Fixtures.AccountsFixtures
 
   alias Tuist.Accounts
+  alias Tuist.Accounts.Account
   alias Tuist.Accounts.AccountToken
   alias Tuist.Accounts.User
   alias Tuist.Accounts.UserToken
@@ -26,6 +27,9 @@ defmodule Tuist.AccountsTest do
         }
       }
     end)
+
+    stub(FunWithFlags, :enabled?, fn :clickhouse_events -> true end)
+    stub(Environment, :clickhouse_configured?, fn -> true end)
 
     :ok
   end
@@ -213,7 +217,7 @@ defmodule Tuist.AccountsTest do
     end
   end
 
-  describe "list_customer_id_and_remote_cache_hits_count_pairs/1" do
+  describe "list_billable_customers/1" do
     test "returns only the customers with a customer_id present" do
       # Given
       first_user =
@@ -233,7 +237,7 @@ defmodule Tuist.AccountsTest do
           user_id: first_user.id,
           remote_cache_target_hits: ["Module"],
           remote_test_target_hits: ["ModuleTeests"],
-          created_at: ~U[2025-01-01 23:00:00Z]
+          ran_at: ~U[2025-01-01 23:00:00Z]
         )
 
         CommandEventsFixtures.command_event_fixture(
@@ -242,52 +246,66 @@ defmodule Tuist.AccountsTest do
           user_id: second_user.id,
           remote_cache_target_hits: ["Module"],
           remote_test_target_hits: ["ModuleTeests"],
-          created_at: ~U[2025-01-01 23:00:00Z]
+          ran_at: ~U[2025-01-01 23:00:00Z]
         )
       end)
 
       # When
-      assert {[{^first_account_customer_id, 1}], _} =
-               Accounts.list_customer_id_and_remote_cache_hits_count_pairs()
+      assert [^first_account_customer_id] = Accounts.list_billable_customers()
     end
 
-    test "returns only the customers with a customer_id present (ClickHouse)" do
+    test "includes customers with LLM token usage yesterday, even without command events" do
       # Given
-      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> true end)
-
-      first_user =
-        %{account: %{customer_id: first_account_customer_id} = first_account} =
-        AccountsFixtures.user_fixture(customer_id: UUIDv7.generate())
-
-      second_user = %{account: second_account} = AccountsFixtures.user_fixture(customer_id: nil)
-      first_user_project = ProjectsFixtures.project_fixture(account_id: first_account.id)
-      second_user_project = ProjectsFixtures.project_fixture(account_id: second_account.id)
       today = ~U[2025-01-02 23:00:00Z]
       stub(DateTime, :utc_now, fn -> today end)
 
-      with_flushed_ingestion_buffers(fn ->
-        CommandEventsFixtures.command_event_fixture(
-          name: "generate",
-          project_id: first_user_project.id,
-          user_id: first_user.id,
-          remote_cache_target_hits: ["Module"],
-          remote_test_target_hits: ["ModuleTeests"],
-          ran_at: ~U[2025-01-01 23:00:00Z]
-        )
+      org = AccountsFixtures.organization_fixture()
+      account = Tuist.Repo.get_by!(Account, organization_id: org.id)
+      account = Tuist.Repo.update!(Account.billing_changeset(account, %{customer_id: UUIDv7.generate()}))
 
-        CommandEventsFixtures.command_event_fixture(
-          name: "generate",
-          project_id: second_user_project.id,
-          user_id: second_user.id,
-          remote_cache_target_hits: ["Module"],
-          remote_test_target_hits: ["ModuleTeests"],
-          ran_at: ~U[2025-01-01 23:00:00Z]
-        )
-      end)
+      {:ok, _} =
+        Billing.create_token_usage(%{
+          input_tokens: 42,
+          output_tokens: 24,
+          model: "gpt-4",
+          feature: "qa",
+          feature_resource_id: UUIDv7.generate(),
+          account_id: account.id,
+          timestamp: ~U[2025-01-01 10:00:00Z]
+        })
 
       # When
-      assert {[{^first_account_customer_id, 1}], _} =
-               Accounts.list_customer_id_and_remote_cache_hits_count_pairs()
+      customer_ids = Accounts.list_billable_customers()
+
+      # Then
+      assert account.customer_id in customer_ids
+    end
+
+    test "includes customers with a customer_id regardless of token usage timing" do
+      # Given
+      today = ~U[2025-01-02 23:00:00Z]
+      stub(DateTime, :utc_now, fn -> today end)
+
+      org = AccountsFixtures.organization_fixture()
+      account = Tuist.Repo.get_by!(Account, organization_id: org.id)
+      account = Tuist.Repo.update!(Account.billing_changeset(account, %{customer_id: UUIDv7.generate()}))
+
+      {:ok, _} =
+        Billing.create_token_usage(%{
+          input_tokens: 11,
+          output_tokens: 22,
+          model: "gpt-4",
+          feature: "qa",
+          feature_resource_id: UUIDv7.generate(),
+          account_id: account.id,
+          timestamp: ~U[2024-12-31 10:00:00Z]
+        })
+
+      # When
+      customer_ids = Accounts.list_billable_customers()
+
+      # Then
+      assert account.customer_id in customer_ids
     end
   end
 
