@@ -1778,8 +1778,6 @@ defmodule Tuist.QATest do
                %{type: "TOOL", message: "click"}
              ] = result
     end
-
-    
   end
 
   describe "prepare_log_with_metadata/1" do

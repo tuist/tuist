@@ -286,26 +286,6 @@ defmodule TuistWeb.Marketing.MarketingController do
     |> render(:changelog_atom, layout: false)
   end
 
-  def newsletter_rss(conn, _params) do
-    issues = Newsletter.issues()
-    last_build_date = issues |> List.last() |> Map.get(:date)
-
-    conn
-    |> assign(:issues, issues)
-    |> assign(:last_build_date, last_build_date)
-    |> render(:newsletter_rss, layout: false)
-  end
-
-  def newsletter_atom(conn, _params) do
-    issues = Newsletter.issues()
-    last_build_date = issues |> List.last() |> Map.get(:date)
-
-    conn
-    |> assign(:issues, issues)
-    |> assign(:last_build_date, last_build_date)
-    |> render(:newsletter_atom, layout: false)
-  end
-
   def sitemap(conn, _params) do
     page_urls = Enum.map(Pages.get_pages(), &Tuist.Environment.app_url(path: &1.slug))
 
@@ -545,7 +525,6 @@ defmodule TuistWeb.Marketing.MarketingController do
     |> assign(:head_twitter_card, "summary_large_image")
     |> assign(:head_include_blog_rss_and_atom, true)
     |> assign(:head_include_changelog_rss_and_atom, true)
-    |> assign(:head_include_newsletter_rss_and_atom, true)
   end
 
   defp put_resp_header_cache_control(conn, _opts) do
