@@ -365,6 +365,10 @@ defmodule Tuist.Environment do
     get([:mautic, :password], secrets)
   end
 
+  def loops_api_key(secrets \\ secrets()) do
+    get([:loops, :api_key], secrets)
+  end
+
   def github_token_update_packages(secrets \\ secrets()) do
     get([:github, :token, :update_packages], secrets)
   end
