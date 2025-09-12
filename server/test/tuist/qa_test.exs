@@ -14,6 +14,7 @@ defmodule Tuist.QATest do
   alias Tuist.Repo
   alias Tuist.Storage
   alias Tuist.VCS
+  alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.AppBuildsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.QAFixtures
@@ -42,7 +43,9 @@ defmodule Tuist.QATest do
                                 prompt: ^prompt,
                                 server_url: _,
                                 run_id: _,
-                                auth_token: "test-jwt-token"
+                                auth_token: "test-jwt-token",
+                                account_handle: _,
+                                project_handle: _
                               },
                               _opts ->
         :ok
@@ -50,13 +53,16 @@ defmodule Tuist.QATest do
 
       # When
       {:ok, qa_run} =
-        QA.test(%{
-          app_build: app_build,
-          prompt: prompt
+        QA.create_qa_run(%{
+          app_build_id: app_build.id,
+          prompt: prompt,
+          status: "pending"
         })
 
+      {:ok, updated_qa_run} = QA.test(qa_run)
+
       # Then
-      assert qa_run.prompt == prompt
+      assert updated_qa_run.prompt == prompt
     end
 
     test "successfully runs QA test in namespace when namespace is enabled" do
@@ -108,24 +114,34 @@ defmodule Tuist.QATest do
 
       # When
       {:ok, qa_run} =
-        QA.test(%{
-          app_build: app_build,
-          prompt: prompt
+        QA.create_qa_run(%{
+          app_build_id: app_build.id,
+          prompt: prompt,
+          status: "pending"
         })
 
+      {:ok, updated_qa_run} = QA.test(qa_run)
+
       # Then
-      assert qa_run.prompt == prompt
+      assert updated_qa_run.prompt == prompt
     end
 
     test "handles existing tenant when namespace is enabled" do
       # Given
-      app_build =
-        Repo.preload(AppBuildsFixtures.app_build_fixture(), preview: [project: :account])
-
       account =
-        Map.put(app_build.preview.project.account, :namespace_tenant_id, "existing-tenant-456")
+        AccountsFixtures.user_fixture().account
 
-      app_build = put_in(app_build.preview.project.account, account)
+      {:ok, account} =
+        account
+        |> Tuist.Accounts.Account.update_changeset(%{namespace_tenant_id: "existing-tenant-456"})
+        |> Repo.update()
+
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+
+      preview = AppBuildsFixtures.preview_fixture(project: project)
+
+      app_build = AppBuildsFixtures.app_build_fixture(preview: preview)
+
       prompt = "Test the login feature"
 
       expect(Storage, :generate_download_url, fn _object_key, _actor ->
@@ -164,13 +180,16 @@ defmodule Tuist.QATest do
 
       # When
       {:ok, qa_run} =
-        QA.test(%{
-          app_build: app_build,
-          prompt: prompt
+        QA.create_qa_run(%{
+          app_build_id: app_build.id,
+          prompt: prompt,
+          status: "pending"
         })
 
+      {:ok, updated_qa_run} = QA.test(qa_run)
+
       # Then
-      assert qa_run.prompt == prompt
+      assert updated_qa_run.prompt == prompt
     end
 
     test "runs agent test when namespace is disabled" do
@@ -199,13 +218,16 @@ defmodule Tuist.QATest do
 
       # When
       {:ok, qa_run} =
-        QA.test(%{
-          app_build: app_build,
-          prompt: prompt
+        QA.create_qa_run(%{
+          app_build_id: app_build.id,
+          prompt: prompt,
+          status: "pending"
         })
 
+      {:ok, updated_qa_run} = QA.test(qa_run)
+
       # Then
-      assert qa_run.prompt == prompt
+      assert updated_qa_run.prompt == prompt
       assert qa_run.status == "pending"
     end
 
@@ -254,11 +276,14 @@ defmodule Tuist.QATest do
       end)
 
       # When
-      result =
-        QA.test(%{
-          app_build: app_build,
-          prompt: prompt
+      {:ok, qa_run} =
+        QA.create_qa_run(%{
+          app_build_id: app_build.id,
+          prompt: prompt,
+          status: "pending"
         })
+
+      result = QA.test(qa_run)
 
       # Then
       assert {:error, "Command execution failed"} == result
@@ -278,11 +303,14 @@ defmodule Tuist.QATest do
       end)
 
       # When
-      result =
-        QA.test(%{
-          app_build: app_build,
-          prompt: "Test prompt"
+      {:ok, qa_run} =
+        QA.create_qa_run(%{
+          app_build_id: app_build.id,
+          prompt: "Test prompt",
+          status: "pending"
         })
+
+      result = QA.test(qa_run)
 
       # Then
       assert {:error, "Token creation failed"} == result
@@ -353,13 +381,16 @@ defmodule Tuist.QATest do
 
       # When
       {:ok, qa_run} =
-        QA.test(%{
-          app_build: app_build,
-          prompt: prompt
+        QA.create_qa_run(%{
+          app_build_id: app_build.id,
+          prompt: prompt,
+          status: "pending"
         })
 
+      {:ok, updated_qa_run} = QA.test(qa_run)
+
       # Then
-      assert qa_run.prompt == prompt
+      assert updated_qa_run.prompt == prompt
     end
 
     test "selects multiple launch argument groups" do
@@ -424,13 +455,16 @@ defmodule Tuist.QATest do
 
       # When
       {:ok, qa_run} =
-        QA.test(%{
-          app_build: app_build,
-          prompt: prompt
+        QA.create_qa_run(%{
+          app_build_id: app_build.id,
+          prompt: prompt,
+          status: "pending"
         })
 
+      {:ok, updated_qa_run} = QA.test(qa_run)
+
       # Then
-      assert qa_run.prompt == prompt
+      assert updated_qa_run.prompt == prompt
     end
 
     test "handles empty launch arguments when no groups match" do
@@ -483,13 +517,16 @@ defmodule Tuist.QATest do
 
       # When
       {:ok, qa_run} =
-        QA.test(%{
-          app_build: app_build,
-          prompt: prompt
+        QA.create_qa_run(%{
+          app_build_id: app_build.id,
+          prompt: prompt,
+          status: "pending"
         })
 
+      {:ok, updated_qa_run} = QA.test(qa_run)
+
       # Then
-      assert qa_run.prompt == prompt
+      assert updated_qa_run.prompt == prompt
     end
 
     test "doesn't try to select launch argument group when project doesn't have any" do
@@ -516,13 +553,16 @@ defmodule Tuist.QATest do
 
       # When
       {:ok, qa_run} =
-        QA.test(%{
-          app_build: app_build,
-          prompt: prompt
+        QA.create_qa_run(%{
+          app_build_id: app_build.id,
+          prompt: prompt,
+          status: "pending"
         })
 
+      {:ok, updated_qa_run} = QA.test(qa_run)
+
       # Then
-      assert qa_run.prompt == prompt
+      assert updated_qa_run.prompt == prompt
     end
   end
 
@@ -1307,6 +1347,7 @@ defmodule Tuist.QATest do
       **Issues:** ⚠️ 1
       **Preview:** [#{preview.display_name}](http://localhost:8080/#{project.account.name}/#{project.name}/previews/#{preview.id})
       **Commit:** [abc123def](https://github.com/testaccount/testproject/commit/abc123def456)
+      **QA Session:** [View detailed results](http://localhost:8080/#{project.account.name}/#{project.name}/qa/#{qa_run.id})
 
 
 
