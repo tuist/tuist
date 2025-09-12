@@ -27,45 +27,53 @@ public struct XcodeBuildCommand: AsyncParsableCommand, TrackableParsableCommand,
                 XcodeBuildBuildCommand.self,
                 XcodeBuildBuildForTestingCommand.self,
                 XcodeBuildArchiveCommand.self,
-            ]
+                CommandCorrection.self,
+            ],
+            defaultSubcommand: CommandCorrection.self
         )
     }
 
     var analyticsRequired: Bool { true }
 
-    @Argument(
-        parsing: .captureForPassthrough,
-        help: "Arguments for xcodebuild. Can be used as fallback when subcommands are not first. Example: tuist xcodebuild -workspace MyApp.xcworkspace build -scheme MyApp"
-    )
-    public var arguments: [String] = []
-
     public init() {}
+}
 
-    public func run() async throws {
-        guard !arguments.isEmpty else {
-            throw ValidationError("No arguments provided. Use 'tuist xcodebuild --help' for usage information.")
-        }
+extension XcodeBuildCommand {
+    struct CommandCorrection: AsyncParsableCommand {
+        @Argument(
+            parsing: .allUnrecognized,
+            help: "Arguments for xcodebuild. Can be used as fallback when subcommands are not first. Example: tuist xcodebuild -workspace MyApp.xcworkspace build -scheme MyApp"
+        )
+        public var arguments: [String] = []
 
-        let validActions = Self.configuration.subcommands.compactMap { $0.configuration.commandName }
-        
-        guard let actionIndex = arguments.firstIndex(where: { validActions.contains($0) }) else {
-            throw ValidationError("No valid action found. Valid actions are: \(validActions.joined(separator: ", "))")
+        public func run() async throws {
+            guard !arguments.isEmpty else {
+                throw ValidationError("No arguments provided. Use 'tuist xcodebuild --help' for usage information.")
+            }
+
+            let validActions = XcodeBuildCommand.configuration.subcommands.compactMap { $0.configuration.commandName }
+
+            guard let actionIndex = arguments.firstIndex(where: { validActions.contains($0) }) else {
+                throw ValidationError("No valid action found. Valid actions are: \(validActions.joined(separator: ", "))")
+            }
+
+            let action = arguments[actionIndex]
+
+            let preActionArgs = Array(arguments[..<actionIndex])
+            let postActionArgs = actionIndex + 1 < arguments.count ? Array(arguments[(actionIndex + 1)...]) : []
+
+            let reorderedArgs = [action] + preActionArgs + postActionArgs
+
+            guard reorderedArgs != arguments else {
+                throw ValidationError("Unable to reorder arguments to match subcommand format.")
+            }
+
+            guard var parsedCommand = try XcodeBuildCommand.parseAsRoot(reorderedArgs) as? AsyncParsableCommand else {
+                throw ValidationError("Command parsing failed.")
+            }
+
+            try await parsedCommand.run()
         }
-        
-        let action = arguments[actionIndex]
-        
-        let preActionArgs = Array(arguments[..<actionIndex])
-        let postActionArgs = actionIndex + 1 < arguments.count ? Array(arguments[(actionIndex + 1)...]) : []
-        
-        let reorderedArgs = [action] + preActionArgs + postActionArgs
-        
-        guard reorderedArgs != arguments else {
-            throw ValidationError("Unable to reorder arguments to match subcommand format.")
-        }
-        
-        var parsedCommand = try Self.parseAsRoot(reorderedArgs)
-        
-        try await parsedCommand.run()
     }
 }
 
