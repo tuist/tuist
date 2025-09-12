@@ -58,7 +58,7 @@
 
     <h2 class="marketing__newsletter__subscribe__title">{gettext("Subscribe")}</h2>
 
-    <div class="mauticform_wrapper">
+    <div>
       <form
         id="newsletter-form"
         class="marketing__newsletter__subscribe__title__form"
@@ -71,12 +71,11 @@
           {gettext("Newsletter issues are sent every 6 weeks and you can unsubscribe at any time.")}
         </span>
 
-        <div class="mauticform-error" id="form-error" style="display:none;"></div>
-        <div class="mauticform-message" id="form-message" style="display:none;"></div>
+        <div class="marketing__newsletter__subscribe__form__error" id="form-error" style="display:none;"></div>
+        <div class="marketing__newsletter__subscribe__form__message" id="form-message" style="display:none;"></div>
 
-        <div class="mauticform-innerform">
-          <div class="mauticform-page-wrapper mauticform-page-1">
-            <div class="mauticform-row mauticform-email mauticform-field-1 mauticform-required">
+        <div class="marketing__newsletter__subscribe__form__inner">
+          <div class="marketing__newsletter__subscribe__form__field__group">
               <label
                 for="email"
                 class="marketing__newsletter__subscribe__title__form__label"
@@ -93,14 +92,13 @@
                 required
               />
 
-              <span class="mauticform-errormsg" style="display:none;">Email is required</span>
-            </div>
+              <span class="marketing__newsletter__subscribe__form__error__message" style="display:none;">Email is required</span>
+          </div>
 
-            <div class="mauticform-row mauticform-button-wrapper mauticform-field-3">
+          <div class="marketing__newsletter__subscribe__form__submit">
               <.primary_button size="big" type="submit">
                 Submit
               </.primary_button>
-            </div>
           </div>
         </div>
       </form>
