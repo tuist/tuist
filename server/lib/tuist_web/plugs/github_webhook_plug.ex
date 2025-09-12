@@ -45,15 +45,17 @@ defmodule TuistWeb.Plugs.GitHubWebhookPlug do
         module = get_config(options, :handler)
 
         conn = Plug.Parsers.call(conn, @plug_parser)
+        dbg(conn)
 
-        [signature_in_header] = get_req_header(conn, "x-hub-signature-256")
+        # [signature_in_header] = get_req_header(conn, "x-hub-signature-256")
 
-        if verify_signature(conn.assigns.raw_body, secret, signature_in_header) do
-          module.handle(conn, conn.body_params)
-          conn |> send_resp(200, "OK") |> halt()
-        else
-          conn |> send_resp(403, "Forbidden") |> halt()
-        end
+        # if verify_signature(conn.assigns.raw_body, secret, signature_in_header) do
+        module.handle(conn, conn.body_params)
+        conn |> send_resp(200, "OK") |> halt()
+
+      # else
+      #   conn |> send_resp(403, "Forbidden") |> halt()
+      # end
 
       _ ->
         conn

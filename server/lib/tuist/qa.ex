@@ -36,26 +36,18 @@ defmodule Tuist.QA do
   EEx.function_from_file(:defp, :render_qa_summary, @qa_summary_template_path, [:assigns])
 
   @doc """
-  Run a QA test run for the given app build.
+  Run a QA test run for the given QA run.
   """
-  def test(%{app_build: %AppBuild{id: app_build_id} = app_build, prompt: prompt} = params) do
-    app_build = Repo.preload(app_build, preview: [project: :account])
-    issue_comment_id = Map.get(params, :issue_comment_id)
+  def test(%Tuist.QA.Run{} = qa_run) do
+    qa_run = Repo.preload(qa_run, app_build: [preview: [project: :account]])
+    app_build = qa_run.app_build
+    prompt = qa_run.prompt
 
     launch_argument_groups = select_launch_argument_groups(prompt, app_build.preview.project)
 
-    with {:ok, qa_run} <-
-           create_qa_run(%{
-             app_build_id: app_build_id,
-             prompt: prompt,
-             status: "pending",
-             issue_comment_id: issue_comment_id,
-             git_ref: app_build.preview.git_ref,
-             vcs_provider: app_build.preview.project.vcs_provider,
-             vcs_repository_full_handle: app_build.preview.project.vcs_repository_full_handle
-           }),
-         app_build_url = generate_app_build_download_url(app_build),
-         {:ok, auth_token} <- create_qa_auth_token(app_build) do
+    app_build_url = generate_app_build_download_url(app_build)
+    
+    with {:ok, auth_token} <- create_qa_auth_token(app_build) do
       attrs = %{
         preview_url: app_build_url,
         bundle_identifier: app_build.preview.bundle_identifier,
