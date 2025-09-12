@@ -30,17 +30,6 @@ defmodule Tuist.LoopsTest do
       assert result == :ok
     end
 
-    test "returns error when API key is missing" do
-      # Given
-      expect(Environment, :loops_api_key, fn -> nil end)
-
-      # When
-      result = Loops.send_transactional_email("test@example.com", "campaign-id")
-
-      # Then
-      assert result == {:error, :missing_api_key}
-    end
-
     test "returns error when Loops API returns error status" do
       # Given
       expect(Environment, :loops_api_key, fn -> "test-api-key" end)
@@ -113,17 +102,6 @@ defmodule Tuist.LoopsTest do
       assert result == :ok
     end
 
-    test "returns error when API key is missing" do
-      # Given
-      expect(Environment, :loops_api_key, fn -> nil end)
-
-      # When
-      result = Loops.update_contact("test@example.com")
-
-      # Then
-      assert result == {:error, :missing_api_key}
-    end
-
     test "returns error when Loops API returns error status" do
       # Given
       expect(Environment, :loops_api_key, fn -> "test-api-key" end)
@@ -180,14 +158,18 @@ defmodule Tuist.LoopsTest do
 
     test "returns error when underlying send_transactional_email fails" do
       # Given
-      expect(Environment, :loops_api_key, fn -> nil end)
+      expect(Environment, :loops_api_key, fn -> "test-api-key" end)
+
+      expect(Req, :post, fn _url, _opts ->
+        {:error, :timeout}
+      end)
 
       # When
       result =
         Loops.send_newsletter_confirmation("test@example.com", "https://example.com/verify")
 
       # Then
-      assert result == {:error, :missing_api_key}
+      assert result == {:error, :timeout}
     end
   end
 
@@ -214,13 +196,17 @@ defmodule Tuist.LoopsTest do
 
     test "returns error when underlying update_contact fails" do
       # Given
-      expect(Environment, :loops_api_key, fn -> nil end)
+      expect(Environment, :loops_api_key, fn -> "test-api-key" end)
+
+      expect(Req, :post, fn _url, _opts ->
+        {:error, :connection_refused}
+      end)
 
       # When
       result = Loops.add_to_newsletter_list("test@example.com")
 
       # Then
-      assert result == {:error, :missing_api_key}
+      assert result == {:error, :connection_refused}
     end
   end
 end

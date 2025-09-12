@@ -24,25 +24,6 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
              }
     end
 
-    test "returns error when API key is missing", %{conn: conn} do
-      # Given
-      email = "test@example.com"
-
-      expect(Loops, :send_newsletter_confirmation, fn ^email, _verification_url ->
-        {:error, :missing_api_key}
-      end)
-
-      # When
-      conn = post(conn, ~p"/newsletter", %{"email" => email})
-
-      # Then
-      assert json_response(conn, 500) == %{
-               "success" => false,
-               "message" =>
-                 "Newsletter service configuration error: missing API key. Please try again later."
-             }
-    end
-
     test "returns error when Loops API fails", %{conn: conn} do
       # Given
       email = "test@example.com"
@@ -138,25 +119,6 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
 
       expect(Loops, :add_to_newsletter_list, fn ^email ->
         {:error, {:http_error, 400}}
-      end)
-
-      # When
-      conn = get(conn, ~p"/newsletter/verify?token=#{token}")
-
-      # Then
-      assert html_response(conn, 200)
-      assert conn.assigns.email == nil
-      assert conn.assigns.error_message == "Verification failed. Please try signing up again."
-      assert conn.assigns.head_title == "Newsletter Verification Failed"
-    end
-
-    test "shows error page when API key is missing during verification", %{conn: conn} do
-      # Given
-      email = "test@example.com"
-      token = Base.encode64(email)
-
-      expect(Loops, :add_to_newsletter_list, fn ^email ->
-        {:error, :missing_api_key}
       end)
 
       # When

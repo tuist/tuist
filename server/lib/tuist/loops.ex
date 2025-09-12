@@ -20,28 +20,24 @@ defmodule Tuist.Loops do
   def send_transactional_email(email, transactional_id, data_variables \\ %{}) do
     api_key = Environment.loops_api_key()
 
-    if is_nil(api_key) do
-      {:error, :missing_api_key}
-    else
-      body = %{
-        "email" => email,
-        "transactionalId" => transactional_id,
-        "dataVariables" => data_variables
-      }
+    body = %{
+      "email" => email,
+      "transactionalId" => transactional_id,
+      "dataVariables" => data_variables
+    }
 
-      case Req.post("https://app.loops.so/api/v1/transactional",
-             json: body,
-             headers: [{"Authorization", "Bearer #{api_key}"}]
-           ) do
-        {:ok, %{status: 200}} ->
-          :ok
+    case Req.post("https://app.loops.so/api/v1/transactional",
+           json: body,
+           headers: [{"Authorization", "Bearer #{api_key}"}]
+         ) do
+      {:ok, %{status: 200}} ->
+        :ok
 
-        {:ok, %{status: status_code, body: response_body}} ->
-          {:error, {:http_error, status_code, response_body}}
+      {:ok, %{status: status_code, body: response_body}} ->
+        {:error, {:http_error, status_code, response_body}}
 
-        {:error, reason} ->
-          {:error, reason}
-      end
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
@@ -59,27 +55,23 @@ defmodule Tuist.Loops do
   def update_contact(email, mailing_lists \\ %{}) do
     api_key = Environment.loops_api_key()
 
-    if is_nil(api_key) do
-      {:error, :missing_api_key}
-    else
-      body = %{
-        "email" => email,
-        "mailingLists" => mailing_lists
-      }
+    body = %{
+      "email" => email,
+      "mailingLists" => mailing_lists
+    }
 
-      case Req.post("https://app.loops.so/api/v1/contacts/update",
-             json: body,
-             headers: [{"Authorization", "Bearer #{api_key}"}]
-           ) do
-        {:ok, %{status: 200}} ->
-          :ok
+    case Req.post("https://app.loops.so/api/v1/contacts/update",
+           json: body,
+           headers: [{"Authorization", "Bearer #{api_key}"}]
+         ) do
+      {:ok, %{status: 200}} ->
+        :ok
 
-        {:ok, %{status: status_code}} ->
-          {:error, {:http_error, status_code}}
+      {:ok, %{status: status_code}} ->
+        {:error, {:http_error, status_code}}
 
-        {:error, reason} ->
-          {:error, reason}
-      end
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 

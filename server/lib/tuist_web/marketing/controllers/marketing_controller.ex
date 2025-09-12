@@ -131,16 +131,6 @@ defmodule TuistWeb.Marketing.MarketingController do
           message: "Please check your email to confirm your subscription."
         })
 
-      {:error, :missing_api_key} ->
-        conn
-        |> put_resp_content_type("application/json")
-        |> put_status(500)
-        |> json(%{
-          success: false,
-          message:
-            "Newsletter service configuration error: missing API key. Please try again later."
-        })
-
       {:error, _reason} ->
         conn
         |> put_resp_content_type("application/json")
