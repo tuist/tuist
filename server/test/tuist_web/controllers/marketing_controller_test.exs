@@ -45,8 +45,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       # Then
       assert json_response(conn, 500) == %{
                "success" => false,
-               "message" =>
-                 "Newsletter service configuration error: missing API key. Please try again later."
+               "message" => "Newsletter service configuration error: missing API key. Please try again later."
              }
     end
 
