@@ -47,3 +47,8 @@
     outline: var(--violet) 2px solid;
   }
 }
+
+.marketing__newsletter__subscribe__title__form__label {
+  color: var(--dark-violet);
+  font: var(--font-m);
+}
