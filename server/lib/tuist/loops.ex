@@ -104,7 +104,7 @@ defmodule Tuist.Loops do
   """
   def add_to_newsletter_list(email) do
     update_contact(email, %{
-      "cmfgir0c94l6k0ix00ssx6cbx" => true
+      "cmfgl9s214xcv0izt5jyu7e9d" => true
     })
   end
 end

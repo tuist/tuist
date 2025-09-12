@@ -110,6 +110,7 @@ defmodule TuistWeb.Marketing.MarketingController do
       Tuist.Environment.app_url(path: "/marketing/images/og/generated/tuist-digest.jpg")
     )
     |> assign(:head_twitter_card, "summary_large_image")
+    |> assign(:head_title, gettext("Tuist Digest Newsletter"))
     |> assign(
       :head_description,
       Newsletter.description()
@@ -128,14 +129,14 @@ defmodule TuistWeb.Marketing.MarketingController do
         |> put_resp_content_type("application/json")
         |> json(%{
           success: true,
-          message: "Please check your email to confirm your subscription."
+          message: gettext("Please check your email to confirm your subscription.")
         })
 
       {:error, _reason} ->
         conn
         |> put_resp_content_type("application/json")
         |> put_status(400)
-        |> json(%{success: false, message: "Something went wrong. Please try again."})
+        |> json(%{success: false, message: gettext("Something went wrong. Please try again.")})
     end
   end
 
@@ -145,7 +146,7 @@ defmodule TuistWeb.Marketing.MarketingController do
         case Tuist.Loops.add_to_newsletter_list(email) do
           :ok ->
             conn
-            |> assign(:head_title, "Successfully Subscribed!")
+            |> assign(:head_title, gettext("Successfully Subscribed!"))
             |> assign(
               :head_image,
               Tuist.Environment.app_url(path: "/marketing/images/og/generated/tuist-digest.jpg")
@@ -163,14 +164,17 @@ defmodule TuistWeb.Marketing.MarketingController do
               Tuist.Environment.app_url(path: "/marketing/images/og/generated/tuist-digest.jpg")
             )
             |> assign(:head_twitter_card, "summary_large_image")
-            |> assign(:error_message, "Verification failed. Please try signing up again.")
+            |> assign(
+              :error_message,
+              gettext("Verification failed. Please try signing up again.")
+            )
             |> assign(:email, nil)
             |> render(:newsletter_verify, layout: false)
         end
 
       :error ->
         conn
-        |> assign(:head_title, "Newsletter Verification Failed")
+        |> assign(:head_title, gettext("Newsletter Verification Failed"))
         |> assign(
           :head_image,
           Tuist.Environment.app_url(path: "/marketing/images/og/generated/tuist-digest.jpg")
@@ -178,7 +182,7 @@ defmodule TuistWeb.Marketing.MarketingController do
         |> assign(:head_twitter_card, "summary_large_image")
         |> assign(
           :error_message,
-          "Invalid verification link. Please try signing up again."
+          gettext("Invalid verification link. Please try signing up again.")
         )
         |> assign(:email, nil)
         |> render(:newsletter_verify, layout: false)
@@ -187,7 +191,7 @@ defmodule TuistWeb.Marketing.MarketingController do
 
   def newsletter_verify(conn, _params) do
     conn
-    |> assign(:head_title, "Newsletter Verification Failed")
+    |> assign(:head_title, gettext("Newsletter Verification Failed"))
     |> assign(
       :head_image,
       Tuist.Environment.app_url(path: "/marketing/images/og/generated/tuist-digest.jpg")
@@ -195,7 +199,7 @@ defmodule TuistWeb.Marketing.MarketingController do
     |> assign(:head_twitter_card, "summary_large_image")
     |> assign(
       :error_message,
-      "Verification link expired or invalid. Please try signing up again."
+      gettext("Verification link expired or invalid. Please try signing up again.")
     )
     |> assign(:email, nil)
     |> render(:newsletter_verify, layout: false)
@@ -352,20 +356,25 @@ defmodule TuistWeb.Marketing.MarketingController do
 
   def pricing(conn, _params) do
     faqs = [
-      {gettext("Why is your pricing model more accessible compared to traditional enterprise models?"),
+      {gettext(
+         "Why is your pricing model more accessible compared to traditional enterprise models?"
+       ),
        gettext(
          ~S"""
          <p>Our commitment to open-source and our core values shape our unique approach to pricing. Unlike many models that try to extract every dollar from you with "contact sales" calls, limited demos, and other sales tactics, we believe in fairness and transparency. We treat everyone equally and set prices that are fair for all. By choosing our services, you are not only getting a great product but also supporting the development of more open-source projects. We see building a thriving business as a long-term journey, not a short-term sprint filled with shady practices. You can %{read_more}  about our philosophy.</p>
          <p>By supporting Tuist, you are also supporting the development of more open-source software for the Swift ecosystem.</p>
          """,
-         read_more: "<a href=\"#{~p"/blog/2024/11/05/our-pricing-philosophy"}\">#{gettext("read more")}</a>"
+         read_more:
+           "<a href=\"#{~p"/blog/2024/11/05/our-pricing-philosophy"}\">#{gettext("read more")}</a>"
        )},
       {gettext("How can I estimate the cost of my project?"),
        gettext(
          "You can set up the Air plan, and use the features for a few days to get a usage estimate. If you need a higher limit, let us know and we can help you set up a custom plan."
        )},
       {gettext("Is there a free trial on paid plans?"),
-       gettext("We have a generous free tier on every paid plan so you can try out the features before paying any money.")},
+       gettext(
+         "We have a generous free tier on every paid plan so you can try out the features before paying any money."
+       )},
       {gettext("Do you offer discounts for non-profits and open-source?"),
        gettext("Yes, we do. Please reach out to oss@tuist.io for more information.")}
     ]
@@ -409,7 +418,8 @@ defmodule TuistWeb.Marketing.MarketingController do
     |> assign(
       :head_image,
       Tuist.Environment.app_url(
-        path: "/marketing/images/og/generated/#{page.slug |> String.split("/") |> List.last()}.jpg"
+        path:
+          "/marketing/images/og/generated/#{page.slug |> String.split("/") |> List.last()}.jpg"
       )
     )
     |> assign(:head_twitter_card, "summary_large_image")

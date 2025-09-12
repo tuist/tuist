@@ -183,7 +183,7 @@ defmodule Tuist.LoopsTest do
       expect(Req, :post, fn url, opts ->
         assert url == "https://app.loops.so/api/v1/contacts/update"
         assert opts[:json]["email"] == email
-        assert opts[:json]["mailingLists"]["cmfgir0c94l6k0ix00ssx6cbx"] == true
+        assert opts[:json]["mailingLists"]["cmfgl9s214xcv0izt5jyu7e9d"] == true
         {:ok, %{status: 200}}
       end)
 
