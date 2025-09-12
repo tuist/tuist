@@ -1779,28 +1779,7 @@ defmodule Tuist.QATest do
              ] = result
     end
 
-    test "handles malformed timestamp gracefully" do
-      # Given
-      qa_run = QAFixtures.qa_run_fixture()
-
-      logs = [
-        %{
-          id: Ecto.UUID.generate(),
-          qa_run_id: qa_run.id,
-          type: :message,
-          data: Jason.encode!(%{"message" => "Test message"}),
-          timestamp: nil,
-          screenshot_metadata: nil
-        }
-      ]
-
-      # When
-      result = QA.format_logs_for_display(logs)
-
-      # Then
-      assert [formatted_log] = result
-      assert formatted_log.timestamp == "??:??:??"
-    end
+    
   end
 
   describe "prepare_log_with_metadata/1" do

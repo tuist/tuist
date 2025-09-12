@@ -983,7 +983,10 @@ defmodule Tuist.QA do
     "#{pad_number(h)}:#{pad_number(m)}:#{pad_number(s)}"
   end
 
-  defp format_timestamp(_), do: "??:??:??"
+  defp format_timestamp(%DateTime{} = dt) do
+    %{hour: h, minute: m, second: s} = DateTime.to_time(dt)
+    "#{pad_number(h)}:#{pad_number(m)}:#{pad_number(s)}"
+  end
 
   defp pad_number(n), do: String.pad_leading(to_string(n), 2, "0")
 

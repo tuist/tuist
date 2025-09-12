@@ -83,6 +83,7 @@ defmodule TuistWeb.QARunLive do
   def handle_info({:qa_log_created, log}, socket) do
     if socket.assigns.live_action == :logs do
       current_logs = socket.assigns[:logs] || []
+      log = %{log | inserted_at: NaiveDateTime.utc_now()}
       updated_logs = current_logs ++ [log]
       updated_formatted_logs = QA.prepare_and_format_logs(updated_logs, hide_usage_logs: true)
 

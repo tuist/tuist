@@ -33,6 +33,7 @@ defmodule TuistWeb.OpsQALogsLive do
   @impl true
   def handle_info({:qa_log_created, log}, socket) do
     current_logs = socket.assigns.logs
+    log = %{log | inserted_at: NaiveDateTime.utc_now()}
     updated_logs = current_logs ++ [log]
     updated_formatted_logs = QA.prepare_and_format_logs(updated_logs)
 
