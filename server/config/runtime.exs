@@ -160,11 +160,7 @@ if Enum.member?([:prod, :stag, :can], env) do
       # Ensure TCP detects dead connections
       # 90 seconds
       tcp_user_timeout: "90000"
-    ],
-    # Enable connection testing
-    pool: Ecto.Adapters.SQL.Sandbox,
-    prepare: :unnamed,
-    timeout: 15_000
+    ]
   ]
 
   database_options =
