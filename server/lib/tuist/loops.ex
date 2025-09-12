@@ -67,8 +67,8 @@ defmodule Tuist.Loops do
       {:ok, %{status: 200}} ->
         :ok
 
-      {:ok, %{status: status_code}} ->
-        {:error, {:http_error, status_code}}
+      {:ok, %{status: status_code, body: response_body}} ->
+        {:error, {:http_error, status_code, response_body}}
 
       {:error, reason} ->
         {:error, reason}
