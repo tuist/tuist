@@ -1,9 +1,0 @@
-{
-  "lsp": {
-    "elixir-ls": {
-      "settings": {
-        "projectDir": "server"
-      }
-    }
-  }
-}
