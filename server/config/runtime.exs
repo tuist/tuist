@@ -46,17 +46,40 @@ if Enum.member?([:prod, :stag, :can], env) do
       pool_size: Tuist.Environment.clickhouse_pool_size(secrets),
       queue_target: Tuist.Environment.clickhouse_queue_target(secrets),
       queue_interval: Tuist.Environment.clickhouse_queue_interval(secrets),
+      # Enhanced settings for better connection management
       settings: [
         readonly: 1,
         # Specifies the join algorithms to use in order of preference: direct (fastest for small tables),
         # parallel_hash (good for medium tables), and hash (fallback for large tables)
-        join_algorithm: "direct,parallel_hash,hash"
+        join_algorithm: "direct,parallel_hash,hash",
+        # Add timeout configurations
+        # Increase from default 10s
+        connect_timeout: 30,
+        # Keep at 5 minutes
+        receive_timeout: 300,
+        # Keep at 5 minutes
+        send_timeout: 300,
+        # Match your TCP keepalive interval
+        tcp_keep_alive_timeout: 60,
+        # 30 minutes instead of 1 hour
+        idle_connection_timeout: 1800,
+        # 5 minutes max query time
+        max_execution_time: 300
       ],
       transport_opts: [
         keepalive: true,
         show_econnreset: true,
         inet6: Tuist.Environment.use_ipv6?(secrets)
-      ]
+      ],
+      # Add connection lifecycle management
+      # 10 seconds to get connection from pool
+      pool_timeout: 10_000,
+      # 60 seconds to use connection
+      ownership_timeout: 60_000,
+      # Check idle connections every 30s
+      idle_interval: 30_000,
+      # Recycle connections after 30 minutes
+      max_lifetime: 1_800_000
 
     config :tuist, Tuist.IngestRepo,
       url: Tuist.Environment.clickhouse_url(secrets),
@@ -66,11 +89,25 @@ if Enum.member?([:prod, :stag, :can], env) do
       flush_interval_ms: Tuist.Environment.clickhouse_flush_interval_ms(secrets),
       max_buffer_size: Tuist.Environment.clickhouse_max_buffer_size(secrets),
       pool_size: Tuist.Environment.clickhouse_buffer_pool_size(secrets),
+      # Enhanced settings (same as ClickHouseRepo)
+      settings: [
+        connect_timeout: 30,
+        receive_timeout: 300,
+        send_timeout: 300,
+        tcp_keep_alive_timeout: 60,
+        idle_connection_timeout: 1800,
+        max_execution_time: 300
+      ],
       transport_opts: [
         keepalive: true,
         show_econnreset: true,
         inet6: Tuist.Environment.use_ipv6?(secrets)
-      ]
+      ],
+      # Add connection lifecycle management
+      pool_timeout: 10_000,
+      ownership_timeout: 60_000,
+      idle_interval: 30_000,
+      max_lifetime: 1_800_000
   end
 
   database_url =
@@ -98,11 +135,36 @@ if Enum.member?([:prod, :stag, :can], env) do
     hostname: parsed_url.host,
     port: parsed_url.port || 5432,
     socket_options: socket_opts,
+    # Enhanced connection management
+    # Check idle connections every 30s
+    idle_time: :timer.seconds(30),
+    # Recycle connections after 30 minutes
+    max_lifetime: :timer.minutes(30),
+    # Timeout waiting for connection from pool
+    queue_timeout: :timer.seconds(15),
+    # Timeout for checked out connections
+    ownership_timeout: :timer.seconds(60),
+    # Connection timeout
+    connect_timeout: :timer.seconds(30),
+    # Enhanced parameters
     parameters: [
       tcp_keepalives_idle: "60",
       tcp_keepalives_interval: "30",
-      tcp_keepalives_count: "3"
-    ]
+      tcp_keepalives_count: "3",
+      # Consider increasing statement_timeout if you have long queries
+      # 5 minutes instead of default 2
+      statement_timeout: "300000",
+      # Add idle transaction timeout for safety
+      # 5 minutes
+      idle_in_transaction_session_timeout: "300000",
+      # Ensure TCP detects dead connections
+      # 90 seconds
+      tcp_user_timeout: "90000"
+    ],
+    # Enable connection testing
+    pool: Ecto.Adapters.SQL.Sandbox,
+    prepare: :unnamed,
+    timeout: 15_000
   ]
 
   database_options =
