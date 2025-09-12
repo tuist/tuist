@@ -118,8 +118,12 @@ defmodule TuistWeb.Marketing.MarketingController do
   end
 
   def newsletter_signup(conn, %{"email" => email}) do
-    case send_newsletter_confirmation(email, conn) do
-      {:ok, _conn} ->
+    # Create a verification token (simple base64 encoded email)
+    verification_token = Base.encode64(email)
+    verification_url = url(conn, ~p"/newsletter/verify?token=#{verification_token}")
+
+    case Tuist.Loops.send_newsletter_confirmation(email, verification_url) do
+      :ok ->
         conn
         |> put_resp_content_type("application/json")
         |> json(%{
@@ -148,7 +152,7 @@ defmodule TuistWeb.Marketing.MarketingController do
   def newsletter_verify(conn, %{"token" => token} = _params) do
     case Base.decode64(token) do
       {:ok, email} ->
-        case add_to_newsletter_list(email) do
+        case Tuist.Loops.add_to_newsletter_list(email) do
           :ok ->
             conn
             |> assign(:head_title, "Successfully Subscribed!")

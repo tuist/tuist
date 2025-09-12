@@ -2,25 +2,16 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: true
   use Mimic
 
-  alias Tuist.Environment
+  alias Tuist.Loops
 
   describe "POST /newsletter" do
-    test "successfully sends confirmation email when API key is present", %{conn: conn} do
+    test "successfully sends confirmation email", %{conn: conn} do
       # Given
       email = "test@example.com"
 
-      expect(Environment, :loops_api_key, fn -> "test-api-key" end)
-
-      expect(Req, :post, fn _url, opts ->
-        assert opts[:json]["email"] == email
-        assert opts[:json]["transactionalId"] == "cmfglb1pe5esq2w0ixnkdou94"
-
-        assert String.contains?(
-                 opts[:json]["dataVariables"]["verificationUrl"],
-                 "/newsletter/verify?token="
-               )
-
-        {:ok, %{status: 200}}
+      expect(Loops, :send_newsletter_confirmation, fn ^email, verification_url ->
+        assert String.contains?(verification_url, "/newsletter/verify?token=")
+        :ok
       end)
 
       # When
@@ -37,7 +28,9 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       # Given
       email = "test@example.com"
 
-      expect(Environment, :loops_api_key, fn -> nil end)
+      expect(Loops, :send_newsletter_confirmation, fn ^email, _verification_url ->
+        {:error, :missing_api_key}
+      end)
 
       # When
       conn = post(conn, ~p"/newsletter", %{"email" => email})
@@ -45,7 +38,8 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       # Then
       assert json_response(conn, 500) == %{
                "success" => false,
-               "message" => "Newsletter service configuration error: missing API key. Please try again later."
+               "message" =>
+                 "Newsletter service configuration error: missing API key. Please try again later."
              }
     end
 
@@ -53,10 +47,8 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       # Given
       email = "test@example.com"
 
-      expect(Environment, :loops_api_key, fn -> "test-api-key" end)
-
-      expect(Req, :post, fn _url, _opts ->
-        {:ok, %{status: 400, body: %{"error" => "Invalid request"}}}
+      expect(Loops, :send_newsletter_confirmation, fn ^email, _verification_url ->
+        {:error, {:http_error, 400, %{"error" => "Invalid request"}}}
       end)
 
       # When
@@ -73,9 +65,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       # Given
       email = "test@example.com"
 
-      expect(Environment, :loops_api_key, fn -> "test-api-key" end)
-
-      expect(Req, :post, fn _url, _opts ->
+      expect(Loops, :send_newsletter_confirmation, fn ^email, _verification_url ->
         {:error, :timeout}
       end)
 
@@ -96,12 +86,8 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       email = "test@example.com"
       token = Base.encode64(email)
 
-      expect(Environment, :loops_api_key, fn -> "test-api-key" end)
-
-      expect(Req, :post, fn _url, opts ->
-        assert opts[:json]["email"] == email
-        assert opts[:json]["mailingLists"]["cmfgir0c94l6k0ix00ssx6cbx"] == true
-        {:ok, %{status: 200}}
+      expect(Loops, :add_to_newsletter_list, fn ^email ->
+        :ok
       end)
 
       # When
@@ -150,10 +136,8 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       email = "test@example.com"
       token = Base.encode64(email)
 
-      expect(Environment, :loops_api_key, fn -> "test-api-key" end)
-
-      expect(Req, :post, fn _url, _opts ->
-        {:ok, %{status: 400, body: %{"error" => "List not found"}}}
+      expect(Loops, :add_to_newsletter_list, fn ^email ->
+        {:error, {:http_error, 400}}
       end)
 
       # When
@@ -171,7 +155,9 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       email = "test@example.com"
       token = Base.encode64(email)
 
-      expect(Environment, :loops_api_key, fn -> nil end)
+      expect(Loops, :add_to_newsletter_list, fn ^email ->
+        {:error, :missing_api_key}
+      end)
 
       # When
       conn = get(conn, ~p"/newsletter/verify?token=#{token}")
