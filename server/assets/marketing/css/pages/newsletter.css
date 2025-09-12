@@ -47,3 +47,39 @@
     outline: var(--violet) 2px solid;
   }
 }
+
+.marketing__newsletter__subscribe__title__form__label {
+  display: block;
+  margin-bottom: var(--spacing-8);
+  color: var(--dark-violet);
+  font: var(--font-m);
+}
+
+.marketing__newsletter__subscribe__form__field__group {
+  margin-bottom: var(--spacing-24);
+}
+
+.marketing__newsletter__subscribe__form__error,
+.marketing__newsletter__subscribe__form__message {
+  margin: var(--spacing-16) 0;
+  border-radius: var(--radius-s);
+  padding: var(--spacing-8);
+  font: var(--font-s);
+}
+
+.marketing__newsletter__subscribe__form__error {
+  background: var(--light-red);
+  color: var(--dark-red);
+}
+
+.marketing__newsletter__subscribe__form__message {
+  background: var(--light-green);
+  color: var(--dark-green);
+}
+
+.marketing__newsletter__subscribe__form__error__message {
+  display: block;
+  margin-top: var(--spacing-4);
+  color: var(--dark-red);
+  font: var(--font-xs);
+}

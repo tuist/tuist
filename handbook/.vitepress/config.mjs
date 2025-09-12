@@ -124,8 +124,8 @@ export default defineConfig({
         collapsed: true,
         items: [
           {
-            text: "Swift Stories Newsletter",
-            link: "/community/swift-stories",
+            text: "Tuist Digest Newsletter",
+            link: "/community/tuist-digest",
           },
         ],
       },

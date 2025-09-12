@@ -137,10 +137,6 @@ defmodule TuistWeb.Router do
 
     get "/changelog/atom.xml", MarketingController, :changelog_atom, metadata: %{type: :marketing}
 
-    get "/newsletter/rss.xml", MarketingController, :newsletter_rss, metadata: %{type: :marketing}
-
-    get "/newsletter/atom.xml", MarketingController, :newsletter_atom, metadata: %{type: :marketing}
-
     get "/sitemap.xml", MarketingController, :sitemap, metadata: %{type: :marketing}
   end
 
@@ -210,6 +206,18 @@ defmodule TuistWeb.Router do
       get Path.join(locale_path_prefix, "/newsletter"),
           MarketingController,
           :newsletter,
+          metadata: %{type: :marketing},
+          private: private
+
+      post Path.join(locale_path_prefix, "/newsletter"),
+           MarketingController,
+           :newsletter_signup,
+           metadata: %{type: :marketing},
+           private: private
+
+      get Path.join(locale_path_prefix, "/newsletter/verify"),
+          MarketingController,
+          :newsletter_verify,
           metadata: %{type: :marketing},
           private: private
 

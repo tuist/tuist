@@ -1,31 +1,56 @@
 <TuistWeb.Marketing.Layouts.marketing {assigns}>
   <script type="text/javascript" nonce={get_csp_nonce()}>
-    /** This section is only needed once per page if manually copying **/
-    if (typeof MauticSDKLoaded == 'undefined') {
-        var MauticSDKLoaded = true;
-        var head            = document.getElementsByTagName('head')[0];
-        var script          = document.createElement('script');
-        script.type         = 'text/javascript';
-        script.src          = 'https://marketing.tuist.dev/media/js/mautic-form.js?v54371bff';
-        script.nonce        = '<%= get_csp_nonce() %>';
-        script.onload       = function() {
-            MauticSDK.onLoad();
-        };
-        head.appendChild(script);
-        var MauticDomain = 'https://marketing.tuist.dev';
-        var MauticLang   = {
-            'submittingMessage': "Please wait..."
+    document.addEventListener('DOMContentLoaded', function() {
+      const form = document.getElementById('newsletter-form');
+      const errorDiv = document.getElementById('form-error');
+      const messageDiv = document.getElementById('form-message');
+
+      form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+
+        const formData = new FormData(form);
+        const submitButton = form.querySelector('button[type="submit"]');
+        const originalButtonText = submitButton.textContent;
+
+        // Show loading state
+        submitButton.textContent = 'Submitting...';
+        submitButton.disabled = true;
+        errorDiv.style.display = 'none';
+        messageDiv.style.display = 'none';
+
+        try {
+          const response = await fetch(form.action, {
+            method: 'POST',
+            body: formData,
+            credentials: 'same-origin'
+          });
+
+          const result = await response.json();
+
+          if (result.success) {
+            messageDiv.textContent = result.message;
+            messageDiv.style.display = 'block';
+            form.reset();
+          } else {
+            errorDiv.textContent = result.message;
+            errorDiv.style.display = 'block';
+          }
+        } catch (error) {
+          errorDiv.textContent = 'Something went wrong. Please try again.';
+          errorDiv.style.display = 'block';
+        } finally {
+          submitButton.textContent = originalButtonText;
+          submitButton.disabled = false;
         }
-    }else if (typeof MauticSDK != 'undefined') {
-        MauticSDK.onLoad();
-    }
+      });
+    });
   </script>
 
   <main
     class="marketing__newsletter"
-    aria-label={gettext("Swift Stories newsletter's subscription form")}
+    aria-label={gettext("Tuist Digest newsletter's subscription form")}
   >
-    <h1 class="marketing__newsletter__title">{gettext("Swift Stories")}</h1>
+    <h1 class="marketing__newsletter__title">{gettext("Tuist Digest")}</h1>
 
     <p class="marketing__newsletter__description">
       {Tuist.Marketing.Newsletter.description()}
@@ -33,109 +58,63 @@
 
     <h2 class="marketing__newsletter__subscribe__title">{gettext("Subscribe")}</h2>
 
-    <div id="mauticform_wrapper_swiftstoriesnew" class="mauticform_wrapper">
+    <div>
       <form
+        id="newsletter-form"
         class="marketing__newsletter__subscribe__title__form"
-        autocomplete="false"
-        role="form"
         method="post"
-        action="https://marketing.tuist.dev/form/submit?formId=1"
-        id="mauticform_swiftstoriesnew"
-        data-mautic-form="swiftstoriesnew"
-        enctype="multipart/form-data"
+        action={~p"/newsletter"}
       >
+        <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+
         <span class="marketing__newsletter__subscribe__title__form__description">
-          {gettext("Newsletter issues are sent bi-weekly and you can unsubscribe at any time.")}
+          {gettext(
+            "Newsletter issues are sent every 6 weeks and you can unsubscribe at any time."
+          )}
         </span>
 
-        <div class="mauticform-error" id="mauticform_swiftstoriesnew_error"></div>
-        <div class="mauticform-message" id="mauticform_swiftstoriesnew_message"></div>
-        <div class="mauticform-innerform">
-          <div class="mauticform-page-wrapper mauticform-page-1" data-mautic-form-page="1">
-            <div
-              id="mauticform_swiftstoriesnew_email"
-              class="mauticform-row mauticform-email mauticform-field-1 mauticform-required"
-              data-validate="email"
-              data-validation-type="email"
-            >
-              <label
-                id="mauticform_label_swiftstoriesnew_email"
-                for="mauticform_input_swiftstoriesnew_email"
-                class="mauticform-label"
-              >
-                Email
-              </label>
+        <div
+          class="marketing__newsletter__subscribe__form__error"
+          id="form-error"
+          style="display:none;"
+        >
+        </div>
+        <div
+          class="marketing__newsletter__subscribe__form__message"
+          id="form-message"
+          style="display:none;"
+        >
+        </div>
 
-              <input
-                type="email"
-                name="mauticform[email]"
-                value=""
-                id="mauticform_input_swiftstoriesnew_email"
-                placeholder="Enter your email"
-                class="mauticform-input"
-              />
+        <div class="marketing__newsletter__subscribe__form__inner">
+          <div class="marketing__newsletter__subscribe__form__field__group">
+            <label for="email" class="marketing__newsletter__subscribe__title__form__label">
+              Email
+            </label>
 
-              <span class="mauticform-errormsg" style="display:none;">Email is required</span>
-            </div>
+            <input
+              type="email"
+              name="email"
+              id="email"
+              placeholder="Enter your email"
+              class="marketing__newsletter__subscribe__title__form__field"
+              required
+            />
 
-            <div
+            <span
+              class="marketing__newsletter__subscribe__form__error__message"
               style="display:none;"
-              id="mauticform_swiftstoriesnew_captcha"
-              class="mauticform-row mauticform-text mauticform-field-2"
             >
-              <label
-                id="mauticform_label_swiftstoriesnew_captcha"
-                for="mauticform_input_swiftstoriesnew_captcha"
-                class="mauticform-label"
-              >
-                Captcha
-              </label>
+              Email is required
+            </span>
+          </div>
 
-              <input
-                type="text"
-                name="mauticform[captcha]"
-                value=""
-                id="mauticform_input_swiftstoriesnew_captcha"
-                class="mauticform-input"
-              />
-
-              <span class="mauticform-errormsg" style="display:none;"></span>
-            </div>
-
-            <div
-              id="mauticform_swiftstoriesnew_submit"
-              class="mauticform-row mauticform-button-wrapper mauticform-field-3"
-            >
-              <button
-                class="btn btn-ghost mauticform-button"
-                name="mauticform[submit]"
-                value="1"
-                id="mauticform_input_swiftstoriesnew_submit"
-                type="submit"
-              >
-                Submit
-              </button>
-            </div>
+          <div class="marketing__newsletter__subscribe__form__submit">
+            <.primary_button size="big" type="submit">
+              Submit
+            </.primary_button>
           </div>
         </div>
-        <input
-          type="hidden"
-          name="mauticform[formId]"
-          id="mauticform_swiftstoriesnew_id"
-          value="1"
-        />
-        <input
-          type="hidden"
-          name="mauticform[return]"
-          id="mauticform_swiftstoriesnew_return"
-          value=""
-        />
-        <input
-          type="hidden"
-          name="mauticform[formName]"
-          id="mauticform_swiftstoriesnew_name"
-          value="swiftstoriesnew"
-        />
       </form>
     </div>
   </main>

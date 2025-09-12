@@ -71,6 +71,7 @@ defmodule Tuist do
       Xcode.Clickhouse.XcodeGraph,
       Xcode.Clickhouse.XcodeProject,
       Xcode.Clickhouse.XcodeTarget,
+      Loops,
       Namespace,
       Namespace.JWTToken,
       # Support
