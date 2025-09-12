@@ -107,7 +107,7 @@ defmodule TuistWeb.Marketing.MarketingController do
     )
     |> assign(
       :head_image,
-      Tuist.Environment.app_url(path: "/marketing/images/og/generated/swift-stories.jpg")
+      Tuist.Environment.app_url(path: "/marketing/images/og/generated/tuist-digest.jpg")
     )
     |> assign(:head_twitter_card, "summary_large_image")
     |> assign(

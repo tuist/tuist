@@ -41,8 +41,8 @@ defmodule Mix.Tasks.Marketing.Gen.OgImages do
     )
 
     OpenGraph.generate_og_image(
-      "Swift Stories Newsletter",
-      Path.join(og_images_directory, "swift-stories.jpg")
+      "Tuist Digest Newsletter",
+      Path.join(og_images_directory, "tuist-digest.jpg")
     )
   end
 
@@ -50,7 +50,9 @@ defmodule Mix.Tasks.Marketing.Gen.OgImages do
     Enum.each(Tuist.Marketing.Blog.get_posts(), fn post ->
       image_path = Path.join(og_images_directory, "#{post.slug}.jpg")
 
-      IO.puts("Generating OG image for '#{post.title}' at #{Path.relative_to(image_path, File.cwd!())}")
+      IO.puts(
+        "Generating OG image for '#{post.title}' at #{Path.relative_to(image_path, File.cwd!())}"
+      )
 
       File.mkdir_p!(Path.dirname(image_path))
 
