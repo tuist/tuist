@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.71.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* generate tests using Swift Testing instead of XCTest by [@fortmarek](https://github.com/fortmarek) in [#8184](https://github.com/tuist/tuist/pull/8184)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.70.0...4.71.0
+
 ## What's Changed in 4.70.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
