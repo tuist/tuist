@@ -7,7 +7,7 @@
 ---
 # Tuist Digest Newsletter
 
-Tuist Digest is a newsletter about surfacing the signal from all the work that's happening in Tuist. A newsletter showcasing the most important work happening in Tuist and our vision for the future of app development at scale. Each edition highlights recent developments, upcoming features, and insights into how we're shaping the tools and practices teams need to build better apps, faster.
+Tuist Digest is a newsletter showcasing the most important work happening in Tuist and our vision for the future of app development at scale. Each edition highlights recent developments, upcoming features, and insights into how we're shaping the tools and practices teams need.
 
 ## Overview
 
