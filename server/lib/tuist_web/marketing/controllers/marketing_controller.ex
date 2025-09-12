@@ -117,6 +117,96 @@ defmodule TuistWeb.Marketing.MarketingController do
     |> render(:newsletter, layout: false)
   end
 
+  def newsletter_signup(conn, %{"email" => email}) do
+    case send_newsletter_confirmation(email, conn) do
+      {:ok, _conn} ->
+        conn
+        |> put_resp_content_type("application/json")
+        |> json(%{
+          success: true,
+          message: "Please check your email to confirm your subscription."
+        })
+
+      {:error, :missing_api_key} ->
+        conn
+        |> put_resp_content_type("application/json")
+        |> put_status(500)
+        |> json(%{
+          success: false,
+          message:
+            "Newsletter service configuration error: missing API key. Please try again later."
+        })
+
+      {:error, _reason} ->
+        conn
+        |> put_resp_content_type("application/json")
+        |> put_status(400)
+        |> json(%{success: false, message: "Something went wrong. Please try again."})
+    end
+  end
+
+  def newsletter_verify(conn, %{"token" => token} = _params) do
+    case Base.decode64(token) do
+      {:ok, email} ->
+        case add_to_newsletter_list(email) do
+          :ok ->
+            conn
+            |> assign(:head_title, "Successfully Subscribed!")
+            |> assign(
+              :head_image,
+              Tuist.Environment.app_url(path: "/marketing/images/og/generated/tuist-digest.jpg")
+            )
+            |> assign(:head_twitter_card, "summary_large_image")
+            |> assign(:email, email)
+            |> assign(:error_message, nil)
+            |> render(:newsletter_verify, layout: false)
+
+          {:error, _reason} ->
+            conn
+            |> assign(:head_title, "Newsletter Verification Failed")
+            |> assign(
+              :head_image,
+              Tuist.Environment.app_url(path: "/marketing/images/og/generated/tuist-digest.jpg")
+            )
+            |> assign(:head_twitter_card, "summary_large_image")
+            |> assign(:error_message, "Verification failed. Please try signing up again.")
+            |> assign(:email, nil)
+            |> render(:newsletter_verify, layout: false)
+        end
+
+      :error ->
+        conn
+        |> assign(:head_title, "Newsletter Verification Failed")
+        |> assign(
+          :head_image,
+          Tuist.Environment.app_url(path: "/marketing/images/og/generated/tuist-digest.jpg")
+        )
+        |> assign(:head_twitter_card, "summary_large_image")
+        |> assign(
+          :error_message,
+          "Invalid verification link. Please try signing up again."
+        )
+        |> assign(:email, nil)
+        |> render(:newsletter_verify, layout: false)
+    end
+  end
+
+  def newsletter_verify(conn, _params) do
+    conn
+    |> assign(:head_title, "Newsletter Verification Failed")
+    |> assign(
+      :head_image,
+      Tuist.Environment.app_url(path: "/marketing/images/og/generated/tuist-digest.jpg")
+    )
+    |> assign(:head_twitter_card, "summary_large_image")
+    |> assign(
+      :error_message,
+      "Verification link expired or invalid. Please try signing up again."
+    )
+    |> assign(:email, nil)
+    |> render(:newsletter_verify, layout: false)
+  end
+
   def newsletter_issue(%{params: params} = conn, %{"issue_number" => issue_number}) do
     email_version? = Map.has_key?(params, "email")
 
@@ -288,20 +378,25 @@ defmodule TuistWeb.Marketing.MarketingController do
 
   def pricing(conn, _params) do
     faqs = [
-      {gettext("Why is your pricing model more accessible compared to traditional enterprise models?"),
+      {gettext(
+         "Why is your pricing model more accessible compared to traditional enterprise models?"
+       ),
        gettext(
          ~S"""
          <p>Our commitment to open-source and our core values shape our unique approach to pricing. Unlike many models that try to extract every dollar from you with "contact sales" calls, limited demos, and other sales tactics, we believe in fairness and transparency. We treat everyone equally and set prices that are fair for all. By choosing our services, you are not only getting a great product but also supporting the development of more open-source projects. We see building a thriving business as a long-term journey, not a short-term sprint filled with shady practices. You can %{read_more}  about our philosophy.</p>
          <p>By supporting Tuist, you are also supporting the development of more open-source software for the Swift ecosystem.</p>
          """,
-         read_more: "<a href=\"#{~p"/blog/2024/11/05/our-pricing-philosophy"}\">#{gettext("read more")}</a>"
+         read_more:
+           "<a href=\"#{~p"/blog/2024/11/05/our-pricing-philosophy"}\">#{gettext("read more")}</a>"
        )},
       {gettext("How can I estimate the cost of my project?"),
        gettext(
          "You can set up the Air plan, and use the features for a few days to get a usage estimate. If you need a higher limit, let us know and we can help you set up a custom plan."
        )},
       {gettext("Is there a free trial on paid plans?"),
-       gettext("We have a generous free tier on every paid plan so you can try out the features before paying any money.")},
+       gettext(
+         "We have a generous free tier on every paid plan so you can try out the features before paying any money."
+       )},
       {gettext("Do you offer discounts for non-profits and open-source?"),
        gettext("Yes, we do. Please reach out to oss@tuist.io for more information.")}
     ]
@@ -345,7 +440,8 @@ defmodule TuistWeb.Marketing.MarketingController do
     |> assign(
       :head_image,
       Tuist.Environment.app_url(
-        path: "/marketing/images/og/generated/#{page.slug |> String.split("/") |> List.last()}.jpg"
+        path:
+          "/marketing/images/og/generated/#{page.slug |> String.split("/") |> List.last()}.jpg"
       )
     )
     |> assign(:head_twitter_card, "summary_large_image")
@@ -458,5 +554,68 @@ defmodule TuistWeb.Marketing.MarketingController do
 
   defp put_resp_header_server(conn, _opts) do
     put_resp_header(conn, "server", "Bandit")
+  end
+
+  defp send_newsletter_confirmation(email, conn) do
+    loops_api_key = Tuist.Environment.loops_api_key()
+
+    if is_nil(loops_api_key) do
+      {:error, :missing_api_key}
+    else
+      # Create a verification token (simple base64 encoded email)
+      verification_token = Base.encode64(email)
+      verification_url = url(conn, ~p"/newsletter/verify?token=#{verification_token}")
+
+      body = %{
+        "email" => email,
+        "transactionalId" => "cmfglb1pe5esq2w0ixnkdou94",
+        "dataVariables" => %{
+          "verificationUrl" => verification_url
+        }
+      }
+
+      case Req.post("https://app.loops.so/api/v1/transactional",
+             json: body,
+             headers: [{"Authorization", "Bearer #{loops_api_key}"}]
+           ) do
+        {:ok, %{status: 200}} ->
+          {:ok, conn}
+
+        {:ok, %{status: status_code, body: response_body}} ->
+          {:error, {:http_error, status_code, response_body}}
+
+        {:error, reason} ->
+          {:error, reason}
+      end
+    end
+  end
+
+  defp add_to_newsletter_list(email) do
+    loops_api_key = Tuist.Environment.loops_api_key()
+
+    if is_nil(loops_api_key) do
+      {:error, :missing_api_key}
+    else
+      body = %{
+        "email" => email,
+        "mailingLists" => %{
+          "cmfgir0c94l6k0ix00ssx6cbx" => true
+        }
+      }
+
+      case Req.post("https://app.loops.so/api/v1/contacts/update",
+             json: body,
+             headers: [{"Authorization", "Bearer #{loops_api_key}"}]
+           ) do
+        {:ok, %{status: 200}} ->
+          :ok
+
+        {:ok, %{status: status_code}} ->
+          {:error, {:http_error, status_code}}
+
+        {:error, reason} ->
+          {:error, reason}
+      end
+    end
   end
 end
