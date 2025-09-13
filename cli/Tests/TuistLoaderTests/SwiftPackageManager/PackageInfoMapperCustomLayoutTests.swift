@@ -30,12 +30,12 @@ struct PackageInfoMapperCustomLayoutTests {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let packagePath = basePath.appending(try RelativePath(validating: "Package"))
         let sourcesPath = packagePath.appending(try RelativePath(validating: "Sources"))
-        
+
         try await fileSystem.makeDirectory(at: sourcesPath)
         try await fileSystem.touch(sourcesPath.appending(component: "Target1.swift"))
         try await fileSystem.touch(sourcesPath.appending(component: "Helper.swift"))
         try await fileSystem.touch(sourcesPath.appending(component: "Utils.swift"))
-        
+
         let packageInfo = PackageInfo.test(
             name: "Package",
             products: [
@@ -54,7 +54,7 @@ struct PackageInfoMapperCustomLayoutTests {
             cxxLanguageStandard: nil,
             swiftLanguageVersions: nil
         )
-        
+
         let project = try await subject.map(
             packageInfo: packageInfo,
             path: packagePath,
@@ -62,19 +62,19 @@ struct PackageInfoMapperCustomLayoutTests {
             packageSettings: .test(),
             packageModuleAliases: [:]
         )
-        
+
         #expect(project != nil)
         #expect(project?.targets.count == 1)
-        
+
         let target = project?.targets.first
         #expect(target?.name == "Target1")
-        
+
         let sources = target?.sources
         #expect(sources?.globs.count ?? 0 > 0)
         let firstGlob = sources?.globs.first
         #expect(firstGlob?.glob.pathString.contains("Package/Sources/**") == true)
     }
-    
+
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
@@ -82,10 +82,10 @@ struct PackageInfoMapperCustomLayoutTests {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let packagePath = basePath.appending(try RelativePath(validating: "Package"))
         let targetPath = packagePath.appending(try RelativePath(validating: "Sources/Target1"))
-        
+
         try await fileSystem.makeDirectory(at: targetPath)
         try await fileSystem.touch(targetPath.appending(component: "Target1.swift"))
-        
+
         let packageInfo = PackageInfo.test(
             name: "Package",
             products: [
@@ -101,7 +101,7 @@ struct PackageInfoMapperCustomLayoutTests {
             ],
             platforms: [.ios]
         )
-        
+
         let project = try await subject.map(
             packageInfo: packageInfo,
             path: packagePath,
@@ -109,26 +109,26 @@ struct PackageInfoMapperCustomLayoutTests {
             packageSettings: .test(),
             packageModuleAliases: [:]
         )
-        
+
         #expect(project != nil)
         #expect(project?.targets.count == 1)
-        
+
         let target = project?.targets.first
         #expect(target?.name == "Target1")
-        
+
         let sources = target?.sources
         #expect(sources?.globs.count ?? 0 > 0)
         let firstGlob = sources?.globs.first
         #expect(firstGlob?.glob.pathString.contains("Package/Sources/Target1/**") == true)
     }
-    
+
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
     ) func map_whenNoSourcesFound_throwsError() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let packagePath = basePath.appending(try RelativePath(validating: "Package"))
-        
+
         let packageInfo = PackageInfo.test(
             name: "Package",
             products: [
@@ -144,7 +144,7 @@ struct PackageInfoMapperCustomLayoutTests {
             ],
             platforms: [.ios]
         )
-        
+
         await #expect(throws: PackageInfoMapperError.self) {
             _ = try await subject.map(
                 packageInfo: packageInfo,
@@ -155,7 +155,7 @@ struct PackageInfoMapperCustomLayoutTests {
             )
         }
     }
-    
+
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
@@ -163,12 +163,12 @@ struct PackageInfoMapperCustomLayoutTests {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let packagePath = basePath.appending(try RelativePath(validating: "Package"))
         let sourcesPath = packagePath.appending(try RelativePath(validating: "Sources"))
-        
+
         try await fileSystem.makeDirectory(at: sourcesPath)
         try await fileSystem.touch(sourcesPath.appending(component: "main.swift"))
         try await fileSystem.touch(sourcesPath.appending(component: "helper.c"))
         try await fileSystem.touch(sourcesPath.appending(component: "helper.h"))
-        
+
         let packageInfo = PackageInfo.test(
             name: "Package",
             products: [
@@ -184,7 +184,7 @@ struct PackageInfoMapperCustomLayoutTests {
             ],
             platforms: [.ios]
         )
-        
+
         let project = try await subject.map(
             packageInfo: packageInfo,
             path: packagePath,
@@ -192,17 +192,17 @@ struct PackageInfoMapperCustomLayoutTests {
             packageSettings: .test(),
             packageModuleAliases: [:]
         )
-        
+
         #expect(project != nil)
         let target = project?.targets.first
         #expect(target?.name == "Target1")
-        
+
         let sources = target?.sources
         #expect(sources?.globs.count ?? 0 > 0)
         let firstGlob = sources?.globs.first
         #expect(firstGlob?.glob.pathString.contains("Package/Sources/**") == true)
     }
-    
+
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
@@ -210,11 +210,11 @@ struct PackageInfoMapperCustomLayoutTests {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let packagePath = basePath.appending(try RelativePath(validating: "Package"))
         let testsPath = packagePath.appending(try RelativePath(validating: "Tests"))
-        
+
         try await fileSystem.makeDirectory(at: testsPath)
         try await fileSystem.touch(testsPath.appending(component: "PackageTests.swift"))
         try await fileSystem.touch(testsPath.appending(component: "HelperTests.swift"))
-        
+
         let packageInfo = PackageInfo.test(
             name: "Package",
             products: [],
@@ -228,7 +228,7 @@ struct PackageInfoMapperCustomLayoutTests {
             ],
             platforms: [.ios]
         )
-        
+
         let project = try await subject.map(
             packageInfo: packageInfo,
             path: packagePath,
@@ -236,20 +236,20 @@ struct PackageInfoMapperCustomLayoutTests {
             packageSettings: .test(),
             packageModuleAliases: [:]
         )
-        
+
         #expect(project != nil)
         #expect(project?.targets.count == 1)
-        
+
         let target = project?.targets.first
         #expect(target?.name == "PackageTests")
         #expect(target?.product == .unitTests)
-        
+
         let sources = target?.sources
         #expect(sources?.globs.count ?? 0 > 0)
         let firstGlob = sources?.globs.first
         #expect(firstGlob?.glob.pathString.contains("Package/Tests/**") == true)
     }
-    
+
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
@@ -257,11 +257,11 @@ struct PackageInfoMapperCustomLayoutTests {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let packagePath = basePath.appending(try RelativePath(validating: "Package"))
         let sourcePath = packagePath.appending(try RelativePath(validating: "Source"))
-        
+
         try await fileSystem.makeDirectory(at: sourcePath)
         try await fileSystem.touch(sourcePath.appending(component: "Main.swift"))
         try await fileSystem.touch(sourcePath.appending(component: "Utils.swift"))
-        
+
         let packageInfo = PackageInfo.test(
             name: "Package",
             products: [
@@ -277,7 +277,7 @@ struct PackageInfoMapperCustomLayoutTests {
             ],
             platforms: [.ios]
         )
-        
+
         let project = try await subject.map(
             packageInfo: packageInfo,
             path: packagePath,
@@ -285,17 +285,17 @@ struct PackageInfoMapperCustomLayoutTests {
             packageSettings: .test(),
             packageModuleAliases: [:]
         )
-        
+
         #expect(project != nil)
         let target = project?.targets.first
         #expect(target?.name == "Target1")
-        
+
         let sources = target?.sources
         #expect(sources?.globs.count ?? 0 > 0)
         let firstGlob = sources?.globs.first
         #expect(firstGlob?.glob.pathString.contains("Package/Source/**") == true)
     }
-    
+
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
@@ -304,12 +304,12 @@ struct PackageInfoMapperCustomLayoutTests {
         let packagePath = basePath.appending(try RelativePath(validating: "Package"))
         let sourcesPath = packagePath.appending(try RelativePath(validating: "Sources"))
         let targetPath = packagePath.appending(try RelativePath(validating: "Sources/Target1"))
-        
+
         // Sources/ exists but is empty, files are in Sources/Target1/
         try await fileSystem.makeDirectory(at: sourcesPath)
         try await fileSystem.makeDirectory(at: targetPath)
         try await fileSystem.touch(targetPath.appending(component: "File.swift"))
-        
+
         let packageInfo = PackageInfo.test(
             name: "Package",
             products: [
@@ -325,7 +325,7 @@ struct PackageInfoMapperCustomLayoutTests {
             ],
             platforms: [.ios]
         )
-        
+
         let project = try await subject.map(
             packageInfo: packageInfo,
             path: packagePath,
@@ -333,11 +333,11 @@ struct PackageInfoMapperCustomLayoutTests {
             packageSettings: .test(),
             packageModuleAliases: [:]
         )
-        
+
         #expect(project != nil)
         let target = project?.targets.first
         #expect(target?.name == "Target1")
-        
+
         let sources = target?.sources
         #expect(sources?.globs.count ?? 0 > 0)
         let firstGlob = sources?.globs.first
