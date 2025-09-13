@@ -1421,6 +1421,9 @@ extension PackageInfo.Target {
                 .concurrentFilter { directory in
                     guard try await fileSystem.exists(directory) else { return false }
                     
+                    // SPM recognized source extensions
+                    // Check https://github.com/swiftlang/swift-package-manager/blob/main/Sources/PackageModel/SupportedLanguageExtension.swift
+                    // TODO: Consider adding assembly extensions "s", "S" if needed for low-level packages (SPM supports since Swift 5.0)
                     let sourceExtensions = ["swift", "c", "cpp", "cc", "cxx", "m", "mm"]
                     let hasSourceFiles = try await fileSystem.glob(
                         directory: directory,
