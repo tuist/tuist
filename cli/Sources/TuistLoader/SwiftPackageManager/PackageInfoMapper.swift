@@ -1409,10 +1409,35 @@ extension PackageInfo.Target {
                 .map { packageFolder.appending(components: [$0, name]) }
                 .concurrentFilter { try await fileSystem.exists($0) }
                 .first
-            guard let mainPath = firstMatchingPath else {
-                throw PackageInfoMapperError.defaultPathNotFound(packageFolder, name, predefinedDirectories)
+
+            if let mainPath = firstMatchingPath {
+                return mainPath
             }
-            return mainPath
+
+            // SE-0162: Support custom target layouts where source files are directly in Sources/
+            let directSourcePath = try await predefinedDirectories
+                .map { packageFolder.appending(component: $0) }
+                .concurrentFilter { directory in
+                    guard try await fileSystem.exists(directory) else { return false }
+
+                    // SPM recognized source extensions
+                    // Check https://github.com/swiftlang/swift-package-manager/blob/main/Sources/PackageModel/SupportedLanguageExtension.swift
+                    // TODO: Consider adding assembly extensions "s", "S" if needed for low-level packages (SPM supports since Swift 5.0)
+                    let sourceExtensions = ["swift", "c", "cpp", "cc", "cxx", "m", "mm"]
+                    let hasSourceFiles = try await fileSystem.glob(
+                        directory: directory,
+                        include: sourceExtensions.map { "*.\($0)" }
+                    ).collect().count > 0
+
+                    return hasSourceFiles
+                }
+                .first
+
+            if let directPath = directSourcePath {
+                return directPath
+            }
+
+            throw PackageInfoMapperError.defaultPathNotFound(packageFolder, name, predefinedDirectories)
         }
     }
 
