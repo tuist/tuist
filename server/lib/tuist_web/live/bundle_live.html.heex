@@ -179,144 +179,143 @@
     title={gettext("Bundle Size Analysis")}
   >
     <.card_section data-part="bundle-size-analysis-card-section">
-      <div data-part="header">
-        <div data-part="legend">
-          <div data-part="item">
-            <div data-part="indicator" data-type="directory"></div>
-            <span data-part="label">{gettext("Directory")}</span>
-          </div>
-          <div data-part="item">
-            <div data-part="indicator" data-type="binaries"></div>
-            <span data-part="label">{gettext("Binaries")}</span>
-          </div>
-          <div data-part="item">
-            <div data-part="indicator" data-type="localizations"></div>
-            <span data-part="label">{gettext("Localizations")}</span>
-          </div>
-          <div data-part="item">
-            <div data-part="indicator" data-type="fonts"></div>
-            <span data-part="label">{gettext("Fonts")}</span>
-          </div>
-          <div data-part="item">
-            <div data-part="indicator" data-type="assets"></div>
-            <span data-part="label">{gettext("Assets")}</span>
-          </div>
-          <div data-part="item">
-            <div data-part="indicator" data-type="duplicates"></div>
-            <span data-part="label">{gettext("Duplicates")}</span>
-          </div>
-          <div data-part="item">
-            <div data-part="indicator" data-type="file"></div>
-            <span data-part="label">{gettext("File")}</span>
-          </div>
-          <div data-part="item">
-            <div data-part="indicator" data-type="unknown"></div>
-            <span data-part="label">{gettext("Unknown")}</span>
+      <.async_result :let={overview} assign={@overview}>
+        <:loading>Loading</:loading>
+        <div data-part="header">
+          <div data-part="legend">
+            <div data-part="item">
+              <div data-part="indicator" data-type="directory"></div>
+              <span data-part="label">{gettext("Directory")}</span>
+            </div>
+            <div data-part="item">
+              <div data-part="indicator" data-type="binaries"></div>
+              <span data-part="label">{gettext("Binaries")}</span>
+            </div>
+            <div data-part="item">
+              <div data-part="indicator" data-type="localizations"></div>
+              <span data-part="label">{gettext("Localizations")}</span>
+            </div>
+            <div data-part="item">
+              <div data-part="indicator" data-type="fonts"></div>
+              <span data-part="label">{gettext("Fonts")}</span>
+            </div>
+            <div data-part="item">
+              <div data-part="indicator" data-type="assets"></div>
+              <span data-part="label">{gettext("Assets")}</span>
+            </div>
+            <div data-part="item">
+              <div data-part="indicator" data-type="duplicates"></div>
+              <span data-part="label">{gettext("Duplicates")}</span>
+            </div>
+            <div data-part="item">
+              <div data-part="indicator" data-type="file"></div>
+              <span data-part="label">{gettext("File")}</span>
+            </div>
+            <div data-part="item">
+              <div data-part="indicator" data-type="unknown"></div>
+              <span data-part="label">{gettext("Unknown")}</span>
+            </div>
           </div>
         </div>
-      </div>
 
-      <div data-part="breadcrumbs">
-        <.breadcrumbs style="arrow">
-          <%= for {path_component, index} <- Enum.with_index(@bundle_size_analysis_sunburst_chart_selected_artifact.path |> String.split("/")) do %>
-            <% breadcrumb_path =
-              @bundle_size_analysis_sunburst_chart_selected_artifact.path
-              |> String.split("/")
-              |> Enum.take(index + 1)
-              |> Enum.join("/")
+        <div data-part="breadcrumbs">
+          <.breadcrumbs style="arrow">
+            <%= for {path_component, index, _breadcrumb_path, breadcrumb_artifact} <- breadcrumb_data(@bundle_size_analysis_sunburst_chart_selected_artifact.path, @artifacts_by_path, @bundle.name) do %>
+              <.breadcrumb
+                id={"bundle-size-analysis-breadcrumb-#{index}"}
+                label={if index == 0, do: @bundle.name, else: path_component}
+                phx-click={
+                  JS.dispatch(
+                    "bundle-size-analysis-breadcrumb-clicked",
+                    to: "#bundle-size-analysis-current-contents",
+                    detail: %{artifact_id: breadcrumb_artifact.id}
+                  )
+                }
+              >
+              </.breadcrumb>
+            <% end %>
+          </.breadcrumbs>
+        </div>
+        <div data-part="chart">
+          <.chart
+            id="bundle-size-analysis-sunburst"
+            colors={[
+              "var:noora-sunburst-directory"
+            ]}
+            type="line"
+            series={[
+              overview.series
+            ]}
+          />
 
-            breadcrumb_artifact = Map.get(@artifacts_by_path, breadcrumb_path) %>
-            <.breadcrumb
-              :if={breadcrumb_artifact}
-              id={"bundle-size-analysis-breadcrumb-#{index}"}
-              label={if index == 0, do: @bundle.name, else: path_component}
-              phx-click={
-                JS.dispatch(
-                  "bundle-size-analysis-breadcrumb-clicked",
-                  to: "#bundle-size-analysis-current-contents",
-                  detail: %{artifact_id: breadcrumb_artifact.id}
-                )
+          <div
+            id="bundle-size-analysis-current-contents"
+            phx-hook="BundleSizeSunburstChartLegend"
+            data-chart-id="bundle-size-analysis-sunburst"
+          >
+            <.table
+              id="bundle-size-analysis-sunburst-chart-table"
+              rows={@bundle_size_analysis_sunburst_chart_table_current_page_artifacts}
+              row_click={
+                fn artifact ->
+                  if Map.get(artifact, :collapsed?) do
+                    nil
+                  else
+                    %{
+                      "phx-click" =>
+                        JS.dispatch(
+                          "bundle-size-analysis-table-row-clicked",
+                          to: "#bundle-size-analysis-current-contents",
+                          detail: %{
+                            artifact: %{
+                              name: artifact.name,
+                              artifact_type: artifact.artifact_type,
+                              artifact_id: Map.get(artifact, :artifact_id),
+                              path: Map.get(artifact, :path),
+                              current_path:
+                                @bundle_size_analysis_sunburst_chart_selected_artifact.path
+                            }
+                          }
+                        )
+                    }
+                  end
+                end
               }
             >
-            </.breadcrumb>
-          <% end %>
-        </.breadcrumbs>
-      </div>
-      <div data-part="chart">
-        <.chart
-          id="bundle-size-analysis-sunburst"
-          colors={[
-            "var:noora-sunburst-directory"
-          ]}
-          type="line"
-          series={[
-            @series
-          ]}
-        />
-        <div
-          id="bundle-size-analysis-current-contents"
-          phx-hook="BundleSizeSunburstChartLegend"
-          data-chart-id="bundle-size-analysis-sunburst"
-        >
-          <.table
-            id="bundle-size-analysis-sunburst-chart-table"
-            rows={@bundle_size_analysis_sunburst_chart_table_current_page_artifacts}
-            row_click={
-              fn artifact ->
-                if Map.get(artifact, :collapsed?) do
-                  nil
-                else
-                  %{
-                    "phx-click" =>
-                      JS.dispatch(
-                        "bundle-size-analysis-table-row-clicked",
-                        to: "#bundle-size-analysis-current-contents",
-                        detail: %{
-                          artifact: %{
-                            name: artifact.name,
-                            artifact_type: artifact.artifact_type,
-                            artifact_id: Map.get(artifact, :artifact_id),
-                            path: Map.get(artifact, :path),
-                            current_path:
-                              @bundle_size_analysis_sunburst_chart_selected_artifact.path
-                          }
-                        }
-                      )
-                  }
-                end
-              end
-            }
-          >
-            <:col :let={artifact} label={@bundle_size_analysis_sunburst_chart_table_artifact.name}>
-              <div data-part="artifact-cell-name">
-                <div
-                  data-part="dot"
-                  data-type={artifact.artifact_type}
-                  data-duplicate={artifact.duplicate?}
-                >
+              <:col
+                :let={artifact}
+                label={@bundle_size_analysis_sunburst_chart_table_artifact.name}
+              >
+                <div data-part="artifact-cell-name">
+                  <div
+                    data-part="dot"
+                    data-type={artifact.artifact_type}
+                    data-duplicate={artifact.duplicate?}
+                  >
+                  </div>
+                  <span data-part="label">{artifact.name}</span>
                 </div>
-                <span data-part="label">{artifact.name}</span>
-              </div>
-            </:col>
-            <:col
-              :let={artifact}
-              label={format_bytes(@bundle_size_analysis_sunburst_chart_table_artifact.value)}
-            >
-              <.text_cell label={format_bytes(artifact.value)} />
-            </:col>
-          </.table>
-          <.pagination_group
-            :if={@bundle_size_analysis_sunburst_chart_table_page_count > 1}
-            current_page={@bundle_size_analysis_sunburst_chart_table_page}
-            number_of_pages={@bundle_size_analysis_sunburst_chart_table_page_count}
-            page_patch={
-              fn page ->
-                "?#{Query.put(@uri.query, @bundle_size_analysis_sunburst_chart_table_page_param, page)}"
-              end
-            }
-          />
+              </:col>
+              <:col
+                :let={artifact}
+                label={format_bytes(@bundle_size_analysis_sunburst_chart_table_artifact.value)}
+              >
+                <.text_cell label={format_bytes(artifact.value)} />
+              </:col>
+            </.table>
+            <.pagination_group
+              :if={@bundle_size_analysis_sunburst_chart_table_page_count > 1}
+              current_page={@bundle_size_analysis_sunburst_chart_table_page}
+              number_of_pages={@bundle_size_analysis_sunburst_chart_table_page_count}
+              page_patch={
+                fn page ->
+                  "?#{Query.put(@uri.query, @bundle_size_analysis_sunburst_chart_table_page_param, page)}"
+                end
+              }
+            />
+          </div>
         </div>
-      </div>
+      </.async_result>
     </.card_section>
   </.card>
   <.card :if={@selected_tab == "overview"} icon="bulb" title="Insights" data-part="insights-card">
@@ -344,21 +343,12 @@
               <h2 data-part="title">{gettext("Remove duplicate files")}</h2>
               <span data-part="savings-label">{gettext("Potential savings")}</span>
               <span data-part="savings-value">
-                {format_bytes(
-                  Enum.flat_map(@duplicates, & &1.artifacts)
-                  |> Enum.reduce(0, fn duplicate, acc -> acc + duplicate.size end)
-                )}
+                {format_bytes(duplicate_total_size(@duplicates))}
               </span>
               <.badge
                 label={
                   gettext("%{savings} %",
-                    savings:
-                      Decimal.from_float(
-                        (@duplicates
-                         |> Enum.reduce(0, fn duplicate, acc -> acc + duplicate.size end)) /
-                          @bundle.install_size * 100
-                      )
-                      |> Decimal.round(2)
+                    savings: duplicate_percentage(@duplicates, @bundle.install_size)
                   )
                 }
                 color="success"
@@ -395,7 +385,7 @@
                   <div data-part="trigger">
                     <div data-part="header">
                       <h3 data-part="title">
-                        {"/" <> List.last(String.split(hd(duplicate.artifacts).path, "/"))}
+                        {"/" <> duplicate_filename(duplicate.artifacts)}
                       </h3>
                       <.badge
                         label={format_bytes(duplicate.size)}
@@ -458,123 +448,168 @@
   >
     <.card_section data-part="file-breakdown-card-section">
       <div data-part="filters">
-        <.form for={%{}} phx-change="search-file-breakdown" phx-debounce="200">
-          <.text_input
-            type="search"
-            id="search-file-breakdown"
-            name="search"
-            placeholder={gettext("Search...")}
-            show_suffix={false}
-            data-part="search"
-            value={@file_breakdown_filter}
-          />
-        </.form>
-        <.dropdown
-          id="file-breakdown-sort-by"
-          label={
-            case @file_breakdown_sort_by do
-              "size" -> gettext("Size")
-              _ -> gettext("Path")
-            end
-          }
-          secondary_text={gettext("Sort by:")}
-        >
-          <.dropdown_item
-            value="path"
-            label={gettext("Path")}
-            patch={file_breakdown_dropdown_item_patch_sort("path", @uri)}
-            data-selected={@file_breakdown_sort_by == "path"}
-          >
-            <:right_icon><.check /></:right_icon>
-          </.dropdown_item>
-          <.dropdown_item
-            value="size"
-            label={gettext("Size")}
-            patch={file_breakdown_dropdown_item_patch_sort("size", @uri)}
-            data-selected={@file_breakdown_sort_by == "size"}
-          >
-            <:right_icon><.check /></:right_icon>
-          </.dropdown_item>
-        </.dropdown>
-      </div>
-      <.table id="file-breakdown-table" rows={@file_breakdown_current_page_artifacts}>
-        <:col
-          :let={artifact}
-          label={gettext("Path")}
-          patch={
-            @file_breakdown_sort_by == "path" &&
-              file_breakdown_column_patch_sort(assigns, "path")
-          }
-          icon={
-            @file_breakdown_sort_by == "path" &&
-              sort_icon(@file_breakdown_sort_order)
-          }
-        >
-          <.text_and_description_cell label={
-            artifact.path |> String.split("/") |> Enum.drop(1) |> Enum.join("/")
-          } />
-        </:col>
-        <:col :let={artifact} label={gettext("Type")}>
-          <.tag_cell
+        <.async_result :let={file_breakdown} assign={@file_breakdown}>
+          <:loading>
+            <.form for={%{}} phx-change="search-file-breakdown" phx-debounce="200">
+              <.text_input
+                type="search"
+                id="search-file-breakdown"
+                name="search"
+                placeholder={gettext("Loading...")}
+                show_suffix={false}
+                data-part="search"
+                value=""
+              />
+            </.form>
+            <.dropdown
+              id="file-breakdown-sort-by"
+              label={gettext("Loading...")}
+              secondary_text={gettext("Sort by:")}
+            >
+            </.dropdown>
+          </:loading>
+          <:failed :let={_failure}>
+            <div>Failed to load filters</div>
+          </:failed>
+          <.form for={%{}} phx-change="search-file-breakdown" phx-debounce="200">
+            <.text_input
+              type="search"
+              id="search-file-breakdown"
+              name="search"
+              placeholder={gettext("Search...")}
+              show_suffix={false}
+              data-part="search"
+              value={file_breakdown.file_breakdown_filter}
+            />
+          </.form>
+          <.dropdown
+            id="file-breakdown-sort-by"
             label={
-              case artifact.artifact_type do
-                :binary -> gettext("Binary")
-                :localization -> gettext("Localization")
-                :asset -> gettext("Asset")
-                :font -> gettext("Font")
-                :file -> gettext("File")
-                :directory -> gettext("Directory")
-                :unknown -> gettext("Other")
+              case file_breakdown.file_breakdown_sort_by do
+                "size" -> gettext("Size")
+                _ -> gettext("Path")
               end
+            }
+            secondary_text={gettext("Sort by:")}
+          >
+            <.dropdown_item
+              value="path"
+              label={gettext("Path")}
+              patch={file_breakdown_dropdown_item_patch_sort("path", @uri)}
+              data-selected={file_breakdown.file_breakdown_sort_by == "path"}
+            >
+              <:right_icon><.check /></:right_icon>
+            </.dropdown_item>
+            <.dropdown_item
+              value="size"
+              label={gettext("Size")}
+              patch={file_breakdown_dropdown_item_patch_sort("size", @uri)}
+              data-selected={file_breakdown.file_breakdown_sort_by == "size"}
+            >
+              <:right_icon><.check /></:right_icon>
+            </.dropdown_item>
+          </.dropdown>
+        </.async_result>
+      </div>
+      <.async_result :let={file_breakdown} assign={@file_breakdown}>
+        <:loading>Loading file breakdown...</:loading>
+        <:failed :let={_failure}>Failed to load file breakdown</:failed>
+        <.table
+          id="file-breakdown-table"
+          rows={file_breakdown.file_breakdown_current_page_artifacts}
+        >
+          <:col
+            :let={artifact}
+            label={gettext("Path")}
+            patch={
+              file_breakdown.file_breakdown_sort_by == "path" &&
+                file_breakdown_column_patch_sort(
+                  %{
+                    uri: @uri,
+                    file_breakdown_sort_by: file_breakdown.file_breakdown_sort_by,
+                    file_breakdown_sort_order: file_breakdown.file_breakdown_sort_order
+                  },
+                  "path"
+                )
             }
             icon={
-              case artifact.artifact_type do
-                :binary -> "database"
-                :localization -> "language"
-                :asset -> "asset"
-                :font -> "layout_grid"
-                :file -> "file"
-                :directory -> "directory"
-                :unknown -> "stack_2"
-              end
+              file_breakdown.file_breakdown_sort_by == "path" &&
+                sort_icon(file_breakdown.file_breakdown_sort_order)
             }
-          />
-        </:col>
-        <:col
-          :let={artifact}
-          label={gettext("Size")}
-          patch={
-            @file_breakdown_sort_by == "size" &&
-              file_breakdown_column_patch_sort(assigns, "size")
+          >
+            <.text_and_description_cell label={
+              artifact.path |> String.split("/") |> Enum.drop(1) |> Enum.join("/")
+            } />
+          </:col>
+          <:col :let={artifact} label={gettext("Type")}>
+            <.tag_cell
+              label={
+                case artifact.artifact_type do
+                  :binary -> gettext("Binary")
+                  :localization -> gettext("Localization")
+                  :asset -> gettext("Asset")
+                  :font -> gettext("Font")
+                  :file -> gettext("File")
+                  :directory -> gettext("Directory")
+                  :unknown -> gettext("Other")
+                end
+              }
+              icon={
+                case artifact.artifact_type do
+                  :binary -> "database"
+                  :localization -> "language"
+                  :asset -> "asset"
+                  :font -> "layout_grid"
+                  :file -> "file"
+                  :directory -> "directory"
+                  :unknown -> "stack_2"
+                end
+              }
+            />
+          </:col>
+          <:col
+            :let={artifact}
+            label={gettext("Size")}
+            patch={
+              file_breakdown.file_breakdown_sort_by == "size" &&
+                file_breakdown_column_patch_sort(
+                  %{
+                    uri: @uri,
+                    file_breakdown_sort_by: file_breakdown.file_breakdown_sort_by,
+                    file_breakdown_sort_order: file_breakdown.file_breakdown_sort_order
+                  },
+                  "size"
+                )
+            }
+            icon={
+              file_breakdown.file_breakdown_sort_by == "size" &&
+                sort_icon(file_breakdown.file_breakdown_sort_order)
+            }
+          >
+            <.text_cell label={format_bytes(artifact.size)} />
+          </:col>
+          <:col :let={artifact} label={gettext("Space usage")}>
+            <.text_cell label={space_usage(artifact, @bundle)} />
+          </:col>
+          <:empty_state>
+            <.table_empty_state
+              icon="folders"
+              title={gettext("No files found")}
+              subtitle={gettext("Try changing your search term")}
+            />
+          </:empty_state>
+        </.table>
+        <.pagination_group
+          :if={file_breakdown.file_breakdown_page_count > 1}
+          current_page={file_breakdown.file_breakdown_page}
+          number_of_pages={file_breakdown.file_breakdown_page_count}
+          page_patch={
+            fn page ->
+              "?#{Query.put(@uri.query, "file-breakdown-page", page)}"
+            end
           }
-          icon={
-            @file_breakdown_sort_by == "size" &&
-              sort_icon(@file_breakdown_sort_order)
-          }
-        >
-          <.text_cell label={format_bytes(artifact.size)} />
-        </:col>
-        <:col :let={artifact} label={gettext("Space usage")}>
-          <.text_cell label={space_usage(artifact, @bundle)} />
-        </:col>
-        <:empty_state>
-          <.table_empty_state
-            icon="folders"
-            title={gettext("No files found")}
-            subtitle={gettext("Try changing your search term")}
-          />
-        </:empty_state>
-      </.table>
-      <.pagination_group
-        :if={@file_breakdown_page_count > 1}
-        current_page={@file_breakdown_page}
-        number_of_pages={@file_breakdown_page_count}
-        page_patch={
-          fn page ->
-            "?#{Query.put(@uri.query, "file-breakdown-page", page)}"
-          end
-        }
-      />
+        />
+      </.async_result>
     </.card_section>
   </.card>
   <.card
@@ -585,95 +620,140 @@
   >
     <.card_section data-part="module-breakdown-card-section">
       <div data-part="filters">
-        <.form for={%{}} phx-change="search-module-breakdown" phx-debounce="200">
-          <.text_input
-            type="search"
-            id="search-module-breakdown"
-            name="search"
-            placeholder={gettext("Search...")}
-            show_suffix={false}
-            data-part="search"
-            value={@module_breakdown_filter}
-          />
-        </.form>
-        <.dropdown
-          id="module-breakdown-sort-by"
-          label={
-            case @module_breakdown_sort_by do
-              "size" -> gettext("Size")
-              _ -> gettext("Name")
+        <.async_result :let={module_breakdown} assign={@module_breakdown}>
+          <:loading>
+            <.form for={%{}} phx-change="search-module-breakdown" phx-debounce="200">
+              <.text_input
+                type="search"
+                id="search-module-breakdown"
+                name="search"
+                placeholder={gettext("Loading...")}
+                show_suffix={false}
+                data-part="search"
+                value=""
+              />
+            </.form>
+            <.dropdown
+              id="module-breakdown-sort-by"
+              label={gettext("Loading...")}
+              secondary_text={gettext("Sort by:")}
+            >
+            </.dropdown>
+          </:loading>
+          <:failed :let={_failure}>
+            <div>Failed to load filters</div>
+          </:failed>
+          <.form for={%{}} phx-change="search-module-breakdown" phx-debounce="200">
+            <.text_input
+              type="search"
+              id="search-module-breakdown"
+              name="search"
+              placeholder={gettext("Search...")}
+              show_suffix={false}
+              data-part="search"
+              value={module_breakdown.module_breakdown_filter}
+            />
+          </.form>
+          <.dropdown
+            id="module-breakdown-sort-by"
+            label={
+              case module_breakdown.module_breakdown_sort_by do
+                "size" -> gettext("Size")
+                _ -> gettext("Name")
+              end
+            }
+            secondary_text={gettext("Sort by:")}
+          >
+            <.dropdown_item
+              value="name"
+              label={gettext("Name")}
+              patch={module_breakdown_dropdown_item_patch_sort("name", @uri)}
+              data-selected={module_breakdown.module_breakdown_sort_by == "name"}
+            >
+              <:right_icon><.check /></:right_icon>
+            </.dropdown_item>
+            <.dropdown_item
+              value="size"
+              label={gettext("Size")}
+              patch={module_breakdown_dropdown_item_patch_sort("size", @uri)}
+              data-selected={module_breakdown.module_breakdown_sort_by == "size"}
+            >
+              <:right_icon><.check /></:right_icon>
+            </.dropdown_item>
+          </.dropdown>
+        </.async_result>
+      </div>
+      <.async_result :let={module_breakdown} assign={@module_breakdown}>
+        <:loading>Loading module breakdown...</:loading>
+        <:failed :let={_failure}>Failed to load module breakdown</:failed>
+        <.table
+          id="module-breakdown-table"
+          rows={module_breakdown.module_breakdown_current_page_artifacts}
+        >
+          <:col
+            :let={module}
+            label={gettext("Name")}
+            patch={
+              module_breakdown.module_breakdown_sort_by == "name" &&
+                module_breakdown_column_patch_sort(
+                  %{
+                    uri: @uri,
+                    module_breakdown_sort_by: module_breakdown.module_breakdown_sort_by,
+                    module_breakdown_sort_order: module_breakdown.module_breakdown_sort_order
+                  },
+                  "name"
+                )
+            }
+            icon={
+              module_breakdown.module_breakdown_sort_by == "name" &&
+                sort_icon(module_breakdown.module_breakdown_sort_order)
+            }
+          >
+            <.text_and_description_cell label={module.name} />
+          </:col>
+          <:col
+            :let={module}
+            label={gettext("Size")}
+            patch={
+              module_breakdown.module_breakdown_sort_by == "size" &&
+                module_breakdown_column_patch_sort(
+                  %{
+                    uri: @uri,
+                    module_breakdown_sort_by: module_breakdown.module_breakdown_sort_by,
+                    module_breakdown_sort_order: module_breakdown.module_breakdown_sort_order
+                  },
+                  "size"
+                )
+            }
+            icon={
+              module_breakdown.module_breakdown_sort_by == "size" &&
+                sort_icon(module_breakdown.module_breakdown_sort_order)
+            }
+          >
+            <.text_cell label={format_bytes(module.size)} />
+          </:col>
+          <:col :let={module} label={gettext("Space usage")}>
+            <.text_cell label={space_usage(module, @bundle)} />
+          </:col>
+          <:empty_state>
+            <.table_empty_state
+              icon="folders"
+              title={gettext("No modules found")}
+              subtitle={gettext("Try changing your search term")}
+            />
+          </:empty_state>
+        </.table>
+        <.pagination_group
+          :if={module_breakdown.module_breakdown_page_count > 1}
+          current_page={module_breakdown.module_breakdown_page}
+          number_of_pages={module_breakdown.module_breakdown_page_count}
+          page_patch={
+            fn page ->
+              "?#{Query.put(@uri.query, "module-breakdown-page", page)}"
             end
           }
-          secondary_text={gettext("Sort by:")}
-        >
-          <.dropdown_item
-            value="name"
-            label={gettext("Name")}
-            patch={module_breakdown_dropdown_item_patch_sort("name", @uri)}
-            data-selected={@module_breakdown_sort_by == "name"}
-          >
-            <:right_icon><.check /></:right_icon>
-          </.dropdown_item>
-          <.dropdown_item
-            value="size"
-            label={gettext("Size")}
-            patch={module_breakdown_dropdown_item_patch_sort("size", @uri)}
-            data-selected={@module_breakdown_sort_by == "size"}
-          >
-            <:right_icon><.check /></:right_icon>
-          </.dropdown_item>
-        </.dropdown>
-      </div>
-      <.table id="module-breakdown-table" rows={@module_breakdown_current_page_artifacts}>
-        <:col
-          :let={module}
-          label={gettext("Name")}
-          patch={
-            @module_breakdown_sort_by == "name" &&
-              module_breakdown_column_patch_sort(assigns, "name")
-          }
-          icon={
-            @module_breakdown_sort_by == "name" &&
-              sort_icon(@module_breakdown_sort_order)
-          }
-        >
-          <.text_and_description_cell label={module.name} />
-        </:col>
-        <:col
-          :let={module}
-          label={gettext("Size")}
-          patch={
-            @module_breakdown_sort_by == "size" &&
-              module_breakdown_column_patch_sort(assigns, "size")
-          }
-          icon={
-            @module_breakdown_sort_by == "size" &&
-              sort_icon(@module_breakdown_sort_order)
-          }
-        >
-          <.text_cell label={format_bytes(module.size)} />
-        </:col>
-        <:col :let={module} label={gettext("Space usage")}>
-          <.text_cell label={space_usage(module, @bundle)} />
-        </:col>
-        <:empty_state>
-          <.table_empty_state
-            icon="folders"
-            title={gettext("No modules found")}
-            subtitle={gettext("Try changing your search term")}
-          />
-        </:empty_state>
-      </.table>
-      <.pagination_group
-        :if={@module_breakdown_page_count > 1}
-        current_page={@module_breakdown_page}
-        number_of_pages={@module_breakdown_page_count}
-        page_patch={
-          fn page ->
-            "?#{Query.put(@uri.query, "module-breakdown-page", page)}"
-          end
-        }
-      />
+        />
+      </.async_result>
     </.card_section>
   </.card>
 </div>
