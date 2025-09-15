@@ -45,6 +45,18 @@ defmodule Tuist.QA do
 
     launch_argument_groups = select_launch_argument_groups(qa_run.prompt, app_build.preview.project)
 
+    {:ok, qa_run} =
+      update_qa_run(qa_run, %{
+        launch_argument_groups:
+          Enum.map(launch_argument_groups, fn group ->
+            %{
+              "name" => group.name,
+              "description" => group.description,
+              "value" => group.value
+            }
+          end)
+      })
+
     app_build_url = generate_app_build_download_url(app_build)
 
     with {:ok, auth_token} <- create_qa_auth_token(app_build) do
