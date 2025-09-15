@@ -70,6 +70,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
                     ],
                     configurations: [:]
                 ),
+                sources: target.sources.filter { $0.path.extension == "metal" },
                 resources: target.resources,
                 copyFiles: target.copyFiles,
                 coreDataModels: target.coreDataModels,
