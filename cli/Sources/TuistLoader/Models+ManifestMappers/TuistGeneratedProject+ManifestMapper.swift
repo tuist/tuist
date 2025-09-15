@@ -53,7 +53,8 @@ extension TuistCore.TuistGeneratedProjectOptions.CacheOptions {
         manifest: ProjectDescription.Config.CacheOptions
     ) -> Self {
         return .init(
-            keepSourceTargets: manifest.keepSourceTargets
+            keepSourceTargets: manifest.keepSourceTargets,
+            concurrencyLimit: manifest.concurrencyLimit
         )
     }
 }
