@@ -74,6 +74,8 @@ defmodule Tuist do
       Loops,
       Namespace,
       Namespace.JWTToken,
+      QA,
+      QA.LaunchArgumentGroup,
       # Support
       # -----
       # These modules represent Tuist-agnostic utilities that are used by other features.

@@ -1882,4 +1882,109 @@ defmodule Tuist.QATest do
       assert result.screenshot_metadata == nil
     end
   end
+
+  describe "create_launch_argument_group/1" do
+    test "creates a launch argument group with valid attributes" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # When
+      {:ok, launch_argument_group} =
+        QA.create_launch_argument_group(%{
+          project_id: project.id,
+          name: "test-group",
+          description: "Test launch argument group",
+          value: "--test-arg value"
+        })
+
+      # Then
+      assert launch_argument_group.project_id == project.id
+      assert launch_argument_group.name == "test-group"
+      assert launch_argument_group.description == "Test launch argument group"
+      assert launch_argument_group.value == "--test-arg value"
+    end
+  end
+
+  describe "update_launch_argument_group/2" do
+    test "updates a launch argument group with valid attributes" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, launch_argument_group} =
+        QA.create_launch_argument_group(%{
+          project_id: project.id,
+          name: "original-name",
+          description: "Original description",
+          value: "--original"
+        })
+
+      # When
+      {:ok, updated_group} =
+        QA.update_launch_argument_group(launch_argument_group, %{
+          name: "updated-name",
+          description: "Updated description",
+          value: "--updated"
+        })
+
+      # Then
+      assert updated_group.name == "updated-name"
+      assert updated_group.description == "Updated description"
+      assert updated_group.value == "--updated"
+      assert updated_group.project_id == project.id
+    end
+  end
+
+  describe "delete_launch_argument_group/1" do
+    test "deletes a launch argument group successfully" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, launch_argument_group} =
+        QA.create_launch_argument_group(%{
+          project_id: project.id,
+          name: "to-delete",
+          description: "Will be deleted",
+          value: "--delete-me"
+        })
+
+      # When
+      {:ok, deleted_group} = QA.delete_launch_argument_group(launch_argument_group)
+
+      # Then
+      assert deleted_group.id == launch_argument_group.id
+      assert {:error, :not_found} = QA.get_launch_argument_group(launch_argument_group.id)
+    end
+  end
+
+  describe "get_launch_argument_group/1" do
+    test "returns launch argument group when it exists" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, launch_argument_group} =
+        QA.create_launch_argument_group(%{
+          project_id: project.id,
+          name: "get-test",
+          description: "Test for get",
+          value: "--get-test"
+        })
+
+      # When
+      {:ok, got} = QA.get_launch_argument_group(launch_argument_group.id)
+
+      # Then
+      assert got.id == launch_argument_group.id
+    end
+
+    test "returns not found error when launch argument group does not exist" do
+      # Given
+      non_existent_id = Ecto.UUID.generate()
+
+      # When
+      result = QA.get_launch_argument_group(non_existent_id)
+
+      # Then
+      assert {:error, :not_found} = result
+    end
+  end
 end

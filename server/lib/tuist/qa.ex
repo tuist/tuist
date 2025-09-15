@@ -20,6 +20,7 @@ defmodule Tuist.QA do
   alias Tuist.Environment
   alias Tuist.Namespace
   alias Tuist.Projects
+  alias Tuist.QA.LaunchArgumentGroup
   alias Tuist.QA.Log
   alias Tuist.QA.Recording
   alias Tuist.QA.Run
@@ -166,6 +167,41 @@ defmodule Tuist.QA do
     %Step{}
     |> Step.changeset(attrs)
     |> Repo.insert()
+  end
+
+  @doc """
+  Creates a new launch argument group.
+  """
+  def create_launch_argument_group(attrs) do
+    %LaunchArgumentGroup{}
+    |> LaunchArgumentGroup.create_changeset(attrs)
+    |> Repo.insert()
+  end
+
+  @doc """
+  Updates a launch argument group.
+  """
+  def update_launch_argument_group(%LaunchArgumentGroup{} = launch_argument_group, attrs) do
+    launch_argument_group
+    |> LaunchArgumentGroup.update_changeset(attrs)
+    |> Repo.update()
+  end
+
+  @doc """
+  Deletes a launch argument group.
+  """
+  def delete_launch_argument_group(%LaunchArgumentGroup{} = launch_argument_group) do
+    Repo.delete(launch_argument_group)
+  end
+
+  @doc """
+  Gets a launch argument group by ID.
+  """
+  def get_launch_argument_group(id) do
+    case Repo.get(LaunchArgumentGroup, id) do
+      nil -> {:error, :not_found}
+      launch_argument_group -> {:ok, launch_argument_group}
+    end
   end
 
   @doc """

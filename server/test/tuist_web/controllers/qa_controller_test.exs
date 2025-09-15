@@ -45,7 +45,11 @@ defmodule TuistWeb.QAControllerTest do
       end)
 
       # When
-      conn = get(conn, ~p"/#{account.name}/#{project.name}/qa/runs/#{qa_run.id}/screenshots/#{screenshot.id}")
+      conn =
+        get(
+          conn,
+          ~p"/#{account.name}/#{project.name}/qa/runs/#{qa_run.id}/screenshots/#{screenshot.id}"
+        )
 
       # Then
       assert conn.status == 200
@@ -64,7 +68,10 @@ defmodule TuistWeb.QAControllerTest do
 
       # When / Then
       assert_raise NotFoundError, "QA screenshot not found.", fn ->
-        get(conn, ~p"/#{account.name}/#{project.name}/qa/runs/#{qa_run.id}/screenshots/#{nonexistent_screenshot_id}")
+        get(
+          conn,
+          ~p"/#{account.name}/#{project.name}/qa/runs/#{qa_run.id}/screenshots/#{nonexistent_screenshot_id}"
+        )
       end
     end
   end

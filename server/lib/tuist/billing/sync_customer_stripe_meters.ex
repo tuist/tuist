@@ -29,11 +29,10 @@ defmodule Tuist.Billing.SyncCustomerStripeMeters do
 
     {:ok, _} = Billing.update_remote_cache_hit_meter(customer_id, idempotency_key)
 
-    case Accounts.get_account_from_customer_id(customer_id) do
-      %Account{} = account ->
-        if FunWithFlags.enabled?(:qa_billing_enabled, for: account) do
-          {:ok, _} = Billing.update_llm_token_meters(customer_id, idempotency_key)
-        end
+    (%Account{} = account) = Accounts.get_account_from_customer_id(customer_id)
+
+    if FunWithFlags.enabled?(:qa_billing_enabled, for: account) do
+      {:ok, _} = Billing.update_llm_token_meters(customer_id, idempotency_key)
     end
 
     :ok
