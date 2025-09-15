@@ -838,7 +838,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         XCTAssertEqual(got?.target, app)
     }
 
-    func test_allDependencies() throws {
+    func test_allDependencies() async throws {
         // Given
         // App -> StaticLibrary -> Bundle
         let app = Target.test(name: "App", product: .app)
@@ -861,7 +861,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let subject = GraphTraverser(graph: graph)
 
         // When
-        let got = try subject.allProjectDependencies(path: project.path).sorted()
+        let got = try await subject.allProjectDependencies(path: project.path).sorted()
 
         // Then
         XCTAssertEqual(Set(got), Set([

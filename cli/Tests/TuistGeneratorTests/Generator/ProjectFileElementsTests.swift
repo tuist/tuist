@@ -526,7 +526,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         }
     }
 
-    func test_generateProduct_fileReferencesProperties() throws {
+    func test_generateProduct_fileReferencesProperties() async throws {
         // Given
         let pbxproj = PBXProj()
         let project = Project.test(
@@ -542,7 +542,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj)
 
         // When
-        try subject.generateProjectFiles(
+        try await subject.generateProjectFiles(
             project: project,
             graphTraverser: graphTraverser,
             groups: groups,
@@ -924,7 +924,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         XCTAssertEqual(sdkElement?.name, sdkPath.basename)
     }
 
-    func test_generateDependencies_remoteSwiftPackage_doNotGenerateElements() throws {
+    func test_generateDependencies_remoteSwiftPackage_doNotGenerateElements() async throws {
         // Given
         let pbxproj = PBXProj()
         let target = Target.empty(name: "TargetA")
@@ -959,7 +959,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        try subject.generateProjectFiles(
+        try await subject.generateProjectFiles(
             project: project,
             graphTraverser: graphTraverser,
             groups: groups,
@@ -1031,7 +1031,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         ])
     }
 
-    func test_generateDependencies_localSwiftPackageEmbedded_doNotGenerateElements() throws {
+    func test_generateDependencies_localSwiftPackageEmbedded_doNotGenerateElements() async throws {
         // Given
         let pbxproj = PBXProj()
         let localPackagePath = try AbsolutePath(validating: "/LocalPackages/LocalPackageA")
@@ -1067,7 +1067,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        try subject.generateProjectFiles(
+        try await subject.generateProjectFiles(
             project: project,
             graphTraverser: graphTraverser,
             groups: groups,

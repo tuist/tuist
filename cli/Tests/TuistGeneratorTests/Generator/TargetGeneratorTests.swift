@@ -44,7 +44,7 @@ struct TargetGeneratorTests {
             project: project,
             pbxproj: pbxproj
         )
-        try fileElements.generateProjectFiles(
+        try await fileElements.generateProjectFiles(
             project: project,
             graphTraverser: graphTraverser,
             groups: groups,
@@ -101,7 +101,7 @@ struct TargetGeneratorTests {
             project: project,
             pbxproj: pbxproj
         )
-        try fileElements.generateProjectFiles(
+        try await fileElements.generateProjectFiles(
             project: project,
             graphTraverser: graphTraverser,
             groups: groups,
@@ -222,7 +222,7 @@ struct TargetGeneratorTests {
             project: project,
             pbxproj: pbxproj
         )
-        try fileElements.generateProjectFiles(
+        try await fileElements.generateProjectFiles(
             project: project,
             graphTraverser: graphTraverser,
             groups: groups,
