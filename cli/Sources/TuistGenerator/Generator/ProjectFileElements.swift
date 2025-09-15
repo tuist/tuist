@@ -88,7 +88,7 @@ class ProjectFileElements {
         graphTraverser: GraphTraversing,
         groups: ProjectGroups,
         pbxproj: PBXProj
-    ) throws {
+    ) async throws {
         var files = Set<GroupFileElement>()
 
         for target in project.targets.values.sorted() {
@@ -117,7 +117,7 @@ class ProjectFileElements {
         }
 
         // Dependencies
-        let dependencies = try graphTraverser.allProjectDependencies(path: project.path).sorted()
+        let dependencies = try await graphTraverser.allProjectDependencies(path: project.path).sorted()
 
         try generate(
             dependencyReferences: Set(directProducts + dependencies),

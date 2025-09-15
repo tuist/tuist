@@ -86,6 +86,8 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
                 status: xcframework.status,
                 condition: condition
             )
+        case let .macro(path):
+            self = .macro(path: path)
         default:
             preconditionFailure("unsupported dependencies")
         }

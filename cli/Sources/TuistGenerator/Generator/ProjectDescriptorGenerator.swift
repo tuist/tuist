@@ -105,7 +105,7 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
         )
         let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj)
         let fileElements = ProjectFileElements()
-        try fileElements.generateProjectFiles(
+        try await fileElements.generateProjectFiles(
             project: project,
             graphTraverser: graphTraverser,
             groups: groups,

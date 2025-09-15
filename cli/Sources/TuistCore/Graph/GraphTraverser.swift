@@ -31,9 +31,11 @@ public class GraphTraverser: GraphTraversing {
         SystemFrameworkMetadataProvider()
     private let targetDirectTargetDependenciesCache: ThreadSafe<[GraphTarget: [GraphTarget]]> =
         ThreadSafe([:])
+    private let derivedDataLocator: DerivedDataLocating
 
-    public required init(graph: Graph) {
+    public required init(graph: Graph, derivedDataLocator: DerivedDataLocating = DerivedDataLocator()) {
         self.graph = graph
+        self.derivedDataLocator = derivedDataLocator
     }
 
     public var hasRemotePackages: Bool {
@@ -828,7 +830,7 @@ public class GraphTraverser: GraphTraversing {
         }.first
     }
 
-    public func allProjectDependencies(path: Path.AbsolutePath) throws -> Set<
+    public func allProjectDependencies(path: Path.AbsolutePath) async throws -> Set<
         GraphDependencyReference
     > {
         let targets = targets(at: path)
@@ -840,6 +842,7 @@ public class GraphTraverser: GraphTraversing {
             try references.formUnion(linkableDependencies(path: path, name: target.target.name))
             references.formUnion(embeddableFrameworks(path: path, name: target.target.name))
             references.formUnion(copyProductDependencies(path: path, name: target.target.name))
+            await references.formUnion(macroExecutableDependencies(path: path, xcodeProjectName: target.project.name, name: target.target.name))
         }
         return references
     }
@@ -1510,6 +1513,8 @@ public class GraphTraverser: GraphTraversing {
             return .bundle(path: path, condition: condition)
         case let .packageProduct(_, product, .runtimeEmbedded):
             return .packageProduct(product: product, condition: condition)
+        case let .packageProduct(path, _, .macro):
+            return .macro(path: path)
         case .packageProduct:
             return nil
         case let .sdk(_, path, status, source):
@@ -1600,6 +1605,20 @@ public class GraphTraverser: GraphTraversing {
         )
         return Set(dependencies)
             .compactMap { dependencyReference(to: $0, from: .target(name: name, path: path)) }
+    }
+    
+    public func macroExecutableDependencies(path: AbsolutePath, xcodeProjectName: String, name: String) async -> Set<GraphDependencyReference> {
+        let xcworkspacePath = path.appending(component: "\(xcodeProjectName).xcworkspace")
+        guard let derivedDataPath = try? await derivedDataLocator.locate(for: xcworkspacePath) else { return [] }
+        let macroExecutables = allSwiftPluginExecutables(path: path, name: name)
+        let macroProductPath = derivedDataPath.appending(components: ["Build", "Products", "Debug"])
+        
+        return Set(macroExecutables.compactMap { executable in
+            let components = executable.split(separator: "#")
+            guard let executableName = components.last else { return nil }
+            let macroExecutablePath = macroProductPath.appending(component: String(executableName))
+            return .macro(path: macroExecutablePath)
+        })
     }
 }
 

@@ -199,7 +199,7 @@ public protocol GraphTraversing {
     /// be referenced from the project. This method is intended to be used when generating
     /// the groups.
     /// - Parameter path: Path to the directory where the project is defined.
-    func allProjectDependencies(path: AbsolutePath) throws -> Set<GraphDependencyReference>
+    func allProjectDependencies(path: AbsolutePath) async throws -> Set<GraphDependencyReference>
 
     /// Determines whether ENABLE_TESTING_SEARCH_PATHS needs to be enabled
     ///
@@ -295,6 +295,14 @@ public protocol GraphTraversing {
     /// - Parameter scheme: Scheme to check against.
     /// - Returns: The runnable target if any.
     func schemeRunnableTarget(scheme: Scheme) -> GraphTarget?
+        
+    /// Given a project directory, .xcodeproj filename, and a target name, it returns a list of macro executable dependencies
+    ///
+    /// - Parameters:
+    ///   - path: Path to the directory that contains the project.
+    ///   - xcodeProjectName: Xcode project filename without extension
+    ///   - name: Target name
+    func macroExecutableDependencies(path: AbsolutePath, xcodeProjectName: String, name: String) async -> Set<GraphDependencyReference>
 }
 
 extension GraphTraversing {
