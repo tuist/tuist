@@ -46,26 +46,17 @@ if Enum.member?([:prod, :stag, :can], env) do
       pool_size: Tuist.Environment.clickhouse_pool_size(secrets),
       queue_target: Tuist.Environment.clickhouse_queue_target(secrets),
       queue_interval: Tuist.Environment.clickhouse_queue_interval(secrets),
-      # Add timeouts that are supported
-      # 15 seconds to wait for connection from pool
-      pool_timeout: 15_000,
-      # 60 seconds to own connection
-      ownership_timeout: 60_000,
-      # HTTP request timeout (default is 15 seconds)
-      timeout: 30_000,
       settings: [
         readonly: 1,
         # Specifies the join algorithms to use in order of preference: direct (fastest for small tables),
         # parallel_hash (good for medium tables), and hash (fallback for large tables)
-        join_algorithm: "direct,parallel_hash,hash",
-        # These timeout settings can be passed but apply per-query, not connection-level
-        connect_timeout: 30,
-        receive_timeout: 300,
-        send_timeout: 300,
-        max_execution_time: 300
+        join_algorithm: "direct,parallel_hash,hash"
+      ],
+      transport_opts: [
+        keepalive: true,
+        show_econnreset: true,
+        inet6: Tuist.Environment.use_ipv6?(secrets)
       ]
-
-    # Note: transport_opts are not supported by Ch driver which uses HTTP
 
     config :tuist, Tuist.IngestRepo,
       url: Tuist.Environment.clickhouse_url(secrets),
@@ -75,15 +66,10 @@ if Enum.member?([:prod, :stag, :can], env) do
       flush_interval_ms: Tuist.Environment.clickhouse_flush_interval_ms(secrets),
       max_buffer_size: Tuist.Environment.clickhouse_max_buffer_size(secrets),
       pool_size: Tuist.Environment.clickhouse_buffer_pool_size(secrets),
-      # Add same timeouts as ClickHouseRepo
-      pool_timeout: 15_000,
-      ownership_timeout: 60_000,
-      timeout: 30_000,
-      settings: [
-        connect_timeout: 30,
-        receive_timeout: 300,
-        send_timeout: 300,
-        max_execution_time: 300
+      transport_opts: [
+        keepalive: true,
+        show_econnreset: true,
+        inet6: Tuist.Environment.use_ipv6?(secrets)
       ]
   end
 
@@ -103,34 +89,19 @@ if Enum.member?([:prod, :stag, :can], env) do
       else: [{:keepalive, true}]
 
   database_options = [
-    # Standard Ecto pool options
     pool_size: Tuist.Environment.database_pool_size(secrets),
     queue_target: Tuist.Environment.database_queue_target(secrets),
     queue_interval: Tuist.Environment.database_queue_interval(secrets),
-    # Timeout to get connection from pool (ms)
-    pool_timeout: 15_000,
-    # Query timeout (ms)
-    timeout: 15_000,
-
-    # Connection details
     database: String.replace_prefix(parsed_url.path, "/", ""),
     username: username,
     password: password,
     hostname: parsed_url.host,
     port: parsed_url.port || 5432,
     socket_options: socket_opts,
-
-    # Enhanced parameters to help with connection stability
     parameters: [
       tcp_keepalives_idle: "60",
       tcp_keepalives_interval: "30",
-      tcp_keepalives_count: "3",
-      # Increase statement timeout to 5 minutes to prevent killing long queries
-      statement_timeout: "300000",
-      # Add idle transaction timeout for safety
-      idle_in_transaction_session_timeout: "300000",
-      # Enable TCP user timeout for faster dead connection detection
-      tcp_user_timeout: "90000"
+      tcp_keepalives_count: "3"
     ]
   ]
 
