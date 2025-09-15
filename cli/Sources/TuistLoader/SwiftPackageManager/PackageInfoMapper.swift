@@ -1397,48 +1397,52 @@ extension PackageInfo.Target {
         let fileSystem = FileSystem()
         if let path {
             return packageFolder.appending(try RelativePath(validating: path))
-        } else {
-            let predefinedDirectories: [String]
-            switch type {
-            case .test:
-                predefinedDirectories = PackageInfoMapper.predefinedTestDirectories
-            default:
-                predefinedDirectories = PackageInfoMapper.predefinedSourceDirectories
+        }
+        
+        let predefinedDirectories: [String]
+        switch type {
+        case .test:
+            predefinedDirectories = PackageInfoMapper.predefinedTestDirectories
+        default:
+            predefinedDirectories = PackageInfoMapper.predefinedSourceDirectories
+        }
+        
+        // SPM recognized source extensions
+        // https://github.com/swiftlang/swift-package-manager/blob/main/Sources/PackageModel/SupportedLanguageExtension.swift
+        let sourceExtensions = ["swift", "c", "cpp", "cc", "cxx", "m", "mm"]
+        
+        for directory in predefinedDirectories {
+            // Check standard layout (Sources/TargetName/)
+            let standardPath = packageFolder.appending(components: [directory, name])
+            if try await fileSystem.exists(standardPath) {
+                return standardPath
             }
-            let firstMatchingPath = try await predefinedDirectories
-                .map { packageFolder.appending(components: [$0, name]) }
-                .concurrentFilter { try await fileSystem.exists($0) }
-                .first
-
-            if let mainPath = firstMatchingPath {
-                return mainPath
-            }
-
-            // SE-0162: Support custom target layouts where source files are directly in Sources/
-            let directSourcePath = try await predefinedDirectories
-                .map { packageFolder.appending(component: $0) }
-                .concurrentFilter { directory in
-                    guard try await fileSystem.exists(directory) else { return false }
-
-                    // SPM recognized source extensions
-                    // Check https://github.com/swiftlang/swift-package-manager/blob/main/Sources/PackageModel/SupportedLanguageExtension.swift
-                    // TODO: Consider adding assembly extensions "s", "S" if needed for low-level packages (SPM supports since Swift 5.0)
-                    let sourceExtensions = ["swift", "c", "cpp", "cc", "cxx", "m", "mm"]
-                    let hasSourceFiles = try await fileSystem.glob(
-                        directory: directory,
-                        include: sourceExtensions.map { "*.\($0)" }
-                    ).collect().count > 0
-
-                    return hasSourceFiles
+            
+            // Check SE-0162 layout (source files directly in Sources/)
+            // https://github.com/swiftlang/swift-evolution/blob/main/proposals/0162-package-manager-custom-target-layouts.md
+            let directPath = packageFolder.appending(component: directory)
+            guard try await fileSystem.exists(directPath) else { continue }
+            
+            // Check if directory contains source files (only need to find one)
+            var hasSourceFile = false
+            for ext in sourceExtensions {
+                let pattern = "*.\(ext)"
+                let files = try await fileSystem.glob(
+                    directory: directPath,
+                    include: [pattern]
+                ).collect()
+                if !files.isEmpty {
+                    hasSourceFile = true
+                    break
                 }
-                .first
-
-            if let directPath = directSourcePath {
+            }
+            
+            if hasSourceFile {
                 return directPath
             }
-
-            throw PackageInfoMapperError.defaultPathNotFound(packageFolder, name, predefinedDirectories)
         }
+        
+        throw PackageInfoMapperError.defaultPathNotFound(packageFolder, name, predefinedDirectories)
     }
 
     func publicHeadersPath(packageFolder: AbsolutePath) async throws -> AbsolutePath {
