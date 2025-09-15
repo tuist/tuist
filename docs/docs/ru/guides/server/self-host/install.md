@@ -485,6 +485,70 @@ volumes:
     driver: local
 ```
 
+## Prometheus metrics {#prometheus-metrics}
+
+Tuist exposes Prometheus metrics at `/metrics` to help you monitor your
+self-hosted instance. These metrics include:
+
+### Finch HTTP client metrics {#finch-metrics}
+
+Tuist uses [Finch](https://github.com/sneako/finch) as its HTTP client and
+exposes detailed metrics about HTTP requests:
+
+#### Request metrics
+- `tuist_prom_ex_finch_request_count_total` - Total number of Finch requests
+  (counter)
+  - Labels: `finch_name`, `method`, `scheme`, `host`, `port`, `status`
+- `tuist_prom_ex_finch_request_duration_milliseconds` - Duration of HTTP
+  requests (histogram)
+  - Labels: `finch_name`, `method`, `scheme`, `host`, `port`, `status`
+  - Buckets: 10ms, 50ms, 100ms, 250ms, 500ms, 1s, 2.5s, 5s, 10s
+- `tuist_prom_ex_finch_request_exception_count_total` - Total number of Finch
+  request exceptions (counter)
+  - Labels: `finch_name`, `method`, `scheme`, `host`, `port`, `kind`, `reason`
+
+#### Connection pool queue metrics
+- `tuist_prom_ex_finch_queue_duration_milliseconds` - Time spent waiting in the
+  connection pool queue (histogram)
+  - Labels: `finch_name`, `scheme`, `host`, `port`, `pool`
+  - Buckets: 1ms, 5ms, 10ms, 25ms, 50ms, 100ms, 250ms, 500ms, 1s
+- `tuist_prom_ex_finch_queue_idle_time_milliseconds` - Time the connection spent
+  idle before being used (histogram)
+  - Labels: `finch_name`, `scheme`, `host`, `port`, `pool`
+  - Buckets: 10ms, 50ms, 100ms, 250ms, 500ms, 1s, 5s, 10s
+- `tuist_prom_ex_finch_queue_exception_count_total` - Total number of Finch
+  queue exceptions (counter)
+  - Labels: `finch_name`, `scheme`, `host`, `port`, `kind`, `reason`
+
+#### Connection metrics
+- `tuist_prom_ex_finch_connect_duration_milliseconds` - Time spent establishing
+  a connection (histogram)
+  - Labels: `finch_name`, `scheme`, `host`, `port`, `error`
+  - Buckets: 10ms, 50ms, 100ms, 250ms, 500ms, 1s, 2.5s, 5s
+- `tuist_prom_ex_finch_connect_count_total` - Total number of connection
+  attempts (counter)
+  - Labels: `finch_name`, `scheme`, `host`, `port`
+
+#### Send metrics
+- `tuist_prom_ex_finch_send_duration_milliseconds` - Time spent sending the
+  request (histogram)
+  - Labels: `finch_name`, `method`, `scheme`, `host`, `port`, `error`
+  - Buckets: 1ms, 5ms, 10ms, 25ms, 50ms, 100ms, 250ms, 500ms, 1s
+- `tuist_prom_ex_finch_send_idle_time_milliseconds` - Time the connection spent
+  idle before sending (histogram)
+  - Labels: `finch_name`, `method`, `scheme`, `host`, `port`, `error`
+  - Buckets: 1ms, 5ms, 10ms, 25ms, 50ms, 100ms, 250ms, 500ms
+
+All histogram metrics provide `_bucket`, `_sum`, and `_count` variants for
+detailed analysis.
+
+### Other metrics
+
+In addition to Finch metrics, Tuist exposes metrics for:
+- BEAM virtual machine performance
+- Custom business logic metrics (storage, accounts, projects, etc.)
+- Database performance (when using Tuist-hosted infrastructure)
+
 ## Operations {#operations}
 
 Tuist provides a set of utilities under `/ops/` that you can use to manage your
