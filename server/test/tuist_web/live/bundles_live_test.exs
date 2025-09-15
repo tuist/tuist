@@ -214,4 +214,66 @@ defmodule TuistWeb.BundlesLiveTest do
     # Then
     assert has_element?(lv, "#widget-download-size span", "0.0%")
   end
+
+  test "download size is 0.0% when last bundle download_size is 0", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    # Given
+    _previous_bundle =
+      BundlesFixtures.bundle_fixture(
+        project: project,
+        name: "TestApp",
+        install_size: 1000,
+        download_size: 500,
+        inserted_at: DateTime.add(DateTime.utc_now(), -31, :day)
+      )
+
+    _last_bundle =
+      BundlesFixtures.bundle_fixture(
+        project: project,
+        name: "TestApp",
+        install_size: 1500,
+        download_size: 0,
+        inserted_at: DateTime.utc_now()
+      )
+
+    # When
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/bundles")
+
+    # Then
+    assert has_element?(lv, "#widget-download-size span", "0.0%")
+  end
+
+  test "download is 0.0% when previous bundle download_size is 0", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    # Given
+    _previous_bundle =
+      BundlesFixtures.bundle_fixture(
+        project: project,
+        name: "TestApp",
+        install_size: 1000,
+        download_size: 0,
+        inserted_at: DateTime.add(DateTime.utc_now(), -31, :day)
+      )
+
+    _last_bundle =
+      BundlesFixtures.bundle_fixture(
+        project: project,
+        name: "TestApp",
+        install_size: 1500,
+        download_size: 1000,
+        inserted_at: DateTime.utc_now()
+      )
+
+    # When
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/bundles")
+
+    # Then
+    assert has_element?(lv, "#widget-download-size span", "0.0%")
+  end
 end
