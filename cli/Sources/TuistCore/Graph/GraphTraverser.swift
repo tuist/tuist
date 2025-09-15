@@ -842,7 +842,11 @@ public class GraphTraverser: GraphTraversing {
             try references.formUnion(linkableDependencies(path: path, name: target.target.name))
             references.formUnion(embeddableFrameworks(path: path, name: target.target.name))
             references.formUnion(copyProductDependencies(path: path, name: target.target.name))
-            await references.formUnion(macroExecutableDependencies(path: path, xcodeProjectName: target.project.name, name: target.target.name))
+            await references.formUnion(macroExecutableDependencies(
+                path: path,
+                xcodeProjectName: target.project.name,
+                name: target.target.name
+            ))
         }
         return references
     }
@@ -1606,13 +1610,17 @@ public class GraphTraverser: GraphTraversing {
         return Set(dependencies)
             .compactMap { dependencyReference(to: $0, from: .target(name: name, path: path)) }
     }
-    
-    public func macroExecutableDependencies(path: AbsolutePath, xcodeProjectName: String, name: String) async -> Set<GraphDependencyReference> {
+
+    public func macroExecutableDependencies(
+        path: AbsolutePath,
+        xcodeProjectName: String,
+        name: String
+    ) async -> Set<GraphDependencyReference> {
         let xcworkspacePath = path.appending(component: "\(xcodeProjectName).xcworkspace")
         guard let derivedDataPath = try? await derivedDataLocator.locate(for: xcworkspacePath) else { return [] }
         let macroExecutables = allSwiftPluginExecutables(path: path, name: name)
         let macroProductPath = derivedDataPath.appending(components: ["Build", "Products", "Debug"])
-        
+
         return Set(macroExecutables.compactMap { executable in
             let components = executable.split(separator: "#")
             guard let executableName = components.last else { return nil }

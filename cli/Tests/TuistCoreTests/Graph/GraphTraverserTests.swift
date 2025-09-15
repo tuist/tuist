@@ -5356,7 +5356,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
     func test_macroExecutableDependencies() async throws {
         // Given
         let target = Target.test(name: "Main", product: .app)
-        
+
         let macroXCFramework = GraphDependency.testXCFramework(
             path: .root.appending(component: "Macro.xcframework"),
             linking: .static
@@ -5386,15 +5386,20 @@ final class GraphTraverserTests: TuistUnitTestCase {
             try AbsolutePath(validating: mockDerivedDataPath)
         }
         let subject = GraphTraverser(graph: graph, derivedDataLocator: mockDerivedDataLocator)
-        
+
         // When
-        let got = await subject.macroExecutableDependencies(path: project.path, xcodeProjectName: project.name, name: target.name).sorted()
-        
+        let got = await subject.macroExecutableDependencies(path: project.path, xcodeProjectName: project.name, name: target.name)
+            .sorted()
+
         // Then
         XCTAssertEqual(
-            got.first, GraphDependencyReference(.macro(path: try AbsolutePath(validating: mockDerivedDataPath + "/Build/Products/Debug/" + macroExecutable.name))))
+            got.first,
+            GraphDependencyReference(.macro(path: try AbsolutePath(validating: mockDerivedDataPath + "/Build/Products/Debug/" +
+                    macroExecutable.name
+            )))
+        )
     }
-    
+
     // MARK: - Helpers
 
     private func sdkDependency(from dependency: GraphDependencyReference) -> SDKPathAndStatus? {

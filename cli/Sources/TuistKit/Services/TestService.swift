@@ -297,7 +297,7 @@ final class TestService { // swiftlint:disable:this type_body_length
             guard let scheme = graphTraverser.schemes().first(where: { $0.name == schemeName })
             else {
                 let schemes = mapperEnvironment.initialGraph.map { GraphTraverser(graph: $0) }?.schemes()
-                        ?? graphTraverser.schemes()
+                    ?? graphTraverser.schemes()
                 if let scheme = schemes.first(where: { $0.name == schemeName }) {
                     Logger.current.log(
                         level: .info,
