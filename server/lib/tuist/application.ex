@@ -152,8 +152,7 @@ defmodule Tuist.Application do
             transport_opts: [
               inet6: Environment.use_ipv6?() in ~w(true 1),
               cacertfile: CAStore.file_path(),
-              verify: :verify_peer,
-              debug: true
+              verify: :verify_peer
             ]
           ],
           size: 10,
