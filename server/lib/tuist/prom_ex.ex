@@ -64,6 +64,7 @@ defmodule Tuist.PromEx do
         # Plugins.PhoenixLiveView,
         # Plugins.Absinthe,
         # Plugins.Broadway,
+        PromEx.Plugins.Finch,
         PromEx.Plugins.Beam,
         Tuist.Storage.PromExPlugin,
         Tuist.CommandEvents.PromExPlugin,
