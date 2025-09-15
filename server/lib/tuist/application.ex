@@ -148,7 +148,7 @@ defmodule Tuist.Application do
         "https://api.github.com" => [
           conn_opts: [
             log: true,
-            protocols: [:http2, :http1],
+            protocols: [:http1],
             transport_opts: [
               inet6: Environment.use_ipv6?() in ~w(true 1),
               cacertfile: CAStore.file_path(),
@@ -157,7 +157,7 @@ defmodule Tuist.Application do
           ],
           size: 2,
           count: 10,
-          protocols: [:http2, :http1],
+          protocols: [:http1],
           start_pool_metrics?: true
         ],
         Environment.s3_endpoint() => [
