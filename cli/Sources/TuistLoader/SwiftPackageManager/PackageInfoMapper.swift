@@ -1395,22 +1395,22 @@ extension PackageInfo.Target {
     /// The path used as base for all the relative paths of the package (e.g. sources, resources, headers)
     func basePath(packageFolder: AbsolutePath) async throws -> AbsolutePath {
         let fileSystem = FileSystem()
-        
+
         if let path {
             return packageFolder.appending(try RelativePath(validating: path))
         }
-        
+
         let predefinedDirectories = type == .test
             ? PackageInfoMapper.predefinedTestDirectories
             : PackageInfoMapper.predefinedSourceDirectories
-        
+
         for dir in predefinedDirectories {
             // Standard layout: Sources/TargetName/
             let standardPath = packageFolder.appending(components: [dir, name])
             if try await fileSystem.exists(standardPath) {
                 return standardPath
             }
-            
+
             // SE-0162 layout: source files directly in Sources/
             // https://github.com/swiftlang/swift-evolution/blob/main/proposals/0162-package-manager-custom-target-layouts.md
             let directPath = packageFolder.appending(component: dir)
@@ -1418,14 +1418,14 @@ extension PackageInfo.Target {
                 return directPath
             }
         }
-        
+
         throw PackageInfoMapperError.defaultPathNotFound(packageFolder, name, predefinedDirectories)
     }
-    
+
     /// Check if directory contains source files (for SE-0162 support)
     private func hasSourceFiles(in directory: AbsolutePath, fileSystem: FileSystem) async throws -> Bool {
         guard try await fileSystem.exists(directory) else { return false }
-        
+
         // SPM recognized source extensions
         // https://github.com/swiftlang/swift-package-manager/blob/main/Sources/PackageModel/SupportedLanguageExtension.swift
         let sourceExtensions = ["swift", "c", "cpp", "cc", "cxx", "m", "mm"]

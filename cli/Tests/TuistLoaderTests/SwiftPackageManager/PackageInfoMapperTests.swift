@@ -4006,8 +4006,9 @@ struct PackageInfoMapperTests {
                         .target(name: "Dependency1", condition: .when([.ios])),
                         .target(name: "Dependency2", condition: .when([.tvos])),
                         .xcframework(
-                            path: .relativeToManifest(basePath
-                                .appending(try RelativePath(validating: "artifacts/Package/External.xcframework")).pathString
+                            path: .relativeToManifest(
+                                basePath
+                                    .appending(try RelativePath(validating: "artifacts/Package/External.xcframework")).pathString
                             ),
                             status: .required,
                             condition: .when([.ios])
@@ -4659,7 +4660,7 @@ struct PackageInfoMapperTests {
                 .array(["$(inherited)", "-package-name", "Package"])
         )
     }
-    
+
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
