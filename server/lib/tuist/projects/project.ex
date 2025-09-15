@@ -77,27 +77,23 @@ defmodule Tuist.Projects.Project do
   end
 
   defp validate_name(changeset) do
-    if get_change(changeset, :name) do
-      changeset
-      |> validate_format(:name, ~r/^[a-zA-Z0-9-_]+$/,
-        message: "must contain only alphanumeric characters, hyphens, and underscores"
-      )
-      |> validate_length(:name, min: 1, max: 32)
-      |> validate_change(:name, fn :name, name ->
-        if String.contains?(name, ".") do
-          [
-            name:
-              "Project name can't contain a dot. Please use a different name, such as #{String.replace(name, ".", "-")}."
-          ]
-        else
-          []
-        end
-      end)
-      |> update_change(:name, &String.downcase/1)
-      |> validate_exclusion(:name, Application.get_env(:tuist, :blocked_handles))
-      |> unique_constraint([:name, :account_id], name: "index_projects_on_name_and_account_id")
-    else
-      changeset
-    end
+    changeset
+    |> validate_format(:name, ~r/^[a-zA-Z0-9-_]+$/,
+      message: "must contain only alphanumeric characters, hyphens, and underscores"
+    )
+    |> validate_length(:name, min: 1, max: 32)
+    |> validate_change(:name, fn :name, name ->
+      if String.contains?(name, ".") do
+        [
+          name:
+            "Project name can't contain a dot. Please use a different name, such as #{String.replace(name, ".", "-")}."
+        ]
+      else
+        []
+      end
+    end)
+    |> update_change(:name, &String.downcase/1)
+    |> validate_exclusion(:name, Application.get_env(:tuist, :blocked_handles))
+    |> unique_constraint([:name, :account_id], name: "index_projects_on_name_and_account_id")
   end
 end
