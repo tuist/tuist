@@ -77,6 +77,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
                 filesGroup: target.filesGroup,
                 metadata: target.metadata
             )
+            modifiedTarget.sources = target.sources.filter { $0.path.extension != "metal" }
             modifiedTarget.resources.resources = []
             modifiedTarget.copyFiles = []
             modifiedTarget.dependencies.append(.target(
