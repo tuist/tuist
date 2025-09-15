@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.72.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* Remove user credentials when the token sent on refresh is invalid by [@pepicrft](https://github.com/pepicrft) in [#8173](https://github.com/tuist/tuist/pull/8173)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.71.0...4.72.0
+
 ## What's Changed in 4.71.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
