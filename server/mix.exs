@@ -88,7 +88,7 @@ defmodule Tuist.MixProject do
       {:timescale, "~> 0.1.0"},
       {:flop, "~> 0.26.0"},
       {:timex, "~> 3.7.13"},
-      {:prom_ex, git: "https://github.com/akoutmos/prom_ex", branch: "master"},
+      {:prom_ex, git: "https://github.com/pepicrft/prom_ex", branch: "finch"},
       {:ranch, "~> 2.2.0", override: true},
       {:hammer, "~> 7.0"},
       {:guardian, "~> 2.3"},

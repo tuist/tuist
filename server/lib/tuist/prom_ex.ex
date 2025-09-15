@@ -59,11 +59,11 @@ defmodule Tuist.PromEx do
     plugins =
       [
         # Plugins.Application,
-        # Plugins.Beam,
         # Plugins.Oban,
         # Plugins.PhoenixLiveView,
         # Plugins.Absinthe,
         # Plugins.Broadway,
+        PromEx.Plugins.Finch,
         PromEx.Plugins.Beam,
         Tuist.Storage.PromExPlugin,
         Tuist.CommandEvents.PromExPlugin,
