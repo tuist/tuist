@@ -5,7 +5,6 @@ defmodule Tuist.CommandEvents.Postgres do
   import Ecto.Query
   import Timescale.Hyperfunctions
 
-  alias Tuist.Accounts.Account
   alias Tuist.CommandEvents.Postgres.Event
   alias Tuist.Projects.Project
   alias Tuist.Repo
@@ -133,33 +132,12 @@ defmodule Tuist.CommandEvents.Postgres do
     Repo.delete_all(query)
   end
 
-  def list_customer_id_and_remote_cache_hits_count_pairs(attrs \\ %{}) do
-    now = DateTime.utc_now()
-    start_of_yesterday = now |> Timex.shift(days: -1) |> Timex.beginning_of_day()
-    end_of_yesterday = now |> Timex.shift(days: -1) |> Timex.end_of_day()
+  def list_billable_customers do
+    raise "Not implemented."
+  end
 
-    query =
-      from(e in Event,
-        join: p in Project,
-        on: e.project_id == p.id,
-        join: a in Account,
-        on: p.account_id == a.id,
-        where:
-          e.created_at >= ^start_of_yesterday and e.created_at <= ^end_of_yesterday and
-            not is_nil(a.customer_id),
-        group_by: a.customer_id,
-        select:
-          {a.customer_id,
-           count(
-             fragment(
-               "CASE WHEN COALESCE(array_length(?, 1), 0) > 0 OR COALESCE(array_length(?, 1), 0) > 0 THEN 1 ELSE NULL END",
-               e.remote_cache_target_hits,
-               e.remote_test_target_hits
-             )
-           )}
-      )
-
-    Flop.validate_and_run!(query, attrs, for: Account)
+  def get_yesterdays_remote_cache_hits_count_for_customer(_customer_id) do
+    raise "Not implemented."
   end
 
   def delete_project_events(project_id) do
