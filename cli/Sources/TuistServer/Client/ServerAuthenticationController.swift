@@ -229,7 +229,7 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
         #endif
     }
 
-    public func deletingCredentialsOnUnauthorizedError<T>(serverURL: URL, action: () async throws -> T) async throws -> T {
+    private func deletingCredentialsOnUnauthorizedError<T>(serverURL: URL, action: () async throws -> T) async throws -> T {
         do {
             return try await action()
         } catch let error as RefreshAuthTokenServiceError {
