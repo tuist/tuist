@@ -1,6 +1,6 @@
 import Testing
 import XcodeGraph
-@testable import TuistKit
+@testable import TuistCache
 
 struct TargetReplacementDeciderTests {
     @Test func externalOnly_replaces_external_only() {

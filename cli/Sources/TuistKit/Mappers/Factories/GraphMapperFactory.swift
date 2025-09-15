@@ -7,6 +7,7 @@ import TuistGenerator
 #if canImport(TuistCacheEE)
     import TuistCacheEE
 #endif
+import TuistCache
 import TuistServer
 import XcodeGraph
 
