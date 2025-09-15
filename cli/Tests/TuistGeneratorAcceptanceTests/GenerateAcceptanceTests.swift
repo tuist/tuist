@@ -773,6 +773,14 @@ final class GenerateAcceptanceTestCommandLineToolWithDynamicFramework: TuistAcce
     }
 }
 
+final class GenerateAcceptanceTestCommandLineToolWithMacroDependency: TuistAcceptanceTestCase {
+    func test_command_line_tool_with_macro_dependency() async throws {
+        try await setUpFixture(.commandLineToolWithMacroDependency)
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self, "CommandLineTool")
+    }
+}
+
 final class GenerateAcceptanceTestmacOSAppWithCopyFiles: TuistAcceptanceTestCase {
     func test_macos_app_with_copy_files() async throws {
         try await setUpFixture(.macosAppWithCopyFiles)

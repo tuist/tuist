@@ -450,7 +450,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         ]))
     }
 
-    func test_generateProduct() throws {
+    func test_generateProduct() async throws {
         // Given
         let pbxproj = PBXProj()
         let project = Project.test(
@@ -468,7 +468,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj)
 
         // When
-        try subject.generateProjectFiles(
+        try await subject.generateProjectFiles(
             project: project,
             graphTraverser: graphTraverser,
             groups: groups,
@@ -483,7 +483,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         ])
     }
 
-    func test_generateProducts_stableOrder() throws {
+    func test_generateProducts_stableOrder() async throws {
         for _ in 0 ..< 5 {
             let pbxproj = PBXProj()
             let subject = ProjectFileElements()
@@ -507,7 +507,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
             let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj)
 
             // When
-            try subject.generateProjectFiles(
+            try await subject.generateProjectFiles(
                 project: project,
                 graphTraverser: graphTraverser,
                 groups: groups,

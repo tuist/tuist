@@ -5353,6 +5353,48 @@ final class GraphTraverserTests: TuistUnitTestCase {
         XCTAssertNil(subject.schemeRunnableTarget(scheme: scheme))
     }
 
+    func test_macroExecutableDependencies() async throws {
+        // Given
+        let target = Target.test(name: "Main", product: .app)
+        
+        let macroXCFramework = GraphDependency.testXCFramework(
+            path: .root.appending(component: "Macro.xcframework"),
+            linking: .static
+        )
+        let macroExecutable = GraphDependency.testMacro()
+        let swiftSyntax = GraphDependency.testXCFramework(
+            path: .root.appending(component: "SwiftSyntax.xcframework"),
+            linking: .static
+        )
+        let structBuilder = GraphDependency.testXCFramework(
+            path: .root.appending(component: "StructBuilder.xcframework"),
+            linking: .static
+        )
+        let project = Project.test(targets: [target])
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: target.name, path: project.path): Set([macroXCFramework]),
+            macroXCFramework: Set([macroExecutable]),
+            macroExecutable: Set([swiftSyntax, structBuilder]),
+        ]
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: dependencies
+        )
+        let mockDerivedDataLocator = MockDerivedDataLocator()
+        let mockDerivedDataPath = "/tmp/DerivedData"
+        mockDerivedDataLocator.locateStub = { _ in
+            try AbsolutePath(validating: mockDerivedDataPath)
+        }
+        let subject = GraphTraverser(graph: graph, derivedDataLocator: mockDerivedDataLocator)
+        
+        // When
+        let got = await subject.macroExecutableDependencies(path: project.path, xcodeProjectName: project.name, name: target.name).sorted()
+        
+        // Then
+        XCTAssertEqual(
+            got.first, GraphDependencyReference(.macro(path: try AbsolutePath(validating: mockDerivedDataPath + "/Build/Products/Debug/" + macroExecutable.name))))
+    }
+    
     // MARK: - Helpers
 
     private func sdkDependency(from dependency: GraphDependencyReference) -> SDKPathAndStatus? {
