@@ -86,6 +86,7 @@
 
       & > [data-part="current-plan-card-section"] {
         display: flex;
+        flex-grow: 1;
         flex-direction: column;
         gap: var(--noora-spacing-5);
 

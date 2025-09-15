@@ -115,30 +115,6 @@ defmodule Tuist.AccountsTest do
     end
   end
 
-  describe "update_account_current_month_usage/2" do
-    test "updates the account usage" do
-      # Given
-      now = ~N[2025-05-18 15:27:00Z]
-      _user = %{account: %{id: account_id}} = AccountsFixtures.user_fixture()
-
-      # When
-      got =
-        Accounts.update_account_current_month_usage(
-          account_id,
-          %{
-            remote_cache_hits_count: 20
-          },
-          updated_at: now
-        )
-
-      # Then
-      assert %{
-               current_month_remote_cache_hits_count: 20,
-               current_month_remote_cache_hits_count_updated_at: ~N[2025-05-18 15:27:00]
-             } = got
-    end
-  end
-
   describe "account_month_usage/1" do
     test "returns the right value when there are remote cache hits" do
       # Given
@@ -174,46 +150,6 @@ defmodule Tuist.AccountsTest do
 
       # Then
       assert %{remote_cache_hits_count: 0} == got
-    end
-  end
-
-  describe "list_accounts_with_usage_not_updated_today/1" do
-    test "returns the accounts not updated today" do
-      # Given
-      now = ~U[2025-05-18 14:30:00Z]
-      stub(DateTime, :utc_now, fn -> now end)
-
-      _user_not_updated_today =
-        %{account: %{id: account_id_from_user_not_updated_today}} =
-        AccountsFixtures.user_fixture(current_month_remote_cache_hits_count_updated_at: ~U[2025-05-17 14:30:00Z])
-
-      _user_updated_today =
-        AccountsFixtures.user_fixture(current_month_remote_cache_hits_count_updated_at: ~U[2025-05-18 12:30:00Z])
-
-      # When
-      got = Accounts.list_accounts_with_usage_not_updated_today()
-
-      # Then
-      assert {[%{id: ^account_id_from_user_not_updated_today}], _flop_meta} = got
-    end
-
-    test "returns the accounts that have never been updated" do
-      # Given
-      now = ~U[2025-05-18 14:30:00Z]
-      stub(DateTime, :utc_now, fn -> now end)
-
-      _user_never_updated =
-        %{account: %{id: account_id_from_user_never_updated}} =
-        AccountsFixtures.user_fixture(current_month_remote_cache_hits_count_updated_at: nil)
-
-      _user_updated_today =
-        AccountsFixtures.user_fixture(current_month_remote_cache_hits_count_updated_at: ~U[2025-05-18 12:30:00Z])
-
-      # When
-      got = Accounts.list_accounts_with_usage_not_updated_today()
-
-      # Then
-      assert {[%{id: ^account_id_from_user_never_updated}], _flop_meta} = got
     end
   end
 

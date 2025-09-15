@@ -57,9 +57,16 @@ final class OrganizationShowService: OrganizationShowServicing {
         )
 
         if json {
-            let json = try organization.toJSON()
+            let organizationJson = try organization.toJSON()
+            let usageJson = try organizationUsage.toJSON()
+            
+            let combinedJson = try [
+                "organization": organizationJson,
+                "usage": usageJson
+            ].toJSON()
+            
             Logger.current.info(
-                .init(stringLiteral: json.toString(prettyPrint: true)), metadata: .json
+                .init(stringLiteral: combinedJson.toString(prettyPrint: true)), metadata: .json
             )
             return
         }
@@ -105,6 +112,8 @@ final class OrganizationShowService: OrganizationShowServicing {
 
             \("Usage".bold()) (current calendar month)
             Remote cache hits: \(organizationUsage.currentMonthRemoteCacheHits)
+            Compute unit minutes: \(organizationUsage.currentMonthComputeUnitMinutes)
+            LLM tokens: input \(organizationUsage.currentMonthLLMTokens.input), output \(organizationUsage.currentMonthLLMTokens.output), total \(organizationUsage.currentMonthLLMTokens.total)
 
             \("Organization members".bold()) (total number: \(organization.members.count))
             \(membersTable)

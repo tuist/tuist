@@ -22,11 +22,13 @@ defmodule TuistWeb.BillingLive do
         subscription.plan
       end
 
-    current_month_remote_cache_hits_count = selected_account.current_month_remote_cache_hits_count
+    month_to_date_remote_cache_hits_count = Billing.month_to_date_remote_cache_hits_count(selected_account.id)
+    month_to_date_llm_token_usage = Billing.month_to_date_llm_token_usage(selected_account.id)
+    month_to_date_compute_unit_minutes = Billing.month_to_date_compute_unit_minutes(selected_account)
 
     estimated_next_payment =
       Billing.get_estimated_next_payment(%{
-        current_month_remote_cache_hits_count: current_month_remote_cache_hits_count
+        current_month_remote_cache_hits_count: month_to_date_remote_cache_hits_count
       })
 
     next_charge_date =
@@ -67,7 +69,9 @@ defmodule TuistWeb.BillingLive do
       |> assign(:estimated_next_payment, estimated_next_payment)
       |> assign(:plan, plan)
       |> assign(:next_charge_date, next_charge_date)
-      |> assign(:current_month_remote_cache_hits_count, current_month_remote_cache_hits_count)
+      |> assign(:month_to_date_remote_cache_hits_count, month_to_date_remote_cache_hits_count)
+      |> assign(:month_to_date_llm_token_usage, month_to_date_llm_token_usage)
+      |> assign(:month_to_date_compute_unit_minutes, month_to_date_compute_unit_minutes)
       |> assign(:head_title, "#{gettext("Billing")} · #{selected_account.name} · Tuist")
       |> assign(:payment_method, payment_method)
 

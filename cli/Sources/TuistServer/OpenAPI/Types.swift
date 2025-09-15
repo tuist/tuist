@@ -3107,6 +3107,51 @@ public enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/OrganizationUsage`.
         public struct OrganizationUsage: Codable, Hashable, Sendable {
+            /// The number of compute unit minutes in the current month
+            ///
+            /// - Remark: Generated from `#/components/schemas/OrganizationUsage/current_month_compute_unit_minutes`.
+            public var current_month_compute_unit_minutes: Swift.Double
+            /// The number of LLM tokens used in the current month (input, output, and total)
+            ///
+            /// - Remark: Generated from `#/components/schemas/OrganizationUsage/current_month_llm_tokens`.
+            public struct current_month_llm_tokensPayload: Codable, Hashable, Sendable {
+                /// Total input tokens month-to-date
+                ///
+                /// - Remark: Generated from `#/components/schemas/OrganizationUsage/current_month_llm_tokens/input`.
+                public var input: Swift.Double
+                /// Total output tokens month-to-date
+                ///
+                /// - Remark: Generated from `#/components/schemas/OrganizationUsage/current_month_llm_tokens/output`.
+                public var output: Swift.Double
+                /// Total tokens month-to-date
+                ///
+                /// - Remark: Generated from `#/components/schemas/OrganizationUsage/current_month_llm_tokens/total`.
+                public var total: Swift.Double
+                /// Creates a new `current_month_llm_tokensPayload`.
+                ///
+                /// - Parameters:
+                ///   - input: Total input tokens month-to-date
+                ///   - output: Total output tokens month-to-date
+                ///   - total: Total tokens month-to-date
+                public init(
+                    input: Swift.Double,
+                    output: Swift.Double,
+                    total: Swift.Double
+                ) {
+                    self.input = input
+                    self.output = output
+                    self.total = total
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case input
+                    case output
+                    case total
+                }
+            }
+            /// The number of LLM tokens used in the current month (input, output, and total)
+            ///
+            /// - Remark: Generated from `#/components/schemas/OrganizationUsage/current_month_llm_tokens`.
+            public var current_month_llm_tokens: Components.Schemas.OrganizationUsage.current_month_llm_tokensPayload
             /// The number of remote cache hits in the current month
             ///
             /// - Remark: Generated from `#/components/schemas/OrganizationUsage/current_month_remote_cache_hits`.
@@ -3114,11 +3159,21 @@ public enum Components {
             /// Creates a new `OrganizationUsage`.
             ///
             /// - Parameters:
+            ///   - current_month_compute_unit_minutes: The number of compute unit minutes in the current month
+            ///   - current_month_llm_tokens: The number of LLM tokens used in the current month (input, output, and total)
             ///   - current_month_remote_cache_hits: The number of remote cache hits in the current month
-            public init(current_month_remote_cache_hits: Swift.Double) {
+            public init(
+                current_month_compute_unit_minutes: Swift.Double,
+                current_month_llm_tokens: Components.Schemas.OrganizationUsage.current_month_llm_tokensPayload,
+                current_month_remote_cache_hits: Swift.Double
+            ) {
+                self.current_month_compute_unit_minutes = current_month_compute_unit_minutes
+                self.current_month_llm_tokens = current_month_llm_tokens
                 self.current_month_remote_cache_hits = current_month_remote_cache_hits
             }
             public enum CodingKeys: String, CodingKey {
+                case current_month_compute_unit_minutes
+                case current_month_llm_tokens
                 case current_month_remote_cache_hits
             }
         }
@@ -6722,6 +6777,10 @@ public enum Operations {
             public var path: Operations.listBundles.Input.Path
             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query`.
             public struct Query: Sendable, Hashable {
+                /// Filter bundles by git branch.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/git_branch`.
+                public var git_branch: Swift.String?
                 /// Page number for pagination.
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page`.
@@ -6730,24 +6789,20 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page_size`.
                 public var page_size: Swift.Int?
-                /// Filter bundles by git branch.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/git_branch`.
-                public var git_branch: Swift.String?
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
+                ///   - git_branch: Filter bundles by git branch.
                 ///   - page: Page number for pagination.
                 ///   - page_size: Number of items per page.
-                ///   - git_branch: Filter bundles by git branch.
                 public init(
+                    git_branch: Swift.String? = nil,
                     page: Swift.Int? = nil,
-                    page_size: Swift.Int? = nil,
-                    git_branch: Swift.String? = nil
+                    page_size: Swift.Int? = nil
                 ) {
+                    self.git_branch = git_branch
                     self.page = page
                     self.page_size = page_size
-                    self.git_branch = git_branch
                 }
             }
             public var query: Operations.listBundles.Input.Query

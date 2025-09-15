@@ -96,7 +96,7 @@ defmodule Tuist.CommandEvents.Clickhouse do
     event
   end
 
-  def account_month_usage(account_id, date \\ DateTime.utc_now()) do
+  def month_to_date_remote_cache_hits_count(account_id, date \\ DateTime.utc_now()) do
     beginning_of_month = Timex.beginning_of_month(date)
 
     project_ids = Repo.all(from(p in Project, where: p.account_id == ^account_id, select: p.id))

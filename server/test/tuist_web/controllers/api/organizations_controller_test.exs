@@ -164,11 +164,17 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
       # Given
       conn = Authentication.put_current_user(conn, user)
 
-      organization =
-        AccountsFixtures.organization_fixture(
-          name: "tuist-org",
-          current_month_remote_cache_hits_count: 1
-        )
+      organization = AccountsFixtures.organization_fixture(name: "tuist-org")
+      account = organization.account
+      account_id = account.id
+
+      stub(Tuist.Billing, :month_to_date_remote_cache_hits_count, fn ^account_id -> 1 end)
+
+      stub(Tuist.Billing, :month_to_date_llm_token_usage, fn ^account_id ->
+        %{input: 10, output: 20, total: 30}
+      end)
+
+      stub(Tuist.Billing, :month_to_date_compute_unit_minutes, fn ^account -> 42 end)
 
       Accounts.add_user_to_organization(user, organization)
 
@@ -178,6 +184,14 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
       # Then
       response = json_response(conn, :ok)
       assert response["current_month_remote_cache_hits"] == 1
+
+      assert response["current_month_llm_tokens"] == %{
+               "input" => 10,
+               "output" => 20,
+               "total" => 30
+             }
+
+      assert response["current_month_compute_unit_minutes"] == 42
     end
 
     test "returns :not_found when organization does not exist", %{conn: conn, user: user} do

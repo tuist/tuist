@@ -30,6 +30,15 @@ defmodule Tuist.Billing do
     @unit_prices
   end
 
+  @doc """
+  Gets month-to-date remote cache hits count for an account.
+  Returns an integer, defaulting to 0 when data is missing.
+  """
+  def month_to_date_remote_cache_hits_count(account_id) do
+    %{remote_cache_hits_count: count} = CommandEvents.month_to_date_remote_cache_hits_count(account_id)
+    count
+  end
+
   def get_plans do
     [
       %{
@@ -312,6 +321,44 @@ defmodule Tuist.Billing do
       type: payment_method.type,
       card: card
     }
+  end
+
+  @doc """
+  Gets month-to-date LLM token usage for an account.
+  Returns a map: %{input: i, output: o, total: t} with zeros when no data.
+  """
+  def month_to_date_llm_token_usage(account_id) when is_integer(account_id) do
+    start_dt = Date.utc_today() |> Date.beginning_of_month() |> DateTime.new!(~T[00:00:00], "Etc/UTC")
+    now = DateTime.utc_now()
+
+    {input, output} =
+      Repo.one(
+        from(tu in TokenUsage,
+          where: tu.account_id == ^account_id and tu.timestamp >= ^start_dt and tu.timestamp <= ^now,
+          select: {coalesce(sum(tu.input_tokens), 0), coalesce(sum(tu.output_tokens), 0)}
+        )
+      ) || {0, 0}
+
+    %{input: input, output: output, total: input + output}
+  end
+
+  @doc """
+  Gets month-to-date compute unit minutes for an account.
+  Returns an integer (0 when tenant absent or on error).
+  """
+  def month_to_date_compute_unit_minutes(%Account{} = account) do
+    if is_binary(account.namespace_tenant_id) do
+      today = Date.utc_today()
+      {year, month, _} = Date.to_erl(today)
+      start_of_month = Date.new!(year, month, 1)
+
+      case Tuist.Namespace.get_tenant_usage(account, start_of_month, today) do
+        {:ok, %{"total" => total}} -> get_in(total, ["instanceMinutes", "unit"]) || 0
+        _ -> 0
+      end
+    else
+      0
+    end
   end
 
   @doc """

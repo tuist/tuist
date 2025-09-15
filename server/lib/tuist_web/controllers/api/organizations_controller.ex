@@ -310,26 +310,28 @@ defmodule TuistWeb.API.OrganizationsController do
   )
 
   def usage(%{path_params: %{"organization_name" => organization_name}} = conn, _params) do
-    organization =
-      Accounts.get_organization_by_handle(organization_name)
+    with organization when not is_nil(organization) <- Accounts.get_organization_by_handle(organization_name),
+         user = Authentication.current_user(conn),
+         :ok <- Authorization.authorize(:billing_usage_read, user, organization.account) do
+      remote_cache_hits = Billing.month_to_date_remote_cache_hits_count(organization.account.id)
+      llm_tokens = Billing.month_to_date_llm_token_usage(organization.account.id)
+      compute_unit_minutes = Billing.month_to_date_compute_unit_minutes(organization.account)
 
-    user = Authentication.current_user(conn)
-
-    cond do
-      is_nil(organization) ->
-        conn
-        |> put_status(:not_found)
-        |> json(%{message: "Organization not found"})
-
-      Authorization.authorize(:billing_usage_read, user, organization.account) != :ok ->
+      json(conn, %{
+        current_month_remote_cache_hits: remote_cache_hits,
+        current_month_llm_tokens: llm_tokens,
+        current_month_compute_unit_minutes: compute_unit_minutes
+      })
+    else
+      {:error, :forbidden} ->
         conn
         |> put_status(:forbidden)
         |> json(%{message: "The authenticated subject is not authorized to perform this action"})
 
-      !is_nil(organization) ->
-        json(conn, %{
-          current_month_remote_cache_hits: organization.account.current_month_remote_cache_hits_count
-        })
+      _ ->
+        conn
+        |> put_status(:not_found)
+        |> json(%{message: "Organization not found"})
     end
   end
 

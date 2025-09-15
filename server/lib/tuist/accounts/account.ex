@@ -11,17 +11,12 @@ defmodule Tuist.Accounts.Account do
   alias Tuist.Billing.Subscription
   alias Tuist.Projects.Project
 
-  @derive {
-    Flop.Schema,
-    filterable: [:customer_id, :current_month_remote_cache_hits_count_updated_at], sortable: [:name]
-  }
+  @derive {Flop.Schema, filterable: [:customer_id], sortable: [:name]}
 
   schema "accounts" do
     field :name, :string
     field :billing_email, :string
     field :customer_id, :string
-    field :current_month_remote_cache_hits_count, :integer
-    field :current_month_remote_cache_hits_count_updated_at, :naive_datetime
     field :namespace_tenant_id, :string
 
     belongs_to :organization, Organization
@@ -49,9 +44,7 @@ defmodule Tuist.Accounts.Account do
         :billing_email,
         :user_id,
         :organization_id,
-        :customer_id,
-        :current_month_remote_cache_hits_count,
-        :current_month_remote_cache_hits_count_updated_at
+        :customer_id
       ])
 
     user_id = get_field(changeset, :user_id)
@@ -76,13 +69,7 @@ defmodule Tuist.Accounts.Account do
     |> unique_constraint([:organization_id])
   end
 
-  def billing_changeset(account, attrs) do
-    cast(account, attrs, [
-      :customer_id,
-      :current_month_remote_cache_hits_count,
-      :current_month_remote_cache_hits_count_updated_at
-    ])
-  end
+  def billing_changeset(account, attrs), do: cast(account, attrs, [:customer_id])
 
   def update_changeset(account, attrs) do
     account

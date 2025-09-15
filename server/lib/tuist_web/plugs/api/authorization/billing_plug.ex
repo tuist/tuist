@@ -115,15 +115,12 @@ defmodule TuistWeb.API.Authorization.BillingPlug do
   end
 
   defp get_subscription_data(%{assigns: %{selected_project: selected_project}}) do
-    account =
-      %{current_month_remote_cache_hits_count: current_month_remote_cache_hits_count} =
-      Accounts.get_account_by_id(selected_project.account_id)
-
+    account = Accounts.get_account_by_id(selected_project.account_id)
     subscription = Billing.get_current_active_subscription(account)
+    month_to_date_remote_cache_hits_count = Billing.month_to_date_remote_cache_hits_count(account.id)
 
     thresholds_surpassed =
-      current_month_remote_cache_hits_count >=
-        Billing.get_payment_thresholds()[:remote_cache_hits]
+      month_to_date_remote_cache_hits_count >= Billing.get_payment_thresholds()[:remote_cache_hits]
 
     subscription_plan = if(is_nil(subscription), do: :air, else: subscription.plan)
 
