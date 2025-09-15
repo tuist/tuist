@@ -155,8 +155,8 @@ defmodule Tuist.Application do
               verify: :verify_peer
             ]
           ],
-          size: 2,
-          count: 10,
+          size: 10,
+          count: 2,
           protocols: [:http2, :http1],
           start_pool_metrics?: true
         ],

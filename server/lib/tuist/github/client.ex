@@ -14,10 +14,22 @@ defmodule Tuist.GitHub.Client do
     case request.method do
       method when method in [:get, :head] ->
         case response_or_exception do
-          %Req.Response{status: status} when status in [408, 429, 500, 502, 503, 504] -> true
-          %Req.TransportError{reason: reason} when reason in [:timeout, :econnrefused, :closed] -> true
-          %Req.HTTPError{protocol: :http2, reason: reason} when reason in [:unprocessed, :closed_for_writing] -> true
-          _ -> false
+          %Req.Response{status: status} when status in [408, 429, 500, 502, 503, 504] ->
+            true
+
+          %Req.TransportError{reason: reason} when reason in [:timeout, :econnrefused, :closed] ->
+            true
+
+          %Req.HTTPError{protocol: :http2, reason: reason}
+          when reason in [
+                 :unprocessed,
+                 :closed_for_writing,
+                 {:server_closed_request, :refused_stream}
+               ] ->
+            true
+
+          _ ->
+            false
         end
 
       _ ->
@@ -93,7 +105,11 @@ defmodule Tuist.GitHub.Client do
     end
   end
 
-  def create_comment(%{repository_full_handle: repository_full_handle, issue_id: issue_id, body: body}) do
+  def create_comment(%{
+        repository_full_handle: repository_full_handle,
+        issue_id: issue_id,
+        body: body
+      }) do
     url = "https://api.github.com/repos/#{repository_full_handle}/issues/#{issue_id}/comments"
 
     github_request(&Req.post/1,
@@ -103,7 +119,11 @@ defmodule Tuist.GitHub.Client do
     )
   end
 
-  def update_comment(%{repository_full_handle: repository_full_handle, comment_id: comment_id, body: body}) do
+  def update_comment(%{
+        repository_full_handle: repository_full_handle,
+        comment_id: comment_id,
+        body: body
+      }) do
     url = "https://api.github.com/repos/#{repository_full_handle}/issues/comments/#{comment_id}"
 
     github_request(&Req.patch/1,
@@ -141,7 +161,10 @@ defmodule Tuist.GitHub.Client do
     end
   end
 
-  def get_repository_content(%{repository_full_handle: repository_full_handle, token: token}, opts \\ []) do
+  def get_repository_content(
+        %{repository_full_handle: repository_full_handle, token: token},
+        opts \\ []
+      ) do
     path = Keyword.get(opts, :path, "")
     url = "https://api.github.com/repos/#{repository_full_handle}/contents/#{path}"
 
