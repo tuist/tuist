@@ -48,7 +48,7 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
                 includeGenerateScheme: false
             ),
             installOptions: .init(passthroughSwiftPackageManagerArguments: []),
-            cacheOptions: CacheOptions(keepSourceTargets: false, concurrencyLimit: CacheOptions.defaultConcurrencyLimit)
+            cacheOptions: CacheOptions(keepSourceTargets: false)
         )
     }
 }
@@ -104,15 +104,11 @@ extension TuistGeneratedProjectOptions {
 
     public struct CacheOptions: Codable, Equatable, Sendable, Hashable {
         public var keepSourceTargets: Bool
-        public var concurrencyLimit: Int?
-        public static var defaultConcurrencyLimit: Int = 15
 
         public init(
-            keepSourceTargets: Bool = false,
-            concurrencyLimit: Int?
+            keepSourceTargets: Bool = false
         ) {
             self.keepSourceTargets = keepSourceTargets
-            self.concurrencyLimit = concurrencyLimit
         }
     }
 
@@ -213,12 +209,10 @@ extension TuistGeneratedProjectOptions {
 
     extension TuistGeneratedProjectOptions.CacheOptions {
         public static func test(
-            keepSourceTargets: Bool = false,
-            concurrencyLimit: Int? = Self.defaultConcurrencyLimit
+            keepSourceTargets: Bool = false
         ) -> Self {
             .init(
-                keepSourceTargets: keepSourceTargets,
-                concurrencyLimit: concurrencyLimit
+                keepSourceTargets: keepSourceTargets
             )
         }
     }
