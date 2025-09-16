@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.74.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* Increase the refresh token timeout period by [@pepicrft](https://github.com/pepicrft)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.74.0...4.74.1
+
 ## What's Changed in 4.74.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
