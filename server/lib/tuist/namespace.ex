@@ -3,14 +3,12 @@ defmodule Tuist.Namespace do
   A module to interact with Namespace.
   """
 
-  alias Tuist.Accounts.Account
   alias Tuist.Environment
   alias Tuist.Namespace.Instance
   alias Tuist.Namespace.JWTToken
   alias Tuist.SSHClient
 
   @base_compute_url "https://eu.compute.namespaceapis.com/namespace.cloud.compute.v1beta.ComputeService"
-  @base_usage_url "https://eu.compute.namespaceapis.com/namespace.cloud.compute.v1beta.UsageService"
   @base_tenant_url "https://iam.namespaceapis.com/namespace.cloud.iam.v1beta.TenantService"
 
   @doc """
@@ -151,27 +149,6 @@ defmodule Tuist.Namespace do
       tenant_token: tenant_token
     )
   end
-
-  @doc """
-  Gets the compute usage for a tenant between the given dates (inclusive).
-  """
-  def get_tenant_usage(%Account{namespace_tenant_id: tenant_id}, start_date, end_date) when is_binary(tenant_id) do
-    with {:ok, tenant_token} <- issue_tenant_token(tenant_id, "tuist_qa") do
-      body =
-        %{
-          "period_start" => to_date_map(start_date),
-          "period_end" => to_date_map(end_date)
-        }
-
-      compute_request(&Req.post/1,
-        url: "#{@base_usage_url}/GetUsage",
-        json: body,
-        tenant_token: tenant_token
-      )
-    end
-  end
-
-  defp to_date_map(%Date{} = date), do: %{"year" => date.year, "month" => date.month, "day" => date.day}
 
   defp ssh_config(instance_id, tenant_token) do
     case compute_request(&Req.post/1,

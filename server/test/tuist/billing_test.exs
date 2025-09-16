@@ -473,57 +473,6 @@ defmodule Tuist.BillingTest do
     end
   end
 
-  describe "update_namespace_usage_meter/2" do
-    test "sends correct Stripe meter event with instance unit minutes" do
-      customer_id = "cus_123"
-      idempotency_key = "job-xyz"
-
-      account = %Account{customer_id: customer_id, namespace_tenant_id: "tenant-abc"}
-
-      stub(Accounts, :get_account_from_customer_id, fn ^customer_id -> account end)
-
-      stub(Tuist.Namespace, :get_tenant_usage, fn ^account, _start_date, _end_date ->
-        {:ok, %{"total" => %{"instanceMinutes" => %{"unit" => 137}}}}
-      end)
-
-      expect(Date, :utc_today, fn -> ~D[2024-11-21] end)
-      expect(Tuist.Time, :utc_now, fn -> ~U[2024-11-21 00:00:00Z] end)
-
-      expect(Stripe.Request, :make_request, fn req ->
-        assert %{
-                 method: :post,
-                 endpoint: "/v1/billing/meter_events",
-                 params: %{
-                   event_name: "namespace_unit_minute",
-                   payload: %{
-                     value: 137,
-                     stripe_customer_id: ^customer_id
-                   }
-                 }
-               } = req
-
-        assert req.headers["Idempotency-Key"] == "#{idempotency_key}-namespace"
-
-        {:ok, %{}}
-      end)
-
-      assert {:ok, :updated} = Billing.update_namespace_usage_meter(customer_id, idempotency_key)
-    end
-
-    test "does nothing when account has no namespace tenant id" do
-      customer_id = "cus_no_ns"
-      idempotency_key = "job-noop"
-
-      account = %Account{customer_id: customer_id, namespace_tenant_id: nil}
-
-      stub(Accounts, :get_account_from_customer_id, fn ^customer_id -> account end)
-
-      reject(&Stripe.Request.make_request/1)
-
-      assert %Account{customer_id: ^customer_id} = Billing.update_namespace_usage_meter(customer_id, idempotency_key)
-    end
-  end
-
   describe "get_customer_by_id/1" do
     test "returns the customer when it exists" do
       # Given
