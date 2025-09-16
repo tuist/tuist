@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.74.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* Verbose-log the concurrency limit used by the cache for network connections by [@pepicrft](https://github.com/pepicrft) in [#8217](https://github.com/tuist/tuist/pull/8217)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.73.0...4.74.0
+
 ## What's Changed in 4.73.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
