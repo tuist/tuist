@@ -9,7 +9,13 @@ defmodule Tuist.Slack do
   def send_message(blocks, opts \\ []) do
     if Environment.tuist_hosted?() and Environment.prod?() do
       token = Environment.slack_tuist_token()
-      channel = Keyword.get(opts, :channel, "#notifications")
+
+      channel =
+        Keyword.get(
+          opts,
+          :channel,
+          if(Environment.prod?(), do: "#notifications", else: "#notifications-non-prod")
+        )
 
       headers = [
         {"Authorization", "Bearer #{token}"},

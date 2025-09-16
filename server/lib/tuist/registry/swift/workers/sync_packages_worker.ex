@@ -36,12 +36,13 @@ defmodule Tuist.Registry.Swift.Workers.SyncPackagesWorker do
     limit = Map.get(args, :limit, 350)
     update_packages = Map.get(args, :update_packages, true)
     update_releases = Map.get(args, :update_releases, true)
+    allowlist = Map.get(args, :allowlist, Application.get_env(:tuist, :package_sync_allowlist))
 
     token_packages = Environment.github_token_update_packages()
     token_releases = Environment.github_token_update_package_releases()
 
     missing_versions_from_new_packages =
-      if update_packages, do: sync_packages_from_spi(token_packages, token_releases), else: []
+      if update_packages, do: sync_packages_from_spi(token_packages, token_releases, allowlist), else: []
 
     missing_versions_from_existing_packages =
       if update_releases, do: find_missing_releases_for_existing_packages(limit, token_releases), else: []
@@ -53,7 +54,7 @@ defmodule Tuist.Registry.Swift.Workers.SyncPackagesWorker do
     :ok
   end
 
-  defp sync_packages_from_spi(token_packages, token_releases) do
+  defp sync_packages_from_spi(token_packages, token_releases, allowlist) do
     Logger.info("Syncing packages from SwiftPackageIndex")
 
     {:ok, %Content{content: content}} =
@@ -72,6 +73,7 @@ defmodule Tuist.Registry.Swift.Workers.SyncPackagesWorker do
       |> Enum.map(&VCS.get_repository_full_handle_from_url/1)
       |> Enum.map(&elem(&1, 1))
       |> Enum.filter(&(not Enum.member?(@unsupported_packages, &1)))
+      |> apply_allowlist_filter(allowlist)
       |> Enum.map(&Packages.get_package_scope_and_name_from_repository_full_handle/1)
 
     # Remove packages no longer present in SwiftPackageIndex
@@ -176,5 +178,25 @@ defmodule Tuist.Registry.Swift.Workers.SyncPackagesWorker do
     end
 
     Logger.info("Spawned #{total_missing} CreatePackageReleaseWorker jobs")
+  end
+
+  defp apply_allowlist_filter(packages, nil), do: packages
+  defp apply_allowlist_filter(packages, []), do: packages
+
+  defp apply_allowlist_filter(packages, allowlist) when is_list(allowlist) do
+    Enum.filter(packages, fn package ->
+      Enum.any?(allowlist, fn pattern ->
+        matches_pattern?(package, pattern)
+      end)
+    end)
+  end
+
+  defp matches_pattern?(package, pattern) do
+    if String.ends_with?(pattern, "*") do
+      prefix = String.trim_trailing(pattern, "*")
+      String.starts_with?(package, prefix)
+    else
+      package == pattern
+    end
   end
 end

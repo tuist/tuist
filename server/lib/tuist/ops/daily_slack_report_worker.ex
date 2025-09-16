@@ -27,7 +27,7 @@ defmodule Tuist.Ops.DailySlackReportWorker do
           type: "header",
           text: %{
             type: "plain_text",
-            text: "Daily report #{Timex.format!(today, "{D}.{M}.{YYYY}")} 📈"
+            text: "Daily report #{Timex.format!(today, "{D}.{M}.{YYYY}")} 📈 (#{Atom.to_string(Tuist.Environment.env())})"
           }
         },
         %{
