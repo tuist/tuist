@@ -18,7 +18,7 @@ defmodule Tuist.Ops.HourlySlackReportWorkerTest do
           text: %{
             type: "plain_text",
             text: ~s"""
-            The following organizations and users have been created:
+            The following organizations and users have been created in test:
             • Organization: #{organization.account.name}
             • User: #{user.account.name} - #{user.email}
             """

@@ -330,7 +330,7 @@ config :tuist, Oban,
     {Oban.Plugins.Lifeline, rescue_after: to_timeout(minute: 30)},
     {Oban.Plugins.Cron,
      crontab:
-       if(Tuist.Environment.tuist_hosted?() and env == :prod,
+       if(Tuist.Environment.tuist_hosted?(),
          do: [
            {"0 10 * * 1-5", Tuist.Ops.DailySlackReportWorker},
            {"0 * * * 1-5", Tuist.Ops.HourlySlackReportWorker},

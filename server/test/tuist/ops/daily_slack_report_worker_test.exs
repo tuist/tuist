@@ -29,7 +29,7 @@ defmodule Tuist.Ops.DailySlackReportWorkerTest do
       assert blocks == [
                %{
                  type: "header",
-                 text: %{type: "plain_text", text: "Daily report 21.5.2024 📈"}
+                 text: %{type: "plain_text", text: "Daily report 21.5.2024 📈 (test)"}
                },
                %{
                  type: "context",
