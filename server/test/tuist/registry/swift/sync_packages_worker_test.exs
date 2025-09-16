@@ -154,7 +154,7 @@ defmodule Tuist.Registry.Swift.Workers.SyncPackagesWorkerTest do
       assert result == :ok
 
       # Verify unsupported package was not created
-      assert Packages.get_package_by_scope_and_name(%{scope: "monzo", name: "nearby"}) == nil
+      refute Packages.get_package_by_scope_and_name(%{scope: "monzo", name: "nearby"})
 
       # Verify supported package was created
       assert Packages.get_package_by_scope_and_name(%{scope: "onevcat", name: "Kingfisher"})
@@ -192,10 +192,10 @@ defmodule Tuist.Registry.Swift.Workers.SyncPackagesWorkerTest do
       assert result == :ok
 
       # Verify removed package is gone
-      assert Packages.get_package_by_scope_and_name(%{
+      refute Packages.get_package_by_scope_and_name(%{
                scope: existing_package.scope,
                name: existing_package.name
-             }) == nil
+             })
 
       # Verify new package was created
       assert Packages.get_package_by_scope_and_name(%{scope: "onevcat", name: "Kingfisher"})
@@ -311,8 +311,8 @@ defmodule Tuist.Registry.Swift.Workers.SyncPackagesWorkerTest do
       assert Packages.get_package_by_scope_and_name(%{scope: "tuist", name: "Path"})
 
       # Verify other packages were not created
-refute Packages.get_package_by_scope_and_name(%{scope: "Alamofire", name: "Alamofire"})
-refute Packages.get_package_by_scope_and_name(%{scope: "onevcat", name: "Kingfisher"})
+      refute Packages.get_package_by_scope_and_name(%{scope: "Alamofire", name: "Alamofire"})
+      refute Packages.get_package_by_scope_and_name(%{scope: "onevcat", name: "Kingfisher"})
     end
 
     test "allowlist supports exact matches and wildcard patterns" do
@@ -353,8 +353,7 @@ refute Packages.get_package_by_scope_and_name(%{scope: "onevcat", name: "Kingfis
       assert Packages.get_package_by_scope_and_name(%{scope: "Alamofire", name: "Alamofire"})
 
       # Verify non-matching package was not created
-      assert Packages.get_package_by_scope_and_name(%{scope: "Alamofire", name: "AlamofireImage"}) ==
-               nil
+      refute Packages.get_package_by_scope_and_name(%{scope: "Alamofire", name: "AlamofireImage"})
     end
 
     test "empty allowlist allows all packages" do
