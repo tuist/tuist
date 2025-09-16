@@ -10,7 +10,7 @@ defmodule Tuist.License do
   @validation_url "https://api.keygen.sh/v1/accounts/cce51171-9339-4430-8441-73bb5abd9a5c/licenses/actions/validate-key"
 
   @enforce_keys [:id, :features, :expiration_date, :valid]
-  defstruct [:id, :features, :expiration_date, :valid, :signing_certificate]
+  defstruct [:id, :features, :expiration_date, :valid, :signing_key]
 
   def get_validation_url do
     @validation_url
@@ -20,12 +20,10 @@ defmodule Tuist.License do
     if Tuist.Environment.dev?() or Tuist.Environment.test?() do
       nil
     else
-      {:ok, %{signing_certificate: pem}} = get_license()
-      [{_, der, _}] = :public_key.pem_decode(pem)
-      key_size = byte_size(der) - 32
-      <<_::binary-size(key_size), key::binary-size(32)>> = der
-
-      signature = :crypto.sign(:eddsa, :none, JSON.encode!(item), [key, :ed25519])
+      {:ok, %{signing_key: key_base64}} = get_license()
+      key = Base.decode64!(key_base64)
+      data = Jason.encode!(item)
+      signature = :crypto.mac(:hmac, :sha256, data, key)
       Base.encode64(signature)
     end
   end
@@ -83,11 +81,8 @@ defmodule Tuist.License do
         if is_nil(payload["data"]) do
           {:ok, nil}
         else
-          base_64_signing_certificate =
-            (payload["data"]["attributes"]["metadata"] || %{})["base64SigningCertificate"]
-
-          signing_certificate =
-            base_64_signing_certificate && Base.decode64!(base_64_signing_certificate)
+          signing_key =
+            (payload["data"]["attributes"]["metadata"] || %{})["signingKey"]
 
           {:ok,
            %__MODULE__{
@@ -95,7 +90,7 @@ defmodule Tuist.License do
              id: payload["data"]["id"],
              features: [],
              expiration_date: Timex.parse!(payload["data"]["attributes"]["expiry"], "{RFC3339}"),
-             signing_certificate: signing_certificate
+             signing_key: signing_key
            }}
         end
 
