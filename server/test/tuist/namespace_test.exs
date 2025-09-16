@@ -2,7 +2,6 @@ defmodule Tuist.NamespaceTest do
   use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
 
-  alias Tuist.Accounts.Account
   alias Tuist.Namespace
   alias Tuist.Namespace.Instance
   alias Tuist.Namespace.JWTToken
@@ -323,38 +322,6 @@ defmodule Tuist.NamespaceTest do
 
       # Then
       assert {:ok, :test_ssh_connection_ref} = result
-    end
-  end
-
-  describe "get_tenant_usage/3" do
-    test "successfully fetches usage with correct date mapping and auth" do
-      account = %Account{namespace_tenant_id: "tenant-usage-123"}
-      tenant_token = "usage-bearer-token"
-
-      expect(JWTToken, :generate_id_token, fn ->
-        {:ok, "test-jwt-token"}
-      end)
-
-      expect(Req, :post, 2, fn opts ->
-        cond do
-          String.contains?(opts[:url], "IssueTenantToken") ->
-            {:ok, %{status: 200, body: %{"bearerToken" => tenant_token}}}
-
-          String.contains?(opts[:url], "GetUsage") ->
-            assert opts[:json] == %{
-                     "period_start" => %{"year" => 2024, "month" => 11, "day" => 20},
-                     "period_end" => %{"year" => 2024, "month" => 11, "day" => 21}
-                   }
-
-            auth_header = Enum.find(opts[:headers], fn {k, _} -> k == "Authorization" end)
-            assert auth_header == {"Authorization", "Bearer #{tenant_token}"}
-
-            {:ok, %{status: 200, body: %{"total" => %{"instanceMinutes" => %{"unit" => 42}}}}}
-        end
-      end)
-
-      assert {:ok, %{"total" => %{"instanceMinutes" => %{"unit" => 42}}}} =
-               Namespace.get_tenant_usage(account, ~D[2024-11-20], ~D[2024-11-21])
     end
   end
 end

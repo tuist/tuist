@@ -1,12 +1,13 @@
-defmodule Tuist.Billing.Workers.SyncCustomerStripeMetersWorker do
+defmodule Tuist.Billing.SyncCustomerStripeMeters do
   @moduledoc """
-  A daily job that updates a customer's billing meters in Stripe with yesterday's usage metrics.
+  Given a customer id, updates all billing meters in Stripe for that customer.
   """
   use Oban.Worker
 
   import Tuist.Environment, only: [run_if_error_tracking_enabled: 1]
 
   alias Tuist.Accounts
+  alias Tuist.Accounts.Account
   alias Tuist.Billing
 
   @impl Oban.Worker
@@ -26,13 +27,12 @@ defmodule Tuist.Billing.Workers.SyncCustomerStripeMetersWorker do
       )
     end
 
-    account = Accounts.get_account_from_customer_id(customer_id)
-
     {:ok, _} = Billing.update_remote_cache_hit_meter(customer_id, idempotency_key)
+
+    (%Account{} = account) = Accounts.get_account_from_customer_id(customer_id)
 
     if FunWithFlags.enabled?(:qa_billing_enabled, for: account) do
       {:ok, _} = Billing.update_llm_token_meters(customer_id, idempotency_key)
-      {:ok, _} = Billing.update_namespace_usage_meter(customer_id, idempotency_key)
     end
 
     :ok
