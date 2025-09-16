@@ -652,4 +652,21 @@
       }
     }
   }
+
+  & [data-part="app-context-card"] {
+    & > [data-part="app-context-card-section"] {
+      gap: var(--noora-spacing-9);
+      padding: var(--noora-spacing-8);
+      & > [data-part="launch-arguments"] {
+        display: flex;
+        flex-direction: column;
+        gap: var(--noora-spacing-4);
+        & > [data-part="title"] {
+          margin: 0;
+          color: var(--noora-surface-label-secondary);
+          font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+        }
+      }
+    }
+  }
 }

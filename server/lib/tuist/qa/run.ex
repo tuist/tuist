@@ -32,6 +32,7 @@ defmodule Tuist.QA.Run do
     field :git_ref, :string
     field :issue_comment_id, :integer
     field :finished_at, :utc_datetime
+    field :launch_argument_groups, {:array, :map}, default: []
 
     belongs_to :app_build, AppBuild, type: UUIDv7
     has_one :recording, Recording, foreign_key: :qa_run_id
@@ -50,7 +51,8 @@ defmodule Tuist.QA.Run do
       :vcs_repository_full_handle,
       :vcs_provider,
       :git_ref,
-      :issue_comment_id
+      :issue_comment_id,
+      :launch_argument_groups
     ])
     |> validate_required([:prompt, :status])
     |> validate_inclusion(:status, ["pending", "running", "completed", "failed"])
@@ -58,6 +60,6 @@ defmodule Tuist.QA.Run do
   end
 
   def update_changeset(qa_run, attrs) do
-    cast(qa_run, attrs, [:app_build_id, :status, :finished_at])
+    cast(qa_run, attrs, [:app_build_id, :status, :finished_at, :launch_argument_groups])
   end
 end
