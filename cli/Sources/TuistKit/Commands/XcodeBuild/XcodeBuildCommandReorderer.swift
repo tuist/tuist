@@ -21,7 +21,9 @@ struct XcodeBuildCommandReorderer: AsyncParsableCommand {
             throw ValidationError("No arguments provided. Use 'tuist xcodebuild --help' for usage information.")
         }
 
-        let validActions = XcodeBuildCommand.configuration.subcommands.compactMap(\.configuration.commandName)
+        let validActions = XcodeBuildCommand.configuration.subcommands.compactMap { command in
+            command.configuration.commandName
+        }
 
         guard let actionIndex = arguments.firstIndex(where: { validActions.contains($0) }) else {
             throw ValidationError("No valid action found. Valid actions are: \(validActions.joined(separator: ", "))")
