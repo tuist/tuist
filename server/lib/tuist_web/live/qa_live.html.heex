@@ -187,6 +187,27 @@
           <:col :let={run} label={gettext("Name")}>
             <.text_cell label={run.app_build.preview.display_name} />
           </:col>
+          <:col :let={run} label={gettext("Status")}>
+            <.badge_cell
+              label={
+                case run.status do
+                  "running" -> gettext("Running")
+                  "pending" -> gettext("Pending")
+                  "failed" -> gettext("Failed")
+                  "completed" -> gettext("Completed")
+                end
+              }
+              color={
+                case run.status do
+                  "running" -> "attention"
+                  "pending" -> "information"
+                  "failed" -> "destructive"
+                  "completed" -> "primary"
+                end
+              }
+              style="light-fill"
+            />
+          </:col>
           <:col :let={run} label={gettext("Platform")}>
             <.platform_cell platform={
               run.app_build.preview.supported_platforms
@@ -212,7 +233,20 @@
           <:col :let={run} label={gettext("Commit SHA")}>
             <.text_cell label={SHA.format_commit_sha(run.app_build.preview.git_commit_sha)} />
           </:col>
-          <:col :let={run} label={gettext("Tested")}>
+          <:col :let={run} label={gettext("Duration")}>
+            <.text_cell :if={is_nil(run.finished_at)} label={gettext("In progress")} />
+            <.text_cell
+              :if={not is_nil(run.finished_at)}
+              icon="history"
+              label={
+                DateFormatter.format_duration_from_milliseconds(
+                  DateTime.diff(run.finished_at, run.inserted_at, :millisecond),
+                  include_seconds: false
+                )
+              }
+            />
+          </:col>
+          <:col :let={run} label={gettext("Started at")}>
             <.text_cell label={DateFormatter.from_now(run.inserted_at)} />
           </:col>
         </.table>
