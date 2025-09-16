@@ -311,11 +311,8 @@ defmodule Tuist.Registry.Swift.Workers.SyncPackagesWorkerTest do
       assert Packages.get_package_by_scope_and_name(%{scope: "tuist", name: "Path"})
 
       # Verify other packages were not created
-      assert Packages.get_package_by_scope_and_name(%{scope: "Alamofire", name: "Alamofire"}) ==
-               nil
-
-      assert Packages.get_package_by_scope_and_name(%{scope: "onevcat", name: "Kingfisher"}) ==
-               nil
+refute Packages.get_package_by_scope_and_name(%{scope: "Alamofire", name: "Alamofire"})
+refute Packages.get_package_by_scope_and_name(%{scope: "onevcat", name: "Kingfisher"})
     end
 
     test "allowlist supports exact matches and wildcard patterns" do
