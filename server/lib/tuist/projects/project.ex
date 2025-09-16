@@ -25,6 +25,7 @@ defmodule Tuist.Projects.Project do
     field :vcs_provider, Ecto.Enum, values: [github: 0]
     field :last_interacted_at, :naive_datetime, virtual: true
     field :default_previews_visibility, Ecto.Enum, values: [private: 0, public: 1], default: :private
+    field :qa_app_description, :string, default: ""
 
     belongs_to :account, Account
 
@@ -68,12 +69,14 @@ defmodule Tuist.Projects.Project do
       :vcs_repository_full_handle,
       :vcs_provider,
       :visibility,
-      :default_previews_visibility
+      :default_previews_visibility,
+      :qa_app_description
     ])
     |> validate_name()
     |> validate_inclusion(:vcs_provider, [:github])
     |> validate_inclusion(:visibility, [:private, :public])
     |> validate_inclusion(:default_previews_visibility, [:private, :public])
+    |> update_change(:qa_app_description, &if(&1, do: String.trim(&1), else: ""))
   end
 
   defp validate_name(changeset) do

@@ -4,6 +4,8 @@ defmodule TuistWeb.QASettingsLive do
   use Noora
 
   alias Tuist.Authorization
+  alias Tuist.Projects
+  alias Tuist.Projects.Project
   alias Tuist.QA
   alias Tuist.QA.LaunchArgumentGroup
   alias Tuist.Repo
@@ -37,12 +39,19 @@ defmodule TuistWeb.QASettingsLive do
         {group.id, form}
       end)
 
+    qa_app_description_form =
+      selected_project
+      |> Project.update_changeset(%{})
+      |> to_form(as: :project)
+
     socket =
       socket
       |> assign(:selected_project, selected_project)
       |> assign(:add_launch_argument_form, add_launch_argument_form)
       |> assign(:edit_launch_argument_form, edit_launch_argument_form)
       |> assign(:edit_launch_argument_forms, edit_launch_argument_forms)
+      |> assign(:qa_app_description_form, qa_app_description_form)
+      |> assign(:qa_app_description_unchanged, true)
       |> assign(:head_title, "#{gettext("QA Settings")} · #{selected_project.name} · Tuist")
 
     {:ok, socket}
@@ -164,4 +173,46 @@ defmodule TuistWeb.QASettingsLive do
     socket = push_event(socket, "close-modal", %{id: "edit-launch-argument-modal-#{id}"})
     {:noreply, socket}
   end
+
+  @impl true
+  def handle_event("validate_qa_app_description", %{"project" => params}, socket) do
+    changeset =
+      socket.assigns.selected_project
+      |> Project.update_changeset(params)
+      |> Map.put(:action, :validate)
+
+    qa_app_description_form = to_form(changeset, as: :project)
+    qa_app_description_unchanged = qa_app_description_unchanged?(socket.assigns.selected_project, params)
+
+    socket =
+      socket
+      |> assign(:qa_app_description_form, qa_app_description_form)
+      |> assign(:qa_app_description_unchanged, qa_app_description_unchanged)
+
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("update_qa_app_description", %{"project" => params}, socket) do
+    {:ok, updated_project} = Projects.update_project(socket.assigns.selected_project, params)
+
+    qa_app_description_form =
+      updated_project
+      |> Project.update_changeset(%{})
+      |> to_form(as: :project)
+
+    socket =
+      socket
+      |> assign(:selected_project, updated_project)
+      |> assign(:qa_app_description_form, qa_app_description_form)
+      |> assign(:qa_app_description_unchanged, true)
+
+    {:noreply, socket}
+  end
+
+  defp qa_app_description_unchanged?(project, %{"qa_app_description" => new_value}) do
+    project.qa_app_description == new_value
+  end
+
+  defp qa_app_description_unchanged?(_project, _params), do: true
 end

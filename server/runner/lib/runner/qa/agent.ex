@@ -56,6 +56,7 @@ defmodule Runner.QA.Agent do
     anthropic_api_key = Keyword.get(opts, :anthropic_api_key)
     openai_api_key = Keyword.get(opts, :openai_api_key)
     launch_arguments = Map.get(attrs, :launch_arguments, "")
+    app_description = Map.get(attrs, :app_description, "")
 
     with {:ok, simulator_device} <- simulator_device(),
          :ok <- run_preview(preview_url, bundle_identifier, simulator_device, launch_arguments),
@@ -133,8 +134,17 @@ defmodule Runner.QA.Agent do
         end
       }
 
+      app_context =
+        if app_description == "",
+          do: "",
+          else: """
+
+          Here's additional context about the app you're testing:
+          #{app_description}
+          """
+
       prompt = """
-      You are a QA agent. Test the following: #{prompt}.
+      You are a QA agent testing a mobile iOS app. Test the following: #{prompt}.
 
       First, understand what you need to test. Then, set up a plan to test the feature and execute on it without asking for additional instructions.
 
@@ -144,6 +154,7 @@ defmodule Runner.QA.Agent do
       - To dismiss a system sheet, tap within the visible screen area but outside the sheet, such in the dark/grayed area above the sheet
       - If a button includes text, prefer tapping on the text to interact with the button
       - When you recognize placeholder/pre-filled fields, you must never clear the placeholder value. Instead, replace the text directly with type_text tool.
+      #{app_context}
       """
 
       llm =
