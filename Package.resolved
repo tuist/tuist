@@ -528,8 +528,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/MobileNativeFoundation/XCLogParser",
       "state" : {
-        "branch" : "fix/build-operation-metrics",
-        "revision" : "e2b640186612919724fe8c435687c5040ece55a8"
+        "branch" : "master",
+        "revision" : "d37cc78024c5411e1bd9b2b73092b9e35b7cf1bb"
       }
     },
     {
