@@ -402,6 +402,7 @@
       >
         <div
           :for={testimonial <- testimonials_column}
+          :key={testimonial.author}
           class="marketing__home__section__testimonials__testimonial"
         >
           <div class="marketing__home__section__testimonials__testimonial__header">
@@ -464,6 +465,7 @@
   <div class="marketing__home__section__highlights">
     <TuistWeb.Marketing.MarketingHomeComponents.highlight_card
       :for={highlight <- highlights}
+      :key={highlight.title}
       title={highlight.title}
       subtitle={highlight.subtitle}
       cta_href={Map.get(highlight, :cta_href)}
@@ -486,6 +488,7 @@
       <div class="marketing__home__section__learn_more__cards">
         <.more_card
           :for={post <- @read_more_posts}
+          :key={post.slug}
           category={post.category}
           title={post.title}
           description={post.excerpt}

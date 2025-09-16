@@ -74,6 +74,7 @@ defmodule TuistWeb.Marketing.MarketingHomeComponents do
         <div class="marketing__home__section__features__feature__traits">
           <div
             :for={trait <- @traits}
+            :key={trait}
             class="marketing__home__section__features__feature__traits__trait"
           >
             <TuistWeb.Marketing.MarketingIcons.check_circle_icon

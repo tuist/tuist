@@ -189,7 +189,7 @@
           active_filters={@active_filters}
         />
         <div :if={Enum.any?(@active_filters)} data-part="active-filters">
-          <.active_filter :for={filter <- @active_filters} filter={filter} />
+          <.active_filter :for={filter <- @active_filters} :key={filter.id} filter={filter} />
         </div>
       </div>
 
