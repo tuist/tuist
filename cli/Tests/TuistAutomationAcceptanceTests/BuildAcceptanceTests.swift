@@ -427,7 +427,7 @@ final class XcodeBuildCommandAcceptanceTests: TuistAcceptanceTestCase {
         try await TuistTest.run(GenerateCommand.self, ["--path", fixtureDirectory.pathString, "--no-open"])
 
         try await TuistTest.run(
-            XcodeBuildCommand.XcodeBuildCommandReorderer.self,
+            XcodeBuildCommandReorderer.self,
             [
                 "-workspace",
                 fixtureDirectory.pathString + "/App.xcworkspace",
