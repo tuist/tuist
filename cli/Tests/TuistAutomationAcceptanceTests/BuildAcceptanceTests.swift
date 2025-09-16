@@ -294,7 +294,7 @@ final class XcodeBuildCommandAcceptanceTests: TuistAcceptanceTestCase {
             ]
         )
     }
-    
+
     @Test(
         .withFixture("ios_app_with_tests"),
         .inTemporaryDirectory,
@@ -320,7 +320,7 @@ final class XcodeBuildCommandAcceptanceTests: TuistAcceptanceTestCase {
             ]
         )
     }
-    
+
     @Test(
         .withFixture("ios_app_with_tests"),
         .inTemporaryDirectory,
@@ -346,7 +346,7 @@ final class XcodeBuildCommandAcceptanceTests: TuistAcceptanceTestCase {
             ]
         )
     }
-    
+
     @Test(
         .withFixture("ios_app_with_tests"),
         .inTemporaryDirectory,
@@ -389,7 +389,7 @@ final class XcodeBuildCommandAcceptanceTests: TuistAcceptanceTestCase {
             ]
         )
     }
-    
+
     @Test(
         .withFixture("ios_app_with_tests"),
         .inTemporaryDirectory,
@@ -427,7 +427,7 @@ final class XcodeBuildCommandAcceptanceTests: TuistAcceptanceTestCase {
         try await TuistTest.run(GenerateCommand.self, ["--path", fixtureDirectory.pathString, "--no-open"])
 
         try await TuistTest.run(
-            XcodeBuildCommand.CommandCorrection.self,
+            XcodeBuildCommand.XcodeBuildCommandReorderer.self,
             [
                 "-workspace",
                 fixtureDirectory.pathString + "/App.xcworkspace",

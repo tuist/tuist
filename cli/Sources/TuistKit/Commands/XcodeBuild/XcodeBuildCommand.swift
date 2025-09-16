@@ -27,9 +27,9 @@ public struct XcodeBuildCommand: AsyncParsableCommand, TrackableParsableCommand,
                 XcodeBuildBuildCommand.self,
                 XcodeBuildBuildForTestingCommand.self,
                 XcodeBuildArchiveCommand.self,
-                CommandCorrection.self,
+                XcodeBuildCommandReorderer.self,
             ],
-            defaultSubcommand: CommandCorrection.self
+            defaultSubcommand: XcodeBuildCommandReorderer.self
         )
     }
 
@@ -39,19 +39,19 @@ public struct XcodeBuildCommand: AsyncParsableCommand, TrackableParsableCommand,
 }
 
 extension XcodeBuildCommand {
-    struct CommandCorrection: AsyncParsableCommand {
+    struct XcodeBuildCommandReorderer: AsyncParsableCommand {
         @Argument(
             parsing: .allUnrecognized,
             help: "Arguments for xcodebuild. Can be used as fallback when subcommands are not first. Example: tuist xcodebuild -workspace MyApp.xcworkspace build -scheme MyApp"
         )
-        public var arguments: [String] = []
+        var arguments: [String] = []
 
-        public func run() async throws {
+        func run() async throws {
             guard !arguments.isEmpty else {
                 throw ValidationError("No arguments provided. Use 'tuist xcodebuild --help' for usage information.")
             }
 
-            let validActions = XcodeBuildCommand.configuration.subcommands.compactMap { $0.configuration.commandName }
+            let validActions = XcodeBuildCommand.configuration.subcommands.compactMap(\.configuration.commandName)
 
             guard let actionIndex = arguments.firstIndex(where: { validActions.contains($0) }) else {
                 throw ValidationError("No valid action found. Valid actions are: \(validActions.joined(separator: ", "))")
