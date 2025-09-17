@@ -21,7 +21,7 @@ struct HashCacheCommandServiceTests {
     private var configLoader: MockConfigLoading!
     private var manifestLoader: MockManifestLoading!
     private var manifestGraphLoader: MockManifestGraphLoading!
-    private var xcodeGraphMapper: MockXcodeGraphMapping!
+    private var XcodeGraphMapper: MockXcodeGraphMapping!
 
     init() {
         path = "/Test"
@@ -40,7 +40,7 @@ struct HashCacheCommandServiceTests {
             .willReturn(.default)
         manifestLoader = MockManifestLoading()
         manifestGraphLoader = MockManifestGraphLoading()
-        xcodeGraphMapper = MockXcodeGraphMapping()
+        XcodeGraphMapper = MockXcodeGraphMapping()
 
         subject = HashCacheCommandService(
             generatorFactory: generatorFactory,
@@ -73,7 +73,7 @@ struct HashCacheCommandServiceTests {
                 destination: .any
             )
             .willReturn([:])
-        given(xcodeGraphMapper).map(at: .value(try AbsolutePath(validating: fullPath))).willReturn(
+        given(XcodeGraphMapper).map(at: .value(try AbsolutePath(validating: fullPath))).willReturn(
             graph
         )
 
