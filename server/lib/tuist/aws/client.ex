@@ -36,8 +36,4 @@ defmodule Tuist.AWS.Client do
         {:error, %{reason: reason}}
     end
   end
-
-  def default_opts do
-    [receive_timeout: 30_000]
-  end
 end
