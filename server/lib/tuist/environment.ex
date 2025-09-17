@@ -172,14 +172,14 @@ defmodule Tuist.Environment do
   def s3_request_timeout(secrets \\ secrets()) do
     case get([:s3, :request_timeout], secrets) do
       request_timeout when is_binary(request_timeout) -> String.to_integer(request_timeout)
-      _ -> 30
+      _ -> 7
     end
   end
 
   def s3_pool_timeout(secrets \\ secrets()) do
     case get([:s3, :pool_timeout], secrets) do
       pool_timeout when is_binary(pool_timeout) -> String.to_integer(pool_timeout)
-      _ -> 5
+      _ -> 10
     end
   end
 
