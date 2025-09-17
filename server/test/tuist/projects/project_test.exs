@@ -1,8 +1,6 @@
 defmodule Tuist.ProjectTest do
   use TuistTestSupport.Cases.DataCase
 
-  import Ecto.Changeset, only: [get_change: 2]
-
   alias Tuist.Projects.Project
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
