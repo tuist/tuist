@@ -55,7 +55,9 @@ defmodule Tuist.QA do
               "value" => group.value
             }
           end),
-        app_description: app_build.preview.project.qa_app_description
+        app_description: app_build.preview.project.qa_app_description,
+        email: app_build.preview.project.qa_email,
+        password: app_build.preview.project.qa_password
       })
 
     app_build_url = generate_app_build_download_url(app_build)
@@ -71,7 +73,9 @@ defmodule Tuist.QA do
         auth_token: auth_token,
         account_handle: app_build.preview.project.account.name,
         project_handle: app_build.preview.project.name,
-        app_description: app_build.preview.project.qa_app_description
+        app_description: app_build.preview.project.qa_app_description,
+        email: app_build.preview.project.qa_email,
+        password: app_build.preview.project.qa_password
       }
 
       if Environment.namespace_enabled?() do
@@ -134,7 +138,9 @@ defmodule Tuist.QA do
          auth_token: auth_token,
          account_handle: account_handle,
          project_handle: project_handle,
-         app_description: app_description
+         app_description: app_description,
+         email: email,
+         password: password
        }) do
     """
     set -e
@@ -144,7 +150,7 @@ defmodule Tuist.QA do
     npm i --location=global appium
     appium driver install xcuitest
     tmux new-session -d -s appium 'appium'
-    runner qa --preview-url "#{app_build_url}" --bundle-identifier #{bundle_identifier} --server-url #{server_url} --run-id #{run_id} --auth-token #{auth_token} --account-handle #{account_handle} --project-handle #{project_handle} --prompt "#{prompt}" --launch-arguments "\\"#{launch_arguments}\\"" --app-description "#{app_description}" --anthropic-api-key #{Environment.anthropic_api_key()} --openai-api-key #{Environment.openai_api_key()}
+    runner qa --preview-url "#{app_build_url}" --bundle-identifier #{bundle_identifier} --server-url #{server_url} --run-id #{run_id} --auth-token #{auth_token} --account-handle #{account_handle} --project-handle #{project_handle} --prompt "#{prompt}" --launch-arguments "\\"#{launch_arguments}\\"" --app-description "#{app_description}" --email "#{email}" --password "#{password}" --anthropic-api-key #{Environment.anthropic_api_key()} --openai-api-key #{Environment.openai_api_key()}
     """
   end
 

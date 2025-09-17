@@ -44,7 +44,7 @@
       <.text_area
         field={@qa_app_description_form[:qa_app_description]}
         placeholder={gettext("Enter your app description...")}
-        rows={25}
+        rows={10}
         max_length={2000}
       />
       <.button
@@ -53,6 +53,47 @@
         variant="primary"
         size="medium"
         disabled={@qa_app_description_unchanged}
+      />
+    </.form>
+  </.card_section>
+
+  <.card_section data-part="credentials-card-section">
+    <div data-part="explanation">
+      <h3 data-part="title">
+        {gettext("Credentials")}
+      </h3>
+      <span data-part="subtitle">
+        {gettext(
+          "Modify or update your app credentials. The agent will use these fields to sign in just as a user would."
+        )}
+      </span>
+    </div>
+    <.form
+      for={@qa_credentials_form}
+      id="qa-credentials-form"
+      data-part="credentials-form"
+      phx-submit="update_qa_credentials"
+      phx-change="validate_qa_credentials"
+    >
+      <.text_input
+        field={@qa_credentials_form[:qa_email]}
+        label={gettext("Email")}
+        placeholder={gettext("test@example.com")}
+        type="email"
+      />
+      <.text_input
+        field={@qa_credentials_form[:qa_password]}
+        label={gettext("Password")}
+        placeholder={gettext("Password for test account")}
+        type="password"
+        show_suffix={false}
+      />
+      <.button
+        type="submit"
+        label={gettext("Save")}
+        variant="primary"
+        size="medium"
+        disabled={@qa_credentials_unchanged}
       />
     </.form>
   </.card_section>

@@ -524,12 +524,30 @@
     </.card>
 
     <.card
-      :if={@qa_run.launch_argument_groups != [] or @qa_run.app_description != ""}
+      :if={
+        @qa_run.launch_argument_groups != [] or @qa_run.app_description != "" or
+          (@qa_run.email != "" and @qa_run.password != "")
+      }
       data-part="app-context-card"
       icon="file_text"
       title={gettext("App context")}
     >
       <.card_section data-part="app-context-card-section">
+        <div :if={@qa_run.email != "" and @qa_run.password != ""} data-part="credentials">
+          <div data-part="email">
+            <.text_input name="email" label={gettext("Email")} value={@qa_run.email} disabled />
+          </div>
+          <div data-part="password">
+            <.text_input
+              name="password"
+              label={gettext("Password")}
+              value={@qa_run.password}
+              show_prefix={false}
+              show_suffix={false}
+              disabled
+            />
+          </div>
+        </div>
         <div :if={@qa_run.launch_argument_groups != []} data-part="launch-arguments">
           <h3 data-part="title">
             {gettext("Launch arguments")}

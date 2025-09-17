@@ -1,6 +1,8 @@
 defmodule Tuist.ProjectTest do
   use TuistTestSupport.Cases.DataCase
 
+  import Ecto.Changeset, only: [get_change: 2]
+
   alias Tuist.Projects.Project
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
@@ -316,6 +318,22 @@ defmodule Tuist.ProjectTest do
 
       assert changeset.valid? == true
       assert changeset.changes.name == "project_name"
+    end
+
+    test "qa_app_description is trimmed on update" do
+      changeset =
+        Project.update_changeset(%Project{}, %{qa_app_description: "  My app description  "})
+
+      assert changeset.valid? == true
+      assert changeset.changes.qa_app_description == "My app description"
+    end
+
+    test "qa_email is trimmed on update" do
+      changeset =
+        Project.update_changeset(%Project{}, %{qa_email: "  test@example.com  "})
+
+      assert changeset.valid? == true
+      assert changeset.changes.qa_email == "test@example.com"
     end
   end
 end
