@@ -70,9 +70,9 @@ jobs:
         run: |
           version=$(./mise/tasks/generate-version.sh)
           echo "::set-output name=version::$version"
-      - uses: superfly/flyctl-actions/setup-flyctl@master
-      - name: Fly
-        run: flyctl deploy -c fly.canary.toml --build-arg TUIST_HOSTED=1 --build-arg MIX_ENV=can --build-arg APP_REVISION=$GITHUB_SHA --build-arg TUIST_VERSION=${{ steps.version.outputs.version }} --wait-timeout 3600
+      # - uses: superfly/flyctl-actions/setup-flyctl@master
+      # - name: Fly
+      #   run: flyctl deploy -c fly.canary.toml --build-arg TUIST_HOSTED=1 --build-arg MIX_ENV=can --build-arg APP_REVISION=$GITHUB_SHA --build-arg TUIST_VERSION=${{ steps.version.outputs.version }} --wait-timeout 3600
   acceptance-tests:
     name: Acceptance Tests
     runs-on: namespace-profile-default-macos
@@ -99,9 +99,9 @@ jobs:
       - name: Install dependencies
         working-directory: cli-ext
         run: tuist install
-      - name: Test
-        working-directory: cli-ext
-        run: tuist test TuistExtKitCanaryAcceptanceTests --no-selective-testing --test-targets TuistExtKitCanaryAcceptanceTests/TuistExtKitCanaryAcceptanceTestWithIOSAppWithFrameworks
+      # - name: Test
+      #   working-directory: cli-ext
+      #   run: tuist test TuistExtKitCanaryAcceptanceTests --no-selective-testing --test-targets TuistExtKitCanaryAcceptanceTests/TuistExtKitCanaryAcceptanceTestWithIOSAppWithFrameworks
   production:
     environment: server-production
     name: Production Deployment
@@ -145,17 +145,17 @@ jobs:
         run: |
           version=$(./mise/tasks/generate-version.sh)
           echo "::set-output name=version::$version"
-      - uses: superfly/flyctl-actions/setup-flyctl@master
-      - name: Fly
-        run: flyctl deploy -c fly.prod.toml --build-arg TUIST_HOSTED=1 --build-arg MIX_ENV=prod --build-arg TUIST_VERSION=${{ steps.version.outputs.version }} --build-arg APP_REVISION=$GITHUB_SHA --wait-timeout 3600
-      - name: Notify about the deployment in Slack
-        uses: slackapi/slack-github-action@v2.0.0
-        with:
-          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
-          webhook-type: webhook-trigger
-          payload: |
-            commit: "${{ github.sha }}"
-            environment: "production"
+      # - uses: superfly/flyctl-actions/setup-flyctl@master
+      # - name: Fly
+      #   run: flyctl deploy -c fly.prod.toml --build-arg TUIST_HOSTED=1 --build-arg MIX_ENV=prod --build-arg TUIST_VERSION=${{ steps.version.outputs.version }} --build-arg APP_REVISION=$GITHUB_SHA --wait-timeout 3600
+      # - name: Notify about the deployment in Slack
+      #   uses: slackapi/slack-github-action@v2.0.0
+      #   with:
+      #     webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+      #     webhook-type: webhook-trigger
+      #     payload: |
+      #       commit: "${{ github.sha }}"
+      #       environment: "production"
   production-hotfix:
     environment: server-production
     name: Hotfix Production Deployment
@@ -198,14 +198,14 @@ jobs:
         run: |
           version=$(./mise/tasks/generate-version.sh)
           echo "::set-output name=version::$version"
-      - uses: superfly/flyctl-actions/setup-flyctl@master
-      - name: Fly
-        run: flyctl deploy --local-only -c fly.prod.toml --build-arg TUIST_HOSTED=1 --build-arg MIX_ENV=prod --build-arg TUIST_VERSION=${{ steps.version.outputs.version }} --build-arg APP_REVISION=$GITHUB_SHA --wait-timeout 3600
-      - name: Notify about the deployment in Slack
-        uses: slackapi/slack-github-action@v2.0.0
-        with:
-          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
-          webhook-type: webhook-trigger
-          payload: |
-            commit: "${{ github.sha }}"
-            environment: "production"
+      # - uses: superfly/flyctl-actions/setup-flyctl@master
+      # - name: Fly
+      #   run: flyctl deploy --local-only -c fly.prod.toml --build-arg TUIST_HOSTED=1 --build-arg MIX_ENV=prod --build-arg TUIST_VERSION=${{ steps.version.outputs.version }} --build-arg APP_REVISION=$GITHUB_SHA --wait-timeout 3600
+      # - name: Notify about the deployment in Slack
+      #   uses: slackapi/slack-github-action@v2.0.0
+      #   with:
+      #     webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+      #     webhook-type: webhook-trigger
+      #     payload: |
+      #       commit: "${{ github.sha }}"
+      #       environment: "production"

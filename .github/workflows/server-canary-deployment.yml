@@ -62,14 +62,14 @@ jobs:
         run: |
           version=$(./mise/tasks/generate-version.sh)
           echo "::set-output name=version::$version"
-      - uses: superfly/flyctl-actions/setup-flyctl@master
-      - name: Fly
-        run: flyctl deploy -c fly.canary.toml --build-arg TUIST_HOSTED=1 --build-arg MIX_ENV=can --build-arg APP_REVISION=$GITHUB_SHA --build-arg TUIST_VERSION=${{ steps.version.outputs.version }} --wait-timeout 3600
-      - name: Notify about the deployment in Slack
-        uses: slackapi/slack-github-action@v2.0.0
-        with:
-          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
-          webhook-type: webhook-trigger
-          payload: |
-            commit: "${{ github.sha }}"
-            environment: "server-canary"
+      # - uses: superfly/flyctl-actions/setup-flyctl@master
+      # - name: Fly
+      #   run: flyctl deploy -c fly.canary.toml --build-arg TUIST_HOSTED=1 --build-arg MIX_ENV=can --build-arg APP_REVISION=$GITHUB_SHA --build-arg TUIST_VERSION=${{ steps.version.outputs.version }} --wait-timeout 3600
+      # - name: Notify about the deployment in Slack
+      #   uses: slackapi/slack-github-action@v2.0.0
+      #   with:
+      #     webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+      #     webhook-type: webhook-trigger
+      #     payload: |
+      #       commit: "${{ github.sha }}"
+      #       environment: "server-canary"
