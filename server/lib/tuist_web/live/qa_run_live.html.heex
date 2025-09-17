@@ -522,6 +522,32 @@
         </.card_section>
       </.card_section>
     </.card>
+
+    <.card
+      :if={@qa_run.launch_argument_groups != []}
+      data-part="app-context-card"
+      icon="file_text"
+      title={gettext("App context")}
+    >
+      <.card_section data-part="app-context-card-section">
+        <div data-part="launch-arguments">
+          <h3 data-part="title">
+            {gettext("Launch arguments")}
+          </h3>
+          <.table id="launch-arguments-table" rows={@qa_run.launch_argument_groups}>
+            <:col :let={group} label={gettext("Name")}>
+              <.text_and_description_cell label={group["name"]} data-part="name-cell" />
+            </:col>
+            <:col :let={group} label={gettext("Description")}>
+              <.text_cell label={group["description"] || ""} />
+            </:col>
+            <:col :let={group} label={gettext("Arguments")}>
+              <.text_cell label={group["value"]} />
+            </:col>
+          </.table>
+        </div>
+      </.card_section>
+    </.card>
   </div>
 
   <div :if={@live_action == :logs} data-part="logs-tab">

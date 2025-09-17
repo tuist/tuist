@@ -323,7 +323,7 @@ defmodule Tuist.QATest do
 
       project = app_build.preview.project
 
-      {:ok, _login_group} =
+      {:ok, login_group} =
         %LaunchArgumentGroup{}
         |> LaunchArgumentGroup.create_changeset(%{
           project_id: project.id,
@@ -391,6 +391,14 @@ defmodule Tuist.QATest do
 
       # Then
       assert updated_qa_run.prompt == prompt
+
+      assert updated_qa_run.launch_argument_groups == [
+               %{
+                 "name" => login_group.name,
+                 "value" => login_group.value,
+                 "description" => login_group.description
+               }
+             ]
     end
 
     test "selects multiple launch argument groups" do

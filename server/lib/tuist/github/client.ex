@@ -105,11 +105,7 @@ defmodule Tuist.GitHub.Client do
     end
   end
 
-  def create_comment(%{
-        repository_full_handle: repository_full_handle,
-        issue_id: issue_id,
-        body: body
-      }) do
+  def create_comment(%{repository_full_handle: repository_full_handle, issue_id: issue_id, body: body}) do
     url = "https://api.github.com/repos/#{repository_full_handle}/issues/#{issue_id}/comments"
 
     github_request(&Req.post/1,
@@ -119,11 +115,7 @@ defmodule Tuist.GitHub.Client do
     )
   end
 
-  def update_comment(%{
-        repository_full_handle: repository_full_handle,
-        comment_id: comment_id,
-        body: body
-      }) do
+  def update_comment(%{repository_full_handle: repository_full_handle, comment_id: comment_id, body: body}) do
     url = "https://api.github.com/repos/#{repository_full_handle}/issues/comments/#{comment_id}"
 
     github_request(&Req.patch/1,
@@ -161,10 +153,7 @@ defmodule Tuist.GitHub.Client do
     end
   end
 
-  def get_repository_content(
-        %{repository_full_handle: repository_full_handle, token: token},
-        opts \\ []
-      ) do
+  def get_repository_content(%{repository_full_handle: repository_full_handle, token: token}, opts \\ []) do
     path = Keyword.get(opts, :path, "")
     url = "https://api.github.com/repos/#{repository_full_handle}/contents/#{path}"
 

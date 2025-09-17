@@ -542,6 +542,45 @@ defmodule Tuist.Billing do
       |> Stripe.Request.make_request()
   end
 
+  @doc """
+  Fetches Namespace compute usage for yesterday and updates the Stripe meter
+  for instance unit minutes (event name: `namespace_unit_minute`).
+  """
+  def update_namespace_usage_meter(customer_id, idempotency_key) do
+    with %Account{} = account when is_binary(account.namespace_tenant_id) <-
+           Accounts.get_account_from_customer_id(customer_id) do
+      # Namespace compute usage is reported by day, so being more specific than `Date` is unnecessary.
+      yesterday = Date.add(Date.utc_today(), -1)
+
+      with {:ok, %{"total" => total}} <-
+             Tuist.Namespace.get_tenant_usage(account, yesterday, yesterday) do
+        instance_unit_minutes = get_in(total, ["instanceMinutes", "unit"]) || 0
+
+        path = Stripe.OpenApi.Path.replace_path_params("/v1/billing/meter_events", [], [])
+
+        identifier =
+          "#{customer_id}-namespace-#{Timex.format!(Tuist.Time.utc_now(), "{YYYY}.{0M}.{D}")}"
+
+        {:ok, _} =
+          []
+          |> Stripe.Request.new_request(%{"Idempotency-Key" => "#{idempotency_key}-namespace"})
+          |> Stripe.Request.put_endpoint(path)
+          |> Stripe.Request.put_params(%{
+            event_name: "namespace_unit_minute",
+            identifier: identifier,
+            payload: %{
+              value: instance_unit_minutes,
+              stripe_customer_id: customer_id
+            }
+          })
+          |> Stripe.Request.put_method(:post)
+          |> Stripe.Request.make_request()
+
+        {:ok, :updated}
+      end
+    end
+  end
+
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   def humanize_payment_method_type(type) do
     case type do
