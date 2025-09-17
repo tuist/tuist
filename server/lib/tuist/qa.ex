@@ -54,7 +54,8 @@ defmodule Tuist.QA do
               "description" => group.description,
               "value" => group.value
             }
-          end)
+          end),
+        app_description: app_build.preview.project.qa_app_description
       })
 
     app_build_url = generate_app_build_download_url(app_build)
@@ -69,7 +70,8 @@ defmodule Tuist.QA do
         run_id: qa_run.id,
         auth_token: auth_token,
         account_handle: app_build.preview.project.account.name,
-        project_handle: app_build.preview.project.name
+        project_handle: app_build.preview.project.name,
+        app_description: app_build.preview.project.qa_app_description
       }
 
       if Environment.namespace_enabled?() do
@@ -131,7 +133,8 @@ defmodule Tuist.QA do
          run_id: run_id,
          auth_token: auth_token,
          account_handle: account_handle,
-         project_handle: project_handle
+         project_handle: project_handle,
+         app_description: app_description
        }) do
     """
     set -e
@@ -141,7 +144,7 @@ defmodule Tuist.QA do
     npm i --location=global appium
     appium driver install xcuitest
     tmux new-session -d -s appium 'appium'
-    runner qa --preview-url "#{app_build_url}" --bundle-identifier #{bundle_identifier} --server-url #{server_url} --run-id #{run_id} --auth-token #{auth_token} --account-handle #{account_handle} --project-handle #{project_handle} --prompt "#{prompt}" --launch-arguments "\\"#{launch_arguments}\\"" --anthropic-api-key #{Environment.anthropic_api_key()} --openai-api-key #{Environment.openai_api_key()}
+    runner qa --preview-url "#{app_build_url}" --bundle-identifier #{bundle_identifier} --server-url #{server_url} --run-id #{run_id} --auth-token #{auth_token} --account-handle #{account_handle} --project-handle #{project_handle} --prompt "#{prompt}" --launch-arguments "\\"#{launch_arguments}\\"" --app-description "#{app_description}" --anthropic-api-key #{Environment.anthropic_api_key()} --openai-api-key #{Environment.openai_api_key()}
     """
   end
 

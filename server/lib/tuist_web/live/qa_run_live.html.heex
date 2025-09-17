@@ -524,13 +524,13 @@
     </.card>
 
     <.card
-      :if={@qa_run.launch_argument_groups != []}
+      :if={@qa_run.launch_argument_groups != [] or @qa_run.app_description != ""}
       data-part="app-context-card"
       icon="file_text"
       title={gettext("App context")}
     >
       <.card_section data-part="app-context-card-section">
-        <div data-part="launch-arguments">
+        <div :if={@qa_run.launch_argument_groups != []} data-part="launch-arguments">
           <h3 data-part="title">
             {gettext("Launch arguments")}
           </h3>
@@ -545,6 +545,15 @@
               <.text_cell label={group["value"]} />
             </:col>
           </.table>
+        </div>
+        <div :if={@qa_run.app_description != ""} data-part="app-description">
+          <h3 data-part="title">
+            {gettext("App description")}
+          </h3>
+
+          <span data-part="description">
+            {raw(Markdown.to_html(@qa_run.app_description))}
+          </span>
         </div>
       </.card_section>
     </.card>

@@ -19,6 +19,44 @@
     {gettext("QA")}
   </h2>
 
+  <.card_section data-part="app-description-card-section">
+    <div data-part="explanation">
+      <h3 data-part="title">
+        {gettext("App description")}
+      </h3>
+      <span data-part="subtitle">
+        {gettext("Edit or update the app description to ensure the agent can run tests smoothly:")}
+      </span>
+      <ul data-part="list">
+        <li>{gettext("Share your naming conventions with the LLM")}</li>
+        <li>{gettext("Provide clear instructions for testing")}</li>
+        <li>{gettext("Include expected outcomes")}</li>
+      </ul>
+    </div>
+    <.form
+      for={@qa_app_description_form}
+      id="qa-app-description-form"
+      data-part="app-description-form"
+      phx-submit="update_qa_app_description"
+      phx-change="validate_qa_app_description"
+      phx-debounce="50"
+    >
+      <.text_area
+        field={@qa_app_description_form[:qa_app_description]}
+        placeholder={gettext("Enter your app description...")}
+        rows={25}
+        max_length={2000}
+      />
+      <.button
+        type="submit"
+        label={gettext("Save")}
+        variant="primary"
+        size="medium"
+        disabled={@qa_app_description_unchanged}
+      />
+    </.form>
+  </.card_section>
+
   <.card
     data-part="launch-argument-groups-card"
     icon="password_mobile_phone"
@@ -47,17 +85,17 @@
             placeholder={gettext("argument-group-name")}
             type="basic"
           />
-          <.text_input
+          <.text_area
             field={@add_launch_argument_form[:description]}
             label={gettext("Description")}
             placeholder={gettext("Launch argument group description")}
-            type="basic"
+            show_character_count={false}
           />
-          <.text_input
+          <.text_area
             field={@add_launch_argument_form[:value]}
             label={gettext("Arguments")}
             placeholder={gettext("--my-launch-argument value")}
-            type="basic"
+            show_character_count={false}
           />
         </.form>
         <.line_divider />
@@ -125,7 +163,7 @@
                   placeholder={gettext("argument-group-name")}
                   type="basic"
                 />
-                <.text_input
+                <.text_area
                   field={
                     Map.get(@edit_launch_argument_forms, item.id, @edit_launch_argument_form)[
                       :description
@@ -133,9 +171,9 @@
                   }
                   label={gettext("Description")}
                   placeholder={gettext("Launch argument group description")}
-                  type="basic"
+                  show_character_count={false}
                 />
-                <.text_input
+                <.text_area
                   field={
                     Map.get(@edit_launch_argument_forms, item.id, @edit_launch_argument_form)[
                       :value
@@ -143,7 +181,7 @@
                   }
                   label={gettext("Arguments")}
                   placeholder="--my-launch-argument value"
-                  type="basic"
+                  show_character_count={false}
                 />
               </.form>
               <.line_divider />

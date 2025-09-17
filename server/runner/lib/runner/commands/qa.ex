@@ -37,6 +37,7 @@ defmodule Runner.Commands.QA do
           project_handle: :string,
           prompt: :string,
           launch_arguments: :string,
+          app_description: :string,
           anthropic_api_key: :string,
           openai_api_key: :string,
           help: :boolean
@@ -93,6 +94,7 @@ defmodule Runner.Commands.QA do
 
     Optional:
       --launch-arguments "<args>"  Launch arguments to pass to the app
+      --app-description "<desc>"   Description of the app to provide context to the QA agent
       --openai-api-key <key>       OpenAI API key (fallback if Anthropic fails)
       --help, -h                   Show this help message
 
