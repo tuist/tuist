@@ -1404,16 +1404,16 @@ extension PackageInfo.Target {
             ? PackageInfoMapper.predefinedTestDirectories
             : PackageInfoMapper.predefinedSourceDirectories
 
-        for dir in predefinedDirectories {
+        for directory in predefinedDirectories {
             // Standard layout: Sources/TargetName/
-            let standardPath = packageFolder.appending(components: [dir, name])
+            let standardPath = packageFolder.appending(components: [directory, name])
             if try await fileSystem.exists(standardPath) {
                 return standardPath
             }
 
             // SE-0162 layout: source files directly in Sources/
             // https://github.com/swiftlang/swift-evolution/blob/main/proposals/0162-package-manager-custom-target-layouts.md
-            let directPath = packageFolder.appending(component: dir)
+            let directPath = packageFolder.appending(component: directory)
             if try await hasSourceFiles(in: directPath, fileSystem: fileSystem) {
                 return directPath
             }
@@ -1429,9 +1429,9 @@ extension PackageInfo.Target {
         // SPM recognized source extensions
         // https://github.com/swiftlang/swift-package-manager/blob/main/Sources/PackageModel/SupportedLanguageExtension.swift
         let sourceExtensions = ["swift", "c", "cpp", "cc", "cxx", "m", "mm"]
-        for ext in sourceExtensions {
+        for `extension` in sourceExtensions {
             guard try await fileSystem
-                .glob(directory: directory, include: ["*.\(ext)"])
+                .glob(directory: directory, include: ["*.\(`extension`)"])
                 .first(where: { _ in true }) == nil
             else { return true }
         }
