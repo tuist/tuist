@@ -7,7 +7,7 @@
 public enum Package: Equatable, Codable, Sendable {
     case remote(url: String, requirement: Requirement)
     case registry(identifier: String, requirement: Requirement)
-    case local(path: Path, groupPath: Path?)
+    case local(path: Path, groupPath: Path?, excludingPath: Path?, keepStructure: Bool)
 
     private enum Kind: String, Codable {
         case remote
@@ -114,8 +114,41 @@ extension Package {
     /// on multiple tightly coupled packages.
     ///
     /// - Parameter path: The path of the package.
-    public static func package(path: Path, groupPath: Path? = nil) -> Package {
-        .local(path: path, groupPath: groupPath)
+    public static func package(path: Path) -> Package {
+        .local(path: path, groupPath: nil, excludingPath: nil, keepStructure: false)
+    }
+
+    /// Add a dependency to a local package on the filesystem.
+    ///
+    /// Use this method to add a specific group path to the packages structure
+    ///
+    /// - Parameters:
+    ///  - path: The path of the package.
+    ///  - groupPath: The path of the group package should be stored.
+    public static func package(path: Path, groupPath: Path?) -> Package {
+        .local(path: path, groupPath: groupPath, excludingPath: nil, keepStructure: false)
+    }
+
+    /// Add a dependency to a local package on the filesystem.
+    ///
+    /// Use this method to remove a specific group path to the packages structure
+    ///
+    /// - Parameters:
+    ///  - path: The path of the package.
+    ///  - excludingPath: The path that should be removed.
+    public static func package(path: Path, excludingPath: Path?) -> Package {
+        .local(path: path, groupPath: nil, excludingPath: excludingPath, keepStructure: false)
+    }
+
+    /// Add a dependency to a local package on the filesystem.
+    ///
+    /// Use this method to keep the packages structure and save them as a part of the Project
+    ///
+    /// - Parameters:
+    ///  - path: The path of the package.
+    ///  - keepStructure: The value which indicated if original structure is used to create packages.
+    public static func package(path: Path, keepStructure: Bool) -> Package {
+        .local(path: path, groupPath: nil, excludingPath: nil, keepStructure: keepStructure)
     }
 
     /// Adds a package dependency that uses the version requirement, starting with the given minimum version,
