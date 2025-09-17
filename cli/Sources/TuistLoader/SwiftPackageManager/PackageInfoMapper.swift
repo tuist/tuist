@@ -1429,13 +1429,13 @@ extension PackageInfo.Target {
         // SPM recognized source extensions
         // https://github.com/swiftlang/swift-package-manager/blob/main/Sources/PackageModel/SupportedLanguageExtension.swift
         let sourceExtensions = ["swift", "c", "cpp", "cc", "cxx", "m", "mm"]
-        for `extension` in sourceExtensions {
-            guard try await fileSystem
-                .glob(directory: directory, include: ["*.\(`extension`)"])
-                .first(where: { _ in true }) == nil
-            else { return true }
-        }
-        return false
+        let pattern = "*.{\(sourceExtensions.joined(separator: ","))}"
+
+        let hasFiles = try await fileSystem
+            .glob(directory: directory, include: [pattern])
+            .first(where: { _ in true }) != nil
+
+        return hasFiles
     }
 
     func publicHeadersPath(packageFolder: AbsolutePath) async throws -> AbsolutePath {
