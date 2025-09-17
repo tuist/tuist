@@ -19,6 +19,16 @@ defmodule Tuist.Accounts.AccountToken do
   end
 
   def create_changeset(account, attrs) do
+    attrs =
+      Map.update(attrs, :scopes, nil, fn scopes ->
+        scopes
+        |> Enum.map(fn
+          :account_registry_read -> :registry_read
+          scope -> scope
+        end)
+        |> Enum.uniq()
+      end)
+
     account
     |> cast(attrs, [:account_id, :encrypted_token_hash, :scopes])
     |> validate_required([:account_id, :encrypted_token_hash, :scopes])
