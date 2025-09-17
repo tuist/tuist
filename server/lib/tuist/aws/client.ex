@@ -14,8 +14,6 @@ defmodule Tuist.AWS.Client do
 
   @behaviour ExAws.Request.HttpClient
 
-  @default_opts [receive_timeout: 30_000]
-
   @impl true
   def request(method, url, body \\ "", headers \\ [], http_opts \\ []) do
     [
@@ -26,7 +24,7 @@ defmodule Tuist.AWS.Client do
       decode_body: false,
       finch: Tuist.Finch
     ]
-    |> Keyword.merge(Application.get_env(:ex_aws, :req_opts, @default_opts))
+    |> Keyword.merge(Application.get_env(:ex_aws, :req_opts, []))
     # the temporary fix!
     |> Keyword.merge(Keyword.delete(http_opts, :follow_redirect))
     |> Req.request()
@@ -37,5 +35,9 @@ defmodule Tuist.AWS.Client do
       {:error, reason} ->
         {:error, %{reason: reason}}
     end
+  end
+
+  def default_opts do
+    [receive_timeout: 30_000]
   end
 end

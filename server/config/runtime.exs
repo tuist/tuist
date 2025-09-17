@@ -250,8 +250,25 @@ if Tuist.Environment.env() not in [:test] do
     )
 
   config :ex_aws, :req_opts,
-    receive_timeout: to_timeout(second: Tuist.Environment.s3_request_timeout(secrets)),
-    pool_timeout: to_timeout(second: Tuist.Environment.s3_pool_timeout(secrets))
+    connect_options: [
+      # Maximum time (in ms) to establish the initial TCP/TLS connection to S3
+      # This is just for the socket connection, not the entire request
+      timeout: Tuist.Environment.s3_connect_timeout(secrets)
+    ],
+    # Maximum time (in ms) that an idle connection can remain in the pool
+    # before being closed. Helps prevent stale connections.
+    # Set to :infinity to keep connections alive indefinitely
+    pool_max_idle_time: Tuist.Environment.s3_pool_max_idle_time(secrets),
+
+    # Maximum time (in ms) to wait for data after the connection is established
+    # This timeout resets each time data is received, so large files can still
+    # be downloaded as long as data keeps flowing
+    receive_timeout: Tuist.Environment.s3_receive_timeout(secrets),
+
+    # Maximum time (in ms) to wait when checking out a connection from the pool
+    # If all connections are busy, this is how long it will wait for one to
+    # become available before timing out
+    pool_timeout: Tuist.Environment.s3_pool_timeout(secrets)
 
   config :ex_aws, :s3, s3_config
 
