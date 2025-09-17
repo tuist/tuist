@@ -48,7 +48,7 @@ defmodule Tuist.Storage do
 
         bucket_name
         |> ExAws.S3.complete_multipart_upload(object_key, upload_id, parts)
-        |> ExAws.request!(config)
+        |> ExAws.request!(Keyword.merge(config, fast_api_req_opts()))
 
         :ok
       end)
@@ -118,7 +118,7 @@ defmodule Tuist.Storage do
 
     bucket_name
     |> ExAws.S3.put_object(object_key, content)
-    |> ExAws.request!(config)
+    |> ExAws.request!(Keyword.merge(config, fast_api_req_opts()))
   end
 
   def object_exists?(object_key, actor) do
@@ -128,7 +128,7 @@ defmodule Tuist.Storage do
 
         case bucket_name
              |> ExAws.S3.head_object(object_key)
-             |> ExAws.request(config) do
+             |> ExAws.request(Keyword.merge(config, fast_api_req_opts())) do
           {:ok, _} -> true
           {:error, _} -> false
         end
@@ -150,7 +150,7 @@ defmodule Tuist.Storage do
 
         bucket_name
         |> ExAws.S3.get_object(object_key)
-        |> ExAws.request(config)
+        |> ExAws.request(Keyword.merge(config, fast_api_req_opts()))
       end)
 
     :telemetry.execute(
@@ -171,7 +171,9 @@ defmodule Tuist.Storage do
         {config, bucket_name} = s3_config_and_bucket(actor)
 
         %{body: %{upload_id: upload_id}} =
-          bucket_name |> ExAws.S3.initiate_multipart_upload(object_key) |> ExAws.request!(config)
+          bucket_name
+          |> ExAws.S3.initiate_multipart_upload(object_key)
+          |> ExAws.request!(Keyword.merge(config, fast_api_req_opts()))
 
         upload_id
       end)
@@ -229,7 +231,7 @@ defmodule Tuist.Storage do
 
         bucket_name
         |> ExAws.S3.head_object(object_key)
-        |> ExAws.request!(config)
+        |> ExAws.request!(Keyword.merge(config, fast_api_req_opts()))
         |> Map.get(:headers)
         |> Enum.find(fn {key, _value} -> key == "content-length" end)
         |> elem(1)
@@ -259,5 +261,13 @@ defmodule Tuist.Storage do
       :registry -> FunWithFlags.enabled?(:tigris)
       _ -> FunWithFlags.enabled?(:tigris, for: actor)
     end
+  end
+
+  defp fast_api_req_opts do
+    [
+      connect_options: [timeout: 3_000],
+      receive_timeout: 5_000,
+      pool_timeout: 1_000
+    ]
   end
 end
