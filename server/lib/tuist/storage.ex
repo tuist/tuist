@@ -48,7 +48,7 @@ defmodule Tuist.Storage do
 
         bucket_name
         |> ExAws.S3.complete_multipart_upload(object_key, upload_id, parts)
-        |> ExAws.request!(Keyword.merge(config, fast_api_req_opts()))
+        |> ExAws.request!(Map.merge(config, fast_api_req_opts()))
 
         :ok
       end)
@@ -118,7 +118,7 @@ defmodule Tuist.Storage do
 
     bucket_name
     |> ExAws.S3.put_object(object_key, content)
-    |> ExAws.request!(Keyword.merge(config, fast_api_req_opts()))
+    |> ExAws.request!(Map.merge(config, fast_api_req_opts()))
   end
 
   def object_exists?(object_key, actor) do
@@ -128,7 +128,7 @@ defmodule Tuist.Storage do
 
         case bucket_name
              |> ExAws.S3.head_object(object_key)
-             |> ExAws.request(Keyword.merge(config, fast_api_req_opts())) do
+             |> ExAws.request(Map.merge(config, fast_api_req_opts())) do
           {:ok, _} -> true
           {:error, _} -> false
         end
@@ -150,7 +150,7 @@ defmodule Tuist.Storage do
 
         bucket_name
         |> ExAws.S3.get_object(object_key)
-        |> ExAws.request(Keyword.merge(config, fast_api_req_opts()))
+        |> ExAws.request(Map.merge(config, fast_api_req_opts()))
       end)
 
     :telemetry.execute(
@@ -173,7 +173,7 @@ defmodule Tuist.Storage do
         %{body: %{upload_id: upload_id}} =
           bucket_name
           |> ExAws.S3.initiate_multipart_upload(object_key)
-          |> ExAws.request!(Keyword.merge(config, fast_api_req_opts()))
+          |> ExAws.request!(Map.merge(config, fast_api_req_opts()))
 
         upload_id
       end)
@@ -231,7 +231,7 @@ defmodule Tuist.Storage do
 
         bucket_name
         |> ExAws.S3.head_object(object_key)
-        |> ExAws.request!(Keyword.merge(config, fast_api_req_opts()))
+        |> ExAws.request!(Map.merge(config, fast_api_req_opts()))
         |> Map.get(:headers)
         |> Enum.find(fn {key, _value} -> key == "content-length" end)
         |> elem(1)
@@ -264,10 +264,10 @@ defmodule Tuist.Storage do
   end
 
   defp fast_api_req_opts do
-    [
+    %{
       connect_options: [timeout: 3_000],
       receive_timeout: 5_000,
       pool_timeout: 1_000
-    ]
+    }
   end
 end
