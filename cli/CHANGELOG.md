@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.76.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* Add SE-0162 support for custom SPM target layouts by [@devyhan](https://github.com/devyhan) in [#8191](https://github.com/tuist/tuist/pull/8191)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.75.0...4.76.0
+
 ## What's Changed in 4.75.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
