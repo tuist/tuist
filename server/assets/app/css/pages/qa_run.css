@@ -658,6 +658,23 @@
       gap: var(--noora-spacing-9);
       padding: var(--noora-spacing-8);
 
+      & > [data-part="credentials"] {
+        display: flex;
+        flex-direction: row;
+
+        & > [data-part="email"],
+        & > [data-part="password"] {
+          display: flex;
+          flex-grow: 1;
+          flex-direction: row;
+          justify-content: flex-start;
+
+          & > .noora-text-input {
+            width: 300px;
+          }
+        }
+      }
+
       & > [data-part="app-description"] {
         display: flex;
         flex-direction: column;
