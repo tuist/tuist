@@ -19,33 +19,19 @@ defmodule Tuist.AWS.Client do
     # Get req_opts from config
     req_opts = Application.get_env(:ex_aws, :req_opts, [])
 
-    # Merge http_opts (which may be a map or keyword list)
-    merged_opts = merge_opts(http_opts, req_opts)
-
-    # Extract connect_options and convert to Finch pool options if present
-    {connect_opts, other_opts} = pop_connect_options(merged_opts)
-
-    # Build final options with Finch
-    finch_opts = if connect_opts do
-      [
-        finch: Tuist.Finch,
-        finch_options: [
-          conn_opts: connect_opts
-        ]
-      ]
-    else
-      [finch: Tuist.Finch]
-    end
+    # Convert http_opts to keyword list if it's a map
+    http_opts_list = if is_map(http_opts), do: Map.to_list(http_opts), else: http_opts
 
     [
       method: method,
       url: url,
       body: body,
       headers: headers,
-      decode_body: false
+      decode_body: false,
+      finch: Tuist.Finch
     ]
-    |> Keyword.merge(finch_opts)
-    |> Keyword.merge(other_opts)
+    |> Keyword.merge(req_opts)
+    |> Keyword.merge(http_opts_list)
     |> Keyword.delete(:follow_redirect)
     |> Req.request()
     |> case do
@@ -55,28 +41,5 @@ defmodule Tuist.AWS.Client do
       {:error, reason} ->
         {:error, %{reason: reason}}
     end
-  end
-
-  # Helper to merge options whether they're maps or keyword lists
-  defp merge_opts(opts1, opts2) when is_map(opts1) and is_list(opts2) do
-    Map.to_list(opts1) ++ opts2
-  end
-
-  defp merge_opts(opts1, opts2) when is_list(opts1) and is_list(opts2) do
-    opts1 ++ opts2
-  end
-
-  defp merge_opts(opts1, _opts2) when is_map(opts1) do
-    Map.to_list(opts1)
-  end
-
-  defp merge_opts(opts1, _opts2) do
-    opts1
-  end
-
-  # Extract connect_options and return {connect_opts, remaining_opts}
-  defp pop_connect_options(opts) do
-    {connect_opts, remaining} = Keyword.pop(opts, :connect_options)
-    {connect_opts, remaining}
   end
 end

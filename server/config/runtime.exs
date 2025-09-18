@@ -250,11 +250,9 @@ if Tuist.Environment.env() not in [:test] do
     )
 
   config :ex_aws, :req_opts,
-    connect_options: [
-      # Maximum time (in ms) to establish the initial TCP/TLS connection to S3
-      # This is just for the socket connection, not the entire request
-      timeout: Tuist.Environment.s3_connect_timeout(secrets)
-    ],
+    # Note: connect_options cannot be used with Finch
+    # Connection timeout is handled at the Finch pool level
+
     # Maximum time (in ms) that an idle connection can remain in the pool
     # before being closed. Helps prevent stale connections.
     # Set to :infinity to keep connections alive indefinitely

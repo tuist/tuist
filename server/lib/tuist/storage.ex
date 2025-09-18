@@ -265,7 +265,6 @@ defmodule Tuist.Storage do
 
   defp fast_api_req_opts do
     %{
-      connect_options: [timeout: 3_000],
       receive_timeout: 5_000,
       pool_timeout: 1_000
     }

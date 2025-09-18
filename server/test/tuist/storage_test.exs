@@ -148,7 +148,6 @@ defmodule Tuist.StorageTest do
 
       expect(ExAws, :request!, fn ^operation, opts ->
         # Verify fast_api_req_opts are included
-        assert Map.get(opts, :connect_options) == [timeout: 3_000]
         assert Map.get(opts, :receive_timeout) == 5_000
         assert Map.get(opts, :pool_timeout) == 1_000
         assert Map.get(opts, :test) == :config
@@ -300,7 +299,6 @@ defmodule Tuist.StorageTest do
 
       expect(ExAws, :request, fn ^operation, opts ->
         # Verify fast_api_req_opts are included
-        assert Map.get(opts, :connect_options) == [timeout: 3_000]
         assert Map.get(opts, :receive_timeout) == 5_000
         assert Map.get(opts, :pool_timeout) == 1_000
         assert Map.get(opts, :test) == :config
@@ -342,7 +340,6 @@ defmodule Tuist.StorageTest do
 
       expect(ExAws, :request, fn ^operation, opts ->
         # Verify fast_api_req_opts are included
-        assert Map.get(opts, :connect_options) == [timeout: 3_000]
         assert Map.get(opts, :receive_timeout) == 5_000
         assert Map.get(opts, :pool_timeout) == 1_000
         assert Map.get(opts, :test) == :config
@@ -381,7 +378,6 @@ defmodule Tuist.StorageTest do
 
       expect(ExAws, :request, fn ^operation, opts ->
         # Verify fast_api_req_opts are included
-        assert Map.get(opts, :connect_options) == [timeout: 3_000]
         assert Map.get(opts, :receive_timeout) == 5_000
         assert Map.get(opts, :pool_timeout) == 1_000
         assert Map.get(opts, :test) == :config
@@ -423,7 +419,6 @@ defmodule Tuist.StorageTest do
 
       expect(ExAws, :request!, fn ^operation, opts ->
         # Verify fast_api_req_opts are included
-        assert Map.get(opts, :connect_options) == [timeout: 3_000]
         assert Map.get(opts, :receive_timeout) == 5_000
         assert Map.get(opts, :pool_timeout) == 1_000
         assert Map.get(opts, :test) == :config
@@ -546,7 +541,6 @@ defmodule Tuist.StorageTest do
 
       expect(ExAws, :request!, fn ^operation, opts ->
         # Verify fast_api_req_opts are included
-        assert Map.get(opts, :connect_options) == [timeout: 3_000]
         assert Map.get(opts, :receive_timeout) == 5_000
         assert Map.get(opts, :pool_timeout) == 1_000
         assert Map.get(opts, :test) == :config
