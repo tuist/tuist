@@ -105,10 +105,10 @@ RUN mix compile --warnings-as-errors
 COPY config/runtime.exs config/
 COPY rel rel
 
-RUN mix release
-
 COPY --from=npm-deps /app/node_modules /app/node_modules
 RUN mix assets.deploy
+
+RUN mix release
 
 # ========================================
 # Stage 5: Final runtime image
