@@ -190,7 +190,6 @@ public final class GraphMapperFactory: GraphMapperFactorying {
                 mappers.append(TreeShakePrunedTargetsGraphMapper())
             }
 
-            // Apply remaining mappers
             mappers.append(UpdateWorkspaceProjectsGraphMapper())
 
             if config.project.generatedProject?.generationOptions.enforceExplicitDependencies == true {
