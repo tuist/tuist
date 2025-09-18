@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.75.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* Add unordered xcodebuild command support by [@yusufozgul](https://github.com/yusufozgul) in [#8170](https://github.com/tuist/tuist/pull/8170)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.74.1...4.75.0
+
 ## What's Changed in 4.74.1<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
