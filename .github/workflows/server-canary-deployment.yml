@@ -36,12 +36,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         if: ${{ github.event.inputs.commit_sha == '' }}
+        with:
+          fetch-depth: 0
       - uses: actions/checkout@v4
         if: ${{ github.event.inputs.commit_sha != '' }}
         with:
           ref: ${{ github.event.inputs.commit_sha }}
+          fetch-depth: 0
       - uses: jdx/mise-action@v2
-      - run: mise run install
+        with:
+          working_directory: server
       - name: "Get version"
         id: version
         run: |
