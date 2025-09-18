@@ -156,7 +156,6 @@ public final class GraphMapperFactory: GraphMapperFactorying {
 
             mappers.append(UpdateWorkspaceProjectsGraphMapper())
 
-            // Apply explicit dependencies if configured
             if config.project.generatedProject?.generationOptions.enforceExplicitDependencies == true {
                 mappers.append(ExplicitDependencyGraphMapper())
             }
