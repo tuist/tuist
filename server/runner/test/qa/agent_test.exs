@@ -12,6 +12,7 @@ defmodule Runner.QA.AgentTest do
   alias Runner.QA.Client
   alias Runner.QA.Simulators
   alias Runner.QA.Simulators.SimulatorDevice
+  alias Runner.QA.Sleeper
   alias Runner.QA.Tools
 
   setup do
@@ -95,6 +96,8 @@ defmodule Runner.QA.AgentTest do
     end)
 
     stub(Client, :stream_log, fn :fake_log_streamer_pid, _log_params -> :ok end)
+
+    stub(Sleeper, :sleep, fn _milliseconds -> :ok end)
 
     {:ok, device: device, preview_path: preview_path, extract_dir: extract_dir, app_path: app_path}
   end

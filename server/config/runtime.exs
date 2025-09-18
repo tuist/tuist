@@ -117,8 +117,6 @@ if Enum.member?([:prod, :stag, :can], env) do
       database_options
     end
 
-  config :tuist, Tuist.Repo, database_options
-
   dns_name = System.get_env("RENDER_DISCOVERY_SERVICE")
   app_name = System.get_env("RENDER_SERVICE_NAME")
 
@@ -165,6 +163,8 @@ if Enum.member?([:prod, :stag, :can], env) do
   #
   # Check `Plug.SSL` for all available options in `force_ssl`.
   config :logger, level: Tuist.Environment.log_level()
+
+  config :tuist, Tuist.Repo, database_options
 end
 
 if Enum.member?([:prod, :stag, :can, :dev], env) do
