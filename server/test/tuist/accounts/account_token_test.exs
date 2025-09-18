@@ -1,6 +1,8 @@
 defmodule Tuist.Accounts.AccountTokenTest do
   use TuistTestSupport.Cases.DataCase
 
+  import Ecto.Changeset
+
   alias Tuist.Accounts.AccountToken
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
@@ -63,6 +65,40 @@ defmodule Tuist.Accounts.AccountTokenTest do
 
       # Then
       assert got.valid?
+    end
+
+    test "maps account_registry_read scope to registry_read" do
+      # Given
+      token = %AccountToken{}
+
+      # When
+      got =
+        AccountToken.create_changeset(token, %{
+          account_id: 1,
+          encrypted_token_hash: "hash",
+          scopes: [:account_registry_read]
+        })
+
+      # Then
+      assert got.valid?
+      assert get_change(got, :scopes) == [:registry_read]
+    end
+
+    test "maps account_registry_read scope to registry_read while preserving other scopes, deduplicating" do
+      # Given
+      token = %AccountToken{}
+
+      # When
+      got =
+        AccountToken.create_changeset(token, %{
+          account_id: 1,
+          encrypted_token_hash: "hash",
+          scopes: [:account_registry_read, :registry_read]
+        })
+
+      # Then
+      assert got.valid?
+      assert get_change(got, :scopes) == [:registry_read]
     end
 
     test "ensures account_id and encrypted_token_hash are unique" do
