@@ -169,17 +169,59 @@ defmodule Tuist.Environment do
     end
   end
 
-  def s3_request_timeout(secrets \\ secrets()) do
-    case get([:s3, :request_timeout], secrets) do
-      request_timeout when is_binary(request_timeout) -> String.to_integer(request_timeout)
-      _ -> 30
+  def s3_connect_timeout(secrets \\ secrets()) do
+    case get([:s3, :connect_timeout], secrets) do
+      "infinity" ->
+        :infinity
+
+      connect_timeout when is_binary(connect_timeout) ->
+        to_timeout(second: String.to_integer(connect_timeout))
+
+      _ ->
+        # Standard timeout for establishing connections
+        to_timeout(second: 10)
+    end
+  end
+
+  def s3_receive_timeout(secrets \\ secrets()) do
+    case get([:s3, :receive_timeout], secrets) do
+      "infinity" ->
+        :infinity
+
+      receive_timeout when is_binary(receive_timeout) ->
+        to_timeout(second: String.to_integer(receive_timeout))
+
+      _ ->
+        # Generous receive timeout for large file downloads
+        to_timeout(minute: 1)
     end
   end
 
   def s3_pool_timeout(secrets \\ secrets()) do
     case get([:s3, :pool_timeout], secrets) do
-      pool_timeout when is_binary(pool_timeout) -> String.to_integer(pool_timeout)
-      _ -> 5
+      "infinity" ->
+        :infinity
+
+      pool_timeout when is_binary(pool_timeout) ->
+        to_timeout(second: String.to_integer(pool_timeout))
+
+      _ ->
+        # Standard pool timeout
+        to_timeout(second: 5)
+    end
+  end
+
+  def s3_pool_max_idle_time(secrets \\ secrets()) do
+    case get([:s3, :pool_max_idle_time], secrets) do
+      "infinity" ->
+        :infinity
+
+      pool_max_idle_time when is_binary(pool_max_idle_time) ->
+        to_timeout(second: String.to_integer(pool_max_idle_time))
+
+      _ ->
+        # Keep the connections alive for reusability
+        :infinity
     end
   end
 
@@ -194,7 +236,7 @@ defmodule Tuist.Environment do
   def s3_pool_count(secrets \\ secrets()) do
     case get([:s3, :pool_count], secrets) do
       pool_count when is_binary(pool_count) -> String.to_integer(pool_count)
-      _ -> 1
+      _ -> System.schedulers_online()
     end
   end
 
