@@ -10,6 +10,7 @@
   "erlang" = "27.3.2"
   "asdf:aeons/asdf-minio" = "latest"
   "npm:appium" = "3.0.1"
+  "github:render-oss/cli" = "2.2.0"
 
 [env]
   TUIST_HOSTED = "1"
