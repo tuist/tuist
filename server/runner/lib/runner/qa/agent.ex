@@ -56,6 +56,9 @@ defmodule Runner.QA.Agent do
     anthropic_api_key = Keyword.get(opts, :anthropic_api_key)
     openai_api_key = Keyword.get(opts, :openai_api_key)
     launch_arguments = Map.get(attrs, :launch_arguments, "")
+    app_description = Map.get(attrs, :app_description, "")
+    email = Map.get(attrs, :email, "")
+    password = Map.get(attrs, :password, "")
 
     with {:ok, simulator_device} <- simulator_device(),
          :ok <- run_preview(preview_url, bundle_identifier, simulator_device, launch_arguments),
@@ -73,7 +76,8 @@ defmodule Runner.QA.Agent do
              run_id: run_id,
              auth_token: auth_token
            }),
-         {:ok, appium_session} <- AppiumClient.start_session(simulator_device.udid, bundle_identifier) do
+         {:ok, appium_session} <-
+           AppiumClient.start_session(simulator_device.udid, bundle_identifier) do
       handler = %{
         on_message_processed: fn _chain,
                                  %Message{
@@ -132,8 +136,28 @@ defmodule Runner.QA.Agent do
         end
       }
 
+      app_context =
+        if app_description == "",
+          do: "",
+          else: """
+
+          Here's additional context about the app you're testing:
+          #{app_description}
+          """
+
+      credentials_context =
+        if email == "" or password == "",
+          do: "",
+          else: """
+
+          Test account credentials for sign-in:
+          Email: #{email}
+          Password: #{password}
+          Use these credentials if the app requires authentication or login.
+          """
+
       prompt = """
-      You are a QA agent. Test the following: #{prompt}.
+      You are a QA agent testing a mobile iOS app. Test the following: #{prompt}.
 
       First, understand what you need to test. Then, set up a plan to test the feature and execute on it without asking for additional instructions.
 
@@ -143,6 +167,7 @@ defmodule Runner.QA.Agent do
       - To dismiss a system sheet, tap within the visible screen area but outside the sheet, such in the dark/grayed area above the sheet
       - If a button includes text, prefer tapping on the text to interact with the button
       - When you recognize placeholder/pre-filled fields, you must never clear the placeholder value. Instead, replace the text directly with type_text tool.
+      #{app_context}#{credentials_context}
       """
 
       llm =
@@ -177,8 +202,21 @@ defmodule Runner.QA.Agent do
           simulator_uuid: simulator_device.udid
         })
 
+      {:ok, recording_path} = Briefly.create()
+
       case run_llm(
-             %{llm: llm, with_fallbacks: with_fallbacks, max_retry_count: 10},
+             %{
+               llm: llm,
+               with_fallbacks: with_fallbacks,
+               max_retry_count: 10,
+               recording_path: recording_path,
+               simulator_device: simulator_device,
+               server_url: server_url,
+               run_id: run_id,
+               auth_token: auth_token,
+               account_handle: account_handle,
+               project_handle: project_handle
+             },
              handler,
              [Message.new_user!(prompt)],
              tools
@@ -199,11 +237,71 @@ defmodule Runner.QA.Agent do
 
           {:error, error_message}
 
-        result ->
+        {:ok, attrs} ->
+          upload_recording(attrs)
           AppiumClient.stop_session(appium_session)
-          result
+          :ok
       end
     end
+  end
+
+  defp upload_recording(%{
+         recording_path: recording_path,
+         recording_port: recording_port,
+         recording_started_at: recording_started_at,
+         server_url: server_url,
+         run_id: run_id,
+         auth_token: auth_token,
+         account_handle: account_handle,
+         project_handle: project_handle
+       }) do
+    Simulators.stop_recording(recording_port)
+
+    {:ok, fixed_recording_path} = Briefly.create(extname: ".mp4")
+
+    {_, 0} =
+      System.cmd("ffmpeg", [
+        "-y",
+        "-i",
+        recording_path,
+        "-r",
+        "30",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "veryfast",
+        "-crf",
+        "23",
+        "-vsync",
+        "cfr",
+        fixed_recording_path
+      ])
+
+    {output, 0} =
+      System.cmd("ffprobe", [
+        "-v",
+        "error",
+        "-show_entries",
+        "format=duration",
+        "-of",
+        "default=noprint_wrappers=1:nokey=1",
+        fixed_recording_path
+      ])
+
+    duration_seconds = output |> String.trim() |> String.to_float()
+    duration_ms = round(duration_seconds * 1000)
+
+    {:ok, _} =
+      Client.upload_recording(%{
+        server_url: server_url,
+        run_id: run_id,
+        auth_token: auth_token,
+        account_handle: account_handle,
+        project_handle: project_handle,
+        recording_path: fixed_recording_path,
+        started_at: recording_started_at,
+        duration_ms: duration_ms
+      })
   end
 
   defp run_llm(%{with_fallbacks: with_fallbacks} = attrs, handler, messages, tools) do
@@ -228,7 +326,21 @@ defmodule Runner.QA.Agent do
        ) do
     case tool_result.name do
       "finalize" ->
-        :ok
+        {:ok, attrs}
+
+      "plan_report" ->
+        recording_port =
+          Simulators.start_recording(attrs.simulator_device, attrs.recording_path)
+
+        attrs =
+          attrs
+          |> Map.put(:recording_port, recording_port)
+          |> Map.put(:recording_started_at, DateTime.utc_now())
+
+        messages =
+          clear_ui_and_screenshot_messages(Enum.drop(messages, -1)) ++ [List.last(messages)]
+
+        run_llm(attrs, handler, messages, tools)
 
       tool_name ->
         messages =
@@ -344,7 +456,7 @@ defmodule Runner.QA.Agent do
                   true
 
                 %ContentPart{type: :text, content: text_content} ->
-                  String.starts_with?(text_content, "Current UI")
+                  String.starts_with?(text_content, "{\"AppiumAUT\"")
 
                 _ ->
                   false
@@ -378,7 +490,7 @@ defmodule Runner.QA.Agent do
         device =
           Enum.find(devices, fn device ->
             device.name == "iPhone 16" and
-              device.runtime_identifier == "com.apple.CoreSimulator.SimRuntime.iOS-18-6"
+              device.runtime_identifier == "com.apple.CoreSimulator.SimRuntime.iOS-26-0"
           end)
 
         case device do

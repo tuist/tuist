@@ -116,58 +116,31 @@ defmodule Tuist.CommandEvents.Clickhouse do
     IngestRepo.delete_all(from(c in Event, where: c.project_id in ^project_ids))
   end
 
-  def list_customer_id_and_remote_cache_hits_count_pairs(attrs \\ %{}) do
+  def list_billable_customers do
     now = DateTime.utc_now()
     start_of_yesterday = now |> Timex.shift(days: -1) |> Timex.beginning_of_day()
     end_of_yesterday = now |> Timex.shift(days: -1) |> Timex.end_of_day()
 
-    project_customer_pairs =
-      from(a in Account,
-        join: p in Project,
-        on: p.account_id == a.id,
-        where: not is_nil(a.customer_id),
-        select: {p.id, a.customer_id}
-      )
-      |> Repo.all()
-      |> Map.new()
+    from(e in Event,
+      where: e.ran_at >= ^start_of_yesterday and e.ran_at <= ^end_of_yesterday,
+      group_by: e.project_id,
+      select: e.project_id
+    )
+    |> ClickHouseRepo.all()
+    |> case do
+      [] ->
+        []
 
-    if Enum.empty?(project_customer_pairs) do
-      {[], %{}}
-    else
-      project_ids = Map.keys(project_customer_pairs)
-
-      query =
-        from(e in Event,
-          where:
-            e.ran_at >= ^start_of_yesterday and e.ran_at <= ^end_of_yesterday and
-              e.project_id in ^project_ids,
-          group_by: e.project_id,
-          select: %{
-            project_id: e.project_id,
-            count:
-              sum(
-                fragment(
-                  "CASE WHEN COALESCE(length(?), 0) > 0 OR COALESCE(length(?), 0) > 0 THEN 1 ELSE 0 END",
-                  e.remote_cache_target_hits,
-                  e.remote_test_target_hits
-                )
-              )
-          }
+      project_ids ->
+        Repo.all(
+          from(p in Project,
+            join: a in Account,
+            on: p.account_id == a.id,
+            where: p.id in ^project_ids and not is_nil(a.customer_id),
+            distinct: a.customer_id,
+            select: a.customer_id
+          )
         )
-
-      {events_by_project, meta} = ClickHouseFlop.validate_and_run!(query, attrs, for: Event)
-
-      customer_counts =
-        events_by_project
-        |> Enum.reduce(%{}, fn %{project_id: project_id, count: count}, acc ->
-          case Map.get(project_customer_pairs, project_id) do
-            nil -> acc
-            customer_id -> Map.update(acc, customer_id, count, &(&1 + count))
-          end
-        end)
-        |> Enum.map(fn {customer_id, count} -> {customer_id, count} end)
-
-      {customer_counts, meta}
     end
   end
 
@@ -192,6 +165,39 @@ defmodule Tuist.CommandEvents.Clickhouse do
     )
     |> ClickHouseRepo.all()
     |> Map.new(fn %{project_id: id, last_interacted_at: time} -> {id, time} end)
+  end
+
+  def get_yesterdays_remote_cache_hits_count_for_customer(customer_id) do
+    now = DateTime.utc_now()
+    start_of_yesterday = now |> Timex.shift(days: -1) |> Timex.beginning_of_day()
+    end_of_yesterday = now |> Timex.shift(days: -1) |> Timex.end_of_day()
+
+    from(p in Project,
+      join: a in Account,
+      on: p.account_id == a.id,
+      where: a.customer_id == ^customer_id,
+      select: p.id
+    )
+    |> Repo.all()
+    |> case do
+      [] ->
+        0
+
+      project_ids ->
+        ClickHouseRepo.one(
+          from(e in Event,
+            where: e.ran_at >= ^start_of_yesterday and e.ran_at <= ^end_of_yesterday and e.project_id in ^project_ids,
+            select:
+              sum(
+                fragment(
+                  "CASE WHEN COALESCE(length(?), 0) > 0 OR COALESCE(length(?), 0) > 0 THEN 1 ELSE 0 END",
+                  e.remote_cache_target_hits,
+                  e.remote_test_target_hits
+                )
+              )
+          )
+        )
+    end
   end
 
   def get_command_event_by_build_run_id(build_run_id) do

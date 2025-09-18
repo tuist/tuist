@@ -16,7 +16,7 @@ defmodule Tuist.API.Pipeline do
       ],
       processors: [default: [concurrency: 1]],
       batchers: [
-        db: [concurrency: 1, batch_size: 100, batch_timeout: to_timeout(second: 5)]
+        db: [concurrency: 1, batch_size: 20, batch_timeout: to_timeout(second: 5)]
       ]
     )
   end
@@ -43,21 +43,6 @@ defmodule Tuist.API.Pipeline do
     message
     |> Message.put_batch_key({event_name, project_id})
     |> Message.put_batcher(:db)
-  end
-
-  @impl true
-  def handle_batch(:db, cache_events, %{batch_key: {:create_cache_event, _}}, _) do
-    events_count = length(cache_events)
-
-    cache_events
-    |> Enum.map(fn %{data: {:create_cache_event, cache_event}} ->
-      cache_event
-    end)
-    |> Tuist.CommandEvents.create_cache_events()
-    |> case do
-      {^events_count, nil} -> cache_events
-      _ -> Enum.map(cache_events, &Message.failed(&1, :insert_all_error))
-    end
   end
 
   @impl true

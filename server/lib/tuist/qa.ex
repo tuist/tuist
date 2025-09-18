@@ -20,7 +20,9 @@ defmodule Tuist.QA do
   alias Tuist.Environment
   alias Tuist.Namespace
   alias Tuist.Projects
+  alias Tuist.QA.LaunchArgumentGroup
   alias Tuist.QA.Log
+  alias Tuist.QA.Recording
   alias Tuist.QA.Run
   alias Tuist.QA.Screenshot
   alias Tuist.QA.Step
@@ -35,36 +37,45 @@ defmodule Tuist.QA do
   EEx.function_from_file(:defp, :render_qa_summary, @qa_summary_template_path, [:assigns])
 
   @doc """
-  Run a QA test run for the given app build.
+  Run a QA test run for the given QA run.
   """
-  def test(%{app_build: %AppBuild{id: app_build_id} = app_build, prompt: prompt} = params) do
-    app_build = Repo.preload(app_build, preview: [project: :account])
-    issue_comment_id = Map.get(params, :issue_comment_id)
+  def test(%Run{} = qa_run) do
+    qa_run = Repo.preload(qa_run, app_build: [preview: [project: :account]])
+    app_build = qa_run.app_build
 
-    launch_argument_groups = select_launch_argument_groups(prompt, app_build.preview.project)
+    launch_argument_groups = select_launch_argument_groups(qa_run.prompt, app_build.preview.project)
 
-    with {:ok, qa_run} <-
-           create_qa_run(%{
-             app_build_id: app_build_id,
-             prompt: prompt,
-             status: "pending",
-             issue_comment_id: issue_comment_id,
-             git_ref: app_build.preview.git_ref,
-             vcs_provider: app_build.preview.project.vcs_provider,
-             vcs_repository_full_handle: app_build.preview.project.vcs_repository_full_handle
-           }),
-         app_build_url = generate_app_build_download_url(app_build),
-         {:ok, auth_token} <- create_qa_auth_token(app_build) do
+    {:ok, qa_run} =
+      update_qa_run(qa_run, %{
+        launch_argument_groups:
+          Enum.map(launch_argument_groups, fn group ->
+            %{
+              "name" => group.name,
+              "description" => group.description,
+              "value" => group.value
+            }
+          end),
+        app_description: app_build.preview.project.qa_app_description,
+        email: app_build.preview.project.qa_email,
+        password: app_build.preview.project.qa_password
+      })
+
+    app_build_url = generate_app_build_download_url(app_build)
+
+    with {:ok, auth_token} <- create_qa_auth_token(app_build) do
       attrs = %{
         preview_url: app_build_url,
         bundle_identifier: app_build.preview.bundle_identifier,
-        prompt: prompt,
+        prompt: qa_run.prompt,
         launch_arguments: Enum.map_join(launch_argument_groups, " ", & &1.value),
         server_url: Environment.app_url(),
         run_id: qa_run.id,
         auth_token: auth_token,
         account_handle: app_build.preview.project.account.name,
-        project_handle: app_build.preview.project.name
+        project_handle: app_build.preview.project.name,
+        app_description: app_build.preview.project.qa_app_description,
+        email: app_build.preview.project.qa_email,
+        password: app_build.preview.project.qa_password
       }
 
       if Environment.namespace_enabled?() do
@@ -126,16 +137,20 @@ defmodule Tuist.QA do
          run_id: run_id,
          auth_token: auth_token,
          account_handle: account_handle,
-         project_handle: project_handle
+         project_handle: project_handle,
+         app_description: app_description,
+         email: email,
+         password: password
        }) do
     """
     set -e
 
     brew install cameroncooke/axe/axe --quiet || true
+    brew install ffmpeg
     npm i --location=global appium
     appium driver install xcuitest
     tmux new-session -d -s appium 'appium'
-    runner qa --preview-url "#{app_build_url}" --bundle-identifier #{bundle_identifier} --server-url #{server_url} --run-id #{run_id} --auth-token #{auth_token} --account-handle #{account_handle} --project-handle #{project_handle} --prompt "#{prompt}" --launch-arguments #{launch_arguments} --anthropic-api-key #{Environment.anthropic_api_key()} --openai-api-key #{Environment.openai_api_key()}
+    runner qa --preview-url "#{app_build_url}" --bundle-identifier #{bundle_identifier} --server-url #{server_url} --run-id #{run_id} --auth-token #{auth_token} --account-handle #{account_handle} --project-handle #{project_handle} --prompt "#{prompt}" --launch-arguments "\\"#{launch_arguments}\\"" --app-description "#{app_description}" --email "#{email}" --password "#{password}" --anthropic-api-key #{Environment.anthropic_api_key()} --openai-api-key #{Environment.openai_api_key()}
     """
   end
 
@@ -158,12 +173,56 @@ defmodule Tuist.QA do
   end
 
   @doc """
+  Creates a new QA recording.
+  """
+  def create_qa_recording(attrs) do
+    %Recording{}
+    |> Recording.create_changeset(attrs)
+    |> Repo.insert()
+  end
+
+  @doc """
   Creates a new QA run step.
   """
   def create_qa_step(attrs) do
     %Step{}
     |> Step.changeset(attrs)
     |> Repo.insert()
+  end
+
+  @doc """
+  Creates a new launch argument group.
+  """
+  def create_launch_argument_group(attrs) do
+    %LaunchArgumentGroup{}
+    |> LaunchArgumentGroup.create_changeset(attrs)
+    |> Repo.insert()
+  end
+
+  @doc """
+  Updates a launch argument group.
+  """
+  def update_launch_argument_group(%LaunchArgumentGroup{} = launch_argument_group, attrs) do
+    launch_argument_group
+    |> LaunchArgumentGroup.update_changeset(attrs)
+    |> Repo.update()
+  end
+
+  @doc """
+  Deletes a launch argument group.
+  """
+  def delete_launch_argument_group(%LaunchArgumentGroup{} = launch_argument_group) do
+    Repo.delete(launch_argument_group)
+  end
+
+  @doc """
+  Gets a launch argument group by ID.
+  """
+  def get_launch_argument_group(id) do
+    case Repo.get(LaunchArgumentGroup, id) do
+      nil -> {:error, :not_found}
+      launch_argument_group -> {:ok, launch_argument_group}
+    end
   end
 
   @doc """
@@ -401,7 +460,14 @@ defmodule Tuist.QA do
         qa_run_id: qa_run_id,
         screenshot_id: screenshot_id
       }) do
-    "#{String.downcase(account_handle)}/#{String.downcase(project_handle)}/qa/screenshots/#{qa_run_id}/#{screenshot_id}.png"
+    "#{String.downcase(account_handle)}/#{String.downcase(project_handle)}/qa/#{qa_run_id}/screenshots/#{screenshot_id}.png"
+  end
+
+  @doc """
+  Generates a storage key for a QA recording.
+  """
+  def recording_storage_key(%{account_handle: account_handle, project_handle: project_handle, qa_run_id: qa_run_id}) do
+    "#{String.downcase(account_handle)}/#{String.downcase(project_handle)}/qa/#{qa_run_id}/recording.mp4"
   end
 
   @doc """
@@ -916,6 +982,7 @@ defmodule Tuist.QA do
   end
 
   defp filter_usage_logs_if_needed(logs, true), do: Enum.reject(logs, &(to_atom(&1.type) == :usage))
+
   defp filter_usage_logs_if_needed(logs, false), do: logs
 
   defp prepare_and_format_log(log) do
@@ -964,7 +1031,10 @@ defmodule Tuist.QA do
     "#{pad_number(h)}:#{pad_number(m)}:#{pad_number(s)}"
   end
 
-  defp format_timestamp(_), do: "??:??:??"
+  defp format_timestamp(%DateTime{} = dt) do
+    %{hour: h, minute: m, second: s} = DateTime.to_time(dt)
+    "#{pad_number(h)}:#{pad_number(m)}:#{pad_number(s)}"
+  end
 
   defp pad_number(n), do: String.pad_leading(to_string(n), 2, "0")
 
@@ -982,7 +1052,9 @@ defmodule Tuist.QA do
       qa_run_id: qa_run_id
     } = log.screenshot_metadata
 
-    image_url = "/#{account_handle}/#{project_handle}/qa/runs/#{qa_run_id}/screenshots/#{screenshot_id}"
+    image_url =
+      "/#{account_handle}/#{project_handle}/qa/runs/#{qa_run_id}/screenshots/#{screenshot_id}"
+
     Map.put(formatted, :image, image_url)
   end
 
@@ -1023,15 +1095,30 @@ defmodule Tuist.QA do
 
   defp prettify_content_part(part), do: part
 
-  @action_tools ["tap", "swipe", "long_press", "type_text", "key_press", "button", "touch", "gesture", "plan_report"]
+  @action_tools [
+    "tap",
+    "swipe",
+    "long_press",
+    "type_text",
+    "key_press",
+    "button",
+    "touch",
+    "gesture",
+    "plan_report"
+  ]
 
   defp has_screenshot?(log) do
     case JSON.decode(log.data) do
       {:ok, data} ->
         case data do
-          %{"name" => "screenshot"} -> true
-          %{"name" => name, "content" => content} when name in @action_tools -> has_screenshot_in_content?(content)
-          _ -> false
+          %{"name" => "screenshot"} ->
+            true
+
+          %{"name" => name, "content" => content} when name in @action_tools ->
+            has_screenshot_in_content?(content)
+
+          _ ->
+            false
         end
 
       {:error, _} ->

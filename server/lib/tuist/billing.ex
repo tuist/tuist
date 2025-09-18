@@ -13,6 +13,7 @@ defmodule Tuist.Billing do
   alias Tuist.Billing.PaymentMethod
   alias Tuist.Billing.Subscription
   alias Tuist.Billing.TokenUsage
+  alias Tuist.CommandEvents
   alias Tuist.Repo
 
   # Unfortunately, this data can't be obtained and cached
@@ -91,7 +92,8 @@ defmodule Tuist.Billing do
     session
   end
 
-  def update_remote_cache_hit_meter({customer_id, count}) do
+  def update_remote_cache_hit_meter(customer_id, idempotency_key) do
+    count = CommandEvents.get_yesterdays_remote_cache_hits_count_for_customer(customer_id)
     path = Stripe.OpenApi.Path.replace_path_params("/v1/billing/meter_events", [], [])
 
     identifier =
@@ -99,7 +101,7 @@ defmodule Tuist.Billing do
 
     {:ok, _} =
       []
-      |> Stripe.Request.new_request()
+      |> Stripe.Request.new_request(%{"Idempotency-Key" => "#{idempotency_key}-remote-cache-hit"})
       |> Stripe.Request.put_endpoint(path)
       |> Stripe.Request.put_params(%{
         event_name: "remote_cache_hit",
@@ -476,6 +478,107 @@ defmodule Tuist.Billing do
       }
     end)
     |> Enum.sort_by(& &1.twelve_month.total_tokens, :desc)
+  end
+
+  @doc """
+  Gets LLM token usage for a specific customer for the current billing period (yesterday).
+  Returns {input_tokens, output_tokens}.
+  """
+  def get_yesterdays_customer_llm_token_usage(customer_id) do
+    now = DateTime.utc_now()
+    start_of_yesterday = now |> Timex.shift(days: -1) |> Timex.beginning_of_day()
+    end_of_yesterday = now |> Timex.shift(days: -1) |> Timex.end_of_day()
+
+    Repo.one(
+      from(tu in TokenUsage,
+        join: a in assoc(tu, :account),
+        where:
+          a.customer_id == ^customer_id and tu.timestamp >= ^start_of_yesterday and tu.timestamp <= ^end_of_yesterday,
+        select: {sum(tu.input_tokens), sum(tu.output_tokens)}
+      )
+    )
+  end
+
+  @doc """
+  Updates both LLM input and output token usage meters in Stripe for a specific customer.
+  Fetches the current period token usage and updates both meters.
+  """
+  def update_llm_token_meters(customer_id, idempotency_key) do
+    {input_tokens, output_tokens} = get_yesterdays_customer_llm_token_usage(customer_id)
+    path = Stripe.OpenApi.Path.replace_path_params("/v1/billing/meter_events", [], [])
+
+    input_identifier = "#{customer_id}-input-#{Timex.format!(Tuist.Time.utc_now(), "{YYYY}.{0M}.{D}")}"
+
+    {:ok, _} =
+      []
+      |> Stripe.Request.new_request(%{"Idempotency-Key" => "#{idempotency_key}-input"})
+      |> Stripe.Request.put_endpoint(path)
+      |> Stripe.Request.put_params(%{
+        event_name: "llm_input_token",
+        identifier: input_identifier,
+        payload: %{
+          value: input_tokens,
+          stripe_customer_id: customer_id
+        }
+      })
+      |> Stripe.Request.put_method(:post)
+      |> Stripe.Request.make_request()
+
+    output_identifier = "#{customer_id}-output-#{Timex.format!(Tuist.Time.utc_now(), "{YYYY}.{0M}.{D}")}"
+
+    {:ok, _} =
+      []
+      |> Stripe.Request.new_request(%{"Idempotency-Key" => "#{idempotency_key}-output"})
+      |> Stripe.Request.put_endpoint(path)
+      |> Stripe.Request.put_params(%{
+        event_name: "llm_output_token",
+        identifier: output_identifier,
+        payload: %{
+          value: output_tokens,
+          stripe_customer_id: customer_id
+        }
+      })
+      |> Stripe.Request.put_method(:post)
+      |> Stripe.Request.make_request()
+  end
+
+  @doc """
+  Fetches Namespace compute usage for yesterday and updates the Stripe meter
+  for instance unit minutes (event name: `namespace_unit_minute`).
+  """
+  def update_namespace_usage_meter(customer_id, idempotency_key) do
+    with %Account{} = account when is_binary(account.namespace_tenant_id) <-
+           Accounts.get_account_from_customer_id(customer_id) do
+      # Namespace compute usage is reported by day, so being more specific than `Date` is unnecessary.
+      yesterday = Date.add(Date.utc_today(), -1)
+
+      with {:ok, %{"total" => total}} <-
+             Tuist.Namespace.get_tenant_usage(account, yesterday, yesterday) do
+        instance_unit_minutes = get_in(total, ["instanceMinutes", "unit"]) || 0
+
+        path = Stripe.OpenApi.Path.replace_path_params("/v1/billing/meter_events", [], [])
+
+        identifier =
+          "#{customer_id}-namespace-#{Timex.format!(Tuist.Time.utc_now(), "{YYYY}.{0M}.{D}")}"
+
+        {:ok, _} =
+          []
+          |> Stripe.Request.new_request(%{"Idempotency-Key" => "#{idempotency_key}-namespace"})
+          |> Stripe.Request.put_endpoint(path)
+          |> Stripe.Request.put_params(%{
+            event_name: "namespace_unit_minute",
+            identifier: identifier,
+            payload: %{
+              value: instance_unit_minutes,
+              stripe_customer_id: customer_id
+            }
+          })
+          |> Stripe.Request.put_method(:post)
+          |> Stripe.Request.make_request()
+
+        {:ok, :updated}
+      end
+    end
   end
 
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity

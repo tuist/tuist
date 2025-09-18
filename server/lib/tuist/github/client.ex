@@ -14,10 +14,22 @@ defmodule Tuist.GitHub.Client do
     case request.method do
       method when method in [:get, :head] ->
         case response_or_exception do
-          %Req.Response{status: status} when status in [408, 429, 500, 502, 503, 504] -> true
-          %Req.TransportError{reason: reason} when reason in [:timeout, :econnrefused, :closed] -> true
-          %Req.HTTPError{protocol: :http2, reason: reason} when reason in [:unprocessed, :closed_for_writing] -> true
-          _ -> false
+          %Req.Response{status: status} when status in [408, 429, 500, 502, 503, 504] ->
+            true
+
+          %Req.TransportError{reason: reason} when reason in [:timeout, :econnrefused, :closed] ->
+            true
+
+          %Req.HTTPError{protocol: :http2, reason: reason}
+          when reason in [
+                 :unprocessed,
+                 :closed_for_writing,
+                 {:server_closed_request, :refused_stream}
+               ] ->
+            true
+
+          _ ->
+            false
         end
 
       _ ->

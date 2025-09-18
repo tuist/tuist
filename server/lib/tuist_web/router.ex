@@ -19,7 +19,8 @@ defmodule TuistWeb.Router do
     plug :put_content_security_policy,
       img_src:
         "'self' data: https://github.com https://*.githubusercontent.com https://*.gravatar.com https://*.s3.amazonaws.com",
-      media_src: "'self' https://*.mastodon.social https://hachyderm.io https://fosstodon.org",
+      media_src:
+        "'self' https://*.mastodon.social https://hachyderm.io https://fosstodon.org http://localhost:9095 https://t3.storage.dev",
       style_src:
         "'self' 'unsafe-inline' https://fonts.googleapis.com https://chat.cdn-plain.com https://cdn.jsdelivr.net https://rsms.me",
       style_src_attr: "'unsafe-inline'",
@@ -136,10 +137,6 @@ defmodule TuistWeb.Router do
 
     get "/changelog/atom.xml", MarketingController, :changelog_atom, metadata: %{type: :marketing}
 
-    get "/newsletter/rss.xml", MarketingController, :newsletter_rss, metadata: %{type: :marketing}
-
-    get "/newsletter/atom.xml", MarketingController, :newsletter_atom, metadata: %{type: :marketing}
-
     get "/sitemap.xml", MarketingController, :sitemap, metadata: %{type: :marketing}
   end
 
@@ -209,6 +206,18 @@ defmodule TuistWeb.Router do
       get Path.join(locale_path_prefix, "/newsletter"),
           MarketingController,
           :newsletter,
+          metadata: %{type: :marketing},
+          private: private
+
+      post Path.join(locale_path_prefix, "/newsletter"),
+           MarketingController,
+           :newsletter_signup,
+           metadata: %{type: :marketing},
+           private: private
+
+      get Path.join(locale_path_prefix, "/newsletter/verify"),
+          MarketingController,
+          :newsletter_verify,
           metadata: %{type: :marketing},
           private: private
 
@@ -307,6 +316,16 @@ defmodule TuistWeb.Router do
           patch "/runs/:qa_run_id", QAController, :update_run
 
           post "/runs/:qa_run_id/screenshots", QAController, :create_screenshot
+
+          post "/runs/:qa_run_id/recordings/upload/start", QAController, :start_recording_upload
+
+          post "/runs/:qa_run_id/recordings/upload/generate-url",
+               QAController,
+               :generate_recording_upload_url
+
+          post "/runs/:qa_run_id/recordings/upload/complete",
+               QAController,
+               :complete_recording_upload
         end
 
         scope "/tokens" do
@@ -636,6 +655,8 @@ defmodule TuistWeb.Router do
       live "/qa/:qa_run_id/logs", QARunLive, :logs
       live "/runs/:run_id", RunDetailLive
       get "/runs/:run_id/download", RunsController, :download
+      live "/settings", ProjectSettingsLive
+      live "/settings/qa", QASettingsLive
     end
   end
 

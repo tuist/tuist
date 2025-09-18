@@ -38,7 +38,10 @@ defmodule TuistWeb.API.QAControllerTest do
     } do
       # Given
       conn =
-        assign(conn, :current_subject, %AuthenticatedAccount{account: user.account, scopes: [:qa_step_create]})
+        assign(conn, :current_subject, %AuthenticatedAccount{
+          account: user.account,
+          scopes: [:qa_step_create]
+        })
 
       # When
       conn =
@@ -69,7 +72,10 @@ defmodule TuistWeb.API.QAControllerTest do
     } do
       # Given
       conn =
-        assign(conn, :current_subject, %AuthenticatedAccount{account: user.account, scopes: [:qa_step_create]})
+        assign(conn, :current_subject, %AuthenticatedAccount{
+          account: user.account,
+          scopes: [:qa_step_create]
+        })
 
       # Create some screenshots without step_id
       {:ok, screenshot1} =
@@ -109,7 +115,10 @@ defmodule TuistWeb.API.QAControllerTest do
     } do
       # Given
       conn =
-        assign(conn, :current_subject, %AuthenticatedAccount{account: user.account, scopes: [:qa_step_create]})
+        assign(conn, :current_subject, %AuthenticatedAccount{
+          account: user.account,
+          scopes: [:qa_step_create]
+        })
 
       non_existent_run_id = Ecto.UUID.generate()
 
@@ -203,7 +212,7 @@ defmodule TuistWeb.API.QAControllerTest do
       assert response["qa_run_id"] == qa_run.id
       assert response["qa_step_id"] == qa_step.id
       assert response["id"]
-      assert String.contains?(response["upload_url"], "qa/screenshots/#{qa_run.id}")
+      assert String.contains?(response["upload_url"], "qa/#{qa_run.id}/screenshots/")
       assert response["expires_at"]
     end
 
@@ -410,7 +419,7 @@ defmodule TuistWeb.API.QAControllerTest do
       assert response["updated_at"]
     end
 
-    test "updates QA run status to completed without summary", %{
+    test "updates QA run status to failed and sets finished_at", %{
       conn: conn,
       user: user,
       qa_run: qa_run,
@@ -424,20 +433,27 @@ defmodule TuistWeb.API.QAControllerTest do
           scopes: [:qa_run_update]
         })
 
+      # Mock datetime to verify finished_at is set
+      expected_now = DateTime.truncate(DateTime.utc_now(), :second)
+      stub(DateTime, :utc_now, fn -> expected_now end)
+
       # When
       conn =
         conn
         |> put_req_header("content-type", "application/json")
         |> patch(~p"/api/projects/#{account_handle}/#{project_handle}/qa/runs/#{qa_run.id}", %{
-          "status" => "completed"
+          "status" => "failed"
         })
 
       # Then
       response = json_response(conn, :ok)
 
       assert response["id"] == qa_run.id
-      assert response["status"] == "completed"
+      assert response["status"] == "failed"
       assert response["updated_at"]
+
+      {:ok, updated_run} = QA.qa_run(qa_run.id)
+      assert updated_run.finished_at == expected_now
     end
 
     test "returns not found when QA run does not exist", %{
@@ -498,6 +514,154 @@ defmodule TuistWeb.API.QAControllerTest do
       # Then
       response = json_response(conn, :forbidden)
       assert String.contains?(response["message"], "not authorized")
+    end
+  end
+
+  describe "POST /api/projects/:account_handle/:project_handle/qa/runs/:run_id/recordings/upload/start" do
+    test "starts multipart upload for recording", %{
+      conn: conn,
+      user: user,
+      qa_run: qa_run,
+      account_handle: account_handle,
+      project_handle: project_handle
+    } do
+      # Given
+      conn =
+        assign(conn, :current_subject, %AuthenticatedAccount{
+          account: user.account,
+          scopes: [:qa_recording_upload]
+        })
+
+      expected_upload_id = "test-upload-id-123"
+
+      expected_storage_key =
+        "#{String.downcase(account_handle)}/#{String.downcase(project_handle)}/qa/#{qa_run.id}/recording.mp4"
+
+      expect(Storage, :multipart_start, fn storage_key, _account ->
+        assert storage_key == expected_storage_key
+        expected_upload_id
+      end)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          ~p"/api/projects/#{account_handle}/#{project_handle}/qa/runs/#{qa_run.id}/recordings/upload/start",
+          %{}
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+
+      assert response["upload_id"] == expected_upload_id
+      assert response["storage_key"] == expected_storage_key
+    end
+  end
+
+  describe "POST /api/projects/:account_handle/:project_handle/qa/runs/:run_id/recordings/upload/generate-url" do
+    test "generates presigned URL for recording upload part", %{
+      conn: conn,
+      user: user,
+      qa_run: qa_run,
+      account_handle: account_handle,
+      project_handle: project_handle
+    } do
+      # Given
+      conn =
+        assign(conn, :current_subject, %AuthenticatedAccount{
+          account: user.account,
+          scopes: [:qa_recording_upload]
+        })
+
+      upload_id = "test-upload-id-123"
+
+      storage_key =
+        "#{String.downcase(account_handle)}/#{String.downcase(project_handle)}/qa/#{qa_run.id}/recording.mp4"
+
+      part_number = 1
+      content_length = 5_000_000
+      expected_url = "https://s3.example.com/presigned-upload-url"
+
+      expect(Storage, :multipart_generate_url, fn ^storage_key, ^upload_id, ^part_number, _account, opts ->
+        assert opts[:expires_in] == 120
+        assert opts[:content_length] == content_length
+        expected_url
+      end)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          ~p"/api/projects/#{account_handle}/#{project_handle}/qa/runs/#{qa_run.id}/recordings/upload/generate-url",
+          %{
+            "upload_id" => upload_id,
+            "part_number" => part_number,
+            "storage_key" => storage_key,
+            "content_length" => content_length
+          }
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+      assert response["url"] == expected_url
+    end
+  end
+
+  describe "POST /api/projects/:account_handle/:project_handle/qa/runs/:run_id/recordings/upload/complete" do
+    test "completes multipart upload and creates recording", %{
+      conn: conn,
+      user: user,
+      qa_run: qa_run,
+      account_handle: account_handle,
+      project_handle: project_handle
+    } do
+      # Given
+      conn =
+        assign(conn, :current_subject, %AuthenticatedAccount{
+          account: user.account,
+          scopes: [:qa_recording_upload]
+        })
+
+      upload_id = "test-upload-id-123"
+      storage_key = "test-storage-key"
+      started_at = "2024-01-01T10:00:00Z"
+      duration = 300
+
+      parts = [
+        %{"part_number" => 1, "etag" => "etag1"},
+        %{"part_number" => 2, "etag" => "etag2"}
+      ]
+
+      expect(Storage, :multipart_complete_upload, fn ^storage_key, ^upload_id, parts_tuples, _account ->
+        assert parts_tuples == [{1, "etag1"}, {2, "etag2"}]
+        :ok
+      end)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          ~p"/api/projects/#{account_handle}/#{project_handle}/qa/runs/#{qa_run.id}/recordings/upload/complete",
+          %{
+            "upload_id" => upload_id,
+            "storage_key" => storage_key,
+            "parts" => parts,
+            "started_at" => started_at,
+            "duration" => duration
+          }
+        )
+
+      # Then
+      _response = json_response(conn, :ok)
+
+      recordings = Tuist.Repo.all(QA.Recording)
+
+      assert Enum.map(recordings, &Map.take(&1, [:qa_run_id, :duration])) == [
+               %{qa_run_id: qa_run.id, duration: duration}
+             ]
     end
   end
 end

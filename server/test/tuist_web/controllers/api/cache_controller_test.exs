@@ -6,7 +6,6 @@ defmodule TuistWeb.API.CacheControllerTest do
   alias Tuist.API.Pipeline
   alias Tuist.CacheActionItems
   alias Tuist.CacheActionItems.CacheActionItem
-  alias Tuist.CommandEvents
   alias Tuist.Projects.Workers.CleanProjectWorker
   alias Tuist.Repo
   alias Tuist.Storage
@@ -23,7 +22,7 @@ defmodule TuistWeb.API.CacheControllerTest do
   describe "GET /api/cache" do
     test "returns download url", %{conn: conn, cache: cache} do
       # Given
-      project = %{id: project_id} = ProjectsFixtures.project_fixture()
+      project = ProjectsFixtures.project_fixture()
       account = Accounts.get_account_by_id(project.account_id)
       hash = "hash"
       name = "name"
@@ -44,19 +43,6 @@ defmodule TuistWeb.API.CacheControllerTest do
 
       expect(Storage, :object_exists?, fn ^object_key, _actor -> true end)
       expect(Storage, :get_object_size, fn ^object_key, _actor -> size end)
-
-      expect(Pipeline, :async_push, fn {:create_cache_event,
-                                        %{
-                                          event_type: :download,
-                                          hash: ^hash,
-                                          name: ^name,
-                                          project_id: ^project_id,
-                                          size: ^size,
-                                          created_at: ^date,
-                                          updated_at: ^date
-                                        }} ->
-        :ok
-      end)
 
       conn = Authentication.put_current_project(conn, project)
 
@@ -125,7 +111,6 @@ defmodule TuistWeb.API.CacheControllerTest do
       organization = AccountsFixtures.organization_fixture(name: "MyAccount", preload: [:account])
 
       project =
-        %{id: project_id} =
         ProjectsFixtures.project_fixture(
           name: "MyProject",
           account_id: organization.account.id
@@ -148,19 +133,6 @@ defmodule TuistWeb.API.CacheControllerTest do
 
       expect(Storage, :object_exists?, fn ^object_key, _actor -> true end)
       expect(Storage, :get_object_size, fn ^object_key, _actor -> size end)
-
-      expect(Pipeline, :async_push, fn {:create_cache_event,
-                                        %{
-                                          event_type: :download,
-                                          hash: ^hash,
-                                          name: ^name,
-                                          project_id: ^project_id,
-                                          size: ^size,
-                                          created_at: ^date,
-                                          updated_at: ^date
-                                        }} ->
-        :ok
-      end)
 
       conn = Authentication.put_current_project(conn, project)
 
@@ -584,7 +556,7 @@ defmodule TuistWeb.API.CacheControllerTest do
   describe "POST /api/cache/multipart/complete" do
     test "completes a multipart upload", %{conn: conn, cache: cache} do
       # Given
-      project = %{id: project_id} = ProjectsFixtures.project_fixture()
+      project = ProjectsFixtures.project_fixture()
       account = Accounts.get_account_by_id(project.account_id)
       hash = "hash"
       name = "name"
@@ -612,19 +584,6 @@ defmodule TuistWeb.API.CacheControllerTest do
 
       expect(Storage, :get_object_size, fn ^object_key, _ ->
         size
-      end)
-
-      expect(Pipeline, :async_push, fn {:create_cache_event,
-                                        %{
-                                          name: ^name,
-                                          size: ^size,
-                                          hash: ^hash,
-                                          created_at: ^date,
-                                          updated_at: ^date,
-                                          project_id: ^project_id,
-                                          event_type: :upload
-                                        }} ->
-        :ok
       end)
 
       conn = Authentication.put_current_project(conn, project)
@@ -664,17 +623,12 @@ defmodule TuistWeb.API.CacheControllerTest do
         %{part_number: 3, etag: "etag3"}
       ]
 
-      stub(Storage, :multipart_complete_upload, fn _object_key, _upload_id, _parts, _actor -> :ok end)
+      stub(Storage, :multipart_complete_upload, fn _object_key, _upload_id, _parts, _actor ->
+        :ok
+      end)
+
       stub(Storage, :get_object_size, fn _, _ -> 1024 end)
       conn = Authentication.put_current_project(conn, project)
-
-      CommandEvents.create_cache_event(%{
-        hash: hash,
-        name: name,
-        event_type: :upload,
-        project_id: project.id,
-        size: 1024
-      })
 
       # When
       conn =
@@ -690,9 +644,6 @@ defmodule TuistWeb.API.CacheControllerTest do
       response = json_response(conn, 200)
       assert response["status"] == "success"
       assert response["data"] == %{}
-
-      cache_event = CommandEvents.get_cache_event(%{hash: hash, event_type: :upload})
-      assert cache_event.size == 1024
     end
 
     test "errors with a payment_required when the account has no subscription and has gone above the limit",

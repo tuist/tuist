@@ -14,6 +14,7 @@ defmodule Tuist.QATest do
   alias Tuist.Repo
   alias Tuist.Storage
   alias Tuist.VCS
+  alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.AppBuildsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.QAFixtures
@@ -42,7 +43,9 @@ defmodule Tuist.QATest do
                                 prompt: ^prompt,
                                 server_url: _,
                                 run_id: _,
-                                auth_token: "test-jwt-token"
+                                auth_token: "test-jwt-token",
+                                account_handle: _,
+                                project_handle: _
                               },
                               _opts ->
         :ok
@@ -50,13 +53,16 @@ defmodule Tuist.QATest do
 
       # When
       {:ok, qa_run} =
-        QA.test(%{
-          app_build: app_build,
-          prompt: prompt
+        QA.create_qa_run(%{
+          app_build_id: app_build.id,
+          prompt: prompt,
+          status: "pending"
         })
 
+      {:ok, updated_qa_run} = QA.test(qa_run)
+
       # Then
-      assert qa_run.prompt == prompt
+      assert updated_qa_run.prompt == prompt
     end
 
     test "successfully runs QA test in namespace when namespace is enabled" do
@@ -108,24 +114,34 @@ defmodule Tuist.QATest do
 
       # When
       {:ok, qa_run} =
-        QA.test(%{
-          app_build: app_build,
-          prompt: prompt
+        QA.create_qa_run(%{
+          app_build_id: app_build.id,
+          prompt: prompt,
+          status: "pending"
         })
 
+      {:ok, updated_qa_run} = QA.test(qa_run)
+
       # Then
-      assert qa_run.prompt == prompt
+      assert updated_qa_run.prompt == prompt
     end
 
     test "handles existing tenant when namespace is enabled" do
       # Given
-      app_build =
-        Repo.preload(AppBuildsFixtures.app_build_fixture(), preview: [project: :account])
-
       account =
-        Map.put(app_build.preview.project.account, :namespace_tenant_id, "existing-tenant-456")
+        AccountsFixtures.user_fixture().account
 
-      app_build = put_in(app_build.preview.project.account, account)
+      {:ok, account} =
+        account
+        |> Tuist.Accounts.Account.update_changeset(%{namespace_tenant_id: "existing-tenant-456"})
+        |> Repo.update()
+
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+
+      preview = AppBuildsFixtures.preview_fixture(project: project)
+
+      app_build = AppBuildsFixtures.app_build_fixture(preview: preview)
+
       prompt = "Test the login feature"
 
       expect(Storage, :generate_download_url, fn _object_key, _actor ->
@@ -164,13 +180,16 @@ defmodule Tuist.QATest do
 
       # When
       {:ok, qa_run} =
-        QA.test(%{
-          app_build: app_build,
-          prompt: prompt
+        QA.create_qa_run(%{
+          app_build_id: app_build.id,
+          prompt: prompt,
+          status: "pending"
         })
 
+      {:ok, updated_qa_run} = QA.test(qa_run)
+
       # Then
-      assert qa_run.prompt == prompt
+      assert updated_qa_run.prompt == prompt
     end
 
     test "runs agent test when namespace is disabled" do
@@ -199,13 +218,16 @@ defmodule Tuist.QATest do
 
       # When
       {:ok, qa_run} =
-        QA.test(%{
-          app_build: app_build,
-          prompt: prompt
+        QA.create_qa_run(%{
+          app_build_id: app_build.id,
+          prompt: prompt,
+          status: "pending"
         })
 
+      {:ok, updated_qa_run} = QA.test(qa_run)
+
       # Then
-      assert qa_run.prompt == prompt
+      assert updated_qa_run.prompt == prompt
       assert qa_run.status == "pending"
     end
 
@@ -254,11 +276,14 @@ defmodule Tuist.QATest do
       end)
 
       # When
-      result =
-        QA.test(%{
-          app_build: app_build,
-          prompt: prompt
+      {:ok, qa_run} =
+        QA.create_qa_run(%{
+          app_build_id: app_build.id,
+          prompt: prompt,
+          status: "pending"
         })
+
+      result = QA.test(qa_run)
 
       # Then
       assert {:error, "Command execution failed"} == result
@@ -278,24 +303,36 @@ defmodule Tuist.QATest do
       end)
 
       # When
-      result =
-        QA.test(%{
-          app_build: app_build,
-          prompt: "Test prompt"
+      {:ok, qa_run} =
+        QA.create_qa_run(%{
+          app_build_id: app_build.id,
+          prompt: "Test prompt",
+          status: "pending"
         })
+
+      result = QA.test(qa_run)
 
       # Then
       assert {:error, "Token creation failed"} == result
     end
 
-    test "includes launch arguments when project has launch argument groups" do
+    test "includes app context when project has launch argument groups and app description" do
       # Given
       app_build =
         Repo.preload(AppBuildsFixtures.app_build_fixture(), preview: [project: :account])
 
       project = app_build.preview.project
 
-      {:ok, _login_group} =
+      {:ok, project} =
+        project
+        |> Tuist.Projects.Project.update_changeset(%{
+          qa_app_description: "Test iOS shopping app with user authentication",
+          qa_email: "test@example.com",
+          qa_password: "testpassword123"
+        })
+        |> Repo.update()
+
+      {:ok, login_group} =
         %LaunchArgumentGroup{}
         |> LaunchArgumentGroup.create_changeset(%{
           project_id: project.id,
@@ -348,18 +385,35 @@ defmodule Tuist.QATest do
 
       expect(Agent, :test, fn attrs, _opts ->
         assert attrs.launch_arguments == "--email user@example.com --password test123"
+        assert attrs.app_description == "Test iOS shopping app with user authentication"
+        assert attrs.email == "test@example.com"
+        assert attrs.password == "testpassword123"
         :ok
       end)
 
       # When
       {:ok, qa_run} =
-        QA.test(%{
-          app_build: app_build,
-          prompt: prompt
+        QA.create_qa_run(%{
+          app_build_id: app_build.id,
+          prompt: prompt,
+          status: "pending"
         })
 
+      {:ok, updated_qa_run} = QA.test(qa_run)
+
       # Then
-      assert qa_run.prompt == prompt
+      assert updated_qa_run.prompt == prompt
+      assert updated_qa_run.app_description == "Test iOS shopping app with user authentication"
+      assert updated_qa_run.email == "test@example.com"
+      assert updated_qa_run.password == "testpassword123"
+
+      assert updated_qa_run.launch_argument_groups == [
+               %{
+                 "name" => login_group.name,
+                 "value" => login_group.value,
+                 "description" => login_group.description
+               }
+             ]
     end
 
     test "selects multiple launch argument groups" do
@@ -424,13 +478,16 @@ defmodule Tuist.QATest do
 
       # When
       {:ok, qa_run} =
-        QA.test(%{
-          app_build: app_build,
-          prompt: prompt
+        QA.create_qa_run(%{
+          app_build_id: app_build.id,
+          prompt: prompt,
+          status: "pending"
         })
 
+      {:ok, updated_qa_run} = QA.test(qa_run)
+
       # Then
-      assert qa_run.prompt == prompt
+      assert updated_qa_run.prompt == prompt
     end
 
     test "handles empty launch arguments when no groups match" do
@@ -483,13 +540,16 @@ defmodule Tuist.QATest do
 
       # When
       {:ok, qa_run} =
-        QA.test(%{
-          app_build: app_build,
-          prompt: prompt
+        QA.create_qa_run(%{
+          app_build_id: app_build.id,
+          prompt: prompt,
+          status: "pending"
         })
 
+      {:ok, updated_qa_run} = QA.test(qa_run)
+
       # Then
-      assert qa_run.prompt == prompt
+      assert updated_qa_run.prompt == prompt
     end
 
     test "doesn't try to select launch argument group when project doesn't have any" do
@@ -516,13 +576,16 @@ defmodule Tuist.QATest do
 
       # When
       {:ok, qa_run} =
-        QA.test(%{
-          app_build: app_build,
-          prompt: prompt
+        QA.create_qa_run(%{
+          app_build_id: app_build.id,
+          prompt: prompt,
+          status: "pending"
         })
 
+      {:ok, updated_qa_run} = QA.test(qa_run)
+
       # Then
-      assert qa_run.prompt == prompt
+      assert updated_qa_run.prompt == prompt
     end
   end
 
@@ -854,6 +917,61 @@ defmodule Tuist.QATest do
     end
   end
 
+  describe "create_qa_recording/1" do
+    test "creates a recording" do
+      # Given
+      qa_run = QAFixtures.qa_run_fixture()
+      started_at = DateTime.utc_now()
+
+      # When
+      {:ok, recording} =
+        QA.create_qa_recording(%{
+          qa_run_id: qa_run.id,
+          started_at: started_at,
+          duration: 120_000
+        })
+
+      # Then
+      assert recording.qa_run_id == qa_run.id
+      assert recording.started_at == DateTime.truncate(started_at, :second)
+      assert recording.duration == 120_000
+    end
+  end
+
+  describe "recording_storage_key/1" do
+    test "generates correct storage key for recording" do
+      # Given
+      qa_run_id = Ecto.UUID.generate()
+
+      # When
+      storage_key =
+        QA.recording_storage_key(%{
+          account_handle: "TestAccount",
+          project_handle: "TestProject",
+          qa_run_id: qa_run_id
+        })
+
+      # Then
+      assert storage_key == "testaccount/testproject/qa/#{qa_run_id}/recording.mp4"
+    end
+
+    test "downcases account and project handles" do
+      # Given
+      qa_run_id = Ecto.UUID.generate()
+
+      # When
+      storage_key =
+        QA.recording_storage_key(%{
+          account_handle: "MixedCASE-Account",
+          project_handle: "MiXeD-Project",
+          qa_run_id: qa_run_id
+        })
+
+      # Then
+      assert storage_key == "mixedcase-account/mixed-project/qa/#{qa_run_id}/recording.mp4"
+    end
+  end
+
   describe "create_qa_screenshot/1" do
     test "creates a screenshot with valid attributes" do
       # Given
@@ -956,7 +1074,7 @@ defmodule Tuist.QATest do
 
       # Then
       assert storage_key ==
-               "testaccount/testproject/qa/screenshots/#{qa_run_id}/#{screenshot_id}.png"
+               "testaccount/testproject/qa/#{qa_run_id}/screenshots/#{screenshot_id}.png"
     end
   end
 
@@ -1252,6 +1370,7 @@ defmodule Tuist.QATest do
       **Issues:** ⚠️ 1
       **Preview:** [#{preview.display_name}](http://localhost:8080/#{project.account.name}/#{project.name}/previews/#{preview.id})
       **Commit:** [abc123def](https://github.com/testaccount/testproject/commit/abc123def456)
+      **QA Session:** [View detailed results](http://localhost:8080/#{project.account.name}/#{project.name}/qa/#{qa_run.id})
 
 
 
@@ -1664,7 +1783,9 @@ defmodule Tuist.QATest do
 
       # Then
       assert [formatted_log] = result
-      assert formatted_log.image == "/test-account/test-project/qa/runs/#{qa_run.id}/screenshots/screenshot-789"
+
+      assert formatted_log.image ==
+               "/test-account/test-project/qa/runs/#{qa_run.id}/screenshots/screenshot-789"
     end
 
     test "handles various log message formats" do
@@ -1720,29 +1841,6 @@ defmodule Tuist.QATest do
                %{type: "RESULT", message: "tap_result"},
                %{type: "TOOL", message: "click"}
              ] = result
-    end
-
-    test "handles malformed timestamp gracefully" do
-      # Given
-      qa_run = QAFixtures.qa_run_fixture()
-
-      logs = [
-        %{
-          id: Ecto.UUID.generate(),
-          qa_run_id: qa_run.id,
-          type: :message,
-          data: Jason.encode!(%{"message" => "Test message"}),
-          timestamp: nil,
-          screenshot_metadata: nil
-        }
-      ]
-
-      # When
-      result = QA.format_logs_for_display(logs)
-
-      # Then
-      assert [formatted_log] = result
-      assert formatted_log.timestamp == "??:??:??"
     end
   end
 
@@ -1805,6 +1903,111 @@ defmodule Tuist.QATest do
 
       # Then
       assert result.screenshot_metadata == nil
+    end
+  end
+
+  describe "create_launch_argument_group/1" do
+    test "creates a launch argument group with valid attributes" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # When
+      {:ok, launch_argument_group} =
+        QA.create_launch_argument_group(%{
+          project_id: project.id,
+          name: "test-group",
+          description: "Test launch argument group",
+          value: "--test-arg value"
+        })
+
+      # Then
+      assert launch_argument_group.project_id == project.id
+      assert launch_argument_group.name == "test-group"
+      assert launch_argument_group.description == "Test launch argument group"
+      assert launch_argument_group.value == "--test-arg value"
+    end
+  end
+
+  describe "update_launch_argument_group/2" do
+    test "updates a launch argument group with valid attributes" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, launch_argument_group} =
+        QA.create_launch_argument_group(%{
+          project_id: project.id,
+          name: "original-name",
+          description: "Original description",
+          value: "--original"
+        })
+
+      # When
+      {:ok, updated_group} =
+        QA.update_launch_argument_group(launch_argument_group, %{
+          name: "updated-name",
+          description: "Updated description",
+          value: "--updated"
+        })
+
+      # Then
+      assert updated_group.name == "updated-name"
+      assert updated_group.description == "Updated description"
+      assert updated_group.value == "--updated"
+      assert updated_group.project_id == project.id
+    end
+  end
+
+  describe "delete_launch_argument_group/1" do
+    test "deletes a launch argument group successfully" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, launch_argument_group} =
+        QA.create_launch_argument_group(%{
+          project_id: project.id,
+          name: "to-delete",
+          description: "Will be deleted",
+          value: "--delete-me"
+        })
+
+      # When
+      {:ok, deleted_group} = QA.delete_launch_argument_group(launch_argument_group)
+
+      # Then
+      assert deleted_group.id == launch_argument_group.id
+      assert {:error, :not_found} = QA.get_launch_argument_group(launch_argument_group.id)
+    end
+  end
+
+  describe "get_launch_argument_group/1" do
+    test "returns launch argument group when it exists" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, launch_argument_group} =
+        QA.create_launch_argument_group(%{
+          project_id: project.id,
+          name: "get-test",
+          description: "Test for get",
+          value: "--get-test"
+        })
+
+      # When
+      {:ok, got} = QA.get_launch_argument_group(launch_argument_group.id)
+
+      # Then
+      assert got.id == launch_argument_group.id
+    end
+
+    test "returns not found error when launch argument group does not exist" do
+      # Given
+      non_existent_id = Ecto.UUID.generate()
+
+      # When
+      result = QA.get_launch_argument_group(non_existent_id)
+
+      # Then
+      assert {:error, :not_found} = result
     end
   end
 end

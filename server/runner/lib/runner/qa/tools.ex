@@ -787,7 +787,7 @@ defmodule Runner.QA.Tools do
 
       {:ok, ContentPart.text!(Jason.encode!(metadata))}
     else
-      {:error, reason} -> {:error, "Failed to capture screenshot: #{reason}"}
+      {:error, reason} -> {:error, "Failed to capture screenshot: #{inspect(reason)}"}
       {reason, _status} -> {:error, "Failed to capture screenshot: #{reason}"}
     end
   end
@@ -870,7 +870,8 @@ defmodule Runner.QA.Tools do
            Task.async(fn ->
              ui_description_from_appium_session(appium_session)
            end),
-         [{:ok, screenshot_content}, {:ok, ui_description}] <- Task.await_many([screenshot_task, ui_task], 30_000) do
+         [{:ok, screenshot_content}, {:ok, ui_description}] <-
+           Task.await_many([screenshot_task, ui_task], 30_000) do
       {:ok,
        [
          screenshot_content,

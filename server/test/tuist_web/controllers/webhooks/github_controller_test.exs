@@ -5,7 +5,6 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
   alias Tuist.Accounts.Account
   alias Tuist.AppBuilds
   alias Tuist.Projects
-  alias Tuist.QA
   alias Tuist.VCS
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.AppBuildsFixtures
@@ -163,11 +162,11 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
       end)
 
       expect(Oban, :insert, fn job_changeset ->
-        assert job_changeset.changes.args == %{
-                 "app_build_id" => app_build.id,
-                 "prompt" => "test login flow",
-                 "issue_comment_id" => "comment_123"
-               }
+        args = job_changeset.changes.args
+        assert args["app_build_id"] == app_build.id
+        assert args["prompt"] == "test login flow"
+        assert args["issue_comment_id"] == "comment_123"
+        assert Map.has_key?(args, "qa_run_id")
 
         {:ok, job_changeset}
       end)
@@ -213,10 +212,6 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
 
       expect(VCS, :create_comment, fn _comment_params ->
         {:ok, %{"id" => "comment_789"}}
-      end)
-
-      expect(QA, :create_qa_run, fn _run_params ->
-        {:ok, %{id: 1}}
       end)
 
       # When

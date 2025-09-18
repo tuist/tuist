@@ -16,7 +16,6 @@ defmodule TuistWeb.Authentication do
   alias Tuist.Authorization
   alias Tuist.Projects
   alias Tuist.Projects.Project
-  alias Tuist.Repo
 
   @current_user_key :current_user
   @current_project_key :current_project
@@ -335,16 +334,16 @@ defmodule TuistWeb.Authentication do
   end
 
   def require_authenticated_user_for_previews(%{path_params: %{"id" => preview_id}} = conn, opts) do
-    case Tuist.AppBuilds.preview_by_id(preview_id) do
+    case Tuist.AppBuilds.preview_by_id(preview_id, preload: :project) do
       {:error, _} ->
         require_authenticated_user(conn, opts)
 
       {:ok, preview} ->
-        if preview.visibility == :public or
+        if (preview.visibility || preview.project.default_previews_visibility) == :public or
              Authorization.authorize(
                :preview_read,
                nil,
-               Repo.preload(preview, :project).project
+               preview.project
              ) == :ok do
           conn
         else

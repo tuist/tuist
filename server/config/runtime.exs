@@ -117,10 +117,21 @@ if Enum.member?([:prod, :stag, :can], env) do
       database_options
     end
 
-  config :logger, level: Tuist.Environment.log_level()
-
   config :tuist, Tuist.Repo, database_options
-  config :tuist, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
+
+  dns_name = System.get_env("RENDER_DISCOVERY_SERVICE")
+  app_name = System.get_env("RENDER_SERVICE_NAME")
+
+  config :libcluster,
+    topologies: [
+      render: [
+        strategy: Cluster.Strategy.Kubernetes.DNS,
+        config: [
+          service: dns_name,
+          application_name: app_name
+        ]
+      ]
+    ]
 
   # ## SSL Support
   #
@@ -153,6 +164,7 @@ if Enum.member?([:prod, :stag, :can], env) do
   #       force_ssl: [hsts: true]
   #
   # Check `Plug.SSL` for all available options in `force_ssl`.
+  config :logger, level: Tuist.Environment.log_level()
 end
 
 if Enum.member?([:prod, :stag, :can, :dev], env) do
@@ -330,14 +342,13 @@ config :tuist, Oban,
     {Oban.Plugins.Lifeline, rescue_after: to_timeout(minute: 30)},
     {Oban.Plugins.Cron,
      crontab:
-       if(Tuist.Environment.tuist_hosted?() and env == :prod,
+       if(Tuist.Environment.tuist_hosted?(),
          do: [
            {"0 10 * * 1-5", Tuist.Ops.DailySlackReportWorker},
            {"0 * * * 1-5", Tuist.Ops.HourlySlackReportWorker},
            {"@hourly", Tuist.Registry.Swift.Workers.SyncPackagesWorker},
-           {"@daily", Tuist.Billing.UpdateAllCustomersRemoteCacheHitsCountWorker},
-           {"@daily", Tuist.Accounts.Workers.UpdateAllAccountsUsageWorker},
-           {"@daily", Tuist.Mautic.Workers.SyncCompaniesAndContactsWorker}
+           {"@daily", Tuist.Billing.Workers.SyncStripeMetersWorker},
+           {"@daily", Tuist.Accounts.Workers.UpdateAllAccountsUsageWorker}
          ],
          else: []
        )}

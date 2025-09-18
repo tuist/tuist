@@ -1,0 +1,202 @@
+<div id="project-settings">
+  <h1 data-part="title">
+    {@selected_project.name}
+  </h1>
+
+  <.tab_menu_horizontal>
+    <.tab_menu_horizontal_item
+      label={gettext("General")}
+      selected={true}
+      patch={~p"/#{@selected_account.name}/#{@selected_project.name}/settings"}
+    />
+    <.tab_menu_horizontal_item
+      label={gettext("QA")}
+      selected={false}
+      patch={~p"/#{@selected_account.name}/#{@selected_project.name}/settings/qa"}
+    />
+  </.tab_menu_horizontal>
+  <h2 data-part="subtitle">
+    {gettext("General")}
+  </h2>
+  <.card_section data-part="preview-access-card-section">
+    <div data-part="header">
+      <span data-part="title">
+        {gettext("Preview access")}
+      </span>
+      <span data-part="subtitle">
+        {gettext("Set your previews to be public or private by default.")}
+      </span>
+    </div>
+    <div data-part="content">
+      <label data-part="dropdown-label">
+        {gettext("General access")}
+      </label>
+      <.dropdown
+        id="preview-access-dropdown"
+        label={
+          if @selected_project.default_previews_visibility == :private do
+            gettext("Only people with access")
+          else
+            gettext("Anyone with the link")
+          end
+        }
+      >
+        <:icon :if={@selected_project.default_previews_visibility == :private}>
+          <.icon name="lock" />
+        </:icon>
+        <:icon :if={@selected_project.default_previews_visibility == :public}>
+          <.icon name="world" />
+        </:icon>
+        <.dropdown_item
+          value="private"
+          label={gettext("Only people with access")}
+          phx-click="update_preview_access"
+          phx-value-visibility="private"
+          data-selected={@selected_project.default_previews_visibility == :private}
+        >
+          <:left_icon><.icon name="lock" /></:left_icon>
+          <:right_icon :if={@selected_project.default_previews_visibility == :private}>
+            <.icon name="check" />
+          </:right_icon>
+        </.dropdown_item>
+        <.dropdown_item
+          value="public"
+          label={gettext("Anyone with the link")}
+          phx-click="update_preview_access"
+          phx-value-visibility="public"
+          data-selected={@selected_project.default_previews_visibility == :public}
+        >
+          <:left_icon><.icon name="world" /></:left_icon>
+          <:right_icon :if={@selected_project.default_previews_visibility == :public}>
+            <.icon name="check" />
+          </:right_icon>
+        </.dropdown_item>
+      </.dropdown>
+    </div>
+  </.card_section>
+  <.card_section data-part="rename-card-section">
+    <div data-part="header">
+      <span data-part="title">
+        {gettext("Rename project")}
+      </span>
+      <span data-part="subtitle">
+        {gettext("Renaming your project can have unintended side effects.")}
+      </span>
+    </div>
+    <div data-part="content">
+      <.form
+        data-part="form"
+        for={@rename_project_form}
+        id="rename-project"
+        phx-submit="rename_project"
+      >
+        <.modal
+          id="rename-project-modal"
+          title={gettext("Rename your project?")}
+          header_size="large"
+          on_dismiss="close_rename_project_modal"
+        >
+          <:trigger :let={attrs}>
+            <.button
+              label={gettext("Rename project")}
+              variant="destructive"
+              size="medium"
+              {attrs}
+            />
+          </:trigger>
+          <.line_divider />
+          <.alert
+            status="error"
+            type="secondary"
+            size="small"
+            title={gettext("Renaming can have unexpected consequences")}
+          />
+          <.text_input
+            field={@rename_project_form[:name]}
+            type="basic"
+            placeholder={gettext("Project name")}
+          />
+          <.line_divider />
+          <:footer>
+            <.modal_footer>
+              <:action>
+                <.button
+                  type="reset"
+                  label={gettext("Cancel")}
+                  variant="secondary"
+                  phx-click="close_rename_project_modal"
+                />
+              </:action>
+              <:action>
+                <.button type="submit" label={gettext("Rename")} variant="destructive" />
+              </:action>
+            </.modal_footer>
+          </:footer>
+        </.modal>
+      </.form>
+    </div>
+  </.card_section>
+  <.card_section data-part="delete-project-card-section">
+    <div data-part="header">
+      <span data-part="title">
+        {gettext("Delete project")}
+      </span>
+      <span data-part="subtitle">
+        {gettext("This action cannot be undone.")}
+      </span>
+    </div>
+    <div data-part="content">
+      <.form
+        data-part="form"
+        for={@delete_project_form}
+        id="delete-project-form"
+        phx-submit="delete_project"
+      >
+        <.modal
+          id="delete-project-modal"
+          title={gettext("Are you sure you want to delete this?")}
+          header_size="large"
+          on_dismiss="close_delete_project_modal"
+        >
+          <:trigger :let={attrs}>
+            <.button
+              label={gettext("Delete project")}
+              variant="destructive"
+              size="medium"
+              {attrs}
+            />
+          </:trigger>
+          <.line_divider />
+          <.alert
+            status="warning"
+            type="secondary"
+            size="small"
+            title={gettext("Deleting the project will permanently remove all of its data")}
+          />
+          <.text_input
+            label={gettext("Enter this project's name to confirm")}
+            field={@delete_project_form[:name]}
+            type="basic"
+            placeholder={gettext("Project name")}
+          />
+          <.line_divider />
+          <:footer>
+            <.modal_footer>
+              <:action>
+                <.button
+                  type="reset"
+                  label={gettext("Cancel")}
+                  variant="secondary"
+                  phx-click="close_delete_project_modal"
+                />
+              </:action>
+              <:action>
+                <.button type="submit" label={gettext("Delete")} variant="destructive" />
+              </:action>
+            </.modal_footer>
+          </:footer>
+        </.modal>
+      </.form>
+    </div>
+  </.card_section>
+</div>

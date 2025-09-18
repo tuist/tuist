@@ -125,9 +125,12 @@ defmodule Tuist.Application do
       end
     )
     |> Kernel.++(
-      if Environment.tuist_hosted?(),
-        do: [{DNSCluster, query: Application.get_env(:tuist, :dns_cluster_query) || :ignore}],
-        else: []
+      if Environment.tuist_hosted?() do
+        topologies = Application.get_env(:libcluster, :topologies) || []
+        [{Cluster.Supervisor, [topologies, [name: Tuist.ClusterSupervisor]]}]
+      else
+        []
+      end
     )
     |> Kernel.++(
       if Environment.redis_url(),
@@ -155,8 +158,8 @@ defmodule Tuist.Application do
               verify: :verify_peer
             ]
           ],
-          size: 2,
-          count: 10,
+          size: 10,
+          count: 2,
           protocols: [:http2, :http1],
           start_pool_metrics?: true
         ],

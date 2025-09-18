@@ -64,7 +64,8 @@ defmodule TuistWeb.PreviewsControllerTest do
                :git_branch,
                :git_commit_sha,
                :git_ref,
-               :created_by_account_id
+               :created_by_account_id,
+               :visibility
              ]) == %{
                display_name: "name",
                version: "1.0.0",
@@ -72,7 +73,8 @@ defmodule TuistWeb.PreviewsControllerTest do
                git_branch: "main",
                git_commit_sha: "commit-sha",
                git_ref: "git-ref",
-               created_by_account_id: account.id
+               created_by_account_id: account.id,
+               visibility: nil
              }
     end
 

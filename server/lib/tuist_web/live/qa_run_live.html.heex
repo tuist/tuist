@@ -86,7 +86,7 @@
     />
   </.tab_menu_horizontal>
 
-  <div :if={@live_action in [:overview]}>
+  <div :if={@live_action in [:overview]} data-part="overview">
     <.card data-part="details-card" icon="chart_arcs" title={gettext("Details")}>
       <.card_section data-part="details-card-section">
         <div data-part="metadata-grid">
@@ -104,7 +104,7 @@
             <div data-part="metadata">
               <div data-part="title">{gettext("QA duration")}</div>
               <span data-part="label">
-                {@duration}
+                {Tuist.Utilities.DateFormatter.format_duration_from_seconds(@duration)}
               </span>
             </div>
             <div data-part="metadata">
@@ -232,9 +232,26 @@
 
                     <div data-part="step-detail">
                       <.badge label="Timestamp" color="focus" style="light-fill" size="large" />
-                      <span data-part="detail-value">
-                        {DateFormatter.format_full(issue_data.step.inserted_at)}
-                      </span>
+                      <%= if @qa_run.recording do %>
+                        <span
+                          :if={@qa_run.recording}
+                          data-part="detail-value"
+                          data-link
+                          phx-click="seek_to_step"
+                          phx-value-step-index={
+                            Enum.find_index(@steps, &(&1.id == issue_data.step.id))
+                          }
+                          phx-value-scroll-to-element="steps-card-section"
+                        >
+                          {format_time(Enum.find(@steps, &(&1.id == issue_data.step.id)).time)}/{format_time(
+                            @duration
+                          )}
+                        </span>
+                      <% else %>
+                        <span data-part="detail-value">
+                          {DateFormatter.format_full(issue_data.step.inserted_at)}
+                        </span>
+                      <% end %>
                     </div>
                   </div>
                 </div>
@@ -242,6 +259,320 @@
             </div>
           </div>
         <% end %>
+      </.card_section>
+    </.card>
+
+    <.card
+      :if={@qa_run.recording}
+      icon="file_spreadsheet"
+      title={gettext("Steps")}
+      data-part="steps-card"
+    >
+      <.card_section
+        id="steps-card-section"
+        data-part="steps-card-section"
+        phx-hook="ScrollIntoView"
+      >
+        <.card_section data-part="recording-card-section">
+          <div data-part="device">
+            <video id="qa-recording" phx-hook="VideoPlayer" phx-update="ignore">
+              <source src={@video_url} type="video/mp4" />
+            </video>
+            <img src={~p"/images/iphone-16-pro.png"} />
+          </div>
+
+          <.card_section :if={not is_nil(@current_step)} data-part="current-step-card-section">
+            <div data-part="step-details-container">
+              <div data-part="step-detail-item">
+                <.badge
+                  data-part="badge"
+                  label={gettext("Action")}
+                  color="neutral"
+                  style="light-fill"
+                  size="large"
+                />
+                <span data-part="value">
+                  {@current_step.action}
+                </span>
+              </div>
+
+              <div :if={not is_nil(@current_step.result)} data-part="step-detail-item">
+                <.badge
+                  data-part="badge"
+                  label={gettext("Result")}
+                  color="information"
+                  style="light-fill"
+                  size="large"
+                />
+                <span data-part="value">
+                  {raw(Tuist.Markdown.to_html(@current_step.result))}
+                </span>
+              </div>
+
+              <div :if={not Enum.empty?(@current_step.issues)} data-part="step-detail-item">
+                <.badge label={gettext("Issues")} color="warning" style="light-fill" size="large" />
+                <%= for issue <- @current_step.issues do %>
+                  <span data-part="value">
+                    {issue}
+                  </span>
+                <% end %>
+              </div>
+
+              <div data-part="step-detail-item">
+                <.badge
+                  label={gettext("Timestamp")}
+                  color="focus"
+                  style="light-fill"
+                  size="large"
+                />
+                <span
+                  data-part="value"
+                  data-link
+                  phx-click="seek_to_step"
+                  phx-value-step-index={@current_step.index}
+                >
+                  {format_time(@current_step.time)}/{format_time(@duration)}
+                </span>
+              </div>
+            </div>
+            <div data-part="step-navigation-buttons">
+              <div
+                :if={@current_step.index > 0}
+                data-part="step-button-previous"
+                phx-click="seek_previous_step"
+              >
+                <div data-part="header">
+                  <.chevron_left />
+                  <span data-part="title">
+                    {gettext("Previous step")}
+                  </span>
+                </div>
+                <span data-part="step-number">
+                  {gettext("Step %{step_number}", step_number: @current_step.index)}
+                </span>
+                <span data-part="step-action">
+                  {Enum.at(@steps, @current_step.index - 1).action}
+                </span>
+              </div>
+              <div data-part="spacer"></div>
+              <div
+                :if={@current_step.index < length(@steps) - 1}
+                data-part="step-button-next"
+                phx-click="seek_next_step"
+              >
+                <div data-part="header">
+                  <span data-part="title">
+                    {gettext("Next step")}
+                  </span>
+                  <.chevron_right />
+                </div>
+                <span data-part="step-number">
+                  {gettext("Step %{step_number}", step_number: @current_step.index + 2)}
+                </span>
+                <span data-part="step-action">
+                  {Enum.at(@steps, @current_step.index + 1).action}
+                </span>
+              </div>
+            </div>
+          </.card_section>
+        </.card_section>
+        <.card_section data-part="timeline-card-section">
+          <div data-part="video-main-panel">
+            <span data-part="time-display">
+              {format_time(@current_time)}/{format_time(@duration)}
+            </span>
+            <div data-part="seek-controls">
+              <.button
+                variant="secondary"
+                size="small"
+                icon_only
+                id="seek-previous-button"
+                phx-hook="BlurOnClick"
+                phx-click="seek_previous_step"
+                disabled={@current_time == 0}
+              >
+                <.player_track_prev />
+              </.button>
+              <.button
+                variant="secondary"
+                size="small"
+                icon_only
+                id="play-pause-button"
+                phx-hook="BlurOnClick"
+                phx-click="play_pause"
+              >
+                <.player_play :if={not @is_playing} />
+                <.player_pause :if={@is_playing} />
+              </.button>
+              <.button
+                variant="secondary"
+                size="small"
+                icon_only
+                id="seek-next-button"
+                phx-hook="BlurOnClick"
+                phx-click="seek_next_step"
+                disabled={!@current_step || @current_step.index == length(@steps) - 1}
+              >
+                <.player_track_next />
+              </.button>
+            </div>
+            <span data-part="steps-counter" id="steps-counter">
+              {gettext("%{current_step}/%{total_steps} steps",
+                current_step: (@current_step && @current_step.index + 1) || 0,
+                total_steps: length(@steps)
+              )}
+            </span>
+          </div>
+          <div id="timeline-track" data-part="timeline">
+            <div
+              data-part="timeline-content"
+              id="timeline-content"
+              phx-hook="TimelineSeek"
+              data-duration={@duration}
+            >
+              <div
+                data-part="playhead-area"
+                id="playhead-area"
+                phx-update="ignore"
+                style={"width: #{@duration / ceil(@duration) * 100}%"}
+              >
+              </div>
+
+              <div data-part="time-markers" id="time-markers">
+                <%= if @duration < 120 do %>
+                  <%= for time <- 0..floor(@duration)//5 do %>
+                    <span data-part="time-marker">
+                      {format_time(time)}
+                    </span>
+                    <%= if time == (0..floor(@duration)//5 |> Enum.to_list() |> List.last()) do %>
+                      <span :for={_index <- 1..rem(ceil(@duration), 5)} data-part="dot">
+                        •
+                      </span>
+                    <% else %>
+                      <span :for={_index <- 1..4} data-part="dot">
+                        •
+                      </span>
+                    <% end %>
+                  <% end %>
+                <% else %>
+                  <%= for time <- 0..ceil(@duration)//30 do %>
+                    <span data-part="time-marker">
+                      {format_time(time)}
+                    </span>
+                    <%= if time == (0..ceil(@duration)//30 |> Enum.to_list() |> List.last()) do %>
+                      <span :for={_index <- 1..div(rem(ceil(@duration), 30), 6)} data-part="dot">
+                        •
+                      </span>
+                    <% else %>
+                      <span :for={_index <- 1..4} data-part="dot">
+                        •
+                      </span>
+                    <% end %>
+                  <% end %>
+                <% end %>
+              </div>
+
+              <div
+                data-part="steps-track"
+                id="steps-track"
+                style={"width: #{@duration / ceil(@duration) * 100}%"}
+              >
+                <div
+                  :for={{step, index} <- Enum.with_index(@steps)}
+                  data-part="step-item"
+                  style={"--step-percentage: #{step.time / @duration * 100}"}
+                  phx-click="seek_to_step"
+                  phx-value-step-index={index}
+                  phx-hook="StopPropagationOnDrag"
+                  id={"step-item-#{index}"}
+                >
+                  <div data-part="step-thumbnail" data-has-issues={not Enum.empty?(step.issues)}>
+                    <img
+                      :if={step.screenshot}
+                      draggable="false"
+                      src={
+                        ~p"/#{@qa_run.app_build.preview.project.account.name}/#{@qa_run.app_build.preview.project.name}/qa/runs/#{@qa_run.id}/screenshots/#{step.screenshot.id}"
+                      }
+                      alt={"Step #{index + 1} screenshot"}
+                    />
+                  </div>
+                  <span data-part="step-label">
+                    {gettext("Step %{step_index}", step_index: index + 1)}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <svg
+              data-part="playhead"
+              id="playhead"
+              width="11"
+              height="179"
+              viewBox="0 0 11 179"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+              phx-update="ignore"
+            >
+              <path
+                d="M5.5 0.453125C8.53753 0.453168 11 2.91559 11 5.95312C11 7.53058 10.3358 8.95234 9.2719 9.95472C7.76529 11.3742 6 13.0143 6 15.0843V177.953C6 178.229 5.77614 178.453 5.5 178.453V178.453C5.22386 178.453 5 178.229 5 177.953V15.0844C5 13.0144 3.23462 11.3742 1.72801 9.95471C0.664121 8.95233 0 7.53058 0 5.95312C0 2.91556 2.46243 0.453125 5.5 0.453125Z"
+                fill="#6F2CFF"
+              />
+            </svg>
+          </div>
+        </.card_section>
+      </.card_section>
+    </.card>
+
+    <.card
+      :if={
+        @qa_run.launch_argument_groups != [] or @qa_run.app_description != "" or
+          (@qa_run.email != "" and @qa_run.password != "")
+      }
+      data-part="app-context-card"
+      icon="file_text"
+      title={gettext("App context")}
+    >
+      <.card_section data-part="app-context-card-section">
+        <div :if={@qa_run.email != "" and @qa_run.password != ""} data-part="credentials">
+          <div data-part="email">
+            <.text_input name="email" label={gettext("Email")} value={@qa_run.email} disabled />
+          </div>
+          <div data-part="password">
+            <.text_input
+              name="password"
+              label={gettext("Password")}
+              value={@qa_run.password}
+              show_prefix={false}
+              show_suffix={false}
+              disabled
+            />
+          </div>
+        </div>
+        <div :if={@qa_run.launch_argument_groups != []} data-part="launch-arguments">
+          <h3 data-part="title">
+            {gettext("Launch arguments")}
+          </h3>
+          <.table id="launch-arguments-table" rows={@qa_run.launch_argument_groups}>
+            <:col :let={group} label={gettext("Name")}>
+              <.text_and_description_cell label={group["name"]} data-part="name-cell" />
+            </:col>
+            <:col :let={group} label={gettext("Description")}>
+              <.text_cell label={group["description"] || ""} />
+            </:col>
+            <:col :let={group} label={gettext("Arguments")}>
+              <.text_cell label={group["value"]} />
+            </:col>
+          </.table>
+        </div>
+        <div :if={@qa_run.app_description != ""} data-part="app-description">
+          <h3 data-part="title">
+            {gettext("App description")}
+          </h3>
+
+          <span data-part="description">
+            {raw(Markdown.to_html(@qa_run.app_description))}
+          </span>
+        </div>
       </.card_section>
     </.card>
   </div>

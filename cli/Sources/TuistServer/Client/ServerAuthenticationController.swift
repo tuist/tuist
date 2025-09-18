@@ -3,6 +3,7 @@ import Foundation
 import Mockable
 import OpenAPIRuntime
 import Path
+
 #if canImport(TuistProcess)
     import TuistProcess
 #endif
@@ -20,21 +21,24 @@ public enum ServerAuthenticationControllerError: LocalizedError, Equatable {
         switch self {
         case let .failToLaunchRefreshProcess(command, arguments, serverURL):
             let command = ([command] + arguments).joined(separator: " ")
-            return "The refreshing of the access and refresh token pair for the URL \(serverURL.absoluteString) failed running the following command: \(command)"
+            return
+                "The refreshing of the access and refresh token pair for the URL \(serverURL.absoluteString) failed running the following command: \(command)"
         case let .timedOut(seconds, serverURL):
-            return "The refreshing of the access and refresh token pair for the URL \(serverURL.absoluteString) failed after \(seconds) seconds."
+            return
+                "The refreshing of the access and refresh token pair for the URL \(serverURL.absoluteString) failed after \(seconds) seconds."
         case .cantRefreshWithLockingAndBackground:
-            return "The refreshing with background and locking configurations enabled is not a valid configuration (liley a bug)."
+            return
+                "The refreshing with background and locking configurations enabled is not a valid configuration (liley a bug)."
         }
     }
 }
 
 @Mockable
 public protocol ServerAuthenticationControlling: Sendable {
-    func authenticationToken(serverURL: URL) async throws
-        -> AuthenticationToken?
+    func authenticationToken(serverURL: URL) async throws -> AuthenticationToken?
     func refreshToken(serverURL: URL) async throws
-    func refreshToken(serverURL: URL, inBackground: Bool, locking: Bool, forceInProcessLock: Bool) async throws
+    func refreshToken(serverURL: URL, inBackground: Bool, locking: Bool, forceInProcessLock: Bool)
+        async throws
 }
 
 public enum AuthenticationTokenStatus {
@@ -56,7 +60,7 @@ public enum AuthenticationToken: Equatable, CustomStringConvertible {
     /// It returns the value of the token
     public var value: String {
         switch self {
-        case let .user(accessToken: accessToken, refreshToken: _):
+        case .user(let accessToken, refreshToken: _):
             return accessToken.token
         case let .project(token):
             return token
@@ -123,16 +127,18 @@ public enum AuthenticationToken: Equatable, CustomStringConvertible {
             }
 
             let lockFileExists = try await fileSystem.exists(lockfilePath)
-            let secondsSinceLastModified: Double? = if lockFileExists,
-                                                       let lastModificationDate = try await fileSystem
-                                                       .fileMetadata(at: lockfilePath)?.lastModificationDate
-            {
-                Date().timeIntervalSince(lastModificationDate)
-            } else {
-                nil
-            }
+            let secondsSinceLastModified: Double? =
+                if lockFileExists,
+                let lastModificationDate = try await fileSystem
+                .fileMetadata(at: lockfilePath)?.lastModificationDate {
+                    Date().timeIntervalSince(lastModificationDate)
+                } else {
+                    nil
+                }
 
-            if !lockFileExists || (secondsSinceLastModified != nil && secondsSinceLastModified! > 10) {
+            if !lockFileExists
+                || (secondsSinceLastModified != nil && secondsSinceLastModified! > 10)
+            {
                 // Create directories if needed
                 if !(try await fileSystem.exists(lockfilePath.parentDirectory)) {
                     try await fileSystem.makeDirectory(at: lockfilePath.parentDirectory)
@@ -173,13 +179,16 @@ public enum AuthenticationToken: Equatable, CustomStringConvertible {
     }
 #endif
 
+// swiftlint:disable:next type_body_length
 public struct ServerAuthenticationController: ServerAuthenticationControlling {
     private let refreshAuthTokenService: RefreshAuthTokenServicing
     private let fileSystem: FileSysteming
     private let cachedValueStore: CachedValueStoring
     #if canImport(TuistSupport)
         /// Shared actor instance across all ServerAuthenticationController instances
-        private static let fileSystemLockActor: FileSystemLockActor = .init(fileSystem: FileSystem())
+        private static let fileSystemLockActor: FileSystemLockActor = .init(
+            fileSystem: FileSystem()
+        )
 
         private let backgroundProcessRunner: BackgroundProcessRunning
     #endif
@@ -224,13 +233,34 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
             }
         #else
             return try await authenticationTokenRefreshingIfNeeded(
-                serverURL: serverURL, forceRefresh: false, inBackground: ServerAuthenticationConfig.current.backgroundRefresh,
+                serverURL: serverURL, forceRefresh: false,
+                inBackground: ServerAuthenticationConfig.current.backgroundRefresh,
                 locking: false
             )
         #endif
     }
 
-    public func refreshToken(serverURL: URL, inBackground: Bool, locking: Bool, forceInProcessLock: Bool) async throws {
+    private func deletingCredentialsOnUnauthorizedError<T>(
+        serverURL: URL, action: () async throws -> T
+    ) async throws -> T {
+        do {
+            return try await action()
+        } catch let error as RefreshAuthTokenServiceError {
+            if case .unauthorized = error {
+                #if canImport(TuistSupport)
+                    Logger.current.debug("Deleting the credentials for \(serverURL)")
+                #endif
+                try? await ServerCredentialsStore.current.delete(serverURL: serverURL)
+            }
+            throw error
+        } catch {
+            throw error
+        }
+    }
+
+    public func refreshToken(
+        serverURL: URL, inBackground: Bool, locking: Bool, forceInProcessLock: Bool
+    ) async throws {
         try await authenticationTokenRefreshingIfNeeded(
             serverURL: serverURL,
             forceRefresh: true,
@@ -271,22 +301,34 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
             }
         }
 
-        switch (try await tokenStatus(serverURL: serverURL, forceRefresh: forceRefresh), inBackground, locking) {
+        switch (
+            try await tokenStatus(serverURL: serverURL, forceRefresh: forceRefresh), inBackground,
+            locking
+        ) {
         case let (.valid(token), _, _):
             return token
         case (.absent, _, _):
             return nil
         case (.expired, false, true): // Foreground with locking
             if forceInProcessLock {
-                return try await inProcessLockedRefresh(serverURL: serverURL, forceRefresh: forceRefresh)
+                return try await inProcessLockedRefresh(
+                    serverURL: serverURL, forceRefresh: forceRefresh
+                )
             } else {
                 #if canImport(TuistSupport)
-                    return try await fileSystemLocked(serverURL: serverURL, action: { deleteLockfile in
-                        _ = try await executeRefresh(serverURL: serverURL, forceRefresh: forceRefresh)
-                        try await deleteLockfile()
-                    }, fetchActionResult: fetchActionResult)
+                    return try await fileSystemLocked(
+                        serverURL: serverURL,
+                        action: { deleteLockfile in
+                            _ = try await executeRefresh(
+                                serverURL: serverURL, forceRefresh: forceRefresh
+                            )
+                            try await deleteLockfile()
+                        }, fetchActionResult: fetchActionResult
+                    )
                 #else
-                    return try await inProcessLockedRefresh(serverURL: serverURL, forceRefresh: forceRefresh)
+                    return try await inProcessLockedRefresh(
+                        serverURL: serverURL, forceRefresh: forceRefresh
+                    )
                 #endif
             }
         case (.expired, false, false): // Foreground without locking
@@ -309,7 +351,9 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
         }
     }
 
-    func inProcessLockedRefresh(serverURL: URL, forceRefresh: Bool) async throws -> AuthenticationToken? {
+    func inProcessLockedRefresh(serverURL: URL, forceRefresh: Bool) async throws
+        -> AuthenticationToken?
+    {
         return try await cachedValueStore.getValue(key: lockKey(serverURL: serverURL)) {
             return try await executeRefresh(serverURL: serverURL, forceRefresh: forceRefresh)
         }
@@ -323,7 +367,7 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
             fetchActionResult: () async throws -> T?
         ) async throws -> T {
             let lockfilePath = lockFilePath(serverURL: serverURL)
-            let maxAttempts = 10
+            let maxAttempts = 30
             let retryInterval: UInt64 = 500 // Miliseconds
             if let result = try await fetchActionResult() { return result }
 
@@ -335,16 +379,18 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
             }
 
             let lockFileExists = try await fileSystem.exists(lockfilePath)
-            let secondsSinceLastModified: Double? = if lockFileExists,
-                                                       let lastModificationDate = try await fileSystem
-                                                       .fileMetadata(at: lockfilePath)?.lastModificationDate
-            {
-                Date().timeIntervalSince(lastModificationDate)
-            } else {
-                nil
-            }
+            let secondsSinceLastModified: Double? =
+                if lockFileExists,
+                let lastModificationDate = try await fileSystem
+                .fileMetadata(at: lockfilePath)?.lastModificationDate {
+                    Date().timeIntervalSince(lastModificationDate)
+                } else {
+                    nil
+                }
 
-            if !lockFileExists || (secondsSinceLastModified != nil && secondsSinceLastModified! > 10) {
+            if !lockFileExists
+                || (secondsSinceLastModified != nil && secondsSinceLastModified! > 10)
+            {
                 if !(try await fileSystem.exists(lockfilePath.parentDirectory)) {
                     try await fileSystem.makeDirectory(at: lockfilePath.parentDirectory)
                 }
@@ -378,11 +424,13 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
         }
 
         func spawnRefreshProcess(serverURL: URL) async throws {
-            try backgroundProcessRunner.runInBackground([Environment.current.currentExecutablePath()?.pathString ?? ""] + [
-                "auth",
-                "refresh-token",
-                serverURL.absoluteString,
-            ], environment: ProcessInfo.processInfo.environment)
+            try backgroundProcessRunner.runInBackground(
+                [Environment.current.currentExecutablePath()?.pathString ?? ""] + [
+                    "auth",
+                    "refresh-token",
+                    serverURL.absoluteString,
+                ], environment: ProcessInfo.processInfo.environment
+            )
         }
     #endif
 
@@ -395,7 +443,7 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
         case .project:
             return .valid(token)
         case let .user(
-            accessToken: accessToken, refreshToken: refreshToken
+            accessToken, refreshToken
         ):
             // We consider a token to be expired if the expiration date is in the past or 30 seconds from now
             let now = Date.now()
@@ -403,69 +451,75 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
                 .timeIntervalSince(now)
             let refresh = expiresIn < 30 || forceRefresh
             if refresh { return .expired }
-            return .valid(.user(
-                accessToken: accessToken,
-                refreshToken: refreshToken
-            ))
-        }
-    }
-
-    func executeRefresh(serverURL: URL, forceRefresh: Bool) async throws -> (value: AuthenticationToken, expiresAt: Date?)? {
-        guard let token = try await fetchTokenFromStore(serverURL: serverURL) else {
-            return nil
-        }
-
-        let upToDateToken: AuthenticationToken
-        var expiresAt: Date?
-
-        switch token {
-        case .project:
-            upToDateToken = token
-        case let .user(
-            accessToken: accessToken, refreshToken: refreshToken
-        ):
-            // We consider a token to be expired if the expiration date is in the past or 30 seconds from now
-            let now = Date.now()
-            let expiresIn = accessToken.expiryDate
-                .timeIntervalSince(now)
-            let refresh = expiresIn < 30 || forceRefresh
-
-            #if canImport(TuistSupport)
-                if refresh {
-                    Logger.current.debug(
-                        "Access token expires in less than \(expiresIn) seconds. Renewing..."
-                    )
-                } else {
-                    Logger.current.debug(
-                        "Access token expires in \(expiresIn) seconds and it is still valid"
-                    )
-                }
-            #endif
-            if refresh {
-                #if canImport(TuistSupport)
-                    Logger.current.debug("Refreshing access token for \(serverURL)")
-                #endif
-                let tokens = try await refreshTokens(
-                    serverURL: serverURL, refreshToken: refreshToken
-                )
-                #if canImport(TuistSupport)
-                    Logger.current.debug("Access token refreshed for \(serverURL)")
-                #endif
-                upToDateToken = .user(
-                    accessToken: try JWT.parse(tokens.accessToken),
-                    refreshToken: try JWT.parse(tokens.refreshToken)
-                )
-                expiresAt = try JWT.parse(tokens.accessToken)
-                    .expiryDate
-            } else {
-                upToDateToken = .user(
+            return .valid(
+                .user(
                     accessToken: accessToken,
                     refreshToken: refreshToken
                 )
-                expiresAt = accessToken.expiryDate
-            }
+            )
         }
-        return (value: upToDateToken, expiresAt: expiresAt)
+    }
+
+    func executeRefresh(serverURL: URL, forceRefresh: Bool) async throws -> (
+        value: AuthenticationToken, expiresAt: Date?
+    )? {
+        return try await deletingCredentialsOnUnauthorizedError(serverURL: serverURL) {
+            guard let token = try await fetchTokenFromStore(serverURL: serverURL) else {
+                return nil
+            }
+
+            let upToDateToken: AuthenticationToken
+            var expiresAt: Date?
+
+            switch token {
+            case .project:
+                upToDateToken = token
+            case let .user(
+                accessToken, refreshToken
+            ):
+                // We consider a token to be expired if the expiration date is in the past or 30 seconds from now
+                let now = Date.now()
+                let expiresIn = accessToken.expiryDate
+                    .timeIntervalSince(now)
+                let refresh = expiresIn < 30 || forceRefresh
+
+                #if canImport(TuistSupport)
+                    if refresh {
+                        Logger.current.debug(
+                            "Access token expires in less than \(expiresIn) seconds. Renewing..."
+                        )
+                    } else {
+                        Logger.current.debug(
+                            "Access token expires in \(expiresIn) seconds and it is still valid"
+                        )
+                    }
+                #endif
+                if refresh {
+                    #if canImport(TuistSupport)
+                        Logger.current.debug("Refreshing access token for \(serverURL)")
+                    #endif
+                    let tokens = try await refreshTokens(
+                        serverURL: serverURL, refreshToken: refreshToken
+                    )
+                    #if canImport(TuistSupport)
+                        Logger.current.debug("Access token refreshed for \(serverURL)")
+                    #endif
+                    upToDateToken = .user(
+                        accessToken: try JWT.parse(tokens.accessToken),
+                        refreshToken: try JWT.parse(tokens.refreshToken)
+                    )
+                    expiresAt = try JWT.parse(tokens.accessToken)
+                        .expiryDate
+                } else {
+                    upToDateToken = .user(
+                        accessToken: accessToken,
+                        refreshToken: refreshToken
+                    )
+                    expiresAt = accessToken.expiryDate
+                }
+            }
+            return (value: upToDateToken, expiresAt: expiresAt)
+        }
     }
 
     #if canImport(TuistSupport)
@@ -556,6 +610,8 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
             default:
                 throw ServerClientAuthenticationError.notAuthenticated
             }
+        } catch let error as RefreshAuthTokenServiceError {
+            throw error
         } catch {
             throw ServerClientAuthenticationError.notAuthenticated
         }

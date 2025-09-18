@@ -1,5 +1,5 @@
 [tools]
-    tuist = "4.68.0"
+    tuist = "4.74.1"
     swiftlint = "0.59.1"
     swiftformat = "0.57.2"
     git-cliff = "2.6.0"
@@ -8,26 +8,27 @@
 
 [env]
     _.file = { path = ".env.json", redact = true }
+    TUIST_CACHE_CONCURRENCY_LIMIT="none"
 
 [tasks.cla-sign]
     description = "Sign the CLA by adding current user to signatures.json"
     run = '''
     #!/usr/bin/env bash
     set -euo pipefail
-    
+
     SIGNATURES_FILE="server/cla/signatures.json"
     REPO_ID="250427618"  # tuist/tuist repository ID
-    
+
     echo "Adding your signature to the CLA..."
-    
+
     # Get current user info from GitHub
     user_info=$(gh api user)
     user_login=$(echo "$user_info" | jq -r '.login')
     user_name=$(echo "$user_info" | jq -r '.name // .login')
     user_id=$(echo "$user_info" | jq -r '.id')
-    
+
     echo "Signing CLA for: $user_name ($user_login)"
-    
+
     # Check if user already signed
     if [[ -f "$SIGNATURES_FILE" ]]; then
         existing_signature=$(jq -r --arg login "$user_login" '.signedContributors[]? | select(.id == ($login | tonumber))' "$SIGNATURES_FILE" 2>/dev/null || echo "")
@@ -36,12 +37,12 @@
             exit 0
         fi
     fi
-    
+
     # Create signatures file if it doesn't exist
     if [[ ! -f "$SIGNATURES_FILE" ]]; then
         echo '{"signedContributors":[]}' > "$SIGNATURES_FILE"
     fi
-    
+
     # Create new signature entry
     current_time=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
     new_signature=$(jq -n \
@@ -57,12 +58,12 @@
             repoId: ($repo_id | tonumber),
             pullRequestNo: null
         }')
-    
+
     # Add signature to the file
     temp_file=$(mktemp)
     jq --argjson new_sig "$new_signature" '.signedContributors += [$new_sig]' "$SIGNATURES_FILE" > "$temp_file"
     mv "$temp_file" "$SIGNATURES_FILE"
-    
+
     echo "✅ CLA signature added successfully!"
     echo "📝 Your signature has been recorded in $SIGNATURES_FILE"
     echo ""

@@ -24,6 +24,10 @@ defmodule Tuist.Projects.Project do
     field :vcs_repository_full_handle, :string
     field :vcs_provider, Ecto.Enum, values: [github: 0]
     field :last_interacted_at, :naive_datetime, virtual: true
+    field :default_previews_visibility, Ecto.Enum, values: [private: 0, public: 1], default: :private
+    field :qa_app_description, :string, default: ""
+    field :qa_email, :string, default: ""
+    field :qa_password, :string, default: ""
 
     belongs_to :account, Account
 
@@ -49,12 +53,37 @@ defmodule Tuist.Projects.Project do
       :created_at,
       :visibility,
       :vcs_repository_full_handle,
-      :vcs_provider
+      :vcs_provider,
+      :default_previews_visibility
     ])
-    |> validate_allowed_handle()
     |> validate_inclusion(:visibility, [:private, :public])
     |> validate_inclusion(:vcs_provider, [:github])
     |> validate_required([:token, :account_id, :name])
+    |> validate_name()
+    |> validate_inclusion(:default_previews_visibility, [:private, :public])
+  end
+
+  def update_changeset(project, attrs) do
+    project
+    |> cast(attrs, [
+      :name,
+      :default_branch,
+      :vcs_repository_full_handle,
+      :vcs_provider,
+      :visibility,
+      :default_previews_visibility,
+      :qa_app_description,
+      :qa_email,
+      :qa_password
+    ])
+    |> validate_name()
+    |> validate_inclusion(:vcs_provider, [:github])
+    |> validate_inclusion(:visibility, [:private, :public])
+    |> validate_inclusion(:default_previews_visibility, [:private, :public])
+  end
+
+  defp validate_name(changeset) do
+    changeset
     |> validate_format(:name, ~r/^[a-zA-Z0-9-_]+$/,
       message: "must contain only alphanumeric characters, hyphens, and underscores"
     )
@@ -70,17 +99,7 @@ defmodule Tuist.Projects.Project do
       end
     end)
     |> update_change(:name, &String.downcase/1)
+    |> validate_exclusion(:name, Application.get_env(:tuist, :blocked_handles))
     |> unique_constraint([:name, :account_id], name: "index_projects_on_name_and_account_id")
-  end
-
-  def validate_allowed_handle(changeset) do
-    validate_exclusion(changeset, :name, Application.get_env(:tuist, :blocked_handles))
-  end
-
-  def update_changeset(project, attrs) do
-    project
-    |> cast(attrs, [:default_branch, :vcs_repository_full_handle, :vcs_provider, :visibility])
-    |> validate_inclusion(:vcs_provider, [:github])
-    |> validate_inclusion(:visibility, [:private, :public])
   end
 end

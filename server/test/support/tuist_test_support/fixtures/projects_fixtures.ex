@@ -27,6 +27,7 @@ defmodule TuistTestSupport.Fixtures.ProjectsFixtures do
       visibility: Keyword.get(opts, :visibility, :private),
       vcs_provider: Keyword.get(opts, :vcs_provider),
       vcs_repository_full_handle: Keyword.get(opts, :vcs_repository_full_handle),
+      default_previews_visibility: Keyword.get(opts, :default_previews_visibility, :private),
       preload: preload
     )
     |> Repo.preload(Keyword.get(opts, :preload, []))

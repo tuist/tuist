@@ -107,14 +107,102 @@ defmodule TuistWeb.Marketing.MarketingController do
     )
     |> assign(
       :head_image,
-      Tuist.Environment.app_url(path: "/marketing/images/og/generated/swift-stories.jpg")
+      Tuist.Environment.app_url(path: "/marketing/images/og/generated/tuist-digest.jpg")
     )
     |> assign(:head_twitter_card, "summary_large_image")
+    |> assign(:head_title, gettext("Tuist Digest Newsletter"))
     |> assign(
       :head_description,
       Newsletter.description()
     )
     |> render(:newsletter, layout: false)
+  end
+
+  def newsletter_signup(conn, %{"email" => email}) do
+    # Create a verification token (simple base64 encoded email)
+    verification_token = Base.encode64(email)
+    verification_url = url(conn, ~p"/newsletter/verify?token=#{verification_token}")
+
+    case Tuist.Loops.send_newsletter_confirmation(email, verification_url) do
+      :ok ->
+        conn
+        |> put_resp_content_type("application/json")
+        |> json(%{
+          success: true,
+          message: gettext("Please check your email to confirm your subscription.")
+        })
+
+      {:error, _reason} ->
+        conn
+        |> put_resp_content_type("application/json")
+        |> put_status(400)
+        |> json(%{success: false, message: gettext("Something went wrong. Please try again.")})
+    end
+  end
+
+  def newsletter_verify(conn, %{"token" => token} = _params) do
+    case Base.decode64(token) do
+      {:ok, email} ->
+        case Tuist.Loops.add_to_newsletter_list(email) do
+          :ok ->
+            conn
+            |> assign(:head_title, gettext("Successfully Subscribed!"))
+            |> assign(
+              :head_image,
+              Tuist.Environment.app_url(path: "/marketing/images/og/generated/tuist-digest.jpg")
+            )
+            |> assign(:head_twitter_card, "summary_large_image")
+            |> assign(:email, email)
+            |> assign(:error_message, nil)
+            |> render(:newsletter_verify, layout: false)
+
+          {:error, _reason} ->
+            conn
+            |> assign(:head_title, "Newsletter Verification Failed")
+            |> assign(
+              :head_image,
+              Tuist.Environment.app_url(path: "/marketing/images/og/generated/tuist-digest.jpg")
+            )
+            |> assign(:head_twitter_card, "summary_large_image")
+            |> assign(
+              :error_message,
+              gettext("Verification failed. Please try signing up again.")
+            )
+            |> assign(:email, nil)
+            |> render(:newsletter_verify, layout: false)
+        end
+
+      :error ->
+        conn
+        |> assign(:head_title, gettext("Newsletter Verification Failed"))
+        |> assign(
+          :head_image,
+          Tuist.Environment.app_url(path: "/marketing/images/og/generated/tuist-digest.jpg")
+        )
+        |> assign(:head_twitter_card, "summary_large_image")
+        |> assign(
+          :error_message,
+          gettext("Invalid verification link. Please try signing up again.")
+        )
+        |> assign(:email, nil)
+        |> render(:newsletter_verify, layout: false)
+    end
+  end
+
+  def newsletter_verify(conn, _params) do
+    conn
+    |> assign(:head_title, gettext("Newsletter Verification Failed"))
+    |> assign(
+      :head_image,
+      Tuist.Environment.app_url(path: "/marketing/images/og/generated/tuist-digest.jpg")
+    )
+    |> assign(:head_twitter_card, "summary_large_image")
+    |> assign(
+      :error_message,
+      gettext("Verification link expired or invalid. Please try signing up again.")
+    )
+    |> assign(:email, nil)
+    |> render(:newsletter_verify, layout: false)
   end
 
   def newsletter_issue(%{params: params} = conn, %{"issue_number" => issue_number}) do
@@ -194,26 +282,6 @@ defmodule TuistWeb.Marketing.MarketingController do
     |> assign(:entries, entries)
     |> assign(:last_build_date, last_build_date)
     |> render(:changelog_atom, layout: false)
-  end
-
-  def newsletter_rss(conn, _params) do
-    issues = Newsletter.issues()
-    last_build_date = issues |> List.last() |> Map.get(:date)
-
-    conn
-    |> assign(:issues, issues)
-    |> assign(:last_build_date, last_build_date)
-    |> render(:newsletter_rss, layout: false)
-  end
-
-  def newsletter_atom(conn, _params) do
-    issues = Newsletter.issues()
-    last_build_date = issues |> List.last() |> Map.get(:date)
-
-    conn
-    |> assign(:issues, issues)
-    |> assign(:last_build_date, last_build_date)
-    |> render(:newsletter_atom, layout: false)
   end
 
   def sitemap(conn, _params) do
@@ -449,7 +517,6 @@ defmodule TuistWeb.Marketing.MarketingController do
     |> assign(:head_twitter_card, "summary_large_image")
     |> assign(:head_include_blog_rss_and_atom, true)
     |> assign(:head_include_changelog_rss_and_atom, true)
-    |> assign(:head_include_newsletter_rss_and_atom, true)
   end
 
   defp put_resp_header_cache_control(conn, _opts) do
