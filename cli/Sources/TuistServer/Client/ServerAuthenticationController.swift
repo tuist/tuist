@@ -19,11 +19,11 @@ public enum ServerAuthenticationControllerError: LocalizedError, Equatable {
 
     public var errorDescription: String? {
         switch self {
-        case let .failToLaunchRefreshProcess(command, arguments, serverURL):
+        case .failToLaunchRefreshProcess(let command, let arguments, let serverURL):
             let command = ([command] + arguments).joined(separator: " ")
             return
                 "The refreshing of the access and refresh token pair for the URL \(serverURL.absoluteString) failed running the following command: \(command)"
-        case let .timedOut(seconds, serverURL):
+        case .timedOut(let seconds, let serverURL):
             return
                 "The refreshing of the access and refresh token pair for the URL \(serverURL.absoluteString) failed after \(seconds) seconds."
         case .cantRefreshWithLockingAndBackground:
@@ -62,7 +62,7 @@ public enum AuthenticationToken: Equatable, CustomStringConvertible {
         switch self {
         case .user(let accessToken, refreshToken: _):
             return accessToken.token
-        case let .project(token):
+        case .project(let token):
             return token
         }
     }
@@ -71,7 +71,7 @@ public enum AuthenticationToken: Equatable, CustomStringConvertible {
         switch self {
         case .user:
             return "User token: \(value)"
-        case let .project(token):
+        case .project(let token):
             return "Project token: \(token)"
         }
     }
@@ -90,7 +90,7 @@ public enum AuthenticationToken: Equatable, CustomStringConvertible {
             lockfilePath: AbsolutePath,
             serverURL: URL,
             maxAttempts: Int = 10,
-            retryInterval: UInt64 = 500, // Milliseconds
+            retryInterval: UInt64 = 500,  // Milliseconds
             action: (_ complete: () async throws -> Void) async throws -> Void,
             fetchActionResult: () async throws -> T?
         ) async throws -> T {
@@ -129,8 +129,9 @@ public enum AuthenticationToken: Equatable, CustomStringConvertible {
             let lockFileExists = try await fileSystem.exists(lockfilePath)
             let secondsSinceLastModified: Double? =
                 if lockFileExists,
-                let lastModificationDate = try await fileSystem
-                .fileMetadata(at: lockfilePath)?.lastModificationDate {
+                    let lastModificationDate = try await fileSystem
+                        .fileMetadata(at: lockfilePath)?.lastModificationDate
+                {
                     Date().timeIntervalSince(lastModificationDate)
                 } else {
                     nil
@@ -294,7 +295,7 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
 
         let fetchActionResult = { () async throws -> AuthenticationToken? in
             switch try await tokenStatus(serverURL: serverURL, forceRefresh: false) {
-            case let .valid(token):
+            case .valid(let token):
                 return token
             case .expired, .absent:
                 return nil
@@ -305,11 +306,11 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
             try await tokenStatus(serverURL: serverURL, forceRefresh: forceRefresh), inBackground,
             locking
         ) {
-        case let (.valid(token), _, _):
+        case (.valid(let token), _, _):
             return token
         case (.absent, _, _):
             return nil
-        case (.expired, false, true): // Foreground with locking
+        case (.expired, false, true):  // Foreground with locking
             if forceInProcessLock {
                 return try await inProcessLockedRefresh(
                     serverURL: serverURL, forceRefresh: forceRefresh
@@ -331,9 +332,9 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
                     )
                 #endif
             }
-        case (.expired, false, false): // Foreground without locking
+        case (.expired, false, false):  // Foreground without locking
             return try await executeRefresh(serverURL: serverURL, forceRefresh: forceRefresh)?.value
-        case (.expired, true, true): // Background with locking
+        case (.expired, true, true):  // Background with locking
             #if canImport(TuistSupport)
                 return try await Self.fileSystemLockActor.withLock(
                     lockfilePath: lockFilePath(serverURL: serverURL),
@@ -346,7 +347,7 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
             #else
                 return nil
             #endif
-        case (.expired, true, false): // Background without locking
+        case (.expired, true, false):  // Background without locking
             throw ServerAuthenticationControllerError.cantRefreshWithLockingAndBackground
         }
     }
@@ -368,7 +369,7 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
         ) async throws -> T {
             let lockfilePath = lockFilePath(serverURL: serverURL)
             let maxAttempts = 30
-            let retryInterval: UInt64 = 500 // Miliseconds
+            let retryInterval: UInt64 = 500  // Miliseconds
             if let result = try await fetchActionResult() { return result }
 
             if attemptCount >= maxAttempts {
@@ -381,8 +382,9 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
             let lockFileExists = try await fileSystem.exists(lockfilePath)
             let secondsSinceLastModified: Double? =
                 if lockFileExists,
-                let lastModificationDate = try await fileSystem
-                .fileMetadata(at: lockfilePath)?.lastModificationDate {
+                    let lastModificationDate = try await fileSystem
+                        .fileMetadata(at: lockfilePath)?.lastModificationDate
+                {
                     Date().timeIntervalSince(lastModificationDate)
                 } else {
                     nil
@@ -442,8 +444,9 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
         switch token {
         case .project:
             return .valid(token)
-        case let .user(
-            accessToken, refreshToken
+        case .user(
+            let
+                accessToken, let refreshToken
         ):
             // We consider a token to be expired if the expiration date is in the past or 30 seconds from now
             let now = Date.now()
@@ -474,8 +477,9 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
             switch token {
             case .project:
                 upToDateToken = token
-            case let .user(
-                accessToken, refreshToken
+            case .user(
+                let
+                    accessToken, let refreshToken
             ):
                 // We consider a token to be expired if the expiration date is in the past or 30 seconds from now
                 let now = Date.now()
