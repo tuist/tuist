@@ -43,9 +43,6 @@ jobs:
         with:
           ref: ${{ github.event.inputs.commit_sha }}
           fetch-depth: 0
-      - uses: jdx/mise-action@v2
-        with:
-          working_directory: server
       - name: "Get version"
         id: version
         run: |
@@ -57,7 +54,7 @@ jobs:
           sed -i 's/version: "[^"]*"/version: "'$VERSION'"/' mix.exs
       - name: Trigger canary deploy with Render CLI
         run: |
-          render deploys create srv-d35uiopr0fns73bfve00 --output json --confirm --wait --commit "$GITHUB_SHA"
+          mise exec "github:render-oss/cli@2.2.0" -- cli_v2.2.0 deploys create srv-d35uiopr0fns73bfve00 --output json --confirm --wait --commit "$GITHUB_SHA"
       - name: Notify about the deployment in Slack
         uses: slackapi/slack-github-action@v2.0.0
         with:
@@ -65,4 +62,4 @@ jobs:
           webhook-type: webhook-trigger
           payload: |
             commit: "${{ github.sha }}"
-            environment: "canary"
+            environment: "server-canary"
