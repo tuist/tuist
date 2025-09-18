@@ -43,6 +43,9 @@ jobs:
         with:
           ref: ${{ github.event.inputs.commit_sha }}
           fetch-depth: 0
+      - uses: jdx/mise-action@v2
+        with:
+          install: false
       - name: "Get version"
         id: version
         run: |
