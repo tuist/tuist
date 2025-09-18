@@ -57,6 +57,8 @@ defmodule Runner.QA.Agent do
     openai_api_key = Keyword.get(opts, :openai_api_key)
     launch_arguments = Map.get(attrs, :launch_arguments, "")
     app_description = Map.get(attrs, :app_description, "")
+    email = Map.get(attrs, :email, "")
+    password = Map.get(attrs, :password, "")
 
     with {:ok, simulator_device} <- simulator_device(),
          :ok <- run_preview(preview_url, bundle_identifier, simulator_device, launch_arguments),
@@ -143,6 +145,17 @@ defmodule Runner.QA.Agent do
           #{app_description}
           """
 
+      credentials_context =
+        if email == "" or password == "",
+          do: "",
+          else: """
+
+          Test account credentials for sign-in:
+          Email: #{email}
+          Password: #{password}
+          Use these credentials if the app requires authentication or login.
+          """
+
       prompt = """
       You are a QA agent testing a mobile iOS app. Test the following: #{prompt}.
 
@@ -154,7 +167,7 @@ defmodule Runner.QA.Agent do
       - To dismiss a system sheet, tap within the visible screen area but outside the sheet, such in the dark/grayed area above the sheet
       - If a button includes text, prefer tapping on the text to interact with the button
       - When you recognize placeholder/pre-filled fields, you must never clear the placeholder value. Instead, replace the text directly with type_text tool.
-      #{app_context}
+      #{app_context}#{credentials_context}
       """
 
       llm =

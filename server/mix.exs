@@ -54,7 +54,7 @@ defmodule Tuist.MixProject do
       {:telemetry_poller, "~> 1.0"},
       {:gettext, "~> 0.26"},
       {:jason, "~> 1.2"},
-      {:dns_cluster, "~> 0.2.0"},
+      {:libcluster, "~> 3.5"},
       {:bandit, "~> 1.2"},
       {:credo, "~> 1.7.7", only: [:dev, :test], runtime: false},
       {:appsignal, "~> 2.15.0"},
@@ -133,7 +133,7 @@ defmodule Tuist.MixProject do
       {:ecto_ch, "~> 0.7"},
       (System.get_env("NOORA_LOCAL") &&
          {:noora, path: "../../Noora/web"}) ||
-        {:noora, "== 0.23.0"},
+        {:noora, "== 0.23.1"},
       {:zstream, "~> 0.6"},
       {:cloak_ecto, "~> 1.3.0"},
       {:boruta, git: "https://github.com/malach-it/boruta_auth", branch: "master"},

@@ -7,7 +7,6 @@
   "clickhouse" = "25.5.1"
   "npm:prettier" = "3.4.2"
   "elixir" = "1.18.4-otp-27"
-  "flyctl" = "0.3.172"
   "erlang" = "27.3.2"
   "asdf:aeons/asdf-minio" = "latest"
   "npm:appium" = "3.0.1"
