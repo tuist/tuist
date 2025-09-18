@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.76.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* Invalid generated projects when projects are generated with binaries keeping sources and targets by [@pepicrft](https://github.com/pepicrft) in [#8227](https://github.com/tuist/tuist/pull/8227)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.76.0...4.76.1
+
 ## What's Changed in 4.76.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
