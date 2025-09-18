@@ -80,8 +80,6 @@ defmodule Tuist.Projects.Project do
     |> validate_inclusion(:vcs_provider, [:github])
     |> validate_inclusion(:visibility, [:private, :public])
     |> validate_inclusion(:default_previews_visibility, [:private, :public])
-    |> update_change(:qa_app_description, &if(&1, do: String.trim(&1), else: ""))
-    |> update_change(:qa_email, &if(&1, do: String.trim(&1), else: ""))
   end
 
   defp validate_name(changeset) do
