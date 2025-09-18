@@ -821,7 +821,7 @@ defmodule Runner.QA.Tools do
   defp run_axe_command(simulator_uuid, args) do
     full_params = args ++ ["--udid", simulator_uuid]
 
-    case System.cmd("/opt/homebrew/bin/axe", full_params) do
+    case System.cmd("/usr/local/bin/axe", full_params) do
       {output, 0} ->
         {:ok, String.trim(output)}
 

@@ -307,7 +307,7 @@ defmodule TuistWeb.QARunLive do
       time_seconds =
         max(
           min(
-            DateTime.diff(step.inserted_at, recording_started_at, :millisecond) + 300,
+            DateTime.diff(step.inserted_at, recording_started_at, :millisecond) - 1000,
             duration
           ) / 1000.0,
           0
