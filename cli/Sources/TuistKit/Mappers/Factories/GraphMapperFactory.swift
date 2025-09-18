@@ -154,7 +154,6 @@ public final class GraphMapperFactory: GraphMapperFactorying {
                 mappers.append(TreeShakePrunedTargetsGraphMapper())
             }
 
-            // Apply remaining mappers
             mappers.append(UpdateWorkspaceProjectsGraphMapper())
 
             // Apply explicit dependencies if configured
