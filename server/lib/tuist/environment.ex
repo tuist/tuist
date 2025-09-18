@@ -138,10 +138,7 @@ defmodule Tuist.Environment do
   end
 
   def version do
-    case Version.parse(get([:version]) || "0.1.0") do
-      :error -> nil
-      {:ok, version} -> version
-    end
+    Application.spec(:tuist)[:vsn]
   end
 
   def ops_user_handles(secrets \\ secrets()) do
