@@ -36,7 +36,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: jdx/mise-action@v2
-      - run: mise run install
+        with:
+          install: false
       - name: "Get version"
         id: version
         run: |
@@ -46,9 +47,9 @@ jobs:
         run: |
           VERSION="${{ steps.version.outputs.version }}"
           sed -i 's/version: "[^"]*"/version: "'$VERSION'"/' mix.exs
-      - name: Trigger deploy with Render CLI
+      - name: Trigger canary deploy with Render CLI
         run: |
-          render deploys create srv-d35uk7pr0fns73bg0gq0 --output json --confirm --wait --commit "$GITHUB_SHA"
+          mise exec "github:render-oss/cli@2.2.0" -- cli_v2.2.0 deploys create srv-d35uk7pr0fns73bg0gq0 --output json --confirm --wait --commit "$GITHUB_SHA"
       - name: Notify about the deployment in Slack
         uses: slackapi/slack-github-action@v2.0.0
         with:
