@@ -16,18 +16,37 @@ extension SynthesizedResourceInterfaceTemplates {
     {% set forceNamespaces %}{{param.forceProvidesNamespaces|default:"false"}}{% endset %}
     {% set bundleToken %}{{param.name}}Resources{% endset %}
     {% set accessModifier %}{% if param.publicAccess %}public{% else %}internal{% endif %}{% endset %}
-    #if os(macOS)
-      import AppKit
-    #elseif os(iOS)
+
     {% if resourceCount.arresourcegroup > 0 %}
-      import ARKit
-    {% endif %}
-      import UIKit
-    #elseif os(tvOS) || os(watchOS)
-      import UIKit
+    #if os(iOS)
+    #if hasFeature(InternalImportsByDefault)
+    public import ARKit
+    #else
+    import ARKit
     #endif
+    #endif
+    {% endif %}
+
+    #if os(macOS)
+    #if hasFeature(InternalImportsByDefault)
+    public import AppKit
+    #else
+    import AppKit
+    #endif
+    #else
+    #if hasFeature(InternalImportsByDefault)
+    public import UIKit
+    #else
+    import UIKit
+    #endif
+    #endif
+
     #if canImport(SwiftUI)
-      import SwiftUI
+    #if hasFeature(InternalImportsByDefault)
+    public import SwiftUI
+    #else
+    import SwiftUI
+    #endif
     #endif
 
     // MARK: - Asset Catalogs
