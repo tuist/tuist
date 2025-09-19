@@ -139,6 +139,38 @@
     display: flex;
     flex-direction: column;
     gap: var(--noora-spacing-6);
+
+    & > [data-part="running-state"] {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      & > img {
+        html[data-theme="light"] &[data-theme="dark"] {
+          display: none;
+        }
+
+        html[data-theme="dark"] &[data-theme="light"] {
+          display: none;
+        }
+      }
+
+      & > [data-part="labels"] {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: var(--noora-spacing-4);
+
+        & > [data-part="title"] {
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+        }
+
+        & > [data-part="subtitle"] {
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+        }
+      }
+    }
   }
 
   & [data-part="details-card"] {
