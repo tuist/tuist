@@ -17,7 +17,6 @@
           </.dropdown_item>
           <.dropdown_item
             :for={{app_name, app_label} <- @available_apps}
-            :key={app_name}
             value={app_name}
             label={app_label}
             patch={"?#{TuistWeb.Utilities.Query.put(@uri.query, "analytics_app", app_name)}"}

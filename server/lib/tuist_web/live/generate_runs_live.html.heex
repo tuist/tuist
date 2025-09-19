@@ -37,7 +37,7 @@
         />
       </div>
       <div :if={Enum.any?(@active_filters)} data-part="active-filters">
-        <.active_filter :for={filter <- @active_filters} :key={filter.id} filter={filter} />
+        <.active_filter :for={filter <- @active_filters} filter={filter} />
       </div>
       <.table
         :if={not Enum.empty?(@generate_runs)}

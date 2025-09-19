@@ -14,7 +14,7 @@ config :phoenix, :plug_init_mode, :runtime
 config :phoenix, :stacktrace_depth, 20
 
 # Include HEEx debug annotations as HTML comments in rendered markup
-config :phoenix_live_view, debug_heex_annotations: true, debug_attributes: true
+config :phoenix_live_view, :debug_heex_annotations, true
 
 config :tuist, Tuist.ClickHouseRepo,
   hostname: "localhost",
