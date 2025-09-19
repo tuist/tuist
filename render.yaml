@@ -26,6 +26,10 @@ services:
         value: 1
       - key: TUIST_DATABASE_POOL_SIZE
         value: 10
+      - key: TUIST_S3_POOL_COUNT
+        value: 1
+      - key: TUIST_S3_POOL_SIZE
+        value: 50
       - key: TUIST_APP_URL
         value: https://tuist.dev
     domains:
@@ -54,6 +58,8 @@ services:
         value: 1
       - key: TUIST_USE_SSL_FOR_DATABASE
         value: 1
+      - key: TUIST_DATABASE_POOL_SIZE
+        value: 6
       - key: TUIST_APP_URL
         value: https://canary.tuist.dev
     domains:
@@ -77,6 +83,8 @@ services:
         value: 1
       - key: TUIST_USE_SSL_FOR_DATABASE
         value: 1
+      - key: TUIST_DATABASE_POOL_SIZE
+        value: 15
       - key: TUIST_APP_URL
         value: https://staging.tuist.dev
     domains:
