@@ -1,5 +1,5 @@
 import ProjectDescription
 
-let config = Config(
+let tuist = Tuist(
     installOptions: .options(passthroughSwiftPackageManagerArguments: ["--force-resolved-versions"])
 )
