@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# mise description="Bundles the Tuist macOS app for distribution"
+#MISE description="Bundles the Tuist macOS app for distribution"
 
 set -euo pipefail
 

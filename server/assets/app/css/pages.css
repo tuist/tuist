@@ -13,6 +13,12 @@
 @import "./pages/overview.css";
 @import "./pages/preview.css";
 @import "./pages/previews.css";
+@import "./pages/qa.css";
+@import "./pages/ops/qa.css";
+@import "./pages/ops/qa_logs.css";
+@import "./pages/project_settings.css";
+@import "./pages/qa_run.css";
+@import "./pages/qa_settings.css";
 @import "./pages/run_detail.css";
 @import "./pages/connect.css";
 @import "./pages/test_runs.css";

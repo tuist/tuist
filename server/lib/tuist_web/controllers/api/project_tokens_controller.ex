@@ -65,7 +65,7 @@ defmodule TuistWeb.API.ProjectTokensController do
         |> json(%{message: "The project #{account_handle}/#{project_handle} was not found"})
 
       is_nil(current_user) or
-          not Authorization.can(current_user, :create, project.account, :token) ->
+          Authorization.authorize(:account_token_create, current_user, project.account) != :ok ->
         conn
         |> put_status(:forbidden)
         |> json(%{
@@ -136,7 +136,8 @@ defmodule TuistWeb.API.ProjectTokensController do
         |> put_status(:not_found)
         |> json(%{message: "The project #{account_handle}/#{project_handle} was not found"})
 
-      is_nil(current_user) or not Authorization.can(current_user, :read, project.account, :token) ->
+      is_nil(current_user) or
+          Authorization.authorize(:account_token_read, current_user, project.account) != :ok ->
         conn
         |> put_status(:forbidden)
         |> json(%{
@@ -211,7 +212,7 @@ defmodule TuistWeb.API.ProjectTokensController do
         |> json(%{message: "The project #{account_handle}/#{project_handle} was not found"})
 
       is_nil(current_user) or
-          not Authorization.can(current_user, :delete, project.account, :token) ->
+          Authorization.authorize(:account_token_delete, current_user, project.account) != :ok ->
         conn
         |> put_status(:forbidden)
         |> json(%{

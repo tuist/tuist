@@ -1,9 +1,10 @@
 ---
-title: Data-loss prevention
-titleTemplate: :title | Business continuity and data protection | Security | Tuist Handbook
-description: "This page outlines the strategies and mechanisms Tuist employs to prevent data loss, ensuring the security and continuity of company operations."
+{
+  "title": "Data-loss prevention",
+  "titleTemplate": ":title | Business continuity and data protection | Security | Tuist Handbook",
+  "description": "This page outlines the strategies and mechanisms Tuist employs to prevent data loss, ensuring the security and continuity of company operations."
+}
 ---
-
 # Data-loss prevention
 
 - **Policy owner:** Pedro Piñera Buendía

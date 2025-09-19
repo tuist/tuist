@@ -10,7 +10,7 @@ import struct Foundation.Data
 import struct Foundation.Date
 #endif
 import HTTPTypes
-internal struct Client: APIProtocol {
+public struct Client: APIProtocol {
     /// The underlying HTTP client.
     private let client: UniversalClient
     /// Creates a new client.
@@ -21,7 +21,7 @@ internal struct Client: APIProtocol {
     ///   - configuration: A set of configuration values for the client.
     ///   - transport: A transport that performs HTTP operations.
     ///   - middlewares: A list of middlewares to call before the transport.
-    internal init(
+    public init(
         serverURL: Foundation.URL,
         configuration: Configuration = .init(),
         transport: any ClientTransport,
@@ -43,7 +43,7 @@ internal struct Client: APIProtocol {
     ///
     /// - Remark: HTTP `POST /api/cache/multipart/complete`.
     /// - Remark: Generated from `#/paths//api/cache/multipart/complete/post(completeCacheArtifactMultipartUpload)`.
-    internal func completeCacheArtifactMultipartUpload(_ input: Operations.completeCacheArtifactMultipartUpload.Input) async throws -> Operations.completeCacheArtifactMultipartUpload.Output {
+    public func completeCacheArtifactMultipartUpload(_ input: Operations.completeCacheArtifactMultipartUpload.Input) async throws -> Operations.completeCacheArtifactMultipartUpload.Output {
         try await client.send(
             input: input,
             forOperation: Operations.completeCacheArtifactMultipartUpload.id,
@@ -237,7 +237,7 @@ internal struct Client: APIProtocol {
     ///
     /// - Remark: HTTP `POST /api/analytics`.
     /// - Remark: Generated from `#/paths//api/analytics/post(createCommandEvent)`.
-    internal func createCommandEvent(_ input: Operations.createCommandEvent.Input) async throws -> Operations.createCommandEvent.Output {
+    public func createCommandEvent(_ input: Operations.createCommandEvent.Input) async throws -> Operations.createCommandEvent.Output {
         try await client.send(
             input: input,
             forOperation: Operations.createCommandEvent.id,
@@ -361,7 +361,7 @@ internal struct Client: APIProtocol {
     ///
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/previews/start`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/start/post(startPreviewsMultipartUpload)`.
-    internal func startPreviewsMultipartUpload(_ input: Operations.startPreviewsMultipartUpload.Input) async throws -> Operations.startPreviewsMultipartUpload.Output {
+    public func startPreviewsMultipartUpload(_ input: Operations.startPreviewsMultipartUpload.Input) async throws -> Operations.startPreviewsMultipartUpload.Output {
         try await client.send(
             input: input,
             forOperation: Operations.startPreviewsMultipartUpload.id,
@@ -503,7 +503,7 @@ internal struct Client: APIProtocol {
     ///
     /// - Remark: HTTP `POST /api/auth`.
     /// - Remark: Generated from `#/paths//api/auth/post(authenticate)`.
-    internal func authenticate(_ input: Operations.authenticate.Input) async throws -> Operations.authenticate.Output {
+    public func authenticate(_ input: Operations.authenticate.Input) async throws -> Operations.authenticate.Output {
         try await client.send(
             input: input,
             forOperation: Operations.authenticate.id,
@@ -620,7 +620,7 @@ internal struct Client: APIProtocol {
     ///
     /// - Remark: HTTP `POST /api/auth/refresh_token`.
     /// - Remark: Generated from `#/paths//api/auth/refresh_token/post(refreshToken)`.
-    internal func refreshToken(_ input: Operations.refreshToken.Input) async throws -> Operations.refreshToken.Output {
+    public func refreshToken(_ input: Operations.refreshToken.Input) async throws -> Operations.refreshToken.Output {
         try await client.send(
             input: input,
             forOperation: Operations.refreshToken.id,
@@ -675,6 +675,28 @@ internal struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .ok(.init(body: body))
+                case 400:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.refreshToken.Output.BadRequest.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .badRequest(.init(body: body))
                 case 401:
                     let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
                     let body: Operations.refreshToken.Output.Unauthorized.Body
@@ -709,11 +731,284 @@ internal struct Client: APIProtocol {
             }
         )
     }
+    /// It completes a multi-part upload
+    ///
+    /// Given the upload ID and all the parts with their ETags, this endpoint completes the multipart upload.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/runs/{run_id}/complete`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/runs/{run_id}/complete/post(completeAnalyticsArtifactMultipartUploadProject)`.
+    public func completeAnalyticsArtifactMultipartUploadProject(_ input: Operations.completeAnalyticsArtifactMultipartUploadProject.Input) async throws -> Operations.completeAnalyticsArtifactMultipartUploadProject.Output {
+        try await client.send(
+            input: input,
+            forOperation: Operations.completeAnalyticsArtifactMultipartUploadProject.id,
+            serializer: { input in
+                let path = try converter.renderedPath(
+                    template: "/api/projects/{}/{}/runs/{}/complete",
+                    parameters: [
+                        input.path.account_handle,
+                        input.path.project_handle,
+                        input.path.run_id
+                    ]
+                )
+                var request: HTTPTypes.HTTPRequest = .init(
+                    soar_path: path,
+                    method: .post
+                )
+                suppressMutabilityWarning(&request)
+                converter.setAcceptHeader(
+                    in: &request.headerFields,
+                    contentTypes: input.headers.accept
+                )
+                let body: OpenAPIRuntime.HTTPBody?
+                switch input.body {
+                case .none:
+                    body = nil
+                case let .json(value):
+                    body = try converter.setOptionalRequestBodyAsJSON(
+                        value,
+                        headerFields: &request.headerFields,
+                        contentType: "application/json; charset=utf-8"
+                    )
+                }
+                return (request, body)
+            },
+            deserializer: { response, responseBody in
+                switch response.status.code {
+                case 204:
+                    return .noContent(.init())
+                case 401:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.completeAnalyticsArtifactMultipartUploadProject.Output.Unauthorized.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .unauthorized(.init(body: body))
+                case 403:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.completeAnalyticsArtifactMultipartUploadProject.Output.Forbidden.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .forbidden(.init(body: body))
+                case 404:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.completeAnalyticsArtifactMultipartUploadProject.Output.NotFound.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .notFound(.init(body: body))
+                case 500:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.completeAnalyticsArtifactMultipartUploadProject.Output.InternalServerError.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .internalServerError(.init(body: body))
+                default:
+                    return .undocumented(
+                        statusCode: response.status.code,
+                        .init(
+                            headerFields: response.headerFields,
+                            body: responseBody
+                        )
+                    )
+                }
+            }
+        )
+    }
+    /// List bundles for a project
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/bundles`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bundles/get(listBundles)`.
+    public func listBundles(_ input: Operations.listBundles.Input) async throws -> Operations.listBundles.Output {
+        try await client.send(
+            input: input,
+            forOperation: Operations.listBundles.id,
+            serializer: { input in
+                let path = try converter.renderedPath(
+                    template: "/api/projects/{}/{}/bundles",
+                    parameters: [
+                        input.path.account_handle,
+                        input.path.project_handle
+                    ]
+                )
+                var request: HTTPTypes.HTTPRequest = .init(
+                    soar_path: path,
+                    method: .get
+                )
+                suppressMutabilityWarning(&request)
+                try converter.setQueryItemAsURI(
+                    in: &request,
+                    style: .form,
+                    explode: true,
+                    name: "page",
+                    value: input.query.page
+                )
+                try converter.setQueryItemAsURI(
+                    in: &request,
+                    style: .form,
+                    explode: true,
+                    name: "page_size",
+                    value: input.query.page_size
+                )
+                try converter.setQueryItemAsURI(
+                    in: &request,
+                    style: .form,
+                    explode: true,
+                    name: "git_branch",
+                    value: input.query.git_branch
+                )
+                converter.setAcceptHeader(
+                    in: &request.headerFields,
+                    contentTypes: input.headers.accept
+                )
+                return (request, nil)
+            },
+            deserializer: { response, responseBody in
+                switch response.status.code {
+                case 200:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.listBundles.Output.Ok.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Operations.listBundles.Output.Ok.Body.jsonPayload.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .ok(.init(body: body))
+                case 401:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.listBundles.Output.Unauthorized.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .unauthorized(.init(body: body))
+                case 403:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.listBundles.Output.Forbidden.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .forbidden(.init(body: body))
+                default:
+                    return .undocumented(
+                        statusCode: response.status.code,
+                        .init(
+                            headerFields: response.headerFields,
+                            body: responseBody
+                        )
+                    )
+                }
+            }
+        )
+    }
     /// Create a new bundle with artifacts
     ///
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/bundles`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bundles/post(createBundle)`.
-    internal func createBundle(_ input: Operations.createBundle.Input) async throws -> Operations.createBundle.Output {
+    public func createBundle(_ input: Operations.createBundle.Input) async throws -> Operations.createBundle.Output {
         try await client.send(
             input: input,
             forOperation: Operations.createBundle.id,
@@ -855,7 +1150,7 @@ internal struct Client: APIProtocol {
     ///
     /// - Remark: HTTP `GET /api/auth/device_code/{device_code}`.
     /// - Remark: Generated from `#/paths//api/auth/device_code/{device_code}/get(getDeviceCode)`.
-    internal func getDeviceCode(_ input: Operations.getDeviceCode.Input) async throws -> Operations.getDeviceCode.Output {
+    public func getDeviceCode(_ input: Operations.getDeviceCode.Input) async throws -> Operations.getDeviceCode.Output {
         try await client.send(
             input: input,
             forOperation: Operations.getDeviceCode.id,
@@ -957,13 +1252,14 @@ internal struct Client: APIProtocol {
             }
         )
     }
-    /// It initiates a multipart upload for a command event artifact.
+    /// It initiates a multipart upload for a run artifact
     ///
     /// The endpoint returns an upload ID that can be used to generate URLs for the individual parts and complete the upload.
     ///
     /// - Remark: HTTP `POST /api/runs/{run_id}/start`.
     /// - Remark: Generated from `#/paths//api/runs/{run_id}/start/post(startAnalyticsArtifactMultipartUpload)`.
-    internal func startAnalyticsArtifactMultipartUpload(_ input: Operations.startAnalyticsArtifactMultipartUpload.Input) async throws -> Operations.startAnalyticsArtifactMultipartUpload.Output {
+    @available(*, deprecated)
+    public func startAnalyticsArtifactMultipartUpload(_ input: Operations.startAnalyticsArtifactMultipartUpload.Input) async throws -> Operations.startAnalyticsArtifactMultipartUpload.Output {
         try await client.send(
             input: input,
             forOperation: Operations.startAnalyticsArtifactMultipartUpload.id,
@@ -1102,7 +1398,7 @@ internal struct Client: APIProtocol {
     ///
     /// - Remark: HTTP `GET /api/projects`.
     /// - Remark: Generated from `#/paths//api/projects/get(listProjects)`.
-    internal func listProjects(_ input: Operations.listProjects.Input) async throws -> Operations.listProjects.Output {
+    public func listProjects(_ input: Operations.listProjects.Input) async throws -> Operations.listProjects.Output {
         try await client.send(
             input: input,
             forOperation: Operations.listProjects.id,
@@ -1184,7 +1480,7 @@ internal struct Client: APIProtocol {
     ///
     /// - Remark: HTTP `POST /api/projects`.
     /// - Remark: Generated from `#/paths//api/projects/post(createProject)`.
-    internal func createProject(_ input: Operations.createProject.Input) async throws -> Operations.createProject.Output {
+    public func createProject(_ input: Operations.createProject.Input) async throws -> Operations.createProject.Output {
         try await client.send(
             input: input,
             forOperation: Operations.createProject.id,
@@ -1323,7 +1619,7 @@ internal struct Client: APIProtocol {
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tokens`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/get(listProjectTokens)`.
-    internal func listProjectTokens(_ input: Operations.listProjectTokens.Input) async throws -> Operations.listProjectTokens.Output {
+    public func listProjectTokens(_ input: Operations.listProjectTokens.Input) async throws -> Operations.listProjectTokens.Output {
         try await client.send(
             input: input,
             forOperation: Operations.listProjectTokens.id,
@@ -1454,7 +1750,7 @@ internal struct Client: APIProtocol {
     ///
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tokens`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/post(createProjectToken)`.
-    internal func createProjectToken(_ input: Operations.createProjectToken.Input) async throws -> Operations.createProjectToken.Output {
+    public func createProjectToken(_ input: Operations.createProjectToken.Input) async throws -> Operations.createProjectToken.Output {
         try await client.send(
             input: input,
             forOperation: Operations.createProjectToken.id,
@@ -1585,7 +1881,7 @@ internal struct Client: APIProtocol {
     ///
     /// - Remark: HTTP `GET /api/organizations/{organization_name}/usage`.
     /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/usage/get(showOrganizationUsage)`.
-    internal func showOrganizationUsage(_ input: Operations.showOrganizationUsage.Input) async throws -> Operations.showOrganizationUsage.Output {
+    public func showOrganizationUsage(_ input: Operations.showOrganizationUsage.Input) async throws -> Operations.showOrganizationUsage.Output {
         try await client.send(
             input: input,
             forOperation: Operations.showOrganizationUsage.id,
@@ -1715,7 +2011,7 @@ internal struct Client: APIProtocol {
     ///
     /// - Remark: HTTP `POST /api/cache/multipart/start`.
     /// - Remark: Generated from `#/paths//api/cache/multipart/start/post(startCacheArtifactMultipartUpload)`.
-    internal func startCacheArtifactMultipartUpload(_ input: Operations.startCacheArtifactMultipartUpload.Input) async throws -> Operations.startCacheArtifactMultipartUpload.Output {
+    public func startCacheArtifactMultipartUpload(_ input: Operations.startCacheArtifactMultipartUpload.Input) async throws -> Operations.startCacheArtifactMultipartUpload.Output {
         try await client.send(
             input: input,
             forOperation: Operations.startCacheArtifactMultipartUpload.id,
@@ -1893,7 +2189,7 @@ internal struct Client: APIProtocol {
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/cache/ac/{hash}`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/ac/{hash}/get(getCacheActionItem)`.
-    internal func getCacheActionItem(_ input: Operations.getCacheActionItem.Input) async throws -> Operations.getCacheActionItem.Output {
+    public func getCacheActionItem(_ input: Operations.getCacheActionItem.Input) async throws -> Operations.getCacheActionItem.Output {
         try await client.send(
             input: input,
             forOperation: Operations.getCacheActionItem.id,
@@ -2041,13 +2337,136 @@ internal struct Client: APIProtocol {
             }
         )
     }
+    /// Completes artifacts uploads for a given run
+    ///
+    /// Given a run, it marks all artifact uploads as finished and does extra processing of a given command run, such as test flakiness detection.
+    ///
+    /// - Remark: HTTP `PUT /api/projects/{account_handle}/{project_handle}/runs/{run_id}/complete_artifacts_uploads`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/runs/{run_id}/complete_artifacts_uploads/put(completeAnalyticsArtifactsUploadsProject)`.
+    public func completeAnalyticsArtifactsUploadsProject(_ input: Operations.completeAnalyticsArtifactsUploadsProject.Input) async throws -> Operations.completeAnalyticsArtifactsUploadsProject.Output {
+        try await client.send(
+            input: input,
+            forOperation: Operations.completeAnalyticsArtifactsUploadsProject.id,
+            serializer: { input in
+                let path = try converter.renderedPath(
+                    template: "/api/projects/{}/{}/runs/{}/complete_artifacts_uploads",
+                    parameters: [
+                        input.path.account_handle,
+                        input.path.project_handle,
+                        input.path.run_id
+                    ]
+                )
+                var request: HTTPTypes.HTTPRequest = .init(
+                    soar_path: path,
+                    method: .put
+                )
+                suppressMutabilityWarning(&request)
+                converter.setAcceptHeader(
+                    in: &request.headerFields,
+                    contentTypes: input.headers.accept
+                )
+                let body: OpenAPIRuntime.HTTPBody?
+                switch input.body {
+                case .none:
+                    body = nil
+                case let .json(value):
+                    body = try converter.setOptionalRequestBodyAsJSON(
+                        value,
+                        headerFields: &request.headerFields,
+                        contentType: "application/json; charset=utf-8"
+                    )
+                }
+                return (request, body)
+            },
+            deserializer: { response, responseBody in
+                switch response.status.code {
+                case 204:
+                    return .noContent(.init())
+                case 401:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.completeAnalyticsArtifactsUploadsProject.Output.Unauthorized.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .unauthorized(.init(body: body))
+                case 403:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.completeAnalyticsArtifactsUploadsProject.Output.Forbidden.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .forbidden(.init(body: body))
+                case 404:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.completeAnalyticsArtifactsUploadsProject.Output.NotFound.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .notFound(.init(body: body))
+                default:
+                    return .undocumented(
+                        statusCode: response.status.code,
+                        .init(
+                            headerFields: response.headerFields,
+                            body: responseBody
+                        )
+                    )
+                }
+            }
+        )
+    }
     /// It generates a signed URL for uploading a part.
     ///
     /// Given an upload ID and a part number, this endpoint returns a signed URL that can be used to upload a part of a multipart upload. The URL is short-lived and expires in 120 seconds.
     ///
     /// - Remark: HTTP `POST /api/cache/multipart/generate-url`.
     /// - Remark: Generated from `#/paths//api/cache/multipart/generate-url/post(generateCacheArtifactMultipartUploadURL)`.
-    internal func generateCacheArtifactMultipartUploadURL(_ input: Operations.generateCacheArtifactMultipartUploadURL.Input) async throws -> Operations.generateCacheArtifactMultipartUploadURL.Output {
+    public func generateCacheArtifactMultipartUploadURL(_ input: Operations.generateCacheArtifactMultipartUploadURL.Input) async throws -> Operations.generateCacheArtifactMultipartUploadURL.Output {
         try await client.send(
             input: input,
             forOperation: Operations.generateCacheArtifactMultipartUploadURL.id,
@@ -2240,13 +2659,299 @@ internal struct Client: APIProtocol {
             }
         )
     }
+    /// It generates a signed URL for uploading a part
+    ///
+    /// Given an upload ID and a part number, this endpoint returns a signed URL that can be used to upload a part of a multipart upload. The URL is short-lived and expires in 120 seconds.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/runs/{run_id}/generate-url`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/runs/{run_id}/generate-url/post(generateAnalyticsArtifactMultipartUploadURLProject)`.
+    public func generateAnalyticsArtifactMultipartUploadURLProject(_ input: Operations.generateAnalyticsArtifactMultipartUploadURLProject.Input) async throws -> Operations.generateAnalyticsArtifactMultipartUploadURLProject.Output {
+        try await client.send(
+            input: input,
+            forOperation: Operations.generateAnalyticsArtifactMultipartUploadURLProject.id,
+            serializer: { input in
+                let path = try converter.renderedPath(
+                    template: "/api/projects/{}/{}/runs/{}/generate-url",
+                    parameters: [
+                        input.path.account_handle,
+                        input.path.project_handle,
+                        input.path.run_id
+                    ]
+                )
+                var request: HTTPTypes.HTTPRequest = .init(
+                    soar_path: path,
+                    method: .post
+                )
+                suppressMutabilityWarning(&request)
+                converter.setAcceptHeader(
+                    in: &request.headerFields,
+                    contentTypes: input.headers.accept
+                )
+                let body: OpenAPIRuntime.HTTPBody?
+                switch input.body {
+                case .none:
+                    body = nil
+                case let .json(value):
+                    body = try converter.setOptionalRequestBodyAsJSON(
+                        value,
+                        headerFields: &request.headerFields,
+                        contentType: "application/json; charset=utf-8"
+                    )
+                }
+                return (request, body)
+            },
+            deserializer: { response, responseBody in
+                switch response.status.code {
+                case 200:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.generateAnalyticsArtifactMultipartUploadURLProject.Output.Ok.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas.ArtifactMultipartUploadURL.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .ok(.init(body: body))
+                case 401:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.generateAnalyticsArtifactMultipartUploadURLProject.Output.Unauthorized.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .unauthorized(.init(body: body))
+                case 403:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.generateAnalyticsArtifactMultipartUploadURLProject.Output.Forbidden.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .forbidden(.init(body: body))
+                case 404:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.generateAnalyticsArtifactMultipartUploadURLProject.Output.NotFound.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .notFound(.init(body: body))
+                default:
+                    return .undocumented(
+                        statusCode: response.status.code,
+                        .init(
+                            headerFields: response.headerFields,
+                            body: responseBody
+                        )
+                    )
+                }
+            }
+        )
+    }
+    /// It initiates a multipart upload for a run artifact
+    ///
+    /// The endpoint returns an upload ID that can be used to generate URLs for the individual parts and complete the upload.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/runs/{run_id}/start`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/runs/{run_id}/start/post(startAnalyticsArtifactMultipartUploadProject)`.
+    public func startAnalyticsArtifactMultipartUploadProject(_ input: Operations.startAnalyticsArtifactMultipartUploadProject.Input) async throws -> Operations.startAnalyticsArtifactMultipartUploadProject.Output {
+        try await client.send(
+            input: input,
+            forOperation: Operations.startAnalyticsArtifactMultipartUploadProject.id,
+            serializer: { input in
+                let path = try converter.renderedPath(
+                    template: "/api/projects/{}/{}/runs/{}/start",
+                    parameters: [
+                        input.path.account_handle,
+                        input.path.project_handle,
+                        input.path.run_id
+                    ]
+                )
+                var request: HTTPTypes.HTTPRequest = .init(
+                    soar_path: path,
+                    method: .post
+                )
+                suppressMutabilityWarning(&request)
+                converter.setAcceptHeader(
+                    in: &request.headerFields,
+                    contentTypes: input.headers.accept
+                )
+                let body: OpenAPIRuntime.HTTPBody?
+                switch input.body {
+                case .none:
+                    body = nil
+                case let .json(value):
+                    body = try converter.setOptionalRequestBodyAsJSON(
+                        value,
+                        headerFields: &request.headerFields,
+                        contentType: "application/json; charset=utf-8"
+                    )
+                }
+                return (request, body)
+            },
+            deserializer: { response, responseBody in
+                switch response.status.code {
+                case 200:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.startAnalyticsArtifactMultipartUploadProject.Output.Ok.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas.ArtifactUploadID.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .ok(.init(body: body))
+                case 401:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.startAnalyticsArtifactMultipartUploadProject.Output.Unauthorized.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .unauthorized(.init(body: body))
+                case 403:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.startAnalyticsArtifactMultipartUploadProject.Output.Forbidden.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .forbidden(.init(body: body))
+                case 404:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.startAnalyticsArtifactMultipartUploadProject.Output.NotFound.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .notFound(.init(body: body))
+                default:
+                    return .undocumented(
+                        statusCode: response.status.code,
+                        .init(
+                            headerFields: response.headerFields,
+                            body: responseBody
+                        )
+                    )
+                }
+            }
+        )
+    }
     /// Authenticate with Apple identity token.
     ///
     /// This endpoint returns API tokens for a given Apple identity token and authorization code from the first-party Tuist iOS app.
     ///
     /// - Remark: HTTP `POST /api/auth/apple`.
     /// - Remark: Generated from `#/paths//api/auth/apple/post(authenticateApple)`.
-    internal func authenticateApple(_ input: Operations.authenticateApple.Input) async throws -> Operations.authenticateApple.Output {
+    public func authenticateApple(_ input: Operations.authenticateApple.Input) async throws -> Operations.authenticateApple.Output {
         try await client.send(
             input: input,
             forOperation: Operations.authenticateApple.id,
@@ -2363,7 +3068,7 @@ internal struct Client: APIProtocol {
     ///
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/cache/ac`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/ac/post(uploadCacheActionItem)`.
-    internal func uploadCacheActionItem(_ input: Operations.uploadCacheActionItem.Input) async throws -> Operations.uploadCacheActionItem.Output {
+    public func uploadCacheActionItem(_ input: Operations.uploadCacheActionItem.Input) async throws -> Operations.uploadCacheActionItem.Output {
         try await client.send(
             input: input,
             forOperation: Operations.uploadCacheActionItem.id,
@@ -2571,7 +3276,7 @@ internal struct Client: APIProtocol {
     ///
     /// - Remark: HTTP `GET /api/organizations/{organization_name}`.
     /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/get(showOrganization)`.
-    internal func showOrganization(_ input: Operations.showOrganization.Input) async throws -> Operations.showOrganization.Output {
+    public func showOrganization(_ input: Operations.showOrganization.Input) async throws -> Operations.showOrganization.Output {
         try await client.send(
             input: input,
             forOperation: Operations.showOrganization.id,
@@ -2701,7 +3406,7 @@ internal struct Client: APIProtocol {
     ///
     /// - Remark: HTTP `PATCH /api/organizations/{organization_name}`.
     /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/patch(updateOrganization (2))`.
-    internal func updateOrganization_space__lpar_2_rpar_(_ input: Operations.updateOrganization_space__lpar_2_rpar_.Input) async throws -> Operations.updateOrganization_space__lpar_2_rpar_.Output {
+    public func updateOrganization_space__lpar_2_rpar_(_ input: Operations.updateOrganization_space__lpar_2_rpar_.Input) async throws -> Operations.updateOrganization_space__lpar_2_rpar_.Output {
         try await client.send(
             input: input,
             forOperation: Operations.updateOrganization_space__lpar_2_rpar_.id,
@@ -2864,7 +3569,7 @@ internal struct Client: APIProtocol {
     ///
     /// - Remark: HTTP `PUT /api/organizations/{organization_name}`.
     /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/put(updateOrganization)`.
-    internal func updateOrganization(_ input: Operations.updateOrganization.Input) async throws -> Operations.updateOrganization.Output {
+    public func updateOrganization(_ input: Operations.updateOrganization.Input) async throws -> Operations.updateOrganization.Output {
         try await client.send(
             input: input,
             forOperation: Operations.updateOrganization.id,
@@ -3028,7 +3733,7 @@ internal struct Client: APIProtocol {
     /// - Remark: HTTP `DELETE /api/organizations/{organization_name}`.
     /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/delete(deleteOrganization)`.
     @available(*, deprecated)
-    internal func deleteOrganization(_ input: Operations.deleteOrganization.Input) async throws -> Operations.deleteOrganization.Output {
+    public func deleteOrganization(_ input: Operations.deleteOrganization.Input) async throws -> Operations.deleteOrganization.Output {
         try await client.send(
             input: input,
             forOperation: Operations.deleteOrganization.id,
@@ -3138,7 +3843,7 @@ internal struct Client: APIProtocol {
     ///
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/previews/generate-url`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/generate-url/post(generatePreviewsMultipartUploadURL)`.
-    internal func generatePreviewsMultipartUploadURL(_ input: Operations.generatePreviewsMultipartUploadURL.Input) async throws -> Operations.generatePreviewsMultipartUploadURL.Output {
+    public func generatePreviewsMultipartUploadURL(_ input: Operations.generatePreviewsMultipartUploadURL.Input) async throws -> Operations.generatePreviewsMultipartUploadURL.Output {
         try await client.send(
             input: input,
             forOperation: Operations.generatePreviewsMultipartUploadURL.id,
@@ -3274,13 +3979,143 @@ internal struct Client: APIProtocol {
             }
         )
     }
+    /// Get a single bundle by ID
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}/get(getBundle)`.
+    public func getBundle(_ input: Operations.getBundle.Input) async throws -> Operations.getBundle.Output {
+        try await client.send(
+            input: input,
+            forOperation: Operations.getBundle.id,
+            serializer: { input in
+                let path = try converter.renderedPath(
+                    template: "/api/projects/{}/{}/bundles/{}",
+                    parameters: [
+                        input.path.account_handle,
+                        input.path.project_handle,
+                        input.path.bundle_id
+                    ]
+                )
+                var request: HTTPTypes.HTTPRequest = .init(
+                    soar_path: path,
+                    method: .get
+                )
+                suppressMutabilityWarning(&request)
+                converter.setAcceptHeader(
+                    in: &request.headerFields,
+                    contentTypes: input.headers.accept
+                )
+                return (request, nil)
+            },
+            deserializer: { response, responseBody in
+                switch response.status.code {
+                case 200:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.getBundle.Output.Ok.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas.Bundle.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .ok(.init(body: body))
+                case 401:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.getBundle.Output.Unauthorized.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .unauthorized(.init(body: body))
+                case 403:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.getBundle.Output.Forbidden.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .forbidden(.init(body: body))
+                case 404:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.getBundle.Output.NotFound.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .notFound(.init(body: body))
+                default:
+                    return .undocumented(
+                        statusCode: response.status.code,
+                        .init(
+                            headerFields: response.headerFields,
+                            body: responseBody
+                        )
+                    )
+                }
+            }
+        )
+    }
     /// Create a new account token.
     ///
     /// This endpoint returns a new account token.
     ///
     /// - Remark: HTTP `POST /api/accounts/{account_handle}/tokens`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/tokens/post(createAccountToken)`.
-    internal func createAccountToken(_ input: Operations.createAccountToken.Input) async throws -> Operations.createAccountToken.Output {
+    public func createAccountToken(_ input: Operations.createAccountToken.Input) async throws -> Operations.createAccountToken.Output {
         try await client.send(
             input: input,
             forOperation: Operations.createAccountToken.id,
@@ -3337,6 +4172,28 @@ internal struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .ok(.init(body: body))
+                case 400:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.createAccountToken.Output.BadRequest.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .badRequest(.init(body: body))
                 case 401:
                     let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
                     let body: Operations.createAccountToken.Output.Unauthorized.Body
@@ -3421,7 +4278,8 @@ internal struct Client: APIProtocol {
     ///
     /// - Remark: HTTP `POST /api/runs/{run_id}/generate-url`.
     /// - Remark: Generated from `#/paths//api/runs/{run_id}/generate-url/post(generateAnalyticsArtifactMultipartUploadURL)`.
-    internal func generateAnalyticsArtifactMultipartUploadURL(_ input: Operations.generateAnalyticsArtifactMultipartUploadURL.Input) async throws -> Operations.generateAnalyticsArtifactMultipartUploadURL.Output {
+    @available(*, deprecated)
+    public func generateAnalyticsArtifactMultipartUploadURL(_ input: Operations.generateAnalyticsArtifactMultipartUploadURL.Input) async throws -> Operations.generateAnalyticsArtifactMultipartUploadURL.Output {
         try await client.send(
             input: input,
             forOperation: Operations.generateAnalyticsArtifactMultipartUploadURL.id,
@@ -3560,7 +4418,7 @@ internal struct Client: APIProtocol {
     ///
     /// - Remark: HTTP `PUT /api/projects/{account_handle}/{project_handle}/cache/clean`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/clean/put(cleanCache)`.
-    internal func cleanCache(_ input: Operations.cleanCache.Input) async throws -> Operations.cleanCache.Output {
+    public func cleanCache(_ input: Operations.cleanCache.Input) async throws -> Operations.cleanCache.Output {
         try await client.send(
             input: input,
             forOperation: Operations.cleanCache.id,
@@ -3671,7 +4529,7 @@ internal struct Client: APIProtocol {
     ///
     /// - Remark: HTTP `POST /api/organizations/{organization_name}/invitations`.
     /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/invitations/post(createInvitation)`.
-    internal func createInvitation(_ input: Operations.createInvitation.Input) async throws -> Operations.createInvitation.Output {
+    public func createInvitation(_ input: Operations.createInvitation.Input) async throws -> Operations.createInvitation.Output {
         try await client.send(
             input: input,
             forOperation: Operations.createInvitation.id,
@@ -3834,7 +4692,7 @@ internal struct Client: APIProtocol {
     ///
     /// - Remark: HTTP `DELETE /api/organizations/{organization_name}/invitations`.
     /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/invitations/delete(cancelInvitation)`.
-    internal func cancelInvitation(_ input: Operations.cancelInvitation.Input) async throws -> Operations.cancelInvitation.Output {
+    public func cancelInvitation(_ input: Operations.cancelInvitation.Input) async throws -> Operations.cancelInvitation.Output {
         try await client.send(
             input: input,
             forOperation: Operations.cancelInvitation.id,
@@ -3955,7 +4813,7 @@ internal struct Client: APIProtocol {
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/previews`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/get(listPreviews)`.
-    internal func listPreviews(_ input: Operations.listPreviews.Input) async throws -> Operations.listPreviews.Output {
+    public func listPreviews(_ input: Operations.listPreviews.Input) async throws -> Operations.listPreviews.Output {
         try await client.send(
             input: input,
             forOperation: Operations.listPreviews.id,
@@ -4106,7 +4964,7 @@ internal struct Client: APIProtocol {
     ///
     /// - Remark: HTTP `GET /api/cache`.
     /// - Remark: Generated from `#/paths//api/cache/get(downloadCacheArtifact)`.
-    internal func downloadCacheArtifact(_ input: Operations.downloadCacheArtifact.Input) async throws -> Operations.downloadCacheArtifact.Output {
+    public func downloadCacheArtifact(_ input: Operations.downloadCacheArtifact.Input) async throws -> Operations.downloadCacheArtifact.Output {
         try await client.send(
             input: input,
             forOperation: Operations.downloadCacheArtifact.id,
@@ -4284,7 +5142,8 @@ internal struct Client: APIProtocol {
     ///
     /// - Remark: HTTP `POST /api/runs/{run_id}/complete`.
     /// - Remark: Generated from `#/paths//api/runs/{run_id}/complete/post(completeAnalyticsArtifactMultipartUpload)`.
-    internal func completeAnalyticsArtifactMultipartUpload(_ input: Operations.completeAnalyticsArtifactMultipartUpload.Input) async throws -> Operations.completeAnalyticsArtifactMultipartUpload.Output {
+    @available(*, deprecated)
+    public func completeAnalyticsArtifactMultipartUpload(_ input: Operations.completeAnalyticsArtifactMultipartUpload.Input) async throws -> Operations.completeAnalyticsArtifactMultipartUpload.Output {
         try await client.send(
             input: input,
             forOperation: Operations.completeAnalyticsArtifactMultipartUpload.id,
@@ -4427,7 +5286,7 @@ internal struct Client: APIProtocol {
     ///
     /// - Remark: HTTP `GET /api/organizations`.
     /// - Remark: Generated from `#/paths//api/organizations/get(listOrganizations)`.
-    internal func listOrganizations(_ input: Operations.listOrganizations.Input) async throws -> Operations.listOrganizations.Output {
+    public func listOrganizations(_ input: Operations.listOrganizations.Input) async throws -> Operations.listOrganizations.Output {
         try await client.send(
             input: input,
             forOperation: Operations.listOrganizations.id,
@@ -4533,7 +5392,7 @@ internal struct Client: APIProtocol {
     ///
     /// - Remark: HTTP `POST /api/organizations`.
     /// - Remark: Generated from `#/paths//api/organizations/post(createOrganization)`.
-    internal func createOrganization(_ input: Operations.createOrganization.Input) async throws -> Operations.createOrganization.Output {
+    public func createOrganization(_ input: Operations.createOrganization.Input) async throws -> Operations.createOrganization.Output {
         try await client.send(
             input: input,
             forOperation: Operations.createOrganization.id,
@@ -4628,7 +5487,7 @@ internal struct Client: APIProtocol {
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/previews/{preview_id}`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/get(downloadPreview)`.
-    internal func downloadPreview(_ input: Operations.downloadPreview.Input) async throws -> Operations.downloadPreview.Output {
+    public func downloadPreview(_ input: Operations.downloadPreview.Input) async throws -> Operations.downloadPreview.Output {
         try await client.send(
             input: input,
             forOperation: Operations.downloadPreview.id,
@@ -4782,7 +5641,7 @@ internal struct Client: APIProtocol {
     ///
     /// - Remark: HTTP `DELETE /api/projects/{account_handle}/{project_handle}/previews/{preview_id}`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/delete(deletePreview)`.
-    internal func deletePreview(_ input: Operations.deletePreview.Input) async throws -> Operations.deletePreview.Output {
+    public func deletePreview(_ input: Operations.deletePreview.Input) async throws -> Operations.deletePreview.Output {
         try await client.send(
             input: input,
             forOperation: Operations.deletePreview.id,
@@ -4917,7 +5776,7 @@ internal struct Client: APIProtocol {
     /// - Remark: HTTP `GET /api/cache/exists`.
     /// - Remark: Generated from `#/paths//api/cache/exists/get(cacheArtifactExists)`.
     @available(*, deprecated)
-    internal func cacheArtifactExists(_ input: Operations.cacheArtifactExists.Input) async throws -> Operations.cacheArtifactExists.Output {
+    public func cacheArtifactExists(_ input: Operations.cacheArtifactExists.Input) async throws -> Operations.cacheArtifactExists.Output {
         try await client.send(
             input: input,
             forOperation: Operations.cacheArtifactExists.id,
@@ -5093,7 +5952,7 @@ internal struct Client: APIProtocol {
     ///
     /// - Remark: HTTP `DELETE /api/projects/{account_handle}/{project_handle}/tokens/{id}`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/{id}/delete(revokeProjectToken)`.
-    internal func revokeProjectToken(_ input: Operations.revokeProjectToken.Input) async throws -> Operations.revokeProjectToken.Output {
+    public func revokeProjectToken(_ input: Operations.revokeProjectToken.Input) async throws -> Operations.revokeProjectToken.Output {
         try await client.send(
             input: input,
             forOperation: Operations.revokeProjectToken.id,
@@ -5225,7 +6084,7 @@ internal struct Client: APIProtocol {
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/get(showProject)`.
-    internal func showProject(_ input: Operations.showProject.Input) async throws -> Operations.showProject.Output {
+    public func showProject(_ input: Operations.showProject.Input) async throws -> Operations.showProject.Output {
         try await client.send(
             input: input,
             forOperation: Operations.showProject.id,
@@ -5356,7 +6215,7 @@ internal struct Client: APIProtocol {
     ///
     /// - Remark: HTTP `PUT /api/projects/{account_handle}/{project_handle}`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/put(updateProject)`.
-    internal func updateProject(_ input: Operations.updateProject.Input) async throws -> Operations.updateProject.Output {
+    public func updateProject(_ input: Operations.updateProject.Input) async throws -> Operations.updateProject.Output {
         try await client.send(
             input: input,
             forOperation: Operations.updateProject.id,
@@ -5518,7 +6377,7 @@ internal struct Client: APIProtocol {
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/runs`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/runs/get(listRuns)`.
-    internal func listRuns(_ input: Operations.listRuns.Input) async throws -> Operations.listRuns.Output {
+    public func listRuns(_ input: Operations.listRuns.Input) async throws -> Operations.listRuns.Output {
         try await client.send(
             input: input,
             forOperation: Operations.listRuns.id,
@@ -5645,7 +6504,7 @@ internal struct Client: APIProtocol {
     ///
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/runs`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/runs/post(createRun)`.
-    internal func createRun(_ input: Operations.createRun.Input) async throws -> Operations.createRun.Output {
+    public func createRun(_ input: Operations.createRun.Input) async throws -> Operations.createRun.Output {
         try await client.send(
             input: input,
             forOperation: Operations.createRun.id,
@@ -5809,7 +6668,7 @@ internal struct Client: APIProtocol {
     ///
     /// - Remark: HTTP `PUT /api/organizations/{organization_name}/members/{user_name}`.
     /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/members/{user_name}/put(updateOrganizationMember)`.
-    internal func updateOrganizationMember(_ input: Operations.updateOrganizationMember.Input) async throws -> Operations.updateOrganizationMember.Output {
+    public func updateOrganizationMember(_ input: Operations.updateOrganizationMember.Input) async throws -> Operations.updateOrganizationMember.Output {
         try await client.send(
             input: input,
             forOperation: Operations.updateOrganizationMember.id,
@@ -5973,7 +6832,7 @@ internal struct Client: APIProtocol {
     ///
     /// - Remark: HTTP `DELETE /api/organizations/{organization_name}/members/{user_name}`.
     /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/members/{user_name}/delete(removeOrganizationMember)`.
-    internal func removeOrganizationMember(_ input: Operations.removeOrganizationMember.Input) async throws -> Operations.removeOrganizationMember.Output {
+    public func removeOrganizationMember(_ input: Operations.removeOrganizationMember.Input) async throws -> Operations.removeOrganizationMember.Output {
         try await client.send(
             input: input,
             forOperation: Operations.removeOrganizationMember.id,
@@ -6106,7 +6965,7 @@ internal struct Client: APIProtocol {
     ///
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons/post(uploadPreviewIcon)`.
-    internal func uploadPreviewIcon(_ input: Operations.uploadPreviewIcon.Input) async throws -> Operations.uploadPreviewIcon.Output {
+    public func uploadPreviewIcon(_ input: Operations.uploadPreviewIcon.Input) async throws -> Operations.uploadPreviewIcon.Output {
         try await client.send(
             input: input,
             forOperation: Operations.uploadPreviewIcon.id,
@@ -6238,7 +7097,7 @@ internal struct Client: APIProtocol {
     ///
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/previews/complete`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/complete/post(completePreviewsMultipartUpload)`.
-    internal func completePreviewsMultipartUpload(_ input: Operations.completePreviewsMultipartUpload.Input) async throws -> Operations.completePreviewsMultipartUpload.Output {
+    public func completePreviewsMultipartUpload(_ input: Operations.completePreviewsMultipartUpload.Input) async throws -> Operations.completePreviewsMultipartUpload.Output {
         try await client.send(
             input: input,
             forOperation: Operations.completePreviewsMultipartUpload.id,
@@ -6378,7 +7237,7 @@ internal struct Client: APIProtocol {
     ///
     /// - Remark: HTTP `DELETE /api/projects/{id}`.
     /// - Remark: Generated from `#/paths//api/projects/{id}/delete(deleteProject)`.
-    internal func deleteProject(_ input: Operations.deleteProject.Input) async throws -> Operations.deleteProject.Output {
+    public func deleteProject(_ input: Operations.deleteProject.Input) async throws -> Operations.deleteProject.Output {
         try await client.send(
             input: input,
             forOperation: Operations.deleteProject.id,
@@ -6488,7 +7347,7 @@ internal struct Client: APIProtocol {
     ///
     /// - Remark: HTTP `PATCH /api/accounts/{account_handle}`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/patch(updateAccount)`.
-    internal func updateAccount(_ input: Operations.updateAccount.Input) async throws -> Operations.updateAccount.Output {
+    public func updateAccount(_ input: Operations.updateAccount.Input) async throws -> Operations.updateAccount.Output {
         try await client.send(
             input: input,
             forOperation: Operations.updateAccount.id,
@@ -6651,7 +7510,7 @@ internal struct Client: APIProtocol {
     ///
     /// - Remark: HTTP `DELETE /api/accounts/{account_handle}`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/delete(deleteAccount)`.
-    internal func deleteAccount(_ input: Operations.deleteAccount.Input) async throws -> Operations.deleteAccount.Output {
+    public func deleteAccount(_ input: Operations.deleteAccount.Input) async throws -> Operations.deleteAccount.Output {
         try await client.send(
             input: input,
             forOperation: Operations.deleteAccount.id,
@@ -6755,13 +7614,14 @@ internal struct Client: APIProtocol {
             }
         )
     }
-    /// Completes artifacts uploads for a given command event
+    /// Completes artifacts uploads for a given run
     ///
-    /// Given a command event, it marks all artifact uploads as finished and does extra processing of a given command run, such as test flakiness detection.
+    /// Given a run, it marks all artifact uploads as finished and does extra processing of a given command run, such as test flakiness detection.
     ///
     /// - Remark: HTTP `PUT /api/runs/{run_id}/complete_artifacts_uploads`.
     /// - Remark: Generated from `#/paths//api/runs/{run_id}/complete_artifacts_uploads/put(completeAnalyticsArtifactsUploads)`.
-    internal func completeAnalyticsArtifactsUploads(_ input: Operations.completeAnalyticsArtifactsUploads.Input) async throws -> Operations.completeAnalyticsArtifactsUploads.Output {
+    @available(*, deprecated)
+    public func completeAnalyticsArtifactsUploads(_ input: Operations.completeAnalyticsArtifactsUploads.Input) async throws -> Operations.completeAnalyticsArtifactsUploads.Output {
         try await client.send(
             input: input,
             forOperation: Operations.completeAnalyticsArtifactsUploads.id,

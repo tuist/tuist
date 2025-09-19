@@ -360,11 +360,7 @@ defmodule Tuist.VCSTest do
           status: :failure
         )
 
-      stub(Req, :get, fn [
-                           finch: Tuist.Finch,
-                           headers: @default_headers,
-                           url: "https://api.github.com/repos/tuist/tuist/issues/1/comments"
-                         ] ->
+      stub(Req, :get, fn _opts ->
         {:ok, %Req.Response{status: 200, body: []}}
       end)
 
@@ -391,12 +387,12 @@ defmodule Tuist.VCSTest do
 
         """
 
-      stub(Req, :post, fn [
-                            finch: Tuist.Finch,
-                            headers: @default_headers,
-                            url: "https://api.github.com/repos/tuist/tuist/issues/1/comments",
-                            json: %{body: ^expected_body}
-                          ] ->
+      stub(Req, :post, fn opts ->
+        assert opts[:finch] == Tuist.Finch
+        assert opts[:headers] == @default_headers
+        assert opts[:url] == "https://api.github.com/repos/tuist/tuist/issues/1/comments"
+        assert opts[:json] == %{body: expected_body}
+
         {:ok, %Req.Response{status: 200, body: %{}}}
       end)
 
@@ -460,11 +456,7 @@ defmodule Tuist.VCSTest do
           display_name: "WatchApp"
         )
 
-      stub(Req, :get, fn [
-                           finch: Tuist.Finch,
-                           headers: @default_headers,
-                           url: "https://api.github.com/repos/tuist/tuist/issues/1/comments"
-                         ] ->
+      stub(Req, :get, fn _opts ->
         {:ok, %Req.Response{status: 200, body: []}}
       end)
 
@@ -483,12 +475,12 @@ defmodule Tuist.VCSTest do
 
         """
 
-      expect(Req, :post, fn [
-                              finch: Tuist.Finch,
-                              headers: @default_headers,
-                              url: "https://api.github.com/repos/tuist/tuist/issues/1/comments",
-                              json: %{body: ^expected_body}
-                            ] ->
+      expect(Req, :post, fn opts ->
+        assert opts[:finch] == Tuist.Finch
+        assert opts[:headers] == @default_headers
+        assert opts[:url] == "https://api.github.com/repos/tuist/tuist/issues/1/comments"
+        assert opts[:json] == %{body: expected_body}
+
         {:ok, %Req.Response{status: 200, body: %{}}}
       end)
 
@@ -651,15 +643,17 @@ defmodule Tuist.VCSTest do
         {:ok, %{token: "github_token", expires_at: ~U[2024-04-30 10:30:31Z]}}
       end)
 
-      stub(Req, :patch, fn [
-                             finch: Tuist.Finch,
-                             headers: [
-                               {"Accept", "application/vnd.github.v3+json"},
-                               {"Authorization", "token github_token"}
-                             ],
-                             url: "https://api.github.com/repos/tuist/tuist/issues/comments/1",
-                             json: %{body: _}
-                           ] ->
+      stub(Req, :patch, fn opts ->
+        assert opts[:finch] == Tuist.Finch
+
+        assert opts[:headers] == [
+                 {"Accept", "application/vnd.github.v3+json"},
+                 {"Authorization", "token github_token"}
+               ]
+
+        assert opts[:url] == "https://api.github.com/repos/tuist/tuist/issues/comments/1"
+        assert Map.has_key?(opts[:json], :body)
+
         {:ok, %Req.Response{status: 200, body: %{}}}
       end)
 
@@ -888,11 +882,7 @@ defmodule Tuist.VCSTest do
           inserted_at: ~U[2024-01-01 05:00:00Z]
         )
 
-      stub(Req, :get, fn [
-                           finch: Tuist.Finch,
-                           headers: @default_headers,
-                           url: "https://api.github.com/repos/tuist/tuist/issues/1/comments"
-                         ] ->
+      stub(Req, :get, fn _opts ->
         {:ok, %Req.Response{status: 200, body: []}}
       end)
 
@@ -910,12 +900,12 @@ defmodule Tuist.VCSTest do
 
         """
 
-      expect(Req, :post, fn [
-                              finch: Tuist.Finch,
-                              headers: @default_headers,
-                              url: "https://api.github.com/repos/tuist/tuist/issues/1/comments",
-                              json: %{body: ^expected_body}
-                            ] ->
+      expect(Req, :post, fn opts ->
+        assert opts[:finch] == Tuist.Finch
+        assert opts[:headers] == @default_headers
+        assert opts[:url] == "https://api.github.com/repos/tuist/tuist/issues/1/comments"
+        assert opts[:json] == %{body: expected_body}
+
         {:ok, %Req.Response{status: 200, body: %{}}}
       end)
 
@@ -954,11 +944,7 @@ defmodule Tuist.VCSTest do
           git_ref: @git_ref
         )
 
-      stub(Req, :get, fn [
-                           finch: Tuist.Finch,
-                           headers: @default_headers,
-                           url: "https://api.github.com/repos/tuist/tuist/issues/1/comments"
-                         ] ->
+      stub(Req, :get, fn _opts ->
         {:ok, %Req.Response{status: 200, body: []}}
       end)
 
@@ -976,12 +962,12 @@ defmodule Tuist.VCSTest do
 
         """
 
-      expect(Req, :post, fn [
-                              finch: Tuist.Finch,
-                              headers: @default_headers,
-                              url: "https://api.github.com/repos/tuist/tuist/issues/1/comments",
-                              json: %{body: ^expected_body}
-                            ] ->
+      expect(Req, :post, fn opts ->
+        assert opts[:finch] == Tuist.Finch
+        assert opts[:headers] == @default_headers
+        assert opts[:url] == "https://api.github.com/repos/tuist/tuist/issues/1/comments"
+        assert opts[:json] == %{body: expected_body}
+
         {:ok, %Req.Response{status: 200, body: %{}}}
       end)
 
@@ -1017,11 +1003,7 @@ defmodule Tuist.VCSTest do
           inserted_at: ~U[2024-01-01 04:00:00Z]
         )
 
-      stub(Req, :get, fn [
-                           finch: Tuist.Finch,
-                           headers: @default_headers,
-                           url: "https://api.github.com/repos/tuist/tuist/issues/1/comments"
-                         ] ->
+      stub(Req, :get, fn _opts ->
         {:ok, %Req.Response{status: 200, body: []}}
       end)
 
@@ -1039,12 +1021,12 @@ defmodule Tuist.VCSTest do
 
         """
 
-      expect(Req, :post, fn [
-                              finch: Tuist.Finch,
-                              headers: @default_headers,
-                              url: "https://api.github.com/repos/tuist/tuist/issues/1/comments",
-                              json: %{body: ^expected_body}
-                            ] ->
+      expect(Req, :post, fn opts ->
+        assert opts[:finch] == Tuist.Finch
+        assert opts[:headers] == @default_headers
+        assert opts[:url] == "https://api.github.com/repos/tuist/tuist/issues/1/comments"
+        assert opts[:json] == %{body: expected_body}
+
         {:ok, %Req.Response{status: 200, body: %{}}}
       end)
 
@@ -1080,11 +1062,7 @@ defmodule Tuist.VCSTest do
           inserted_at: ~U[2024-01-01 04:00:00Z]
         )
 
-      stub(Req, :get, fn [
-                           finch: Tuist.Finch,
-                           headers: @default_headers,
-                           url: "https://api.github.com/repos/tuist/tuist/issues/1/comments"
-                         ] ->
+      stub(Req, :get, fn _opts ->
         {:ok, %Req.Response{status: 200, body: []}}
       end)
 
@@ -1102,12 +1080,12 @@ defmodule Tuist.VCSTest do
 
         """
 
-      expect(Req, :post, fn [
-                              finch: Tuist.Finch,
-                              headers: @default_headers,
-                              url: "https://api.github.com/repos/tuist/tuist/issues/1/comments",
-                              json: %{body: ^expected_body}
-                            ] ->
+      expect(Req, :post, fn opts ->
+        assert opts[:finch] == Tuist.Finch
+        assert opts[:headers] == @default_headers
+        assert opts[:url] == "https://api.github.com/repos/tuist/tuist/issues/1/comments"
+        assert opts[:json] == %{body: expected_body}
+
         {:ok, %Req.Response{status: 200, body: %{}}}
       end)
 
@@ -1123,6 +1101,314 @@ defmodule Tuist.VCSTest do
         bundle_url: fn %{bundle: bundle} -> "https://tuist.dev/bundles/#{bundle.id}" end,
         build_url: fn _ -> "" end
       })
+    end
+  end
+
+  describe "create_comment/1" do
+    setup do
+      stub(Environment, :github_app_configured?, fn -> true end)
+      :ok
+    end
+
+    test "successfully creates a comment for a pull request" do
+      # Given
+      project =
+        ProjectsFixtures.project_fixture(
+          vcs_repository_full_handle: "tuist/tuist",
+          vcs_provider: :github
+        )
+
+      expect(GitHub.Client, :create_comment, fn %{
+                                                  repository_full_handle: "tuist/tuist",
+                                                  issue_id: "123",
+                                                  body: "This is a test comment"
+                                                } ->
+        {:ok, %Comment{id: 1, client_id: "client_id"}}
+      end)
+
+      # When
+      result =
+        VCS.create_comment(%{
+          repository_full_handle: "tuist/tuist",
+          git_ref: "refs/pull/123/merge",
+          body: "This is a test comment",
+          project: project
+        })
+
+      # Then
+      assert {:ok, %Comment{id: 1, client_id: "client_id"}} == result
+    end
+
+    test "returns error when git ref is not a pull request" do
+      # Given
+      project =
+        ProjectsFixtures.project_fixture(
+          vcs_repository_full_handle: "tuist/tuist",
+          vcs_provider: :github
+        )
+
+      reject(GitHub.Client, :create_comment, 1)
+
+      # When
+      result =
+        VCS.create_comment(%{
+          repository_full_handle: "tuist/tuist",
+          git_ref: "refs/heads/main",
+          body: "This is a test comment",
+          project: project
+        })
+
+      # Then
+      assert {:error, :not_pull_request} == result
+    end
+
+    test "returns error when git ref is a tag" do
+      # Given
+      project =
+        ProjectsFixtures.project_fixture(
+          vcs_repository_full_handle: "tuist/tuist",
+          vcs_provider: :github
+        )
+
+      reject(GitHub.Client, :create_comment, 1)
+
+      # When
+      result =
+        VCS.create_comment(%{
+          repository_full_handle: "tuist/tuist",
+          git_ref: "refs/tags/v1.0.0",
+          body: "This is a test comment",
+          project: project
+        })
+
+      # Then
+      assert {:error, :not_pull_request} == result
+    end
+
+    test "returns error when repository is not connected" do
+      # Given
+      project =
+        ProjectsFixtures.project_fixture(
+          vcs_repository_full_handle: "different/repo",
+          vcs_provider: :github
+        )
+
+      reject(GitHub.Client, :create_comment, 1)
+
+      # When
+      result =
+        VCS.create_comment(%{
+          repository_full_handle: "tuist/tuist",
+          git_ref: "refs/pull/123/merge",
+          body: "This is a test comment",
+          project: project
+        })
+
+      # Then
+      assert {:error, :repository_not_connected} == result
+    end
+
+    test "returns error when GitHub app is not configured" do
+      # Given
+      stub(Environment, :github_app_configured?, fn -> false end)
+
+      project =
+        ProjectsFixtures.project_fixture(
+          vcs_repository_full_handle: "tuist/tuist",
+          vcs_provider: :github
+        )
+
+      reject(GitHub.Client, :create_comment, 1)
+
+      # When
+      result =
+        VCS.create_comment(%{
+          repository_full_handle: "tuist/tuist",
+          git_ref: "refs/pull/123/merge",
+          body: "This is a test comment",
+          project: project
+        })
+
+      # Then
+      assert {:error, :repository_not_connected} == result
+    end
+
+    test "handles GitHub client errors" do
+      # Given
+      project =
+        ProjectsFixtures.project_fixture(
+          vcs_repository_full_handle: "tuist/tuist",
+          vcs_provider: :github
+        )
+
+      expect(GitHub.Client, :create_comment, fn %{
+                                                  repository_full_handle: "tuist/tuist",
+                                                  issue_id: "123",
+                                                  body: "This is a test comment"
+                                                } ->
+        {:error, :forbidden}
+      end)
+
+      # When
+      result =
+        VCS.create_comment(%{
+          repository_full_handle: "tuist/tuist",
+          git_ref: "refs/pull/123/merge",
+          body: "This is a test comment",
+          project: project
+        })
+
+      # Then
+      assert {:error, :forbidden} == result
+    end
+  end
+
+  describe "update_comment/1" do
+    setup do
+      stub(Environment, :github_app_configured?, fn -> true end)
+      :ok
+    end
+
+    test "successfully updates a comment when repository is connected" do
+      # Given
+      project =
+        ProjectsFixtures.project_fixture(
+          vcs_repository_full_handle: "tuist/tuist",
+          vcs_provider: :github
+        )
+
+      comment_params = %{
+        repository_full_handle: "tuist/tuist",
+        comment_id: "123456",
+        body: "Updated comment body",
+        project: project
+      }
+
+      expect(GitHub.Client, :update_comment, fn %{
+                                                  repository_full_handle: "tuist/tuist",
+                                                  comment_id: "123456",
+                                                  body: "Updated comment body"
+                                                } ->
+        {:ok, %Comment{id: 123_456, client_id: "client_id"}}
+      end)
+
+      # When
+      result = VCS.update_comment(comment_params)
+
+      # Then
+      assert {:ok, %Comment{id: 123_456, client_id: "client_id"}} = result
+    end
+
+    test "returns error when repository is not connected" do
+      # Given
+      project =
+        ProjectsFixtures.project_fixture(
+          vcs_repository_full_handle: "different/repo",
+          vcs_provider: :github
+        )
+
+      comment_params = %{
+        repository_full_handle: "tuist/tuist",
+        comment_id: "123456",
+        body: "Updated comment body",
+        project: project
+      }
+
+      reject(GitHub.Client, :update_comment, 1)
+
+      # When
+      result = VCS.update_comment(comment_params)
+
+      # Then
+      assert {:error, :repository_not_connected} = result
+    end
+
+    test "returns error when GitHub app is not configured" do
+      # Given
+      stub(Environment, :github_app_configured?, fn -> false end)
+
+      project =
+        ProjectsFixtures.project_fixture(
+          vcs_repository_full_handle: "tuist/tuist",
+          vcs_provider: :github
+        )
+
+      comment_params = %{
+        repository_full_handle: "tuist/tuist",
+        comment_id: "123456",
+        body: "Updated comment body",
+        project: project
+      }
+
+      reject(GitHub.Client, :update_comment, 1)
+
+      # When
+      result = VCS.update_comment(comment_params)
+
+      # Then
+      assert {:error, :repository_not_connected} = result
+    end
+
+    test "handles GitHub client errors" do
+      # Given
+      project =
+        ProjectsFixtures.project_fixture(
+          vcs_repository_full_handle: "tuist/tuist",
+          vcs_provider: :github
+        )
+
+      comment_params = %{
+        repository_full_handle: "tuist/tuist",
+        comment_id: "123456",
+        body: "Updated comment body",
+        project: project
+      }
+
+      expect(GitHub.Client, :update_comment, fn %{
+                                                  repository_full_handle: "tuist/tuist",
+                                                  comment_id: "123456",
+                                                  body: "Updated comment body"
+                                                } ->
+        {:error, :not_found}
+      end)
+
+      # When
+      result = VCS.update_comment(comment_params)
+
+      # Then
+      assert {:error, :not_found} = result
+    end
+
+    test "works with different comment ID formats" do
+      # Given
+      project =
+        ProjectsFixtures.project_fixture(
+          vcs_repository_full_handle: "tuist/tuist",
+          vcs_provider: :github
+        )
+
+      comment_ids = ["123", "456789", "999"]
+
+      for comment_id <- comment_ids do
+        comment_params = %{
+          repository_full_handle: "tuist/tuist",
+          comment_id: comment_id,
+          body: "Updated comment for ID #{comment_id}",
+          project: project
+        }
+
+        expect(GitHub.Client, :update_comment, fn %{
+                                                    repository_full_handle: "tuist/tuist",
+                                                    comment_id: ^comment_id,
+                                                    body: _
+                                                  } ->
+          {:ok, %Comment{id: String.to_integer(comment_id), client_id: "client_id"}}
+        end)
+
+        # When / Then
+        result = VCS.update_comment(comment_params)
+        assert {:ok, %Comment{}} = result
+      end
     end
   end
 

@@ -1,24 +1,22 @@
 defmodule Tuist.OAuth.OktaTest do
   use TuistTestSupport.Cases.DataCase
-  use Mimic
 
   alias Tuist.Accounts.Organization
   alias Tuist.OAuth.Okta
 
   describe "config_for_organization/1" do
-    test "returns config for Okta organization" do
+    test "returns config for Okta organization with database fields" do
       organization = %Organization{
         id: 123,
         sso_provider: :okta,
-        sso_organization_id: "dev-123456"
+        sso_organization_id: "dev-example.okta.com",
+        okta_client_id: "test_client_id",
+        okta_encrypted_client_secret: "test_client_secret"
       }
-
-      expect(Tuist.Environment, :okta_client_id_for_organization_id, fn 123 -> "test_client_id" end)
-      expect(Tuist.Environment, :okta_client_secret_for_organization_id, fn 123 -> "test_client_secret" end)
 
       assert {:ok, config} = Okta.config_for_organization(organization)
 
-      assert config.domain == "dev-123456"
+      assert config.domain == "dev-example.okta.com"
       assert config.client_id == "test_client_id"
       assert config.client_secret == "test_client_secret"
       assert config.authorize_url == "/oauth2/default/v1/authorize"
@@ -39,6 +37,39 @@ defmodule Tuist.OAuth.OktaTest do
       organization = %Organization{
         sso_provider: nil,
         sso_organization_id: nil
+      }
+
+      assert {:error, :okta_not_configured} = Okta.config_for_organization(organization)
+    end
+
+    test "returns error for Okta organization with missing client_id" do
+      organization = %Organization{
+        sso_provider: :okta,
+        sso_organization_id: "dev-example.okta.com",
+        okta_client_id: nil,
+        okta_encrypted_client_secret: "test_client_secret"
+      }
+
+      assert {:error, :okta_not_configured} = Okta.config_for_organization(organization)
+    end
+
+    test "returns error for Okta organization with missing client_secret" do
+      organization = %Organization{
+        sso_provider: :okta,
+        sso_organization_id: "dev-example.okta.com",
+        okta_client_id: "test_client_id",
+        okta_encrypted_client_secret: nil
+      }
+
+      assert {:error, :okta_not_configured} = Okta.config_for_organization(organization)
+    end
+
+    test "returns error for Okta organization with missing sso_organization_id" do
+      organization = %Organization{
+        sso_provider: :okta,
+        sso_organization_id: nil,
+        okta_client_id: "test_client_id",
+        okta_encrypted_client_secret: "test_client_secret"
       }
 
       assert {:error, :okta_not_configured} = Okta.config_for_organization(organization)

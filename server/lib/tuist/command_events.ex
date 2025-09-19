@@ -7,7 +7,6 @@ defmodule Tuist.CommandEvents do
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.User
   alias Tuist.ClickHouseRepo
-  alias Tuist.CommandEvents.CacheEvent
   alias Tuist.CommandEvents.Clickhouse
   alias Tuist.CommandEvents.Postgres
   alias Tuist.CommandEvents.ResultBundle.ActionRecord
@@ -36,47 +35,6 @@ defmodule Tuist.CommandEvents do
     else
       Postgres
     end
-  end
-
-  def create_cache_event(
-        %{name: name, event_type: event_type, size: size, hash: hash, project_id: project_id},
-        attrs \\ []
-      ) do
-    {:ok, cache_event} =
-      Repo.transaction(fn ->
-        if is_nil(get_cache_event(%{hash: hash, event_type: event_type})) do
-          %CacheEvent{}
-          |> CacheEvent.create_changeset(%{
-            project_id: project_id,
-            name: name,
-            hash: hash,
-            event_type: event_type,
-            size: size,
-            created_at: Keyword.get(attrs, :created_at, Time.utc_now())
-          })
-          |> Repo.insert!()
-        end
-      end)
-
-    cache_event
-  end
-
-  def create_cache_events(cache_events) do
-    Repo.insert_all(CacheEvent, cache_events)
-  end
-
-  def get_cache_event(%{hash: hash, event_type: event_type}) do
-    # Note
-    # We should have added a unique index on the hash and event_type columns.
-    # However, this was a design mistake, so we are taking the last event as the valid one.
-    # In a future iteration, we should delete duplicated rows, and add the unique index.
-    Repo.one(
-      from(c in CacheEvent,
-        where: c.hash == ^hash and c.event_type == ^event_type,
-        order_by: [desc: :created_at],
-        limit: 1
-      )
-    )
   end
 
   def list_command_events(attrs, _opts \\ []) do
@@ -135,30 +93,45 @@ defmodule Tuist.CommandEvents do
   end
 
   def has_result_bundle?(command_event) do
-    Storage.object_exists?(get_result_bundle_key(command_event))
+    {:ok, project} = get_project_for_command_event(command_event, preload: :account)
+    Storage.object_exists?(get_result_bundle_key(command_event), project.account)
   end
 
   def generate_result_bundle_url(command_event) do
-    Storage.generate_download_url(get_result_bundle_key(command_event))
+    {:ok, project} = get_project_for_command_event(command_event, preload: :account)
+    Storage.generate_download_url(get_result_bundle_key(command_event), project.account)
   end
 
   def get_result_bundle_key(command_event) do
-    "#{get_command_event_artifact_base_path_key(command_event)}/result_bundle.zip"
+    {:ok, project} = get_project_for_command_event(command_event, preload: :account)
+    "#{project.account.name}/#{project.name}/runs/#{command_event.id}/result_bundle.zip"
   end
 
   def get_result_bundle_invocation_record_key(command_event) do
-    "#{get_command_event_artifact_base_path_key(command_event)}/invocation_record.json"
+    {:ok, project} = get_project_for_command_event(command_event, preload: :account)
+    "#{project.account.name}/#{project.name}/runs/#{command_event.id}/invocation_record.json"
   end
 
   def get_result_bundle_object_key(command_event, result_bundle_object_id) do
-    "#{get_command_event_artifact_base_path_key(command_event)}/#{result_bundle_object_id}.json"
+    {:ok, project} = get_project_for_command_event(command_event, preload: :account)
+
+    "#{project.account.name}/#{project.name}/runs/#{command_event.id}/#{result_bundle_object_id}.json"
   end
 
-  defp get_command_event_artifact_base_path_key(command_event) do
-    project = Repo.get!(Project, command_event.project_id)
-    account = Repo.get!(Account, project.account_id)
+  def get_result_bundle_key(run_id, project) do
+    "#{get_command_event_artifact_base_path_key(run_id, project)}/result_bundle.zip"
+  end
 
-    "#{account.name}/#{project.name}/runs/#{command_event.id}"
+  def get_result_bundle_invocation_record_key(run_id, project) do
+    "#{get_command_event_artifact_base_path_key(run_id, project)}/invocation_record.json"
+  end
+
+  def get_result_bundle_object_key(run_id, project, result_bundle_object_id) do
+    "#{get_command_event_artifact_base_path_key(run_id, project)}/#{result_bundle_object_id}.json"
+  end
+
+  def get_command_event_artifact_base_path_key(run_id, project) do
+    "#{project.account.name}/#{project.name}/runs/#{run_id}"
   end
 
   def list_flaky_test_cases(%Project{} = project, attrs) do
@@ -302,9 +275,11 @@ defmodule Tuist.CommandEvents do
     test_plan_summaries_object_key =
       get_result_bundle_object_key(command_event, action.action_result.tests_ref.id)
 
-    if Storage.object_exists?(test_plan_summaries_object_key) do
+    {:ok, project} = get_project_for_command_event(command_event, preload: :account)
+
+    if Storage.object_exists?(test_plan_summaries_object_key, project.account) do
       test_plan_summaries_string =
-        Storage.get_object_as_string(test_plan_summaries_object_key)
+        Storage.get_object_as_string(test_plan_summaries_object_key, project.account)
 
       {:ok, test_plan_summaries} = Jason.decode(test_plan_summaries_string)
       get_actions_test_plan_run_summaries(test_plan_summaries)
@@ -323,9 +298,12 @@ defmodule Tuist.CommandEvents do
 
   defp do_get_test_summary(command_event) do
     invocation_record_key = get_result_bundle_invocation_record_key(command_event)
+    {:ok, project} = get_project_for_command_event(command_event, preload: :account)
 
-    if Storage.object_exists?(invocation_record_key) do
-      invocation_record_string = Storage.get_object_as_string(invocation_record_key)
+    if Storage.object_exists?(invocation_record_key, project.account) do
+      invocation_record_string =
+        Storage.get_object_as_string(invocation_record_key, project.account)
+
       {:ok, invocation_record} = Jason.decode(invocation_record_string)
 
       invocation_record = get_actions_invocation_record(invocation_record)
@@ -530,7 +508,7 @@ defmodule Tuist.CommandEvents do
       command_event_id: command_event.id,
       test_case_id: test_case_ids[test_case.identifier_url],
       xcode_target_id: target_id,
-      inserted_at: NaiveDateTime.truncate(DateTime.to_naive(Tuist.Time.utc_now()), :second)
+      inserted_at: NaiveDateTime.truncate(DateTime.to_naive(Time.utc_now()), :second)
     }
   end
 
@@ -747,8 +725,12 @@ defmodule Tuist.CommandEvents do
     storage_module().delete_account_events(account_id)
   end
 
-  def list_customer_id_and_remote_cache_hits_count_pairs(attrs \\ %{}) do
-    storage_module().list_customer_id_and_remote_cache_hits_count_pairs(attrs)
+  def list_billable_customers do
+    storage_module().list_billable_customers()
+  end
+
+  def get_yesterdays_remote_cache_hits_count_for_customer(customer_id) do
+    storage_module().get_yesterdays_remote_cache_hits_count_for_customer(customer_id)
   end
 
   def delete_project_events(project_id) do
@@ -910,7 +892,7 @@ defmodule Tuist.CommandEvents do
         identifier: test.identifier_url,
         project_identifier: project_identifier,
         project_id: command_event.project_id,
-        inserted_at: NaiveDateTime.truncate(DateTime.to_naive(Tuist.Time.utc_now()), :second)
+        inserted_at: NaiveDateTime.truncate(DateTime.to_naive(Time.utc_now()), :second)
       }
     end)
   end

@@ -20,7 +20,10 @@ config :tuist, Tuist.ClickHouseRepo,
 config :tuist, Tuist.IngestRepo,
   hostname: "localhost",
   port: 8123,
-  database: "tuist_test#{System.get_env("MIX_TEST_PARTITION")}"
+  database: "tuist_test#{System.get_env("MIX_TEST_PARTITION")}",
+  flush_interval_ms: 5000,
+  max_buffer_size: 100_000,
+  pool_size: 5
 
 # Configures Bamboo API Client
 config :tuist, Tuist.Mailer, adapter: Bamboo.TestAdapter
@@ -36,7 +39,9 @@ config :tuist, Tuist.Repo,
   hostname: "localhost",
   database: "tuist_test#{System.get_env("MIX_TEST_PARTITION")}",
   pool: Ecto.Adapters.SQL.Sandbox,
-  pool_size: System.schedulers_online()
+  pool_size: System.schedulers_online() * 2,
+  queue_target: 5000,
+  queue_interval: 1000
 
 # We don't run a server during test. If one is required,
 # you can enable the server option below.

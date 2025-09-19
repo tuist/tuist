@@ -7,19 +7,12 @@
     "esbuild": "^0.25.0",
     "vitepress": "^1.6.3",
     "wrangler": "^4.0.0",
-    "vitepress-plugin-llmstxt": "0.3.0"
+    "vitepress-plugin-llmstxt": "0.1.0"
   },
   "scripts": {
     "dev": "vitepress dev",
     "build": "vitepress build",
     "preview": "vitepress preview",
     "deploy": "vitepress build && wrangler pages deploy .vitepress/dist --project-name tuist-handbook --branch main"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "esbuild",
-      "sharp",
-      "workerd"
-    ]
   }
 }

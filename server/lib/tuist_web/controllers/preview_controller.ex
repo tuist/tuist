@@ -2,10 +2,12 @@ defmodule TuistWeb.PreviewController do
   use TuistWeb, :controller
 
   alias Tuist.AppBuilds
-  alias Tuist.Projects
   alias Tuist.Storage
   alias TuistWeb.Authorization
   alias TuistWeb.Errors.NotFoundError
+  alias TuistWeb.Plugs.LoaderPlug
+
+  plug LoaderPlug
 
   plug :assign_current_preview
        when action in [
@@ -24,15 +26,16 @@ defmodule TuistWeb.PreviewController do
     |> halt()
   end
 
-  def latest(conn, %{"account_handle" => account_handle, "project_handle" => project_handle} = _params) do
-    with project when not is_nil(project) <-
-           Projects.get_project_by_account_and_project_handles(account_handle, project_handle),
-         latest_preview when not is_nil(latest_preview) <-
-           Tuist.AppBuilds.latest_preview(project) do
-      conn
-      |> redirect(to: ~p"/#{account_handle}/#{project_handle}/previews/#{latest_preview.id}")
-      |> halt()
-    else
+  def latest(
+        %{assigns: %{selected_project: project}} = conn,
+        %{"account_handle" => account_handle, "project_handle" => project_handle} = _params
+      ) do
+    case AppBuilds.latest_preview(project) do
+      latest_preview when not is_nil(latest_preview) ->
+        conn
+        |> redirect(to: ~p"/#{account_handle}/#{project_handle}/previews/#{latest_preview.id}")
+        |> halt()
+
       nil ->
         raise NotFoundError,
               "The page you are looking for doesn't exist or has been moved."
@@ -65,34 +68,34 @@ defmodule TuistWeb.PreviewController do
       |> QRCode.render(:png)
 
     conn
-    |> put_resp_content_type("image/png")
+    |> put_resp_content_type("image/png", nil)
     |> send_resp(200, qr_code_image)
   end
 
   def download_icon(
-        conn,
+        %{assigns: %{selected_account: account}} = conn,
         %{"account_handle" => account_handle, "project_handle" => project_handle, "id" => preview_id} = _params
       ) do
     object_key =
-      Tuist.AppBuilds.icon_storage_key(%{
+      AppBuilds.icon_storage_key(%{
         account_handle: account_handle,
         project_handle: project_handle,
         preview_id: preview_id
       })
 
-    if Storage.object_exists?(object_key) do
+    if Storage.object_exists?(object_key, account) do
       conn
-      |> put_resp_content_type("image/png")
+      |> put_resp_content_type("image/png", nil)
       |> send_chunked(:ok)
-      |> stream_object(object_key)
+      |> stream_object(object_key, account)
     else
       send_resp(conn, 404, "")
     end
   end
 
-  defp stream_object(conn, object_key) do
+  defp stream_object(conn, object_key, account) do
     object_key
-    |> Storage.stream_object()
+    |> Storage.stream_object(account)
     |> Enum.reduce_while(conn, fn chunk, conn ->
       case chunk(conn, chunk) do
         {:ok, conn} -> {:cont, conn}
@@ -102,24 +105,24 @@ defmodule TuistWeb.PreviewController do
   end
 
   def download_archive(
-        %{assigns: %{current_preview: preview}} = conn,
+        %{assigns: %{current_preview: preview, selected_account: account}} = conn,
         %{"account_handle" => account_handle, "project_handle" => project_handle} = _params
       ) do
     app_build = AppBuilds.latest_ipa_app_build_for_preview(preview)
 
     storage_key =
       app_build &&
-        Tuist.AppBuilds.storage_key(%{
+        AppBuilds.storage_key(%{
           account_handle: account_handle,
           project_handle: project_handle,
           app_build_id: app_build.id
         })
 
-    if is_nil(app_build) or not Storage.object_exists?(storage_key) do
-      raise TuistWeb.Errors.NotFoundError, gettext("The preview ipa doesn't exist or has expired.")
+    if is_nil(app_build) or not Storage.object_exists?(storage_key, account) do
+      raise NotFoundError, gettext("The preview ipa doesn't exist or has expired.")
     end
 
-    send_resp(conn, :ok, Storage.get_object_as_string(storage_key))
+    send_resp(conn, :ok, Storage.get_object_as_string(storage_key, account))
   end
 
   def manifest(
@@ -167,7 +170,7 @@ defmodule TuistWeb.PreviewController do
   end
 
   def download_preview(
-        %{assigns: %{current_preview: preview}} = conn,
+        %{assigns: %{current_preview: preview, selected_account: account}} = conn,
         %{"account_handle" => account_handle, "project_handle" => project_handle} = _params
       ) do
     app_builds = preview.app_builds
@@ -175,20 +178,23 @@ defmodule TuistWeb.PreviewController do
     conn =
       conn
       |> put_resp_content_type("application/zip")
-      |> put_resp_header("content-disposition", "attachment; filename=\"preview-#{preview.id}.zip\"")
+      |> put_resp_header(
+        "content-disposition",
+        "attachment; filename=\"preview-#{preview.id}.zip\""
+      )
       |> send_chunked(200)
 
     zip_stream =
       app_builds
       |> Enum.map(fn app_build ->
         storage_key =
-          Tuist.AppBuilds.storage_key(%{
+          AppBuilds.storage_key(%{
             account_handle: account_handle,
             project_handle: project_handle,
             app_build_id: app_build.id
           })
 
-        content_stream = Storage.stream_object(storage_key)
+        content_stream = Storage.stream_object(storage_key, account)
         filename = "#{app_build.id}.zip"
 
         Zstream.entry(filename, content_stream)
@@ -204,7 +210,7 @@ defmodule TuistWeb.PreviewController do
   end
 
   defp assign_current_preview(%{params: %{"id" => preview_id}} = conn, _opts) do
-    case Tuist.AppBuilds.preview_by_id(preview_id, preload: :app_builds) do
+    case AppBuilds.preview_by_id(preview_id, preload: :app_builds) do
       {:error, :not_found} ->
         raise NotFoundError, "Preview not found."
 

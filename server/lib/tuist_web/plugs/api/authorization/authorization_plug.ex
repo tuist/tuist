@@ -13,6 +13,9 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
   def init(:cache), do: :cache
   def init(:preview), do: :preview
   def init(:registry), do: :registry
+  def init(:qa_run), do: :qa_run
+  def init(:qa_step), do: :qa_step
+  def init(:qa_screenshot), do: :qa_screenshot
 
   def init(opts) when is_list(opts) do
     opts
@@ -34,14 +37,21 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
 
       :registry ->
         authorize_account(conn, :registry)
+
+      :qa_run ->
+        authorize_project(conn, :qa_run)
+
+      :qa_step ->
+        authorize_project(conn, :qa_step)
+
+      :qa_screenshot ->
+        authorize_project(conn, :qa_screenshot)
     end
   end
 
   def call(conn, opts) do
-    case Keyword.fetch!(opts, :category) do
-      :cache ->
-        authorize_project(conn, :cache, opts)
-    end
+    :cache = Keyword.fetch!(opts, :category)
+    authorize_project(conn, :cache, opts)
   end
 
   defp authorize_account(%{assigns: %{selected_account: selected_account}} = conn, category) do
@@ -75,10 +85,16 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
     subject =
       Authentication.authenticated_subject(conn)
 
+    subject_id =
+      case subject do
+        %{id: id} -> id
+        %{account: %{id: id}} -> id
+      end
+
     cache_key = [
       Atom.to_string(__MODULE__),
       "authorize",
-      "#{Atom.to_string(subject.__struct__)}-#{subject.id}",
+      "#{Atom.to_string(subject.__struct__)}-#{subject_id}",
       "#{Atom.to_string(selected_project.__struct__)}-#{selected_project.id}"
     ]
 
@@ -111,57 +127,8 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
     end
   end
 
-  def authorize(subject, :read, project, :cache) do
-    Authorization.can?(:project_cache_read, subject, project)
-  end
-
-  def authorize(subject, :create, project, :bundle) do
-    Authorization.can?(:project_bundle_create, subject, project)
-  end
-
-  def authorize(subject, :read, project, :bundle) do
-    Authorization.can?(:project_bundle_read, subject, project)
-  end
-
-  def authorize(subject, :read, account, :registry) do
-    Authorization.can?(:account_registry_read, subject, account)
-  end
-
-  def authorize(subject, :create, account, :registry) do
-    # Logging in is done via POST request
-    Authorization.can?(:account_registry_read, subject, account)
-  end
-
-  def authorize(subject, :create, account, :account_token) do
-    Authorization.can?(:account_token_create, subject, account)
-  end
-
-  def authorize(subject, :create, project, :run) do
-    Authorization.can?(:project_run_create, subject, project)
-  end
-
-  def authorize(subject, :read, project, :run) do
-    Authorization.can?(:project_run_read, subject, project)
-  end
-
-  def authorize(subject, :update, project, :run) do
-    Authorization.can?(:project_run_update, subject, project)
-  end
-
-  def authorize(subject, :create, project, :preview) do
-    Authorization.can?(:project_preview_create, subject, project)
-  end
-
-  def authorize(subject, :read, project, :preview) do
-    Authorization.can?(:project_preview_read, subject, project)
-  end
-
-  def authorize(subject, :delete, project, :preview) do
-    Authorization.can?(:project_preview_delete, subject, project)
-  end
-
   def authorize(subject, action, project, category) do
-    Authorization.can(subject, action, project, category)
+    Authorization.authorize(:"#{category}_#{action}", subject, project) == :ok
   end
 
   defp get_action(conn) do
@@ -169,6 +136,7 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
       "POST" -> :create
       "GET" -> :read
       "PUT" -> :update
+      "PATCH" -> :update
       "DELETE" -> :delete
     end
   end

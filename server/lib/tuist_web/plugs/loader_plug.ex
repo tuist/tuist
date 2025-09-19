@@ -11,27 +11,29 @@ defmodule TuistWeb.Plugs.LoaderPlug do
   alias TuistWeb.Errors.BadRequestError
   alias TuistWeb.Errors.NotFoundError
 
+  def init([]), do: [:project, :account, :run]
   def init(opts), do: opts
 
-  def call(%{path_params: %{"run_id" => run_id}} = conn, _opts) do
-    run_result =
-      cached(conn, ["run", run_id], fn ->
-        CommandEvents.get_command_event_by_id(run_id)
-      end)
+  def call(
+        %{path_params: %{"run_id" => run_id, "account_handle" => account_handle, "project_handle" => project_name}} =
+          conn,
+        opts
+      ) do
+    conn
+    |> then(
+      &if :project in opts,
+        do: assign_selected_project(&1, "#{account_handle}/#{project_name}"),
+        else: &1
+    )
+    |> then(
+      &if :run in opts,
+        do: load_run(&1, run_id),
+        else: &1
+    )
+  end
 
-    case run_result do
-      {:ok, run} ->
-        {:ok, project} = CommandEvents.get_project_for_command_event(run, preload: :account)
-
-        conn
-        |> assign(:selected_account, project.account)
-        |> assign(:selected_project, project)
-        |> assign(:selected_run, run)
-
-      {:error, :not_found} ->
-        raise NotFoundError,
-              gettext("The run with ID %{run_id} was not found.", %{run_id: run_id})
-    end
+  def call(%{path_params: %{"run_id" => run_id}} = conn, opts) do
+    then(conn, &if(:run in opts, do: load_run(&1, run_id), else: &1))
   end
 
   def call(%{path_params: %{"account_handle" => account_handle, "project_handle" => project_name}} = conn, _opts) do
@@ -66,6 +68,27 @@ defmodule TuistWeb.Plugs.LoaderPlug do
 
   def call(conn, _opts) do
     conn
+  end
+
+  defp load_run(conn, run_id) do
+    run_result =
+      cached(conn, ["run", run_id], fn ->
+        CommandEvents.get_command_event_by_id(run_id)
+      end)
+
+    case run_result do
+      {:ok, run} ->
+        {:ok, project} = CommandEvents.get_project_for_command_event(run, preload: :account)
+
+        conn
+        |> assign(:selected_account, project.account)
+        |> assign(:selected_project, project)
+        |> assign(:selected_run, run)
+
+      {:error, :not_found} ->
+        raise NotFoundError,
+              gettext("The run with ID %{run_id} was not found.", %{run_id: run_id})
+    end
   end
 
   def assign_selected_project(conn, project_slug) do

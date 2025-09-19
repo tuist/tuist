@@ -146,7 +146,7 @@ defmodule TuistWeb.LayoutLiveTest do
 
       assert socket.assigns.selected_project == project
       assert socket.assigns.selected_account.name == organization.account.name
-      assert socket.assigns.selected_account_projects == [project]
+      assert socket.assigns.selected_projects == [project]
     end
   end
 

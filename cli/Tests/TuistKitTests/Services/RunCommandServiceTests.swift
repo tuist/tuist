@@ -104,11 +104,28 @@ struct RunCommandServiceTests {
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(.test())
+        let projectPath = try AbsolutePath(validating: "/path/to")
+        let runnableScheme = Scheme.test(
+            name: "App",
+            runAction: .test(executable: TargetReference(projectPath: projectPath, name: "App"))
+        )
+        let graph = Graph.test(
+            projects: [
+                projectPath: .test(
+                    targets: [
+                        .test(name: "App", product: .app),
+                    ],
+                    schemes: [
+                        runnableScheme,
+                    ]
+                ),
+            ]
+        )
         given(generator)
             .generateWithGraph(path: .any, options: .any)
             .willReturn(
                 (
-                    try AbsolutePath(validating: "/path/to/project.xcworkspace"), .test(),
+                    try AbsolutePath(validating: "/path/to/project.xcworkspace"), graph,
                     MapperEnvironment()
                 )
             )
@@ -117,12 +134,9 @@ struct RunCommandServiceTests {
             .willReturn(try! AbsolutePath(validating: "/path/to/project.xcworkspace"))
         given(buildGraphInspector)
             .runnableSchemes(graphTraverser: .any)
-            .willReturn([.test()])
-        given(buildGraphInspector)
-            .runnableTarget(scheme: .any, graphTraverser: .any)
-            .willReturn(.test())
+            .willReturn([runnableScheme])
 
-        try await subject.run(generate: true)
+        try await subject.run(runnable: .scheme("App"), generate: true)
     }
 
     @Test
@@ -131,27 +145,41 @@ struct RunCommandServiceTests {
             temporaryDirectory in
             // Given
             let workspacePath = temporaryDirectory.appending(component: "App.xcworkspace")
+            let projectPath = try AbsolutePath(validating: "/path/to")
+            let runnableScheme = Scheme.test(
+                name: "App",
+                runAction: .test(executable: TargetReference(projectPath: projectPath, name: "App"))
+            )
+            let graph = Graph.test(
+                projects: [
+                    projectPath: .test(
+                        targets: [
+                            .test(name: "App", product: .app),
+                        ],
+                        schemes: [
+                            runnableScheme,
+                        ]
+                    ),
+                ]
+            )
             given(generator)
                 .generateWithGraph(path: .any, options: .any)
-                .willReturn((workspacePath, .test(), MapperEnvironment()))
+                .willReturn((workspacePath, graph, MapperEnvironment()))
             given(configLoader)
                 .loadConfig(path: .any)
                 .willReturn(.test())
             given(generator)
                 .load(path: .any, options: .any)
-                .willReturn(.test())
+                .willReturn(graph)
             given(buildGraphInspector)
                 .workspacePath(directory: .any)
                 .willReturn(workspacePath)
             given(buildGraphInspector)
                 .runnableSchemes(graphTraverser: .any)
-                .willReturn([.test()])
-            given(buildGraphInspector)
-                .runnableTarget(scheme: .any, graphTraverser: .any)
-                .willReturn(.test())
+                .willReturn([runnableScheme])
 
             // When
-            try await subject.run()
+            try await subject.run(runnable: .scheme("App"))
         }
     }
 
@@ -164,6 +192,23 @@ struct RunCommandServiceTests {
             let schemeName = "AScheme"
             let clean = true
             let configuration = "Test"
+            let projectPath = try AbsolutePath(validating: "/path/to")
+            let runnableScheme = Scheme.test(
+                name: schemeName,
+                runAction: .test(executable: TargetReference(projectPath: projectPath, name: "App"))
+            )
+            let graph = Graph.test(
+                projects: [
+                    projectPath: .test(
+                        targets: [
+                            .test(name: "App", product: .app),
+                        ],
+                        schemes: [
+                            runnableScheme,
+                        ]
+                    ),
+                ]
+            )
             targetBuilder
                 .buildTargetStub = {
                     _, _workspacePath, _scheme, _clean, _configuration, _, _, _, _, _, _, _ in
@@ -175,7 +220,7 @@ struct RunCommandServiceTests {
                 }
             given(generator)
                 .load(path: .any, options: .any)
-                .willReturn(.test())
+                .willReturn(graph)
             given(configLoader)
                 .loadConfig(path: .any)
                 .willReturn(.test())
@@ -185,10 +230,7 @@ struct RunCommandServiceTests {
                 .willReturn(workspacePath)
             given(buildGraphInspector)
                 .runnableSchemes(graphTraverser: .any)
-                .willReturn([.test(name: schemeName)])
-            given(buildGraphInspector)
-                .runnableTarget(scheme: .any, graphTraverser: .any)
-                .willReturn(.test())
+                .willReturn([runnableScheme])
 
             // When
             try await subject.run(
@@ -210,6 +252,25 @@ struct RunCommandServiceTests {
         let version = Version("15.0.0")
         let deviceName = "iPhone 11"
         let arguments = ["-arg1", "--arg2", "SomeArgument"]
+
+        let projectPath = try AbsolutePath(validating: "/path/to")
+        let runnableScheme = Scheme.test(
+            name: schemeName,
+            runAction: .test(executable: TargetReference(projectPath: projectPath, name: "App"))
+        )
+        let graph = Graph.test(
+            projects: [
+                projectPath: .test(
+                    targets: [
+                        .test(name: "App", product: .app),
+                    ],
+                    schemes: [
+                        runnableScheme,
+                    ]
+                ),
+            ]
+        )
+
         targetRunner
             .runTargetStub = {
                 _, _workspacePath, _schemeName, _configuration, _minVersion, _version, _deviceName,
@@ -228,17 +289,14 @@ struct RunCommandServiceTests {
             .willReturn(.test())
         given(generator)
             .load(path: .any, options: .any)
-            .willReturn(.test())
+            .willReturn(graph)
         targetRunner.assertCanRunTargetStub = { _ in }
         given(buildGraphInspector)
             .workspacePath(directory: .any)
             .willReturn(workspacePath)
         given(buildGraphInspector)
             .runnableSchemes(graphTraverser: .any)
-            .willReturn([.test(name: schemeName)])
-        given(buildGraphInspector)
-            .runnableTarget(scheme: .any, graphTraverser: .any)
-            .willReturn(.test())
+            .willReturn([runnableScheme])
 
         // When
         try await subject.run(
@@ -258,9 +316,27 @@ struct RunCommandServiceTests {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let workspacePath = temporaryDirectory.appending(component: "App.xcworkspace")
+        let projectPath = try AbsolutePath(validating: "/path/to")
+        let runnableScheme = Scheme.test(
+            name: "App",
+            runAction: .test(executable: TargetReference(projectPath: projectPath, name: "App"))
+        )
+        let graph = Graph.test(
+            projects: [
+                projectPath: .test(
+                    targets: [
+                        .test(name: "App", product: .app),
+                    ],
+                    schemes: [
+                        runnableScheme,
+                    ]
+                ),
+            ]
+        )
+
         given(generator)
             .load(path: .any, options: .any)
-            .willReturn(.test())
+            .willReturn(graph)
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(.test())
@@ -269,17 +345,15 @@ struct RunCommandServiceTests {
             .willReturn(workspacePath)
         given(buildGraphInspector)
             .runnableSchemes(graphTraverser: .any)
-            .willReturn([.test()])
-        given(buildGraphInspector)
-            .runnableTarget(scheme: .any, graphTraverser: .any)
-            .willReturn(.test())
+            .willReturn([runnableScheme])
+
         targetBuilder.buildTargetStub = { _, _, _, _, _, _, _, _, _, _, _, _ in }
         targetRunner.assertCanRunTargetStub = { _ in throw TestError() }
 
         // Then
         await #expect(
             throws: TestError.self
-        ) { try await subject.run() }
+        ) { try await subject.run(runnable: .scheme("App")) }
     }
 
     @Test

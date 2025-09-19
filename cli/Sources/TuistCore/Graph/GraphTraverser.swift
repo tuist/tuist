@@ -25,6 +25,7 @@ public class GraphTraverser: GraphTraversing {
 
     private let graph: Graph
     private let conditionCache = ConditionCache()
+    private let conditionalTargets: ThreadSafe<Set<GraphDependency>> = ThreadSafe([])
     private let swiftPluginExecutablesCache = GraphCache<GraphDependency, Set<String>>()
     private let systemFrameworkMetadataProvider: SystemFrameworkMetadataProviding =
         SystemFrameworkMetadataProvider()
@@ -618,6 +619,14 @@ public class GraphTraverser: GraphTraversing {
         )
     }
 
+    public func schemeRunnableTarget(scheme: Scheme) -> GraphTarget? {
+        let specifiedExecutableTarget = scheme.runAction?.executable
+        let defaultTarget = scheme.buildAction?.targets.first
+        guard let target = specifiedExecutableTarget ?? defaultTarget else { return nil }
+        guard let graphTarget = self.target(path: target.projectPath, name: target.name) else { return nil }
+        return graphTarget.target.product.runnable ? graphTarget : nil
+    }
+
     public func copyProductDependencies(path: Path.AbsolutePath, name: String) -> Set<GraphDependencyReference> {
         guard let target = target(path: path, name: name) else { return Set() }
 
@@ -1136,10 +1145,25 @@ public class GraphTraverser: GraphTraversing {
         -> PlatformCondition
         .CombinationResult
     {
+        if graph.dependencyConditions.isEmpty {
+            return .condition(nil)
+        }
+
+        // Skip targets which are not in conditional part of the graph
+        let shouldSkip = conditionalTargets.mutate {
+            if $0.isEmpty {
+                let conditionalTargets = Set(graph.dependencyConditions.keys.map { [$0.from, $0.to] }.joined())
+                $0 = filterDependencies(from: conditionalTargets).union(conditionalTargets)
+            }
+            return !$0.contains(rootDependency) && !$0.contains(transitiveDependency)
+        }
+
+        if shouldSkip {
+            return .condition(nil)
+        }
+
         if let cached = conditionCache[(rootDependency, transitiveDependency)] {
             return cached
-        } else if graph.dependencyConditions.isEmpty {
-            return .condition(nil)
         }
 
         // if we're at a leaf dependency, there is nothing else to traverse.

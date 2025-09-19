@@ -91,7 +91,7 @@ public struct RunCommand: AsyncParsableCommand {
 
     @Argument(
         parsing: .captureForPassthrough,
-        help: "The arguments to pass to the runnable target during execution.",
+        help: "Arguments to pass to the application during execution. All arguments after the scheme name are forwarded to the app. Example: tuist run MyApp --verbose --config debug",
         envKey: .runArguments
     )
     var arguments: [String] = []

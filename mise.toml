@@ -1,29 +1,80 @@
 [tools]
-tuist = "4.56.1"
-swiftlint = "0.59.1"
-swiftformat = "0.57.2"
-pnpm = "10.5.2"
-node = "20.12.0"
-git-cliff = "2.6.0"
-sops = "3.9.3"
-age = "1.2.1"
-"ubi:aquasecurity/trivy" = "0.63.0"
-"clickhouse" = "25.5.1"
-"npm:prettier" = "3.4.2"
-"elixir" = "1.18.3"
-"flyctl" = "0.3.149"
-"erlang" = "27.3.2"
-
-[hooks]
-postinstall = "mise run install"
+    tuist = "4.74.1"
+    swiftlint = "0.59.1"
+    swiftformat = "0.57.2"
+    git-cliff = "2.6.0"
+    sops = "3.9.3"
+    age = "1.2.1"
 
 [env]
-_.file = ".env.json"
-TUIST_HOSTED = 1
-ERL_AFLAGS = "-kernel shell_history enabled -kernel shell_history_file_bytes 1024000"
+    _.file = { path = ".env.json", redact = true }
+    TUIST_CACHE_CONCURRENCY_LIMIT="none"
+
+[tasks.cla-sign]
+    description = "Sign the CLA by adding current user to signatures.json"
+    run = '''
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    SIGNATURES_FILE="server/cla/signatures.json"
+    REPO_ID="250427618"  # tuist/tuist repository ID
+
+    echo "Adding your signature to the CLA..."
+
+    # Get current user info from GitHub
+    user_info=$(gh api user)
+    user_login=$(echo "$user_info" | jq -r '.login')
+    user_name=$(echo "$user_info" | jq -r '.name // .login')
+    user_id=$(echo "$user_info" | jq -r '.id')
+
+    echo "Signing CLA for: $user_name ($user_login)"
+
+    # Check if user already signed
+    if [[ -f "$SIGNATURES_FILE" ]]; then
+        existing_signature=$(jq -r --arg login "$user_login" '.signedContributors[]? | select(.id == ($login | tonumber))' "$SIGNATURES_FILE" 2>/dev/null || echo "")
+        if [[ -n "$existing_signature" ]]; then
+            echo "✅ You have already signed the CLA!"
+            exit 0
+        fi
+    fi
+
+    # Create signatures file if it doesn't exist
+    if [[ ! -f "$SIGNATURES_FILE" ]]; then
+        echo '{"signedContributors":[]}' > "$SIGNATURES_FILE"
+    fi
+
+    # Create new signature entry
+    current_time=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+    new_signature=$(jq -n \
+        --arg name "$user_name" \
+        --arg id "$user_id" \
+        --arg created_at "$current_time" \
+        --arg repo_id "$REPO_ID" \
+        '{
+            name: $name,
+            id: ($id | tonumber),
+            comment_id: "",
+            created_at: $created_at,
+            repoId: ($repo_id | tonumber),
+            pullRequestNo: null
+        }')
+
+    # Add signature to the file
+    temp_file=$(mktemp)
+    jq --argjson new_sig "$new_signature" '.signedContributors += [$new_sig]' "$SIGNATURES_FILE" > "$temp_file"
+    mv "$temp_file" "$SIGNATURES_FILE"
+
+    echo "✅ CLA signature added successfully!"
+    echo "📝 Your signature has been recorded in $SIGNATURES_FILE"
+    echo ""
+    echo "Next steps:"
+    echo "1. Commit the updated signatures file: git add $SIGNATURES_FILE && git commit -m \"add CLA signature for $user_name\""
+    echo "2. Push your changes to complete the CLA signing process"
+    '''
 
 [settings]
-jobs = 6
-http_timeout = "60"
-experimental = true
-sops.age_key_file = "~/.config/mise/tuist-age.txt"
+    jobs = 6
+    http_timeout = "60"
+    experimental = true
+    sops.age_key_file = "~/.config/mise/tuist-age.txt"
+    sops.strict = false

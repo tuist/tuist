@@ -32,13 +32,12 @@ defmodule TuistWeb.AuthenticationPlug do
     if TuistWeb.Authentication.authenticated?(conn) do
       conn
     else
-      case response_type do
-        :open_api ->
-          conn
-          |> put_status(:unauthorized)
-          |> json(%{message: "You need to be authenticated to access this resource."})
-          |> halt()
-      end
+      :open_api = response_type
+
+      conn
+      |> put_status(:unauthorized)
+      |> json(%{message: "You need to be authenticated to access this resource."})
+      |> halt()
     end
   end
 

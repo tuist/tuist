@@ -29,8 +29,6 @@ defmodule TuistTestSupport.Cases.ConnCase do
 
       # The default endpoint for testing
       @endpoint TuistWeb.Endpoint
-
-      # Import conveniences for testing with connections
     end
   end
 

@@ -66,3 +66,4 @@ console_command = "/app/bin/tuist remote"
 [[metrics]]
   port = 9091
   path = "/metrics"
+  processes = ["app"]

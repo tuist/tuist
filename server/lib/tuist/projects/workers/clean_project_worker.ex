@@ -17,8 +17,8 @@ defmodule Tuist.Projects.Workers.CleanProjectWorker do
       project_slug = "#{project.account.name}/#{project.name}"
 
       Task.await_many([
-        Task.async(fn -> Storage.delete_all_objects("#{project_slug}/builds") end),
-        Task.async(fn -> Storage.delete_all_objects("#{project_slug}/tests") end),
+        Task.async(fn -> Storage.delete_all_objects("#{project_slug}/builds", project.account) end),
+        Task.async(fn -> Storage.delete_all_objects("#{project_slug}/tests", project.account) end),
         Task.async(fn -> CacheActionItems.delete_all_action_items(%{project: project}) end)
       ])
 

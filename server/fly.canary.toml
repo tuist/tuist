@@ -32,8 +32,8 @@ console_command = "/app/bin/tuist remote"
 [[services]]
   protocol = "tcp"
   internal_port = 8080
-  auto_stop_machines = "suspend"
-  auto_start_machines = true
+  auto_stop_machines = false
+  auto_start_machines = false
   processes = ["app"]
 
   [[services.ports]]
@@ -66,3 +66,4 @@ console_command = "/app/bin/tuist remote"
 [[metrics]]
   port = 9091
   path = "/metrics"
+  processes = ["app"]

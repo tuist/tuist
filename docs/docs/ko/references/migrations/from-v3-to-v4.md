@@ -1,9 +1,10 @@
 ---
-title: 버전 3에서 버전 4로
-titleTemplate: :title · Migrations · References · Tuist
-description: 이 페이지에서는 Tuist CLI를 버전 3에서 버전 4로 마이그레이션하는 방법을 설명합니다.
+{
+  "title": "버전 3에서 버전 4로",
+  "titleTemplate": ":title · Migrations · References · Tuist",
+  "description": "이 페이지에서는 Tuist CLI를 버전 3에서 버전 4로 마이그레이션하는 방법을 설명합니다."
+}
 ---
-
 # 버전 3에서 버전 4로 {#from-tuist-v3-to-v4}
 
 [Tuist 4](https://github.com/tuist/tuist/releases/tag/4.0.0)의 출시와 함께, 프로젝트를 장기적으로 더 쉽게 사용하고 유지보수할 수 있도록 몇 가지 획기적인 변경 사항을 도입했습니다. 이 문서는 Tuist 3에서 Tuist 4로 업그레이드하기 위해 프로젝트에 필요한 변경 사항을 설명합니다.

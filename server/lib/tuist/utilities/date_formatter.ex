@@ -9,6 +9,10 @@ defmodule Tuist.Utilities.DateFormatter do
     end
   end
 
+  def format_duration_from_seconds(duration_ms, opts \\ []) do
+    format_duration_from_milliseconds(duration_ms * 1000, opts)
+  end
+
   def format_duration_from_milliseconds(duration_ms, opts \\ []) do
     include_seconds = Keyword.get(opts, :include_seconds, true)
 
@@ -88,4 +92,20 @@ defmodule Tuist.Utilities.DateFormatter do
     hours = Float.round(duration_seconds / 3600, 1)
     "#{hours}h"
   end
+
+  @doc "Format datetime with day of week (Mon 15 Jan 14:30:25)"
+  def format_full(%DateTime{} = datetime) do
+    Timex.format!(datetime, "{WDshort} {D} {Mshort} {h24}:{m}:{s}")
+  end
+
+  def format_full(_), do: "Unknown"
+
+  @doc "Format datetime in ISO-like format (2024-01-15 14:30:25 UTC)"
+  def format_iso(%DateTime{} = datetime) do
+    datetime = DateTime.truncate(datetime, :second)
+
+    "#{datetime.year}-#{String.pad_leading(to_string(datetime.month), 2, "0")}-#{String.pad_leading(to_string(datetime.day), 2, "0")} #{String.pad_leading(to_string(datetime.hour), 2, "0")}:#{String.pad_leading(to_string(datetime.minute), 2, "0")}:#{String.pad_leading(to_string(datetime.second), 2, "0")} UTC"
+  end
+
+  def format_iso(_), do: "Unknown"
 end

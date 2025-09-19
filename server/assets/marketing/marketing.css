@@ -1,9 +1,14 @@
+@import "noora/noora.css";
 @import "./css/layout.css";
 @import "./css/tokens.css";
 @import "./css/utilities.css";
 @import "./css/components.css";
 @import "./css/pages.css";
 @import "./css/content.css";
+
+:root {
+  color-scheme: only light;
+}
 
 body {
   margin: 0px;

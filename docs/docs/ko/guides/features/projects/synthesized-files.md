@@ -1,9 +1,10 @@
 ---
-title: Synthesized files
-titleTemplate: :title · Projects · Develop · Guides · Tuist
-description: Tuist 프로젝트에서 자동으로 생성된 파일에 대해 배워봅니다.
+{
+  "title": "Synthesized files",
+  "titleTemplate": ":title · Projects · Develop · Guides · Tuist",
+  "description": "Tuist 프로젝트에서 자동으로 생성된 파일에 대해 배워봅니다."
+}
 ---
-
 # Synthesized files {#synthesized-files}
 
 Tuist는 Xcode 프로젝트를 관리하고 작업할 때 편의성을 가지기 위해 생성 시점에 파일과 코드를 생성할 수 있습니다. 이 문서에서는 해당 기능에 대해 배우고 프로젝트에서 어떻게 사용하는지 배워봅니다.

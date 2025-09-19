@@ -105,13 +105,15 @@ let project = Project(
                 .target(name: "TuistOnboarding", condition: .when([.ios])),
                 .target(name: "TuistErrorHandling", condition: .when([.ios])),
                 .target(name: "TuistProfile", condition: .when([.ios])),
+                .external(name: "ArgumentParser", condition: .when([.ios])),
             ],
             settings: .settings(
                 base: [
                     "DEVELOPMENT_TEAM": "U6LC622NKF",
                     "CODE_SIGN_STYLE": "Automatic",
                     "CODE_SIGN_IDENTITY": "Apple Development",
-                    "CODE_SIGN_ENTITLEMENTS[sdk=iphone*]": "Resources/TuistApp/TuistApp.entitlements",
+                    "CODE_SIGN_ENTITLEMENTS[sdk=iphone*]":
+                        "Resources/TuistApp/TuistApp.entitlements",
                 ],
                 release: [
                     // Needed for the app notarization

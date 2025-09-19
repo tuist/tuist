@@ -9,17 +9,39 @@ extension Tuist {
             case excluding([String])
         }
 
-        /// When passed, Xcode will resolve its Package Manager dependencies using the system-defined
-        /// accounts (for example, git) instead of the Xcode-defined accounts
+        /// This is now deprecated.
+        ///
+        /// To achieve the same behaviour, use `additionalPackageResolutionArguments` like so:
+        ///
+        /// ```swift
+        /// .options(
+        ///     additionalPackageResolutionArguments: ["-scmProvider", "system"]
+        /// )
+        /// ```
+        @available(*, deprecated, message: "Use `additionalPackageResolutionArguments` instead.")
         public var resolveDependenciesWithSystemScm: Bool
 
         /// Disables locking Swift packages. This can speed up generation but does increase risk if packages are not locked
         /// in their declarations.
         public var disablePackageVersionLocking: Bool
 
-        /// Allows setting a custom directory to be used when resolving package dependencies
-        /// This path is passed to `xcodebuild` via the `-clonedSourcePackagesDirPath` argument
+        /// This is now deprecated.
+        ///
+        /// To achieve the same behaviour, use `additionalPackageResolutionArguments` like so:
+        ///
+        /// ```swift
+        /// .options(
+        ///     additionalPackageResolutionArguments: ["-clonedSourcePackagesDirPath", "/path/to/dir/MyWorkspace"]
+        /// )
+        /// ```
+        ///
+        /// Note that `/path/to/dir` is the path you would have passed to `clonedSourcePackagesDirPath`,
+        /// and `MyWorkspace` is the name of your workspace.
+        @available(*, deprecated, message: "Use `additionalPackageResolutionArguments` instead.")
         public var clonedSourcePackagesDirPath: Path?
+
+        /// A list of arguments to be passed to `xcodebuild` when resolving package dependencies.
+        public var additionalPackageResolutionArguments: [String]
 
         /// Allows configuring which targets Tuist checks for potential side effects due multiple branches of the graph
         /// including the same static library of framework as a transitive dependency.
@@ -50,6 +72,39 @@ extension Tuist {
         ///   - Cause issues with manifest caching
         public var disableSandbox: Bool
 
+        /// When true, it includes a scheme to run "tuist generate"
+        public var includeGenerateScheme: Bool
+
+        public static func options(
+            disablePackageVersionLocking: Bool = false,
+            staticSideEffectsWarningTargets: StaticSideEffectsWarningTargets = .all,
+            defaultConfiguration: String? = nil,
+            optionalAuthentication: Bool = false,
+            buildInsightsDisabled: Bool = false,
+            disableSandbox: Bool = false,
+            includeGenerateScheme: Bool = true,
+            additionalPackageResolutionArguments: [String] = []
+        ) -> Self {
+            self.init(
+                resolveDependenciesWithSystemScm: false,
+                disablePackageVersionLocking: disablePackageVersionLocking,
+                clonedSourcePackagesDirPath: nil,
+                additionalPackageResolutionArguments: additionalPackageResolutionArguments,
+                staticSideEffectsWarningTargets: staticSideEffectsWarningTargets,
+                enforceExplicitDependencies: false,
+                defaultConfiguration: defaultConfiguration,
+                optionalAuthentication: optionalAuthentication,
+                buildInsightsDisabled: buildInsightsDisabled,
+                disableSandbox: disableSandbox,
+                includeGenerateScheme: includeGenerateScheme
+            )
+        }
+
+        @available(
+            *,
+            deprecated,
+            message: "Use `options(disablePackageVersionLocking:staticSideEffectsWarningTargets:defaultConfiguration:optionalAuthentication:buildInsightsDisabled:disableSandbox:includeGenerateScheme:additionalPackageResolutionArguments)` instead."
+        )
         public static func options(
             resolveDependenciesWithSystemScm: Bool = false,
             disablePackageVersionLocking: Bool = false,
@@ -58,18 +113,21 @@ extension Tuist {
             defaultConfiguration: String? = nil,
             optionalAuthentication: Bool = false,
             buildInsightsDisabled: Bool = false,
-            disableSandbox: Bool = false
+            disableSandbox: Bool = false,
+            includeGenerateScheme: Bool = true
         ) -> Self {
             self.init(
                 resolveDependenciesWithSystemScm: resolveDependenciesWithSystemScm,
                 disablePackageVersionLocking: disablePackageVersionLocking,
                 clonedSourcePackagesDirPath: clonedSourcePackagesDirPath,
+                additionalPackageResolutionArguments: [],
                 staticSideEffectsWarningTargets: staticSideEffectsWarningTargets,
                 enforceExplicitDependencies: false,
                 defaultConfiguration: defaultConfiguration,
                 optionalAuthentication: optionalAuthentication,
                 buildInsightsDisabled: buildInsightsDisabled,
-                disableSandbox: disableSandbox
+                disableSandbox: disableSandbox,
+                includeGenerateScheme: includeGenerateScheme
             )
         }
 
@@ -91,12 +149,14 @@ extension Tuist {
                 resolveDependenciesWithSystemScm: resolveDependenciesWithSystemScm,
                 disablePackageVersionLocking: disablePackageVersionLocking,
                 clonedSourcePackagesDirPath: clonedSourcePackagesDirPath,
+                additionalPackageResolutionArguments: [],
                 staticSideEffectsWarningTargets: staticSideEffectsWarningTargets,
                 enforceExplicitDependencies: enforceExplicitDependencies,
                 defaultConfiguration: defaultConfiguration,
                 optionalAuthentication: optionalAuthentication,
                 buildInsightsDisabled: false,
-                disableSandbox: false
+                disableSandbox: false,
+                includeGenerateScheme: false
             )
         }
     }

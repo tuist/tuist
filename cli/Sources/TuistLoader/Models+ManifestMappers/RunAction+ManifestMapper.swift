@@ -1,4 +1,5 @@
 import Foundation
+import Path
 import ProjectDescription
 import TuistCore
 import XcodeGraph
@@ -58,6 +59,18 @@ extension XcodeGraph.RunAction {
             )
         }
 
+        var filePathResolved: AbsolutePath?
+        if let filePath = manifest.filePath {
+            filePathResolved = try generatorPaths.resolve(path: filePath)
+        }
+
+        var useCustomWorkingDirectory = false
+        var customWorkingDirectoryResolved: AbsolutePath?
+        if let customWorkingDirectory = manifest.customWorkingDirectory {
+            customWorkingDirectoryResolved = try generatorPaths.resolve(path: customWorkingDirectory)
+            useCustomWorkingDirectory = true
+        }
+
         let options = try XcodeGraph.RunActionOptions.from(manifest: manifest.options, generatorPaths: generatorPaths)
 
         let diagnosticsOptions = XcodeGraph.SchemeDiagnosticsOptions.from(manifest: manifest.diagnosticsOptions)
@@ -90,14 +103,16 @@ extension XcodeGraph.RunAction {
             preActions: preActions,
             postActions: postActions,
             executable: executableResolved,
-            filePath: nil,
+            filePath: filePathResolved,
             arguments: arguments,
             options: options,
             diagnosticsOptions: diagnosticsOptions,
             metalOptions: metalOptions,
             expandVariableFromTarget: expandVariablesFromTarget,
             launchStyle: launchStyle,
-            appClipInvocationURL: appClipInvocationURL
+            appClipInvocationURL: appClipInvocationURL,
+            customWorkingDirectory: customWorkingDirectoryResolved,
+            useCustomWorkingDirectory: useCustomWorkingDirectory
         )
     }
 }

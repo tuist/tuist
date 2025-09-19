@@ -1,9 +1,10 @@
 ---
-title: Hashing
-titleTemplate: :title · Projects · Features · Guides · Tuist
-description: Learn about Tuist's hashing logic upon which features like binary caching and selective testing are built.
+{
+  "title": "Hashing",
+  "titleTemplate": ":title · Projects · Features · Guides · Tuist",
+  "description": "Learn about Tuist's hashing logic upon which features like binary caching and selective testing are built."
+}
 ---
-
 # Hashing {#hashing}
 
 Features like <LocalizedLink href="/guides/features/cache">caching</LocalizedLink> or selective test execution require a way to determine whether a target has changed. Tuist calculates a hash for each target in the dependency graph to determine if a target has changed. The hash is calculated based on the following attributes:

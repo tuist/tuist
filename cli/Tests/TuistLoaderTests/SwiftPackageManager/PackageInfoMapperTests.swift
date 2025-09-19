@@ -1458,7 +1458,6 @@ struct PackageInfoMapperTests {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         let defaultResourcePaths = try [
-            "metal",
             "storyboard",
             "strings",
             "xcassets",
@@ -3977,10 +3976,12 @@ struct PackageInfoMapperTests {
                             dependencies: [
                                 .target(name: "Dependency1", condition: .init(platformNames: ["ios"], config: nil)),
                                 .target(name: "Dependency2", condition: .init(platformNames: ["tvos"], config: nil)),
+                                .target(name: "External", condition: .init(platformNames: ["ios"], config: nil)),
                             ]
                         ),
                         .test(name: "Dependency1"),
                         .test(name: "Dependency2"),
+                        .test(name: "External", type: .binary),
                     ],
                     platforms: [.ios, .tvos],
                     cLanguageStandard: nil,
@@ -4004,6 +4005,13 @@ struct PackageInfoMapperTests {
                     dependencies: [
                         .target(name: "Dependency1", condition: .when([.ios])),
                         .target(name: "Dependency2", condition: .when([.tvos])),
+                        .xcframework(
+                            path: .relativeToManifest(basePath
+                                .appending(try RelativePath(validating: "artifacts/Package/External.xcframework")).pathString
+                            ),
+                            status: .required,
+                            condition: .when([.ios])
+                        ),
                     ]
                 ),
                 .test(
@@ -4031,6 +4039,7 @@ struct PackageInfoMapperTests {
 
         let projectTargets = project!.targets.sorted(by: \.name)
         let expectedTargets = expected.targets.sorted(by: \.name)
+
         #expect(projectTargets == expectedTargets)
     }
 

@@ -2344,4 +2344,144 @@ struct GraphLinterTests {
         // Then
         #expect(results.isEmpty == true)
     }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func lint_scheme_runAction_withBothFilePathAndExecutable() async throws {
+        // Given
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let target = Target.test(name: "TestTarget", product: .app)
+        let project = Project.test(path: path, name: "TestProject", targets: [target])
+
+        let runAction = XcodeGraph.RunAction.test(
+            executable: TargetReference(projectPath: path, name: "TestTarget"),
+            filePath: try AbsolutePath(validating: "/usr/bin/my-script")
+        )
+
+        let scheme = Scheme.test(
+            name: "TestScheme",
+            buildAction: .test(targets: [TargetReference(projectPath: path, name: "TestTarget")]),
+            testAction: nil,
+            runAction: runAction,
+            archiveAction: nil,
+            profileAction: nil,
+            analyzeAction: nil
+        )
+
+        let workspace = Workspace.test(
+            path: path,
+            name: "TestWorkspace",
+            projects: [path],
+            schemes: [scheme]
+        )
+
+        let graph = Graph.test(
+            path: path,
+            workspace: workspace,
+            projects: [path: project]
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let result = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
+
+        // Then
+        #expect(result.contains(
+            LintingIssue(
+                reason: "On scheme 'TestScheme', filePath ('/usr/bin/my-script') takes precedence over executable ('TestTarget').",
+                severity: .warning
+            )
+        ))
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func lint_scheme_runAction_withOnlyFilePath() async throws {
+        // Given
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let target = Target.test(name: "TestTarget", product: .app)
+        let project = Project.test(path: path, name: "TestProject", targets: [target])
+
+        let runAction = XcodeGraph.RunAction.test(
+            executable: nil,
+            filePath: try AbsolutePath(validating: "/usr/bin/my-script")
+        )
+
+        let scheme = Scheme.test(
+            name: "TestScheme",
+            buildAction: .test(targets: [TargetReference(projectPath: path, name: "TestTarget")]),
+            testAction: nil,
+            runAction: runAction,
+            archiveAction: nil,
+            profileAction: nil,
+            analyzeAction: nil
+        )
+
+        let workspace = Workspace.test(
+            path: path,
+            name: "TestWorkspace",
+            projects: [path],
+            schemes: [scheme]
+        )
+
+        let graph = Graph.test(
+            path: path,
+            workspace: workspace,
+            projects: [path: project]
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let result = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
+
+        // Then
+        #expect(result.isEmpty == true)
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func lint_scheme_runAction_withOnlyExecutable() async throws {
+        // Given
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let target = Target.test(name: "TestTarget", product: .app)
+        let project = Project.test(path: path, name: "TestProject", targets: [target])
+
+        let runAction = XcodeGraph.RunAction.test(
+            executable: TargetReference(projectPath: path, name: "TestTarget"),
+            filePath: nil
+        )
+
+        let scheme = Scheme.test(
+            name: "TestScheme",
+            buildAction: .test(targets: [TargetReference(projectPath: path, name: "TestTarget")]),
+            testAction: nil,
+            runAction: runAction,
+            archiveAction: nil,
+            profileAction: nil,
+            analyzeAction: nil
+        )
+
+        let workspace = Workspace.test(
+            path: path,
+            name: "TestWorkspace",
+            projects: [path],
+            schemes: [scheme]
+        )
+
+        let graph = Graph.test(
+            path: path,
+            workspace: workspace,
+            projects: [path: project]
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let result = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
+
+        // Then
+        #expect(result.isEmpty == true)
+    }
 }

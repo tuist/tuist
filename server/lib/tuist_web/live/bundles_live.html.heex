@@ -271,10 +271,7 @@
             <.text_cell label={format_bytes(bundle.install_size)} />
           </:col>
           <:col :let={bundle} label={gettext("Commit SHA")}>
-            <.text_cell label={
-              (bundle.git_commit_sha || "None")
-              |> String.slice(0, 7)
-            } />
+            <.text_cell label={SHA.format_commit_sha(bundle.git_commit_sha)} />
           </:col>
           <:col :let={bundle} label={gettext("Platform")}>
             <.platform_cell
@@ -291,12 +288,7 @@
                 sort_icon(@bundles_sort_order)
             }
           >
-            <% relative_date =
-              case Timex.from_now(bundle.inserted_at) |> String.split(" ") do
-                [number, unit, relative] -> number <> (unit |> String.at(0)) <> " " <> relative
-                _ -> Timex.from_now(bundle.inserted_at)
-              end %>
-            <.text_cell sublabel={relative_date} />
+            <.text_cell sublabel={DateFormatter.from_now(bundle.inserted_at)} />
           </:col>
         </.table>
         <.pagination

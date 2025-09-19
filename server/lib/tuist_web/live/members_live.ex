@@ -12,7 +12,7 @@ defmodule TuistWeb.MembersLive do
     socket =
       socket
       |> assign(
-        form: to_form(%{}),
+        form: to_form(%{}, as: :invitation),
         selected_tab: "members",
         # NOTE: This should preferably done on the client. Moved this to the server for now because LiveView went into `phx-skip` mode and elements disappeared.
         selected_inner_tab: "members"
@@ -42,14 +42,7 @@ defmodule TuistWeb.MembersLive do
         <div :if={@selected_inner_tab == "invitations"} />
 
         <.invite_member_form
-          :if={
-            Authorization.can(
-              @current_user,
-              :create,
-              @selected_account,
-              :invitation
-            )
-          }
+          :if={Authorization.authorize(:invitation_create, @current_user, @selected_account) == :ok}
           id="invite-member-form"
           form={@form}
         />
@@ -64,14 +57,7 @@ defmodule TuistWeb.MembersLive do
               data-selected={@selected_inner_tab == "members"}
             />
             <.tab_menu_horizontal_item
-              :if={
-                Authorization.can(
-                  @current_user,
-                  :read,
-                  @selected_account,
-                  :invitation
-                )
-              }
+              :if={Authorization.authorize(:invitation_read, @current_user, @selected_account) == :ok}
               label={gettext("Invitations")}
               phx-click="select-inner-tab"
               phx-value-tab="invitations"
@@ -111,12 +97,7 @@ defmodule TuistWeb.MembersLive do
           <div
             :if={
               @selected_inner_tab == "invitations" and
-                Authorization.can(
-                  @current_user,
-                  :read,
-                  @selected_account,
-                  :invitation
-                )
+                Authorization.authorize(:invitation_read, @current_user, @selected_account) == :ok
             }
             data-part="content"
           >
@@ -173,7 +154,7 @@ defmodule TuistWeb.MembersLive do
         <.line_divider />
         <.text_input
           id={"#{@id}-input"}
-          field={@form[:email]}
+          field={@form[:invitee_email]}
           type="email"
           label={gettext("Email address")}
           show_prefix={false}
@@ -190,7 +171,7 @@ defmodule TuistWeb.MembersLive do
               />
             </:action>
             <:action>
-              <.button label="Save" type="submit" />
+              <.button label="Save" type="submit" tabindex="1" />
             </:action>
           </.modal_footer>
         </:footer>
@@ -279,7 +260,7 @@ defmodule TuistWeb.MembersLive do
   #   {:noreply, socket}
   # end
 
-  def handle_event("invite-members", %{"email" => email}, socket) do
+  def handle_event("invite-members", %{"invitation" => %{"invitee_email" => email}}, socket) do
     # NOTE: Enable this when tag-input is used.
     # Accounts.invite_users_to_organization(socket.assigns.invite_emails, %{
     #   inviter: socket.assigns.current_user,
@@ -287,33 +268,37 @@ defmodule TuistWeb.MembersLive do
     #   url: &url(~p"/auth/invitations/#{&1}")
     # })
 
-    Accounts.invite_user_to_organization(
-      email,
-      %{
-        inviter: socket.assigns.current_user,
-        to: socket.assigns.organization,
-        url: &url(~p"/auth/invitations/#{&1}")
-      }
-    )
+    with {:ok, _invitation} <-
+           Accounts.invite_user_to_organization(
+             email,
+             %{
+               inviter: socket.assigns.current_user,
+               to: socket.assigns.organization,
+               url: &url(~p"/auth/invitations/#{&1}")
+             }
+           ),
+         {:ok, organization} <-
+           Accounts.get_organization_by_id(socket.assigns.organization.id,
+             preload: [:invitations]
+           ) do
+      socket =
+        socket
+        |> assign(
+          invitations: organization.invitations,
+          invite_emails: [],
+          form: to_form(%{}, as: :invitation),
+          selected_inner_tab: "invitations"
+        )
+        |> push_event("close-modal", %{id: "invite-member-form-modal"})
+        |> push_event("close-modal", %{id: "invite-member-form-empty-state-modal"})
 
-    {:ok, organization} =
-      Accounts.get_organization_by_id(socket.assigns.organization.id,
-        preload: [:invitations]
-      )
+      {:noreply, socket}
+    else
+      {:error, changeset} ->
+        socket = assign(socket, form: to_form(changeset))
 
-    socket =
-      socket
-      |> assign(
-        invitations: organization.invitations,
-        invite_emails: [],
-        selected_inner_tab: "invitations"
-      )
-      |> push_event("close-modal", %{id: "invite-member-form-modal"})
-      |> push_event("close-modal", %{id: "invite-member-form-empty-state-modal"})
-
-    # |> push_event("clear-tags-input-invite-members-input", %{})
-
-    {:noreply, socket}
+        {:noreply, socket}
+    end
   end
 
   defp assign_organization(socket) do

@@ -13,12 +13,12 @@ defmodule Tuist do
       # -----
       # These modules contain utilities that are used for the marketing-related
       # routes and features.
+      Mautic,
       Marketing.Blog,
       Marketing.Pages,
       Marketing.Changelog,
       Marketing.OpenGraph,
       Marketing.Newsletter,
-
       # App
       # -----
       # This module contains Tuist features that are not expected to have inter-dependencies
@@ -54,6 +54,13 @@ defmodule Tuist do
       Projects,
       Projects.Project,
       Projects.Workers.CleanProjectWorker,
+      QA,
+      QA.Run,
+      QA.Step,
+      QA.Screenshot,
+      QA.Log,
+      QA.Logs.Buffer,
+      QA.Workers.TestWorker,
       Apple,
       Xcode,
       Xcode.Postgres,
@@ -64,6 +71,11 @@ defmodule Tuist do
       Xcode.Clickhouse.XcodeGraph,
       Xcode.Clickhouse.XcodeProject,
       Xcode.Clickhouse.XcodeTarget,
+      Loops,
+      Namespace,
+      Namespace.JWTToken,
+      QA,
+      QA.LaunchArgumentGroup,
       # Support
       # -----
       # These modules represent Tuist-agnostic utilities that are used by other features.
@@ -79,6 +91,7 @@ defmodule Tuist do
       PubSub,
       KeyValueStore,
       ClickHouseRepo,
+      Markdown,
       # We should not be exposing this one
       Repo,
       Storage,

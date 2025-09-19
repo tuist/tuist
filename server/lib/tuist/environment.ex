@@ -47,10 +47,6 @@ defmodule Tuist.Environment do
     Enum.member?(["1", "true", "TRUE", "yes", "YES"], value)
   end
 
-  def worker? do
-    "TUIST_WORKER" |> System.get_env("1") |> truthy?()
-  end
-
   def web? do
     "TUIST_WEB" |> System.get_env("1") |> truthy?()
   end
@@ -74,6 +70,20 @@ defmodule Tuist.Environment do
 
   def use_ssl_for_database? do
     truthy?(System.get_env("TUIST_USE_SSL_FOR_DATABASE", "1"))
+  end
+
+  def dev_use_remote_storage? do
+    not dev?() or truthy?(System.get_env("TUIST_DEV_USE_REMOTE_STORAGE", "0"))
+  end
+
+  def prometheus_enabled? do
+    prometheus_enabled = System.get_env("TUIST_PROMETHEUS_ENABLED")
+
+    if is_nil(prometheus_enabled) do
+      not dev?() and not test?() and web?()
+    else
+      truthy?(prometheus_enabled)
+    end
   end
 
   def get_license_key(secrets \\ secrets()) do
@@ -118,8 +128,8 @@ defmodule Tuist.Environment do
     end
   end
 
-  def analytics_enabled? do
-    tuist_hosted?() and @env == :prod
+  def analytics_enabled?(secrets \\ secrets()) do
+    not is_nil(posthog_api_key(secrets)) && not is_nil(posthog_url(secrets))
   end
 
   def error_tracking_enabled? do
@@ -176,29 +186,6 @@ defmodule Tuist.Environment do
     end
   end
 
-  def s3_access_key_id(secrets \\ secrets()) do
-    System.get_env("AWS_ACCESS_KEY_ID") || get([:aws, :access_key_id], secrets) ||
-      get([:s3, :access_key_id], secrets)
-  end
-
-  def s3_secret_access_key(secrets \\ secrets()) do
-    System.get_env("AWS_SECRET_ACCESS_KEY") || get([:aws, :secret_access_key], secrets) ||
-      get([:s3, :secret_access_key], secrets)
-  end
-
-  def s3_region(secrets \\ secrets()) do
-    System.get_env("AWS_REGION") || get([:aws, :region], secrets) || get([:s3, :region], secrets) ||
-      "auto"
-  end
-
-  def s3_bucket_name(secrets \\ secrets()) do
-    get([:aws, :bucket_name], secrets) || get([:s3, :bucket_name], secrets)
-  end
-
-  def s3_endpoint(secrets \\ secrets()) do
-    get([:aws, :endpoint], secrets) || get([:s3, :endpoint], secrets)
-  end
-
   def s3_pool_size(secrets \\ secrets()) do
     case get([:s3, :pool_size], secrets) do
       pool_size when is_binary(pool_size) -> String.to_integer(pool_size)
@@ -217,12 +204,116 @@ defmodule Tuist.Environment do
   def s3_protocols(secrets \\ secrets()) do
     case get([:s3, :protocol], secrets) do
       protocol when is_binary(protocol) -> [String.to_atom(protocol)]
-      _ -> [:http2, :http1]
+      _ -> [:http1]
+    end
+  end
+
+  def s3_access_key_id(provider, secrets) do
+    if dev_use_remote_storage?() do
+      get([:s3, provider, :access_key_id], secrets)
+    else
+      s3_access_key_id(secrets)
+    end
+  end
+
+  def s3_secret_access_key(provider, secrets) do
+    if dev_use_remote_storage?() do
+      get([:s3, provider, :secret_access_key], secrets)
+    else
+      s3_secret_access_key(secrets)
+    end
+  end
+
+  def s3_region(provider, secrets) do
+    get([:s3, provider, :region], secrets) ||
+      "auto"
+  end
+
+  def s3_bucket_name(provider, secrets) do
+    if dev_use_remote_storage?() do
+      get([:aws, :bucket_name], secrets) || get([:s3, provider, :bucket_name], secrets)
+    else
+      s3_bucket_name(secrets)
+    end
+  end
+
+  def s3_endpoint(provider, secrets) do
+    if dev_use_remote_storage?() do
+      get([:s3, provider, :endpoint], secrets)
+    else
+      s3_endpoint(secrets)
+    end
+  end
+
+  def s3_virtual_host(provider, secrets) do
+    if dev_use_remote_storage?() do
+      [:s3, provider, :virtual_host] |> get(secrets) |> truthy?()
+    else
+      s3_virtual_host(secrets)
+    end
+  end
+
+  def s3_bucket_as_host(provider, secrets) do
+    if dev_use_remote_storage?() do
+      [:s3, provider, :bucket_as_host] |> get(secrets) |> truthy?()
+    else
+      s3_bucket_as_host(secrets)
+    end
+  end
+
+  def s3_access_key_id(secrets \\ secrets()) do
+    if dev_use_remote_storage?() do
+      System.get_env("AWS_ACCESS_KEY_ID") || get([:aws, :access_key_id], secrets) ||
+        get([:s3, :access_key_id], secrets)
+    else
+      "minio"
+    end
+  end
+
+  def s3_secret_access_key(secrets \\ secrets()) do
+    if dev_use_remote_storage?() do
+      System.get_env("AWS_SECRET_ACCESS_KEY") || get([:aws, :secret_access_key], secrets) ||
+        get([:s3, :secret_access_key], secrets)
+    else
+      "minio1234"
+    end
+  end
+
+  def s3_region(secrets \\ secrets()) do
+    System.get_env("AWS_REGION") || get([:aws, :region], secrets) || get([:s3, :region], secrets) ||
+      "auto"
+  end
+
+  def s3_bucket_name(secrets \\ secrets()) do
+    if dev_use_remote_storage?() do
+      get([:aws, :bucket_name], secrets) || get([:s3, :bucket_name], secrets)
+    else
+      "tuist-development"
+    end
+  end
+
+  def s3_endpoint(secrets \\ secrets()) do
+    if dev_use_remote_storage?() do
+      get([:aws, :endpoint], secrets) || get([:s3, :endpoint], secrets)
+    else
+      get([:local_s3_endpoint], secrets) || "http://localhost:9095"
     end
   end
 
   def s3_virtual_host(secrets \\ secrets()) do
-    [:s3, :virtual_host] |> get(secrets) |> truthy?()
+    if dev_use_remote_storage?() do
+      [:s3, :virtual_host] |> get(secrets) |> truthy?()
+    else
+      false
+    end
+  end
+
+  def s3_bucket_as_host(secrets \\ secrets()) do
+    if dev_use_remote_storage?() do
+      [:s3, :bucket_as_host] |> get(secrets) |> truthy?()
+    else
+      false
+    end
   end
 
   def slack_tuist_token(secrets \\ secrets()) do
@@ -262,12 +353,20 @@ defmodule Tuist.Environment do
     end
   end
 
+  def minio_console_port(secrets \\ secrets()) do
+    get([:minio, :console_port], secrets, default_value: 9098)
+  end
+
   def mautic_username(secrets \\ secrets()) do
     get([:mautic, :username], secrets)
   end
 
   def mautic_password(secrets \\ secrets()) do
     get([:mautic, :password], secrets)
+  end
+
+  def loops_api_key(secrets \\ secrets()) do
+    get([:loops, :api_key], secrets)
   end
 
   def github_token_update_packages(secrets \\ secrets()) do
@@ -287,7 +386,17 @@ defmodule Tuist.Environment do
   end
 
   def github_app_private_key(secrets \\ secrets()) do
-    get([:github, :app_private_key], secrets)
+    base_64_key = get([:github, :app_private_key_base64], secrets)
+
+    if is_nil(base_64_key) do
+      get([:github, :app_private_key], secrets)
+    else
+      Base.decode64!(base_64_key)
+    end
+  end
+
+  def github_app_webhook_secret(secrets \\ secrets()) do
+    get([:github, :app_webhook_secret], secrets)
   end
 
   def github_oauth_configured?(secrets \\ secrets()) do
@@ -312,14 +421,6 @@ defmodule Tuist.Environment do
 
   def okta_site(secrets \\ secrets()) do
     get([:okta, :site], secrets)
-  end
-
-  def okta_client_id_for_organization_id(organization_id, secrets \\ secrets()) do
-    get([:okta, organization_id, :client_id], secrets)
-  end
-
-  def okta_client_secret_for_organization_id(organization_id, secrets \\ secrets()) do
-    get([:okta, organization_id, :client_secret], secrets)
   end
 
   def okta_oauth_configured?(secrets \\ secrets()) do
@@ -389,6 +490,35 @@ defmodule Tuist.Environment do
     get([:clickhouse, :queue_target], secrets) || database_queue_target(secrets)
   end
 
+  def anthropic_api_key(secrets \\ secrets()) do
+    get([:anthropic, :api_key], secrets)
+  end
+
+  def openai_api_key(secrets \\ secrets()) do
+    get([:openai, :api_key], secrets)
+  end
+
+  def clickhouse_flush_interval_ms(secrets \\ secrets()) do
+    case get([:clickhouse, :flush_interval_ms], secrets) do
+      flush_interval when is_binary(flush_interval) -> String.to_integer(flush_interval)
+      _ -> 5000
+    end
+  end
+
+  def clickhouse_max_buffer_size(secrets \\ secrets()) do
+    case get([:clickhouse, :max_buffer_size], secrets) do
+      max_buffer_size when is_binary(max_buffer_size) -> String.to_integer(max_buffer_size)
+      _ -> 1_000_000
+    end
+  end
+
+  def clickhouse_buffer_pool_size(secrets \\ secrets()) do
+    case get([:clickhouse, :buffer_pool_size], secrets) do
+      buffer_pool_size when is_binary(buffer_pool_size) -> String.to_integer(buffer_pool_size)
+      _ -> 5
+    end
+  end
+
   def app_url(opts \\ [], secrets \\ secrets()) do
     path = opts |> Keyword.get(:path, "/") |> String.trim_trailing("/")
 
@@ -446,6 +576,10 @@ defmodule Tuist.Environment do
     get([:secret_key, :tokens], secrets, default_value: secret_key_base(secrets))
   end
 
+  def secret_key_encryption(secrets \\ secrets()) do
+    get([:secret_key, :encryption], secrets, default_value: secret_key_base(secrets))
+  end
+
   def oauth_client_id(secrets \\ secrets()) do
     get([:oauth, :client_id], secrets)
   end
@@ -472,6 +606,44 @@ defmodule Tuist.Environment do
       oauth_client_name(secrets) != nil and
       oauth_jwt_public_key(secrets) != nil and
       oauth_private_key(secrets) != nil
+  end
+
+  @doc """
+  Returns the Namespace SSH private key used to establish secure SSH connections between the server and the Namespace runner.
+  """
+  def namespace_ssh_private_key(secrets \\ secrets()) do
+    get([:namespace, :ssh_private_key], secrets)
+  end
+
+  @doc """
+  Returns the Namespace SSH public key used to establish secure SSH connections between the server and the Namespace runner.
+  """
+  def namespace_ssh_public_key(secrets \\ secrets()) do
+    get([:namespace, :ssh_public_key], secrets)
+  end
+
+  @doc """
+  Returns the Namespace partner ID that identifies this Tuist instance
+  as an authorized partner in the Namespace ecosystem. This ID is used
+  when issuing Namespace tenant tokens.
+  """
+  def namespace_partner_id(secrets \\ secrets()) do
+    get([:namespace, :partner_id], secrets)
+  end
+
+  @doc """
+  Returns the Namespace JWT private key used for signing authentication tokens
+  that are exchanged between Tuist and Namespace services when issuing Namespace tenant tokens.
+  """
+  def namespace_jwt_private_key(secrets \\ secrets()) do
+    case get([:namespace, :jwt_private_key], secrets) do
+      nil -> nil
+      base64_key -> Base.decode64!(base64_key)
+    end
+  end
+
+  def namespace_enabled?(secrets \\ secrets()) do
+    namespace_partner_id(secrets) != nil and namespace_jwt_private_key(secrets) != nil
   end
 
   def get(keys, secrets \\ secrets(), opts \\ []) do

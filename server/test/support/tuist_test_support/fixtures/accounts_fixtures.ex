@@ -36,6 +36,8 @@ defmodule TuistTestSupport.Fixtures.AccountsFixtures do
     creator = Keyword.get_lazy(opts, :creator, fn -> user_fixture() end)
     sso_provider = Keyword.get(opts, :sso_provider)
     sso_organization_id = Keyword.get(opts, :sso_organization_id)
+    okta_client_id = Keyword.get(opts, :okta_client_id)
+    okta_client_secret = Keyword.get(opts, :okta_client_secret)
     created_at = Keyword.get(opts, :created_at, DateTime.utc_now())
 
     customer_id =
@@ -51,6 +53,8 @@ defmodule TuistTestSupport.Fixtures.AccountsFixtures do
       Accounts.create_organization(%{name: name, creator: creator},
         sso_provider: sso_provider,
         sso_organization_id: sso_organization_id,
+        okta_client_id: okta_client_id,
+        okta_client_secret: okta_client_secret,
         created_at: created_at,
         customer_id: customer_id,
         setup_billing: setup_billing,

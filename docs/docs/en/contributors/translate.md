@@ -1,9 +1,10 @@
 ---
-title: Translate
-titleTemplate: :title · Contributors · Tuist
-description: This document describes the principles that guide the development of Tuist.
+{
+  "title": "Translate",
+  "titleTemplate": ":title · Contributors · Tuist",
+  "description": "This document describes the principles that guide the development of Tuist."
+}
 ---
-
 # Translate {#translate}
 
 Languages can be barriers to understanding. We want to make sure that Tuist is accessible to as many people as possible. If you speak a language that Tuist doesn't support, you can help us by translating the various surfaces of Tuist.
@@ -24,7 +25,7 @@ Since maintaining translations is a continuous effort, we add languages as we se
 ## How to translate {#how-to-translate}
 
 We have an instance of [Weblate](https://weblate.org/en-gb/) running at [translate.tuist.dev](https://translate.tuist.dev).
-You can head to [the documentation](https://translate.tuist.dev/engage/documentation/) project website, create an account, and start translating.
+You can head to [the project](https://translate.tuist.dev/engage/tuist/), create an account, and start translating.
 
 Translations are synchronized back to the source repository using GitHub pull requests which maintainers will review and merge.
 

@@ -1,9 +1,10 @@
 ---
-title: Code reviews
-titleTemplate: :title · Contributors · Tuist
-description: Learn how to contribute to Tuist by reviewing code
+{
+  "title": "Code reviews",
+  "titleTemplate": ":title · Contributors · Tuist",
+  "description": "Learn how to contribute to Tuist by reviewing code"
+}
 ---
-
 # Code reviews {#code-reviews}
 
 Reviewing pull requests is a common type of contribution. Despite continuous integration (CI) ensuring the code does what’s supposed to do, it’s not enough. There are contribution traits that can’t be automated: design, code structure & architecture, tests quality, or typos. The following sections represent different aspects of the code review process.

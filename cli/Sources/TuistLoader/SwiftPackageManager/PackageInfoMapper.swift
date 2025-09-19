@@ -577,6 +577,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
             infoPlist: .default,
             sources: sources,
             resources: resources,
+            buildableFolders: [],
             headers: headers,
             dependencies: dependencies,
             settings: settings
@@ -605,7 +606,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
                     path: .path(artifactPath.pathString),
                     expectedSignature: nil,
                     status: .required,
-                    condition: nil
+                    condition: platformCondition
                 )
             }
             if let aliasedName = moduleAliases?[name] {
@@ -928,7 +929,6 @@ extension ProjectDescription.ResourceFileElements {
         "xcassets",
         "strings",
         "stringsdict",
-        "metal",
     ])
 
     private static func defaultResourcePaths(

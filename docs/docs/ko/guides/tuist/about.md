@@ -1,9 +1,10 @@
 ---
-title: About Tuist
-titleTemplate: :title · Guides · Tuist
-description: Extend your Apple native tooling to better apps at scale.
+{
+  "title": "About Tuist",
+  "titleTemplate": ":title · Guides · Tuist",
+  "description": "Extend your Apple native tooling to better apps at scale."
+}
 ---
-
 <script setup>
 import VPFeature from "vitepress/dist/client/theme-default/components/VPFeature.vue";
 </script>

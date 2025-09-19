@@ -1,3 +1,5 @@
+alias Credo.Checks.TimestampsType
+
 %{
   configs: [
     %{
@@ -14,8 +16,8 @@
       checks: %{
         enabled: [{Credo.Check.Refactor.Nesting, [max_nesting: 3]}],
         extra: [
-          {Credo.Checks.TimestampsType, files: %{included: ["priv/repo/migrations/"]}, allowed_type: :timestamptz},
-          {Credo.Checks.TimestampsType, files: %{included: ["lib/"]}, allowed_type: :utc_datetime},
+          {TimestampsType, files: %{included: ["priv/repo/migrations/"]}, allowed_type: :timestamptz},
+          {TimestampsType, files: %{included: ["lib/"]}, allowed_type: :utc_datetime},
           {ExcellentMigrations.CredoCheck.MigrationsSafety, []}
         ],
         disabled: [

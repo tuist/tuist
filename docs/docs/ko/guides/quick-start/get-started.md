@@ -1,9 +1,10 @@
 ---
-title: Get started
-titleTemplate: :title · Quick-start · Guides · Tuist
-description: Tuist를 설치하는 방법을 알아보세요.
+{
+  "title": "Get started",
+  "titleTemplate": ":title · Quick-start · Guides · Tuist",
+  "description": "Tuist를 설치하는 방법을 알아보세요."
+}
 ---
-
 # Get started {#get-started}
 
 어떤 디렉토리나 Xcode 프로젝트 또는 워크스페이스 디렉토리에서 Tuist를 시작하는 가장 쉬운 방법은 다음과 같습니다:

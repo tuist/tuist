@@ -23,11 +23,14 @@ extension ProcessResult {
     /// If the command is executed through xcrun, then the name of the tool is returned instead.
     /// - Returns: Returns the command that the process executed.
     func command() -> String {
-        let command = arguments.first!
-        if command == "/usr/bin/xcrun" {
-            return arguments[1]
-        }
-        return command
+        let arguments: [String] = { [arguments] in
+            if arguments.first == "/usr/bin/xcrun" {
+                return Array(arguments.dropFirst())
+            } else {
+                return arguments
+            }
+        }()
+        return arguments.map { $0.spm_shellEscaped() }.joined(separator: " ")
     }
 }
 
@@ -40,15 +43,15 @@ public enum SystemError: FatalError, Equatable {
         switch self {
         case let .signalled(command, code, data):
             if data.count > 0, let string = String(data: data, encoding: .utf8) {
-                return "The '\(command)' was interrupted with a signal \(code) and message:\n\(string)"
+                return "The command `\(command)` was interrupted with a signal \(code) and message:\n\(string)"
             } else {
-                return "The '\(command)' was interrupted with a signal \(code)"
+                return "The command `\(command)` was interrupted with a signal \(code)"
             }
         case let .terminated(command, code, data):
             if data.count > 0, let string = String(data: data, encoding: .utf8) {
-                return "The '\(command)' command exited with error code \(code) and message:\n\(string)"
+                return "The command `\(command)` exited with error code \(code) and message:\n\(string)"
             } else {
-                return "The '\(command)' command exited with error code \(code)"
+                return "The command `\(command)` exited with error code \(code)"
             }
         case let .parseSwiftVersion(output):
             return "Couldn't obtain the Swift version from the output: \(output)."

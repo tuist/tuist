@@ -7,7 +7,7 @@ defmodule TuistWeb.UserLoginLive do
   alias Tuist.Environment
 
   def mount(_params, _session, socket) do
-    email = Phoenix.Flash.get(socket.assigns.flash, :email)
+    email = Flash.get(socket.assigns.flash, :email)
     form = to_form(%{"email" => email}, as: "user")
 
     socket =

@@ -1,9 +1,10 @@
 ---
-title: Xcode project
-titleTemplate: :title · Registry · Develop · Guides · Tuist
-description: Xcode 프로젝트에서 Tuist Registry를 사용하는 방법을 배워봅니다.
+{
+  "title": "Xcode project",
+  "titleTemplate": ":title · Registry · Develop · Guides · Tuist",
+  "description": "Xcode 프로젝트에서 Tuist Registry를 사용하는 방법을 배워봅니다."
+}
 ---
-
 # Xcode project {#xcode-project}
 
 Xcode 프로젝트에서 레지스트리를 사용하여 패키지를 추가하려면, 기본 Xcode UI를 사용합니다. Xcode의 `Package Dependencies` 탭에서 `+` 버튼을 눌러서 레지스트리에 패키지를 검색할 수 있습니다. 패키지가 레지스트리에 사용가능하면 우측 상단에 `tuist.dev` 레지스트리가 표시됩니다:

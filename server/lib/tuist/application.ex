@@ -4,11 +4,15 @@ defmodule Tuist.Application do
   use Application
   use Boundary, top_level?: true, deps: [Tuist, TuistWeb]
 
-  import Cachex.Spec
   import Tuist.Environment, only: [run_if_error_tracking_enabled: 1]
 
+  alias Tuist.CommandEvents
   alias Tuist.DBConnection.TelemetryListener
   alias Tuist.Environment
+  alias Tuist.QA.Logs
+  alias Tuist.Xcode.XcodeGraph
+  alias Tuist.Xcode.XcodeProject
+  alias Tuist.Xcode.XcodeTarget
 
   require Logger
 
@@ -17,6 +21,7 @@ defmodule Tuist.Application do
     Logger.info("Starting Tuist version #{Environment.version()}")
 
     load_secrets_in_application()
+    start_posthog()
     start_error_tracking()
     start_telemetry()
 
@@ -32,6 +37,21 @@ defmodule Tuist.Application do
 
   defp load_secrets_in_application do
     Environment.put_application_secrets(Environment.decrypt_secrets())
+  end
+
+  defp start_posthog do
+    if Environment.analytics_enabled?() do
+      case Application.start(:posthog) do
+        :ok ->
+          Logger.info("PostHog analytics started")
+
+        {:error, {:already_started, _}} ->
+          Logger.info("PostHog analytics already started")
+
+        {:error, reason} ->
+          Logger.warning("Failed to start PostHog analytics: #{inspect(reason)}")
+      end
+    end
   end
 
   defp start_error_tracking do
@@ -50,33 +70,60 @@ defmodule Tuist.Application do
       [
         {DBConnection.TelemetryListener, name: TelemetryListener},
         {Tuist.Repo, connection_listeners: [TelemetryListener]},
-        Tuist.ClickHouseRepo,
-        Tuist.IngestRepo,
+        Tuist.Vault,
         {Oban, Application.fetch_env!(:tuist, Oban)},
-        {Cachex, [:tuist, cachex_opts()]},
+        {Cachex, [:tuist, []]},
         {Finch, name: Tuist.Finch, pools: finch_pools()},
         {Phoenix.PubSub, name: Tuist.PubSub},
-        TuistWeb.Telemetry
+        {TuistWeb.RateLimit.InMemory, [clean_period: to_timeout(hour: 1)]},
+        {Tuist.API.Pipeline, []},
+        {Guardian.DB.Sweeper, [interval: 60 * 60 * 1000]},
+        TuistWeb.Telemetry,
+        TuistWeb.Endpoint
       ]
 
     children
     |> Kernel.++(
-      if Environment.web?(),
-        do: [
-          {TuistWeb.RateLimit.InMemory, [clean_period: to_timeout(hour: 1)]},
-          {Tuist.API.Pipeline, []},
-          TuistWeb.Endpoint
-        ],
-        else: []
+      if Environment.clickhouse_configured?() do
+        [
+          Tuist.ClickHouseRepo,
+          Tuist.IngestRepo,
+          Supervisor.child_spec(CommandEvents.Buffer, id: CommandEvents.Buffer),
+          Supervisor.child_spec(Logs.Buffer, id: Logs.Buffer),
+          Supervisor.child_spec(XcodeGraph.Buffer, id: XcodeGraph.Buffer),
+          Supervisor.child_spec(XcodeProject.Buffer, id: XcodeProject.Buffer),
+          Supervisor.child_spec(XcodeTarget.Buffer, id: XcodeTarget.Buffer)
+        ]
+      else
+        []
+      end
     )
     |> Kernel.++(
-      if Environment.worker?(),
-        do: [
-          {Guardian.DB.Sweeper, [interval: 60 * 60 * 1000]}
-        ],
-        else: []
+      if Environment.dev_use_remote_storage?() do
+        []
+      else
+        %{port: minio_port, scheme: minio_scheme} = URI.parse(Environment.s3_endpoint())
+        port = minio_port || 9095
+        console_port = Environment.minio_console_port()
+
+        {minio_path, 0} = System.cmd("mise", ["which", "minio"])
+
+        minio_path = String.trim(minio_path)
+
+        [
+          {MinioServer,
+           name: :minio_dev,
+           port: port,
+           scheme: minio_scheme,
+           region: Environment.s3_region(),
+           access_key_id: Environment.s3_access_key_id(),
+           secret_access_key: Environment.s3_secret_access_key(),
+           minio_executable: minio_path,
+           console_address: ":#{console_port}"},
+          Tuist.MinioBucketCreator
+        ]
+      end
     )
-    |> Kernel.++(if Environment.analytics_enabled?(), do: [Tuist.Analytics.Posthog], else: [])
     |> Kernel.++(
       if Environment.tuist_hosted?(),
         do: [{DNSCluster, query: Application.get_env(:tuist, :dns_cluster_query) || :ignore}],
@@ -90,24 +137,6 @@ defmodule Tuist.Application do
         ],
         else: []
     )
-  end
-
-  def cachex_opts do
-    if Environment.tuist_hosted?() do
-      # Tuist-managed instances are configured to support a multi-node cluster.
-      [
-        router:
-          router(
-            module: Cachex.Router.Ring,
-            options: [
-              monitor: true
-            ]
-          )
-      ]
-    else
-      # In on-premise environments we assume a single Node.
-      []
-    end
   end
 
   defp finch_pools do
@@ -127,11 +156,26 @@ defmodule Tuist.Application do
             ]
           ],
           size: 10,
-          count: 1,
+          count: 2,
           protocols: [:http2, :http1],
           start_pool_metrics?: true
         ],
         Environment.s3_endpoint() => [
+          conn_opts: [
+            log: true,
+            protocols: Environment.s3_protocols(),
+            transport_opts: [
+              inet6: Environment.use_ipv6?() in ~w(true 1),
+              cacertfile: CAStore.file_path(),
+              verify: :verify_peer
+            ]
+          ],
+          size: Environment.s3_pool_size(),
+          count: Environment.s3_pool_count(),
+          protocols: Environment.s3_protocols(),
+          start_pool_metrics?: true
+        ],
+        Environment.s3_endpoint(:tigris, Environment.decrypt_secrets()) => [
           conn_opts: [
             log: true,
             protocols: Environment.s3_protocols(),
@@ -160,8 +204,25 @@ defmodule Tuist.Application do
           count: 1,
           protocols: [:http2, :http1],
           start_pool_metrics?: true
+        ],
+        Environment.posthog_url() => [
+          conn_opts: [
+            log: true,
+            protocols: [:http2, :http1],
+            transport_opts: [
+              inet6: Environment.use_ipv6?() in ~w(true 1),
+              cacertfile: CAStore.file_path(),
+              verify: :verify_peer
+            ]
+          ],
+          size: 5,
+          count: 1,
+          protocols: [:http2, :http1],
+          start_pool_metrics?: true
         ]
       }
+      |> Enum.reject(fn {key, _value} -> is_nil(key) end)
+      |> Map.new()
     end
   end
 

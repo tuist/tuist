@@ -1,9 +1,10 @@
 ---
-title: Vision
-titleTemplate: :title | Company | Tuist Handbook
-mission: Learn more about the vision of Tuist
+{
+  "title": "Vision",
+  "titleTemplate": ":title | Company | Tuist Handbook",
+  "mission": "Learn more about the vision of Tuist"
+}
 ---
-
 # Vision
 
 **To create a platform where developers seamlessly craft exceptional apps for any platform, accelerating innovation and collaboration.**

@@ -5,6 +5,7 @@ defmodule TuistWeb.PreviewsControllerTest do
   alias Tuist.Accounts
   alias Tuist.AppBuilds
   alias Tuist.AppBuilds.Preview
+  alias Tuist.QA
   alias Tuist.Repo
   alias Tuist.Storage
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -24,7 +25,7 @@ defmodule TuistWeb.PreviewsControllerTest do
       # Given
       upload_id = "upload-id"
 
-      expect(Storage, :multipart_start, fn _ ->
+      expect(Storage, :multipart_start, fn _object_key, _actor ->
         upload_id
       end)
 
@@ -63,7 +64,8 @@ defmodule TuistWeb.PreviewsControllerTest do
                :git_branch,
                :git_commit_sha,
                :git_ref,
-               :created_by_account_id
+               :created_by_account_id,
+               :visibility
              ]) == %{
                display_name: "name",
                version: "1.0.0",
@@ -71,7 +73,8 @@ defmodule TuistWeb.PreviewsControllerTest do
                git_branch: "main",
                git_commit_sha: "commit-sha",
                git_ref: "git-ref",
-               created_by_account_id: account.id
+               created_by_account_id: account.id,
+               visibility: nil
              }
     end
 
@@ -84,7 +87,7 @@ defmodule TuistWeb.PreviewsControllerTest do
       # Given
       upload_id = "upload-id"
 
-      expect(Storage, :multipart_start, fn _ ->
+      expect(Storage, :multipart_start, fn _object_key, _actor ->
         upload_id
       end)
 
@@ -114,7 +117,7 @@ defmodule TuistWeb.PreviewsControllerTest do
       # Given
       upload_id = "upload-id"
 
-      expect(Storage, :multipart_start, fn _ ->
+      expect(Storage, :multipart_start, fn _object_key, _actor ->
         upload_id
       end)
 
@@ -154,7 +157,7 @@ defmodule TuistWeb.PreviewsControllerTest do
           supported_platforms: [:ios]
         )
 
-      expect(Storage, :multipart_start, fn _ ->
+      expect(Storage, :multipart_start, fn _object_key, _actor ->
         upload_id
       end)
 
@@ -242,6 +245,7 @@ defmodule TuistWeb.PreviewsControllerTest do
       expect(Storage, :multipart_generate_url, fn ^object_key,
                                                   ^upload_id,
                                                   ^part_number,
+                                                  _actor,
                                                   [expires_in: _, content_length: 100] ->
         upload_url
       end)
@@ -286,6 +290,7 @@ defmodule TuistWeb.PreviewsControllerTest do
       expect(Storage, :multipart_generate_url, fn ^object_key,
                                                   ^upload_id,
                                                   ^part_number,
+                                                  _actor,
                                                   [expires_in: _, content_length: 100] ->
         upload_url
       end)
@@ -398,11 +403,12 @@ defmodule TuistWeb.PreviewsControllerTest do
 
       expect(Storage, :multipart_complete_upload, fn ^object_key,
                                                      ^upload_id,
-                                                     [{1, "etag1"}, {2, "etag2"}, {3, "etag3"}] ->
+                                                     [{1, "etag1"}, {2, "etag2"}, {3, "etag3"}],
+                                                     _actor ->
         :ok
       end)
 
-      expect(Storage, :generate_download_url, fn _, _ -> "https://mocked-url.com" end)
+      expect(Storage, :generate_download_url, fn _object_key, _actor, _opts -> "https://mocked-url.com" end)
 
       conn = Authentication.put_current_user(conn, user)
 
@@ -537,6 +543,79 @@ defmodule TuistWeb.PreviewsControllerTest do
       assert response["message"] ==
                "tuist is not authorized to create preview"
     end
+
+    test "triggers pending QA runs for iOS simulator app builds", %{
+      conn: conn,
+      user: user,
+      account: account
+    } do
+      # Given
+      upload_id = "1234"
+
+      project =
+        ProjectsFixtures.project_fixture(
+          account_id: account.id,
+          vcs_provider: :github,
+          vcs_repository_full_handle: "testaccount/testproject"
+        )
+
+      preview =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          git_commit_sha: "commit-sha",
+          git_branch: "main",
+          git_ref: "refs/pull/123/merge"
+        )
+
+      app_build =
+        AppBuildsFixtures.app_build_fixture(
+          preview: preview,
+          supported_platforms: [:ios_simulator]
+        )
+
+      QA.create_qa_run(%{
+        app_build_id: nil,
+        status: "pending",
+        vcs_repository_full_handle: "testaccount/testproject",
+        vcs_provider: :github,
+        git_ref: "refs/pull/123/merge",
+        prompt: "Test login functionality"
+      })
+
+      expect(Storage, :multipart_complete_upload, fn _object_key, _upload_id, _parts, _actor ->
+        :ok
+      end)
+
+      expect(Storage, :generate_download_url, fn _object_key, _actor, _opts -> "https://mocked-url.com" end)
+
+      expect(Oban, :insert, fn job ->
+        assert job.changes.worker == "Tuist.QA.Workers.TestWorker"
+
+        assert job.changes.args == %{
+                 "app_build_id" => app_build.id,
+                 "prompt" => "Test login functionality"
+               }
+
+        {:ok, job}
+      end)
+
+      conn = Authentication.put_current_user(conn, user)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/projects/#{account.name}/#{project.name}/previews/complete",
+          preview_id: app_build.id,
+          multipart_upload_parts: %{
+            parts: [],
+            upload_id: upload_id
+          }
+        )
+
+      # Then
+      assert json_response(conn, :ok)
+    end
   end
 
   describe "GET /api/projects/:account_handle/:project_handle/previews/:preview_id" do
@@ -560,7 +639,7 @@ defmodule TuistWeb.PreviewsControllerTest do
       object_key =
         "#{account.name}/#{project.name}/previews/#{app_build.id}.zip"
 
-      expect(Storage, :generate_download_url, fn ^object_key, [expires_in: 3600] ->
+      expect(Storage, :generate_download_url, fn ^object_key, _actor, [expires_in: 3600] ->
         "https://url.com"
       end)
 
@@ -689,7 +768,7 @@ defmodule TuistWeb.PreviewsControllerTest do
 
       app_build_two = AppBuildsFixtures.app_build_fixture(preview: preview_two)
 
-      expect(Storage, :generate_download_url, fn _, _ -> "https://mocked-url.com" end)
+      expect(Storage, :generate_download_url, fn _object_key, _actor, _opts -> "https://mocked-url.com" end)
 
       _preview_three =
         AppBuildsFixtures.preview_fixture(
@@ -1180,7 +1259,7 @@ defmodule TuistWeb.PreviewsControllerTest do
       object_key =
         "#{account.name}/#{project.name}/previews/#{preview.id}/icon.png"
 
-      expect(Storage, :generate_upload_url, fn ^object_key, [expires_in: 3600] ->
+      expect(Storage, :generate_upload_url, fn ^object_key, _actor, [expires_in: 3600] ->
         "https://url.com"
       end)
 

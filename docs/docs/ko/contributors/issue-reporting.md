@@ -1,9 +1,10 @@
 ---
-title: Issue reporting
-titleTemplate: :title · Contributors · Tuist
-description: 버그 리포트를 통해 Tuist에 어떻게 기여하는지 알아봅니다.
+{
+  "title": "Issue reporting",
+  "titleTemplate": ":title · Contributors · Tuist",
+  "description": "버그 리포트를 통해 Tuist에 어떻게 기여하는지 알아봅니다."
+}
 ---
-
 # Issue reporting {#issue-reporting}
 
 Tuist를 사용하면 버그나 예상치 못한 동작을 경험할 수 있습니다.

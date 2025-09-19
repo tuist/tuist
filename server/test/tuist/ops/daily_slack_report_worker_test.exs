@@ -2,7 +2,6 @@ defmodule Tuist.Ops.DailySlackReportWorkerTest do
   use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
 
-  alias Tuist.CommandEvents
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
@@ -26,20 +25,11 @@ defmodule Tuist.Ops.DailySlackReportWorkerTest do
       remote_cache_target_hits: ["target1", "target2"]
     )
 
-    CommandEvents.create_cache_event(%{
-      project_id: project.id,
-      name: "a",
-      event_type: :download,
-      size: 1000,
-      hash: "hash-2",
-      created_at: created_at
-    })
-
     stub(Tuist.Slack, :send_message, fn blocks ->
       assert blocks == [
                %{
                  type: "header",
-                 text: %{type: "plain_text", text: "Daily report 21.5.2024 📈"}
+                 text: %{type: "plain_text", text: "Daily report 21.5.2024 📈 (test)"}
                },
                %{
                  type: "context",
@@ -87,13 +77,6 @@ defmodule Tuist.Ops.DailySlackReportWorkerTest do
                          type: "rich_text_section",
                          elements: [
                            %{type: "text", text: "⚙️ Projects: ", style: %{bold: true}},
-                           %{type: "text", text: "1 created (↑ 0.0%) | Total: 1\n"}
-                         ]
-                       },
-                       %{
-                         type: "rich_text_section",
-                         elements: [
-                           %{type: "text", text: "📦 Cache events: ", style: %{bold: true}},
                            %{type: "text", text: "1 created (↑ 0.0%) | Total: 1\n"}
                          ]
                        },

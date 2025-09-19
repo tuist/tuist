@@ -1,9 +1,10 @@
 ---
-title: Directory structure
-titleTemplate: :title · Projects · Develop · Guides · Tuist
-description: Tuist 프로젝트의 구조와 이를 구성하는 방법에 대해 배워봅니다.
+{
+  "title": "Directory structure",
+  "titleTemplate": ":title · Projects · Develop · Guides · Tuist",
+  "description": "Tuist 프로젝트의 구조와 이를 구성하는 방법에 대해 배워봅니다."
+}
 ---
-
 # Directory structure {#directory-structure}
 
 Tuist 프로젝트는 일반적으로 Xcode 프로젝트를 대체하는데 사용하지만 이 용도로만 제한하지 않습니다. Tuist 프로젝트는 SPM 패키지, 템플릿, 플러그인, 그리고 작업과 같은 다른 종류의 프로젝트를 생성하는데 사용되기도 합니다. 이 문서에서는 Tuist 프로젝트의 구조와 이를 구성하는 방법에 대해 설명합니다. 다음 섹션에서는 템플릿, 플러그인, 그리고 작업을 정의하는 방법을 살펴봅니다.

@@ -16,7 +16,6 @@ concurrency:
 
 env:
   FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-  MISE_EXPERIMENTAL: 1
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   PNPM_HOME: ~/.pnpm
   MISE_SOPS_AGE_KEY: ${{ secrets.MISE_SOPS_AGE_KEY }}
@@ -50,12 +49,13 @@ jobs:
         with:
           path: |
             ~/.pnpm/store
-          key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+          key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
       - uses: jdx/mise-action@v2
+      - run: mise run install
       - name: "Get version"
         id: version
         run: |
-          version=$(../mise/tasks/server/generate-version.sh)
+          version=$(./mise/tasks/generate-version.sh)
           echo "::set-output name=version::$version"
       - uses: superfly/flyctl-actions/setup-flyctl@master
       - name: Fly

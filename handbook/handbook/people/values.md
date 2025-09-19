@@ -1,9 +1,10 @@
 ---
-title: Values
-titleTemplate: :title | People | Tuist Handbook
-description: Learn about the values that we look for in our contributors and employees.
+{
+  "title": "Values",
+  "titleTemplate": ":title | People | Tuist Handbook",
+  "description": "Learn about the values that we look for in our contributors and employees."
+}
 ---
-
 # Values
 
 At Tuist, we embrace the spirit of open source by inviting diverse ideas and contributions from people around the world. From the outset, we've dedicated resources to ensure Tuist is a welcoming project for everyone, guiding them from their initial idea to a meaningful contribution. This commitment has made Tuist a uniquely humane project.

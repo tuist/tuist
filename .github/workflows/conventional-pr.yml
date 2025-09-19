@@ -1,6 +1,7 @@
 name: conventional-pr
 on:
-  pull_request: {}
+  pull_request:
+    types: [opened, edited, synchronize]
 
 jobs:
   lint-pr:

@@ -3,6 +3,7 @@ defmodule Tuist.AuthenticationTest do
   use Mimic
 
   alias Tuist.Accounts
+  alias Tuist.Accounts.Account
   alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Accounts.User
   alias Tuist.Authentication
@@ -63,13 +64,38 @@ defmodule Tuist.AuthenticationTest do
     account = AccountsFixtures.organization_fixture(preload: [:account]).account
 
     {:ok, {_, token_value}} =
-      Accounts.create_account_token(%{account: account, scopes: [:account_registry_read]})
+      Accounts.create_account_token(%{account: account, scopes: [:registry_read]})
 
     # When/Then
     assert Authentication.authenticated_subject(token_value) == %AuthenticatedAccount{
-             scopes: [:account_registry_read],
+             scopes: [:registry_read],
              account: account
            }
+  end
+
+  test "authenticated_subject returns AuthenticatedAccount for JWT account token" do
+    # Given
+    account = AccountsFixtures.organization_fixture(preload: [:account]).account
+
+    {:ok, jwt_token, _claims} =
+      Authentication.encode_and_sign(
+        account,
+        %{
+          "type" => "account",
+          "scopes" => ["qa_run_update", "qa_step_create", "qa_screenshot_create"]
+        },
+        token_type: :access,
+        ttl: {1, :hour}
+      )
+
+    # When
+    %AuthenticatedAccount{
+      account: %Account{id: account_id},
+      scopes: [:qa_run_update, :qa_step_create, :qa_screenshot_create]
+    } = Authentication.authenticated_subject(jwt_token)
+
+    # Then
+    assert account_id == account.id
   end
 
   test "refresh/2 refreshes the account handle" do

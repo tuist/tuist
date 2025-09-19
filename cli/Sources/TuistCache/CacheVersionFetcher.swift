@@ -15,10 +15,19 @@ enum CacheVersion: String, Equatable, Hashable {
 
     /// This version was introduced to support multi-platform caching and drop support for xcframeworks.
     case version2 = "2"
+
+    /// We defaulted to cache for only one architecture, and gave developers the option to opt into more (PR:
+    /// https://github.com/tuist/tuist/pull/7977)
+    /// but that caused incompatibilities in the graph edges (e.g. x86_64 linking against arm64), so we had to revert this
+    /// decision (PR: https://github.com/tuist/tuist/pull/8094).
+    /// Because the cache might have gotten polluted, for examle if it was warmed from x86_64 and consumed from arm64, it's
+    /// important to bump the cache version to
+    /// flag those artifacts as invalid.
+    case version3 = "3"
 }
 
 struct CacheVersionFetcher: CacheVersionFetching {
     func version() -> CacheVersion {
-        .version2
+        .version3
     }
 }

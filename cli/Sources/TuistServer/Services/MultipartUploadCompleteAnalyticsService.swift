@@ -6,6 +6,8 @@ import OpenAPIRuntime
 public protocol MultipartUploadCompleteAnalyticsServicing {
     func uploadAnalyticsArtifact(
         _ artifact: ServerCommandEvent.Artifact,
+        accountHandle: String,
+        projectHandle: String,
         commandEventId: String,
         uploadId: String,
         parts: [(etag: String, partNumber: Int)],
@@ -35,27 +37,28 @@ public final class MultipartUploadCompleteAnalyticsService: MultipartUploadCompl
 
     public func uploadAnalyticsArtifact(
         _ artifact: ServerCommandEvent.Artifact,
+        accountHandle: String,
+        projectHandle: String,
         commandEventId: String,
         uploadId: String,
         parts: [(etag: String, partNumber: Int)],
         serverURL: URL
     ) async throws {
         let client = Client.authenticated(serverURL: serverURL)
-        let response = try await client.completeAnalyticsArtifactMultipartUpload(
-            .init(
-                path: .init(run_id: commandEventId),
-                body: .json(
-                    .init(
-                        command_event_artifact: .init(artifact),
-                        multipart_upload_parts: .init(
-                            parts: parts
-                                .map { .init(etag: $0.etag, part_number: $0.partNumber) },
-                            upload_id: uploadId
-                        )
+        let response = try await client.completeAnalyticsArtifactMultipartUploadProject(
+            path: .init(account_handle: accountHandle, project_handle: projectHandle, run_id: commandEventId),
+            body: .json(
+                .init(
+                    command_event_artifact: .init(artifact),
+                    multipart_upload_parts: .init(
+                        parts: parts
+                            .map { .init(etag: $0.etag, part_number: $0.partNumber) },
+                        upload_id: uploadId
                     )
                 )
             )
         )
+
         switch response {
         case .noContent:
             return

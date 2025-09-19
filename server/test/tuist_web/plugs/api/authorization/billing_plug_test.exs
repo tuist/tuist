@@ -43,8 +43,10 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
     # Given
     account = project.account
 
-    expect(Billing, :get_current_active_subscription, 1, fn ^account ->
-      %Subscription{plan: :enterprise, status: "active"}
+    Enum.reduce(0..10, Billing, fn _idx, mod ->
+      expect(mod, :get_current_active_subscription, 1, fn ^account ->
+        %Subscription{plan: :enterprise, status: "active"}
+      end)
     end)
 
     plug_opts = BillingPlug.init([])

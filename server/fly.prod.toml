@@ -4,15 +4,6 @@ kill_signal = "SIGINT"
 kill_timeout = "5s"
 console_command = "/app/bin/tuist remote"
 
-[processes]
-  web = "sh -C /app/bin/web"
-  worker = "sh -C /app/bin/worker"
-
-[[vm]]
-  size = "performance-1x"
-  memory = "2gb"
-  processes = ["web"]
-
 [experimental]
   auto_rollback = true
   cmd = ["sh", "-C", "/app/bin/server"]
@@ -30,19 +21,20 @@ console_command = "/app/bin/tuist remote"
   TUIST_DATABASE_POOL_SIZE = "10"
   TUIST_S3_POOL_COUNT = "1"
   TUIST_S3_POOL_SIZE = "50"
+  TUIST_PROMETHEUS_ENABLED = "1"
 
 [[vm]]
-  size = "shared-cpu-4x"
-  memory = "8gb"
-  processes = ["worker"]
+  cpu_kind = "shared"
+  memory = "4096mb"
+  cpus = 8
 
 [[services]]
   protocol = "tcp"
   internal_port = 8080
   auto_stop_machines = false
   auto_start_machines = false
-  min_machines_running = 2
-  processes = ["web"]
+  min_machines_running = 1
+  processes = ["app"]
   http_options = { h2_backend = true }
 
   [[services.ports]]
@@ -74,3 +66,4 @@ console_command = "/app/bin/tuist remote"
 [[metrics]]
   port = 9091
   path = "/metrics"
+  processes = ["app"]

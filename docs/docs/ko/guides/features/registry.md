@@ -1,9 +1,10 @@
 ---
-title: Registry
-titleTemplate: :title · Develop · Guides · Tuist
-description: Tuist Registry를 사용하여 Swift 패키지 해석시간을 최적화 합니다.
+{
+  "title": "Registry",
+  "titleTemplate": ":title · Develop · Guides · Tuist",
+  "description": "Tuist Registry를 사용하여 Swift 패키지 해석시간을 최적화 합니다."
+}
 ---
-
 # Registry {#registry}
 
 > [!IMPORTANT] 요구사항

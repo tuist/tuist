@@ -41,8 +41,8 @@ defmodule Mix.Tasks.Marketing.Gen.OgImages do
     )
 
     OpenGraph.generate_og_image(
-      "Swift Stories Newsletter",
-      Path.join(og_images_directory, "swift-stories.jpg")
+      "Tuist Digest Newsletter",
+      Path.join(og_images_directory, "tuist-digest.jpg")
     )
   end
 

@@ -1,9 +1,10 @@
 ---
-title: モデルコンテキストプロトコル(MCP)
-titleTemplate: :title · AI · Guides · Tuist
-description: Tuist MCPサーバーを使用して、アプリ開発環境に自然言語インターフェースを導入する方法を学びましょう。
+{
+  "title": "モデルコンテキストプロトコル(MCP)",
+  "titleTemplate": ":title · AI · Guides · Tuist",
+  "description": "Tuist MCPサーバーを使用して、アプリ開発環境に自然言語インターフェースを導入する方法を学びましょう。"
+}
 ---
-
 # モデルコンテキストプロトコル (MCP)
 
 [MCP](https://www.claudemcp.com) は、LLM（大規模言語モデル）が開発環境と連携するための標準仕様として、[Claude](https://claude.ai) によって提案されたプロトコルです。

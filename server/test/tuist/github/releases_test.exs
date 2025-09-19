@@ -241,5 +241,67 @@ defmodule Tuist.GitHub.ReleasesTest do
       assert release.name == "app@0.1.0"
       assert release.html_url == "https://github.com/release"
     end
+
+    test "returns app release when it's only available in the second page" do
+      # Given
+      published_at = DateTime.utc_now()
+      releases_url = Releases.releases_url()
+
+      cli_releases = [
+        %{
+          "published_at" => Timex.format!(published_at, "{ISO:Extended}"),
+          "name" => "v1.0.0",
+          "html_url" => "https://github.com/release-1",
+          "assets" => []
+        }
+      ]
+
+      app_release = %{
+        "published_at" => Timex.format!(published_at, "{ISO:Extended}"),
+        "name" => "app@1.0.0",
+        "html_url" => "https://github.com/app-release",
+        "assets" => [
+          %{
+            "name" => "Tuist.dmg",
+            "browser_download_url" => "https://github.com/tuist/tuist/releases/download/app@1.0.0/Tuist.dmg"
+          }
+        ]
+      }
+
+      stub(
+        Req,
+        :get,
+        fn url, [finch: Tuist.Finch] ->
+          cond do
+            url == releases_url ->
+              {:ok,
+               %Req.Response{
+                 status: 200,
+                 body: cli_releases,
+                 headers: %{
+                   "link" => [
+                     "<https://api.github.com/repos/tuist/tuist/releases?page=2>; rel=\"next\""
+                   ]
+                 }
+               }}
+
+            url == "https://api.github.com/repos/tuist/tuist/releases?page=2" ->
+              {:ok,
+               %Req.Response{
+                 status: 200,
+                 body: [app_release],
+                 headers: []
+               }}
+          end
+        end
+      )
+
+      # When
+      release = Releases.get_latest_app_release()
+
+      # Then
+      assert release.name == "app@1.0.0"
+      assert release.html_url == "https://github.com/app-release"
+    end
   end
 end

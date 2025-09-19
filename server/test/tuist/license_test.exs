@@ -10,7 +10,7 @@ defmodule Tuist.LicenseTest do
 
   describe "assert_valid!/0" do
     setup do
-      stub(Tuist.Environment, :test?, fn -> false end)
+      stub(Environment, :test?, fn -> false end)
 
       stub(KeyValueStore, :get_or_update, fn _, _, func ->
         func.()

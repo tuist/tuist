@@ -32,14 +32,14 @@ defmodule TuistWeb.AuthenticationPlugTest do
         Accounts.create_account_token(
           %{
             account: user.account,
-            scopes: [:account_registry_read]
+            scopes: [:registry_read]
           },
           preload: [:account]
         )
 
       authenticated_account = %AuthenticatedAccount{
         account: account_token.account,
-        scopes: [:account_registry_read]
+        scopes: [:registry_read]
       }
 
       # It's only invoked once
@@ -71,7 +71,7 @@ defmodule TuistWeb.AuthenticationPlugTest do
         Accounts.create_account_token(
           %{
             account: AccountsFixtures.user_fixture(preload: [:account]).account,
-            scopes: [:account_registry_read]
+            scopes: [:registry_read]
           },
           preload: [:account]
         )
@@ -84,7 +84,7 @@ defmodule TuistWeb.AuthenticationPlugTest do
       # Then
       assert got.assigns[:current_subject] == %AuthenticatedAccount{
                account: account_token.account,
-               scopes: [:account_registry_read]
+               scopes: [:registry_read]
              }
 
       assert TuistWeb.Authentication.authenticated?(got) == true

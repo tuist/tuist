@@ -4,14 +4,19 @@ defmodule Tuist.OAuth.Okta do
   """
 
   alias Tuist.Accounts.Organization
-  alias Tuist.Environment
 
-  def config_for_organization(%Organization{sso_provider: :okta, sso_organization_id: sso_organization_id} = organization) do
+  def config_for_organization(%Organization{
+        sso_provider: :okta,
+        sso_organization_id: sso_organization_id,
+        okta_client_id: okta_client_id,
+        okta_encrypted_client_secret: okta_encrypted_client_secret
+      })
+      when not is_nil(okta_client_id) and not is_nil(okta_encrypted_client_secret) and not is_nil(sso_organization_id) do
     {:ok,
      %{
        domain: sso_organization_id,
-       client_id: Environment.okta_client_id_for_organization_id(organization.id),
-       client_secret: Environment.okta_client_secret_for_organization_id(organization.id),
+       client_id: okta_client_id,
+       client_secret: okta_encrypted_client_secret,
        authorize_url: "/oauth2/default/v1/authorize",
        token_url: "/oauth2/default/v1/token",
        user_info_url: "/oauth2/default/v1/userinfo"

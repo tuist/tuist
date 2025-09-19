@@ -8,6 +8,9 @@ defmodule Tuist.Authentication do
 
   def authenticated_subject(token) do
     case Tuist.Guardian.resource_from_token(token) do
+      {:ok, %AuthenticatedAccount{} = resource, _opts} ->
+        resource
+
       {:ok, resource, _opts} ->
         Tuist.Repo.preload(resource, :account)
 

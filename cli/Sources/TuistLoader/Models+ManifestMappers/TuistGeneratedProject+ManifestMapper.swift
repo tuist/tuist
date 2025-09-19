@@ -8,6 +8,11 @@ extension TuistCore.TuistGeneratedProjectOptions.GenerationOptions {
         generatorPaths: GeneratorPaths,
         fullHandle: String?
     ) throws -> Self {
+        var additionalPackageResolutionArguments = manifest.additionalPackageResolutionArguments
+        if manifest.resolveDependenciesWithSystemScm {
+            additionalPackageResolutionArguments.append(contentsOf: ["-scmProvider", "system"])
+        }
+
         let clonedSourcePackagesDirPath: AbsolutePath? = try {
             if let path = manifest.clonedSourcePackagesDirPath {
                 return try generatorPaths.resolve(path: path)
@@ -19,6 +24,7 @@ extension TuistCore.TuistGeneratedProjectOptions.GenerationOptions {
             resolveDependenciesWithSystemScm: manifest.resolveDependenciesWithSystemScm,
             disablePackageVersionLocking: manifest.disablePackageVersionLocking,
             clonedSourcePackagesDirPath: clonedSourcePackagesDirPath,
+            additionalPackageResolutionArguments: additionalPackageResolutionArguments,
             staticSideEffectsWarningTargets: TuistCore.TuistGeneratedProjectOptions.GenerationOptions
                 .StaticSideEffectsWarningTargets
                 .from(manifest: manifest.staticSideEffectsWarningTargets),
@@ -26,7 +32,8 @@ extension TuistCore.TuistGeneratedProjectOptions.GenerationOptions {
             defaultConfiguration: manifest.defaultConfiguration,
             optionalAuthentication: manifest.optionalAuthentication,
             buildInsightsDisabled: fullHandle == nil || manifest.buildInsightsDisabled,
-            disableSandbox: manifest.disableSandbox
+            disableSandbox: manifest.disableSandbox,
+            includeGenerateScheme: manifest.includeGenerateScheme
         )
     }
 }
@@ -37,6 +44,16 @@ extension TuistCore.TuistGeneratedProjectOptions.InstallOptions {
     ) -> Self {
         return .init(
             passthroughSwiftPackageManagerArguments: manifest.passthroughSwiftPackageManagerArguments
+        )
+    }
+}
+
+extension TuistCore.TuistGeneratedProjectOptions.CacheOptions {
+    static func from(
+        manifest: ProjectDescription.Config.CacheOptions
+    ) -> Self {
+        return .init(
+            keepSourceTargets: manifest.keepSourceTargets
         )
     }
 }

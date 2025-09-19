@@ -11,6 +11,7 @@ defmodule TuistWeb.AppLayoutComponents do
   attr(:selected_account, :map, required: true)
   attr(:selected_run, :map, required: true)
   attr(:current_path, :string, required: true)
+  attr(:current_user, :map, required: true)
 
   def project_sidebar(assigns) do
     ~H"""
@@ -63,6 +64,18 @@ defmodule TuistWeb.AppLayoutComponents do
         }
       />
       <.sidebar_item
+        :if={FunWithFlags.enabled?(:qa, for: @selected_account)}
+        label={gettext("QA")}
+        icon="checkup_list"
+        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/qa"}
+        selected={
+          String.starts_with?(
+            @current_path,
+            ~p"/#{@selected_account.name}/#{@selected_project.name}/qa"
+          )
+        }
+      />
+      <.sidebar_item
         label={gettext("Bundles")}
         icon="chart_donut_4"
         navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/bundles"}
@@ -89,6 +102,7 @@ defmodule TuistWeb.AppLayoutComponents do
             ~p"/#{@selected_account.name}/#{@selected_project.name}/builds"
           )
         }
+        phx-update="ignore"
       >
         <.sidebar_item
           label={gettext("Build Runs")}
@@ -102,6 +116,18 @@ defmodule TuistWeb.AppLayoutComponents do
           }
         />
       </.sidebar_group>
+      <.sidebar_item
+        :if={Tuist.Authorization.authorize(:project_update, @current_user, @selected_project) == :ok}
+        label={gettext("Settings")}
+        icon="settings"
+        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/settings"}
+        selected={
+          String.starts_with?(
+            @current_path,
+            ~p"/#{@selected_account.name}/#{@selected_project.name}/settings"
+          )
+        }
+      />
     </.sidebar>
     """
   end

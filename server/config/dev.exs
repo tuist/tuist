@@ -24,7 +24,11 @@ config :tuist, Tuist.ClickHouseRepo,
 config :tuist, Tuist.IngestRepo,
   hostname: "localhost",
   port: 8123,
-  database: "tuist_development"
+  database: "tuist_development",
+  flush_interval_ms: 5000,
+  # Bytes
+  max_buffer_size: 100_000,
+  pool_size: 5
 
 config :tuist, Tuist.Mailer, adapter: Bamboo.LocalAdapter
 
@@ -86,6 +90,7 @@ config :tuist, TuistWeb.Endpoint,
       ~r"priv/static/(?!uploads/).*(js|css|png|jpeg|jpg|gif|svg)$",
       ~r"priv/gettext/.*(po)$",
       ~r"lib/tuist_web/(controllers|live|components)/.*(ex|heex)$",
+      ~r"lib/tuist_web/marketing/(controllers|live|components)/.*(ex|heex)$",
       ~r"priv/marketing/blog/*/.*(md)$"
     ]
   ]

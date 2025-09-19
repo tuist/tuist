@@ -29,7 +29,8 @@ final class FocusTargetsGraphMappersTests: TuistUnitTestCase {
 
         // When
         let (gotGraph, gotSideEffects, _) = try subject.map(graph: graph, environment: MapperEnvironment())
-        let pruningTargets = gotGraph.projects.values.flatMap(\.targets.values).sorted().filter(\.prune)
+        let pruningTargets = gotGraph.projects.values.flatMap(\.targets.values).sorted()
+            .filter { $0.metadata.tags.contains("tuist:prunable") }
 
         // Then
         XCTAssertEmpty(gotSideEffects)
@@ -66,7 +67,8 @@ final class FocusTargetsGraphMappersTests: TuistUnitTestCase {
 
         // When
         let (gotGraph, gotSideEffects, _) = try subject.map(graph: graph, environment: MapperEnvironment())
-        let pruningTargets = gotGraph.projects.values.flatMap(\.targets.values).sorted().filter(\.prune)
+        let pruningTargets = gotGraph.projects.values.flatMap(\.targets.values).sorted()
+            .filter { $0.metadata.tags.contains("tuist:prunable") }
         let expectingTargets = [dTarget, eTarget]
 
         // Then
@@ -102,7 +104,8 @@ final class FocusTargetsGraphMappersTests: TuistUnitTestCase {
         let (gotGraph, gotSideEffects, _) = try subject.map(graph: graph, environment: MapperEnvironment())
 
         let expectingTargets = [bTarget, cTarget]
-        let pruningTargets = gotGraph.projects.values.flatMap(\.targets.values).sorted().filter(\.prune)
+        let pruningTargets = gotGraph.projects.values.flatMap(\.targets.values).sorted()
+            .filter { $0.metadata.tags.contains("tuist:prunable") }
 
         // Then
         XCTAssertEmpty(gotSideEffects)
@@ -137,7 +140,8 @@ final class FocusTargetsGraphMappersTests: TuistUnitTestCase {
         let (gotGraph, gotSideEffects, _) = try subject.map(graph: graph, environment: MapperEnvironment())
 
         let expectingTargets = [cTarget]
-        let pruningTargets = gotGraph.projects.values.flatMap(\.targets.values).sorted().filter(\.prune)
+        let pruningTargets = gotGraph.projects.values.flatMap(\.targets.values).sorted()
+            .filter { $0.metadata.tags.contains("tuist:prunable") }
 
         // Then
         XCTAssertEmpty(gotSideEffects)
@@ -176,7 +180,8 @@ final class FocusTargetsGraphMappersTests: TuistUnitTestCase {
         let (gotGraph, gotSideEffects, _) = try subject.map(graph: graph, environment: MapperEnvironment())
 
         let expectingTargets = [bTarget, cTarget, aTestTarget]
-        let pruningTargets = gotGraph.projects.values.flatMap(\.targets.values).sorted().filter(\.prune)
+        let pruningTargets = gotGraph.projects.values.flatMap(\.targets.values).sorted()
+            .filter { $0.metadata.tags.contains("tuist:prunable") }
 
         // Then
         XCTAssertEmpty(gotSideEffects)

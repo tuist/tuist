@@ -443,7 +443,7 @@ defmodule Tuist.BillingTest do
     end
   end
 
-  describe "update_remote_cache_hit_meter/1" do
+  describe "update_remote_cache_hit_meter/2" do
     test "sends the right API request to Stripe" do
       # Given
       user = AccountsFixtures.user_fixture(preload: [:account])
@@ -466,8 +466,61 @@ defmodule Tuist.BillingTest do
         {:ok, %{}}
       end)
 
+      stub(Tuist.CommandEvents, :get_yesterdays_remote_cache_hits_count_for_customer, fn ^customer_id -> 10 end)
+
       # When
-      Billing.update_remote_cache_hit_meter({account.customer_id, 10})
+      Billing.update_remote_cache_hit_meter(account.customer_id, "job-1")
+    end
+  end
+
+  describe "update_namespace_usage_meter/2" do
+    test "sends correct Stripe meter event with instance unit minutes" do
+      customer_id = "cus_123"
+      idempotency_key = "job-xyz"
+
+      account = %Account{customer_id: customer_id, namespace_tenant_id: "tenant-abc"}
+
+      stub(Accounts, :get_account_from_customer_id, fn ^customer_id -> account end)
+
+      stub(Tuist.Namespace, :get_tenant_usage, fn ^account, _start_date, _end_date ->
+        {:ok, %{"total" => %{"instanceMinutes" => %{"unit" => 137}}}}
+      end)
+
+      expect(Date, :utc_today, fn -> ~D[2024-11-21] end)
+      expect(Tuist.Time, :utc_now, fn -> ~U[2024-11-21 00:00:00Z] end)
+
+      expect(Stripe.Request, :make_request, fn req ->
+        assert %{
+                 method: :post,
+                 endpoint: "/v1/billing/meter_events",
+                 params: %{
+                   event_name: "namespace_unit_minute",
+                   payload: %{
+                     value: 137,
+                     stripe_customer_id: ^customer_id
+                   }
+                 }
+               } = req
+
+        assert req.headers["Idempotency-Key"] == "#{idempotency_key}-namespace"
+
+        {:ok, %{}}
+      end)
+
+      assert {:ok, :updated} = Billing.update_namespace_usage_meter(customer_id, idempotency_key)
+    end
+
+    test "does nothing when account has no namespace tenant id" do
+      customer_id = "cus_no_ns"
+      idempotency_key = "job-noop"
+
+      account = %Account{customer_id: customer_id, namespace_tenant_id: nil}
+
+      stub(Accounts, :get_account_from_customer_id, fn ^customer_id -> account end)
+
+      reject(&Stripe.Request.make_request/1)
+
+      assert %Account{customer_id: ^customer_id} = Billing.update_namespace_usage_meter(customer_id, idempotency_key)
     end
   end
 
@@ -531,6 +584,66 @@ defmodule Tuist.BillingTest do
                  exp_year: 2022
                }
              }
+    end
+  end
+
+  describe "get_yesterdays_customer_llm_token_usage/1" do
+    test "sums only yesterday's token usage for the given customer" do
+      # Given
+      today = ~U[2025-01-02 12:00:00Z]
+      stub(DateTime, :utc_now, fn -> today end)
+
+      org = AccountsFixtures.organization_fixture()
+      account = Tuist.Repo.get_by!(Account, organization_id: org.id)
+      account = Tuist.Repo.update!(Account.billing_changeset(account, %{customer_id: "cust_" <> UUIDv7.generate()}))
+
+      other_org = AccountsFixtures.organization_fixture()
+      other_account = Tuist.Repo.get_by!(Account, organization_id: other_org.id)
+
+      other_account =
+        Tuist.Repo.update!(Account.billing_changeset(other_account, %{customer_id: "cust_" <> UUIDv7.generate()}))
+
+      # Yesterday usage for target account (should be included)
+      {:ok, _} =
+        Billing.create_token_usage(%{
+          input_tokens: 100,
+          output_tokens: 50,
+          model: "gpt-4",
+          feature: "qa",
+          feature_resource_id: UUIDv7.generate(),
+          account_id: account.id,
+          timestamp: ~U[2025-01-01 08:00:00Z]
+        })
+
+      # Today usage (outside yesterday) for target account (excluded)
+      {:ok, _} =
+        Billing.create_token_usage(%{
+          input_tokens: 200,
+          output_tokens: 100,
+          model: "gpt-4",
+          feature: "qa",
+          feature_resource_id: UUIDv7.generate(),
+          account_id: account.id,
+          timestamp: ~U[2025-01-02 09:00:00Z]
+        })
+
+      # Yesterday usage for another account (excluded by customer_id)
+      {:ok, _} =
+        Billing.create_token_usage(%{
+          input_tokens: 300,
+          output_tokens: 150,
+          model: "gpt-4",
+          feature: "qa",
+          feature_resource_id: UUIDv7.generate(),
+          account_id: other_account.id,
+          timestamp: ~U[2025-01-01 10:00:00Z]
+        })
+
+      # When
+      {input, output} = Billing.get_yesterdays_customer_llm_token_usage(account.customer_id)
+
+      # Then
+      assert {input, output} == {100, 50}
     end
   end
 

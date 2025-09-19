@@ -1,9 +1,10 @@
 ---
-title: 로깅
-titleTemplate: :title · CLI · Contributors · Tuist
-description: 코드 리뷰를 통해 Tuist에 어떻게 기여하는지 알아봅니다.
+{
+  "title": "로깅",
+  "titleTemplate": ":title · CLI · Contributors · Tuist",
+  "description": "코드 리뷰를 통해 Tuist에 어떻게 기여하는지 알아봅니다."
+}
 ---
-
 # 로깅 {#logging}
 
 CLI의 로깅은 [swift-log](https://github.com/apple/swift-log)의 인터페이스를 차용하고 있습니다. 이 패키지는 로깅의 세부 구현 사항을 추상화하여 CLI가 로깅 백엔드에 종속되지 않도록 합니다. 로거는 태스크 로컬을 사용하여 의존성 주입되고, 다음과 같이 어디서든 접근할 수 있습니다:

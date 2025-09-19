@@ -15,13 +15,35 @@ defmodule TuistWeb.API.AnalyticsController do
   alias TuistWeb.API.Schemas.CommandEventArtifact
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.Authentication
+  alias TuistWeb.Plugs.LoaderPlug
 
   plug(OpenApiSpex.Plug.CastAndValidate,
     json_render_error_v2: true,
     render_error: TuistWeb.RenderAPIErrorPlug
   )
 
-  plug(TuistWeb.Plugs.LoaderPlug)
+  # We don't want to try and load the run when generating the mulitpart URL as the run might not exist, yet, at this point
+  plug(
+    LoaderPlug,
+    [:project, :account]
+    when action in [
+           :multipart_start_project,
+           :multipart_generate_url_project,
+           :multipart_complete_project,
+           :complete_artifacts_uploads_project
+         ]
+  )
+
+  plug(
+    LoaderPlug
+    when action not in [
+           :multipart_start_project,
+           :multipart_generate_url_project,
+           :multipart_complete_project,
+           :complete_artifacts_uploads_project
+         ]
+  )
+
   plug(TuistWeb.API.Authorization.AuthorizationPlug, :run)
   plug :bad_request_when_project_authenticated_from_non_ci_environment when action in [:create]
 
@@ -39,7 +61,7 @@ defmodule TuistWeb.API.AnalyticsController do
       ]
     ],
     request_body:
-      {"Command event params", "application/json",
+      {"Run params", "application/json",
        %Schema{
          type: :object,
          properties: %{
@@ -265,9 +287,9 @@ defmodule TuistWeb.API.AnalyticsController do
          ]
        }},
     responses: %{
-      ok: {"The command event was created", "application/json", CommandEvent},
+      ok: {"The run was created", "application/json", CommandEvent},
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
-      forbidden: {"You don't have permission to create command events for the project.", "application/json", Error}
+      forbidden: {"You don't have permission to create runs for the project.", "application/json", Error}
     }
   )
 
@@ -353,7 +375,7 @@ defmodule TuistWeb.API.AnalyticsController do
     conn
     |> put_status(:ok)
     |> json(%{
-      id: get_id_field(conn, command_event),
+      id: get_id_field(command_event),
       project_id: command_event.project_id,
       name: command_event.name,
       url: url
@@ -422,19 +444,18 @@ defmodule TuistWeb.API.AnalyticsController do
     end
   end
 
-  # CommandEvent artifacts
-
   operation(:multipart_start,
-    summary: "It initiates a multipart upload for a command event artifact.",
+    summary: "It initiates a multipart upload for a run artifact",
     description:
       "The endpoint returns an upload ID that can be used to generate URLs for the individual parts and complete the upload.",
+    deprecated: true,
     operation_id: "startAnalyticsArtifactMultipartUpload",
     parameters: [
       run_id: [
         in: :path,
         type: :string,
         required: true,
-        description: "The id of the command event UUID."
+        description: "The id of the run UUID."
       ]
     ],
     request_body: {"Artifact to upload", "application/json", CommandEventArtifact},
@@ -442,7 +463,7 @@ defmodule TuistWeb.API.AnalyticsController do
       ok: {"The upload has been started", "application/json", ArtifactUploadId},
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
-      not_found: {"The command event doesn't exist", "application/json", Error}
+      not_found: {"The run doesn't exist", "application/json", Error}
     }
   )
 
@@ -460,12 +481,16 @@ defmodule TuistWeb.API.AnalyticsController do
   end
 
   def multipart_start(
-        %{path_params: %{"run_id" => run_id}, body_params: %{type: type} = command_event_artifact} = conn,
+        %{
+          assigns: %{selected_project: selected_project},
+          path_params: %{"run_id" => run_id},
+          body_params: %{type: type} = command_event_artifact
+        } = conn,
         _params
       ) do
     with {:ok, object_key} <-
-           get_object_key(%{type: type, run_id: run_id, name: command_event_artifact.name}) do
-      upload_id = Storage.multipart_start(object_key)
+           get_object_key(%{type: type, run_id: run_id, name: command_event_artifact.name}, conn) do
+      upload_id = Storage.multipart_start(object_key, selected_project.account)
       json(conn, %{status: "success", data: %{upload_id: upload_id}})
     end
   end
@@ -474,13 +499,14 @@ defmodule TuistWeb.API.AnalyticsController do
     summary: "It generates a signed URL for uploading a part.",
     description:
       "Given an upload ID and a part number, this endpoint returns a signed URL that can be used to upload a part of a multipart upload. The URL is short-lived and expires in 120 seconds.",
+    deprecated: true,
     operation_id: "generateAnalyticsArtifactMultipartUploadURL",
     parameters: [
       run_id: [
         in: :path,
         type: :string,
         required: true,
-        description: "The id of the command event."
+        description: "The id of the run."
       ]
     ],
     request_body:
@@ -503,6 +529,7 @@ defmodule TuistWeb.API.AnalyticsController do
 
   def multipart_generate_url(
         %{
+          assigns: %{selected_project: selected_project},
           path_params: %{"run_id" => run_id},
           body_params: %{
             command_event_artifact: %{type: type} = command_event_artifact,
@@ -512,7 +539,7 @@ defmodule TuistWeb.API.AnalyticsController do
         _params
       ) do
     with {:ok, object_key} <-
-           get_object_key(%{type: type, run_id: run_id, name: command_event_artifact.name}) do
+           get_object_key(%{type: type, run_id: run_id, name: command_event_artifact.name}, conn) do
       expires_in = 120
       content_length = Map.get(multipart_upload_part, :content_length)
 
@@ -521,6 +548,7 @@ defmodule TuistWeb.API.AnalyticsController do
           object_key,
           upload_id,
           part_number,
+          selected_project.account,
           expires_in: expires_in,
           content_length: content_length
         )
@@ -532,17 +560,18 @@ defmodule TuistWeb.API.AnalyticsController do
   operation(:multipart_complete,
     summary: "It completes a multi-part upload.",
     description: "Given the upload ID and all the parts with their ETags, this endpoint completes the multipart upload.",
+    deprecated: true,
     operation_id: "completeAnalyticsArtifactMultipartUpload",
     parameters: [
       run_id: [
         in: :path,
         type: :string,
         required: true,
-        description: "The id of the command event."
+        description: "The id of the run."
       ]
     ],
     request_body:
-      {"Command event artifact multipart upload completion", "application/json",
+      {"Run artifact multipart upload completion", "application/json",
        %Schema{
          type: :object,
          properties: %{
@@ -562,6 +591,7 @@ defmodule TuistWeb.API.AnalyticsController do
 
   def multipart_complete(
         %{
+          assigns: %{selected_project: selected_project},
           path_params: %{"run_id" => run_id},
           body_params: %{
             command_event_artifact: %{type: type} = command_event_artifact,
@@ -571,14 +601,15 @@ defmodule TuistWeb.API.AnalyticsController do
         _params
       ) do
     with {:ok, object_key} <-
-           get_object_key(%{type: type, run_id: run_id, name: command_event_artifact.name}) do
+           get_object_key(%{type: type, run_id: run_id, name: command_event_artifact.name}, conn) do
       :ok =
         Storage.multipart_complete_upload(
           object_key,
           upload_id,
           Enum.map(parts, fn %{part_number: part_number, etag: etag} ->
             {part_number, etag}
-          end)
+          end),
+          selected_project.account
         )
 
       conn
@@ -588,20 +619,21 @@ defmodule TuistWeb.API.AnalyticsController do
   end
 
   operation(:complete_artifacts_uploads,
-    summary: "Completes artifacts uploads for a given command event",
+    summary: "Completes artifacts uploads for a given run",
     description:
-      "Given a command event, it marks all artifact uploads as finished and does extra processing of a given command run, such as test flakiness detection.",
+      "Given a run, it marks all artifact uploads as finished and does extra processing of a given command run, such as test flakiness detection.",
+    deprecated: true,
     operation_id: "completeAnalyticsArtifactsUploads",
     parameters: [
       run_id: [
         in: :path,
         type: :string,
         required: true,
-        description: "The id of the command event."
+        description: "The id of the run."
       ]
     ],
     request_body:
-      {"Extra metadata for the post-processing of a command event.", "application/json",
+      {"Extra metadata for the post-processing of a run.", "application/json",
        %Schema{
          deprecated: true,
          type: :object,
@@ -609,72 +641,242 @@ defmodule TuistWeb.API.AnalyticsController do
          required: []
        }},
     responses: %{
-      no_content: "The command event artifact uploads were successfully finished",
+      no_content: "The run artifact uploads were successfully finished",
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
-      not_found: {"The command event doesn't exist", "application/json", Error}
+      not_found: {"The run doesn't exist", "application/json", Error}
     }
   )
 
-  def complete_artifacts_uploads(%{path_params: %{"run_id" => run_id}} = conn, _params) do
-    with {:ok, command_event} <- CommandEvents.get_command_event_by_id(run_id, preload: :project) do
-      current_project = Authentication.current_project(conn)
-      process_flaky_test_detection(command_event, current_project)
+  def complete_artifacts_uploads(conn, _params) do
+    conn
+    |> put_status(:no_content)
+    |> json(%{})
+  end
 
-      conn
-      |> put_status(:no_content)
-      |> json(%{})
+  operation(:multipart_start_project,
+    summary: "It initiates a multipart upload for a run artifact",
+    description:
+      "The endpoint returns an upload ID that can be used to generate URLs for the individual parts and complete the upload.",
+    operation_id: "startAnalyticsArtifactMultipartUploadProject",
+    parameters: [
+      account_handle: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The handle of the account."
+      ],
+      project_handle: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The handle of the project."
+      ],
+      run_id: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The id of the run."
+      ]
+    ],
+    request_body: {"Artifact to upload", "application/json", CommandEventArtifact},
+    responses: %{
+      ok: {"The upload has been started", "application/json", ArtifactUploadId},
+      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
+      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      not_found: {"The run doesn't exist", "application/json", Error}
+    }
+  )
+
+  def multipart_start_project(conn, params), do: multipart_start(conn, params)
+
+  operation(:multipart_generate_url_project,
+    summary: "It generates a signed URL for uploading a part",
+    description:
+      "Given an upload ID and a part number, this endpoint returns a signed URL that can be used to upload a part of a multipart upload. The URL is short-lived and expires in 120 seconds.",
+    operation_id: "generateAnalyticsArtifactMultipartUploadURLProject",
+    parameters: [
+      account_handle: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The handle of the account."
+      ],
+      project_handle: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The handle of the project."
+      ],
+      run_id: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The id of the run."
+      ]
+    ],
+    request_body:
+      {"Artifact to generate a signed URL for", "application/json",
+       %Schema{
+         type: :object,
+         properties: %{
+           command_event_artifact: CommandEventArtifact,
+           multipart_upload_part: ArtifactMultipartUploadPart
+         },
+         required: [:command_event_artifact, :multipart_upload_part]
+       }},
+    responses: %{
+      ok: {"The URL has been generated", "application/json", ArtifactMultipartUploadUrl},
+      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
+      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      not_found: {"The project doesn't exist", "application/json", Error}
+    }
+  )
+
+  def multipart_generate_url_project(conn, params), do: multipart_generate_url(conn, params)
+
+  operation(:multipart_complete_project,
+    summary: "It completes a multi-part upload",
+    description: "Given the upload ID and all the parts with their ETags, this endpoint completes the multipart upload.",
+    operation_id: "completeAnalyticsArtifactMultipartUploadProject",
+    parameters: [
+      account_handle: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The handle of the account."
+      ],
+      project_handle: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The handle of the project."
+      ],
+      run_id: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The id of the run."
+      ]
+    ],
+    request_body:
+      {"Run artifact multipart upload completion", "application/json",
+       %Schema{
+         type: :object,
+         properties: %{
+           command_event_artifact: CommandEventArtifact,
+           multipart_upload_parts: ArtifactMultipartUploadParts
+         },
+         required: [:command_event_artifact, :multipart_upload_parts]
+       }},
+    responses: %{
+      no_content: "The upload has been completed",
+      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
+      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      not_found: {"The project doesn't exist", "application/json", Error},
+      internal_server_error: {"An internal server error occurred", "application/json", Error}
+    }
+  )
+
+  def multipart_complete_project(conn, params), do: multipart_complete(conn, params)
+
+  operation(:complete_artifacts_uploads_project,
+    summary: "Completes artifacts uploads for a given run",
+    description:
+      "Given a run, it marks all artifact uploads as finished and does extra processing of a given command run, such as test flakiness detection.",
+    operation_id: "completeAnalyticsArtifactsUploadsProject",
+    parameters: [
+      account_handle: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The handle of the account."
+      ],
+      project_handle: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The handle of the project."
+      ],
+      run_id: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The id of the run."
+      ]
+    ],
+    request_body:
+      {"Extra metadata for the post-processing of a command event.", "application/json",
+       %Schema{
+         type: :object,
+         properties: %{},
+         required: []
+       }},
+    responses: %{
+      no_content: "The run artifact uploads were successfully finished",
+      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
+      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      not_found: {"The run doesn't exist", "application/json", Error}
+    }
+  )
+
+  def complete_artifacts_uploads_project(conn, params), do: complete_artifacts_uploads(conn, params)
+
+  defp get_object_key(%{type: type, run_id: run_id, name: name}, conn) do
+    # Use selected_project from URL if available (new routes), otherwise fall back to authenticated project (old routes)
+    project = Map.get(conn.assigns, :selected_project) || Authentication.current_project(conn)
+
+    with {:ok, run_id} <- normalize_run_id(run_id) do
+      object_key =
+        case type do
+          "result_bundle" ->
+            CommandEvents.get_result_bundle_key(run_id, project)
+
+          "invocation_record" ->
+            CommandEvents.get_result_bundle_invocation_record_key(
+              run_id,
+              project
+            )
+
+          "result_bundle_object" ->
+            CommandEvents.get_result_bundle_object_key(run_id, project, name)
+        end
+
+      {:ok, object_key}
     end
   end
 
-  defp process_flaky_test_detection(command_event, current_project) do
-    if FunWithFlags.enabled?(:flaky_test_detection, for: current_project) do
-      # This is very slow. We should consider saving the necessary data in the db instead of fetching it on-demand from the S3 storage.
-      test_summary = CommandEvents.get_test_summary(command_event)
-      create_test_cases_and_runs(test_summary, command_event, current_project)
-    end
-  end
+  defp normalize_run_id(run_id) do
+    if Tuist.Environment.clickhouse_configured?() do
+      if Tuist.UUIDv7.valid?(run_id) do
+        # Newer CLI versions send UUIDs which can be converted to integer IDs,
+        # but older versions send integer IDs which cannot be converted back to UUIDs.
+        # Due to this one-way conversion, we must use the legacy_id for object keys.
+        {:ok, Tuist.UUIDv7.to_int64(run_id)}
+      else
+        {:ok, run_id}
+      end
+    else
+      case CommandEvents.get_command_event_by_id(run_id) do
+        {:ok, command_event} ->
+          # For Postgres, we _know_ both UUID and legacy ID, but to keep querying simpler, we use the legacy ID to match Clickhouse behavior.
+          {:ok, command_event.legacy_id}
 
-  defp create_test_cases_and_runs(test_summary, command_event, current_project) do
-    if not is_nil(test_summary) and not is_nil(current_project) do
-      CommandEvents.create_test_cases(%{
-        test_summary: test_summary,
-        command_event: command_event
-      })
-
-      CommandEvents.create_test_case_runs(%{
-        test_summary: test_summary,
-        command_event: command_event
-      })
-    end
-  end
-
-  defp get_object_key(%{type: type, run_id: run_id, name: name}) do
-    case CommandEvents.get_command_event_by_id(run_id) do
-      {:ok, command_event} ->
-        object_key =
-          case type do
-            "result_bundle" ->
-              CommandEvents.get_result_bundle_key(command_event)
-
-            "invocation_record" ->
-              CommandEvents.get_result_bundle_invocation_record_key(command_event)
-
-            "result_bundle_object" ->
-              CommandEvents.get_result_bundle_object_key(command_event, name)
+        _ ->
+          # For multipart upload operations, we can work with the run_id even if the run doesn't exist yet
+          # since these operations are used during async run insertion
+          if Tuist.UUIDv7.valid?(run_id) do
+            {:ok, Tuist.UUIDv7.to_int64(run_id)}
+          else
+            # If it's already an integer ID (string), use it as-is
+            {:ok, run_id}
           end
-
-        {:ok, object_key}
-
-      {:error, :not_found} ->
-        {:error, :not_found}
+      end
     end
   end
 
-  defp get_id_field(conn, command_event) do
-    cli_version = conn |> get_req_header("x-tuist-cli-version") |> List.first()
-
-    if not is_nil(cli_version) and version_less_than?(cli_version, "4.56.0") do
+  defp get_id_field(command_event) do
+    if version_less_than?(command_event.tuist_version, "4.56.0") do
       command_event.legacy_id
     else
       command_event.id

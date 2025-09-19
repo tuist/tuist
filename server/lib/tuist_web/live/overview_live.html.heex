@@ -229,7 +229,14 @@
           />
         </div>
       </.card_section>
-      <.card_section :if={false} data-part="time-saved-card-chart-section">
+      <.card_section
+        :if={
+          @analytics_environment == "ci" &&
+            @build_time_analytics.total_time_saved != 0 &&
+            @build_time_analytics.total_build_time != 0
+        }
+        data-part="time-saved-card-chart-section"
+      >
         <div data-part="legends">
           <.legend
             title={gettext("Build time saved")}
@@ -239,7 +246,7 @@
                 include_seconds: false
               )
             }
-            style="primary-translucent"
+            style="primary"
           />
         </div>
         <.chart
@@ -295,34 +302,11 @@
           }
           series={[
             %{
-              name: gettext("Actual build time"),
+              name: gettext("Saved"),
               type: "bar",
               stack: "total",
               itemStyle: %{
                 color: "var:noora-chart-legend-primary",
-                borderRadius: [4, 0, 0, 4]
-              },
-              data: [
-                if(@build_time_analytics.total_build_time < 3_600_000,
-                  do:
-                    ((@build_time_analytics.total_build_time -
-                        @build_time_analytics.total_time_saved) / 1000)
-                    |> Decimal.from_float()
-                    |> Decimal.round(1),
-                  else:
-                    ((@build_time_analytics.total_build_time -
-                        @build_time_analytics.total_time_saved) / 3_600_000)
-                    |> Decimal.from_float()
-                    |> Decimal.round(2)
-                )
-              ]
-            },
-            %{
-              name: gettext("Build time saved"),
-              type: "bar",
-              stack: "total",
-              itemStyle: %{
-                color: "var:noora-chart-legend-primary-translucent",
                 borderRadius: [0, 4, 4, 0]
               },
               data: [
@@ -341,17 +325,6 @@
           ]}
           x_axis_min={0}
         />
-        <div data-part="footer">
-          <div data-part="indicator" />
-          <span data-part="title">{gettext("Actual build time")}</span>
-          <span data-part="value">
-            {Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
-              @build_time_analytics.total_build_time -
-                @build_time_analytics.total_time_saved,
-              include_seconds: false
-            )}
-          </span>
-        </div>
       </.card_section>
     </div>
     <.empty_card_section

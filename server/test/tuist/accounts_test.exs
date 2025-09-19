@@ -6,6 +6,7 @@ defmodule Tuist.AccountsTest do
   import TuistTestSupport.Fixtures.AccountsFixtures
 
   alias Tuist.Accounts
+  alias Tuist.Accounts.Account
   alias Tuist.Accounts.AccountToken
   alias Tuist.Accounts.User
   alias Tuist.Accounts.UserToken
@@ -26,6 +27,9 @@ defmodule Tuist.AccountsTest do
         }
       }
     end)
+
+    stub(FunWithFlags, :enabled?, fn :clickhouse_events -> true end)
+    stub(Environment, :clickhouse_configured?, fn -> true end)
 
     :ok
   end
@@ -143,13 +147,14 @@ defmodule Tuist.AccountsTest do
       _user = %{account: %{id: account_id}} = AccountsFixtures.user_fixture()
       _project = %{id: project_id} = ProjectsFixtures.project_fixture(account_id: account_id)
 
-      _command_event =
+      with_flushed_ingestion_buffers(fn ->
         CommandEventsFixtures.command_event_fixture(
           project_id: project_id,
           remote_test_target_hits: ["Core"],
           remote_cache_target_hits: ["Kit"],
           created_at: ~U[2025-05-17 15:27:00Z]
         )
+      end)
 
       # When
       got = Accounts.account_month_usage(account_id)
@@ -212,7 +217,7 @@ defmodule Tuist.AccountsTest do
     end
   end
 
-  describe "list_customer_id_and_remote_cache_hits_count_pairs/1" do
+  describe "list_billable_customers/1" do
     test "returns only the customers with a customer_id present" do
       # Given
       first_user =
@@ -225,64 +230,82 @@ defmodule Tuist.AccountsTest do
       today = ~U[2025-01-02 23:00:00Z]
       stub(DateTime, :utc_now, fn -> today end)
 
-      CommandEventsFixtures.command_event_fixture(
-        name: "generate",
-        project_id: first_user_project.id,
-        user_id: first_user.id,
-        remote_cache_target_hits: ["Module"],
-        remote_test_target_hits: ["ModuleTeests"],
-        created_at: ~U[2025-01-01 23:00:00Z]
-      )
+      with_flushed_ingestion_buffers(fn ->
+        CommandEventsFixtures.command_event_fixture(
+          name: "generate",
+          project_id: first_user_project.id,
+          user_id: first_user.id,
+          remote_cache_target_hits: ["Module"],
+          remote_test_target_hits: ["ModuleTeests"],
+          ran_at: ~U[2025-01-01 23:00:00Z]
+        )
 
-      CommandEventsFixtures.command_event_fixture(
-        name: "generate",
-        project_id: second_user_project.id,
-        user_id: second_user.id,
-        remote_cache_target_hits: ["Module"],
-        remote_test_target_hits: ["ModuleTeests"],
-        created_at: ~U[2025-01-01 23:00:00Z]
-      )
+        CommandEventsFixtures.command_event_fixture(
+          name: "generate",
+          project_id: second_user_project.id,
+          user_id: second_user.id,
+          remote_cache_target_hits: ["Module"],
+          remote_test_target_hits: ["ModuleTeests"],
+          ran_at: ~U[2025-01-01 23:00:00Z]
+        )
+      end)
 
       # When
-      assert {[{^first_account_customer_id, 1}], _} =
-               Accounts.list_customer_id_and_remote_cache_hits_count_pairs()
+      assert [^first_account_customer_id] = Accounts.list_billable_customers()
     end
 
-    test "returns only the customers with a customer_id present (ClickHouse)" do
+    test "includes customers with LLM token usage yesterday, even without command events" do
       # Given
-      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> true end)
-
-      first_user =
-        %{account: %{customer_id: first_account_customer_id} = first_account} =
-        AccountsFixtures.user_fixture(customer_id: UUIDv7.generate())
-
-      second_user = %{account: second_account} = AccountsFixtures.user_fixture(customer_id: nil)
-      first_user_project = ProjectsFixtures.project_fixture(account_id: first_account.id)
-      second_user_project = ProjectsFixtures.project_fixture(account_id: second_account.id)
       today = ~U[2025-01-02 23:00:00Z]
       stub(DateTime, :utc_now, fn -> today end)
 
-      CommandEventsFixtures.command_event_fixture(
-        name: "generate",
-        project_id: first_user_project.id,
-        user_id: first_user.id,
-        remote_cache_target_hits: ["Module"],
-        remote_test_target_hits: ["ModuleTeests"],
-        ran_at: ~U[2025-01-01 23:00:00Z]
-      )
+      org = AccountsFixtures.organization_fixture()
+      account = Tuist.Repo.get_by!(Account, organization_id: org.id)
+      account = Tuist.Repo.update!(Account.billing_changeset(account, %{customer_id: UUIDv7.generate()}))
 
-      CommandEventsFixtures.command_event_fixture(
-        name: "generate",
-        project_id: second_user_project.id,
-        user_id: second_user.id,
-        remote_cache_target_hits: ["Module"],
-        remote_test_target_hits: ["ModuleTeests"],
-        ran_at: ~U[2025-01-01 23:00:00Z]
-      )
+      {:ok, _} =
+        Billing.create_token_usage(%{
+          input_tokens: 42,
+          output_tokens: 24,
+          model: "gpt-4",
+          feature: "qa",
+          feature_resource_id: UUIDv7.generate(),
+          account_id: account.id,
+          timestamp: ~U[2025-01-01 10:00:00Z]
+        })
 
       # When
-      assert {[{^first_account_customer_id, 1}], _} =
-               Accounts.list_customer_id_and_remote_cache_hits_count_pairs()
+      customer_ids = Accounts.list_billable_customers()
+
+      # Then
+      assert account.customer_id in customer_ids
+    end
+
+    test "includes customers with a customer_id regardless of token usage timing" do
+      # Given
+      today = ~U[2025-01-02 23:00:00Z]
+      stub(DateTime, :utc_now, fn -> today end)
+
+      org = AccountsFixtures.organization_fixture()
+      account = Tuist.Repo.get_by!(Account, organization_id: org.id)
+      account = Tuist.Repo.update!(Account.billing_changeset(account, %{customer_id: UUIDv7.generate()}))
+
+      {:ok, _} =
+        Billing.create_token_usage(%{
+          input_tokens: 11,
+          output_tokens: 22,
+          model: "gpt-4",
+          feature: "qa",
+          feature_resource_id: UUIDv7.generate(),
+          account_id: account.id,
+          timestamp: ~U[2024-12-31 10:00:00Z]
+        })
+
+      # When
+      customer_ids = Accounts.list_billable_customers()
+
+      # Then
+      assert account.customer_id in customer_ids
     end
   end
 
@@ -639,13 +662,114 @@ defmodule Tuist.AccountsTest do
     end
   end
 
+  describe "update_okta_configuration/2" do
+    test "updates Okta configuration for an existing organization" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(creator: user)
+
+      # When
+      result =
+        Accounts.update_okta_configuration(organization.id, %{
+          okta_client_id: "test_client_id",
+          okta_client_secret: "test_secret",
+          sso_organization_id: "https://test.okta.com"
+        })
+
+      # Then
+      assert {:ok, updated_org} = result
+      assert updated_org.okta_client_id == "test_client_id"
+      assert updated_org.sso_provider == :okta
+      assert updated_org.sso_organization_id == "https://test.okta.com"
+      # Check that the secret is stored (encrypted)
+      assert updated_org.okta_encrypted_client_secret
+    end
+
+    test "encrypts the client secret when storing" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(creator: user)
+      plain_secret = "my_super_secret_key"
+
+      # When
+      {:ok, updated_org} =
+        Accounts.update_okta_configuration(organization.id, %{
+          okta_client_id: "test_client_id",
+          okta_client_secret: plain_secret,
+          sso_organization_id: "https://test.okta.com"
+        })
+
+      # Then
+      # Verify the secret was stored
+      assert updated_org.okta_encrypted_client_secret
+      # Reload from database to ensure we're testing the persisted value
+      {:ok, reloaded_org} = Accounts.get_organization_by_id(updated_org.id)
+
+      # The Vault.Binary type should automatically decrypt when loaded
+      # so we should get back the original plain text
+      assert reloaded_org.okta_encrypted_client_secret == plain_secret
+    end
+
+    test "returns error when organization doesn't exist" do
+      # When
+      result =
+        Accounts.update_okta_configuration(999_999, %{
+          okta_client_id: "test_client_id"
+        })
+
+      # Then
+      assert result == {:error, :not_found}
+    end
+
+    test "automatically sets sso_provider to okta" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(creator: user, sso_provider: :google)
+
+      # When - update Okta configuration
+      {:ok, updated_org} =
+        Accounts.update_okta_configuration(organization.id, %{
+          okta_client_id: "test_client_id"
+        })
+
+      # Then - sso_provider should be changed to :okta
+      assert updated_org.sso_provider == :okta
+    end
+
+    test "can update partial Okta configuration" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          creator: user,
+          okta_client_id: "old_client_id",
+          sso_organization_id: "https://old.okta.com",
+          sso_provider: :okta
+        )
+
+      # When - update only the client ID
+      {:ok, updated_org} =
+        Accounts.update_okta_configuration(organization.id, %{
+          okta_client_id: "new_client_id"
+        })
+
+      # Then
+      assert updated_org.okta_client_id == "new_client_id"
+      # unchanged
+      assert updated_org.sso_organization_id == "https://old.okta.com"
+      # still okta
+      assert updated_org.sso_provider == :okta
+    end
+  end
+
   describe "get_invitation_by_id/1" do
     test "returns a given invitation" do
       # Given
       user = AccountsFixtures.user_fixture()
       organization = AccountsFixtures.organization_fixture(creator: user)
 
-      invitation =
+      {:ok, invitation} =
         Accounts.invite_user_to_organization("new@tuist.io", %{
           inviter: user,
           to: organization,
@@ -672,7 +796,7 @@ defmodule Tuist.AccountsTest do
         url: fn token -> token end
       })
 
-      invitation =
+      {:ok, invitation} =
         Accounts.invite_user_to_organization("new@tuist.io", %{
           inviter: user,
           to: organization,
@@ -697,7 +821,7 @@ defmodule Tuist.AccountsTest do
       user = AccountsFixtures.user_fixture()
       organization = AccountsFixtures.organization_fixture(name: "tuist-org", creator: user)
 
-      invitation =
+      {:ok, invitation} =
         Accounts.invite_user_to_organization("new@tuist.io", %{
           inviter: user,
           to: organization,
@@ -726,7 +850,7 @@ defmodule Tuist.AccountsTest do
       organization = AccountsFixtures.organization_fixture(creator: user)
       invitee = AccountsFixtures.user_fixture(email: "new@tuist.io")
 
-      invitation =
+      {:ok, invitation} =
         Accounts.invite_user_to_organization("new@tuist.io", %{
           inviter: user,
           to: organization,
@@ -746,7 +870,7 @@ defmodule Tuist.AccountsTest do
       organization = AccountsFixtures.organization_fixture(creator: user)
       invitee = AccountsFixtures.user_fixture(email: "new@tuist.io")
 
-      invitation =
+      {:ok, invitation} =
         Accounts.invite_user_to_organization("different@tuist.io", %{
           inviter: user,
           to: organization,
@@ -779,7 +903,7 @@ defmodule Tuist.AccountsTest do
       organization = AccountsFixtures.organization_fixture(creator: user)
       invitee = AccountsFixtures.user_fixture(email: "new@tuist.io")
 
-      invitation =
+      {:ok, invitation} =
         Accounts.invite_user_to_organization("new@tuist.io", %{
           inviter: user,
           to: organization,
@@ -804,7 +928,7 @@ defmodule Tuist.AccountsTest do
 
   describe "invite_user_to_organization/2" do
     setup do
-      stub(Tuist.Environment, :smtp_user_name, fn -> "smtp_user_name" end)
+      stub(Environment, :smtp_user_name, fn -> "smtp_user_name" end)
       :ok
     end
 
@@ -822,10 +946,36 @@ defmodule Tuist.AccountsTest do
         )
 
       # Then
+      assert {:ok, invitation} = invitation
       assert invitation.token == "token"
       assert invitation.invitee_email == "test@tuist.io"
       assert invitation.inviter_type == "User"
       assert invitation.organization_id == organization.id
+    end
+
+    test "returns errors" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture()
+
+      {:ok, _invitation} =
+        Accounts.invite_user_to_organization(
+          "test@tuist.io",
+          %{inviter: user, to: organization, url: fn token -> token end},
+          token: "token"
+        )
+
+      # When
+      result =
+        Accounts.invite_user_to_organization(
+          "test@tuist.io",
+          %{inviter: user, to: organization, url: fn token -> token end},
+          token: "token2"
+        )
+
+      # Then
+      assert {:error, changeset} = result
+      assert "has already been taken" in errors_on(changeset).invitee_email
     end
   end
 
@@ -1281,11 +1431,13 @@ defmodule Tuist.AccountsTest do
       Accounts.add_user_to_organization(user, organization)
 
       command_event =
-        CommandEventsFixtures.command_event_fixture(
-          name: "generate",
-          project_id: project.id,
-          user_id: user.id
-        )
+        with_flushed_ingestion_buffers(fn ->
+          CommandEventsFixtures.command_event_fixture(
+            name: "generate",
+            project_id: project.id,
+            user_id: user.id
+          )
+        end)
 
       Accounts.update_last_visited_project(user, project.id)
       code = Accounts.create_device_code("some-code")
@@ -1336,7 +1488,7 @@ defmodule Tuist.AccountsTest do
       got = Accounts.get_account_by_handle(String.upcase(handle))
 
       # Then
-      assert got != nil
+      assert got
     end
   end
 
@@ -1517,7 +1669,7 @@ defmodule Tuist.AccountsTest do
         })
 
       assert changeset.valid?
-      assert !is_nil(get_change(changeset, :encrypted_password))
+      assert get_change(changeset, :encrypted_password)
     end
   end
 
@@ -1602,7 +1754,7 @@ defmodule Tuist.AccountsTest do
 
   describe "deliver_user_confirmation_instructions/2" do
     setup do
-      stub(Tuist.Environment, :smtp_user_name, fn -> "stmp_user_name" end)
+      stub(Environment, :smtp_user_name, fn -> "stmp_user_name" end)
       %{user: user_fixture(confirmed_at: nil)}
     end
 
@@ -1627,7 +1779,7 @@ defmodule Tuist.AccountsTest do
     setup do
       user = user_fixture(confirmed_at: nil)
 
-      stub(Tuist.Environment, :smtp_user_name, fn -> "stmp_user_name" end)
+      stub(Environment, :smtp_user_name, fn -> "stmp_user_name" end)
 
       token =
         extract_user_token(fn confirmation_url ->
@@ -1664,7 +1816,7 @@ defmodule Tuist.AccountsTest do
 
   describe "deliver_user_reset_password_instructions/2" do
     setup do
-      stub(Tuist.Environment, :smtp_user_name, fn -> "stmp_user_name" end)
+      stub(Environment, :smtp_user_name, fn -> "stmp_user_name" end)
       %{user: user_fixture()}
     end
 
@@ -1689,7 +1841,7 @@ defmodule Tuist.AccountsTest do
     setup do
       user = user_fixture()
 
-      stub(Tuist.Environment, :smtp_user_name, fn -> "stmp_user_name" end)
+      stub(Environment, :smtp_user_name, fn -> "stmp_user_name" end)
 
       token =
         extract_user_token(fn reset_password_url ->
@@ -2038,7 +2190,7 @@ defmodule Tuist.AccountsTest do
         })
 
       assert user.email == got.email
-      assert Accounts.find_oauth2_identity(%{user: user, provider: :github}) != nil
+      assert Accounts.find_oauth2_identity(%{user: user, provider: :github})
     end
 
     test "updates an existing user with a new okta identity" do
@@ -2064,7 +2216,7 @@ defmodule Tuist.AccountsTest do
         })
 
       assert user.email == got.email
-      assert Accounts.find_oauth2_identity(%{user: user, provider: :okta}) != nil
+      assert Accounts.find_oauth2_identity(%{user: user, provider: :okta})
     end
 
     test "handles reserved handle names by adding a suffix" do
@@ -2492,7 +2644,7 @@ defmodule Tuist.AccountsTest do
       account = AccountsFixtures.user_fixture(preload: [:account]).account
 
       {:ok, {account_token, account_token_value}} =
-        Accounts.create_account_token(%{account: account, scopes: [:account_registry_read]})
+        Accounts.create_account_token(%{account: account, scopes: [:registry_read]})
 
       # When
       {:ok, got} = Accounts.account_token(account_token_value)
@@ -2535,7 +2687,7 @@ defmodule Tuist.AccountsTest do
 
       # When
       {:ok, {_, got_token_value}} =
-        Accounts.create_account_token(%{account: account, scopes: [:account_registry_read]})
+        Accounts.create_account_token(%{account: account, scopes: [:registry_read]})
 
       # Then
       %{id: token_id} = Repo.one(AccountToken)
@@ -2758,6 +2910,105 @@ defmodule Tuist.AccountsTest do
 
       # When / Then
       assert {:error, :not_found} == Accounts.okta_organization_for_user_email(user.email)
+    end
+  end
+
+  describe "get_okta_configuration_by_organization_id/1" do
+    test "returns okta configuration when organization has okta configured with db values" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          creator: user,
+          sso_provider: :okta,
+          sso_organization_id: "company.okta.com",
+          okta_client_id: "test_client_id",
+          okta_client_secret: "test_client_secret"
+        )
+
+      # When
+      {:ok, config} = Accounts.get_okta_configuration_by_organization_id(organization.id)
+
+      # Then
+      assert config.client_id == "test_client_id"
+      assert config.client_secret == "test_client_secret"
+      assert config.site == "company.okta.com"
+    end
+
+    test "returns error when organization does not have okta configured" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          creator: user,
+          sso_provider: :google,
+          sso_organization_id: "company.com"
+        )
+
+      # When / Then
+      assert {:error, :not_found} ==
+               Accounts.get_okta_configuration_by_organization_id(organization.id)
+    end
+
+    test "returns error when organization has okta as provider but no client_id" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          creator: user,
+          sso_provider: :okta,
+          sso_organization_id: "company.okta.com"
+        )
+
+      # When / Then
+      assert {:error, :not_found} ==
+               Accounts.get_okta_configuration_by_organization_id(organization.id)
+    end
+
+    test "returns error when organization does not exist" do
+      # When / Then
+      assert {:error, :not_found} == Accounts.get_okta_configuration_by_organization_id(999_999)
+    end
+  end
+
+  describe "create_namespace_tenant_for_account/1" do
+    test "creates a tenant and updates account with namespace_tenant_id" do
+      # Given
+      %{account: account} = AccountsFixtures.user_fixture()
+      namespace_tenant_id = "tenant-123"
+      account_name = account.name
+      account_id = account.id
+
+      expect(Tuist.Namespace, :create_tenant, 1, fn ^account_name, ^account_id ->
+        {:ok, %{"tenant" => %{"id" => namespace_tenant_id}}}
+      end)
+
+      # When
+      {:ok, updated_account} = Accounts.create_namespace_tenant_for_account(account)
+
+      # Then
+      assert updated_account.namespace_tenant_id == namespace_tenant_id
+      assert updated_account.id == account.id
+    end
+
+    test "returns error when Namespace.create_tenant fails" do
+      # Given
+      %{account: account} = AccountsFixtures.user_fixture()
+      error_reason = "Namespace API error"
+
+      expect(Tuist.Namespace, :create_tenant, 1, fn _account_name, _account_id ->
+        {:error, error_reason}
+      end)
+
+      # When
+      {:error, reason} = Accounts.create_namespace_tenant_for_account(account)
+
+      # Then
+      assert reason == error_reason
+      assert is_nil(Accounts.get_account_by_id(account.id).namespace_tenant_id)
     end
   end
 end

@@ -4,12 +4,13 @@ defmodule TuistWeb.PreviewLive do
   use Noora
 
   import TuistWeb.Components.Terminal
-  import TuistWeb.Previews.PlatformIcon
+  import TuistWeb.Previews.PlatformTag
   import TuistWeb.Previews.RanByBadge
 
   alias Tuist.AppBuilds
   alias Tuist.AppBuilds.AppBuild
   alias TuistWeb.Errors.NotFoundError
+  alias TuistWeb.Utilities.SHA
 
   def mount(%{"id" => preview_id} = _params, _session, %{assigns: %{selected_project: selected_project}} = socket) do
     preview =
@@ -85,14 +86,6 @@ defmodule TuistWeb.PreviewLive do
     end
   end
 
-  attr(:platform, :atom, required: true)
-
-  def platform_tag(assigns) do
-    ~H"""
-    <.tag label={AppBuilds.platform_string(@platform)} icon={platform_icon_name(@platform)} />
-    """
-  end
-
   def handle_event(
         "delete_preview",
         _params,
@@ -109,7 +102,7 @@ defmodule TuistWeb.PreviewLive do
   end
 
   defp get_current_preview(preview_id) do
-    case Tuist.AppBuilds.preview_by_id(preview_id,
+    case AppBuilds.preview_by_id(preview_id,
            preload: [:created_by_account, :app_builds, project: [:account]]
          ) do
       {:error, :not_found} ->

@@ -14,13 +14,15 @@ private let irrelevantBundleName = ""
 
 final class ResourcesProjectMapperTests: TuistUnitTestCase {
     var project: Project!
+    var buildableFolderChecker: MockBuildableFolderChecking!
     var subject: ResourcesProjectMapper!
     var contentHasher: MockContentHashing!
 
     override func setUp() {
         super.setUp()
         contentHasher = .init()
-        subject = ResourcesProjectMapper(contentHasher: contentHasher)
+        buildableFolderChecker = MockBuildableFolderChecking()
+        subject = ResourcesProjectMapper(contentHasher: contentHasher, buildableFolderChecker: buildableFolderChecker)
 
         given(contentHasher)
             .hash(Parameter<Data>.any)
@@ -33,14 +35,16 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_map_when_a_target_that_has_resources_and_doesnt_supports_them() throws {
+    func test_map_when_a_target_that_has_resources_and_doesnt_supports_them() async throws {
         // Given
         let resources: [ResourceFileElement] = [.file(path: "/image.png")]
         let target = Target.test(product: .staticLibrary, sources: ["/Absolute/File.swift"], resources: .init(resources))
         project = Project.test(targets: [target])
+        given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
+        given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
 
         // Got
-        let (gotProject, gotSideEffects) = try subject.map(project: project)
+        let (gotProject, gotSideEffects) = try await subject.map(project: project)
 
         // Then: Side effects
         XCTAssertEqual(gotSideEffects.count, 1)
@@ -89,21 +93,23 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         ])
     }
 
-    func test_map_when_an_external_objc_target_that_has_resources_and_supports_them() throws {
+    func test_map_when_an_external_objc_target_that_has_resources_and_supports_them() async throws {
         // Given
         let resources: [ResourceFileElement] = [.file(path: "/image.png")]
         let target = Target.test(product: .framework, sources: ["/Absolute/File.m"], resources: .init(resources))
         project = Project.test(targets: [target], type: .external(hash: nil))
+        given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
+        given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
 
         // Got
-        let (gotProject, gotSideEffects) = try subject.map(project: project)
+        let (gotProject, gotSideEffects) = try await subject.map(project: project)
 
         // Then
         XCTAssertEmpty(gotSideEffects)
         XCTAssertEqual(project, gotProject)
     }
 
-    func testMap_whenDisableBundleAccessorsIsTrue_doesNotGenerateAccessors() throws {
+    func testMap_whenDisableBundleAccessorsIsTrue_doesNotGenerateAccessors() async throws {
         // Given
         let resources: [ResourceFileElement] = [.file(path: "/image.png")]
         let target = Target.test(product: .staticLibrary, resources: .init(resources))
@@ -113,25 +119,29 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
             ),
             targets: [target]
         )
+        given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
+        given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
 
         // Got
-        let (gotProject, gotSideEffects) = try subject.map(project: project)
+        let (gotProject, gotSideEffects) = try await subject.map(project: project)
 
         // Then: Side effects
         XCTAssertEqual(project, gotProject)
         XCTAssertEqual(gotSideEffects, [])
     }
 
-    func test_map_when_no_sources() throws {
+    func test_map_when_no_sources() async throws {
         // Given
         let resources: [ResourceFileElement] = [.file(path: "/image.png")]
         let target = Target.test(product: .staticLibrary, sources: [], resources: .init(resources))
         project = Project.test(
             targets: [target]
         )
+        given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
+        given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
 
         // Got
-        let (gotProject, gotSideEffects) = try subject.map(project: project)
+        let (gotProject, gotSideEffects) = try await subject.map(project: project)
 
         // Then: Side effects
         XCTAssertEqual(gotSideEffects, [])
@@ -158,16 +168,131 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         XCTAssertEqual(resourcesTarget.resources.resources, resources)
     }
 
-    func test_map_when_a_target_that_has_core_data_models_and_doesnt_supports_them() throws {
+    func test_map_when_no_sources_but_buildable_folders() async throws {
+        // Given
+        let resources: [ResourceFileElement] = [.file(path: "/image.png")]
+        let buildableFolders = [BuildableFolder(path: try AbsolutePath(validating: "/sources"))]
+        let target = Target.test(
+            product: .staticLibrary,
+            sources: [],
+            resources: .init(resources),
+            buildableFolders: buildableFolders
+        )
+        project = Project.test(
+            targets: [target]
+        )
+        given(buildableFolderChecker).containsResources(.value(buildableFolders)).willReturn(true)
+        given(buildableFolderChecker).containsSources(.value(buildableFolders)).willReturn(true)
+
+        // Got
+        let (gotProject, gotSideEffects) = try await subject.map(project: project)
+
+        // Then: Side effects
+        XCTAssertEqual(gotSideEffects.count, 1)
+        let sideEffect = try XCTUnwrap(gotSideEffects.first)
+        guard case let SideEffectDescriptor.file(file) = sideEffect else {
+            XCTFail("Expected file descriptor")
+            return
+        }
+        let expectedPath = project.path
+            .appending(component: Constants.DerivedDirectory.name)
+            .appending(component: Constants.DerivedDirectory.sources)
+            .appending(component: "TuistBundle+\(target.name).swift")
+        let expectedContents = ResourcesProjectMapper
+            .fileContent(targetName: target.name, bundleName: "\(project.name)_\(target.name)", target: target, in: project)
+        XCTAssertEqual(file.path, expectedPath)
+        XCTAssertEqual(file.contents, expectedContents.data(using: .utf8))
+
+        let gotTarget = try XCTUnwrap(gotProject.targets.values.sorted().last)
+        XCTAssertEqual(gotTarget.name, target.name)
+        XCTAssertEqual(gotTarget.product, target.product)
+        XCTAssertEqual(gotTarget.resources.resources.count, 0)
+        XCTAssertEqual(gotTarget.sources.count, 1)
+        XCTAssertEqual(gotTarget.dependencies.count, 1)
+        XCTAssertEqual(
+            gotTarget.dependencies.first,
+            TargetDependency.target(name: "\(project.name)_\(target.name)", condition: .when([.ios]))
+        )
+
+        let resourcesTarget = try XCTUnwrap(gotProject.targets.values.sorted().first)
+        XCTAssertEqual(resourcesTarget.name, "\(project.name)_\(target.name)")
+        XCTAssertEqual(resourcesTarget.product, .bundle)
+        XCTAssertEqual(resourcesTarget.destinations, target.destinations)
+        XCTAssertEqual(resourcesTarget.bundleId, "\(target.bundleId).generated.resources")
+        XCTAssertEqual(resourcesTarget.deploymentTargets, target.deploymentTargets)
+        XCTAssertEqual(resourcesTarget.filesGroup, target.filesGroup)
+        XCTAssertEqual(resourcesTarget.resources.resources, resources)
+    }
+
+    func test_map_when_no_sources_and_resources_but_buildable_folders() async throws {
+        // Given
+        let buildableFolders = [
+            BuildableFolder(path: try AbsolutePath(validating: "/sources")),
+            BuildableFolder(path: try AbsolutePath(validating: "/resources")),
+        ]
+        let target = Target.test(
+            product: .staticLibrary,
+            sources: [],
+            resources: ResourceFileElements([]),
+            buildableFolders: buildableFolders
+        )
+        project = Project.test(
+            targets: [target]
+        )
+        given(buildableFolderChecker).containsResources(.value(buildableFolders)).willReturn(true)
+        given(buildableFolderChecker).containsSources(.value(buildableFolders)).willReturn(true)
+
+        // Got
+        let (gotProject, gotSideEffects) = try await subject.map(project: project)
+
+        // Then: Side effects
+        XCTAssertEqual(gotSideEffects.count, 1)
+        let sideEffect = try XCTUnwrap(gotSideEffects.first)
+        guard case let SideEffectDescriptor.file(file) = sideEffect else {
+            XCTFail("Expected file descriptor")
+            return
+        }
+        let expectedPath = project.path
+            .appending(component: Constants.DerivedDirectory.name)
+            .appending(component: Constants.DerivedDirectory.sources)
+            .appending(component: "TuistBundle+\(target.name).swift")
+        let expectedContents = ResourcesProjectMapper
+            .fileContent(targetName: target.name, bundleName: "\(project.name)_\(target.name)", target: target, in: project)
+        XCTAssertEqual(file.path, expectedPath)
+        XCTAssertEqual(file.contents, expectedContents.data(using: .utf8))
+
+        let gotTarget = try XCTUnwrap(gotProject.targets.values.sorted().last)
+        XCTAssertEqual(gotTarget.name, target.name)
+        XCTAssertEqual(gotTarget.product, target.product)
+        XCTAssertEqual(gotTarget.resources.resources.count, 0)
+        XCTAssertEqual(gotTarget.sources.count, 1)
+        XCTAssertEqual(gotTarget.dependencies.count, 1)
+        XCTAssertEqual(
+            gotTarget.dependencies.first,
+            TargetDependency.target(name: "\(project.name)_\(target.name)", condition: .when([.ios]))
+        )
+
+        let resourcesTarget = try XCTUnwrap(gotProject.targets.values.sorted().first)
+        XCTAssertEqual(resourcesTarget.name, "\(project.name)_\(target.name)")
+        XCTAssertEqual(resourcesTarget.product, .bundle)
+        XCTAssertEqual(resourcesTarget.destinations, target.destinations)
+        XCTAssertEqual(resourcesTarget.bundleId, "\(target.bundleId).generated.resources")
+        XCTAssertEqual(resourcesTarget.deploymentTargets, target.deploymentTargets)
+        XCTAssertEqual(resourcesTarget.filesGroup, target.filesGroup)
+    }
+
+    func test_map_when_a_target_that_has_core_data_models_and_doesnt_supports_them() async throws {
         // Given
 
         let coreDataModels: [CoreDataModel] =
             [CoreDataModel(path: "/data.xcdatamodeld", versions: ["/data.xcdatamodeld"], currentVersion: "1")]
         let target = Target.test(product: .staticLibrary, sources: ["/Absolute/File.swift"], coreDataModels: coreDataModels)
         project = Project.test(targets: [target])
+        given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
+        given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
 
         // Got
-        let (gotProject, gotSideEffects) = try subject.map(project: project)
+        let (gotProject, gotSideEffects) = try await subject.map(project: project)
 
         // Then: Side effects
         XCTAssertEqual(gotSideEffects.count, 1)
@@ -210,14 +335,16 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         XCTAssertEqual(resourcesTarget.coreDataModels, coreDataModels)
     }
 
-    func test_map_when_a_target_that_has_resources_and_supports_them() throws {
+    func test_map_when_a_target_that_has_resources_and_supports_them() async throws {
         // Given
         let resources: [ResourceFileElement] = [.file(path: "/image.png")]
         let target = Target.test(product: .framework, sources: ["/Absolute/File.swift"], resources: .init(resources))
         project = Project.test(targets: [target])
+        given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
+        given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
 
         // Got
-        let (gotProject, gotSideEffects) = try subject.map(project: project)
+        let (gotProject, gotSideEffects) = try await subject.map(project: project)
 
         // Then: Side effects
         XCTAssertEqual(gotSideEffects.count, 1)
@@ -247,15 +374,58 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         XCTAssertEqual(gotTarget.dependencies.count, 0)
     }
 
-    func test_map_when_a_target_that_has_core_data_models_and_supports_them() throws {
+    func test_map_when_a_target_that_has_no_resources_but_has_metal_source_files_and_supports_them() async throws {
+        // Given
+        let target = Target.test(
+            product: .framework,
+            sources: ["/Absolute/File.swift", "/Absolute/File.metal"],
+            resources: .init([])
+        )
+        project = Project.test(targets: [target])
+        given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
+        given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
+
+        // Got
+        let (gotProject, gotSideEffects) = try await subject.map(project: project)
+
+        // Then: Side effects
+        XCTAssertEqual(gotSideEffects.count, 1)
+        let sideEffect = try XCTUnwrap(gotSideEffects.first)
+        guard case let SideEffectDescriptor.file(file) = sideEffect else {
+            XCTFail("Expected file descriptor")
+            return
+        }
+        let expectedPath = project.path
+            .appending(component: Constants.DerivedDirectory.name)
+            .appending(component: Constants.DerivedDirectory.sources)
+            .appending(component: "TuistBundle+\(target.name).swift")
+        let expectedContents = ResourcesProjectMapper
+            .fileContent(targetName: target.name, bundleName: irrelevantBundleName, target: target, in: project)
+        XCTAssertEqual(file.path, expectedPath)
+        XCTAssertEqual(file.contents, expectedContents.data(using: .utf8))
+
+        // Then: Targets
+        XCTAssertEqual(gotProject.targets.count, 1)
+        let gotTarget = try XCTUnwrap(gotProject.targets.values.sorted().first)
+        XCTAssertEqual(gotTarget.name, target.name)
+        XCTAssertEqual(gotTarget.product, target.product)
+        XCTAssertEqual(gotTarget.sources.count, 3)
+        XCTAssertEqual(gotTarget.sources.last?.path, expectedPath)
+        XCTAssertNotNil(gotTarget.sources.last?.contentHash)
+        XCTAssertEqual(gotTarget.dependencies.count, 0)
+    }
+
+    func test_map_when_a_target_that_has_core_data_models_and_supports_them() async throws {
         // Given
         let coreDataModels: [CoreDataModel] =
             [CoreDataModel(path: "/data.xcdatamodeld", versions: ["/data.xcdatamodeld"], currentVersion: "1")]
         let target = Target.test(product: .framework, sources: ["/Absolute/File.swift"], coreDataModels: coreDataModels)
         project = Project.test(targets: [target])
+        given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
+        given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
 
         // Got
-        let (gotProject, gotSideEffects) = try subject.map(project: project)
+        let (gotProject, gotSideEffects) = try await subject.map(project: project)
 
         // Then: Side effects
         XCTAssertEqual(gotSideEffects.count, 1)
@@ -285,21 +455,23 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         XCTAssertEqual(gotTarget.dependencies.count, 0)
     }
 
-    func test_map_when_a_target_has_no_resources() throws {
+    func test_map_when_a_target_has_no_resources() async throws {
         // Given
         let resources: [ResourceFileElement] = []
         let target = Target.test(product: .framework, resources: .init(resources))
         project = Project.test(targets: [target])
+        given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
+        given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
 
         // Got
-        let (gotProject, gotSideEffects) = try subject.map(project: project)
+        let (gotProject, gotSideEffects) = try await subject.map(project: project)
 
         // Then
         XCTAssertEqual(Array(gotProject.targets.values), [target])
         XCTAssertEmpty(gotSideEffects)
     }
 
-    func test_map_when_a_target_does_not_support_sources() throws {
+    func test_map_when_a_target_does_not_support_sources() async throws {
         // Given
         let resources: [ResourceFileElement] = [
             .file(path: "/Some/ResourceA"),
@@ -307,16 +479,18 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         ]
         let target = Target.test(product: .bundle, resources: .init(resources))
         project = Project.test(targets: [target])
+        given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
+        given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
 
         // Got
-        let (gotProject, gotSideEffects) = try subject.map(project: project)
+        let (gotProject, gotSideEffects) = try await subject.map(project: project)
 
         // Then
         XCTAssertEqual(Array(gotProject.targets.values), [target])
         XCTAssertEmpty(gotSideEffects)
     }
 
-    func test_map_when_a_target_that_has_name_with_hyphen() throws {
+    func test_map_when_a_target_that_has_name_with_hyphen() async throws {
         // Given
         let resources: [ResourceFileElement] = [.file(path: "/image.png")]
         let target = Target.test(
@@ -326,9 +500,11 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
             resources: .init(resources)
         )
         project = Project.test(targets: [target])
+        given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
+        given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
 
         // Got
-        let (_, gotSideEffects) = try subject.map(project: project)
+        let (_, gotSideEffects) = try await subject.map(project: project)
 
         // Then: Side effects
         XCTAssertEqual(gotSideEffects.count, 1)
@@ -347,7 +523,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         XCTAssertEqual(file.contents, expectedContents.data(using: .utf8))
     }
 
-    func test_map_when_a_project_is_external_target_has_swift_source_but_no_resource_files() throws {
+    func test_map_when_a_project_is_external_target_has_swift_source_but_no_resource_files() async throws {
         // Given
         let sources: [SourceFile] = ["/ViewController.swift"]
         let resources: [ResourceFileElement] = []
@@ -357,31 +533,35 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
             targets: [target],
             type: .external(hash: nil)
         )
+        given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
+        given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
 
         // Got
-        let (gotProject, gotSideEffects) = try subject.map(project: project)
+        let (gotProject, gotSideEffects) = try await subject.map(project: project)
 
         // Then
         XCTAssertEqual(Array(gotProject.targets.values), [target])
         XCTAssertEmpty(gotSideEffects)
     }
 
-    func test_map_when_a_project_is_not_external_target_has_swift_source_but_no_resource_files() throws {
+    func test_map_when_a_project_is_not_external_target_has_swift_source_but_no_resource_files() async throws {
         // Given
         let sources: [SourceFile] = ["/ViewController.swift"]
         let resources: [ResourceFileElement] = []
         let target = Target.test(product: .staticLibrary, sources: sources, resources: .init(resources))
         project = Project.test(path: try AbsolutePath(validating: "/AbsolutePath/Project"), targets: [target], type: .local)
+        given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
+        given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
 
         // Got
-        let (gotProject, gotSideEffects) = try subject.map(project: project)
+        let (gotProject, gotSideEffects) = try await subject.map(project: project)
 
         // Then
         XCTAssertEqual(Array(gotProject.targets.values), [target])
         XCTAssertEmpty(gotSideEffects)
     }
 
-    func test_map_when_a_project_is_external_target_has_swift_source_and_resource_files() throws {
+    func test_map_when_a_project_is_external_target_has_swift_source_and_resource_files() async throws {
         // Given
         let sources: [SourceFile] = ["/ViewController.swift"]
         let resources: [ResourceFileElement] = [.file(path: "/AbsolutePath/Project/Resources/image.png")]
@@ -391,29 +571,33 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
             targets: [target],
             type: .external(hash: nil)
         )
+        given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
+        given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
 
         // Got
-        let (_, gotSideEffects) = try subject.map(project: project)
+        let (_, gotSideEffects) = try await subject.map(project: project)
 
         // Then: Side effects
         try verify(gotSideEffects, for: target, in: project, by: "\(project.name)_\(target.name)")
     }
 
-    func test_map_when_a_project_is_not_external_target_has_swift_source_and_resource_files() throws {
+    func test_map_when_a_project_is_not_external_target_has_swift_source_and_resource_files() async throws {
         // Given
         let sources: [SourceFile] = ["/ViewController.swift"]
         let resources: [ResourceFileElement] = [.file(path: "/AbsolutePath/Project/Resources/image.png")]
         let target = Target.test(product: .staticLibrary, sources: sources, resources: .init(resources))
         project = Project.test(path: try AbsolutePath(validating: "/AbsolutePath/Project"), targets: [target], type: .local)
+        given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
+        given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
 
         // Got
-        let (_, gotSideEffects) = try subject.map(project: project)
+        let (_, gotSideEffects) = try await subject.map(project: project)
 
         // Then: Side effects
         try verify(gotSideEffects, for: target, in: project, by: "\(project.name)_\(target.name)")
     }
 
-    func test_map_when_a_project_is_external_target_has_objc_source_files() throws {
+    func test_map_when_a_project_is_external_target_has_objc_source_files() async throws {
         // Given
         let sources: [SourceFile] = ["/ViewController.m"]
         let resources: [ResourceFileElement] = [.file(path: "/AbsolutePath/Project/Resources/image.png")]
@@ -423,9 +607,11 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
             targets: [target],
             type: .external(hash: nil)
         )
+        given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
+        given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
 
         // Got
-        let (gotProject, gotSideEffects) = try subject.map(project: project)
+        let (gotProject, gotSideEffects) = try await subject.map(project: project)
 
         // Then
         let gotTarget = try XCTUnwrap(gotProject.targets.values.sorted().last)
@@ -436,15 +622,17 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         )
     }
 
-    func test_map_when_a_project_is_not_external_target_has_objc_source_files() throws {
+    func test_map_when_a_project_is_not_external_target_has_objc_source_files() async throws {
         // Given
         let sources: [SourceFile] = ["/ViewController.m"]
         let resources: [ResourceFileElement] = [.file(path: "/AbsolutePath/Project/Resources/image.png")]
         let target = Target.test(product: .staticLibrary, sources: sources, resources: .init(resources))
         project = Project.test(path: try AbsolutePath(validating: "/AbsolutePath/Project"), targets: [target], type: .local)
+        given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
+        given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
 
         // Got
-        let (gotProject, gotSideEffects) = try subject.map(project: project)
+        let (gotProject, gotSideEffects) = try await subject.map(project: project)
 
         // Then
         let gotTarget = try XCTUnwrap(gotProject.targets.values.sorted().last)
@@ -457,7 +645,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
     }
 
     func test_map_when_project_name_has_dashes_in_it_bundle_name_include_dash_for_project_name_and_underscore_for_target_name(
-    ) throws {
+    ) async throws {
         // Given
         let projectName = "sdk-with-dash"
         let targetName = "target-with-dash"
@@ -466,9 +654,11 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         let resources: [ResourceFileElement] = [.file(path: "/AbsolutePath/Project/Resources/image.png")]
         let target = Target.test(name: targetName, product: .staticLibrary, sources: sources, resources: .init(resources))
         project = Project.test(path: try AbsolutePath(validating: "/AbsolutePath/Project"), name: projectName, targets: [target])
+        given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
+        given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
 
         // Got
-        let (gotProject, _) = try subject.map(project: project)
+        let (gotProject, _) = try await subject.map(project: project)
         let bundleTarget = try XCTUnwrap(gotProject.targets.values.sorted().first(where: { $0.product == .bundle }))
 
         // Then

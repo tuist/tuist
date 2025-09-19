@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# mise description="Edit the .env file"
+#MISE description="Edit the .env file"
 
 set -eo pipefail
 

@@ -40,6 +40,7 @@ public final class TargetContentHasher: TargetContentHashing {
 
     public convenience init(contentHasher: ContentHashing) {
         let platformConditionContentHasher = PlatformConditionContentHasher(contentHasher: contentHasher)
+        let xcconfigHasher = XCConfigContentHasher(contentHasher: contentHasher)
         self.init(
             contentHasher: contentHasher,
             sourceFilesContentHasher: SourceFilesContentHasher(
@@ -56,7 +57,7 @@ public final class TargetContentHasher: TargetContentHashing {
             headersContentHasher: HeadersContentHasher(contentHasher: contentHasher),
             deploymentTargetContentHasher: DeploymentTargetsContentHasher(contentHasher: contentHasher),
             plistContentHasher: PlistContentHasher(contentHasher: contentHasher),
-            settingsContentHasher: SettingsContentHasher(contentHasher: contentHasher),
+            settingsContentHasher: SettingsContentHasher(contentHasher: contentHasher, xcconfigHasher: xcconfigHasher),
             dependenciesContentHasher: DependenciesContentHasher(contentHasher: contentHasher)
         )
     }
@@ -107,6 +108,8 @@ public final class TargetContentHasher: TargetContentHashing {
             settingsHash = nil
         }
 
+        let projectSettingsHash = try await settingsContentHasher.hash(settings: graphTarget.project.settings)
+
         let destinations = graphTarget.target.destinations.map(\.rawValue).sorted()
         let dependenciesHash = try await dependenciesContentHasher.hash(
             graphTarget: graphTarget,
@@ -120,6 +123,7 @@ public final class TargetContentHasher: TargetContentHashing {
                     [
                         projectHash,
                         graphTarget.target.product.rawValue,
+                        projectSettingsHash,
                         settingsHash,
                         dependenciesHash.hash,
                     ].compactMap { $0 } + destinations + additionalStrings
@@ -149,6 +153,12 @@ public final class TargetContentHasher: TargetContentHashing {
         } else {
             []
         }
+
+        let buildableFolderHashes = try await graphTarget.target.buildableFolders.sorted(by: { $0.path < $1.path })
+            .concurrentMap {
+                try await self.contentHasher.hash(path: $0.path)
+            }
+
         var stringsToHash = [
             graphTarget.target.name,
             graphTarget.target.product.rawValue,
@@ -161,7 +171,7 @@ public final class TargetContentHasher: TargetContentHashing {
             coreDataModelHash,
             targetScriptsHash,
             environmentHash,
-        ] + destinations + additionalStrings + destinationHashes
+        ] + buildableFolderHashes + destinations + additionalStrings + destinationHashes
 
         stringsToHash.append(contentsOf: graphTarget.target.destinations.map(\.rawValue).sorted())
 
@@ -181,6 +191,8 @@ public final class TargetContentHasher: TargetContentHashing {
             let entitlementsHash = try await plistContentHasher.hash(plist: .entitlements(entitlements))
             stringsToHash.append(entitlementsHash)
         }
+
+        stringsToHash.append(projectSettingsHash)
 
         if let settingsHash {
             stringsToHash.append(settingsHash)

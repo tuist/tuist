@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# mise description="Creates Tuist iOS app .ipa archive and uploads it to App Store Connect."
+#MISE description="Creates Tuist iOS app .ipa archive and uploads it to App Store Connect."
 
 set -eo pipefail
 

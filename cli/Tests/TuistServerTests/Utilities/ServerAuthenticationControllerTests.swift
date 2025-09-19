@@ -7,6 +7,8 @@ import TuistTesting
 @testable import TuistServer
 
 struct ServerAuthenticationControllerTests {
+    struct TestError: Error, Equatable {}
+
     private var subject: ServerAuthenticationController!
     private let refreshAuthTokenService: MockRefreshAuthTokenServicing!
     private let cachedValueStore: MockCachedValueStoring
@@ -137,6 +139,53 @@ struct ServerAuthenticationControllerTests {
                 locking: true,
                 forceInProcessLock: true
             )
+        }
+    }
+
+    @Test(
+        .withMockedEnvironment(),
+        .withMockedDependencies()
+    ) mutating func expired_access_token_and_not_ci_and_locking_and_failing_refresh() async throws {
+        let date = Date()
+        subject = ServerAuthenticationController(
+            refreshAuthTokenService: refreshAuthTokenService,
+            cachedValueStore: CachedValueStore()
+        )
+        let serverCredentialsStore = MockServerCredentialsStoring()
+        let serverURL: URL = .test()
+        let error = RefreshAuthTokenServiceError.unauthorized("Invalid token")
+        given(refreshAuthTokenService).refreshTokens(serverURL: .value(serverURL), refreshToken: .any).willThrow(error)
+        given(serverCredentialsStore).delete(serverURL: .value(serverURL)).willReturn()
+
+        try await ServerCredentialsStore.$current.withValue(serverCredentialsStore) {
+            try await Date.$now.withValue({ date }) {
+                // Given
+                let serverCredentialsStore = try #require(ServerCredentialsStore.mocked)
+                let accessToken = try JWT.make(expiryDate: date.addingTimeInterval(-100), typ: "access")
+                let refreshToken = try JWT.make(expiryDate: date.addingTimeInterval(+60), typ: "refresh")
+
+                let authenticationToken: AuthenticationToken? = .user(
+                    accessToken: try JWT.parse(accessToken.token),
+                    refreshToken: try JWT.parse(refreshToken.token)
+                )
+
+                let storeCredentials: ServerCredentials = .test(
+                    accessToken: accessToken.token,
+                    refreshToken: refreshToken.token
+                )
+
+                given(serverCredentialsStore).read(serverURL: .value(serverURL)).willReturn(storeCredentials)
+
+                // When/Then
+                await #expect(throws: error, performing: {
+                    try await subject.refreshToken(
+                        serverURL: serverURL,
+                        inBackground: false,
+                        locking: true,
+                        forceInProcessLock: true
+                    )
+                })
+            }
         }
     }
 }

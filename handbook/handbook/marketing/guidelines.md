@@ -1,9 +1,10 @@
 ---
-title: Guidelines
-titleTemplate: :title | Marketing | Tuist Handbook
-description: This document provides guidelines for doing marketing for Tuist.
+{
+  "title": "Guidelines",
+  "titleTemplate": ":title | Marketing | Tuist Handbook",
+  "description": "This document provides guidelines for doing marketing for Tuist."
+}
 ---
-
 # Guidelines
 
 Tuist’s target audience is developers, a group for whom many traditional marketing strategies may not resonate. We believe that effective marketing requires first understanding the developer mindset.

@@ -1,9 +1,10 @@
 ---
-title: Installation
-titleTemplate: :title | Self-hosting | Server | Guides | Tuist
-description: Learn how to install Tuist on your infrastructure.
+{
+  "title": "Installation",
+  "titleTemplate": ":title | Self-hosting | Server | Guides | Tuist",
+  "description": "Learn how to install Tuist on your infrastructure."
+}
 ---
-
 # Self-host installation {#self-host-installation}
 
 We offer a self-hosted version of the Tuist server for organizations that require more control over their infrastructure. This version allows you to host Tuist on your own infrastructure, ensuring that your data remains secure and private.
@@ -97,19 +98,13 @@ As an on-premise user, you'll receive a license key that you'll need to expose a
 | `TUIST_SECRET_KEY_BASE` | The key to use to encrypt information (e.g. sessions in a cookie) | Yes | | | `c5786d9f869239cbddeca645575349a570ffebb332b64400c37256e1c9cb7ec831345d03dc0188edd129d09580d8cbf3ceaf17768e2048c037d9c31da5dcacfa` |
 | `TUIST_SECRET_KEY_PASSWORD` | Pepper to generate hashed passwords | No | `$TUIST_SECRET_KEY_BASE` | |
 | `TUIST_SECRET_KEY_TOKENS` | Secret key to generate random tokens | No | `$TUIST_SECRET_KEY_BASE` | |
+| `TUIST_SECRET_KEY_ENCRYPTION` | 32-byte key for AES-GCM encryption of sensitive data | No | `$TUIST_SECRET_KEY_BASE` | |
 | `TUIST_USE_IPV6` | When `1` it configures the app to use IPv6 addresses | No | `0` | `1`|
 | `TUIST_LOG_LEVEL` | The log level to use for the app | No | `info` | [Log levels](https://hexdocs.pm/logger/1.12.3/Logger.html#module-levels) |
-| `TUIST_GITHUB_APP_PRIVATE_KEY` | The private key used for the GitHub app to unlock extra functionality such as posting automatic PR comments | No | `-----BEGIN RSA...` | |
+| `TUIST_GITHUB_APP_PRIVATE_KEY_BASE64` | The base64-encoded private key used for the GitHub app to unlock extra functionality such as posting automatic PR comments | No | `LS0tLS1CRUdJTiBSU0EgUFJJVkFUR...` | |
+| `TUIST_GITHUB_APP_PRIVATE_KEY` | The private key used for the GitHub app to unlock extra functionality such as posting automatic PR comments. **We recommend using the base64-encoded version instead to avoid issues with special characters** | No | `-----BEGIN RSA...` | |
 | `TUIST_OPS_USER_HANDLES` | A comma-separated list of user handles that have access to the operations URLs | No | | `user1,user2` |
-| `TUIST_WEB` | Whether to run the web server component | No | `1` | `1` or `0` |
-| `TUIST_WORKER` | Whether to run the background job processing component | No | `1` | `1` or `0` |
-
-> [!NOTE] WEB SERVER AND BACKGROUND WORKER SEPARATION
-> By default, both the web server and background job processing run in the same process for simplicity. However, you can separate them by running multiple instances of the Docker image with different configurations:
-> - **Web server only:** Set `TUIST_WEB=1` and `TUIST_WORKER=0`
-> - **Background workers only:** Set `TUIST_WEB=0` and `TUIST_WORKER=1`
-> 
-> This separation allows you to scale web servers and background workers independently based on your workload requirements.
+| `TUIST_WEB` | Enable the web server endpoint | No | `1` | `1` or `0` |
 
 ### Database configuration {#database-configuration}
 
@@ -123,6 +118,9 @@ The following environment variables are used to configure the database connectio
 | `TUIST_DATABASE_POOL_SIZE` | The number of connections to keep open in the connection pool | No | `10` | `10` |
 | `TUIST_DATABASE_QUEUE_TARGET` | The interval (in miliseconds) for checking if all the connections checked out from the pool took more than the queue interval [(More information)](https://hexdocs.pm/db_connection/DBConnection.html#start_link/2-queue-config) | No | `300` | `300` |
 | `TUIST_DATABASE_QUEUE_INTERVAL` | The threshold time (in miliseconds) in the queue that the pool uses to determine if it should start dropping new connections [(More information)](https://hexdocs.pm/db_connection/DBConnection.html#start_link/2-queue-config) | No | `1000` | `1000` |
+| `TUIST_CLICKHOUSE_FLUSH_INTERVAL_MS` | Time interval in milliseconds between ClickHouse buffer flushes | No | `5000` | `5000` |
+| `TUIST_CLICKHOUSE_MAX_BUFFER_SIZE` | Maximum ClickHouse buffer size in bytes before forcing a flush | No | `1000000` | `1000000` |
+| `TUIST_CLICKHOUSE_BUFFER_POOL_SIZE` | Number of ClickHouse buffer processes to run | No | `5` | `5` |
 
 ### Authentication environment configuration {#authentication-environment-configuration}
 
@@ -382,6 +380,57 @@ volumes:
   db:
     driver: local
 ```
+
+## Prometheus metrics {#prometheus-metrics}
+
+Tuist exposes Prometheus metrics at `/metrics` to help you monitor your self-hosted instance. These metrics include:
+
+### Finch HTTP client metrics {#finch-metrics}
+
+Tuist uses [Finch](https://github.com/sneako/finch) as its HTTP client and exposes detailed metrics about HTTP requests:
+
+#### Request metrics
+- `tuist_prom_ex_finch_request_count_total` - Total number of Finch requests (counter)
+  - Labels: `finch_name`, `method`, `scheme`, `host`, `port`, `status`
+- `tuist_prom_ex_finch_request_duration_milliseconds` - Duration of HTTP requests (histogram)
+  - Labels: `finch_name`, `method`, `scheme`, `host`, `port`, `status`
+  - Buckets: 10ms, 50ms, 100ms, 250ms, 500ms, 1s, 2.5s, 5s, 10s
+- `tuist_prom_ex_finch_request_exception_count_total` - Total number of Finch request exceptions (counter)
+  - Labels: `finch_name`, `method`, `scheme`, `host`, `port`, `kind`, `reason`
+
+#### Connection pool queue metrics
+- `tuist_prom_ex_finch_queue_duration_milliseconds` - Time spent waiting in the connection pool queue (histogram)
+  - Labels: `finch_name`, `scheme`, `host`, `port`, `pool`
+  - Buckets: 1ms, 5ms, 10ms, 25ms, 50ms, 100ms, 250ms, 500ms, 1s
+- `tuist_prom_ex_finch_queue_idle_time_milliseconds` - Time the connection spent idle before being used (histogram)
+  - Labels: `finch_name`, `scheme`, `host`, `port`, `pool`
+  - Buckets: 10ms, 50ms, 100ms, 250ms, 500ms, 1s, 5s, 10s
+- `tuist_prom_ex_finch_queue_exception_count_total` - Total number of Finch queue exceptions (counter)
+  - Labels: `finch_name`, `scheme`, `host`, `port`, `kind`, `reason`
+
+#### Connection metrics
+- `tuist_prom_ex_finch_connect_duration_milliseconds` - Time spent establishing a connection (histogram)
+  - Labels: `finch_name`, `scheme`, `host`, `port`, `error`
+  - Buckets: 10ms, 50ms, 100ms, 250ms, 500ms, 1s, 2.5s, 5s
+- `tuist_prom_ex_finch_connect_count_total` - Total number of connection attempts (counter)
+  - Labels: `finch_name`, `scheme`, `host`, `port`
+
+#### Send metrics
+- `tuist_prom_ex_finch_send_duration_milliseconds` - Time spent sending the request (histogram)
+  - Labels: `finch_name`, `method`, `scheme`, `host`, `port`, `error`
+  - Buckets: 1ms, 5ms, 10ms, 25ms, 50ms, 100ms, 250ms, 500ms, 1s
+- `tuist_prom_ex_finch_send_idle_time_milliseconds` - Time the connection spent idle before sending (histogram)
+  - Labels: `finch_name`, `method`, `scheme`, `host`, `port`, `error`
+  - Buckets: 1ms, 5ms, 10ms, 25ms, 50ms, 100ms, 250ms, 500ms
+
+All histogram metrics provide `_bucket`, `_sum`, and `_count` variants for detailed analysis.
+
+### Other metrics
+
+In addition to Finch metrics, Tuist exposes metrics for:
+- BEAM virtual machine performance
+- Custom business logic metrics (storage, accounts, projects, etc.)
+- Database performance (when using Tuist-hosted infrastructure)
 
 ## Operations {#operations}
 
