@@ -57,7 +57,7 @@ public class CachedManifestLoader: ManifestLoading {
     }
 
     public func loadConfig(at path: AbsolutePath) async throws -> ProjectDescription.Config {
-        try await load(manifest: .config, at: path, disableSandbox: false) {
+        try await load(manifest: .config, at: path, disableSandbox: true) {
             let projectDescriptionConfig = try await manifestLoader.loadConfig(at: path)
             return projectDescriptionConfig
         }
@@ -96,7 +96,7 @@ public class CachedManifestLoader: ManifestLoading {
     }
 
     public func loadPackage(at path: AbsolutePath) async throws -> PackageInfo {
-        try await load(manifest: .package, at: path, disableSandbox: false) {
+        try await load(manifest: .package, at: path, disableSandbox: true) {
             try await manifestLoader.loadPackage(at: path)
         }
     }
