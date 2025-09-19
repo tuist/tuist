@@ -33,10 +33,9 @@ defmodule TuistWeb.API.CacheControllerTest do
       object_key = "#{project_slug}/#{cache_category}/#{hash}/#{name}"
       date = ~N[2024-04-30 10:20:30Z]
 
-      signed_fields = [hash]
       stub(Tuist.Environment, :test?, fn -> false end)
       stub(Tuist.Environment, :dev?, fn -> false end)
-      stub(Tuist.License, :sign, fn ^signed_fields -> "signature" end)
+      stub(Tuist.License, :sign, fn ^hash -> "signature" end)
       stub(NaiveDateTime, :utc_now, fn :second -> date end)
 
       expect(Storage, :generate_download_url, fn ^object_key, _, _ ->
@@ -161,10 +160,9 @@ defmodule TuistWeb.API.CacheControllerTest do
       project = ProjectsFixtures.project_fixture()
       account = Accounts.get_account_by_id(project.account_id)
       hash = "hash"
-      signed_fields = [hash]
       stub(Tuist.Environment, :dev?, fn -> false end)
       stub(Tuist.Environment, :test?, fn -> false end)
-      stub(Tuist.License, :sign, fn ^signed_fields -> "signature" end)
+      stub(Tuist.License, :sign, fn ^hash -> "signature" end)
 
       CacheActionItems.create_cache_action_item(%{
         hash: hash,
