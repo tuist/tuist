@@ -10,10 +10,7 @@ defmodule TuistTestSupport.Fixtures.AccountsFixtures do
         confirmed_at: Keyword.get(opts, :confirmed_at, DateTime.utc_now()),
         created_at: Keyword.get(opts, :created_at, DateTime.utc_now()),
         customer_id: Keyword.get(opts, :customer_id, "#{TuistTestSupport.Utilities.unique_integer()}"),
-        setup_billing: Keyword.get(opts, :setup_billing, false),
-        current_month_remote_cache_hits_count: Keyword.get(opts, :current_month_remote_cache_hits_count, 0),
-        current_month_remote_cache_hits_count_updated_at:
-          Keyword.get(opts, :current_month_remote_cache_hits_count_updated_at)
+        setup_billing: Keyword.get(opts, :setup_billing, false)
       ]
 
     create_opts =
@@ -46,9 +43,6 @@ defmodule TuistTestSupport.Fixtures.AccountsFixtures do
     preload = Keyword.get(opts, :preload, [:account])
     setup_billing = Keyword.get(opts, :setup_billing, false)
 
-    current_month_remote_cache_hits_count =
-      Keyword.get(opts, :current_month_remote_cache_hits_count, 0)
-
     {:ok, organization} =
       Accounts.create_organization(%{name: name, creator: creator},
         sso_provider: sso_provider,
@@ -57,8 +51,7 @@ defmodule TuistTestSupport.Fixtures.AccountsFixtures do
         okta_client_secret: okta_client_secret,
         created_at: created_at,
         customer_id: customer_id,
-        setup_billing: setup_billing,
-        current_month_remote_cache_hits_count: current_month_remote_cache_hits_count
+        setup_billing: setup_billing
       )
 
     Tuist.Repo.preload(organization, preload)

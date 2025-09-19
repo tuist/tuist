@@ -1222,6 +1222,36 @@ components:
     OrganizationUsage:
       description: The usage of an organization.
       properties:
+        current_month_compute_unit_minutes:
+          description: The number of compute unit minutes in the current month
+          type: number
+          x-struct:
+          x-validate:
+        current_month_llm_tokens:
+          description: The number of LLM tokens used in the current month (input, output, and total)
+          properties:
+            input:
+              description: Total input tokens month-to-date
+              type: number
+              x-struct:
+              x-validate:
+            output:
+              description: Total output tokens month-to-date
+              type: number
+              x-struct:
+              x-validate:
+            total:
+              description: Total tokens month-to-date
+              type: number
+              x-struct:
+              x-validate:
+          required:
+            - input
+            - output
+            - total
+          type: object
+          x-struct:
+          x-validate:
         current_month_remote_cache_hits:
           description: The number of remote cache hits in the current month
           type: number
@@ -1229,6 +1259,8 @@ components:
           x-validate:
       required:
         - current_month_remote_cache_hits
+        - current_month_llm_tokens
+        - current_month_compute_unit_minutes
       title: OrganizationUsage
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.OrganizationUsage
@@ -2842,22 +2874,6 @@ paths:
             type: integer
             x-struct:
             x-validate:
-        - description: Number of items per page.
-          in: query
-          name: page_size
-          required: false
-          schema:
-            type: integer
-            x-struct:
-            x-validate:
-        - description: Filter bundles by git branch.
-          in: query
-          name: git_branch
-          required: false
-          schema:
-            type: string
-            x-struct:
-            x-validate:
         - description: The handle of the account.
           in: path
           name: account_handle
@@ -2872,6 +2888,22 @@ paths:
           required: true
           schema:
             type: string
+            x-struct:
+            x-validate:
+        - description: Filter bundles by git branch.
+          in: query
+          name: git_branch
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Number of items per page.
+          in: query
+          name: page_size
+          required: false
+          schema:
+            type: integer
             x-struct:
             x-validate:
       responses:
@@ -4277,6 +4309,14 @@ paths:
       callbacks: {}
       operationId: getBundle
       parameters:
+        - description: The ID of the bundle.
+          in: path
+          name: bundle_id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
         - description: The handle of the account.
           in: path
           name: account_handle
@@ -4288,14 +4328,6 @@ paths:
         - description: The handle of the project.
           in: path
           name: project_handle
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-        - description: The ID of the bundle.
-          in: path
-          name: bundle_id
           required: true
           schema:
             type: string

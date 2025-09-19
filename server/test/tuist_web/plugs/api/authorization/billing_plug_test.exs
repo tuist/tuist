@@ -14,15 +14,14 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
   setup :set_mimic_from_context
 
   setup context do
-    current_month_remote_cache_hits_count =
-      Map.get(context, :current_month_remote_cache_hits_count, 0)
+    current_month_remote_cache_hits_count = Map.get(context, :current_month_remote_cache_hits_count, 0)
 
-    %{account: account} =
-      user =
-      AccountsFixtures.user_fixture(
-        current_month_remote_cache_hits_count: current_month_remote_cache_hits_count,
-        preload: [:account]
-      )
+    %{account: account} = user = AccountsFixtures.user_fixture(preload: [:account])
+    account_id = account.id
+
+    stub(Billing, :month_to_date_remote_cache_hits_count, fn ^account_id ->
+      current_month_remote_cache_hits_count
+    end)
 
     project =
       [account_id: account.id] |> ProjectsFixtures.project_fixture() |> Repo.preload(:account)

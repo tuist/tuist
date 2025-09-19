@@ -21,6 +21,10 @@ defmodule TuistWeb.BillingLiveTest do
         current_month_remote_cache_hits_count: 167
       )
 
+    account_id = account.id
+
+    stub(Billing, :month_to_date_remote_cache_hits_count, fn ^account_id -> 167 end)
+
     if account_without_customer do
       stub(Billing, :get_customer_by_id, fn _ ->
         %{
