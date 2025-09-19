@@ -12,6 +12,7 @@ defmodule Runner.QA.Agent do
   alias Runner.QA.AppiumClient
   alias Runner.QA.Client
   alias Runner.QA.Simulators
+  alias Runner.QA.Sleeper
   alias Runner.QA.Tools
   alias Runner.Zip
 
@@ -255,7 +256,10 @@ defmodule Runner.QA.Agent do
          account_handle: account_handle,
          project_handle: project_handle
        }) do
-    Simulators.stop_recording(recording_port)
+    :ok = Simulators.stop_recording(recording_port)
+
+    # After stopping the recording, the command takes some time to fully store the video, so we're adding some timeout for that to finish
+    Sleeper.sleep(1000)
 
     {:ok, fixed_recording_path} = Briefly.create(extname: ".mp4")
 

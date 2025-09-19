@@ -117,8 +117,6 @@ if Enum.member?([:prod, :stag, :can], env) do
       database_options
     end
 
-  config :tuist, Tuist.Repo, database_options
-
   dns_name = System.get_env("RENDER_DISCOVERY_SERVICE")
   app_name = System.get_env("RENDER_SERVICE_NAME")
 
@@ -165,6 +163,8 @@ if Enum.member?([:prod, :stag, :can], env) do
   #
   # Check `Plug.SSL` for all available options in `force_ssl`.
   config :logger, level: Tuist.Environment.log_level()
+
+  config :tuist, Tuist.Repo, database_options
 end
 
 if Enum.member?([:prod, :stag, :can, :dev], env) do
@@ -250,8 +250,23 @@ if Tuist.Environment.env() not in [:test] do
     )
 
   config :ex_aws, :req_opts,
-    receive_timeout: to_timeout(second: Tuist.Environment.s3_request_timeout(secrets)),
-    pool_timeout: to_timeout(second: Tuist.Environment.s3_pool_timeout(secrets))
+    # Note: connect_options cannot be used with Finch
+    # Connection timeout is handled at the Finch pool level
+
+    # Maximum time (in ms) that an idle connection can remain in the pool
+    # before being closed. Helps prevent stale connections.
+    # Set to :infinity to keep connections alive indefinitely
+    pool_max_idle_time: Tuist.Environment.s3_pool_max_idle_time(secrets),
+
+    # Maximum time (in ms) to wait for data after the connection is established
+    # This timeout resets each time data is received, so large files can still
+    # be downloaded as long as data keeps flowing
+    receive_timeout: Tuist.Environment.s3_receive_timeout(secrets),
+
+    # Maximum time (in ms) to wait when checking out a connection from the pool
+    # If all connections are busy, this is how long it will wait for one to
+    # become available before timing out
+    pool_timeout: Tuist.Environment.s3_pool_timeout(secrets)
 
   config :ex_aws, :s3, s3_config
 
@@ -342,7 +357,7 @@ config :tuist, Oban,
     {Oban.Plugins.Lifeline, rescue_after: to_timeout(minute: 30)},
     {Oban.Plugins.Cron,
      crontab:
-       if(Tuist.Environment.tuist_hosted?(),
+       if(Tuist.Environment.tuist_hosted?() and env in [:prod, :stag, :can],
          do: [
            {"0 10 * * 1-5", Tuist.Ops.DailySlackReportWorker},
            {"0 * * * 1-5", Tuist.Ops.HourlySlackReportWorker},
