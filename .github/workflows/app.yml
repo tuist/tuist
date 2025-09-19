@@ -8,11 +8,13 @@ on:
       - "app/**"
       - ".github/workflows/app.yml"
       - "Tuist/**"
+      - ".xcode-version"
   pull_request:
     paths:
       - "app/**"
       - ".github/workflows/app.yml"
       - "Tuist/**"
+      - ".xcode-version"
 
 permissions:
   contents: read
