@@ -306,33 +306,24 @@
           <.card_section :if={not is_nil(@current_step)} data-part="current-step-card-section">
             <div data-part="step-details-container">
               <div data-part="step-detail-item">
-                <.badge
-                  data-part="badge"
-                  label={gettext("Action")}
-                  color="neutral"
-                  style="light-fill"
-                  size="large"
-                />
+                <span data-part="title">
+                  {gettext("Action")}
+                </span>
                 <span data-part="value">
                   {@current_step.action}
                 </span>
               </div>
-
-              <div :if={not is_nil(@current_step.result)} data-part="step-detail-item">
-                <.badge
-                  data-part="badge"
-                  label={gettext("Result")}
-                  color="information"
-                  style="light-fill"
-                  size="large"
-                />
-                <span data-part="value">
-                  {raw(Tuist.Markdown.to_html(@current_step.result))}
-                </span>
-              </div>
-
               <div :if={not Enum.empty?(@current_step.issues)} data-part="step-detail-item">
-                <.badge label={gettext("Issues")} color="warning" style="light-fill" size="large" />
+                <div data-part="header">
+                  <.badge icon_only label="" color="warning" style="light-fill" size="large">
+                    <:icon>
+                      <.alert_hexagon />
+                    </:icon>
+                  </.badge>
+                  <span data-part="title">
+                    {gettext("Issues")}
+                  </span>
+                </div>
                 <%= for issue <- @current_step.issues do %>
                   <span data-part="value">
                     {issue}
@@ -341,12 +332,9 @@
               </div>
 
               <div data-part="step-detail-item">
-                <.badge
-                  label={gettext("Timestamp")}
-                  color="focus"
-                  style="light-fill"
-                  size="large"
-                />
+              <span data-part="title">
+                {gettext("Timestamp")}
+              </span>
                 <span
                   data-part="value"
                   data-link
@@ -354,6 +342,23 @@
                   phx-value-step-index={@current_step.index}
                 >
                   {format_time(@current_step.time)}/{format_time(@duration)}
+                </span>
+              </div>
+              <div :if={not is_nil(@current_step.result)} data-part="step-detail-item">
+              <div data-part="header">
+                <span data-part="title">
+                  {gettext("Result")}
+                </span>
+                <.badge
+                  :if={@current_time >= @current_step.started_time and @current_time <= @current_step.time}
+                  label={gettext("In progress")}
+                  color="primary"
+                  style="light-fill"
+                  size="large"
+                />
+              </div>
+                <span data-part="value">
+                  {raw(Tuist.Markdown.to_html(@current_step.result))}
                 </span>
               </div>
             </div>
@@ -492,6 +497,20 @@
                     <% end %>
                   <% end %>
                 <% end %>
+              </div>
+
+              <div
+                data-part="step-bars-track"
+                style={"width: #{@duration / ceil(@duration) * 100}%"}
+              >
+                <div
+                  :for={step <- @steps}
+                  :if={step.started_time}
+                  data-part="step-bar"
+                  data-has-issues={length(step.issues) > 0}
+                  style={"--step-start-percentage: #{step.started_time / @duration * 100}; --step-end-percentage: #{step.time / @duration * 100}"}
+                >
+                </div>
               </div>
 
               <div
