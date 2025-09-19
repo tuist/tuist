@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.77.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* Increase the security of the cache surface by [@pepicrft](https://github.com/pepicrft) in [#8220](https://github.com/tuist/tuist/pull/8220)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.76.1...4.77.0
+
 ## What's Changed in 4.76.1<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
