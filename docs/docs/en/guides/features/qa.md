@@ -10,13 +10,15 @@
 > [!IMPORTANT] EARLY PREVIEW
 > Tuist QA is currently in early preview. Sign up at [tuist.dev/qa](https://tuist.dev/qa) to get access.
 
-Building high-quality mobile apps requires extensive testing, but manual QA testing is time-consuming, expensive, and difficult to scale. Tuist's QA agent autonomously navigates through your app, identifies UI elements, performs realistic user interactions, and reports issues it discovers – helping you catch bugs and usability issues early in your development cycle.
+Quality mobile app development relies on comprehensive testing, but traditional approaches have limitations. Unit tests are fast and cost-effective, yet they miss real-world user scenarios. Acceptance testing and manual QA can capture these gaps, but they're resource-intensive and don't scale well.
+
+Tuist's QA agent solves this challenge by simulating authentic user behavior. It autonomously explores your app, recognizes interface elements, executes realistic interactions, and flags potential issues. This approach helps you identify bugs and usability problems early in development while avoiding the overhead and maintenance burden of conventional acceptance and QA testing.
 
 ## Prerequisities {#prerequisites}
 
 To start using Tuist QA, you need to:
-- Set up <LocalizedLink href="/guides/features/previews">Previews</LocalizedLink> to be run as part of your CI/CD pipeline
-- <LocalizedLink href="/guides/integrations/gitforge/github">Integrate</LocalizedLink> with GitHub
+- Set up uploading <LocalizedLink href="/guides/features/previews">Previews</LocalizedLink> from your PR CI workflow, which the agent can then use for testing
+- <LocalizedLink href="/guides/integrations/gitforge/github">Integrate</LocalizedLink> with GitHub, so you can trigger the agent directly from your PR
 
 ## Usage {#usage}
 
@@ -33,6 +35,9 @@ As part of the report in the dashboard, which the PR comment links to, you will 
 ![QA timeline](/images/guides/features/qa/qa-timeline.png)
 
 You can see all QA runs that we do for our <LocalizedLink href="/guides/features/previews#tuist-ios-app">iOS app</LocalizedLink> in our public dashboard: https://tuist.dev/tuist/tuist/qa
+
+> [!NOTE]
+> The QA agent runs autonomously and cannot be interrupted with additional prompts once started. We provide detailed logs throughout the execution to help you understand how the agent interacted with your app. These logs are valuable for iterating on your app context and testing prompts to better guide the agent's behavior. If you have feedback about how the agent performs with your app, please let us know through [GitHub Issues](https://github.com/tuist/tuist/issues), our [Slack community](https://slack.tuist.dev) or our [community forum](https://community.tuist.dev).
 
 ### App context {#app-context}
 
