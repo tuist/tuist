@@ -40,6 +40,7 @@ public enum TuistAcceptanceFixtures {
     case frameworkWithSwiftMacro
     case frameworkWithSPMBundle
     case generatedBundleWithMetalFiles
+    case generatedMetallibInStaticFramework
     case generatediOSAppWithoutConfigManifest
     case generatediOSStaticLibraryWithStringResources
     case invalidManifest
@@ -196,6 +197,8 @@ public enum TuistAcceptanceFixtures {
             return "framework_with_spm_bundle"
         case .generatedBundleWithMetalFiles:
             return "generated_bundle_with_metal_files"
+        case .generatedMetallibInStaticFramework:
+            return "generated_metallib_in_static_framework"
         case .generatediOSAppWithoutConfigManifest:
             return "generated_ios_app_without_config_manifest"
         case .generatediOSStaticLibraryWithStringResources:
