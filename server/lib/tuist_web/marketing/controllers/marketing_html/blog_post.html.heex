@@ -114,6 +114,7 @@
         <div class="marketing__blog_post__related__body__cards">
           <.more_card
             :for={post <- @related_posts}
+            :key={post.slug}
             category={post.category}
             title={post.title}
             description={post.excerpt}
