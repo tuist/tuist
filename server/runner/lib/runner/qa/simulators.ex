@@ -133,10 +133,13 @@ defmodule Runner.QA.Simulators do
     - output_path: Path where the video file will be saved
   """
   def start_recording(%SimulatorDevice{udid: device_udid}, output_path) do
-    Port.open({:spawn_executable, System.find_executable("xcrun")}, [
+    cmd =
+      "/usr/local/bin/axe stream-video --udid #{device_udid} --fps 30 --format ffmpeg | ffmpeg -y -loglevel quiet -f image2pipe -framerate 30 -i - -vf \"scale=1178:2556\" -c:v libx264 -preset ultrafast -f mp4 \"#{output_path}\""
+
+    Port.open({:spawn_executable, System.find_executable("sh")}, [
       :binary,
       :exit_status,
-      args: ["simctl", "io", device_udid, "recordVideo", output_path, "--force"]
+      args: ["-c", cmd]
     ])
   end
 
@@ -152,7 +155,7 @@ defmodule Runner.QA.Simulators do
     # Get the OS process ID from the port
     case Port.info(port, :os_pid) do
       {:os_pid, os_pid} ->
-        case System.cmd("kill", ["-INT", Integer.to_string(os_pid)]) do
+        case System.cmd("kill", ["-TERM", "-#{Integer.to_string(os_pid)}"]) do
           {_output, 0} ->
             Port.close(port)
             :ok
