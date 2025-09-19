@@ -15,6 +15,7 @@ on:
       - "mise/tasks/cli/lint.sh"
       - "cli/Fixtures/**"
       - "Tuist/**"
+      - ".xcode-version"
   pull_request:
     paths:
       - "cli/TuistCacheEE"
@@ -27,6 +28,7 @@ on:
       - "mise/tasks/cli/lint.sh"
       - "cli/Fixtures/**"
       - "Tuist/**"
+      - ".xcode-version"
 
 permissions:
   contents: read

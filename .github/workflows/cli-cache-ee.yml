@@ -16,6 +16,7 @@ on:
       - "mise/tasks/cli/lint.sh"
       - "cli/Fixtures/**"
       - "Tuist/**"
+      - ".xcode-version"
   pull_request:
     paths:
       - .github/workflows/cli-cache-ee.yml
@@ -29,6 +30,7 @@ on:
       - "mise/tasks/cli/lint.sh"
       - "cli/Fixtures/**"
       - "Tuist/**"
+      - ".xcode-version"
   workflow_dispatch:
     inputs:
       commit_sha:

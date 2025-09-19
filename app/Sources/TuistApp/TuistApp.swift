@@ -1,4 +1,3 @@
-import ArgumentParser
 import SwiftUI
 import TuistAuthentication
 import TuistServer
@@ -49,6 +48,7 @@ import TuistServer
         }
     }
 #else
+    import ArgumentParser
     import TuistErrorHandling
     import TuistNoora
     import TuistOnboarding

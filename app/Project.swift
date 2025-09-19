@@ -114,6 +114,7 @@ let project = Project(
                     "CODE_SIGN_IDENTITY": "Apple Development",
                     "CODE_SIGN_ENTITLEMENTS[sdk=iphone*]":
                         "Resources/TuistApp/TuistApp.entitlements",
+                    "ASSETCATALOG_COMPILER_APPICON_NAME": "AppIcon",
                 ],
                 release: [
                     // Needed for the app notarization
