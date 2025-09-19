@@ -17,7 +17,7 @@ defmodule Runner.QA.AgentTest do
 
   setup do
     device = %SimulatorDevice{
-      name: "iPhone 16",
+      name: "iPhone 17",
       udid: "42172B88-9A53-46C8-B560-75609012CF0D",
       state: "Booted",
       runtime_identifier: "com.apple.CoreSimulator.SimRuntime.iOS-26-0"

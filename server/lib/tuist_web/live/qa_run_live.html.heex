@@ -87,6 +87,24 @@
   </.tab_menu_horizontal>
 
   <div :if={@live_action in [:overview]} data-part="overview">
+    <div :if={@qa_run.status == "running"} data-part="running-state">
+      <img src="/images/qa_running_state_light.png" data-theme="light" />
+      <img src="/images/qa_running_state_dark.png" data-theme="dark" />
+      <div data-part="labels">
+        <span data-part="title">
+          {gettext("The agent is currently running tests")}
+        </span>
+        <span data-part="subtitle">
+          {gettext("Check the live ")}<.link_button
+            navigate={
+              ~p"/#{@qa_run.app_build.preview.project.account.name}/#{@qa_run.app_build.preview.project.name}/qa/#{@qa_run.id}/logs"
+            }
+            label={gettext("logs")}
+            underline
+          />{gettext(" or sit back and relax...")}
+        </span>
+      </div>
+    </div>
     <.card data-part="details-card" icon="chart_arcs" title={gettext("Details")}>
       <.card_section data-part="details-card-section">
         <div data-part="metadata-grid">
@@ -104,7 +122,11 @@
             <div data-part="metadata">
               <div data-part="title">{gettext("QA duration")}</div>
               <span data-part="label">
-                {Tuist.Utilities.DateFormatter.format_duration_from_seconds(@duration)}
+                <%= if @qa_run.status in ["running", "pending"] do %>
+                  {gettext("Running tests...")}
+                <% else %>
+                  {Tuist.Utilities.DateFormatter.format_duration_from_seconds(@duration)}
+                <% end %>
               </span>
             </div>
             <div data-part="metadata">
