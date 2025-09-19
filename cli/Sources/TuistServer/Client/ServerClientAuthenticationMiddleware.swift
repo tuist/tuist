@@ -24,12 +24,12 @@ struct ServerClientAuthenticationMiddleware: ClientMiddleware {
 
     init() {
         self.init(
-            serverAuthenticationController: ServerAuthenticationController(),
+            serverAuthenticationController: ServerAuthenticationController()
         )
     }
 
     init(
-        serverAuthenticationController: ServerAuthenticationControlling,
+        serverAuthenticationController: ServerAuthenticationControlling
     ) {
         self.serverAuthenticationController = serverAuthenticationController
     }
