@@ -270,11 +270,7 @@
           />
         </div>
         <div :if={Enum.any?(@module_breakdown_active_filters)} data-part="active-filters">
-          <.active_filter
-            :for={filter <- @module_breakdown_active_filters}
-            :key={filter.id}
-            filter={filter}
-          />
+          <.active_filter :for={filter <- @module_breakdown_active_filters} filter={filter} />
         </div>
         <.table id="module-breakdown-table" rows={@module_breakdown_modules}>
           <:col
@@ -414,11 +410,7 @@
           />
         </div>
         <div :if={Enum.any?(@file_breakdown_active_filters)} data-part="active-filters">
-          <.active_filter
-            :for={filter <- @file_breakdown_active_filters}
-            :key={filter.id}
-            filter={filter}
-          />
+          <.active_filter :for={filter <- @file_breakdown_active_filters} filter={filter} />
         </div>
         <.table id="file-breakdown-table" rows={@file_breakdown_files}>
           <:col

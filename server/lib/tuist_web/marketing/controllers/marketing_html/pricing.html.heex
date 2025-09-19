@@ -16,7 +16,6 @@
     <section class="marketing__pricing__plans" aria-label="Pricing Plans">
       <.pricing_plan_plan_card
         :for={plan <- @plans}
-        :key={plan.name}
         name={plan.name}
         popular={plan.popular}
         description={plan.description}
@@ -91,10 +90,7 @@
     ] %>
 
     <div class="marketing__pricing__features__mobile" aria-label="Feature Comparison">
-      <div
-        :for={item <- items}
-        class="marketing__pricing__features__mobile__feature"
-      >
+      <div :for={item <- items} class="marketing__pricing__features__mobile__feature">
         <%= for feature <- item.features do %>
           <h3 class="marketing__pricing__features__mobile__feature__title">
             {feature.name}
@@ -141,10 +137,7 @@
         </tr>
       </thead>
       <tbody>
-        <tr
-          :for={item <- items}
-          class="marketing__pricing__features__desktop__row"
-        >
+        <tr :for={item <- items} class="marketing__pricing__features__desktop__row">
           <td class="marketing__pricing__features__desktop__row__feature">
             <%= for feature <- item.features do %>
               <.link
