@@ -718,7 +718,7 @@ defmodule TuistWeb.API.CacheController do
     if Tuist.Environment.test?() or Tuist.Environment.dev?() do
       put_resp_header(conn, "x-tuist-signature", "tuist")
     else
-      put_resp_header(conn, "x-tuist-signature", Tuist.License.sign([hash]))
+      put_resp_header(conn, "x-tuist-signature", Tuist.License.sign(hash))
     end
   end
 end

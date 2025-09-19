@@ -16,14 +16,13 @@ defmodule Tuist.License do
     @validation_url
   end
 
-  def sign(item) do
+  def sign(value) when is_binary(value) do
     if Tuist.Environment.dev?() or Tuist.Environment.test?() do
       nil
     else
       {:ok, %{signing_key: key_base64}} = get_license()
       key = Base.decode64!(key_base64)
-      data = Jason.encode!(item)
-      signature = :crypto.mac(:hmac, :sha256, data, key)
+      signature = :crypto.mac(:hmac, :sha256, key, value)
       Base.encode64(signature)
     end
   end
