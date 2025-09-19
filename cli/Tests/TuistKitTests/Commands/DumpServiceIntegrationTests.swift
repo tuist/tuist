@@ -200,7 +200,7 @@ final class DumpServiceTests: TuistTestCase {
                     ],
                     "buildInsightsDisabled": false,
                     "disablePackageVersionLocking": false,
-                    "disableSandbox": false,
+                    "disableSandbox": true,
                     "enforceExplicitDependencies": false,
                     "includeGenerateScheme": true,
                     "optionalAuthentication": false,
