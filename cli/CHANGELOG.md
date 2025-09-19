@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.78.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* change sandbox to be opt-in by [@fortmarek](https://github.com/fortmarek) in [#8244](https://github.com/tuist/tuist/pull/8244)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.77.0...4.78.0
+
 ## What's Changed in 4.77.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
