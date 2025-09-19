@@ -4,6 +4,7 @@ defmodule TuistWeb.QALive do
   use Noora
 
   import TuistWeb.Components.EmptyCardSection
+  import TuistWeb.Components.Terminal
   import TuistWeb.Previews.PlatformTag
 
   alias Tuist.AppBuilds.Preview
@@ -20,6 +21,7 @@ defmodule TuistWeb.QALive do
       |> assign(:qa_runs, [])
       |> assign(:qa_runs_meta, %{})
       |> assign(:available_apps, QA.available_apps_for_project(project.id))
+      |> assign(:has_qa_runs, has_qa_runs?(project))
       |> load_qa_runs()
 
     {:ok, socket}
@@ -186,6 +188,19 @@ defmodule TuistWeb.QALive do
       "qa_run_count"
     else
       analytics_selected_widget
+    end
+  end
+
+  defp has_qa_runs?(project) do
+    project
+    |> QA.list_qa_runs_for_project(%{
+      first: 1,
+      order_by: [:inserted_at],
+      order_directions: [:desc]
+    })
+    |> case do
+      {[], _meta} -> false
+      {_runs, _meta} -> true
     end
   end
 end
