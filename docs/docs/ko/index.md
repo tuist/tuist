@@ -40,11 +40,11 @@ into a smooth, productive experience that grows with your team.
         linkText="Share and iterate faster"
         link="/guides/features/previews"/>
     <HomeCard
-        icon="📦"
-        title="Package Registry"
-        details="Resolve Swift packages in seconds, not minutes. Our registry makes dependency management a breeze."
-        linkText="Speed up package resolution"
-        link="/guides/features/registry"/>
+        icon="✅"
+        title="QA"
+        details="Automate your QA with our agent that tests your app and reports any issues autonomously."
+        linkText="Let us test your app for you"
+        link="/guides/features/qa"/>
     <HomeCard
         icon="📊"
         title="Insights"
@@ -52,11 +52,17 @@ into a smooth, productive experience that grows with your team.
         linkText="Stay ahead of issues"
         link="/guides/features/insights"/>
     <HomeCard
-        icon="🎯"
+        icon="⚖️"
         title="Bundle size"
         details="Keep your app lean and fast. Analyze and optimize your bundle size to delight users and pass App Store guidelines."
         linkText="Optimize your app"
         link="/guides/features/bundle-size"/>
+    <HomeCard
+        icon="📦"
+        title="Package Registry"
+        details="Resolve Swift packages in seconds, not minutes. Our registry makes dependency management a breeze."
+        linkText="Speed up package resolution"
+        link="/guides/features/registry"/>
 </HomeCards>
 
 ## Join thousands of developers who've made the switch
