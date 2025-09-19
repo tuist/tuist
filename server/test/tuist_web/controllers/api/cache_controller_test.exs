@@ -34,6 +34,8 @@ defmodule TuistWeb.API.CacheControllerTest do
       date = ~N[2024-04-30 10:20:30Z]
 
       signed_fields = [hash]
+      stub(Tuist.Environment, :test?, fn -> false end)
+      stub(Tuist.Environment, :dev?, fn -> false end)
       stub(Tuist.License, :sign, fn ^signed_fields -> "signature" end)
       stub(NaiveDateTime, :utc_now, fn :second -> date end)
 
@@ -160,6 +162,8 @@ defmodule TuistWeb.API.CacheControllerTest do
       account = Accounts.get_account_by_id(project.account_id)
       hash = "hash"
       signed_fields = [hash]
+      stub(Tuist.Environment, :dev?, fn -> false end)
+      stub(Tuist.Environment, :test?, fn -> false end)
       stub(Tuist.License, :sign, fn ^signed_fields -> "signature" end)
 
       CacheActionItems.create_cache_action_item(%{
@@ -784,11 +788,11 @@ defmodule TuistWeb.API.CacheControllerTest do
 
       # When
       {_, _, payload} =
-        assert_error_sent :not_found, fn ->
+        assert_error_sent(:not_found, fn ->
           conn
           |> assign(:cache, cache)
           |> put(~p"/api/projects/#{account.name}/non-existing-project/cache/clean")
-        end
+        end)
 
       # Then
       assert JSON.decode!(payload) ==
