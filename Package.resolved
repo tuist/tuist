@@ -1,5 +1,5 @@
 {
-  "originHash" : "7054f1f3807ab580401ed1f63d0c1696d639eab96371fe8184adbc0ceb895635",
+  "originHash" : "1516c766feea9c24b057b0ab119ecd1e4522eefec8fec956326d5e64411777d4",
   "pins" : [
     {
       "identity" : "aexml",
@@ -535,10 +535,10 @@
     {
       "identity" : "xcodegraph",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/tuist/XcodeGraph",
+      "location" : "https://github.com/Zentaur0/XcodeGraph",
       "state" : {
-        "revision" : "d0f9ced36922ba84eede839d5e766cec85703588",
-        "version" : "1.21.0"
+        "branch" : "feature/group-path-support",
+        "revision" : "d88aeaf2889e8ade58393d7b998a74871d938694"
       }
     },
     {
