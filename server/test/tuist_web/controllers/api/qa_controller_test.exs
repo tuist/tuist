@@ -38,23 +38,29 @@ defmodule TuistWeb.API.QAControllerTest do
     } do
       # Given
       conn =
-        assign(conn, :current_subject, %AuthenticatedAccount{account: user.account, scopes: [:project_qa_step_create]})
+        assign(conn, :current_subject, %AuthenticatedAccount{
+          account: user.account,
+          scopes: [:qa_step_create]
+        })
 
       # When
       conn =
         conn
         |> put_req_header("content-type", "application/json")
-        |> post(~p"/api/projects/#{account_handle}/#{project_handle}/qa/runs/#{qa_run.id}/steps", %{
-          "summary" => "Successfully logged in to the app",
-          "description" => "User successfully entered credentials and accessed the main screen",
-          "issues" => []
-        })
+        |> post(
+          ~p"/api/projects/#{account_handle}/#{project_handle}/qa/runs/#{qa_run.id}/steps",
+          %{
+            "action" => "Successfully logged in to the app",
+            "result" => "User successfully entered credentials and accessed the main screen",
+            "issues" => []
+          }
+        )
 
       # Then
       response = json_response(conn, :created)
 
       assert response["qa_run_id"] == qa_run.id
-      assert response["summary"] == "Successfully logged in to the app"
+      assert response["action"] == "Successfully logged in to the app"
     end
 
     test "creates a QA run step and updates screenshots with step ID", %{
@@ -66,21 +72,30 @@ defmodule TuistWeb.API.QAControllerTest do
     } do
       # Given
       conn =
-        assign(conn, :current_subject, %AuthenticatedAccount{account: user.account, scopes: [:project_qa_step_create]})
+        assign(conn, :current_subject, %AuthenticatedAccount{
+          account: user.account,
+          scopes: [:qa_step_create]
+        })
 
       # Create some screenshots without step_id
-      {:ok, screenshot1} = QA.create_qa_screenshot(%{qa_run_id: qa_run.id, file_name: "screen1", title: "Screen 1"})
-      {:ok, screenshot2} = QA.create_qa_screenshot(%{qa_run_id: qa_run.id, file_name: "screen2", title: "Screen 2"})
+      {:ok, screenshot1} =
+        QA.create_qa_screenshot(%{qa_run_id: qa_run.id})
+
+      {:ok, screenshot2} =
+        QA.create_qa_screenshot(%{qa_run_id: qa_run.id})
 
       # When
       conn =
         conn
         |> put_req_header("content-type", "application/json")
-        |> post(~p"/api/projects/#{account_handle}/#{project_handle}/qa/runs/#{qa_run.id}/steps", %{
-          "summary" => "Test step with screenshots",
-          "description" => "Test step description",
-          "issues" => []
-        })
+        |> post(
+          ~p"/api/projects/#{account_handle}/#{project_handle}/qa/runs/#{qa_run.id}/steps",
+          %{
+            "action" => "Test step with screenshots",
+            "result" => "Test step result",
+            "issues" => []
+          }
+        )
 
       # Then
       response = json_response(conn, :created)
@@ -100,7 +115,10 @@ defmodule TuistWeb.API.QAControllerTest do
     } do
       # Given
       conn =
-        assign(conn, :current_subject, %AuthenticatedAccount{account: user.account, scopes: [:project_qa_step_create]})
+        assign(conn, :current_subject, %AuthenticatedAccount{
+          account: user.account,
+          scopes: [:qa_step_create]
+        })
 
       non_existent_run_id = Ecto.UUID.generate()
 
@@ -108,11 +126,14 @@ defmodule TuistWeb.API.QAControllerTest do
       conn =
         conn
         |> put_req_header("content-type", "application/json")
-        |> post(~p"/api/projects/#{account_handle}/#{project_handle}/qa/runs/#{non_existent_run_id}/steps", %{
-          "summary" => "Test step",
-          "description" => "Test step description",
-          "issues" => []
-        })
+        |> post(
+          ~p"/api/projects/#{account_handle}/#{project_handle}/qa/runs/#{non_existent_run_id}/steps",
+          %{
+            "action" => "Test step",
+            "result" => "Test step result",
+            "issues" => []
+          }
+        )
 
       # Then
       response = json_response(conn, :not_found)
@@ -137,106 +158,12 @@ defmodule TuistWeb.API.QAControllerTest do
       conn =
         conn
         |> put_req_header("content-type", "application/json")
-        |> post(~p"/api/projects/#{other_project.account.name}/#{other_project.name}/qa/runs/#{other_qa_run.id}/steps", %{
-          "summary" => "Test step",
-          "description" => "Test step description",
-          "issues" => []
-        })
-
-      # Then
-      response = json_response(conn, :forbidden)
-      assert String.contains?(response["message"], "not authorized")
-    end
-  end
-
-  describe "POST /api/projects/:account_handle/:project_handle/qa/runs/:run_id/screenshots/upload" do
-    test "returns upload URL successfully", %{
-      conn: conn,
-      user: user,
-      qa_run: qa_run,
-      account_handle: account_handle,
-      project_handle: project_handle
-    } do
-      # Given
-      conn =
-        assign(conn, :current_subject, %AuthenticatedAccount{
-          account: user.account,
-          scopes: [:project_qa_screenshot_create]
-        })
-
-      expect(Storage, :generate_upload_url, fn storage_key, _options ->
-        "https://s3.example.com/#{storage_key}?presigned-params"
-      end)
-
-      # When
-      conn =
-        conn
-        |> put_req_header("content-type", "application/json")
-        |> post(~p"/api/projects/#{account_handle}/#{project_handle}/qa/runs/#{qa_run.id}/screenshots/upload", %{
-          "file_name" => "login_screen",
-          "title" => "Login Screen"
-        })
-
-      # Then
-      response = json_response(conn, :ok)
-
-      assert String.contains?(response["url"], "qa/screenshots/#{qa_run.id}/login_screen.png")
-    end
-
-    test "returns not found when QA run does not exist", %{
-      conn: conn,
-      user: user,
-      account_handle: account_handle,
-      project_handle: project_handle
-    } do
-      # Given
-      conn =
-        assign(conn, :current_subject, %AuthenticatedAccount{
-          account: user.account,
-          scopes: [:project_qa_screenshot_create]
-        })
-
-      non_existent_run_id = Ecto.UUID.generate()
-
-      # When
-      conn =
-        conn
-        |> put_req_header("content-type", "application/json")
         |> post(
-          ~p"/api/projects/#{account_handle}/#{project_handle}/qa/runs/#{non_existent_run_id}/screenshots/upload",
+          ~p"/api/projects/#{other_project.account.name}/#{other_project.name}/qa/runs/#{other_qa_run.id}/steps",
           %{
-            "file_name" => "test_screenshot",
-            "title" => "Test Screenshot"
-          }
-        )
-
-      # Then
-      response = json_response(conn, :not_found)
-      assert response["error"] == "QA run not found"
-    end
-
-    test "returns forbidden when user doesn't have permission", %{
-      conn: conn
-    } do
-      # Given
-      other_user = AccountsFixtures.user_fixture(email: "other@tuist.io", preload: [:account])
-      other_project = ProjectsFixtures.project_fixture(account_id: other_user.account.id)
-      other_preview = AppBuildsFixtures.preview_fixture(project: other_project)
-      other_app_build = AppBuildsFixtures.app_build_fixture(preview: other_preview)
-      other_qa_run = QAFixtures.qa_run_fixture(app_build: other_app_build)
-
-      unauthorized_user = AccountsFixtures.user_fixture(email: "unauthorized@tuist.io")
-      conn = Authentication.put_current_user(conn, unauthorized_user)
-
-      # When
-      conn =
-        conn
-        |> put_req_header("content-type", "application/json")
-        |> post(
-          ~p"/api/projects/#{other_project.account.name}/#{other_project.name}/qa/runs/#{other_qa_run.id}/screenshots/upload",
-          %{
-            "file_name" => "test_screenshot",
-            "title" => "Test Screenshot"
+            "action" => "Test step",
+            "result" => "Test step result",
+            "issues" => []
           }
         )
 
@@ -258,24 +185,35 @@ defmodule TuistWeb.API.QAControllerTest do
       conn =
         assign(conn, :current_subject, %AuthenticatedAccount{
           account: user.account,
-          scopes: [:project_qa_screenshot_create]
+          scopes: [:qa_screenshot_create]
         })
+
+      # Given a QA step
+      qa_step = QAFixtures.qa_step_fixture(qa_run_id: qa_run.id)
+
+      expect(Storage, :generate_upload_url, fn storage_key, _actor, _options ->
+        "https://s3.example.com/#{storage_key}?presigned-params"
+      end)
 
       # When
       conn =
         conn
         |> put_req_header("content-type", "application/json")
-        |> post(~p"/api/projects/#{account_handle}/#{project_handle}/qa/runs/#{qa_run.id}/screenshots", %{
-          "file_name" => "error_dialog",
-          "title" => "Error Dialog"
-        })
+        |> post(
+          ~p"/api/projects/#{account_handle}/#{project_handle}/qa/runs/#{qa_run.id}/screenshots",
+          %{
+            "step_id" => qa_step.id
+          }
+        )
 
       # Then
       response = json_response(conn, :created)
 
       assert response["qa_run_id"] == qa_run.id
-      assert response["file_name"] == "error_dialog"
-      assert response["title"] == "Error Dialog"
+      assert response["qa_step_id"] == qa_step.id
+      assert response["id"]
+      assert String.contains?(response["upload_url"], "qa/#{qa_run.id}/screenshots/")
+      assert response["expires_at"]
     end
 
     test "returns not found when QA run does not exist", %{
@@ -288,7 +226,7 @@ defmodule TuistWeb.API.QAControllerTest do
       conn =
         assign(conn, :current_subject, %AuthenticatedAccount{
           account: user.account,
-          scopes: [:project_qa_screenshot_create]
+          scopes: [:qa_screenshot_create]
         })
 
       non_existent_run_id = Ecto.UUID.generate()
@@ -297,45 +235,16 @@ defmodule TuistWeb.API.QAControllerTest do
       conn =
         conn
         |> put_req_header("content-type", "application/json")
-        |> post(~p"/api/projects/#{account_handle}/#{project_handle}/qa/runs/#{non_existent_run_id}/screenshots", %{
-          "file_name" => "test_screenshot",
-          "title" => "Test Screenshot"
-        })
+        |> post(
+          ~p"/api/projects/#{account_handle}/#{project_handle}/qa/runs/#{non_existent_run_id}/screenshots",
+          %{
+            "step_id" => Ecto.UUID.generate()
+          }
+        )
 
       # Then
       response = json_response(conn, :not_found)
       assert response["error"] == "QA run not found"
-    end
-
-    test "returns bad request when screenshot already exists with same name", %{
-      conn: conn,
-      user: user,
-      qa_run: qa_run,
-      account_handle: account_handle,
-      project_handle: project_handle
-    } do
-      # Given
-      conn =
-        assign(conn, :current_subject, %AuthenticatedAccount{
-          account: user.account,
-          scopes: [:project_qa_screenshot_create]
-        })
-
-      # Create first screenshot
-      {:ok, _} = QA.create_qa_screenshot(%{qa_run_id: qa_run.id, file_name: "duplicate_name", title: "Duplicate Name"})
-
-      # When trying to create second screenshot with same name
-      conn =
-        conn
-        |> put_req_header("content-type", "application/json")
-        |> post(~p"/api/projects/#{account_handle}/#{project_handle}/qa/runs/#{qa_run.id}/screenshots", %{
-          "file_name" => "duplicate_name",
-          "title" => "Another Duplicate Name"
-        })
-
-      # Then
-      response = json_response(conn, :bad_request)
-      assert String.contains?(response["message"], "has already been taken")
     end
 
     test "returns forbidden when user doesn't have permission", %{
@@ -357,9 +266,119 @@ defmodule TuistWeb.API.QAControllerTest do
         |> put_req_header("content-type", "application/json")
         |> post(
           ~p"/api/projects/#{other_project.account.name}/#{other_project.name}/qa/runs/#{other_qa_run.id}/screenshots",
+          %{}
+        )
+
+      # Then
+      response = json_response(conn, :forbidden)
+      assert String.contains?(response["message"], "not authorized")
+    end
+  end
+
+  describe "PATCH /api/projects/:account_handle/:project_handle/qa/runs/:run_id/steps/:step_id" do
+    test "updates a QA step successfully", %{
+      conn: conn,
+      user: user,
+      qa_run: qa_run,
+      account_handle: account_handle,
+      project_handle: project_handle
+    } do
+      # Given
+      {:ok, qa_step} =
+        QA.create_qa_step(%{
+          qa_run_id: qa_run.id,
+          action: "Test login functionality",
+          issues: []
+        })
+
+      conn =
+        assign(conn, :current_subject, %AuthenticatedAccount{
+          account: user.account,
+          scopes: [:qa_step_update]
+        })
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> patch(
+          ~p"/api/projects/#{account_handle}/#{project_handle}/qa/runs/#{qa_run.id}/steps/#{qa_step.id}",
           %{
-            "file_name" => "test_screenshot",
-            "title" => "Test Screenshot"
+            "result" => "Login successful",
+            "issues" => ["Minor UI alignment issue"]
+          }
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+
+      assert Map.take(response, ["id", "result", "issues"]) == %{
+               "id" => qa_step.id,
+               "result" => "Login successful",
+               "issues" => ["Minor UI alignment issue"]
+             }
+    end
+
+    test "returns not found when step does not exist", %{
+      conn: conn,
+      user: user,
+      qa_run: qa_run,
+      account_handle: account_handle,
+      project_handle: project_handle
+    } do
+      # Given
+      conn =
+        assign(conn, :current_subject, %AuthenticatedAccount{
+          account: user.account,
+          scopes: [:qa_step_update]
+        })
+
+      non_existent_step_id = Ecto.UUID.generate()
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> patch(
+          ~p"/api/projects/#{account_handle}/#{project_handle}/qa/runs/#{qa_run.id}/steps/#{non_existent_step_id}",
+          %{
+            "result" => "Updated result"
+          }
+        )
+
+      # Then
+      response = json_response(conn, :not_found)
+      assert response["error"] == "QA step not found"
+    end
+
+    test "returns forbidden when user doesn't have permission", %{
+      conn: conn
+    } do
+      # Given
+      other_user = AccountsFixtures.user_fixture(email: "other@tuist.io", preload: [:account])
+      other_project = ProjectsFixtures.project_fixture(account_id: other_user.account.id)
+      other_preview = AppBuildsFixtures.preview_fixture(project: other_project)
+      other_app_build = AppBuildsFixtures.app_build_fixture(preview: other_preview)
+      other_qa_run = QAFixtures.qa_run_fixture(app_build: other_app_build)
+
+      {:ok, qa_step} =
+        QA.create_qa_step(%{
+          qa_run_id: other_qa_run.id,
+          action: "Unauthorized test",
+          issues: []
+        })
+
+      unauthorized_user = AccountsFixtures.user_fixture(email: "unauthorized@tuist.io")
+      conn = Authentication.put_current_user(conn, unauthorized_user)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> patch(
+          ~p"/api/projects/#{other_project.account.name}/#{other_project.name}/qa/runs/#{other_qa_run.id}/steps/#{qa_step.id}",
+          %{
+            "result" => "Updated result"
           }
         )
 
@@ -379,36 +398,10 @@ defmodule TuistWeb.API.QAControllerTest do
     } do
       # Given
       conn =
-        assign(conn, :current_subject, %AuthenticatedAccount{account: user.account, scopes: [:project_qa_run_update]})
-
-      # When
-      conn =
-        conn
-        |> put_req_header("content-type", "application/json")
-        |> patch(~p"/api/projects/#{account_handle}/#{project_handle}/qa/runs/#{qa_run.id}", %{
-          "status" => "completed",
-          "summary" => "QA test completed successfully"
+        assign(conn, :current_subject, %AuthenticatedAccount{
+          account: user.account,
+          scopes: [:qa_run_update]
         })
-
-      # Then
-      response = json_response(conn, :ok)
-
-      assert response["id"] == qa_run.id
-      assert response["status"] == "completed"
-      assert response["summary"] == "QA test completed successfully"
-      assert response["updated_at"]
-    end
-
-    test "updates QA run status to completed without summary", %{
-      conn: conn,
-      user: user,
-      qa_run: qa_run,
-      account_handle: account_handle,
-      project_handle: project_handle
-    } do
-      # Given
-      conn =
-        assign(conn, :current_subject, %AuthenticatedAccount{account: user.account, scopes: [:project_qa_run_update]})
 
       # When
       conn =
@@ -423,8 +416,44 @@ defmodule TuistWeb.API.QAControllerTest do
 
       assert response["id"] == qa_run.id
       assert response["status"] == "completed"
-      assert response["summary"] == nil
       assert response["updated_at"]
+    end
+
+    test "updates QA run status to failed and sets finished_at", %{
+      conn: conn,
+      user: user,
+      qa_run: qa_run,
+      account_handle: account_handle,
+      project_handle: project_handle
+    } do
+      # Given
+      conn =
+        assign(conn, :current_subject, %AuthenticatedAccount{
+          account: user.account,
+          scopes: [:qa_run_update]
+        })
+
+      # Mock datetime to verify finished_at is set
+      expected_now = DateTime.truncate(DateTime.utc_now(), :second)
+      stub(DateTime, :utc_now, fn -> expected_now end)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> patch(~p"/api/projects/#{account_handle}/#{project_handle}/qa/runs/#{qa_run.id}", %{
+          "status" => "failed"
+        })
+
+      # Then
+      response = json_response(conn, :ok)
+
+      assert response["id"] == qa_run.id
+      assert response["status"] == "failed"
+      assert response["updated_at"]
+
+      {:ok, updated_run} = QA.qa_run(qa_run.id)
+      assert updated_run.finished_at == expected_now
     end
 
     test "returns not found when QA run does not exist", %{
@@ -435,7 +464,10 @@ defmodule TuistWeb.API.QAControllerTest do
     } do
       # Given
       conn =
-        assign(conn, :current_subject, %AuthenticatedAccount{account: user.account, scopes: [:project_qa_run_update]})
+        assign(conn, :current_subject, %AuthenticatedAccount{
+          account: user.account,
+          scopes: [:qa_run_update]
+        })
 
       non_existent_run_id = Ecto.UUID.generate()
 
@@ -443,9 +475,12 @@ defmodule TuistWeb.API.QAControllerTest do
       conn =
         conn
         |> put_req_header("content-type", "application/json")
-        |> patch(~p"/api/projects/#{account_handle}/#{project_handle}/qa/runs/#{non_existent_run_id}", %{
-          "status" => "completed"
-        })
+        |> patch(
+          ~p"/api/projects/#{account_handle}/#{project_handle}/qa/runs/#{non_existent_run_id}",
+          %{
+            "status" => "completed"
+          }
+        )
 
       # Then
       response = json_response(conn, :not_found)
@@ -469,13 +504,164 @@ defmodule TuistWeb.API.QAControllerTest do
       conn =
         conn
         |> put_req_header("content-type", "application/json")
-        |> patch(~p"/api/projects/#{other_project.account.name}/#{other_project.name}/qa/runs/#{other_qa_run.id}", %{
-          "status" => "completed"
-        })
+        |> patch(
+          ~p"/api/projects/#{other_project.account.name}/#{other_project.name}/qa/runs/#{other_qa_run.id}",
+          %{
+            "status" => "completed"
+          }
+        )
 
       # Then
       response = json_response(conn, :forbidden)
       assert String.contains?(response["message"], "not authorized")
+    end
+  end
+
+  describe "POST /api/projects/:account_handle/:project_handle/qa/runs/:run_id/recordings/upload/start" do
+    test "starts multipart upload for recording", %{
+      conn: conn,
+      user: user,
+      qa_run: qa_run,
+      account_handle: account_handle,
+      project_handle: project_handle
+    } do
+      # Given
+      conn =
+        assign(conn, :current_subject, %AuthenticatedAccount{
+          account: user.account,
+          scopes: [:qa_recording_upload]
+        })
+
+      expected_upload_id = "test-upload-id-123"
+
+      expected_storage_key =
+        "#{String.downcase(account_handle)}/#{String.downcase(project_handle)}/qa/#{qa_run.id}/recording.mp4"
+
+      expect(Storage, :multipart_start, fn storage_key, _account ->
+        assert storage_key == expected_storage_key
+        expected_upload_id
+      end)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          ~p"/api/projects/#{account_handle}/#{project_handle}/qa/runs/#{qa_run.id}/recordings/upload/start",
+          %{}
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+
+      assert response["upload_id"] == expected_upload_id
+      assert response["storage_key"] == expected_storage_key
+    end
+  end
+
+  describe "POST /api/projects/:account_handle/:project_handle/qa/runs/:run_id/recordings/upload/generate-url" do
+    test "generates presigned URL for recording upload part", %{
+      conn: conn,
+      user: user,
+      qa_run: qa_run,
+      account_handle: account_handle,
+      project_handle: project_handle
+    } do
+      # Given
+      conn =
+        assign(conn, :current_subject, %AuthenticatedAccount{
+          account: user.account,
+          scopes: [:qa_recording_upload]
+        })
+
+      upload_id = "test-upload-id-123"
+
+      storage_key =
+        "#{String.downcase(account_handle)}/#{String.downcase(project_handle)}/qa/#{qa_run.id}/recording.mp4"
+
+      part_number = 1
+      content_length = 5_000_000
+      expected_url = "https://s3.example.com/presigned-upload-url"
+
+      expect(Storage, :multipart_generate_url, fn ^storage_key, ^upload_id, ^part_number, _account, opts ->
+        assert opts[:expires_in] == 120
+        assert opts[:content_length] == content_length
+        expected_url
+      end)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          ~p"/api/projects/#{account_handle}/#{project_handle}/qa/runs/#{qa_run.id}/recordings/upload/generate-url",
+          %{
+            "upload_id" => upload_id,
+            "part_number" => part_number,
+            "storage_key" => storage_key,
+            "content_length" => content_length
+          }
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+      assert response["url"] == expected_url
+    end
+  end
+
+  describe "POST /api/projects/:account_handle/:project_handle/qa/runs/:run_id/recordings/upload/complete" do
+    test "completes multipart upload and creates recording", %{
+      conn: conn,
+      user: user,
+      qa_run: qa_run,
+      account_handle: account_handle,
+      project_handle: project_handle
+    } do
+      # Given
+      conn =
+        assign(conn, :current_subject, %AuthenticatedAccount{
+          account: user.account,
+          scopes: [:qa_recording_upload]
+        })
+
+      upload_id = "test-upload-id-123"
+      storage_key = "test-storage-key"
+      started_at = "2024-01-01T10:00:00Z"
+      duration = 300
+
+      parts = [
+        %{"part_number" => 1, "etag" => "etag1"},
+        %{"part_number" => 2, "etag" => "etag2"}
+      ]
+
+      expect(Storage, :multipart_complete_upload, fn ^storage_key, ^upload_id, parts_tuples, _account ->
+        assert parts_tuples == [{1, "etag1"}, {2, "etag2"}]
+        :ok
+      end)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          ~p"/api/projects/#{account_handle}/#{project_handle}/qa/runs/#{qa_run.id}/recordings/upload/complete",
+          %{
+            "upload_id" => upload_id,
+            "storage_key" => storage_key,
+            "parts" => parts,
+            "started_at" => started_at,
+            "duration" => duration
+          }
+        )
+
+      # Then
+      _response = json_response(conn, :ok)
+
+      recordings = Tuist.Repo.all(QA.Recording)
+
+      assert Enum.map(recordings, &Map.take(&1, [:qa_run_id, :duration])) == [
+               %{qa_run_id: qa_run.id, duration: duration}
+             ]
     end
   end
 end

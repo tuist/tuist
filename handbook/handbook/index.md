@@ -1,8 +1,9 @@
 ---
-title: Tuist Handbook
-titleTemplate: ':title'
+{
+  "title": "Tuist Handbook",
+  "titleTemplate": ":title"
+}
 ---
-
 # Handbook
 
 At Tuist, we have learned from the [open-source](https://opensource.org/) community that openness is crucial for creating efficient, asynchronous organizations that thrive in the long term. Inspired by pioneering companies like GitLab, we have embedded openness into the very DNA of our company.

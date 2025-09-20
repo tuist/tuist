@@ -4,13 +4,14 @@ on:
   push:
     branches:
       - main
+    paths:
+      - "app/**"
+      - ".github/workflows/app.yml"
+      - "Tuist/**"
   pull_request:
     paths:
       - "app/**"
-      - "*.swift"
-      - "Package.resolved"
       - ".github/workflows/app.yml"
-      - "mise.toml"
       - "Tuist/**"
 
 permissions:
@@ -46,7 +47,7 @@ jobs:
               core.setOutput('is-member', 'false');
               return;
             }
-            
+
             try {
               const { data: membership } = await github.rest.teams.getMembershipForUserInOrg({
                 org: 'tuist',
@@ -87,10 +88,11 @@ jobs:
           key: ${{ runner.os }}-app-${{ hashFiles('Package.resolved') }}
           restore-keys: .build
       - uses: jdx/mise-action@v2
+      - run: tuist install
       - name: Generate TuistApp
         run: mise x -- tuist generate TuistApp
       - name: Build TuistApp
-        run: mise x -- tuist xcodebuild build -scheme TuistApp -destination "generic/platform=iOS Simulator" -workspace Tuist.xcworkspace CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
+        run: mise x -- tuist xcodebuild build -scheme TuistApp -destination "generic/platform=iOS Simulator" -workspace Tuist.xcworkspace CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO ARCHS="arm64"
       - name: Share TuistApp
         if: |
           github.event_name == 'push' ||
@@ -128,6 +130,7 @@ jobs:
           key: ${{ runner.os }}-app-${{ hashFiles('Package.resolved') }}
           restore-keys: .build
       - uses: jdx/mise-action@v2
+      - run: tuist install
       - name: Test TuistApp
         run: mise x -- tuist test TuistApp -- CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
       - name: Save cache
@@ -161,6 +164,7 @@ jobs:
           key: ${{ runner.os }}-app-${{ hashFiles('Package.resolved') }}
           restore-keys: .build
       - uses: jdx/mise-action@v2
+      - run: tuist install
       - name: Generate TuistApp
         run: mise x -- tuist generate TuistApp
       - name: Bundle iOS app

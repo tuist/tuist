@@ -10,8 +10,8 @@ defmodule Tuist.QA.StepTest do
 
       valid_attrs = %{
         qa_run_id: qa_run.id,
-        summary: "Successfully completed test step",
-        description: "Detailed description of the test step execution",
+        action: "Successfully completed test step",
+        result: "Detailed description of the test step execution",
         issues: ["Issue 1", "Issue 2"]
       }
 
@@ -38,16 +38,16 @@ defmodule Tuist.QA.StepTest do
       assert "can't be blank" in errors_on(changeset).qa_run_id
     end
 
-    test "changeset is invalid without summary", %{valid_attrs: valid_attrs} do
+    test "changeset is invalid without action", %{valid_attrs: valid_attrs} do
       # Given
-      attrs = Map.delete(valid_attrs, :summary)
+      attrs = Map.delete(valid_attrs, :action)
 
       # When
       changeset = Step.changeset(%Step{}, attrs)
 
       # Then
       assert changeset.valid? == false
-      assert "can't be blank" in errors_on(changeset).summary
+      assert "can't be blank" in errors_on(changeset).action
     end
 
     test "changeset is invalid with non-existent qa_run_id", %{valid_attrs: valid_attrs} do
@@ -66,16 +66,15 @@ defmodule Tuist.QA.StepTest do
       assert "does not exist" in errors_on(changeset_with_error).qa_run_id
     end
 
-    test "changeset is invalid without description", %{valid_attrs: valid_attrs} do
+    test "changeset is valid without result", %{valid_attrs: valid_attrs} do
       # Given
-      attrs = Map.delete(valid_attrs, :description)
+      attrs = Map.delete(valid_attrs, :result)
 
       # When
       changeset = Step.changeset(%Step{}, attrs)
 
       # Then
-      assert changeset.valid? == false
-      assert "can't be blank" in errors_on(changeset).description
+      assert changeset.valid? == true
     end
 
     test "changeset is invalid without issues", %{valid_attrs: valid_attrs} do
@@ -90,16 +89,15 @@ defmodule Tuist.QA.StepTest do
       assert "can't be blank" in errors_on(changeset).issues
     end
 
-    test "changeset is invalid with empty description", %{valid_attrs: valid_attrs} do
+    test "changeset is valid with empty result", %{valid_attrs: valid_attrs} do
       # Given
-      attrs = Map.put(valid_attrs, :description, "")
+      attrs = Map.put(valid_attrs, :result, "")
 
       # When
       changeset = Step.changeset(%Step{}, attrs)
 
       # Then
-      assert changeset.valid? == false
-      assert "can't be blank" in errors_on(changeset).description
+      assert changeset.valid? == true
     end
 
     test "changeset accepts empty issues array", %{valid_attrs: valid_attrs} do

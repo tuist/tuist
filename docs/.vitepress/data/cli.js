@@ -11,10 +11,12 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const schemaPath = path.join(__dirname, "../../docs/generated/cli/schema.json");
 let schema;
 try {
-  const schemaContent = fs.readFileSync(schemaPath, 'utf-8');
+  const schemaContent = fs.readFileSync(schemaPath, "utf-8");
   schema = JSON.parse(schemaContent);
 } catch (error) {
-  throw new Error(`Failed to load CLI schema from ${schemaPath}. Please run 'mise run docs:generate-cli-schema' first.`);
+  throw new Error(
+    `Failed to load CLI schema from ${schemaPath}. Please run 'mise run generate-cli-docs' first.`,
+  );
 }
 
 export { schema };
@@ -80,22 +82,27 @@ function content(command) {
       ...command,
       spec: {
         ...command.spec,
-        arguments: command.spec.arguments.map((arg) => {
-          const envVarMatch = arg.abstract.match(envVarRegex);
-          return {
-            ...arg,
-            envVar: envVarMatch ? envVarMatch[1] : undefined,
-            isDeprecated:
-              arg.abstract.includes("[Deprecated]") ||
-              arg.abstract.includes("[deprecated]"),
-            abstract: arg.abstract
-              .replace(envVarRegex, "")
-              .replace("[Deprecated]", "")
-              .replace("[deprecated]", "")
-              .trim()
-              .replace(/<([^>]+)>/g, "\\<$1\\>"),
-          };
-        }),
+        arguments: command.spec.arguments
+          .map((arg) => {
+            if (!arg.abstract) {
+              return null;
+            }
+            const envVarMatch = arg.abstract.match(envVarRegex);
+            return {
+              ...arg,
+              envVar: envVarMatch ? envVarMatch[1] : undefined,
+              isDeprecated:
+                arg.abstract.includes("[Deprecated]") ||
+                arg.abstract.includes("[deprecated]"),
+              abstract: arg.abstract
+                .replace(envVarRegex, "")
+                .replace("[Deprecated]", "")
+                .replace("[deprecated]", "")
+                .trim()
+                .replace(/<([^>]+)>/g, "\\<$1\\>"),
+            };
+          })
+          .filter((item) => item != null),
       },
     },
   });

@@ -1,9 +1,10 @@
 ---
-title: Tuistのインストール
-titleTemplate: :title · クイックスタート · ガイド · Tuist
-description: 開発環境にTuistをインストールする方法を学びます
+{
+  "title": "Tuistのインストール",
+  "titleTemplate": ":title · クイックスタート · ガイド · Tuist",
+  "description": "開発環境にTuistをインストールする方法を学びます"
+}
 ---
-
 # Tuistのインストール {#install-tuist}
 
 Tuist CLIは、実行可能ファイル、動的フレームワーク、およびリソースのセット (たとえば、テンプレート) で構成されています。 [ソース](https://github.com/tuist/tuist)からTuistを手動でビルドすることもできますが、**有効なインストールを確保するために、以下のインストール方法のいずれかを使用することをお勧めします。**

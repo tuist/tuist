@@ -42,14 +42,7 @@ defmodule TuistWeb.MembersLive do
         <div :if={@selected_inner_tab == "invitations"} />
 
         <.invite_member_form
-          :if={
-            Authorization.can(
-              @current_user,
-              :create,
-              @selected_account,
-              :invitation
-            )
-          }
+          :if={Authorization.authorize(:invitation_create, @current_user, @selected_account) == :ok}
           id="invite-member-form"
           form={@form}
         />
@@ -64,14 +57,7 @@ defmodule TuistWeb.MembersLive do
               data-selected={@selected_inner_tab == "members"}
             />
             <.tab_menu_horizontal_item
-              :if={
-                Authorization.can(
-                  @current_user,
-                  :read,
-                  @selected_account,
-                  :invitation
-                )
-              }
+              :if={Authorization.authorize(:invitation_read, @current_user, @selected_account) == :ok}
               label={gettext("Invitations")}
               phx-click="select-inner-tab"
               phx-value-tab="invitations"
@@ -111,12 +97,7 @@ defmodule TuistWeb.MembersLive do
           <div
             :if={
               @selected_inner_tab == "invitations" and
-                Authorization.can(
-                  @current_user,
-                  :read,
-                  @selected_account,
-                  :invitation
-                )
+                Authorization.authorize(:invitation_read, @current_user, @selected_account) == :ok
             }
             data-part="content"
           >
@@ -166,7 +147,7 @@ defmodule TuistWeb.MembersLive do
   defp invite_member_form(assigns) do
     ~H"""
     <.form id={@id} for={@form} phx-submit="invite-members">
-      <.modal id={"#{@id}-modal"} title={gettext("Create project")} on_dismiss="close-invite-members">
+      <.modal id={"#{@id}-modal"} title={gettext("Invite member")} on_dismiss="close-invite-members">
         <:trigger :let={attrs}>
           <.button variant="primary" label={gettext("Invite members")} {attrs} />
         </:trigger>

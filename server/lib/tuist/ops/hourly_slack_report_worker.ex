@@ -30,7 +30,7 @@ defmodule Tuist.Ops.HourlySlackReportWorker do
           text: %{
             type: "plain_text",
             text: ~s"""
-            The following organizations and users have been created:
+            The following organizations and users have been created in #{Tuist.Environment.env()}:
             #{bullet_list}
             """
           }

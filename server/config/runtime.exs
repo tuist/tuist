@@ -51,6 +51,11 @@ if Enum.member?([:prod, :stag, :can], env) do
         # Specifies the join algorithms to use in order of preference: direct (fastest for small tables),
         # parallel_hash (good for medium tables), and hash (fallback for large tables)
         join_algorithm: "direct,parallel_hash,hash"
+      ],
+      transport_opts: [
+        keepalive: true,
+        show_econnreset: true,
+        inet6: Tuist.Environment.use_ipv6?(secrets)
       ]
 
     config :tuist, Tuist.IngestRepo,
@@ -60,7 +65,12 @@ if Enum.member?([:prod, :stag, :can], env) do
       queue_interval: Tuist.Environment.clickhouse_queue_interval(secrets),
       flush_interval_ms: Tuist.Environment.clickhouse_flush_interval_ms(secrets),
       max_buffer_size: Tuist.Environment.clickhouse_max_buffer_size(secrets),
-      pool_size: Tuist.Environment.clickhouse_buffer_pool_size(secrets)
+      pool_size: Tuist.Environment.clickhouse_buffer_pool_size(secrets),
+      transport_opts: [
+        keepalive: true,
+        show_econnreset: true,
+        inet6: Tuist.Environment.use_ipv6?(secrets)
+      ]
   end
 
   database_url =
@@ -86,6 +96,7 @@ if Enum.member?([:prod, :stag, :can], env) do
     username: username,
     password: password,
     hostname: parsed_url.host,
+    port: parsed_url.port || 5432,
     socket_options: socket_opts,
     parameters: [
       tcp_keepalives_idle: "60",
@@ -106,38 +117,19 @@ if Enum.member?([:prod, :stag, :can], env) do
       database_options
     end
 
-  port = "8080"
-  app_url = Tuist.Environment.app_url([route_type: :app], secrets)
-  %{host: app_url_host, port: app_url_port, scheme: app_url_scheme} = URI.parse(app_url)
+  dns_name = System.get_env("RENDER_DISCOVERY_SERVICE")
+  app_name = System.get_env("RENDER_SERVICE_NAME")
 
-  # We migrated from {...}.tuist.io to {...}.tuist.dev, so we need to make sure we include
-  # the old origins for a while to avoid breaking the app for users that have the old origins
-  checkable_origins =
-    [app_url] ++
-      case {Tuist.Environment.tuist_hosted?(), Tuist.Environment.env()} do
-        {true, :stag} -> ["https://staging.tuist.io"]
-        {true, :prod} -> ["https://cloud.tuist.io"]
-        {true, :can} -> ["https://canary.tuist.io"]
-        _ -> []
-      end
-
-  config :logger, level: Tuist.Environment.log_level()
-
-  config :tuist, Tuist.Repo, database_options
-
-  config :tuist, TuistWeb.Endpoint,
-    url: [host: app_url_host, port: app_url_port, scheme: app_url_scheme],
-    check_origin: checkable_origins,
-    http: [
-      # Enable IPv6 and bind on all interfaces.
-      # Set it to  {0, 0, 0, 0, 0, 0, 0, 1} for local network only access.
-      # See the documentation on https://hexdocs.pm/bandit/Bandit.html#t:options/0
-      # for details about using IPv6 vs IPv4 and loopback vs public addresses.
-      ip: {0, 0, 0, 0, 0, 0, 0, 0},
-      port: port
+  config :libcluster,
+    topologies: [
+      render: [
+        strategy: Cluster.Strategy.Kubernetes.DNS,
+        config: [
+          service: dns_name,
+          application_name: app_name
+        ]
+      ]
     ]
-
-  config :tuist, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
 
   # ## SSL Support
   #
@@ -170,6 +162,31 @@ if Enum.member?([:prod, :stag, :can], env) do
   #       force_ssl: [hsts: true]
   #
   # Check `Plug.SSL` for all available options in `force_ssl`.
+  config :logger, level: Tuist.Environment.log_level()
+
+  config :tuist, Tuist.Repo, database_options
+end
+
+if Enum.member?([:prod, :stag, :can, :dev], env) do
+  port = "8080"
+  app_url = Tuist.Environment.app_url([route_type: :app], secrets)
+  %{host: app_url_host, port: app_url_port, scheme: app_url_scheme} = URI.parse(app_url)
+
+  http_ip =
+    case {env, app_url_host} do
+      {:dev, "localhost"} -> {127, 0, 0, 1}
+      {:dev, _host} -> {0, 0, 0, 0}
+      # Enable IPv6 and bind on all interfaces.
+      {_env, _host} -> {0, 0, 0, 0, 0, 0, 0, 0}
+    end
+
+  config :tuist, TuistWeb.Endpoint,
+    url: [host: app_url_host, port: app_url_port, scheme: app_url_scheme],
+    check_origin: [app_url],
+    http: [
+      ip: http_ip,
+      port: port
+    ]
 
   # ## Configuring the mailer
   #
@@ -217,27 +234,44 @@ end
 
 # Ex.AWS
 if Tuist.Environment.env() not in [:test] do
-  %{host: s3_endpoint_host, scheme: s3_scheme, port: s3_port} = secrets |> Tuist.Environment.s3_endpoint() |> URI.parse()
+  %{host: s3_endpoint_host, scheme: s3_scheme, port: s3_port} =
+    secrets |> Tuist.Environment.s3_endpoint() |> URI.parse()
 
-  s3_config = [
-    scheme: "#{s3_scheme}://",
-    host: s3_endpoint_host
-  ]
-
-  s3_config = if s3_port, do: Keyword.put(s3_config, :port, s3_port), else: s3_config
+  s3_config =
+    then(
+      [
+        scheme: "#{s3_scheme}://",
+        host: s3_endpoint_host,
+        region: Tuist.Environment.s3_region(secrets),
+        virtual_host: Tuist.Environment.s3_virtual_host(secrets),
+        bucket_as_host: Tuist.Environment.s3_bucket_as_host(secrets)
+      ],
+      &if(is_nil(s3_port), do: &1, else: Keyword.put(&1, :port, s3_port))
+    )
 
   config :ex_aws, :req_opts,
-    receive_timeout: to_timeout(second: Tuist.Environment.s3_request_timeout(secrets)),
-    pool_timeout: to_timeout(second: Tuist.Environment.s3_pool_timeout(secrets))
+    # Note: connect_options cannot be used with Finch
+    # Connection timeout is handled at the Finch pool level
+
+    # Maximum time (in ms) that an idle connection can remain in the pool
+    # before being closed. Helps prevent stale connections.
+    # Set to :infinity to keep connections alive indefinitely
+    pool_max_idle_time: Tuist.Environment.s3_pool_max_idle_time(secrets),
+
+    # Maximum time (in ms) to wait for data after the connection is established
+    # This timeout resets each time data is received, so large files can still
+    # be downloaded as long as data keeps flowing
+    receive_timeout: Tuist.Environment.s3_receive_timeout(secrets),
+
+    # Maximum time (in ms) to wait when checking out a connection from the pool
+    # If all connections are busy, this is how long it will wait for one to
+    # become available before timing out
+    pool_timeout: Tuist.Environment.s3_pool_timeout(secrets)
 
   config :ex_aws, :s3, s3_config
-  config :ex_aws, :s3, virtual_host: Tuist.Environment.s3_virtual_host()
 
   config :ex_aws,
     http_client: Tuist.AWS.Client
-
-  config :ex_aws,
-    region: Tuist.Environment.s3_region(secrets)
 
   case Tuist.Environment.s3_authentication_method(secrets) do
     :env_access_key_id_and_secret_access_key ->
@@ -254,6 +288,29 @@ if Tuist.Environment.env() not in [:test] do
     _ ->
       nil
       # Noop
+  end
+
+  tigris_endpoint = Tuist.Environment.s3_endpoint(:tigris, secrets)
+
+  if tigris_endpoint && tigris_endpoint != "" do
+    %{host: tigris_endpoint_host, scheme: tigris_scheme, port: tigris_port} =
+      URI.parse(tigris_endpoint)
+
+    tigris_config =
+      then(
+        [
+          scheme: "#{tigris_scheme}://",
+          host: tigris_endpoint_host,
+          region: Tuist.Environment.s3_region(:tigris, secrets),
+          virtual_host: Tuist.Environment.s3_virtual_host(:tigris, secrets),
+          bucket_as_host: Tuist.Environment.s3_bucket_as_host(:tigris, secrets),
+          secret_access_key: Tuist.Environment.s3_secret_access_key(:tigris, secrets),
+          access_key_id: Tuist.Environment.s3_access_key_id(:tigris, secrets)
+        ],
+        &if(is_nil(tigris_port), do: &1, else: Keyword.put(&1, :port, tigris_port))
+      )
+
+    config :ex_aws, :s3_tigris, tigris_config
   end
 end
 
@@ -293,34 +350,24 @@ if Tuist.Environment.mail_configured?(secrets) and Tuist.Environment.env() in [:
 end
 
 # Oban
-oban_queues =
-  if Tuist.Environment.web?() and !Tuist.Environment.worker?(), do: [], else: [default: 10]
-
-oban_plugins =
-  if Tuist.Environment.web?() and !Tuist.Environment.worker?(),
-    do: [],
-    else: [
-      {Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 7},
-      {Oban.Plugins.Lifeline, rescue_after: to_timeout(minute: 30)},
-      {Oban.Plugins.Cron,
-       crontab:
-         if(Tuist.Environment.tuist_hosted?() and env == :prod,
-           do: [
-             {"0 10 * * 1-5", Tuist.Ops.DailySlackReportWorker},
-             {"0 * * * 1-5", Tuist.Ops.HourlySlackReportWorker},
-             {"@hourly", Tuist.Registry.Swift.Workers.UpdatePackagesWorker},
-             {"@hourly", Tuist.Registry.Swift.Workers.UpdatePackageReleasesWorker},
-             {"@daily", Tuist.Billing.UpdateAllCustomersRemoteCacheHitsCountWorker},
-             {"@daily", Tuist.Accounts.Workers.UpdateAllAccountsUsageWorker},
-             {"@daily", Tuist.Mautic.Workers.SyncCompaniesAndContactsWorker}
-           ],
-           else: []
-         )}
-    ]
-
 config :tuist, Oban,
-  queues: oban_queues,
-  plugins: oban_plugins
+  queues: [default: 10, registry: 2],
+  plugins: [
+    {Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 7},
+    {Oban.Plugins.Lifeline, rescue_after: to_timeout(minute: 30)},
+    {Oban.Plugins.Cron,
+     crontab:
+       if(Tuist.Environment.tuist_hosted?() and env in [:prod, :stag, :can],
+         do: [
+           {"0 10 * * 1-5", Tuist.Ops.DailySlackReportWorker},
+           {"0 * * * 1-5", Tuist.Ops.HourlySlackReportWorker},
+           {"@hourly", Tuist.Registry.Swift.Workers.SyncPackagesWorker},
+           {"@daily", Tuist.Billing.Workers.SyncStripeMetersWorker},
+           {"@daily", Tuist.Accounts.Workers.UpdateAllAccountsUsageWorker}
+         ],
+         else: []
+       )}
+  ]
 
 # Guardian
 config :tuist, Tuist.Guardian,
@@ -333,16 +380,26 @@ config :tuist, Tuist.PromEx,
   manual_metrics_start_delay: :no_delay,
   drop_metrics_groups: [],
   grafana: :disabled,
-  # Larger numbers might lead to internal tasks timing out.
-  # By keeping it small we might loose some granularity of the data, but I think it's a good tradeoff.
-  # Use default value to avoid over-compacting
-  ets_flush_interval: 500,
+  # Fly.io polls every 15 seconds, so I'm setting the interval to 20 seconds to avoid
+  # missing data.
+  ets_flush_interval: 20_000,
   metrics_server: [
     port: 9091,
     auth_strategy: :none
   ]
 
-# Error tracker
-if not Tuist.Environment.tuist_hosted?() do
-  config :error_tracker, enabled: true
+if Tuist.Environment.analytics_enabled?(secrets) do
+  config :posthog,
+    api_url: Tuist.Environment.posthog_url(secrets),
+    api_key: Tuist.Environment.posthog_api_key(secrets)
+
+  config :posthog,
+    json_library: Jason,
+    enabled_capture: true,
+    http_client: Tuist.PostHog.HTTPClient,
+    http_client_opts: [
+      timeout: 5_000,
+      retries: 3,
+      retry_delay: 1_000
+    ]
 end

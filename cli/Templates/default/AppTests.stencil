@@ -1,8 +1,10 @@
-import Foundation
-import XCTest
+import Testing
+@testable import {{ class_name }}
 
-final class {{ class_name }}Tests: XCTestCase {
-    func test_twoPlusTwo_isFour() {
-        XCTAssertEqual(2+2, 4)
+struct {{ class_name }}Tests {
+
+    @Test func example() async throws {
+        // Write your test here and use APIs like `#expect(...)` to check expected conditions.
     }
+
 }

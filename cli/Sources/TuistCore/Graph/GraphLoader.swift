@@ -14,7 +14,7 @@ public final class GraphLoader: GraphLoading {
     private let frameworkMetadataProvider: FrameworkMetadataProviding
     private let libraryMetadataProvider: LibraryMetadataProviding
     private let xcframeworkMetadataProvider: XCFrameworkMetadataProviding
-    private let systemFrameworkMetadataProvider: SystemFrameworkMetadataProviding
+    private let systemFrameworkMetadataProvider: XcodeMetadata.SystemFrameworkMetadataProviding
 
     public convenience init() {
         let xcframeworkMetadataProvider = XCFrameworkMetadataProvider(logger: Logger.current)
@@ -22,7 +22,7 @@ public final class GraphLoader: GraphLoading {
             frameworkMetadataProvider: FrameworkMetadataProvider(),
             libraryMetadataProvider: LibraryMetadataProvider(),
             xcframeworkMetadataProvider: xcframeworkMetadataProvider,
-            systemFrameworkMetadataProvider: SystemFrameworkMetadataProvider()
+            systemFrameworkMetadataProvider: XcodeMetadata.SystemFrameworkMetadataProvider()
         )
     }
 
@@ -30,7 +30,7 @@ public final class GraphLoader: GraphLoading {
         frameworkMetadataProvider: FrameworkMetadataProviding,
         libraryMetadataProvider: LibraryMetadataProviding,
         xcframeworkMetadataProvider: XCFrameworkMetadataProviding,
-        systemFrameworkMetadataProvider: SystemFrameworkMetadataProviding
+        systemFrameworkMetadataProvider: XcodeMetadata.SystemFrameworkMetadataProviding
     ) {
         self.frameworkMetadataProvider = frameworkMetadataProvider
         self.libraryMetadataProvider = libraryMetadataProvider

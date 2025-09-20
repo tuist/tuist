@@ -1,9 +1,10 @@
 ---
-title: Templates
-titleTemplate: :title · Projects · Develop · Guides · Tuist
-description: 프로젝트에서 코드 생성을 위해 Tuist에서 템플릿을 생성하고 사용하는 방법을 배워봅니다.
+{
+  "title": "Templates",
+  "titleTemplate": ":title · Projects · Develop · Guides · Tuist",
+  "description": "프로젝트에서 코드 생성을 위해 Tuist에서 템플릿을 생성하고 사용하는 방법을 배워봅니다."
+}
 ---
-
 # Templates {#templates}
 
 기존 아키텍처가 있는 프로젝트에서 개발자가 프로젝트와 일관성 있는 새로운 컴포넌트나 기능을 부트스트랩 하고 싶을 수 있습니다. `tuist scaffold`를 사용하면 템플릿에서 파일을 생성할 수 있습니다. 템플릿을 정의할 수도 있고, Tuist에서 제공하는 템플릿을 사용할 수도 있습니다. 스캐폴딩 (Scaffolding) 이 유용한 몇가지 시나리오가 있습니다:

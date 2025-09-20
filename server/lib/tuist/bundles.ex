@@ -13,14 +13,14 @@ defmodule Tuist.Bundles do
   @doc """
   Creates a bundle with associated artifacts.
   """
-  def create_bundle(attrs \\ %{}) do
+  def create_bundle(attrs \\ %{}, opts \\ []) do
     {artifacts, bundle_attrs} = Map.pop(attrs, :artifacts, [])
     bundle_id = Map.fetch!(attrs, :id)
 
     Ecto.Multi.new()
     |> create_bundle_multi(bundle_attrs)
     |> create_artifacts_multi(artifacts, bundle_id)
-    |> execute_bundle_transaction()
+    |> execute_bundle_transaction(opts)
   end
 
   defp create_bundle_multi(multi, bundle_attrs) do
@@ -33,9 +33,11 @@ defmodule Tuist.Bundles do
     end)
   end
 
-  defp execute_bundle_transaction(multi) do
+  defp execute_bundle_transaction(multi, opts) do
+    preload = Keyword.get(opts, :preload, [])
+
     case Repo.transaction(multi) do
-      {:ok, %{bundle: bundle}} -> {:ok, bundle}
+      {:ok, %{bundle: bundle}} -> {:ok, Repo.preload(bundle, preload)}
       {:error, _operation, changeset, _changes} -> {:error, changeset}
     end
   end
@@ -65,7 +67,15 @@ defmodule Tuist.Bundles do
   """
   def get_bundle(id, opts \\ []) do
     preload = Keyword.get(opts, :preload, [])
-    bundle = Bundle |> Repo.get(id) |> Repo.preload(preload)
+    project_id = Keyword.get(opts, :project_id)
+
+    query =
+      then(
+        from(b in Bundle, where: b.id == ^id, preload: ^preload),
+        &if(is_nil(project_id), do: &1, else: where(&1, [b], b.project_id == ^project_id))
+      )
+
+    bundle = Repo.one(query)
 
     if is_nil(bundle) do
       {:error, :not_found}
@@ -299,8 +309,7 @@ defmodule Tuist.Bundles do
       previous_date = Date.add(date, -days_back)
       Map.get(bundle_sizes, previous_date)
     end)
-    |> Enum.filter(&(not is_nil(&1)))
-    |> List.first() || 0
+    |> Enum.find(&(not is_nil(&1))) || 0
   end
 
   def bundle_download_size_analytics(%Project{} = project, opts \\ []) do
@@ -419,7 +428,7 @@ defmodule Tuist.Bundles do
     if Enum.empty?(apps) do
       nil
     else
-      (apps |> Enum.filter(&Enum.member?(&1.supported_platforms, :ios)) |> List.first() ||
+      (Enum.find(apps, &Enum.member?(&1.supported_platforms, :ios)) ||
          List.first(apps)).name
     end
   end

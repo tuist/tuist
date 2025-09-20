@@ -192,7 +192,8 @@ defmodule Tuist.Projects do
       created_at: created_at,
       visibility: visibility,
       vcs_repository_full_handle: Keyword.get(opts, :vcs_repository_full_handle),
-      vcs_provider: Keyword.get(opts, :vcs_provider)
+      vcs_provider: Keyword.get(opts, :vcs_provider),
+      default_previews_visibility: Keyword.get(opts, :default_previews_visibility, :private)
     })
     |> Repo.insert!()
     |> Repo.preload(preload)
@@ -392,5 +393,21 @@ defmodule Tuist.Projects do
     |> Enum.filter(fn project -> not is_nil(project.last_interacted_at) end)
     |> Enum.sort_by(& &1.last_interacted_at, {:desc, NaiveDateTime})
     |> Enum.take(limit)
+  end
+
+  def project_by_vcs_repository_full_handle(vcs_repository_full_handle, opts \\ []) do
+    preload = Keyword.get(opts, :preload, [:account])
+
+    project =
+      Repo.one(
+        from p in Project,
+          where: p.vcs_repository_full_handle == ^vcs_repository_full_handle,
+          preload: ^preload
+      )
+
+    case project do
+      nil -> {:error, :not_found}
+      _ -> {:ok, project}
+    end
   end
 end

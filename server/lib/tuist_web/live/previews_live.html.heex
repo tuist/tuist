@@ -52,10 +52,7 @@
             <.text_cell icon="git_branch" label={preview.git_branch || "None"} />
           </:col>
           <:col :let={preview} label={gettext("Commit SHA")}>
-            <.text_cell label={
-              (preview.git_commit_sha || "None")
-              |> String.slice(0, 7)
-            } />
+            <.text_cell label={SHA.format_commit_sha(preview.git_commit_sha)} />
           </:col>
           <:col :let={preview} label={gettext("Ran by")}>
             <.preview_ran_by_badge_cell preview={preview} />

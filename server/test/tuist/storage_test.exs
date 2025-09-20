@@ -6,6 +6,27 @@ defmodule Tuist.StorageTest do
   alias Tuist.Environment
   alias Tuist.Storage
 
+  setup do
+    # Mock FunWithFlags to always return false for tigris (use default S3)
+    stub(FunWithFlags, :enabled?, fn :tigris, [for: _] -> false end)
+
+    # Mock ExAws.Config.new to return a proper config that won't try to access instance metadata
+    stub(ExAws.Config, :new, fn :s3 ->
+      %{
+        access_key_id: "test-access-key",
+        secret_access_key: "test-secret-key",
+        region: "us-east-1",
+        host: "s3.amazonaws.com",
+        scheme: "https://",
+        port: 443
+      }
+    end)
+
+    # Mock Environment.decrypt_secrets to return an empty map
+    stub(Environment, :decrypt_secrets, fn -> %{} end)
+    :ok
+  end
+
   describe "multipart_generate_url/4" do
     test "generates the URL using the ExAws.S3 module and reports the telemetry event" do
       # Given
@@ -22,10 +43,12 @@ defmodule Tuist.StorageTest do
       part_number = 1
       expires_in = 30
       bucket_name = UUIDv7.generate()
-      stub(ExAws.Config, :new, fn :s3 -> %{} end)
-      expect(Environment, :s3_bucket_name, fn -> bucket_name end)
+      config = %{test: :config}
 
-      expect(ExAws.S3, :presigned_url, fn _,
+      expect(Environment, :s3_bucket_name, fn -> bucket_name end)
+      expect(ExAws.Config, :new, fn :s3 -> config end)
+
+      expect(ExAws.S3, :presigned_url, fn ^config,
                                           :put,
                                           ^bucket_name,
                                           ^object_key,
@@ -34,15 +57,13 @@ defmodule Tuist.StorageTest do
                                               {"partNumber", ^part_number},
                                               {"uploadId", ^upload_id}
                                             ],
-                                            headers: [],
-                                            virtual_host: false,
                                             expires_in: ^expires_in
                                           ] ->
         {:ok, url}
       end)
 
       # When/Then
-      assert Storage.multipart_generate_url(object_key, upload_id, part_number, expires_in: expires_in) == url
+      assert Storage.multipart_generate_url(object_key, upload_id, part_number, :test, expires_in: expires_in) == url
 
       assert_received {^event_name, ^event_ref, %{},
                        %{
@@ -67,10 +88,12 @@ defmodule Tuist.StorageTest do
       part_number = 1
       expires_in = 30
       bucket_name = UUIDv7.generate()
-      stub(ExAws.Config, :new, fn :s3 -> %{} end)
-      expect(Environment, :s3_bucket_name, fn -> bucket_name end)
+      config = %{test: :config}
 
-      expect(ExAws.S3, :presigned_url, fn _,
+      expect(Environment, :s3_bucket_name, fn -> bucket_name end)
+      expect(ExAws.Config, :new, fn :s3 -> config end)
+
+      expect(ExAws.S3, :presigned_url, fn ^config,
                                           :put,
                                           ^bucket_name,
                                           ^object_key,
@@ -79,17 +102,13 @@ defmodule Tuist.StorageTest do
                                               {"partNumber", ^part_number},
                                               {"uploadId", ^upload_id}
                                             ],
-                                            headers: [
-                                              {"Content-Length", "300"}
-                                            ],
-                                            virtual_host: false,
                                             expires_in: ^expires_in
                                           ] ->
         {:ok, url}
       end)
 
       # When/Then
-      assert Storage.multipart_generate_url(object_key, upload_id, part_number,
+      assert Storage.multipart_generate_url(object_key, upload_id, part_number, :test,
                expires_in: expires_in,
                content_length: 300
              ) == url
@@ -116,17 +135,27 @@ defmodule Tuist.StorageTest do
       upload_id = UUIDv7.generate()
       object_key = UUIDv7.generate()
       parts = [{1, "etag-1"}, {2, "etag-2"}]
+      config = %{test: :config}
+
       expect(Environment, :s3_bucket_name, fn -> bucket_name end)
+      expect(ExAws.Config, :new, fn :s3 -> config end)
+
       operation = %S3{body: UUIDv7.generate()}
 
       expect(ExAws.S3, :complete_multipart_upload, fn ^bucket_name, ^object_key, ^upload_id, ^parts ->
         operation
       end)
 
-      expect(ExAws, :request!, fn ^operation -> :ok end)
+      expect(ExAws, :request!, fn ^operation, opts ->
+        # Verify fast_api_req_opts are included
+        assert Map.get(opts, :receive_timeout) == 5_000
+        assert Map.get(opts, :pool_timeout) == 1_000
+        assert Map.get(opts, :test) == :config
+        :ok
+      end)
 
       # When
-      assert Storage.multipart_complete_upload(object_key, upload_id, parts) == :ok
+      assert Storage.multipart_complete_upload(object_key, upload_id, parts, :test) == :ok
 
       # Then
       parts_count = length(parts)
@@ -150,29 +179,28 @@ defmodule Tuist.StorageTest do
       url = "https://tuist.io/download-url"
       object_key = UUIDv7.generate()
       bucket_name = UUIDv7.generate()
-      expect(Environment, :s3_bucket_name, fn -> bucket_name end)
       expires_in = 60
-      stub(ExAws.Config, :new, fn :s3 -> %{} end)
+      config = %{test: :config}
 
-      expect(ExAws.S3, :presigned_url, fn _,
+      expect(Environment, :s3_bucket_name, fn -> bucket_name end)
+      expect(ExAws.Config, :new, fn :s3 -> config end)
+
+      expect(ExAws.S3, :presigned_url, fn ^config,
                                           :get,
                                           ^bucket_name,
                                           ^object_key,
                                           [
                                             query_params: [],
-                                            expires_in: ^expires_in,
-                                            virtual_host: false
+                                            expires_in: ^expires_in
                                           ] ->
         {:ok, url}
       end)
 
       # When
-      assert Storage.generate_download_url(object_key, expires_in: expires_in) == url
+      assert Storage.generate_download_url(object_key, :test, expires_in: expires_in) == url
 
       # Then
-      assert_received {^event_name, ^event_ref, %{duration: duration}, %{object_key: ^object_key}}
-
-      assert is_number(duration)
+      assert_received {^event_name, ^event_ref, %{}, %{object_key: ^object_key}}
     end
   end
 
@@ -188,24 +216,25 @@ defmodule Tuist.StorageTest do
       url = "https://tuist.io/upload-url"
       object_key = UUIDv7.generate()
       bucket_name = UUIDv7.generate()
-      expect(Environment, :s3_bucket_name, fn -> bucket_name end)
       expires_in = 60
-      stub(ExAws.Config, :new, fn :s3 -> %{} end)
+      config = %{test: :config}
 
-      expect(ExAws.S3, :presigned_url, fn _,
+      expect(Environment, :s3_bucket_name, fn -> bucket_name end)
+      expect(ExAws.Config, :new, fn :s3 -> config end)
+
+      expect(ExAws.S3, :presigned_url, fn ^config,
                                           :put,
                                           ^bucket_name,
                                           ^object_key,
                                           [
                                             query_params: [],
-                                            expires_in: ^expires_in,
-                                            virtual_host: false
+                                            expires_in: ^expires_in
                                           ] ->
         {:ok, url}
       end)
 
       # When
-      assert Storage.generate_upload_url(object_key, expires_in: expires_in) == url
+      assert Storage.generate_upload_url(object_key, :test, expires_in: expires_in) == url
 
       # Then
       assert_received {^event_name, ^event_ref, %{}, %{object_key: ^object_key}}
@@ -222,9 +251,12 @@ defmodule Tuist.StorageTest do
         :telemetry_test.attach_event_handlers(self(), [event_name])
 
       bucket_name = UUIDv7.generate()
-      expect(Environment, :s3_bucket_name, fn -> bucket_name end)
       object_key = UUIDv7.generate()
       url = "https://tuist.io/download-url"
+      config = %{test: :config}
+
+      expect(Environment, :s3_bucket_name, fn -> bucket_name end)
+      expect(ExAws.Config, :new, fn :s3 -> config end)
 
       expect(ExAws.S3, :download_file, fn ^bucket_name, ^object_key, :memory ->
         {:ok, url}
@@ -232,10 +264,10 @@ defmodule Tuist.StorageTest do
 
       stream = %Stream{}
 
-      expect(ExAws, :stream!, fn _ -> stream end)
+      expect(ExAws, :stream!, fn _, ^config -> stream end)
 
       # When
-      got = Storage.stream_object(object_key)
+      got = Storage.stream_object(object_key, :test)
 
       # Then
       assert got == stream
@@ -254,17 +286,27 @@ defmodule Tuist.StorageTest do
 
       object_key = UUIDv7.generate()
       bucket_name = UUIDv7.generate()
+      config = %{test: :config}
+
       expect(Environment, :s3_bucket_name, fn -> bucket_name end)
+      expect(ExAws.Config, :new, fn :s3 -> config end)
+
       operation = %S3{body: UUIDv7.generate()}
 
       expect(ExAws.S3, :head_object, fn ^bucket_name, ^object_key ->
         operation
       end)
 
-      expect(ExAws, :request, fn ^operation -> {:ok, %{}} end)
+      expect(ExAws, :request, fn ^operation, opts ->
+        # Verify fast_api_req_opts are included
+        assert Map.get(opts, :receive_timeout) == 5_000
+        assert Map.get(opts, :pool_timeout) == 1_000
+        assert Map.get(opts, :test) == :config
+        {:ok, %{}}
+      end)
 
       # When
-      assert Storage.object_exists?(object_key) == true
+      assert Storage.object_exists?(object_key, :test) == true
 
       # Then
       assert_received {^event_name, ^event_ref, %{duration: duration}, %{object_key: ^object_key}}
@@ -285,17 +327,27 @@ defmodule Tuist.StorageTest do
       content = UUIDv7.generate()
       object_key = UUIDv7.generate()
       bucket_name = UUIDv7.generate()
+      config = %{test: :config}
+
       expect(Environment, :s3_bucket_name, fn -> bucket_name end)
+      expect(ExAws.Config, :new, fn :s3 -> config end)
+
       operation = %S3{body: UUIDv7.generate()}
 
       expect(ExAws.S3, :get_object, fn ^bucket_name, ^object_key ->
         operation
       end)
 
-      expect(ExAws, :request, fn ^operation -> {:ok, %{body: content}} end)
+      expect(ExAws, :request, fn ^operation, opts ->
+        # Verify fast_api_req_opts are included
+        assert Map.get(opts, :receive_timeout) == 5_000
+        assert Map.get(opts, :pool_timeout) == 1_000
+        assert Map.get(opts, :test) == :config
+        {:ok, %{body: content}}
+      end)
 
       # When
-      assert Storage.get_object_as_string(object_key) == content
+      assert Storage.get_object_as_string(object_key, :test) == content
 
       # Then
       assert_received {^event_name, ^event_ref, %{duration: duration}, %{object_key: ^object_key}}
@@ -313,17 +365,27 @@ defmodule Tuist.StorageTest do
 
       object_key = UUIDv7.generate()
       bucket_name = UUIDv7.generate()
+      config = %{test: :config}
+
       expect(Environment, :s3_bucket_name, fn -> bucket_name end)
+      expect(ExAws.Config, :new, fn :s3 -> config end)
+
       operation = %S3{body: UUIDv7.generate()}
 
       expect(ExAws.S3, :get_object, fn ^bucket_name, ^object_key ->
         operation
       end)
 
-      expect(ExAws, :request, fn ^operation -> {:error, {:http_error, 404, %{}}} end)
+      expect(ExAws, :request, fn ^operation, opts ->
+        # Verify fast_api_req_opts are included
+        assert Map.get(opts, :receive_timeout) == 5_000
+        assert Map.get(opts, :pool_timeout) == 1_000
+        assert Map.get(opts, :test) == :config
+        {:error, {:http_error, 404, %{}}}
+      end)
 
       # When
-      assert Storage.get_object_as_string(object_key) == nil
+      assert Storage.get_object_as_string(object_key, :test) == nil
 
       # Then
       assert_received {^event_name, ^event_ref, %{duration: duration}, %{object_key: ^object_key}}
@@ -344,17 +406,27 @@ defmodule Tuist.StorageTest do
       upload_id = UUIDv7.generate()
       object_key = UUIDv7.generate()
       bucket_name = UUIDv7.generate()
+      config = %{test: :config}
+
       expect(Environment, :s3_bucket_name, fn -> bucket_name end)
+      expect(ExAws.Config, :new, fn :s3 -> config end)
+
       operation = %S3{body: UUIDv7.generate()}
 
       expect(ExAws.S3, :initiate_multipart_upload, fn ^bucket_name, ^object_key ->
         operation
       end)
 
-      expect(ExAws, :request!, fn ^operation -> %{body: %{upload_id: upload_id}} end)
+      expect(ExAws, :request!, fn ^operation, opts ->
+        # Verify fast_api_req_opts are included
+        assert Map.get(opts, :receive_timeout) == 5_000
+        assert Map.get(opts, :pool_timeout) == 1_000
+        assert Map.get(opts, :test) == :config
+        %{body: %{upload_id: upload_id}}
+      end)
 
       # When
-      assert Storage.multipart_start(object_key) == upload_id
+      assert Storage.multipart_start(object_key, :test) == upload_id
 
       # Then
       assert_received {^event_name, ^event_ref, %{duration: duration}, %{object_key: ^object_key}}
@@ -375,19 +447,22 @@ defmodule Tuist.StorageTest do
       project_slug = UUIDv7.generate()
       bucket_name = UUIDv7.generate()
       object_key = UUIDv7.generate()
+      config = %{test: :config}
 
       stub(Environment, :s3_bucket_name, fn -> bucket_name end)
+      stub(ExAws.Config, :new, fn :s3 -> config end)
+
       list_operation = %S3{body: UUIDv7.generate()}
 
       stub(ExAws.S3, :list_objects_v2, fn ^bucket_name, [prefix: ^project_slug, max_keys: _] ->
         list_operation
       end)
 
-      stub(ExAws, :request!, fn ^list_operation ->
+      stub(ExAws, :request!, fn ^list_operation, ^config ->
         %S3{body: %{contents: [%{}]}}
       end)
 
-      stub(ExAws, :stream!, fn ^list_operation ->
+      stub(ExAws, :stream!, fn ^list_operation, ^config ->
         [%{key: object_key}] |> Stream.cycle() |> Stream.take(1)
       end)
 
@@ -397,10 +472,10 @@ defmodule Tuist.StorageTest do
         delete_operation
       end)
 
-      expect(ExAws, :request, fn ^delete_operation -> {:ok, %{}} end)
+      expect(ExAws, :request, fn ^delete_operation, ^config -> {:ok, %{}} end)
 
       # When
-      assert Storage.delete_all_objects(project_slug) == :ok
+      assert Storage.delete_all_objects(project_slug, :test) == :ok
 
       # Then
       assert_received {^event_name, ^event_ref, %{duration: duration}, %{}}
@@ -418,20 +493,23 @@ defmodule Tuist.StorageTest do
 
       project_slug = UUIDv7.generate()
       bucket_name = UUIDv7.generate()
+      config = %{test: :config}
 
       stub(Environment, :s3_bucket_name, fn -> bucket_name end)
+      stub(ExAws.Config, :new, fn :s3 -> config end)
+
       list_operation = %S3{body: UUIDv7.generate()}
 
       stub(ExAws.S3, :list_objects_v2, fn ^bucket_name, [prefix: ^project_slug, max_keys: _] ->
         list_operation
       end)
 
-      stub(ExAws, :request!, fn ^list_operation ->
+      stub(ExAws, :request!, fn ^list_operation, ^config ->
         %S3{body: %{contents: []}}
       end)
 
       # When
-      assert Storage.delete_all_objects(project_slug) == :ok
+      assert Storage.delete_all_objects(project_slug, :test) == :ok
 
       # Then
       assert_received {^event_name, ^event_ref, %{duration: duration}, %{}}
@@ -452,17 +530,25 @@ defmodule Tuist.StorageTest do
       size = 25
       object_key = UUIDv7.generate()
       bucket_name = UUIDv7.generate()
+      config = %{test: :config}
+
       stub(Environment, :s3_bucket_name, fn -> bucket_name end)
+      expect(ExAws.Config, :new, fn :s3 -> config end)
+
       operation = %S3{body: UUIDv7.generate()}
 
       expect(ExAws.S3, :head_object, fn ^bucket_name, ^object_key -> operation end)
 
-      expect(ExAws, :request!, fn ^operation ->
+      expect(ExAws, :request!, fn ^operation, opts ->
+        # Verify fast_api_req_opts are included
+        assert Map.get(opts, :receive_timeout) == 5_000
+        assert Map.get(opts, :pool_timeout) == 1_000
+        assert Map.get(opts, :test) == :config
         %{headers: %{"content-length" => ["#{size}"]}}
       end)
 
       # When
-      assert Storage.get_object_size(object_key) == size
+      assert Storage.get_object_size(object_key, :test) == size
 
       # Then
       assert_received {^event_name, ^event_ref, %{duration: duration, size: size}, %{object_key: ^object_key}}

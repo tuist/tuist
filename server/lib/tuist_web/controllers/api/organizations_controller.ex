@@ -182,7 +182,7 @@ defmodule TuistWeb.API.OrganizationsController do
         |> put_status(:not_found)
         |> json(%{message: "Organization #{organization_name} not found."})
 
-      !Authorization.can(user, :delete, organization.account, :organization) ->
+      Authorization.authorize(:organization_delete, user, organization.account) != :ok ->
         conn
         |> put_status(:forbidden)
         |> json(%{message: "The authenticated subject is not authorized to perform this action"})
@@ -228,7 +228,7 @@ defmodule TuistWeb.API.OrganizationsController do
         |> put_status(:not_found)
         |> json(%{message: "Organization not found"})
 
-      !Authorization.can(user, :read, organization.account, :organization) ->
+      Authorization.authorize(:organization_read, user, organization.account) != :ok ->
         conn
         |> put_status(:forbidden)
         |> json(%{message: "The authenticated subject is not authorized to perform this action"})
@@ -276,7 +276,11 @@ defmodule TuistWeb.API.OrganizationsController do
               &%{
                 id: &1.id,
                 invitee_email: &1.invitee_email,
-                inviter: %{id: &1.inviter.id, email: &1.inviter.email, name: &1.inviter.account.name},
+                inviter: %{
+                  id: &1.inviter.id,
+                  email: &1.inviter.email,
+                  name: &1.inviter.account.name
+                },
                 token: &1.token,
                 organization_id: &1.organization_id
               }
@@ -317,13 +321,15 @@ defmodule TuistWeb.API.OrganizationsController do
         |> put_status(:not_found)
         |> json(%{message: "Organization not found"})
 
-      !Authorization.can(user, :read, organization.account, :organization_usage) ->
+      Authorization.authorize(:billing_usage_read, user, organization.account) != :ok ->
         conn
         |> put_status(:forbidden)
         |> json(%{message: "The authenticated subject is not authorized to perform this action"})
 
       !is_nil(organization) ->
-        json(conn, %{current_month_remote_cache_hits: organization.account.current_month_remote_cache_hits_count})
+        json(conn, %{
+          current_month_remote_cache_hits: organization.account.current_month_remote_cache_hits_count
+        })
     end
   end
 
@@ -383,7 +389,7 @@ defmodule TuistWeb.API.OrganizationsController do
         |> put_status(:not_found)
         |> json(%{message: "Organization #{organization_name} was not found."})
 
-      !Authorization.can(user, :update, organization.account, :organization) ->
+      Authorization.authorize(:organization_update, user, organization.account) != :ok ->
         conn
         |> put_status(:forbidden)
         |> json(%{message: "The authenticated subject is not authorized to perform this action."})
@@ -503,7 +509,7 @@ defmodule TuistWeb.API.OrganizationsController do
         |> put_status(:not_found)
         |> json(%{message: "User #{user_name} not found."})
 
-      !Authorization.can(user, :delete, organization.account, :member) ->
+      Authorization.authorize(:member_delete, user, organization.account) != :ok ->
         conn
         |> put_status(:forbidden)
         |> json(%{message: "The authenticated subject is not authorized to perform this action"})
@@ -587,7 +593,7 @@ defmodule TuistWeb.API.OrganizationsController do
         |> put_status(:not_found)
         |> json(%{message: "User #{user_name} not found."})
 
-      !Authorization.can(user, :update, organization.account, :member) ->
+      Authorization.authorize(:member_update, user, organization.account) != :ok ->
         conn
         |> put_status(:forbidden)
         |> json(%{message: "The authenticated subject is not authorized to perform this action"})

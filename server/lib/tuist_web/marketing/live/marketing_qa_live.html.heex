@@ -1,0 +1,95 @@
+<main id="qa">
+  <div :if={@email_submitted?} data-part="confirmation">
+    <.alert
+      id="confirmation-alert"
+      status="information"
+      title={gettext("A confirmation email has been sent to your account with further details.")}
+      dismissible
+    />
+  </div>
+  <div data-part="header">
+    <div data-part="background" aria-hidden="true">
+      <img src="/marketing/images/qa/header-background.webp" alt="Background decoration" />
+    </div>
+
+    <img data-part="logo" src="/marketing/images/qa/header-logo.webp" />
+    <h1 data-part="title">
+      {gettext("Agentic QA")}<br /> {gettext("Right Inside Your Workflow")}
+    </h1>
+    <p data-part="description">
+      {gettext(
+        "Tuist QA runs AI-powered tests from your PRs, giving you summaries with issues, steps, and screenshots — so bugs are caught before they reach main."
+      )}
+    </p>
+    <.form id="header-form" for={@form} data-part="form" phx-submit="add-to-waiting-list">
+      <.text_input
+        id="header-form-email"
+        field={@form[:email]}
+        type="email"
+        placeholder="hello@tuist.dev"
+        value={if @current_user, do: @current_user.email, else: ""}
+      />
+      <.button label={gettext("Get early access")} variant="primary" size="large" />
+    </.form>
+  </div>
+
+  <div data-part="main">
+    <div data-part="feature">
+      <div data-part="text">
+        <h2 id="summary" data-part="title">
+          <a href="#summary">{gettext("Concise Summary")}</a>
+        </h2>
+        <p data-part="description">
+          {gettext("see what was tested, issues found, and results at a glance")}
+        </p>
+      </div>
+
+      <img data-part="image" src="/marketing/images/qa/summary.webp" />
+    </div>
+
+    <div data-part="feature" data-reverse>
+      <div data-part="text">
+        <h2 id="screenshots" data-part="title">
+          <a href="#screenshots">{gettext("Screenshots & Replays")}</a>
+        </h2>
+        <p data-part="description">
+          {gettext("review every step the agent took with visual context")}
+        </p>
+      </div>
+
+      <img data-part="image" src="/marketing/images/qa/screenshots.webp" />
+    </div>
+
+    <div data-part="feature">
+      <div data-part="text">
+        <h2 id="issue-tracking" data-part="title">
+          <a href="#issue-tracking">{gettext("Issue Tracking")}</a>
+        </h2>
+        <p data-part="description">
+          {gettext("pinpoint the exact moment of the issue during testing")}
+        </p>
+      </div>
+
+      <img data-part="image" src="/marketing/images/qa/issue-tracking.webp" />
+    </div>
+  </div>
+
+  <div data-part="footer">
+    <div data-part="background" aria-hidden="true">
+      <img src="/marketing/images/qa/footer-background.webp" alt="Background decoration" />
+    </div>
+
+    <h2 data-part="title">{gettext("Sign up to get early access to Tuist QA")}</h2>
+
+    <.form id="footer-form" for={@form} data-part="form" phx-submit="add-to-waiting-list">
+      <.text_input
+        id="footer-form-email"
+        field={@form[:email]}
+        type="email"
+        placeholder="hello@tuist.dev"
+        value={if @current_user, do: @current_user.email, else: ""}
+      />
+      <.button label={gettext("Get early access")} variant="primary" size="large" />
+    </.form>
+  </div>
+</main>

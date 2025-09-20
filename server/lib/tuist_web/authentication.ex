@@ -16,7 +16,6 @@ defmodule TuistWeb.Authentication do
   alias Tuist.Authorization
   alias Tuist.Projects
   alias Tuist.Projects.Project
-  alias Tuist.Repo
 
   @current_user_key :current_user
   @current_project_key :current_project
@@ -283,7 +282,7 @@ defmodule TuistWeb.Authentication do
     end
   end
 
-  defp mount_current_user(socket, session) do
+  def mount_current_user(socket, session) do
     Phoenix.Component.assign_new(socket, :current_user, fn ->
       if user_token = session["user_token"] do
         Accounts.get_user_by_session_token(user_token, preload: [:account])
@@ -329,23 +328,23 @@ defmodule TuistWeb.Authentication do
       ) do
     project = Projects.get_project_by_account_and_project_handles(account_handle, project_handle)
 
-    if is_nil(project) or not Authorization.can(nil, :read, project, :dashboard),
+    if is_nil(project) or Authorization.authorize(:dashboard_read, nil, project) != :ok,
       do: require_authenticated_user(conn, opts),
       else: conn
   end
 
   def require_authenticated_user_for_previews(%{path_params: %{"id" => preview_id}} = conn, opts) do
-    case Tuist.AppBuilds.preview_by_id(preview_id) do
+    case Tuist.AppBuilds.preview_by_id(preview_id, preload: :project) do
       {:error, _} ->
         require_authenticated_user(conn, opts)
 
       {:ok, preview} ->
-        if preview.visibility == :public or
-             Authorization.can?(
-               :project_preview_read,
+        if (preview.visibility || preview.project.default_previews_visibility) == :public or
+             Authorization.authorize(
+               :preview_read,
                nil,
-               Repo.preload(preview, :project).project
-             ) do
+               preview.project
+             ) == :ok do
           conn
         else
           require_authenticated_user(conn, opts)

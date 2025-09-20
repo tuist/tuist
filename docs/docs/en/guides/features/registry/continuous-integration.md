@@ -1,9 +1,10 @@
 ---
-title: Continuous integration
-titleTemplate: :title · Registry · Features · Guides · Tuist
-description: Learn how to use the Tuist Registry in continuous integration.
+{
+  "title": "Continuous integration",
+  "titleTemplate": ":title · Registry · Features · Guides · Tuist",
+  "description": "Learn how to use the Tuist Registry in continuous integration."
+}
 ---
-
 # Continuous Integration (CI) {#continuous-integration-ci}
 
 To use the registry on your CI, you need to ensure that you have logged in to the registry by running `tuist registry login` as part of your workflow.
@@ -53,9 +54,16 @@ jobs:
 ### Incremental resolution across environments {#incremental-resolution-across-environments}
 
 Clean/cold resolutions are slightly faster with our registry, and you can experience even greater improvements if you persist the resolved dependencies across CI builds. Note that thanks to the registry, the size of the directory that you need to store and restore is much smaller than without the registry, taking significantly less time.
-To cache dependencies when using the default Xcode package integration, the best way is to specify a custom `-clonedSourcePackagesDirPath` when resolving dependencies via `xcodebuild`, such as:
-```sh
-xcodebuild -resolvePackageDependencies -clonedSourcePackagesDirPath .build
+To cache dependencies when using the default Xcode package integration, the best way is to specify a custom `clonedSourcePackagesDirPath` when resolving dependencies via `xcodebuild`. This can be done by adding the following to your `Config.swift` file:
+
+```swift
+import ProjectDescription
+
+let config = Config(
+    generationOptions: .options(
+        additionalPackageResolutionArguments: ["-clonedSourcePackagesDirPath", ".build"]
+    )
+)
 ```
 
 Additionally, you will need to find a path of the `Package.resolved`. You can grab the path by running `ls **/Package.resolved`. The path should look something like `App.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved`.

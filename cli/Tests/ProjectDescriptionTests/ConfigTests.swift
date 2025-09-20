@@ -3,13 +3,19 @@ import XCTest
 @testable import ProjectDescription
 
 final class ConfigTests: XCTestCase {
-    func test_config_toJSON() throws {
+    func test_config_toJSON() {
         let config = Config(
-            cloud: Cloud(url: "https://cloud.tuist.io", projectId: "123", options: []),
             generationOptions: .options(
-                resolveDependenciesWithSystemScm: false,
-                disablePackageVersionLocking: true,
-                clonedSourcePackagesDirPath: .relativeToRoot("SourcePackages")
+                resolveDependenciesWithSystemScm: true,
+                disablePackageVersionLocking: false,
+                clonedSourcePackagesDirPath: .relativeToRoot("CustomSourcePackages"),
+                staticSideEffectsWarningTargets: .excluding(["Target1", "Target2"]),
+                defaultConfiguration: "Release",
+                optionalAuthentication: true,
+                buildInsightsDisabled: false,
+                disableSandbox: true,
+                includeGenerateScheme: true,
+                additionalPackageResolutionArguments: ["--verbose"]
             )
         )
 

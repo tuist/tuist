@@ -1,9 +1,10 @@
 ---
-title: Dependencies
-titleTemplate: :title · Projects · Develop · Guides · Tuist
-description: Learn how to declare dependencies in your Tuist project.
+{
+  "title": "Dependencies",
+  "titleTemplate": ":title · Projects · Develop · Guides · Tuist",
+  "description": "Learn how to declare dependencies in your Tuist project."
+}
 ---
-
 # Dependencies {#dependencies}
 
 When a project grows, it's common to split it into multiple targets to share code, define boundaries, and improve build times.

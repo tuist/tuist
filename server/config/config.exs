@@ -19,15 +19,6 @@ config :boruta, Boruta.Oauth,
 config :ecto_ch,
   default_table_engine: "MergeTree"
 
-# Error tracker
-config :error_tracker,
-  repo: Tuist.Repo,
-  enabled: false,
-  otp_app: :tuist,
-  ignorer: Tuist.ErrorTracker.Ignorer,
-  # 1 week
-  plugins: [{ErrorTracker.Plugins.Pruner, max_age: to_timeout(week: 1)}]
-
 # esbuild
 config :esbuild,
   version: "0.25.2",
@@ -39,7 +30,7 @@ config :esbuild,
   ],
   marketing: [
     args:
-      ~w(marketing.js --bundle --target=es2017 --outfile=../../priv/static/marketing/assets/bundle.js --external:/fonts/* --external:/images/*),
+      ~w(marketing.js --bundle --loader:.svg=dataurl --loader:.jpg=dataurl --loader:.png=dataurl --loader:.webp=dataurl --target=es2017 --outfile=../../priv/static/marketing/assets/bundle.js --external:/fonts/* --external:/images/*),
     cd: Path.expand("../assets/marketing", __DIR__),
     env: %{"NODE_PATH" => Path.expand("../deps", __DIR__)}
   ],
@@ -88,8 +79,16 @@ config :mime, :types, %{
 config :money,
   default_currency: :USD
 
+config :peep, :bucket_calculator, Tuist.PromEx.Buckets
+
 # Use Jason for JSON parsing in Phoenix
 config :phoenix, :json_library, Jason
+
+# Using the default ETS storage leads to [lock contention](https://github.com/akoutmos/prom_ex/issues/248#issuecomment-2709045234)
+# and causes the CPU clogging with cascading effects (e.g. connections dropping).
+# This configures prom_ex to use a different storage using [this](https://github.com/plausible/analytics/pull/5130/)
+# as a reference
+config :prom_ex, :storage_adapter, Tuist.PromEx.StripedPeep
 
 # Oban
 config :tuist, Oban,
@@ -247,6 +246,8 @@ config :tuist, :urls,
   get_started: "https://docs.tuist.dev",
   forum: "https://community.tuist.dev",
   documentation: "https://docs.tuist.dev",
+  # Import environment specific config. This must remain at the bottom
+  # of this file so it overrides the configuration defined above.
   feature_generated_projects: "https://docs.tuist.dev/en/guides/features/projects",
   feature_cache: "https://docs.tuist.dev/en/guides/features/cache",
   feature_previews: "https://docs.tuist.dev/en/guides/features/previews",
@@ -261,6 +262,4 @@ config :ueberauth, Ueberauth,
     apple: {Ueberauth.Strategy.Apple, [callback_methods: ["POST"], default_scope: "email"]}
   ]
 
-# Import environment specific config. This must remain at the bottom
-# of this file so it overrides the configuration defined above.
 import_config "#{config_env()}.exs"

@@ -7,6 +7,7 @@ defmodule TuistWeb.Components.Terminal do
   use Noora
 
   attr :id, :string, required: true
+  attr :title, :string, default: gettext("bash")
   attr :command, :string, required: true
 
   def terminal(assigns) do
@@ -14,7 +15,7 @@ defmodule TuistWeb.Components.Terminal do
     <div class="tuist-terminal">
       <div data-part="header">
         <span data-part="title">
-          {gettext("bash")}
+          {@title}
         </span>
         <.neutral_button
           id={@id <> "-button"}

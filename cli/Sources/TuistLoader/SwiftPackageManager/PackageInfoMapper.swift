@@ -110,7 +110,6 @@ public final class PackageInfoMapper: PackageInfoMapping {
     /// https://github.com/apple/swift-package-manager/blob/751f0b2a00276be2c21c074f4b21d952eaabb93b/Sources/PackageLoading/PackageBuilder.swift#L488
     fileprivate static let predefinedSourceDirectories = ["Sources", "Source", "src", "srcs"]
     fileprivate static let predefinedTestDirectories = ["Tests", "Sources", "Source", "src", "srcs"]
-    fileprivate static let predefinedSPMPluginDirectories = ["Plugins", "Sources", "Source", "src", "srcs"]
     private let moduleMapGenerator: SwiftPackageManagerModuleMapGenerating
     private let fileSystem: FileSysteming
     private let rootDirectoryLocator: RootDirectoryLocating
@@ -382,9 +381,9 @@ public final class PackageInfoMapper: PackageInfoMapping {
         // Ignores or passes a target based on the `type` and the `packageType`.
         // After that, it assumes that no target is ignored.
         switch target.type {
-        case .regular, .system, .macro, .plugin:
+        case .regular, .system, .macro:
             break
-        case .test, .executable: // MARK: MyHelper is ignored here.
+        case .test, .executable:
             switch packageType {
             case .external:
                 Logger.current.debug("Target \(target.name) of type \(target.type) ignored")
@@ -441,7 +440,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
 
         var destinations: ProjectDescription.Destinations
         switch target.type {
-        case .macro, .executable, .plugin:
+        case .macro, .executable:
             destinations = Set([.mac])
         case .test:
             var testDestinations = Set(XcodeGraph.Destination.allCases)
@@ -578,6 +577,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
             infoPlist: .default,
             sources: sources,
             resources: resources,
+            buildableFolders: [],
             headers: headers,
             dependencies: dependencies,
             settings: settings
@@ -606,7 +606,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
                     path: .path(artifactPath.pathString),
                     expectedSignature: nil,
                     status: .required,
-                    condition: nil
+                    condition: platformCondition
                 )
             }
             if let aliasedName = moduleAliases?[name] {
@@ -723,8 +723,6 @@ extension ProjectDescription.Product {
             return .commandLineTool
         case .test:
             return .unitTests
-        case .plugin:
-            return .commandLineTool // MARK: plugin must be added to Product.swift?
         default:
             break
         }
@@ -1397,27 +1395,47 @@ extension PackageInfo.Target {
     /// The path used as base for all the relative paths of the package (e.g. sources, resources, headers)
     func basePath(packageFolder: AbsolutePath) async throws -> AbsolutePath {
         let fileSystem = FileSystem()
+
         if let path {
             return packageFolder.appending(try RelativePath(validating: path))
-        } else {
-            let predefinedDirectories: [String]
-            switch type {
-            case .test:
-                predefinedDirectories = PackageInfoMapper.predefinedTestDirectories
-            case .plugin:
-                predefinedDirectories = PackageInfoMapper.predefinedSPMPluginDirectories
-            default:
-                predefinedDirectories = PackageInfoMapper.predefinedSourceDirectories
-            }
-            let firstMatchingPath = try await predefinedDirectories
-                .map { packageFolder.appending(components: [$0, name]) }
-                .concurrentFilter { try await fileSystem.exists($0) }
-                .first
-            guard let mainPath = firstMatchingPath else {
-                throw PackageInfoMapperError.defaultPathNotFound(packageFolder, name, predefinedDirectories)
-            }
-            return mainPath
         }
+
+        let predefinedDirectories = type == .test
+            ? PackageInfoMapper.predefinedTestDirectories
+            : PackageInfoMapper.predefinedSourceDirectories
+
+        for directory in predefinedDirectories {
+            // Standard layout: Sources/TargetName/
+            let standardPath = packageFolder.appending(components: [directory, name])
+            if try await fileSystem.exists(standardPath) {
+                return standardPath
+            }
+
+            // SE-0162 layout: source files directly in Sources/
+            // https://github.com/swiftlang/swift-evolution/blob/main/proposals/0162-package-manager-custom-target-layouts.md
+            let directPath = packageFolder.appending(component: directory)
+            if try await hasSourceFiles(in: directPath, fileSystem: fileSystem) {
+                return directPath
+            }
+        }
+
+        throw PackageInfoMapperError.defaultPathNotFound(packageFolder, name, predefinedDirectories)
+    }
+
+    /// Check if directory contains source files (for SE-0162 support)
+    private func hasSourceFiles(in directory: AbsolutePath, fileSystem: FileSystem) async throws -> Bool {
+        guard try await fileSystem.exists(directory) else { return false }
+
+        // SPM recognized source extensions
+        // https://github.com/swiftlang/swift-package-manager/blob/main/Sources/PackageModel/SupportedLanguageExtension.swift
+        let sourceExtensions = ["swift", "c", "cpp", "cc", "cxx", "m", "mm"]
+        let pattern = "*.{\(sourceExtensions.joined(separator: ","))}"
+
+        let hasFiles = try await fileSystem
+            .glob(directory: directory, include: [pattern])
+            .first(where: { _ in true }) != nil
+
+        return hasFiles
     }
 
     func publicHeadersPath(packageFolder: AbsolutePath) async throws -> AbsolutePath {

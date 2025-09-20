@@ -200,7 +200,7 @@ extension TuistTestCase {
         file: StaticString = #file,
         line: UInt = #line
     ) throws {
-        XCTAssertEqual(runAction.executable?.name, manifest.executable?.targetName)
+        XCTAssertEqual(runAction.executable?.name, manifest.executable?.targetName, file: file, line: line)
         XCTAssertEqual(
             runAction.executable?.projectPath,
             try generatorPaths.resolveSchemeActionProjectPath(manifest.executable?.projectPath),

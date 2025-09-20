@@ -1,0 +1,31 @@
+<TuistWeb.Marketing.Layouts.marketing {assigns}>
+  <main class="marketing__newsletter" aria-label={gettext("Newsletter verification result")}>
+    <%= if @email do %>
+      <h1 class="marketing__newsletter__title">{gettext("Successfully Subscribed!")}</h1>
+
+      <p class="marketing__newsletter__description">
+        {gettext("Great! The email %{email} has been confirmed and subscribed to Tuist Digest.",
+          email: @email
+        )}
+      </p>
+
+      <p class="marketing__newsletter__description">
+        {gettext(
+          "You'll receive newsletter issues every 6 weeks with the most important work happening in Tuist and our vision for the future of app development at scale."
+        )}
+      </p>
+    <% else %>
+      <h1 class="marketing__newsletter__title">{gettext("Verification Failed")}</h1>
+
+      <p class="marketing__newsletter__description">
+        {@error_message}
+      </p>
+
+      <p class="marketing__newsletter__description">
+        <a href={~p"/newsletter"} class="btn btn-ghost">
+          {gettext("Try Again")}
+        </a>
+      </p>
+    <% end %>
+  </main>
+</TuistWeb.Marketing.Layouts.marketing>

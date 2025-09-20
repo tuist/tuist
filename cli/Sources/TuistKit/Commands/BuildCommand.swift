@@ -116,7 +116,7 @@ public struct BuildOptions: ParsableArguments {
 
     @Argument(
         parsing: .postTerminator,
-        help: "Arguments that will be passed through to xcodebuild",
+        help: "Arguments that will be passed through to xcodebuild. Use -- followed by xcodebuild arguments. Example: tuist build -- -destination 'platform=iOS Simulator,name=iPhone 15' -sdk iphonesimulator",
         envKey: .buildOptionsPassthroughXcodeBuildArguments
     )
     var passthroughXcodeBuildArguments: [String] = []

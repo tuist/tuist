@@ -12,6 +12,8 @@ defmodule Tuist.Billing do
   alias Tuist.Billing.Customer
   alias Tuist.Billing.PaymentMethod
   alias Tuist.Billing.Subscription
+  alias Tuist.Billing.TokenUsage
+  alias Tuist.CommandEvents
   alias Tuist.Repo
 
   # Unfortunately, this data can't be obtained and cached
@@ -90,7 +92,8 @@ defmodule Tuist.Billing do
     session
   end
 
-  def update_remote_cache_hit_meter({customer_id, count}) do
+  def update_remote_cache_hit_meter(customer_id, idempotency_key) do
+    count = CommandEvents.get_yesterdays_remote_cache_hits_count_for_customer(customer_id)
     path = Stripe.OpenApi.Path.replace_path_params("/v1/billing/meter_events", [], [])
 
     identifier =
@@ -98,7 +101,7 @@ defmodule Tuist.Billing do
 
     {:ok, _} =
       []
-      |> Stripe.Request.new_request()
+      |> Stripe.Request.new_request(%{"Idempotency-Key" => "#{idempotency_key}-remote-cache-hit"})
       |> Stripe.Request.put_endpoint(path)
       |> Stripe.Request.put_params(%{
         event_name: "remote_cache_hit",
@@ -323,6 +326,259 @@ defmodule Tuist.Billing do
         limit: 1
       )
     )
+  end
+
+  @doc """
+  Creates a new token usage record for billing purposes.
+  """
+  def create_token_usage(attrs) do
+    %TokenUsage{}
+    |> TokenUsage.changeset(attrs)
+    |> Repo.insert()
+  end
+
+  @doc """
+  Gets token usage statistics for a specific feature and resource.
+  """
+  def token_usage_for_resource(feature, resource_id) do
+    query =
+      from(tu in TokenUsage,
+        where: tu.feature == ^feature and tu.feature_resource_id == ^resource_id,
+        select: %{
+          total_input_tokens: coalesce(sum(tu.input_tokens), 0),
+          total_output_tokens: coalesce(sum(tu.output_tokens), 0),
+          average_tokens:
+            fragment(
+              "CASE WHEN count(distinct ?) > 0 THEN (coalesce(sum(?), 0) + coalesce(sum(?), 0)) / count(distinct ?) ELSE 0 END",
+              tu.feature_resource_id,
+              tu.input_tokens,
+              tu.output_tokens,
+              tu.feature_resource_id
+            ),
+          total_tokens: coalesce(sum(tu.input_tokens), 0) + coalesce(sum(tu.output_tokens), 0)
+        }
+      )
+
+    case Repo.one(query) do
+      nil -> %{total_input_tokens: 0, total_output_tokens: 0, average_tokens: 0, total_tokens: 0}
+      result -> result
+    end
+  end
+
+  @doc """
+  Gets token usage for all accounts for a specific feature, with 30-day and 12-month stats.
+  """
+  def feature_token_usage_by_account(feature) do
+    thirty_days_ago = DateTime.add(DateTime.utc_now(), -30, :day)
+    twelve_months_ago = DateTime.add(DateTime.utc_now(), -365, :day)
+
+    query =
+      from(tu in TokenUsage,
+        join: a in assoc(tu, :account),
+        where: tu.feature == ^feature and tu.timestamp >= ^twelve_months_ago,
+        group_by: [tu.account_id, a.name],
+        select: %{
+          account_id: tu.account_id,
+          account_name: a.name,
+          twelve_month_total_input_tokens: coalesce(sum(tu.input_tokens), 0),
+          twelve_month_total_output_tokens: coalesce(sum(tu.output_tokens), 0),
+          twelve_month_total_tokens: coalesce(sum(tu.input_tokens), 0) + coalesce(sum(tu.output_tokens), 0),
+          twelve_month_average_tokens:
+            fragment(
+              "CASE WHEN count(distinct ?) > 0 THEN (coalesce(sum(?), 0) + coalesce(sum(?), 0)) / count(distinct ?) ELSE 0 END",
+              tu.feature_resource_id,
+              tu.input_tokens,
+              tu.output_tokens,
+              tu.feature_resource_id
+            ),
+          thirty_day_total_input_tokens:
+            coalesce(
+              sum(
+                fragment(
+                  "CASE WHEN ? >= ? THEN ? ELSE 0 END",
+                  tu.timestamp,
+                  ^thirty_days_ago,
+                  tu.input_tokens
+                )
+              ),
+              0
+            ),
+          thirty_day_total_output_tokens:
+            coalesce(
+              sum(
+                fragment(
+                  "CASE WHEN ? >= ? THEN ? ELSE 0 END",
+                  tu.timestamp,
+                  ^thirty_days_ago,
+                  tu.output_tokens
+                )
+              ),
+              0
+            ),
+          thirty_day_total_tokens:
+            coalesce(
+              sum(
+                fragment(
+                  "CASE WHEN ? >= ? THEN ? ELSE 0 END",
+                  tu.timestamp,
+                  ^thirty_days_ago,
+                  tu.input_tokens
+                )
+              ),
+              0
+            ) +
+              coalesce(
+                sum(
+                  fragment(
+                    "CASE WHEN ? >= ? THEN ? ELSE 0 END",
+                    tu.timestamp,
+                    ^thirty_days_ago,
+                    tu.output_tokens
+                  )
+                ),
+                0
+              ),
+          thirty_day_average_tokens:
+            fragment(
+              "CASE WHEN count(distinct CASE WHEN ? >= ? THEN ? END) > 0 THEN (coalesce(sum(CASE WHEN ? >= ? THEN ? ELSE 0 END), 0) + coalesce(sum(CASE WHEN ? >= ? THEN ? ELSE 0 END), 0)) / count(distinct CASE WHEN ? >= ? THEN ? END) ELSE 0 END",
+              tu.timestamp,
+              ^thirty_days_ago,
+              tu.feature_resource_id,
+              tu.timestamp,
+              ^thirty_days_ago,
+              tu.input_tokens,
+              tu.timestamp,
+              ^thirty_days_ago,
+              tu.output_tokens,
+              tu.timestamp,
+              ^thirty_days_ago,
+              tu.feature_resource_id
+            )
+        }
+      )
+
+    query
+    |> Repo.all()
+    |> Enum.map(fn result ->
+      %{
+        account_id: result.account_id,
+        account_name: result.account_name,
+        twelve_month: %{
+          total_input_tokens: result.twelve_month_total_input_tokens,
+          total_output_tokens: result.twelve_month_total_output_tokens,
+          total_tokens: result.twelve_month_total_tokens,
+          average_tokens: result.twelve_month_average_tokens
+        },
+        thirty_day: %{
+          total_input_tokens: result.thirty_day_total_input_tokens,
+          total_output_tokens: result.thirty_day_total_output_tokens,
+          total_tokens: result.thirty_day_total_tokens,
+          average_tokens: result.thirty_day_average_tokens
+        }
+      }
+    end)
+    |> Enum.sort_by(& &1.twelve_month.total_tokens, :desc)
+  end
+
+  @doc """
+  Gets LLM token usage for a specific customer for the current billing period (yesterday).
+  Returns {input_tokens, output_tokens}.
+  """
+  def get_yesterdays_customer_llm_token_usage(customer_id) do
+    now = DateTime.utc_now()
+    start_of_yesterday = now |> Timex.shift(days: -1) |> Timex.beginning_of_day()
+    end_of_yesterday = now |> Timex.shift(days: -1) |> Timex.end_of_day()
+
+    Repo.one(
+      from(tu in TokenUsage,
+        join: a in assoc(tu, :account),
+        where:
+          a.customer_id == ^customer_id and tu.timestamp >= ^start_of_yesterday and tu.timestamp <= ^end_of_yesterday,
+        select: {sum(tu.input_tokens), sum(tu.output_tokens)}
+      )
+    )
+  end
+
+  @doc """
+  Updates both LLM input and output token usage meters in Stripe for a specific customer.
+  Fetches the current period token usage and updates both meters.
+  """
+  def update_llm_token_meters(customer_id, idempotency_key) do
+    {input_tokens, output_tokens} = get_yesterdays_customer_llm_token_usage(customer_id)
+    path = Stripe.OpenApi.Path.replace_path_params("/v1/billing/meter_events", [], [])
+
+    input_identifier = "#{customer_id}-input-#{Timex.format!(Tuist.Time.utc_now(), "{YYYY}.{0M}.{D}")}"
+
+    {:ok, _} =
+      []
+      |> Stripe.Request.new_request(%{"Idempotency-Key" => "#{idempotency_key}-input"})
+      |> Stripe.Request.put_endpoint(path)
+      |> Stripe.Request.put_params(%{
+        event_name: "llm_input_token",
+        identifier: input_identifier,
+        payload: %{
+          value: input_tokens,
+          stripe_customer_id: customer_id
+        }
+      })
+      |> Stripe.Request.put_method(:post)
+      |> Stripe.Request.make_request()
+
+    output_identifier = "#{customer_id}-output-#{Timex.format!(Tuist.Time.utc_now(), "{YYYY}.{0M}.{D}")}"
+
+    {:ok, _} =
+      []
+      |> Stripe.Request.new_request(%{"Idempotency-Key" => "#{idempotency_key}-output"})
+      |> Stripe.Request.put_endpoint(path)
+      |> Stripe.Request.put_params(%{
+        event_name: "llm_output_token",
+        identifier: output_identifier,
+        payload: %{
+          value: output_tokens,
+          stripe_customer_id: customer_id
+        }
+      })
+      |> Stripe.Request.put_method(:post)
+      |> Stripe.Request.make_request()
+  end
+
+  @doc """
+  Fetches Namespace compute usage for yesterday and updates the Stripe meter
+  for instance unit minutes (event name: `namespace_unit_minute`).
+  """
+  def update_namespace_usage_meter(customer_id, idempotency_key) do
+    with %Account{} = account when is_binary(account.namespace_tenant_id) <-
+           Accounts.get_account_from_customer_id(customer_id) do
+      # Namespace compute usage is reported by day, so being more specific than `Date` is unnecessary.
+      yesterday = Date.add(Date.utc_today(), -1)
+
+      with {:ok, %{"total" => total}} <-
+             Tuist.Namespace.get_tenant_usage(account, yesterday, yesterday) do
+        instance_unit_minutes = get_in(total, ["instanceMinutes", "unit"]) || 0
+
+        path = Stripe.OpenApi.Path.replace_path_params("/v1/billing/meter_events", [], [])
+
+        identifier =
+          "#{customer_id}-namespace-#{Timex.format!(Tuist.Time.utc_now(), "{YYYY}.{0M}.{D}")}"
+
+        {:ok, _} =
+          []
+          |> Stripe.Request.new_request(%{"Idempotency-Key" => "#{idempotency_key}-namespace"})
+          |> Stripe.Request.put_endpoint(path)
+          |> Stripe.Request.put_params(%{
+            event_name: "namespace_unit_minute",
+            identifier: identifier,
+            payload: %{
+              value: instance_unit_minutes,
+              stripe_customer_id: customer_id
+            }
+          })
+          |> Stripe.Request.put_method(:post)
+          |> Stripe.Request.make_request()
+
+        {:ok, :updated}
+      end
+    end
   end
 
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity

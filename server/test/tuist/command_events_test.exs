@@ -347,7 +347,7 @@ defmodule Tuist.CommandEventsTest do
       object_key =
         "#{project.account.name}/#{project.name}/runs/#{command_event.id}/result_bundle.zip"
 
-      stub(Storage, :object_exists?, fn ^object_key -> true end)
+      stub(Storage, :object_exists?, fn ^object_key, _actor -> true end)
 
       # When
       got = CommandEvents.has_result_bundle?(command_event)
@@ -365,7 +365,7 @@ defmodule Tuist.CommandEventsTest do
       object_key =
         "#{project.account.name}/#{project.name}/runs/#{command_event.id}/result_bundle.zip"
 
-      stub(Storage, :object_exists?, fn ^object_key -> false end)
+      stub(Storage, :object_exists?, fn ^object_key, _actor -> false end)
 
       # When
       got = CommandEvents.has_result_bundle?(command_event)
@@ -385,7 +385,7 @@ defmodule Tuist.CommandEventsTest do
       object_key =
         "#{project.account.name}/#{project.name}/runs/#{command_event.id}/result_bundle.zip"
 
-      stub(Storage, :generate_download_url, fn ^object_key -> "https://tuist.io" end)
+      stub(Storage, :generate_download_url, fn ^object_key, _actor -> "https://tuist.io" end)
 
       # When
       got = CommandEvents.generate_result_bundle_url(command_event)
@@ -755,47 +755,6 @@ defmodule Tuist.CommandEventsTest do
     end
   end
 
-  describe "get_cache_event/1" do
-    test "returns cache download event" do
-      # Given
-      project = ProjectsFixtures.project_fixture()
-
-      item = %{
-        project_id: project.id,
-        name: "a",
-        event_type: :download,
-        size: 1000,
-        hash: "hash-1"
-      }
-
-      item_upload = %{
-        project_id: project.id,
-        name: "a",
-        event_type: :upload,
-        size: 1000,
-        hash: "hash-1"
-      }
-
-      item_two = %{
-        project_id: project.id,
-        name: "a",
-        event_type: :download,
-        size: 1000,
-        hash: "hash-2"
-      }
-
-      cache_event = CommandEvents.create_cache_event(item)
-      CommandEvents.create_cache_event(item_two)
-      CommandEvents.create_cache_event(item_upload)
-
-      # When
-      got = CommandEvents.get_cache_event(%{hash: "hash-1", event_type: :download})
-
-      # Then
-      assert got == cache_event
-    end
-  end
-
   describe "get_command_event_by_id/2 with parsing" do
     test "finds command event by legacy_id when passed an integer" do
       # Given
@@ -1021,7 +980,7 @@ defmodule Tuist.CommandEventsTest do
       invocation_record_object_key =
         "#{base_path}/invocation_record.json"
 
-      stub(Storage, :object_exists?, fn ^invocation_record_object_key ->
+      stub(Storage, :object_exists?, fn ^invocation_record_object_key, _actor ->
         false
       end)
 
@@ -1047,7 +1006,7 @@ defmodule Tuist.CommandEventsTest do
       test_plan_object_key =
         "#{base_path}/0~_nJcMfmYtL75ZA_SPkjI1RYzgbEkjbq_o2hffLy4RQuPOW81Uu0xIwZX0ntR4Tof5xv2Jwe8opnwD7IVBQ_VOQ==.json"
 
-      stub(Storage, :object_exists?, fn object_key ->
+      stub(Storage, :object_exists?, fn object_key, _actor ->
         case object_key do
           ^invocation_record_object_key ->
             true
@@ -1057,7 +1016,7 @@ defmodule Tuist.CommandEventsTest do
         end
       end)
 
-      stub(Storage, :get_object_as_string, fn object_key ->
+      stub(Storage, :get_object_as_string, fn object_key, _actor ->
         case object_key do
           ^invocation_record_object_key ->
             CommandEventsFixtures.invocation_record_fixture()
@@ -1142,7 +1101,7 @@ defmodule Tuist.CommandEventsTest do
       test_plan_object_key =
         "#{base_path}/0~_nJcMfmYtL75ZA_SPkjI1RYzgbEkjbq_o2hffLy4RQuPOW81Uu0xIwZX0ntR4Tof5xv2Jwe8opnwD7IVBQ_VOQ==.json"
 
-      stub(Storage, :object_exists?, fn object_key ->
+      stub(Storage, :object_exists?, fn object_key, _actor ->
         case object_key do
           ^invocation_record_object_key ->
             true
@@ -1152,7 +1111,7 @@ defmodule Tuist.CommandEventsTest do
         end
       end)
 
-      stub(Storage, :get_object_as_string, fn object_key ->
+      stub(Storage, :get_object_as_string, fn object_key, _actor ->
         case object_key do
           ^invocation_record_object_key ->
             CommandEventsFixtures.invocation_record_fixture()
@@ -2274,6 +2233,72 @@ defmodule Tuist.CommandEventsTest do
 
       # Then - should not raise an exception and return expected data
       assert length(result) == 11
+    end
+  end
+
+  describe "get_yesterdays_remote_cache_hits_count_for_customer/1 - clickhouse" do
+    setup do
+      stub(Tuist.Environment, :clickhouse_configured?, fn -> true end)
+      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> true end)
+      :ok
+    end
+
+    test "counts only yesterday's events for the customer's projects" do
+      # Given
+      %{account: %{id: account_id}, id: user_id} =
+        AccountsFixtures.user_fixture(customer_id: "cust_" <> UUIDv7.generate())
+
+      %{account: %{id: other_account_id}, id: other_user_id} =
+        AccountsFixtures.user_fixture(customer_id: "cust_" <> UUIDv7.generate())
+
+      project = ProjectsFixtures.project_fixture(account_id: account_id)
+      other_project = ProjectsFixtures.project_fixture(account_id: other_account_id)
+
+      today = ~U[2025-01-02 12:00:00Z]
+      stub(DateTime, :utc_now, fn -> today end)
+
+      with_flushed_ingestion_buffers(fn ->
+        CommandEventsFixtures.command_event_fixture(
+          name: "generate",
+          project_id: project.id,
+          user_id: user_id,
+          remote_cache_target_hits: ["A"],
+          ran_at: ~U[2025-01-01 10:00:00Z]
+        )
+
+        CommandEventsFixtures.command_event_fixture(
+          name: "test",
+          project_id: project.id,
+          user_id: user_id,
+          remote_test_target_hits: ["B"],
+          ran_at: ~U[2025-01-01 18:00:00Z]
+        )
+
+        # One event for another customer yesterday
+        CommandEventsFixtures.command_event_fixture(
+          name: "generate",
+          project_id: other_project.id,
+          user_id: other_user_id,
+          remote_cache_target_hits: ["C"],
+          ran_at: ~U[2025-01-01 09:00:00Z]
+        )
+
+        # Event outside of yesterday window for our project
+        CommandEventsFixtures.command_event_fixture(
+          name: "generate",
+          project_id: project.id,
+          user_id: user_id,
+          remote_cache_target_hits: ["D"],
+          ran_at: ~U[2024-12-31 23:59:59Z]
+        )
+      end)
+
+      # When
+      customer_id = Repo.get!(Tuist.Accounts.Account, account_id).customer_id
+      count = CommandEvents.get_yesterdays_remote_cache_hits_count_for_customer(customer_id)
+
+      # Then
+      assert count == 2
     end
   end
 end

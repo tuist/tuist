@@ -1,9 +1,10 @@
 ---
-title: Installation
-titleTemplate: :title | Self-hosting | Server | Guides | Tuist
-description: Learn how to install Tuist on your infrastructure.
+{
+  "title": "Installation",
+  "titleTemplate": ":title | Self-hosting | Server | Guides | Tuist",
+  "description": "Learn how to install Tuist on your infrastructure."
+}
 ---
-
 # Self-host installation {#self-host-installation}
 
 We offer a self-hosted version of the Tuist server for organizations that require more control over their infrastructure. This version allows you to host Tuist on your own infrastructure, ensuring that your data remains secure and private.
@@ -100,17 +101,10 @@ As an on-premise user, you'll receive a license key that you'll need to expose a
 | `TUIST_SECRET_KEY_ENCRYPTION` | 32-byte key for AES-GCM encryption of sensitive data | No | `$TUIST_SECRET_KEY_BASE` | |
 | `TUIST_USE_IPV6` | When `1` it configures the app to use IPv6 addresses | No | `0` | `1`|
 | `TUIST_LOG_LEVEL` | The log level to use for the app | No | `info` | [Log levels](https://hexdocs.pm/logger/1.12.3/Logger.html#module-levels) |
-| `TUIST_GITHUB_APP_PRIVATE_KEY` | The private key used for the GitHub app to unlock extra functionality such as posting automatic PR comments | No | `-----BEGIN RSA...` | |
+| `TUIST_GITHUB_APP_PRIVATE_KEY_BASE64` | The base64-encoded private key used for the GitHub app to unlock extra functionality such as posting automatic PR comments | No | `LS0tLS1CRUdJTiBSU0EgUFJJVkFUR...` | |
+| `TUIST_GITHUB_APP_PRIVATE_KEY` | The private key used for the GitHub app to unlock extra functionality such as posting automatic PR comments. **We recommend using the base64-encoded version instead to avoid issues with special characters** | No | `-----BEGIN RSA...` | |
 | `TUIST_OPS_USER_HANDLES` | A comma-separated list of user handles that have access to the operations URLs | No | | `user1,user2` |
-| `TUIST_WEB` | Whether to run the web server component | No | `1` | `1` or `0` |
-| `TUIST_WORKER` | Whether to run the background job processing component | No | `1` | `1` or `0` |
-
-> [!NOTE] WEB SERVER AND BACKGROUND WORKER SEPARATION
-> By default, both the web server and background job processing run in the same process for simplicity. However, you can separate them by running multiple instances of the Docker image with different configurations:
-> - **Web server only:** Set `TUIST_WEB=1` and `TUIST_WORKER=0`
-> - **Background workers only:** Set `TUIST_WEB=0` and `TUIST_WORKER=1`
-> 
-> This separation allows you to scale web servers and background workers independently based on your workload requirements.
+| `TUIST_WEB` | Enable the web server endpoint | No | `1` | `1` or `0` |
 
 ### Database configuration {#database-configuration}
 
@@ -186,14 +180,17 @@ You can use any S3-compliant storage provider to store artifacts. The following 
 | --- | --- | --- | --- | --- |
 | `TUIST_ACCESS_KEY_ID` or `AWS_ACCESS_KEY_ID` | The access key ID to authenticate against the storage provider | Yes | | `AKIAIOSFOD` |
 | `TUIST_SECRET_ACCESS_KEY` or `AWS_SECRET_ACCESS_KEY` | The secret access key to authenticate against the storage provider | Yes | | `wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY` |
-| `TUIST_S3_REGION` or `AWS_REGION` | The region where the bucket is located | Yes | | `us-west-2` |
+| `TUIST_S3_REGION` or `AWS_REGION` | The region where the bucket is located | No | `auto` | `us-west-2` |
 | `TUIST_S3_ENDPOINT` or `AWS_ENDPOINT` | The endpoint of the storage provider | Yes | | `https://s3.us-west-2.amazonaws.com` |
 | `TUIST_S3_BUCKET_NAME` | The name of the bucket where the artifacts will be stored | Yes | | `tuist-artifacts` |
-| `TUIST_S3_REQUEST_TIMEOUT` | The timeout (in seconds) for requests to the storage provider | No | `30` | `30` |
-| `TUIST_S3_POOL_TIMEOUT` | The timeout (in seconds) for the connection pool to the storage provider | No | `5` | `5` |
-| `TUIST_S3_POOL_COUNT` | The number of pools to use for connections to the storage provider | No | `1` | `1` |
-| `TUIST_S3_PROTOCOL` | The protocol to use when connecting to the storage provider (`http1` or `http2`) | No | `http2` | `http2` |
-| `TUIST_S3_VIRTUAL_HOST` | Whether the URL should be constructed with the bucket name as a sub-domain (virtual host). | No | No | `1` |
+| `TUIST_S3_CONNECT_TIMEOUT` | The timeout (in milliseconds) for establishing a connection to the storage provider | No | `3000` | `3000` |
+| `TUIST_S3_RECEIVE_TIMEOUT` | The timeout (in milliseconds) for receiving data from the storage provider | No | `5000` | `5000` |
+| `TUIST_S3_POOL_TIMEOUT` | The timeout (in milliseconds) for the connection pool to the storage provider. Use `infinity` for no timeout | No | `5000` | `5000` |
+| `TUIST_S3_POOL_MAX_IDLE_TIME` | The maximum idle time (in milliseconds) for connections in the pool. Use `infinity` to keep connections alive indefinitely | No | `infinity` | `60000` |
+| `TUIST_S3_POOL_SIZE` | The maximum number of connections per pool | No | `500` | `500` |
+| `TUIST_S3_POOL_COUNT` | The number of connection pools to use | No | Number of system schedulers | `4` |
+| `TUIST_S3_PROTOCOL` | The protocol to use when connecting to the storage provider (`http1` or `http2`) | No | `http1` | `http1` |
+| `TUIST_S3_VIRTUAL_HOST` | Whether the URL should be constructed with the bucket name as a sub-domain (virtual host) | No | `false` | `1` |
 
 > [!NOTE] AWS authentication with Web Identity Token from environment variables
 > If your storage provider is AWS and you'd like to authenticate using a web identity token, you can set the environment variable `TUIST_S3_AUTHENTICATION_METHOD` to `aws_web_identity_token_from_env_vars`, and Tuist will use that method using the conventional AWS environment variables.
@@ -386,6 +383,57 @@ volumes:
   db:
     driver: local
 ```
+
+## Prometheus metrics {#prometheus-metrics}
+
+Tuist exposes Prometheus metrics at `/metrics` to help you monitor your self-hosted instance. These metrics include:
+
+### Finch HTTP client metrics {#finch-metrics}
+
+Tuist uses [Finch](https://github.com/sneako/finch) as its HTTP client and exposes detailed metrics about HTTP requests:
+
+#### Request metrics
+- `tuist_prom_ex_finch_request_count_total` - Total number of Finch requests (counter)
+  - Labels: `finch_name`, `method`, `scheme`, `host`, `port`, `status`
+- `tuist_prom_ex_finch_request_duration_milliseconds` - Duration of HTTP requests (histogram)
+  - Labels: `finch_name`, `method`, `scheme`, `host`, `port`, `status`
+  - Buckets: 10ms, 50ms, 100ms, 250ms, 500ms, 1s, 2.5s, 5s, 10s
+- `tuist_prom_ex_finch_request_exception_count_total` - Total number of Finch request exceptions (counter)
+  - Labels: `finch_name`, `method`, `scheme`, `host`, `port`, `kind`, `reason`
+
+#### Connection pool queue metrics
+- `tuist_prom_ex_finch_queue_duration_milliseconds` - Time spent waiting in the connection pool queue (histogram)
+  - Labels: `finch_name`, `scheme`, `host`, `port`, `pool`
+  - Buckets: 1ms, 5ms, 10ms, 25ms, 50ms, 100ms, 250ms, 500ms, 1s
+- `tuist_prom_ex_finch_queue_idle_time_milliseconds` - Time the connection spent idle before being used (histogram)
+  - Labels: `finch_name`, `scheme`, `host`, `port`, `pool`
+  - Buckets: 10ms, 50ms, 100ms, 250ms, 500ms, 1s, 5s, 10s
+- `tuist_prom_ex_finch_queue_exception_count_total` - Total number of Finch queue exceptions (counter)
+  - Labels: `finch_name`, `scheme`, `host`, `port`, `kind`, `reason`
+
+#### Connection metrics
+- `tuist_prom_ex_finch_connect_duration_milliseconds` - Time spent establishing a connection (histogram)
+  - Labels: `finch_name`, `scheme`, `host`, `port`, `error`
+  - Buckets: 10ms, 50ms, 100ms, 250ms, 500ms, 1s, 2.5s, 5s
+- `tuist_prom_ex_finch_connect_count_total` - Total number of connection attempts (counter)
+  - Labels: `finch_name`, `scheme`, `host`, `port`
+
+#### Send metrics
+- `tuist_prom_ex_finch_send_duration_milliseconds` - Time spent sending the request (histogram)
+  - Labels: `finch_name`, `method`, `scheme`, `host`, `port`, `error`
+  - Buckets: 1ms, 5ms, 10ms, 25ms, 50ms, 100ms, 250ms, 500ms, 1s
+- `tuist_prom_ex_finch_send_idle_time_milliseconds` - Time the connection spent idle before sending (histogram)
+  - Labels: `finch_name`, `method`, `scheme`, `host`, `port`, `error`
+  - Buckets: 1ms, 5ms, 10ms, 25ms, 50ms, 100ms, 250ms, 500ms
+
+All histogram metrics provide `_bucket`, `_sum`, and `_count` variants for detailed analysis.
+
+### Other metrics
+
+In addition to Finch metrics, Tuist exposes metrics for:
+- BEAM virtual machine performance
+- Custom business logic metrics (storage, accounts, projects, etc.)
+- Database performance (when using Tuist-hosted infrastructure)
 
 ## Operations {#operations}
 

@@ -110,4 +110,81 @@ defmodule Tuist.Utilities.DateFormatterTest do
       assert DateFormatter.format_duration_from_milliseconds(3_500_000, include_seconds: false) == "58m 20s"
     end
   end
+
+  describe "format_full/1" do
+    test "formats DateTime with full format including day of week" do
+      {:ok, datetime} = DateTime.new(~D[2024-01-15], ~T[14:30:25], "UTC")
+      result = DateFormatter.format_full(datetime)
+      assert result == "Mon 15 Jan 14:30:25"
+    end
+
+    test "handles different days of the week correctly" do
+      {:ok, datetime} = DateTime.new(~D[2024-01-16], ~T[09:15:30], "UTC")
+      result = DateFormatter.format_full(datetime)
+      assert result == "Tue 16 Jan 09:15:30"
+
+      {:ok, datetime} = DateTime.new(~D[2024-01-17], ~T[18:45:00], "UTC")
+      result = DateFormatter.format_full(datetime)
+      assert result == "Wed 17 Jan 18:45:00"
+    end
+
+    test "handles different months correctly" do
+      {:ok, datetime} = DateTime.new(~D[2024-02-14], ~T[12:00:00], "UTC")
+      result = DateFormatter.format_full(datetime)
+      assert result == "Wed 14 Feb 12:00:00"
+
+      {:ok, datetime} = DateTime.new(~D[2024-12-25], ~T[00:01:59], "UTC")
+      result = DateFormatter.format_full(datetime)
+      assert result == "Wed 25 Dec 00:01:59"
+    end
+
+    test "returns 'Unknown' for invalid input" do
+      assert DateFormatter.format_full(nil) == "Unknown"
+      assert DateFormatter.format_full("invalid") == "Unknown"
+      assert DateFormatter.format_full(123) == "Unknown"
+    end
+  end
+
+  describe "format_iso/1" do
+    test "formats DateTime in ISO-like format with UTC" do
+      {:ok, datetime} = DateTime.new(~D[2024-01-15], ~T[14:30:25], "UTC")
+      result = DateFormatter.format_iso(datetime)
+      assert result == "2024-01-15 14:30:25 UTC"
+    end
+
+    test "handles different dates and times correctly" do
+      {:ok, datetime} = DateTime.new(~D[2023-12-31], ~T[23:59:59], "UTC")
+      result = DateFormatter.format_iso(datetime)
+      assert result == "2023-12-31 23:59:59 UTC"
+
+      {:ok, datetime} = DateTime.new(~D[2024-06-15], ~T[00:00:00], "UTC")
+      result = DateFormatter.format_iso(datetime)
+      assert result == "2024-06-15 00:00:00 UTC"
+    end
+
+    test "truncates microseconds to seconds" do
+      datetime = %DateTime{
+        year: 2024,
+        month: 1,
+        day: 15,
+        hour: 14,
+        minute: 30,
+        second: 25,
+        microsecond: {500_000, 6},
+        utc_offset: 0,
+        std_offset: 0,
+        zone_abbr: "UTC",
+        time_zone: "Etc/UTC"
+      }
+
+      result = DateFormatter.format_iso(datetime)
+      assert result == "2024-01-15 14:30:25 UTC"
+    end
+
+    test "returns 'Unknown' for invalid input" do
+      assert DateFormatter.format_iso(nil) == "Unknown"
+      assert DateFormatter.format_iso("invalid") == "Unknown"
+      assert DateFormatter.format_iso(123) == "Unknown"
+    end
+  end
 end

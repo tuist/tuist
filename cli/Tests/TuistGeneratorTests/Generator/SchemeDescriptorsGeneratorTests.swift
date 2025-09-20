@@ -574,6 +574,45 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         XCTAssertEqual(result.macroExpansion?.buildableIdentifier, "primary")
     }
 
+    func test_schemeLaunchAction_with_customWorkingDirectoryEnabled() throws {
+        // Given
+        let projectPath = try AbsolutePath(validating: "/Project")
+        let app = Target.test(name: "App", product: .app)
+        let framework = Target.test(name: "Framework", product: .framework)
+
+        let runAction = RunAction.test(
+            executable: TargetReference(projectPath: projectPath, name: "App"),
+            filePath: projectPath,
+            customWorkingDirectory: projectPath,
+            useCustomWorkingDirectory: true
+        )
+        let scheme = Scheme.test(name: "Scheme", runAction: runAction)
+        let project = Project.test(targets: [app, framework], schemes: [scheme])
+
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: [
+                .target(name: app.name, path: projectPath): [
+                    .target(name: framework.name, path: projectPath),
+                ],
+            ]
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let got = try subject.schemeLaunchAction(
+            scheme: scheme,
+            graphTraverser: graphTraverser,
+            rootPath: projectPath,
+            generatedProjects: createGeneratedProjects(projects: [project])
+        )
+
+        // Then
+        let result = try XCTUnwrap(got)
+        XCTAssertEqual(result.customWorkingDirectory, projectPath.pathString)
+        XCTAssertEqual(result.useCustomWorkingDirectory, true)
+    }
+
     func test_schemeLaunchAction_with_launchStyle() throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/Project")

@@ -29,14 +29,24 @@ defmodule Tuist.AppBuilds do
       from(p in Preview)
       |> where([p], p.project_id == ^project_id)
       |> then(&if(is_nil(display_name), do: &1, else: where(&1, [p], p.display_name == ^display_name)))
-      |> then(&if(is_nil(bundle_identifier), do: &1, else: where(&1, [p], p.bundle_identifier == ^bundle_identifier)))
+      |> then(
+        &if(is_nil(bundle_identifier),
+          do: &1,
+          else: where(&1, [p], p.bundle_identifier == ^bundle_identifier)
+        )
+      )
       |> then(
         &if(is_nil(created_by_account_id),
           do: &1,
           else: where(&1, [p], p.created_by_account_id == ^created_by_account_id)
         )
       )
-      |> then(&if(is_nil(git_commit_sha), do: &1, else: where(&1, [p], p.git_commit_sha == ^git_commit_sha)))
+      |> then(
+        &if(is_nil(git_commit_sha),
+          do: &1,
+          else: where(&1, [p], p.git_commit_sha == ^git_commit_sha)
+        )
+      )
       |> then(&if(is_nil(version), do: &1, else: where(&1, [p], p.version == ^version)))
       |> limit(1)
       |> Repo.one()
@@ -71,12 +81,9 @@ defmodule Tuist.AppBuilds do
   def update_preview_with_app_build(preview_id, app_build) do
     preview = Repo.get!(Preview, preview_id)
 
-    visibility = if app_build.type == :ipa, do: :public, else: preview.visibility
-
     preview
     |> Preview.create_changeset(%{
-      supported_platforms: Enum.uniq(preview.supported_platforms ++ app_build.supported_platforms),
-      visibility: visibility
+      supported_platforms: Enum.uniq(preview.supported_platforms ++ app_build.supported_platforms)
     })
     |> Repo.update!()
   end
@@ -132,7 +139,10 @@ defmodule Tuist.AppBuilds do
 
     order_direction = attrs |> Map.get(:order_directions, [:desc]) |> hd()
 
-    filters = attrs |> Map.get(:filters, []) |> Enum.map(&%Flop.Filter{field: &1.field, op: &1.op, value: &1.value})
+    filters =
+      attrs
+      |> Map.get(:filters, [])
+      |> Enum.map(&%Flop.Filter{field: &1.field, op: &1.op, value: &1.value})
 
     if distinct_bundle_identifier do
       preview_ids =
@@ -230,8 +240,47 @@ defmodule Tuist.AppBuilds do
   def latest_ipa_app_build_for_preview(%Preview{} = preview) do
     preview.app_builds
     |> Enum.sort_by(& &1.inserted_at, {:desc, DateTime})
-    |> Enum.filter(&(&1.type == :ipa))
-    |> List.first()
+    |> Enum.find(&(&1.type == :ipa))
+  end
+
+  def latest_app_build(git_ref, %Project{} = project, opts \\ []) do
+    supported_platform = Keyword.get(opts, :supported_platform)
+
+    enum_el_type =
+      case AppBuild.__schema__(:type, :supported_platforms) do
+        {:array, el_type} -> el_type
+        other -> raise "Unexpected type for supported_platforms: #{inspect(other)}"
+      end
+
+    latest_preview =
+      from p in Preview,
+        where: p.project_id == ^project.id and p.git_ref == ^git_ref,
+        distinct: p.display_name,
+        order_by: [asc: p.display_name, desc: p.inserted_at]
+
+    app_build_query =
+      from ab in AppBuild,
+        where:
+          ab.preview_id == parent_as(:p).id and
+            (is_nil(type(^supported_platform, ^enum_el_type)) or
+               fragment(
+                 "? = ANY(?)",
+                 type(^supported_platform, ^enum_el_type),
+                 ab.supported_platforms
+               )),
+        order_by: [desc: ab.inserted_at],
+        limit: 1
+
+    query =
+      from p in subquery(latest_preview),
+        as: :p,
+        inner_lateral_join: ab in subquery(app_build_query),
+        on: true,
+        order_by: [desc: p.inserted_at],
+        limit: 1,
+        select: ab
+
+    Repo.one(query)
   end
 
   def delete_preview!(%Preview{} = preview) do

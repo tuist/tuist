@@ -29,7 +29,7 @@ public enum Module: String, CaseIterable {
     case git = "TuistGit"
     case rootDirectoryLocator = "TuistRootDirectoryLocator"
     case process = "TuistProcess"
-    
+
     func forceStaticLinking() -> Bool {
         return Environment.forceStaticLinking.getBoolean(default: false)
     }
@@ -55,7 +55,7 @@ public enum Module: String, CaseIterable {
                 bundleId: "dev.tuist.TuistCacheEE",
                 deploymentTargets: .macOS("14.0"),
                 infoPlist: .default,
-                sources: ["cli/TuistCacheEE/Sources/**/*.swift"],
+                buildableFolders: ["cli/TuistCacheEE/Sources/"],
                 dependencies: [
                     .target(name: Module.core.targetName),
                     .target(name: Module.support.targetName),
@@ -90,7 +90,7 @@ public enum Module: String, CaseIterable {
                 bundleId: "dev.tuist.TuistCacheEETests",
                 deploymentTargets: .macOS("14.0"),
                 infoPlist: .default,
-                sources: ["cli/TuistCacheEE/Tests/**/*.swift"],
+                buildableFolders: [.folder("cli/TuistCacheEE/Tests")],
                 dependencies: [
                     .target(name: Module.core.targetName),
                     .target(name: Module.server.targetName),
@@ -101,7 +101,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "XcodeGraph"),
                     .external(name: "Path"),
                     .external(name: "FileSystem"),
-                    .external(name: "Mockable")
+                    .external(name: "Mockable"),
                 ]
             ),
             .target(
@@ -111,7 +111,7 @@ public enum Module: String, CaseIterable {
                 bundleId: "dev.tuist.TuistCacheEEAcceptanceTests",
                 deploymentTargets: .macOS("14.0"),
                 infoPlist: .default,
-                sources: ["cli/TuistCacheEE/AcceptanceTests/**/*.swift"],
+                buildableFolders: ["cli/TuistCacheEE/AcceptanceTests"],
                 dependencies: [
                     .target(name: Module.core.targetName),
                     .target(name: Module.server.targetName),
@@ -122,9 +122,9 @@ public enum Module: String, CaseIterable {
                     .external(name: "Path"),
                     .external(name: "FileSystem"),
                     .external(name: "Mockable"),
-                    .external(name: "TSCTestSupport")
+                    .external(name: "TSCTestSupport"),
                 ]
-            )
+            ),
         ]
     }
 
@@ -229,7 +229,7 @@ public enum Module: String, CaseIterable {
         case .tuist, .tuistBenchmark, .tuistFixtureGenerator:
             return .commandLineTool
         case .projectAutomation, .projectDescription:
-            return  forceStaticLinking() ? .staticFramework : .framework
+            return forceStaticLinking() ? .staticFramework : .framework
         default:
             return .staticFramework
         }
@@ -843,7 +843,7 @@ public enum Module: String, CaseIterable {
             bundleId: "dev.tuist.\(name)",
             deploymentTargets: deploymentTargets,
             infoPlist: .default,
-            sources: ["\(rootFolder)/\(name)/**/*.swift"],
+            buildableFolders: [.folder("\(rootFolder)/\(name)/")],
             dependencies: dependencies,
             settings: settings
         )

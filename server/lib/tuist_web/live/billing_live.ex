@@ -8,7 +8,7 @@ defmodule TuistWeb.BillingLive do
 
   @impl true
   def mount(params, _uri, %{assigns: %{current_user: current_user, selected_account: selected_account}} = socket) do
-    if not Tuist.Authorization.can(current_user, :update, selected_account, :billing) do
+    if Tuist.Authorization.authorize(:billing_update, current_user, selected_account) != :ok do
       raise TuistWeb.Errors.UnauthorizedError,
             gettext("You are not authorized to perform this action.")
     end

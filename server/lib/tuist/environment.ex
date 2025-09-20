@@ -47,10 +47,6 @@ defmodule Tuist.Environment do
     Enum.member?(["1", "true", "TRUE", "yes", "YES"], value)
   end
 
-  def worker? do
-    "TUIST_WORKER" |> System.get_env("1") |> truthy?()
-  end
-
   def web? do
     "TUIST_WEB" |> System.get_env("1") |> truthy?()
   end
@@ -84,7 +80,7 @@ defmodule Tuist.Environment do
     prometheus_enabled = System.get_env("TUIST_PROMETHEUS_ENABLED")
 
     if is_nil(prometheus_enabled) do
-      not dev?() and not test?()
+      not dev?() and not test?() and web?()
     else
       truthy?(prometheus_enabled)
     end
@@ -132,8 +128,8 @@ defmodule Tuist.Environment do
     end
   end
 
-  def analytics_enabled? do
-    tuist_hosted?() and @env == :prod
+  def analytics_enabled?(secrets \\ secrets()) do
+    not is_nil(posthog_api_key(secrets)) && not is_nil(posthog_url(secrets))
   end
 
   def error_tracking_enabled? do
@@ -142,10 +138,7 @@ defmodule Tuist.Environment do
   end
 
   def version do
-    case Version.parse(get([:version]) || "0.1.0") do
-      :error -> nil
-      {:ok, version} -> version
-    end
+    Application.spec(:tuist)[:vsn]
   end
 
   def ops_user_handles(secrets \\ secrets()) do
@@ -176,17 +169,134 @@ defmodule Tuist.Environment do
     end
   end
 
-  def s3_request_timeout(secrets \\ secrets()) do
-    case get([:s3, :request_timeout], secrets) do
-      request_timeout when is_binary(request_timeout) -> String.to_integer(request_timeout)
-      _ -> 30
+  def s3_connect_timeout(secrets \\ secrets()) do
+    case get([:s3, :connect_timeout], secrets) do
+      "infinity" ->
+        :infinity
+
+      connect_timeout when is_binary(connect_timeout) ->
+        to_timeout(second: String.to_integer(connect_timeout))
+
+      _ ->
+        # Standard timeout for establishing connections
+        to_timeout(second: 10)
+    end
+  end
+
+  def s3_receive_timeout(secrets \\ secrets()) do
+    case get([:s3, :receive_timeout], secrets) do
+      "infinity" ->
+        :infinity
+
+      receive_timeout when is_binary(receive_timeout) ->
+        to_timeout(second: String.to_integer(receive_timeout))
+
+      _ ->
+        # Generous receive timeout for large file downloads
+        to_timeout(minute: 1)
     end
   end
 
   def s3_pool_timeout(secrets \\ secrets()) do
     case get([:s3, :pool_timeout], secrets) do
-      pool_timeout when is_binary(pool_timeout) -> String.to_integer(pool_timeout)
-      _ -> 5
+      "infinity" ->
+        :infinity
+
+      pool_timeout when is_binary(pool_timeout) ->
+        to_timeout(second: String.to_integer(pool_timeout))
+
+      _ ->
+        # Standard pool timeout
+        to_timeout(second: 5)
+    end
+  end
+
+  def s3_pool_max_idle_time(secrets \\ secrets()) do
+    case get([:s3, :pool_max_idle_time], secrets) do
+      "infinity" ->
+        :infinity
+
+      pool_max_idle_time when is_binary(pool_max_idle_time) ->
+        to_timeout(second: String.to_integer(pool_max_idle_time))
+
+      _ ->
+        # Keep the connections alive for reusability
+        :infinity
+    end
+  end
+
+  def s3_pool_size(secrets \\ secrets()) do
+    case get([:s3, :pool_size], secrets) do
+      pool_size when is_binary(pool_size) -> String.to_integer(pool_size)
+      # Since we use http2, which allows multi-plexing, the size of the pool can be smaller
+      _ -> 500
+    end
+  end
+
+  def s3_pool_count(secrets \\ secrets()) do
+    case get([:s3, :pool_count], secrets) do
+      pool_count when is_binary(pool_count) -> String.to_integer(pool_count)
+      _ -> System.schedulers_online()
+    end
+  end
+
+  def s3_protocols(secrets \\ secrets()) do
+    case get([:s3, :protocol], secrets) do
+      protocol when is_binary(protocol) -> [String.to_atom(protocol)]
+      _ -> [:http1]
+    end
+  end
+
+  def s3_access_key_id(provider, secrets) do
+    if dev_use_remote_storage?() do
+      get([:s3, provider, :access_key_id], secrets)
+    else
+      s3_access_key_id(secrets)
+    end
+  end
+
+  def s3_secret_access_key(provider, secrets) do
+    if dev_use_remote_storage?() do
+      get([:s3, provider, :secret_access_key], secrets)
+    else
+      s3_secret_access_key(secrets)
+    end
+  end
+
+  def s3_region(provider, secrets) do
+    get([:s3, provider, :region], secrets) ||
+      "auto"
+  end
+
+  def s3_bucket_name(provider, secrets) do
+    if dev_use_remote_storage?() do
+      get([:aws, :bucket_name], secrets) || get([:s3, provider, :bucket_name], secrets)
+    else
+      s3_bucket_name(secrets)
+    end
+  end
+
+  def s3_endpoint(provider, secrets) do
+    if dev_use_remote_storage?() do
+      get([:s3, provider, :endpoint], secrets)
+    else
+      s3_endpoint(secrets)
+    end
+  end
+
+  def s3_virtual_host(provider, secrets) do
+    if dev_use_remote_storage?() do
+      [:s3, provider, :virtual_host] |> get(secrets) |> truthy?()
+    else
+      s3_virtual_host(secrets)
+    end
+  end
+
+  def s3_bucket_as_host(provider, secrets) do
+    if dev_use_remote_storage?() do
+      [:s3, provider, :bucket_as_host] |> get(secrets) |> truthy?()
+    else
+      s3_bucket_as_host(secrets)
     end
   end
 
@@ -229,31 +339,17 @@ defmodule Tuist.Environment do
     end
   end
 
-  def s3_pool_size(secrets \\ secrets()) do
-    case get([:s3, :pool_size], secrets) do
-      pool_size when is_binary(pool_size) -> String.to_integer(pool_size)
-      # Since we use http2, which allows multi-plexing, the size of the pool can be smaller
-      _ -> 500
-    end
-  end
-
-  def s3_pool_count(secrets \\ secrets()) do
-    case get([:s3, :pool_count], secrets) do
-      pool_count when is_binary(pool_count) -> String.to_integer(pool_count)
-      _ -> 1
-    end
-  end
-
-  def s3_protocols(secrets \\ secrets()) do
-    case get([:s3, :protocol], secrets) do
-      protocol when is_binary(protocol) -> [String.to_atom(protocol)]
-      _ -> [:http2, :http1]
-    end
-  end
-
   def s3_virtual_host(secrets \\ secrets()) do
     if dev_use_remote_storage?() do
       [:s3, :virtual_host] |> get(secrets) |> truthy?()
+    else
+      false
+    end
+  end
+
+  def s3_bucket_as_host(secrets \\ secrets()) do
+    if dev_use_remote_storage?() do
+      [:s3, :bucket_as_host] |> get(secrets) |> truthy?()
     else
       false
     end
@@ -296,12 +392,20 @@ defmodule Tuist.Environment do
     end
   end
 
+  def minio_console_port(secrets \\ secrets()) do
+    get([:minio, :console_port], secrets, default_value: 9098)
+  end
+
   def mautic_username(secrets \\ secrets()) do
     get([:mautic, :username], secrets)
   end
 
   def mautic_password(secrets \\ secrets()) do
     get([:mautic, :password], secrets)
+  end
+
+  def loops_api_key(secrets \\ secrets()) do
+    get([:loops, :api_key], secrets)
   end
 
   def github_token_update_packages(secrets \\ secrets()) do
@@ -321,7 +425,17 @@ defmodule Tuist.Environment do
   end
 
   def github_app_private_key(secrets \\ secrets()) do
-    get([:github, :app_private_key], secrets)
+    base_64_key = get([:github, :app_private_key_base64], secrets)
+
+    if is_nil(base_64_key) do
+      get([:github, :app_private_key], secrets)
+    else
+      Base.decode64!(base_64_key)
+    end
+  end
+
+  def github_app_webhook_secret(secrets \\ secrets()) do
+    get([:github, :app_webhook_secret], secrets)
   end
 
   def github_oauth_configured?(secrets \\ secrets()) do
@@ -417,6 +531,10 @@ defmodule Tuist.Environment do
 
   def anthropic_api_key(secrets \\ secrets()) do
     get([:anthropic, :api_key], secrets)
+  end
+
+  def openai_api_key(secrets \\ secrets()) do
+    get([:openai, :api_key], secrets)
   end
 
   def clickhouse_flush_interval_ms(secrets \\ secrets()) do
@@ -527,6 +645,44 @@ defmodule Tuist.Environment do
       oauth_client_name(secrets) != nil and
       oauth_jwt_public_key(secrets) != nil and
       oauth_private_key(secrets) != nil
+  end
+
+  @doc """
+  Returns the Namespace SSH private key used to establish secure SSH connections between the server and the Namespace runner.
+  """
+  def namespace_ssh_private_key(secrets \\ secrets()) do
+    get([:namespace, :ssh_private_key], secrets)
+  end
+
+  @doc """
+  Returns the Namespace SSH public key used to establish secure SSH connections between the server and the Namespace runner.
+  """
+  def namespace_ssh_public_key(secrets \\ secrets()) do
+    get([:namespace, :ssh_public_key], secrets)
+  end
+
+  @doc """
+  Returns the Namespace partner ID that identifies this Tuist instance
+  as an authorized partner in the Namespace ecosystem. This ID is used
+  when issuing Namespace tenant tokens.
+  """
+  def namespace_partner_id(secrets \\ secrets()) do
+    get([:namespace, :partner_id], secrets)
+  end
+
+  @doc """
+  Returns the Namespace JWT private key used for signing authentication tokens
+  that are exchanged between Tuist and Namespace services when issuing Namespace tenant tokens.
+  """
+  def namespace_jwt_private_key(secrets \\ secrets()) do
+    case get([:namespace, :jwt_private_key], secrets) do
+      nil -> nil
+      base64_key -> Base.decode64!(base64_key)
+    end
+  end
+
+  def namespace_enabled?(secrets \\ secrets()) do
+    namespace_partner_id(secrets) != nil and namespace_jwt_private_key(secrets) != nil
   end
 
   def get(keys, secrets \\ secrets(), opts \\ []) do

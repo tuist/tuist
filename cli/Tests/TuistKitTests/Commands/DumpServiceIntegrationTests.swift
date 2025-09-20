@@ -186,16 +186,23 @@ final class DumpServiceTests: TuistTestCase {
               },
               "project": {
                 "tuist": {
+                  "cacheOptions": {
+                    "keepSourceTargets": false
+                  },
                   "compatibleXcodeVersions": {
                     "all": {
 
                     }
                   },
                   "generationOptions": {
+                    "additionalPackageResolutionArguments": [
+
+                    ],
                     "buildInsightsDisabled": false,
                     "disablePackageVersionLocking": false,
-                    "disableSandbox": false,
+                    "disableSandbox": true,
                     "enforceExplicitDependencies": false,
+                    "includeGenerateScheme": true,
                     "optionalAuthentication": false,
                     "resolveDependenciesWithSystemScm": false,
                     "staticSideEffectsWarningTargets": {

@@ -28,13 +28,6 @@ public struct CacheCommand: AsyncParsableCommand {
     )
     var configuration: String?
 
-    @Option(
-        name: .long,
-        help: "Architectures to build for. If not specified, the binaries are built for arm64.",
-        envKey: .cacheArchitectures
-    )
-    var architectures: [MacArchitecture] = []
-
     @Argument(
         help: """
         A list of targets to cache. \
@@ -83,12 +76,9 @@ public struct CacheCommand: AsyncParsableCommand {
         try await Extension.cacheService.run(
             path: path,
             configuration: configuration,
-            architectures: architectures,
             targetsToBinaryCache: Set(targets),
             externalOnly: externalOnly,
             generateOnly: generateOnly
         )
     }
 }
-
-extension MacArchitecture: @retroactive ExpressibleByArgument {}

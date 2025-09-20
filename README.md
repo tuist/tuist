@@ -10,8 +10,8 @@
   <div>
     <a href="https://cal.com/team/tuist/cloud?utm_source=banner&utm_campaign=oss" target="_blank"><img alt="Book us with Cal.com" src="https://cal.com/book-with-cal-dark.svg" width="150"/></a>
   </div>
-  <a href="https://translate.tuist.dev/engage/documentation/">
-  <img src="https://translate.tuist.dev/widget/documentation/svg-badge.svg" alt="Translation status" />
+  <a href="https://translate.tuist.dev/engage/tuist/">
+  <img src="https://translate.tuist.dev/widget/tuist/svg-badge.svg" alt="Translation status" />
   </a>
 </div>
 
@@ -559,6 +559,7 @@ Thanks goes to these wonderful people:
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/YIshihara11201"><img src="https://avatars.githubusercontent.com/u/98417271?v=4" width="100px;" alt=""/><br /><sub><b>YIshihara11201</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/PhilippeWeidmann"><img src="https://avatars.githubusercontent.com/u/5843044?v=4" width="100px;" alt=""/><br /><sub><b>Philippe Weidmann</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/Zentaur0"><img src="https://avatars.githubusercontent.com/u/75909658?v=4" width="100px;" alt=""/><br /><sub><b>Anton SVTSV</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://johannes.plunien.com"><img src="https://avatars.githubusercontent.com/u/31597?v=4" width="100px;" alt=""/><br /><sub><b>Johannes Plunien</b></sub></a></td>
     </tr>
   </tbody>
 </table>

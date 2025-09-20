@@ -1,8 +1,9 @@
 ---
-editLink: false
-titleTemplate: :title · Examples · References · Tuist
+{
+  "editLink": false,
+  "titleTemplate": ":title · Examples · References · Tuist"
+}
 ---
-
 <script setup>
 import { useData } from 'vitepress'
 

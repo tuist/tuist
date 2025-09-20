@@ -1,9 +1,10 @@
 ---
-title: The Modular Architecture (TMA)
-titleTemplate: :title · Projects · Develop · Guides · Tuist
-description: The Modular Architecture (TMA) 에 대해 배우고, 이를 사용하여 프로젝트를 구조화 하는 방법을 배워봅니다.
+{
+  "title": "The Modular Architecture (TMA)",
+  "titleTemplate": ":title · Projects · Develop · Guides · Tuist",
+  "description": "The Modular Architecture (TMA) 에 대해 배우고, 이를 사용하여 프로젝트를 구조화 하는 방법을 배워봅니다."
+}
 ---
-
 # The Modular Architecture (TMA) {#the-modular-architecture-tma}
 
 TMA는 Apple OS 애플리케이션을 구조화 하는 아키텍처 접근 방식이고, 확장성을 가지며, 빌드와 테스트 주기를 최적화 하고, 팀 내에 좋은 개발 방식을 보장합니다. 이것의 핵심은 독립적인 기능을 만들고 명확하고 간결한 API를 통해 서로 연결하여 애플리케이션을 만드는 것입니다.

@@ -1,9 +1,10 @@
 ---
-title: はじめに
-titleTemplate: :title · 導入の手順 · Tuist
-description: 開発環境にTuistをインストールする方法を学びます。
+{
+  "title": "はじめに",
+  "titleTemplate": ":title · 導入の手順 · Tuist",
+  "description": "開発環境にTuistをインストールする方法を学びます。"
+}
 ---
-
 # はじめに {#get-started}
 
 任意のディレクトリ、または Xcode プロジェクトおよびワークスペースのディレクトリで、以下のコマンドを実行するのが Tuist を始める最も簡単な方法です：

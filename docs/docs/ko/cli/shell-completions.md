@@ -1,9 +1,10 @@
 ---
-title: Shell completions
-titleTemplate: :title · CLI · Tuist
-description: Tuist 명령어를 자동으로 완성하도록 셀을 구성하는 방법에 대해 배워봅니다.
+{
+  "title": "Shell completions",
+  "titleTemplate": ":title · CLI · Tuist",
+  "description": "Tuist 명령어를 자동으로 완성하도록 셀을 구성하는 방법에 대해 배워봅니다."
+}
 ---
-
 # Shell completions
 
 Tuist가 **전역으로 설치된 경우** (예: Homebrew),

@@ -475,7 +475,7 @@ defmodule TuistWeb.AuthenticationTest do
       assert conn.status
     end
 
-    test "does not redirect if a user is anonymous, a project is private, and preview type is :ipa",
+    test "does not redirect if a user is anonymous, a project is private, and preview is public",
          %{conn: conn} do
       # Given
       project =
@@ -500,6 +500,60 @@ defmodule TuistWeb.AuthenticationTest do
       # Then
       refute conn.halted
       refute conn.status
+    end
+
+    test "does not redirect when preview.visibility is nil and project.default_previews_visibility is :public",
+         %{conn: conn} do
+      # Given
+      project =
+        [visibility: :private, default_previews_visibility: :public]
+        |> ProjectsFixtures.project_fixture()
+        |> Repo.preload(:account)
+
+      preview = AppBuildsFixtures.preview_fixture(project: project, visibility: nil)
+
+      conn = %{
+        conn
+        | path_params: %{
+            "account_handle" => project.account.name,
+            "project_handle" => project.name,
+            "id" => preview.id
+          }
+      }
+
+      # When
+      conn = Authentication.require_authenticated_user_for_previews(conn, [])
+
+      # Then
+      refute conn.halted
+      refute conn.status
+    end
+
+    test "redirects when preview.visibility is nil and project.default_previews_visibility is :private",
+         %{conn: conn} do
+      # Given
+      project =
+        [visibility: :private, default_previews_visibility: :private]
+        |> ProjectsFixtures.project_fixture()
+        |> Repo.preload(:account)
+
+      preview = AppBuildsFixtures.preview_fixture(project: project, visibility: nil)
+
+      conn = %{
+        conn
+        | path_params: %{
+            "account_handle" => project.account.name,
+            "project_handle" => project.name,
+            "id" => preview.id
+          }
+      }
+
+      # When
+      conn = Authentication.require_authenticated_user_for_previews(conn, [])
+
+      # Then
+      assert conn.halted
+      assert conn.status
     end
   end
 end

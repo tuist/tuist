@@ -32,6 +32,29 @@ struct BuildAcceptanceTests {
             ]
         )
     }
+
+    @Test(
+        .withFixture("app_with_buildable_folders"),
+        .inTemporaryDirectory,
+        .withMockedEnvironment()
+    ) func app_with_buildable_folders() async throws {
+        // Given
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+
+        // When/Then
+        try await TuistTest.run(GenerateCommand.self, ["--path", fixtureDirectory.pathString, "--no-open"])
+        try await TuistTest.run(
+            BuildCommand.self,
+            [
+                "App",
+                "--path",
+                fixtureDirectory.pathString,
+                "--derived-data-path",
+                temporaryDirectory.pathString,
+            ]
+        )
+    }
 }
 
 /// Build projects using Tuist build
@@ -242,5 +265,180 @@ final class BuildAcceptanceTestiOSAppWithCPlusPLusInteroperability: TuistAccepta
         try await run(InstallCommand.self)
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self, "App", "--platform", "ios")
+    }
+}
+
+final class XcodeBuildCommandAcceptanceTests: TuistAcceptanceTestCase {
+    @Test(
+        .withFixture("ios_app_with_tests"),
+        .inTemporaryDirectory,
+        .withMockedEnvironment()
+    ) func xcodebuild_build_command() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+
+        try await TuistTest.run(GenerateCommand.self, ["--path", fixtureDirectory.pathString, "--no-open"])
+
+        try await TuistTest.run(
+            XcodeBuildBuildCommand.self,
+            [
+                "build",
+                "-workspace",
+                fixtureDirectory.pathString + "/App.xcworkspace",
+                "-scheme",
+                "App",
+                "-destination",
+                "generic/platform=iOS Simulator",
+                "-derivedDataPath",
+                temporaryDirectory.pathString,
+            ]
+        )
+    }
+
+    @Test(
+        .withFixture("ios_app_with_tests"),
+        .inTemporaryDirectory,
+        .withMockedEnvironment()
+    ) func xcodebuild_test_command() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+
+        try await TuistTest.run(GenerateCommand.self, ["--path", fixtureDirectory.pathString, "--no-open"])
+
+        try await TuistTest.run(
+            XcodeBuildTestCommand.self,
+            [
+                "test",
+                "-workspace",
+                fixtureDirectory.pathString + "/App.xcworkspace",
+                "-scheme",
+                "App",
+                "-destination",
+                "generic/platform=iOS Simulator",
+                "-derivedDataPath",
+                temporaryDirectory.pathString,
+            ]
+        )
+    }
+
+    @Test(
+        .withFixture("ios_app_with_tests"),
+        .inTemporaryDirectory,
+        .withMockedEnvironment()
+    ) func xcodebuild_build_for_testing_command() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+
+        try await TuistTest.run(GenerateCommand.self, ["--path", fixtureDirectory.pathString, "--no-open"])
+
+        try await TuistTest.run(
+            XcodeBuildBuildForTestingCommand.self,
+            [
+                "build-for-testing",
+                "-workspace",
+                fixtureDirectory.pathString + "/App.xcworkspace",
+                "-scheme",
+                "App",
+                "-destination",
+                "generic/platform=iOS Simulator",
+                "-derivedDataPath",
+                temporaryDirectory.pathString,
+            ]
+        )
+    }
+
+    @Test(
+        .withFixture("ios_app_with_tests"),
+        .inTemporaryDirectory,
+        .withMockedEnvironment()
+    ) func xcodebuild_test_without_building_command() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+
+        try await TuistTest.run(GenerateCommand.self, ["--path", fixtureDirectory.pathString, "--no-open"])
+
+        // First build for testing
+        try await TuistTest.run(
+            XcodeBuildBuildForTestingCommand.self,
+            [
+                "build-for-testing",
+                "-workspace",
+                fixtureDirectory.pathString + "/App.xcworkspace",
+                "-scheme",
+                "App",
+                "-destination",
+                "generic/platform=iOS Simulator",
+                "-derivedDataPath",
+                temporaryDirectory.pathString,
+            ]
+        )
+
+        // Then test without building
+        try await TuistTest.run(
+            XcodeBuildTestWithoutBuildingCommand.self,
+            [
+                "test-without-building",
+                "-workspace",
+                fixtureDirectory.pathString + "/App.xcworkspace",
+                "-scheme",
+                "App",
+                "-destination",
+                "generic/platform=iOS Simulator",
+                "-derivedDataPath",
+                temporaryDirectory.pathString,
+            ]
+        )
+    }
+
+    @Test(
+        .withFixture("ios_app_with_tests"),
+        .inTemporaryDirectory,
+        .withMockedEnvironment()
+    ) func xcodebuild_archive_command() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+
+        try await TuistTest.run(GenerateCommand.self, ["--path", fixtureDirectory.pathString, "--no-open"])
+
+        try await TuistTest.run(
+            XcodeBuildArchiveCommand.self,
+            [
+                "archive",
+                "-workspace",
+                fixtureDirectory.pathString + "/App.xcworkspace",
+                "-scheme",
+                "App",
+                "-destination",
+                "generic/platform=iOS",
+                "-archivePath",
+                temporaryDirectory.pathString + "/App.xcarchive",
+            ]
+        )
+    }
+
+    @Test(
+        .withFixture("ios_app_with_tests"),
+        .inTemporaryDirectory,
+        .withMockedEnvironment()
+    ) func xcodebuild_unordered_build_command() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+
+        try await TuistTest.run(GenerateCommand.self, ["--path", fixtureDirectory.pathString, "--no-open"])
+
+        try await TuistTest.run(
+            XcodeBuildCommandReorderer.self,
+            [
+                "-workspace",
+                fixtureDirectory.pathString + "/App.xcworkspace",
+                "-scheme",
+                "App",
+                "-destination",
+                "generic/platform=iOS Simulator",
+                "-derivedDataPath",
+                temporaryDirectory.pathString,
+                "build",
+            ]
+        )
     }
 }

@@ -1,9 +1,10 @@
 ---
-title: Continuous Integration (CI)
-titleTemplate: :title · Automate · Guides · Tuist
-description: CI 워크플로우에서 Tuist를 사용하는 방법에 대해 알아보세요.
+{
+  "title": "Continuous Integration (CI)",
+  "titleTemplate": ":title · Automate · Guides · Tuist",
+  "description": "CI 워크플로우에서 Tuist를 사용하는 방법에 대해 알아보세요."
+}
 ---
-
 # Continuous Integration (CI) {#continuous-integration-ci}
 
 Tuist를 [CI(Continuous Integration)](https://en.wikipedia.org/wiki/Continuous_integration) 환경에서 사용할 수 있습니다. 다음 섹션에서는 다양한 CI 플랫폼에서 이를 수행하는 방법에 대한 예시를 제공합니다.

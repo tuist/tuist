@@ -31,15 +31,19 @@ final class TargetManifestMapperTests: TuistUnitTestCase {
         // Given
         let rootDirectory = try temporaryPath()
         let sourcesDirectory = rootDirectory.appending(component: "Sources")
+        let buildableSources = rootDirectory.appending(component: "BuildableSources")
+        let buildableSourceFile = buildableSources.appending(component: "buildable.swift")
         let firstDirectory = sourcesDirectory.appending(component: "first")
         let secondDirectory = firstDirectory.appending(component: "second")
         let secondSourceFile = secondDirectory.appending(component: "second.swift")
         let secondExcludedSourceFile = secondDirectory.appending(component: "second-exclude.swift")
         try await fileSystem.makeDirectory(at: sourcesDirectory)
+        try await fileSystem.makeDirectory(at: buildableSources)
         try await fileSystem.makeDirectory(at: firstDirectory)
         try await fileSystem.makeDirectory(at: secondDirectory)
         try await fileSystem.touch(secondSourceFile)
         try await fileSystem.touch(secondExcludedSourceFile)
+        try await fileSystem.touch(buildableSourceFile)
         let scriptOutputFile = rootDirectory.appending(component: "Scripts").appending(component: "file.swift")
 
         // When
@@ -60,7 +64,8 @@ final class TargetManifestMapperTests: TuistUnitTestCase {
                 scripts: [.test(
                     order: .pre,
                     outputPaths: ["Scripts/file.swift"]
-                )]
+                )],
+                buildableFolders: [.folder("BuildableSources")],
             ),
             generatorPaths: GeneratorPaths(
                 manifestDirectory: try temporaryPath(),
@@ -77,6 +82,12 @@ final class TargetManifestMapperTests: TuistUnitTestCase {
             [
                 SourceFile(path: secondSourceFile),
                 SourceFile(path: scriptOutputFile),
+            ]
+        )
+        XCTAssertEqual(
+            got.buildableFolders,
+            [
+                BuildableFolder(path: buildableSources),
             ]
         )
     }

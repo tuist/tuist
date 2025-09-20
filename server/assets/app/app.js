@@ -28,6 +28,11 @@ import ImageFallback from "./js/ImageFallback.js";
 import DeeplinkValidation from "./js/DeeplinkValidation.js";
 import Clipboard from "./js/Clipboard.js";
 import BundleSizeSunburstChartLegend from "./js/BundleSizeSunburstChartLegend.js";
+import VideoPlayer from "./js/VideoPlayer.js";
+import TimelineSeek from "./js/TimelineSeek.js";
+import BlurOnClick from "./js/BlurOnClick.js";
+import ScrollIntoView from "./js/ScrollIntoView.js";
+import StopPropagationOnDrag from "./js/StopPropagationOnDrag.js";
 
 let csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content");
 let cspNonce = document.querySelector("meta[name='csp-nonce']").getAttribute("content");
@@ -37,6 +42,11 @@ Hooks.ImageFallback = ImageFallback;
 Hooks.Clipboard = Clipboard;
 Hooks.DeeplinkValidation = DeeplinkValidation;
 Hooks.BundleSizeSunburstChartLegend = BundleSizeSunburstChartLegend;
+Hooks.VideoPlayer = VideoPlayer;
+Hooks.TimelineSeek = TimelineSeek;
+Hooks.BlurOnClick = BlurOnClick;
+Hooks.ScrollIntoView = ScrollIntoView;
+Hooks.StopPropagationOnDrag = StopPropagationOnDrag;
 
 observeThemeChanges();
 Hooks.ThemeSwitcher = ThemeSwitcher;
@@ -60,7 +70,7 @@ liveSocket.connect();
 
 // Analytics
 window.addEventListener("phx:navigate", (info) => {
-  if (globalThis.analyticsEnabled) {
+  if (globalThis.analytics.enabled) {
     // https://hexdocs.pm/phoenix_live_view/js-interop.html#live-navigation-events
     posthog.capture("$pageview");
   }

@@ -7,7 +7,7 @@ on:
     paths:
       - server/**
       - .github/workflows/server-production-deployment.yml
-      - pnpm-lock.yaml
+      - server/pnpm-lock.yaml
 
   workflow_dispatch:
     inputs:
@@ -23,7 +23,8 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+  CI: true
+  RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
   TUIST_CONFIG_TOKEN: ${{ secrets.TUIST_EXT_CONFIG_TOKEN }}
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   PNPM_HOME: ~/.pnpm
@@ -47,31 +48,21 @@ jobs:
         if: ${{ github.event.inputs.commit_sha != '' }}
         with:
           ref: ${{ github.event.inputs.commit_sha }}
-      - name: Restore Mix Cache
-        uses: actions/cache@v3
-        id: mix-cache
-        with:
-          path: |
-            deps
-            _build
-            _site
-          key: mix-${{ hashFiles('mix.lock') }}
-      - name: Restore PNPM Cache
-        uses: actions/cache@v3
-        id: pnpm-cache
-        with:
-          path: |
-            ~/.pnpm/store
-          key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
       - uses: jdx/mise-action@v2
+        with:
+          install: false
       - name: "Get version"
         id: version
         run: |
-          version=$(../mise/tasks/server/generate-version.sh)
+          version=$(./mise/tasks/generate-version.sh)
           echo "::set-output name=version::$version"
-      - uses: superfly/flyctl-actions/setup-flyctl@master
-      - name: Fly
-        run: flyctl deploy -c fly.canary.toml --build-arg TUIST_HOSTED=1 --build-arg MIX_ENV=can --build-arg APP_REVISION=$GITHUB_SHA --build-arg TUIST_VERSION=${{ steps.version.outputs.version }} --wait-timeout 3600
+      - name: Update version in mix.exs
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          sed -i 's/version: "[^"]*"/version: "'$VERSION'"/' mix.exs
+      - name: Trigger canary deploy with Render CLI
+        run: |
+          mise exec "github:render-oss/cli@2.2.0" -- cli_v2.2.0 deploys create srv-d35uiopr0fns73bfve00 --output json --confirm --wait --commit "$GITHUB_SHA"
   acceptance-tests:
     name: Acceptance Tests
     runs-on: namespace-profile-default-macos
@@ -105,7 +96,6 @@ jobs:
     environment: server-production
     name: Production Deployment
     env:
-      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
       DOCKER_BUILDKIT: 1
     runs-on: namespace-profile-default
     timeout-minutes: 60
@@ -121,31 +111,21 @@ jobs:
         if: ${{ github.event.inputs.commit_sha != '' }}
         with:
           ref: ${{ github.event.inputs.commit_sha }}
-      - name: Restore Mix Cache
-        uses: actions/cache@v3
-        id: mix-cache
-        with:
-          path: |
-            deps
-            _build
-            _site
-          key: mix-${{ hashFiles('mix.lock') }}
-      - name: Restore PNPM Cache
-        uses: actions/cache@v3
-        id: pnpm-cache
-        with:
-          path: |
-            ~/.pnpm/store
-          key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
       - uses: jdx/mise-action@v2
+        with:
+          install: false
       - name: "Get version"
         id: version
         run: |
-          version=$(../mise/tasks/server/generate-version.sh)
+          version=$(./mise/tasks/generate-version.sh)
           echo "::set-output name=version::$version"
-      - uses: superfly/flyctl-actions/setup-flyctl@master
-      - name: Fly
-        run: flyctl deploy -c fly.prod.toml --build-arg TUIST_HOSTED=1 --build-arg MIX_ENV=prod --build-arg TUIST_VERSION=${{ steps.version.outputs.version }} --build-arg APP_REVISION=$GITHUB_SHA --wait-timeout 3600
+      - name: Update version in mix.exs
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          sed -i 's/version: "[^"]*"/version: "'$VERSION'"/' mix.exs
+      - name: Trigger canary deploy with Render CLI
+        run: |
+          mise exec "github:render-oss/cli@2.2.0" -- cli_v2.2.0 deploys create srv-d35an4ggjchc73evd8m0 --output json --confirm --wait --commit "$GITHUB_SHA"
       - name: Notify about the deployment in Slack
         uses: slackapi/slack-github-action@v2.0.0
         with:
@@ -158,7 +138,6 @@ jobs:
     environment: server-production
     name: Hotfix Production Deployment
     env:
-      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
       DOCKER_BUILDKIT: 1
     runs-on: namespace-profile-default
     timeout-minutes: 60
@@ -173,31 +152,21 @@ jobs:
         if: ${{ github.event.inputs.commit_sha != '' }}
         with:
           ref: ${{ github.event.inputs.commit_sha }}
-      - name: Restore Mix Cache
-        uses: actions/cache@v3
-        id: mix-cache
-        with:
-          path: |
-            deps
-            _build
-            _site
-          key: mix-${{ hashFiles('mix.lock') }}
-      - name: Restore PNPM Cache
-        uses: actions/cache@v3
-        id: pnpm-cache
-        with:
-          path: |
-            ~/.pnpm/store
-          key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
       - uses: jdx/mise-action@v2
+        with:
+          install: false
       - name: "Get version"
         id: version
         run: |
-          version=$(../mise/tasks/server/generate-version.sh)
+          version=$(./mise/tasks/generate-version.sh)
           echo "::set-output name=version::$version"
-      - uses: superfly/flyctl-actions/setup-flyctl@master
-      - name: Fly
-        run: flyctl deploy -c fly.prod.toml --build-arg TUIST_HOSTED=1 --build-arg MIX_ENV=prod --build-arg TUIST_VERSION=${{ steps.version.outputs.version }} --build-arg APP_REVISION=$GITHUB_SHA --wait-timeout 3600
+      - name: Update version in mix.exs
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          sed -i 's/version: "[^"]*"/version: "'$VERSION'"/' mix.exs
+      - name: Trigger canary deploy with Render CLI
+        run: |
+          mise exec "github:render-oss/cli@2.2.0" -- cli_v2.2.0 deploys create srv-d35an4ggjchc73evd8m0 --output json --confirm --wait --commit "$GITHUB_SHA"
       - name: Notify about the deployment in Slack
         uses: slackapi/slack-github-action@v2.0.0
         with:

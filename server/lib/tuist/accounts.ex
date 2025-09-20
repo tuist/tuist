@@ -22,6 +22,7 @@ defmodule Tuist.Accounts do
   alias Tuist.CommandEvents
   alias Tuist.Ecto.Utils
   alias Tuist.Environment
+  alias Tuist.Namespace
   alias Tuist.Repo
 
   require Logger
@@ -610,8 +611,13 @@ defmodule Tuist.Accounts do
     Flop.validate_and_run!(query, attrs, for: Account)
   end
 
-  def list_customer_id_and_remote_cache_hits_count_pairs(attrs \\ %{}) do
-    CommandEvents.list_customer_id_and_remote_cache_hits_count_pairs(attrs)
+  def list_billable_customers do
+    Repo.all(
+      from(a in Account,
+        where: not is_nil(a.customer_id),
+        select: a.customer_id
+      )
+    )
   end
 
   defp create_oauth2_identity(%{
@@ -1165,6 +1171,24 @@ defmodule Tuist.Accounts do
     account
     |> Account.update_changeset(attrs)
     |> Repo.update()
+  end
+
+  @doc """
+  Creates a namespace tenant for the account and updates the account with the namespace_tenant_id.
+  """
+  def create_namespace_tenant_for_account(%Account{} = account) do
+    case Namespace.create_tenant(
+           account.name,
+           account.id
+         ) do
+      {:ok, %{"tenant" => %{"id" => namespace_tenant_id}}} ->
+        account
+        |> Account.update_changeset(%{namespace_tenant_id: namespace_tenant_id})
+        |> Repo.update()
+
+      {:error, reason} ->
+        {:error, reason}
+    end
   end
 
   @doc """

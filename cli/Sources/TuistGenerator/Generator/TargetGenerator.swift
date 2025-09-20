@@ -78,6 +78,9 @@ final class TargetGenerator: TargetGenerating {
         pbxproj.add(object: pbxTarget)
         pbxProject.targets.append(pbxTarget)
 
+        // Buildable folders
+        generateSynchronizedGroups(target: target, fileElements: fileElements, pbxTarget: pbxTarget)
+
         // Pre actions
         try buildPhaseGenerator.generateScripts(
             target.scripts.preScripts,
@@ -99,7 +102,7 @@ final class TargetGenerator: TargetGenerating {
         )
 
         // Build phases
-        try buildPhaseGenerator.generateBuildPhases(
+        try await buildPhaseGenerator.generateBuildPhases(
             path: path,
             target: target,
             graphTraverser: graphTraverser,
@@ -134,6 +137,17 @@ final class TargetGenerator: TargetGenerating {
         )
 
         return pbxTarget
+    }
+
+    private func generateSynchronizedGroups(target: Target, fileElements: ProjectFileElements, pbxTarget: PBXNativeTarget) {
+        for buildableFolder in target.buildableFolders {
+            guard let fileElement = fileElements.elements[buildableFolder.path],
+                  let synchronizedGroup = fileElement as? PBXFileSystemSynchronizedRootGroup else { continue }
+            if pbxTarget.fileSystemSynchronizedGroups == nil {
+                pbxTarget.fileSystemSynchronizedGroups = []
+            }
+            pbxTarget.fileSystemSynchronizedGroups?.append(synchronizedGroup)
+        }
     }
 
     func generateTargetDependencies(

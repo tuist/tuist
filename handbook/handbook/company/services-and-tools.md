@@ -1,9 +1,10 @@
 ---
-title: Services and tools
-titleTemplate: :title | Company | Tuist Handbook
-mission: Learn more about the vision of Tuist
+{
+  "title": "Services and tools",
+  "titleTemplate": ":title | Company | Tuist Handbook",
+  "mission": "Learn more about the vision of Tuist"
+}
 ---
-
 # Services and tools
 
 This document contains all the third-party services and tools that the company uses to operate, and the reasons why we use them.

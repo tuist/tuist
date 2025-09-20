@@ -1,9 +1,10 @@
 ---
-title: Access control policy
-titleTemplate: :title | Access and risk management | Security | Tuist Handbook
-description: "To limit access to information and information processing systems, networks, and facilities to authorized parties in accordance with business objectives."
+{
+  "title": "Access control policy",
+  "titleTemplate": ":title | Access and risk management | Security | Tuist Handbook",
+  "description": "To limit access to information and information processing systems, networks, and facilities to authorized parties in accordance with business objectives."
+}
 ---
-
 # Access control policy
 
 - **Policy owner:** Pedro Piñera Buendía

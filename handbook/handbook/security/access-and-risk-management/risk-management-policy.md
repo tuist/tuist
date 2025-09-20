@@ -1,9 +1,10 @@
 ---
-title: Risk management policy
-titleTemplate: :title | Access and risk management | Security | Tuist Handbook
-description: "To define actions to address Tuist GmbH information security risks and opportunities. To define a plan for the achievement of information security and privacy objectives."
+{
+  "title": "Risk management policy",
+  "titleTemplate": ":title | Access and risk management | Security | Tuist Handbook",
+  "description": "To define actions to address Tuist GmbH information security risks and opportunities. To define a plan for the achievement of information security and privacy objectives."
+}
 ---
-
 # Risk management policy
 
 - **Policy owner:** Pedro Piñera Buendía

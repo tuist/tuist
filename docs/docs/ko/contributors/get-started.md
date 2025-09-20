@@ -1,9 +1,10 @@
 ---
-title: Get started
-titleTemplate: :title · Contributors · Tuist
-description: 다음 가이드를 통해 Tuist 기여를 시작합니다.
+{
+  "title": "Get started",
+  "titleTemplate": ":title · Contributors · Tuist",
+  "description": "다음 가이드를 통해 Tuist 기여를 시작합니다."
+}
 ---
-
 # Get started {#get-started}
 
 iOS 처럼 Apple 플랫폼의 앱을 빌드해 본 경험이 있다면, Tuist 에 코드를 추가하는 것은 다르지 않습니다. 앱 개발과 비교해서 두 가지 차이점이 있습니다:

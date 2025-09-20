@@ -97,6 +97,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
       project = ProjectsFixtures.project_fixture(account_id: account.id)
 
       conn = Authentication.put_current_project(conn, project)
+      conn = assign(conn, :selected_project, project)
 
       ran_at_string = "2025-02-28T15:51:12Z"
 
@@ -316,6 +317,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
       project = ProjectsFixtures.project_fixture(account_id: account.id)
 
       conn = Authentication.put_current_project(conn, project)
+      conn = assign(conn, :selected_project, project)
 
       conn =
         conn
@@ -457,9 +459,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
       conn: conn,
       user: user
     } do
-      stub(Environment, :clickhouse_configured?, fn -> true end)
-      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> true end)
-
+      # Given
       conn = Authentication.put_current_user(conn, user)
 
       account = Accounts.get_account_from_user(user)
@@ -527,9 +527,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
       assert command_event.remote_test_target_hits == ["TargetATests"]
 
       xcode_graph =
-        ClickHouseRepo.one(
-          from(xg in XcodeGraph, where: xg.command_event_id == ^command_event.id)
-        )
+        ClickHouseRepo.one(from(xg in XcodeGraph, where: xg.command_event_id == ^command_event.id))
 
       assert xcode_graph.name == "Graph"
       assert xcode_graph.binary_build_duration == 1000
@@ -592,8 +590,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
                "name" => "build",
                "id" => response["id"],
                "project_id" => project.id,
-               "url" =>
-                 url(~p"/#{account.name}/#{project.name}/builds/build-runs/#{build_run.id}")
+               "url" => url(~p"/#{account.name}/#{project.name}/builds/build-runs/#{build_run.id}")
              }
 
       assert command_event.build_run.id == build_run.id
@@ -816,11 +813,12 @@ defmodule TuistWeb.AnalyticsControllerTest do
       object_key =
         "#{account.name}/#{project.name}/runs/#{command_event.legacy_id}/result_bundle.zip"
 
-      expect(Storage, :multipart_start, fn ^object_key ->
+      expect(Storage, :multipart_start, fn ^object_key, _actor ->
         upload_id
       end)
 
       conn = Authentication.put_current_project(conn, project)
+      conn = assign(conn, :selected_project, project)
 
       conn =
         conn
@@ -849,11 +847,12 @@ defmodule TuistWeb.AnalyticsControllerTest do
       object_key =
         "#{account.name}/#{project.name}/runs/#{command_event.legacy_id}/some-id.json"
 
-      expect(Storage, :multipart_start, fn ^object_key ->
+      expect(Storage, :multipart_start, fn ^object_key, _actor ->
         upload_id
       end)
 
       conn = Authentication.put_current_project(conn, project)
+      conn = assign(conn, :selected_project, project)
 
       conn =
         conn
@@ -890,11 +889,13 @@ defmodule TuistWeb.AnalyticsControllerTest do
       expect(Storage, :multipart_generate_url, fn ^object_key,
                                                   ^upload_id,
                                                   ^part_number,
+                                                  _actor,
                                                   [expires_in: _, content_length: 100] ->
         upload_url
       end)
 
       conn = Authentication.put_current_project(conn, project)
+      conn = assign(conn, :selected_project, project)
 
       conn =
         conn
@@ -938,11 +939,13 @@ defmodule TuistWeb.AnalyticsControllerTest do
 
       expect(Storage, :multipart_complete_upload, fn ^object_key,
                                                      ^upload_id,
-                                                     [{1, "etag1"}, {2, "etag2"}, {3, "etag3"}] ->
+                                                     [{1, "etag1"}, {2, "etag2"}, {3, "etag3"}],
+                                                     _actor ->
         :ok
       end)
 
       conn = Authentication.put_current_project(conn, project)
+      conn = assign(conn, :selected_project, project)
 
       conn =
         conn
@@ -962,9 +965,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
     end
 
     test "completes a multipart upload returns a raw error - clickhouse", %{conn: conn} do
-      stub(Environment, :clickhouse_configured?, fn -> true end)
-      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> true end)
-
+      # Given
       project = ProjectsFixtures.project_fixture()
       account = Accounts.get_account_by_id(project.account_id)
 
@@ -975,22 +976,23 @@ defmodule TuistWeb.AnalyticsControllerTest do
 
       upload_id = "1234"
 
-      object_key =
-        "#{account.name}/#{project.name}/runs/#{command_event.legacy_id}/result_bundle.zip"
-
       parts = [
         %{part_number: 1, etag: "etag1"},
         %{part_number: 2, etag: "etag2"},
         %{part_number: 3, etag: "etag3"}
       ]
 
-      expect(Storage, :multipart_complete_upload, fn ^object_key,
+      expect(Storage, :multipart_complete_upload, fn object_key,
                                                      ^upload_id,
-                                                     [{1, "etag1"}, {2, "etag2"}, {3, "etag3"}] ->
+                                                     [{1, "etag1"}, {2, "etag2"}, {3, "etag3"}],
+                                                     _actor ->
+        assert String.contains?(object_key, "#{account.name}/#{project.name}/runs/")
+        assert String.ends_with?(object_key, "/result_bundle.zip")
         :ok
       end)
 
       conn = Authentication.put_current_project(conn, project)
+      conn = assign(conn, :selected_project, project)
 
       conn =
         conn
@@ -1069,7 +1071,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
       test_plan_object_key =
         "#{base_path}/0~_nJcMfmYtL75ZA_SPkjI1RYzgbEkjbq_o2hffLy4RQuPOW81Uu0xIwZX0ntR4Tof5xv2Jwe8opnwD7IVBQ_VOQ==.json"
 
-      stub(Storage, :object_exists?, fn object_key ->
+      stub(Storage, :object_exists?, fn object_key, _actor ->
         case object_key do
           ^invocation_record_object_key ->
             true
@@ -1079,7 +1081,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
         end
       end)
 
-      stub(Storage, :get_object_as_string, fn object_key ->
+      stub(Storage, :get_object_as_string, fn object_key, _ ->
         case object_key do
           ^invocation_record_object_key ->
             CommandEventsFixtures.invocation_record_fixture()
@@ -1090,6 +1092,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
       end)
 
       conn = Authentication.put_current_project(conn, project)
+      conn = assign(conn, :selected_project, project)
 
       FunWithFlags.enable(:flaky_test_detection, for_actor: project)
 
@@ -1175,7 +1178,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
       test_plan_object_key =
         "#{base_path}/0~_nJcMfmYtL75ZA_SPkjI1RYzgbEkjbq_o2hffLy4RQuPOW81Uu0xIwZX0ntR4Tof5xv2Jwe8opnwD7IVBQ_VOQ==.json"
 
-      stub(Storage, :object_exists?, fn object_key ->
+      stub(Storage, :object_exists?, fn object_key, _actor ->
         case object_key do
           ^invocation_record_object_key ->
             true
@@ -1185,7 +1188,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
         end
       end)
 
-      stub(Storage, :get_object_as_string, fn object_key ->
+      stub(Storage, :get_object_as_string, fn object_key, _ ->
         case object_key do
           ^invocation_record_object_key ->
             CommandEventsFixtures.invocation_record_fixture()
@@ -1196,6 +1199,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
       end)
 
       conn = Authentication.put_current_project(conn, project)
+      conn = assign(conn, :selected_project, project)
 
       FunWithFlags.enable(:flaky_test_detection, for_actor: project)
 
@@ -1252,8 +1256,9 @@ defmodule TuistWeb.AnalyticsControllerTest do
         |> CommandEventsFixtures.command_event_fixture()
         |> Repo.preload(project: :account)
 
-      stub(Storage, :object_exists?, fn _ -> false end)
+      stub(Storage, :object_exists?, fn _object_key, _actor -> false end)
       conn = Authentication.put_current_project(conn, project)
+      conn = assign(conn, :selected_project, project)
 
       conn =
         conn
@@ -1268,6 +1273,475 @@ defmodule TuistWeb.AnalyticsControllerTest do
         Repo.all(from(t in TestCaseRun, where: t.command_event_id == ^command_event.id))
 
       assert Enum.empty?(test_case_runs) == true
+    end
+  end
+
+  describe "POST /api/projects/:account_handle/:project_handle/runs/:run_id/start" do
+    test "returns unauthorized if authenticated subject doesn't have access to the project", %{
+      conn: conn
+    } do
+      stub(Environment, :clickhouse_configured?, fn -> false end)
+      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> false end)
+
+      # Given - Create two users and their accounts
+      user1 = AccountsFixtures.user_fixture(email: "user1@example.com")
+      user2 = AccountsFixtures.user_fixture(email: "user2@example.com")
+
+      account1 = Accounts.get_account_from_user(user1)
+
+      # Create a project under user1's account
+      project = ProjectsFixtures.project_fixture(account_id: account1.id)
+      command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
+
+      # Authenticate as user2 (who doesn't have access to user1's project)
+      conn = Authentication.put_current_user(conn, user2)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          ~p"/api/projects/#{account1.name}/#{project.name}/runs/#{command_event.id}/start",
+          type: "result_bundle"
+        )
+
+      # Then - Should return forbidden
+      assert json_response(conn, :forbidden) == %{
+               "message" => "user2 is not authorized to create run"
+             }
+    end
+
+    test "starts multipart upload using project from URL - postgres", %{conn: conn, user: user} do
+      stub(Environment, :clickhouse_configured?, fn -> false end)
+      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> false end)
+
+      # Given
+      account = Accounts.get_account_from_user(user)
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+      command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
+      upload_id = "12344"
+
+      object_key =
+        "#{account.name}/#{project.name}/runs/#{command_event.legacy_id}/result_bundle.zip"
+
+      expect(Storage, :multipart_start, fn ^object_key, _actor ->
+        upload_id
+      end)
+
+      # Authenticate with user instead of project token
+      conn = Authentication.put_current_user(conn, user)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          ~p"/api/projects/#{account.name}/#{project.name}/runs/#{command_event.id}/start",
+          type: "result_bundle"
+        )
+
+      response = json_response(conn, :ok)
+      assert response["status"] == "success"
+      response_data = response["data"]
+      assert response_data["upload_id"] == upload_id
+    end
+
+    test "starts multipart upload for a result_bundle_object using project from URL - postgres",
+         %{conn: conn, user: user} do
+      stub(Environment, :clickhouse_configured?, fn -> false end)
+      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> false end)
+
+      # Given
+      account = Accounts.get_account_from_user(user)
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+      command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
+      upload_id = "12344"
+
+      object_key =
+        "#{account.name}/#{project.name}/runs/#{command_event.legacy_id}/some-id.json"
+
+      expect(Storage, :multipart_start, fn ^object_key, _actor ->
+        upload_id
+      end)
+
+      # Authenticate with user instead of project token
+      conn = Authentication.put_current_user(conn, user)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          ~p"/api/projects/#{account.name}/#{project.name}/runs/#{command_event.id}/start",
+          type: "result_bundle_object",
+          name: "some-id"
+        )
+
+      response = json_response(conn, :ok)
+      assert response["status"] == "success"
+      response_data = response["data"]
+      assert response_data["upload_id"] == upload_id
+    end
+
+    test "starts multipart upload when run doesn't exist (async insertion)", %{
+      conn: conn,
+      user: user
+    } do
+      stub(Environment, :clickhouse_configured?, fn -> false end)
+      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> false end)
+
+      # Given
+      account = Accounts.get_account_from_user(user)
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+      # Use a random UUID that doesn't exist in the database
+      nonexistent_run_id = Ecto.UUID.generate()
+      upload_id = "12344"
+
+      # The endpoint should construct the object key even without the run existing
+      # It converts the UUID to an integer ID for the object key
+      normalized_run_id = Tuist.UUIDv7.to_int64(nonexistent_run_id)
+      object_key = "#{account.name}/#{project.name}/runs/#{normalized_run_id}/result_bundle.zip"
+
+      expect(Storage, :multipart_start, fn ^object_key, _actor ->
+        upload_id
+      end)
+
+      conn = Authentication.put_current_user(conn, user)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          ~p"/api/projects/#{account.name}/#{project.name}/runs/#{nonexistent_run_id}/start",
+          type: "result_bundle"
+        )
+
+      response = json_response(conn, :ok)
+      assert response["status"] == "success"
+      response_data = response["data"]
+      assert response_data["upload_id"] == upload_id
+    end
+  end
+
+  describe "POST /api/projects/:account_handle/:project_handle/runs/:run_id/generate-url" do
+    test "returns unauthorized if authenticated subject doesn't have access to the project", %{
+      conn: conn
+    } do
+      stub(Environment, :clickhouse_configured?, fn -> false end)
+      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> false end)
+
+      # Given - Create two users and their accounts
+      user1 = AccountsFixtures.user_fixture(email: "user3@example.com")
+      user2 = AccountsFixtures.user_fixture(email: "user4@example.com")
+
+      account1 = Accounts.get_account_from_user(user1)
+
+      # Create a project under user1's account
+      project = ProjectsFixtures.project_fixture(account_id: account1.id)
+      command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
+
+      # Authenticate as user2 (who doesn't have access to user1's project)
+      conn = Authentication.put_current_user(conn, user2)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          ~p"/api/projects/#{account1.name}/#{project.name}/runs/#{command_event.id}/generate-url",
+          command_event_artifact: %{type: "result_bundle"},
+          multipart_upload_part: %{
+            part_number: 1,
+            upload_id: "test-upload",
+            content_length: 100
+          }
+        )
+
+      # Then - Should return forbidden
+      assert json_response(conn, :forbidden) == %{
+               "message" => "user4 is not authorized to create run"
+             }
+    end
+
+    test "generates URL for a part of the multipart upload using project from URL - postgres", %{
+      conn: conn,
+      user: user
+    } do
+      stub(Environment, :clickhouse_configured?, fn -> false end)
+      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> false end)
+
+      # Given
+      account = Accounts.get_account_from_user(user)
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+      command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
+      upload_id = "12344"
+      part_number = 3
+      upload_url = "https://url.com"
+
+      object_key =
+        "#{account.name}/#{project.name}/runs/#{command_event.legacy_id}/result_bundle.zip"
+
+      expect(Storage, :multipart_generate_url, fn ^object_key,
+                                                  ^upload_id,
+                                                  ^part_number,
+                                                  _actor,
+                                                  [expires_in: _, content_length: 100] ->
+        upload_url
+      end)
+
+      # Authenticate with user instead of project token
+      conn = Authentication.put_current_user(conn, user)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          ~p"/api/projects/#{account.name}/#{project.name}/runs/#{command_event.id}/generate-url",
+          command_event_artifact: %{type: "result_bundle"},
+          multipart_upload_part: %{
+            part_number: part_number,
+            upload_id: upload_id,
+            content_length: 100
+          }
+        )
+
+      response = json_response(conn, :ok)
+      assert response["status"] == "success"
+      response_data = response["data"]
+      assert response_data["url"] == upload_url
+    end
+
+    test "generates URL for multipart upload when run doesn't exist (async insertion)", %{
+      conn: conn,
+      user: user
+    } do
+      stub(Environment, :clickhouse_configured?, fn -> false end)
+      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> false end)
+
+      # Given
+      account = Accounts.get_account_from_user(user)
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+      # Use a random UUID that doesn't exist in the database
+      nonexistent_run_id = Ecto.UUID.generate()
+      upload_id = "12344"
+      part_number = 3
+      upload_url = "https://url.com"
+
+      # The endpoint should construct the object key even without the run existing
+      # It converts the UUID to an integer ID for the object key
+      normalized_run_id = Tuist.UUIDv7.to_int64(nonexistent_run_id)
+      object_key = "#{account.name}/#{project.name}/runs/#{normalized_run_id}/result_bundle.zip"
+
+      expect(Storage, :multipart_generate_url, fn ^object_key,
+                                                  ^upload_id,
+                                                  ^part_number,
+                                                  _actor,
+                                                  [expires_in: _, content_length: 100] ->
+        upload_url
+      end)
+
+      conn = Authentication.put_current_user(conn, user)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          ~p"/api/projects/#{account.name}/#{project.name}/runs/#{nonexistent_run_id}/generate-url",
+          command_event_artifact: %{type: "result_bundle"},
+          multipart_upload_part: %{
+            part_number: part_number,
+            upload_id: upload_id,
+            content_length: 100
+          }
+        )
+
+      response = json_response(conn, :ok)
+      assert response["status"] == "success"
+      response_data = response["data"]
+      assert response_data["url"] == upload_url
+    end
+  end
+
+  describe "POST /api/projects/:account_handle/:project_handle/runs/:run_id/complete" do
+    test "returns unauthorized if authenticated subject doesn't have access to the project", %{
+      conn: conn
+    } do
+      stub(Environment, :clickhouse_configured?, fn -> false end)
+      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> false end)
+
+      # Given - Create two users and their accounts
+      user1 = AccountsFixtures.user_fixture(email: "user5@example.com")
+      user2 = AccountsFixtures.user_fixture(email: "user6@example.com")
+
+      account1 = Accounts.get_account_from_user(user1)
+
+      # Create a project under user1's account
+      project = ProjectsFixtures.project_fixture(account_id: account1.id)
+      command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
+
+      # Authenticate as user2 (who doesn't have access to user1's project)
+      conn = Authentication.put_current_user(conn, user2)
+
+      parts = [
+        %{part_number: 1, etag: "etag1"},
+        %{part_number: 2, etag: "etag2"}
+      ]
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          ~p"/api/projects/#{account1.name}/#{project.name}/runs/#{command_event.id}/complete",
+          command_event_artifact: %{type: "result_bundle"},
+          multipart_upload_parts: %{
+            parts: parts,
+            upload_id: "test-upload"
+          }
+        )
+
+      # Then - Should return forbidden
+      assert json_response(conn, :forbidden) == %{
+               "message" => "user6 is not authorized to create run"
+             }
+    end
+
+    test "completes a multipart upload using project from URL - postgres", %{
+      conn: conn,
+      user: user
+    } do
+      stub(Environment, :clickhouse_configured?, fn -> false end)
+      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> false end)
+
+      # Given
+      account = Accounts.get_account_from_user(user)
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+      command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
+      upload_id = "1234"
+
+      object_key =
+        "#{account.name}/#{project.name}/runs/#{command_event.legacy_id}/result_bundle.zip"
+
+      parts = [
+        %{part_number: 1, etag: "etag1"},
+        %{part_number: 2, etag: "etag2"},
+        %{part_number: 3, etag: "etag3"}
+      ]
+
+      expect(Storage, :multipart_complete_upload, fn ^object_key,
+                                                     ^upload_id,
+                                                     [{1, "etag1"}, {2, "etag2"}, {3, "etag3"}],
+                                                     _actor ->
+        :ok
+      end)
+
+      # Authenticate with user instead of project token
+      conn = Authentication.put_current_user(conn, user)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          ~p"/api/projects/#{account.name}/#{project.name}/runs/#{command_event.id}/complete",
+          command_event_artifact: %{type: "result_bundle"},
+          multipart_upload_parts: %{
+            parts: parts,
+            upload_id: upload_id
+          }
+        )
+
+      # Then
+      response = json_response(conn, :no_content)
+      assert response == %{}
+    end
+  end
+
+  describe "PUT /api/projects/:account_handle/:project_handle/runs/:run_id/complete_artifacts_uploads" do
+    test "returns unauthorized if authenticated subject doesn't have access to the project", %{
+      conn: conn
+    } do
+      stub(Environment, :clickhouse_configured?, fn -> false end)
+      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> false end)
+
+      # Given - Create two users and their accounts
+      user1 = AccountsFixtures.user_fixture(email: "user7@example.com")
+      user2 = AccountsFixtures.user_fixture(email: "user8@example.com")
+
+      account1 = Accounts.get_account_from_user(user1)
+
+      # Create a project under user1's account
+      project = ProjectsFixtures.project_fixture(account_id: account1.id)
+      command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
+
+      # Authenticate as user2 (who doesn't have access to user1's project)
+      conn = Authentication.put_current_user(conn, user2)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> put(~p"/api/projects/#{account1.name}/#{project.name}/runs/#{command_event.id}/complete_artifacts_uploads")
+
+      # Then - Should return forbidden
+      assert json_response(conn, :forbidden) == %{
+               "message" => "user8 is not authorized to update run"
+             }
+    end
+
+    test "completes artifacts uploads using project from URL - postgres", %{
+      conn: conn,
+      user: user
+    } do
+      stub(Environment, :clickhouse_configured?, fn -> false end)
+      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> false end)
+
+      # Given
+      account = Accounts.get_account_from_user(user)
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+      command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
+
+      # Authenticate with user instead of project token
+      conn = Authentication.put_current_user(conn, user)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> put(~p"/api/projects/#{account.name}/#{project.name}/runs/#{command_event.id}/complete_artifacts_uploads")
+
+      # Then
+      response = json_response(conn, :no_content)
+      assert response == %{}
+    end
+  end
+
+  describe "Backward compatibility" do
+    test "old routes still work with project-scoped authentication", %{conn: conn} do
+      stub(Environment, :clickhouse_configured?, fn -> false end)
+      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> false end)
+
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      account = Accounts.get_account_by_id(project.account_id)
+      command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
+      upload_id = "12344"
+
+      object_key =
+        "#{account.name}/#{project.name}/runs/#{command_event.legacy_id}/result_bundle.zip"
+
+      expect(Storage, :multipart_start, fn ^object_key, _actor ->
+        upload_id
+      end)
+
+      # Using project authentication (old way)
+      conn = Authentication.put_current_project(conn, project)
+      conn = assign(conn, :selected_project, project)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          ~p"/api/runs/#{command_event.id}/start",
+          type: "result_bundle"
+        )
+
+      response = json_response(conn, :ok)
+      assert response["status"] == "success"
+      response_data = response["data"]
+      assert response_data["upload_id"] == upload_id
     end
   end
 end

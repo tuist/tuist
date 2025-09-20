@@ -1,9 +1,10 @@
 ---
-title: Code reviews
-titleTemplate: :title · Contributors · Tuist
-description: Learn how to contribute to Tuist by reviewing code
+{
+  "title": "Code reviews",
+  "titleTemplate": ":title · Contributors · Tuist",
+  "description": "Learn how to contribute to Tuist by reviewing code"
+}
 ---
-
 # Code reviews {#code-reviews}
 
 La revisión de PRs es una forma típica de contribuir con el proyecto. A pesar de la integración continua (CI) validando que el código hace lo que se supone que tiene que hacer, no es suficiente. Hay rasgos de contribución que no se pueden automatizar: diseño, estructura de código y arquitectura, calidad de las pruebas, o errores tipográficos. Las siguientes secciones representan diferentes aspectos del proceso de revisión de código.

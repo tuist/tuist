@@ -1,6 +1,5 @@
 defmodule TuistWeb.Router do
   use TuistWeb, :router
-  use ErrorTracker.Web, :router
 
   import Oban.Web.Router
   import Phoenix.LiveDashboard.Router
@@ -20,7 +19,8 @@ defmodule TuistWeb.Router do
     plug :put_content_security_policy,
       img_src:
         "'self' data: https://github.com https://*.githubusercontent.com https://*.gravatar.com https://*.s3.amazonaws.com",
-      media_src: "'self' https://*.mastodon.social https://hachyderm.io https://fosstodon.org",
+      media_src:
+        "'self' https://*.mastodon.social https://hachyderm.io https://fosstodon.org http://localhost:9095 https://t3.storage.dev",
       style_src:
         "'self' 'unsafe-inline' https://fonts.googleapis.com https://chat.cdn-plain.com https://cdn.jsdelivr.net https://rsms.me",
       style_src_attr: "'unsafe-inline'",
@@ -36,7 +36,7 @@ defmodule TuistWeb.Router do
   end
 
   pipeline :browser_app do
-    plug :accepts, ["html"]
+    plug :accepts, ["html", "svg", "png"]
     plug :disable_robot_indexing
     plug :fetch_session
     plug :fetch_live_flash
@@ -76,7 +76,7 @@ defmodule TuistWeb.Router do
     plug :enable_robot_indexing
     plug :fetch_session
     plug :fetch_live_flash
-    plug :put_root_layout, html: {TuistWeb.Marketing.Layouts, :marketing}
+    plug :put_root_layout, html: {TuistWeb.Marketing.Layouts, :root}
     plug :protect_from_forgery
     plug :put_secure_browser_headers
     plug Ueberauth
@@ -137,10 +137,6 @@ defmodule TuistWeb.Router do
 
     get "/changelog/atom.xml", MarketingController, :changelog_atom, metadata: %{type: :marketing}
 
-    get "/newsletter/rss.xml", MarketingController, :newsletter_rss, metadata: %{type: :marketing}
-
-    get "/newsletter/atom.xml", MarketingController, :newsletter_atom, metadata: %{type: :marketing}
-
     get "/sitemap.xml", MarketingController, :sitemap, metadata: %{type: :marketing}
   end
 
@@ -164,6 +160,11 @@ defmodule TuistWeb.Router do
 
         live Path.join(locale_path_prefix, "/changelog"),
              TuistWeb.Marketing.MarketingChangelogLive,
+             metadata: %{type: :marketing},
+             private: private
+
+        live Path.join(locale_path_prefix, "/qa"),
+             TuistWeb.Marketing.MarketingQALive,
              metadata: %{type: :marketing},
              private: private
       end
@@ -208,6 +209,18 @@ defmodule TuistWeb.Router do
           metadata: %{type: :marketing},
           private: private
 
+      post Path.join(locale_path_prefix, "/newsletter"),
+           MarketingController,
+           :newsletter_signup,
+           metadata: %{type: :marketing},
+           private: private
+
+      get Path.join(locale_path_prefix, "/newsletter/verify"),
+          MarketingController,
+          :newsletter_verify,
+          metadata: %{type: :marketing},
+          private: private
+
       get Path.join(locale_path_prefix, "/newsletter/issues/:issue_number"),
           MarketingController,
           :newsletter_issue,
@@ -216,15 +229,19 @@ defmodule TuistWeb.Router do
     end
   end
 
-  scope "/" do
+  scope "/", TuistWeb do
     pipe_through [:open_api, :browser_app]
 
-    get "/ready", TuistWeb.PageController, :ready
-    get "/api/docs", TuistWeb.APIController, :docs
+    get "/ready", PageController, :ready
+    get "/api/docs", APIController, :docs
+  end
 
-    get "/.well-known/apple-app-site-association",
-        TuistWeb.AppleAppSiteAssociationController,
-        :show
+  scope "/.well-known", TuistWeb do
+    pipe_through [:open_api, :non_authenticated_api]
+
+    get "/openid-configuration", WellKnownController, :openid_configuration
+    get "/jwks.json", WellKnownController, :jwks
+    get "/apple-app-site-association", WellKnownController, :apple_app_site_association
   end
 
   scope path: "/api",
@@ -266,12 +283,21 @@ defmodule TuistWeb.Router do
         put "/", ProjectsController, :update
 
         scope "/bundles" do
+          get "/", BundlesController, :index
+          get "/:bundle_id", BundlesController, :show
           post "/", BundlesController, :create
         end
 
         scope "/runs" do
           get "/", RunsController, :index
           post "/", RunsController, :create
+          post "/:run_id/start", AnalyticsController, :multipart_start_project
+          post "/:run_id/generate-url", AnalyticsController, :multipart_generate_url_project
+          post "/:run_id/complete", AnalyticsController, :multipart_complete_project
+
+          put "/:run_id/complete_artifacts_uploads",
+              AnalyticsController,
+              :complete_artifacts_uploads_project
         end
 
         scope "/previews" do
@@ -286,9 +312,20 @@ defmodule TuistWeb.Router do
 
         scope "/qa" do
           post "/runs/:qa_run_id/steps", QAController, :create_step
+          patch "/runs/:qa_run_id/steps/:step_id", QAController, :update_step
           patch "/runs/:qa_run_id", QAController, :update_run
-          post "/runs/:qa_run_id/screenshots/upload", QAController, :screenshot_upload
+
           post "/runs/:qa_run_id/screenshots", QAController, :create_screenshot
+
+          post "/runs/:qa_run_id/recordings/upload/start", QAController, :start_recording_upload
+
+          post "/runs/:qa_run_id/recordings/upload/generate-url",
+               QAController,
+               :generate_recording_upload_url
+
+          post "/runs/:qa_run_id/recordings/upload/complete",
+               QAController,
+               :complete_recording_upload
         end
 
         scope "/tokens" do
@@ -386,6 +423,7 @@ defmodule TuistWeb.Router do
   # Ops Routes
   pipeline :ops do
     plug TuistWeb.Authorization, [:current_user, :read, :ops]
+    plug :assign_current_path
   end
 
   scope "/ops" do
@@ -412,12 +450,16 @@ defmodule TuistWeb.Router do
         script: :csp_nonce
       }
 
-    error_tracker_dashboard("/errors",
+    live_session :ops_qa,
+      layout: {TuistWeb.Layouts, :ops},
       on_mount: [
         {TuistWeb.Authentication, :ensure_authenticated},
-        {TuistWeb.Authorization, [:current_user, :read, :ops]}
-      ]
-    )
+        {TuistWeb.Authorization, [:current_user, :read, :ops]},
+        {TuistWeb.LayoutLive, :ops}
+      ] do
+      live "/qa", TuistWeb.OpsQALive
+      live "/qa/:qa_run_id/logs", TuistWeb.OpsQALogsLive
+    end
   end
 
   if Tuist.Environment.dev?() do
@@ -451,8 +493,6 @@ defmodule TuistWeb.Router do
     live_session :require_authenticated_user,
       on_mount: [{TuistWeb.Authentication, :ensure_authenticated}] do
       get "/dashboard", DashboardController, :dashboard
-      live "/users/settings", UserSettingsLive, :edit
-      live "/users/settings/confirm_email/:token", UserSettingsLive, :confirm_email
       live "/organizations/new", CreateOrganizationLive, :new
       live "/projects/new", CreateProjectLive, :new
     end
@@ -466,7 +506,6 @@ defmodule TuistWeb.Router do
     live_session :current_user,
       on_mount: [{TuistWeb.Authentication, :mount_current_user}] do
       live "/users/confirm/:token", UserConfirmationLive, :edit
-      live "/users/confirm", UserConfirmationInstructionsLive, :new
     end
   end
 
@@ -515,11 +554,20 @@ defmodule TuistWeb.Router do
     get "/:id/icon.png", PreviewController, :download_icon
   end
 
+  scope "/:account_handle/:project_handle/qa/runs/:qa_run_id/screenshots", TuistWeb do
+    pipe_through [
+      :open_api,
+      :browser_app,
+      :analytics
+    ]
+
+    get "/:screenshot_id", QAController, :download_screenshot
+  end
+
   scope "/:account_handle/:project_handle/previews/:id", TuistWeb do
     pipe_through [
       :open_api,
       :browser_app,
-      :require_authenticated_user_for_previews,
       :analytics
     ]
 
@@ -527,7 +575,6 @@ defmodule TuistWeb.Router do
     get "/app.ipa", PreviewController, :download_archive
     get "/qr-code.svg", PreviewController, :download_qr_code_svg
     get "/qr-code.png", PreviewController, :download_qr_code_png
-    get "/download", PreviewController, :download_preview
   end
 
   scope "/:account_handle/:project_handle/previews/:id", TuistWeb do
@@ -537,6 +584,8 @@ defmodule TuistWeb.Router do
       :require_authenticated_user_for_previews,
       :analytics
     ]
+
+    get "/download", PreviewController, :download_preview
 
     live_session :preview_detail,
       layout: {TuistWeb.Layouts, :project},
@@ -601,8 +650,13 @@ defmodule TuistWeb.Router do
       live "/builds/build-runs", BuildRunsLive
       live "/builds/build-runs/:build_run_id", BuildRunLive
       live "/previews", PreviewsLive
+      live "/qa", QALive
+      live "/qa/:qa_run_id", QARunLive, :overview
+      live "/qa/:qa_run_id/logs", QARunLive, :logs
       live "/runs/:run_id", RunDetailLive
       get "/runs/:run_id/download", RunsController, :download
+      live "/settings", ProjectSettingsLive
+      live "/settings/qa", QASettingsLive
     end
   end
 

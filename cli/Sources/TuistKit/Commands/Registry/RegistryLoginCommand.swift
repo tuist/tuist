@@ -18,6 +18,8 @@ struct RegistryLoginCommand: AsyncParsableCommand, NooraReadyCommand {
     )
     var path: String?
 
+    var jsonThroughNoora: Bool = false
+
     func run() async throws {
         try await RegistryLoginCommandService().run(
             path: path

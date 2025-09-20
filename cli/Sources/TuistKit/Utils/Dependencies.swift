@@ -4,6 +4,9 @@ import Path
 import TSCBasic
 import TuistServer
 import TuistSupport
+#if canImport(TuistCacheEE)
+    import TuistCacheEE
+#endif
 
 private enum DependenciesError: LocalizedError {
     case exclusiveOptionError(String, String)
@@ -25,20 +28,32 @@ public func initDependencies(_ action: (Path.AbsolutePath) async throws -> Void)
 
     let (logger, logFilePath) = try await initLogger()
 
-    try await ServerAuthenticationConfig.$current.withValue(ServerAuthenticationConfig(backgroundRefresh: true)) {
-        try await Noora.$current.withValue(initNoora()) {
-            try await Logger.$current.withValue(logger) {
-                try await ServerCredentialsStore.$current.withValue(ServerCredentialsStore(backend: .fileSystem)) {
-                    try await CachedValueStore.$current.withValue(CachedValueStore(backend: .fileSystem)) {
-                        try await RecentPathsStore.$current
-                            .withValue(RecentPathsStore(storageDirectory: Environment.current.stateDirectory)) {
-                                try await action(logFilePath)
-                            }
+    try await withAdditionalMiddlewares {
+        try await ServerAuthenticationConfig.$current.withValue(ServerAuthenticationConfig(backgroundRefresh: true)) {
+            try await Noora.$current.withValue(initNoora()) {
+                try await Logger.$current.withValue(logger) {
+                    try await ServerCredentialsStore.$current.withValue(ServerCredentialsStore(backend: .fileSystem)) {
+                        try await CachedValueStore.$current.withValue(CachedValueStore(backend: .fileSystem)) {
+                            try await RecentPathsStore.$current
+                                .withValue(RecentPathsStore(storageDirectory: Environment.current.stateDirectory)) {
+                                    try await action(logFilePath)
+                                }
+                        }
                     }
                 }
             }
         }
     }
+}
+
+public func withAdditionalMiddlewares(_ action: () async throws -> Void) async throws {
+    #if canImport(TuistCacheEE)
+        try await Client.$additionalMiddlewares.withValue([SignatureVerifierMiddleware()]) {
+            try await action()
+        }
+    #else
+        try await action()
+    #endif
 }
 
 private func initEnv() async throws {
@@ -75,10 +90,10 @@ private func initLogger() async throws -> (Logger, Path.AbsolutePath) {
     return (Logger(label: "dev.tuist.cli", factory: loggerHandler), logFilePath)
 }
 
-func initNoora() -> Noora {
+func initNoora(jsonThroughNoora: Bool = false) -> Noora {
     if CommandLine.arguments.contains("--json") || CommandLine.arguments.contains("--quiet") {
         Noora(
-            standardPipelines: StandardPipelines(
+            standardPipelines: jsonThroughNoora ? StandardPipelines() : StandardPipelines(
                 output: IgnoreOutputPipeline()
             ),
             logger: Logger.current

@@ -83,7 +83,8 @@ final class ConfigLoaderTests: TuistUnitTestCase {
                 swiftVersion: nil,
                 plugins: [],
                 generationOptions: .test(),
-                installOptions: .test()
+                installOptions: .test(),
+                cacheOptions: .test()
             )),
             fullHandle: nil,
             inspectOptions: .test(),
@@ -114,7 +115,8 @@ final class ConfigLoaderTests: TuistUnitTestCase {
                 swiftVersion: nil,
                 plugins: [],
                 generationOptions: .test(),
-                installOptions: .test()
+                installOptions: .test(),
+                cacheOptions: .test()
             )),
             fullHandle: nil,
             inspectOptions: .test(),
@@ -160,7 +162,8 @@ final class ConfigLoaderTests: TuistUnitTestCase {
                 swiftVersion: nil,
                 plugins: [],
                 generationOptions: .test(),
-                installOptions: .test()
+                installOptions: .test(),
+                cacheOptions: .test()
             )),
             fullHandle: nil,
             inspectOptions: .test(),
@@ -195,7 +198,8 @@ final class ConfigLoaderTests: TuistUnitTestCase {
                 generationOptions: .test(
                     buildInsightsDisabled: false
                 ),
-                installOptions: .test()
+                installOptions: .test(),
+                cacheOptions: .test()
             )),
             fullHandle: "tuist/tuist",
             inspectOptions: .test(),
@@ -228,7 +232,8 @@ final class ConfigLoaderTests: TuistUnitTestCase {
                 generationOptions: .test(
                     buildInsightsDisabled: false
                 ),
-                installOptions: .test()
+                installOptions: .test(),
+                cacheOptions: .test()
             )),
             fullHandle: "tuist/tuist",
             inspectOptions: .test(),

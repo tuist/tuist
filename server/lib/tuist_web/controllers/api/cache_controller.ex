@@ -29,9 +29,9 @@ defmodule TuistWeb.API.CacheController do
 
   plug(TuistWeb.API.Authorization.BillingPlug)
 
-  plug :sign
+  plug(:sign)
 
-  tags ["Cache"]
+  tags(["Cache"])
 
   operation(:get_cache_action_item,
     summary: "Get a cache action item.",
@@ -159,27 +159,14 @@ defmodule TuistWeb.API.CacheController do
     url =
       Storage.generate_download_url(
         get_object_key(item),
+        selected_project.account,
         expires_in: expires_in
       )
 
     object_key = get_object_key(item)
 
-    if Storage.object_exists?(object_key) do
-      size = Storage.get_object_size(object_key)
-
-      :ok =
-        Pipeline.async_push(
-          {:create_cache_event,
-           %{
-             event_type: :download,
-             hash: hash,
-             name: name,
-             project_id: selected_project.id,
-             size: size,
-             created_at: NaiveDateTime.utc_now(:second),
-             updated_at: NaiveDateTime.utc_now(:second)
-           }}
-        )
+    if Storage.object_exists?(object_key, selected_project.account) do
+      size = Storage.get_object_size(object_key, selected_project.account)
 
       Tuist.Analytics.cache_artifact_download(
         %{size: size, category: cache_category},
@@ -263,6 +250,7 @@ defmodule TuistWeb.API.CacheController do
 
   def exists(
         %{
+          assigns: %{selected_project: selected_project},
           query_params: %{
             "hash" => hash,
             "name" => name,
@@ -279,7 +267,8 @@ defmodule TuistWeb.API.CacheController do
           name: name,
           project_slug: project_slug,
           cache_category: cache_category
-        })
+        }),
+        selected_project.account
       )
 
     if exists do
@@ -429,6 +418,7 @@ defmodule TuistWeb.API.CacheController do
 
   def multipart_start(
         %{
+          assigns: %{selected_project: selected_project},
           query_params: %{
             "hash" => hash,
             "name" => name,
@@ -448,7 +438,8 @@ defmodule TuistWeb.API.CacheController do
               name: name,
               project_slug: project_slug,
               cache_category: cache_category
-            })
+            }),
+            selected_project.account
           )
       }
     })
@@ -513,6 +504,7 @@ defmodule TuistWeb.API.CacheController do
 
   def multipart_generate_url(
         %{
+          assigns: %{selected_project: selected_project},
           query_params:
             %{
               "hash" => hash,
@@ -538,6 +530,7 @@ defmodule TuistWeb.API.CacheController do
         }),
         upload_id,
         part_number,
+        selected_project.account,
         expires_in: expires_in,
         content_length: if(is_nil(content_length), do: nil, else: String.to_integer(content_length))
       )
@@ -648,24 +641,11 @@ defmodule TuistWeb.API.CacheController do
         upload_id,
         Enum.map(parts, fn %{part_number: part_number, etag: etag} ->
           {part_number, etag}
-        end)
+        end),
+        selected_project.account
       )
 
-    size = Storage.get_object_size(get_object_key(item))
-
-    :ok =
-      Pipeline.async_push(
-        {:create_cache_event,
-         %{
-           event_type: :upload,
-           hash: hash,
-           name: name,
-           project_id: selected_project.id,
-           size: size,
-           created_at: NaiveDateTime.utc_now(:second),
-           updated_at: NaiveDateTime.utc_now(:second)
-         }}
-      )
+    size = Storage.get_object_size(get_object_key(item), selected_project.account)
 
     Tuist.Analytics.cache_artifact_upload(
       %{size: size, category: cache_category},
@@ -722,12 +702,23 @@ defmodule TuistWeb.API.CacheController do
     end
   end
 
+  defp sign(%{query_params: %{"hash" => hash}} = conn, _opts) do
+    sign_conn(conn, hash)
+  end
+
+  defp sign(%{path_params: %{"hash" => hash}} = conn, _opts) do
+    sign_conn(conn, hash)
+  end
+
   defp sign(conn, _opts) do
-    with hash when not is_nil(hash) <- conn.params[:hash],
-         signature when not is_nil(signature) <- Tuist.License.sign([hash]) do
-      put_resp_header(conn, "x-tuist-signature", signature)
+    conn
+  end
+
+  defp sign_conn(conn, hash) do
+    if Tuist.Environment.test?() or Tuist.Environment.dev?() do
+      put_resp_header(conn, "x-tuist-signature", "tuist")
     else
-      _ -> conn
+      put_resp_header(conn, "x-tuist-signature", Tuist.License.sign(hash))
     end
   end
 end

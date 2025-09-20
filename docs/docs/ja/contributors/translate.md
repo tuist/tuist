@@ -1,9 +1,10 @@
 ---
-title: 翻訳する
-titleTemplate: :title · コントリビューター · Tuist
-description: このドキュメントでは、Tuist の開発を導く原則について説明します。
+{
+  "title": "翻訳する",
+  "titleTemplate": ":title · コントリビューター · Tuist",
+  "description": "このドキュメントでは、Tuist の開発を導く原則について説明します。"
+}
 ---
-
 # 翻訳 {#translate}
 
 言語は理解を妨げる大きな壁になることがあります。 私たちは Tuist をできるだけ多くの人に使っていただきたいと考えています。 もし Tuist がサポートしていない言語を話す場合、Tuist のさまざまな部分を翻訳していただくことでご協力ください。

@@ -4,12 +4,13 @@ defmodule TuistWeb.PreviewLive do
   use Noora
 
   import TuistWeb.Components.Terminal
-  import TuistWeb.Previews.PlatformIcon
+  import TuistWeb.Previews.PlatformTag
   import TuistWeb.Previews.RanByBadge
 
   alias Tuist.AppBuilds
   alias Tuist.AppBuilds.AppBuild
   alias TuistWeb.Errors.NotFoundError
+  alias TuistWeb.Utilities.SHA
 
   def mount(%{"id" => preview_id} = _params, _session, %{assigns: %{selected_project: selected_project}} = socket) do
     preview =
@@ -83,14 +84,6 @@ defmodule TuistWeb.PreviewLive do
         {:tuist,
          "open-preview?server_url=#{TuistWeb.Endpoint.url()}&preview_id=#{preview.id}&full_handle=#{preview.project.account.name}/#{preview.project.name}"}
     end
-  end
-
-  attr(:platform, :atom, required: true)
-
-  def platform_tag(assigns) do
-    ~H"""
-    <.tag label={AppBuilds.platform_string(@platform)} icon={platform_icon_name(@platform)} />
-    """
   end
 
   def handle_event(

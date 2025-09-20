@@ -285,21 +285,21 @@ defmodule Tuist.Authorization.ChecksTest do
   end
 
   describe "scopes_permit/3" do
-    test "returns true when the scopes permit :account_registry_read", %{user: user} do
+    test "returns true when the scopes permit :registry_read", %{user: user} do
       # When/Then
       assert Checks.scopes_permit(
-               %AuthenticatedAccount{account: user.account, scopes: [:account_registry_read]},
+               %AuthenticatedAccount{account: user.account, scopes: [:registry_read]},
                user,
-               :account_registry_read
+               :registry_read
              ) == true
     end
 
-    test "returns false when the scopes don't permit :account_registry_read", %{user: user} do
+    test "returns false when the scopes don't permit :registry_read", %{user: user} do
       # When/Then
       assert Checks.scopes_permit(
                %AuthenticatedAccount{account: user.account, scopes: [:account_token_create]},
                user,
-               :account_registry_read
+               :registry_read
              ) == false
     end
   end

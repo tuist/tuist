@@ -61,15 +61,15 @@ defmodule Tuist.ClickHouseRepo.Migrations.AddPerformanceIndexesAndComputedColumn
   end
 
   def down do
-    execute("ALTER TABLE command_events DROP INDEX idx_name_set")
-    execute("ALTER TABLE command_events DROP INDEX idx_project_id")
-    execute("ALTER TABLE command_events DROP INDEX idx_user_id")
-    execute("ALTER TABLE command_events DROP INDEX idx_is_ci")
-    execute("ALTER TABLE command_events DROP INDEX idx_status")
-    execute("ALTER TABLE command_events DROP INDEX idx_git_commit_sha")
-    execute("ALTER TABLE command_events DROP INDEX idx_git_ref")
-    execute("ALTER TABLE command_events DROP INDEX idx_git_branch")
-    execute("ALTER TABLE command_events DROP INDEX idx_name")
+    execute("ALTER TABLE command_events DROP INDEX IF EXISTS idx_name_set")
+    execute("ALTER TABLE command_events DROP INDEX IF EXISTS idx_project_id")
+    execute("ALTER TABLE command_events DROP INDEX IF EXISTS idx_user_id")
+    execute("ALTER TABLE command_events DROP INDEX IF EXISTS idx_is_ci")
+    execute("ALTER TABLE command_events DROP INDEX IF EXISTS idx_status")
+    execute("ALTER TABLE command_events DROP INDEX IF EXISTS idx_git_commit_sha")
+    execute("ALTER TABLE command_events DROP INDEX IF EXISTS idx_git_ref")
+    execute("ALTER TABLE command_events DROP INDEX IF EXISTS idx_git_branch")
+    execute("ALTER TABLE command_events DROP INDEX IF EXISTS idx_name")
 
     execute("ALTER TABLE command_events DROP COLUMN hit_rate")
     execute("ALTER TABLE command_events DROP COLUMN remote_test_hits_count")
