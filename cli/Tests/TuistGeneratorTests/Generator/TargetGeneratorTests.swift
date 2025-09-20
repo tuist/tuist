@@ -29,7 +29,12 @@ struct TargetGeneratorTests {
             product: .framework,
             scripts: [],
             buildableFolders: [
-                BuildableFolder(path: buildableFolderPath),
+                BuildableFolder(path: buildableFolderPath, exceptions: BuildableFolderExceptions(exceptions: [
+                    BuildableFolderException(
+                        excluded: [path.appending(components: ["Sources", "Excluded.swift"])],
+                        compilerFlags: [path.appending(components: ["Sources", "CompilerFlags.swift"]): "-print-stats"]
+                    ),
+                ])),
             ]
         )
         let project = Project.test(
@@ -67,6 +72,10 @@ struct TargetGeneratorTests {
         #expect(generatedTarget.fileSystemSynchronizedGroups?.count != 0)
         let group = try #require(generatedTarget.fileSystemSynchronizedGroups?.first)
         #expect(group.path == "Sources")
+        #expect(group.exceptions?.count == 1)
+        let exception = try #require(group.exceptions?.first as? PBXFileSystemSynchronizedBuildFileExceptionSet)
+        #expect(exception.membershipExceptions == ["Excluded.swift"])
+        #expect(exception.additionalCompilerFlagsByRelativePath == ["CompilerFlags.swift": "-print-stats"])
     }
 
     @Test func generateTarget_productName() async throws {

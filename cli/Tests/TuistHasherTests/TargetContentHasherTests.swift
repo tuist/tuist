@@ -151,8 +151,18 @@ struct TargetContentHasherTests {
     @Test func hash_with_buildable_folders() async throws {
         // Given
         let target = GraphTarget.test(target: .test(buildableFolders: [
-            BuildableFolder(path: try AbsolutePath(validating: "/test/Resources")),
-            BuildableFolder(path: try AbsolutePath(validating: "/test/Sources")),
+            BuildableFolder(
+                path: try AbsolutePath(validating: "/test/Resources"),
+                exceptions: BuildableFolderExceptions(exceptions: [
+                    BuildableFolderException(excluded: [], compilerFlags: [:]),
+                ])
+            ),
+            BuildableFolder(
+                path: try AbsolutePath(validating: "/test/Sources"),
+                exceptions: BuildableFolderExceptions(exceptions: [
+                    BuildableFolderException(excluded: [], compilerFlags: [:]),
+                ])
+            ),
         ]), project: .test())
 
         // When

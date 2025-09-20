@@ -171,7 +171,10 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
     func test_map_when_no_sources_but_buildable_folders() async throws {
         // Given
         let resources: [ResourceFileElement] = [.file(path: "/image.png")]
-        let buildableFolders = [BuildableFolder(path: try AbsolutePath(validating: "/sources"))]
+        let buildableFolders = [BuildableFolder(
+            path: try AbsolutePath(validating: "/sources"),
+            exceptions: BuildableFolderExceptions(exceptions: [])
+        )]
         let target = Target.test(
             product: .staticLibrary,
             sources: [],
@@ -227,8 +230,14 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
     func test_map_when_no_sources_and_resources_but_buildable_folders() async throws {
         // Given
         let buildableFolders = [
-            BuildableFolder(path: try AbsolutePath(validating: "/sources")),
-            BuildableFolder(path: try AbsolutePath(validating: "/resources")),
+            BuildableFolder(
+                path: try AbsolutePath(validating: "/sources"),
+                exceptions: BuildableFolderExceptions(exceptions: [])
+            ),
+            BuildableFolder(
+                path: try AbsolutePath(validating: "/resources"),
+                exceptions: BuildableFolderExceptions(exceptions: [])
+            ),
         ]
         let target = Target.test(
             product: .staticLibrary,

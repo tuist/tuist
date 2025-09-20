@@ -8,6 +8,12 @@ extension XcodeGraph.BuildableFolder {
         manifest: ProjectDescription.BuildableFolder,
         generatorPaths: GeneratorPaths
     ) throws -> XcodeGraph.BuildableFolder {
-        return XcodeGraph.BuildableFolder(path: try generatorPaths.resolve(path: manifest.path))
+        return XcodeGraph.BuildableFolder(
+            path: try generatorPaths.resolve(path: manifest.path),
+            exceptions: try XcodeGraph.BuildableFolderExceptions.from(
+                manifest: manifest.exceptions,
+                generatorPaths: generatorPaths
+            )
+        )
     }
 }
