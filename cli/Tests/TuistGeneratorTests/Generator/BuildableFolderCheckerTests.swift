@@ -11,7 +11,10 @@ struct BuildableFolderCheckerTests {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         try await fileSystem.touch(temporaryDirectory.appending(component: "File.swift"))
 
-        let got = try await subject.containsSources([BuildableFolder(path: temporaryDirectory)])
+        let got = try await subject.containsSources([BuildableFolder(
+            path: temporaryDirectory,
+            exceptions: BuildableFolderExceptions(exceptions: [])
+        )])
 
         #expect(got == true)
     }
@@ -20,7 +23,10 @@ struct BuildableFolderCheckerTests {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         try await fileSystem.touch(temporaryDirectory.appending(component: "File.xcstrings"))
 
-        let got = try await subject.containsSources([BuildableFolder(path: temporaryDirectory)])
+        let got = try await subject.containsSources([BuildableFolder(
+            path: temporaryDirectory,
+            exceptions: BuildableFolderExceptions(exceptions: [])
+        )])
 
         #expect(got == false)
     }
@@ -29,7 +35,10 @@ struct BuildableFolderCheckerTests {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         try await fileSystem.touch(temporaryDirectory.appending(component: "File.xcstrings"))
 
-        let got = try await subject.containsResources([BuildableFolder(path: temporaryDirectory)])
+        let got = try await subject.containsResources([BuildableFolder(
+            path: temporaryDirectory,
+            exceptions: BuildableFolderExceptions(exceptions: [])
+        )])
 
         #expect(got == true)
     }
@@ -38,7 +47,10 @@ struct BuildableFolderCheckerTests {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         try await fileSystem.touch(temporaryDirectory.appending(component: "File.swift"))
 
-        let got = try await subject.containsResources([BuildableFolder(path: temporaryDirectory)])
+        let got = try await subject.containsResources([BuildableFolder(
+            path: temporaryDirectory,
+            exceptions: BuildableFolderExceptions(exceptions: [])
+        )])
 
         #expect(got == false)
     }
