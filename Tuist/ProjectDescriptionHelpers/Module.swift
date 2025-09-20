@@ -402,6 +402,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "SWBProtocol"),
                     .external(name: "SWBUtil"),
                     .external(name: "SWBBuildService"),
+                    .external(name: "GRDB"),
                 ] + (Self.includeEE() ? [.target(name: "TuistCacheEE")] : [])
             case .core:
                 [

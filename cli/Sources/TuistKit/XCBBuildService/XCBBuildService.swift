@@ -5,18 +5,7 @@ import SWBProtocol
 import SWBUtil
 
 struct XCBBuildService {
-    private enum Direction { case xcodeToService, serviceToXcode }
     private typealias FD = Int32
-
-    private protocol MessageObserver {
-        func didDecode(direction: Direction, channel: UInt64, length: Int, message: any Message)
-        func didDecodeError(direction: Direction, channel: UInt64, length: Int, error: Error)
-    }
-
-    private struct NoopObserver: MessageObserver {
-        func didDecode(direction _: Direction, channel _: UInt64, length _: Int, message _: any Message) {}
-        func didDecodeError(direction _: Direction, channel _: UInt64, length _: Int, error _: Error) {}
-    }
 
     private func decodeFrames(_ buffer: inout [UInt8], direction: Direction, observer: MessageObserver) -> Int {
         var forwarded = 0
@@ -35,11 +24,31 @@ struct XCBBuildService {
             do {
                 let d = MsgPackDeserializer(ArraySlice(payload))
                 let ipc = try IPCMessage(from: d)
+                
+                // Append to log file instead of calling observer
+                let logPath = "/Users/marekfort/Desktop/log.txt"
+                let logEntry = """
+                    \n[Direction: \(direction), Channel: \(UInt64(littleEndian: chLE)), Length: \(payloadLen), Name: \(type(of: ipc.message).name), Message: \(ipc.message)]
+                    """
+                
+                if let logData = logEntry.data(using: .utf8) {
+                    if !FileManager.default.fileExists(atPath: logPath) {
+                        FileManager.default.createFile(atPath: logPath, contents: nil)
+                    }
+                    if let fileHandle = FileHandle(forWritingAtPath: logPath) {
+                        defer { fileHandle.closeFile() }
+                        fileHandle.seekToEndOfFile()
+                        fileHandle.write(logData)
+                    }
+                }
+                
                 observer.didDecode(
                     direction: direction,
                     channel: UInt64(littleEndian: chLE),
                     length: payloadLen,
-                    message: ipc.message
+                    name: type(of: ipc.message).name,
+                    message: ipc.message,
+                    payload: Array(payload)
                 )
             } catch {
                 observer.didDecodeError(
@@ -150,7 +159,12 @@ struct XCBBuildService {
         let (appPath, firstFrame, remainder) = try sniffInitialFrameAndAppPath()
         let (toServiceRead, toServiceWrite) = try makePipe()
         let (fromServiceRead, fromServiceWrite) = try makePipe()
-        let observer: MessageObserver = NoopObserver()
+        let observer: MessageObserver = {
+//            if let dbPath = ProcessInfo.processInfo.environment["TUIST_XCBBUILDSERVICE_DB_PATH"], dbPath.hasPrefix("/") {
+//                if let obs = try? SQLiteObserver(path: dbPath) { return obs }
+//            }
+            return NoopObserver()
+        }()
         // Always run in-process with Xcode's plugins (if available)
         let plugins = appPath.flatMap(pluginsURL(forXcodeApp:))
         let serviceTask = launchInProcessService(inputFD: toServiceRead, outputFD: fromServiceWrite, pluginsDirectory: plugins)

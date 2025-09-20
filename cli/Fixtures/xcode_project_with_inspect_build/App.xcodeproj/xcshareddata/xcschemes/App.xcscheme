@@ -11,7 +11,7 @@
             ActionType = "Xcode.IDEStandardExecutionActionsCore.ExecutionActionType.ShellScriptAction">
             <ActionContent
                title = "Run Script"
-               scriptText = "tuist inspect build&#10;">
+               scriptText = "# tuist inspect build&#10;">
                <EnvironmentBuildable>
                   <BuildableReference
                      BuildableIdentifier = "primary"
@@ -47,6 +47,16 @@
       selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
       shouldUseLaunchSchemeArgsEnv = "YES"
       shouldAutocreateTestPlan = "YES">
+      <PostActions>
+         <ExecutionAction
+            ActionType = "Xcode.IDEStandardExecutionActionsCore.ExecutionActionType.ShellScriptAction">
+            <ActionContent
+               title = "Run Script"
+               scriptText = "# Type a script or drag a script file from your workspace to insert its path.&#10;echo $RESULT_BUNDLE &gt; /Users/marekfort/Desktop/log.txt&#10;&#10;"
+               shellToInvoke = "/bin/sh">
+            </ActionContent>
+         </ExecutionAction>
+      </PostActions>
       <Testables>
          <TestableReference
             skipped = "NO"
