@@ -1,5 +1,5 @@
 {
-  "originHash" : "7054f1f3807ab580401ed1f63d0c1696d639eab96371fe8184adbc0ceb895635",
+  "originHash" : "8d53014eb02bfbf494613ed7fb8fcb6b353f4d4c341c1a77ab19ec972da4205d",
   "pins" : [
     {
       "identity" : "aexml",
@@ -96,8 +96,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tuist/FileSystem.git",
       "state" : {
-        "revision" : "29fe550f93cb562b56ba917b95330a20ac82bee0",
-        "version" : "0.11.10"
+        "revision" : "1e8890203abfc0dcd887b49ec5e91ea75b394495",
+        "version" : "0.11.23"
       }
     },
     {
@@ -159,8 +159,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/p-x9/MachOKit",
       "state" : {
-        "revision" : "954f8ad0b5abb8ebcacb36238765559cde10caa2",
-        "version" : "0.38.0"
+        "revision" : "fc1f2646220b3ce9db2e415b6b8848f5a89ed865",
+        "version" : "0.39.0"
       }
     },
     {
@@ -537,8 +537,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tuist/XcodeGraph",
       "state" : {
-        "revision" : "d0f9ced36922ba84eede839d5e766cec85703588",
-        "version" : "1.21.0"
+        "branch" : "buildable-folder-exceptions",
+        "revision" : "dd3d08e9e1c1b8c5d0577743ef935269874cfc12"
       }
     },
     {
