@@ -283,7 +283,10 @@ defmodule TuistWeb.QARunLive do
 
   defp find_current_step(steps, current_time) do
     steps
-    |> Enum.filter(fn step -> step.time <= current_time end)
+    |> Enum.filter(fn step ->
+      step_time = if step.started_time, do: step.started_time, else: step.time
+      step_time <= current_time
+    end)
     |> List.last()
   end
 
@@ -305,15 +308,31 @@ defmodule TuistWeb.QARunLive do
     |> Enum.with_index()
     |> Enum.map(fn {step, index} ->
       time_seconds =
-        max(
-          min(
-            DateTime.diff(step.inserted_at, recording_started_at, :millisecond) - 1000,
-            duration
-          ) / 1000.0,
+        if index == 0 do
           0
-        )
+        else
+          calculate_time_in_seconds(step.inserted_at, recording_started_at, duration)
+        end
 
-      step |> Map.put(:time, time_seconds) |> Map.put(:index, index)
+      started_time_seconds =
+        if step.started_at do
+          calculate_time_in_seconds(step.started_at, recording_started_at, duration)
+        end
+
+      step
+      |> Map.put(:time, time_seconds)
+      |> Map.put(:started_time, started_time_seconds)
+      |> Map.put(:index, index)
     end)
+  end
+
+  defp calculate_time_in_seconds(datetime, recording_started_at, duration) do
+    max(
+      min(
+        DateTime.diff(datetime, recording_started_at, :millisecond),
+        duration
+      ) / 1000.0,
+      0
+    )
   end
 end

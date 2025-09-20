@@ -819,18 +819,19 @@ defmodule Runner.QA.Tools do
   end
 
   defp run_axe_command(simulator_uuid, args) do
+    started_at = DateTime.utc_now()
     full_params = args ++ ["--udid", simulator_uuid]
 
     case System.cmd("/usr/local/bin/axe", full_params) do
       {output, 0} ->
-        {:ok, String.trim(output)}
+        {:ok, %{output: String.trim(output), started_at: started_at}}
 
       {error, status} ->
         {:error, "axe command failed (status #{status}): #{error}"}
     end
   end
 
-  defp execute_action_with_step_report(action_result, %{
+  defp execute_action_with_step_report({:ok, %{started_at: started_at}}, %{
          simulator_uuid: simulator_uuid,
          action: action,
          server_url: server_url,
@@ -843,11 +844,11 @@ defmodule Runner.QA.Tools do
     # It can take for the action to happen, so we want to wait before capturing the screenshot and describing the UI
     Sleeper.sleep(500)
 
-    with {:ok, _} <- action_result,
-         {:ok, step_id} <-
+    with {:ok, step_id} <-
            Client.create_step(%{
              action: action,
              issues: [],
+             started_at: started_at,
              server_url: server_url,
              run_id: run_id,
              auth_token: auth_token,
@@ -879,6 +880,10 @@ defmodule Runner.QA.Tools do
          ContentPart.text!(step_id)
        ]}
     end
+  end
+
+  defp execute_action_with_step_report({:error, reason}, _params) do
+    {:error, reason}
   end
 
   defp ui_description_from_appium_session(appium_session) do

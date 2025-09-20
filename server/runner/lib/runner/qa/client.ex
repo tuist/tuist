@@ -20,8 +20,15 @@ defmodule Runner.QA.Client do
       ) do
     step_url = qa_run_url(server_url, account_handle, project_handle, run_id, "/steps")
 
-    body = %{action: action, issues: issues}
-    body = if result = Map.get(params, :result), do: Map.put(body, :result, result), else: body
+    body =
+      %{action: action, issues: issues}
+      |> then(&if(result = Map.get(params, :result), do: Map.put(&1, :result, result), else: &1))
+      |> then(
+        &if(started_at = Map.get(params, :started_at),
+          do: Map.put(&1, :started_at, DateTime.to_iso8601(started_at)),
+          else: &1
+        )
+      )
 
     case qa_server_request(:post, step_url, auth_token, json: body) do
       {:ok, %{"id" => step_id}} -> {:ok, step_id}
