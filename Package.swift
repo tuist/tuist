@@ -92,6 +92,10 @@ let targets: [Target] = [
             .product(name: "MCP", package: "swift-sdk"),
             .product(name: "SwiftyJSON", package: "SwiftyJSON"),
             .product(name: "Rosalind", package: "Rosalind"),
+            .product(name: "SwiftBuild", package: "swift-build"),
+            .product(name: "SWBProtocol", package: "swift-build"),
+            .product(name: "SWBUtil", package: "swift-build"),
+            .product(name: "SWBBuildService", package: "swift-build"),
         ],
         path: "cli/Sources/TuistKit",
         swiftSettings: [
@@ -629,6 +633,7 @@ let package = Package(
         .package(url: "https://github.com/leif-ibsen/SwiftECC", exact: "5.5.0"),
         .package(
             url: "https://github.com/lfroms/fluid-menu-bar-extra", .upToNextMajor(from: "1.1.0")),
+        .package(url: "https://github.com/swiftlang/swift-build", branch: "main"),
     ],
     targets: targets
 )

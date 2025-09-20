@@ -83,6 +83,18 @@ public struct TuistCommand: AsyncParsableCommand {
         _ arguments: [String]? = nil,
         parseAsRoot: ((_ arguments: [String]?) throws -> ParsableCommand) = Self.parseAsRoot
     ) async throws {
+        if Environment.current.variables["__CFBundleIdentifier"] == "com.apple.dt.Xcode" {
+            try await xcbBuildService()
+        } else {
+            try await cli(logFilePath: logFilePath, arguments, parseAsRoot: parseAsRoot)
+        }
+    }
+
+    public static func cli(
+        logFilePath: AbsolutePath,
+        _ arguments: [String]? = nil,
+        parseAsRoot: ((_ arguments: [String]?) throws -> ParsableCommand) = Self.parseAsRoot
+    ) async throws {
         let path: AbsolutePath
         if let argumentIndex = CommandLine.arguments.firstIndex(of: "--path") {
             path = try AbsolutePath(
@@ -180,6 +192,10 @@ public struct TuistCommand: AsyncParsableCommand {
                 }
             }
         }
+    }
+
+    static func xcbBuildService() async throws {
+        try await XCBBuildService().run()
     }
 
     private static func onError(_ error: Error, isParsingError: Bool, logFilePath: AbsolutePath) {
