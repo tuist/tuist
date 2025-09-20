@@ -10,8 +10,19 @@ public struct BuildableFolderException: Sendable, Codable, Equatable, Hashable {
     /// - Parameters:
     ///   - exclued: An array of absolute paths to files that should be excluded from the buildable folder.
     ///   - compilerFlags: A dictionary mapping absolute file paths to specific compiler flags to apply to those files.
-    public init(excluded: [Path], compilerFlags: [Path: String]) {
+    private init(excluded: [Path], compilerFlags: [Path: String]) {
         self.excluded = excluded
         self.compilerFlags = compilerFlags
+    }
+
+    /// Creates a new BuildableFolderException using the given excluded files and compiler flags.
+    /// - Parameters:
+    ///   - excluded: An array of absolute paths to files that should be excluded from the buildable folder.
+    ///   - compilerFlags: A dictionary mapping absolute file paths to specific compiler flags to apply to those files.
+    public static func exception(
+        excluded: [Path],
+        compilerFlags: [Path: String] = [:]
+    ) -> BuildableFolderException {
+        BuildableFolderException(excluded: excluded, compilerFlags: compilerFlags)
     }
 }
