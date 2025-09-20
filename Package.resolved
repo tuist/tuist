@@ -538,7 +538,7 @@
       "location" : "https://github.com/tuist/XcodeGraph",
       "state" : {
         "branch" : "buildable-folder-exceptions",
-        "revision" : "dd3d08e9e1c1b8c5d0577743ef935269874cfc12"
+        "revision" : "85e77585d688ea5fcebc129bff1cb44141d7d852"
       }
     },
     {

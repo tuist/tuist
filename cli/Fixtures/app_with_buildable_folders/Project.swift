@@ -10,7 +10,11 @@ let project = Project(
             bundleId: "dev.tuist.app-with-buildable-folders",
             infoPlist: .default,
             buildableFolders: [
-                "App/Sources",
+                .folder("App/Sources", exceptions: .exceptions([
+                    .exception(excluded: ["App/Sources/Excluded.swift"], compilerFlags: [
+                        "App/Sources/WithCompilerFlags.swift": "-print-stats",
+                    ]),
+                ])),
                 "App/Resources",
             ],
             dependencies: []
