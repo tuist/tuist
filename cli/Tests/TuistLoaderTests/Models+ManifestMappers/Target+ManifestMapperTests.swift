@@ -45,6 +45,10 @@ final class TargetManifestMapperTests: TuistUnitTestCase {
         try await fileSystem.touch(secondExcludedSourceFile)
         try await fileSystem.touch(buildableSourceFile)
         let scriptOutputFile = rootDirectory.appending(component: "Scripts").appending(component: "file.swift")
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: try temporaryPath(),
+            rootDirectory: rootDirectory
+        )
 
         // When
         let got = try await XcodeGraph.Target.from(
@@ -65,12 +69,11 @@ final class TargetManifestMapperTests: TuistUnitTestCase {
                     order: .pre,
                     outputPaths: ["Scripts/file.swift"]
                 )],
-                buildableFolders: [.folder("BuildableSources")],
+                buildableFolders: [.folder("BuildableSources", exceptions: .exceptions([
+                    .exception(excluded: ["Sources/excluded.swift"], compilerFlags: ["Sources/flags.swift": "-print-stats"]),
+                ]))],
             ),
-            generatorPaths: GeneratorPaths(
-                manifestDirectory: try temporaryPath(),
-                rootDirectory: rootDirectory
-            ),
+            generatorPaths: generatorPaths,
             externalDependencies: [:],
             fileSystem: fileSystem,
             type: .local
@@ -87,7 +90,13 @@ final class TargetManifestMapperTests: TuistUnitTestCase {
         XCTAssertEqual(
             got.buildableFolders,
             [
-                BuildableFolder(path: buildableSources),
+                BuildableFolder(path: buildableSources, exceptions: [
+                    BuildableFolderException(excluded: [
+                        try generatorPaths.resolve(path: "Sources/excluded.swift"),
+                    ], compilerFlags: [
+                        try generatorPaths.resolve(path: "Sources/flags.swift"): "-print-stats",
+                    ]),
+                ]),
             ]
         )
     }
