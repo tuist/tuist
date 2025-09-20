@@ -96,6 +96,7 @@ let targets: [Target] = [
             .product(name: "SWBProtocol", package: "swift-build"),
             .product(name: "SWBUtil", package: "swift-build"),
             .product(name: "SWBBuildService", package: "swift-build"),
+            .product(name: "GRDB", package: "GRDB.swift"),
         ],
         path: "cli/Sources/TuistKit",
         swiftSettings: [
@@ -631,6 +632,7 @@ let package = Package(
         ),
         .package(url: "https://github.com/kean/Nuke", .upToNextMajor(from: "12.8.0")),
         .package(url: "https://github.com/leif-ibsen/SwiftECC", exact: "5.5.0"),
+        .package(url: "https://github.com/groue/GRDB.swift", from: "6.0.0"),
         .package(
             url: "https://github.com/lfroms/fluid-menu-bar-extra", .upToNextMajor(from: "1.1.0")),
         .package(url: "https://github.com/swiftlang/swift-build", branch: "main"),
