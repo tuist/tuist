@@ -446,12 +446,65 @@
                 <.player_track_next />
               </.button>
             </div>
-            <span data-part="steps-counter" id="steps-counter">
-              {gettext("%{current_step}/%{total_steps} steps",
-                current_step: (@current_step && @current_step.index + 1) || 0,
-                total_steps: length(@steps)
-              )}
-            </span>
+            <div data-part="playback-right-section">
+              <.inline_dropdown
+                id="playback-speed-dropdown"
+                label={format_playback_speed(@playback_speed)}
+              >
+                <:icon><.clock_hour_4 /></:icon>
+                <.dropdown_item
+                  value="1.0"
+                  label="1x"
+                  phx-click="change_playback_speed"
+                  phx-value-speed="1.0"
+                  data-selected={@playback_speed == 1.0}
+                >
+                  <:right_icon><.check /></:right_icon>
+                </.dropdown_item>
+                <.dropdown_item
+                  value="1.25"
+                  label="1.25x"
+                  phx-click="change_playback_speed"
+                  phx-value-speed="1.25"
+                  data-selected={@playback_speed == 1.25}
+                >
+                  <:right_icon><.check /></:right_icon>
+                </.dropdown_item>
+                <.dropdown_item
+                  value="1.5"
+                  label="1.5x"
+                  phx-click="change_playback_speed"
+                  phx-value-speed="1.5"
+                  data-selected={@playback_speed == 1.5}
+                >
+                  <:right_icon><.check /></:right_icon>
+                </.dropdown_item>
+                <.dropdown_item
+                  value="2.0"
+                  label="2x"
+                  phx-click="change_playback_speed"
+                  phx-value-speed="2.0"
+                  data-selected={@playback_speed == 2.0}
+                >
+                  <:right_icon><.check /></:right_icon>
+                </.dropdown_item>
+                <.dropdown_item
+                  value="3.0"
+                  label="3x"
+                  phx-click="change_playback_speed"
+                  phx-value-speed="3.0"
+                  data-selected={@playback_speed == 3.0}
+                >
+                  <:right_icon><.check /></:right_icon>
+                </.dropdown_item>
+              </.inline_dropdown>
+              <span data-part="steps-counter" id="steps-counter">
+                {gettext("%{current_step}/%{total_steps} steps",
+                  current_step: (@current_step && @current_step.index + 1) || 0,
+                  total_steps: length(@steps)
+                )}
+              </span>
+            </div>
           </div>
           <div id="timeline-track" data-part="timeline">
             <div
