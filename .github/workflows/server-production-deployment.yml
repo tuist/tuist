@@ -71,27 +71,24 @@ jobs:
     environment: server-canary
     steps:
       - uses: actions/checkout@v4
+        if: ${{ github.event.inputs.commit_sha == '' }}
         with:
-          repository: tuist/cli-ext
-          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
-          path: "cli-ext"
+          token: ${{ secrets.TUIST_GITHUB_TOKEN }}
+          submodules: recursive
       - name: Select Xcode
-        run: sudo xcode-select -switch /Applications/Xcode_16.3.app
-      - uses: actions/cache@v3
-        name: "Cache installed dependencies folder"
+        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
+      - name: Restore cache
+        id: cache-restore
+        uses: actions/cache/restore@v4
         with:
-          path: cli-ext/.build
-          key: spm-ext-v1-${{ hashFiles('cli-ext/Package.resolved') }}
-          restore-keys: spm-ext-v1-${{ hashFiles('cli-ext/Package.resolved') }}
+          path: .build
+          key: ${{ runner.os }}-cli-cache-ee-${{ hashFiles('Package.resolved') }}
+          restore-keys: ${{ runner.os }}-cli-
       - uses: jdx/mise-action@v2
-        with:
-          working_directory: cli-ext
       - name: Install dependencies
-        working-directory: cli-ext
         run: tuist install
       - name: Test
-        working-directory: cli-ext
-        run: tuist test TuistExtKitCanaryAcceptanceTests --no-selective-testing --test-targets TuistExtKitCanaryAcceptanceTests/TuistExtKitCanaryAcceptanceTestWithIOSAppWithFrameworks
+        run: TUIST_EE=1 tuist test TuistAcceptanceTests --no-selective-testing --test-targets TuistCacheEEAcceptanceTests
   production:
     environment: server-production
     name: Production Deployment
