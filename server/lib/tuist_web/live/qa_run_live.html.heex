@@ -332,9 +332,9 @@
               </div>
 
               <div data-part="step-detail-item">
-              <span data-part="title">
-                {gettext("Timestamp")}
-              </span>
+                <span data-part="title">
+                  {gettext("Timestamp")}
+                </span>
                 <span
                   data-part="value"
                   data-link
@@ -345,18 +345,21 @@
                 </span>
               </div>
               <div :if={not is_nil(@current_step.result)} data-part="step-detail-item">
-              <div data-part="header">
-                <span data-part="title">
-                  {gettext("Result")}
-                </span>
-                <.badge
-                  :if={@current_time >= @current_step.started_time and @current_time <= @current_step.time}
-                  label={gettext("In progress")}
-                  color="primary"
-                  style="light-fill"
-                  size="large"
-                />
-              </div>
+                <div data-part="header">
+                  <span data-part="title">
+                    {gettext("Result")}
+                  </span>
+                  <.badge
+                    :if={
+                      @current_time >= @current_step.started_time and
+                        @current_time <= @current_step.time
+                    }
+                    label={gettext("In progress")}
+                    color="primary"
+                    style="light-fill"
+                    size="large"
+                  />
+                </div>
                 <span data-part="value">
                   {raw(Tuist.Markdown.to_html(@current_step.result))}
                 </span>

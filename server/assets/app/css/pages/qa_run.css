@@ -643,10 +643,10 @@
               & [data-part="step-bar"] {
                 position: absolute;
                 left: calc(100% * var(--step-start-percentage, 0) / 100);
+                border-radius: var(--noora-radius-small);
                 /* We're adding 45px to align the end of the step bar with the right edge of the step thumbnail */
                 width: calc(100% * (var(--step-end-percentage, 0) - var(--step-start-percentage, 0)) / 100 + 45px);
                 height: 4px;
-                border-radius: var(--noora-radius-small);
                 --timeline-indicator: var(--noora-neutral-light-600);
                 border: 1px solid var(--timeline-indicator);
               }
