@@ -13,7 +13,7 @@ On every test run on the CI, you most likely re-run all the tests, regardless of
 
 Selective testing works with `xcodebuild`, which supports any Xcode project, or if you generate your projects with Tuist, you can use the `tuist test` command instead that provides some extra convenience such as integration with the <LocalizedLink href="/guides/features/cache">binary cache</LocalizedLink>. To get started with selective testing, follow the instructions based on your project setup:
 
-- <LocalizedLink href="/guides/features/selective-testing/xcodebuild">xcodebuild</LocalizedLink>
+- <LocalizedLink href="/guides/features/selective-testing/xcode-project">xcodebuild</LocalizedLink>
 - <LocalizedLink href="/guides/features/selective-testing/generated-project">Generated project</LocalizedLink>
 
 > [!WARNING] MODULE VS FILE-LEVEL GRANULARITY
