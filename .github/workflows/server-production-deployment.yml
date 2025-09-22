@@ -87,6 +87,8 @@ jobs:
       - name: Install dependencies
         run: tuist install
       - name: Initialize TuistCacheEE submodule
+        env:
+          TUIST_GITHUB_TOKEN: ${{ secrets.TUIST_GITHUB_TOKEN }}
         run: mise run cli:ee
       - name: Test
         env:
