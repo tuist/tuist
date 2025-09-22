@@ -76,7 +76,7 @@ jobs:
           token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
           path: "cli-ext"
       - name: Select Xcode
-        run: sudo xcode-select -switch /Applications/Xcode_16.3.app
+        run: sudo xcode-select -switch /Applications/Xcode_26.0.app
       - uses: actions/cache@v3
         name: "Cache installed dependencies folder"
         with:
