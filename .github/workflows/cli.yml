@@ -147,6 +147,7 @@ jobs:
   cli-automation-acceptance-tests:
     name: Automation Acceptance Tests
     runs-on: macos-15
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - name: Select Xcode
@@ -164,6 +165,8 @@ jobs:
         run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
       - name: Skip Xcode Package Validation
         run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidation -bool YES
+      - name: Download Metal Toolchain
+        run: xcodebuild -downloadComponent MetalToolchain
       - name: Run TuistAutomationAcceptanceTests
         run: mise x -- tuist test TuistAutomationAcceptanceTests
       - name: Save cache
@@ -176,6 +179,7 @@ jobs:
   cli-dependencies-acceptance-tests:
     name: Dependencies Acceptance Tests
     runs-on: macos-15
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - name: Select Xcode
@@ -214,6 +218,7 @@ jobs:
   cli-generator-acceptance-tests:
     name: Generator Acceptance Tests
     runs-on: macos-15
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - name: Select Xcode
@@ -243,6 +248,7 @@ jobs:
   cli-kit-acceptance-tests:
     name: Kit Acceptance Tests
     runs-on: macos-15
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - name: Select Xcode
