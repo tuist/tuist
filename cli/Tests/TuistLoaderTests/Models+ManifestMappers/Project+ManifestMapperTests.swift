@@ -34,7 +34,7 @@ final class ProjectManifestMapperTests: TuistUnitTestCase {
             ),
             packages: [
                 .remote(url: "url", requirement: .branch("b")),
-                .local(path: "/path"),
+                .local(path: "/path", groupPath: nil, excludingPath: nil, keepStructure: false)
             ],
             targets: [],
             schemes: [],
@@ -82,7 +82,7 @@ final class ProjectManifestMapperTests: TuistUnitTestCase {
                 targets: [],
                 packages: [
                     .remote(url: "url", requirement: .branch("b")),
-                    .local(path: "/path"),
+                    .local(config: .init(path: "/path")),
                 ],
                 schemes: [],
                 ideTemplateMacros: .init(fileHeader: "123"),
