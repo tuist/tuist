@@ -68,7 +68,8 @@ defmodule TuistWeb.QARunLive do
          |> assign(:video_url, video_url)
          |> assign(:steps, steps)
          |> assign(:current_step, List.first(steps))
-         |> assign(:is_playing, false)}
+         |> assign(:is_playing, false)
+         |> assign(:playback_speed, 1.0)}
     end
   end
 
@@ -245,6 +246,18 @@ defmodule TuistWeb.QARunLive do
   end
 
   @impl true
+  def handle_event("change_playback_speed", %{"speed" => speed}, socket) do
+    speed = String.to_float(speed)
+
+    socket =
+      socket
+      |> assign(:playback_speed, speed)
+      |> push_event("set-playback-speed", %{speed: speed, id: "qa-recording"})
+
+    {:noreply, socket}
+  end
+
+  @impl true
   def handle_event(
         "seek_previous_step",
         _params,
@@ -295,6 +308,14 @@ defmodule TuistWeb.QARunLive do
     mins = div(total_seconds, 60)
     secs = rem(total_seconds, 60)
     "#{mins}:#{String.pad_leading(Integer.to_string(secs), 2, "0")}"
+  end
+
+  defp format_playback_speed(speed) do
+    if speed == trunc(speed) do
+      "#{trunc(speed)}x"
+    else
+      "#{speed}x"
+    end
   end
 
   defp steps_with_times(%{recording: nil} = _qa_run), do: []
