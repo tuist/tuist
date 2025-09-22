@@ -24,7 +24,7 @@ struct TuistGeneratedProjectOptionsTests {
                 defaultConfiguration: nil,
                 optionalAuthentication: false,
                 buildInsightsDisabled: false,
-                disableSandbox: false,
+                disableSandbox: true,
                 includeGenerateScheme: false
             )
 

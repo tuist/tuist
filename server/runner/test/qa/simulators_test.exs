@@ -451,7 +451,7 @@ defmodule Runner.QA.Simulators.SimulatorsTest do
         {:os_pid, os_pid}
       end)
 
-      stub(System, :cmd, fn "kill", ["-INT", "12345"] ->
+      stub(System, :cmd, fn "kill", ["-TERM", "-12345"] ->
         {"", 0}
       end)
 

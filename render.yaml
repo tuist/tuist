@@ -1,0 +1,95 @@
+version: "1"
+
+services:
+  - &server-base
+    type: web
+    name: tuist
+    region: frankfurt
+    runtime: docker
+    repo: https://github.com/tuist/tuist
+    rootDir: server/
+    dockerfilePath: ./Dockerfile
+    dockerCommand: /app/bin/start
+    autoDeployTrigger: "off"
+    plan: pro
+    numInstances: 2
+    envVars:
+      - key: MASTER_KEY
+        sync: false
+      - key: RELEASE_COOKIE
+        sync: false
+      - key: MIX_ENV
+        value: prod
+      - key: TUIST_HOSTED
+        value: 1
+      - key: TUIST_USE_SSL_FOR_DATABASE
+        value: 1
+      - key: TUIST_DATABASE_POOL_SIZE
+        value: 10
+      - key: TUIST_S3_POOL_COUNT
+        value: 1
+      - key: TUIST_S3_POOL_SIZE
+        value: 50
+      - key: TUIST_APP_URL
+        value: https://tuist.dev
+    domains:
+      - tuist.dev
+
+  - &redis-base
+    type: keyvalue
+    name: redis
+    plan: starter
+    region: frankfurt
+    maxmemoryPolicy: allkeys-lru
+    ipAllowList: []
+
+  - <<: *server-base
+    name: tuist-canary
+    plan: standard
+    numInstances: 1
+    envVars:
+      - key: MASTER_KEY
+        sync: false
+      - key: RELEASE_COOKIE
+        sync: false
+      - key: MIX_ENV
+        value: can
+      - key: TUIST_HOSTED
+        value: 1
+      - key: TUIST_USE_SSL_FOR_DATABASE
+        value: 1
+      - key: TUIST_DATABASE_POOL_SIZE
+        value: 6
+      - key: TUIST_APP_URL
+        value: https://canary.tuist.dev
+    domains:
+      - canary.tuist.dev
+
+  - <<: *redis-base
+    name: redis-canary
+
+  - <<: *server-base
+    name: tuist-staging
+    plan: standard
+    numInstances: 1
+    envVars:
+      - key: MASTER_KEY
+        sync: false
+      - key: RELEASE_COOKIE
+        sync: false
+      - key: MIX_ENV
+        value: stag
+      - key: TUIST_HOSTED
+        value: 1
+      - key: TUIST_USE_SSL_FOR_DATABASE
+        value: 1
+      - key: TUIST_DATABASE_POOL_SIZE
+        value: 15
+      - key: TUIST_APP_URL
+        value: https://staging.tuist.dev
+    domains:
+      - staging.tuist.dev
+
+  - <<: *redis-base
+    name: redis-staging
+

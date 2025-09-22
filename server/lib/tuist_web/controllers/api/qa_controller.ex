@@ -43,11 +43,16 @@ defmodule TuistWeb.API.QAController do
 
     result = Map.get(params, "result")
 
+    started_at =
+      if iso_string = Map.get(params, "started_at") do
+        {:ok, datetime, _} = DateTime.from_iso8601(iso_string)
+        datetime
+      end
+
     attrs =
-      then(
-        %{qa_run_id: qa_run.id, action: action, issues: issues},
-        &if(is_nil(result), do: &1, else: Map.put(&1, :result, result))
-      )
+      %{qa_run_id: qa_run.id, action: action, issues: issues}
+      |> then(&if(is_nil(result), do: &1, else: Map.put(&1, :result, result)))
+      |> then(&if(is_nil(started_at), do: &1, else: Map.put(&1, :started_at, started_at)))
 
     case QA.create_qa_step(attrs) do
       {:ok, qa_step} ->
