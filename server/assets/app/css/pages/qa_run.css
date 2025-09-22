@@ -46,9 +46,10 @@
           0px 7px 4px 0px oklch(0% 0 0 / 0.05),
           0px 3px 3px 0px oklch(0% 0 0 / 0.09),
           0px 1px 2px 0px oklch(0% 0 0 / 0.1);
-        border-radius: 9.82px;
-        width: 56px;
-        height: 56px;
+        --size: 56px;
+        border-radius: var(--tuist-app-icon-radius);
+        width: var(--size);
+        height: var(--size);
       }
 
       & [data-part="dots"] {
@@ -139,6 +140,38 @@
     display: flex;
     flex-direction: column;
     gap: var(--noora-spacing-6);
+
+    & > [data-part="running-state"] {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      & > img {
+        html[data-theme="light"] &[data-theme="dark"] {
+          display: none;
+        }
+
+        html[data-theme="dark"] &[data-theme="light"] {
+          display: none;
+        }
+      }
+
+      & > [data-part="labels"] {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: var(--noora-spacing-4);
+
+        & > [data-part="title"] {
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+        }
+
+        & > [data-part="subtitle"] {
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+        }
+      }
+    }
   }
 
   & [data-part="details-card"] {
@@ -497,8 +530,19 @@
               align-items: start;
               gap: var(--noora-spacing-4);
 
-              & > [data-part="badge"] {
-                margin-top: var(--noora-spacing-1);
+              & > [data-part="header"] {
+                display: flex;
+                gap: var(--noora-spacing-3);
+
+                & > [data-part="title"] {
+                  color: var(--noora-surface-label-secondary);
+                  font: var(--noora-font-weight-medium) var(--noora-font-body-large);
+                }
+              }
+
+              & > [data-part="title"] {
+                color: var(--noora-surface-label-secondary);
+                font: var(--noora-font-weight-medium) var(--noora-font-body-large);
               }
 
               & > [data-part="value"] {
@@ -583,9 +627,34 @@
               }
             }
 
+            & > [data-part="step-bars-track"] {
+              position: absolute;
+              top: 38px;
+              right: 0;
+              left: 0;
+              height: 8px;
+              pointer-events: none;
+
+              & [data-part="step-bar"][data-has-issues] {
+                --timeline-indicator-warning: var(--noora-orange-500);
+                border: 1px solid var(--timeline-indicator-warning);
+              }
+
+              & [data-part="step-bar"] {
+                position: absolute;
+                left: calc(100% * var(--step-start-percentage, 0) / 100);
+                border-radius: var(--noora-radius-small);
+                /* We're adding 45px to align the end of the step bar with the right edge of the step thumbnail */
+                width: calc(100% * (var(--step-end-percentage, 0) - var(--step-start-percentage, 0)) / 100 + 45px);
+                height: 4px;
+                --timeline-indicator: var(--noora-neutral-light-600);
+                border: 1px solid var(--timeline-indicator);
+              }
+            }
+
             & > [data-part="steps-track"] {
               position: absolute;
-              top: 42px;
+              top: 50px;
               right: 0;
               left: 0;
               height: 80px;
@@ -657,6 +726,39 @@
     & > [data-part="app-context-card-section"] {
       gap: var(--noora-spacing-9);
       padding: var(--noora-spacing-8);
+
+      & > [data-part="credentials"] {
+        display: flex;
+        flex-direction: row;
+
+        & > [data-part="email"],
+        & > [data-part="password"] {
+          display: flex;
+          flex-grow: 1;
+          flex-direction: row;
+          justify-content: flex-start;
+
+          & > .noora-text-input {
+            width: 300px;
+          }
+        }
+      }
+
+      & > [data-part="app-description"] {
+        display: flex;
+        flex-direction: column;
+        gap: var(--noora-spacing-4);
+        & > [data-part="title"] {
+          margin: 0;
+          color: var(--noora-surface-label-secondary);
+          font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+        }
+        & > [data-part="description"] {
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+        }
+      }
+
       & > [data-part="launch-arguments"] {
         display: flex;
         flex-direction: column;

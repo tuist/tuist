@@ -54,7 +54,10 @@ defmodule Tuist.QA do
               "description" => group.description,
               "value" => group.value
             }
-          end)
+          end),
+        app_description: app_build.preview.project.qa_app_description,
+        email: app_build.preview.project.qa_email,
+        password: app_build.preview.project.qa_password
       })
 
     app_build_url = generate_app_build_download_url(app_build)
@@ -69,7 +72,10 @@ defmodule Tuist.QA do
         run_id: qa_run.id,
         auth_token: auth_token,
         account_handle: app_build.preview.project.account.name,
-        project_handle: app_build.preview.project.name
+        project_handle: app_build.preview.project.name,
+        app_description: app_build.preview.project.qa_app_description,
+        email: app_build.preview.project.qa_email,
+        password: app_build.preview.project.qa_password
       }
 
       if Environment.namespace_enabled?() do
@@ -131,17 +137,31 @@ defmodule Tuist.QA do
          run_id: run_id,
          auth_token: auth_token,
          account_handle: account_handle,
-         project_handle: project_handle
+         project_handle: project_handle,
+         app_description: app_description,
+         email: email,
+         password: password
        }) do
     """
     set -e
 
-    brew install cameroncooke/axe/axe --quiet || true
+    # We're using a fork of AXe for streaming capabilities.
+    # This can be removed once this PR is merged: https://github.com/cameroncooke/AXe/pull/4
+    if [ ! -f "/usr/local/bin/axe" ]; then
+      git clone -b feature/stream-video-complete https://github.com/pepicrft/AXe.git /tmp/axe
+      cd /tmp/axe
+      export CLANG_MODULE_CACHE_PATH=/tmp/my-clang-cache
+      mkdir -p /tmp/my-clang-cache
+      swift build -c release --product axe
+      # Symlink instead of copy to maintain dynamic framework dependencies
+      sudo ln -sf /tmp/axe/.build/release/axe /usr/local/bin/axe
+      cd -
+    fi
     brew install ffmpeg
     npm i --location=global appium
     appium driver install xcuitest
     tmux new-session -d -s appium 'appium'
-    runner qa --preview-url "#{app_build_url}" --bundle-identifier #{bundle_identifier} --server-url #{server_url} --run-id #{run_id} --auth-token #{auth_token} --account-handle #{account_handle} --project-handle #{project_handle} --prompt "#{prompt}" --launch-arguments "\\"#{launch_arguments}\\"" --anthropic-api-key #{Environment.anthropic_api_key()} --openai-api-key #{Environment.openai_api_key()}
+    runner qa --preview-url "#{app_build_url}" --bundle-identifier #{bundle_identifier} --server-url #{server_url} --run-id #{run_id} --auth-token #{auth_token} --account-handle #{account_handle} --project-handle #{project_handle} --prompt "#{prompt}" --launch-arguments "\\"#{launch_arguments}\\"" --app-description "#{app_description}" --email "#{email}" --password "#{password}" --anthropic-api-key #{Environment.anthropic_api_key()} --openai-api-key #{Environment.openai_api_key()}
     """
   end
 

@@ -125,9 +125,12 @@ defmodule Tuist.Application do
       end
     )
     |> Kernel.++(
-      if Environment.tuist_hosted?(),
-        do: [{DNSCluster, query: Application.get_env(:tuist, :dns_cluster_query) || :ignore}],
-        else: []
+      if Environment.tuist_hosted?() do
+        topologies = Application.get_env(:libcluster, :topologies) || []
+        [{Cluster.Supervisor, [topologies, [name: Tuist.ClusterSupervisor]]}]
+      else
+        []
+      end
     )
     |> Kernel.++(
       if Environment.redis_url(),

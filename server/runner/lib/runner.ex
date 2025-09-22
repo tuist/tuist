@@ -72,7 +72,7 @@ defmodule Runner do
     Examples:
       runner qa --preview-url <url> --bundle-identifier <id> --server-url <url> \\
                 --run-id <id> --auth-token <token> --account-handle <handle> \\
-                --launch-arguments <arguments> \\
+                --launch-arguments <arguments> --app-description <description> \\
                 --project-handle <handle> --prompt "<prompt>" --anthropic-api-key <key>
     """)
   end

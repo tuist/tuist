@@ -56,6 +56,9 @@ defmodule Runner.QA.Agent do
     anthropic_api_key = Keyword.get(opts, :anthropic_api_key)
     openai_api_key = Keyword.get(opts, :openai_api_key)
     launch_arguments = Map.get(attrs, :launch_arguments, "")
+    app_description = Map.get(attrs, :app_description, "")
+    email = Map.get(attrs, :email, "")
+    password = Map.get(attrs, :password, "")
 
     with {:ok, simulator_device} <- simulator_device(),
          :ok <- run_preview(preview_url, bundle_identifier, simulator_device, launch_arguments),
@@ -133,8 +136,28 @@ defmodule Runner.QA.Agent do
         end
       }
 
+      app_context =
+        if app_description == "",
+          do: "",
+          else: """
+
+          Here's additional context about the app you're testing:
+          #{app_description}
+          """
+
+      credentials_context =
+        if email == "" or password == "",
+          do: "",
+          else: """
+
+          Test account credentials for sign-in:
+          Email: #{email}
+          Password: #{password}
+          Use these credentials if the app requires authentication or login.
+          """
+
       prompt = """
-      You are a QA agent. Test the following: #{prompt}.
+      You are a QA agent testing a mobile iOS app. Test the following: #{prompt}.
 
       First, understand what you need to test. Then, set up a plan to test the feature and execute on it without asking for additional instructions.
 
@@ -144,6 +167,7 @@ defmodule Runner.QA.Agent do
       - To dismiss a system sheet, tap within the visible screen area but outside the sheet, such in the dark/grayed area above the sheet
       - If a button includes text, prefer tapping on the text to interact with the button
       - When you recognize placeholder/pre-filled fields, you must never clear the placeholder value. Instead, replace the text directly with type_text tool.
+      #{app_context}#{credentials_context}
       """
 
       llm =
@@ -221,63 +245,40 @@ defmodule Runner.QA.Agent do
     end
   end
 
-  defp upload_recording(%{
-         recording_path: recording_path,
-         recording_port: recording_port,
-         recording_started_at: recording_started_at,
-         server_url: server_url,
-         run_id: run_id,
-         auth_token: auth_token,
-         account_handle: account_handle,
-         project_handle: project_handle
-       }) do
-    Simulators.stop_recording(recording_port)
+  defp upload_recording(attrs) do
+    :ok = Simulators.stop_recording(attrs.recording_port)
 
-    {:ok, fixed_recording_path} = Briefly.create(extname: ".mp4")
+    # Only upload recording if there was at least one action performed
+    if Map.has_key?(attrs, :last_action_timestamp) do
+      duration_ms = DateTime.diff(attrs.last_action_timestamp, attrs.recording_started_at, :millisecond)
 
-    {_, 0} =
-      System.cmd("ffmpeg", [
-        "-y",
-        "-i",
-        recording_path,
-        "-r",
-        "30",
-        "-c:v",
-        "libx264",
-        "-preset",
-        "veryfast",
-        "-crf",
-        "23",
-        "-vsync",
-        "cfr",
-        fixed_recording_path
-      ])
+      {:ok, trimmed_path} = Briefly.create(extname: ".mp4")
+      duration_seconds = duration_ms / 1000.0
 
-    {output, 0} =
-      System.cmd("ffprobe", [
-        "-v",
-        "error",
-        "-show_entries",
-        "format=duration",
-        "-of",
-        "default=noprint_wrappers=1:nokey=1",
-        fixed_recording_path
-      ])
+      {_, 0} =
+        System.cmd("ffmpeg", [
+          "-i",
+          attrs.recording_path,
+          "-t",
+          Float.to_string(duration_seconds),
+          "-c",
+          "copy",
+          "-y",
+          trimmed_path
+        ])
 
-    duration_seconds = output |> String.trim() |> String.to_float()
-    duration_ms = round(duration_seconds * 1000)
-
-    {:ok, _} =
-      Client.upload_recording(%{
-        server_url: server_url,
-        run_id: run_id,
-        auth_token: auth_token,
-        account_handle: account_handle,
-        project_handle: project_handle,
-        recording_path: fixed_recording_path,
-        started_at: recording_started_at,
-        duration_ms: duration_ms
-      })
+      {:ok, _} =
+        Client.upload_recording(%{
+          server_url: attrs.server_url,
+          run_id: attrs.run_id,
+          auth_token: attrs.auth_token,
+          account_handle: attrs.account_handle,
+          project_handle: attrs.project_handle,
+          recording_path: trimmed_path,
+          started_at: attrs.recording_started_at,
+          duration_ms: duration_ms
+        })
+    end
   end
 
   defp run_llm(%{with_fallbacks: with_fallbacks} = attrs, handler, messages, tools) do
@@ -305,13 +306,12 @@ defmodule Runner.QA.Agent do
         {:ok, attrs}
 
       "plan_report" ->
+        attrs = Map.put(attrs, :recording_started_at, DateTime.utc_now())
+
         recording_port =
           Simulators.start_recording(attrs.simulator_device, attrs.recording_path)
 
-        attrs =
-          attrs
-          |> Map.put(:recording_port, recording_port)
-          |> Map.put(:recording_started_at, DateTime.utc_now())
+        attrs = Map.put(attrs, :recording_port, recording_port)
 
         messages =
           clear_ui_and_screenshot_messages(Enum.drop(messages, -1)) ++ [List.last(messages)]
@@ -319,11 +319,19 @@ defmodule Runner.QA.Agent do
         run_llm(attrs, handler, messages, tools)
 
       tool_name ->
+        attrs =
+          if tool_name in @action_tool_names do
+            Map.put(attrs, :last_action_timestamp, DateTime.utc_now())
+          else
+            attrs
+          end
+
         messages =
           clear_ui_and_screenshot_messages(Enum.drop(messages, -1)) ++ [List.last(messages)]
 
         messages =
           if tool_name in @action_tool_names and
+               last_message != nil and
                last_message.tool_results != nil do
             reporting_step_for_last_action_tool(messages, attrs, handler, tools)
           else
@@ -465,7 +473,7 @@ defmodule Runner.QA.Agent do
       {:ok, devices} ->
         device =
           Enum.find(devices, fn device ->
-            device.name == "iPhone 16" and
+            device.name == "iPhone 17" and
               device.runtime_identifier == "com.apple.CoreSimulator.SimRuntime.iOS-26-0"
           end)
 

@@ -1,6 +1,46 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.78.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* change sandbox to be opt-in by [@fortmarek](https://github.com/fortmarek) in [#8244](https://github.com/tuist/tuist/pull/8244)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.77.0...4.78.0
+
+## What's Changed in 4.77.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* Increase the security of the cache surface by [@pepicrft](https://github.com/pepicrft) in [#8220](https://github.com/tuist/tuist/pull/8220)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.76.1...4.77.0
+
+## What's Changed in 4.76.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* Invalid generated projects when projects are generated with binaries keeping sources and targets by [@pepicrft](https://github.com/pepicrft) in [#8227](https://github.com/tuist/tuist/pull/8227)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.76.0...4.76.1
+
+## What's Changed in 4.76.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* Add SE-0162 support for custom SPM target layouts by [@devyhan](https://github.com/devyhan) in [#8191](https://github.com/tuist/tuist/pull/8191)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.75.0...4.76.0
+
+## What's Changed in 4.75.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* Add unordered xcodebuild command support by [@yusufozgul](https://github.com/yusufozgul) in [#8170](https://github.com/tuist/tuist/pull/8170)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.74.1...4.75.0
+
 ## What's Changed in 4.74.1<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes

@@ -316,12 +316,21 @@ defmodule Tuist.QATest do
       assert {:error, "Token creation failed"} == result
     end
 
-    test "includes launch arguments when project has launch argument groups" do
+    test "includes app context when project has launch argument groups and app description" do
       # Given
       app_build =
         Repo.preload(AppBuildsFixtures.app_build_fixture(), preview: [project: :account])
 
       project = app_build.preview.project
+
+      {:ok, project} =
+        project
+        |> Tuist.Projects.Project.update_changeset(%{
+          qa_app_description: "Test iOS shopping app with user authentication",
+          qa_email: "test@example.com",
+          qa_password: "testpassword123"
+        })
+        |> Repo.update()
 
       {:ok, login_group} =
         %LaunchArgumentGroup{}
@@ -376,6 +385,9 @@ defmodule Tuist.QATest do
 
       expect(Agent, :test, fn attrs, _opts ->
         assert attrs.launch_arguments == "--email user@example.com --password test123"
+        assert attrs.app_description == "Test iOS shopping app with user authentication"
+        assert attrs.email == "test@example.com"
+        assert attrs.password == "testpassword123"
         :ok
       end)
 
@@ -391,6 +403,9 @@ defmodule Tuist.QATest do
 
       # Then
       assert updated_qa_run.prompt == prompt
+      assert updated_qa_run.app_description == "Test iOS shopping app with user authentication"
+      assert updated_qa_run.email == "test@example.com"
+      assert updated_qa_run.password == "testpassword123"
 
       assert updated_qa_run.launch_argument_groups == [
                %{

@@ -67,3 +67,98 @@
     }
   }
 }
+
+#qa-empty-state {
+  display: flex;
+  position: relative;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+
+  & [data-part="background"] {
+    display: flex;
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    justify-content: center;
+    align-items: flex-start;
+
+    & [data-part="illustration"] {
+      & img {
+        opacity: 0.6;
+        width: 100%;
+        height: auto;
+      }
+
+      & img[data-theme="light"] {
+        display: block;
+      }
+
+      & img[data-theme="dark"] {
+        display: none;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        & img[data-theme="light"] {
+          display: none;
+        }
+
+        & img[data-theme="dark"] {
+          display: block;
+        }
+      }
+
+      [data-theme="dark"] & img[data-theme="light"] {
+        display: none;
+      }
+
+      [data-theme="dark"] & img[data-theme="dark"] {
+        display: block;
+      }
+    }
+  }
+
+  & > [data-part="content"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-6);
+    z-index: var(--noora-z-index-1);
+    margin-top: 347px;
+    background: var(--noora-surface-background-primary);
+    width: 100%;
+    max-width: 600px;
+
+    & > [data-part="step-one"] {
+      & [data-part="documentation-button"] {
+        align-self: flex-start;
+      }
+    }
+
+    & > [data-part="step-one"],
+    & > [data-part="step-two"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-7);
+      padding: var(--noora-spacing-6);
+
+      & > [data-part="header"] {
+        display: flex;
+        flex-direction: column;
+        gap: var(--noora-spacing-4);
+
+        & > [data-part="title"] {
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+        }
+
+        & > [data-part="subtitle"] {
+          color: var(--noora-surface-label-secondary);
+          font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+        }
+      }
+    }
+  }
+}

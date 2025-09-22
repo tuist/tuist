@@ -1395,25 +1395,47 @@ extension PackageInfo.Target {
     /// The path used as base for all the relative paths of the package (e.g. sources, resources, headers)
     func basePath(packageFolder: AbsolutePath) async throws -> AbsolutePath {
         let fileSystem = FileSystem()
+
         if let path {
             return packageFolder.appending(try RelativePath(validating: path))
-        } else {
-            let predefinedDirectories: [String]
-            switch type {
-            case .test:
-                predefinedDirectories = PackageInfoMapper.predefinedTestDirectories
-            default:
-                predefinedDirectories = PackageInfoMapper.predefinedSourceDirectories
-            }
-            let firstMatchingPath = try await predefinedDirectories
-                .map { packageFolder.appending(components: [$0, name]) }
-                .concurrentFilter { try await fileSystem.exists($0) }
-                .first
-            guard let mainPath = firstMatchingPath else {
-                throw PackageInfoMapperError.defaultPathNotFound(packageFolder, name, predefinedDirectories)
-            }
-            return mainPath
         }
+
+        let predefinedDirectories = type == .test
+            ? PackageInfoMapper.predefinedTestDirectories
+            : PackageInfoMapper.predefinedSourceDirectories
+
+        for directory in predefinedDirectories {
+            // Standard layout: Sources/TargetName/
+            let standardPath = packageFolder.appending(components: [directory, name])
+            if try await fileSystem.exists(standardPath) {
+                return standardPath
+            }
+
+            // SE-0162 layout: source files directly in Sources/
+            // https://github.com/swiftlang/swift-evolution/blob/main/proposals/0162-package-manager-custom-target-layouts.md
+            let directPath = packageFolder.appending(component: directory)
+            if try await hasSourceFiles(in: directPath, fileSystem: fileSystem) {
+                return directPath
+            }
+        }
+
+        throw PackageInfoMapperError.defaultPathNotFound(packageFolder, name, predefinedDirectories)
+    }
+
+    /// Check if directory contains source files (for SE-0162 support)
+    private func hasSourceFiles(in directory: AbsolutePath, fileSystem: FileSystem) async throws -> Bool {
+        guard try await fileSystem.exists(directory) else { return false }
+
+        // SPM recognized source extensions
+        // https://github.com/swiftlang/swift-package-manager/blob/main/Sources/PackageModel/SupportedLanguageExtension.swift
+        let sourceExtensions = ["swift", "c", "cpp", "cc", "cxx", "m", "mm"]
+        let pattern = "*.{\(sourceExtensions.joined(separator: ","))}"
+
+        let hasFiles = try await fileSystem
+            .glob(directory: directory, include: [pattern])
+            .first(where: { _ in true }) != nil
+
+        return hasFiles
     }
 
     func publicHeadersPath(packageFolder: AbsolutePath) async throws -> AbsolutePath {
