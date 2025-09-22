@@ -114,7 +114,11 @@ defmodule Runner.QA.ToolsTest do
         {"Tap completed", 0}
       end)
 
-      expect(Client, :create_step, fn %{action: "Test tap"} -> {:ok, step_id} end)
+      expect(Client, :create_step, fn %{action: "Test tap", started_at: started_at}
+                                      when is_struct(started_at, DateTime) ->
+        {:ok, step_id}
+      end)
+
       expect(Briefly, :create, fn -> {:ok, temp_path} end)
 
       expect(System, :cmd, fn "xcrun", ["simctl", "io", ^simulator_uuid, "screenshot", ^temp_path] ->
@@ -246,7 +250,11 @@ defmodule Runner.QA.ToolsTest do
       image_data = <<137, 80, 78, 71, 13, 10, 26, 10>>
       upload_url = "https://s3.example.com/upload-url"
 
-      expect(Client, :create_step, fn %{action: "Test typing"} -> {:ok, step_id} end)
+      expect(Client, :create_step, fn %{action: "Test typing", started_at: started_at}
+                                      when is_struct(started_at, DateTime) ->
+        {:ok, step_id}
+      end)
+
       expect(Briefly, :create, fn -> {:ok, temp_path} end)
 
       expect(System, :cmd, fn "xcrun", ["simctl", "io", ^simulator_uuid, "screenshot", ^temp_path] ->
@@ -307,7 +315,11 @@ defmodule Runner.QA.ToolsTest do
       image_data = <<137, 80, 78, 71, 13, 10, 26, 10>>
       upload_url = "https://s3.example.com/upload-url"
 
-      expect(Client, :create_step, fn %{action: "Test swipe"} -> {:ok, step_id} end)
+      expect(Client, :create_step, fn %{action: "Test swipe", started_at: started_at}
+                                      when is_struct(started_at, DateTime) ->
+        {:ok, step_id}
+      end)
+
       expect(Briefly, :create, fn -> {:ok, temp_path} end)
 
       expect(System, :cmd, fn "xcrun", ["simctl", "io", ^simulator_uuid, "screenshot", ^temp_path] ->
@@ -369,7 +381,11 @@ defmodule Runner.QA.ToolsTest do
       image_data = <<137, 80, 78, 71, 13, 10, 26, 10>>
       upload_url = "https://s3.example.com/upload-url"
 
-      expect(Client, :create_step, fn %{action: "Test swipe with duration"} -> {:ok, step_id} end)
+      expect(Client, :create_step, fn %{action: "Test swipe with duration", started_at: started_at}
+                                      when is_struct(started_at, DateTime) ->
+        {:ok, step_id}
+      end)
+
       expect(Briefly, :create, fn -> {:ok, temp_path} end)
 
       expect(System, :cmd, fn "xcrun", ["simctl", "io", ^simulator_uuid, "screenshot", ^temp_path] ->
@@ -419,7 +435,11 @@ defmodule Runner.QA.ToolsTest do
       image_data = <<137, 80, 78, 71, 13, 10, 26, 10>>
       upload_url = "https://s3.example.com/upload-url"
 
-      expect(Client, :create_step, fn %{action: "Test gesture"} -> {:ok, step_id} end)
+      expect(Client, :create_step, fn %{action: "Test gesture", started_at: started_at}
+                                      when is_struct(started_at, DateTime) ->
+        {:ok, step_id}
+      end)
+
       expect(Briefly, :create, fn -> {:ok, temp_path} end)
 
       expect(System, :cmd, fn "xcrun", ["simctl", "io", ^simulator_uuid, "screenshot", ^temp_path] ->
@@ -473,7 +493,11 @@ defmodule Runner.QA.ToolsTest do
       image_data = <<137, 80, 78, 71, 13, 10, 26, 10>>
       upload_url = "https://s3.example.com/upload-url"
 
-      expect(Client, :create_step, fn %{action: "Test gesture with params"} -> {:ok, step_id} end)
+      expect(Client, :create_step, fn %{action: "Test gesture with params", started_at: started_at}
+                                      when is_struct(started_at, DateTime) ->
+        {:ok, step_id}
+      end)
+
       expect(Briefly, :create, fn -> {:ok, temp_path} end)
 
       expect(System, :cmd, fn "xcrun", ["simctl", "io", ^simulator_uuid, "screenshot", ^temp_path] ->
@@ -521,7 +545,11 @@ defmodule Runner.QA.ToolsTest do
       image_data = <<137, 80, 78, 71, 13, 10, 26, 10>>
       upload_url = "https://s3.example.com/upload-url"
 
-      expect(Client, :create_step, fn %{action: "Test button"} -> {:ok, step_id} end)
+      expect(Client, :create_step, fn %{action: "Test button", started_at: started_at}
+                                      when is_struct(started_at, DateTime) ->
+        {:ok, step_id}
+      end)
+
       expect(Briefly, :create, fn -> {:ok, temp_path} end)
 
       expect(System, :cmd, fn "xcrun", ["simctl", "io", ^simulator_uuid, "screenshot", ^temp_path] ->
