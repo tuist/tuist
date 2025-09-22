@@ -86,7 +86,7 @@ You can continue working blindly, and you might go a long way with it, but witho
 
 ## Closing Thoughts
 
-At Tuist, we are building the native platform for scaling Swift app development so that you don't have to. There are problems that it's on Apple to solve, and we are excited to see them implicitly acknowledging some of them and throwing some resources at them. And there are other problems that require some awareness first from your side, and this is what we aim to create with these posts, and solutions like Tuist that take some of the burden off your plate such that adopting them is just one line of code in your project, instead of having to maintain a complex system.
+At Tuist, we are building the native platform for scaling Swift app development so that you don't have to. There are problems that are on Apple to solve, and we are excited to see them implicitly acknowledging some of them and throwing some resources at them. And there are other problems that require some awareness first from your side, and this is what we aim to create with these posts, and solutions like Tuist that take some of the burden off your plate such that adopting them is just one line of code in your project, instead of having to maintain a complex system.
 
 These solutions happen to make any agentic coding experience even better, because at the end of the day, any pain experienced by humans will be more annoying through agents. From slow feedback loops in compilations to lack of information to inform the coding sessions. That's why we deem crucial in the platform that we are building explicitness and openness of the data that we are working with such that agents have access to it at any time.
 
