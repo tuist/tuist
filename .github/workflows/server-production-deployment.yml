@@ -71,7 +71,6 @@ jobs:
     environment: server-canary
     steps:
       - uses: actions/checkout@v4
-        if: ${{ github.event.inputs.commit_sha == '' }}
         with:
           token: ${{ secrets.TUIST_GITHUB_TOKEN }}
           submodules: recursive
@@ -87,8 +86,12 @@ jobs:
       - uses: jdx/mise-action@v2
       - name: Install dependencies
         run: tuist install
+      - name: Initialize TuistCacheEE submodule
+        run: mise run cli:ee
       - name: Test
-        run: TUIST_EE=1 tuist test TuistAcceptanceTests --no-selective-testing --test-targets TuistCacheEEAcceptanceTests
+        env:
+          TUIST_EE: 1
+        run: tuist test TuistAcceptanceTests --no-selective-testing --test-targets TuistCacheEEAcceptanceTests
   production:
     environment: server-production
     name: Production Deployment
