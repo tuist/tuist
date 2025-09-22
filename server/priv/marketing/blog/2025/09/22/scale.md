@@ -24,17 +24,7 @@ For those who prefer to stay closer to the native toolchain and therefore have a
 
 At this point, you might wonder: what are those challenges that large companies are facing, and that I might face too, if not today, maybe tomorrow? Let's explore some of them.
 
-## 1. Derived Data
-
-Who doesn't know [derived data](https://medium.com/@alaxhenry0121/what-is-xcode-deriveddata-complete-guide-for-ios-developers-in-2025-5f962e402fab)? That folder that everyone deletes when compilation fails. The same folder whose deletion leads to a clean build, which can be quite slow in some cases. Derived data proved to be a bad decision whose effects are felt in the long run. A decision that has made many projects in the wild compile not because they are explicitly importing dependencies, but because they can accidentally find them in derived data. Implicit imports can lead to editor features such as macro expansions or Swift previews working unreliably because the editor resolves an invalid graph, causing missing binaries to be absent in derived data for those editor features to work. As crazy as it sounds, it's all rooted in derived data, but we don't talk much about it—not enough, in my opinion. **We joke about previews not working or cleaning derived data here and there, but the problem is indeed serious.**
-
-The good news is that Apple is aware of it and is working on it through a different approach called [content-addressable store (CAS)](https://github.com/swiftlang/swift-build/tree/main/Sources/SWBCAS) and [explicit modules](https://developer.apple.com/documentation/xcode/building-your-project-with-explicit-module-dependencies), which they are gently pushing people toward. So instead of having one shared directory, the build system uses hashes to look up compilation artifacts from previous compilations and uses them instead of invoking the compiler. This works in cases where your project has no implicit dependencies. And here's the thing: rolling out such a system requires Apple not only to introduce explicit modules but also to nudge the ecosystem to adopt them. In my opinion, the push has been too gentle and lacked a bit of the "why it's needed." Perhaps because doing so requires acknowledging a past design decision that led to derived data becoming a problem. I think it's fine. **I'd rather see Apple being open and transparent about it and how they are approaching it than discussing it internally and leaving us making the connections between some Xcode features and the reasons why they might be introducing them.**
-
-[Tuist-generated projects](https://docs.tuist.dev/en/guides/features/projects) can't prevent implicit dependencies, but the explicitness of declaring dependencies makes them a bit less likely. Because of that, we introduced a [command](https://docs.tuist.dev/en/cli/inspect/implicit-imports) that developers can run against their generated projects to check for implicit imports using static code analysis, and this is something I strongly recommend to everyone.
-
-As I mentioned earlier, my bet is that **the reliability of many Xcode features is strongly correlated with the explicitness of the project's graph, so the less implicitness you have, the better.** Sadly, this is not evangelized enough, neither by Apple nor by the community, so it often feels like sending messages into the void.
-
-## 2. Modularization
+## 1. Modularization
 
 Modularization is not just a tool for defining boundaries between components. It's also a tool to access reusable pieces of code across repositories and to share code between an app and the extensions contained in it. It's something that we'll do sooner or later. Modularization sadly comes at a cost, also related to an Xcode design decision.
 
@@ -50,7 +40,7 @@ This is a complicated topic to bring into a discussion because one of the reason
 
 For Tuist, making modularization extremely simple was our main goal, along with avoiding frequent git conflicts, from the get-go. It was the thing that set us apart from other generation tools and also the foundation that we needed to optimize teams' projects. I might be biased here, but Tuist is the best modularization tool out there. SwiftPM was designed for resolving dependencies, does a decent job at that, and should remain as a tool for that. **Xcode projects should evolve to ease modularization such that SwiftPM is not used as a project manager.** This is a symptom that Xcode and Xcode projects require a design iteration. Until then, I think [generating projects](https://docs.tuist.dev/en/guides/features/projects) like Tuist does is the best path forward. Anything required to get the linking right, from build phases to build settings, is all taken care of for you, such that you can focus on the graph structure and not on the implementation details that make it possible within an Xcode project.
 
-## 3. Build Times
+## 2. Build Times
 
 Every new year, new Apple Silicon comes out, and your managers rush to put a case to leadership to buy them because they might help make a cut in the build times of your projects. But the cuts got smaller and smaller over time. Justifying the investment got harder and harder over time, and you need an alternative. Unfortunately, React Native and Bazel are not an option, and sadly, Xcode doesn't help you with that.
 
@@ -60,7 +50,7 @@ Soon after having made modularization easier with generated projects, we noticed
 
 You can check out [Tuist's public dashboard](https://tuist.dev/tuist/tuist) to see how our current cache effectiveness moves around 84%. Or take, for example, this [test run](https://tuist.dev/tuist/tuist/runs/019970ac-6e19-7015-a5b0-0c979b70a669?tab=compilation-optimizations) where 122 modules were replaced with binaries. We hope that caching will eventually come natively to the native build system, and CAS is the right step in that direction. At Tuist, we are preparing for that by building the fastest and lowest-latency solution so that people can plug their Xcode projects in the near future without any hassle.
 
-## 4. Test Times
+## 3. Test Times
 
 Building is just part of what teams do after changes are implemented. They also need to run tests. Locally, developers usually run the tests that have changed or those that are connected with the file changes. However, on CI, teams commonly run all the tests of the test suite. And this means that **the more tests they add, the slower they'll take to run on CI, and at some point, you'll have to do something about it.**
 
@@ -74,7 +64,7 @@ tuist xcodebuild test -workspace App.xcworkspace -scheme App
 xcodebuild test -workspace App.xcworkspace -scheme App
 ```
 
-## 5. Insights
+## 4. Insights
 
 You build or run tests in your Xcode project, Xcode's UI presents you with the result, and that data remains there, in your environment, as if nothing happened, until you accidentally clean it with your deletion of derived data. Things look no different on CI. Your builds run, and the output from your builds is two things: whether it passed or not and xcodebuild's logs, often formatted using formatting tools like [xcbeautify](https://github.com/cpisciotta/xcbeautify). The isolation and ephemeral character of that information prevent the big picture that teams need to answer these questions: Are my builds getting faster or slower? And what about my tests? Is my app growing in size? Are there any new flaky tests? In other ecosystems like the web, collecting, processing, storing, and analyzing data is a common practice. In Apple's, it's not, despite its importance in making informed decisions to improve the development setup.
 
@@ -83,6 +73,16 @@ As for the reasons for this not being that common, I have a few guesses. The fir
 For data to be useful, you also need to present it in a way that's useful. You also need to correlate data to derive new useful information. And also build a system such that you can define tripwires and help teams monitor if things don't go as planned. It's a lot. And this is what we are building with Tuist such that the leadership of those companies can outsource that to Tuist and let their engineering resources be focused on building the apps. You can check out our read-only public [Tuist](https://tuist.dev/tuist/tuist) dashboard to get a sense of the data that you'd be able to get for your teams. For example, with one [scheme post action](https://videos.tuist.dev/w/mWM5SfMEwMSuRyKZu1rPmG), you can get build insights in the dashboard, and soon you'll be able to do the same with your test results.
 
 You can continue working blindly, and you might go a long way with it, but without data, you'll have a hard time having conversations with your leadership, especially when times like "I've heard of React Native; what do you think?" come.
+
+## 5. Derived Data
+
+Who doesn't know [derived data](https://medium.com/@alaxhenry0121/what-is-xcode-deriveddata-complete-guide-for-ios-developers-in-2025-5f962e402fab)? That folder that everyone deletes when compilation fails. The same folder whose deletion leads to a clean build, which can be quite slow in some cases. Derived data proved to be a bad decision whose effects are felt in the long run. A decision that has made many projects in the wild compile not because they are explicitly importing dependencies, but because they can accidentally find them in derived data. Implicit imports can lead to editor features such as macro expansions or Swift previews working unreliably because the editor resolves an invalid graph, causing missing binaries to be absent in derived data for those editor features to work. As crazy as it sounds, it's all rooted in derived data, but we don't talk much about it—not enough, in my opinion. **We joke about previews not working or cleaning derived data here and there, but the problem is indeed serious.**
+
+The good news is that Apple is aware of it and is working on it through a different approach called [content-addressable store (CAS)](https://github.com/swiftlang/swift-build/tree/main/Sources/SWBCAS) and [explicit modules](https://developer.apple.com/documentation/xcode/building-your-project-with-explicit-module-dependencies), which they are gently pushing people toward. So instead of having one shared directory, the build system uses hashes to look up compilation artifacts from previous compilations and uses them instead of invoking the compiler. This works in cases where your project has no implicit dependencies. And here's the thing: rolling out such a system requires Apple not only to introduce explicit modules but also to nudge the ecosystem to adopt them. In my opinion, the push has been too gentle and lacked a bit of the "why it's needed." Perhaps because doing so requires acknowledging a past design decision that led to derived data becoming a problem. I think it's fine. **I'd rather see Apple being open and transparent about it and how they are approaching it than discussing it internally and leaving us making the connections between some Xcode features and the reasons why they might be introducing them.**
+
+[Tuist-generated projects](https://docs.tuist.dev/en/guides/features/projects) can't prevent implicit dependencies, but the explicitness of declaring dependencies makes them a bit less likely. Because of that, we introduced a [command](https://docs.tuist.dev/en/cli/inspect/implicit-imports) that developers can run against their generated projects to check for implicit imports using static code analysis, and this is something I strongly recommend to everyone.
+
+As I mentioned earlier, my bet is that **the reliability of many Xcode features is strongly correlated with the explicitness of the project's graph, so the less implicitness you have, the better.** Sadly, this is not evangelized enough, neither by Apple nor by the community, so it often feels like sending messages into the void.
 
 ## Closing Thoughts
 
