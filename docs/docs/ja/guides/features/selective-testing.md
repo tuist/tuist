@@ -25,7 +25,7 @@ instead that provides some extra convenience such as integration with the
 get started with selective testing, follow the instructions based on your
 project setup:
 
-- <LocalizedLink href="/guides/features/selective-testing/xcodebuild">xcodebuild</LocalizedLink>
+- <LocalizedLink href="/guides/features/selective-testing/xcode-project">xcodebuild</LocalizedLink>
 - <LocalizedLink href="/guides/features/selective-testing/generated-project">Generated
   project</LocalizedLink>
 
