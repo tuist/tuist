@@ -68,7 +68,7 @@ jobs:
             }
   app-build:
     name: Build
-    runs-on: macos-15
+    runs-on: macos-16
     needs: [check-team-membership]
     if: |
       always() &&
@@ -110,7 +110,7 @@ jobs:
 
   app-test:
     name: Test
-    runs-on: macos-15
+    runs-on: macos-16
     needs: [check-team-membership]
     if: |
       always() &&
@@ -144,7 +144,7 @@ jobs:
 
   app-device-build:
     name: Device Build
-    runs-on: macos-15
+    runs-on: macos-16
     needs: [check-team-membership]
     if: |
       always() &&
