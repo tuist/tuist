@@ -558,6 +558,13 @@ defmodule Tuist.Environment do
     end
   end
 
+  def auth_rate_limit_bucket_size(secrets \\ secrets()) do
+    case get([:auth_rate_limit, :bucket_size], secrets) do
+      bucket_size when is_binary(bucket_size) -> String.to_integer(bucket_size)
+      _ -> if can?(), do: 100, else: 10
+    end
+  end
+
   def app_url(opts \\ [], secrets \\ secrets()) do
     path = opts |> Keyword.get(:path, "/") |> String.trim_trailing("/")
 
