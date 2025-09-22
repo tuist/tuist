@@ -45,7 +45,7 @@ concurrency:
 jobs:
   cli-lint:
     name: Lint
-    runs-on: namespace-profile-default-macos
+    runs-on: macos-16
     steps:
       - uses: actions/checkout@v4
       - name: Select Xcode
@@ -70,7 +70,7 @@ jobs:
 
   cli-spm-build:
     name: SwiftPM Build
-    runs-on: namespace-profile-default-macos
+    runs-on: macos-16
     steps:
       - uses: actions/checkout@v4
       - name: Select Xcode
@@ -95,7 +95,7 @@ jobs:
 
   cli-cache:
     name: Cache
-    runs-on: namespace-profile-default-macos
+    runs-on: macos-16
     if: github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4
@@ -121,7 +121,7 @@ jobs:
 
   cli-unit-tests:
     name: Unit Tests
-    runs-on: namespace-profile-default-macos
+    runs-on: macos-16
     steps:
       - uses: actions/checkout@v4
       - name: Select Xcode
@@ -146,7 +146,7 @@ jobs:
 
   cli-automation-acceptance-tests:
     name: Automation Acceptance Tests
-    runs-on: namespace-profile-default-macos
+    runs-on: macos-16
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
@@ -178,7 +178,7 @@ jobs:
 
   cli-dependencies-acceptance-tests:
     name: Dependencies Acceptance Tests
-    runs-on: namespace-profile-default-macos
+    runs-on: macos-16
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
@@ -217,7 +217,7 @@ jobs:
 
   cli-generator-acceptance-tests:
     name: Generator Acceptance Tests
-    runs-on: namespace-profile-default-macos
+    runs-on: macos-16
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
@@ -249,7 +249,7 @@ jobs:
 
   cli-kit-acceptance-tests:
     name: Kit Acceptance Tests
-    runs-on: namespace-profile-default-macos
+    runs-on: macos-16
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
