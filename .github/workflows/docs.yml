@@ -38,7 +38,7 @@ concurrency:
 jobs:
   build-deploy:
     name: Build & Deploy
-    runs-on: macos-16
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
       - name: Restore PNPM Cache

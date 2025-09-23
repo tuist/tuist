@@ -90,7 +90,7 @@ jobs:
             }
   inspect-implicit-imports:
     name: Inspect Implicit Imports
-    runs-on: macos-16
+    runs-on: macos-26
     needs: [check-team-membership]
     if: |
       always() &&
@@ -134,7 +134,7 @@ jobs:
           key: ${{ steps.cache-restore.outputs.cache-primary-key }}
   acceptance-tests:
     name: Acceptance Tests
-    runs-on: macos-16
+    runs-on: macos-26
     needs: [check-team-membership]
     if: |
       always() &&
@@ -178,7 +178,7 @@ jobs:
           key: ${{ steps.cache-restore.outputs.cache-primary-key }}
   unit-tests:
     name: Unit Tests
-    runs-on: macos-16
+    runs-on: macos-26
     needs: [check-team-membership]
     if: |
       always() &&
