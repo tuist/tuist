@@ -21,10 +21,10 @@ In [Xcode Cloud](https://developer.apple.com/xcode-cloud/), which uses Xcode pro
 
 ```bash [Mise]
 #!/bin/sh
-curl https://mise.jdx.dev/install.sh | sh
 
-echo "eval \"\$(/Users/local/.local/bin/mise activate zsh)\"" >> "/Users/local/.zshrc" # Add mise to the path
-source "/Users/local/.zshrc" # Reload the shell
+# Mise installation taken from https://mise.jdx.dev/continuous-integration.html#xcode-cloud
+curl https://mise.run | sh # Install Mise
+export PATH="$HOME/.local/bin:$PATH"
 
 mise install # Installs the version from .mise.toml
 
