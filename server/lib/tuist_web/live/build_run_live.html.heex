@@ -111,7 +111,11 @@
             <div data-part="metadata">
               <div data-part="title">{gettext("Category")}</div>
               <.badge
-                label={if is_nil(@run.category), do: gettext("Unknown"), else: @run.category |> Atom.to_string() |> String.capitalize()}
+                label={
+                  if is_nil(@run.category),
+                    do: gettext("Unknown"),
+                    else: @run.category |> Atom.to_string() |> String.capitalize()
+                }
                 style="fill"
               />
             </div>

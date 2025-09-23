@@ -9,6 +9,7 @@ defmodule Tuist.Projects.Project do
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.User
   alias Tuist.AppBuilds.Preview
+  alias Tuist.Projects.VCSConnection
   alias Tuist.QA.LaunchArgumentGroup
 
   @derive {
@@ -21,8 +22,6 @@ defmodule Tuist.Projects.Project do
     field :name, :string
     field :visibility, Ecto.Enum, values: [private: 0, public: 1], default: :private
     field :default_branch, :string, default: "main"
-    field :vcs_repository_full_handle, :string
-    field :vcs_provider, Ecto.Enum, values: [github: 0]
     field :last_interacted_at, :naive_datetime, virtual: true
     field :default_previews_visibility, Ecto.Enum, values: [private: 0, public: 1], default: :private
     field :qa_app_description, :string, default: ""
@@ -32,6 +31,7 @@ defmodule Tuist.Projects.Project do
     belongs_to :account, Account
 
     has_many :previews, Preview
+    has_one :vcs_connection, VCSConnection
     has_many :qa_launch_argument_groups, LaunchArgumentGroup
 
     has_many :users_with_last_visited_projects, User,
@@ -52,12 +52,9 @@ defmodule Tuist.Projects.Project do
       :name,
       :created_at,
       :visibility,
-      :vcs_repository_full_handle,
-      :vcs_provider,
       :default_previews_visibility
     ])
     |> validate_inclusion(:visibility, [:private, :public])
-    |> validate_inclusion(:vcs_provider, [:github])
     |> validate_required([:token, :account_id, :name])
     |> validate_name()
     |> validate_inclusion(:default_previews_visibility, [:private, :public])
@@ -68,8 +65,6 @@ defmodule Tuist.Projects.Project do
     |> cast(attrs, [
       :name,
       :default_branch,
-      :vcs_repository_full_handle,
-      :vcs_provider,
       :visibility,
       :default_previews_visibility,
       :qa_app_description,
@@ -77,7 +72,6 @@ defmodule Tuist.Projects.Project do
       :qa_password
     ])
     |> validate_name()
-    |> validate_inclusion(:vcs_provider, [:github])
     |> validate_inclusion(:visibility, [:private, :public])
     |> validate_inclusion(:default_previews_visibility, [:private, :public])
   end

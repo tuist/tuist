@@ -1,6 +1,7 @@
 @import "./pages/account.css";
 @import "./pages/account_settings.css";
 @import "./pages/auth.css";
+@import "./pages/billing.css";
 @import "./pages/bundle.css";
 @import "./pages/bundles.css";
 @import "./pages/builds.css";
@@ -9,7 +10,7 @@
 @import "./pages/cache_runs.css";
 @import "./pages/error.css";
 @import "./pages/generate_runs.css";
-@import "./pages/billing.css";
+@import "./pages/integrations.css";
 @import "./pages/overview.css";
 @import "./pages/preview.css";
 @import "./pages/previews.css";

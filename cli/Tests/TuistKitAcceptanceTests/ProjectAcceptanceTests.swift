@@ -160,16 +160,11 @@ struct ProjectAcceptanceTests {
         Default branch: main
         """)
         try await TuistTest.run(
-            ProjectUpdateCommand.self,
-            ["--path", fixtureDirectory.pathString, fullHandle, "--repository-url", "https://github.com/tuist/tuist"]
-        )
-        try await TuistTest.run(
             ProjectShowCommand.self,
             ["--path", fixtureDirectory.pathString, fullHandle]
         )
         TuistTest.expectLogs("""
         Full handle: \(fullHandle)
-        Repository: https://github.com/tuist/tuist
         Default branch: main
         """)
     }

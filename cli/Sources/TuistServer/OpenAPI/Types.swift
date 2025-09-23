@@ -6742,28 +6742,28 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page`.
                 public var page: Swift.Int?
-                /// Number of items per page.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page_size`.
-                public var page_size: Swift.Int?
                 /// Filter bundles by git branch.
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/git_branch`.
                 public var git_branch: Swift.String?
+                /// Number of items per page.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page_size`.
+                public var page_size: Swift.Int?
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
                 ///   - page: Page number for pagination.
-                ///   - page_size: Number of items per page.
                 ///   - git_branch: Filter bundles by git branch.
+                ///   - page_size: Number of items per page.
                 public init(
                     page: Swift.Int? = nil,
-                    page_size: Swift.Int? = nil,
-                    git_branch: Swift.String? = nil
+                    git_branch: Swift.String? = nil,
+                    page_size: Swift.Int? = nil
                 ) {
                     self.page = page
-                    self.page_size = page_size
                     self.git_branch = git_branch
+                    self.page_size = page_size
                 }
             }
             public var query: Operations.listBundles.Input.Query
@@ -18919,10 +18919,6 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/PUT/requestBody/json/default_branch`.
                     public var default_branch: Swift.String?
-                    /// The repository URL for the project.
-                    ///
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/PUT/requestBody/json/repository_url`.
-                    public var repository_url: Swift.String?
                     /// The visibility of the project. Public projects are visible to everyone, private projects are only visible to the project's members.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/PUT/requestBody/json/visibility`.
@@ -18938,20 +18934,16 @@ public enum Operations {
                     ///
                     /// - Parameters:
                     ///   - default_branch: The default branch for the project.
-                    ///   - repository_url: The repository URL for the project.
                     ///   - visibility: The visibility of the project. Public projects are visible to everyone, private projects are only visible to the project's members.
                     public init(
                         default_branch: Swift.String? = nil,
-                        repository_url: Swift.String? = nil,
                         visibility: Operations.updateProject.Input.Body.jsonPayload.visibilityPayload? = nil
                     ) {
                         self.default_branch = default_branch
-                        self.repository_url = repository_url
                         self.visibility = visibility
                     }
                     public enum CodingKeys: String, CodingKey {
                         case default_branch
-                        case repository_url
                         case visibility
                     }
                 }
@@ -19055,7 +19047,7 @@ public enum Operations {
                     self.body = body
                 }
             }
-            /// The request is invalid, for example when attempting to link the project to a repository the authenticated user doesn't have access to.
+            /// The request is invalid
             ///
             /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/put(updateProject)/responses/400`.
             ///
