@@ -12,6 +12,10 @@
     width: 100%;
   }
 
+  & .noora-dropdown-item:not([data-selected]) svg {
+    visibility: hidden;
+  }
+
   & > [data-part="action-buttons"] {
     display: flex;
     justify-content: space-between;
@@ -530,8 +534,19 @@
               align-items: start;
               gap: var(--noora-spacing-4);
 
-              & > [data-part="badge"] {
-                margin-top: var(--noora-spacing-1);
+              & > [data-part="header"] {
+                display: flex;
+                gap: var(--noora-spacing-3);
+
+                & > [data-part="title"] {
+                  color: var(--noora-surface-label-secondary);
+                  font: var(--noora-font-weight-medium) var(--noora-font-body-large);
+                }
+              }
+
+              & > [data-part="title"] {
+                color: var(--noora-surface-label-secondary);
+                font: var(--noora-font-weight-medium) var(--noora-font-body-large);
               }
 
               & > [data-part="value"] {
@@ -569,9 +584,29 @@
             align-items: center;
             gap: var(--noora-spacing-4);
           }
-          & > [data-part="steps-counter"] {
-            color: var(--noora-surface-label-primary);
-            font: var(--noora-font-weight-regular) var(--noora-font-code-medium);
+
+          & > [data-part="playback-right-section"] {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            gap: var(--noora-spacing-4);
+
+            & > .noora-inline-dropdown {
+              & > [data-part="trigger"] {
+                & > [data-part="label"] {
+                  color: var(--noora-surface-label-primary);
+                }
+
+                & > [data-part="icon"] {
+                  color: var(--noora-surface-label-primary);
+                }
+              }
+            }
+
+            & > [data-part="steps-counter"] {
+              color: var(--noora-surface-label-primary);
+              font: var(--noora-font-weight-regular) var(--noora-font-code-medium);
+            }
           }
         }
 
@@ -616,9 +651,34 @@
               }
             }
 
+            & > [data-part="step-bars-track"] {
+              position: absolute;
+              top: 38px;
+              right: 0;
+              left: 0;
+              height: 8px;
+              pointer-events: none;
+
+              & [data-part="step-bar"][data-has-issues] {
+                --timeline-indicator-warning: var(--noora-orange-500);
+                border: 1px solid var(--timeline-indicator-warning);
+              }
+
+              & [data-part="step-bar"] {
+                position: absolute;
+                left: calc(100% * var(--step-start-percentage, 0) / 100);
+                border-radius: var(--noora-radius-small);
+                /* We're adding 45px to align the end of the step bar with the right edge of the step thumbnail */
+                width: calc(100% * (var(--step-end-percentage, 0) - var(--step-start-percentage, 0)) / 100 + 45px);
+                height: 4px;
+                --timeline-indicator: var(--noora-neutral-light-600);
+                border: 1px solid var(--timeline-indicator);
+              }
+            }
+
             & > [data-part="steps-track"] {
               position: absolute;
-              top: 42px;
+              top: 50px;
               right: 0;
               left: 0;
               height: 80px;
