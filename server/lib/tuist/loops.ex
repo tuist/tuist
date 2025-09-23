@@ -107,4 +107,20 @@ defmodule Tuist.Loops do
       "cmfgl9s214xcv0izt5jyu7e9d" => true
     })
   end
+
+  @doc """
+  Adds an email to the QA waiting list.
+
+  ## Parameters
+  - `email`: The email address to add to the waiting list
+
+  ## Returns
+  - `:ok` on success
+  - `{:error, reason}` on failure
+  """
+  def add_to_qa_waiting_list(email) do
+    update_contact(email, %{
+      "cmfo87vbh457g0i04bp15gs5s" => true
+    })
+  end
 end
