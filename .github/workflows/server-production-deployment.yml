@@ -75,7 +75,7 @@ jobs:
           token: ${{ secrets.TUIST_GITHUB_TOKEN }}
           submodules: recursive
       - name: Select Xcode
-        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
+        run: sudo xcode-select -switch /Applications/Xcode_16.4.app
       - name: Restore cache
         id: cache-restore
         uses: actions/cache/restore@v4
