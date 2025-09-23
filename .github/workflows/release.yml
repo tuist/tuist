@@ -422,7 +422,7 @@ jobs:
           COMMIT_COUNT=$(git rev-list --count HEAD)
           sed -i '' -e "s/CFBundleVersion.*/CFBundleVersion\": \"$COMMIT_COUNT\",/g" "Project.swift"
       - name: Generate TuistApp
-        run: mise x -- tuist generate TuistApp
+        run: mise x -- tuist generate TuistApp --no-binary-cache
       - name: Upload iOS App to App Store Connect
         run: mise run app:upload-ios
         env:
