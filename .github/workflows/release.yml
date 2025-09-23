@@ -286,7 +286,7 @@ jobs:
     name: Release App
     needs: check-releases
     if: needs.check-releases.outputs.app-should-release == 'true'
-    runs-on: namespace-profile-default-macos
+    runs-on: macos-26
     timeout-minutes: 50
     env:
       GITHUB_TOKEN: ${{ secrets.TUIST_GITHUB_TOKEN }}
@@ -422,7 +422,7 @@ jobs:
           COMMIT_COUNT=$(git rev-list --count HEAD)
           sed -i '' -e "s/CFBundleVersion.*/CFBundleVersion\": \"$COMMIT_COUNT\",/g" "Project.swift"
       - name: Generate TuistApp
-        run: mise x -- tuist generate TuistApp
+        run: mise x -- tuist generate TuistApp --no-binary-cache
       - name: Upload iOS App to App Store Connect
         run: mise run app:upload-ios
         env:
