@@ -384,8 +384,8 @@ jobs:
             app/CHANGELOG.md
             app/Project.swift
             app/appcast.xml
-            build/Tuist.zip
-            build/Tuist.dmg
+            build/artifacts/Tuist.zip
+            build/artifacts/Tuist.dmg
           retention-days: 1
 
   release-ios:
@@ -657,8 +657,8 @@ jobs:
           tag_name: ${{ needs.check-releases.outputs.app-next-version }}
           body: ${{ needs.release-app.outputs.release-notes }}
           files: |
-            build/Tuist.zip
-            build/Tuist.dmg
+            build/artifacts/Tuist.zip
+            build/artifacts/Tuist.dmg
 
       - name: Create Server GitHub Release
         if: needs.check-releases.outputs.server-should-release == 'true' && needs.release-server.result == 'success'
