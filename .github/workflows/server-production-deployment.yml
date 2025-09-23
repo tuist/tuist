@@ -85,7 +85,6 @@ jobs:
           restore-keys: ${{ runner.os }}-cli-
       - uses: jdx/mise-action@v2
       - name: Install dependencies
-        run: tuist install
       - name: Initialize TuistCacheEE submodule
         env:
           TUIST_GITHUB_TOKEN: ${{ secrets.TUIST_GITHUB_TOKEN }}

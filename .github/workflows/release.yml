@@ -388,6 +388,50 @@ jobs:
             build/Tuist.dmg
           retention-days: 1
 
+  release-ios:
+    name: Release iOS App
+    needs: check-releases
+    if: needs.check-releases.outputs.app-should-release == 'true'
+    runs-on: namespace-profile-default-macos
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.TUIST_GITHUB_TOKEN }}
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
+      - name: Skip Xcode Macro Fingerprint Validation
+        run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
+      - name: Skip Xcode Package Validation
+        run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidation -bool YES
+      - uses: jdx/mise-action@v2
+      - name: Restore cache
+        id: cache-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: .build
+          key: ${{ runner.os }}-app-${{ hashFiles('Package.resolved') }}
+          restore-keys: .build
+      - name: Update version
+        working-directory: app
+        run: |
+          VERSION_NUMBER="${{ needs.check-releases.outputs.app-next-version }}"
+          VERSION_NUMBER="${VERSION_NUMBER#app@}"
+          sed -i '' -e "s/CFBundleShortVersionString.*/CFBundleShortVersionString\": \"$VERSION_NUMBER\",/g" "Project.swift"
+          COMMIT_COUNT=$(git rev-list --count HEAD)
+          sed -i '' -e "s/CFBundleVersion.*/CFBundleVersion\": \"$COMMIT_COUNT\",/g" "Project.swift"
+      - name: Generate TuistApp
+        run: mise x -- tuist generate TuistApp
+      - name: Upload iOS App to App Store Connect
+        run: mise run app:upload-ios
+        env:
+          CERTIFICATE_PASSWORD: ${{ secrets.CERTIFICATE_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APP_SPECIFIC_PASSWORD: ${{ secrets.APP_SPECIFIC_PASSWORD }}
+          BASE_64_CERTIFICATE: ${{ secrets.BASE_64_CERTIFICATE }}
+          BASE_64_PROVISIONING_PROFILE: ${{ secrets.BASE_64_PROVISIONING_PROFILE }}
+
   release-server:
     name: Release Server
     needs: check-releases
@@ -477,7 +521,8 @@ jobs:
 
   commit-and-release:
     name: Commit and Release
-    needs: [check-releases, release-cli, release-app, release-server]
+    needs:
+      [check-releases, release-cli, release-app, release-ios, release-server]
     if: always() && needs.check-releases.outputs.should-release-any == 'true'
     runs-on: ubuntu-latest
     env:
