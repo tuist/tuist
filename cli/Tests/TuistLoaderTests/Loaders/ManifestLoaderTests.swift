@@ -73,7 +73,7 @@ final class ManifestLoaderTests: TuistTestCase {
         )
 
         // When
-        let got = try await subject.loadProject(at: temporaryPath, disableSandbox: false)
+        let got = try await subject.loadProject(at: temporaryPath, disableSandbox: true)
 
         // Then
         XCTAssertEqual(got.name, "tuist")
@@ -228,7 +228,7 @@ final class ManifestLoaderTests: TuistTestCase {
         )
 
         // When
-        let got = try await subject.loadPackageSettings(at: temporaryPath, disableSandbox: false)
+        let got = try await subject.loadPackageSettings(at: temporaryPath, disableSandbox: true)
 
         // Then
         XCTAssertEqual(
@@ -253,7 +253,7 @@ final class ManifestLoaderTests: TuistTestCase {
         )
 
         // When
-        let got = try await subject.loadWorkspace(at: temporaryPath, disableSandbox: false)
+        let got = try await subject.loadWorkspace(at: temporaryPath, disableSandbox: true)
 
         // Then
         XCTAssertEqual(got.name, "tuist")

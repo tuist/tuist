@@ -15,6 +15,7 @@ on:
       - "mise/tasks/cli/lint.sh"
       - "cli/Fixtures/**"
       - "Tuist/**"
+      - ".xcode-version"
   pull_request:
     paths:
       - "cli/TuistCacheEE"
@@ -27,6 +28,7 @@ on:
       - "mise/tasks/cli/lint.sh"
       - "cli/Fixtures/**"
       - "Tuist/**"
+      - ".xcode-version"
 
 permissions:
   contents: read
@@ -43,7 +45,7 @@ concurrency:
 jobs:
   cli-lint:
     name: Lint
-    runs-on: macos-15
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
       - name: Select Xcode
@@ -68,7 +70,7 @@ jobs:
 
   cli-spm-build:
     name: SwiftPM Build
-    runs-on: macos-15
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
       - name: Select Xcode
@@ -78,8 +80,8 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .build
-          key: ${{ runner.os }}-cli-${{ hashFiles('Package.resolved') }}
-          restore-keys: ${{ runner.os }}-cli-
+          key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved') }}
+          restore-keys: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-
       - uses: jdx/mise-action@v2
       - run: tuist install
       - name: Build
@@ -93,7 +95,7 @@ jobs:
 
   cli-cache:
     name: Cache
-    runs-on: macos-15
+    runs-on: macos-26
     if: github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4
@@ -119,7 +121,7 @@ jobs:
 
   cli-unit-tests:
     name: Unit Tests
-    runs-on: macos-15
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
       - name: Select Xcode
@@ -144,7 +146,8 @@ jobs:
 
   cli-automation-acceptance-tests:
     name: Automation Acceptance Tests
-    runs-on: macos-15
+    runs-on: macos-26
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - name: Select Xcode
@@ -162,6 +165,8 @@ jobs:
         run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
       - name: Skip Xcode Package Validation
         run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidation -bool YES
+      - name: Download Metal Toolchain
+        run: xcodebuild -downloadComponent MetalToolchain
       - name: Run TuistAutomationAcceptanceTests
         run: mise x -- tuist test TuistAutomationAcceptanceTests
       - name: Save cache
@@ -173,7 +178,8 @@ jobs:
 
   cli-dependencies-acceptance-tests:
     name: Dependencies Acceptance Tests
-    runs-on: macos-15
+    runs-on: macos-26
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - name: Select Xcode
@@ -211,7 +217,8 @@ jobs:
 
   cli-generator-acceptance-tests:
     name: Generator Acceptance Tests
-    runs-on: macos-15
+    runs-on: macos-26
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - name: Select Xcode
@@ -229,6 +236,8 @@ jobs:
         run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
       - name: Skip Xcode Package Validation
         run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidation -bool YES
+      - name: Download Metal Toolchain
+        run: xcodebuild -downloadComponent MetalToolchain
       - name: Run TuistGeneratorAcceptanceTests
         run: mise x -- tuist test TuistGeneratorAcceptanceTests
       - name: Save cache
@@ -240,7 +249,8 @@ jobs:
 
   cli-kit-acceptance-tests:
     name: Kit Acceptance Tests
-    runs-on: macos-15
+    runs-on: macos-26
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - name: Select Xcode

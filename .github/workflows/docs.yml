@@ -38,7 +38,7 @@ concurrency:
 jobs:
   build-deploy:
     name: Build & Deploy
-    runs-on: macos-15
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
       - name: Restore PNPM Cache
@@ -55,8 +55,8 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .build
-          key: ${{ runner.os }}-docs-${{ hashFiles('./Package.resolved') }}
-          restore-keys: ${{ runner.os }}-docs-
+          key: ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-docs-${{ hashFiles('./Package.resolved') }}
+          restore-keys: ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-docs-
       - uses: jdx/mise-action@v2
         with:
           working-directory: docs

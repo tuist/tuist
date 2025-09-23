@@ -8,11 +8,13 @@ on:
       - "app/**"
       - ".github/workflows/app.yml"
       - "Tuist/**"
+      - ".xcode-version"
   pull_request:
     paths:
       - "app/**"
       - ".github/workflows/app.yml"
       - "Tuist/**"
+      - ".xcode-version"
 
 permissions:
   contents: read
@@ -66,7 +68,7 @@ jobs:
             }
   app-build:
     name: Build
-    runs-on: macos-15
+    runs-on: macos-26
     needs: [check-team-membership]
     if: |
       always() &&
@@ -108,7 +110,7 @@ jobs:
 
   app-test:
     name: Test
-    runs-on: macos-15
+    runs-on: macos-26
     needs: [check-team-membership]
     if: |
       always() &&
@@ -142,7 +144,7 @@ jobs:
 
   app-device-build:
     name: Device Build
-    runs-on: macos-15
+    runs-on: macos-26
     needs: [check-team-membership]
     if: |
       always() &&
