@@ -822,7 +822,7 @@ defmodule Runner.QA.Tools do
     started_at = DateTime.utc_now()
     full_params = args ++ ["--udid", simulator_uuid]
 
-    case System.cmd("/usr/local/bin/axe", full_params) do
+    case System.cmd("/opt/homebrew/bin/axe", full_params) do
       {output, 0} ->
         {:ok, %{output: String.trim(output), started_at: started_at}}
 

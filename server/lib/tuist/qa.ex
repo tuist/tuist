@@ -145,18 +145,7 @@ defmodule Tuist.QA do
     """
     set -e
 
-    # We're using a fork of AXe for streaming capabilities.
-    # This can be removed once this PR is merged: https://github.com/cameroncooke/AXe/pull/4
-    if [ ! -f "/usr/local/bin/axe" ]; then
-      git clone -b feature/stream-video-complete https://github.com/pepicrft/AXe.git /tmp/axe
-      cd /tmp/axe
-      export CLANG_MODULE_CACHE_PATH=/tmp/my-clang-cache
-      mkdir -p /tmp/my-clang-cache
-      swift build -c release --product axe
-      # Symlink instead of copy to maintain dynamic framework dependencies
-      sudo ln -sf /tmp/axe/.build/release/axe /usr/local/bin/axe
-      cd -
-    fi
+    brew install cameroncooke/axe/axe --quiet || true
     brew install ffmpeg
     npm i --location=global appium
     appium driver install xcuitest

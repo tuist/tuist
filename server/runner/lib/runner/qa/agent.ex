@@ -12,6 +12,7 @@ defmodule Runner.QA.Agent do
   alias Runner.QA.AppiumClient
   alias Runner.QA.Client
   alias Runner.QA.Simulators
+  alias Runner.QA.Sleeper
   alias Runner.QA.Tools
   alias Runner.Zip
 
@@ -247,6 +248,8 @@ defmodule Runner.QA.Agent do
 
   defp upload_recording(attrs) do
     :ok = Simulators.stop_recording(attrs.recording_port)
+    # When we stop the recording, the file is not immediately available for reading
+    Sleeper.sleep(100)
 
     # Only upload recording if there was at least one action performed
     if Map.has_key?(attrs, :last_action_timestamp) do

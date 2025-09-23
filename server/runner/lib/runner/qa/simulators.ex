@@ -134,7 +134,7 @@ defmodule Runner.QA.Simulators do
   """
   def start_recording(%SimulatorDevice{udid: device_udid}, output_path) do
     cmd =
-      "/usr/local/bin/axe stream-video --udid #{device_udid} --fps 30 --format ffmpeg | ffmpeg -y -loglevel quiet -f image2pipe -framerate 30 -i - -vf \"scale=1178:2556\" -c:v libx264 -preset ultrafast -f mp4 \"#{output_path}\""
+      "/opt/homebrew/bin/axe stream-video --udid #{device_udid} --fps 30 --format ffmpeg | ffmpeg -y -loglevel quiet -f image2pipe -framerate 30 -i - -vf \"scale=1178:2556\" -c:v libx264 -preset ultrafast -f mp4 \"#{output_path}\""
 
     Port.open({:spawn_executable, System.find_executable("sh")}, [
       :binary,
