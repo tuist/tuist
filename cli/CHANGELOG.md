@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.78.2<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* adjust NIOFileSystem references by [@fortmarek](https://github.com/fortmarek) in [#8273](https://github.com/tuist/tuist/pull/8273)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.78.1...4.78.2
+
 ## What's Changed in 4.78.1<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
@@ -73,9 +81,6 @@ All notable changes to this project will be documented in this file.
 ### ⛰️  Features
 
 * Add support for configuring the cache request concurrency limit by [@pepicrft](https://github.com/pepicrft) in [#8203](https://github.com/tuist/tuist/pull/8203)
-
-## New Contributors
-* [@seosieve](https://github.com/seosieve) made their first contribution in [#8209](https://github.com/tuist/tuist/pull/8209)
 
 **Full Changelog**: https://github.com/tuist/tuist/compare/4.72.0...4.73.0
 
