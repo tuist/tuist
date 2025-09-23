@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.78.3<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* show Products file group in Xcode navigator by [@YIshihara11201](https://github.com/YIshihara11201) in [#8267](https://github.com/tuist/tuist/pull/8267)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.78.2...4.78.3
+
 ## What's Changed in 4.78.2<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
