@@ -106,9 +106,24 @@ defmodule Tuist.QA do
   end
 
   defp run_qa_tests_in_namespace(attrs, account) do
+    pre_start_hook = [
+      %{
+        "command" => %{
+          "command" => "/bin/bash",
+          "args" => [
+          "--login",
+            "-c",
+            "/opt/homebrew/bin/brew install ffmpeg && /opt/homebrew/bin/brew install cameroncooke/axe/axe || true"
+          ]
+        }
+      }
+    ]
+
     with {:ok, account_with_tenant} <- account_initializing_namespace_tenant_if_absent(account),
          {:ok, %{ssh_connection: ssh_connection, instance: instance, tenant_token: tenant_token}} <-
-           Namespace.create_instance_with_ssh_connection(account_with_tenant.namespace_tenant_id) do
+           Namespace.create_instance_with_ssh_connection(account_with_tenant.namespace_tenant_id,
+             pre_start_hook: pre_start_hook
+           ) do
       run_qa_tests_in_namespace_instance(attrs, instance, ssh_connection, tenant_token)
     end
   end
@@ -145,19 +160,6 @@ defmodule Tuist.QA do
     """
     set -e
 
-    # We're using a fork of AXe for streaming capabilities.
-    # This can be removed once this PR is merged: https://github.com/cameroncooke/AXe/pull/4
-    if [ ! -f "/usr/local/bin/axe" ]; then
-      git clone -b feature/stream-video-complete https://github.com/pepicrft/AXe.git /tmp/axe
-      cd /tmp/axe
-      export CLANG_MODULE_CACHE_PATH=/tmp/my-clang-cache
-      mkdir -p /tmp/my-clang-cache
-      swift build -c release --product axe
-      # Symlink instead of copy to maintain dynamic framework dependencies
-      sudo ln -sf /tmp/axe/.build/release/axe /usr/local/bin/axe
-      cd -
-    fi
-    brew install ffmpeg
     npm i --location=global appium
     appium driver install xcuitest
     tmux new-session -d -s appium 'appium'

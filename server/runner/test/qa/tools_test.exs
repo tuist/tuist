@@ -110,7 +110,7 @@ defmodule Runner.QA.ToolsTest do
       image_data = <<137, 80, 78, 71, 13, 10, 26, 10>>
       upload_url = "https://s3.example.com/upload-url"
 
-      expect(System, :cmd, fn "/usr/local/bin/axe", ["tap", "-x", "100", "-y", "200", "--udid", ^simulator_uuid] ->
+      expect(System, :cmd, fn "/opt/homebrew/bin/axe", ["tap", "-x", "100", "-y", "200", "--udid", ^simulator_uuid] ->
         {"Tap completed", 0}
       end)
 
@@ -149,7 +149,7 @@ defmodule Runner.QA.ToolsTest do
       # Given
       simulator_uuid = "test-uuid"
 
-      expect(System, :cmd, fn "/usr/local/bin/axe", ["tap", "-x", "100", "-y", "200", "--udid", ^simulator_uuid] ->
+      expect(System, :cmd, fn "/opt/homebrew/bin/axe", ["tap", "-x", "100", "-y", "200", "--udid", ^simulator_uuid] ->
         {"Tap failed", 1}
       end)
 
@@ -241,7 +241,7 @@ defmodule Runner.QA.ToolsTest do
       simulator_uuid = "test-uuid"
       text = "Hello World"
 
-      expect(System, :cmd, fn "/usr/local/bin/axe", ["type", ^text, "--udid", ^simulator_uuid] ->
+      expect(System, :cmd, fn "/opt/homebrew/bin/axe", ["type", ^text, "--udid", ^simulator_uuid] ->
         {"Text typed", 0}
       end)
 
@@ -291,7 +291,7 @@ defmodule Runner.QA.ToolsTest do
       to_x = 300
       to_y = 400
 
-      expect(System, :cmd, fn "/usr/local/bin/axe",
+      expect(System, :cmd, fn "/opt/homebrew/bin/axe",
                               [
                                 "swipe",
                                 "--start-x",
@@ -357,7 +357,7 @@ defmodule Runner.QA.ToolsTest do
       simulator_uuid = "test-uuid"
       duration = 1.5
 
-      expect(System, :cmd, fn "/usr/local/bin/axe",
+      expect(System, :cmd, fn "/opt/homebrew/bin/axe",
                               [
                                 "swipe",
                                 "--start-x",
@@ -426,7 +426,7 @@ defmodule Runner.QA.ToolsTest do
       simulator_uuid = "test-uuid"
       preset = "scroll-up"
 
-      expect(System, :cmd, fn "/usr/local/bin/axe", ["gesture", ^preset, "--udid", ^simulator_uuid] ->
+      expect(System, :cmd, fn "/opt/homebrew/bin/axe", ["gesture", ^preset, "--udid", ^simulator_uuid] ->
         {"Gesture completed", 0}
       end)
 
@@ -474,7 +474,7 @@ defmodule Runner.QA.ToolsTest do
       duration = 1.0
       delta = 200
 
-      expect(System, :cmd, fn "/usr/local/bin/axe",
+      expect(System, :cmd, fn "/opt/homebrew/bin/axe",
                               [
                                 "gesture",
                                 ^preset,
@@ -536,7 +536,7 @@ defmodule Runner.QA.ToolsTest do
       simulator_uuid = "test-uuid"
       button = "home"
 
-      expect(System, :cmd, fn "/usr/local/bin/axe", ["button", ^button, "--udid", ^simulator_uuid] ->
+      expect(System, :cmd, fn "/opt/homebrew/bin/axe", ["button", ^button, "--udid", ^simulator_uuid] ->
         {"Button pressed", 0}
       end)
 

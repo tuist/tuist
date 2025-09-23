@@ -9,6 +9,8 @@ defmodule Tuist.Namespace do
   alias Tuist.Namespace.JWTToken
   alias Tuist.SSHClient
 
+  require Logger
+
   @base_compute_url "https://eu.compute.namespaceapis.com/namespace.cloud.compute.v1beta.ComputeService"
   @base_usage_url "https://eu.compute.namespaceapis.com/namespace.cloud.compute.v1beta.UsageService"
   @base_tenant_url "https://iam.namespaceapis.com/namespace.cloud.iam.v1beta.TenantService"
@@ -16,11 +18,11 @@ defmodule Tuist.Namespace do
   @doc """
   Creates a new instance with an SSH connection and provisions a new tenant token.
   """
-  def create_instance_with_ssh_connection(tenant_id) do
+  def create_instance_with_ssh_connection(tenant_id, opts \\ []) do
     with {:ok, tenant_token} <-
            issue_tenant_token(tenant_id, "tuist-qa"),
          {:ok, %Instance{id: instance_id} = instance} <-
-           create_instance(tenant_token),
+           create_instance(tenant_token, opts),
          :ok <-
            wait_for_instance_to_be_running(instance_id, tenant_token),
          {:ok, ssh_connection} <- ssh_connection(instance_id, tenant_token) do
@@ -64,8 +66,20 @@ defmodule Tuist.Namespace do
   @doc """
   Creates a new compute instance with SSH key authentication.
   """
-  def create_instance(tenant_token) do
+  def create_instance(tenant_token, opts \\ []) do
     ssh_public_key = Environment.namespace_ssh_public_key()
+    pre_start_hook = Keyword.get(opts, :pre_start_hook)
+
+    experimental_config = %{
+      "authorized_ssh_keys" => [ssh_public_key]
+    }
+
+    experimental_config =
+      if pre_start_hook do
+        Map.put(experimental_config, "pre_start_hook", pre_start_hook)
+      else
+        experimental_config
+      end
 
     request_body =
       %{
@@ -77,10 +91,9 @@ defmodule Tuist.Namespace do
           "machine_arch" => "arm64"
         },
         "deadline" => DateTime.utc_now() |> DateTime.add(20, :minute) |> DateTime.to_iso8601(),
-        "experimental" => %{
-          "authorized_ssh_keys" => [ssh_public_key]
-        }
+        "experimental" => experimental_config
       }
+    Logger.info("Create instance request body: #{inspect(request_body)}")
 
     case compute_request(&Req.post/1,
            url: "#{@base_compute_url}/CreateInstance",
@@ -100,7 +113,7 @@ defmodule Tuist.Namespace do
   """
   def wait_for_instance_to_be_running(instance_id, tenant_token) do
     start_time = :os.system_time(:second)
-    timeout_seconds = 120
+    timeout_seconds = 360
 
     poll_instance_status(instance_id, start_time, timeout_seconds, tenant_token)
   end

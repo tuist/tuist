@@ -46,6 +46,7 @@ defmodule Tuist.SSHClient do
         receive_message(updated_message)
 
       {:ssh_cm, _pid, {:data, _cid, 0, data}} ->
+        Logger.info("SSH stdout data received: #{inspect(data)}")
         updated_message = return_message <> data
         receive_message(updated_message)
 
