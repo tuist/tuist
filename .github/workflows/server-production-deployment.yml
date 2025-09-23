@@ -65,7 +65,7 @@ jobs:
           mise exec "github:render-oss/cli@2.2.0" -- cli_v2.2.0 deploys create srv-d35uiopr0fns73bfve00 --output json --confirm --wait --commit "$GITHUB_SHA"
   acceptance-tests:
     name: Acceptance Tests
-    runs-on: namespace-profile-default-macos
+    runs-on: namespace-profile-macos-sequoia
     timeout-minutes: 40
     needs: canary
     environment: server-canary
@@ -84,16 +84,6 @@ jobs:
           key: ${{ runner.os }}-cli-cache-ee-${{ hashFiles('Package.resolved') }}
           restore-keys: ${{ runner.os }}-cli-
       - uses: jdx/mise-action@v2
-      - name: Set up new keychain
-        run: |
-          TMP_DIRECTORY=$(mktemp -d)
-          KEYCHAIN_PATH=$TMP_DIRECTORY/keychain.keychain
-          KEYCHAIN_PASSWORD=$(uuidgen)
-          security create-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
-          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
-          security default-keychain -s $KEYCHAIN_PATH
-          security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
-
       - name: Initialize TuistCacheEE submodule
         env:
           TUIST_GITHUB_TOKEN: ${{ secrets.TUIST_GITHUB_TOKEN }}
