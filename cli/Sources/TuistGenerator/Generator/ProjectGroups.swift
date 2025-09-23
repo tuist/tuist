@@ -89,6 +89,7 @@ class ProjectGroups {
         project: Project,
         pbxproj: PBXProj
     ) -> ProjectGroups {
+        
         // Main
         let projectRelativePath = project.sourceRootPath.relative(to: project.xcodeProjPath.parentDirectory).pathString
         let textSettings = project.options.textSettings
@@ -102,6 +103,14 @@ class ProjectGroups {
             tabWidth: textSettings.tabWidth
         )
         pbxproj.add(object: mainGroup)
+        
+        // Products
+        // If the products group is the last non-empty group, it will not appear.
+        // This appears to be an Xcode bug that is still there as of Xcode 15.3
+        // https://developer.apple.com/forums/thread/77406
+        let productsGroup = PBXGroup(children: [], sourceTree: .group, name: "Products")
+        pbxproj.add(object: productsGroup)
+        mainGroup.children.append(productsGroup)
 
         // Project & Target Groups
         let projectGroupNames = extractProjectGroupNames(from: project)
@@ -113,14 +122,6 @@ class ProjectGroups {
             mainGroup.children.append(projectGroup)
             projectGroups.append((item, projectGroup))
         }
-
-        // Products
-        // If the products group is the last non-empty group, it will not appear.
-        // This appears to be an Xcode bug that is still there as of Xcode 15.3
-        // https://developer.apple.com/forums/thread/77406
-        let productsGroup = PBXGroup(children: [], sourceTree: .group, name: "Products")
-        pbxproj.add(object: productsGroup)
-        mainGroup.children.append(productsGroup)
 
         // SDSKs & Pre-compiled frameworks
         let frameworksGroup = PBXGroup(children: [], sourceTree: .group, name: "Frameworks")
