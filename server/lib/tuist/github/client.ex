@@ -41,6 +41,43 @@ defmodule Tuist.GitHub.Client do
   `repository_full_handle` is necessary as to interact with the user endpoint,
   we need to be authenticated with the GitHub app installation token associated with a specific repository.
   """
+  def get_installation_repositories(installation_id) do
+    case App.get_installation_token(installation_id) do
+      {:ok, %{token: token}} ->
+        url = "https://api.github.com/installation/repositories"
+
+        case Req.get(
+               url: url,
+               headers: default_headers(token),
+               finch: Tuist.Finch,
+               retry: &retry/2
+             ) do
+          {:ok, %{status: 200, body: %{"repositories" => repositories}}} ->
+            formatted_repos =
+              Enum.map(repositories, fn repo ->
+                %{
+                  id: repo["id"],
+                  name: repo["name"],
+                  full_name: repo["full_name"],
+                  private: repo["private"],
+                  default_branch: repo["default_branch"]
+                }
+              end)
+
+            {:ok, formatted_repos}
+
+          {:ok, %{status: status, body: body}} ->
+            {:error, "Failed to fetch repositories: #{status} - #{Jason.encode!(body)}"}
+
+          {:error, reason} ->
+            {:error, "Request failed: #{inspect(reason)}"}
+        end
+
+      {:error, reason} ->
+        {:error, "Failed to get installation token: #{reason}"}
+    end
+  end
+
   def get_user_by_id(%{id: github_id, repository_full_handle: repository_full_handle}) do
     url = "https://api.github.com/user/#{github_id}"
 

@@ -6,12 +6,17 @@ defmodule Tuist.Projects do
 
   alias Tuist.Accounts
   alias Tuist.Accounts.Account
+  alias Tuist.Accounts.GitHubAppInstallation
   alias Tuist.Accounts.ProjectAccount
   alias Tuist.Accounts.User
   alias Tuist.AppBuilds.Preview
   alias Tuist.Base64
   alias Tuist.CommandEvents
+  alias Tuist.GitHub.App
+  alias Tuist.GitHub.Client
+  alias Tuist.GitHubStateToken
   alias Tuist.Projects.Project
+  alias Tuist.Projects.ProjectConnection
   alias Tuist.Projects.ProjectToken
   alias Tuist.Repo
 
@@ -409,5 +414,134 @@ defmodule Tuist.Projects do
       nil -> {:error, :not_found}
       _ -> {:ok, project}
     end
+  end
+
+  ## Project Integrations
+
+  @doc """
+  Get or create GitHub app installation for an account.
+  """
+  def get_github_app_installation(%Account{id: account_id} = account) do
+    case Repo.one(from gi in GitHubAppInstallation, where: gi.account_id == ^account_id) do
+      nil ->
+        # Check if GitHub app is installed via API
+        case App.get_organization_installation(account.name) do
+          {:ok, installation} ->
+            # Create local record
+            attrs = %{
+              account_id: account_id,
+              installation_id: Integer.to_string(installation["id"])
+            }
+
+            case create_github_app_installation(attrs) do
+              {:ok, github_installation} -> {:ok, github_installation}
+              {:error, changeset} -> {:error, changeset}
+            end
+
+          {:error, reason} ->
+            {:error, reason}
+        end
+
+      github_installation ->
+        {:ok, github_installation}
+    end
+  end
+
+  @doc """
+  Create a GitHub app installation record.
+  """
+  def create_github_app_installation(attrs) do
+    %GitHubAppInstallation{}
+    |> GitHubAppInstallation.changeset(attrs)
+    |> Repo.insert()
+  end
+
+  @doc """
+  Delete a GitHub app installation record.
+  """
+  def delete_github_app_installation(%GitHubAppInstallation{} = github_app_installation) do
+    Repo.delete(github_app_installation)
+  end
+
+  @doc """
+  Get all repositories accessible through the GitHub app installation.
+  """
+  def get_github_repositories(%GitHubAppInstallation{installation_id: installation_id}) do
+    Client.get_installation_repositories(installation_id)
+  end
+
+  @doc """
+  Create a new project connection to a GitHub repository.
+  """
+  def create_project_connection(attrs) do
+    %ProjectConnection{}
+    |> ProjectConnection.changeset(attrs)
+    |> Repo.insert()
+  end
+
+  @doc """
+  Get all project connections for a given project.
+  """
+  def list_project_connections(%Project{id: project_id}) do
+    query = from pc in ProjectConnection, where: pc.project_id == ^project_id
+    Repo.all(query)
+  end
+
+  @doc """
+  Get all project connections for a given account.
+  """
+  def list_account_project_connections(%Account{id: account_id}, opts \\ []) do
+    preloads = Keyword.get(opts, :preload, [:project])
+    
+    query =
+      from pc in ProjectConnection,
+        join: p in Project,
+        on: pc.project_id == p.id,
+        where: p.account_id == ^account_id,
+        preload: ^preloads
+
+    Repo.all(query)
+  end
+
+  @doc """
+  Delete a project connection.
+  """
+  def delete_project_connection(%ProjectConnection{} = project_connection) do
+    Repo.delete(project_connection)
+  end
+
+  @doc """
+  Get a project connection by ID.
+  """
+  def get_project_connection(id) do
+    Repo.get(ProjectConnection, id)
+  end
+
+  @doc """
+  Check if a project is already connected to a specific repository.
+  """
+  def project_connected_to_repository?(project_id, provider, external_id) do
+    query =
+      from pc in ProjectConnection,
+        where: pc.project_id == ^project_id and pc.provider == ^provider and pc.external_id == ^external_id
+
+    Repo.exists?(query)
+  end
+
+  @doc """
+  Get GitHub app installation URL.
+  """
+  def get_github_app_installation_url do
+    app_name = Tuist.Environment.github_app_name()
+    "https://github.com/apps/#{app_name}/installations/select_target"
+  end
+
+  @doc """
+  Get GitHub app installation URL with encrypted state parameter for account-specific installation.
+  """
+  def get_github_app_installation_url(%Account{id: account_id}) do
+    app_name = Tuist.Environment.github_app_name()
+    state_token = GitHubStateToken.generate_token(account_id)
+    "https://github.com/apps/#{app_name}/installations/new?state=#{state_token}"
   end
 end

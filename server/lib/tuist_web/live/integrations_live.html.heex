@@ -1,0 +1,198 @@
+<div id="integrations">
+  <h1 data-part="title">{gettext("Integrations")}</h1>
+  <.card_section data-part="github-card-section">
+    <div data-part="header">
+      <span data-part="title">
+        {gettext("GitHub")}
+      </span>
+      <span data-part="subtitle">
+        {gettext("Connect any of your GitHub repositories to a project")}
+      </span>
+    </div>
+    <div data-part="content">
+      <div data-part="actions">
+        <.button
+          :if={is_nil(@github_app_installation)}
+          label={gettext("Install GitHub App")}
+          variant="primary"
+          href={Projects.get_github_app_installation_url(@selected_account)}
+        />
+        <.button
+          :if={not is_nil(@github_app_installation)}
+          label={gettext("Manage integration")}
+          variant="secondary"
+          href={"https://github.com/settings/installations/#{@github_app_installation.installation_id}"}
+          target="_blank"
+        >
+          <:icon_right><.external_link /></:icon_right>
+        </.button>
+        <.modal
+          :if={not is_nil(@github_app_installation)}
+          id="add-connection-modal"
+          description={
+            gettext(
+              "Your access to repositories depends on your GitHub and Tuist integration setup."
+            )
+          }
+          title={gettext("Choose repository to connect to")}
+          header_type="icon"
+          header_size="large"
+          on_dismiss="close-add-connection-modal"
+        >
+          <:trigger :let={attrs}>
+            <.button label={gettext("Add new project connection")} variant="primary" {attrs} />
+          </:trigger>
+          <:header_icon>
+            <.folder />
+          </:header_icon>
+          <.line_divider />
+          <div data-part="create-connection">
+            <.dropdown
+              id="project-dropdown"
+              label={get_selected_project_name(assigns) || gettext("Choose Tuist project")}
+            >
+              <:icon data-part="icon">
+                <.brand_tuist />
+              </:icon>
+              <.dropdown_item
+                :for={project <- get_available_projects(assigns)}
+                value={Integer.to_string(project.id)}
+                label={project.name}
+                phx-click="select-project"
+                phx-value-project_id={Integer.to_string(project.id)}
+              />
+            </.dropdown>
+            <div data-part="connection">
+              <div data-part="icon-container">
+                <div data-part="icon">
+                  <.s_turn_down />
+                </div>
+              </div>
+            </div>
+            <.dropdown
+              id="repository-dropdown"
+              label={
+                if @selected_repository do
+                  @selected_repository["full_name"]
+                else
+                  gettext("Choose a repository")
+                end
+              }
+            >
+              <:icon>
+                <.brand_github />
+              </:icon>
+              <.dropdown_item
+                :for={repo <- get_available_repositories(assigns)}
+                value={Jason.encode!(repo)}
+                label={repo.full_name}
+                phx-click="select-repository"
+                phx-value-repository={Jason.encode!(repo)}
+              />
+            </.dropdown>
+          </div>
+          <.line_divider />
+          <:footer>
+            <.modal_footer>
+              <:action>
+                <.button
+                  label={gettext("Cancel")}
+                  variant="secondary"
+                  phx-click="close-add-connection-modal"
+                />
+              </:action>
+              <:action>
+                <.button
+                  label={gettext("Create Connection")}
+                  variant="primary"
+                  phx-click="create-connection"
+                  disabled={is_nil(get_selected_project_id(assigns)) || is_nil(@selected_repository)}
+                />
+              </:action>
+            </.modal_footer>
+          </:footer>
+        </.modal>
+      </div>
+      <.card_section
+        :for={project_connection <- @project_connections}
+        data-part="connection-card-section"
+        data-value={project_connection.id}
+      >
+        <div data-part="header">
+          <div data-part="item">
+            <div data-part="icon">
+              <.brand_tuist />
+            </div>
+            <span data-part="label">{project_connection.project.name}</span>
+          </div>
+          <div data-part="icon">
+            <.arrows_exchange />
+          </div>
+          <div data-part="item">
+            <div data-part="icon">
+              <.brand_github />
+            </div>
+            <span data-part="label">{project_connection.repository_full_handle}</span>
+          </div>
+        </div>
+        <div data-part="footer">
+          <span data-part="subtitle">{get_connection_info(project_connection)}</span>
+          <.inline_dropdown id={"connection-actions-#{project_connection.id}"} label={gettext("Manage")}>
+            <.dropdown_item
+              label={gettext("Remove connection")}
+              value="remove"
+              phx-click="delete-connection"
+              phx-value-connection_id={project_connection.id}
+            >
+              <:left_icon><.trash_x /></:left_icon>
+            </.dropdown_item>
+          </.inline_dropdown>
+        </div>
+      </.card_section>
+    </div>
+  </.card_section>
+
+  <%!-- <.card data-part="github-integration-card" icon="package" title={gettext("GitHub")}>
+    <.card_section :if={length(@project_connections) > 0} data-part="connections-list-section">
+      <div data-part="header">
+        <span data-part="title">{gettext("Connected Projects")}</span>
+        <span data-part="subtitle">
+          {gettext("Projects currently connected to GitHub repositories")}
+        </span>
+      </div>
+      <.table id="connections-table" rows={@project_connections}>
+        <:col :let={connection} label={gettext("Project")}>
+          <.text_cell label={connection.project.name} />
+        </:col>
+        <:col :let={connection} label={gettext("Repository")}>
+          <.text_and_description_cell
+            label={connection.repository_full_handle}
+            description={gettext("GitHub Repository")}
+          />
+        </:col>
+        <:col :let={connection} label={gettext("Actions")}>
+          <.button
+            label={gettext("Disconnect")}
+            variant="secondary"
+            size="small"
+            phx-click="delete-connection"
+            phx-value-connection_id={connection.id}
+            data-confirm={gettext("Are you sure you want to disconnect this project?")}
+          />
+        </:col>
+      </.table>
+    </.card_section>
+
+    <.card_section
+      :if={length(@project_connections) == 0 and not is_nil(@github_app_installation)}
+      data-part="empty-state-section"
+    >
+      <div data-part="empty-state">
+        <span data-part="title">{gettext("No connections yet")}</span>
+        <span data-part="subtitle">
+          {gettext("Start by adding your first project connection")}
+        </span>
+      </div>
+    </.card_section>
+  </.card> --%>
+</div>
