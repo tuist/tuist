@@ -1,6 +1,6 @@
+import _NIOFileSystem
 import FileSystem
 import Foundation
-import NIOFileSystem
 import Path
 import ProjectDescription
 import TuistCore
@@ -290,7 +290,7 @@ public class CachedManifestLoader: ManifestLoading {
         }
         do {
             try await write(cachedManifestContent: cachedManifestContent, to: cachedManifestPath)
-        } catch let error as NIOFileSystem.FileSystemError {
+        } catch let error as _NIOFileSystem.FileSystemError {
             if error.code == .fileAlreadyExists {
                 Logger.current.debug("The manifest at \(cachedManifestPath) is already cached, skipping...")
             } else {
