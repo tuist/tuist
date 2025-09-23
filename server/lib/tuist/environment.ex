@@ -558,6 +558,28 @@ defmodule Tuist.Environment do
     end
   end
 
+  @doc """
+  Returns the bucket size for the authentication rate limiter.
+
+  This configures the maximum number of authentication requests allowed
+  in the rate limit window. The bucket size determines how many requests
+  can be made before rate limiting kicks in.
+
+  The default values are:
+  - 100 requests for canary environments (to allow higher throughput testing)
+  - 10 requests for other environments (production, staging, dev)
+
+  This can be overridden via:
+  - Environment variable: TUIST_AUTH_RATE_LIMIT_BUCKET_SIZE
+  - Secrets configuration: auth_rate_limit.bucket_size
+  """
+  def auth_rate_limit_bucket_size(secrets \\ secrets()) do
+    case get([:auth_rate_limit, :bucket_size], secrets) do
+      bucket_size when is_binary(bucket_size) -> String.to_integer(bucket_size)
+      _ -> if can?(), do: 100, else: 10
+    end
+  end
+
   def app_url(opts \\ [], secrets \\ secrets()) do
     path = opts |> Keyword.get(:path, "/") |> String.trim_trailing("/")
 
