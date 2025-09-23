@@ -233,7 +233,7 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.TUIST_GITHUB_TOKEN }}
       - name: Select Xcode
-        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
+        run: sudo xcode-select -switch /Applications/Xcode_16.4.app
       - uses: jdx/mise-action@v2
       - name: Initialize TuistCacheEE submodule
         env:
