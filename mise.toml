@@ -6,6 +6,9 @@
     sops = "3.9.3"
     age = "1.2.1"
 
+[hooks]
+    postinstall = "mise/tasks/install.sh"
+
 [env]
     _.file = { path = ".env.json", redact = true }
     TUIST_CACHE_CONCURRENCY_LIMIT="none"

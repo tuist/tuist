@@ -58,7 +58,6 @@ jobs:
           key: ${{ runner.os }}-cli-${{ hashFiles('Package.resolved') }}
           restore-keys: ${{ runner.os }}-cli-
       - uses: jdx/mise-action@v2
-      - run: tuist install
       - name: Lint
         run: mise run cli:lint
       - name: Save cache
@@ -83,7 +82,6 @@ jobs:
           key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved') }}
           restore-keys: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-
       - uses: jdx/mise-action@v2
-      - run: tuist install
       - name: Build
         run: swift build --configuration debug
       - name: Save cache
@@ -109,7 +107,6 @@ jobs:
           key: ${{ runner.os }}-cli-${{ hashFiles('Package.resolved') }}
           restore-keys: ${{ runner.os }}-cli-
       - uses: jdx/mise-action@v2
-      - run: tuist install
       - name: Cache
         run: tuist cache
       - name: Save cache
@@ -134,7 +131,6 @@ jobs:
           key: ${{ runner.os }}-cli-${{ hashFiles('Package.resolved') }}
           restore-keys: ${{ runner.os }}-cli-
       - uses: jdx/mise-action@v2
-      - run: tuist install
       - name: Run tests
         run: mise x -- tuist test TuistUnitTests
       - name: Save cache
@@ -160,7 +156,6 @@ jobs:
           key: ${{ runner.os }}-cli-${{ hashFiles('Package.resolved') }}
           restore-keys: ${{ runner.os }}-cli-
       - uses: jdx/mise-action@v2
-      - run: tuist install
       - name: Skip Xcode Macro Fingerprint Validation
         run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
       - name: Skip Xcode Package Validation
@@ -192,7 +187,6 @@ jobs:
           key: ${{ runner.os }}-cli-${{ hashFiles('Package.resolved') }}
           restore-keys: ${{ runner.os }}-cli-
       - uses: jdx/mise-action@v2
-      - run: tuist install
       - name: Skip Xcode Macro Fingerprint Validation
         run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
       - name: Skip Xcode Package Validation
@@ -231,7 +225,6 @@ jobs:
           key: ${{ runner.os }}-cli-${{ hashFiles('Package.resolved') }}
           restore-keys: ${{ runner.os }}-cli-
       - uses: jdx/mise-action@v2
-      - run: tuist install
       - name: Skip Xcode Macro Fingerprint Validation
         run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
       - name: Skip Xcode Package Validation
@@ -263,7 +256,6 @@ jobs:
           key: ${{ runner.os }}-cli-${{ hashFiles('Package.resolved') }}
           restore-keys: ${{ runner.os }}-cli-
       - uses: jdx/mise-action@v2
-      - run: tuist install
       - name: Skip Xcode Macro Fingerprint Validation
         run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
       - name: Skip Xcode Package Validation
