@@ -89,7 +89,6 @@ class ProjectGroups {
         project: Project,
         pbxproj: PBXProj
     ) -> ProjectGroups {
-        
         // Main
         let projectRelativePath = project.sourceRootPath.relative(to: project.xcodeProjPath.parentDirectory).pathString
         let textSettings = project.options.textSettings
@@ -103,7 +102,7 @@ class ProjectGroups {
             tabWidth: textSettings.tabWidth
         )
         pbxproj.add(object: mainGroup)
-        
+
         // Products
         // If the products group is the last non-empty group, it will not appear.
         // This appears to be an Xcode bug that is still there as of Xcode 15.3
