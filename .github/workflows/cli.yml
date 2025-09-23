@@ -80,8 +80,8 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .build
-          key: ${{ runner.os }}-cli-${{ hashFiles('Package.resolved') }}
-          restore-keys: ${{ runner.os }}-cli-
+          key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved') }}
+          restore-keys: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-
       - uses: jdx/mise-action@v2
       - run: tuist install
       - name: Build
