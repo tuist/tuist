@@ -84,7 +84,6 @@ jobs:
           key: ${{ runner.os }}-cli-cache-ee-${{ hashFiles('Package.resolved') }}
           restore-keys: ${{ runner.os }}-cli-
       - uses: jdx/mise-action@v2
-      - name: Install dependencies
       - name: Initialize TuistCacheEE submodule
         env:
           TUIST_GITHUB_TOKEN: ${{ secrets.TUIST_GITHUB_TOKEN }}
