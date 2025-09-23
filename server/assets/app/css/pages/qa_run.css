@@ -12,6 +12,10 @@
     width: 100%;
   }
 
+  & .noora-dropdown-item:not([data-selected]) svg {
+    visibility: hidden;
+  }
+
   & > [data-part="action-buttons"] {
     display: flex;
     justify-content: space-between;
@@ -580,9 +584,29 @@
             align-items: center;
             gap: var(--noora-spacing-4);
           }
-          & > [data-part="steps-counter"] {
-            color: var(--noora-surface-label-primary);
-            font: var(--noora-font-weight-regular) var(--noora-font-code-medium);
+
+          & > [data-part="playback-right-section"] {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            gap: var(--noora-spacing-4);
+
+            & > .noora-inline-dropdown {
+              & > [data-part="trigger"] {
+                & > [data-part="label"] {
+                  color: var(--noora-surface-label-primary);
+                }
+
+                & > [data-part="icon"] {
+                  color: var(--noora-surface-label-primary);
+                }
+              }
+            }
+
+            & > [data-part="steps-counter"] {
+              color: var(--noora-surface-label-primary);
+              font: var(--noora-font-weight-regular) var(--noora-font-code-medium);
+            }
           }
         }
 

@@ -1,6 +1,17 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.78.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* add default.metallib in static framework by [@bilousoleksandr](https://github.com/bilousoleksandr) in [#8207](https://github.com/tuist/tuist/pull/8207)
+
+## New Contributors
+* [@bilousoleksandr](https://github.com/bilousoleksandr) made their first contribution in [#8207](https://github.com/tuist/tuist/pull/8207)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.78.0...4.78.1
+
 ## What's Changed in 4.78.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features

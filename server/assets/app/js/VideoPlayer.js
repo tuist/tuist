@@ -41,6 +41,13 @@ export default {
     };
     window.addEventListener("phx:seek-video", this.handleSeekVideo);
 
+    this.handleSetPlaybackSpeed = (event) => {
+      if (event.detail.id == this.el.id) {
+        this.el.playbackRate = event.detail.speed;
+      }
+    };
+    window.addEventListener("phx:set-playback-speed", this.handleSetPlaybackSpeed);
+
     this.setupDraggablePlayhead();
   },
 
@@ -205,6 +212,7 @@ export default {
 
     window.removeEventListener("phx:play-pause-toggle", this.handlePlayPauseToggle);
     window.removeEventListener("phx:seek-video", this.handleSeekVideo);
+    window.removeEventListener("phx:set-playback-speed", this.handleSetPlaybackSpeed);
 
     const playheadArea = document.querySelector("#playhead-area");
     playheadArea.removeEventListener("mousedown", this.handleMouseDown);
