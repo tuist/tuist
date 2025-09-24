@@ -39,7 +39,7 @@ struct XcodeBuildTestCommandServiceTests {
             .willReturn(.test())
         given(xcodeBuildController)
             .run(arguments: .any)
-            .willReturn()
+            .willReturn(Data())
         given(cacheStorage)
             .store(.any, cacheCategory: .any)
             .willReturn()
