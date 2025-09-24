@@ -80,6 +80,7 @@ final class ProjectMapperFactoryTests: TuistUnitTestCase {
         // When
         let got = subject.automation(
             skipUITests: true,
+            skipUnitTests: false,
             tuist: .default
         )
 
@@ -91,10 +92,35 @@ final class ProjectMapperFactoryTests: TuistUnitTestCase {
         // When
         let got = subject.automation(
             skipUITests: false,
+            skipUnitTests: false,
             tuist: .default
         )
 
         // Then
         XCTAssertDoesntContainElementOfType(got, SkipUITestsProjectMapper.self)
+    }
+    
+    func test_automation_contains_the_skip_unit_tests_mapper_when_skip_unit_tests_is_true() {
+        // When
+        let got = subject.automation(
+            skipUITests: false,
+            skipUnitTests: true,
+            tuist: .default
+        )
+
+        // Then
+        XCTAssertContainsElementOfType(got, SkipUnitTestsProjectMapper.self)
+    }
+
+    func test_automation_doesnt_contain_the_skip_unit_tests_mapper_when_skip_unit_tests_is_false() {
+        // When
+        let got = subject.automation(
+            skipUITests: false,
+            skipUnitTests: false,
+            tuist: .default
+        )
+
+        // Then
+        XCTAssertDoesntContainElementOfType(got, SkipUnitTestsProjectMapper.self)
     }
 }
