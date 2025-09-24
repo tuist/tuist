@@ -34,6 +34,29 @@ struct BuildAcceptanceTests {
     }
 
     @Test(
+        .withFixture("ios_app_with_framework_buildable_folders_and_xcassets"),
+        .inTemporaryDirectory,
+        .withMockedEnvironment()
+    ) func ios_app_with_framework_buildable_folders_and_xcassets() async throws {
+        // Given
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+
+        // When/Then
+        try await TuistTest.run(GenerateCommand.self, ["--path", fixtureDirectory.pathString, "--no-open"])
+        try await TuistTest.run(
+            BuildCommand.self,
+            [
+                "App",
+                "--path",
+                fixtureDirectory.pathString,
+                "--derived-data-path",
+                temporaryDirectory.pathString,
+            ]
+        )
+    }
+
+    @Test(
         .withFixture("app_with_buildable_folders"),
         .inTemporaryDirectory,
         .withMockedEnvironment()
