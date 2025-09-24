@@ -11,7 +11,7 @@ services:
     dockerfilePath: ./Dockerfile
     dockerCommand: /app/bin/start
     autoDeployTrigger: "off"
-    plan: pro
+    plan: pro plus
     numInstances: 2
     envVars:
       - key: MASTER_KEY
@@ -92,4 +92,3 @@ services:
 
   - <<: *redis-base
     name: redis-staging
-
