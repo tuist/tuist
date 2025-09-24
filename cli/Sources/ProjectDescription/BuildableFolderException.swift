@@ -32,8 +32,8 @@ public struct BuildableFolderException: Sendable, Codable, Equatable, Hashable {
     public static func exception(
         excluded: [String] = [],
         compilerFlags: [String: String] = [:],
-        publicHeaders: [String],
-        privateHeaders: [String]
+        publicHeaders: [String] = [],
+        privateHeaders: [String] = []
     ) -> BuildableFolderException {
         BuildableFolderException(
             excluded: excluded,

@@ -29,7 +29,9 @@ let project = Project(
             bundleId: "dev.tuist.Framework",
             buildableFolders: [
                 "Framework/Resources",
-                "Framework/Sources",
+                .folder("Framework/Sources", exceptions: .exceptions([
+                    .exception(publicHeaders: ["Framework.h"]),
+                ])),
             ]
         ),
         .target(
