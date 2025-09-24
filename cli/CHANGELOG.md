@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.79.3<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* Fix synthesized bundle interfaces not generated for `.xcassets` in buildable folders by [@pepicrft](https://github.com/pepicrft) in [#8292](https://github.com/tuist/tuist/pull/8292)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.79.2...4.79.3
+
 ## What's Changed in 4.79.2<!-- RELEASE NOTES START -->
 
 ### 🧪 Testing
