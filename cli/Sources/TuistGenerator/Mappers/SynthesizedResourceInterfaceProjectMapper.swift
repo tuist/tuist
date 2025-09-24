@@ -71,8 +71,7 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
 
     /// Map and generate resource interfaces for a given `Target` and `Project`
     private func mapTarget(_ target: Target, project: Project) throws -> (Target, [SideEffectDescriptor]) {
-        let resourcesForSynthesizersPaths = target.resources.resources
-            .map(\.path) + target.coreDataModels.map(\.path)
+        let resourcesForSynthesizersPaths = resourcePaths(target)
         guard !resourcesForSynthesizersPaths.isEmpty, target.supportsSources else { return (target, []) }
 
         var target = target
@@ -155,8 +154,7 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
         target: Target,
         developmentRegion: String?
     ) -> [AbsolutePath] {
-        let resourcesPaths = target.resources.resources
-            .map(\.path) + target.coreDataModels.map(\.path)
+        let resourcesPaths = resourcePaths(target)
 
         var paths = resourcesPaths
             .filter { $0.extension.map(resourceSynthesizer.extensions.contains) ?? false }
@@ -216,6 +214,19 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
             "Skipping synthesizing accessors for \(path.pathString) because its contents are empty."
         )
         return false
+    }
+
+    private func resourcePaths(_ target: Target) -> [AbsolutePath] {
+        let resourcePaths = target.resources.resources.map(\.path)
+        let coreDataModelPaths = target.coreDataModels.map(\.path)
+        let extensions = Target.validResourceCompatibleFolderExtensions + Target.validResourceExtensions
+        let buildableFolderResources = target.buildableFolders.flatMap { buildableFolder in
+            return buildableFolder.resolvedFiles.compactMap { buildableFolderFile -> AbsolutePath? in
+                guard extensions.contains(buildableFolderFile.path.extension ?? "") else { return nil }
+                return buildableFolderFile.path
+            }
+        }
+        return resourcePaths + coreDataModelPaths + buildableFolderResources
     }
 
     private func templateString(for parser: ResourceSynthesizer.Parser) throws -> String {

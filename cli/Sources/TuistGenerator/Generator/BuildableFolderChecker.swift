@@ -26,8 +26,9 @@ public struct BuildableFolderChecker: BuildableFolderChecking {
     }
 
     public func containsResources(_ folders: [XcodeGraph.BuildableFolder]) async throws -> Bool {
+        let extensions = Target.validResourceExtensions + Target.validResourceCompatibleFolderExtensions
         for folder in folders {
-            if folder.resolvedFiles.first(where: { Target.validResourceExtensions.contains($0.path.extension ?? "") }) != nil {
+            if folder.resolvedFiles.first(where: { extensions.contains($0.path.extension ?? "") }) != nil {
                 return true
             }
         }
