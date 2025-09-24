@@ -423,7 +423,11 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
             playgrounds: ["/project/MyPlayground.playground"],
             additionalFiles: [.file(path: try AbsolutePath(validating: "/project/README.md"))],
             buildableFolders: [
-                BuildableFolder(path: "/project/buildable", exceptions: BuildableFolderExceptions(exceptions: [])),
+                BuildableFolder(
+                    path: "/project/buildable",
+                    exceptions: BuildableFolderExceptions(exceptions: []),
+                    resolvedFiles: []
+                ),
             ]
         )
 

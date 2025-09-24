@@ -1,5 +1,5 @@
 {
-  "originHash" : "c00f0a9c702665cd31a280a40795a9264cf23490eabb69ee95bdbd0e23c05267",
+  "originHash" : "f1e3699662bc34c16448e8c73e2630c51bc2772ad9d1255b5fae9c250db072ce",
   "pins" : [
     {
       "identity" : "aexml",
@@ -159,8 +159,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/p-x9/MachOKit",
       "state" : {
-        "revision" : "954f8ad0b5abb8ebcacb36238765559cde10caa2",
-        "version" : "0.38.0"
+        "revision" : "fc1f2646220b3ce9db2e415b6b8848f5a89ed865",
+        "version" : "0.39.0"
       }
     },
     {
@@ -537,8 +537,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tuist/XcodeGraph",
       "state" : {
-        "revision" : "d0f9ced36922ba84eede839d5e766cec85703588",
-        "version" : "1.21.0"
+        "branch" : "buildable-folder-exceptions",
+        "revision" : "5bf9838b293b8a6461a069c43e786a1979dbb077"
       }
     },
     {

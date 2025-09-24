@@ -173,7 +173,8 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         let resources: [ResourceFileElement] = [.file(path: "/image.png")]
         let buildableFolders = [BuildableFolder(
             path: try AbsolutePath(validating: "/sources"),
-            exceptions: BuildableFolderExceptions(exceptions: [])
+            exceptions: BuildableFolderExceptions(exceptions: []),
+            resolvedFiles: []
         )]
         let target = Target.test(
             product: .staticLibrary,
@@ -232,11 +233,13 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         let buildableFolders = [
             BuildableFolder(
                 path: try AbsolutePath(validating: "/sources"),
-                exceptions: BuildableFolderExceptions(exceptions: [])
+                exceptions: BuildableFolderExceptions(exceptions: []),
+                resolvedFiles: []
             ),
             BuildableFolder(
                 path: try AbsolutePath(validating: "/resources"),
-                exceptions: BuildableFolderExceptions(exceptions: [])
+                exceptions: BuildableFolderExceptions(exceptions: []),
+                resolvedFiles: []
             ),
         ]
         let target = Target.test(

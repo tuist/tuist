@@ -90,13 +90,17 @@ final class TargetManifestMapperTests: TuistUnitTestCase {
         XCTAssertEqual(
             got.buildableFolders,
             [
-                BuildableFolder(path: buildableSources, exceptions: [
-                    BuildableFolderException(excluded: [
-                        try generatorPaths.resolve(path: "Sources/excluded.swift"),
-                    ], compilerFlags: [
-                        try generatorPaths.resolve(path: "Sources/flags.swift"): "-print-stats",
-                    ]),
-                ]),
+                BuildableFolder(
+                    path: buildableSources,
+                    exceptions: [
+                        BuildableFolderException(excluded: [
+                            try generatorPaths.resolve(path: "Sources/excluded.swift"),
+                        ], compilerFlags: [
+                            try generatorPaths.resolve(path: "Sources/flags.swift"): "-print-stats",
+                        ]),
+                    ],
+                    resolvedFiles: []
+                ),
             ]
         )
     }

@@ -34,7 +34,7 @@ struct TargetGeneratorTests {
                         excluded: [path.appending(components: ["Sources", "Excluded.swift"])],
                         compilerFlags: [path.appending(components: ["Sources", "CompilerFlags.swift"]): "-print-stats"]
                     ),
-                ])),
+                ]), resolvedFiles: []),
             ]
         )
         let project = Project.test(

@@ -1,7 +1,7 @@
 import FileSystem
 import Mockable
-import XcodeGraph
 import Path
+import XcodeGraph
 
 @Mockable
 public protocol BuildableFolderChecking {
@@ -37,10 +37,11 @@ public struct BuildableFolderChecker: BuildableFolderChecking {
         }
         return false
     }
-    
+
     private func resolve(_ folder: XcodeGraph.BuildableFolder, extensions: [String]) async throws -> Set<AbsolutePath> {
         Set(try await fileSystem.glob(directory: folder.path, include: extensions.map { "**/*.\($0)" })
-            .collect())
-            .subtracting(folder.exceptions.flatMap({ $0.excluded }))
+            .collect()
+        )
+        .subtracting(folder.exceptions.flatMap(\.excluded))
     }
 }

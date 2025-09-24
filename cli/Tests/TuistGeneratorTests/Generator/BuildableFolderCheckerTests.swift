@@ -13,7 +13,8 @@ struct BuildableFolderCheckerTests {
 
         let got = try await subject.containsSources([BuildableFolder(
             path: temporaryDirectory,
-            exceptions: BuildableFolderExceptions(exceptions: [])
+            exceptions: BuildableFolderExceptions(exceptions: []),
+            resolvedFiles: []
         )])
 
         #expect(got == true)
@@ -25,7 +26,8 @@ struct BuildableFolderCheckerTests {
 
         let got = try await subject.containsSources([BuildableFolder(
             path: temporaryDirectory,
-            exceptions: BuildableFolderExceptions(exceptions: [])
+            exceptions: BuildableFolderExceptions(exceptions: []),
+            resolvedFiles: []
         )])
 
         #expect(got == false)
@@ -37,7 +39,8 @@ struct BuildableFolderCheckerTests {
 
         let got = try await subject.containsResources([BuildableFolder(
             path: temporaryDirectory,
-            exceptions: BuildableFolderExceptions(exceptions: [])
+            exceptions: BuildableFolderExceptions(exceptions: []),
+            resolvedFiles: []
         )])
 
         #expect(got == true)
@@ -49,7 +52,8 @@ struct BuildableFolderCheckerTests {
 
         let got = try await subject.containsResources([BuildableFolder(
             path: temporaryDirectory,
-            exceptions: BuildableFolderExceptions(exceptions: [])
+            exceptions: BuildableFolderExceptions(exceptions: []),
+            resolvedFiles: []
         )])
 
         #expect(got == false)

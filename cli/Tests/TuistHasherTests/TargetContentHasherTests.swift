@@ -155,13 +155,15 @@ struct TargetContentHasherTests {
                 path: try AbsolutePath(validating: "/test/Resources"),
                 exceptions: BuildableFolderExceptions(exceptions: [
                     BuildableFolderException(excluded: [], compilerFlags: [:]),
-                ])
+                ]),
+                resolvedFiles: []
             ),
             BuildableFolder(
                 path: try AbsolutePath(validating: "/test/Sources"),
                 exceptions: BuildableFolderExceptions(exceptions: [
                     BuildableFolderException(excluded: [], compilerFlags: [:]),
-                ])
+                ]),
+                resolvedFiles: []
             ),
         ]), project: .test())
 
