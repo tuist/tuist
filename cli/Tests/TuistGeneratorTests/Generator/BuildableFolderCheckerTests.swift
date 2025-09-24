@@ -9,12 +9,13 @@ struct BuildableFolderCheckerTests {
 
     @Test(.inTemporaryDirectory) func containsSources_when_containsSources() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        try await fileSystem.touch(temporaryDirectory.appending(component: "File.swift"))
+        let sourceFilePath = temporaryDirectory.appending(component: "File.swift")
+        try await fileSystem.touch(sourceFilePath)
 
         let got = try await subject.containsSources([BuildableFolder(
             path: temporaryDirectory,
             exceptions: BuildableFolderExceptions(exceptions: []),
-            resolvedFiles: []
+            resolvedFiles: [BuildableFolderFile(path: sourceFilePath, compilerFlags: nil)]
         )])
 
         #expect(got == true)
@@ -22,12 +23,13 @@ struct BuildableFolderCheckerTests {
 
     @Test(.inTemporaryDirectory) func containsSources_when_doesntContainSources() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        try await fileSystem.touch(temporaryDirectory.appending(component: "File.xcstrings"))
+        let xccstringFile = temporaryDirectory.appending(component: "File.xcstrings")
+        try await fileSystem.touch(xccstringFile)
 
         let got = try await subject.containsSources([BuildableFolder(
             path: temporaryDirectory,
             exceptions: BuildableFolderExceptions(exceptions: []),
-            resolvedFiles: []
+            resolvedFiles: [BuildableFolderFile(path: xccstringFile, compilerFlags: nil)]
         )])
 
         #expect(got == false)
@@ -35,12 +37,13 @@ struct BuildableFolderCheckerTests {
 
     @Test(.inTemporaryDirectory) func containsResources_when_containsResources() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        try await fileSystem.touch(temporaryDirectory.appending(component: "File.xcstrings"))
+        let resourceFilePath = temporaryDirectory.appending(component: "File.xcstrings")
+        try await fileSystem.touch(resourceFilePath)
 
         let got = try await subject.containsResources([BuildableFolder(
             path: temporaryDirectory,
             exceptions: BuildableFolderExceptions(exceptions: []),
-            resolvedFiles: []
+            resolvedFiles: [BuildableFolderFile(path: resourceFilePath, compilerFlags: nil)]
         )])
 
         #expect(got == true)
@@ -48,12 +51,13 @@ struct BuildableFolderCheckerTests {
 
     @Test(.inTemporaryDirectory) func containsResources_when_doesntContainResources() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        try await fileSystem.touch(temporaryDirectory.appending(component: "File.swift"))
+        let sourceFilePath = temporaryDirectory.appending(component: "File.swift")
+        try await fileSystem.touch(sourceFilePath)
 
         let got = try await subject.containsResources([BuildableFolder(
             path: temporaryDirectory,
             exceptions: BuildableFolderExceptions(exceptions: []),
-            resolvedFiles: []
+            resolvedFiles: [BuildableFolderFile(path: sourceFilePath, compilerFlags: nil)]
         )])
 
         #expect(got == false)

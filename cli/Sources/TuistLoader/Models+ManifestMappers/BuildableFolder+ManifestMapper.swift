@@ -12,7 +12,7 @@ extension XcodeGraph.BuildableFolder {
         let path = try generatorPaths.resolve(path: manifest.path)
         let exceptions = try XcodeGraph.BuildableFolderExceptions.from(
             manifest: manifest.exceptions,
-            generatorPaths: generatorPaths
+            buildableFolder: path
         )
         let exclusions = Set(exceptions.flatMap(\.excluded))
         let compilerFlagsByPath = Dictionary(uniqueKeysWithValues: exceptions.flatMap(\.compilerFlags))

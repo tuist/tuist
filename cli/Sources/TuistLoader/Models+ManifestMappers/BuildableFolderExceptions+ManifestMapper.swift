@@ -1,4 +1,5 @@
 import Foundation
+import Path
 import ProjectDescription
 import TuistCore
 import XcodeGraph
@@ -6,10 +7,10 @@ import XcodeGraph
 extension XcodeGraph.BuildableFolderExceptions {
     static func from(
         manifest: ProjectDescription.BuildableFolderExceptions,
-        generatorPaths: GeneratorPaths
+        buildableFolder: AbsolutePath
     ) throws -> Self {
         return Self(exceptions: try manifest.exceptions.map {
-            try XcodeGraph.BuildableFolderException.from(manifest: $0, generatorPaths: generatorPaths)
+            try XcodeGraph.BuildableFolderException.from(manifest: $0, buildableFolder: buildableFolder)
         })
     }
 }
