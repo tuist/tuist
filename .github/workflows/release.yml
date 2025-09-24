@@ -151,6 +151,19 @@ jobs:
           # Get the latest server version tag
           LATEST_VERSION=$(git tag -l | grep -E "^server@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
 
+          # Skip server release if only encrypted secrets under server/priv/secrets changed
+          if [ -n "$LATEST_VERSION" ]; then
+            CHANGED_SERVER_FILES=$(git diff --name-only ${LATEST_VERSION}..HEAD | grep '^server/' || true)
+            NON_SECRET_CHANGES=$(echo "$CHANGED_SERVER_FILES" | grep -vE '^server/priv/secrets/.*' || true)
+            if [ -n "$CHANGED_SERVER_FILES" ] && [ -z "$NON_SECRET_CHANGES" ]; then
+              echo "Only changes under server/priv/secrets detected; skipping Server release bump"
+              echo "should-release=false" >> "$GITHUB_OUTPUT"
+              echo "next-version=${LATEST_VERSION}" >> "$GITHUB_OUTPUT"
+              echo "next-version-number=${LATEST_VERSION#server@}" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          fi
+
           # Check if there are any releasable changes by generating changelog
           if [ -n "$LATEST_VERSION" ]; then
             CHANGELOG=$(git cliff --include-path "server/**/*" --config server/cliff.toml --repository "." 2>/dev/null -- ${LATEST_VERSION}..HEAD || echo "")
