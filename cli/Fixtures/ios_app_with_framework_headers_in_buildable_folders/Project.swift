@@ -13,7 +13,7 @@ let project = Project(
                     "UILaunchScreen": [
                         "UIColorName": "",
                         "UIImageName": "",
-                    ]
+                    ],
                 ]
             ),
             buildableFolders: [
@@ -39,7 +39,7 @@ let project = Project(
             bundleId: "dev.tuist.TuistAppTests",
             infoPlist: .default,
             buildableFolders: [
-                "App/Tests"
+                "App/Tests",
             ],
             dependencies: [.target(name: "App")]
         ),

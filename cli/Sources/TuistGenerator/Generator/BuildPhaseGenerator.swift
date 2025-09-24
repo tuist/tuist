@@ -56,7 +56,6 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
     init(buildableFolderChecker: BuildableFolderChecking = BuildableFolderChecker()) {
         self.buildableFolderChecker = buildableFolderChecker
     }
-    
 
     // swiftlint:disable:next function_body_length
     func generateBuildPhases(
@@ -191,7 +190,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
             pbxproj: pbxproj
         )
     }
-    
+
     fileprivate func shouldAddHeadersBuildPhase(_ target: Target) -> Bool {
         guard target.shouldIncludeHeadersBuildPhase else { return false }
         for buildableFolder in target.buildableFolders {
@@ -362,7 +361,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
             }
             return PBXBuildFile(file: fileReference, settings: settings)
         }
-        if let headers = headers {
+        if let headers {
             let pbxBuildFiles = try headers.private.sorted().map { try addHeader($0, "private") } +
                 headers.public.sorted().map { try addHeader($0, "public") } +
                 headers.project.sorted().map { try addHeader($0, nil) }
