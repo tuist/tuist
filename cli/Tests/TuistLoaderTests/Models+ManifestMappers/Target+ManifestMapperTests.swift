@@ -31,20 +31,28 @@ final class TargetManifestMapperTests: TuistUnitTestCase {
         // Given
         let rootDirectory = try temporaryPath()
         let sourcesDirectory = rootDirectory.appending(component: "Sources")
-        let buildableSources = rootDirectory.appending(component: "BuildableSources")
-        let buildableSourceFile = buildableSources.appending(component: "buildable.swift")
+        let buildableSourcesDirectory = rootDirectory.appending(component: "BuildableSources")
+        let buildableSourceFile = buildableSourcesDirectory.appending(component: "buildable.swift")
+        let buildableExcludedFile = buildableSourcesDirectory.appending(component: "excluded.swift")
+        let buildableFlagsFile = buildableSourcesDirectory.appending(component: "flags.swift")
         let firstDirectory = sourcesDirectory.appending(component: "first")
         let secondDirectory = firstDirectory.appending(component: "second")
         let secondSourceFile = secondDirectory.appending(component: "second.swift")
         let secondExcludedSourceFile = secondDirectory.appending(component: "second-exclude.swift")
         try await fileSystem.makeDirectory(at: sourcesDirectory)
-        try await fileSystem.makeDirectory(at: buildableSources)
+        try await fileSystem.makeDirectory(at: buildableSourcesDirectory)
         try await fileSystem.makeDirectory(at: firstDirectory)
         try await fileSystem.makeDirectory(at: secondDirectory)
         try await fileSystem.touch(secondSourceFile)
         try await fileSystem.touch(secondExcludedSourceFile)
         try await fileSystem.touch(buildableSourceFile)
+        try await fileSystem.touch(buildableExcludedFile)
+        try await fileSystem.touch(buildableFlagsFile)
         let scriptOutputFile = rootDirectory.appending(component: "Scripts").appending(component: "file.swift")
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: try temporaryPath(),
+            rootDirectory: rootDirectory
+        )
 
         // When
         let got = try await XcodeGraph.Target.from(
@@ -65,12 +73,11 @@ final class TargetManifestMapperTests: TuistUnitTestCase {
                     order: .pre,
                     outputPaths: ["Scripts/file.swift"]
                 )],
-                buildableFolders: [.folder("BuildableSources")],
+                buildableFolders: [.folder("BuildableSources", exceptions: .exceptions([
+                    .exception(excluded: ["excluded.swift"], compilerFlags: ["flags.swift": "-print-stats"]),
+                ]))],
             ),
-            generatorPaths: GeneratorPaths(
-                manifestDirectory: try temporaryPath(),
-                rootDirectory: rootDirectory
-            ),
+            generatorPaths: generatorPaths,
             externalDependencies: [:],
             fileSystem: fileSystem,
             type: .local
@@ -87,7 +94,20 @@ final class TargetManifestMapperTests: TuistUnitTestCase {
         XCTAssertEqual(
             got.buildableFolders,
             [
-                BuildableFolder(path: buildableSources),
+                BuildableFolder(
+                    path: buildableSourcesDirectory,
+                    exceptions: [
+                        BuildableFolderException(excluded: [
+                            try generatorPaths.resolve(path: "BuildableSources/excluded.swift"),
+                        ], compilerFlags: [
+                            try generatorPaths.resolve(path: "BuildableSources/flags.swift"): "-print-stats",
+                        ]),
+                    ],
+                    resolvedFiles: [
+                        BuildableFolderFile(path: buildableFlagsFile, compilerFlags: "-print-stats"),
+                        BuildableFolderFile(path: buildableSourceFile, compilerFlags: nil),
+                    ]
+                ),
             ]
         )
     }

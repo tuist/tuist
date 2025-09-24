@@ -1,5 +1,6 @@
 import FileSystem
 import Mockable
+import Path
 import XcodeGraph
 
 @Mockable
@@ -17,9 +18,7 @@ public struct BuildableFolderChecker: BuildableFolderChecking {
 
     public func containsSources(_ folders: [XcodeGraph.BuildableFolder]) async throws -> Bool {
         for folder in folders {
-            if !(try await fileSystem.glob(directory: folder.path, include: Target.validSourceExtensions.map { "**/*.\($0)" })
-                .collect().isEmpty
-            ) {
+            if folder.resolvedFiles.first(where: { Target.validSourceExtensions.contains($0.path.extension ?? "") }) != nil {
                 return true
             }
         }
@@ -28,9 +27,7 @@ public struct BuildableFolderChecker: BuildableFolderChecking {
 
     public func containsResources(_ folders: [XcodeGraph.BuildableFolder]) async throws -> Bool {
         for folder in folders {
-            if !(try await fileSystem.glob(directory: folder.path, include: Target.validResourceExtensions.map { "**/*.\($0)" })
-                .collect().isEmpty
-            ) {
+            if folder.resolvedFiles.first(where: { Target.validResourceExtensions.contains($0.path.extension ?? "") }) != nil {
                 return true
             }
         }

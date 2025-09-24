@@ -188,7 +188,7 @@ final class ManifestLoaderTests: TuistTestCase {
         )
 
         // When
-        let got = try await subject.loadPackageSettings(at: temporaryPath, disableSandbox: false)
+        let got = try await subject.loadPackageSettings(at: temporaryPath, disableSandbox: true)
 
         // Then
         XCTAssertEqual(
