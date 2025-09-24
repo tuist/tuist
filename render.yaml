@@ -25,7 +25,7 @@ services:
       - key: TUIST_USE_SSL_FOR_DATABASE
         value: 1
       - key: TUIST_DATABASE_POOL_SIZE
-        value: 10
+        value: 20
       - key: TUIST_S3_POOL_COUNT
         value: 1
       - key: TUIST_S3_POOL_SIZE
