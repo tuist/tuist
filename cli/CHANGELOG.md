@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.79.4<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* Add support for headers in buildable folders by [@pepicrft](https://github.com/pepicrft) in [#8298](https://github.com/tuist/tuist/pull/8298)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.79.3...4.79.4
+
 ## What's Changed in 4.79.3<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
