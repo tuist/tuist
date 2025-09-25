@@ -163,7 +163,6 @@ defmodule Tuist.VCS.Workers.CommentWorkerTest do
         job_args
         |> CommentWorker.new(queue: "default")
         |> Tuist.Repo.insert()
-        |> dbg()
 
       # Update the job state to "executing" to simulate a running job
       {:ok, competing_job} =

@@ -1,11 +1,18 @@
 defmodule TuistWeb.API.RunsControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: false
+  use Mimic
 
   alias Tuist.Runs.Build
+  alias Tuist.VCS
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistWeb.Authentication
+
+  setup do
+    stub(VCS, :enqueue_vcs_pull_request_comment, fn _args -> {:ok, %{}} end)
+    :ok
+  end
 
   describe "GET /api/projects/:account_handle/:project_handle/runs" do
     setup %{conn: conn} do
