@@ -2010,4 +2010,28 @@ defmodule Tuist.QATest do
       assert {:error, :not_found} = result
     end
   end
+
+  describe "enqueue_test_worker/1" do
+    test "enqueues TestWorker job with correct qa_run_id" do
+      # Given
+      qa_run = QAFixtures.qa_run_fixture()
+
+      expect(Tuist.QA.Workers.TestWorker, :new, fn args ->
+        assert args == %{"qa_run_id" => qa_run.id}
+        %Oban.Job{args: args, worker: "Tuist.QA.Workers.TestWorker"}
+      end)
+
+      expect(Oban, :insert, fn %Oban.Job{args: args} ->
+        assert args == %{"qa_run_id" => qa_run.id}
+        {:ok, %Oban.Job{id: 1, args: args}}
+      end)
+
+      # When
+      result = QA.enqueue_test_worker(qa_run)
+
+      # Then
+      assert {:ok, %Oban.Job{id: 1, args: %{"qa_run_id" => qa_run_id}}} = result
+      assert qa_run_id == qa_run.id
+    end
+  end
 end

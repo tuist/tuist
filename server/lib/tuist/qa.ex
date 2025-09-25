@@ -943,6 +943,15 @@ defmodule Tuist.QA do
     do: where(query, [qa, ab, pr, step], pr.display_name == ^app_name)
 
   @doc """
+  Enqueues a TestWorker job for the given QA run.
+  """
+  def enqueue_test_worker(%Run{} = qa_run) do
+    %{"qa_run_id" => qa_run.id}
+    |> Tuist.QA.Workers.TestWorker.new()
+    |> Oban.insert()
+  end
+
+  @doc """
   Prepares logs with metadata (screenshot information) for display and formats them.
   Combines both metadata preparation and formatting into a single pass.
   """
