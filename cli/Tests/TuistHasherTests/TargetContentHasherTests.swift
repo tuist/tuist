@@ -51,6 +51,9 @@ struct TargetContentHasherTests {
         given(contentHasher)
             .hash(Parameter<[String]>.any)
             .willProduce { $0.joined(separator: "-") }
+        given(contentHasher).hash(.any).willProduce { (value: String) -> String in
+            return value
+        }
         given(contentHasher)
             .hash(path: .any)
             .willProduce { $0.pathString }
@@ -151,8 +154,26 @@ struct TargetContentHasherTests {
     @Test func hash_with_buildable_folders() async throws {
         // Given
         let target = GraphTarget.test(target: .test(buildableFolders: [
-            BuildableFolder(path: try AbsolutePath(validating: "/test/Resources")),
-            BuildableFolder(path: try AbsolutePath(validating: "/test/Sources")),
+            BuildableFolder(
+                path: try AbsolutePath(validating: "/test/Resources"),
+                exceptions: BuildableFolderExceptions(exceptions: [
+                    BuildableFolderException(excluded: [], compilerFlags: [:]),
+                ]),
+                resolvedFiles: [BuildableFolderFile(
+                    path: try AbsolutePath(validating: "/test/Resources/Image.png"),
+                    compilerFlags: nil
+                )]
+            ),
+            BuildableFolder(
+                path: try AbsolutePath(validating: "/test/Sources"),
+                exceptions: BuildableFolderExceptions(exceptions: [
+                    BuildableFolderException(excluded: [], compilerFlags: [:]),
+                ]),
+                resolvedFiles: [BuildableFolderFile(
+                    path: try AbsolutePath(validating: "/test/Sources/File.swift"),
+                    compilerFlags: "compiler-flags"
+                )]
+            ),
         ]), project: .test())
 
         // When
@@ -171,7 +192,7 @@ struct TargetContentHasherTests {
         #expect(
             got.hash ==
                 """
-                Target-app-io.tuist.Target-Target-dependencies_hash-sources_hash-resources_hash-copy_files_hash-core_data_models_hash-target_scripts_hash-dictionary_hash-/test/Resources-/test/Sources-iPad-iPhone-iPad-iPhone-deployment_targets_hash-settings_hash-settings_hash
+                Target-app-io.tuist.Target-Target-dependencies_hash-sources_hash-resources_hash-copy_files_hash-core_data_models_hash-target_scripts_hash-dictionary_hash-/test/Resources/Image.png--/test/Sources/File.swift-compiler-flags-iPad-iPhone-iPad-iPhone-deployment_targets_hash-settings_hash-settings_hash
                 """
         )
     }

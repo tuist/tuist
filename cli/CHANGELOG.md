@@ -1,6 +1,38 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.79.3<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* Fix synthesized bundle interfaces not generated for `.xcassets` in buildable folders by [@pepicrft](https://github.com/pepicrft) in [#8292](https://github.com/tuist/tuist/pull/8292)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.79.2...4.79.3
+
+## What's Changed in 4.79.2<!-- RELEASE NOTES START -->
+
+### 🧪 Testing
+
+* fix acceptance tests by [@fortmarek](https://github.com/fortmarek) in [#8288](https://github.com/tuist/tuist/pull/8288)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.79.1...4.79.2
+
+## What's Changed in 4.79.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* Make `excluded` optional in buildable folder exceptions by [@pepicrft](https://github.com/pepicrft) in [#8293](https://github.com/tuist/tuist/pull/8293)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.79.0...4.79.1
+
+## What's Changed in 4.79.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* Support exclusion of files and configuration of compiler flags for files in buildable folders by [@pepicrft](https://github.com/pepicrft) in [#8254](https://github.com/tuist/tuist/pull/8254)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.78.4...4.79.0
+
 ## What's Changed in 4.78.4<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes

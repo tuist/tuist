@@ -11,7 +11,7 @@ services:
     dockerfilePath: ./Dockerfile
     dockerCommand: /app/bin/start
     autoDeployTrigger: "off"
-    plan: pro
+    plan: pro plus
     numInstances: 2
     envVars:
       - key: MASTER_KEY
@@ -25,7 +25,7 @@ services:
       - key: TUIST_USE_SSL_FOR_DATABASE
         value: 1
       - key: TUIST_DATABASE_POOL_SIZE
-        value: 10
+        value: 40
       - key: TUIST_S3_POOL_COUNT
         value: 1
       - key: TUIST_S3_POOL_SIZE
@@ -92,4 +92,3 @@ services:
 
   - <<: *redis-base
     name: redis-staging
-

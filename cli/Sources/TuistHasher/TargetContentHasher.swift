@@ -154,9 +154,13 @@ public final class TargetContentHasher: TargetContentHashing {
             []
         }
 
-        let buildableFolderHashes = try await graphTarget.target.buildableFolders.sorted(by: { $0.path < $1.path })
+        let buildableFolderHashes = try await graphTarget.target
+            .buildableFolders.sorted(by: { $0.path < $1.path })
+            .flatMap { $0.resolvedFiles.sorted(by: { $0.path < $1.path }) }
             .concurrentMap {
-                try await self.contentHasher.hash(path: $0.path)
+                let fileHash = try await self.contentHasher.hash(path: $0.path)
+                let compilerFlagsHash = try self.contentHasher.hash($0.compilerFlags ?? "")
+                return try self.contentHasher.hash([fileHash, compilerFlagsHash])
             }
 
         var stringsToHash = [
