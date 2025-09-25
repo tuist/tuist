@@ -263,6 +263,48 @@ struct BuildPhaseGeneratorTests {
         #expect(files.isEmpty == true)
     }
 
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .withMockedXcodeController,
+        .inTemporaryDirectory
+    ) func generateBuildPhases() async throws {
+        // Given
+        let pbxTarget = PBXNativeTarget(name: "Test")
+        let pbxproj = PBXProj()
+        pbxproj.add(object: pbxTarget)
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let fileElements = ProjectFileElements()
+        let graph = Graph.test(path: directory)
+        let graphTraverser = GraphTraverser(graph: graph)
+        let target = Target(
+            name: "Test",
+            destinations: .iOS,
+            product: .framework,
+            productName: nil,
+            bundleId: "dev.tuist.test",
+            filesGroup: .group(name: "Test"),
+            buildableFolders: [
+                BuildableFolder(path: directory.appending(component: "Headers"), exceptions: [], resolvedFiles: [
+                    BuildableFolderFile(
+                        path: directory.appending(components: ["Headers", "Header.h"]),
+                        compilerFlags: nil
+                    ),
+                ]),
+            ]
+        )
+
+        try await subject.generateBuildPhases(
+            path: directory,
+            target: target,
+            graphTraverser: graphTraverser,
+            pbxTarget: pbxTarget,
+            fileElements: fileElements,
+            pbxproj: pbxproj
+        )
+
+        #expect(pbxTarget.buildPhases.first as? PBXHeadersBuildPhase != nil)
+    }
+
     @Test(.withMockedSwiftVersionProvider, .withMockedXcodeController, .inTemporaryDirectory) func generateScripts() throws {
         // Given
         let target = PBXNativeTarget(name: "Test")

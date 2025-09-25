@@ -39,7 +39,9 @@ public final class TargetContentHasher: TargetContentHashing {
     // MARK: - Init
 
     public convenience init(contentHasher: ContentHashing) {
-        let platformConditionContentHasher = PlatformConditionContentHasher(contentHasher: contentHasher)
+        let platformConditionContentHasher = PlatformConditionContentHasher(
+            contentHasher: contentHasher
+        )
         let xcconfigHasher = XCConfigContentHasher(contentHasher: contentHasher)
         self.init(
             contentHasher: contentHasher,
@@ -55,9 +57,13 @@ public final class TargetContentHasher: TargetContentHashing {
                 platformConditionContentHasher: platformConditionContentHasher
             ),
             headersContentHasher: HeadersContentHasher(contentHasher: contentHasher),
-            deploymentTargetContentHasher: DeploymentTargetsContentHasher(contentHasher: contentHasher),
+            deploymentTargetContentHasher: DeploymentTargetsContentHasher(
+                contentHasher: contentHasher
+            ),
             plistContentHasher: PlistContentHasher(contentHasher: contentHasher),
-            settingsContentHasher: SettingsContentHasher(contentHasher: contentHasher, xcconfigHasher: xcconfigHasher),
+            settingsContentHasher: SettingsContentHasher(
+                contentHasher: contentHasher, xcconfigHasher: xcconfigHasher
+            ),
             dependenciesContentHasher: DependenciesContentHasher(contentHasher: contentHasher)
         )
     }
@@ -90,6 +96,7 @@ public final class TargetContentHasher: TargetContentHashing {
 
     // MARK: - TargetContentHashing
 
+    // swiftlint:disable:next function_body_length
     public func contentHash(
         for graphTarget: GraphTarget,
         hashedTargets: [GraphHashedTarget: String],
@@ -97,10 +104,11 @@ public final class TargetContentHasher: TargetContentHashing {
         destination: SimulatorDeviceAndRuntime?,
         additionalStrings: [String] = []
     ) async throws -> TargetContentHash {
-        let projectHash: String? = switch graphTarget.project.type {
-        case let .external(hash: hash): hash
-        case .local: nil
-        }
+        let projectHash: String? =
+            switch graphTarget.project.type {
+            case let .external(hash: hash): hash
+            case .local: nil
+            }
         let settingsHash: String?
         if let settings = graphTarget.target.settings {
             settingsHash = try await settingsContentHasher.hash(settings: settings)
@@ -108,7 +116,9 @@ public final class TargetContentHasher: TargetContentHashing {
             settingsHash = nil
         }
 
-        let projectSettingsHash = try await settingsContentHasher.hash(settings: graphTarget.project.settings)
+        let projectSettingsHash = try await settingsContentHasher.hash(
+            settings: graphTarget.project.settings
+        )
 
         let destinations = graphTarget.target.destinations.map(\.rawValue).sorted()
         let dependenciesHash = try await dependenciesContentHasher.hash(
@@ -132,50 +142,77 @@ public final class TargetContentHasher: TargetContentHashing {
             )
         }
         var hashedPaths = hashedPaths
-        let sourcesHash = try await sourceFilesContentHasher.hash(identifier: "sources", sources: graphTarget.target.sources).hash
-        let resourcesHash = try await resourcesContentHasher
-            .hash(identifier: "resources", resources: graphTarget.target.resources).hash
-        let copyFilesHash = try await copyFilesContentHasher
-            .hash(identifier: "copyFiles", copyFiles: graphTarget.target.copyFiles).hash
-        let coreDataModelHash = try await coreDataModelsContentHasher.hash(coreDataModels: graphTarget.target.coreDataModels)
+        let sourcesHash = try await sourceFilesContentHasher.hash(
+            identifier: "sources", sources: graphTarget.target.sources
+        ).hash
+        let resourcesHash =
+            try await resourcesContentHasher
+                .hash(identifier: "resources", resources: graphTarget.target.resources).hash
+        let copyFilesHash =
+            try await copyFilesContentHasher
+                .hash(identifier: "copyFiles", copyFiles: graphTarget.target.copyFiles).hash
+        let coreDataModelHash = try await coreDataModelsContentHasher.hash(
+            coreDataModels: graphTarget.target.coreDataModels
+        )
         let targetScriptsHash = try await targetScriptsContentHasher.hash(
             targetScripts: graphTarget.target.scripts,
             sourceRootPath: graphTarget.project.sourceRootPath
         )
 
         hashedPaths = dependenciesHash.hashedPaths
-        let environmentHash = try contentHasher.hash(graphTarget.target.environmentVariables.mapValues(\.value))
-        let destinationHashes: [String] = if let destination, graphTarget.target.product == .uiTests {
-            [
-                destination.device.name,
-                destination.device.runtimeIdentifier,
-            ]
-        } else {
-            []
-        }
+        let environmentHash = try contentHasher.hash(
+            graphTarget.target.environmentVariables.mapValues(\.value)
+        )
+        let destinationHashes: [String] =
+            if let destination, graphTarget.target.product == .uiTests {
+                [
+                    destination.device.name,
+                    destination.device.runtimeIdentifier,
+                ]
+            } else {
+                []
+            }
 
         let buildableFolderHashes = try await graphTarget.target
             .buildableFolders.sorted(by: { $0.path < $1.path })
-            .flatMap { $0.resolvedFiles.sorted(by: { $0.path < $1.path }) }
-            .concurrentMap {
-                let fileHash = try await self.contentHasher.hash(path: $0.path)
-                let compilerFlagsHash = try self.contentHasher.hash($0.compilerFlags ?? "")
-                return try self.contentHasher.hash([fileHash, compilerFlagsHash])
+            .map { ($0, $0.resolvedFiles.sorted(by: { $0.path < $1.path })) }
+            .concurrentFlatMap {
+                (buildableFolder: BuildableFolder, buildableFiles: [BuildableFolderFile]) in
+                let publicHeaders = buildableFolder.exceptions.flatMap(\.publicHeaders)
+                let privateHeaders = buildableFolder.exceptions.flatMap(\.privateHeaders)
+
+                return try await buildableFiles.concurrentMap { buildableFile in
+                    let fileHash = try await self.contentHasher.hash(path: buildableFile.path)
+                    let compilerFlagsHash = try self.contentHasher.hash(
+                        buildableFile.compilerFlags ?? ""
+                    )
+                    var stringsToHash = [fileHash, compilerFlagsHash]
+
+                    if publicHeaders.contains(buildableFile.path) {
+                        stringsToHash.append("public-header")
+                    }
+                    if privateHeaders.contains(buildableFile.path) {
+                        stringsToHash.append("private-header")
+                    }
+
+                    return try self.contentHasher.hash(stringsToHash)
+                }
             }
 
-        var stringsToHash = [
-            graphTarget.target.name,
-            graphTarget.target.product.rawValue,
-            graphTarget.target.bundleId,
-            graphTarget.target.productName,
-            dependenciesHash.hash,
-            sourcesHash,
-            resourcesHash,
-            copyFilesHash,
-            coreDataModelHash,
-            targetScriptsHash,
-            environmentHash,
-        ] + buildableFolderHashes + destinations + additionalStrings + destinationHashes
+        var stringsToHash =
+            [
+                graphTarget.target.name,
+                graphTarget.target.product.rawValue,
+                graphTarget.target.bundleId,
+                graphTarget.target.productName,
+                dependenciesHash.hash,
+                sourcesHash,
+                resourcesHash,
+                copyFilesHash,
+                coreDataModelHash,
+                targetScriptsHash,
+                environmentHash,
+            ] + buildableFolderHashes + destinations + additionalStrings + destinationHashes
 
         stringsToHash.append(contentsOf: graphTarget.target.destinations.map(\.rawValue).sorted())
 
@@ -184,7 +221,9 @@ public final class TargetContentHasher: TargetContentHashing {
             stringsToHash.append(headersHash)
         }
 
-        let deploymentTargetHash = try deploymentTargetContentHasher.hash(deploymentTargets: graphTarget.target.deploymentTargets)
+        let deploymentTargetHash = try deploymentTargetContentHasher.hash(
+            deploymentTargets: graphTarget.target.deploymentTargets
+        )
         stringsToHash.append(deploymentTargetHash)
 
         if let infoPlist = graphTarget.target.infoPlist {
@@ -192,7 +231,9 @@ public final class TargetContentHasher: TargetContentHashing {
             stringsToHash.append(infoPlistHash)
         }
         if let entitlements = graphTarget.target.entitlements {
-            let entitlementsHash = try await plistContentHasher.hash(plist: .entitlements(entitlements))
+            let entitlementsHash = try await plistContentHasher.hash(
+                plist: .entitlements(entitlements)
+            )
             stringsToHash.append(entitlementsHash)
         }
 

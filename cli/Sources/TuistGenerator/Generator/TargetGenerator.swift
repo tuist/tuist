@@ -170,8 +170,8 @@ final class TargetGenerator: TargetGenerating {
                 let exceptionSet = PBXFileSystemSynchronizedBuildFileExceptionSet(
                     target: pbxTarget,
                     membershipExceptions: membershipExceptions,
-                    publicHeaders: nil,
-                    privateHeaders: nil,
+                    publicHeaders: exception.publicHeaders.map { $0.relative(to: buildableFolder.path).pathString },
+                    privateHeaders: exception.privateHeaders.map { $0.relative(to: buildableFolder.path).pathString },
                     additionalCompilerFlagsByRelativePath: additionalCompilerFlagsByRelativePath,
                     attributesByRelativePath: nil
                 )

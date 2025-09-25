@@ -74,7 +74,12 @@ final class TargetManifestMapperTests: TuistUnitTestCase {
                     outputPaths: ["Scripts/file.swift"]
                 )],
                 buildableFolders: [.folder("BuildableSources", exceptions: .exceptions([
-                    .exception(excluded: ["excluded.swift"], compilerFlags: ["flags.swift": "-print-stats"]),
+                    .exception(
+                        excluded: ["excluded.swift"],
+                        compilerFlags: ["flags.swift": "-print-stats"],
+                        publicHeaders: ["headers/public.h"],
+                        privateHeaders: ["headers/private.h"]
+                    ),
                 ]))],
             ),
             generatorPaths: generatorPaths,
@@ -101,6 +106,10 @@ final class TargetManifestMapperTests: TuistUnitTestCase {
                             try generatorPaths.resolve(path: "BuildableSources/excluded.swift"),
                         ], compilerFlags: [
                             try generatorPaths.resolve(path: "BuildableSources/flags.swift"): "-print-stats",
+                        ], publicHeaders: [
+                            try generatorPaths.resolve(path: "BuildableSources/headers/public.h"),
+                        ], privateHeaders: [
+                            try generatorPaths.resolve(path: "BuildableSources/headers/private.h"),
                         ]),
                     ],
                     resolvedFiles: [

@@ -13,6 +13,13 @@ extension XcodeGraph.BuildableFolderException {
         let compilerFlags = Dictionary(uniqueKeysWithValues: try manifest.compilerFlags.map {
             (buildableFolder.appending(try RelativePath(validating: $0.0)), $0.1)
         })
-        return Self(excluded: excluded, compilerFlags: compilerFlags)
+        let publicHeaders = try manifest.publicHeaders.map { buildableFolder.appending(try RelativePath(validating: $0)) }
+        let privateHeaders = try manifest.privateHeaders.map { buildableFolder.appending(try RelativePath(validating: $0)) }
+        return Self(
+            excluded: excluded,
+            compilerFlags: compilerFlags,
+            publicHeaders: publicHeaders,
+            privateHeaders: privateHeaders
+        )
     }
 }
