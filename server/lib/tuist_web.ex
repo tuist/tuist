@@ -21,7 +21,8 @@ defmodule TuistWeb do
   alias Plug.Conn
   alias TuistWeb.Controller
 
-  def static_paths, do: ~w(assets fonts images favicon.ico robots.txt js css .well-known marketing app apidocs)
+  def static_paths,
+    do: ~w(assets fonts images favicon.ico robots.txt js css .well-known marketing marketing_next app apidocs)
 
   def router do
     quote do

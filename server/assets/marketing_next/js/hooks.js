@@ -1,0 +1,3 @@
+const Hooks = {};
+
+export { Hooks };

@@ -34,6 +34,12 @@ config :esbuild,
     cd: Path.expand("../assets/marketing", __DIR__),
     env: %{"NODE_PATH" => Path.expand("../deps", __DIR__)}
   ],
+  marketing_next: [
+    args:
+      ~w(marketing_next.js --bundle --loader:.svg=dataurl --loader:.jpg=dataurl --loader:.png=dataurl --loader:.webp=dataurl --target=es2017 --outfile=../../priv/static/marketing_next/assets/bundle.js --external:/fonts/* --external:/images/*),
+    cd: Path.expand("../assets/marketing_next", __DIR__),
+    env: %{"NODE_PATH" => Path.expand("../deps", __DIR__)}
+  ],
   apidocs: [
     args:
       ~w(apidocs.js --bundle --target=es2017 --outfile=../../priv/static/apidocs/assets/bundle.js --external:/fonts/* --external:/images/*),
