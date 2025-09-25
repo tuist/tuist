@@ -20,6 +20,8 @@ defmodule Tuist.VCS do
   alias Tuist.Utilities.DateFormatter
   alias Tuist.VCS
 
+  @tuist_run_report_prefix "### 🛠️ Tuist Run Report 🛠️"
+
   def supported_vcs_hosts do
     ["GitHub"]
   end
@@ -236,13 +238,6 @@ defmodule Tuist.VCS do
 
       issue_id = get_issue_id_from_git_ref(git_ref)
 
-      existing_comment =
-        get_existing_vcs_comment_id(%{
-          client: client,
-          repository: repository_full_handle,
-          issue_id: issue_id
-        })
-
       vcs_comment_body =
         get_vcs_comment_body(%{
           git_ref: git_ref,
@@ -253,6 +248,13 @@ defmodule Tuist.VCS do
           build_url: build_url,
           bundle_url: bundle_url,
           project: project
+        })
+
+      existing_comment =
+        get_existing_vcs_comment_id(%{
+          client: client,
+          repository: repository_full_handle,
+          issue_id: issue_id
         })
 
       update_or_create_vcs_comment(%{
@@ -268,7 +270,10 @@ defmodule Tuist.VCS do
   defp get_existing_vcs_comment_id(%{client: client, repository: repository, issue_id: issue_id}) do
     case client.get_comments(%{repository_full_handle: repository, issue_id: issue_id}) do
       {:ok, comments} ->
-        Enum.find(comments, &(&1.client_id == Environment.github_app_client_id()))
+        Enum.find(comments, fn comment ->
+          comment.client_id == Environment.github_app_client_id() and
+            String.starts_with?(comment.body, @tuist_run_report_prefix)
+        end)
 
       _ ->
         nil
@@ -370,7 +375,7 @@ defmodule Tuist.VCS do
       nil
     else
       """
-      ### 🛠️ Tuist Run Report 🛠️
+      #{@tuist_run_report_prefix}
       """ <>
         (previews_body || "") <> (test_body || "") <> (builds_body || "") <> (bundles_body || "")
     end

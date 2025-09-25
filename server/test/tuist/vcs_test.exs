@@ -27,6 +27,8 @@ defmodule Tuist.VCSTest do
       {:ok, %{token: "github_token", expires_at: ~U[2024-04-30 10:30:31Z]}}
     end)
 
+    stub(Environment, :github_app_client_id, fn -> "client_id" end)
+
     :ok
   end
 
@@ -634,7 +636,8 @@ defmodule Tuist.VCSTest do
          [
            %Comment{
              id: 1,
-             client_id: "client_id"
+             client_id: "client_id",
+             body: "### 🛠️ Tuist Run Report 🛠️\n\nSome existing content"
            }
          ]}
       end)
@@ -685,8 +688,72 @@ defmodule Tuist.VCSTest do
           vcs_provider: :github
         )
 
-      expect(GitHub.Client, :get_comments, fn _ -> {:ok, [%{client_id: nil}]} end)
+      expect(GitHub.Client, :get_comments, fn _ -> {:ok, []} end)
       reject(GitHub.Client, :create_comment, 1)
+
+      # When / Then
+      VCS.post_vcs_pull_request_comment(%{
+        project: project,
+        git_commit_sha: @git_commit_sha,
+        git_ref: @git_ref,
+        git_remote_url_origin: @git_remote_url_origin,
+        preview_url: fn %{preview: preview} -> "https://tuist.dev/previews/#{preview.id}" end,
+        preview_qr_code_url: fn %{preview: preview} ->
+          "https://tuist.dev/previews/#{preview.id}/qr-code.svg"
+        end,
+        command_run_url: fn %{command_event: command_event} ->
+          "https://tuist.dev/runs/#{command_event.id}"
+        end,
+        bundle_url: fn _ -> "" end,
+        build_url: fn _ -> "" end
+      })
+    end
+
+    test "creates a new comment when existing comment has same client_id but is not a Tuist Run Report" do
+      # Given
+      project =
+        ProjectsFixtures.project_fixture(
+          vcs_repository_full_handle: "tuist/tuist",
+          vcs_provider: :github
+        )
+
+      preview =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          display_name: "App",
+          git_ref: @git_ref,
+          git_commit_sha: "1234567890"
+        )
+
+      _app_build =
+        AppBuildsFixtures.app_build_fixture(
+          preview: preview,
+          project: project,
+          display_name: "App"
+        )
+
+      # Mock existing comment with same client_id but different content (not a Tuist Run Report)
+      expect(GitHub.Client, :get_comments, fn _ ->
+        {:ok,
+         [
+           %Comment{
+             id: 1,
+             client_id: "client_id",
+             body: "This is a different comment from the Tuist bot"
+           }
+         ]}
+      end)
+
+      expect(GitHub.Client, :create_comment, fn %{
+                                                  repository_full_handle: "tuist/tuist",
+                                                  issue_id: "1",
+                                                  body: body
+                                                } ->
+        assert String.starts_with?(body, "### 🛠️ Tuist Run Report 🛠️")
+        {:ok, %{id: 2}}
+      end)
+
+      reject(GitHub.Client, :update_comment, 1)
 
       # When / Then
       VCS.post_vcs_pull_request_comment(%{

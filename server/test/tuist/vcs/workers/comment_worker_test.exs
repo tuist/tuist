@@ -47,7 +47,7 @@ defmodule Tuist.VCS.Workers.CommentWorkerTest do
       }
 
       # When
-      result = CommentWorker.perform(%Oban.Job{args: job_args})
+      result = CommentWorker.perform(%Oban.Job{id: 1, args: job_args})
 
       # Then
       assert result == :ok
@@ -97,7 +97,7 @@ defmodule Tuist.VCS.Workers.CommentWorkerTest do
       }
 
       # When
-      result = CommentWorker.perform(%Oban.Job{args: job_args})
+      result = CommentWorker.perform(%Oban.Job{id: 1, args: job_args})
 
       # Then
       assert result == :ok
@@ -137,7 +137,49 @@ defmodule Tuist.VCS.Workers.CommentWorkerTest do
       }
 
       # When / Then - This should work without raising an error
-      result = CommentWorker.perform(%Oban.Job{args: job_args})
+      result = CommentWorker.perform(%Oban.Job{id: 1, args: job_args})
+      assert result == :ok
+    end
+
+    test "cancels competing jobs with same args when starting", %{project: project, build: build} do
+      # Given
+      stub(VCS, :post_vcs_pull_request_comment, fn _ -> :ok end)
+
+      job_args = %{
+        "build_id" => build.id,
+        "git_commit_sha" => "abc123",
+        "git_ref" => "refs/pull/123/head",
+        "git_remote_url_origin" => "https://github.com/tuist/tuist",
+        "project_id" => project.id,
+        "preview_url_template" => "/:account_name/:project_name/previews/:preview_id",
+        "preview_qr_code_url_template" => "/:account_name/:project_name/previews/:preview_id/qr-code.png",
+        "command_run_url_template" => "/:account_name/:project_name/runs/:command_event_id",
+        "bundle_url_template" => "/:account_name/:project_name/bundles/:bundle_id",
+        "build_url_template" => "/:account_name/:project_name/builds/build-runs/:build_id"
+      }
+
+      # Insert a competing job into the database and then update it to "executing" state
+      {:ok, competing_job} =
+        job_args
+        |> CommentWorker.new(queue: "default")
+        |> Tuist.Repo.insert()
+        |> dbg()
+
+      # Update the job state to "executing" to simulate a running job
+      {:ok, competing_job} =
+        competing_job
+        |> Ecto.Changeset.change(state: "executing")
+        |> Tuist.Repo.update()
+
+      expect(Oban, :cancel_job, fn job_id ->
+        assert job_id == competing_job.id
+        :ok
+      end)
+
+      # When
+      result = CommentWorker.perform(%Oban.Job{id: 999, args: job_args})
+
+      # Then
       assert result == :ok
     end
   end
