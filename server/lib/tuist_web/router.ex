@@ -8,6 +8,7 @@ defmodule TuistWeb.Router do
   import TuistWeb.Authorization
   import TuistWeb.RateLimit.InMemory
 
+  alias TuistWeb.Marketing.Layouts
   alias TuistWeb.Marketing.Localization
   alias TuistWeb.Marketing.MarketingController
 
@@ -87,13 +88,14 @@ defmodule TuistWeb.Router do
     plug :enable_robot_indexing
     plug :fetch_session
     plug :fetch_live_flash
-    plug :put_root_layout, html: {TuistWeb.Marketing.Layouts, :root}
+    plug :put_root_layout, html: {Layouts, :root}
     plug :protect_from_forgery
     plug :put_secure_browser_headers
     plug Ueberauth
     plug :fetch_current_user
     plug :assign_current_path
     plug :content_security_policy
+    plug :put_next_layout
     plug TuistWeb.OnPremisePlug, :forward_marketing_to_dashboard
     plug Localization, :redirect_to_localized_route
     plug Localization, :put_locale
@@ -721,6 +723,14 @@ defmodule TuistWeb.Router do
       put_resp_header(conn, "x-robots-tag", "index, follow")
     else
       disable_robot_indexing(conn, params)
+    end
+  end
+
+  defp put_next_layout(conn, _opts) do
+    if FunWithFlags.enabled?(:marketing_next) do
+      put_root_layout(conn, html: {Layouts, :root_next})
+    else
+      put_root_layout(conn, html: {Layouts, :root})
     end
   end
 end
