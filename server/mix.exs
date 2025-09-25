@@ -42,7 +42,7 @@ defmodule Tuist.MixProject do
       {:postgrex, ">= 0.0.0"},
       {:phoenix_html, "~> 4.0"},
       {:phoenix_live_reload, "~> 1.2", only: :dev},
-      {:phoenix_live_view, "~> 1.0.0"},
+      {:phoenix_live_view, "~> 1.1.0"},
       {:phoenix_view, "~> 2.0"},
       {:floki, ">= 0.33.0"},
       {:phoenix_live_dashboard, "~> 0.8.4"},
@@ -133,7 +133,7 @@ defmodule Tuist.MixProject do
       {:ecto_ch, "~> 0.7"},
       (System.get_env("NOORA_LOCAL") &&
          {:noora, path: "../../Noora/web"}) ||
-        {:noora, "== 0.28.0"},
+        {:noora, "== 0.28.2"},
       {:zstream, "~> 0.6"},
       {:cloak_ecto, "~> 1.3.0"},
       {:boruta, git: "https://github.com/malach-it/boruta_auth", branch: "master"},
