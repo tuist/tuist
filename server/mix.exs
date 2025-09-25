@@ -178,9 +178,10 @@ defmodule Tuist.MixProject do
       ],
       test: ["ecto.create --quiet", "run priv/repo/timezone.exs", "ecto.migrate --quiet", "test"],
       "assets.setup": ["esbuild.install --if-missing"],
-      "assets.build": ["esbuild app", "esbuild marketing", "esbuild apidocs"],
+      "assets.build": ["esbuild app", "esbuild marketing", "esbuild marketing_next", "esbuild apidocs"],
       "assets.deploy": [
         "esbuild marketing --minify",
+        "esbuild marketing_next --minify",
         "esbuild app --minify",
         "esbuild apidocs --minify",
         "phx.digest"
