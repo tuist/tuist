@@ -106,7 +106,11 @@ final class TargetManifestMapperTests: TuistUnitTestCase {
                             try generatorPaths.resolve(path: "BuildableSources/excluded.swift"),
                         ], compilerFlags: [
                             try generatorPaths.resolve(path: "BuildableSources/flags.swift"): "-print-stats",
-                        ], publicHeaders: [], privateHeaders: []),
+                        ], publicHeaders: [
+                            try generatorPaths.resolve(path: "BuildableSources/headers/public.h"),
+                        ], privateHeaders: [
+                            try generatorPaths.resolve(path: "BuildableSources/headers/private.h"),
+                        ]),
                     ],
                     resolvedFiles: [
                         BuildableFolderFile(path: buildableFlagsFile, compilerFlags: "-print-stats"),

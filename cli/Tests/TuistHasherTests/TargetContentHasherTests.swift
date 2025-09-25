@@ -160,8 +160,8 @@ struct TargetContentHasherTests {
                     BuildableFolderException(
                         excluded: [],
                         compilerFlags: [:],
-                        publicHeaders: ["private/public.h"],
-                        privateHeaders: ["headers/public.h"]
+                        publicHeaders: ["/test/headers/private/public.h"],
+                        privateHeaders: ["/test/headers/public.h"]
                     ),
                 ]),
                 resolvedFiles: [BuildableFolderFile(
@@ -175,14 +175,24 @@ struct TargetContentHasherTests {
                     BuildableFolderException(
                         excluded: [],
                         compilerFlags: [:],
-                        publicHeaders: ["headers/public.h"],
-                        privateHeaders: ["headers/private.h"]
+                        publicHeaders: ["/test/headers/public.h"],
+                        privateHeaders: ["/test/headers/private.h"]
                     ),
                 ]),
-                resolvedFiles: [BuildableFolderFile(
-                    path: try AbsolutePath(validating: "/test/Sources/File.swift"),
-                    compilerFlags: "compiler-flags"
-                )]
+                resolvedFiles: [
+                    BuildableFolderFile(
+                        path: try AbsolutePath(validating: "/test/Sources/File.swift"),
+                        compilerFlags: "compiler-flags"
+                    ),
+                    BuildableFolderFile(
+                        path: try AbsolutePath(validating: "/test/headers/public.h"),
+                        compilerFlags: nil
+                    ),
+                    BuildableFolderFile(
+                        path: try AbsolutePath(validating: "/test/headers/private.h"),
+                        compilerFlags: nil
+                    ),
+                ]
             ),
         ]), project: .test())
 
@@ -202,7 +212,7 @@ struct TargetContentHasherTests {
         #expect(
             got.hash ==
                 """
-                Target-app-io.tuist.Target-Target-dependencies_hash-sources_hash-resources_hash-copy_files_hash-core_data_models_hash-target_scripts_hash-dictionary_hash-/test/Resources/Image.png--/test/Sources/File.swift-compiler-flags-iPad-iPhone-iPad-iPhone-deployment_targets_hash-settings_hash-settings_hash
+                Target-app-io.tuist.Target-Target-dependencies_hash-sources_hash-resources_hash-copy_files_hash-core_data_models_hash-target_scripts_hash-dictionary_hash-/test/Resources/Image.png--/test/Sources/File.swift-compiler-flags-/test/headers/private.h--private-header-/test/headers/public.h--public-header-iPad-iPhone-iPad-iPhone-deployment_targets_hash-settings_hash-settings_hash
                 """
         )
     }
