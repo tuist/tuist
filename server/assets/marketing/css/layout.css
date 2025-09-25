@@ -7,6 +7,11 @@ body {
   }
 }
 
+html[data-noora] {
+  & .marketing__footer, & .marketing__footer__main {
+    display: none;
+  }
+}
 .marketing__header {
   position: relative;
   background: var(--white);

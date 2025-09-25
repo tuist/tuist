@@ -5,6 +5,7 @@
 @import "./css/components.css";
 @import "./css/pages.css";
 @import "./css/content.css";
+<<<<<<< HEAD
 
 :root {
   color-scheme: only light;
@@ -15,4 +16,27 @@ body {
   background: var(--white);
   padding: 0px;
   font-family: "Space Grotesk";
+=======
+@import "noora/noora.css";
+:root {
+  color-scheme: light;
+}
+body {
+  padding: 0px;
+  background: var(--noora-surface-background-primary);
+  margin-top: var(--noora-spacing-12);
+  margin-bottom: var(--noora-spacing-12);
+  margin-left: var(--noora-spacing-14);
+  margin-right: var(--noora-spacing-14);
+  font-family: var(--noora-font-body);
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-11);
+  box-sizing: border-box;
+}
+
+h1, h2, h3, p {
+  margin-block-end: 0;
+  margin-block-start: 0;
+>>>>>>> 4a7c9da5e (New website)
 }

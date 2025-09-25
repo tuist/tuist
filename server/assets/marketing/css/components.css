@@ -161,6 +161,12 @@
   overflow-x: auto;
 }
 
+html[data-noora] {
+& .marketing__component__cta {
+  display: none;
+}
+}
+
 .marketing__component__cta {
   display: flex;
   flex-direction: row;
