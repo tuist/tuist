@@ -20,7 +20,12 @@ let project = Project(
                 "App/Sources",
                 "App/Resources",
             ],
-            dependencies: []
+            dependencies: [
+                .target(name: "Framework"),
+            ],
+            settings: .settings(base: [
+                "SWIFT_OBJC_BRIDGING_HEADER": "$SRCROOT/App/Sources/include/App.h",
+            ])
         ),
         .target(
             name: "Framework",
@@ -30,20 +35,9 @@ let project = Project(
             buildableFolders: [
                 "Framework/Resources",
                 .folder("Framework/Sources", exceptions: .exceptions([
-                    .exception(publicHeaders: ["Framework.h"]),
+                    .exception(publicHeaders: ["Framework.h", "include/bar.h", "include/baz.h"]),
                 ])),
             ]
-        ),
-        .target(
-            name: "TuistAppTests",
-            destinations: .iOS,
-            product: .unitTests,
-            bundleId: "dev.tuist.TuistAppTests",
-            infoPlist: .default,
-            buildableFolders: [
-                "App/Tests",
-            ],
-            dependencies: [.target(name: "App")]
         ),
     ]
 )

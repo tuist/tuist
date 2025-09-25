@@ -157,7 +157,12 @@ struct TargetContentHasherTests {
             BuildableFolder(
                 path: try AbsolutePath(validating: "/test/Resources"),
                 exceptions: BuildableFolderExceptions(exceptions: [
-                    BuildableFolderException(excluded: [], compilerFlags: [:]),
+                    BuildableFolderException(
+                        excluded: [],
+                        compilerFlags: [:],
+                        publicHeaders: ["private/public.h"],
+                        privateHeaders: ["headers/public.h"]
+                    ),
                 ]),
                 resolvedFiles: [BuildableFolderFile(
                     path: try AbsolutePath(validating: "/test/Resources/Image.png"),
@@ -167,7 +172,12 @@ struct TargetContentHasherTests {
             BuildableFolder(
                 path: try AbsolutePath(validating: "/test/Sources"),
                 exceptions: BuildableFolderExceptions(exceptions: [
-                    BuildableFolderException(excluded: [], compilerFlags: [:]),
+                    BuildableFolderException(
+                        excluded: [],
+                        compilerFlags: [:],
+                        publicHeaders: ["headers/public.h"],
+                        privateHeaders: ["headers/private.h"]
+                    ),
                 ]),
                 resolvedFiles: [BuildableFolderFile(
                     path: try AbsolutePath(validating: "/test/Sources/File.swift"),

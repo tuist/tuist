@@ -32,7 +32,9 @@ struct TargetGeneratorTests {
                 BuildableFolder(path: buildableFolderPath, exceptions: BuildableFolderExceptions(exceptions: [
                     BuildableFolderException(
                         excluded: [path.appending(components: ["Sources", "Excluded.swift"])],
-                        compilerFlags: [path.appending(components: ["Sources", "CompilerFlags.swift"]): "-print-stats"]
+                        compilerFlags: [path.appending(components: ["Sources", "CompilerFlags.swift"]): "-print-stats"],
+                        publicHeaders: [],
+                        privateHeaders: []
                     ),
                 ]), resolvedFiles: [
                     BuildableFolderFile(path: path.appending(components: ["Sources", "Included.swift"]), compilerFlags: nil),
