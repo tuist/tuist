@@ -94,17 +94,10 @@ defmodule TuistWeb.Webhooks.GitHubController do
         qa_run
       )
 
-    {:ok, qa_run} = QA.update_qa_run(qa_run, %{issue_comment_id: comment_id})
+    {:ok, updated_qa_run} = QA.update_qa_run(qa_run, %{issue_comment_id: comment_id})
 
     if simulator_app_build do
-      %{
-        "app_build_id" => simulator_app_build.id,
-        "prompt" => prompt,
-        "issue_comment_id" => comment_id,
-        "qa_run_id" => qa_run.id
-      }
-      |> QA.Workers.TestWorker.new()
-      |> Oban.insert()
+      QA.enqueue_test_worker(updated_qa_run)
     end
   end
 

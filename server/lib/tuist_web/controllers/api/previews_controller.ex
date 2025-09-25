@@ -795,13 +795,7 @@ defmodule TuistWeb.API.PreviewsController do
 
       for qa_run <- pending_qa_runs do
         {:ok, updated_qa_run} = QA.update_qa_run(qa_run, %{app_build_id: app_build.id})
-
-        %{
-          "app_build_id" => app_build.id,
-          "prompt" => updated_qa_run.prompt
-        }
-        |> QA.Workers.TestWorker.new()
-        |> Oban.insert()
+        QA.enqueue_test_worker(updated_qa_run)
       end
     end
   end

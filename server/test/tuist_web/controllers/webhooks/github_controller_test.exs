@@ -5,6 +5,7 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
   alias Tuist.Accounts.Account
   alias Tuist.AppBuilds
   alias Tuist.Projects
+  alias Tuist.QA
   alias Tuist.VCS
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.AppBuildsFixtures
@@ -157,18 +158,37 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
         app_build
       end)
 
+      qa_run_fixture = %QA.Run{
+        id: "qa-run-id",
+        app_build_id: app_build.id,
+        prompt: "test login flow",
+        status: "pending",
+        vcs_provider: :github,
+        vcs_repository_full_handle: "org/repo",
+        git_ref: "refs/pull/42/merge",
+        issue_comment_id: nil
+      }
+
+      updated_qa_run_fixture = %{qa_run_fixture | issue_comment_id: "comment_123"}
+
+      expect(QA, :create_qa_run, fn _params ->
+        {:ok, qa_run_fixture}
+      end)
+
       expect(VCS, :create_comment, fn _comment_params ->
         {:ok, %{"id" => "comment_123"}}
       end)
 
-      expect(Oban, :insert, fn job_changeset ->
-        args = job_changeset.changes.args
-        assert args["app_build_id"] == app_build.id
-        assert args["prompt"] == "test login flow"
-        assert args["issue_comment_id"] == "comment_123"
-        assert Map.has_key?(args, "qa_run_id")
+      expect(QA, :update_qa_run, fn ^qa_run_fixture, %{issue_comment_id: "comment_123"} ->
+        {:ok, updated_qa_run_fixture}
+      end)
 
-        {:ok, job_changeset}
+      expect(QA, :enqueue_test_worker, fn qa_run ->
+        assert qa_run.app_build_id == app_build.id
+        assert qa_run.prompt == "test login flow"
+        assert qa_run.issue_comment_id == "comment_123"
+
+        {:ok, %Oban.Job{}}
       end)
 
       # When
