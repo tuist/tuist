@@ -25,7 +25,7 @@ concurrency:
 env:
   CI: true
   RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
-  TUIST_CONFIG_TOKEN: ${{ secrets.TUIST_EXT_CONFIG_TOKEN }}
+  TUIST_CONFIG_TOKEN: ${{ secrets.TUIST_CONFIG_TOKEN }}
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   PNPM_HOME: ~/.pnpm
   MISE_SOPS_AGE_KEY: ${{ secrets.MISE_SOPS_AGE_KEY }}
