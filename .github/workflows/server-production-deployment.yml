@@ -65,8 +65,8 @@ jobs:
           mise exec "github:render-oss/cli@2.2.0" -- cli_v2.2.0 deploys create srv-d35uiopr0fns73bfve00 --output json --confirm --wait --commit "$GITHUB_SHA"
   acceptance-tests:
     name: Acceptance Tests
-    runs-on: namespace-profile-macos-sequoia
-    timeout-minutes: 40
+    runs-on: namespace-profile-default-macos
+    timeout-minutes: 30
     needs: canary
     environment: server-canary
     steps:
@@ -75,7 +75,7 @@ jobs:
           token: ${{ secrets.TUIST_GITHUB_TOKEN }}
           submodules: recursive
       - name: Select Xcode
-        run: sudo xcode-select -switch /Applications/Xcode_16.4.app
+        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - name: Restore cache
         id: cache-restore
         uses: actions/cache/restore@v4
