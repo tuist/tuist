@@ -258,6 +258,20 @@ defmodule Runner.QA.Agent do
       {:ok, trimmed_path} = Briefly.create(extname: ".mp4")
       duration_seconds = duration_ms / 1000.0
 
+      {recording_duration_output, 0} =
+        System.cmd("ffprobe", [
+          "-v",
+          "quiet",
+          "-print_format",
+          "json",
+          "-show_format",
+          attrs.recording_path
+        ])
+
+      {:ok, recording_info} = JSON.decode(recording_duration_output)
+      recording_duration = recording_info["format"]["duration"]
+      duration_seconds = min(duration_seconds, recording_duration)
+
       {_, 0} =
         System.cmd("ffmpeg", [
           "-i",
