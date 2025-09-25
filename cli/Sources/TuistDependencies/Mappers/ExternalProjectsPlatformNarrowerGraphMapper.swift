@@ -62,6 +62,9 @@ public struct ExternalProjectsPlatformNarrowerGraphMapper: GraphMapping { // swi
             target.destinations = target.destinations.filter { destination in
                 targetFilteredPlatforms.contains(destination.platform)
             }
+            if target.destinations.isEmpty {
+                target.metadata.tags = Set(Array(target.metadata.tags) + ["tuist:prunable"])
+            }
 
             // By changing the destinations we also need to adapt the deployment targets accordingly to account for possibly
             // removed destinations

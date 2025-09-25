@@ -143,6 +143,23 @@ struct TuistCacheEEAcceptanceTests {
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
         .withMockedNoora,
         .withMockedLogger(forwardLogs: true),
+        .withFixture("generated_ios_app_with_external_dependencies_filtered_out")
+    ) func generated_ios_app_with_external_dependencies_filtered_out() async throws {
+        // Given
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+
+        // When: Cache the binaries
+        try await TuistTest.run(
+            CacheCommand.self,
+            ["--path", fixtureDirectory.pathString]
+        )
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(inheritingVariables: ["PATH"]),
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true),
         .withTestingSimulator("iPhone 17"),
         .withFixtureConnectedToCanary("ios_app_with_frameworks")
     ) func run_with_no_selective_testing() async throws {
