@@ -1,14 +1,14 @@
 <TuistWeb.Marketing.Layouts.marketing_next {assigns}>
   <!-- Hero section -->
   <main id="marketing-home">
-    <div class="container">
+    <div data-part="container">
       <div data-part="background" aria-hidden="true">
         <img src="/marketing/images/background.webp" alt="Background decoration" />
       </div>
     </div>
 
-    <section class="marketing-home-section-hero">
-      <header class="marketing-home-section-title">
+    <section data-part="hero">
+      <header data-part="title">
         <div data-part="title">
           <h1>{gettext("Virtual platform team")}</h1>
         </div>
@@ -17,7 +17,7 @@
         </div>
       </header>
 
-      <div class="marketing-home-section-subtitle">
+      <div data-part="subtitle">
         <p>
           {gettext(
             "We are an integrated and open core toolchain that extends Apple's official tools with insights, optimizations, and workflows to help you build better apps faster"
@@ -25,7 +25,7 @@
         </p>
       </div>
 
-      <nav class="marketing-home-section-actions" aria-label="Primary actions">
+      <nav data-part="actions" aria-label="Primary actions">
         <.button href="https://docs.tuist.dev/en/" label="Get started"></.button>
         <.button
           href="https://cal.tuist.dev/team/tuist/tuist?overlayCalendar=true"
@@ -36,7 +36,7 @@
       </nav>
     </section>
 
-    <section class="marketing-home-section-graphic" aria-labelledby="metrics-heading">
+    <section data-part="graphic" aria-labelledby="metrics-heading">
       <div data-part="rows">
         <img data-part="runs" src="/marketing/images/runs.webp" alt="Build runs statistics" />
         <img
@@ -64,35 +64,35 @@
       </div>
     </section>
 
-    <section class="marketing-home-section-supporters">
+    <section data-part="supporters">
       <h3>{gettext("Trusted by the world's best developer teams")}</h3>
     </section>
 
-    <section class="marketing-home-orgs-list">
+    <section data-part="orgs-list">
       <div data-part="rows">
         <a
-          class="marketing-home-section-org-logo"
+          data-part="org-logo"
           href="https://www.adidas.com"
           target="_blank"
         >
           <.trendyol_org_logo />
         </a>
         <a
-          class="marketing-home-section-org-logo"
+          data-part="org-logo"
           href="https://www.adidas.com"
           target="_blank"
         >
           <.adidas_org_logo />
         </a>
         <a
-          class="marketing-home-section-org-logo"
+          data-part="org-logo"
           href="https://www.adidas.com"
           target="_blank"
         >
           <.amex_org_logo />
         </a>
         <a
-          class="marketing-home-section-org-logo"
+          data-part="org-logo"
           href="https://www.adidas.com"
           target="_blank"
         >
@@ -101,28 +101,28 @@
       </div>
       <div data-part="rows">
         <a
-          class="marketing-home-section-org-logo"
+          data-part="org-logo"
           href="https://www.adidas.com"
           target="_blank"
         >
           <.bumble_org_logo />
         </a>
         <a
-          class="marketing-home-section-org-logo"
+          data-part="org-logo"
           href="https://www.adidas.com"
           target="_blank"
         >
           <.asana_org_logo />
         </a>
         <a
-          class="marketing-home-section-org-logo"
+          data-part="org-logo"
           href="https://www.adidas.com"
           target="_blank"
         >
           <.bending_spoons_org_logo />
         </a>
         <a
-          class="marketing-home-section-org-logo"
+          data-part="org-logo"
           href="https://www.adidas.com"
           target="_blank"
         >
@@ -131,12 +131,12 @@
       </div>
     </section>
 
-    <section class="marketing-home-section-features-title">
+    <section data-part="features-title">
       <h2>{gettext("All the features you need,")}
         <span data-part="box">{gettext("in one platform")}</span></h2>
     </section>
 
-    <section class="marketing-home-section-features">
+    <section data-part="features">
       <div data-part="row">
         <div data-part="generated-projects">
           <div data-part="background" aria-hidden="true">
@@ -285,7 +285,7 @@
       </div>
     </section>
 
-    <section class="marketing-testimonial">
+    <section data-part="testimonial">
       <div data-part="quote">
         <h3 data-part="line-one">
           {gettext(
@@ -305,7 +305,7 @@
       </div>
     </section>
 
-    <section class="marketing-home-section-case-study">
+    <section data-part="case-study">
       <div data-part="customer-one">
         <div data-part="background" aria-hidden="true">
           <img
@@ -359,12 +359,12 @@
       </div>
     </section>
 
-    <section class="marketing-home-section-features-title">
+    <section data-part="features-title">
       <h2>{gettext("Powered by")}
         <span data-part="box">{gettext("open source")}</span></h2>
     </section>
 
-    <section class="marketing-home-section-stats">
+    <section data-part="stats">
       <div data-part="column">
         <div data-part="github-card">
           <div data-part="background">
