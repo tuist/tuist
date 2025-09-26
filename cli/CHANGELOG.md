@@ -1,14 +1,22 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.79.5<!-- RELEASE NOTES START -->
+## What's Changed in 4.79.7<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* Only validate cache signatures on successful responses by [@pepicrft](https://github.com/pepicrft) in [#8315](https://github.com/tuist/tuist/pull/8315)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.79.6...4.79.7
+
+## What's Changed in 4.79.6<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
 
 * Fix cache warming when external targets are excluded by platform conditions by [@pepicrft](https://github.com/pepicrft) in [#8308](https://github.com/tuist/tuist/pull/8308)
 * don't mark inspected build as failed when it has warnings only by [@fortmarek](https://github.com/fortmarek) in [#8276](https://github.com/tuist/tuist/pull/8276)
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.79.4...4.79.5
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.79.4...4.79.6
 
 ## What's Changed in 4.79.4<!-- RELEASE NOTES START -->
 
