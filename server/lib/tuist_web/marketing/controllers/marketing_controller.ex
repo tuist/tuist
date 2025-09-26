@@ -61,6 +61,8 @@ defmodule TuistWeb.Marketing.MarketingController do
   end
 
   def about(conn, _params) do
+    template = if(FunWithFlags.enabled?(:marketing_next), do: :about_next, else: :about)
+
     conn
     |> assign_structured_data(get_organization_structured_data())
     |> assign_structured_data(
@@ -79,7 +81,7 @@ defmodule TuistWeb.Marketing.MarketingController do
       "Learn more about Tuist, the open-source project that helps you scale your Swift development."
     )
     |> assign(:head_title, "About Tuist")
-    |> render(:about, layout: false)
+    |> render(template, layout: false)
   end
 
   def support(conn, _params) do
