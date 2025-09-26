@@ -559,54 +559,8 @@ jobs:
         with:
           name: server-artifacts
 
-      - name: Commit all changes
+      - name: Create tags for successfully released components
         run: |
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
-
-          # Track if any files were added
-          FILES_ADDED=false
-
-          # Add files from each component that was released
-          if [ "${{ needs.check-releases.outputs.cli-should-release }}" == "true" ] && [ "${{ needs.release-cli.result }}" == "success" ]; then
-            git add cli/CHANGELOG.md cli/Sources/TuistSupport/Constants.swift mise.toml
-            FILES_ADDED=true
-          fi
-
-          if [ "${{ needs.check-releases.outputs.app-should-release }}" == "true" ] && [ "${{ needs.release-app.result }}" == "success" ]; then
-            git add app/CHANGELOG.md app/Project.swift app/appcast.xml
-            FILES_ADDED=true
-          fi
-
-          if [ "${{ needs.check-releases.outputs.server-should-release }}" == "true" ] && [ "${{ needs.release-server.result }}" == "success" ]; then
-            git add server/CHANGELOG.md
-            FILES_ADDED=true
-          fi
-
-          # Only commit if files were added
-          if [ "$FILES_ADDED" = "true" ]; then
-            # Check if there are actually changes to commit
-            if ! git diff --cached --quiet; then
-              # Create commit message
-              COMMIT_MSG="[Release]"
-              if [ "${{ needs.check-releases.outputs.cli-should-release }}" == "true" ] && [ "${{ needs.release-cli.result }}" == "success" ]; then
-                COMMIT_MSG="$COMMIT_MSG Tuist CLI ${{ needs.check-releases.outputs.cli-next-version }}"
-              fi
-              if [ "${{ needs.check-releases.outputs.app-should-release }}" == "true" ] && [ "${{ needs.release-app.result }}" == "success" ]; then
-                COMMIT_MSG="$COMMIT_MSG Tuist App ${{ needs.check-releases.outputs.app-next-version }}"
-              fi
-              if [ "${{ needs.check-releases.outputs.server-should-release }}" == "true" ] && [ "${{ needs.release-server.result }}" == "success" ]; then
-                COMMIT_MSG="$COMMIT_MSG Tuist Server ${{ needs.check-releases.outputs.server-next-version }}"
-              fi
-
-              git commit -m "$COMMIT_MSG"
-            else
-              echo "No changes to commit"
-            fi
-          else
-            echo "No components were released, skipping commit"
-          fi
-
           # Create tags for successfully released components
           if [ "${{ needs.check-releases.outputs.cli-should-release }}" == "true" ] && [ "${{ needs.release-cli.result }}" == "success" ]; then
             git tag ${{ needs.check-releases.outputs.cli-next-version }}
@@ -616,27 +570,6 @@ jobs:
           fi
           if [ "${{ needs.check-releases.outputs.server-should-release }}" == "true" ] && [ "${{ needs.release-server.result }}" == "success" ]; then
             git tag ${{ needs.check-releases.outputs.server-next-version }}
-          fi
-
-          # Push with retry logic
-          max_attempts=5
-          attempt=1
-          while [ $attempt -le $max_attempts ]; do
-            echo "Attempt $attempt of $max_attempts"
-            if git pull --rebase origin ${{ github.ref_name }}; then
-              if git push origin ${{ github.ref_name }} --tags; then
-                echo "Successfully pushed changes and tags"
-                break
-              fi
-            fi
-            echo "Push failed, retrying in 5 seconds..."
-            sleep 5
-            attempt=$((attempt + 1))
-          done
-
-          if [ $attempt -gt $max_attempts ]; then
-            echo "Failed to push after $max_attempts attempts"
-            exit 1
           fi
 
       - name: Create CLI GitHub Release
@@ -691,3 +624,72 @@ jobs:
         run: |
           SHA256=$(cat build/SHASUMS256.txt | grep tuist.zip | awk '{print $1}')
           mise run app:release:homebrew-cask --version "${{ needs.check-releases.outputs.app-next-version-number }}" --github-token "${{ secrets.TUIST_GITHUB_TOKEN }}" --sha256 "$SHA256"
+
+      - name: Commit all changes and push
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+
+          # Track if any files were added
+          FILES_ADDED=false
+
+          # Add files from each component that was released
+          if [ "${{ needs.check-releases.outputs.cli-should-release }}" == "true" ] && [ "${{ needs.release-cli.result }}" == "success" ]; then
+            git add cli/CHANGELOG.md cli/Sources/TuistSupport/Constants.swift mise.toml
+            FILES_ADDED=true
+          fi
+
+          if [ "${{ needs.check-releases.outputs.app-should-release }}" == "true" ] && [ "${{ needs.release-app.result }}" == "success" ]; then
+            git add app/CHANGELOG.md app/Project.swift app/appcast.xml
+            FILES_ADDED=true
+          fi
+
+          if [ "${{ needs.check-releases.outputs.server-should-release }}" == "true" ] && [ "${{ needs.release-server.result }}" == "success" ]; then
+            git add server/CHANGELOG.md
+            FILES_ADDED=true
+          fi
+
+          # Only commit if files were added
+          if [ "$FILES_ADDED" = "true" ]; then
+            # Check if there are actually changes to commit
+            if ! git diff --cached --quiet; then
+              # Create commit message
+              COMMIT_MSG="[Release]"
+              if [ "${{ needs.check-releases.outputs.cli-should-release }}" == "true" ] && [ "${{ needs.release-cli.result }}" == "success" ]; then
+                COMMIT_MSG="$COMMIT_MSG Tuist CLI ${{ needs.check-releases.outputs.cli-next-version }}"
+              fi
+              if [ "${{ needs.check-releases.outputs.app-should-release }}" == "true" ] && [ "${{ needs.release-app.result }}" == "success" ]; then
+                COMMIT_MSG="$COMMIT_MSG Tuist App ${{ needs.check-releases.outputs.app-next-version }}"
+              fi
+              if [ "${{ needs.check-releases.outputs.server-should-release }}" == "true" ] && [ "${{ needs.release-server.result }}" == "success" ]; then
+                COMMIT_MSG="$COMMIT_MSG Tuist Server ${{ needs.check-releases.outputs.server-next-version }}"
+              fi
+
+              git commit -m "$COMMIT_MSG"
+            else
+              echo "No changes to commit"
+            fi
+          else
+            echo "No components were released, skipping commit"
+          fi
+
+          # Push with retry logic
+          max_attempts=5
+          attempt=1
+          while [ $attempt -le $max_attempts ]; do
+            echo "Attempt $attempt of $max_attempts"
+            if git pull --rebase origin ${{ github.ref_name }}; then
+              if git push origin ${{ github.ref_name }} --tags; then
+                echo "Successfully pushed changes and tags"
+                break
+              fi
+            fi
+            echo "Push failed, retrying in 5 seconds..."
+            sleep 5
+            attempt=$((attempt + 1))
+          done
+
+          if [ $attempt -gt $max_attempts ]; then
+            echo "Failed to push after $max_attempts attempts"
+            exit 1
+          fi
