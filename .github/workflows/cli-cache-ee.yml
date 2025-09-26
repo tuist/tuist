@@ -91,6 +91,7 @@ jobs:
   inspect-implicit-imports:
     name: Inspect Implicit Imports
     runs-on: macos-26
+    timeout-minutes: 60
     needs: [check-team-membership]
     if: |
       always() &&
@@ -134,6 +135,7 @@ jobs:
   acceptance-tests:
     name: Acceptance Tests
     runs-on: macos-26
+    timeout-minutes: 15
     needs: [check-team-membership]
     if: |
       always() &&
@@ -177,6 +179,7 @@ jobs:
   unit-tests:
     name: Unit Tests
     runs-on: macos-26
+    timeout-minutes: 60
     needs: [check-team-membership]
     if: |
       always() &&

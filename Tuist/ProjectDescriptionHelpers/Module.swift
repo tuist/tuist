@@ -90,7 +90,7 @@ public enum Module: String, CaseIterable {
                 bundleId: "dev.tuist.TuistCacheEETests",
                 deploymentTargets: .macOS("14.0"),
                 infoPlist: .default,
-                buildableFolders: [.folder("cli/TuistCacheEE/Tests")],
+                buildableFolders: [.folder("cli/Tests/TuistCacheEETests")],
                 dependencies: [
                     .target(name: Module.core.targetName),
                     .target(name: Module.server.targetName),
@@ -111,7 +111,7 @@ public enum Module: String, CaseIterable {
                 bundleId: "dev.tuist.TuistCacheEEAcceptanceTests",
                 deploymentTargets: .macOS("14.0"),
                 infoPlist: .default,
-                buildableFolders: ["cli/TuistCacheEE/AcceptanceTests"],
+                buildableFolders: ["cli/Tests/TuistCacheEEAcceptanceTests"],
                 dependencies: [
                     .target(name: Module.core.targetName),
                     .target(name: Module.server.targetName),

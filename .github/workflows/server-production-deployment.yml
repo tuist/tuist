@@ -25,7 +25,7 @@ concurrency:
 env:
   CI: true
   RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
-  TUIST_CONFIG_TOKEN: ${{ secrets.TUIST_EXT_CONFIG_TOKEN }}
+  TUIST_CONFIG_TOKEN: ${{ secrets.TUIST_CONFIG_TOKEN }}
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   PNPM_HOME: ~/.pnpm
   MISE_SOPS_AGE_KEY: ${{ secrets.MISE_SOPS_AGE_KEY }}
@@ -66,7 +66,7 @@ jobs:
   acceptance-tests:
     name: Acceptance Tests
     runs-on: namespace-profile-default-macos
-    timeout-minutes: 40
+    timeout-minutes: 30
     needs: canary
     environment: server-canary
     steps:
@@ -84,7 +84,6 @@ jobs:
           key: ${{ runner.os }}-cli-cache-ee-${{ hashFiles('Package.resolved') }}
           restore-keys: ${{ runner.os }}-cli-
       - uses: jdx/mise-action@v2
-      - name: Install dependencies
       - name: Initialize TuistCacheEE submodule
         env:
           TUIST_GITHUB_TOKEN: ${{ secrets.TUIST_GITHUB_TOKEN }}
@@ -92,7 +91,7 @@ jobs:
       - name: Test
         env:
           TUIST_EE: 1
-        run: tuist test TuistAcceptanceTests --no-selective-testing --test-targets TuistCacheEEAcceptanceTests
+        run: tuist test TuistCacheEEAcceptanceTests --no-selective-testing --test-targets TuistCacheEEAcceptanceTests
   production:
     environment: server-production
     name: Production Deployment

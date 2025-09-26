@@ -133,7 +133,11 @@ defmodule Runner.QA.AgentTest do
 
       expect(Simulators, :stop_recording, fn ^recording_port -> :ok end)
 
-      expect(System, :cmd, 1, fn "ffmpeg", _args ->
+      expect(System, :cmd, fn "ffprobe", _args ->
+        {~s({"format": {"duration": "30.0"}}), 0}
+      end)
+
+      expect(System, :cmd, fn "ffmpeg", _args ->
         {"", 0}
       end)
 
@@ -438,7 +442,11 @@ defmodule Runner.QA.AgentTest do
 
       expect(Simulators, :stop_recording, fn 12_345 -> :ok end)
 
-      expect(System, :cmd, 1, fn "ffmpeg", _args ->
+      expect(System, :cmd, fn "ffprobe", _args ->
+        {~s({"format": {"duration": "30.0"}}), 0}
+      end)
+
+      expect(System, :cmd, fn "ffmpeg", _args ->
         {"", 0}
       end)
 
@@ -583,7 +591,11 @@ defmodule Runner.QA.AgentTest do
 
       expect(Simulators, :stop_recording, fn 12_345 -> :ok end)
 
-      expect(System, :cmd, 1, fn "ffmpeg", _args ->
+      expect(System, :cmd, fn "ffprobe", _args ->
+        {~s({"format": {"duration": "30.0"}}), 0}
+      end)
+
+      expect(System, :cmd, fn "ffmpeg", _args ->
         {"", 0}
       end)
 

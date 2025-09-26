@@ -678,7 +678,11 @@
     <.live_component
       module={TuistWeb.Components.Logs}
       logs={@formatted_logs || []}
-      empty_message={if @qa_run.status in ["running", "pending"], do: gettext("Preparing the agent environment..."), else: gettext("No logs found")}
+      empty_message={
+        if @qa_run.status in ["running", "pending"],
+          do: gettext("Preparing the agent environment..."),
+          else: gettext("No logs found")
+      }
       id="qa-run-logs"
     />
   </div>

@@ -79,7 +79,7 @@ final class TargetGenerator: TargetGenerating {
         pbxProject.targets.append(pbxTarget)
 
         // Buildable folders
-        generateSynchronizedGroups(target: target, fileElements: fileElements, pbxTarget: pbxTarget)
+        generateSynchronizedGroups(target: target, fileElements: fileElements, pbxTarget: pbxTarget, pbxproj: pbxproj)
 
         // Pre actions
         try buildPhaseGenerator.generateScripts(
@@ -139,7 +139,12 @@ final class TargetGenerator: TargetGenerating {
         return pbxTarget
     }
 
-    private func generateSynchronizedGroups(target: Target, fileElements: ProjectFileElements, pbxTarget: PBXNativeTarget) {
+    private func generateSynchronizedGroups(
+        target: Target,
+        fileElements: ProjectFileElements,
+        pbxTarget: PBXNativeTarget,
+        pbxproj: PBXProj
+    ) {
         for buildableFolder in target.buildableFolders {
             guard let fileElement = fileElements.elements[buildableFolder.path],
                   let synchronizedGroup = fileElement as? PBXFileSystemSynchronizedRootGroup else { continue }
@@ -147,6 +152,32 @@ final class TargetGenerator: TargetGenerating {
                 pbxTarget.fileSystemSynchronizedGroups = []
             }
             pbxTarget.fileSystemSynchronizedGroups?.append(synchronizedGroup)
+
+            for exception in buildableFolder.exceptions {
+                let membershipExceptions = exception.excluded.compactMap {
+                    $0.isDescendant(of: buildableFolder.path) ? $0.relative(to: buildableFolder.path).pathString : nil
+                }
+                let additionalCompilerFlagsByRelativePath = Dictionary(uniqueKeysWithValues: exception.compilerFlags
+                    .compactMap { path, compilerFlags -> (
+                        String,
+                        String
+                    )? in
+                        guard path.isDescendant(of: buildableFolder.path) else { return nil }
+                        return (path.relative(to: buildableFolder.path).pathString, compilerFlags)
+                    }
+                )
+
+                let exceptionSet = PBXFileSystemSynchronizedBuildFileExceptionSet(
+                    target: pbxTarget,
+                    membershipExceptions: membershipExceptions,
+                    publicHeaders: exception.publicHeaders.map { $0.relative(to: buildableFolder.path).pathString },
+                    privateHeaders: exception.privateHeaders.map { $0.relative(to: buildableFolder.path).pathString },
+                    additionalCompilerFlagsByRelativePath: additionalCompilerFlagsByRelativePath,
+                    attributesByRelativePath: nil
+                )
+                pbxproj.add(object: exceptionSet)
+                synchronizedGroup.exceptions?.append(exceptionSet)
+            }
         }
     }
 

@@ -1,6 +1,62 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.79.4<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* Add support for headers in buildable folders by [@pepicrft](https://github.com/pepicrft) in [#8298](https://github.com/tuist/tuist/pull/8298)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.79.3...4.79.4
+
+## What's Changed in 4.79.3<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* Fix synthesized bundle interfaces not generated for `.xcassets` in buildable folders by [@pepicrft](https://github.com/pepicrft) in [#8292](https://github.com/tuist/tuist/pull/8292)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.79.2...4.79.3
+
+## What's Changed in 4.79.2<!-- RELEASE NOTES START -->
+
+### 🧪 Testing
+
+* fix acceptance tests by [@fortmarek](https://github.com/fortmarek) in [#8288](https://github.com/tuist/tuist/pull/8288)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.79.1...4.79.2
+
+## What's Changed in 4.79.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* Make `excluded` optional in buildable folder exceptions by [@pepicrft](https://github.com/pepicrft) in [#8293](https://github.com/tuist/tuist/pull/8293)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.79.0...4.79.1
+
+## What's Changed in 4.79.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* Support exclusion of files and configuration of compiler flags for files in buildable folders by [@pepicrft](https://github.com/pepicrft) in [#8254](https://github.com/tuist/tuist/pull/8254)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.78.4...4.79.0
+
+## What's Changed in 4.78.4<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* Downgrade ProjectDescription Swift version to 6.1 by [@pepicrft](https://github.com/pepicrft) in [#8283](https://github.com/tuist/tuist/pull/8283)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.78.3...4.78.4
+
+## What's Changed in 4.78.3<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* show Products file group in Xcode navigator by [@YIshihara11201](https://github.com/YIshihara11201) in [#8267](https://github.com/tuist/tuist/pull/8267)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.78.2...4.78.3
+
 ## What's Changed in 4.78.2<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes

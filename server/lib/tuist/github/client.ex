@@ -97,7 +97,7 @@ defmodule Tuist.GitHub.Client do
                comment["performed_via_github_app"]["client_id"]
              end
 
-           %Comment{id: comment["id"], client_id: client_id}
+           %Comment{id: comment["id"], client_id: client_id, body: comment["body"]}
          end)}
 
       response ->
