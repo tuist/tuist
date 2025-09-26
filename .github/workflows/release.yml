@@ -528,6 +528,9 @@ jobs:
       !cancelled() && !failure() &&
       needs.check-releases.outputs.should-release-any == 'true'
     runs-on: ubuntu-latest
+    concurrency:
+      group: commit-and-release-${{ github.run_id }}
+      cancel-in-progress: false
     env:
       GITHUB_TOKEN: ${{ secrets.TUIST_GITHUB_TOKEN }}
     steps:
