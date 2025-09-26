@@ -277,6 +277,7 @@ jobs:
             cli/CHANGELOG.md
             cli/Sources/TuistSupport/Constants.swift
             mise.toml
+            build/ProjectDescription.xcframework.zip
             build/tuist.zip
             build/SHASUMS256.txt
             build/SHASUMS512.txt
@@ -646,6 +647,7 @@ jobs:
             build/tuist.zip
             build/SHASUMS256.txt
             build/SHASUMS512.txt
+            build/ProjectDescription.xcframework.zip
 
       - name: Create App GitHub Release
         if: needs.check-releases.outputs.app-should-release == 'true' && needs.release-app.result == 'success'
