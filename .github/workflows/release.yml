@@ -524,7 +524,7 @@ jobs:
     name: Commit and Release
     needs:
       [check-releases, release-cli, release-app, release-ios, release-server]
-    if: always() && needs.check-releases.outputs.should-release-any == 'true'
+    if: success() && needs.check-releases.outputs.should-release-any == 'true'
     runs-on: ubuntu-latest
     env:
       GITHUB_TOKEN: ${{ secrets.TUIST_GITHUB_TOKEN }}
