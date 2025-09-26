@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
+* Fix cache warming when external targets are excluded by platform conditions by [@pepicrft](https://github.com/pepicrft) in [#8308](https://github.com/tuist/tuist/pull/8308)
 * don't mark inspected build as failed when it has warnings only by [@fortmarek](https://github.com/fortmarek) in [#8276](https://github.com/tuist/tuist/pull/8276)
 
 **Full Changelog**: https://github.com/tuist/tuist/compare/4.79.4...4.79.5
