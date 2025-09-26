@@ -7,7 +7,7 @@
     age = "1.2.1"
 
 [hooks]
-    postinstall = "mise/tasks/install.sh"
+    postinstall = "{{config_root}}/mise/tasks/install.sh"
 
 [env]
     _.file = { path = ".env.json", redact = true }

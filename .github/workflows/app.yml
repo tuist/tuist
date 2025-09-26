@@ -91,7 +91,7 @@ jobs:
           restore-keys: .build
       - uses: jdx/mise-action@v2
       - name: Generate TuistApp
-        run: mise x -- tuist generate TuistApp --no-binary-cache
+        run: mise x -- tuist generate TuistApp
       - name: Build TuistApp
         run: mise x -- tuist xcodebuild build -scheme TuistApp -destination "generic/platform=iOS Simulator" -workspace Tuist.xcworkspace
       - name: Share TuistApp
