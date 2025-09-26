@@ -324,7 +324,11 @@ struct CacheRemoteStorageTests {
         #expect(try artifactSigner.isValid(path) == true)
     }
 
-    @Test(.inTemporaryDirectory, .withMockedLogger()) func fetch_when_artifact_invalid_exists() async throws {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedLogger(),
+        .withScopedAlertController()
+    ) func fetch_when_artifact_invalid_exists() async throws {
         // Given
         let zipPath = try await FileArchiver(paths: []).zip(name: "test") // Invalid
 
@@ -346,13 +350,19 @@ struct CacheRemoteStorageTests {
 
         // Then
         #expect(got.isEmpty == true)
-        TuistTest.expectLogs(
-            "Skipping fetching binaries due to an unexpected error",
-            at: .warning
+        #expect(AlertController.current.warnings().map(\.message)
+            .map { $0.plain() } ==
+            [
+                "Skipping fetching binaries due to an unexpected error: The downloaded artifact with hash \'hash\' has an incorrect format and doesn\'t contain xcframework, framework, bundle, or macro",
+            ]
         )
     }
 
-    @Test(.inTemporaryDirectory, .withMockedLogger()) func fetch_get_url_service_errors() async throws {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedLogger(),
+        .withScopedAlertController()
+    ) func fetch_get_url_service_errors() async throws {
         // Given
         let error = TestError()
 
@@ -371,13 +381,12 @@ struct CacheRemoteStorageTests {
 
         // Then
         #expect(got.isEmpty == true)
-        TuistTest.expectLogs(
-            "Skipping fetching binaries due to an unexpected error",
-            at: .warning
+        #expect(AlertController.current.warnings().map(\.message)
+            .map { $0.plain() } == ["Skipping fetching binaries due to an unexpected error: \(error.localizedDescription)"]
         )
     }
 
-    @Test(.inTemporaryDirectory, .withMockedLogger())
+    @Test(.inTemporaryDirectory, .withMockedLogger(), .withScopedAlertController())
     func fetch_when_client_throws_no_connection_error() async throws {
         // Given
         given(getCacheService).getCache(
@@ -404,12 +413,12 @@ struct CacheRemoteStorageTests {
 
         // Then
         #expect(got.isEmpty == true)
-        TuistTest.expectLogs(
-            "You seem to be offline, skipping fetching remote binaries"
+        #expect(AlertController.current.warnings().map(\.message)
+            .map { $0.plain() } == ["You seem to be offline, skipping fetching remote binaries..."]
         )
     }
 
-    @Test(.inTemporaryDirectory, .withMockedLogger())
+    @Test(.inTemporaryDirectory, .withMockedLogger(), .withScopedAlertController())
     func fetch_when_client_throws_server_unreachable_error() async throws {
         // Given
         given(getCacheService).getCache(
@@ -436,14 +445,22 @@ struct CacheRemoteStorageTests {
 
         // Then
         #expect(got.isEmpty == true)
-        TuistTest.expectLogs(
-            "The Tuist server is unreachable, skipping fetching remote binaries"
+        #expect(AlertController.current.warnings().map(\.message)
+            .map { $0.plain() } == ["The Tuist server is unreachable, skipping fetching remote binaries"]
         )
     }
 
-    @Test(.inTemporaryDirectory, .withMockedLogger())
+    @Test(.inTemporaryDirectory, .withMockedLogger(), .withScopedAlertController())
     func fetch_when_client_throws_unknown_client_error() async throws {
         // Given
+        let error = ClientError(
+            operationID: "some-id",
+            operationInput: {} as Sendable,
+            causeDescription: "cause",
+            underlyingError: TestError(
+                "Request timed out."
+            )
+        )
         given(getCacheService).getCache(
             serverURL: .value(Constants.URLs.production),
             projectId: .value(fullHandle),
@@ -451,14 +468,7 @@ struct CacheRemoteStorageTests {
             name: .value("target"),
             cacheCategory: .value(.binaries)
         ).willThrow(
-            ClientError(
-                operationID: "some-id",
-                operationInput: {} as Sendable,
-                causeDescription: "cause",
-                underlyingError: TestError(
-                    "Request timed out."
-                )
-            )
+            error
         )
 
         // When
@@ -468,10 +478,17 @@ struct CacheRemoteStorageTests {
 
         // Then
         #expect(got.isEmpty == true)
-        TuistTest.expectLogs("Request timed out.")
+        #expect(AlertController.current.warnings().map(\.message)
+            .map { $0.plain() } ==
+            ["Skipping fetching binaries due to an unexpected error: \(error.underlyingError.localizedDescription)"]
+        )
     }
 
-    @Test(.inTemporaryDirectory, .withMockedLogger()) func fetch_get_url_downloader_errors() async throws {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedLogger(),
+        .withScopedAlertController()
+    ) func fetch_get_url_downloader_errors() async throws {
         // Given
         let error = TestError()
         let serverCacheArtifact = ServerCacheArtifact.test()
@@ -492,9 +509,8 @@ struct CacheRemoteStorageTests {
 
         // Then
         #expect(got.isEmpty == true)
-        TuistTest.expectLogs(
-            "Skipping fetching binaries due to an unexpected error",
-            at: .warning
+        #expect(AlertController.current.warnings().map(\.message)
+            .map { $0.plain() } == ["Skipping fetching binaries due to an unexpected error: \(error.localizedDescription)"]
         )
     }
 
