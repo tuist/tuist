@@ -137,6 +137,13 @@ account and project handles with your own:
 [![Tuist Preview](https://tuist.dev/{account-handle}/{project-handle}/previews/latest/badge.svg)](https://tuist.dev/{account-handle}/{project-handle}/previews/latest)
 ```
 
+If your project contains multiple apps with different bundle identifiers, you
+can specify which app's preview to link to by adding a `bundle-id` query
+parameter:
+```
+[![Tuist Preview](https://tuist.dev/{account-handle}/{project-handle}/previews/latest/badge.svg)](https://tuist.dev/{account-handle}/{project-handle}/previews/latest?bundle-id=com.example.app)
+```
+
 ## Automations {#automations}
 
 You can use the `--json` flag to get a JSON output from the `tuist share`
