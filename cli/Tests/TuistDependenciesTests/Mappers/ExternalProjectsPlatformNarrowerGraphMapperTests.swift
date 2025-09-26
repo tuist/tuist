@@ -116,7 +116,7 @@ final class ExternalProjectsPlatformNarrowerGraphMapperTests: TuistUnitTestCase 
         )
     }
 
-    func test_map_when_external_with_platform_filter2() async throws {
+    func test_map_when_external_dependencies_end_with_no_platforms() async throws {
         // Given
         let directory = try temporaryPath()
         let packagesDirectory = directory.appending(component: "Dependencies")
