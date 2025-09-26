@@ -28,17 +28,27 @@ defmodule TuistWeb.PreviewController do
 
   def latest(
         %{assigns: %{selected_project: project}} = conn,
-        %{"account_handle" => account_handle, "project_handle" => project_handle} = _params
+        %{"account_handle" => account_handle, "project_handle" => project_handle} = params
       ) do
-    case AppBuilds.latest_preview(project) do
-      latest_preview when not is_nil(latest_preview) ->
-        conn
-        |> redirect(to: ~p"/#{account_handle}/#{project_handle}/previews/#{latest_preview.id}")
-        |> halt()
+    bundle_id = params["bundle-id"]
+    latest_previews = AppBuilds.latest_previews_with_distinct_bundle_ids(project)
 
+    latest_preview =
+      if not is_nil(bundle_id) do
+        Enum.find(latest_previews, fn preview -> preview.bundle_identifier == bundle_id end)
+      else
+        List.first(latest_previews)
+      end
+
+    case latest_preview do
       nil ->
         raise NotFoundError,
               "The page you are looking for doesn't exist or has been moved."
+
+      preview ->
+        conn
+        |> redirect(to: ~p"/#{account_handle}/#{project_handle}/previews/#{preview.id}")
+        |> halt()
     end
   end
 
