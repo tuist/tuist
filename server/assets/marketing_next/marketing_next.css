@@ -1,5 +1,6 @@
 @import "noora/noora.css";
 @import "css/routes/home.css";
+@import "css/layouts/components/footer.css";
 
 :root {
   color-scheme: light;
