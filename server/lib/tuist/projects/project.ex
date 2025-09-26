@@ -9,6 +9,7 @@ defmodule Tuist.Projects.Project do
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.User
   alias Tuist.AppBuilds.Preview
+  alias Tuist.Projects.ProjectConnection
   alias Tuist.QA.LaunchArgumentGroup
 
   @derive {
@@ -32,6 +33,7 @@ defmodule Tuist.Projects.Project do
     belongs_to :account, Account
 
     has_many :previews, Preview
+    has_many :project_connections, ProjectConnection
     has_many :qa_launch_argument_groups, LaunchArgumentGroup
 
     has_many :users_with_last_visited_projects, User,

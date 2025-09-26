@@ -446,6 +446,16 @@ defmodule Tuist.Environment do
     github_oauth_configured?(secrets) and github_app_private_key(secrets) != nil
   end
 
+  def github_app_name do
+    case @env do
+      :dev -> "tuist-dev"
+      :test -> "tuist-test"
+      :can -> "tuist-canary"
+      :stag -> "tuist-staging"
+      :prod -> "tuist"
+    end
+  end
+
   def google_oauth_client_id(secrets \\ secrets()) do
     get([:google, :oauth_client_id], secrets)
   end
