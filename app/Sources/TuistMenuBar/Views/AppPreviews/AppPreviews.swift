@@ -34,7 +34,7 @@ struct AppPreviews: View {
                         .padding(.bottom, 8)
                         .padding([.top, .horizontal], 12)
                     }
-                    .frame(maxWidth: 300)
+                    .frame(minWidth: 250, maxWidth: 300)
                     .padding(4)
                 }
             }
