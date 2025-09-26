@@ -34,10 +34,10 @@ defmodule TuistWeb.PreviewController do
     latest_previews = AppBuilds.latest_previews_with_distinct_bundle_ids(project)
 
     latest_preview =
-      if not is_nil(bundle_id) do
-        Enum.find(latest_previews, fn preview -> preview.bundle_identifier == bundle_id end)
-      else
+      if is_nil(bundle_id) do
         List.first(latest_previews)
+      else
+        Enum.find(latest_previews, fn preview -> preview.bundle_identifier == bundle_id end)
       end
 
     case latest_preview do
