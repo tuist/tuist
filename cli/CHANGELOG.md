@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.79.5<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* don't mark inspected build as failed when it has warnings only by [@fortmarek](https://github.com/fortmarek) in [#8276](https://github.com/tuist/tuist/pull/8276)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.79.4...4.79.5
+
 ## What's Changed in 4.79.4<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
