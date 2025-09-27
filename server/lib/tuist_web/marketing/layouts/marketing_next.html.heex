@@ -1,5 +1,115 @@
 {render_slot(@inner_block)}
 <footer id="marketing-footer">
   <img data-part="background" src={~p"/marketing/images/components/footer/background.webp"} />
-  asdgasgas
+  <div data-part="header">
+    <div data-part="tuist">
+      <img data-part="logo" src={~p"/marketing/images/components/footer/logo.webp"} />
+      <h3 data-part="title">Tuist</h3>
+    </div>
+    <img data-part="soc2" src={~p"/marketing/images/components/footer/soc2.webp"} />
+    <.link href="https://status.tuist.dev" target="_blank">
+      <% any_ongoing_incident? = Tuist.Incidents.any_ongoing_incident?() %>
+      <.status_badge
+        :if={not any_ongoing_incident?}
+        label={gettext("All systems normal")}
+        status="success"
+        type="dot"
+      />
+      <.status_badge
+        :if={any_ongoing_incident?}
+        label={gettext("Ongoing incident")}
+        status="warning"
+        type="dot"
+      />
+    </.link>
+  </div>
+  <div data-part="columns">
+    <div data-part="column">
+      <h3 data-part="title">{gettext("Features")}</h3>
+      <div data-part="links">
+        <.link data-part="link" href="https://docs.tuist.dev/en/guides/features/projects">
+          {gettext("Generated projects")}
+        </.link>
+        <.link data-part="link" href="https://docs.tuist.dev/en/guides/features/cache">
+          {gettext("Cache")}
+        </.link>
+        <.link data-part="link" href="https://docs.tuist.dev/en/guides/features/selective-testing">
+          {gettext("Selective testing")}
+        </.link>
+        <.link data-part="link" href="https://docs.tuist.dev/en/guides/features/registry">
+          {gettext("Registry")}
+        </.link>
+        <.link data-part="link" href="https://docs.tuist.dev/en/guides/features/insights">
+          {gettext("Insights")}
+        </.link>
+        <.link data-part="link" href="https://docs.tuist.dev/en/guides/features/bundle-size">
+          {gettext("Bundle analysis")}
+        </.link>
+        <.link data-part="link" href="https://docs.tuist.dev/en/guides/features/qa">
+          {gettext("QA")}
+        </.link>
+        <.link data-part="link" href="https://docs.tuist.dev/en/guides/features/previews">
+          {gettext("Previews")}
+        </.link>
+      </div>
+    </div>
+    <div data-part="column">
+      <h3 data-part="title">{gettext("Product")}</h3>
+      <div data-part="links">
+        <.link data-part="link" href={~p"/pricing"}>{gettext("Pricing")}</.link>
+        <.link data-part="link" href={~p"/changelog"}>{gettext("Changelog")}</.link>
+        <.link data-part="link" href="https://docs.tuist.dev">{gettext("Documentation")}</.link>
+        <.link data-part="link" href={~p"/download"}>{gettext("Download")}</.link>
+      </div>
+    </div>
+    <div data-part="column">
+      <h3 data-part="title">{gettext("Community")}</h3>
+      <div data-part="links">
+        <.link data-part="link" href="https://slack.tuist.dev">{gettext("Slack")}</.link>
+        <.link data-part="link" href="https://community.tuist.dev">
+          {gettext("Community forum")}
+        </.link>
+        <.link data-part="link" href={~p"/newsletter"}>{gettext("Newsletter")}</.link>
+        <.link data-part="link" href="https://github.com/tuist/tuist/issues">
+          {gettext("Issues")}
+        </.link>
+      </div>
+    </div>
+    <div data-part="column">
+      <h3 data-part="title">{gettext("Company")}</h3>
+      <div data-part="links">
+        <.link data-part="link" href={~p"/about"}>{gettext("About")}</.link>
+        <.link data-part="link" href={~p"/blog"}>{gettext("Blog")}</.link>
+        <.link data-part="link" href="mailto:contact@tuist.dev">{gettext("Contact")}</.link>
+      </div>
+    </div>
+    <div data-part="column">
+      <h3 data-part="title">{gettext("Socials")}</h3>
+      <div data-part="links">
+        <.link data-part="link" href="https://fosstodon.org/@tuist" target="_blank">
+          {gettext("Mastodon")}
+        </.link>
+        <.link data-part="link" href="http://github.com/tuist" target="_blank">
+          {gettext("GitHub")}
+        </.link>
+        <.link data-part="link" href="https://bsky.app/profile/tuist.dev" target="_blank">
+          {gettext("Bluesky")}
+        </.link>
+        <.link data-part="link" href="https://www.linkedin.com/company/tuistio/" target="_blank">
+          {gettext("LinkedIn")}
+        </.link>
+        <.link data-part="link" href="https://videos.tuist.dev" target="_blank">
+          {gettext("Videos")}
+        </.link>
+      </div>
+    </div>
+    <div data-part="column">
+      <h3 data-part="title">{gettext("Legal")}</h3>
+      <div data-part="links">
+        <.link data-part="link" href={~p"/terms"}>{gettext("Terms of service")}</.link>
+        <.link data-part="link" href={~p"/privacy"}>{gettext("Privacy policy")}</.link>
+        <.link data-part="link" href={~p"/cookies"}>{gettext("Cookie policy")}</.link>
+      </div>
+    </div>
+  </div>
 </footer>
