@@ -1,10 +1,10 @@
 #marketing-about {
   & > [data-part="team"] {
-    padding-left: var(--noora-spacing-14);
-    padding-right: var(--noora-spacing-14);
     display: flex;
     flex-direction: column;
     gap: var(--noora-spacing-12);
+    padding-right: var(--noora-spacing-14);
+    padding-left: var(--noora-spacing-14);
 
     & > [data-part="header"] {
       display: flex;
@@ -24,7 +24,7 @@
     & > [data-part="main"] {
       display: flex;
       flex-direction: row;
-      justify-items: center;
+      justify-content: center;
       gap: 48px;
 
       & > [data-part="member"] {
@@ -34,12 +34,17 @@
 
         & > [data-part="photo"] {
           position: relative;
-          width: 227px;
-          height: 300px;
+          box-shadow:
+            0 91.042px 25.333px 0 rgba(0, 0, 0, 0),
+            0 58.583px 22.958px 0 rgba(0, 0, 0, 0.01),
+            0 32.458px 19.792px 0 rgba(0, 0, 0, 0.05),
+            0 14.25px 14.25px 0 rgba(0, 0, 0, 0.09),
+            0 3.958px 7.917px 0 rgba(0, 0, 0, 0.1);
           border-radius: var(--noora-radius-xlarge);
           background: lightgray 50% / cover no-repeat;
+          width: 227px;
+          height: 300px;
           overflow: hidden;
-          box-shadow: 0 91.042px 25.333px 0 rgba(0, 0, 0, 0.00), 0 58.583px 22.958px 0 rgba(0, 0, 0, 0.01), 0 32.458px 19.792px 0 rgba(0, 0, 0, 0.05), 0 14.25px 14.25px 0 rgba(0, 0, 0, 0.09), 0 3.958px 7.917px 0 rgba(0, 0, 0, 0.10);
 
           & > img {
             width: 100%;
@@ -48,28 +53,27 @@
           }
 
           & > [data-part="data"] {
+            display: flex;
             position: absolute;
-            height: 64px;
+            right: 0;
             bottom: 0;
             left: 0;
-            right: 0;
-            display: flex;
             flex-direction: column;
-            align-items: center;
             justify-content: center;
-            padding: var(--noora-spacing-4);
-            padding-top: var(--noora-spacing-8);
-            background: linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, 0.10) 30%, rgba(0, 0, 0, 0.20) 100%);
+            align-items: center;
             backdrop-filter: blur(19.791667938232422px);
             -webkit-backdrop-filter: blur(19.791667938232422px);
-            filter: blur(0px);
             mask-image: linear-gradient(to bottom, transparent 0%, black 40%);
             -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 40%);
+            filter: blur(0px);
+            background: linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, 0.1) 30%, rgba(0, 0, 0, 0.2) 100%);
+            padding: var(--noora-spacing-4);
+            padding-top: var(--noora-spacing-8);
+            height: 64px;
 
             & > [data-part="name"] {
               color: var(--noora-neutral-light-50);
               font: var(--noora-font-weight-medium) var(--noora-font-body-large);
-
             }
             & > [data-part="role"] {
               color: var(--noora-neutral-light-50);
