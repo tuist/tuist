@@ -2,6 +2,7 @@
 @import "css/routes/home.css";
 @import "css/routes/about.css";
 @import "css/layouts/components/footer.css";
+@import "css/layouts/components/banner.css";
 
 :root {
   color-scheme: light;
