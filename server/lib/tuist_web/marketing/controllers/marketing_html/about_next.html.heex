@@ -1,1 +1,28 @@
-foo bar
+<main id="marketing-about">
+  <section data-part="team">
+    <header data-part="header">
+      <h2 data-part="title">{gettext("The team")}</h2>
+      <p data-part="subtitle">{gettext("We’re a small, passionate team that cares deeply about developer experience and takes pride in crafting tools with care and attention to detail.")}</p>
+    </header>
+    <main data-part="main">
+      <div data-part="member">
+        <div data-part="photo">
+          <img src={~p"/marketing/images/about/team/pedro.webp"}>
+          <div data-part="data">
+            <h3 data-part="name">
+              Pedro Piñera
+            </h3>
+            <p data-part="role">
+              Founder & CEO
+            </p>
+          </div>
+        </div>
+        <div data-part="links">
+        <.neutral_button size="small">
+          <.chevron_right />
+        </.neutral_button>
+        </div>
+      </div>
+    </main>
+  </section>
+</main>
