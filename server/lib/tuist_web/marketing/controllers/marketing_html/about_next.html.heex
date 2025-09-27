@@ -1,138 +1,146 @@
-<main id="marketing-about">
-  <img data-part="background" src={~p"/marketing/images/about/background.webp"} />
-  <header data-part="header">
-    <img data-part="logo" src={~p"/marketing/images/about/logo.webp"} />
-    <h1 data-part="title">{gettext("Building the future of scalable app development")}</h1>
-    <p data-part="subtitle">
-      {gettext(
-        "Tuist bridges the gaps in Apple's tooling that prevent teams from moving fast. We solve the build complexity, workflow friction, and collaboration challenges—so you can deliver exceptional apps at speed."
-      )}
-    </p>
-  </header>
-  <section data-part="content">
-    <h2 data-part="title">{gettext("Scale with joy")}</h2>
-    <div data-part="body">
-      <p>
-        {gettext(
-          "We're a group of builders who believe scaling your app shouldn't kill your creativity. We've experienced the frustration of watching exciting Swift projects turn into build-time nightmares and tooling headaches as they grow, so we decided to build something better."
-        )}
-      </p>
-      <p>
-        {gettext(
-          "That's why Tuist exists—to restore the joy of development at any scale. We enhance Apple's native tooling by bringing innovative ideas from across the development ecosystem, so teams can focus on creating exceptional apps instead of fighting their build system."
-        )}
-      </p>
-      <p>
-        {gettext(
-          "Our approach is rooted in curiosity and open collaboration. We share our journey, contribute tools as open source, and cultivate communities where developers learn and grow together. When we solve problems in the open, everyone wins."
-        )}
-      </p>
-    </div>
-  </section>
-  <section data-part="photos">
-    <img data-part="photo" src={~p"/marketing/images/about/photos/1.webp"} />
-    <img data-part="photo" src={~p"/marketing/images/about/photos/2.webp"} />
-    <img data-part="photo" src={~p"/marketing/images/about/photos/3.webp"} />
-  </section>
-  <section data-part="values">
+<TuistWeb.Marketing.Layouts.marketing_next {assigns}>
+  <main id="marketing-about">
+    <img data-part="background" src={~p"/marketing/images/about/background.webp"} />
     <header data-part="header">
-      <h2 data-part="title">{gettext("What we believe in")}</h2>
-    </header>
-    <main data-part="main">
-      <div data-part="card">
-        <img
-          data-part="background"
-          src={~p"/marketing/images/about/values/openness/background.webp"}
-        />
-        <img data-part="graphic" src={~p"/marketing/images/about/values/openness/graphic.webp"} />
-        <div data-part="footer">
-          <h3 data-part="title">{gettext("Openness")}</h3>
-          <p data-part="subtitle">
-            {gettext(
-              "We believe openness builds better tools, keeping only what’s needed closed for sustainable development."
-            )}
-          </p>
-        </div>
-      </div>
-      <div data-part="card">
-        <img
-          data-part="background"
-          src={~p"/marketing/images/about/values/happiness/background.webp"}
-        />
-        <img data-part="graphic" src={~p"/marketing/images/about/values/happiness/graphic.webp"} />
-        <div data-part="footer">
-          <h3 data-part="title">{gettext("Happiness")}</h3>
-          <p data-part="subtitle">
-            {gettext(
-              "We prioritize developer happiness because it's closely tied to creating better apps."
-            )}
-          </p>
-        </div>
-      </div>
-      <div data-part="card">
-        <img
-          data-part="background"
-          src={~p"/marketing/images/about/values/standards/background.webp"}
-        />
-        <img data-part="graphic" src={~p"/marketing/images/about/values/standards/graphic.webp"} />
-        <div data-part="footer">
-          <h3 data-part="title">{gettext("Standards")}</h3>
-          <p data-part="subtitle">
-            {gettext(
-              "We embrace standards for long-term success while respecting freedom of choice."
-            )}
-          </p>
-        </div>
-      </div>
-    </main>
-  </section>
-  <section data-part="team">
-    <header data-part="header">
-      <h2 data-part="title">{gettext("The team")}</h2>
+      <img data-part="logo" src={~p"/marketing/images/about/logo.webp"} />
+      <h1 data-part="title">{gettext("Building the future of scalable app development")}</h1>
       <p data-part="subtitle">
         {gettext(
-          "We’re a small, passionate team that cares deeply about developer experience and takes pride in crafting tools with care and attention to detail."
+          "Tuist bridges the gaps in Apple's tooling that prevent teams from moving fast. We solve the build complexity, workflow friction, and collaboration challenges—so you can deliver exceptional apps at speed."
         )}
       </p>
     </header>
-    <main data-part="main">
-      <.about_team_member
-        name="Pedro Piñera"
-        role="Founder & CEO"
-        photo_src={~p"/marketing/images/about/team/pedro.webp"}
-        github_handle="pepicrft"
-        mastodon_url="https://mastodon.pepicrft.me/@pedro"
-        bluesky_url="https://bsky.app/profile/pepicrft.bsky.social"
-        linkedin_url="https://www.linkedin.com/in/pedro-piñera-buendia-9765a9125/"
-      />
-      <.about_team_member
-        name="Marek Fořt"
-        role="Founder & CTO"
-        photo_src={~p"/marketing/images/about/team/marek.webp"}
-        github_handle="fortmarek"
-        mastodon_url="https://mastodon.online/@marekfort"
-        bluesky_url="https://bsky.app/profile/marekfort.bsky.social"
-        linkedin_url="https://www.linkedin.com/in/marek-f-71853b89/"
-      />
-      <.about_team_member
-        name="Asmit Malakannawar"
-        role="Product Designer"
-        photo_src={~p"/marketing/images/about/team/asmit.webp"}
-        github_handle="asmitbm"
-        mastodon_url="https://mastodon.social/@asmitbm"
-        bluesky_url="https://bsky.app/profile/asmitbm.bsky.social"
-        linkedin_url="https://www.linkedin.com/in/asmitbm/"
-      />
-      <.about_team_member
-        name="Christoph Schmatzler"
-        role="Sr. Software Engineer"
-        photo_src={~p"/marketing/images/about/team/chris.webp"}
-        github_handle="cschmatzler"
-        mastodon_url="https://mastodon.social/@christoph@medium.place"
-      />
-    </main>
-  </section>
-  <section data-part="cta">
-    <.marketing_banner title={gettext("Your platform team, as a service")} />
-  </section>
-</main>
+    <section data-part="content">
+      <h2 data-part="title">{gettext("Scale with joy")}</h2>
+      <div data-part="body">
+        <p>
+          {gettext(
+            "We're a group of builders who believe scaling your app shouldn't kill your creativity. We've experienced the frustration of watching exciting Swift projects turn into build-time nightmares and tooling headaches as they grow, so we decided to build something better."
+          )}
+        </p>
+        <p>
+          {gettext(
+            "That's why Tuist exists—to restore the joy of development at any scale. We enhance Apple's native tooling by bringing innovative ideas from across the development ecosystem, so teams can focus on creating exceptional apps instead of fighting their build system."
+          )}
+        </p>
+        <p>
+          {gettext(
+            "Our approach is rooted in curiosity and open collaboration. We share our journey, contribute tools as open source, and cultivate communities where developers learn and grow together. When we solve problems in the open, everyone wins."
+          )}
+        </p>
+      </div>
+    </section>
+    <section data-part="photos">
+      <img data-part="photo" src={~p"/marketing/images/about/photos/1.webp"} />
+      <img data-part="photo" src={~p"/marketing/images/about/photos/2.webp"} />
+      <img data-part="photo" src={~p"/marketing/images/about/photos/3.webp"} />
+    </section>
+    <section data-part="values">
+      <header data-part="header">
+        <h2 data-part="title">{gettext("What we believe in")}</h2>
+      </header>
+      <main data-part="main">
+        <div data-part="card">
+          <img
+            data-part="background"
+            src={~p"/marketing/images/about/values/openness/background.webp"}
+          />
+          <img data-part="graphic" src={~p"/marketing/images/about/values/openness/graphic.webp"} />
+          <div data-part="footer">
+            <h3 data-part="title">{gettext("Openness")}</h3>
+            <p data-part="subtitle">
+              {gettext(
+                "We believe openness builds better tools, keeping only what’s needed closed for sustainable development."
+              )}
+            </p>
+          </div>
+        </div>
+        <div data-part="card">
+          <img
+            data-part="background"
+            src={~p"/marketing/images/about/values/happiness/background.webp"}
+          />
+          <img
+            data-part="graphic"
+            src={~p"/marketing/images/about/values/happiness/graphic.webp"}
+          />
+          <div data-part="footer">
+            <h3 data-part="title">{gettext("Happiness")}</h3>
+            <p data-part="subtitle">
+              {gettext(
+                "We prioritize developer happiness because it's closely tied to creating better apps."
+              )}
+            </p>
+          </div>
+        </div>
+        <div data-part="card">
+          <img
+            data-part="background"
+            src={~p"/marketing/images/about/values/standards/background.webp"}
+          />
+          <img
+            data-part="graphic"
+            src={~p"/marketing/images/about/values/standards/graphic.webp"}
+          />
+          <div data-part="footer">
+            <h3 data-part="title">{gettext("Standards")}</h3>
+            <p data-part="subtitle">
+              {gettext(
+                "We embrace standards for long-term success while respecting freedom of choice."
+              )}
+            </p>
+          </div>
+        </div>
+      </main>
+    </section>
+    <section data-part="team">
+      <header data-part="header">
+        <h2 data-part="title">{gettext("The team")}</h2>
+        <p data-part="subtitle">
+          {gettext(
+            "We’re a small, passionate team that cares deeply about developer experience and takes pride in crafting tools with care and attention to detail."
+          )}
+        </p>
+      </header>
+      <main data-part="main">
+        <.about_team_member
+          name="Pedro Piñera"
+          role="Founder & CEO"
+          photo_src={~p"/marketing/images/about/team/pedro.webp"}
+          github_handle="pepicrft"
+          mastodon_url="https://mastodon.pepicrft.me/@pedro"
+          bluesky_url="https://bsky.app/profile/pepicrft.bsky.social"
+          linkedin_url="https://www.linkedin.com/in/pedro-piñera-buendia-9765a9125/"
+        />
+        <.about_team_member
+          name="Marek Fořt"
+          role="Founder & CTO"
+          photo_src={~p"/marketing/images/about/team/marek.webp"}
+          github_handle="fortmarek"
+          mastodon_url="https://mastodon.online/@marekfort"
+          bluesky_url="https://bsky.app/profile/marekfort.bsky.social"
+          linkedin_url="https://www.linkedin.com/in/marek-f-71853b89/"
+        />
+        <.about_team_member
+          name="Asmit Malakannawar"
+          role="Product Designer"
+          photo_src={~p"/marketing/images/about/team/asmit.webp"}
+          github_handle="asmitbm"
+          mastodon_url="https://mastodon.social/@asmitbm"
+          bluesky_url="https://bsky.app/profile/asmitbm.bsky.social"
+          linkedin_url="https://www.linkedin.com/in/asmitbm/"
+        />
+        <.about_team_member
+          name="Christoph Schmatzler"
+          role="Sr. Software Engineer"
+          photo_src={~p"/marketing/images/about/team/chris.webp"}
+          github_handle="cschmatzler"
+          mastodon_url="https://mastodon.social/@christoph@medium.place"
+        />
+      </main>
+    </section>
+    <section data-part="cta">
+      <.marketing_banner title={gettext("Your platform team, as a service")} />
+    </section>
+  </main>
+</TuistWeb.Marketing.Layouts.marketing_next>
