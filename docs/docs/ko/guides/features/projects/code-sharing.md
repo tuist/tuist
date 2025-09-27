@@ -39,7 +39,7 @@ import ProjectDescriptionHelpers
 
 ## 예시 {#example}
 
-아래 코드 스니펫은 `Proejct` 모델을 확장하여 static constructor를 추가하고, 이를 `Project.swift` 파일에서 사용하는 예시입니다:
+아래 코드 스니펫은 `Project` 모델을 확장하여 static constructor를 추가하고, 이를 `Project.swift` 파일에서 사용하는 예시입니다:
 
 ::: code-group
 
