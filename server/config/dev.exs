@@ -92,6 +92,7 @@ config :tuist, TuistWeb.Endpoint,
       ~r"priv/gettext/.*(po)$",
       ~r"lib/tuist_web/(controllers|live|components)/.*(ex|heex)$",
       ~r"lib/tuist_web/marketing/(controllers|live|components)/.*(ex|heex)$",
+      ~r"lib/tuist_web/marketing_next/(controllers|live|components)/.*(ex|heex)$",
       ~r"priv/marketing/blog/*/.*(md)$"
     ]
   ]
