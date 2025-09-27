@@ -18,9 +18,11 @@ protocol ProjectMapperFactorying {
     /// Returns a project mapper for automation.
     /// - Parameter config: The project configuration.
     /// - Parameter skipUITests: Whether UI tests should be skipped.
+    /// - Parameter skipUnitTests: Whether Unit tests should be skipped.
     /// - Returns: An instance of a project mapper.
     func automation(
         skipUITests: Bool,
+        skipUnitTests: Bool,
         tuist: Tuist
     ) -> [ProjectMapping]
 }
@@ -34,6 +36,7 @@ public final class ProjectMapperFactory: ProjectMapperFactorying {
 
     public func automation(
         skipUITests: Bool,
+        skipUnitTests: Bool,
         tuist: Tuist
     ) -> [ProjectMapping] {
         var mappers: [ProjectMapping] = []
@@ -41,6 +44,12 @@ public final class ProjectMapperFactory: ProjectMapperFactorying {
         if skipUITests {
             mappers.append(
                 SkipUITestsProjectMapper()
+            )
+        }
+        
+        if skipUnitTests {
+            mappers.append(
+                SkipUnitTestsProjectMapper()
             )
         }
 
