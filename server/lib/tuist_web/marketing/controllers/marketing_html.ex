@@ -9,6 +9,48 @@ defmodule TuistWeb.Marketing.MarketingHTML do
 
   embed_templates "marketing_html/*"
 
+  attr :title, :string, required: true
+  attr :primary_action_title, :string, required: false
+  attr :primary_action_href, :string, required: false
+  attr :primary_action_target, :string, default: "_blank"
+  attr :secondary_action_title, :string, required: false
+  attr :secondary_action_href, :string, required: false
+  attr :secondary_action_target, :string, default: "_blank"
+
+  defp marketing_banner(assigns) do
+    assigns =
+      assigns
+      |> assign(:primary_action_title, Map.get(assigns, :primary_action_title, gettext("Get started")))
+      |> assign(:primary_action_href, Map.get(assigns, :primary_action_href, gettext("https://docs.tuist.dev/en/")))
+      |> assign(:secondary_action_title, Map.get(assigns, :secondary_action_title, gettext("Talk to us")))
+      |> assign(
+        :secondary_action_href,
+        Map.get(assigns, :secondary_action_href, gettext("https://cal.tuist.dev/team/tuist/tuist?overlayCalendar=true"))
+      )
+
+    ~H"""
+    <div id="marketing-banner">
+      <img data-part="background" src={~p"/marketing/images/components/banner/background.webp"} />
+      <h2 data-part="title">{@title}</h2>
+      <nav data-part="actions" aria-label="Primary actions">
+        <.button
+          href={@primary_action_href}
+          label={@primary_action_title}
+          target={@primary_action_target}
+        >
+        </.button>
+        <.button
+          href={@secondary_action_href}
+          variant="secondary"
+          label={@secondary_action_title}
+          target={@secondary_action_target}
+        >
+        </.button>
+      </nav>
+    </div>
+    """
+  end
+
   attr :name, :string, required: true
   attr :role, :string, required: true
   attr :photo_src, :string, required: true
