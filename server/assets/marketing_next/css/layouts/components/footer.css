@@ -1,7 +1,7 @@
 #marketing-footer {
   display: flex;
   position: relative;
-  flex-direction: column;
+  flex-direction: row;
   justify-content: space-between;
   padding: var(--noora-spacing-14);
 
@@ -22,6 +22,8 @@
     bottom: 0;
     left: 0;
     z-index: -1;
+    filter: blur(50px);
+    background: linear-gradient(306deg, rgba(255, 255, 255, 0.9) -8.24%, rgba(248, 245, 254, 0.9) 163.85%);
     width: 100%;
     height: 100%;
     object-fit: fill;
@@ -30,8 +32,63 @@
   & > [data-part="header"] {
     display: flex;
     flex-direction: column;
+    gap: var(--noora-spacing-9);
+
+    & > [data-part="tuist"] {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: var(--noora-spacing-3);
+
+      & > [data-part="logo"] {
+        width: 40px;
+        height: 40px;
+      }
+
+      & > [data-part="title"] {
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
+      }
+    }
+
+    & > [data-part="soc2"] {
+      width: 58px;
+      height: 58px;
+    }
+
+    & > [data-part="status"] {
+    }
   }
 
   & > [data-part="columns"] {
+    display: flex;
+    flex-direction: row;
+    gap: var(--noora-spacing-9);
+
+    & > [data-part="column"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-9);
+
+      & > [data-part="title"] {
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+      }
+      & > [data-part="links"] {
+        display: flex;
+        flex-direction: column;
+        gap: var(--noora-spacing-5);
+
+        & > [data-part="link"] {
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+          text-decoration: none;
+
+          &:hover {
+            color: var(--noora-surface-label-secondary);
+          }
+        }
+      }
+    }
   }
 }
