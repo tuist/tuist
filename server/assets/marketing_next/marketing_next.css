@@ -1,5 +1,6 @@
 @import "noora/noora.css";
 @import "css/routes/home.css";
+@import "css/routes/about.css";
 @import "css/layouts/components/footer.css";
 
 :root {
@@ -10,10 +11,10 @@ body {
   flex-direction: column;
   gap: var(--noora-spacing-11);
   box-sizing: border-box;
-  margin-top: var(--noora-spacing-12);
-  margin-right: var(--noora-spacing-14);
-  margin-bottom: var(--noora-spacing-12);
-  margin-left: var(--noora-spacing-14);
+  margin-top: 0;
+  margin-right: 0;
+  margin-bottom: 0;
+  margin-left: 0;
   background: var(--noora-surface-background-primary);
   padding: 0px;
   font-family: var(--noora-font-body);
