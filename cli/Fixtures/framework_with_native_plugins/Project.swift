@@ -10,14 +10,11 @@ let project = Project(
     targets: [
         .target(
             name: "MyFramework",
-            destinations: [
-                .mac,
-            ],
+            destinations: [.mac],
             product: .framework,
             bundleId: "io.tuist.Framework",
             sources: ["Sources/**/*"],
             dependencies: [
-//                .external(name: "MyMacro"),
                 .external(name: "MySPMPlugin")
             ]
         ),

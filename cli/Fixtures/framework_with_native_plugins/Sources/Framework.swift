@@ -4,10 +4,8 @@ import Foundation
 //import ComposableArchitecture
 //import Buildable
 //import MyMacro
-import MySPMPlugin
-
-#stringify(3+4)
-#stringify(3 + 100)
+//#stringify(3+4)
+//#stringify(3 + 100)
 
 // @Buildable
 public struct Person {
