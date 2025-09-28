@@ -110,6 +110,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
     /// https://github.com/apple/swift-package-manager/blob/751f0b2a00276be2c21c074f4b21d952eaabb93b/Sources/PackageLoading/PackageBuilder.swift#L488
     fileprivate static let predefinedSourceDirectories = ["Sources", "Source", "src", "srcs"]
     fileprivate static let predefinedTestDirectories = ["Tests", "Sources", "Source", "src", "srcs"]
+    fileprivate static let predefinedPluginDirectories = ["Plugins", "Sources", "Source", "src", "srcs"]
     private let moduleMapGenerator: SwiftPackageManagerModuleMapGenerating
     private let fileSystem: FileSysteming
     private let rootDirectoryLocator: RootDirectoryLocating
@@ -381,11 +382,18 @@ public final class PackageInfoMapper: PackageInfoMapping {
         // Ignores or passes a target based on the `type` and the `packageType`.
         // After that, it assumes that no target is ignored.
         switch target.type {
-        case .regular, .system, .macro:
+        case .regular, .system, .macro, .plugin:
             break
         case .test, .executable:
             switch packageType {
             case .external:
+                // Check if executable is referenced by a plugin product
+                if target.type == .executable {
+                    let products = targetToProducts[target.name] ?? Set()
+                    if products.contains(where: { $0.type == .plugin }) {
+                        break
+                    }
+                }
                 Logger.current.debug("Target \(target.name) of type \(target.type) ignored")
                 return nil
             case .local:
@@ -440,7 +448,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
 
         var destinations: ProjectDescription.Destinations
         switch target.type {
-        case .macro, .executable:
+        case .macro, .executable, .plugin:
             destinations = Set([.mac])
         case .test:
             var testDestinations = Set(XcodeGraph.Destination.allCases)
@@ -723,6 +731,8 @@ extension ProjectDescription.Product {
             return .commandLineTool
         case .test:
             return .unitTests
+        case .plugin:
+            return .plugin
         default:
             break
         }
@@ -1401,8 +1411,9 @@ extension PackageInfo.Target {
         }
 
         let predefinedDirectories = type == .test
-            ? PackageInfoMapper.predefinedTestDirectories
-            : PackageInfoMapper.predefinedSourceDirectories
+        ? PackageInfoMapper.predefinedTestDirectories
+        : type == .plugin ? PackageInfoMapper.predefinedPluginDirectories
+        : PackageInfoMapper.predefinedSourceDirectories
 
         for directory in predefinedDirectories {
             // Standard layout: Sources/TargetName/
