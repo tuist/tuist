@@ -385,8 +385,10 @@ jobs:
             app/CHANGELOG.md
             app/Project.swift
             app/appcast.xml
-            build/artifacts/Tuist.zip
-            build/artifacts/Tuist.dmg
+            app/build/artifacts/Tuist.zip
+            app/build/artifacts/Tuist.dmg
+            app/build/artifacts/SHASUMS256.txt
+            app/build/artifacts/SHASUMS512.txt
           retention-days: 1
 
   release-ios:
@@ -597,8 +599,8 @@ jobs:
           tag_name: ${{ needs.check-releases.outputs.app-next-version }}
           body: ${{ needs.release-app.outputs.release-notes }}
           files: |
-            build/artifacts/Tuist.zip
-            build/artifacts/Tuist.dmg
+            app/build/artifacts/Tuist.zip
+            app/build/artifacts/Tuist.dmg
 
       - name: Create Server GitHub Release
         if: needs.check-releases.outputs.server-should-release == 'true' && needs.release-server.result == 'success'
@@ -622,7 +624,7 @@ jobs:
       - name: Trigger Homebrew Cask Update
         if: needs.check-releases.outputs.app-should-release == 'true' && needs.release-app.result == 'success'
         run: |
-          SHA256=$(cat build/SHASUMS256.txt | grep tuist.zip | awk '{print $1}')
+          SHA256=$(cat app/build/artifacts/SHASUMS256.txt | grep Tuist.dmg | awk '{print $1}')
           mise run app:release:homebrew-cask --version "${{ needs.check-releases.outputs.app-next-version-number }}" --github-token "${{ secrets.TUIST_GITHUB_TOKEN }}" --sha256 "$SHA256"
 
       - name: Commit all changes and push
