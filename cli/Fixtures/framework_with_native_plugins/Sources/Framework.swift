@@ -1,13 +1,13 @@
 import Foundation
 
-//import Buildable
-//import ComposableArchitecture
-//import Buildable
-//import MyMacro
-//#stringify(3+4)
-//#stringify(3 + 100)
+// import Buildable
+// import ComposableArchitecture
+// import Buildable
+// import MyMacro
+// #stringify(3+4)
+// #stringify(3 + 100)
 
-// @Buildable
+/// @Buildable
 public struct Person {
     let name: String
     let age: Int
@@ -20,8 +20,8 @@ public struct Person {
     static let minimumAge = 21
 }
 
-//@Reducer
-//struct Feature {
+// @Reducer
+// struct Feature {
 //    struct State {}
 //
 //    enum Action {}
@@ -29,4 +29,4 @@ public struct Person {
 //    var body: some ReducerOf<Self> {
 //        EmptyReducer()
 //    }
-//}
+// }

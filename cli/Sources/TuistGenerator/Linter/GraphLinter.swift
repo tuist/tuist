@@ -649,7 +649,7 @@ public class GraphLinter: GraphLinting {
             LintableTarget(platform: .macOS, product: .framework),
             LintableTarget(platform: .macOS, product: .macro),
             // 9/28
-            LintableTarget(platform: .macOS, product: .commandLineTool)
+            LintableTarget(platform: .macOS, product: .commandLineTool),
         ],
         LintableTarget(platform: .macOS, product: .xpc): [
             LintableTarget(platform: .macOS, product: .staticLibrary),

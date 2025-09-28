@@ -1411,9 +1411,9 @@ extension PackageInfo.Target {
         }
 
         let predefinedDirectories = type == .test
-        ? PackageInfoMapper.predefinedTestDirectories
-        : type == .plugin ? PackageInfoMapper.predefinedPluginDirectories
-        : PackageInfoMapper.predefinedSourceDirectories
+            ? PackageInfoMapper.predefinedTestDirectories
+            : type == .plugin ? PackageInfoMapper.predefinedPluginDirectories
+            : PackageInfoMapper.predefinedSourceDirectories
 
         for directory in predefinedDirectories {
             // Standard layout: Sources/TargetName/

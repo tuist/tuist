@@ -10,7 +10,7 @@ let package = Package(
     products: [
     ],
     dependencies: [
-//      .package(url: "https://github.com/pointfreeco/swift-composable-architecture", from: "1.10.0"),
+        //      .package(url: "https://github.com/pointfreeco/swift-composable-architecture", from: "1.10.0"),
 //      .package(url: "https://github.com/fernandolucheti/ProtocolMacro", from: "0.0.1"),
 //      .package(url: "https://github.com/alschmut/StructBuilderMacro", from: "0.5.0"),
 //      .package(url: "https://github.com/FelixHerrmann/swift-package-list", from: "2.0.0"),
@@ -25,7 +25,7 @@ let package = Package(
 
         // experiment packages
 //        .package(url: "https://github.com/YIshihara11201/MyMacro", from: "0.1.2"),
-        .package(url: "https://github.com/YIshihara11201/MySPMPlugin", from: "1.0.4")
+        .package(url: "https://github.com/YIshihara11201/MySPMPlugin", from: "1.0.4"),
     ],
     targets: [
     ]

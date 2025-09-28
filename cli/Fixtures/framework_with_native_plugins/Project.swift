@@ -15,7 +15,7 @@ let project = Project(
             bundleId: "io.tuist.Framework",
             sources: ["Sources/**/*"],
             dependencies: [
-                .external(name: "MySPMPlugin")
+                .external(name: "MySPMPlugin"),
             ]
         ),
     ]
