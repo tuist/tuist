@@ -123,9 +123,13 @@ As an on-premise user, you'll receive a license key that you'll need to expose
 as an environment variable. This key is used to validate the license and ensure
 that the service is running within the terms of the agreement.
 
-| Environment variable | Description                                                    | Required | Default | Example  |
-| -------------------- | -------------------------------------------------------------- | -------- | ------- | -------- |
-| `TUIST_LICENSE`      | The license provided after signing the service level agreement | Yes      |         | `******` |
+| Environment variable               | Description                                                                                                                                                                                                                                 | Required | Default | Example                                   |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ------- | ----------------------------------------- |
+| `TUIST_LICENSE`                    | The license provided after signing the service level agreement                                                                                                                                                                              | Yes*     |         | `******`                                  |
+| `TUIST_LICENSE_CERTIFICATE_BASE64` | **Exceptional alternative to `TUIST_LICENSE`**. Base64-encoded public certificate for offline license validation in air-gapped environments where the server cannot contact external services. Only use when `TUIST_LICENSE` cannot be used | Yes*     |         | `LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0t...` |
+
+\* Either `TUIST_LICENSE` or `TUIST_LICENSE_CERTIFICATE_BASE64` must be
+provided, but not both. Use `TUIST_LICENSE` for standard deployments.
 
 > [!IMPORTANT] EXPIRATION DATE Licenses have an expiration date. Users will
 > receive a warning while using Tuist commands that interact with the server if
