@@ -46,7 +46,7 @@ defmodule Tuist.License do
         resolve_certificate()
 
       true ->
-        {:error, "No license key or certificate found"}
+        {:error, :license_not_found}
     end
   end
 
@@ -164,7 +164,7 @@ defmodule Tuist.License do
         {:ok, %{valid: true}} ->
           :ok
 
-        {:error, "No license key or certificate found"} ->
+        {:error, :license_not_found} ->
           raise "The license key exposed through the environment variable TUIST_LICENSE or TUIST_LICENSE_KEY is missing."
 
         {:ok, nil} ->
