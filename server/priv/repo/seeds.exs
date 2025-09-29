@@ -120,6 +120,8 @@ builds =
     model_identifier =
       Enum.random(["MacBookPro14,2", "MacBookPro15,1", "MacBookPro10,2", "Macmini8,1"])
 
+    configuration = Enum.random(["Debug", "Release"])
+
     account_id = if is_ci, do: organization.account.id, else: user.account.id
 
     inserted_at =
@@ -142,6 +144,7 @@ builds =
       project_id: tuist_project.id,
       account_id: account_id,
       scheme: scheme,
+      configuration: configuration,
       inserted_at: inserted_at,
       status: status
     }

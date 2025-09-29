@@ -224,7 +224,7 @@ defmodule TuistWeb.API.RunsControllerTest do
   end
 
   describe "POST /api/projects/:account_handle/:project_handle/runs" do
-    test "creates a new build when authenticatd as user", %{conn: conn} do
+    test "creates a new build when authenticated as user", %{conn: conn} do
       # Given
       user = AccountsFixtures.user_fixture(preload: [:account], email: "tuist@tuist.io")
       project = ProjectsFixtures.project_fixture(preload: [:account], account_id: user.account.id)
@@ -243,6 +243,7 @@ defmodule TuistWeb.API.RunsControllerTest do
           is_ci: false,
           model_identifier: "machine-123",
           scheme: "App",
+          configuration: "Release",
           status: :failure,
           category: :incremental,
           issues: [
@@ -319,6 +320,7 @@ defmodule TuistWeb.API.RunsControllerTest do
       assert build.is_ci == false
       assert build.model_identifier == "machine-123"
       assert build.scheme == "App"
+      assert build.configuration == "Release"
       assert build.project_id == project.id
       assert build.account_id == user.account.id
       assert build.status == :failure
@@ -489,6 +491,7 @@ defmodule TuistWeb.API.RunsControllerTest do
       assert build.is_ci == false
       assert build.model_identifier == nil
       assert build.scheme == nil
+      assert build.configuration == nil
       assert build.project_id == project.id
       assert build.account_id == user.account.id
       assert build.status == :success

@@ -10,6 +10,7 @@ protocol BuildInsightsActionMapping {
     /// Maps a build action to track build insights.
     func map(
         _ buildAction: BuildAction,
+        target: TargetReference?,
         buildInsightsDisabled: Bool
     ) async throws -> BuildAction
 }
@@ -17,6 +18,7 @@ protocol BuildInsightsActionMapping {
 struct BuildInsightsActionMapper: BuildInsightsActionMapping {
     func map(
         _ buildAction: BuildAction,
+        target: TargetReference?,
         buildInsightsDisabled: Bool
     ) async throws -> BuildAction {
         guard !buildInsightsDisabled,
@@ -27,7 +29,7 @@ struct BuildInsightsActionMapper: BuildInsightsActionMapping {
             ExecutionAction(
                 title: "Push build insights",
                 scriptText: "\(currentExecutablePath.pathString) inspect build",
-                target: nil,
+                target: target,
                 shellPath: nil
             )
         )

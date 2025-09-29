@@ -23,6 +23,7 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
       is_ci: Keyword.get(attrs, :is_ci, false),
       model_identifier: Keyword.get(attrs, :model_identifier, "Mac15,6"),
       scheme: Keyword.get(attrs, :scheme, "App"),
+      configuration: Keyword.get(attrs, :configuration, "Debug"),
       project_id: project_id,
       account_id: account_id,
       inserted_at: Keyword.get(attrs, :inserted_at),

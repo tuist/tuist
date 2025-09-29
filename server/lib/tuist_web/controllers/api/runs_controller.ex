@@ -224,6 +224,10 @@ defmodule TuistWeb.API.RunsController do
                  type: :string,
                  description: "The scheme used for the build."
                },
+               configuration: %Schema{
+                 type: :string,
+                 description: "The build configuration (e.g., Debug, Release)."
+               },
                status: %Schema{
                  type: :string,
                  description: "The status of the build run.",
@@ -487,6 +491,7 @@ defmodule TuistWeb.API.RunsController do
           is_ci: Map.get(params, :is_ci),
           model_identifier: Map.get(params, :model_identifier),
           scheme: Map.get(params, :scheme),
+          configuration: Map.get(params, :configuration),
           project_id: params.project.id,
           account_id: params.account.id,
           status: Map.get(params, :status, :success),
