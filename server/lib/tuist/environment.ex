@@ -86,9 +86,14 @@ defmodule Tuist.Environment do
     end
   end
 
-  def get_license_key(secrets \\ secrets()) do
+  def license_key(secrets \\ secrets()) do
     System.get_env("TUIST_LICENSE_KEY") ||
-      get([:license], secrets)
+      get([:license, :key], secrets) || get([:license], secrets)
+  end
+
+  def license_certificate_base64(secrets \\ secrets()) do
+    System.get_env("TUIST_LICENSE_CERTIFICATE_BASE64") ||
+      get([:license, :certificate, :base64], secrets)
   end
 
   def use_ipv6?(secrets \\ secrets()) do
