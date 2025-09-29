@@ -548,21 +548,19 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: cli-artifacts
-          path: .
 
       - name: Download App artifacts
         if: needs.check-releases.outputs.app-should-release == 'true' && needs.release-app.result == 'success'
         uses: actions/download-artifact@v4
         with:
           name: app-artifacts
-          path: .
+          path: app
 
       - name: Download Server artifacts
         if: needs.check-releases.outputs.server-should-release == 'true' && needs.release-server.result == 'success'
         uses: actions/download-artifact@v4
         with:
           name: server-artifacts
-          path: .
 
       - name: Create tags for successfully released components
         run: |
