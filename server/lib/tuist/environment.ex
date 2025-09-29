@@ -87,8 +87,7 @@ defmodule Tuist.Environment do
   end
 
   def license_key(secrets \\ secrets()) do
-    System.get_env("TUIST_LICENSE_KEY") ||
-      get([:license, :key], secrets) || get([:license], secrets)
+    System.get_env("TUIST_LICENSE_KEY") || get([:license], secrets) || get([:license, :key], secrets)
   end
 
   def license_certificate_base64(secrets \\ secrets()) do
@@ -725,7 +724,7 @@ defmodule Tuist.Environment do
       if System.get_env(env_variable) do
         System.get_env(env_variable)
       else
-        get_in(secrets, string_keys)
+        safe_get_in(secrets, string_keys)
       end
 
     if is_nil(value) do
@@ -734,6 +733,17 @@ defmodule Tuist.Environment do
       value
     end
   end
+
+  defp safe_get_in(data, []), do: data
+
+  defp safe_get_in(data, [key | rest]) when is_map(data) do
+    case Map.get(data, key) do
+      nil -> nil
+      value -> safe_get_in(value, rest)
+    end
+  end
+
+  defp safe_get_in(_data, _keys), do: nil
 
   def secrets do
     Application.get_env(:tuist, :secrets) || %{}
