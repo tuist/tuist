@@ -103,7 +103,7 @@ defmodule Tuist.License do
       if :crypto.verify(:eddsa, :none, data_to_verify, sig_binary, [public_key, :ed25519]) do
         case Base.decode64(enc_data) do
           {:ok, decoded} ->
-            case Jason.decode(decoded) do
+            case JSON.decode(decoded) do
               {:ok, license_data} -> build_license_struct(license_data)
               {:error, _} -> {:error, "Failed to parse license data"}
             end
