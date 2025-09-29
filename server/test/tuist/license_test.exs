@@ -24,7 +24,7 @@ defmodule Tuist.LicenseTest do
       validation_url = License.get_validation_url()
       expiry = DateTime.utc_now() |> DateTime.shift(day: 1) |> Timex.format!("{RFC3339}")
       license_key = String.to_atom(UUIDv7.generate())
-      stub(Environment, :get_license_key, fn -> license_key end)
+      stub(Environment, :license_key, fn -> license_key end)
 
       stub(Req, :post, fn ^validation_url, [json: %{meta: %{key: ^license_key}}] ->
         {:ok,
@@ -65,7 +65,7 @@ defmodule Tuist.LicenseTest do
       validation_url = License.get_validation_url()
       expiry = DateTime.utc_now() |> DateTime.shift(day: -1) |> Timex.format!("{RFC3339}")
       license_key = String.to_atom(UUIDv7.generate())
-      stub(Environment, :get_license_key, fn -> license_key end)
+      stub(Environment, :license_key, fn -> license_key end)
 
       stub(Req, :post, fn ^validation_url, [json: %{meta: %{key: ^license_key}}] ->
         {:ok,
@@ -97,7 +97,7 @@ defmodule Tuist.LicenseTest do
       # Given
       validation_url = License.get_validation_url()
       license_key = String.to_atom(UUIDv7.generate())
-      stub(Environment, :get_license_key, fn -> license_key end)
+      stub(Environment, :license_key, fn -> license_key end)
 
       stub(Req, :post, fn ^validation_url, [json: %{meta: %{key: ^license_key}}] ->
         {:ok,
@@ -118,7 +118,7 @@ defmodule Tuist.LicenseTest do
       # Given
       validation_url = License.get_validation_url()
       license_key = String.to_atom(UUIDv7.generate())
-      stub(Environment, :get_license_key, fn -> license_key end)
+      stub(Environment, :license_key, fn -> license_key end)
 
       stub(Req, :post, fn ^validation_url, [json: %{meta: %{key: ^license_key}}] ->
         {:error, "req error."}
