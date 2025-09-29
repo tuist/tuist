@@ -21,6 +21,7 @@ struct TuistCacheEEAcceptanceTests {
     ) func generated_ios_app_with_external_dependencies_filtered_out() async throws {
         // Given
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        try await TuistTest.run(InstallCommand.self, ["--path", fixtureDirectory.pathString])
 
         // When: Cache the binaries
         try await TuistTest.run(

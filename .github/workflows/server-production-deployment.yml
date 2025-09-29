@@ -91,7 +91,7 @@ jobs:
       - name: Test
         env:
           TUIST_EE: 1
-        run: tuist test TuistCacheEEAcceptanceTests --no-selective-testing --test-targets TuistCacheEEAcceptanceTests
+        run: tuist test TuistCacheEEAcceptanceTests --no-selective-testing --test-targets TuistCacheEEAcceptanceTests/TuistCacheEEAcceptanceTests
   production:
     environment: server-production
     name: Production Deployment
