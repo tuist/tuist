@@ -348,33 +348,10 @@ jobs:
           BASE_64_DEVELOPER_ID_APPLICATION_CERTIFICATE: ${{ secrets.BASE_64_DEVELOPER_ID_APPLICATION_CERTIFICATE }}
           BASE_64_DEVELOPER_ID_INSTALLER_CERTIFICATE: ${{ secrets.BASE_64_DEVELOPER_ID_INSTALLER_CERTIFICATE }}
 
-      - name: Generate appcast.xml
-        working-directory: app
-        run: |
-          VERSION_NUMBER="${{ needs.check-releases.outputs.app-next-version }}"
-          VERSION_NUMBER="${VERSION_NUMBER#app@}"
-          cat > appcast.xml << EOF
-          <?xml version="1.0" encoding="utf-8"?>
-          <rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" xmlns:dc="http://purl.org/dc/elements/1.1/">
-            <channel>
-              <title>Tuist App</title>
-              <link>https://raw.githubusercontent.com/tuist/tuist/main/app/appcast.xml</link>
-              <description>The most recent changes with links to updates.</description>
-              <language>en</language>
-              <item>
-                <title>Version $VERSION_NUMBER</title>
-                <description><![CDATA[
-          ${{ steps.release-notes.outputs.RELEASE_NOTES }}
-                ]]></description>
-                <pubDate>$(date -u +"%a, %d %b %Y %H:%M:%S GMT")</pubDate>
-                <enclosure url="https://github.com/tuist/tuist/releases/download/${{ needs.check-releases.outputs.app-next-version }}/Tuist.dmg"
-                          sparkle:version="$(git rev-list --count HEAD)"
-                          sparkle:shortVersionString="$VERSION_NUMBER"
-                          type="application/octet-stream"/>
-              </item>
-            </channel>
-          </rss>
-          EOF
+      - name: Generate Sparkle appcast
+        env:
+          TUIST_APP_PRIVATE_SPARKLE_KEY: ${{ secrets.TUIST_APP_PRIVATE_SPARKLE_KEY }}
+        run: echo "$TUIST_APP_PRIVATE_SPARKLE_KEY" | .build/artifacts/sparkle/Sparkle/bin/generate_appcast --link https://github.com/tuist/tuist/releases --download-url-prefix https://github.com/tuist/tuist/releases/download/${{ needs.check-releases.outputs.app-next-version }}/Tuist.dmg -o app/appcast.xml app/build/artifacts --ed-key-file -
 
       - name: Upload App artifacts
         id: upload
@@ -600,7 +577,8 @@ jobs:
           tag_name: ${{ needs.check-releases.outputs.app-next-version }}
           body: ${{ needs.release-app.outputs.release-notes }}
           files: |
-            app/build/artifacts/Tuist.zip
+            app/build/artifacts/SHASUMS256.txt
+            app/build/artifacts/SHASUMS512.txt
             app/build/artifacts/Tuist.dmg
 
       - name: Create Server GitHub Release
