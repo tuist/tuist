@@ -87,8 +87,7 @@ defmodule Tuist.Environment do
   end
 
   def license_key(secrets \\ secrets()) do
-    System.get_env("TUIST_LICENSE_KEY") ||
-      get([:license, :key], secrets) || get([:license], secrets)
+    System.get_env("TUIST_LICENSE_KEY") || get([:license], secrets) || get([:license, :key], secrets)
   end
 
   def license_certificate_base64(secrets \\ secrets()) do
