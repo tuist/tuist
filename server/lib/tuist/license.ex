@@ -28,133 +28,129 @@ defmodule Tuist.License do
   end
 
   def get_license(opts \\ []) do
-    case KeyValueStore.get_or_update(
-           [__MODULE__, "license"],
-           [
-             ttl: Keyword.get(opts, :ttl, to_timeout(day: 1))
-           ],
-           fn ->
-             resolve_license(Tuist.Environment.license_key())
-           end
-         ) do
-      {:ok, license} -> {:ok, license}
-      {:error, error} -> {:error, error}
+    ttl = Keyword.get(opts, :ttl, to_timeout(day: 1))
+
+    KeyValueStore.get_or_update(
+      [__MODULE__, "license"],
+      [ttl: ttl],
+      fn -> fetch_license() end
+    )
+  end
+
+  defp fetch_license do
+    cond do
+      key = Tuist.Environment.license_key() ->
+        resolve_license(key)
+
+      Tuist.Environment.license_certificate_base64() ->
+        resolve_certificate()
+
+      true ->
+        {:error, "No license key or certificate found"}
     end
   end
 
-  # ECDSA P-256 Public Key
-  def ecdsa_p256_public_key() do
-    "LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUZrd0V3WUhLb1pJemowQ0FRWUlLb1pJemowREFRY0RRZ0FFY2hMOEFTNFUxRStTV3JrS1hhdjA4ek5tc0tMTQpuaEg2MFNqdzlxQ214WmZnVTlLU2orUEo1NnpCb01GNUx3YTBZamhjNUNsSDdlZjliUnB4U3FJVmNBPT0KLS0tLS1FTkQgUFVCTElDIEtFWS0tLS0tCg=="
+  # Ed25519 128-bit Verify Key
+  def ed25519_verify_key do
+    "58f8d43c65b5a3e200e8ef6ecefa6b700432124527edf50a5b5b0577242c51fd"
   end
 
-  def license_certificate() do
-    Tuist.Environment.license_certificate_base64() |> Base.decode64!()
+  def certificate do
+    Base.decode64!(Tuist.Environment.license_certificate_base64())
   end
 
   @doc """
-  Validates a license certificate against the ECDSA P-256 public key.
+  Resolves a license from a certificate, validating it against the Ed25519 verify key.
 
-  Returns {:ok, certificate_data} if valid, {:error, reason} otherwise.
+  Returns {:ok, %Tuist.License{}} if valid, {:error, reason} otherwise.
 
-  Supports Keygen offline license format with ECDSA P-256 signatures.
+  Supports Keygen offline license format with Ed25519 signatures.
   """
-  def validate_license_certificate(public_key_pem \\ ecdsa_p256_public_key(), certificate \\ license_certificate()) do
-    try do
-      # Debug: log the first part of the certificate
-      IO.inspect(String.slice(certificate, 0, 100), label: "Certificate preview")
+  def resolve_certificate(verify_key \\ ed25519_verify_key(), certificate \\ certificate()) do
+    cert_content =
+      certificate
+      |> String.replace(~r/-----.*?-----/s, "")
+      |> String.replace(~r/\s/, "")
+      |> String.trim()
 
-      # Remove PEM headers if present
-      cert_content = certificate
-        |> String.replace("-----BEGIN LICENSE FILE-----", "")
-        |> String.replace("-----END LICENSE FILE-----", "")
-        |> String.replace("-----BEGIN LICENSE KEY-----", "")
-        |> String.replace("-----END LICENSE KEY-----", "")
-        |> String.trim()
+    with {:ok, decoded} <- Base.decode64(cert_content),
+         {:ok, payload} <- Jason.decode(decoded) do
+      case payload do
+        %{"enc" => enc_data, "sig" => sig_data, "alg" => alg} ->
+          verify_and_build_license(verify_key, enc_data, sig_data, alg)
 
-      # Try to decode as base64
-      decoded = case Base.decode64(cert_content) do
-        {:ok, decoded_data} ->
-          IO.inspect(String.slice(decoded_data, 0, 100), label: "Decoded preview")
-          decoded_data
-        :error ->
-          IO.puts("Base64 decode failed, using raw content")
-          cert_content
+        %{"data" => data, "sig" => sig, "alg" => alg} ->
+          verify_and_build_license(verify_key, data, sig, alg)
+
+        _ ->
+          {:error, "Invalid certificate format - missing required fields"}
       end
-      dbg(decoded)
+    else
+      :error ->
+        {:error, "Failed to decode base64 certificate"}
 
-
-      # Parse the decoded content
-      case Jason.decode(decoded) do
-        {:ok, %{"enc" => enc_data, "sig" => sig_data, "alg" => alg}} ->
-          IO.inspect(alg, label: "Algorithm")
-          # This is a Keygen offline license with encryption and signature
-          verify_keygen_license(public_key_pem, enc_data, sig_data, alg)
-
-        {:ok, %{"data" => data, "sig" => sig, "alg" => alg}} ->
-          IO.inspect(alg, label: "Algorithm")
-          # Simplified format without encryption
-          verify_keygen_license(public_key_pem, data, sig, alg)
-
-        {:ok, payload} when is_map(payload) ->
-          IO.inspect(Map.keys(payload), label: "JSON keys")
-          # For dev/test, allow unsigned payloads
-          if Tuist.Environment.dev?() or Tuist.Environment.test?() do
-            {:ok, payload}
-          else
-            {:error, "Certificate missing signature - keys: #{inspect(Map.keys(payload))}"}
-          end
-
-        {:error, error} ->
-          IO.inspect(error, label: "JSON parse error")
-          {:error, "Invalid certificate format - not a valid Keygen license"}
-
-        other ->
-          IO.inspect(other, label: "Unexpected JSON result")
-          {:error, "Invalid certificate format"}
-      end
-    rescue
-      e ->
-        {:error, "Certificate validation failed: #{inspect(e)}"}
+      {:error, %Jason.DecodeError{} = error} ->
+        {:error, "Invalid certificate JSON: #{Exception.message(error)}"}
     end
   end
 
-  defp verify_keygen_license(public_key_pem, data, signature, algorithm) do
-    try do
-      # Decode the PEM public key
-      public_key = public_key_pem |> Base.decode64!()
+  defp verify_and_build_license(verify_key, enc_data, signature, _algorithm) do
+    with {:ok, public_key} <- Base.decode16(verify_key, case: :lower),
+         {:ok, sig_binary} <- Base.decode64(signature) do
+      # For Ed25519 signatures, verify against "license/" + base64 data
+      data_to_verify = "license/" <> enc_data
 
-      # Determine the signing algorithm
-      case String.downcase(algorithm) do
-        alg when alg in ["ecdsa-p256", "base64+ecdsa-p256", "aes-256-gcm+ecdsa-p256"] ->
-          # Parse the public key for ECDSA
-          [{:SubjectPublicKeyInfo, der_public_key, _}] = :public_key.pem_decode(public_key)
-          ec_key = :public_key.der_decode(:SubjectPublicKeyInfo, der_public_key)
+      if :crypto.verify(:eddsa, :none, data_to_verify, sig_binary, [public_key, :ed25519]) do
+        case Base.decode64(enc_data) do
+          {:ok, decoded} ->
+            case Jason.decode(decoded) do
+              {:ok, license_data} -> build_license_struct(license_data)
+              {:error, _} -> {:error, "Failed to parse license data"}
+            end
 
-          # Prepare the data for verification
-          data_to_verify = if is_binary(data), do: data, else: Jason.encode!(data)
-
-          # Decode the signature
-          sig_binary = Base.decode64!(signature)
-
-          # Verify using ECDSA with SHA256
-          case :public_key.verify(data_to_verify, :sha256, sig_binary, ec_key) do
-            true ->
-              # Parse the data if it's encoded
-              parsed_data = case Jason.decode(data_to_verify) do
-                {:ok, parsed} -> parsed
-                {:error, _} -> data
-              end
-              {:ok, parsed_data}
-            false ->
-              {:error, "Invalid signature"}
-          end
-
-        _ ->
-          {:error, "Unsupported algorithm: #{algorithm}"}
+          :error ->
+            {:error, "Failed to decode license data"}
+        end
+      else
+        {:error, "Invalid signature"}
       end
-    rescue
-      e ->
-        {:error, "Keygen license verification failed: #{inspect(e)}"}
+    else
+      :error ->
+        {:error, "Failed to decode verify key or signature"}
+    end
+  end
+
+  defp build_license_struct(license_data) do
+    # Extract the main data section
+    data = license_data["data"]
+    attributes = data["attributes"]
+    metadata = attributes["metadata"] || %{}
+
+    # Determine validity based on expiry and status
+    expiry = attributes["expiry"]
+
+    valid =
+      case DateTime.from_iso8601(expiry) do
+        {:ok, exp_date, _} -> DateTime.after?(exp_date, DateTime.utc_now())
+        _ -> false
+      end
+
+    {:ok,
+     %__MODULE__{
+       id: data["id"],
+       valid: valid,
+       features: [],
+       expiration_date: parse_datetime(expiry),
+       signing_key: metadata["signingKey"]
+     }}
+  end
+
+  defp parse_datetime(nil), do: nil
+
+  defp parse_datetime(datetime_string) do
+    case DateTime.from_iso8601(datetime_string) do
+      {:ok, datetime, _} -> datetime
+      _ -> nil
     end
   end
 
@@ -168,8 +164,11 @@ defmodule Tuist.License do
         {:ok, %{valid: true}} ->
           :ok
 
-        {:ok, nil} ->
+        {:error, "No license key or certificate found"} ->
           raise "The license key exposed through the environment variable TUIST_LICENSE or TUIST_LICENSE_KEY is missing."
+
+        {:ok, nil} ->
+          raise "The license key is invalid or does not exist."
 
         {:ok, %{valid: false}} ->
           raise "The license key is invalid or expired. Please, contact contact@tuist.dev to get a new one."
