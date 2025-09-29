@@ -27,6 +27,9 @@ To start tracking local build times, you can leverage the `tuist inspect build` 
 
 ![Post-action for inspecting builds](/images/guides/features/insights/inspect-build-scheme-post-action.png)
 
+> [!NOTE]
+> We recommend setting the "Provide build settings from" to the executable or your main build target to enable Tuist to track the build configuration.
+
 
 In case you're using [Mise](https://mise.jdx.dev/), your script will need to activate `tuist` in the post-action environment:
 ```sh

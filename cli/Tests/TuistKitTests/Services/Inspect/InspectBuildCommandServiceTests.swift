@@ -59,6 +59,7 @@ struct InspectBuildCommandServiceTests {
                 serverURL: .any,
                 id: .any,
                 category: .any,
+                configuration: .any,
                 duration: .any,
                 files: .any,
                 gitBranch: .any,
@@ -114,6 +115,7 @@ struct InspectBuildCommandServiceTests {
         let projectPath = temporaryDirectory.appending(component: "App.xcodeproj")
         let mockedEnvironment = try #require(Environment.mocked)
         mockedEnvironment.workspacePath = projectPath
+        mockedEnvironment.variables["CONFIGURATION"] = "Debug"
 
         let derivedDataPath = temporaryDirectory.appending(component: "derived-data")
         given(derivedDataLocator)
@@ -174,6 +176,7 @@ struct InspectBuildCommandServiceTests {
                 serverURL: .any,
                 id: .any,
                 category: .value(.incremental),
+                configuration: .value("Debug"),
                 duration: .value(10000),
                 files: .value([.test()]),
                 gitBranch: .value("branch"),
@@ -241,6 +244,7 @@ struct InspectBuildCommandServiceTests {
                 serverURL: .any,
                 id: .any,
                 category: .any,
+                configuration: .any,
                 duration: .any,
                 files: .any,
                 gitBranch: .any,

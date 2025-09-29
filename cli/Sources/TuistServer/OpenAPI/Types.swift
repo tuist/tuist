@@ -2294,6 +2294,10 @@ public enum Components {
                 ///
                 /// - Remark: Generated from `#/components/schemas/RunParams/case1/category`.
                 public var category: Components.Schemas.RunParams.Case1Payload.categoryPayload?
+                /// The build configuration (e.g., Debug, Release).
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunParams/case1/configuration`.
+                public var configuration: Swift.String?
                 /// Duration of the run in milliseconds.
                 ///
                 /// - Remark: Generated from `#/components/schemas/RunParams/case1/duration`.
@@ -2640,6 +2644,7 @@ public enum Components {
                 ///
                 /// - Parameters:
                 ///   - category: The category of the build run, can be clean or incremental.
+                ///   - configuration: The build configuration (e.g., Debug, Release).
                 ///   - duration: Duration of the run in milliseconds.
                 ///   - files: Compiled files associated with the build run.
                 ///   - git_branch: The git branch.
@@ -2658,6 +2663,7 @@ public enum Components {
                 ///   - xcode_version: The version of Xcode used during the run.
                 public init(
                     category: Components.Schemas.RunParams.Case1Payload.categoryPayload? = nil,
+                    configuration: Swift.String? = nil,
                     duration: Swift.Int,
                     files: Components.Schemas.RunParams.Case1Payload.filesPayload? = nil,
                     git_branch: Swift.String? = nil,
@@ -2676,6 +2682,7 @@ public enum Components {
                     xcode_version: Swift.String? = nil
                 ) {
                     self.category = category
+                    self.configuration = configuration
                     self.duration = duration
                     self.files = files
                     self.git_branch = git_branch
@@ -2695,6 +2702,7 @@ public enum Components {
                 }
                 public enum CodingKeys: String, CodingKey {
                     case category
+                    case configuration
                     case duration
                     case files
                     case git_branch
@@ -3662,6 +3670,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/BuildRun/category`.
             public var category: Components.Schemas.BuildRun.categoryPayload?
+            /// The build configuration (e.g., Debug, Release).
+            ///
+            /// - Remark: Generated from `#/components/schemas/BuildRun/configuration`.
+            public var configuration: Swift.String?
             /// Duration of the run in milliseconds.
             ///
             /// - Remark: Generated from `#/components/schemas/BuildRun/duration`.
@@ -4008,6 +4020,7 @@ public enum Components {
             ///
             /// - Parameters:
             ///   - category: The category of the build run, can be clean or incremental.
+            ///   - configuration: The build configuration (e.g., Debug, Release).
             ///   - duration: Duration of the run in milliseconds.
             ///   - files: Compiled files associated with the build run.
             ///   - git_branch: The git branch.
@@ -4026,6 +4039,7 @@ public enum Components {
             ///   - xcode_version: The version of Xcode used during the run.
             public init(
                 category: Components.Schemas.BuildRun.categoryPayload? = nil,
+                configuration: Swift.String? = nil,
                 duration: Swift.Int,
                 files: Components.Schemas.BuildRun.filesPayload? = nil,
                 git_branch: Swift.String? = nil,
@@ -4044,6 +4058,7 @@ public enum Components {
                 xcode_version: Swift.String? = nil
             ) {
                 self.category = category
+                self.configuration = configuration
                 self.duration = duration
                 self.files = files
                 self.git_branch = git_branch
@@ -4063,6 +4078,7 @@ public enum Components {
             }
             public enum CodingKeys: String, CodingKey {
                 case category
+                case configuration
                 case duration
                 case files
                 case git_branch
@@ -19568,6 +19584,10 @@ public enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/category`.
                         public var category: Operations.createRun.Input.Body.jsonPayload.Case1Payload.categoryPayload?
+                        /// The build configuration (e.g., Debug, Release).
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/configuration`.
+                        public var configuration: Swift.String?
                         /// Duration of the run in milliseconds.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/duration`.
@@ -19914,6 +19934,7 @@ public enum Operations {
                         ///
                         /// - Parameters:
                         ///   - category: The category of the build run, can be clean or incremental.
+                        ///   - configuration: The build configuration (e.g., Debug, Release).
                         ///   - duration: Duration of the run in milliseconds.
                         ///   - files: Compiled files associated with the build run.
                         ///   - git_branch: The git branch.
@@ -19932,6 +19953,7 @@ public enum Operations {
                         ///   - xcode_version: The version of Xcode used during the run.
                         public init(
                             category: Operations.createRun.Input.Body.jsonPayload.Case1Payload.categoryPayload? = nil,
+                            configuration: Swift.String? = nil,
                             duration: Swift.Int,
                             files: Operations.createRun.Input.Body.jsonPayload.Case1Payload.filesPayload? = nil,
                             git_branch: Swift.String? = nil,
@@ -19950,6 +19972,7 @@ public enum Operations {
                             xcode_version: Swift.String? = nil
                         ) {
                             self.category = category
+                            self.configuration = configuration
                             self.duration = duration
                             self.files = files
                             self.git_branch = git_branch
@@ -19969,6 +19992,7 @@ public enum Operations {
                         }
                         public enum CodingKeys: String, CodingKey {
                             case category
+                            case configuration
                             case duration
                             case files
                             case git_branch

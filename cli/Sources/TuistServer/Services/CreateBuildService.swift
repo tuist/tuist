@@ -13,6 +13,7 @@ import OpenAPIURLSession
             serverURL: URL,
             id: String,
             category: XCActivityBuildCategory,
+            configuration: String?,
             duration: Int,
             files: [XCActivityBuildFile],
             gitBranch: String?,
@@ -70,6 +71,7 @@ import OpenAPIURLSession
             serverURL: URL,
             id: String,
             category: XCActivityBuildCategory,
+            configuration: String?,
             duration: Int,
             files: [XCActivityBuildFile],
             gitBranch: String?,
@@ -113,6 +115,7 @@ import OpenAPIURLSession
                         .case1(
                             .init(
                                 category: category,
+                                configuration: configuration,
                                 duration: duration,
                                 files: files
                                     .map(Operations.createRun.Input.Body.jsonPayload.Case1Payload.filesPayloadPayload.init),

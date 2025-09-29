@@ -32,6 +32,7 @@ defmodule Tuist.Runs.Build do
     field :scheme, :string
     field :status, Ecto.Enum, values: [success: 0, failure: 1]
     field :category, Ecto.Enum, values: [clean: 0, incremental: 1]
+    field :configuration, :string
     field :git_branch, :string
     field :git_commit_sha, :string
     field :git_ref, :string
@@ -59,6 +60,7 @@ defmodule Tuist.Runs.Build do
       :inserted_at,
       :status,
       :category,
+      :configuration,
       :git_branch,
       :git_commit_sha,
       :git_ref

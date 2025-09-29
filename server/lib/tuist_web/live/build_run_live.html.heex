@@ -73,6 +73,12 @@
                 {Tuist.Apple.devices()[@run.model_identifier]}
               </span>
             </div>
+            <div data-part="metadata">
+              <div data-part="title">{gettext("Configuration")}</div>
+              <span data-part="label">
+                {@run.configuration || gettext("Unknown")}
+              </span>
+            </div>
           </div>
           <div data-part="metadata-row">
             <div data-part="metadata">
@@ -105,7 +111,7 @@
             <div data-part="metadata">
               <div data-part="title">{gettext("Category")}</div>
               <.badge
-                label={@run.category |> Atom.to_string() |> String.capitalize()}
+                label={if is_nil(@run.category), do: gettext("Unknown"), else: @run.category |> Atom.to_string() |> String.capitalize()}
                 style="fill"
               />
             </div>

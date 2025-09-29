@@ -168,6 +168,7 @@ struct InspectBuildCommandService {
             serverURL: serverURL,
             id: xcactivityLog.mainSection.uniqueIdentifier,
             category: xcactivityLog.category,
+            configuration: Environment.current.variables["CONFIGURATION"],
             duration: Int(xcactivityLog.mainSection.timeStoppedRecording * 1000)
                 - Int(xcactivityLog.mainSection.timeStartedRecording * 1000),
             files: xcactivityLog.files,

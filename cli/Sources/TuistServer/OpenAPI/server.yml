@@ -738,6 +738,11 @@ components:
               type: string
               x-struct:
               x-validate:
+            configuration:
+              description: The build configuration (e.g., Debug, Release).
+              type: string
+              x-struct:
+              x-validate:
             duration:
               description: Duration of the run in milliseconds.
               type: integer
@@ -1648,6 +1653,11 @@ components:
           enum:
             - clean
             - incremental
+          type: string
+          x-struct:
+          x-validate:
+        configuration:
+          description: The build configuration (e.g., Debug, Release).
           type: string
           x-struct:
           x-validate:
@@ -5534,6 +5544,11 @@ paths:
                       enum:
                         - clean
                         - incremental
+                      type: string
+                      x-struct:
+                      x-validate:
+                    configuration:
+                      description: The build configuration (e.g., Debug, Release).
                       type: string
                       x-struct:
                       x-validate:
