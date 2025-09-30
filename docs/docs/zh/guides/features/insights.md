@@ -43,6 +43,21 @@ builds](/images/guides/features/insights/inspect-build-scheme-post-action.png)
 > executable or your main build target to enable Tuist to track the build
 > configuration.
 
+> [!NOTE] If you are not using
+> <LocalizedLink href="/guides/features/projects">generated
+> projects</LocalizedLink>, the post-scheme action is not executed in case the
+> build fails.
+> 
+> An undocumented feature in Xcode allows you to execute it even in this case.
+> Set the attribute `runPostActionsOnFailure` to `YES` in your scheme's
+> `BuildAction` in the relevant `project.pbxproj` file as follows:
+> 
+> ```diff
+> <BuildAction
+>    buildImplicitDependencies="YES"
+>    parallelizeBuildables="YES"
+> +  runPostActionsOnFailure="YES">
+> ```
 
 In case you're using [Mise](https://mise.jdx.dev/), your script will need to
 activate `tuist` in the post-action environment:
