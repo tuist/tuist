@@ -1,0 +1,176 @@
+<header id="marketing-navbar">
+  <.link href={~p"/"} data-part="tuist">
+    <img data-part="logo" src={~p"/marketing/images/components/footer/logo.webp"} />
+    <h3 data-part="title">Tuist</h3>
+  </.link>
+  <div data-part="menus">
+    <div data-part="menu">
+      <div data-part="action">
+        <span data-part="title">
+          {gettext("Features")}
+        </span>
+        <.chevron_down />
+      </div>
+      <div data-part="dropdown" data-dropdown="features">
+        <.link
+          href="https://docs.tuist.dev/en/guides/features/projects"
+          target="_blank"
+          data-part="feature"
+        >
+          <div data-part="logo">
+            <.apps />
+          </div>
+          <div data-part="content">
+            <h3 data-part="title">
+              {gettext("Generated projects")}
+            </h3>
+            <p data-part="subtitle">
+              {gettext("Make Xcode projects easier to manage and scale")}
+            </p>
+          </div>
+        </.link>
+        <.link
+          href="https://docs.tuist.dev/en/guides/features/cache"
+          target="_blank"
+          data-part="feature"
+        >
+          <div data-part="logo">
+            <.database />
+          </div>
+          <div data-part="content">
+            <h3 data-part="title">
+              {gettext("Cache")}
+            </h3>
+            <p data-part="subtitle">
+              {gettext("Cuts build times by caching and reusing binaries")}
+            </p>
+          </div>
+        </.link>
+        <.link
+          href="https://docs.tuist.dev/en/guides/features/selective-testing"
+          target="_blank"
+          data-part="feature"
+        >
+          <div data-part="logo">
+            <.subtask />
+          </div>
+          <div data-part="content">
+            <h3 data-part="title">
+              {gettext("Selective testing")}
+            </h3>
+            <p data-part="subtitle">
+              {gettext("Test only the code impacted by the changes")}
+            </p>
+          </div>
+        </.link>
+        <.link
+          href="https://docs.tuist.dev/en/guides/features/registry"
+          target="_blank"
+          data-part="feature"
+        >
+          <div data-part="logo">
+            <.stack_2 />
+          </div>
+          <div data-part="content">
+            <h3 data-part="title">
+              {gettext("Registry")}
+            </h3>
+            <p data-part="subtitle">
+              {gettext("Faster & more lightweight OSS packages resolution")}
+            </p>
+          </div>
+        </.link>
+        <.link
+          href="https://docs.tuist.dev/en/guides/features/insights"
+          target="_blank"
+          data-part="feature"
+        >
+          <div data-part="logo">
+            <.versions />
+          </div>
+          <div data-part="content">
+            <h3 data-part="title">
+              {gettext("Insights")}
+            </h3>
+            <p data-part="subtitle">
+              {gettext("Insights from your builds and test runs")}
+            </p>
+          </div>
+        </.link>
+        <.link
+          href="https://docs.tuist.dev/en/guides/features/bundle-size"
+          target="_blank"
+          data-part="feature"
+        >
+          <div data-part="logo">
+            <.chart_donut_4 />
+          </div>
+          <div data-part="content">
+            <h3 data-part="title">
+              {gettext("Bundle analysis")}
+            </h3>
+            <p data-part="subtitle">
+              {gettext("Shrink your app by cleaning up code and assets")}
+            </p>
+          </div>
+        </.link>
+        <.link
+          href="https://docs.tuist.dev/en/guides/features/previews"
+          target="_blank"
+          data-part="feature"
+        >
+          <div data-part="logo">
+            <.devices />
+          </div>
+          <div data-part="content">
+            <h3 data-part="title">
+              {gettext("Previews")}
+            </h3>
+            <p data-part="subtitle">
+              {gettext("Instantly share your app using a URL")}
+            </p>
+          </div>
+        </.link>
+      </div>
+    </div>
+    <div data-part="menu">
+      <div data-part="action">
+        <span data-part="title">
+          {gettext("Developers")}
+        </span>
+        <.chevron_down />
+      </div>
+    </div>
+    <div data-part="menu">
+      <div data-part="action">
+        <span data-part="title">
+          {gettext("Resources")}
+        </span>
+        <.chevron_down />
+      </div>
+    </div>
+    <div data-part="menu">
+      <div data-part="action">
+        <.link href={~p"/pricing"} data-part="title">
+          {gettext("Pricing")}
+        </.link>
+      </div>
+    </div>
+    <div data-part="menu">
+      <div data-part="action">
+        <.link href={~p"/blog"} data-part="title">
+          {gettext("Blog")}
+        </.link>
+      </div>
+    </div>
+  </div>
+  <div data-part="actions">
+    <.button href="https://docs.tuist.dev/en/" label="Get started"></.button>
+    <.button
+      href="https://cal.tuist.dev/team/tuist/tuist?overlayCalendar=true"
+      variant="secondary"
+      label="Talk to us"
+    >
+    </.button>
+  </div>
+</header>
