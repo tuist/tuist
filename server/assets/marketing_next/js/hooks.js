@@ -9,15 +9,10 @@ const Hooks = {
 
       if (!dropdown) return;
 
-      // Set display style for grid layouts
-      if (dropdown.hasAttribute("data-dropdown")) {
-        dropdown.style.display = "grid";
-      }
-
       const showDropdown = () => {
         clearTimeout(hoverTimeout);
         dropdown.classList.add("show");
-        isOpen = true;
+        if (action) action.classList.add("open");
         isOpen = true;
       };
 
@@ -25,7 +20,7 @@ const Hooks = {
         clearTimeout(hoverTimeout);
         hoverTimeout = setTimeout(() => {
           dropdown.classList.remove("show");
-          isOpen = false;
+          if (action) action.classList.remove("open");
           isOpen = false;
         }, 100); // Small delay to allow cursor to move to dropdown
       };
@@ -34,9 +29,11 @@ const Hooks = {
         e.stopPropagation();
         if (isOpen) {
           dropdown.classList.remove("show");
+          if (action) action.classList.remove("open");
           isOpen = false;
         } else {
           dropdown.classList.add("show");
+          if (action) action.classList.add("open");
           isOpen = true;
         }
       };
@@ -58,6 +55,7 @@ const Hooks = {
       document.addEventListener("click", (e) => {
         if (!menu.contains(e.target) && isOpen) {
           dropdown.classList.remove("show");
+          if (action) action.classList.remove("open");
           isOpen = false;
         }
       });
