@@ -2,9 +2,9 @@
   <main id="marketing-about">
     <TuistWeb.Marketing.MarketingComponents.navbar />
 
-    <img data-part="background" src={~p"/marketing/images/about/background.webp"} />
+    <img data-part="background" src={~p"/marketing/images/about/background.webp"} alt="" />
     <header data-part="header">
-      <img data-part="logo" src={~p"/marketing/images/about/logo.webp"} />
+      <img data-part="logo" src={~p"/marketing/images/about/logo.webp"} alt="Tuist" />
       <h1 data-part="title">{gettext("Building the future of scalable app development")}</h1>
       <p data-part="subtitle">
         {gettext(
@@ -14,7 +14,7 @@
     </header>
     <section data-part="content">
       <h2 data-part="title">{gettext("Scale with joy")}</h2>
-      <div data-part="body">
+      <article data-part="body">
         <p>
           {gettext(
             "We're a group of builders who believe scaling your app shouldn't kill your creativity. We've experienced the frustration of watching exciting Swift projects turn into build-time nightmares and tooling headaches as they grow, so we decided to build something better."
@@ -30,70 +30,79 @@
             "Our approach is rooted in curiosity and open collaboration. We share our journey, contribute tools as open source, and cultivate communities where developers learn and grow together. When we solve problems in the open, everyone wins."
           )}
         </p>
-      </div>
+      </article>
     </section>
-    <section data-part="photos">
-      <img data-part="photo" src={~p"/marketing/images/about/photos/1.webp"} />
-      <img data-part="photo" src={~p"/marketing/images/about/photos/2.webp"} />
-      <img data-part="photo" src={~p"/marketing/images/about/photos/3.webp"} />
-    </section>
+    <figure data-part="photos">
+      <img data-part="photo" src={~p"/marketing/images/about/photos/1.webp"} alt="Team photo 1" />
+      <img data-part="photo" src={~p"/marketing/images/about/photos/2.webp"} alt="Team photo 2" />
+      <img data-part="photo" src={~p"/marketing/images/about/photos/3.webp"} alt="Team photo 3" />
+    </figure>
     <section data-part="values">
       <header data-part="header">
         <h2 data-part="title">{gettext("What we believe in")}</h2>
       </header>
-      <main data-part="main">
-        <div data-part="card">
+      <ul data-part="main">
+        <li data-part="card">
           <img
             data-part="background"
             src={~p"/marketing/images/about/values/openness/background.webp"}
+            alt=""
           />
-          <img data-part="graphic" src={~p"/marketing/images/about/values/openness/graphic.webp"} />
-          <div data-part="footer">
+          <img
+            data-part="graphic"
+            src={~p"/marketing/images/about/values/openness/graphic.webp"}
+            alt=""
+          />
+          <footer data-part="footer">
             <h3 data-part="title">{gettext("Openness")}</h3>
             <p data-part="subtitle">
               {gettext(
                 "We believe openness builds better tools, keeping only what’s needed closed for sustainable development."
               )}
             </p>
-          </div>
-        </div>
-        <div data-part="card">
+          </footer>
+        </li>
+        <li data-part="card">
           <img
             data-part="background"
             src={~p"/marketing/images/about/values/happiness/background.webp"}
+            alt=""
           />
           <img
             data-part="graphic"
             src={~p"/marketing/images/about/values/happiness/graphic.webp"}
+            alt=""
           />
-          <div data-part="footer">
+          <footer data-part="footer">
             <h3 data-part="title">{gettext("Happiness")}</h3>
             <p data-part="subtitle">
               {gettext(
                 "We prioritize developer happiness because it's closely tied to creating better apps."
               )}
             </p>
-          </div>
-        </div>
-        <div data-part="card">
+          </footer>
+        </li>
+        <li data-part="card">
           <img
             data-part="background"
             src={~p"/marketing/images/about/values/standards/background.webp"}
+            alt=""
           />
           <img
             data-part="graphic"
             src={~p"/marketing/images/about/values/standards/graphic.webp"}
+            alt=""
           />
-          <div data-part="footer">
+          <footer data-part="footer">
             <h3 data-part="title">{gettext("Standards")}</h3>
             <p data-part="subtitle">
               {gettext(
                 "We embrace standards for long-term success while respecting freedom of choice."
               )}
             </p>
-          </div>
-        </div>
-      </main>
+          </footer>
+        </li>
+      </ul>
     </section>
     <section data-part="team">
       <header data-part="header">
@@ -104,7 +113,7 @@
           )}
         </p>
       </header>
-      <main data-part="main">
+      <div data-part="main">
         <.about_team_member
           name="Pedro Piñera"
           role="Founder & CEO"
@@ -139,7 +148,7 @@
           github_handle="cschmatzler"
           mastodon_url="https://mastodon.social/@christoph@medium.place"
         />
-      </main>
+      </div>
     </section>
     <section data-part="cta">
       <.marketing_banner title={gettext("Your platform team, as a service")} />
