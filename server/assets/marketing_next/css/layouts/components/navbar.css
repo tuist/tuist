@@ -1,5 +1,6 @@
 #marketing-navbar {
   display: flex;
+  position: relative;
   flex-direction: row;
   justify-content: space-between;
   align-items: center;
@@ -72,12 +73,18 @@
       }
 
       & > [data-part="dropdown"] {
-        display: block;
         position: absolute;
-        top: 100%;
+        top: calc(100% + var(--noora-spacing-5)); /* 100% plus navbar padding */
         left: 0;
+        transform: translateY(-10px);
+        visibility: hidden; /* Hidden by default, controlled by JS */
+        opacity: 0;
         z-index: 200;
-        margin-top: var(--noora-spacing-2);
+        transition:
+          opacity 0.2s ease,
+          transform 0.2s ease,
+          visibility 0.2s;
+        margin-top: 0;
         box-shadow:
           0 1px 1px 0 rgba(22, 24, 28, 0.05),
           0 0 0 1px rgba(46, 51, 56, 0.08),
@@ -85,6 +92,12 @@
         border-radius: var(--noora-radius-xlarge);
         background: #fff;
         padding: var(--noora-spacing-4);
+
+        &.show {
+          transform: translateY(0);
+          visibility: visible;
+          opacity: 1;
+        }
       }
       & > [data-dropdown="features"] {
         display: grid;
