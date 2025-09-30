@@ -113,7 +113,8 @@ let project = Project(
                         scriptText: """
                         eval \"$($HOME/.local/bin/mise activate -C $SRCROOT bash --shims)\"
                         tuist inspect build
-                        """
+                        """,
+                        target: "MyApp"
                     )
                 ],
                 runPostActionsOnFailure: true
