@@ -7,6 +7,6 @@ defmodule Tuist.Repo.Migrations.AddProjectIdConfigurationIndexToBuildRuns do
   def change do
     # Hypertables don't support creating indexes concurrently
     # excellent_migrations:safety-assured-for-next-line index_not_concurrently
-    create index(:build_runs, [:project_id, :configuration])
+    create index(:build_runs, [:project_id, :configuration, :inserted_at])
   end
 end
