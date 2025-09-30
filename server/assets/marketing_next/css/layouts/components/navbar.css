@@ -68,15 +68,21 @@
           text-decoration: inherit;
         }
 
-        & > [data-part="icon"] {
+        & > [data-part="chevron"] {
+          display: inline-flex;
+          transition: transform 0.2s ease;
+        }
+
+        &.open > [data-part="chevron"] {
+          transform: rotate(180deg);
         }
       }
 
       & > [data-part="dropdown"] {
         position: absolute;
         top: calc(100% + var(--noora-spacing-5)); /* 100% plus navbar padding */
-        left: 0;
-        transform: translateY(-10px);
+        left: 50%;
+        transform: translateX(-50%) translateY(-10px);
         visibility: hidden; /* Hidden by default, controlled by JS */
         opacity: 0;
         z-index: 200;
@@ -91,10 +97,9 @@
           0 1px 1px 0 rgba(46, 51, 56, 0.1);
         border-radius: var(--noora-radius-xlarge);
         background: #fff;
-        padding: var(--noora-spacing-4);
 
         &.show {
-          transform: translateY(0);
+          transform: translateX(-50%) translateY(0);
           visibility: visible;
           opacity: 1;
         }
@@ -158,6 +163,148 @@
             & > [data-part="subtitle"] {
               color: var(--noora-surface-label-secondary);
               font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+            }
+          }
+        }
+      }
+
+      & > [data-dropdown="developers"] {
+        display: flex;
+        flex-direction: row;
+        background: #fff;
+        width: max-content;
+        overflow: hidden;
+
+        & > img[data-part="background"] {
+          position: absolute;
+          z-index: 0;
+          inset: 0;
+          border-radius: inherit;
+          background: linear-gradient(112deg, rgba(255, 251, 245, 0.7) 0%, rgba(250, 239, 247, 0.7) 100.86%);
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          object-position: center;
+          pointer-events: none;
+        }
+
+        & > [data-part="links"] {
+          display: flex;
+          position: relative;
+          flex-direction: column;
+          gap: var(--noora-spacing-6);
+          z-index: 1;
+          box-shadow:
+            0 0 0 1px rgba(46, 51, 56, 0.08) inset,
+            0 -1px 0 0 rgba(46, 51, 56, 0.16) inset,
+            0 8px 6px 0 rgba(46, 51, 56, 0.02),
+            0 2px 4px 0 rgba(46, 51, 56, 0.04);
+          border-radius: var(--noora-radius-xlarge);
+          background: var(--noora-surface-background-primary);
+          padding: var(--noora-spacing-5);
+
+          & > [data-part="link"] {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            gap: var(--noora-spacing-5);
+            border-radius: var(--noora-radius-xlarge);
+            padding: var(--noora-spacing-4);
+            text-decoration: none;
+
+            &:hover {
+              background: var(--noora-surface-background-secondary);
+            }
+
+            & > [data-part="logo"] {
+              display: flex;
+              justify-content: center;
+              align-items: center;
+              align-items: center;
+              box-sizing: border-box;
+              box-shadow:
+                0 1px 1px 0 rgba(22, 24, 28, 0.05),
+                0 0 0 1px rgba(46, 51, 56, 0.08),
+                0 1px 1px 0 rgba(46, 51, 56, 0.1);
+              box-shadow:
+                0 1px 1px 0 rgba(22, 24, 28, 0.05),
+                0 0 0 1px rgba(46, 51, 56, 0.08),
+                0 1px 1px 0 rgba(46, 51, 56, 0.1);
+              border-radius: var(--noora-radius-medium);
+              border-radius: var(--noora-radius-medium);
+              background: var(--noora-surface-background-primary);
+              background: var(--noora-surface-background-primary);
+              padding: 6px;
+              padding: 8px;
+              width: 32px;
+              width: 40px;
+              height: 32px;
+              height: 40px;
+              max-height: 40px;
+
+              & > svg {
+                width: 100%;
+                max-width: 24px;
+                height: 100%;
+                max-height: 24px;
+                color: var(--noora-surface-label-secondary);
+              }
+            }
+
+            & > [data-part="content"] {
+              display: flex;
+              flex-direction: column;
+              gap: var(--noora-spacing-2);
+
+              & > [data-part="title"] {
+                color: var(--noora-surface-label-primary);
+                font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+              }
+              & > [data-part="subtitle"] {
+                color: var(--noora-surface-label-secondary);
+                font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+              }
+            }
+          }
+        }
+        & > [data-part="changelog"] {
+          display: flex;
+          flex-direction: column;
+          gap: var(--noora-spacing-7);
+          z-index: 1;
+          padding: var(--noora-spacing-5);
+
+          & > [data-part="header"] {
+            display: flex;
+            flex-direction: row;
+            justify-content: space-between;
+            align-items: center;
+
+            & > [data-part="title"] {
+              color: var(--noora-surface-label-secondary);
+              font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+            }
+          }
+          & > [data-part="list"] {
+            display: flex;
+            flex-direction: column;
+            gap: var(--noora-spacing-8);
+
+            & > [data-part="entry"] {
+              display: flex;
+              flex-direction: column;
+              gap: var(--noora-spacing-2);
+              padding: var(--noora-spacing-4);
+
+              & > [data-part="date"] {
+                color: var(--noora-surface-label-secondary);
+                font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+              }
+
+              & > [data-part="title"] {
+                color: var(--noora-surface-label-primary);
+                font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+              }
             }
           }
         }

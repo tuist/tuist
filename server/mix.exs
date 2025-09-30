@@ -134,10 +134,14 @@ defmodule Tuist.MixProject do
       (System.get_env("NOORA_LOCAL") &&
          {:noora, path: "../../Noora/web"}) ||
 <<<<<<< HEAD
+<<<<<<< HEAD
         {:noora, "== 0.29.2"},
 =======
         {:noora, "== 0.30.0"},
 >>>>>>> 08a75f19c0 (Add resources dropdown)
+=======
+        {:noora, "== 0.31.0"},
+>>>>>>> bf818a8029 (More fixes)
       {:zstream, "~> 0.6"},
       {:cloak_ecto, "~> 1.3.0"},
       {:boruta, git: "https://github.com/malach-it/boruta_auth", branch: "master"},
