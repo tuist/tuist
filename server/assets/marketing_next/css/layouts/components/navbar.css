@@ -1,0 +1,154 @@
+#marketing-navbar {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  align-self: stretch;
+  z-index: 100;
+  backdrop-filter: blur(4px);
+  margin-top: var(--noora-spacing-12);
+  margin-right: var(--noora-spacing-14);
+  margin-left: var(--noora-spacing-14);
+  box-shadow:
+    0 114px 32px 0 rgba(0, 0, 0, 0),
+    0 73px 29px 0 rgba(0, 0, 0, 0.01),
+    0 41px 25px 0 rgba(0, 0, 0, 0.02),
+    0 18px 18px 0 rgba(0, 0, 0, 0.03),
+    0 5px 10px 0 rgba(0, 0, 0, 0.04);
+  border-radius: var(--noora-radius-xlarge);
+  background: rgba(253, 253, 253, 0.5);
+  padding: var(--noora-spacing-3) var(--noora-spacing-6);
+
+  & > [data-part="tuist"] {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: var(--noora-spacing-3);
+    text-decoration: none;
+
+    & > [data-part="logo"] {
+      width: 40px;
+      height: 40px;
+    }
+
+    & > [data-part="title"] {
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
+      text-decoration: inherit;
+    }
+  }
+
+  & > [data-part="menus"] {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: var(--noora-spacing-7);
+
+    & > [data-part="menu"] {
+      position: relative;
+
+      & > [data-part="action"] {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        gap: var(--noora-spacing-1);
+        cursor: pointer;
+        border-radius: var(--noora-radius-small);
+        padding: var(--noora-spacing-2);
+        text-decoration: none;
+
+        &:hover {
+          background: var(--noora-neutral-light-50);
+        }
+
+        & > [data-part="title"] {
+          display: block;
+          color: var(--noora-surface-label-primary);
+          text-decoration: inherit;
+        }
+
+        & > [data-part="icon"] {
+        }
+      }
+
+      & > [data-part="dropdown"] {
+        display: block;
+        position: absolute;
+        top: 100%;
+        left: 0;
+        z-index: 200;
+        margin-top: var(--noora-spacing-2);
+        box-shadow:
+          0 1px 1px 0 rgba(22, 24, 28, 0.05),
+          0 0 0 1px rgba(46, 51, 56, 0.08),
+          0 1px 1px 0 rgba(46, 51, 56, 0.1);
+        border-radius: var(--noora-radius-xlarge);
+        background: #fff;
+        padding: var(--noora-spacing-4);
+      }
+      & > [data-dropdown="features"] {
+        display: grid;
+        grid-template-rows: repeat(4, auto);
+        grid-template-columns: repeat(2, max-content);
+        grid-auto-flow: column;
+        gap: var(--noora-spacing-6);
+        padding: var(--noora-spacing-5);
+        width: max-content;
+
+        & > [data-part="feature"] {
+          display: flex;
+          flex-direction: row;
+          align-items: center;
+          gap: var(--noora-spacing-5);
+          border-radius: var(--noora-radius-xlarge);
+          padding: var(--noora-spacing-4);
+          text-decoration: none;
+
+          &:hover {
+            background: var(--noora-surface-background-secondary);
+          }
+
+          & > [data-part="logo"] {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-sizing: border-box;
+            box-shadow:
+              0 1px 1px 0 rgba(22, 24, 28, 0.05),
+              0 0 0 1px rgba(46, 51, 56, 0.08),
+              0 1px 1px 0 rgba(46, 51, 56, 0.1);
+            border-radius: var(--noora-radius-medium);
+            background: var(--noora-surface-background-primary);
+            padding: 8px;
+            width: 40px;
+            height: 40px;
+            max-height: 40px;
+
+            & > svg {
+              width: 100%;
+              max-width: 24px;
+              height: 100%;
+              max-height: 24px;
+              color: var(--noora-surface-label-secondary);
+            }
+          }
+
+          & > [data-part="content"] {
+            display: flex;
+            flex-direction: column;
+            gap: var(--noora-spacing-2);
+
+            & > [data-part="title"] {
+              color: var(--noora-surface-label-primary);
+              font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+            }
+            & > [data-part="subtitle"] {
+              color: var(--noora-surface-label-secondary);
+              font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+            }
+          }
+        }
+      }
+    }
+  }
+}

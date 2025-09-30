@@ -3,6 +3,7 @@ defmodule TuistWeb.Marketing.MarketingComponents do
   A collection of components that are used from the layouts.
   """
   use TuistWeb, :live_component
+  use Noora
 
   import TuistWeb.CSP, only: [get_csp_nonce: 0]
   import TuistWeb.Marketing.MarketingIcons
