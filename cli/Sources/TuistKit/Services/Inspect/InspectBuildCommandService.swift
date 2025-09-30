@@ -9,17 +9,15 @@ import TuistProcess
 import TuistServer
 import TuistSupport
 import TuistXCActivityLog
+import TuistXcodeProjectOrWorkspacePathLocator
 
 enum InspectBuildCommandServiceError: Equatable, LocalizedError {
-    case projectNotFound(AbsolutePath)
     case missingFullHandle
     case executablePathMissing
     case mostRecentActivityLogNotFound(AbsolutePath)
 
     var errorDescription: String? {
         switch self {
-        case let .projectNotFound(path):
-            return "No Xcode project found at \(path.pathString). Make sure it exists."
         case .missingFullHandle:
             return
                 "The 'Tuist.swift' file is missing a fullHandle. See how to set up a Tuist project at: https://docs.tuist.dev/en/server/introduction/accounts-and-projects#projects"
@@ -44,6 +42,7 @@ struct InspectBuildCommandService {
     private let dateService: DateServicing
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let gitController: GitControlling
+    private let xcodeProjectOrWorkspacePathLocator: XcodeProjectOrWorkspacePathLocating
 
     init(
         derivedDataLocator: DerivedDataLocating = DerivedDataLocator(),
@@ -56,7 +55,8 @@ struct InspectBuildCommandService {
         backgroundProcessRunner: BackgroundProcessRunning = BackgroundProcessRunner(),
         dateService: DateServicing = DateService(),
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
-        gitController: GitControlling = GitController()
+        gitController: GitControlling = GitController(),
+        xcodeProjectOrWorkspacePathLocator: XcodeProjectOrWorkspacePathLocating = XcodeProjectOrWorkspacePathLocator()
     ) {
         self.derivedDataLocator = derivedDataLocator
         self.fileSystem = fileSystem
@@ -69,6 +69,7 @@ struct InspectBuildCommandService {
         self.dateService = dateService
         self.serverEnvironmentService = serverEnvironmentService
         self.gitController = gitController
+        self.xcodeProjectOrWorkspacePathLocator = xcodeProjectOrWorkspacePathLocator
     }
 
     func run(
@@ -97,7 +98,8 @@ struct InspectBuildCommandService {
             )
             return
         }
-        let projectPath = try await projectPath(path)
+        let basePath = try await self.path(path)
+        let projectPath = try await xcodeProjectOrWorkspacePathLocator.locate(from: basePath)
         let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
         var projectDerivedDataDirectory: AbsolutePath! = try derivedDataPath.map { try AbsolutePath(
             validating: $0,
@@ -203,41 +205,14 @@ struct InspectBuildCommandService {
             }
     }
 
-    private func projectPath(_ path: String?) async throws -> AbsolutePath {
-        if let workspacePath = Environment.current.workspacePath {
-            if workspacePath.parentDirectory.extension == "xcodeproj" {
-                return workspacePath.parentDirectory
-            } else {
-                return workspacePath
-            }
+    private func path(_ path: String?) async throws -> AbsolutePath {
+        let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
+        if let path {
+            return try AbsolutePath(
+                validating: path, relativeTo: currentWorkingDirectory
+            )
         } else {
-            let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
-            let basePath =
-                if let path {
-                    try AbsolutePath(
-                        validating: path,
-                        relativeTo: currentWorkingDirectory
-                    )
-                } else {
-                    currentWorkingDirectory
-                }
-            if let workspacePath = try await fileSystem.glob(
-                directory: basePath,
-                include: ["*.xcworkspace"]
-            )
-            .collect()
-            .first {
-                return workspacePath
-            } else if let xcodeProjPath = try await fileSystem.glob(
-                directory: basePath,
-                include: ["*.xcodeproj"]
-            )
-            .collect()
-            .first {
-                return xcodeProjPath
-            } else {
-                throw InspectBuildCommandServiceError.projectNotFound(basePath)
-            }
+            return currentWorkingDirectory
         }
     }
 }

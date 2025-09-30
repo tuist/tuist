@@ -29,6 +29,8 @@ public enum Module: String, CaseIterable {
     case git = "TuistGit"
     case rootDirectoryLocator = "TuistRootDirectoryLocator"
     case process = "TuistProcess"
+    case xcodeProjectOrWorkspacePathLocator = "TuistXcodeProjectOrWorkspacePathLocator"
+    case xcResultService = "TuistXCResultService"
 
     func forceStaticLinking() -> Bool {
         return Environment.forceStaticLinking.getBoolean(default: false)
@@ -385,6 +387,8 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.simulator.targetName),
                     .target(name: Module.rootDirectoryLocator.targetName),
                     .target(name: Module.process.targetName, condition: .when([.macos])),
+                    .target(name: Module.xcodeProjectOrWorkspacePathLocator.targetName),
+                    .target(name: Module.xcResultService.targetName),
                     .external(name: "MCP"),
                     .external(name: "FileSystem"),
                     .external(name: "SwiftToolsSupport"),
@@ -513,6 +517,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.core.targetName, condition: .when([.macos])),
                     .target(name: Module.cache.targetName, condition: .when([.macos])),
                     .target(name: Module.xcActivityLog.targetName, condition: .when([.macos])),
+                    .target(name: Module.xcResultService.targetName, condition: .when([.macos])),
                     .target(name: Module.simulator.targetName),
                     .target(name: Module.automation.targetName, condition: .when([.macos])),
                     .target(name: Module.process.targetName, condition: .when([.macos])),
@@ -563,6 +568,19 @@ public enum Module: String, CaseIterable {
                 [
                     .target(name: Module.support.targetName),
                     .external(name: "SwiftToolsSupport"),
+                    .external(name: "FileSystem"),
+                ]
+            case .xcodeProjectOrWorkspacePathLocator:
+                [
+                    .target(name: Module.support.targetName),
+                    .external(name: "FileSystem"),
+                    .external(name: "Mockable"),
+                ]
+            case .xcResultService:
+                [
+                    .target(name: Module.support.targetName),
+                    .target(name: Module.xcActivityLog.targetName),
+                    .external(name: "XCResultKit"),
                     .external(name: "FileSystem"),
                 ]
             }
@@ -616,6 +634,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.plugin.targetName),
                     .target(name: Module.git.targetName),
                     .target(name: Module.process.targetName, condition: .when([.macos])),
+                    .target(name: Module.xcResultService.targetName),
                     .external(name: "ArgumentParser"),
                     .external(name: "GraphViz"),
                     .external(name: "AnyCodable"),
@@ -747,6 +766,14 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.testing.targetName)
                 ]
             case .git:
+                [
+                    .target(name: Module.testing.targetName)
+                ]
+            case .xcodeProjectOrWorkspacePathLocator:
+                [
+                    .target(name: Module.testing.targetName)
+                ]
+            case .xcResultService:
                 [
                     .target(name: Module.testing.targetName)
                 ]
