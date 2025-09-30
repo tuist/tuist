@@ -1,15 +1,15 @@
 <header id="marketing-navbar">
   <.link href={~p"/"} data-part="tuist">
-    <img data-part="logo" src={~p"/marketing/images/components/footer/logo.webp"} />
+    <img data-part="logo" src={~p"/marketing/images/components/navbar/logo.webp"} />
     <h3 data-part="title">Tuist</h3>
   </.link>
   <div data-part="menus">
-    <div data-part="menu" phx-hook="NavbarDropdown" id="features-menu">
+    <div data-part="menu" phx-hook="NavbarDropdown" id="marketing-navbar-features-menu">
       <div data-part="action">
         <span data-part="title">
           {gettext("Features")}
         </span>
-        <.chevron_down />
+        <span data-part="chevron"><.chevron_down /></span>
       </div>
       <div data-part="dropdown" data-dropdown="features">
         <.link
@@ -133,20 +133,96 @@
         </.link>
       </div>
     </div>
-    <div data-part="menu">
+    <div data-part="menu" phx-hook="NavbarDropdown" id="marketing-navbar-developers-menu">
       <div data-part="action">
         <span data-part="title">
           {gettext("Developers")}
         </span>
-        <.chevron_down />
+        <span data-part="chevron"><.chevron_down /></span>
+      </div>
+      <div data-part="dropdown" data-dropdown="developers">
+        <img
+          data-part="background"
+          src={~p"/marketing/images/components/navbar/developers-background.webp"}
+        />
+
+        <div data-part="links">
+          <.link href="https://docs.tuist.dev" target="_blank" data-part="link">
+            <div data-part="logo">
+              <.book />
+            </div>
+            <div data-part="content">
+              <h3 data-part="title">
+                {gettext("Documentation")}
+              </h3>
+              <p data-part="subtitle">
+                {gettext("Check out our documentation")}
+              </p>
+            </div>
+          </.link>
+          <.link href={~p"/api/docs"} target="_blank" data-part="link">
+            <div data-part="logo">
+              <.api />
+            </div>
+            <div data-part="content">
+              <h3 data-part="title">
+                {gettext("API Documentation")}
+              </h3>
+              <p data-part="subtitle">
+                {gettext("Check out our REST API documentation")}
+              </p>
+            </div>
+          </.link>
+          <.link href="https://github.com/tuist/tuist" target="_blank" data-part="link">
+            <div data-part="logo">
+              <.brand_github />
+            </div>
+            <div data-part="content">
+              <h3 data-part="title">
+                {gettext("Sources")}
+              </h3>
+              <p data-part="subtitle">
+                {gettext("Learn & contribute to our source code")}
+              </p>
+            </div>
+          </.link>
+          <.link href={~p"/download"} data-part="link">
+            <div data-part="logo">
+              <.download />
+            </div>
+            <div data-part="content">
+              <h3 data-part="title">
+                {gettext("Download")}
+              </h3>
+              <p data-part="subtitle">
+                {gettext("Download our iOS and macOS apps")}
+              </p>
+            </div>
+          </.link>
+        </div>
+        <div data-part="changelog">
+          <div data-part="header">
+            <h3 data-part="title">{gettext("Changelog")}</h3>
+            <.link_button label={gettext("View all")} href={~p"/changelog"} variant="secondary" />
+          </div>
+          <div data-part="list">
+            <div
+              :for={entry <- Tuist.Marketing.Changelog.get_entries() |> Enum.take(3)}
+              data-part="entry"
+            >
+              <div data-part="date">{Timex.format!(entry.date, "{Mfull} {D}, {YYYY}")}</div>
+              <div data-part="title">{entry.title}</div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
-    <div data-part="menu" phx-hook="NavbarDropdown" id="resources-menu">
+    <div data-part="menu" phx-hook="NavbarDropdown" id="marketing-navbar-resources-menu">
       <div data-part="action">
         <span data-part="title">
           {gettext("Resources")}
         </span>
-        <.chevron_down />
+        <span data-part="chevron"><.chevron_down /></span>
       </div>
       <div data-part="dropdown" data-dropdown="resources">
         <.link href={~p"/about"} data-part="resource">
@@ -207,7 +283,7 @@
           </div>
           <div data-part="content">
             <h3 data-part="title">
-              {gettext("GitHub")}
+              {gettext("Newsletter")}
             </h3>
             <p data-part="subtitle">
               {gettext("Stay updated—subscribe to our newsletter")}
