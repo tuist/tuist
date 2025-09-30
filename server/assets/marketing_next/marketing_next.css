@@ -1,6 +1,7 @@
 @import "noora/noora.css";
 @import "css/routes/home.css";
 @import "css/routes/about.css";
+@import "css/layouts/components/navbar.css";
 @import "css/layouts/components/footer.css";
 @import "css/layouts/components/banner.css";
 
