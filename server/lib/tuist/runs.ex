@@ -167,4 +167,14 @@ defmodule Tuist.Runs do
     |> Repo.all()
     |> Enum.map(& &1.scheme)
   end
+
+  def project_build_configurations(%Project{} = project) do
+    from(b in Build)
+    |> where([b], b.project_id == ^project.id)
+    |> where([b], not is_nil(b.configuration))
+    |> where([b], b.inserted_at > ^DateTime.add(DateTime.utc_now(), -30, :day))
+    |> distinct([b], b.configuration)
+    |> Repo.all()
+    |> Enum.map(& &1.configuration)
+  end
 end

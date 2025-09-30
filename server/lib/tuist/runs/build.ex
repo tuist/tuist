@@ -11,6 +11,7 @@ defmodule Tuist.Runs.Build do
     filterable: [
       :project_id,
       :scheme,
+      :configuration,
       :category,
       :status,
       :git_branch,

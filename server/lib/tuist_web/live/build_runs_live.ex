@@ -16,11 +16,12 @@ defmodule TuistWeb.BuildRunsLive do
 
   def mount(_params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
     slug = Projects.get_project_slug_from_id(project.id)
+    configurations = Runs.project_build_configurations(project)
 
     socket =
       socket
       |> assign(:head_title, "#{gettext("Build Runs")} · #{slug} · Tuist")
-      |> assign(:available_filters, define_filters(project))
+      |> assign(:available_filters, define_filters(project, configurations))
 
     if connected?(socket) do
       Tuist.PubSub.subscribe("#{account.name}/#{project.name}")
@@ -201,7 +202,7 @@ defmodule TuistWeb.BuildRunsLive do
     flop_filters ++ ran_by_flop_filters
   end
 
-  defp define_filters(project) do
+  defp define_filters(project, configurations) do
     base = [
       %Filter.Filter{
         id: "scheme",
@@ -210,6 +211,16 @@ defmodule TuistWeb.BuildRunsLive do
         type: :text,
         operator: :=~,
         value: ""
+      },
+      %Filter.Filter{
+        id: "configuration",
+        field: :configuration,
+        display_name: gettext("Configuration"),
+        type: :option,
+        options: configurations,
+        options_display_names: Map.new(configurations, &{&1, &1}),
+        operator: :==,
+        value: nil
       },
       %Filter.Filter{
         id: "status",
