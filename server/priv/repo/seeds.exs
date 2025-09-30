@@ -464,15 +464,6 @@ qa_runs =
     prompt = Enum.random(qa_prompts)
 
     git_refs = ["main", "develop", "feature/new-ui", "feature/qa-testing", "release/v1.2.0"]
-    vcs_providers = [:github]
-
-    repository_handles = [
-      "tuist/tuist",
-      "tuist/example-app",
-      "tuist/ios-sample",
-      "company/mobile-app",
-      "org/customer-app"
-    ]
 
     inserted_at =
       DateTime.new!(
@@ -495,8 +486,6 @@ qa_runs =
       app_build_id: app_build.id,
       prompt: prompt,
       status: status,
-      vcs_repository_full_handle: Enum.random(repository_handles),
-      vcs_provider: Enum.random(vcs_providers),
       git_ref: Enum.random(git_refs),
       issue_comment_id: if(Enum.random([true, false]), do: Enum.random(1000..9999)),
       inserted_at: inserted_at,

@@ -6714,25 +6714,25 @@ public enum Operations {
         public struct Input: Sendable, Hashable {
             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/path`.
             public struct Path: Sendable, Hashable {
-                /// The handle of the account.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/path/account_handle`.
-                public var account_handle: Swift.String
                 /// The handle of the project.
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/path/project_handle`.
                 public var project_handle: Swift.String
+                /// The handle of the account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/path/account_handle`.
+                public var account_handle: Swift.String
                 /// Creates a new `Path`.
                 ///
                 /// - Parameters:
-                ///   - account_handle: The handle of the account.
                 ///   - project_handle: The handle of the project.
+                ///   - account_handle: The handle of the account.
                 public init(
-                    account_handle: Swift.String,
-                    project_handle: Swift.String
+                    project_handle: Swift.String,
+                    account_handle: Swift.String
                 ) {
-                    self.account_handle = account_handle
                     self.project_handle = project_handle
+                    self.account_handle = account_handle
                 }
             }
             public var path: Operations.listBundles.Input.Path
@@ -7012,25 +7012,25 @@ public enum Operations {
         public struct Input: Sendable, Hashable {
             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/path`.
             public struct Path: Sendable, Hashable {
-                /// The handle of the account.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/path/account_handle`.
-                public var account_handle: Swift.String
                 /// The handle of the project.
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/path/project_handle`.
                 public var project_handle: Swift.String
+                /// The handle of the account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/path/account_handle`.
+                public var account_handle: Swift.String
                 /// Creates a new `Path`.
                 ///
                 /// - Parameters:
-                ///   - account_handle: The handle of the account.
                 ///   - project_handle: The handle of the project.
+                ///   - account_handle: The handle of the account.
                 public init(
-                    account_handle: Swift.String,
-                    project_handle: Swift.String
+                    project_handle: Swift.String,
+                    account_handle: Swift.String
                 ) {
-                    self.account_handle = account_handle
                     self.project_handle = project_handle
+                    self.account_handle = account_handle
                 }
             }
             public var path: Operations.createBundle.Input.Path
@@ -13771,32 +13771,32 @@ public enum Operations {
         public struct Input: Sendable, Hashable {
             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}/GET/path`.
             public struct Path: Sendable, Hashable {
-                /// The handle of the account.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}/GET/path/account_handle`.
-                public var account_handle: Swift.String
-                /// The handle of the project.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}/GET/path/project_handle`.
-                public var project_handle: Swift.String
                 /// The ID of the bundle.
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}/GET/path/bundle_id`.
                 public var bundle_id: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}/GET/path/project_handle`.
+                public var project_handle: Swift.String
+                /// The handle of the account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}/GET/path/account_handle`.
+                public var account_handle: Swift.String
                 /// Creates a new `Path`.
                 ///
                 /// - Parameters:
-                ///   - account_handle: The handle of the account.
-                ///   - project_handle: The handle of the project.
                 ///   - bundle_id: The ID of the bundle.
+                ///   - project_handle: The handle of the project.
+                ///   - account_handle: The handle of the account.
                 public init(
-                    account_handle: Swift.String,
+                    bundle_id: Swift.String,
                     project_handle: Swift.String,
-                    bundle_id: Swift.String
+                    account_handle: Swift.String
                 ) {
-                    self.account_handle = account_handle
-                    self.project_handle = project_handle
                     self.bundle_id = bundle_id
+                    self.project_handle = project_handle
+                    self.account_handle = account_handle
                 }
             }
             public var path: Operations.getBundle.Input.Path
@@ -18919,10 +18919,6 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/PUT/requestBody/json/default_branch`.
                     public var default_branch: Swift.String?
-                    /// The repository URL for the project.
-                    ///
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/PUT/requestBody/json/repository_url`.
-                    public var repository_url: Swift.String?
                     /// The visibility of the project. Public projects are visible to everyone, private projects are only visible to the project's members.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/PUT/requestBody/json/visibility`.
@@ -18938,20 +18934,16 @@ public enum Operations {
                     ///
                     /// - Parameters:
                     ///   - default_branch: The default branch for the project.
-                    ///   - repository_url: The repository URL for the project.
                     ///   - visibility: The visibility of the project. Public projects are visible to everyone, private projects are only visible to the project's members.
                     public init(
                         default_branch: Swift.String? = nil,
-                        repository_url: Swift.String? = nil,
                         visibility: Operations.updateProject.Input.Body.jsonPayload.visibilityPayload? = nil
                     ) {
                         self.default_branch = default_branch
-                        self.repository_url = repository_url
                         self.visibility = visibility
                     }
                     public enum CodingKeys: String, CodingKey {
                         case default_branch
-                        case repository_url
                         case visibility
                     }
                 }
@@ -19055,7 +19047,7 @@ public enum Operations {
                     self.body = body
                 }
             }
-            /// The request is invalid, for example when attempting to link the project to a repository the authenticated user doesn't have access to.
+            /// The request is invalid
             ///
             /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/put(updateProject)/responses/400`.
             ///

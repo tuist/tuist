@@ -41,6 +41,18 @@
             @selected_account
           ) == :ok
         }
+        label={gettext("Integrations")}
+        selected={@selected_tab == "integrations"}
+        navigate={~p"/#{@selected_account.name}/integrations"}
+      />
+      <.tab_menu_horizontal_item
+        :if={
+          Tuist.Authorization.authorize(
+            :account_update,
+            @current_user,
+            @selected_account
+          ) == :ok
+        }
         label={gettext("Settings")}
         selected={@selected_tab == "settings"}
         navigate={~p"/#{@selected_account.name}/settings"}

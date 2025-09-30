@@ -2868,17 +2868,17 @@ paths:
             type: string
             x-struct:
             x-validate:
-        - description: The handle of the account.
+        - description: The handle of the project.
           in: path
-          name: account_handle
+          name: project_handle
           required: true
           schema:
             type: string
             x-struct:
             x-validate:
-        - description: The handle of the project.
+        - description: The handle of the account.
           in: path
-          name: project_handle
+          name: account_handle
           required: true
           schema:
             type: string
@@ -2924,17 +2924,17 @@ paths:
       callbacks: {}
       operationId: createBundle
       parameters:
-        - description: The handle of the account.
+        - description: The handle of the project.
           in: path
-          name: account_handle
+          name: project_handle
           required: true
           schema:
             type: string
             x-struct:
             x-validate:
-        - description: The handle of the project.
+        - description: The handle of the account.
           in: path
-          name: project_handle
+          name: account_handle
           required: true
           schema:
             type: string
@@ -4287,9 +4287,9 @@ paths:
       callbacks: {}
       operationId: getBundle
       parameters:
-        - description: The handle of the account.
+        - description: The ID of the bundle.
           in: path
-          name: account_handle
+          name: bundle_id
           required: true
           schema:
             type: string
@@ -4303,9 +4303,9 @@ paths:
             type: string
             x-struct:
             x-validate:
-        - description: The ID of the bundle.
+        - description: The handle of the account.
           in: path
-          name: bundle_id
+          name: account_handle
           required: true
           schema:
             type: string
@@ -5355,11 +5355,6 @@ paths:
                   type: string
                   x-struct:
                   x-validate:
-                repository_url:
-                  description: The repository URL for the project.
-                  type: string
-                  x-struct:
-                  x-validate:
                 visibility:
                   description: The visibility of the project. Public projects are visible to everyone, private projects are only visible to the project's members.
                   enum:
@@ -5385,7 +5380,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: The request is invalid, for example when attempting to link the project to a repository the authenticated user doesn't have access to.
+          description: The request is invalid
         '401':
           content:
             application/json:

@@ -137,19 +137,6 @@ defmodule Tuist.ProjectTest do
     assert changeset.valid? == true
   end
 
-  test "changeset is invalid when vcs_provider is not a valid value" do
-    # When
-    changeset =
-      Project.update_changeset(
-        %Project{},
-        %{token: "token", name: "project", account_id: 0, vcs_provider: :invalid_vcs_provider}
-      )
-
-    # Then
-    assert changeset.valid? == false
-    assert "is invalid" in errors_on(changeset).vcs_provider
-  end
-
   describe "update_changeset/2" do
     test "it updates the default branch" do
       # Given
@@ -162,31 +149,6 @@ defmodule Tuist.ProjectTest do
       # Then
       assert changeset.valid? == true
       assert changeset.changes.default_branch == new_default_branch
-    end
-
-    test "changeset is valid when vcs_provider is :github" do
-      # When
-      changeset =
-        Project.update_changeset(
-          %Project{},
-          %{vcs_provider: :github}
-        )
-
-      # Then
-      assert changeset.valid? == true
-    end
-
-    test "changeset is invalid when vcs_provider is not a valid value" do
-      # When
-      changeset =
-        Project.update_changeset(
-          %Project{},
-          %{vcs_provider: :invalid_vcs_provider}
-        )
-
-      # Then
-      assert changeset.valid? == false
-      assert "is invalid" in errors_on(changeset).vcs_provider
     end
 
     test "changeset is valid when visibility is :public" do

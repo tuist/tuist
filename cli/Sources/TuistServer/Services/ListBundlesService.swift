@@ -58,12 +58,13 @@ public final class ListBundlesService: ListBundlesServicing {
         let response = try await client.listBundles(
             .init(
                 path: .init(
-                    account_handle: handles.accountHandle,
-                    project_handle: handles.projectHandle
+                    project_handle: handles.projectHandle,
+                    account_handle: handles.accountHandle
                 ),
                 query: .init(
                     page: page,
-                    page_size: pageSize, git_branch: gitBranch
+                    page_size: pageSize,
+                    git_branch: gitBranch
                 )
             )
         )
