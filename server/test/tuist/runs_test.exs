@@ -197,6 +197,88 @@ defmodule Tuist.RunsTest do
     end
   end
 
+  describe "project_build_configurations/1" do
+    test "returns distinct configurations for the given project within the last 30 days" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      other_project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        configuration: "Debug",
+        inserted_at: DateTime.utc_now()
+      )
+
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        configuration: "Release",
+        inserted_at: DateTime.utc_now()
+      )
+
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        configuration: "Debug",
+        inserted_at: DateTime.utc_now()
+      )
+
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        configuration: nil,
+        inserted_at: DateTime.utc_now()
+      )
+
+      RunsFixtures.build_fixture(
+        project_id: other_project.id,
+        configuration: "Beta",
+        inserted_at: DateTime.utc_now()
+      )
+
+      old_date = DateTime.add(DateTime.utc_now(), -31, :day)
+
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        configuration: "OldConfiguration",
+        inserted_at: old_date
+      )
+
+      # When
+      configurations = Runs.project_build_configurations(project)
+
+      # Then
+      assert Enum.sort(configurations) == ["Debug", "Release"]
+    end
+
+    test "returns an empty list when no builds exist for the project" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # When
+      configurations = Runs.project_build_configurations(project)
+
+      # Then
+      assert configurations == []
+    end
+
+    test "returns an empty list when only no configurations exist for the project" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # Create a build with nil configuration
+      {:ok, _build} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          configuration: nil,
+          inserted_at: DateTime.utc_now()
+        )
+
+      # When
+      configurations = Runs.project_build_configurations(project)
+
+      # Then
+      assert configurations == []
+    end
+  end
+
   describe "recent_build_status_counts/2" do
     test "returns counts of successful and failed builds for the most recent builds" do
       # Given

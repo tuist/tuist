@@ -38,6 +38,7 @@ defmodule TuistWeb.BuildsLive do
               "analytics-environment",
               "analytics-date-range",
               "analytics-build-scheme",
+              "analytics-build-configuration",
               "analytics-build-category"
             ])
           )
@@ -61,6 +62,7 @@ defmodule TuistWeb.BuildsLive do
     analytics_environment = params["analytics-environment"] || "any"
     analytics_date_range = params["analytics-date-range"] || "last-30-days"
     analytics_build_scheme = params["analytics-build-scheme"] || "any"
+    analytics_build_configuration = params["analytics-build-configuration"] || "any"
     analytics_build_category = params["analytics-build-category"] || "any"
 
     start_date = start_date(analytics_date_range)
@@ -73,6 +75,7 @@ defmodule TuistWeb.BuildsLive do
     opts =
       opts
       |> opts_with_analytics_build_scheme(analytics_build_scheme)
+      |> opts_with_analytics_build_configuration(analytics_build_configuration)
       |> opts_with_analytics_build_category(analytics_build_category)
 
     opts =
@@ -111,14 +114,23 @@ defmodule TuistWeb.BuildsLive do
     |> assign(:analytics_environment, analytics_environment)
     |> assign(:analytics_date_range, analytics_date_range)
     |> assign(:analytics_build_scheme, analytics_build_scheme)
+    |> assign(:analytics_build_configuration, analytics_build_configuration)
     |> assign(:analytics_build_category, analytics_build_category)
     |> assign(:build_schemes, Runs.project_build_schemes(project))
+    |> assign(:build_configurations, Runs.project_build_configurations(project))
   end
 
   defp opts_with_analytics_build_scheme(opts, analytics_build_scheme) do
     case analytics_build_scheme do
       "any" -> opts
       scheme -> Keyword.put(opts, :scheme, scheme)
+    end
+  end
+
+  defp opts_with_analytics_build_configuration(opts, analytics_build_configuration) do
+    case analytics_build_configuration do
+      "any" -> opts
+      configuration -> Keyword.put(opts, :configuration, configuration)
     end
   end
 
@@ -257,6 +269,9 @@ defmodule TuistWeb.BuildsLive do
 
   defp build_scheme_label("any"), do: gettext("Any")
   defp build_scheme_label(scheme), do: scheme
+
+  defp build_configuration_label("any"), do: gettext("Any")
+  defp build_configuration_label(configuration), do: configuration
 
   defp type_labels(type, configuration_insights_analytics) do
     labels = Enum.map(configuration_insights_analytics, & &1.category)
