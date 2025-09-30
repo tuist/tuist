@@ -1,11 +1,19 @@
 <footer id="marketing-footer">
-  <img data-part="background" src={~p"/marketing/images/components/footer/background.webp"} />
-  <div data-part="header">
+  <img
+    data-part="background"
+    src={~p"/marketing/images/components/footer/background.webp"}
+    alt=""
+  />
+  <header data-part="header">
     <div data-part="tuist">
-      <img data-part="logo" src={~p"/marketing/images/components/footer/logo.webp"} />
+      <img data-part="logo" src={~p"/marketing/images/components/footer/logo.webp"} alt="Tuist" />
       <h3 data-part="title">Tuist</h3>
     </div>
-    <img data-part="soc2" src={~p"/marketing/images/components/footer/soc2.webp"} />
+    <img
+      data-part="soc2"
+      src={~p"/marketing/images/components/footer/soc2.webp"}
+      alt="SOC 2 Type II Certified"
+    />
     <.link href="https://status.tuist.dev" target="_blank">
       <% any_ongoing_incident? = Tuist.Incidents.any_ongoing_incident?() %>
       <.status_badge
@@ -21,11 +29,11 @@
         type="dot"
       />
     </.link>
-  </div>
-  <div data-part="columns">
-    <div data-part="column">
+  </header>
+  <nav data-part="columns" aria-label="Footer navigation">
+    <section data-part="column">
       <h3 data-part="title">{gettext("Features")}</h3>
-      <div data-part="links">
+      <ul data-part="links">
         <.link
           data-part="link"
           target="_blank"
@@ -82,20 +90,20 @@
         >
           {gettext("Previews")}
         </.link>
-      </div>
-    </div>
-    <div data-part="column">
+      </ul>
+    </section>
+    <section data-part="column">
       <h3 data-part="title">{gettext("Product")}</h3>
-      <div data-part="links">
+      <ul data-part="links">
         <.link data-part="link" href={~p"/pricing"}>{gettext("Pricing")}</.link>
         <.link data-part="link" href={~p"/changelog"}>{gettext("Changelog")}</.link>
         <.link data-part="link" href="https://docs.tuist.dev">{gettext("Documentation")}</.link>
         <.link data-part="link" href={~p"/download"}>{gettext("Download")}</.link>
-      </div>
-    </div>
-    <div data-part="column">
+      </ul>
+    </section>
+    <section data-part="column">
       <h3 data-part="title">{gettext("Community")}</h3>
-      <div data-part="links">
+      <ul data-part="links">
         <.link data-part="link" target="_blank" href="https://slack.tuist.dev">
           {gettext("Slack")}
         </.link>
@@ -106,19 +114,19 @@
         <.link data-part="link" target="_blank" href="https://github.com/tuist/tuist/issues">
           {gettext("Issues")}
         </.link>
-      </div>
-    </div>
-    <div data-part="column">
+      </ul>
+    </section>
+    <section data-part="column">
       <h3 data-part="title">{gettext("Company")}</h3>
-      <div data-part="links">
+      <ul data-part="links">
         <.link data-part="link" href={~p"/about"}>{gettext("About")}</.link>
         <.link data-part="link" href={~p"/blog"}>{gettext("Blog")}</.link>
         <.link data-part="link" href="mailto:contact@tuist.dev">{gettext("Contact")}</.link>
-      </div>
-    </div>
-    <div data-part="column">
+      </ul>
+    </section>
+    <section data-part="column">
       <h3 data-part="title">{gettext("Socials")}</h3>
-      <div data-part="links">
+      <ul data-part="links">
         <.link data-part="link" href="https://fosstodon.org/@tuist" target="_blank">
           {gettext("Mastodon")}
         </.link>
@@ -134,15 +142,15 @@
         <.link data-part="link" href="https://videos.tuist.dev" target="_blank">
           {gettext("Videos")}
         </.link>
-      </div>
-    </div>
-    <div data-part="column">
+      </ul>
+    </section>
+    <section data-part="column">
       <h3 data-part="title">{gettext("Legal")}</h3>
-      <div data-part="links">
+      <ul data-part="links">
         <.link data-part="link" href={~p"/terms"}>{gettext("Terms of service")}</.link>
         <.link data-part="link" href={~p"/privacy"}>{gettext("Privacy policy")}</.link>
         <.link data-part="link" href={~p"/cookies"}>{gettext("Cookie policy")}</.link>
-      </div>
-    </div>
-  </div>
+      </ul>
+    </section>
+  </nav>
 </footer>

@@ -178,6 +178,7 @@
         & > img[data-part="background"] {
           position: absolute;
           z-index: 0;
+          mix-blend-mode: overlay;
           inset: 0;
           border-radius: inherit;
           background: linear-gradient(112deg, rgba(255, 251, 245, 0.7) 0%, rgba(250, 239, 247, 0.7) 100.86%);
