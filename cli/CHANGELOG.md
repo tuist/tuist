@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.80.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* Report server-side payment-required responses as warnings by [@pepicrft](https://github.com/pepicrft) in [#8338](https://github.com/tuist/tuist/pull/8338)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.79.7...4.80.0
+
 ## What's Changed in 4.79.7<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
