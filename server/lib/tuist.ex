@@ -75,6 +75,8 @@ defmodule Tuist do
       Namespace.JWTToken,
       QA,
       QA.LaunchArgumentGroup,
+      GitHubAppInstallations,
+      GitHubAppInstallations.GitHubAppInstallation,
       # Support
       # -----
       # These modules represent Tuist-agnostic utilities that are used by other features.
@@ -91,6 +93,7 @@ defmodule Tuist do
       KeyValueStore,
       ClickHouseRepo,
       Markdown,
+      GitHubStateToken,
       # We should not be exposing this one
       Repo,
       Storage,

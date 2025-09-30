@@ -83,9 +83,7 @@ defmodule Tuist.GitHub.ClientTest do
         {:ok, %{token: "old_token", expires_at: ~U[2024-04-30 10:20:29Z]}}
       end)
 
-      stub(App, :refresh_token, fn _ ->
-        {:ok, %{token: "new_token", expires_at: ~U[2024-04-30 10:30:31Z]}}
-      end)
+      stub(App, :clear_token, fn -> :ok end)
 
       # When
       comments = Client.get_comments(%{repository_full_handle: "tuist/tuist", issue_id: 1})
@@ -412,6 +410,119 @@ defmodule Tuist.GitHub.ClientTest do
       assert got ==
                {:error,
                 "Unexpected status code 404 when downloading Alamofire/Alamofire repository's source archive for 5.10.0 tag."}
+    end
+  end
+
+  describe "get_installation_repositories/1" do
+    test "returns repositories for a given installation" do
+      # Given
+      stub(App, :get_installation_token, fn "123" ->
+        {:ok, %{token: "github_token"}}
+      end)
+
+      expect(Req, :get, fn opts ->
+        assert opts[:url] == "https://api.github.com/installation/repositories"
+        assert opts[:headers] == @default_api_headers
+        assert opts[:finch] == Tuist.Finch
+
+        {:ok,
+         %Req.Response{
+           status: 200,
+           body: %{
+             "repositories" => [
+               %{
+                 "id" => 123,
+                 "name" => "tuist",
+                 "full_name" => "tuist/tuist",
+                 "private" => false,
+                 "default_branch" => "main"
+               },
+               %{
+                 "id" => 456,
+                 "name" => "private-repo",
+                 "full_name" => "tuist/private-repo",
+                 "private" => true,
+                 "default_branch" => "master"
+               }
+             ]
+           }
+         }}
+      end)
+
+      # When
+      repositories = Client.get_installation_repositories("123")
+
+      # Then
+      assert repositories ==
+               {:ok,
+                [
+                  %{
+                    id: 123,
+                    name: "tuist",
+                    full_name: "tuist/tuist",
+                    private: false,
+                    default_branch: "main"
+                  },
+                  %{
+                    id: 456,
+                    name: "private-repo",
+                    full_name: "tuist/private-repo",
+                    private: true,
+                    default_branch: "master"
+                  }
+                ]}
+    end
+
+    test "returns error when API returns non-200 status" do
+      # Given
+      stub(App, :get_installation_token, fn "123" ->
+        {:ok, %{token: "github_token"}}
+      end)
+
+      expect(Req, :get, fn opts ->
+        assert opts[:url] == "https://api.github.com/installation/repositories"
+        assert opts[:headers] == @default_api_headers
+        assert opts[:finch] == Tuist.Finch
+
+        {:ok,
+         %Req.Response{
+           status: 404,
+           body: %{"message" => "Not Found"}
+         }}
+      end)
+
+      # When
+      repositories = Client.get_installation_repositories("123")
+
+      # Then
+      assert repositories == {:error, "Failed to fetch repositories"}
+    end
+
+    test "handles empty repositories list" do
+      # Given
+      stub(App, :get_installation_token, fn "123" ->
+        {:ok, %{token: "github_token"}}
+      end)
+
+      expect(Req, :get, fn opts ->
+        assert opts[:url] == "https://api.github.com/installation/repositories"
+        assert opts[:headers] == @default_api_headers
+        assert opts[:finch] == Tuist.Finch
+
+        {:ok,
+         %Req.Response{
+           status: 200,
+           body: %{
+             "repositories" => []
+           }
+         }}
+      end)
+
+      # When
+      repositories = Client.get_installation_repositories("123")
+
+      # Then
+      assert repositories == {:ok, []}
     end
   end
 

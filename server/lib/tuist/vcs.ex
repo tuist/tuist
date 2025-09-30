@@ -148,9 +148,11 @@ defmodule Tuist.VCS do
   Returns `true` if the repository, identified by the `repository_full_handle`, is connected to the given project.
   """
   def connected?(%{repository_full_handle: repository_full_handle, project: project}) do
+    project = Repo.preload(project, :vcs_connection)
+
     Environment.github_app_configured?() and
-      not is_nil(project.vcs_repository_full_handle) and
-      String.downcase(project.vcs_repository_full_handle) ==
+      not is_nil(project.vcs_connection) and
+      String.downcase(project.vcs_connection.repository_full_handle) ==
         String.downcase(repository_full_handle)
   end
 

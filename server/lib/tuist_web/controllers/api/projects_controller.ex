@@ -6,8 +6,6 @@ defmodule TuistWeb.API.ProjectsController do
   alias Tuist.Accounts
   alias Tuist.Authorization
   alias Tuist.Projects
-  alias Tuist.Repo
-  alias Tuist.VCS
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.Project
   alias TuistWeb.Authentication
@@ -280,10 +278,6 @@ defmodule TuistWeb.API.ProjectsController do
              type: :string,
              description: "The default branch for the project."
            },
-           repository_url: %Schema{
-             type: :string,
-             description: "The repository URL for the project."
-           },
            visibility: %Schema{
              type: :string,
              enum: ["public", "private"],
@@ -297,9 +291,7 @@ defmodule TuistWeb.API.ProjectsController do
       not_found: {"The project with the given account and project handles was not found", "application/json", Error},
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
-      bad_request:
-        {"The request is invalid, for example when attempting to link the project to a repository the authenticated user doesn't have access to.",
-         "application/json", Error}
+      bad_request: {"The request is invalid", "application/json", Error}
     }
   )
 
@@ -311,55 +303,15 @@ defmodule TuistWeb.API.ProjectsController do
         _params
       ) do
     project = Projects.get_project_by_account_and_project_handles(account_handle, project_handle)
+    user = Authentication.current_user(conn)
 
-    user =
-      conn
-      |> Authentication.current_user()
-      |> Repo.preload(:oauth2_identities)
-
-    new_repository_url = Map.get(body_params, :repository_url)
-
-    repository =
-      if is_nil(new_repository_url) do
-        nil
-      else
-        VCS.get_repository_from_repository_url(new_repository_url)
-      end
-
-    case repository do
-      {:error, :unsupported_vcs} ->
-        conn
-        |> put_status(:bad_request)
-        |> json(%{
-          message:
-            "The given Git host is not supported. The supported Git hosts are: #{Enum.join(VCS.supported_vcs_hosts(), ", ")}."
-        })
-
-      {:error, message} ->
-        conn
-        |> put_status(:bad_request)
-        |> json(%{message: "Failed to update the repository due to: #{message}"})
-
-      {:ok, repository} ->
-        update_project(conn, %{
-          project: project,
-          user: user,
-          account_handle: account_handle,
-          project_handle: project_handle,
-          repository: repository,
-          body_params: body_params
-        })
-
-      nil ->
-        update_project(conn, %{
-          project: project,
-          user: user,
-          account_handle: account_handle,
-          project_handle: project_handle,
-          repository: nil,
-          body_params: body_params
-        })
-    end
+    update_project(conn, %{
+      project: project,
+      user: user,
+      account_handle: account_handle,
+      project_handle: project_handle,
+      body_params: body_params
+    })
   end
 
   defp update_project(conn, %{
@@ -367,7 +319,6 @@ defmodule TuistWeb.API.ProjectsController do
          user: user,
          account_handle: account_handle,
          project_handle: project_handle,
-         repository: repository,
          body_params: body_params
        }) do
     cond do
@@ -383,39 +334,10 @@ defmodule TuistWeb.API.ProjectsController do
           message: "The authenticated subject is not authorized to perform this action."
         })
 
-      not is_nil(repository) and
-          Authorization.authorize(:project_update_repository, user, %{
-            project: project,
-            repository: repository
-          }) != :ok ->
-        conn
-        |> put_status(:forbidden)
-        |> json(%{
-          message: "You are not authorized to update the Git repository URL."
-        })
-
       not is_nil(project) ->
-        default_branch = Map.get(body_params, :default_branch, project.default_branch)
-
-        default_branch =
-          if is_nil(repository) do
-            default_branch
-          else
-            repository.default_branch
-          end
-
-        vcs_provider = if is_nil(repository), do: project.vcs_provider, else: repository.provider
-
-        vcs_repository_full_handle =
-          if is_nil(repository),
-            do: project.vcs_repository_full_handle,
-            else: repository.full_handle
-
         {:ok, project} =
           Projects.update_project(project, %{
-            default_branch: default_branch,
-            vcs_provider: vcs_provider,
-            vcs_repository_full_handle: vcs_repository_full_handle,
+            default_branch: Map.get(body_params, :default_branch, project.default_branch),
             visibility: Map.get(body_params, :visibility, project.visibility)
           })
 
