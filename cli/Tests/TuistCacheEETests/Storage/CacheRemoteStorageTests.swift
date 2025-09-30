@@ -1,6 +1,7 @@
 import FileSystem
 import FileSystemTesting
 import Foundation
+import HTTPTypes
 import Mockable
 import OpenAPIRuntime
 import Path
@@ -447,6 +448,77 @@ struct CacheRemoteStorageTests {
         #expect(got.isEmpty == true)
         #expect(AlertController.current.warnings().map(\.message)
             .map { $0.plain() } == ["The Tuist server is unreachable, skipping fetching remote binaries"]
+        )
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedLogger(), .withScopedAlertController())
+    func fetch_when_client_throws_server_payment_required_error() async throws {
+        // Given
+        let serverErrorMessage = "Payment method required"
+        let error = ClientError(
+            operationID: "some-id",
+            operationInput: {} as Sendable,
+            response: HTTPResponse(status: HTTPResponse.Status(code: 402)),
+            responseBody: HTTPBody(stringLiteral: "{ \"message\": \"\(serverErrorMessage)\"}"),
+            causeDescription: "cause",
+            underlyingError: TestError(
+                "Could not connect to the server"
+            )
+        )
+        given(getCacheService).getCache(
+            serverURL: .value(Constants.URLs.production),
+            projectId: .value(fullHandle),
+            hash: .value("hash"),
+            name: .value("target"),
+            cacheCategory: .value(.binaries)
+        ).willThrow(
+            error
+        )
+
+        // When
+        let got = try await subject.fetch(
+            Set([.init(name: "target", hash: "hash")]), cacheCategory: .binaries
+        )
+
+        // Then
+        #expect(got.isEmpty == true)
+        #expect(AlertController.current.warnings().map(\.message)
+            .map { $0.plain() } == [serverErrorMessage]
+        )
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedLogger(), .withScopedAlertController())
+    func fetch_when_client_throws_server_payment_required_error_without_error_in_body() async throws {
+        // Given
+        let error = ClientError(
+            operationID: "some-id",
+            operationInput: {} as Sendable,
+            response: HTTPResponse(status: HTTPResponse.Status(code: 402)),
+            responseBody: HTTPBody(stringLiteral: "{}"),
+            causeDescription: "cause",
+            underlyingError: TestError(
+                "Could not connect to the server"
+            )
+        )
+        given(getCacheService).getCache(
+            serverURL: .value(Constants.URLs.production),
+            projectId: .value(fullHandle),
+            hash: .value("hash"),
+            name: .value("target"),
+            cacheCategory: .value(.binaries)
+        ).willThrow(
+            error
+        )
+
+        // When
+        let got = try await subject.fetch(
+            Set([.init(name: "target", hash: "hash")]), cacheCategory: .binaries
+        )
+
+        // Then
+        #expect(got.isEmpty == true)
+        #expect(AlertController.current.warnings().map(\.message)
+            .map { $0.plain() } == ["We skipped fetching remote binaries because the account subscription is not active."]
         )
     }
 
