@@ -1,9 +1,9 @@
 <header id="marketing-navbar">
   <.link href={~p"/"} data-part="tuist">
-    <img data-part="logo" src={~p"/marketing/images/components/navbar/logo.webp"} />
+    <img data-part="logo" src={~p"/marketing/images/components/navbar/logo.webp"} alt="Tuist" />
     <h3 data-part="title">Tuist</h3>
   </.link>
-  <div data-part="menus">
+  <nav data-part="menus" aria-label="Main navigation">
     <div data-part="menu" phx-hook="NavbarDropdown" id="marketing-navbar-features-menu">
       <div data-part="action">
         <span data-part="title">
@@ -144,9 +144,10 @@
         <img
           data-part="background"
           src={~p"/marketing/images/components/navbar/developers-background.webp"}
+          alt=""
         />
 
-        <div data-part="links">
+        <nav data-part="links">
           <.link href="https://docs.tuist.dev" target="_blank" data-part="link">
             <div data-part="logo">
               <.book />
@@ -199,22 +200,22 @@
               </p>
             </div>
           </.link>
-        </div>
-        <div data-part="changelog">
-          <div data-part="header">
+        </nav>
+        <aside data-part="changelog">
+          <header data-part="header">
             <h3 data-part="title">{gettext("Changelog")}</h3>
             <.link_button label={gettext("View all")} href={~p"/changelog"} variant="secondary" />
-          </div>
-          <div data-part="list">
-            <div
+          </header>
+          <ul data-part="list">
+            <li
               :for={entry <- Tuist.Marketing.Changelog.get_entries() |> Enum.take(3)}
               data-part="entry"
             >
-              <div data-part="date">{Timex.format!(entry.date, "{Mfull} {D}, {YYYY}")}</div>
-              <div data-part="title">{entry.title}</div>
-            </div>
-          </div>
-        </div>
+              <time data-part="date">{Timex.format!(entry.date, "{Mfull} {D}, {YYYY}")}</time>
+              <p data-part="title">{entry.title}</p>
+            </li>
+          </ul>
+        </aside>
       </div>
     </div>
     <div data-part="menu" phx-hook="NavbarDropdown" id="marketing-navbar-resources-menu">
@@ -306,8 +307,8 @@
         </.link>
       </div>
     </div>
-  </div>
-  <div data-part="actions">
+  </nav>
+  <nav data-part="actions" aria-label="Call to action">
     <.button href="https://docs.tuist.dev/en/" label="Get started"></.button>
     <.button
       href="https://cal.tuist.dev/team/tuist/tuist?overlayCalendar=true"
@@ -315,5 +316,5 @@
       label="Talk to us"
     >
     </.button>
-  </div>
+  </nav>
 </header>
