@@ -23,6 +23,7 @@ defmodule Tuist.Accounts.Invitation do
   def create_changeset(invitation, attrs \\ %{}) do
     invitation
     |> cast(attrs, [:token, :invitee_email, :inviter_id, :organization_id])
+    |> update_change(:invitee_email, &String.downcase/1)
     |> validate_required([:token, :invitee_email, :inviter_id, :organization_id])
     |> unique_constraint(:token, name: "index_invitations_on_token")
     |> unique_constraint([:invitee_email, :organization_id])

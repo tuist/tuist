@@ -109,5 +109,22 @@ defmodule Tuist.InvitationTest do
       # Then
       assert "has already been taken" in errors_on(got).invitee_email
     end
+
+    test "downcases invitee_email" do
+      # Given
+      invitation = %Invitation{}
+
+      # When
+      changeset =
+        Invitation.create_changeset(invitation, %{
+          token: "test-token",
+          invitee_email: "TEST@TUIST.IO",
+          inviter_id: 1,
+          organization_id: 1
+        })
+
+      # Then
+      assert changeset.changes.invitee_email == "test@tuist.io"
+    end
   end
 end
