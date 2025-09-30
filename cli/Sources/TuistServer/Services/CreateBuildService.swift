@@ -165,6 +165,7 @@ import OpenAPIURLSession
                                 status: status,
                                 targets: targets
                                     .map(Operations.createRun.Input.Body.jsonPayload.Case1Payload.targetsPayloadPayload.init),
+                                _type: .build,
                                 xcode_version: xcodeVersion
                             )
                         )
@@ -176,6 +177,8 @@ import OpenAPIURLSession
                 switch okResponse.body {
                 case let .json(run):
                     switch run {
+                    case .RunsTest:
+                        fatalError()
                     case let .RunsBuild(build):
                         guard let build = ServerBuild(build) else { throw CreateBuildServiceError.invalidURL(build.url) }
                         return build

@@ -370,6 +370,7 @@ defmodule TuistWeb.API.RunsControllerTest do
              ]
 
       assert response == %{
+               "type" => "build",
                "id" => build.id,
                "duration" => 1000,
                "project_id" => project.id,
@@ -414,6 +415,7 @@ defmodule TuistWeb.API.RunsControllerTest do
       assert build.account_id == user.account.id
 
       assert response == %{
+               "type" => "build",
                "id" => build.id,
                "duration" => 1000,
                "project_id" => project.id,
@@ -456,6 +458,7 @@ defmodule TuistWeb.API.RunsControllerTest do
       [build] = Tuist.Repo.all(Build)
 
       assert response == %{
+               "type" => "build",
                "id" => build.id,
                "duration" => 1000,
                "project_id" => project.id,
@@ -476,6 +479,7 @@ defmodule TuistWeb.API.RunsControllerTest do
         |> Authentication.put_current_user(user)
         |> put_req_header("content-type", "application/json")
         |> post(~p"/api/projects/#{project.account.name}/#{project.name}/runs",
+          type: "build",
           id: UUIDv7.generate(),
           duration: 1000,
           is_ci: false
@@ -501,6 +505,7 @@ defmodule TuistWeb.API.RunsControllerTest do
       assert build.ci_provider == nil
 
       assert response == %{
+               "type" => "build",
                "id" => build.id,
                "duration" => 1000,
                "project_id" => project.id,
@@ -609,6 +614,7 @@ defmodule TuistWeb.API.RunsControllerTest do
           post(
             conn,
             ~p"/api/projects/#{non_existent_account_name}/#{non_existent_project_name}/runs",
+            type: "build",
             id: UUIDv7.generate(),
             duration: 1000,
             is_ci: false
@@ -633,6 +639,7 @@ defmodule TuistWeb.API.RunsControllerTest do
         |> Authentication.put_current_user(user)
         |> put_req_header("content-type", "application/json")
         |> post(~p"/api/projects/#{project.account.name}/#{project.name}/runs",
+          type: "build",
           id: UUIDv7.generate(),
           duration: 1000,
           is_ci: false

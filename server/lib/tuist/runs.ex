@@ -12,9 +12,28 @@ defmodule Tuist.Runs do
   alias Tuist.Runs.BuildFile
   alias Tuist.Runs.BuildIssue
   alias Tuist.Runs.BuildTarget
+  alias Tuist.Runs.Test
+  alias Tuist.Runs.TestCaseRun
+  alias Tuist.Runs.TestModuleRun
+  alias Tuist.Runs.TestSuiteRun
 
   def get_build(id) do
     Repo.get(Build, id)
+  end
+
+  def get_test(id) do
+    case IngestRepo.get(Test, id) do
+      nil -> {:error, :not_found}
+      test -> {:ok, test}
+    end
+  end
+
+  def list_test_runs(attrs) do
+    {results, meta} = Tuist.ClickHouseFlop.validate_and_run!(Test, attrs, for: Test)
+
+    results = attach_user_account_names(results)
+
+    {results, meta}
   end
 
   def create_build(attrs) do
@@ -131,6 +150,12 @@ defmodule Tuist.Runs do
     Tuist.ClickHouseFlop.validate_and_run!(BuildTarget, attrs, for: BuildTarget)
   end
 
+  def list_test_case_runs(attrs) do
+    {test_case_runs, meta} = Tuist.ClickHouseFlop.validate_and_run!(TestCaseRun, attrs, for: TestCaseRun)
+    normalized_test_case_runs = Enum.map(test_case_runs, &TestCaseRun.normalize_enums/1)
+    {normalized_test_case_runs, meta}
+  end
+
   def list_build_runs(attrs, opts \\ []) do
     preload = Keyword.get(opts, :preload, [])
 
@@ -206,5 +231,177 @@ defmodule Tuist.Runs do
       _ ->
         nil
     end
+  end
+
+  def create_test(attrs) do
+    # Map status to raw enum value for ClickHouse
+    attrs_with_mapped_status =
+      case Map.get(attrs, :status) do
+        :success -> Map.put(attrs, :status, 0)
+        :failure -> Map.put(attrs, :status, 1)
+        status when status in [0, 1] -> attrs
+        # default to success
+        _ -> Map.put(attrs, :status, 0)
+      end
+
+    case %Test{}
+         |> Test.create_changeset(attrs_with_mapped_status)
+         |> IngestRepo.insert() do
+      {:ok, test} ->
+        # Handle test modules, suites, and cases if present
+        if Map.has_key?(attrs, :test_modules) and length(Map.get(attrs, :test_modules, [])) > 0 do
+          create_test_modules(test, Map.get(attrs, :test_modules))
+        end
+
+        # Handle test cases if present (legacy support)
+        if Map.has_key?(attrs, :test_cases) and length(Map.get(attrs, :test_cases, [])) > 0 do
+          create_test_cases(test, Map.get(attrs, :test_cases))
+        end
+
+        # Load project with account from PostgreSQL for PubSub broadcast
+        project = Tuist.Projects.get_project_by_id(test.project_id)
+
+        Tuist.PubSub.broadcast(
+          test,
+          "#{project.account.name}/#{project.name}",
+          :test_created
+        )
+
+        {:ok, test}
+
+      {:error, changeset} ->
+        {:error, changeset}
+    end
+  end
+
+  defp create_test_modules(test, test_modules) do
+    Enum.each(test_modules, fn module_attrs ->
+      # Map status to raw enum value for ClickHouse
+      module_status = case Map.get(module_attrs, :status) do
+        :success -> 0
+        :failure -> 1
+        status when status in [0, 1] -> status
+        _ -> 0  # default to success
+      end
+
+      module_id = Ecto.UUID.generate()
+
+      # Create test module run
+      module_run_attrs = %{
+        id: module_id,
+        name: Map.get(module_attrs, :name),
+        test_run_id: test.id,
+        status: module_status,
+        duration: Map.get(module_attrs, :duration, 0),
+        inserted_at: NaiveDateTime.utc_now()
+      }
+
+      case %TestModuleRun{}
+           |> TestModuleRun.create_changeset(module_run_attrs)
+           |> IngestRepo.insert() do
+        {:ok, _module_run} ->
+          # Create test suites if present and get suite name to ID mapping
+          suite_name_to_id = if Map.has_key?(module_attrs, :test_suites) do
+            create_test_suites(test, module_id, Map.get(module_attrs, :test_suites, []))
+          else
+            %{}
+          end
+
+          # Create test cases if present
+          if Map.has_key?(module_attrs, :test_cases) do
+            module_name = Map.get(module_attrs, :name)
+            create_test_cases_for_module(test, module_id, Map.get(module_attrs, :test_cases, []), suite_name_to_id, module_name)
+          end
+
+        {:error, changeset} ->
+          require Logger
+          Logger.error("Failed to create test module run: #{inspect(changeset.errors)}")
+      end
+    end)
+  end
+
+  defp create_test_suites(test, module_id, test_suites) do
+    {test_suite_runs, suite_name_to_id} = Enum.map_reduce(test_suites, %{}, fn suite_attrs, acc ->
+      # Map status to raw enum value for ClickHouse
+      suite_status = case Map.get(suite_attrs, :status) do
+        :success -> 0
+        :failure -> 1
+        :skipped -> 2
+        status when status in [0, 1, 2] -> status
+        _ -> 0  # default to success
+      end
+
+      suite_id = Ecto.UUID.generate()
+      suite_name = Map.get(suite_attrs, :name)
+
+      suite_run = %{
+        id: suite_id,
+        name: suite_name,
+        test_run_id: test.id,
+        test_module_run_id: module_id,
+        status: suite_status,
+        duration: Map.get(suite_attrs, :duration, 0),
+        inserted_at: NaiveDateTime.utc_now()
+      }
+
+      updated_mapping = Map.put(acc, suite_name, suite_id)
+      {suite_run, updated_mapping}
+    end)
+
+    IngestRepo.insert_all(TestSuiteRun, test_suite_runs)
+    suite_name_to_id
+  end
+
+  defp create_test_cases_for_module(test, module_id, test_cases, suite_name_to_id, module_name) do
+    test_case_runs = Enum.map(test_cases, fn case_attrs ->
+      # Map status to raw enum value for ClickHouse
+      case_status = case Map.get(case_attrs, :status) do
+        :success -> 0
+        :failure -> 1
+        :skipped -> 2
+        status when status in [0, 1, 2] -> status
+        _ -> 0  # default to success
+      end
+
+      # Try to find the test suite this test case belongs to
+      # Match by test suite name within this specific module
+      suite_name = Map.get(case_attrs, :test_suite_name, "")
+      test_suite_run_id = case suite_name do
+        "" -> nil
+        nil -> nil
+        suite_name -> Map.get(suite_name_to_id, suite_name)
+      end
+
+      %{
+        id: Ecto.UUID.generate(),
+        name: Map.get(case_attrs, :name),
+        test_run_id: test.id,
+        test_module_run_id: module_id,
+        test_suite_run_id: test_suite_run_id,
+        status: case_status,
+        duration: Map.get(case_attrs, :duration, 0),
+        inserted_at: NaiveDateTime.utc_now(),
+        module_name: module_name,
+        suite_name: suite_name || ""
+      }
+    end)
+
+    IngestRepo.insert_all(TestCaseRun, test_case_runs)
+  end
+
+  defp create_test_cases(_test, _test_cases) do
+    # Legacy support for old API format - for now just log
+    require Logger
+    Logger.info("Legacy test_cases format received - consider using test_modules instead")
+    :ok
+  end
+
+  defp attach_user_account_names(runs) do
+    # Test runs use account_id instead of user_id
+    # For now, we'll set user_account_name to nil since we don't have user info
+    # This field will be populated by the command events if needed
+    Enum.map(runs, fn run ->
+      Map.put(run, :user_account_name, nil)
+    end)
   end
 end

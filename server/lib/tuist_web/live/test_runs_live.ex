@@ -9,7 +9,7 @@ defmodule TuistWeb.TestRunsLive do
 
   alias Noora.Filter
   alias Tuist.Accounts
-  alias Tuist.CommandEvents
+  alias Tuist.Runs
   alias Tuist.Runs.Analytics
   alias TuistWeb.Utilities.Query
   alias TuistWeb.Utilities.SHA
@@ -32,9 +32,9 @@ defmodule TuistWeb.TestRunsLive do
   defp define_filters(project) do
     base = [
       %Filter.Filter{
-        id: "name",
-        field: :name,
-        display_name: gettext("Command"),
+        id: "scheme",
+        field: :scheme,
+        display_name: gettext("Scheme"),
         type: :text,
         operator: :=~,
         value: ""
@@ -127,7 +127,7 @@ defmodule TuistWeb.TestRunsLive do
      |> push_event("close-popover", %{all: true})}
   end
 
-  def handle_info({:command_event_created, %{name: "test"}}, socket) do
+  def handle_info({:test_created, _test}, socket) do
     # Only update when pagination is inactive
     if Query.has_pagination_params?(socket.assigns.uri.query) do
       {:noreply, socket}
@@ -306,7 +306,7 @@ defmodule TuistWeb.TestRunsLive do
 
     options = %{
       filters: flop_filters,
-      order_by: [:created_at],
+      order_by: [:ran_at],
       order_directions: [:desc]
     }
 
@@ -326,7 +326,7 @@ defmodule TuistWeb.TestRunsLive do
           Map.put(options, :first, 20)
       end
 
-    {test_runs, test_runs_meta} = CommandEvents.list_test_runs(options)
+    {test_runs, test_runs_meta} = Runs.list_test_runs(options)
 
     socket
     |> assign(:active_filters, filters)
@@ -344,7 +344,7 @@ defmodule TuistWeb.TestRunsLive do
           [%{field: :is_ci, op: op, value: true}]
 
         %{value: value, operator: op} when not is_nil(value) ->
-          [%{field: :user_id, op: op, value: value}]
+          [%{field: :account_id, op: op, value: value}]
 
         _ ->
           []

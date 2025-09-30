@@ -192,6 +192,10 @@ defmodule TuistWeb.API.AnalyticsController do
              type: :string,
              description: "The build run identifier."
            },
+           test_run_id: %Schema{
+             type: :string,
+             description: "The test run identifier."
+           },
            xcode_graph: %Schema{
              type: :object,
              description: "The schema for the Xcode graph.",
@@ -308,6 +312,7 @@ defmodule TuistWeb.API.AnalyticsController do
     git_remote_url_origin = Map.get(body_params, :git_remote_url_origin)
     preview_id = Map.get(body_params, :preview_id)
     build_run_id = Map.get(body_params, :build_run_id)
+    test_run_id = Map.get(body_params, :test_run_id)
 
     cache_metadata = cache_metadata(body_params)
     selective_testing_metadata = selective_testing_metadata(body_params)
@@ -339,7 +344,8 @@ defmodule TuistWeb.API.AnalyticsController do
         git_remote_url_origin: git_remote_url_origin,
         git_branch: Map.get(body_params, :git_branch),
         ran_at: date(body_params),
-        build_run_id: build_run_id
+        build_run_id: build_run_id,
+        test_run_id: test_run_id
       })
 
     xcode_graph = Map.get(body_params, :xcode_graph)

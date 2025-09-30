@@ -200,25 +200,16 @@
           row_navigate={
             fn test_run ->
               url(
-                ~p"/#{@selected_project.account.name}/#{@selected_project.name}/runs/#{test_run.id}"
+                ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-runs/#{test_run.id}"
               )
             end
           }
         >
-          <:col :let={test_run} label={gettext("Command")}>
-            <.text_and_description_cell label={
-              if test_run.command_arguments,
-                do:
-                  "tuist " <>
-                    (test_run.command_arguments
-                     |> String.split(" ")
-                     |> Enum.take(2)
-                     |> Enum.join(" ")),
-                else: "tuist #{test_run.name}"
-            } />
+          <:col :let={test_run} label={gettext("Scheme")}>
+            <.text_and_description_cell label={(test_run.scheme && test_run.scheme != "") || "Unknown"} />
           </:col>
           <:col :let={test_run} label="Status">
-            <%= if test_run.status == :success do %>
+            <%= if test_run.status == 0 do %>
               <.status_badge_cell label={gettext("Passed")} status="success" />
             <% else %>
               <.status_badge_cell label={gettext("Failed")} status="error" />
@@ -232,6 +223,20 @@
           </:col>
           <:col :let={test_run} label={gettext("Ran by")}>
             <.run_ran_by_badge_cell run={test_run} ran_by_name={test_run.user_account_name} />
+          </:col>
+          <:col :let={test_run} label={gettext("Duration")}>
+            <.text_cell
+              label={
+                Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(test_run.duration)
+              }
+              icon="history"
+            />
+          </:col>
+          <:col :let={test_run} label={gettext("Xcode version")}>
+            <.text_cell label={test_run.xcode_version || gettext("Unknown")} />
+          </:col>
+          <:col :let={test_run} label={gettext("macOS version")}>
+            <.text_cell label={test_run.macos_version || gettext("Unknown")} />
           </:col>
           <:col :let={test_run} label={gettext("Ran at")}>
             <.text_cell sublabel={Tuist.Utilities.DateFormatter.from_now(test_run.ran_at)} />

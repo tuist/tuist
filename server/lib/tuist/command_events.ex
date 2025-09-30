@@ -749,6 +749,10 @@ defmodule Tuist.CommandEvents do
     storage_module().get_command_event_by_build_run_id(build_run_id)
   end
 
+  def get_command_event_by_test_run_id(test_run_id) do
+    storage_module().get_command_event_by_test_run_id(test_run_id)
+  end
+
   def run_events(project_id, start_date, end_date, opts) do
     storage_module().run_events(project_id, start_date, end_date, opts)
   end

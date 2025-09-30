@@ -13,6 +13,7 @@ alias Tuist.QA.Log
 alias Tuist.QA.Run
 alias Tuist.Repo
 alias Tuist.Runs.Build
+alias Tuist.Runs.Test
 alias Tuist.Xcode
 
 # Stubs
@@ -152,6 +153,84 @@ builds =
 
 Repo.insert_all(Build, builds)
 
+branches = [
+  "main",
+  "develop",
+  "feature/wearables",
+  "feature/new-ui",
+  "bugfix/crash-fix",
+  "release/v2.0",
+  "hotfix/security"
+]
+
+tests =
+  Enum.map(1..1500, fn _ ->
+    status = Enum.random([0, 1])
+    is_ci = Enum.random([true, false])
+    scheme = Enum.random(["AppTests", "FrameworkTests", "UITests"])
+    xcode_version = Enum.random(["12.4", "13.0", "13.2"])
+    macos_version = Enum.random(["11.2.3", "12.3.4", "13.4.5"])
+
+    model_identifier =
+      Enum.random(["MacBookPro14,2", "MacBookPro15,1", "MacBookPro10,2", "Macmini8,1"])
+
+    account_id = if is_ci, do: organization.account.id, else: user.account.id
+
+    ran_at =
+      DateTime.utc_now()
+      |> Date.add(-Enum.random(0..400))
+      |> DateTime.new!(
+        Time.new!(
+          Enum.random(0..23),
+          Enum.random(0..59),
+          Enum.random(0..59),
+          Enum.random(0..999_999)
+        )
+      )
+      |> DateTime.to_naive()
+
+    inserted_at =
+      DateTime.utc_now()
+      |> Date.add(-Enum.random(0..400))
+      |> DateTime.new!(
+        Time.new!(
+          Enum.random(0..23),
+          Enum.random(0..59),
+          Enum.random(0..59),
+          Enum.random(0..999_999)
+        )
+      )
+      |> DateTime.to_naive()
+
+    git_branch = Enum.random(branches)
+
+    %{
+      id: UUIDv7.generate(),
+      duration: Enum.random(5_000..60_000),
+      macos_version: macos_version,
+      xcode_version: xcode_version,
+      is_ci: is_ci,
+      model_identifier: model_identifier,
+      scheme: scheme,
+      status: status,
+      git_branch: git_branch,
+      git_commit_sha:
+        Enum.random([
+          "a1b2c3d4e5f6",
+          "f6e5d4c3b2a1",
+          "123456789abc",
+          "abcdef123456"
+        ]),
+      git_ref: "refs/heads/#{git_branch}",
+      ran_at: ran_at,
+      project_id: tuist_project.id,
+      account_id: account_id,
+      inserted_at: inserted_at
+    }
+  end)
+
+IngestRepo.insert_all(Test, tests)
+
 command_events =
   Enum.map(1..8000, fn _event ->
     names = ["test", "cache", "generate"]
@@ -222,7 +301,7 @@ command_events =
           Enum.random(0..23),
           Enum.random(0..59),
           Enum.random(0..59),
-          Enum.random(0..999)
+          Enum.random(0..999_999)
         )
       )
 
@@ -355,16 +434,6 @@ platform_combinations = [
   [:macos, :ios, :watchos_simulator, :tvos_simulator, :ios_simulator, :visionos],
   [:ios],
   [:watchos_simulator, :visionos, :watchos, :visionos_simulator]
-]
-
-branches = [
-  "main",
-  "develop",
-  "feature/wearables",
-  "feature/new-ui",
-  "bugfix/crash-fix",
-  "release/v2.0",
-  "hotfix/security"
 ]
 
 test_previews =

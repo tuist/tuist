@@ -7,6 +7,7 @@ import TuistLoader
 import TuistServer
 import TuistSupport
 import XcodeGraph
+import TuistXCResultService
 
 import struct TSCUtility.Version
 
@@ -835,6 +836,11 @@ final class TestService { // swiftlint:disable:this type_body_length
             testPlanConfiguration: testPlanConfiguration,
             passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
         )
+        
+        // Set the test run ID using the result bundle path (same pattern as buildRunId)
+        if let resultBundlePath {
+            await RunMetadataStorage.current.update(testRunId: resultBundlePath.basenameWithoutExt)
+        }
     }
 
     private func destination(

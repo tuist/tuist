@@ -72,6 +72,7 @@
                             status: status,
                             subcommand: commandEvent.subcommand,
                             swift_version: commandEvent.swiftVersion,
+                            test_run_id: commandEvent.testRunId,
                             tuist_version: commandEvent.tuistVersion,
                             xcode_graph: commandEvent.graph.map { map(graph: $0) }
                         )

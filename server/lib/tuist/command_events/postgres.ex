@@ -171,6 +171,13 @@ defmodule Tuist.CommandEvents.Postgres do
     end
   end
 
+  def get_command_event_by_test_run_id(test_run_id) do
+    case Repo.get_by(Event, test_run_id: test_run_id) do
+      nil -> {:error, :not_found}
+      event -> {:ok, event}
+    end
+  end
+
   def run_events(project_id, start_date, end_date, opts) do
     query =
       from(e in Event,
