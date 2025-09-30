@@ -162,6 +162,83 @@
           }
         }
       }
+
+      & > [data-dropdown="resources"] {
+        display: grid;
+        grid-template-rows: repeat(4, auto);
+        grid-template-columns: repeat(2, max-content);
+        grid-auto-flow: column;
+        gap: var(--noora-spacing-6);
+        padding: var(--noora-spacing-5);
+        width: max-content;
+
+        & > [data-part="resource"] {
+          display: flex;
+          flex-direction: row;
+          align-items: center;
+          gap: var(--noora-spacing-5);
+          border-radius: var(--noora-radius-xlarge);
+          padding: var(--noora-spacing-4);
+          text-decoration: none;
+
+          &:hover {
+            background: var(--noora-surface-background-secondary);
+          }
+
+          & > [data-part="logo"] {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-sizing: border-box;
+            box-shadow:
+              0 1px 1px 0 rgba(22, 24, 28, 0.05),
+              0 0 0 1px rgba(46, 51, 56, 0.08),
+              0 1px 1px 0 rgba(46, 51, 56, 0.1);
+            border-radius: var(--noora-radius-medium);
+            background: var(--noora-surface-background-primary);
+            padding: 8px;
+            width: 40px;
+            height: 40px;
+            max-height: 40px;
+
+            & > svg {
+              width: 100%;
+              max-width: 24px;
+              height: 100%;
+              max-height: 24px;
+              color: var(--noora-surface-label-secondary);
+            }
+          }
+
+          & > [data-part="content"] {
+            display: flex;
+            flex-direction: column;
+            gap: var(--noora-spacing-2);
+
+            & > [data-part="title"] {
+              color: var(--noora-surface-label-primary);
+              font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+            }
+            & > [data-part="subtitle"] {
+              color: var(--noora-surface-label-secondary);
+              font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+            }
+          }
+        }
+
+        /* First item only (first column with 1 row) */
+        & > [data-part="resource"]:nth-child(1) {
+          grid-column: 1;
+        }
+
+        /* Items 2-5 (second column with 4 rows) */
+        & > [data-part="resource"]:nth-child(2),
+        & > [data-part="resource"]:nth-child(3),
+        & > [data-part="resource"]:nth-child(4),
+        & > [data-part="resource"]:nth-child(5) {
+          grid-column: 2;
+        }
+      }
     }
   }
 }
