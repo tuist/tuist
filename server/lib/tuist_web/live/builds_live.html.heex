@@ -26,6 +26,30 @@
         <% end %>
       </.dropdown>
       <.dropdown
+        id="builds-analytics-configuration-dropdown"
+        label={build_configuration_label(@analytics_build_configuration)}
+        secondary_text={gettext("Configuration:")}
+      >
+        <.dropdown_item
+          value="any"
+          label={gettext("Any")}
+          patch={"?#{Query.put(@uri.query, "analytics-build-configuration", "any")}"}
+          data-selected={@analytics_build_configuration == "any"}
+        >
+          <:right_icon><.check /></:right_icon>
+        </.dropdown_item>
+        <%= for build_configuration <- @build_configurations do %>
+          <.dropdown_item
+            value={build_configuration}
+            label={build_configuration}
+            patch={"?#{Query.put(@uri.query, "analytics-build-configuration", build_configuration)}"}
+            data-selected={@analytics_build_configuration == build_configuration}
+          >
+            <:right_icon><.check /></:right_icon>
+          </.dropdown_item>
+        <% end %>
+      </.dropdown>
+      <.dropdown
         id="builds-analytics-category-dropdown"
         label={@analytics_build_category |> String.capitalize()}
         secondary_text={gettext("Build:")}

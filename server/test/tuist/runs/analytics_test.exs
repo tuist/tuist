@@ -199,6 +199,48 @@ defmodule Tuist.Runs.AnalyticsTest do
       assert got.trend == -25.0
       assert got.total_average_duration == 1500
     end
+
+    test "returns duration analytics filtered by configuration" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 3000,
+        configuration: "Debug",
+        inserted_at: ~U[2024-04-30 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 1000,
+        configuration: "Debug",
+        inserted_at: ~U[2024-04-30 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 5000,
+        configuration: "Release",
+        inserted_at: ~U[2024-04-30 03:00:00Z]
+      )
+
+      # When
+      got =
+        Analytics.build_duration_analytics(
+          project.id,
+          start_date: Date.add(DateTime.utc_now(), -2),
+          configuration: "Debug"
+        )
+
+      # Then
+      assert got.values == [0, 0, 2000.0]
+      assert got.total_average_duration == 2000
+    end
   end
 
   describe "build_percentile_durations/2" do
@@ -1003,6 +1045,64 @@ defmodule Tuist.Runs.AnalyticsTest do
 
       # Then
       assert got.success_rate == 0.75
+    end
+
+    test "respects build configuration filter" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        status: :success,
+        configuration: "Debug",
+        inserted_at: ~U[2024-04-30 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        status: :success,
+        configuration: "Debug",
+        inserted_at: ~U[2024-04-29 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        status: :failure,
+        configuration: "Debug",
+        inserted_at: ~U[2024-04-28 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        status: :failure,
+        configuration: "Release",
+        inserted_at: ~U[2024-04-30 02:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        status: :failure,
+        configuration: "Release",
+        inserted_at: ~U[2024-04-29 02:00:00Z]
+      )
+
+      # When
+      got =
+        Analytics.build_success_rate_analytics(
+          project.id,
+          start_date: Date.add(DateTime.utc_now(), -3),
+          end_date: DateTime.to_date(DateTime.utc_now()),
+          configuration: "Debug"
+        )
+
+      # Then
+      assert_in_delta got.success_rate, 0.6667, 0.0001
     end
   end
 
