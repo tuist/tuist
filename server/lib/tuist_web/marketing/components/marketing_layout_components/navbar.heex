@@ -141,12 +141,79 @@
         <.chevron_down />
       </div>
     </div>
-    <div data-part="menu">
+    <div data-part="menu" phx-hook="NavbarDropdown" id="resources-menu">
       <div data-part="action">
         <span data-part="title">
           {gettext("Resources")}
         </span>
         <.chevron_down />
+      </div>
+      <div data-part="dropdown" data-dropdown="resources">
+        <.link href={~p"/about"} data-part="resource">
+          <div data-part="logo">
+            <.users />
+          </div>
+          <div data-part="content">
+            <h3 data-part="title">
+              {gettext("About")}
+            </h3>
+            <p data-part="subtitle">
+              {gettext("Learn about Tuist and meet the team")}
+            </p>
+          </div>
+        </.link>
+        <.link href="https://slack.tuist.dev" target="_blank" data-part="resource">
+          <div data-part="logo">
+            <.brand_slack />
+          </div>
+          <div data-part="content">
+            <h3 data-part="title">
+              {gettext("Slack")}
+            </h3>
+            <p data-part="subtitle">
+              {gettext("Join the community on Slack")}
+            </p>
+          </div>
+        </.link>
+        <.link href="https://community.tuist.dev" target="_blank" data-part="resource">
+          <div data-part="logo">
+            <.message_circle />
+          </div>
+          <div data-part="content">
+            <h3 data-part="title">
+              {gettext("Community forum")}
+            </h3>
+            <p data-part="subtitle">
+              {gettext("Join discussions and share ideas on our Discourse forum")}
+            </p>
+          </div>
+        </.link>
+        <.link href="https://github.com/tuist" target="_blank" data-part="resource">
+          <div data-part="logo">
+            <.brand_github />
+          </div>
+          <div data-part="content">
+            <h3 data-part="title">
+              {gettext("GitHub")}
+            </h3>
+            <p data-part="subtitle">
+              {gettext("Check our sources, issues, and PRs")}
+            </p>
+          </div>
+        </.link>
+        <.link href={~p"/newsletter"} target="_blank" data-part="resource">
+          <div data-part="logo">
+            <.news />
+          </div>
+          <div data-part="content">
+            <h3 data-part="title">
+              {gettext("GitHub")}
+            </h3>
+            <p data-part="subtitle">
+              {gettext("Stay updated—subscribe to our newsletter")}
+            </p>
+          </div>
+        </.link>
       </div>
     </div>
     <div data-part="menu">

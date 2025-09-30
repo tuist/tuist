@@ -133,7 +133,11 @@ defmodule Tuist.MixProject do
       {:ecto_ch, "~> 0.7"},
       (System.get_env("NOORA_LOCAL") &&
          {:noora, path: "../../Noora/web"}) ||
+<<<<<<< HEAD
         {:noora, "== 0.29.2"},
+=======
+        {:noora, "== 0.30.0"},
+>>>>>>> 08a75f19c0 (Add resources dropdown)
       {:zstream, "~> 0.6"},
       {:cloak_ecto, "~> 1.3.0"},
       {:boruta, git: "https://github.com/malach-it/boruta_auth", branch: "master"},
