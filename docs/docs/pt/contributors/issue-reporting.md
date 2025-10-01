@@ -5,48 +5,76 @@
   "description": "Learn how to contribute to Tuist by reporting bugs"
 }
 ---
-# Issue reporting {#issue-reporting}
+# Relatórios de problemas {#relatórios de problemas}
 
-As user of Tuist, you might come across bugs or unexpected behaviors.
-If you do, we encourage you to report them so that we can fix them.
+Como utilizador do Tuist, poderá deparar-se com erros ou comportamentos
+inesperados. Se isso acontecer, encorajamo-lo a comunicá-los para que os
+possamos corrigir.
 
-## GitHub issues is our ticketing platform {#github-issues-is-our-ticketing-platform}
+## GitHub issues é a nossa plataforma de emissão de bilhetes {#github-issues-is-our-ticketing-platform}
 
-Issues should be reported on GitHub as [GitHub issues](https://github.com/tuist/tuist/issues) and not on Slack or other platforms. GitHub is better for tracing and managing issues, is closer to the codebase, and allows us to track the progress of the issue. Moreover, it encourages a long-form description of the problem, which forces the reporter to think about the problem and provide more context.
+Os problemas devem ser reportados no GitHub como [GitHub
+issues](https://github.com/tuist/tuist/issues) e não no Slack ou noutras
+plataformas. O GitHub é melhor para rastrear e gerenciar problemas, está mais
+próximo da base de código e nos permite acompanhar o progresso do problema. Além
+disso, incentiva uma descrição longa do problema, o que força o relator a pensar
+sobre o problema e a fornecer mais contexto.
 
-## Context is crucial {#context-is-crucial}
+## O contexto é crucial {#context-is-crucial}
 
-An issue without enough context will be deemed incomplete and the author will be asked for additional context. If not provided, the issue will be closed. Think about it this way: the more context you provide, the easier it is for us to understand the problem and fix it. So if you want your issue to be fixed, provide as much context as possible. Try to answer the following questions:
+Uma questão sem contexto suficiente será considerada incompleta e o autor será
+solicitado a fornecer contexto adicional. Se não for fornecido, o problema será
+fechado. Pense da seguinte forma: quanto mais contexto você fornecer, mais fácil
+será para nós entender o problema e corrigi-lo. Por isso, se quiser que o seu
+problema seja resolvido, forneça o máximo de contexto possível. Tente responder
+às seguintes perguntas:
 
-- What were you trying to do?
-- How does your graph look?
-- What version of Tuist are you using?
-- Is this blocking you?
+- O que é que estava a tentar fazer?
+- Qual é o aspeto do seu gráfico?
+- Que versão do Tuist está a utilizar?
+- Isto está a bloquear-vos?
 
-We also require you to provide a minimal **reproducible project**.
+Também solicitamos que forneça um projeto mínimo **reproduzível**.
 
-## Reproducible project {#reproducible-project}
+## Projeto reprodutível {#reproducible-project}
 
-### What is a reproducible project? {#what-is-a-reproducible-project}
+### O que é um projeto reprodutível? {o que é um projeto reproduzível}
 
-A reproducible project is a small Tuist project to demonstrate a problem - often this problem is caused by a bug in Tuist. Your reproducible project should contain the bare minimum features needed to clearly demonstrate the bug.
+Um projeto reprodutível é um pequeno projeto Tuist para demonstrar um problema -
+frequentemente este problema é causado por um bug no Tuist. O seu projeto
+reprodutível deve conter as caraterísticas mínimas necessárias para demonstrar
+claramente o bug.
 
-### Why should you create a reproducible test case? {#why-should-you-create-a-reproducible-test-case}
+### Porque é que se deve criar um caso de teste reprodutível? {Porque é que deve criar um caso de teste reprodutível}
 
-A reproducible projects lets us isolate the cause of a problem, which is the first step towards fixing it! The most important part of any bug report is to describe the exact steps needed to reproduce the bug.
+Um projeto reproduzível permite-nos isolar a causa de um problema, que é o
+primeiro passo para o corrigir! A parte mais importante de qualquer relatório de
+erro é descrever os passos exactos necessários para reproduzir o erro.
 
-A reproducible project is a great way to share a specific environment that causes a bug. Your reproducible project is the best way to help people that want to help you.
+Um projeto reproduzível é uma excelente forma de partilhar um ambiente
+específico que causa um erro. O seu projeto reproduzível é a melhor forma de
+ajudar as pessoas que o querem ajudar.
 
-### Steps to create a reproducible project {#steps-to-create-a-reproducible-project}
+### Passos para criar um projeto reprodutível {#passos-para-criar-um-projeto-reprodutível}
 
-- Create a new git repository.
-- Initialize a project using `tuist init` in the repository directory.
-- Add the code needed to recreate the error you’ve seen.
-- Publish the code (your GitHub account is a good place to do this) and then link to it when creating an issue.
+- Criar um novo repositório git.
+- Inicializar um projeto utilizando `tuist init` no diretório do repositório.
+- Adicione o código necessário para recriar o erro que viu.
+- Publique o código (a sua conta do GitHub é um bom local para o fazer) e, em
+  seguida, ligue-se a ele quando criar um problema.
 
-### Benefits of reproducible projects {#benefits-of-reproducible-projects}
+### Benefícios dos projectos reprodutíveis {#benefits-of-reproducible-projects}
 
-- **Smaller surface area:** By removing everything but the error, you don’t have to dig to find the bug.
-- **No need to publish secret code:** You might not be able to publish your main site (for many reasons). Remaking a small part of it as a reproducible test case allows you to publicly demonstrate a problem without exposing any secret code.
-- **Proof of the bug:** Sometimes a bug is caused by some combination of settings on your machine. A reproducible test case allows contributors to pull down your build and test it on their machines as well. This helps verify and narrow down the cause of a problem.
-- **Get help with fixing your bug:** If someone else can reproduce your problem, they often have a good chance of fixing the problem. It’s almost impossible to fix a bug without first being able to reproduce it.
+- **Área de superfície mais pequena:** Ao remover tudo exceto o erro, não é
+  necessário escavar para encontrar o erro.
+- **Não precisa de publicar o código secreto:** Pode não ser possível publicar o
+  seu sítio principal (por muitas razões). Recriar uma pequena parte do mesmo
+  como um caso de teste reproduzível permite-lhe demonstrar publicamente um
+  problema sem expor qualquer código secreto.
+- **Prova do erro:** Algumas vezes um bug é causado por alguma combinação de
+  configurações em sua máquina. Um caso de teste reproduzível permite que os
+  contribuidores baixem sua compilação e testem-na em suas máquinas também. Isto
+  ajuda a verificar e a reduzir a causa de um problema.
+- **Obtenha ajuda para resolver o seu erro:** Se outra pessoa conseguir
+  reproduzir o seu problema, terá muitas vezes uma boa hipótese de o resolver. É
+  quase impossível corrigir um erro sem primeiro o conseguir reproduzir.
