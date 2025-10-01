@@ -1,41 +1,51 @@
 ---
 {
   "title": "Plugins",
-  "titleTemplate": ":title · Projects · Develop · Guides · Tuist",
+  "titleTemplate": ":title · Projects · Features · Guides · Tuist",
   "description": "Learn how to create and use plugins in Tuist to extend its functionality."
 }
 ---
 # Plugins {#plugins}
 
-Plugins are a tool to share and reuse Tuist artifacts across multiple projects. The following artifacts are supported:
+Los plugins son una herramienta para compartir y reutilizar artefactos Tuist en
+varios proyectos. Los siguientes artefactos son compatibles:
 
-- <LocalizedLink href="/guides/features/projects/code-sharing">Project description helpers</LocalizedLink> across multiple projects.
-- <LocalizedLink href="/guides/features/projects/templates">Templates</LocalizedLink> across multiple projects.
-- Tasks across multiple projects.
-- <LocalizedLink href="/guides/features/projects/synthesized-files">Resource accessor</LocalizedLink> template across multiple projects
+- <LocalizedLink href="/guides/features/projects/code-sharing">Ayudantes de
+  descripción de proyectos</LocalizedLink> en varios proyectos.
+- <LocalizedLink href="/guides/features/projects/templates">Plantillas</LocalizedLink>
+  en varios proyectos.
+- Tareas en varios proyectos.
+- <LocalizedLink href="/guides/features/projects/synthesized-files">Plantilla de
+  acceso a recursos</LocalizedLink> en varios proyectos
 
-Note that plugins are designed to be a simple way to extend Tuist's functionality. Therefore there are **some limitations to consider**:
+Ten en cuenta que los plugins están diseñados para ser una forma sencilla de
+ampliar la funcionalidad de Tuist. Por lo tanto, hay **algunas limitaciones a
+tener en cuenta**:
 
-- A plugin cannot depend on another plugin.
-- A plugin cannot depend on third-party Swift packages
-- A plugin cannot use project description helpers from the project that uses the plugin.
+- Un plugin no puede depender de otro plugin.
+- Un plugin no puede depender de paquetes Swift de terceros
+- Un plugin no puede utilizar ayudantes de descripción de proyecto del proyecto
+  que utiliza el plugin.
 
-If you need more flexibility, consider suggesting a feature for the tool or building your own solution upon Tuist's generation framework, [`TuistGenerator`](https://github.com/tuist/tuist/tree/main/Sources/TuistGenerator).
+Si necesitas más flexibilidad, plantéate sugerir una función para la herramienta
+o construir tu propia solución a partir del marco de generación de Tuist,
+[`TuistGenerator`](https://github.com/tuist/tuist/tree/main/Sources/TuistGenerator).
 
-## Plugin types {#plugin-types}
+## Tipos de plugins {#plugin-types}
 
-### Project description helper plugin {#project-description-helper-plugin}
+### Plugin de ayuda para la descripción de proyectos {#project-description-helper-plugin}
 
-A project description helper plugin is represented by a directory containing a `Plugin.swift` manifest file that declares the plugin's name and a `ProjectDescriptionHelpers` directory containing the helper Swift files.
+Un plugin de ayuda para la descripción de proyectos está representado por un
+directorio que contiene un archivo de manifiesto `Plugin.swift` que declara el
+nombre del plugin y un directorio `ProjectDescriptionHelpers` que contiene los
+archivos Swift de ayuda.
 
-::: code-group
-
+::: grupo de códigos
 ```bash [Plugin.swift]
 import ProjectDescription
 
 let plugin = Plugin(name: "MyPlugin")
 ```
-
 ```bash [Directory structure]
 .
 ├── ...
@@ -43,22 +53,25 @@ let plugin = Plugin(name: "MyPlugin")
 ├── ProjectDescriptionHelpers
 └── ...
 ```
-
 :::
 
-### Resource accessor templates plugin {#resource-accessor-templates-plugin}
+### Plugin de plantillas de acceso a recursos {#resource-accessor-templates-plugin}
 
-If you need to share <LocalizedLink href="/guides/features/projects/synthesized-files#resource-accessors">synthesized resource accessors</LocalizedLink> you can use
-this type of plugin. The plugin is represented by a directory containing a `Plugin.swift` manifest file that declares the plugin's name and a `ResourceSynthesizers` directory containing the resource accessor template files.
+Si necesita compartir
+<LocalizedLink href="/guides/features/projects/synthesized-files#resource-accessors">accesores
+de recursos sintetizados</LocalizedLink> puede utilizar este tipo de plugin. El
+plugin está representado por un directorio que contiene un archivo de manifiesto
+`Plugin.swift` que declara el nombre del plugin y un directorio
+`ResourceSynthesizers` que contiene los archivos de plantilla de accesores de
+recursos.
 
-::: code-group
 
+::: grupo de códigos
 ```bash [Plugin.swift]
 import ProjectDescription
 
 let plugin = Plugin(name: "MyPlugin")
 ```
-
 ```bash [Directory structure]
 .
 ├── ...
@@ -69,47 +82,72 @@ let plugin = Plugin(name: "MyPlugin")
 ├───── CustomTemplate.stencil
 └── ...
 ```
-
 :::
 
-The name of the template is the [camel case](https://en.wikipedia.org/wiki/Camel_case) version of the resource type:
+El nombre de la plantilla es la versión [camel
+case](https://en.wikipedia.org/wiki/Camel_case) del tipo de recurso:
 
-| Resource type     | Template file name                       |
-| ----------------- | ---------------------------------------- |
-| Strings           | Strings.stencil          |
-| Assets            | Assets.stencil           |
-| Property Lists    | Plists.stencil           |
-| Fonts             | Fonts.stencil            |
-| Core Data         | CoreData.stencil         |
-| Interface Builder | InterfaceBuilder.stencil |
-| JSON              | JSON.stencil             |
-| YAML              | YAML.stencil             |
+| Tipo de recurso       | Nombre del archivo de plantilla |
+| --------------------- | ------------------------------- |
+| Cuerdas               | Strings.stencil                 |
+| Activos               | Activos.stencil                 |
+| Listas de propiedades | Plists.stencil                  |
+| Fuentes               | Fuentes.stencil                 |
+| Datos básicos         | CoreData.stencil                |
+| Creador de interfaces | InterfaceBuilder.stencil        |
+| JSON                  | JSON.stencil                    |
+| YAML                  | YAML.stencil                    |
 
-When defining the resource synthesizers in the project, you can specify the plugin name to use the templates from the plugin:
+Al definir los sintetizadores de recursos en el proyecto, puedes especificar el
+nombre del plugin para utilizar las plantillas del mismo:
 
 ```swift
 let project = Project(resourceSynthesizers: [.strings(plugin: "MyPlugin")])
 ```
 
-### Task plugin <Badge type="warning" text="deprecated" /> {#task-plugin-badge-typewarning-textdeprecated-}
+### Tarea plugin <Badge type="warning" text="deprecated" /> {#task-plugin-badge-typewarning-textdeprecated-}
 
-> [!WARNING] DEPRECATED
-> Task plugins are deprecated. Check out [this blog post](https://tuist.dev/blog/2025/04/15/automation-in-swift-projects) if you are looking for an automation solution for your project.
+> [Los plugins de tareas están obsoletos. Echa un vistazo a [esta entrada del
+> blog](https://tuist.dev/blog/2025/04/15/automation-in-swift-projects) si estás
+> buscando una solución de automatización para tu proyecto.
 
-Tasks are `$PATH`-exposed executables that are invocable through the `tuist` command if they follow the naming convention `tuist-<task-name>`. In earlier versions, Tuist provided some weak conventions and tools under `tuist plugin` to `build`, `run`, `test` and `archive` tasks represented by executables in Swift Packages, but we have deprecated this feature since it increases the maintenance burden and complexity of the tool.
+Las tareas son `$PATH`-ejecutables expuestos que son invocables a través del
+comando `tuist` si siguen la convención de nomenclatura `tuist-<task-name>`. En
+versiones anteriores, Tuist proporcionaba algunas convenciones y herramientas
+débiles bajo `tuist plugin` para `construir`, `ejecutar`, `probar` y `archivar`
+tareas representadas por ejecutables en paquetes Swift, pero hemos desaprobado
+esta característica ya que aumenta la carga de mantenimiento y la complejidad de
+la herramienta.</task-name>
 
-If you were using Tuist for distributing tasks, we recommend building your
+Si estabas utilizando Tuist para distribuir tareas, te recomendamos que
+construyas tu
+- Puedes seguir usando el `ProjectAutomation.xcframework` distribuido con cada
+  versión de Tuist para tener acceso al grafo del proyecto desde tu lógica con
+  `let graph = try Tuist.graph()`. El comando utiliza sytem process para
+  ejecutar el comando `tuist`, y devolver la representación en memoria del grafo
+  del proyecto.
+- Para distribuir tareas, recomendamos incluir el binario fat compatible con
+  `arm64` y `x86_64` en las versiones de GitHub, y utilizar
+  [Mise](https://mise.jdx.dev) como herramienta de instalación. Para indicarle a
+  Mise cómo instalar tu herramienta, necesitarás un repositorio de plugins.
+  Puedes usar [Tuist's](https://github.com/asdf-community/asdf-tuist) como
+  referencia.
+- Si denomina a su herramienta `tuist-{xxx}` y los usuarios pueden instalarla
+  ejecutando `mise install`, pueden ejecutarla invocándola directamente o a
+  través de `tuist xxx`.
 
-- You can continue using the `ProjectAutomation.xcframework` distributed with every Tuist release to have access to the project graph from your logic with `let graph = try Tuist.graph()`. The command uses sytem process to run the `tuist` command, and return the in-memory representation of the project graph.
-- To distribute tasks, we recommend including the a fat binary that supports the `arm64` and `x86_64` in GitHub releases, and using [Mise](https://mise.jdx.dev) as an installation tool. To instruct Mise on how to install your tool, you'll need a plugin repository. You can use [Tuist's](https://github.com/asdf-community/asdf-tuist) as a reference.
-- If you name your tool `tuist-{xxx}` and users can install it by running `mise install`, they can run it either invoking it directly, or through `tuist xxx`.
+> [!NOTA] EL FUTURO DE LA AUTOMATIZACIÓN DE PROYECTOS Planeamos consolidar los
+> modelos de `ProjectAutomation` y `XcodeGraph` en un único framework compatible
+> con versiones anteriores que exponga la totalidad del grafo del proyecto al
+> usuario. Además, extraeremos la lógica de generación en una nueva capa,
+> `XcodeGraph` que también podrás utilizar desde tu propia CLI. Piensa en ello
+> como construir tu propio Tuist.
 
-> [!NOTE] THE FUTURE OF PROJECTAUTOMATION
-> We plan to consolidate the models of `ProjectAutomation` and `XcodeGraph` into a single backward-compatible framework that exposes the entirity of the project graph to the user. Moreover, we'll extract the generation logic into a new layer, `XcodeGraph` that you can also use from your own CLI. Think of it as building your own Tuist.
+## Uso de plugins {#using-plugins}
 
-## Using plugins {#using-plugins}
-
-To use a plugin, you'll have to add it to your project's <LocalizedLink href="/references/project-description/structs/tuist">`Tuist.swift`</LocalizedLink> manifest file:
+Para utilizar un plugin, tendrás que añadirlo al archivo de manifiesto
+<LocalizedLink href="/references/project-description/structs/tuist">`Tuist.swift`</LocalizedLink>
+de tu proyecto:
 
 ```swift
 import ProjectDescription
@@ -122,7 +160,9 @@ let tuist = Tuist(
 )
 ```
 
-If you want to reuse a plugin across projects that live in different repositories, you can push your plugin to a Git repository and reference it in the `Tuist.swift` file:
+Si quieres reutilizar un plugin en distintos proyectos que se encuentren en
+diferentes repositorios, puedes insertar tu plugin en un repositorio Git y hacer
+referencia a él en el archivo `Tuist.swift`:
 
 ```swift
 import ProjectDescription
@@ -136,14 +176,16 @@ let tuist = Tuist(
 )
 ```
 
-After adding the plugins, `tuist install` will fetch the plugins in a global cache directory.
+Después de añadir los plugins, `tuist install` buscará los plugins en un
+directorio de caché global.
 
-> [!NOTE] NO VERSION RESOLUTION
-> As you might have noted, we don't provide version resolution for plugins. We recommend using Git tags or SHAs to ensure reproducibility.
+> [NOTA] SIN RESOLUCIÓN DE VERSIONES Como habrás notado, no proporcionamos
+> resolución de versiones para plugins. Recomendamos utilizar etiquetas Git o
+> SHA para garantizar la reproducibilidad.
 
-> [!TIP] PROJECT DESCRIPTION HELPERS PLUGINS
-> When using a project description helpers plugin, the name of the module that contains the helpers is the name of the plugin
->
+> [CONSEJO] PLUGINS DE AYUDA A LA DESCRIPCIÓN DEL PROYECTO Cuando se utiliza un
+> plugin de ayuda a la descripción del proyecto, el nombre del módulo que
+> contiene la ayuda es el nombre del plugin.
 > ```swift
 > import ProjectDescription
 > import MyTuistPlugin
