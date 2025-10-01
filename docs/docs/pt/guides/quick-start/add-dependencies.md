@@ -5,15 +5,18 @@
   "description": "Learn how to add dependencies to your first Swift project"
 }
 ---
-# Add dependencies {#add-dependencies}
+# Adicionar dependências {#add-dependencies}
 
-It's common for projects to depend on third-party libraries to provide additional functionality. To do so, run the following command to have the best experience editing your project:
+É comum que os projectos dependam de bibliotecas de terceiros para fornecer
+funcionalidades adicionais. Para tal, execute o seguinte comando para ter a
+melhor experiência de edição do seu projeto:
 
 ```bash
 tuist edit
 ```
 
-An Xcode project will open containing your project files. Edit the `Package.swift` and add the
+Será aberto um projeto Xcode com os seus ficheiros de projeto. Edite o arquivo
+`Package.swift` e adicione o
 
 ```swift
 // swift-tools-version: 5.9
@@ -41,7 +44,8 @@ let package = Package(
 )
 ```
 
-Then edit the application target in your project to declare `Kingfisher` as a dependency:
+Em seguida, edite o destino da aplicação no seu projeto para declarar
+`Kingfisher` como uma dependência:
 
 ```swift
 import ProjectDescription
@@ -53,14 +57,16 @@ let project = Project(
             name: "MyApp",
             destinations: .iOS,
             product: .app,
-            bundleId: "io.tuist.MyApp",
+            bundleId: "dev.tuist.MyApp",
             infoPlist: .extendingDefault(
                 with: [
                     "UILaunchStoryboardName": "LaunchScreen.storyboard",
                 ]
             ),
-            sources: ["MyApp/Sources/**"],
-            resources: ["MyApp/Resources/**"],
+            buildableFolders: [
+                "MyApp/Sources",
+                "MyApp/Resources",
+            ],
             dependencies: [
                 .external(name: "Kingfisher") // [!code ++]
             ]
@@ -69,7 +75,7 @@ let project = Project(
             name: "MyAppTests",
             destinations: .iOS,
             product: .unitTests,
-            bundleId: "io.tuist.MyAppTests",
+            bundleId: "dev.tuist.MyAppTests",
             infoPlist: .default,
             sources: ["MyApp/Tests/**"],
             resources: [],
@@ -79,26 +85,30 @@ let project = Project(
 )
 ```
 
-Then run `tuist install` to resolve and pull the dependencies using the [Swift Package Manager](https://www.swift.org/documentation/package-manager/).
+Em seguida, execute `tuist install` para resolver e obter as dependências usando
+o [Swift Package Manager](https://www.swift.org/documentation/package-manager/).
 
-> [!NOTE] SPM AS A DEPENDENCY RESOLVER
-> Tuist recommended approach to dependencies uses the Swift Package Manager (SPM) only to resolve dependencies. Tuist then converts them into Xcode projects and targets for maximum configurability and control.
+> [O SPM COMO RESOLVEDOR DE DEPENDÊNCIAS A abordagem recomendada pelo Tuist para
+> dependências usa o Swift Package Manager (SPM) apenas para resolver
+> dependências. O Tuist então as converte em projetos e alvos do Xcode para
+> máxima configurabilidade e controle.
 
-## Visualize the project {#visualize-the-project}
+## Visualizar o projeto {#visualize-the-project}
 
-You can visualize the project structure by running:
+É possível visualizar a estrutura do projeto executando:
 
 ```bash
 tuist graph
 ```
 
-The command will output and open a `graph.png` file in the project's directory:
+O comando produzirá e abrirá um ficheiro `graph.png` no diretório do projeto:
 
-![Project graph](/images/guides/quick-start/graph.png)
+![Gráfico do projeto](/images/guides/quick-start/graph.png)
 
-## Use the dependency {#use-the-dependency}
+## Utilizar a dependência {#use-the-dependency}
 
-Run `tuist generate` to open the project in Xcode, and make the following changes to the `ContentView.swift` file:
+Execute `tuist generate` para abrir o projeto no Xcode e faça as seguintes
+alterações no ficheiro `ContentView.swift`:
 
 ```swift
 import SwiftUI
@@ -122,4 +132,5 @@ struct ContentView_Previews: PreviewProvider {
 }
 ```
 
-Run the app from Xcode, and you should see the image loaded from the URL.
+Execute a aplicação a partir do Xcode e deverá ver a imagem carregada a partir
+do URL.
