@@ -1,53 +1,63 @@
 ---
 {
   "title": "Previews",
-  "titleTemplate": ":title · Share · Guides · Tuist",
+  "titleTemplate": ":title · Features · Guides · Tuist",
   "description": "Learn how to generate and share previews of your apps with anyone."
 }
 ---
-# Previews {#previews}
+# Preestrenos {#previews}
 
-> [!IMPORTANT] REQUIREMENTS
->
-> - A <LocalizedLink href="/server/introduction/accounts-and-projects">Tuist account and project</LocalizedLink>
+> [REQUISITOS
+> - A <LocalizedLink href="/guides/server/accounts-and-projects">Cuenta tuista y
+>   proyecto</LocalizedLink>
 
-When building an app, you may want to share it with others to get feedback.
-Traditionally, this is something that teams do by building, signing, and pushing their apps to platforms like Apple's [TestFlight](https://developer.apple.com/testflight/).
-However, this process can be cumbersome and slow, especially when you're just looking for quick feedback from a colleague or a friend.
+Cuando creas una aplicación, es posible que quieras compartirla con otros para
+obtener comentarios. Tradicionalmente, esto es algo que los equipos hacen
+creando, firmando y enviando sus aplicaciones a plataformas como
+[TestFlight](https://developer.apple.com/testflight/) de Apple. Sin embargo,
+este proceso puede ser engorroso y lento, sobre todo cuando solo buscas la
+opinión rápida de un colega o un amigo.
 
-To make this process more streamlined, Tuist provides a way to generate and share previews of your apps with anyone.
+Para agilizar este proceso, Tuist ofrece una forma de generar y compartir vistas
+previas de tus aplicaciones con cualquiera.
 
-> [!IMPORTANT] DEVICE BUILDS NEED TO BE SIGNED
-> When building for device, it is currently your responsibility to ensure the app is signed correctly. We plan to streamline this in the future.
+> [IMPORTANTE] LAS APLICACIONES CREADAS PARA DISPOSITIVOS DEBEN ESTAR FIRMADAS
+> Cuando se crea una aplicación para un dispositivo, es responsabilidad del
+> usuario asegurarse de que la aplicación está firmada correctamente. Tenemos
+> previsto simplificarlo en el futuro.
 
-:::code-group
-
+:::grupo de códigos
 ```bash [Tuist Project]
 tuist build App # Build the app for the simulator
 tuist build App -- -destination 'generic/platform=iOS' # Build the app for the device
 tuist share App
 ```
-
 ```bash [Xcode Project]
 xcodebuild -scheme App -project App.xcodeproj -configuration Debug # Build the app for the simulator
 xcodebuild -scheme App -project App.xcodeproj -configuration Debug -destination 'generic/platform=iOS' # Build the app for the device
 tuist share App --configuration Debug --platforms iOS
 tuist share App.ipa # Share an existing .ipa file
 ```
-
 :::
 
-The command will generate a link that you can share with anyone to run the app – either on a simulator or an actual device. All they'll need to do is to run the command below:
+El comando generará un enlace que puedes compartir con cualquiera para que
+ejecute la aplicación, ya sea en un simulador o en un dispositivo real. Todo lo
+que tendrán que hacer es ejecutar el siguiente comando:
 
 ```bash
 tuist run {url}
 tuist run --device "My iPhone" {url} # Run the app on a specific device
 ```
 
-When sharing an `.ipa` file, you can download the app directly from the mobile device using the Preview link.
-The links to `.ipa` previews are by default _public_. In the future, you will have an option to make them private, so that the recipient of the link would need to authenticate with their Tuist account to download the app.
+Al compartir un archivo `.ipa`, puedes descargar la aplicación directamente
+desde el dispositivo móvil utilizando el enlace Vista previa. Los enlaces a las
+vistas previas de `.ipa` son por defecto _públicos_. En el futuro, tendrás la
+opción de hacerlos privados, de modo que el destinatario del enlace tenga que
+autenticarse con su cuenta de Tuist para descargar la app.
 
-`tuist run` also enables you to run a latest preview based on a specifier such as `latest`, branch name, or a specific commit hash:
+`tuist run` también le permite ejecutar una última vista previa basada en un
+especificador como `latest`, nombre de rama o un hash de confirmación
+específico:
 
 ```bash
 tuist run App@latest # Runs latest App preview associated with the project's default branch
@@ -55,60 +65,104 @@ tuist run App@my-feature-branch # Runs latest App preview associated with a give
 tuist run App@00dde7f56b1b8795a26b8085a781fb3715e834be # Runs latest App preview associated with a given git commit sha
 ```
 
-> [!IMPORTANT] PREVIEWS' VISIBILITY
-> Only people with access to the organization the project belongs to can access the previews. We plan to add support for expiring links.
+> [IMPORTANTE] VISIBILIDAD DE LAS PREVIAS Sólo las personas con acceso a la
+> organización a la que pertenece el proyecto pueden acceder a las vistas
+> previas. Tenemos previsto añadir soporte para enlaces que caducan.
 
-## Tuist macOS app {#tuist-macos-app}
+## Aplicación Tuist para macOS {#tuist-macos-app}
 
 <div style="display: flex; flex-direction: column; align-items: center;">
     <img src="/logo.png" style="height: 100px;" />
-    <h1>Tuist</h1><a href="https://cloud.tuist.io/download" style="text-decoration: none;">Download</a><img src="/images/guides/features/menu-bar-app.png" style="width: 300px;" />
+    <h1>Tuist</h1>
+    <a href="https://tuist.dev/download" style="text-decoration: none;">Download</a>
+    <img src="/images/guides/features/menu-bar-app.png" style="width: 300px;" />
 </div>
 
-To make running Tuist Previews even easier, we developed a Tuist macOS menu bar app. Instead of running Previews via the Tuist CLI, you can [download](https://tuist.dev/download) the macOS app. You can also install the app by running `brew install --cask tuist/tuist/tuist`.
+Para facilitar aún más la ejecución de Tuist Previews, hemos desarrollado una
+aplicación de Tuist para la barra de menús de macOS. En lugar de ejecutar las
+previsualizaciones a través de la CLI de Tuist, puedes
+[descargar](https://tuist.dev/download) la aplicación para macOS. También puedes
+instalar la aplicación ejecutando `brew install --cask tuist/tuist/tuist`.
 
-When you now click on "Run" in the Preview page, the macOS app will automatically launch it on your currently selected device.
+Al hacer clic en "Ejecutar" en la página de vista previa, la aplicación macOS se
+iniciará automáticamente en el dispositivo seleccionado.
 
-> [!IMPORTANT] REQUIREMENTS
-> To download Previews, you need to first authenticate with the `tuist auth login` command.
-> In the future, you will be able to authenticate directly in the app.
->
-> Additionally, you need to have Xcode locally installed.
+> [REQUISITOS
+> 
+> Necesitas tener Xcode instalado localmente y estar en macOS 14 o posterior.
 
-## Pull/merge request comments {#pullmerge-request-comments}
+## Aplicación Tuist para iOS {#tuist-ios-app}
 
-> [!IMPORTANT] INTEGRATION WITH GIT PLATFORM REQUIRED
-> To get automatic pull/merge request comments, integrate your <LocalizedLink href="/server/introduction/accounts-and-projects">remote project</LocalizedLink> with a <LocalizedLink href="/server/introduction/integrations#git-platforms">Git platform</LocalizedLink>.
+<div style="display: flex; flex-direction: column; align-items: center;">
+    <img src="/images/guides/features/ios-icon.png" style="height: 100px;" />
+    <h1 style="padding-top: 2px;">Tuist</h1>
+    <img src="/images/guides/features/tuist-app.png" style="width: 300px; padding-top: 8px;" />
+    <a href="https://apps.apple.com/us/app/tuist/id6748460335" target="_blank" style="padding-top: 10px;">
+        <img src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg" alt="Download on the App Store" style="height: 40px;">
+    </a>
+</div>
 
-Testing new functionality should be a part of any code review. But having to build an app locally adds unnecessary friction, often leading to developers skipping testing functionality on their device at all. But _what if each pull request contained a link to the build that would automatically run the app on a device you selected in the Tuist macOS app?_
+Al igual que la aplicación para macOS, las aplicaciones de Tuist para iOS
+agilizan el acceso y la ejecución de tus previsualizaciones.
 
-Once your Tuist project is connected with your Git platform such as [GitHub](https://github.com), add a <LocalizedLink href="/cli/share">`tuist share MyApp`</LocalizedLink> to your CI workflow. Tuist will then post a Preview link directly in your pull requests:
-![GitHub app comment with a Tuist Preview link](/images/guides/features/github-app-with-preview.png)
+## Comentarios de solicitudes pull/merge {#pullmerge-request-comments}
 
-## README badge {#readme-badge}
+> [IMPORTANTE] INTEGRACIÓN CON PLATAFORMA GIT REQUERIDA Para obtener comentarios
+> automáticos en las solicitudes pull/merge, integra tu
+> <LocalizedLink href="/guides/server/accounts-and-projects">proyecto
+> remoto</LocalizedLink> con una
+> <LocalizedLink href="/guides/server/authentication">plataforma
+> Git</LocalizedLink>.
 
-To make Tuist Previews more visible in your repository, you can add a badge to your `README` file that points to the latest Tuist Preview:
+Probar nuevas funcionalidades debería formar parte de cualquier revisión de
+código. Pero tener que compilar una aplicación localmente añade una fricción
+innecesaria, que a menudo lleva a los desarrolladores a no probar la
+funcionalidad en su dispositivo. Pero *¿y si cada pull request contuviera un
+enlace a la compilación que ejecutaría automáticamente la aplicación en un
+dispositivo seleccionado en la aplicación macOS de Tuist?*
 
-[![Tuist Preview](https://tuist.dev/Dimillian/IcySky/previews/latest/badge.svg)](https://tuist.dev/Dimillian/IcySky/previews/latest)
+Una vez que tu proyecto Tuist esté conectado con tu plataforma Git como
+[GitHub](https://github.com), añade un <LocalizedLink href="/cli/share">`tuist
+share MyApp`</LocalizedLink> a tu flujo de trabajo CI. Tuist entonces publicará
+un enlace de Vista Previa directamente en tus pull requests: ![GitHub app
+comment with a Tuist Preview
+link](/images/guides/features/github-app-with-preview.png)
 
-To add the badge to your `README`, use the following markdown and replace the account and project handles with your own:
+## Insignia README {#readme-badge}
 
+Para que las Previsualizaciones de Tuist sean más visibles en tu repositorio,
+puedes añadir una insignia a tu archivo `README` que apunte a la última
+Previsualización de Tuist:
+
+[![Tuist
+Preview](https://tuist.dev/Dimillian/IcySky/previews/latest/badge.svg)](https://tuist.dev/Dimillian/IcySky/previews/latest)
+
+Para añadir la insignia a su `README`, utilice el siguiente markdown y sustituya
+los identificadores de cuenta y proyecto por los suyos propios:
 ```
 [![Tuist Preview](https://tuist.dev/{account-handle}/{project-handle}/previews/latest/badge.svg)](https://tuist.dev/{account-handle}/{project-handle}/previews/latest)
 ```
 
-## Automations {#automations}
+Si tu proyecto contiene varias aplicaciones con diferentes identificadores de
+paquete, puedes especificar a qué vista previa de aplicación enlazar añadiendo
+un parámetro de consulta `bundle-id`:
+```
+[![Tuist Preview](https://tuist.dev/{account-handle}/{project-handle}/previews/latest/badge.svg)](https://tuist.dev/{account-handle}/{project-handle}/previews/latest?bundle-id=com.example.app)
+```
 
-You can use the `--json` flag to get a JSON output from the `tuist share` command:
+## Automatizaciones {#automations}
 
+Puede utilizar la bandera `--json` para obtener una salida JSON del comando
+`tuist share`:
 ```
 tuist share --json
 ```
 
-The JSON output is useful to create custom automations, such as posting a Slack message using your CI provider.
-The JSON contains a `url` key with the full preview link and a `qrCodeURL` key with the URL to the QR code image
-to make it easier to download previews from a real device. An example of a JSON output is below:
-
+La salida JSON es útil para crear automatizaciones personalizadas, como publicar
+un mensaje de Slack utilizando su proveedor de CI. El JSON contiene una clave
+`url` con el enlace a la vista previa completa y una clave `qrCodeURL` con la
+URL a la imagen del código QR para facilitar la descarga de vistas previas desde
+un dispositivo real. A continuación se muestra un ejemplo de salida JSON:
 ```json
 {
   "id": 1234567890,
