@@ -5,217 +5,355 @@
   "description": "Learn how to install Tuist on your infrastructure."
 }
 ---
-# On-premise installation {#onpremise-installation}
+# Instalação do auto-hospedeiro {#self-host-installation}
 
-We offer a self-hosted version of the Tuist server for organizations that require more control over their infrastructure. This version allows you to host Tuist on your own infrastructure, ensuring that your data remains secure and private.
+Oferecemos uma versão auto-hospedada do servidor Tuist para organizações que
+necessitam de mais controlo sobre a sua infraestrutura. Esta versão permite-lhe
+alojar o Tuist na sua própria infraestrutura, assegurando que os seus dados
+permanecem seguros e privados.
 
-> [!IMPORTANT] ENTERPRISE CUSTOMERS ONLY
-> The on-premise version of Tuist is available only for organizations on the Enterprise plan. If you are interested in this version, please reach out to [contact@tuist.dev](mailto:contact@tuist.dev).
+> [IMPORTANTE] LICENÇA NECESSÁRIA A auto-hospedagem do Tuist requer uma licença
+> paga legalmente válida. A versão local do Tuist está disponível apenas para
+> organizações no plano Enterprise. Se estiver interessado nesta versão, entre
+> em contacto com [contact@tuist.dev](mailto:contact@tuist.dev).
 
-## Release cadence {#release-cadence}
+## Cadência de libertação {#release-cadence}
 
-The Tuist server is **released every Monday** and the version name follows the convention name `{MAJOR}.YY.MM.DD`. The date component is used to warn the CLI user if their hosted version is 60 days older than the release date of the CLI. It's crucial that on-premise organizations keep up with Tuist updates to ensure their developers benefit from the most recent improvements and that we can drop deprecated features with the confidence that we are not breaking any of the on-premise setups.
+Nós lançamos novas versões do Tuist continuamente à medida que novas mudanças
+liberáveis chegam ao main. Nós seguimos [versionamento
+semântico](https://semver.org/) para assegurar um versionamento previsível e
+compatibilidade.
 
-The major component of the CLI is used to flag breaking changes in the Tuist server that will require coordination with the on-premise users. You should not expect us to use it, and in case we needed, rest asure we'll work with you in making the transition smooth.
+O componente principal é utilizado para assinalar alterações de rutura no
+servidor Tuist que exigirão coordenação com os utilizadores locais. Não deve
+esperar que o utilizemos e, caso seja necessário, pode ter a certeza de que
+trabalharemos consigo para que a transição seja suave.
 
-> [!NOTE] RELEASE NOTES
-> You'll be given access to a `tuist/registry` repository associated with the registry where images are published. Every new released will be published in that repository as a GitHub release and will contain release notes to inform you about what changes come with it.
+## Implementação contínua {#continuous-deployment}
 
-## Runtime requirements {#runtime-requirements}
+É altamente recomendável configurar um pipeline de implantação contínua que
+implante automaticamente a versão mais recente do Tuist todos os dias. Isso
+garante que você sempre tenha acesso aos recursos, melhorias e atualizações de
+segurança mais recentes.
 
-This section outlines the requirements for hosting the Tuist server on your infrastructure.
+Aqui está um exemplo de fluxo de trabalho do GitHub Actions que verifica e
+implanta novas versões diariamente:
 
-### Running Docker-virtualized images {#running-dockervirtualized-images}
+```yaml
+name: Update Tuist Server
+on:
+  schedule:
+    - cron: '0 3 * * *' # Run daily at 3 AM UTC
+  workflow_dispatch: # Allow manual runs
 
-We distribute the server as a [Docker](https://www.docker.com/) image via [GitHub’s Container Registry](https://docs.github.com/pt/packages/working-with-a-github-packages-registry/working-with-the-container-registry).
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check and deploy latest version
+        run: |
+          # Your deployment commands here
+          # Example: docker pull ghcr.io/tuist/tuist:latest
+          # Deploy to your infrastructure
+```
 
-To run it, your infrastructure must support running Docker images. Note that most infrastructure providers support it because it’s become the standard container for distributing and running software in production environments.
+## Requisitos de tempo de execução {#runtime-requirements}
 
-### Postgres database {#postgres-database}
+Esta secção descreve os requisitos para alojar o servidor Tuist na sua
+infraestrutura.
 
-In addition to running the Docker images, you’ll need a [Postgres database](https://www.postgresql.org/) to store relational data. Most infrastructure providers include Posgres databases in their offering (e.g., [AWS](https://aws.amazon.com/rds/postgresql/) & [Google Cloud](https://cloud.google.com/sql/docs/postgres)).
+### Executar imagens virtualizadas do Docker {#running-dockervirtualized-images}
 
-For performant analytics, we use a [Timescale Postgres extension](https://www.timescale.com/). You need to make sure that TimescaleDB is installed on the machine running the Postgres database. Follow the installation instructions [here](https://docs.timescale.com/self-hosted/latest/install/) to learn more. If you are unable to install the Timescale extension, you can set up your own dashboard using the Prometheus metrics.
+Distribuímos o servidor como uma imagem [Docker](https://www.docker.com/)
+através do [Registo de Contentores do
+GitHub](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry).
 
-> [!INFO] MIGRATIONS
-> The Docker image's entrypoint automatically runs any pending schema migrations before starting the service.
+Para o executar, a sua infraestrutura tem de suportar a execução de imagens
+Docker. Note-se que a maioria dos fornecedores de infra-estruturas suportam-no
+porque se tornou o contentor padrão para distribuir e executar software em
+ambientes de produção.
 
-### ClickHouse database {#clickhouse-database}
+### Base de dados Postgres {#postgres-database}
 
-To store large amount of data, we are using [ClickHouse](https://clickhouse.com/). Some features, like build insights, will only work with ClickHouse enabled. ClickHouse will eventually replace the Timescale Postgres extension. You can choose whether to self-host ClickHouse or use their hosted service.
+Para além de executar as imagens Docker, necessitará de uma [base de dados
+Postgres](https://www.postgresql.org/) para armazenar dados relacionais. A
+maioria dos fornecedores de infra-estruturas inclui bases de dados Postgres na
+sua oferta (por exemplo, [AWS](https://aws.amazon.com/rds/postgresql/) e [Google
+Cloud](https://cloud.google.com/sql/docs/postgres)).
 
-> [!INFO] MIGRATIONS
-> The Docker image's entrypoint automatically runs any pending ClickHouse schema migrations before starting the service.
+Para uma análise de desempenho, utilizamos uma [extensão Timescale
+Postgres](https://www.timescale.com/). É necessário certificar-se de que o
+TimescaleDB está instalado na máquina que executa o banco de dados Postgres.
+Siga as instruções de instalação
+[aqui](https://docs.timescale.com/self-hosted/latest/install/) para saber mais.
+Se não for possível instalar a extensão Timescale, é possível configurar seu
+próprio painel de controle usando as métricas do Prometheus.
 
-### Storage {#storage}
+> [INFO] MIGRAÇÕES O ponto de entrada da imagem Docker executa automaticamente
+> quaisquer migrações de esquema pendentes antes de iniciar o serviço.
 
-You’ll also need a solution to store files (e.g. framework and library binaries). Currently we support any storage that's S3-compliant.
+### Base de dados ClickHouse {#clickhouse-database}
 
-## Configuration {#configuration}
+Para armazenar uma grande quantidade de dados, estamos a utilizar o
+[ClickHouse](https://clickhouse.com/). Alguns recursos, como insights de
+construção, só funcionarão com o ClickHouse ativado. O ClickHouse acabará por
+substituir a extensão Timescale Postgres. É possível escolher entre
+auto-hospedar o ClickHouse ou usar o serviço hospedado deles.
 
-The configuration of the service is done at runtime through environment variables. Given the sensitive nature of these variables, we advise encrypting and storing them in secure password management solutions. Rest assured, Tuist handles these variables with utmost care, ensuring they are never displayed in logs.
+> [!INFO] MIGRAÇÕES O ponto de entrada da imagem Docker executa automaticamente
+> quaisquer migrações de esquema ClickHouse pendentes antes de iniciar o
+> serviço.
 
-> [!NOTE] LAUNCH CHECKS
-> The necessary variables are verified at startup. If any are missing, the launch will fail and the error message will detail the absent variables.
+### Armazenamento {#armazenamento}
 
-### License configuration {#license-configuration}
+Você também precisará de uma solução para armazenar arquivos (por exemplo,
+binários de estrutura e biblioteca). Atualmente, suportamos qualquer
+armazenamento que seja compatível com S3.
 
-As an on-premise user, you'll receive a license key that you'll need to expose as an environment variable. This key is used to validate the license and ensure that the service is running within the terms of the agreement.
+## Configuração {#configuração}
 
-| Environment variable | Description                                                    | Required | Default | Example  |
-| -------------------- | -------------------------------------------------------------- | -------- | ------- | -------- |
-| `TUIST_LICENSE`      | The license provided after signing the service level agreement | Yes      |         | `******` |
+A configuração do serviço é efectuada em tempo de execução através de variáveis
+de ambiente. Dada a natureza sensível destas variáveis, aconselhamos a
+encriptação e o armazenamento das mesmas em soluções de gestão de palavras-passe
+seguras. Pode ter a certeza de que o Tuist trata estas variáveis com o máximo
+cuidado, garantindo que nunca são apresentadas nos registos.
 
-> [!IMPORTANT] EXPIRATION DATE
-> Licenses have an expiration date. Users will receive a warning while using Tuist commands that interact with the server if the license expires in less than 30 days. If you are interested in renewing your license, please reach out to [contact@tuist.dev](mailto:contact@tuist.dev).
+> [VERIFICAÇÕES DE LANÇAMENTO As variáveis necessárias são verificadas no
+> arranque. Se alguma estiver em falta, o lançamento falhará e a mensagem de
+> erro indicará as variáveis em falta.
 
-### Base environment configuration {#base-environment-configuration}
+### Configuração da licença {#license-configuration}
 
-| Environment variable           | Description                                                                                                          | Required | Default                  | Example                                                                  |                                                                                                                                    |
-| ------------------------------ | -------------------------------------------------------------------------------------------------------------------- | -------- | ------------------------ | ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `TUIST_APP_URL`                | The base URL to access the instance from the Internet                                                                | Yes      |                          | https://cloud.tuist.io   |                                                                                                                                    |
-| `TUIST_SECRET_KEY_BASE`        | The key to use to encrypt information (e.g. sessions in a cookie) | Yes      |                          |                                                                          | `c5786d9f869239cbddeca645575349a570ffebb332b64400c37256e1c9cb7ec831345d03dc0188edd129d09580d8cbf3ceaf17768e2048c037d9c31da5dcacfa` |
-| `TUIST_SECRET_KEY_PASSWORD`    | Pepper to generate hashed passwords                                                                                  | No       | `$TUIST_SECRET_KEY_BASE` |                                                                          |                                                                                                                                    |
-| `TUIST_SECRET_KEY_TOKENS`      | Secret key to generate random tokens                                                                                 | No       | `$TUIST_SECRET_KEY_BASE` |                                                                          |                                                                                                                                    |
-| `TUIST_USE_IPV6`               | When `1` it configures the app to use IPv6 addresses                                                                 | No       | `0`                      | `1`                                                                      |                                                                                                                                    |
-| `TUIST_LOG_LEVEL`              | The log level to use for the app                                                                                     | No       | `info`                   | [Log levels](https://hexdocs.pm/logger/1.12.3/Logger.html#module-levels) |                                                                                                                                    |
-| `TUIST_GITHUB_APP_PRIVATE_KEY` | The private key used for the GitHub app to unlock extra functionality such as posting automatic PR comments          | No       | `-----BEGIN RSA...`      |                                                                          |                                                                                                                                    |
-| `TUIST_OPS_USER_HANDLES`       | A comma-separated list of user handles that have access to the operations URLs                                       | No       |                          | `user1,user2`                                                            |                                                                                                                                    |
+Como utilizador no local, receberá uma chave de licença que terá de expor como
+uma variável de ambiente. Esta chave é utilizada para validar a licença e
+garantir que o serviço está a ser executado de acordo com os termos do contrato.
 
-### Database configuration {#database-configuration}
+| Variável de ambiente               | Descrição                                                                                                                                                                                                                                                                | Necessário | Predefinição | Exemplos                                  |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------- | ------------ | ----------------------------------------- |
+| `TUIST_LICENSE`                    | A licença fornecida após a assinatura do acordo de nível de serviço                                                                                                                                                                                                      | Sim*       |              | `******`                                  |
+| `TUIST_LICENSE_CERTIFICATE_BASE64` | **Alternativa excecional ao `TUIST_LICENSE`**. Certificado público codificado em base64 para validação de licenças offline em ambientes com air-gap onde o servidor não pode contactar serviços externos. Utilizar apenas quando `TUIST_LICENSE` não puder ser utilizado | Sim*       |              | `LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0t...` |
 
-The following environment variables are used to configure the database connection:
+\* É necessário fornecer `TUIST_LICENSE` ou `TUIST_LICENSE_CERTIFICATE_BASE64`,
+mas não ambos. Utilize `TUIST_LICENSE` para implementações padrão.
 
-| Environment variable            | Description                                                                                                                                                                                                                                                            | Required | Default | Example                                                                |
-| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ------- | ---------------------------------------------------------------------- |
-| `DATABASE_URL`                  | The URL to access the Postgres database. Note that the URL should contain the authentication information                                                                                                                                               | Yes      |         | `postgres://username:password@cloud.us-east-2.aws.test.com/production` |
-| `TUIST_CLICKHOUSE_URL`          | The URL to access the ClickHouse database. Note that the URL should contain the authentication information                                                                                                                                             | No       |         | `http://username:password@cloud.us-east-2.aws.test.com/production`     |
-| `TUIST_USE_SSL_FOR_DATABASE`    | When true, it uses [SSL](https://en.wikipedia.org/wiki/Transport_Layer_Security) to connect to the database                                                                                                                                                            | No       | `1`     | `1`                                                                    |
-| `TUIST_DATABASE_POOL_SIZE`      | The number of connections to keep open in the connection pool                                                                                                                                                                                                          | No       | `10`    | `10`                                                                   |
-| `TUIST_DATABASE_QUEUE_TARGET`   | The interval (in miliseconds) for checking if all the connections checked out from the pool took more than the queue interval [(More information)](https://hexdocs.pm/db_connection/DBConnection.html#start_link/2-queue-config) | No       | `300`   | `300`                                                                  |
-| `TUIST_DATABASE_QUEUE_INTERVAL` | The threshold time (in miliseconds) in the queue that the pool uses to determine if it should start dropping new connections [(More information)](https://hexdocs.pm/db_connection/DBConnection.html#start_link/2-queue-config)  | No       | `1000`  | `1000`                                                                 |
+> [IMPORTANTE] DATA DE EXPIRAÇÃO As licenças têm uma data de expiração. Os
+> utilizadores receberão um aviso ao utilizarem os comandos Tuist que interagem
+> com o servidor se a licença expirar em menos de 30 dias. Se estiver
+> interessado em renovar a sua licença, contacte
+> [contact@tuist.dev](mailto:contact@tuist.dev).
 
-### Authentication environment configuration {#authentication-environment-configuration}
+### Configuração do ambiente de base {#base-environment-configuration}
 
-We facilitate authentication through [identity providers (IdP)](https://en.wikipedia.org/wiki/Identity_provider). To utilize this, ensure all necessary environment variables for the chosen provider are present in the server's environment. **Missing variables** will result in Tuist bypassing that provider.
+| Variável de ambiente                  | Descrição                                                                                                                                                                                                                                                  | Necessário | Predefinição                       | Exemplos                                                                        |                                                                                                                                    |
+| ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- | ---------------------------------- | ------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `TUIST_APP_URL`                       | O URL de base para aceder à instância a partir da Internet                                                                                                                                                                                                 | Sim        |                                    | https://tuist.dev                                                               |                                                                                                                                    |
+| `TUIST_SECRET_KEY_BASE`               | A chave a utilizar para encriptar informações (por exemplo, sessões num cookie)                                                                                                                                                                            | Sim        |                                    |                                                                                 | `c5786d9f869239cbddeca645575349a570ffebb332b64400c37256e1c9cb7ec831345d03dc0188edd129d09580d8cbf3ceaf17768e2048c037d9c31da5dcacfa` |
+| `TUIST_SECRET_KEY_PASSWORD`           | Pimenta para gerar palavras-passe com hash                                                                                                                                                                                                                 | Não        | `$TUIST_SECRET_KEY_BASE`           |                                                                                 |                                                                                                                                    |
+| `TUIST_SECRET_KEY_TOKENS`             | Chave secreta para gerar tokens aleatórios                                                                                                                                                                                                                 | Não        | `$TUIST_SECRET_KEY_BASE`           |                                                                                 |                                                                                                                                    |
+| `TUIST_SECRET_KEY_ENCRYPTION`         | Chave de 32 bytes para encriptação AES-GCM de dados sensíveis                                                                                                                                                                                              | Não        | `$TUIST_SECRET_KEY_BASE`           |                                                                                 |                                                                                                                                    |
+| `TUIST_USE_IPV6`                      | Quando `1` configura a aplicação para utilizar endereços IPv6                                                                                                                                                                                              | Não        | `0`                                | `1`                                                                             |                                                                                                                                    |
+| `TUIST_LOG_LEVEL`                     | O nível de registo a utilizar para a aplicação                                                                                                                                                                                                             | Não        | `informação`                       | [Níveis de registo](https://hexdocs.pm/logger/1.12.3/Logger.html#module-levels) |                                                                                                                                    |
+| `TUIST_GITHUB_APP_PRIVATE_KEY_BASE64` | A chave privada codificada em base64 utilizada para a aplicação GitHub para desbloquear funcionalidades adicionais, como a publicação automática de comentários PR                                                                                         | Não        | `LS0tLS1CRUdJTiBSU0EgUFJJVkFUR...` |                                                                                 |                                                                                                                                    |
+| `TUIST_GITHUB_APP_PRIVATE_KEY`        | A chave privada utilizada para a aplicação GitHub para desbloquear funcionalidades extra, tais como a publicação automática de comentários PR. **Recomendamos a utilização da versão codificada em base64 para evitar problemas com caracteres especiais** | Não        | `-----BEGIN RSA...`                |                                                                                 |                                                                                                                                    |
+| `TUIST_OPS_USER_HANDLES`              | Uma lista separada por vírgulas de identificadores de utilizadores que têm acesso aos URLs das operações                                                                                                                                                   | Não        |                                    | `utilizador1,utilizador2`                                                       |                                                                                                                                    |
+| `TUIST_WEB`                           | Ativar o ponto de extremidade do servidor Web                                                                                                                                                                                                              | Não        | `1`                                | `1` ou `0`                                                                      |                                                                                                                                    |
+
+### Configuração da base de dados {#configuração da base de dados}
+
+As seguintes variáveis de ambiente são utilizadas para configurar a ligação à
+base de dados:
+
+| Variável de ambiente                 | Descrição                                                                                                                                                                                                                                        | Necessário | Predefinição | Exemplos                                                               |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------- | ------------ | ---------------------------------------------------------------------- |
+| `DATABASE_URL`                       | O URL para aceder à base de dados Postgres. Note que o URL deve conter as informações de autenticação                                                                                                                                            | Sim        |              | `postgres://username:password@cloud.us-east-2.aws.test.com/production` |
+| `TUIST_CLICKHOUSE_URL`               | O URL para aceder à base de dados do ClickHouse. Note que o URL deve conter as informações de autenticação                                                                                                                                       | Não        |              | `http://username:password@cloud.us-east-2.aws.test.com/production`     |
+| `TUIST_USE_SSL_FOR_DATABASE`         | Quando verdadeiro, utiliza [SSL](https://en.wikipedia.org/wiki/Transport_Layer_Security) para estabelecer ligação à base de dados                                                                                                                | Não        | `1`          | `1`                                                                    |
+| `TUIST_DATABASE_POOL_SIZE`           | O número de ligações a manter abertas no conjunto de ligações                                                                                                                                                                                    | Não        | `10`         | `10`                                                                   |
+| `TUIST_DATABASE_QUEUE_TARGET`        | O intervalo (em milissegundos) para verificar se todas as ligações verificadas a partir do conjunto demoraram mais do que o intervalo da fila [(Mais informações)](https://hexdocs.pm/db_connection/DBConnection.html#start_link/2-queue-config) | Não        | `300`        | `300`                                                                  |
+| `TUIST_DATABASE_QUEUE_INTERVAL`      | O tempo limite (em milissegundos) na fila de espera que o agrupamento utiliza para determinar se deve começar a eliminar novas ligações [(Mais informações)](https://hexdocs.pm/db_connection/DBConnection.html#start_link/2-queue-config)       | Não        | `1000`       | `1000`                                                                 |
+| `TUIST_CLICKHOUSE_FLUSH_INTERVAL_MS` | Intervalo de tempo em milissegundos entre as descargas da memória intermédia do ClickHouse                                                                                                                                                       | Não        | `5000`       | `5000`                                                                 |
+| `TUIST_CLICKHOUSE_MAX_BUFFER_SIZE`   | Tamanho máximo da memória intermédia do ClickHouse em bytes antes de forçar uma descarga                                                                                                                                                         | Não        | `1000000`    | `1000000`                                                              |
+| `TUIST_CLICKHOUSE_BUFFER_POOL_SIZE`  | Número de processos da memória intermédia do ClickHouse a executar                                                                                                                                                                               | Não        | `5`          | `5`                                                                    |
+
+### Configuração do ambiente de autenticação {#authentication-environment-configuration}
+
+Facilitamos a autenticação através de [fornecedores de identidade
+(IdP)](https://en.wikipedia.org/wiki/Identity_provider). Para utilizar isso,
+certifique-se de que todas as variáveis de ambiente necessárias para o provedor
+escolhido estejam presentes no ambiente do servidor. **A falta de variáveis**
+resultará no facto de o Tuist contornar esse fornecedor.
 
 #### GitHub {#github}
 
-We recommend authenticating using a [GitHub App](https://docs.github.com/pt/apps/creating-github-apps/about-creating-github-apps/about-creating-github-apps) but you can also use the [OAuth App](https://docs.github.com/pt/apps/oauth-apps/building-oauth-apps/creating-an-oauth-app). Make sure to include all essential environment variables specified by GitHub in the server environment. Absent variables will cause Tuist to overlook the GitHub authentication. To properly set up the GitHub app:
+Recomendamos a autenticação usando um [aplicativo
+GitHub](https://docs.github.com/en/apps/creating-github-apps/about-creating-github-apps/about-creating-github-apps),
+mas você também pode usar o [aplicativo
+OAuth](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/creating-an-oauth-app).
+Certifique-se de incluir todas as variáveis de ambiente essenciais especificadas
+pelo GitHub no ambiente do servidor. A ausência de variáveis fará com que o
+Tuist ignore a autenticação do GitHub. Para configurar corretamente o aplicativo
+GitHub:
+- Nas definições gerais da aplicação GitHub:
+    - Copiar o `Client ID` e defini-lo como `TUIST_GITHUB_APP_CLIENT_ID`
+    - Criar e copiar um novo segredo de cliente `` e defini-lo como
+      `TUIST_GITHUB_APP_CLIENT_SECRET`
+    - Defina o URL de retorno de chamada `` como
+      `http://YOUR_APP_URL/users/auth/github/callback`. `YOUR_APP_URL` também
+      pode ser o endereço IP do seu servidor.
+- São necessárias as seguintes permissões:
+  - Repositórios:
+    - Pedidos de transferência: Ler e escrever
+  - Contas:
+    - Endereços de correio eletrónico: Só de leitura
 
-- In the GitHub app's general settings:
-  - Copy the `Client ID` and set it as `TUIST_GITHUB_APP_CLIENT_ID`
-  - Create and copy a new `client secret` and set it as `TUIST_GITHUB_APP_CLIENT_SECRET`
-  - Set the `Callback URL` as `http://YOUR_APP_URL/users/auth/github/callback`. `YOUR_APP_URL` can also be your server's IP address.
-- The following permissions are required:
-  - Repositories:
-    - Pull requests: Read and write
-  - Accounts:
-    - Email addresses: Read-only
+Na secção `Permissions and events`'s `Account permissions`, defina a permissão
+`Email addresses` para `Read-only`.
 
-In the `Permissions and events`'s `Account permissions` section, set the `Email addresses` permission to `Read-only`.
+Em seguida, é necessário expor as seguintes variáveis de ambiente no ambiente em
+que o servidor Tuist é executado:
 
-You'll then need to expose the following environment variables in the environment where the Tuist server runs:
-
-| Environment variable             | Description                             | Required | Default | Example                                    |
-| -------------------------------- | --------------------------------------- | -------- | ------- | ------------------------------------------ |
-| `TUIST_GITHUB_APP_CLIENT_ID`     | The client ID of the GitHub application | Yes      |         | `Iv1.a629723000043722`                     |
-| `TUIST_GITHUB_APP_CLIENT_SECRET` | The client secret of the application    | Yes      |         | `232f972951033b89799b0fd24566a04d83f44ccc` |
+| Variável de ambiente             | Descrição                           | Necessário | Predefinição | Exemplos                                   |
+| -------------------------------- | ----------------------------------- | ---------- | ------------ | ------------------------------------------ |
+| `TUIST_GITHUB_APP_CLIENT_ID`     | O ID do cliente da aplicação GitHub | Sim        |              | `Iv1.a629723000043722`                     |
+| `TUIST_GITHUB_APP_CLIENT_SECRET` | O segredo do cliente da aplicação   | Sim        |              | `232f972951033b89799b0fd24566a04d83f44ccc` |
 
 #### Google {#google}
 
-You can set up authentication with Google using [OAuth 2](https://developers.google.com/identity/protocols/oauth2). For that, you'll need to create a new credential of type OAuth client ID. When creating the credentials, select "Web Application" as application type, name it `Tuist`, and set the redirect URI to `{base_url}/users/auth/google/callback` where `base_url` is the URL your hosted-service is running at. Once you create the app, copy the client ID and secret and set them as environment variables `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` respectively.
+Pode configurar a autenticação com o Google utilizando [OAuth
+2](https://developers.google.com/identity/protocols/oauth2). Para tal, terá de
+criar uma nova credencial do tipo ID de cliente OAuth. Ao criar as credenciais,
+selecione "Aplicação Web" como tipo de aplicação, dê-lhe o nome `Tuist` e defina
+o URI de redireccionamento para `{base_url}/users/auth/google/callback` onde
+`base_url` é o URL em que o seu serviço alojado está a ser executado. Depois de
+criar a aplicação, copie o ID e o segredo do cliente e defina-os como variáveis
+de ambiente `GOOGLE_CLIENT_ID` e `GOOGLE_CLIENT_SECRET` respetivamente.
 
-> [!NOTE] CONSENT SCREEN SCOPES
-> You might need to create a consent screen. When you do so, make sure to add the `userinfo.email` and `openid` scopes and mark the app as internal.
+> [Pode ser necessário criar um ecrã de consentimento. Quando o fizer,
+> certifique-se de que adiciona os âmbitos `userinfo.email` e `openid` e marca a
+> aplicação como interna.
 
 #### Okta {#okta}
 
-You can enable authentication with Okta through the [OAuth 2.0](https://oauth.net/2/) protocol. You'll have to [create an app](https://developer.okta.com/docs/en/guides/implement-oauth-for-okta/main/#create-an-oauth-2-0-app-in-okta) on Okta with the following configuration:
+Pode ativar a autenticação com o Okta através do protocolo [OAuth
+2.0](https://oauth.net/2/). Terá de [criar uma
+aplicação](https://developer.okta.com/docs/en/guides/implement-oauth-for-okta/main/#create-an-oauth-2-0-app-in-okta)
+no Okta seguindo <LocalizedLink href="/guides/integrations/sso#okta">estas
+instruções</LocalizedLink>.
 
-- **App integration name:** `Tuist`
-- **Grant type:** Enable _Authorization Code_ for _Client acting on behalf of a user_
-- **Sign-in redirect URL:** `{url}/users/auth/okta/callback` where `url` is the public URL your service is accessed through.
-- **Assignments:** This configuration will depend on your security team requirements.
+Terá de definir as seguintes variáveis de ambiente depois de obter o ID e o
+segredo do cliente durante a configuração da aplicação Okta:
 
-Once the app is created you'll need to set the following environment variables:
+| Variável de ambiente         | Descrição                                                                          | Necessário | Predefinição | Exemplos |
+| ---------------------------- | ---------------------------------------------------------------------------------- | ---------- | ------------ | -------- |
+| `TUIST_OKTA_1_CLIENT_ID`     | O ID do cliente para autenticar no Okta. O número deve ser o ID da sua organização | Sim        |              |          |
+| `TUIST_OKTA_1_CLIENT_SECRET` | O segredo do cliente para autenticar no Okta                                       | Sim        |              |          |
 
-| Environment variable       | Description                                    | Required | Default | Example                     |
-| -------------------------- | ---------------------------------------------- | -------- | ------- | --------------------------- |
-| `TUIST_OKTA_SITE`          | The URL of your Okta organization              | Yes      |         | `https://your-org.okta.com` |
-| `TUIST_OKTA_CLIENT_ID`     | The client ID to authenticate against Okta     | Yes      |         |                             |
-| `TUIST_OKTA_CLIENT_SECRET` | The client secret to authenticate against Okta | Yes      |         |                             |
+O número `1` tem de ser substituído pelo ID da sua organização. Normalmente,
+será 1, mas verifique na sua base de dados.
 
-### Storage environment configuration {#storage-environment-configuration}
+### Configuração do ambiente de armazenamento {#storage-environment-configuration}
 
-Tuist needs storage to house artifacts uploaded through the API. It's **essential to configure one of the supported storage solutions** for Tuist to operate effectively.
+O Tuist precisa de armazenamento para guardar os artefactos carregados através
+da API. É **essencial configurar uma das soluções de armazenamento suportadas**
+para que o Tuist funcione de forma eficaz.
 
-#### S3-compliant storages {#s3compliant-storages}
+#### Armazéns compatíveis com S3 {#s3compliant-storages}
 
-You can use any S3-compliant storage provider to store artifacts. The following environment variables are required to authenticate and configure the integration with the storage provider:
+É possível utilizar qualquer fornecedor de armazenamento compatível com S3 para
+armazenar artefactos. As seguintes variáveis de ambiente são necessárias para
+autenticar e configurar a integração com o fornecedor de armazenamento:
 
-| Environment variable                                 | Description                                                                                                                   | Required | Default | Example                                    |
-| ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | -------- | ------- | ------------------------------------------ |
-| `TUIST_ACCESS_KEY_ID` or `AWS_ACCESS_KEY_ID`         | The access key ID to authenticate against the storage provider                                                                | Yes      |         | `AKIAIOSFOD`                               |
-| `TUIST_SECRET_ACCESS_KEY` or `AWS_SECRET_ACCESS_KEY` | The secret access key to authenticate against the storage provider                                                            | Yes      |         | `wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY` |
-| `TUIST_S3_REGION` or `AWS_REGION`                    | The region where the bucket is located                                                                                        | Yes      |         | `us-west-2`                                |
-| `TUIST_S3_ENDPOINT` or `AWS_ENDPOINT`                | The endpoint of the storage provider                                                                                          | Yes      |         | `https://s3.us-west-2.amazonaws.com`       |
-| `TUIST_S3_BUCKET_NAME`                               | The name of the bucket where the artifacts will be stored                                                                     | Yes      |         | `tuist-artifacts`                          |
-| `TUIST_S3_REQUEST_TIMEOUT`                           | The timeout (in seconds) for requests to the storage provider                                              | No       | `30`    | `30`                                       |
-| `TUIST_S3_POOL_TIMEOUT`                              | The timeout (in seconds) for the connection pool to the storage provider                                   | No       | `5`     | `5`                                        |
-| `TUIST_S3_POOL_COUNT`                                | The number of pools to use for connections to the storage provider                                                            | No       | `1`     | `1`                                        |
-| `TUIST_S3_PROTOCOL`                                  | The protocol to use when connecting to the storage provider (`http1` or `http2`)                           | No       | `http2` | `http2`                                    |
-| `TUIST_S3_VIRTUAL_HOST`                              | Whether the URL should be constructed with the bucket name as a sub-domain (virtual host). | No       | No      | `1`                                        |
+| Variável de ambiente                                 | Descrição                                                                                                                                   | Necessário | Predefinição                       | Exemplos                                   |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | ---------- | ---------------------------------- | ------------------------------------------ |
+| `TUIST_ACCESS_KEY_ID` ou `AWS_ACCESS_KEY_ID`         | O ID da chave de acesso para autenticar no fornecedor de armazenamento                                                                      | Sim        |                                    | `AKIAIOSFOD`                               |
+| `TUIST_SECRET_ACCESS_KEY` ou `AWS_SECRET_ACCESS_KEY` | A chave de acesso secreta para autenticar contra o fornecedor de armazenamento                                                              | Sim        |                                    | `wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY` |
+| `TUIST_S3_REGION` ou `AWS_REGION`                    | A região onde o balde está localizado                                                                                                       | Não        | `automóvel`                        | `us-west-2`                                |
+| `TUIST_S3_ENDPOINT` ou `AWS_ENDPOINT`                | O ponto de extremidade do fornecedor de armazenamento                                                                                       | Sim        |                                    | `https://s3.us-west-2.amazonaws.com`       |
+| `TUIST_S3_BUCKET_NAME`                               | O nome do balde onde os artefactos serão armazenados                                                                                        | Sim        |                                    | `artefactos tuísticos`                     |
+| `TUIST_S3_CONNECT_TIMEOUT`                           | O tempo limite (em milissegundos) para estabelecer uma ligação ao fornecedor de armazenamento                                               | Não        | `3000`                             | `3000`                                     |
+| `TUIST_S3_RECEIVE_TIMEOUT`                           | O tempo limite (em milissegundos) para receber dados do fornecedor de armazenamento                                                         | Não        | `5000`                             | `5000`                                     |
+| `TUIST_S3_POOL_TIMEOUT`                              | O tempo limite (em milissegundos) para o conjunto de ligações ao fornecedor de armazenamento. Utilize `infinito` para nenhum tempo limite   | Não        | `5000`                             | `5000`                                     |
+| `TUIST_S3_POOL_MAX_IDLE_TIME`                        | O tempo máximo de inatividade (em milissegundos) para ligações no grupo. Utilize `infinity` para manter as ligações activas indefinidamente | Não        | `infinito`                         | `60000`                                    |
+| `TUIST_S3_POOL_SIZE`                                 | O número máximo de ligações por grupo                                                                                                       | Não        | `500`                              | `500`                                      |
+| `TUIST_S3_POOL_COUNT`                                | O número de pools de ligação a utilizar                                                                                                     | Não        | Número de programadores do sistema | `4`                                        |
+| `TUIST_S3_PROTOCOLO`                                 | O protocolo a utilizar na ligação ao fornecedor de armazenamento (`http1` ou `http2`)                                                       | Não        | `http1`                            | `http1`                                    |
+| `TUIST_S3_VIRTUAL_HOST`                              | Se o URL deve ser construído com o nome do balde como um subdomínio (anfitrião virtual)                                                     | Não        | `falso`                            | `1`                                        |
 
-> [!NOTE] AWS authentication with Web Identity Token from environment variables
-> If your storage provider is AWS and you'd like to authenticate using a web identity token, you can set the environment variable `TUIST_S3_AUTHENTICATION_METHOD` to `aws_web_identity_token_from_env_vars`, and Tuist will use that method using the conventional AWS environment variables.
+> [!NOTE] Autenticação do AWS com o token de identidade da Web a partir de
+> variáveis de ambiente Se o seu provedor de armazenamento for o AWS e você
+> quiser se autenticar usando um token de identidade da Web, poderá definir a
+> variável de ambiente `TUIST_S3_AUTHENTICATION_METHOD` para
+> `aws_web_identity_token_from_env_vars`, e o Tuist usará esse método usando as
+> variáveis de ambiente convencionais do AWS.
 
-#### Google Cloud Storage {#google-cloud-storage}
+#### Armazenamento na nuvem do Google {#google-cloud-storage}
+Para o Google Cloud Storage, siga [estes
+documentos](https://cloud.google.com/storage/docs/authentication/managing-hmackeys)
+para obter o par `AWS_ACCESS_KEY_ID` e `AWS_SECRET_ACCESS_KEY`. O `AWS_ENDPOINT`
+deve ser definido como `https://storage.googleapis.com`. Outras variáveis de
+ambiente são as mesmas que para qualquer outro armazenamento compatível com S3.
 
-For Google Cloud Storage, follow [these docs](https://cloud.google.com/storage/docs/authentication/managing-hmackeys) to get the `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` pair. The `AWS_ENDPOINT` should be set to `https://storage.googleapis.com`. Other environment variables are the same as for any other S3-compliant storage.
+### Configuração da plataforma Git {#git-platform-configuration}
 
-### Git platform configuration {#git-platform-configuration}
-
-Tuist can <LocalizedLink href="/server/introduction/integrations#git-platforms">integrate with Git platforms</LocalizedLink> to provide extra features such as automatically posting comments in your pull requests.
+O Tuist pode <LocalizedLink href="/guides/server/authentication">integrar-se com
+plataformas Git</LocalizedLink> para fornecer funcionalidades extra, tais como
+publicar automaticamente comentários nos seus pedidos pull.
 
 #### GitHub {#platform-github}
 
-You will need to [create a GitHub app](https://docs.github.com/pt/apps/creating-github-apps/about-creating-github-apps/about-creating-github-apps). You can reuse the one you created for authentication, unless you created an OAuth GitHub app. In the `Permissions and events`'s `Repository permissions` section, you will need to additionally set the `Pull requests` permission to `Read and write`.
+Terá de [criar uma aplicação
+GitHub](https://docs.github.com/en/apps/creating-github-apps/about-creating-github-apps/about-creating-github-apps).
+Pode reutilizar o que criou para autenticação, a menos que tenha criado uma
+aplicação OAuth GitHub. Na secção `Permissões e eventos`'s `Permissões de
+repositório`, terá de definir adicionalmente a permissão `Pull requests` para
+`Ler e escrever`.
 
-On top of the `TUIST_GITHUB_APP_CLIENT_ID` and `TUIST_GITHUB_APP_CLIENT_SECRET`, you will need the following environment variables:
+Para além de `TUIST_GITHUB_APP_CLIENT_ID` e `TUIST_GITHUB_APP_CLIENT_SECRET`,
+são necessárias as seguintes variáveis de ambiente:
 
-| Environment variable           | Description                               | Required | Default | Example                              |
-| ------------------------------ | ----------------------------------------- | -------- | ------- | ------------------------------------ |
-| `TUIST_GITHUB_APP_PRIVATE_KEY` | The private key of the GitHub application | Yes      |         | `-----BEGIN RSA PRIVATE KEY-----...` |
+| Variável de ambiente           | Descrição                           | Necessário | Predefinição | Exemplos                             |
+| ------------------------------ | ----------------------------------- | ---------- | ------------ | ------------------------------------ |
+| `TUIST_GITHUB_APP_PRIVATE_KEY` | A chave privada da aplicação GitHub | Sim        |              | `-----BEGIN RSA PRIVATE KEY-----...` |
 
-## Deployment {#deployment}
+## Implementação {#deployment}
 
-On-premise users are granted access to the repository located at [tuist/registry](https://github.com/cloud/registry) which has a linked container registry for pulling images. Currently, the container registry allows authentication only as an individual user. Therefore, users with repository access must generate a **personal access token** within the Tuist organization, ensuring they have the necessary permissions to read packages. After submission, we will promptly approve this token.
+A imagem oficial do Tuist Docker está disponível em:
+```
+ghcr.io/tuist/tuist
+```
 
-> [!IMPORTANT] USER VS ORGANIZATION-SCOPED TOKENS
-> Using a personal access token presents a challenge because it's associated with an individual who might eventually depart from the enterprise organization. GitHub recognizes this limitation and is actively developing a solution to allow GitHub apps to authenticate with app-generated tokens.
+### Puxando a imagem do Docker {#pulling-the-docker-image}
 
-### Pulling the Docker image {#pulling-the-docker-image}
-
-After generating the token, you can retrieve the image by executing the following command:
+Pode recuperar a imagem executando o seguinte comando:
 
 ```bash
-echo $TOKEN | docker login ghcr.io -u USERNAME --password-stdin
 docker pull ghcr.io/tuist/tuist:latest
 ```
 
-### Deploying the Docker image {#deploying-the-docker-image}
+Ou selecionar uma versão específica:
+```bash
+docker pull ghcr.io/tuist/tuist:0.1.0
+```
 
-The deployment process for the Docker image will differ based on your chosen cloud provider and your organization's continuous deployment approach. Since most cloud solutions and tools, like [Kubernetes](https://kubernetes.io/), utilize Docker images as fundamental units, the examples in this section should align well with your existing setup.
+### Implementar a imagem do Docker {#deploying-the-docker-image}
 
-We recommend establishing a deployment pipeline that that runs **every Tuesday**, pulling and deploying fresh images. This ensures you consistently benefit from the latest improvements.
+O processo de implantação da imagem do Docker será diferente com base no
+provedor de nuvem escolhido e na abordagem de implantação contínua da sua
+organização. Uma vez que a maioria das soluções e ferramentas de nuvem, como
+[Kubernetes](https://kubernetes.io/), utilizam imagens Docker como unidades
+fundamentais, os exemplos nesta secção devem alinhar-se bem com a sua
+configuração existente.
 
-> [!IMPORTANT]
-> If your deployment pipeline needs to validate that the server is up and running, you can send a `GET` HTTP request to `/ready` and assert a `200` status code in the response.
+> [IMPORTANTE] Se o seu pipeline de implantação precisar de validar que o
+> servidor está a funcionar, pode enviar um pedido HTTP `GET` para `/ready` e
+> afirmar um código de estado `200` na resposta.
 
-#### Fly {#fly}
+#### Voar
 
-To deploy the app on [Fly](https://fly.io/), you'll require a `fly.toml` configuration file. Consider generating it dynamically within your Continuous Deployment (CD) pipeline. Below is a reference example for your use:
+Para implantar o aplicativo em [Fly](https://fly.io/), você precisará de um
+arquivo de configuração `fly.toml`. Considere a possibilidade de gerá-lo
+dinamicamente no pipeline de implantação contínua (CD). Abaixo está um exemplo
+de referência para seu uso:
 
 ```toml
 app = "tuist"
@@ -269,11 +407,16 @@ kill_timeout = "5s"
   url_prefix = "/"
 ```
 
-Then you can run `fly launch --local-only --no-deploy` to launch the app. On subsequent deploys, instead of running `fly launch --local-only`, you will need to run `fly deploy --local-only`. Fly.io doesn't allow to pull private Docker images, which is why we need to use the `--local-only` flag.
+Depois, pode executar `fly launch --local-only --no-deploy` para lançar a
+aplicação. Em implantações subsequentes, em vez de executar `fly launch
+--local-only`, você precisará executar `fly deploy --local-only`. O Fly.io não
+permite extrair imagens Docker privadas, e é por isso que precisamos usar o
+sinalizador `--local-only`.
 
 ### Docker Compose {#docker-compose}
 
-Below is an example of a `docker-compose.yml` file that you can use as a reference to deploy the service:
+Abaixo está um exemplo de um arquivo `docker-compose.yml` que pode ser usado
+como referência para implantar o serviço:
 
 ```yaml
 version: '3.8'
@@ -322,7 +465,7 @@ services:
       - "8080"
       - "443:443"
     environment:
-      # Base Tuist Env - https://docs.tuist.io/pt/guides/dashboard/on-premise/install#base-environment-configuration
+      # Base Tuist Env - https://docs.tuist.io/en/guides/dashboard/on-premise/install#base-environment-configuration
       TUIST_USE_SSL_FOR_DATABASE: "0"
       TUIST_LICENSE:  # ...
       DATABASE_URL: postgres://postgres:postgres@db:5432/postgres?sslmode=disable
@@ -331,11 +474,11 @@ services:
       WEB_CONCURRENCY: 80
 
       # Auth - one method
-      # GitHub Auth - https://docs.tuist.io/pt/guides/dashboard/on-premise/install#github
+      # GitHub Auth - https://docs.tuist.io/en/guides/dashboard/on-premise/install#github
       TUIST_GITHUB_OAUTH_ID:
       TUIST_GITHUB_APP_CLIENT_SECRET:
 
-      # Okta Auth - https://docs.tuist.io/pt/guides/dashboard/on-premise/install#okta
+      # Okta Auth - https://docs.tuist.io/en/guides/dashboard/on-premise/install#okta
       TUIST_OKTA_SITE:
       TUIST_OKTA_CLIENT_ID:
       TUIST_OKTA_CLIENT_SECRET:
@@ -358,12 +501,88 @@ volumes:
     driver: local
 ```
 
-## Operations {#operations}
+## Métricas do Prometheus {#prometheus-metrics}
 
-Tuist provides a set of utilities under `/ops/` that you can use to manage your instance.
+O Tuist expõe as métricas do Prometheus em `/metrics` para o ajudar a
+monitorizar a sua instância auto-hospedada. Essas métricas incluem:
 
-> [!IMPORTANT] Authorization
-> Only people whose handles are listed in the `TUIST_OPS_USER_HANDLES` environment variable can access the `/ops/` endpoints.
+### Métricas do cliente HTTP Finch {#finch-metrics}
 
-- **Errors (`/ops/errors`):** You can view unexpected errors that ocurred in the application. This is useful for debugging and understanding what went wrong and we might ask you to share this information with us if you're facing issues.
-- **Dashboard (`/ops/dashboard`):** You can view a dashboard that provides insights into the application's performance and health (e.g. memory consumption, processes running, number of requests). This dashboard can be quite useful to understand if the hardware you're using is enough to handle the load.
+O Tuist utiliza o [Finch](https://github.com/sneako/finch) como cliente HTTP e
+expõe métricas detalhadas sobre os pedidos HTTP:
+
+#### Solicitar métricas
+- `tuist_prom_ex_finch_request_count_total` - Número total de pedidos Finch
+  (contador)
+  - Etiquetas: `finch_name`, `method`, `scheme`, `host`, `port`, `status`
+- `tuist_prom_ex_finch_request_duration_milliseconds` - Duração dos pedidos HTTP
+  (histograma)
+  - Etiquetas: `finch_name`, `method`, `scheme`, `host`, `port`, `status`
+  - Baldes: 10ms, 50ms, 100ms, 250ms, 500ms, 1s, 2.5s, 5s, 10s
+- `tuist_prom_ex_finch_request_exception_count_total` - Número total de
+  excepções de pedidos Finch (contador)
+  - Etiquetas: `finch_name`, `method`, `scheme`, `host`, `port`, `kind`,
+    `reason`
+
+#### Métricas da fila do pool de ligações
+- `tuist_prom_ex_finch_queue_duration_milliseconds` - Tempo de espera na fila do
+  grupo de ligações (histograma)
+  - Etiquetas: `finch_name`, `scheme`, `host`, `port`, `pool`
+  - Baldes: 1ms, 5ms, 10ms, 25ms, 50ms, 100ms, 250ms, 500ms, 1s
+- `tuist_prom_ex_finch_queue_idle_time_milliseconds` - Tempo que a ligação
+  passou inativa antes de ser utilizada (histograma)
+  - Etiquetas: `finch_name`, `scheme`, `host`, `port`, `pool`
+  - Baldes: 10ms, 50ms, 100ms, 250ms, 500ms, 1s, 5s, 10s
+- `tuist_prom_ex_finch_queue_exception_count_total` - Número total de excepções
+  da fila Finch (contador)
+  - Etiquetas: `finch_name`, `scheme`, `host`, `port`, `kind`, `reason`
+
+#### Métricas de ligação
+- `tuist_prom_ex_finch_connect_duration_milliseconds` - Tempo gasto a
+  estabelecer uma ligação (histograma)
+  - Etiquetas: `finch_name`, `scheme`, `host`, `port`, `error`
+  - Baldes: 10ms, 50ms, 100ms, 250ms, 500ms, 1s, 2.5s, 5s
+- `tuist_prom_ex_finch_connect_count_total` - Número total de tentativas de
+  ligação (contador)
+  - Etiquetas: `finch_name`, `scheme`, `host`, `port`
+
+#### Enviar métricas
+- `tuist_prom_ex_finch_send_duration_milliseconds` - Tempo gasto a enviar o
+  pedido (histograma)
+  - Etiquetas: `finch_name`, `method`, `scheme`, `host`, `port`, `error`
+  - Baldes: 1ms, 5ms, 10ms, 25ms, 50ms, 100ms, 250ms, 500ms, 1s
+- `tuist_prom_ex_finch_send_idle_time_milliseconds` - Tempo que a ligação passou
+  inativa antes de enviar (histograma)
+  - Etiquetas: `finch_name`, `method`, `scheme`, `host`, `port`, `error`
+  - Baldes: 1ms, 5ms, 10ms, 25ms, 50ms, 100ms, 250ms, 500ms
+
+Todas as métricas de histograma fornecem as variantes `_bucket`, `_sum` e
+`_count` para uma análise detalhada.
+
+### Outras métricas
+
+Para além das métricas Finch, o Tuist expõe métricas para:
+- Desempenho da máquina virtual BEAM
+- Métricas de lógica empresarial personalizadas (armazenamento, contas,
+  projectos, etc.)
+- Desempenho da base de dados (quando se utiliza a infraestrutura alojada pela
+  Tuist)
+
+## Operações {#operações}
+
+O Tuist fornece um conjunto de utilitários em `/ops/` que pode utilizar para
+gerir a sua instância.
+
+> [!IMPORTANTE] Autorização Apenas as pessoas cujos identificadores estão
+> listados na variável de ambiente `TUIST_OPS_USER_HANDLES` podem aceder aos
+> pontos finais `/ops/`.
+
+- **Erros (`/ops/errors`):** Pode visualizar erros inesperados que ocorreram na
+  aplicação. Isto é útil para depurar e compreender o que correu mal e podemos
+  pedir-lhe que partilhe esta informação connosco se estiver a enfrentar
+  problemas.
+- **Dashboard (`/ops/dashboard`):** É possível visualizar um painel que fornece
+  informações sobre o desempenho e a integridade do aplicativo (por exemplo,
+  consumo de memória, processos em execução, número de solicitações). Este
+  painel de controlo pode ser bastante útil para perceber se o hardware que está
+  a utilizar é suficiente para lidar com a carga.
