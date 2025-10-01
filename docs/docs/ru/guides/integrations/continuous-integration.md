@@ -1,48 +1,56 @@
 ---
 {
-  "title": "Непрерывная интеграция (CI)",
-  "titleTemplate": ":title · Разработка · Руководства · Tuist",
-  "description": "Узнайте, как использовать Tuist в ваших рабочих процессах CI."
+  "title": "Continuous Integration (CI)",
+  "titleTemplate": ":title · Automate · Guides · Tuist",
+  "description": "Learn how to use Tuist in your CI workflows."
 }
 ---
 # Непрерывная интеграция (CI) {#continuous-integration-ci}
 
-Вы можете использовать Tuist в окружениях [непрерывной интеграции](https://ru.wikipedia.org/wiki/%D0%9D%D0%B5%D0%BF%D1%80%D0%B5%D1%80%D1%8B%D0%B2%D0%BD%D0%B0%D1%8F_%D0%B8%D0%BD%D1%82%D0%B5%D0%B3%D1%80%D0%B0%D1%86%D0%B8%D1%8F). В следующих разделах приведены примеры того, как это можно сделать на различных платформах CI.
+Вы можете использовать Tuist в средах [непрерывной
+интеграции](https://en.wikipedia.org/wiki/Continuous_integration). В следующих
+разделах приведены примеры того, как это сделать на различных платформах CI.
 
 ## Примеры {#examples}
 
-Чтобы запускать Tuist команды в ваших рабочих процессах CI, вам нужно установить Tuist в вашей среде CI.
+Чтобы выполнять команды Tuist в рабочих процессах CI, вам нужно установить его в
+среду CI.
 
 ### Xcode Cloud {#xcode-cloud}
 
-В [Xcode Cloud](https://developer.apple.com/xcode-cloud/), который использует Xcode проекты, вам нужно будет добавить [post-clone](https://developer.apple.com/documentation/xcode/writing-custom-build-scripts#Create-a-custom-build-script) скрипт для установки Tuist и запуска необходимых команд, например `tuist generate`:
+В [Xcode Cloud](https://developer.apple.com/xcode-cloud/), который использует
+проекты Xcode в качестве источника истины, вам нужно будет добавить скрипт
+[post-clone](https://developer.apple.com/documentation/xcode/writing-custom-build-scripts#Create-a-custom-build-script)
+для установки Tuist и запуска необходимых команд, например `tuist generate`:
 
-:::code-group
+:::код-группа
 
 ```bash [Mise]
 #!/bin/sh
-curl https://mise.jdx.dev/install.sh | sh
+
+# Mise installation taken from https://mise.jdx.dev/continuous-integration.html#xcode-cloud
+curl https://mise.run | sh # Install Mise
+export PATH="$HOME/.local/bin:$PATH"
+
 mise install # Installs the version from .mise.toml
 
 # Runs the version of Tuist indicated in the .mise.toml file {#runs-the-version-of-tuist-indicated-in-the-misetoml-file}
-mise exec -- tuist generate
+mise exec -- tuist install --path ../ # `--path` needed as this is run from within the `ci_scripts` directory
+mise exec -- tuist generate -p ../ --no-open # `-p` needed as this is run from within the `ci_scripts` directory
 ```
-
 ```bash [Homebrew]
 #!/bin/sh
 brew install --formula tuist@x.y.z
 
 tuist generate
 ```
-
 :::
-
 ### Codemagic {#codemagic}
 
-В [Codemagic](https://codemagic.io) вы можете добавить дополнительный шаг в рабочий процесс для установки Tuist:
+В [Codemagic](https://codemagic.io) вы можете добавить дополнительный шаг в
+рабочий процесс для установки Tuist:
 
-::: code-group
-
+::: кодовая группа
 ```yaml [Mise]
 workflows:
   lint:
@@ -58,7 +66,6 @@ workflows:
       - name: Build
         script: mise exec -- tuist build
 ```
-
 ```yaml [Homebrew]
 workflows:
   lint:
@@ -73,15 +80,16 @@ workflows:
       - name: Build
         script: tuist build
 ```
-
 :::
 
-### GitHub Actions {#github-actions}
+### Действия GitHub {#github-actions}
 
-В [GitHub Actions](https://docs.github.com/en/actions) можно добавить дополнительный шаг для установки Tuist, а в случае управления установкой Mise можно использовать [mise-action](https://github.com/jdx/mise-action), который абстрагирует установку Mise и Tuist:
+В [GitHub Actions](https://docs.github.com/en/actions) вы можете добавить
+дополнительный шаг для установки Tuist, а в случае управления установкой Mise
+можно использовать [mise-action](https://github.com/jdx/mise-action), который
+абстрагирует установку Mise и Tuist:
 
-::: code-group
-
+::: кодовая группа
 ```yaml [Mise]
 name: Build Application
 on:
@@ -99,7 +107,6 @@ jobs:
       - uses: jdx/mise-action@v2
       - run: tuist build
 ```
-
 ```yaml [Homebrew]
 name: test
 on:
@@ -117,23 +124,29 @@ jobs:
       - run: brew install --formula tuist@x.y.z
       - run: tuist build
 ```
-
 :::
 
-:::tip
-Мы рекомендуем использовать `mise use --pin` в ваших проектах, чтобы закрепить версию Tuist в разных окружениях. Команда создаст файл `.tool-versions`, содержащий версию Tuist.
-:::
+::: Совет Мы рекомендуем использовать команду `mise use --pin` в проектах Tuist,
+чтобы зафиксировать версию Tuist в разных средах. Команда создаст файл
+`.tool-versions`, содержащий версию Tuist. :::
 
 ## Аутентификация {#authentication}
 
-При использовании серверных функций, таких как <LocalizedLink href="/guides/features/build/cache">cache</LocalizedLink>, вам понадобится способ аутентификации запросов, идущих с ваших рабочих процессов CI на сервер. Для этого можно сгенерировать токен, привязанный к проекту, выполнив следующую команду:
+При использовании серверных функций, таких как
+<LocalizedLink href="/guides/features/cache">cache</LocalizedLink>, вам
+понадобится способ аутентификации запросов, идущих от ваших рабочих процессов CI
+к серверу. Для этого можно сгенерировать токен, привязанный к проекту, выполнив
+следующую команду:
 
 ```bash
 tuist project tokens create my-handle/MyApp
 ```
 
-Команда создаст токен для проекта с полным названием `my-account/my-project`. Установите значение переменной окружения
-`TUIST_CONFIG_TOKEN` в вашей среде CI, так что бы она не была раскрыта.
+Команда сгенерирует токен для проекта с полным именем `my-account/my-project`.
+Установите значение переменной окружения `TUIST_CONFIG_TOKEN` в вашей среде CI,
+убедившись, что она настроена как секретная, чтобы ее нельзя было раскрыть.
 
-> [!IMPORTANT] ОБНАРУЖЕНИЕ СРЕДЫ CI
-> Tuist использует токен только в том случае, если обнаруживает, что работает в среде CI. Если ваше окружение CI не обнаружено, вы можете принудительно использовать токен, установив переменную окружения `CI` в значение `1`.
+> [!ВАЖНО] ОБНАРУЖЕНИЕ СРЕДЫ CI Tuist использует токен только в том случае, если
+> обнаруживает, что работает в среде CI. Если ваше CI-окружение не обнаружено,
+> вы можете принудительно использовать токен, установив переменную окружения
+> `CI` в значение `1`.
