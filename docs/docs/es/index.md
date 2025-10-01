@@ -75,7 +75,7 @@ de 100 empresas** ya han transformado el desarrollo de su plataforma Apple con
 Tuist. Esto es lo que están experimentando:
 
 - **Compilaciones un 65% más rápidas** con caché inteligente
-- **Cero conflictos de fusión** en proyectos Xcode
+- **Cero conflictos de mergeo** en proyectos Xcode
 - **De minutos a segundos** resolución del paquete
 - **Desarrolladores contentos** que pueden centrarse en crear funciones
 
