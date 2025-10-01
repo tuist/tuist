@@ -5,26 +5,35 @@
   "description": "Learn how to enable and configure logging in Tuist."
 }
 ---
-# Logging {#logging}
+# Registro {#logging}
 
-The CLI logs messages internally to help you diagnose issues.
+La CLI registra mensajes internamente para ayudarle a diagnosticar problemas.
 
-## Diagnose issues using logs {#diagnose-issues-using-logs}
+## Diagnosticar problemas utilizando registros {#diagnose-issues-using-logs}
 
-If a command invocation doesn't yield the intended results, you can diagnose the issue by inspecting the logs. The CLI forwards the logs to [OSLog](https://developer.apple.com/documentation/os/oslog) and the file-system.
+Si la invocación de un comando no produce los resultados esperados, puede
+diagnosticar el problema inspeccionando los registros. La CLI envía los
+registros a [OSLog](https://developer.apple.com/documentation/os/oslog) y al
+sistema de archivos.
 
-In every run, it creates a log file at `$XDG_STATE_HOME/tuist/logs/{uuid}.log` where `$XDG_STATE_HOME` takes the value `~/.local/state` if the environment variable is not set.
+En cada ejecución, crea un archivo de registro en
+`$XDG_STATE_HOME/tuist/logs/{uuid}.log` donde `$XDG_STATE_HOME` toma el valor
+`~/.local/state` si la variable de entorno no está establecida.
 
-By default, the CLI outputs the logs path when the execution exits unexpectedly. If it doesn't, you can find the logs in the path mentioned above (i.e., the most recent log file).
+Por defecto, la CLI muestra la ruta de logs cuando la ejecución finaliza
+inesperadamente. Si no lo hace, puede encontrar los registros en la ruta
+mencionada anteriormente (es decir, el archivo de registro más reciente).
 
-> [!IMPORTANT]
-> Sensitive information is not redacted, so be cautious when sharing logs.
+> [IMPORTANTE] La información sensible no se elimina, así que ten cuidado al
+> compartir los registros.
 
-### Continuous integration {#diagnose-issues-using-logs-ci}
+### Integración continua {#diagnose-issues-using-logs-ci}
 
-In CI, where environments are disposable, you might want to configure your CI pipeline to export Tuist logs.
-Exporting artifacts is a common capability across CI services, and the configuration depends on the service you use.
-For example, in GitHub Actions, you can use the `actions/upload-artifact` action to upload the logs as an artifact:
+En CI, donde los entornos son desechables, es posible que desee configurar su
+tubería CI para exportar los registros de Tuist. La exportación de artefactos es
+una capacidad común en todos los servicios de CI, y la configuración depende del
+servicio que utilices. Por ejemplo, en GitHub Actions, puedes usar la acción
+`actions/upload-artifact` para subir los registros como un artefacto:
 
 ```yaml
 name: Node CI
