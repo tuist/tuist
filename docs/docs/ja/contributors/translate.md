@@ -1,49 +1,47 @@
 ---
 {
-  "title": "翻訳する",
-  "titleTemplate": ":title · コントリビューター · Tuist",
-  "description": "このドキュメントでは、Tuist の開発を導く原則について説明します。"
+  "title": "Translate",
+  "titleTemplate": ":title · Contributors · Tuist",
+  "description": "This document describes the principles that guide the development of Tuist."
 }
 ---
-# 翻訳 {#translate}
+# 翻訳する {#translate}
 
-言語は理解を妨げる大きな壁になることがあります。 私たちは Tuist をできるだけ多くの人に使っていただきたいと考えています。 もし Tuist がサポートしていない言語を話す場合、Tuist のさまざまな部分を翻訳していただくことでご協力ください。
+言語が理解の障壁になることがあります。私たちは、Tuistができるだけ多くの人にとって利用しやすいものであるようにしたいと考えています。もしあなたがTuistがサポートしていない言語を話すなら、Tuistの様々な面を翻訳することで私たちを助けることができます。
 
-翻訳をメンテナンスするためには継続的な取り組みが必要となるため、私たちはメンテナンスに協力してくださるコントリビューターがいる言語を随時追加していきます。 現在サポートされている言語は、以下のとおりです：
+翻訳を維持することは継続的な努力であるため、私たちは、私たちがそれらを維持するのを助けるために喜んで貢献者を見るように言語を追加します。現在、以下の言語がサポートされています：
 
 - 英語
 - 韓国語
 - 日本語
 - ロシア語
+- 中国語
+- スペイン語
+- ポルトガル語
 
-> [!TIP] 新しい言語のリクエスト
-> Tuist に新しい言語サポートを追加することが有益であると考える場合は、コミュニティフォーラムの[トピック](https://community.tuist.io/c/general/4)を作成して、コミュニティと議論してみてください。
+> [!TIP] REQUEST A NEW LANGUAGE
+> もしTuistが新しい言語をサポートすることが有益だとお考えでしたら、新しい[コミュニティフォーラムのトピック](https://community.tuist.io/c/general/4)を作成してコミュニティと議論してください。
 
-## 翻訳方法 {#how-to-translate}
+## どのように翻訳するか{#how-to-translate}。
 
-私たちは翻訳の管理に [Crowdin](https://crowdin.com/) を使用しています。 まず、貢献したいプロジェクトに移動します：
+Weblate](https://weblate.org/en-gb/)のインスタンスが[translate.tuist.dev](https://translate.tuist.dev)で動いています。プロジェクト](https://translate.tuist.dev/engage/tuist/)にアクセスしてアカウントを作成し、翻訳を始めることができます。
 
-- [Documentation](https://crowdin.com/project/tuist-documentation)
-- [Website](https://crowdin.com/project/tuist-documentation)
+翻訳はGitHubのプルリクエストを使ってソースリポジトリに同期され、メンテナがレビューしてマージする。
 
-翻訳を始めるにはアカウントが必要です。 GitHub アカウントでサインインできます。 サインイン後にアクセス権を得ると、翻訳を始められます。 翻訳対象のリソース一覧が表示されます。 リソースをクリックするとエディタが開き、左側にソース言語のリソース、右側に翻訳する箇所が表示されます。 右側のテキストを翻訳し、変更を保存してください。
+> [重要] ターゲット言語のリソースを変更しないでください
+> Weblateは、ソース言語とターゲット言語をバインドするためにファイルをセグメント化します。ソース言語を変更すると、バインディングが壊れてしまい、リコンシリエーションが予期しない結果をもたらす可能性があります。
 
-翻訳が更新されると Crowdin が自動的に該当リポジトリにプルリクエストを送信し、メンテナーがレビューとマージを行います。
+## ガイドライン
 
-> [!IMPORTANT] 対象言語のリソースに直接変更を加えないでください
-> Crowdin はファイルをセグメント化してソース言語とターゲット言語を関連付けています。 ソース言語を変更すると、この紐付けが壊れ、想定外の結果が生じる可能性があります。
+以下は、私たちが翻訳を行う際のガイドラインです。
 
-## ガイドライン {#guidelines}
+### カスタムコンテナとGitHubアラート{#custom-containers-and-github-alerts}。
 
-以下は私たちが翻訳の際に従っているガイドラインです。
+カスタムコンテナ](https://vitepress.dev/guide/markdown#custom-containers)または[GitHubアラート](https://docs.github.com/en/get-started/writing-on-github/getting-started-with-writing-and-formatting-on-github/basic-writing-and-formatting-syntax#alerts)を翻訳する場合は、タイトルとコンテンツ**のみを翻訳し、アラートの種類**
+は翻訳しません。
 
-### カスタムコンテナや GitHub Alerts について {#custom-containers-and-github-alerts}
-
-[カスタムコンテナ](https://vitepress.dev/guide/markdown#custom-containers) や [GitHub Alerts](https://docs.github.com/en/get-started/writing-on-github/getting-started-with-writing-and-formatting-on-github/basic-writing-and-formatting-syntax#alerts) を翻訳する際は、タイトルと内容のみ翻訳し、アラートの種類自体は翻訳しないようにしてください。
-
-:::details GitHub Alert の例
-
-````markdown
+::: 詳細 GitHubアラートの例
+```markdown
     > [!WARNING] 루트 변수
     > 매니페스트의 루트에 있어야 하는 변수는...
 
@@ -55,7 +53,7 @@
 
 
 ::: details Example with custom container
-```markdown
+```
     ::: warning 루트 변수\
     매니페스트의 루트에 있어야 하는 변수는...
     :::
@@ -64,20 +62,21 @@
     ::: 주의 루트 변수\
     매니페스트의 루트에 있어야 하는 변수는...
     :::
-````
-
+```
 :::
 
-### 見出しタイトル {#heading-titles}
+### Heading titles {#heading-titles}
 
-見出しを翻訳する場合、見出しのタイトル部分のみ翻訳し、ID は変更しないでください。 たとえば、次の見出しがあるとします：
+When translating headings, only translate tht title but not the id. For example, when translating the following heading:
 
-```markdown
-# Add dependencies {#add-dependencies}
+```
+# 依存関係の追加 {#add-dependencies}
 ```
 
-これを翻訳する場合は、ID をそのままにして以下のように翻訳してください：
+It should be translated as (note the id is not translated):
 
-```markdown
-# 의존성 추가하기 {#add-dependencies}
+```
+# 추가하기{#add-dependencies}。
+```
+
 ```
