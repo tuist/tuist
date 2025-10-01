@@ -1,19 +1,24 @@
 ---
 {
   "title": "Continuous integration",
-  "titleTemplate": ":title · Registry · Develop · Guides · Tuist",
+  "titleTemplate": ":title · Registry · Features · Guides · Tuist",
   "description": "Learn how to use the Tuist Registry in continuous integration."
 }
 ---
-# Continuous Integration (CI) {#continuous-integration-ci}
+# Integração contínua (CI) {#continuous-integration-ci}
 
-To use the registry on your CI, you need to ensure that you have logged in to the registry by running `tuist registry login` as part of your workflow.
+Para utilizar o registo no seu IC, tem de garantir que iniciou sessão no
+registo, executando `tuist registry login` como parte do seu fluxo de trabalho.
 
-> [!NOTE] ONLY XCODE INTEGRATION
-> Creating a new pre-unlocked keychain is required only if you are using the Xcode integration of packages.
+> [NOTA] APENAS INTEGRAÇÃO XCODE A criação de um novo chaveiro pré-desbloqueado
+> só é necessária se estiver a utilizar a integração de pacotes Xcode.
 
-Since the registry credentials are stored in a keychain, you need to ensure the keychain can be accessed in the CI environment. Note some CI providers or automation tools like [Fastlane](https://fastlane.tools/) already create a temporary keychain or provide a built-in way how to create one. However, you can also create one by creating a custom step with the following code:
-
+Uma vez que as credenciais do registo são armazenadas num chaveiro, é necessário
+garantir que o chaveiro pode ser acedido no ambiente de CI. Observe que alguns
+provedores de CI ou ferramentas de automação como
+[Fastlane](https://fastlane.tools/) já criam um chaveiro temporário ou fornecem
+uma maneira integrada de criar um. No entanto, você também pode criar um criando
+uma etapa personalizada com o seguinte código:
 ```bash
 TMP_DIRECTORY=$(mktemp -d)
 KEYCHAIN_PATH=$TMP_DIRECTORY/keychain.keychain
@@ -24,12 +29,16 @@ security default-keychain -s $KEYCHAIN_PATH
 security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
 ```
 
-`tuist registry login` will then store the credentials in the default keychain. Ensure that your default keychain is created and unlocked _before_ `tuist registry login` is run.
+`tuist registry login` irá armazenar as credenciais no conjunto de chaves
+predefinido. Certifique-se de que o conjunto de chaves predefinido é criado e
+desbloqueado _antes de executar_ `tuist registry login`.
 
-Additionally, you need to ensure the `TUIST_CONFIG_TOKEN` environment variable is set. You can create one by following the documentation <LocalizedLink href="/guides/features/automate/continuous-integration#authentication">here</LocalizedLink>.
+Além disso, é necessário garantir que a variável de ambiente
+`TUIST_CONFIG_TOKEN` está definida. Pode criar uma seguindo a documentação
+<LocalizedLink href="/guides/features/automate/continuous-integration#authentication">aqui</LocalizedLink>.
 
-An example workflow for GitHub Actions could then look like this:
-
+Um exemplo de fluxo de trabalho para GitHub Actions poderia então ter o seguinte
+aspeto:
 ```yaml
 name: Build
 
@@ -53,21 +62,38 @@ jobs:
       - # Your build steps
 ```
 
-### Incremental resolution across environments {#incremental-resolution-across-environments}
+### Resolução incremental entre ambientes {#resolução incremental-entre-ambientes}
 
-Clean/cold resolutions are slightly faster with our registry, and you can experience even greater improvements if you persist the resolved dependencies across CI builds. Note that thanks to the registry, the size of the directory that you need to store and restore is much smaller than without the registry, taking significantly less time.
-To cache dependencies when using the default Xcode package integration, the best way is to specify a custom `-clonedSourcePackagesDirPath` when resolving dependencies via `xcodebuild`, such as:
+As resoluções limpas/frias são ligeiramente mais rápidas com o nosso registo, e
+pode experimentar melhorias ainda maiores se persistir as dependências
+resolvidas através de compilações CI. Observe que, graças ao registro, o tamanho
+do diretório que você precisa armazenar e restaurar é muito menor do que sem o
+registro, levando muito menos tempo. Para armazenar dependências em cache ao
+usar a integração de pacotes padrão do Xcode, a melhor maneira é especificar um
+diretório personalizado `clonedSourcePackagesDirPath` ao resolver dependências
+via `xcodebuild`. Isso pode ser feito adicionando o seguinte ao seu arquivo
+`Config.swift`:
 
-```sh
-xcodebuild -resolvePackageDependencies -clonedSourcePackagesDirPath .build
+```swift
+import ProjectDescription
+
+let config = Config(
+    generationOptions: .options(
+        additionalPackageResolutionArguments: ["-clonedSourcePackagesDirPath", ".build"]
+    )
+)
 ```
 
-Additionally, you will need to find a path of the `Package.resolved`. You can grab the path by running `ls **/Package.resolved`. The path should look something like `App.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved`.
+Além disso, terá de encontrar um caminho do `Package.resolved`. Pode obter o
+caminho executando `ls **/Package.resolved`. O caminho deve ser semelhante a
+`App.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved`.
 
-For Swift packages and the XcodeProj-based integration, we can use the default `.build` directory located either in the root of the project or in the `Tuist` directory. Make sure the path is correct when setting up your pipeline.
+Para pacotes Swift e a integração baseada no XcodeProj, podemos usar o diretório
+padrão `.build` localizado na raiz do projeto ou no diretório `Tuist`.
+Certifique-se de que o caminho esteja correto ao configurar o pipeline.
 
-Here's an example workflow for GitHub Actions for resolving and caching dependencies when using the default Xcode package integration:
-
+Aqui está um exemplo de fluxo de trabalho para GitHub Actions para resolver e
+armazenar em cache dependências ao usar a integração de pacote padrão do Xcode:
 ```yaml
 - name: Restore cache
   id: cache-restore
