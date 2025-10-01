@@ -5,34 +5,40 @@
   "description": "Optimize your build times by caching compiled binaries and sharing them across different environments."
 }
 ---
-# Cache {#cache}
+# 缓存 {#cache}
 
-> [!IMPORTANT] REQUIREMENTS
-> - A <LocalizedLink href="/guides/features/projects">generated project</LocalizedLink>
-> - A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and project</LocalizedLink>
+> [！重要]要求
+> - 一个<LocalizedLink href="/guides/features/projects">生成的项目</LocalizedLink>
+> - <LocalizedLink href="/guides/server/accounts-and-projects">图斯特账户和项目</LocalizedLink>
 
-Xcode's build system provides [incremental builds](https://en.wikipedia.org/wiki/Incremental_build_model), enhancing efficiency under normal circumstances. However, this feature falls short in [Continuous Integration (CI) environments](https://en.wikipedia.org/wiki/Continuous_integration), where data essential for incremental builds is not shared across different builds. Additionally, **developers often reset this data locally to troubleshoot complex compilation problems**, leading to more frequent clean builds. This results in teams spending excessive time waiting for local builds to finish or for Continuous Integration pipelines to provide feedback on pull requests. Furthermore, the frequent context switching in such an environment compounds this unproductiveness.
+Xcode
+的构建系统提供了[增量构建](https://en.wikipedia.org/wiki/Incremental_build_model)功能，可在正常情况下提高效率。然而，在[持续集成（CI）环境](https://en.wikipedia.org/wiki/Continuous_integration)中，这一功能就显得不足了，因为增量构建所需的数据无法在不同的构建过程中共享。此外，**，开发人员通常会在本地重置这些数据，以排除复杂的编译问题**
+，从而导致更频繁的清理构建。这就导致团队花费过多时间等待本地构建完成或持续集成管道提供拉取请求反馈。此外，在这样的环境中，频繁的上下文切换也加剧了这种非生产性。
 
-Tuist addresses these challenges effectively with its caching feature. This tool optimizes the build process by caching compiled binaries, significantly reducing build times both in local development and CI environments. This approach not only accelerates feedback loops but also minimizes the need for context switching, ultimately boosting productivity.
+Tuist 的缓存功能有效地解决了这些难题。该工具通过缓存已编译的二进制文件来优化构建流程，从而显著缩短本地开发和 CI
+环境中的构建时间。这种方法不仅加快了反馈循环，还最大限度地减少了上下文切换的需要，最终提高了工作效率。
 
-## Warming {#warming}
+## 变暖 {#warming｝
 
-Tuist efficiently <LocalizedLink href="/guides/features/projects/hashing">utilizes hashes</LocalizedLink> for each target in the dependency graph to detect changes. Utilizing this data, it builds and assigns unique identifiers to binaries derived from these targets. At the time of graph generation, Tuist then seamlessly substitutes the original targets with their corresponding binary versions.
+Tuist
+可以高效地<LocalizedLink href="/guides/features/projects/hashing">利用依赖关系图中每个目标的哈希值</LocalizedLink>来检测变化。利用这些数据，Tuist
+建立并为这些目标衍生的二进制文件分配唯一标识符。在生成图时，Tuist 会用相应的二进制版本无缝替换原始目标。
 
-This operation, known as *"warming,"* produces binaries for local use or for sharing with teammates and CI environments via Tuist. The process of warming the cache is straightforward and can be initiated with a simple command:
+这一操作被称为*"预热"，* 生成二进制文件，供本地使用或通过 Tuist 与队友和 CI 环境共享。缓存预热的过程非常简单，只需一个简单的命令即可启动：
 
 
 ```bash
 tuist cache
 ```
 
-The command re-uses binaries to speed up the process.
+该命令重复使用二进制文件，以加快进程。
 
-## Usage {#usage}
+## 用法 {#usage｝
 
-By default, when Tuist commands necessitate project generation, they automatically substitute dependencies with their binary equivalents from the cache, if available. Additionally, if you specify a list of targets to focus on, Tuist will also replace any dependent targets with their cached binaries, provided they are available. For those who prefer a different approach, there is an option to opt out of this behavior entirely by using a specific flag:
+默认情况下，当 Tuist 命令需要生成项目时，它们会自动用缓存中的二进制文件（如果可用）替代依赖文件。此外，如果您指定了要关注的目标列表，Tuist
+也会用缓存中的二进制文件替换任何依赖目标，前提是这些二进制文件可用。对于喜欢另一种方法的用户，还可以通过使用特定的标记来选择完全放弃这种行为：
 
-::: code-group
+代码组
 ```bash [Project generation]
 tuist generate # Only dependencies
 tuist generate Search # Dependencies + Search dependencies
@@ -45,57 +51,58 @@ tuist test
 ```
 :::
 
-> [!WARNING]
-> Binary caching is a feature designed for development workflows such as running the app on a simulator or device, or running tests. It is not intended for release builds. When archiving the app, generate a project with the sources by using the `--no-binary-cache` flag.
+> [二进制缓存是专为开发工作流设计的一项功能，例如在模拟器或设备上运行应用程序或运行测试。它不适用于发布版本。归档应用程序时，请使用`--no-binary-cache`
+> 标志，生成包含源代码的项目。
 
-## Supported products {#supported-products}
+## 支持的产品 {#supported-products}
 
-Only the following target products are cacheable by Tuist:
+Tuist 只能缓存以下目标产品：
 
-- Frameworks (static and dynamic) that don't depend on [XCTest](https://developer.apple.com/documentation/xctest)
-- Bundles
-- Swift Macros
+- 不依赖于 [XCTest](https://developer.apple.com/documentation/xctest) 的框架（静态和动态）。
+- 捆绑
+- Swift 宏
 
-We are working on supporting libraries and targets that depend on XCTest.
+我们正在努力为依赖 XCTest 的库和目标提供支持。
 
-> [!NOTE] UPSTREAM DEPENDENCIES
-> When a target is non-cacheable it makes the upstream targets non-cacheable too. For example, if you have the dependency graph `A > B`, where A depends on B, if B is non-cacheable, A will also be non-cacheable.
+> [当目标不可缓存时，上游目标也不可缓存。例如，如果依赖关系图为`A &gt; B` ，其中 A 依赖于 B，如果 B 不可缓存，A 也将不可缓存。
 
-## Efficiency {#efficiency}
+## 效率 {#efficiency｝
 
-The level of efficiency that can be achieved with binary caching depends strongly on the graph structure. To achieve the best results, we recommend the following:
+二进制缓存所能达到的效率水平在很大程度上取决于图形结构。为达到最佳效果，我们建议采用以下方法：
 
-1. Avoid very nested dependency graphs. The shallower the graph, the better.
-2. Define dependencies with protocol/interface targets instead of implementation ones, and dependency-inject implementations from the top-most targets.
-3. Split frequently-modified targets into smaller ones whose likelihood of change is lower.
+1. 避免嵌套过多的依赖关系图。依赖关系图越浅越好。
+2. 用协议/接口目标而不是实现目标来定义依赖关系，并从最顶层的目标开始依赖注入实现。
+3. 将频繁修改的目标拆分成较小的目标，这些目标发生变化的可能性较低。
 
-The above suggestions are part of the <LocalizedLink href="/guides/features/projects/tma-architecture">The Modular Architecture</LocalizedLink>, which we propose as a way to structure your projects to maximize the benefits not only of binary caching but also of Xcode's capabilities.
+上述建议是<LocalizedLink href="/guides/features/projects/tma-architecture">模块化架构</LocalizedLink>的一部分，我们建议将其作为构建项目的一种方法，以最大限度地发挥二进制缓存和
+Xcode 功能的优势。
 
-## Recommended setup {#recommended-setup}
+## 推荐设置 {#recommended-setup}
 
-We recommend having a CI job that **runs in every commit in the main branch** to warm the cache. This will ensure the cache always contains binaries for the changes in `main` so local and CI branch build incrementally upon them.
+我们建议在主分支** 的每次提交中运行**的 CI 作业，为缓存预热。这将确保缓存中始终包含`主` 中更改的二进制文件，以便本地和 CI
+分支在它们的基础上进行增量构建。
 
-> [!TIP] CACHE WARMING USES BINARIES
-> The `tuist cache` command also makes use of the binary cache to speed up the warming.
+> [提示] 使用二进制缓存进行缓存预热`tuist cache` 命令也使用二进制缓存加快预热。
 
-The following are some examples of common workflows:
+下面是一些常见工作流程的示例：
 
-### A developer starts to work on a new feature {#a-developer-starts-to-work-on-a-new-feature}
+### 开发人员开始开发新功能 {#a-developer-starts-to-work-on-a-new-feature}
 
-1. They create a new branch from `main`.
-2. They run `tuist generate`.
-3. Tuist pulls the most recent binaries from `main` and generates the project with them.
+1. 他们在`main` 上创建了一个新的分支。
+2. 他们运行`tuist 生成` 。
+3. Tuist 从`main` 提取最新的二进制文件，并用它们生成项目。
 
-### A developer pushes changes upstream {#a-developer-pushes-changes-upstream}
+### 开发者向上游推送变更 {#a-developer-pushes-changes-upstream}
 
-1. The CI pipeline will run `tuist build` or `tuist test` to build or test the project.
-2. The workflow will pull the most recent binaries from `main` and generate the project with them.
-3. It will then build or test the project incrementally.
+1. CI 管道将运行`tuist build` 或`tuist test` 来构建或测试项目。
+2. 工作流程将从`main` 提取最新的二进制文件，并用它们生成项目。
+3. 然后，它将逐步构建或测试项目。
 
-## Troubleshooting {#troubleshooting}
+## 故障排除 {#troubleshooting}
 
-### It doesn't use binaries for my targets {#it-doesnt-use-binaries-for-my-targets}
+### 它不为我的目标使用二进制文件 {#it-doesnt-use-binaries-for-my-targets}
 
-Ensure that the <LocalizedLink href="/guides/features/projects/hashing#debugging">hashes are deterministic</LocalizedLink> across environments and runs. This might happen if the project has references to the environment, for example through absolute paths. You can use the `diff` command to compare the projects generated by two consecutive invocations of `tuist generate` or across environments or runs.
+确保<LocalizedLink href="/guides/features/projects/hashing#debugging">散列在不同环境和运行中都是确定的</LocalizedLink>。如果项目有对环境的引用，例如通过绝对路径，可能会出现这种情况。您可以使用`diff`
+命令比较连续两次调用`tuist generate` 或跨环境或跨运行生成的项目。
 
-Also make sure that the target doesn't depend either directly or indirectly on a <LocalizedLink href="/guides/features/cache#supported-products">non-cacheable target</LocalizedLink>.
+还要确保目标不直接或间接依赖于<LocalizedLink href="/guides/features/cache#supported-products">不可缓存目标</LocalizedLink>。
