@@ -257,6 +257,11 @@ export default defineConfig({
     hostname: "https://docs.tuist.io",
   },
   async buildEnd({ outDir }) {
+    // Copy functions directory to dist
+    const functionsSource = path.join(path.dirname(outDir), "functions");
+    const functionsDest = path.join(outDir, "functions");
+    await fs.cp(functionsSource, functionsDest, { recursive: true });
+
     const redirectsPath = path.join(outDir, "_redirects");
     const redirects = `
 /documentation/tuist/installation /guide/introduction/installation 301
