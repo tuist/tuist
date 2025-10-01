@@ -36,6 +36,30 @@ defmodule Tuist.Release do
       Ecto.Migrator.with_repo(repo, &Ecto.Migrator.run(&1, :down, to_exclusive: version))
   end
 
+  def migrate_clickhouse_from_beginning do
+    load_app()
+
+    {:ok, _, _} =
+      Ecto.Migrator.with_repo(Tuist.IngestRepo, fn repo ->
+        migrations_path = Application.app_dir(:tuist, "priv/ingest_repo/migrations")
+
+        all_versions =
+          repo
+          |> Ecto.Migrator.migrations(migrations_path)
+          |> Enum.map(fn {_status, version, _name} -> version end)
+
+        case List.last(all_versions) do
+          nil ->
+            Logger.info("No migrations found")
+            :ok
+
+          latest_version ->
+            Logger.info("Running all ClickHouse migrations from version 0 to #{latest_version}")
+            Ecto.Migrator.run(repo, :up, to: latest_version)
+        end
+      end)
+  end
+
   defp repos do
     Application.fetch_env!(@app, :ecto_repos)
   end
