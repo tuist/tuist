@@ -5,39 +5,68 @@
   "description": "Learn how to create and manage accounts and projects in Tuist."
 }
 ---
-# Accounts and projects {#accounts-and-projects}
+# Счета и проекты {#accounts-and-projects}
 
-## Accounts {#accounts}
+Некоторые функции Tuist требуют наличия сервера, который обеспечивает сохранение
+данных и взаимодействие с другими сервисами. Чтобы взаимодействовать с сервером,
+вам нужна учетная запись и проект, который вы подключаете к своему локальному
+проекту.
 
-To use the server, you'll need an account. There are two types of accounts:
+## Счета {#accounts}
 
-- **Personal account:** Those accounts are created automaticaly when you sign up and are identified by a handle that's obtained either from the identity provider (e.g. GitHub) or the first part of the email address.
-- **Organization account:** Those accounts are manually created and are identified by a handle that's defined by the developer. Organizations allow inviting other members to collaborate on projects.
+Чтобы пользоваться сервером, вам потребуется учетная запись. Существует два типа
+учетных записей:
 
-If you are familiar with [GitHub](https://github.com), the concept is similar to theirs, where you can have personal and organization accounts, and they are identified by a _handle_ that's used when constructing URLs.
+- **Личный аккаунт:** Эти аккаунты создаются автоматически при регистрации и
+  идентифицируются по хэндлу, полученному либо от провайдера идентификации
+  (например, GitHub), либо по первой части адреса электронной почты.
+- **Учетная запись организации:** Эти учетные записи создаются вручную и
+  идентифицируются с помощью хэндла, который задается разработчиком. Организации
+  позволяют приглашать других участников для совместной работы над проектами.
 
-> [!NOTE] CLI-FIRST
-> Most operations to manage accounts and projects are done through the CLI. We are working on a web interface that will make it easier to manage accounts and projects.
+Если вы знакомы с [GitHub](https://github.com), то концепция похожа на их, где
+вы можете иметь личные и организационные аккаунты, и они идентифицируются с
+помощью *handle*, который используется при построении URL-адресов.
 
-You can manage the organization through the subcommands under <LocalizedLink href="/cli/organization">`tuist organization`</LocalizedLink>. To create a new organization account, run:
+> [!ПРИМЕЧАНИЕ] CLI-FIRST Большинство операций по управлению учетными записями и
+> проектами выполняются через CLI. Мы работаем над веб-интерфейсом, который
+> упростит управление учетными записями и проектами.
 
+Управлять организацией можно с помощью подкоманд в разделе
+<LocalizedLink href="/cli/organization">`tuist organization`</LocalizedLink>.
+Чтобы создать новую учетную запись организации, выполните команду:
 ```bash
 tuist organization create {account-handle}
 ```
 
-## Projects {#projects}
+## Проекты {#projects}
 
-Your projects, either Tuist's or raw Xcode's, need to be integrated with your account through a remote project. Continuing with the comparison with GitHub, it's like having a local and a remote repository where you push your changes. You can use the <LocalizedLink href="/cli/project">`tuist project`</LocalizedLink> to create and manage projects.
+Ваши проекты, будь то проекты Tuist или проекты Xcode, должны быть интегрированы
+с вашим аккаунтом через удаленный проект. Продолжая сравнение с GitHub, можно
+сказать, что у вас есть локальный и удаленный репозиторий, куда вы отправляете
+свои изменения. Вы можете использовать <LocalizedLink href="/cli/project">`tuist
+project`</LocalizedLink> для создания и управления проектами.
 
-Projects are identified by a full handle, which is the result of concatenating the organization handle and the project handle. For example, if you have an organization with the handle `tuist`, and a project with the handle `tuist`, the full handle would be `tuist/tuist`.
+Проекты идентифицируются по полному хэндлу, который является результатом
+конкатенации хэндла организации и хэндла проекта. Например, если у вас есть
+организация с дескриптором `tuist`, а проект с дескриптором `tuist`, то полный
+дескриптор будет `tuist/tuist`.
 
-The binding between the local and the remote project is done through the configuration file. If you don't have any, create it at `Tuist.swift` and add the following content:
+Связка между локальным и удаленным проектом осуществляется через
+конфигурационный файл. Если у вас его нет, создайте его по адресу `Tuist.swift`
+и добавьте следующее содержимое:
 
 ```swift
 let tuist = Tuist(fullHandle: "{account-handle}/{project-handle}") // e.g. tuist/tuist
 ```
 
-> [!IMPORTANT] TUIST PROJECT-ONLY FEATURES
-> Note that there are some features like <LocalizedLink href="/guides/features/build/cache">binary caching</LocalizedLink> that require you having a Tuist project. If you are using raw Xcode projects, you won't be able to use those features.
+> [!ВАЖНО] Функции, доступные только в проекте TUIST Обратите внимание, что
+> некоторые функции, например
+> <LocalizedLink href="/guides/features/cache">двоичное
+> кэширование</LocalizedLink>, требуют наличия проекта Tuist. Если вы
+> используете сырые проекты Xcode, вы не сможете использовать эти функции.
 
-Your project's URL is constructed by using the full handle. For example, Tuist's dashboard, which is public, is accessible at [cloud.tuist.io/tuist/tuist](https://cloud.tuist.io/tuist/tuist), where `tuist/tuist` is the project's full handle.
+URL-адрес вашего проекта строится с использованием полного хэндла. Например,
+общедоступная приборная панель Tuist доступна по адресу
+[tuist.dev/tuist/tuist](https://tuist.dev/tuist/tuist), где `tuist/tuist` -
+полный хэндл проекта.
