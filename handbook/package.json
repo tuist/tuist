@@ -4,10 +4,10 @@
   "description": "A handbook for Tuist",
   "private": true,
   "devDependencies": {
-    "esbuild": "^0.25.0",
-    "vitepress": "^1.6.3",
-    "wrangler": "^4.0.0",
-    "vitepress-plugin-llmstxt": "0.1.0"
+    "esbuild": "^0.25.10",
+    "vitepress": "^1.6.4",
+    "vitepress-plugin-llmstxt": "^0.4.2",
+    "wrangler": "^4.40.3"
   },
   "scripts": {
     "dev": "vitepress dev",
