@@ -5,70 +5,77 @@
   "description": "Learn about The Modular Architecture (TMA) and how to structure your projects using it."
 }
 ---
-# The Modular Architecture (TMA) {#the-modular-architecture-tma}
+# 模块化架构（TMA） {#the-modular-architecture-tma}
 
-TMA is an architectural approach to structure Apple OS applications to enable scalability, optimize build and test cycles, and ensure good practices in your team. Its core idea is to build your apps by building independent features that are interconnected using clear and concise APIs.
+TMA 是一种架构方法，用于构建 Apple OS
+应用程序，以实现可扩展性、优化构建和测试周期，并确保团队的良好实践。它的核心理念是通过构建独立的功能来构建应用程序，这些功能通过简洁明了的应用程序接口相互连接。
 
-These guidelines introduce the principles of the architecture, helping you identify and organize your application features in different layers. It also introduces tips, tools, and advice if you decide to use this architecture.
+这些指南介绍了架构的原则，帮助您识别和组织不同层中的应用程序功能。如果您决定使用这种架构，它还会介绍提示、工具和建议。
 
-> [!INFO] µFEATURES
-> This architecture was previously known as µFeatures. We've renamed it to The Modular Architecture (TMA) to better reflect its purpose and the principles behind it.
+> [本架构以前称为 µFeatures。我们已将其更名为模块化架构 (TMA)，以更好地反映其目的和背后的原则。
 
-## Core principle {#core-principle}
+## 核心原则 {#core-principle}
 
-Developers should be able to **build, test, and try** their features fast, independently of the main app, and while ensuring Xcode features like UI previews, code completion, and debugging work reliably.
+开发人员应该能够**，独立于主应用程序，快速构建、测试和尝试** 他们的功能，同时确保 Xcode 的 UI 预览、代码自动补全和调试等功能能够可靠地工作。
 
-## What is a module {#what-is-a-module}
+## 什么是模块 {#what-is-a-module}
 
-A module represents an application feature and is a combination of the following five targets (where target referts to an Xcode target):
+模块代表一种应用程序功能，是以下五个目标的组合（其中目标指的是 Xcode 目标）：
 
-- **Source:** Contains the feature source code (Swift, Objective-C, C++, JavaScript...) and its resources (images, fonts, storyboards, xibs).
-- **Interface:** It's a companion target that contains the public interface and models of the feature.
-- **Tests:** Contains the feature unit and integration tests.
-- **Testing:** Provides testing data that can be used in tests and the example app. It also provides mocks for module classes and protocols that can be used by other features as we'll see later.
-- **Example:** Contains an example app that developers can use to try out the feature under certain conditions (different languages, screen sizes, settings).
+- **源代码：** 包含功能源代码（Swift、Objective-C、C++、JavaScript...）及其资源（图片、字体、故事板、xibs）。
+- **接口：** 它是一个配套目标，包含公共界面和功能模型。
+- **测试：** 包含功能单元测试和集成测试。
+- **测试** 提供可用于测试和示例应用程序的测试数据。它还为模块类和协议提供模拟，这些模拟可用于其他功能，我们稍后会看到。
+- **示例：** 包含一个示例应用程序，开发人员可在特定条件（不同语言、屏幕尺寸、设置）下使用该示例应用程序试用功能。
 
-We recommend following a naming convention for targets, something that you can enforce in your project thanks to Tuist's DSL.
+我们建议您遵循目标的命名约定，通过 Tuist 的 DSL，您可以在项目中执行该约定。
 
-| Target | Dependencies | Content |
-| ---- | ---- | ---- |
-| `Feature` | `FeatureInterface` | Source code and resources |
-| `FeatureInterface` | - | Public interface and models |
-| `FeatureTests` | `Feature`, `FeatureTesting` | Unit and integration tests |
-| `FeatureTesting` | `FeatureInterface` | Testing data and mocks |
-| `FeatureExample` | `FeatureTesting`, `Feature` | Example app |
+| 目标     | 依赖          | 内容        |
+| ------ | ----------- | --------- |
+| `特点`   | `功能接口`      | 源代码和资源    |
+| `功能接口` | -           | 公共界面和模型   |
+| `功能测试` | `功能`,`功能测试` | 单元测试和集成测试 |
+| `功能测试` | `功能接口`      | 测试数据和模拟   |
+| `功能示例` | `功能测试`,`功能` | 应用程序示例    |
 
-> [!TIP] UI Previews
-> `Feature` can use `FeatureTesting` as a Development Asset to allow for UI previews
+> [！提示] 用户界面预览`功能` 可以使用`FeatureTesting` 作为开发资产，以便进行用户界面预览
 
-> [!IMPORTANT] COMPILER DIRECTIVES INSTEAD OF TESTING TARGETS
-> Alternatively, you can use compiler directives to include test data and mocks in the `Feature` or `FeatureInterface` targets when compiling for `Debug`. You simplify the graph, but you'll end up compiling code that you won't need for running the app.
+> [重要] 编译器指令代替测试目标 或者，在编译`Debug` 时，可以使用编译器指令在`Feature` 或`FeatureInterface`
+> 目标中包含测试数据和模拟。这样可以简化图表，但最终编译的代码在运行应用程序时却用不上。
 
-## Why a module {#why-a-module}
+## 为什么是模块 {#why-a-module}
 
-### Clear and concise APIs {#clear-and-concise-apis}
+### 清晰简洁的应用程序接口 {#clear-and-concise-apis}
 
-When all the app source code lives in the same target it is very easy to build implicit dependencies in code and end up with the so well-known spaghetti code. Everything is strongly coupled, the state is sometimes unpredictable, and introducing new changes become a nightmare. When we define features in independent targets we need to design public APIs as part of our feature implementation. We need to decide what should be public, how our feature should be consumed, what should remain private. We have more control over how we want our feature clients to use the feature and we can enforce good practices by designing safe APIs.
+当所有应用程序的源代码都在同一个目标中时，就很容易在代码中建立隐含的依赖关系，最终形成众所周知的意大利面条代码。所有东西都是强耦合的，状态有时是不可预测的，引入新的变化就成了一场噩梦。当我们在独立目标中定义功能时，我们需要设计公共应用程序接口作为功能实现的一部分。我们需要决定哪些应该是公共的，我们的功能应该如何被使用，哪些应该保持私有。我们可以更好地控制功能客户端如何使用功能，并通过设计安全的应用程序接口来执行良好的实践。
 
-### Small modules {#small-modules}
+### 小型模块 {#small-modules}
 
-[Divide and conquer](https://en.wikipedia.org/wiki/Divide_and_conquer). Working in small modules allows you to have more focus and test and try the feature in isolation. Moreover, development cycles are much faster since we have a more selective compilation, compiling only the components that are necessary to get our feature working. The compilation of the whole app is only necessary at the very end of our work, when we need to integrate the feature into the app.
+[分而治之](https://en.wikipedia.org/wiki/Divide_and_conquer)。在小模块中工作可以让你更加专注，并单独测试和尝试功能。此外，由于我们的编译更具选择性，只编译功能运行所需的组件，因此开发周期会更快。只有在工作的最后阶段，当我们需要将功能集成到应用程序中时，才有必要编译整个应用程序。
 
-### Reusability {#reusability}
+### 可重复使用性 {#reusability}
 
-Reusing code across apps and other products like extensions is encouraged using frameworks or libraries. By building modules reusing them is pretty straightforward. We can build an iMessage extension, a Today Extension, or a watchOS application by just combining existing modules and adding _(when necessary)_ platform-specific UI layers.
+我们鼓励使用框架或库在应用程序和其他产品（如扩展）之间重复使用代码。通过构建模块，重复使用它们非常简单。我们只需组合现有模块并添加_ （必要时）_ 特定平台的
+UI 层，就能构建 iMessage 扩展、Today 扩展或 watchOS 应用程序。
 
-## Dependencies {#dependencies}
+## 依赖项 {#dependencies｝
 
-When a module depends on another module, it declares a dependency against its interface target. The benefit of this is two-fold. It prevents the implementation of a module to be coupled to the implementation of another module, and it speeds up clean builds because they only have to compile the implementation of our feature, and the interfaces of direct and transitive dependencies. This approach is inspired by SwiftRock's idea of [Reducing iOS Build Times by using Interface Modules](https://swiftrocks.com/reducing-ios-build-times-by-using-interface-targets).
+当一个模块依赖于另一个模块时，它会针对其接口目标声明依赖关系。这样做有两个好处。它可以防止一个模块的实现与另一个模块的实现耦合，还可以加快简洁构建，因为它们只需编译我们功能的实现，以及直接和传递依赖关系的接口。这种方法的灵感来自
+SwiftRock 提出的 [使用接口模块缩短 iOS
+构建时间](https://swiftrocks.com/reducing-ios-build-times-by-using-interface-targets)。
 
-Depending on interfaces requires apps to build the graph of implementations at runtime, and dependency-inject it into the modules that need it. Although TMA is non-opinionated about how to do this, we recommend using dependency-injection solutions or patterns or solutions that don't add built-time indirections or use platform APIs that were not designed for this purpose.
+依赖接口要求应用程序在运行时构建实现图，并将其依赖注入到需要的模块中。虽然 TMA
+对如何做到这一点不持任何意见，但我们建议使用依赖注入解决方案或模式，或者使用不添加构建时间接性或使用非为此目的而设计的平台 API 的解决方案。
 
-## Product types {#product-types}
+## 产品类型 {#product-types｝
 
-When building a module, you can choose between **libraries and frameworks**, and **static and dynamic linking** for the targets. Without Tuist, making this decision is a bit more complex because you need to configure the dependency graph manually. However, thanks to Tuist Projects, this is no longer a problem.
+构建模块时，可以在**库和框架** ，以及**静态和动态链接** 之间选择目标。在没有 Tuist
+的情况下，做出这一决定要复杂一些，因为您需要手动配置依赖关系图。不过，有了 Tuist 项目，这不再是问题。
 
-We recommend using dynamic libraries or frameworks during development using <LocalizedLink href="/guides/features/projects/synthesized-files#bundle-accessors">bundle accessors</LocalizedLink> to decouple the bundle-accessing logic from the library or framework nature of the target. This is key for fast compilation times and to ensure [SwiftUI Previews](https://developer.apple.com/documentation/swiftui/previews-in-xcode) work reliably. And static libraries or frameworks for the release builds to ensure the app boots fast. You can leverage <LocalizedLink href="/guides/features/projects/dynamic-configuration#configuration-through-environment-variables">dynamic configuration</LocalizedLink> to change the product type at generation-time:
+我们建议在开发过程中使用动态库或框架，并使用
+<LocalizedLink href="/guides/features/projects/synthesized-files#bundle-accessors">捆绑访问器</LocalizedLink>将捆绑访问逻辑与目标库或框架的性质解耦。这是快速编译和确保
+[SwiftUI
+预览版](https://developer.apple.com/documentation/swiftui/previews-in-xcode)可靠运行的关键。而静态库或框架用于发布构建，可确保应用快速启动。您可以利用<LocalizedLink href="/guides/features/projects/dynamic-configuration#configuration-through-environment-variables">动态配置</LocalizedLink>在生成时更改产品类型：
 
 ```bash
 # You'll have to read the value of the variable from the manifest {#youll-have-to-read-the-value-of-the-variable-from-the-manifest}
@@ -89,25 +96,27 @@ func productType() -> Product {
 ```
 
 
-> [!IMPORTANT] MERGEABLE LIBRARIES
-> Apple attempted to alleviate the cumbersomeness of switching between static and dynamic libraries by introducing [mergeable libraries](https://developer.apple.com/documentation/xcode/configuring-your-project-to-use-mergeable-libraries). However, that introduces build-time non-determinism that makes your build non-reproducible and harder to optimize so we don't recommend using it.
+> [重要] 可合并库 Apple
+> 试图通过引入[可合并库](https://developer.apple.com/documentation/xcode/configuring-your-project-to-use-mergeable-libraries)来减轻在静态库和动态库之间切换的麻烦。然而，这引入了构建时的非确定性，使构建变得不可重现且难以优化，因此我们不建议使用。
 
-## Code {#code}
+## 代码 {#code}
 
-TMA is non-opinionated about the code architecture and patterns for your modules. However, we'd like to share some tips based on our experience:
+TMA 对模块的代码架构和模式不持任何意见。不过，我们还是想根据自己的经验与大家分享一些技巧：
 
-- **Leveraging the compiler is great.** Over-leveraging the compiler might end up being non-productive and cause some Xcode features like previews to work unreliably. We recommend using the compiler to enforce good practices and catch errors early, but not to the point that it makes the code harder to read and maintain.
-- **Use Swift Macros sparingly.** They can be very powerful but can also make the code harder to read and maintain.
-- **Embrace the platform and the language, don't abstract them.** Trying to come up with ellaborated abstraction layers might end up being counterproductive. The platform and the language are powerful enough to build great apps without the need for additional abstraction layers. Use good programming and design patterns as a reference to build your features.
+- **利用编译器是件好事。** 过度使用编译器可能会适得其反，并导致某些 Xcode
+  功能（如预览）无法可靠运行。我们建议使用编译器来执行良好的实践并及早捕获错误，但不要让代码变得更难阅读和维护。
+- **少用 Swift 宏。** 它们可以非常强大，但也会增加代码的阅读和维护难度。
+- **拥抱平台和语言，不要抽象它们。**
+  试图建立复杂的抽象层可能会适得其反。平台和语言已经足够强大，无需额外的抽象层就能构建出色的应用程序。使用良好的编程和设计模式作为构建功能的参考。
 
+## 资源 {#resources｝
 
-## Resources {#resources}
-
-- [Building µFeatures](https://speakerdeck.com/pepibumur/building-ufeatures)
-- [Framework Oriented Programming](https://speakerdeck.com/pepibumur/framework-oriented-programming-mobilization-dot-pl)
-- [A Journey into frameworks and Swift](https://speakerdeck.com/pepibumur/a-journey-into-frameworks-and-swift)
-- [Leveraging frameworks to speed up our development on iOS - Part 1](https://developers.soundcloud.com/blog/leveraging-frameworks-to-speed-up-our-development-on-ios-part-1)
-- [Library Oriented Programming](https://academy.realm.io/posts/justin-spahr-summers-library-oriented-programming/)
-- [Building Modern Frameworks](https://developer.apple.com/videos/play/wwdc2014/416/)
-- [The Unofficial Guide to xcconfig files](https://pewpewthespells.com/blog/xcconfig_guide.html)
-- [Static and Dynamic Libraries](https://pewpewthespells.com/blog/static_and_dynamic_libraries.html)
+- [建筑 µFeatures](https://speakerdeck.com/pepibumur/building-ufeatures)
+- [面向框架的程序设计](https://speakerdeck.com/pepibumur/framework-oriented-programming-mobilization-dot-pl).
+- [进入框架和斯威夫特的旅程](https://speakerdeck.com/pepibumur/a-journey-into-frameworks-and-swift)。
+- [利用框架加速 iOS 开发 -
+  第一部分](https://developers.soundcloud.com/blog/leveraging-frameworks-to-speed-up-our-development-on-ios-part-1)。
+- [面向库的程序设计](https://academy.realm.io/posts/justin-spahr-summers-library-oriented-programming/).
+- [构建现代框架](https://developer.apple.com/videos/play/wwdc2014/416/)。
+- [xcconfig 文件非官方指南](https://pewpewthespells.com/blog/xcconfig_guide.html)。
+- [静态图书馆和动态图书馆](https://pewpewthespells.com/blog/static_and_dynamic_libraries.html)。
