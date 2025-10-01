@@ -1,31 +1,42 @@
 ---
 {
   "title": "Dynamic configuration",
-  "titleTemplate": ":title · Projects · Develop · Guides · Tuist",
+  "titleTemplate": ":title · Projects · Features · Guides · Tuist",
   "description": "Learn how how to use environment variables to dynamically configure your project."
 }
 ---
-# Dynamic configuration {#dynamic-configuration}
+# Динамическая конфигурация {#dynamic-configuration}
 
-There are certain scenarios where you might need to dynamically configure your project at generation time. For example, you might want to change the name of the app, the bundle identifier, or the deployment target based on the environment where the project is being generated. Tuist supports that via environment variables, which can be accessed from the manifest files.
+Существуют определенные сценарии, в которых вам может потребоваться динамическая
+настройка проекта во время генерации. Например, вы можете захотеть изменить имя
+приложения, идентификатор пакета или цель развертывания в зависимости от среды,
+в которой генерируется проект. Tuist поддерживает это с помощью переменных
+окружения, доступ к которым можно получить из файлов манифеста.
 
-## Configuration through environment variables {#configuration-through-environment-variables}
+## Конфигурирование через переменные окружения {#configuration-through-environment-variables}
 
-Tuist allows passing configuration through environment variables that can be accessed from the manifest files. For example:
+Tuist позволяет передавать конфигурацию через переменные окружения, доступ к
+которым можно получить из файлов манифеста. Например:
 
 ```bash
 TUIST_APP_NAME=MyApp tuist generate
 ```
 
-If you want to pass multiple environment variables just separate them with a space. For example:
+Если вы хотите передать несколько переменных окружения, просто разделите их
+пробелом. Например:
 
 ```bash
 TUIST_APP_NAME=MyApp TUIST_APP_LOCALE=pl tuist generate
 ```
 
-## Reading the environment variables from manifests {#reading-the-environment-variables-from-manifests}
+## Чтение переменных окружения из манифестов {#reading-the-environment-variables-from-manifests}
 
-Variables can be accessed using the <LocalizedLink href="/references/project-description/enums/environment">`Environment`</LocalizedLink> type. Any variables following the convention `TUIST_XXX` defined in the environment or passed to Tuist when running commands will be accessible using the `Environment` type. The following example shows how we access the `TUIST_APP_NAME` variable:
+Доступ к переменным осуществляется с помощью типа
+<LocalizedLink href="/references/project-description/enums/environment">`Environment`</LocalizedLink>.
+Любые переменные, следующие соглашению `TUIST_XXX`, определенные в окружении или
+переданные Tuist при выполнении команд, будут доступны с помощью типа
+`Environment`. В следующем примере показано, как мы получаем доступ к переменной
+`TUIST_APP_NAME`:
 
 ```swift
 func appName() -> String {
@@ -37,15 +48,20 @@ func appName() -> String {
 }
 ```
 
-Accessing variables returns an instance of type `Environment.Value?` which can take any of the following values:
+Доступ к переменным возвращает экземпляр типа `Environment.Value?`, который
+может принимать любое из следующих значений:
 
-| Case              | Description                                                 |
-| ----------------- | ----------------------------------------------------------- |
-| `.string(String)` | Used when the variable represents a string. |
+| Дело              | Описание                                                  |
+| ----------------- | --------------------------------------------------------- |
+| `.string(String)` | Используется, когда переменная представляет собой строку. |
 
-You can also retrieve the string or boolean `Environment` variable using either of the helper methods defined below, these methods require a default value to be passed to ensure the user gets consistent results each time. This avoids the need to define the function appName() defined above.
+Вы также можете получить строку или булевую переменную `Environment` с помощью
+одного из вспомогательных методов, определенных ниже. Эти методы требуют
+передачи значения по умолчанию, чтобы пользователь каждый раз получал
+последовательные результаты. Это избавляет от необходимости определять функцию
+appName(), определенную выше.
 
-::: code-group
+::: кодовая группа
 
 ```swift [String]
 Environment.appName.getString(default: "TuistServer")
@@ -54,5 +70,4 @@ Environment.appName.getString(default: "TuistServer")
 ```swift [Boolean]
 Environment.isCI.getBoolean(default: false)
 ```
-
 :::
