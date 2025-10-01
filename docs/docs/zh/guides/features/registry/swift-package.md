@@ -5,15 +5,17 @@
   "description": "Learn how to use the Tuist Registry in a Swift package."
 }
 ---
-# Swift package {#swift-package}
+# Swift 软件包 {#swift-package}
 
-If you are working on a Swift package, you can use the `--replace-scm-with-registry` flag to resolve dependencies from the registry if they are available:
+如果您正在处理 Swift 软件包，可以使用`--replace-scm-with-registry` 标志来解析注册表中的依赖项（如果有的话）：
 
 ```bash
 swift package --replace-scm-with-registry resolve
 ```
 
-If you want to ensure that the registry is used every time you resolve dependencies, you will need to update `dependencies` in your `Package.swift` file to use the registry identifier instead of a URL. The registry identifier is always in the form of `{organization}.{repository}`. For example, to use the registry for the `swift-composable-architecture` package, do the following:
+如果要确保每次解析依赖关系时都使用注册表，则需要更新`Package.swift` 文件中的`依赖关系` ，以使用注册表标识符而非
+URL。注册表标识符的形式始终是`{organization}.{repository}`
+。例如，要使用`swift-composable-architecture` 软件包的注册表，请执行以下操作：
 ```diff
 dependencies: [
 -   .package(url: "https://github.com/pointfreeco/swift-composable-architecture", from: "0.1.0")
