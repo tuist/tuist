@@ -8,8 +8,8 @@
 # Auto-completado en shells
 
 Si tienes Tuist **instalado globalmente** (por ejemplo, a través de Homebrew),
-puedes instalar completions de shell para Bash y Zsh para autocompletar comandos
-y opciones.
+puedes instalar complementos de shell para Bash y Zsh para autocompletar
+comandos y opciones.
 
 ::: aviso QUÉ ES UNA INSTALACIÓN GLOBAL Una instalación global es una
 instalación que está disponible en la variable de entorno `$PATH` de su shell.
@@ -19,9 +19,9 @@ terminal. Este es el método de instalación por defecto para Homebrew. :::
 #### Zsh {#zsh}
 
 Si tiene [oh-my-zsh](https://ohmyz.sh/) instalado, ya tiene un directorio de
-scripts para cargar scripts de autocompletado automáticamente -
-`.oh-my-zsh/completions`. Copie su nuevo script de finalización a un nuevo
-archivo en ese directorio llamado `_tuist`:
+scripts de finalización de carga automática - `.oh-my-zsh/completions`. Copie su
+nuevo script de finalización a un nuevo archivo en ese directorio llamado
+`_tuist`:
 
 ```bash
 tuist --generate-completion-script > ~/.oh-my-zsh/completions/_tuist
