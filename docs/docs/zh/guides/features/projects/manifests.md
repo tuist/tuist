@@ -5,18 +5,22 @@
   "description": "Learn about the manifest files that Tuist uses to define projects and workspaces and configure the generation process."
 }
 ---
-# Manifests {#manifests}
+# 任务 {#manifests}
 
-Tuist defaults to Swift files as the primary way to define projects and workspaces and configure the generation process. These files are referred to as **manifest files** throughout the documentation.
+Tuist 默认将 Swift 文件作为定义项目和工作区以及配置生成流程的主要方式。这些文件在整个文档中被称为**manifest files** 。
 
-The decision of using Swift was inspired by the [Swift Package Manager](https://www.swift.org/documentation/package-manager/), which also uses Swift files to define packages. Thanks to the usage of Swift, we can leverage the compiler to validate the correctness of the content and reuse code across different manifest files, and Xcode to provide a first-class editing experience thanks to the syntax highlighting, auto-completion, and validation.
+我们之所以决定使用 Swift，是受到[Swift
+包管理器](https://www.swift.org/documentation/package-manager/)的启发，它也使用 Swift
+文件来定义包。由于使用了 Swift，我们可以利用编译器来验证内容的正确性，并在不同的清单文件中重复使用代码，还可以利用 Xcode
+的语法高亮显示、自动完成和验证功能来提供一流的编辑体验。
 
-> [!NOTE] CACHING
-> Since manifest files are Swift files that need to be compiled, Tuist caches the compilation results to speed up the parsing process. Therefore, you'll notice that the first time you run Tuist, it might take a bit longer to generate the project. Subsequent runs will be faster.
+> [注意] 缓存 由于清单文件是需要编译的 Swift 文件，Tuist 会缓存编译结果，以加快解析过程。因此，第一次运行 Tuist
+> 时，生成项目的时间可能会稍长一些。之后的运行速度会更快。
 
 ## Project.swift {#projectswift}
 
-The <LocalizedLink href="/references/project-description/structs/project">`Project.swift`</LocalizedLink> manifest declares an Xcode project. The project gets generated in the same directory where the manifest file is located with the name indicated in the `name` property.
+<LocalizedLink href="/references/project-description/structs/project">`Project.swift`</LocalizedLink>
+清单声明了一个 Xcode 项目。项目将在清单文件所在的同一目录中生成，其名称在`name` 属性中指明。
 
 ```swift
 // Project.swift
@@ -29,12 +33,15 @@ let project = Project(
 ```
 
 
-> [!WARNING] ROOT VARIABLES
-> The only variable that should be at the root of the manifest is `let project = Project(...)`. If you need to reuse code across various parts of the manifest, you can use Swift functions.
+> [！警告] 根变量 唯一应该位于清单根部的变量是`let project = Project(...)` 。如果需要在清单的不同部分重复使用代码，可以使用
+> Swift 函数。
 
-## Workspace.swift {#workspaceswift}
+## 工作区.swift {#workspaceswift}
 
-By default, Tuist generates an [Xcode Workspace](https://developer.apple.com/documentation/xcode/projects-and-workspaces) containing the project being generated and the projects of its dependencies. If for any reason you'd like to customize the workspace to add additional projects or include files and groups, you can do so by defining a <LocalizedLink href="/references/project-description/structs/workspace">`Workspace.swift`</LocalizedLink> manifest.
+默认情况下，Tuist 会生成一个 [Xcode
+工作区](https://developer.apple.com/documentation/xcode/projects-and-workspaces)，其中包含正在生成的项目及其依赖项目。如果出于任何原因，您想自定义工作区以添加其他项目或包含文件和组，可以通过定义
+<LocalizedLink href="/references/project-description/structs/workspace">`Workspace.swift`</LocalizedLink>
+清单来实现。
 
 ```swift
 // Workspace.swift
@@ -48,18 +55,26 @@ let workspace = Workspace(
 )
 ```
 
-> [!NOTE]
-> Tuist will resolve the dependency graph and include the projects of the dependencies in the workspace. You don't need to include them manually. This is necessary for the build system to resolve the dependencies correctly.
+> [注意] Tuist 将解析依赖关系图，并将依赖关系的项目包含在工作区中。您无需手动包含它们。这是构建系统正确解析依赖关系所必需的。
 
-### Multi or mono-project {#multi-or-monoproject}
+### 多项目或单项目 {#multi-or-monoproject}
 
-A question that often comes up is whether to use a single project or multiple projects in a workspace. In a world without Tuist where a mono-project setup would lead to frequent Git conflicts the usage of workspaces is encouraged. However, since we don't recommend including the Tuist-generated Xcode projects in the Git repository, Git conflicts are not an issue. Therefore, the decision of using a single project or multiple projects in a workspace is up to you.
+一个经常出现的问题是，在一个工作区中使用单个项目还是多个项目。在没有 Tuist 的世界里，单项目设置会导致频繁的 Git
+冲突，因此我们鼓励使用工作区。不过，由于我们不建议在 Git 仓库中包含 Tuist 生成的 Xcode 项目，因此 Git
+冲突并不是问题。因此，您可以自行决定在工作区中使用单个项目还是多个项目。
 
-In the Tuist project we lean on mono-projects because the cold generation time is faster (fewer manifest files to compile) and we leverage <LocalizedLink href="/guides/features/projects/code-sharing">project description helpers</LocalizedLink> as a unit of encapsulation. However, you might want to use Xcode projects as a unit of encapsulation to represent different domains of your application, which aligns more closely with the Xcode's recommended project structure.
+在 Tuist 项目中，我们倾向于使用单项目，因为冷生成时间更快（需要编译的清单文件更少），而且我们利用
+<LocalizedLink href="/guides/features/projects/code-sharing"> 项目描述助手
+</LocalizedLink> 作为封装单元。不过，您可能希望使用 Xcode 项目作为封装单元，以代表应用程序的不同领域，这与 Xcode
+推荐的项目结构更为接近。
 
 ## Tuist.swift {#tuistswift}
 
-Tuist provides <LocalizedLink href="/contributors/principles.html#default-to-conventions">sensible defaults</LocalizedLink> to simplify project configuration. However, you can customize the configuration by defining a <LocalizedLink href="/references/project-description/structs/tuist">`Tuist.swift`</LocalizedLink> at the root of the project, which is used by Tuist to determine the root of the project.
+Tuist 提供了
+<LocalizedLink href="/contributors/principles.html#default-to-conventions">
+合理的默认值</LocalizedLink>，以简化项目配置。不过，您也可以通过在项目根目录下定义一个
+<LocalizedLink href="/references/project-description/structs/tuist">`Tuist.swift`</LocalizedLink>
+来自定义配置，Tuist 会使用它来确定项目的根目录。
 
 ```swift
 import ProjectDescription
