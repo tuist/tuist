@@ -1,23 +1,37 @@
 ---
 {
   "title": "Templates",
-  "titleTemplate": ":title · Projects · Develop · Guides · Tuist",
+  "titleTemplate": ":title · Projects · Features · Guides · Tuist",
   "description": "Learn how to create and use templates in Tuist to generate code in your projects."
 }
 ---
-# Templates {#templates}
+# Modelos {#templates}
 
-In projects with an established architecture, developers might want to bootstrap new components or features that are consistent with the project. With `tuist scaffold` you can generate files from a template. You can define your own templates or use the ones that are vendored with Tuist. These are some scenarios where scaffolding might be useful:
+Em projectos com uma arquitetura estabelecida, os programadores podem querer
+criar novos componentes ou funcionalidades que sejam consistentes com o projeto.
+Com `tuist scaffold` é possível gerar ficheiros a partir de um modelo. Pode
+definir os seus próprios modelos ou utilizar os que são fornecidos com o Tuist.
+Estes são alguns cenários onde o scaffolding pode ser útil:
 
-- Create a new feature that follows a given architecture: `tuist scaffold viper --name MyFeature`.
-- Create new projects: `tuist scaffold feature-project --name Home`
+- Criar uma nova funcionalidade que siga uma determinada arquitetura: `tuist
+  scaffold viper --name MyFeature`.
+- Criar novos projectos: `tuist scaffold feature-project --name Home`
 
-> [!NOTE] NON-OPINIONATED
-> Tuist is not opinionated about the content of your templates, and what you use them for. They are only required to be in a specific directory.
+> [NOTA] NÃO OPINIONADO O Tuist não tem opinião sobre o conteúdo dos seus
+> modelos e sobre a utilização que lhes dá. Só é necessário que estejam num
+> diretório específico.
 
-## Defining a template {#defining-a-template}
+## Definição de um modelo {#defining-a-template}
 
-To define templates, you can run <LocalizedLink href="/guides/features/projects/editing">`tuist edit`</LocalizedLink> and then create a directory called `name_of_template` under `Tuist/Templates` that represents your template. So if you are creating a template called `framework`, you should create a new directory `framework` at `Tuist/Templates` with a manifest file called `framework.swift` that could look like this: To define templates, you can run <LocalizedLink href="/guides/features/projects/editing">`tuist edit`</LocalizedLink> and then create a directory called `name_of_template` under `Tuist/Templates` that represents your template. To define templates, you can run <LocalizedLink href="/guides/features/projects/editing">`tuist edit`</LocalizedLink> and then create a directory called `name_of_template` under `Tuist/Templates` that represents your template.
+Para definir modelos, pode executar
+<LocalizedLink href="/guides/features/projects/editing">`tuist
+edit`</LocalizedLink> e, em seguida, criar um diretório chamado
+`name_of_template` em `Tuist/Templates` que representa o seu modelo. Os modelos
+precisam de um ficheiro de manifesto, `name_of_template.swift` que descreve o
+modelo. Portanto, se você estiver criando um modelo chamado `framework`, você
+deve criar um novo diretório `framework` em `Tuist/Templates` com um arquivo de
+manifesto chamado `framework.swift` que pode ter a seguinte aparência:
+
 
 ```swift
 import ProjectDescription
@@ -47,22 +61,31 @@ let template = Template(
 )
 ```
 
-## Using a template {#using-a-template}
+## Utilizar um modelo {#utilizar um modelo}
 
-After defining the template, we can use it from the `scaffold` command:
+Depois de definir o modelo, podemos utilizá-lo a partir do comando `scaffold`:
 
 ```bash
 tuist scaffold name_of_template --name Name --platform macos
 ```
 
-> [!NOTE]
-> Since platform is an optional argument, we can also call the command without the `--platform macos` argument.
+> [!NOTE] Como a plataforma é um argumento opcional, também podemos chamar o
+> comando sem o argumento `--platform macos`.
 
-If `.string` and `.files` don't provide enough flexibility, you can leverage the [Stencil](https://stencil.fuller.li/en/latest/) templating language via the `.file` case. Besides that, you can also use additional filters defined here.
+Se `.string` e `.files` não proporcionarem flexibilidade suficiente, pode
+utilizar a linguagem de criação de modelos
+[Stencil](https://stencil.fuller.li/en/latest/) através do caso `.file`. Para
+além disso, também pode utilizar filtros adicionais definidos aqui.
 
-Using string interpolation, `\(nameAttribute)` above would resolve to `{{ name }}`. If you'd like to use Stencil filters in the template definition, you can use that interpolation manually and add any filters you like. For example, you might use `{ { name | lowercase } }` instead of `\(nameAttribute)` to get the lowercased value of the name attribute.
+Utilizando a interpolação de cadeia de caracteres, `\(nameAttribute)` acima
+resolveria para `{{ name }}`. Se pretender utilizar filtros Stencil na definição
+do modelo, pode utilizar essa interpolação manualmente e adicionar os filtros
+que pretender. Por exemplo, pode utilizar `{ { nome | minúsculas } }` em vez de
+`\(nameAttribute)` para obter o valor em minúsculas do atributo name.
 
-You can also use `.directory` which gives the possibility to copy entire folders to a given path.
+Também pode utilizar `.diretory` que dá a possibilidade de copiar pastas
+inteiras para um determinado caminho.
 
-> [!TIP] PROJECT DESCRIPTION HELPERS
-> Templates support the use of <LocalizedLink href="/guides/features/projects/code-sharing">project description helpers</LocalizedLink> to reuse code across templates.
+> [Os modelos suportam a utilização de
+> <LocalizedLink href="/guides/features/projects/code-sharing">ajudantes de
+> descrição de projectos</LocalizedLink> para reutilizar código entre modelos.
