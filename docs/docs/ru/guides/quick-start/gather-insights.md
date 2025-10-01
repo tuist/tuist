@@ -1,23 +1,25 @@
 ---
 {
   "title": "Gather insights",
-  "titleTemplate": ":title · Начало · Руководства · Tuist",
+  "titleTemplate": ":title · Quick-start · Guides · Tuist",
   "description": "Learn how to gather insights about your project."
 }
 ---
-# Gather insights {#gather-insights}
+# Собирайте информацию {#gather-insights}
 
-Tuist can integrate with a server to extend its capabilities. One of those capabilities is gathering insights about your project and builds. All you need is to have an account with a project in the server.
+Tuist может интегрироваться с сервером, чтобы расширить его возможности. Одна из
+таких возможностей - сбор информации о вашем проекте и сборках. Все, что вам
+нужно, - это иметь учетную запись с проектом на сервере.
 
-First of all, you'll need to authenticate by running:
+Прежде всего, вам нужно пройти аутентификацию:
 
 ```bash
 tuist auth login
 ```
 
-## Создание проекта {#create-a-project}
+## Создайте проект {#create-a-project}
 
-You can then create a project by running:
+Затем вы можете создать проект, выполнив команду:
 
 ```bash
 tuist project create my-handle/MyApp
@@ -25,11 +27,13 @@ tuist project create my-handle/MyApp
 # Tuist project my-handle/MyApp was successfully created 🎉 {#tuist-project-myhandlemyapp-was-successfully-created-}
 ```
 
-Copy `my-handle/MyApp`, which represents the full handle of the project.
+Скопируйте `my-handle/MyApp`, который представляет собой полный хэндл проекта.
 
-## Connect projects {#connect-projects}
+## Подключение проектов {#connect-projects}
 
-After creating the project on the server, you'll have to connect it to your local project. Run `tuist edit` and edit the `Tuist.swift` file to include the full handle of the project:
+После создания проекта на сервере вам нужно будет подключить его к локальному
+проекту. Запустите `tuist edit` и отредактируйте файл `Tuist.swift`, включив в
+него полное имя проекта:
 
 ```swift
 import ProjectDescription
@@ -37,12 +41,17 @@ import ProjectDescription
 let tuist = Tuist(fullHandle: "my-handle/MyApp")
 ```
 
-Voilà! You're now ready to gather insights about your project and builds. Run `tuist test` to run the tests reporting the results to the server.
+Вуаля! Теперь вы готовы к сбору информации о вашем проекте и сборках. Запустите
+`tuist test`, чтобы запустить тесты, сообщающие о результатах на сервер.
 
-> [!NOTE]
-> Tuist enqueues the results locally and tries to send them without blocking the command. Therefore, they might not be sent immediately after the command finishes. In CI, the results are sent immediately.
+> [!ПРИМЕЧАНИЕ] Tuist записывает результаты локально и пытается отправить их, не
+> блокируя команду. Поэтому они могут быть отправлены не сразу после завершения
+> команды. В CI результаты отправляются немедленно.
 
-![An image that shows a list of runs in the server](/images/guides/quick-start/runs.png)
 
-Having data from your projects and builds is crucial in making informed decisions.
-Tuist will continue to extend its capabilities, and you'll benefit from them without having to change your project configuration. Magic, right? 🪄
+![Изображение, показывающее список запусков на
+сервере](/images/guides/quick-start/runs.png)
+
+Данные о ваших проектах и сборках очень важны для принятия обоснованных решений.
+Tuist будет продолжать расширять свои возможности, и вы сможете пользоваться ими
+без необходимости менять конфигурацию проекта. Волшебно, правда? 🪄
