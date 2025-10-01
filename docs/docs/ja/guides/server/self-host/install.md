@@ -5,217 +5,271 @@
   "description": "Learn how to install Tuist on your infrastructure."
 }
 ---
-# On-premise installation {#onpremise-installation}
+# セルフホストインストール {#self-host-installation}
 
-We offer a self-hosted version of the Tuist server for organizations that require more control over their infrastructure. This version allows you to host Tuist on your own infrastructure, ensuring that your data remains secure and private.
+私たちは、インフラストラクチャをよりコントロールする必要がある組織向けに、Tuistサーバーのセルフホストバージョンを提供しています。このバージョンでは、お客様のインフラストラクチャ上でTuistをホストすることができ、お客様のデータが安全かつプライベートに保たれることを保証します。
 
-> [!IMPORTANT] ENTERPRISE CUSTOMERS ONLY
-> The on-premise version of Tuist is available only for organizations on the Enterprise plan. If you are interested in this version, please reach out to [contact@tuist.dev](mailto:contact@tuist.dev).
+> [重要] ライセンスの必要性
+> Tuistのセルフホスティングには、法的に有効な有償ライセンスが必要です。Tuistのオンプレミスバージョンは、Enterpriseプランの組織でのみご利用いただけます。このバージョンにご興味のある方は、[contact@tuist.dev](mailto:contact@tuist.dev)までご連絡ください。
 
-## Release cadence {#release-cadence}
+## リリースケイデンス{#release-cadence}。
 
-The Tuist server is **released every Monday** and the version name follows the convention name `{MAJOR}.YY.MM.DD`. The date component is used to warn the CLI user if their hosted version is 60 days older than the release date of the CLI. It's crucial that on-premise organizations keep up with Tuist updates to ensure their developers benefit from the most recent improvements and that we can drop deprecated features with the confidence that we are not breaking any of the on-premise setups.
+Tuistの新バージョンは、新しいリリース可能な変更がmainに載るたびに継続的にリリースしています。私たちは[semantic
+versioning](https://semver.org/)に従って、予測可能なバージョニングと互換性を保証します。
 
-The major component of the CLI is used to flag breaking changes in the Tuist server that will require coordination with the on-premise users. You should not expect us to use it, and in case we needed, rest asure we'll work with you in making the transition smooth.
+この主要なコンポーネントは、オンプレミスのユーザーとの調整が必要となるTuistサーバーの変更にフラグを立てるために使用されます。私たちがそれを使うことを期待しないでください。万が一必要になったとしても、私たちはスムーズな移行ができるよう協力しますのでご安心ください。
 
-> [!NOTE] RELEASE NOTES
-> You'll be given access to a `tuist/registry` repository associated with the registry where images are published. Every new released will be published in that repository as a GitHub release and will contain release notes to inform you about what changes come with it.
+## 継続的デプロイメント{#continuous-deployment}。
 
-## Runtime requirements {#runtime-requirements}
+Tuistの最新バージョンを毎日自動的にデプロイする継続的デプロイメントパイプラインを設定することを強くお勧めします。これにより、常に最新の機能、改善、セキュリティアップデートにアクセスできるようになります。
 
-This section outlines the requirements for hosting the Tuist server on your infrastructure.
+毎日新しいバージョンをチェックしてデプロイする GitHub Actions のワークフローの例です：
 
-### Running Docker-virtualized images {#running-dockervirtualized-images}
+```yaml
+name: Update Tuist Server
+on:
+  schedule:
+    - cron: '0 3 * * *' # Run daily at 3 AM UTC
+  workflow_dispatch: # Allow manual runs
 
-We distribute the server as a [Docker](https://www.docker.com/) image via [GitHub’s Container Registry](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry).
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check and deploy latest version
+        run: |
+          # Your deployment commands here
+          # Example: docker pull ghcr.io/tuist/tuist:latest
+          # Deploy to your infrastructure
+```
 
-To run it, your infrastructure must support running Docker images. Note that most infrastructure providers support it because it’s become the standard container for distributing and running software in production environments.
+## ランタイム要件 {#runtime-requirements}
 
-### Postgres database {#postgres-database}
+このセクションでは、Tuistサーバーをお客様のインフラストラクチャでホスティングするための要件を概説します。
 
-In addition to running the Docker images, you’ll need a [Postgres database](https://www.postgresql.org/) to store relational data. Most infrastructure providers include Posgres databases in their offering (e.g., [AWS](https://aws.amazon.com/rds/postgresql/) & [Google Cloud](https://cloud.google.com/sql/docs/postgres)).
+### Docker-仮想化イメージの実行 {#running-dockervirtualized-images}。
 
-For performant analytics, we use a [Timescale Postgres extension](https://www.timescale.com/). You need to make sure that TimescaleDB is installed on the machine running the Postgres database. Follow the installation instructions [here](https://docs.timescale.com/self-hosted/latest/install/) to learn more. If you are unable to install the Timescale extension, you can set up your own dashboard using the Prometheus metrics.
+サーバーは[Docker](https://www.docker.com/)イメージとして[GitHub's Container
+Registry](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry)経由で配布します。
 
-> [!INFO] MIGRATIONS
-> The Docker image's entrypoint automatically runs any pending schema migrations before starting the service.
+これを実行するには、インフラがDockerイメージの実行をサポートしていなければならない。ほとんどのインフラ・プロバイダーがDockerをサポートしているのは、Dockerが本番環境でソフトウェアを配布・実行するための標準的なコンテナになっているからだ。
 
-### ClickHouse database {#clickhouse-database}
+### Postgresデータベース{#postgres-database}。
 
-To store large amount of data, we are using [ClickHouse](https://clickhouse.com/). Some features, like build insights, will only work with ClickHouse enabled. ClickHouse will eventually replace the Timescale Postgres extension. You can choose whether to self-host ClickHouse or use their hosted service.
+Dockerイメージの実行に加えて、リレーショナルデータを保存するための[Postgresデータベース](https://www.postgresql.org/)が必要です。ほとんどのインフラプロバイダーはPosgresデータベースを提供しています（例えば[AWS](https://aws.amazon.com/rds/postgresql/)や[Google
+Cloud](https://cloud.google.com/sql/docs/postgres)）。
 
-> [!INFO] MIGRATIONS
-> The Docker image's entrypoint automatically runs any pending ClickHouse schema migrations before starting the service.
+パフォーマンス分析には、[Timescale Postgres
+extension](https://www.timescale.com/)を使用します。Postgresデータベースを実行しているマシンにTimescaleDBがインストールされていることを確認する必要があります。詳しくは[こちら](https://docs.timescale.com/self-hosted/latest/install/)のインストール手順に従ってください。Timescaleエクステンションをインストールできない場合は、Prometheusメトリクスを使用して独自のダッシュボードを設定することができます。
 
-### Storage {#storage}
+> [Docker イメージのエントリーポイントは、サービスを開始する前に、保留中のスキーマ・マイグレーションを自動的に実行します。
 
-You’ll also need a solution to store files (e.g. framework and library binaries). Currently we support any storage that's S3-compliant.
+### クリックハウスデータベース {#clickhouse-database}
 
-## Configuration {#configuration}
+大量のデータを保存するために、私たちは[ClickHouse](https://clickhouse.com/)を使用しています。ビルドインサイトのようないくつかの機能は、ClickHouseが有効でなければ動作しません。ClickHouseは最終的にTimescale
+Postgresエクステンションに取って代わる予定です。ClickHouseをセルフホストするか、ホスティングサービスを利用するかを選択できます。
 
-The configuration of the service is done at runtime through environment variables. Given the sensitive nature of these variables, we advise encrypting and storing them in secure password management solutions. Rest assured, Tuist handles these variables with utmost care, ensuring they are never displayed in logs.
+> [Docker イメージのエントリーポイントは、サービスを開始する前に、保留中のClickHouseスキーマ・マイグレーションを自動的に実行します。
 
-> [!NOTE] LAUNCH CHECKS
-> The necessary variables are verified at startup. If any are missing, the launch will fail and the error message will detail the absent variables.
+### ストレージ {#storage}
 
-### License configuration {#license-configuration}
+また、ファイル（フレームワークやライブラリのバイナリなど）を保存するソリューションも必要です。現在、私たちはS3に準拠したストレージをサポートしています。
 
-As an on-premise user, you'll receive a license key that you'll need to expose as an environment variable. This key is used to validate the license and ensure that the service is running within the terms of the agreement.
+## コンフィギュレーション {#configuration}
 
-| Environment variable | Description                                                    | Required | Default | Example  |
-| -------------------- | -------------------------------------------------------------- | -------- | ------- | -------- |
-| `TUIST_LICENSE`      | The license provided after signing the service level agreement | Yes      |         | `******` |
+サービスのコンフィギュレーションは、環境変数を通して実行時に行われます。これらの変数は機密性が高いため、暗号化して安全なパスワード管理ソリューションに保存することをお勧めします。ご安心ください、Tuistはこれらの変数を細心の注意を払って扱い、ログに表示されることがないようにしています。
 
-> [!IMPORTANT] EXPIRATION DATE
-> Licenses have an expiration date. Users will receive a warning while using Tuist commands that interact with the server if the license expires in less than 30 days. If you are interested in renewing your license, please reach out to [contact@tuist.dev](mailto:contact@tuist.dev).
+> [必要な変数は起動時に確認されます。欠落している変数がある場合、起動は失敗し、エラーメッセージに欠落している変数の詳細が表示されます。
 
-### Base environment configuration {#base-environment-configuration}
+### ライセンス設定 {#license-configuration}
 
-| Environment variable           | Description                                                                                                          | Required | Default                  | Example                                                                  |                                                                                                                                    |
-| ------------------------------ | -------------------------------------------------------------------------------------------------------------------- | -------- | ------------------------ | ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `TUIST_APP_URL`                | The base URL to access the instance from the Internet                                                                | Yes      |                          | https://cloud.tuist.io   |                                                                                                                                    |
-| `TUIST_SECRET_KEY_BASE`        | The key to use to encrypt information (e.g. sessions in a cookie) | Yes      |                          |                                                                          | `c5786d9f869239cbddeca645575349a570ffebb332b64400c37256e1c9cb7ec831345d03dc0188edd129d09580d8cbf3ceaf17768e2048c037d9c31da5dcacfa` |
-| `TUIST_SECRET_KEY_PASSWORD`    | Pepper to generate hashed passwords                                                                                  | No       | `$TUIST_SECRET_KEY_BASE` |                                                                          |                                                                                                                                    |
-| `TUIST_SECRET_KEY_TOKENS`      | Secret key to generate random tokens                                                                                 | No       | `$TUIST_SECRET_KEY_BASE` |                                                                          |                                                                                                                                    |
-| `TUIST_USE_IPV6`               | When `1` it configures the app to use IPv6 addresses                                                                 | No       | `0`                      | `1`                                                                      |                                                                                                                                    |
-| `TUIST_LOG_LEVEL`              | The log level to use for the app                                                                                     | No       | `info`                   | [Log levels](https://hexdocs.pm/logger/1.12.3/Logger.html#module-levels) |                                                                                                                                    |
-| `TUIST_GITHUB_APP_PRIVATE_KEY` | The private key used for the GitHub app to unlock extra functionality such as posting automatic PR comments          | No       | `-----BEGIN RSA...`      |                                                                          |                                                                                                                                    |
-| `TUIST_OPS_USER_HANDLES`       | A comma-separated list of user handles that have access to the operations URLs                                       | No       |                          | `user1,user2`                                                            |                                                                                                                                    |
+オンプレミスのユーザーとして、環境変数として公開する必要があるライセンスキーを受け取ります。このキーは、ライセンスを検証し、サービスが契約条件の範囲内で実行されていることを確認するために使用されます。
 
-### Database configuration {#database-configuration}
+| 環境変数                               | 説明                                                                                                                                      | 必須  | デフォルト | 例                                         |
+| ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | --- | ----- | ----------------------------------------- |
+| `TUIST_LICENSE`                    | サービスレベル契約締結後に提供されるライセンス                                                                                                                 | はい  |       | `******`                                  |
+| `tuist_license_certificate_base64` | ****`TUIST_LICENSE` の例外的な代替手段。Base64 エンコードされた公開証明書で、サーバーが外部サービスと通信できないエアギャップ環境でオフラインのライセンス検証を行います。 TUIST_LICENSE が使用できない場合のみ使用してください。`` | はい  |       | `LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0t...` |
 
-The following environment variables are used to configure the database connection:
+\*`TUIST_LICENSE` または`TUIST_LICENSE_CERTIFICATE_BASE64`
+のどちらかを提供する必要がありますが、両方を提供する必要はありません。標準的なデプロイメントには`TUIST_LICENSE` を使用してください。
 
-| Environment variable            | Description                                                                                                                                                                                                                                                            | Required | Default | Example                                                                |
-| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ------- | ---------------------------------------------------------------------- |
-| `DATABASE_URL`                  | The URL to access the Postgres database. Note that the URL should contain the authentication information                                                                                                                                               | Yes      |         | `postgres://username:password@cloud.us-east-2.aws.test.com/production` |
-| `TUIST_CLICKHOUSE_URL`          | The URL to access the ClickHouse database. Note that the URL should contain the authentication information                                                                                                                                             | No       |         | `http://username:password@cloud.us-east-2.aws.test.com/production`     |
-| `TUIST_USE_SSL_FOR_DATABASE`    | When true, it uses [SSL](https://en.wikipedia.org/wiki/Transport_Layer_Security) to connect to the database                                                                                                                                                            | No       | `1`     | `1`                                                                    |
-| `TUIST_DATABASE_POOL_SIZE`      | The number of connections to keep open in the connection pool                                                                                                                                                                                                          | No       | `10`    | `10`                                                                   |
-| `TUIST_DATABASE_QUEUE_TARGET`   | The interval (in miliseconds) for checking if all the connections checked out from the pool took more than the queue interval [(More information)](https://hexdocs.pm/db_connection/DBConnection.html#start_link/2-queue-config) | No       | `300`   | `300`                                                                  |
-| `TUIST_DATABASE_QUEUE_INTERVAL` | The threshold time (in miliseconds) in the queue that the pool uses to determine if it should start dropping new connections [(More information)](https://hexdocs.pm/db_connection/DBConnection.html#start_link/2-queue-config)  | No       | `1000`  | `1000`                                                                 |
+> [重要】有効期限
+> ライセンスには有効期限があります。ライセンスの有効期限が30日未満である場合、サーバーと相互作用するTuistコマンドの使用中に警告が表示されます。ライセンスの更新をご希望の場合は、[contact@tuist.dev](mailto:contact@tuist.dev)までご連絡ください。
 
-### Authentication environment configuration {#authentication-environment-configuration}
+### ベース環境設定{#base-environment-configuration}。
 
-We facilitate authentication through [identity providers (IdP)](https://en.wikipedia.org/wiki/Identity_provider). To utilize this, ensure all necessary environment variables for the chosen provider are present in the server's environment. **Missing variables** will result in Tuist bypassing that provider.
+| 環境変数                                  | 説明                                                                                             | 必須  | デフォルト                              | 例                                                                    |                                                                                                                                    |
+| ------------------------------------- | ---------------------------------------------------------------------------------------------- | --- | ---------------------------------- | -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `TUIST_APP_URL`                       | インターネットからインスタンスにアクセスするためのベースURL                                                                | はい  |                                    | https://tuist.dev                                                    |                                                                                                                                    |
+| `tuist_secret_key_base`               | 情報の暗号化に使用するキー（クッキーのセッションなど）                                                                    | はい  |                                    |                                                                      | `c5786d9f869239cbddeca645575349a570ffebb332b64400c37256e1c9cb7ec831345d03dc0188edd129d09580d8cbf3ceaf17768e2048c037d9c31da5dcacfa` |
+| `tuist_secret_key_password`           | ハッシュ化されたパスワードを生成するペッパー                                                                         | いいえ | `tuist_secret_key_base。`           |                                                                      |                                                                                                                                    |
+| `tuist_secret_key_tokens`             | ランダム・トークンを生成するためのシークレット・キー                                                                     | いいえ | `tuist_secret_key_base。`           |                                                                      |                                                                                                                                    |
+| `tuist_secret_key_encryption`         | 機密データのAES-GCM暗号化のための32バイトのキー                                                                   | いいえ | `tuist_secret_key_base。`           |                                                                      |                                                                                                                                    |
+| `TUIST_USE_IPV6`                      | `1` 、IPv6アドレスを使用するようにアプリを設定する。                                                                 | いいえ | `0`                                | `1`                                                                  |                                                                                                                                    |
+| `tuist_log_level`                     | アプリに使用するログレベル                                                                                  | いいえ | `インフォメーション`                        | [ログレベル](https://hexdocs.pm/logger/1.12.3/Logger.html#module-levels)。 |                                                                                                                                    |
+| `tuist_github_app_private_key_base64` | GitHubアプリで、PRコメントの自動投稿などの追加機能のロックを解除するために使用する、base64エンコードされた秘密鍵。                               | いいえ | `LS0tLS1CRUdJTiBSU0EgUFJJVkFUR...` |                                                                      |                                                                                                                                    |
+| `tuist_github_app_private_key`        | GitHub アプリで、PR コメントの自動投稿などの追加機能のロックを解除するために使用する秘密鍵。**特殊文字の問題を避けるため、base64 エンコード版を使うことを推奨します。** | いいえ | `-----RSAを開始する。`                   |                                                                      |                                                                                                                                    |
+| `tuist_ops_user_handles`              | 操作URLにアクセスできるユーザーハンドルのカンマ区切りリスト。                                                               | いいえ |                                    | `ユーザー1,ユーザー2`                                                        |                                                                                                                                    |
+| `TUIST_WEB`                           | ウェブ・サーバー・エンドポイントを有効にする                                                                         | いいえ | `1`                                | `1` または`0`                                                           |                                                                                                                                    |
 
-#### GitHub {#github}
+### データベース設定 {#database-configuration}
 
-We recommend authenticating using a [GitHub App](https://docs.github.com/en/apps/creating-github-apps/about-creating-github-apps/about-creating-github-apps) but you can also use the [OAuth App](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/creating-an-oauth-app). Make sure to include all essential environment variables specified by GitHub in the server environment. Absent variables will cause Tuist to overlook the GitHub authentication. To properly set up the GitHub app:
+以下の環境変数は、データベース接続の設定に使用されます：
 
-- In the GitHub app's general settings:
-  - Copy the `Client ID` and set it as `TUIST_GITHUB_APP_CLIENT_ID`
-  - Create and copy a new `client secret` and set it as `TUIST_GITHUB_APP_CLIENT_SECRET`
-  - Set the `Callback URL` as `http://YOUR_APP_URL/users/auth/github/callback`. `YOUR_APP_URL` can also be your server's IP address.
-- The following permissions are required:
-  - Repositories:
-    - Pull requests: Read and write
-  - Accounts:
-    - Email addresses: Read-only
+| 環境変数                                | 説明                                                                                                                                                 | 必須  | デフォルト     | 例                                                                      |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | --- | --------- | ---------------------------------------------------------------------- |
+| `DATABASE_URL`                      | PostgresデータベースにアクセスするためのURL。URLには認証情報を含める必要があることに注意してください。                                                                                         | はい  |           | `postgres://username:password@cloud.us-east-2.aws.test.com/production` |
+| `tuist_clickhouse_url`              | ClickHouseデータベースにアクセスするためのURLです。URLには認証情報を含める必要があります。                                                                                              | いいえ |           | `http://username:password@cloud.us-east-2.aws.test.com/production`     |
+| `tuist_use_ssl_for_database。`       | trueの場合、データベースへの接続に[SSL](https://en.wikipedia.org/wiki/Transport_Layer_Security)を使用する。                                                             | いいえ | `1`       | `1`                                                                    |
+| `tuist_database_pool_size`          | コネクションプールで開いておくコネクション数                                                                                                                             | いいえ | `10`      | `10`                                                                   |
+| `tuist_database_queue_target`       | プールからチェックアウトされたすべての接続がキュー間隔以上かかったかどうかをチェックする間隔 (ミリ秒単位) [(詳細)](https://hexdocs.pm/db_connection/DBConnection.html#start_link/2-queue-config)。       | いいえ | `300`     | `300`                                                                  |
+| `tuist_database_queue_interval`     | プールが新しいコネクションのドロップを開始すべきかどうかを決定するために使用する、キュー内のしきい値時間 (ミリ秒単位) [(詳細)](https://hexdocs.pm/db_connection/DBConnection.html#start_link/2-queue-config)。 | いいえ | `1000`    | `1000`                                                                 |
+| `tuist_クリックハウス_フラッシュ_インターバル_ms`     | ClickHouseバッファフラッシュ間のミリ秒単位の時間間隔                                                                                                                    | いいえ | `5000`    | `5000`                                                                 |
+| `tuist_clickhouse_max_buffer_size`  | フラッシュを強制する前のClickHouseバッファの最大サイズ（バイト単位                                                                                                             | いいえ | `1000000` | `1000000`                                                              |
+| `tuist_clickhouse_buffer_pool_size` | ClickHouseバッファプロセスの実行数                                                                                                                             | いいえ | `5`       | `5`                                                                    |
 
-In the `Permissions and events`'s `Account permissions` section, set the `Email addresses` permission to `Read-only`.
+### 認証環境設定{#authentication-environment-configuration}。
 
-You'll then need to expose the following environment variables in the environment where the Tuist server runs:
+IDプロバイダ(IdP)](https://en.wikipedia.org/wiki/Identity_provider)を介した認証を容易にします。これを利用するには、選択したプロバイダに必要なすべての環境変数がサーバの環境に存在することを確認してください。****
+変数が欠落していると、Tuist はそのプロバイダをバイパスすることになります。
 
-| Environment variable             | Description                             | Required | Default | Example                                    |
-| -------------------------------- | --------------------------------------- | -------- | ------- | ------------------------------------------ |
-| `TUIST_GITHUB_APP_CLIENT_ID`     | The client ID of the GitHub application | Yes      |         | `Iv1.a629723000043722`                     |
-| `TUIST_GITHUB_APP_CLIENT_SECRET` | The client secret of the application    | Yes      |         | `232f972951033b89799b0fd24566a04d83f44ccc` |
+#### ギットハブ {#github}
 
-#### Google {#google}
+GitHub
+App](https://docs.github.com/en/apps/creating-github-apps/about-creating-github-apps/about-creating-github-apps)を使った認証を推奨しますが、[OAuth
+App](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/creating-an-oauth-app)を使うこともできます。サーバー環境には、GitHubが指定する必須環境変数をすべて含めるようにしてください。変数がないと、TuistはGitHub認証を見落としてしまいます。GitHubアプリを適切に設定するには：
+- GitHubアプリの一般設定：
+    - `クライアント ID` をコピーし、`TUIST_GITHUB_APP_CLIENT_ID として設定します。`
+    - 新しい`クライアントシークレット` を作成・コピーし、`TUIST_GITHUB_APP_CLIENT_SECRET として設定します。`
+    - `コールバックURL` を`http://YOUR_APP_URL/users/auth/github/callback`
+      のように設定します。`YOUR_APP_URL` には、サーバーのIPアドレスを指定することもできます。
+- 以下のパーミッションが必要です：
+  - リポジトリ：
+    - プルリクエスト読み書き
+  - アカウント
+    - メールアドレス読み取り専用
 
-You can set up authentication with Google using [OAuth 2](https://developers.google.com/identity/protocols/oauth2). For that, you'll need to create a new credential of type OAuth client ID. When creating the credentials, select "Web Application" as application type, name it `Tuist`, and set the redirect URI to `{base_url}/users/auth/google/callback` where `base_url` is the URL your hosted-service is running at. Once you create the app, copy the client ID and secret and set them as environment variables `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` respectively.
+`Permissions and events`'s`Account permissions` section, set`Email addresses`
+permission to`Read-only`.
 
-> [!NOTE] CONSENT SCREEN SCOPES
-> You might need to create a consent screen. When you do so, make sure to add the `userinfo.email` and `openid` scopes and mark the app as internal.
+次に、Tuistサーバーが動作する環境で以下の環境変数を公開する必要がある：
+
+| 環境変数                             | 説明                      | 必須  | デフォルト | 例                                          |
+| -------------------------------- | ----------------------- | --- | ----- | ------------------------------------------ |
+| `tuist_github_app_client_id`     | GitHubアプリケーションのクライアントID | はい  |       | `Iv1.a629723000043722`                     |
+| `tuist_github_app_client_secret` | アプリケーションのクライアントシークレット   | はい  |       | `232f972951033b89799b0fd24566a04d83f44ccc` |
+
+#### グーグル
+
+OAuth
+2](https://developers.google.com/identity/protocols/oauth2)を使用してGoogleとの認証を設定できます。そのためには、OAuthクライアントIDタイプの新しいクレデンシャルを作成する必要がある。クレデンシャルを作成する際、アプリケーションタイプとして
+"Web Application "を選択し、名前を`Tuist`
+とし、リダイレクトURIを`{base_url}/users/auth/google/callback` に設定する。`base_url`
+は、ホストしているサービスが稼働しているURLである。アプリを作成したら、クライアントIDとシークレットをコピーし、それぞれ環境変数`GOOGLE_CLIENT_ID`
+と`GOOGLE_CLIENT_SECRET` に設定する。
+
+> [注意]同意画面スコープ 同意画面を作成する必要があるかもしれない。その際、`userinfo.email` と`openid`
+> スコープを追加し、アプリを内部としてマークすることを確認してください。
 
 #### Okta {#okta}
 
-You can enable authentication with Okta through the [OAuth 2.0](https://oauth.net/2/) protocol. You'll have to [create an app](https://developer.okta.com/docs/en/guides/implement-oauth-for-okta/main/#create-an-oauth-2-0-app-in-okta) on Okta with the following configuration:
+OAuth2.0](https://oauth.net/2/)プロトコルにより、Oktaで認証を有効にすることができます。3}以下の手順に従って、Okta上で[アプリを作成](https://developer.okta.com/docs/en/guides/implement-oauth-for-okta/main/#create-an-oauth-2-0-app-in-okta)する必要があります</LocalizedLink>。
 
-- **App integration name:** `Tuist`
-- **Grant type:** Enable _Authorization Code_ for _Client acting on behalf of a user_
-- **Sign-in redirect URL:** `{url}/users/auth/okta/callback` where `url` is the public URL your service is accessed through.
-- **Assignments:** This configuration will depend on your security team requirements.
+Oktaアプリケーションのセットアップ時にクライアントIDとシークレットを取得したら、以下の環境変数を設定する必要があります：
 
-Once the app is created you'll need to set the following environment variables:
+| 環境変数                         | 説明                                        | 必須  | デフォルト | 例   |
+| ---------------------------- | ----------------------------------------- | --- | ----- | --- |
+| `tuist_okta_1_client_id`     | Oktaと認証するためのクライアントID。この番号は組織IDでなければなりません。 | はい  |       |     |
+| `tuist_okta_1_client_secret` | Oktaと認証するためのクライアントシークレット                  | はい  |       |     |
 
-| Environment variable       | Description                                    | Required | Default | Example                     |
-| -------------------------- | ---------------------------------------------- | -------- | ------- | --------------------------- |
-| `TUIST_OKTA_SITE`          | The URL of your Okta organization              | Yes      |         | `https://your-org.okta.com` |
-| `TUIST_OKTA_CLIENT_ID`     | The client ID to authenticate against Okta     | Yes      |         |                             |
-| `TUIST_OKTA_CLIENT_SECRET` | The client secret to authenticate against Okta | Yes      |         |                             |
+`1` の数字を組織IDに置き換える必要がある。これは通常1ですが、データベースで確認してください。
 
-### Storage environment configuration {#storage-environment-configuration}
+### ストレージ環境設定 {#storage-environment-configuration}。
 
-Tuist needs storage to house artifacts uploaded through the API. It's **essential to configure one of the supported storage solutions** for Tuist to operate effectively.
+Tuistは、APIを通じてアップロードされた成果物を格納するストレージを必要とする。**Tuistが効果的に動作するためには、サポートされているストレージソリューション**
+のいずれかを設定することが不可欠である。
 
-#### S3-compliant storages {#s3compliant-storages}
+#### S3 準拠のストレージ {#s3compliant-storages}.
 
-You can use any S3-compliant storage provider to store artifacts. The following environment variables are required to authenticate and configure the integration with the storage provider:
+アーティファクトの保存には、任意の S3
+準拠のストレージ・プロバイダを使用できます。ストレージプロバイダとの統合を認証および構成するには、以下の環境変数が必要です：
 
-| Environment variable                                 | Description                                                                                                                   | Required | Default | Example                                    |
-| ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | -------- | ------- | ------------------------------------------ |
-| `TUIST_ACCESS_KEY_ID` or `AWS_ACCESS_KEY_ID`         | The access key ID to authenticate against the storage provider                                                                | Yes      |         | `AKIAIOSFOD`                               |
-| `TUIST_SECRET_ACCESS_KEY` or `AWS_SECRET_ACCESS_KEY` | The secret access key to authenticate against the storage provider                                                            | Yes      |         | `wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY` |
-| `TUIST_S3_REGION` or `AWS_REGION`                    | The region where the bucket is located                                                                                        | Yes      |         | `us-west-2`                                |
-| `TUIST_S3_ENDPOINT` or `AWS_ENDPOINT`                | The endpoint of the storage provider                                                                                          | Yes      |         | `https://s3.us-west-2.amazonaws.com`       |
-| `TUIST_S3_BUCKET_NAME`                               | The name of the bucket where the artifacts will be stored                                                                     | Yes      |         | `tuist-artifacts`                          |
-| `TUIST_S3_REQUEST_TIMEOUT`                           | The timeout (in seconds) for requests to the storage provider                                              | No       | `30`    | `30`                                       |
-| `TUIST_S3_POOL_TIMEOUT`                              | The timeout (in seconds) for the connection pool to the storage provider                                   | No       | `5`     | `5`                                        |
-| `TUIST_S3_POOL_COUNT`                                | The number of pools to use for connections to the storage provider                                                            | No       | `1`     | `1`                                        |
-| `TUIST_S3_PROTOCOL`                                  | The protocol to use when connecting to the storage provider (`http1` or `http2`)                           | No       | `http2` | `http2`                                    |
-| `TUIST_S3_VIRTUAL_HOST`                              | Whether the URL should be constructed with the bucket name as a sub-domain (virtual host). | No       | No      | `1`                                        |
+| 環境変数                                                 | 説明                                                            | 必須  | デフォルト           | 例                                          |
+| ---------------------------------------------------- | ------------------------------------------------------------- | --- | --------------- | ------------------------------------------ |
+| `TUIST_ACCESS_KEY_ID` または`AWS_ACCESS_KEY_ID`         | ストレージ・プロバイダに対して認証するためのアクセス・キーID。                              | はい  |                 | `アキアイオスフォード`                               |
+| `TUIST_SECRET_ACCESS_KEY` または`AWS_SECRET_ACCESS_KEY` | ストレージ・プロバイダに対して認証するための秘密のアクセス・キー。                             | はい  |                 | `wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY` |
+| `TUIST_S3_REGION` または`AWS_REGION`                    | バケツがある地域                                                      | いいえ | `オート`           | `米西2`                                      |
+| `TUIST_S3_ENDPOINT` または`AWS_ENDPOINT`                | ストレージ・プロバイダのエンドポイント                                           | はい  |                 | `https://s3.us-west-2.amazonaws.com`       |
+| `tuist_s3_バケット名`                                     | 成果物が保存されるバケツの名前                                               | はい  |                 | `ツイスト・アーティファクト`                            |
+| `tuist_s3_connect_timeout`                           | ストレージ・プロバイダへの接続を確立するためのタイムアウト（ミリ秒）。                           | いいえ | `3000`          | `3000`                                     |
+| `tuist_s3_receive_timeout`                           | ストレージ・プロバイダからデータを受信するタイムアウト（ミリ秒単位                             | いいえ | `5000`          | `5000`                                     |
+| `tuist_s3_pool_timeout`                              | ストレージ・プロバイダへの接続プールのタイムアウト（ミリ秒）。タイムアウトなしの場合は`infinity` を使用します。 | いいえ | `5000`          | `5000`                                     |
+| `tuist_s3_pool_max_idle_time`                        | プール内の接続の最大アイドル時間 (ミリ秒単位)。接続を無期限に維持するには`infinity` を使用する。       | いいえ | `インフィニティ`       | `60000`                                    |
+| `tuist_s3_pool_size`                                 | プールあたりの最大接続数                                                  | いいえ | `500`           | `500`                                      |
+| `tuist_s3_pool_count`                                | 使用するコネクションプールの数                                               | いいえ | システム・スケジューラの数   | `4`                                        |
+| `tuist_s3_protocol`                                  | ストレージ・プロバイダに接続する際に使用するプロトコル (`http1` または`http2`)              | いいえ | `エイチティーティーピーワン` | `エイチティーティーピーワン`                            |
+| `tuist_s3_virtual_host`                              | バケツ名をサブドメイン(バーチャルホスト)として URL を構築するかどうか。                       | いいえ | `擬似`            | `1`                                        |
 
-> [!NOTE] AWS authentication with Web Identity Token from environment variables
-> If your storage provider is AWS and you'd like to authenticate using a web identity token, you can set the environment variable `TUIST_S3_AUTHENTICATION_METHOD` to `aws_web_identity_token_from_env_vars`, and Tuist will use that method using the conventional AWS environment variables.
+> [!注意] 環境変数からのWeb Identity TokenによるAWS認証 ストレージプロバイダがAWSで、Web Identity
+> Tokenを使用して認証したい場合、環境変数`TUIST_S3_AUTHENTICATION_METHOD`
+> を`aws_web_identity_token_from_env_vars`
+> に設定すると、Tuistは従来のAWS環境変数を使用してその方法を使用します。
 
-#### Google Cloud Storage {#google-cloud-storage}
+#### Google Cloud Storage {#google-cloud-storage}。
+Google Cloud
+Storageの場合は、[これらのドキュメント](https://cloud.google.com/storage/docs/authentication/managing-hmackeys)に従って、`AWS_ACCESS_KEY_ID`
+と`AWS_SECRET_ACCESS_KEY` のペアを取得する。`AWS_ENDPOINT`
+は`https://storage.googleapis.com` に設定する。その他の環境変数は、他のS3準拠のストレージと同じである。
 
-For Google Cloud Storage, follow [these docs](https://cloud.google.com/storage/docs/authentication/managing-hmackeys) to get the `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` pair. The `AWS_ENDPOINT` should be set to `https://storage.googleapis.com`. Other environment variables are the same as for any other S3-compliant storage.
+### Gitプラットフォームの設定 {#git-platform-configuration}
 
-### Git platform configuration {#git-platform-configuration}
+Tuistは<LocalizedLink href="/guides/server/authentication">Gitプラットフォーム</LocalizedLink>と統合して、プルリクエストにコメントを自動的に投稿するなどの追加機能を提供することができる。
 
-Tuist can <LocalizedLink href="/server/introduction/integrations#git-platforms">integrate with Git platforms</LocalizedLink> to provide extra features such as automatically posting comments in your pull requests.
+#### ギットハブ {#platform-github}
 
-#### GitHub {#platform-github}
+GitHub
+アプリを作成する](https://docs.github.com/en/apps/creating-github-apps/about-creating-github-apps/about-creating-github-apps)
+必要があります。OAuth GitHub アプリを作成したのでなければ、認証用に作成したものを再利用できます。`Permissions and
+events`'の`Repository permissions` セクションで、さらに`Pull requests` permission を`Read
+and write` に設定する必要があります。
 
-You will need to [create a GitHub app](https://docs.github.com/en/apps/creating-github-apps/about-creating-github-apps/about-creating-github-apps). You can reuse the one you created for authentication, unless you created an OAuth GitHub app. In the `Permissions and events`'s `Repository permissions` section, you will need to additionally set the `Pull requests` permission to `Read and write`.
+`TUIST_GITHUB_APP_CLIENT_ID` と`TUIST_GITHUB_APP_CLIENT_SECRET` の上に、以下の環境変数が必要です：
 
-On top of the `TUIST_GITHUB_APP_CLIENT_ID` and `TUIST_GITHUB_APP_CLIENT_SECRET`, you will need the following environment variables:
+| 環境変数                           | 説明                 | 必須  | デフォルト | 例                         |
+| ------------------------------ | ------------------ | --- | ----- | ------------------------- |
+| `tuist_github_app_private_key` | GitHubアプリケーションの秘密鍵 | はい  |       | `-----RSA秘密鍵の開始------...` |
 
-| Environment variable           | Description                               | Required | Default | Example                              |
-| ------------------------------ | ----------------------------------------- | -------- | ------- | ------------------------------------ |
-| `TUIST_GITHUB_APP_PRIVATE_KEY` | The private key of the GitHub application | Yes      |         | `-----BEGIN RSA PRIVATE KEY-----...` |
+## デプロイメント{#deployment}。
 
-## Deployment {#deployment}
+公式のTuist Dockerイメージは以下で入手できる：
+```
+ghcr.io/tuist/tuist
+```
 
-On-premise users are granted access to the repository located at [tuist/registry](https://github.com/cloud/registry) which has a linked container registry for pulling images. Currently, the container registry allows authentication only as an individual user. Therefore, users with repository access must generate a **personal access token** within the Tuist organization, ensuring they have the necessary permissions to read packages. After submission, we will promptly approve this token.
+### Dockerイメージのプル{#pulling-the-docker-image}。
 
-> [!IMPORTANT] USER VS ORGANIZATION-SCOPED TOKENS
-> Using a personal access token presents a challenge because it's associated with an individual who might eventually depart from the enterprise organization. GitHub recognizes this limitation and is actively developing a solution to allow GitHub apps to authenticate with app-generated tokens.
-
-### Pulling the Docker image {#pulling-the-docker-image}
-
-After generating the token, you can retrieve the image by executing the following command:
+以下のコマンドを実行すれば、画像を取り出すことができる：
 
 ```bash
-echo $TOKEN | docker login ghcr.io -u USERNAME --password-stdin
 docker pull ghcr.io/tuist/tuist:latest
 ```
 
-### Deploying the Docker image {#deploying-the-docker-image}
+あるいは特定のバージョンを引き出す：
+```bash
+docker pull ghcr.io/tuist/tuist:0.1.0
+```
 
-The deployment process for the Docker image will differ based on your chosen cloud provider and your organization's continuous deployment approach. Since most cloud solutions and tools, like [Kubernetes](https://kubernetes.io/), utilize Docker images as fundamental units, the examples in this section should align well with your existing setup.
+### Dockerイメージをデプロイする {#deploying-the-docker-image}
 
-We recommend establishing a deployment pipeline that that runs **every Tuesday**, pulling and deploying fresh images. This ensures you consistently benefit from the latest improvements.
+Dockerイメージのデプロイプロセスは、選択したクラウドプロバイダと組織の継続的なデプロイアプローチによって異なります。Kubernetes](https://kubernetes.io/)のようなほとんどのクラウドソリューションやツールは、基本的な単位としてDockerイメージを利用しているため、このセクションの例は既存のセットアップとうまく一致するはずです。
 
-> [!IMPORTANT]
-> If your deployment pipeline needs to validate that the server is up and running, you can send a `GET` HTTP request to `/ready` and assert a `200` status code in the response.
+> [重要]デプロイメントパイプラインでサーバーが稼働していることを検証する必要がある場合、`GET` HTTPリクエストを`/ready`
+> に送り、レスポンスで`200` ステータスコードをアサートすることができる。
 
-#### Fly {#fly}
+#### 飛ぶ {#fly}
 
-To deploy the app on [Fly](https://fly.io/), you'll require a `fly.toml` configuration file. Consider generating it dynamically within your Continuous Deployment (CD) pipeline. Below is a reference example for your use:
+アプリを [Fly](https://fly.io/) にデプロイするには、`fly.toml`
+設定ファイルが必要です。継続的デプロイメント（CD）パイプライン内で動的に生成することを検討してください。以下に参考例を示します：
 
 ```toml
 app = "tuist"
@@ -269,11 +323,13 @@ kill_timeout = "5s"
   url_prefix = "/"
 ```
 
-Then you can run `fly launch --local-only --no-deploy` to launch the app. On subsequent deploys, instead of running `fly launch --local-only`, you will need to run `fly deploy --local-only`. Fly.io doesn't allow to pull private Docker images, which is why we need to use the `--local-only` flag.
+その後、`fly launch --local-only --no-deploy` を実行してアプリを起動できます。以降のデプロイでは、`fly launch
+--local-only` を実行する代わりに、`fly deploy --local-only`
+を実行する必要があります。Fly.ioではプライベートなDockerイメージをプルできないため、`--local-only` フラグを使用する必要があります。
 
-### Docker Compose {#docker-compose}
+### Docker Compose {#docker-compose}.
 
-Below is an example of a `docker-compose.yml` file that you can use as a reference to deploy the service:
+以下は、`docker-compose.yml` ファイルの例で、サービスをデプロイする際のリファレンスとして使用できます：
 
 ```yaml
 version: '3.8'
@@ -358,12 +414,70 @@ volumes:
     driver: local
 ```
 
-## Operations {#operations}
+## プロメテウスのメトリクス{#prometheus-metrics}。
 
-Tuist provides a set of utilities under `/ops/` that you can use to manage your instance.
+Tuistは`/metrics`
+でPrometheusのメトリクスを公開しており、セルフホストインスタンスの監視に役立ちます。これらのメトリクスには以下が含まれます：
 
-> [!IMPORTANT] Authorization
-> Only people whose handles are listed in the `TUIST_OPS_USER_HANDLES` environment variable can access the `/ops/` endpoints.
+### FinchのHTTPクライアントメトリクス{#finch-metrics}。
 
-- **Errors (`/ops/errors`):** You can view unexpected errors that ocurred in the application. This is useful for debugging and understanding what went wrong and we might ask you to share this information with us if you're facing issues.
-- **Dashboard (`/ops/dashboard`):** You can view a dashboard that provides insights into the application's performance and health (e.g. memory consumption, processes running, number of requests). This dashboard can be quite useful to understand if the hardware you're using is enough to handle the load.
+TuistはHTTPクライアントとして[Finch](https://github.com/sneako/finch)を使用し、HTTPリクエストに関する詳細なメトリクスを公開している：
+
+#### リクエスト・メトリクス
+- `tuist_prom_ex_finch_request_count_total` - フィンチのリクエスト総数（カウンター）。
+  - ラベル：`フィンチ名`,`方法`,`スキーム`,`ホスト`,`ポート`,`ステータス`
+- `tuist_prom_ex_finch_request_duration_milliseconds` - HTTP リクエストの持続時間 (ヒストグラム)
+  - ラベル：`フィンチ名`,`方法`,`スキーム`,`ホスト`,`ポート`,`ステータス`
+  - バケット10ms、50ms、100ms、250ms、500ms、1s、2.5s、5s、10s
+- `tuist_prom_ex_finch_request_exception_count_total` - フィンチのリクエスト例外の総数 (カウンター)
+  - ラベル：`フィンチ名`,`方法`,`スキーム`,`ホスト`,`ポート`,`種類`,`理由`
+
+#### 接続プールのキュー・メトリクス
+- `tuist_prom_ex_finch_queue_duration_milliseconds` - 接続プールのキューで待機していた時間
+  (ヒストグラム)
+  - ラベル：`フィンチ名` 、`スキーム` 、`ホスト` 、`ポート` 、`プール`
+  - バケット1ms、5ms、10ms、25ms、50ms、100ms、250ms、500ms、1s
+- `tuist_prom_ex_finch_queue_idle_time_milliseconds` -
+  接続が使用される前にアイドル状態であった時間（ヒストグラム）。
+  - ラベル：`フィンチ名` 、`スキーム` 、`ホスト` 、`ポート` 、`プール`
+  - バケット10ms、50ms、100ms、250ms、500ms、1s、5s、10s
+- `tuist_prom_ex_finch_queue_exception_count_total` - フィンチ・キュー例外の総数 (カウンター)
+  - ラベル：`フィンチ名`,`スキーム`,`ホスト`,`ポート`,`種類`,`理由`
+
+#### コネクション・メトリクス
+- `tuist_prom_ex_finch_connect_duration_milliseconds` - 接続確立に要した時間（ヒストグラム）。
+  - ラベル：`フィンチ名`,`スキーム`,`ホスト`,`ポート`,`エラー`
+  - バケット10ms、50ms、100ms、250ms、500ms、1s、2.5s、5s
+- `tuist_prom_ex_finch_connect_count_total` - 接続試行回数の合計（カウンター）。
+  - ラベル：`フィンチ名` 、`スキーム` 、`ホスト` 、`ポート`
+
+#### メトリクスの送信
+- `tuist_prom_ex_finch_send_duration_milliseconds` - リクエスト送信にかかった時間（ヒストグラム）。
+  - ラベル：`フィンチ名`,`方法`,`スキーム`,`ホスト`,`ポート`,`エラー`
+  - バケット1ms、5ms、10ms、25ms、50ms、100ms、250ms、500ms、1s
+- `tuist_prom_ex_finch_send_idle_time_milliseconds` -
+  接続が送信前にアイドル状態であった時間（ヒストグラム）。
+  - ラベル：`フィンチ名`,`方法`,`スキーム`,`ホスト`,`ポート`,`エラー`
+  - バケット1ms、5ms、10ms、25ms、50ms、100ms、250ms、500ms
+
+すべてのヒストグラム・メトリクスは、`_bucket` 、`_sum` 、`_count` のバリアントを提供し、詳細な分析を行う。
+
+### その他の指標
+
+フィンチのメトリクスに加え、トゥイストは以下のメトリクスを公開している：
+- BEAM仮想マシンのパフォーマンス
+- カスタム・ビジネス・ロジックのメトリクス（ストレージ、アカウント、プロジェクトなど）
+- データベース・パフォーマンス（Tuistホスト・インフラストラクチャ使用時）
+
+## オペレーション {#operations}
+
+Tuistは、`/ops/` の下に、インスタンスを管理するために使用できる一連のユーティリティを提供しています。
+
+> [!IMPORTANT] 権限`TUIST_OPS_USER_HANDLES` 環境変数にリストされているハンドルを持つ人だけが、`/ops/`
+> エンドポイントにアクセスできる。
+
+- **エラー (`/ops/errors`)：**
+  アプリケーションで発生した予期せぬエラーを見ることができます。これはデバッグや何が問題だったのかを理解するのに便利で、もしあなたが問題に直面しているのであれば、私たちとこの情報を共有するようお願いするかもしれません。
+- **ダッシュボード (`/ops/dashboard`)：** アプリケーションのパフォーマンスと健全性
+  (メモリ消費量、実行中のプロセス、リクエスト数など)
+  に関する洞察を提供するダッシュボードを見ることができます。このダッシュボードは、使用しているハードウェアが負荷を処理するのに十分かどうかを理解するのに非常に役立ちます。
