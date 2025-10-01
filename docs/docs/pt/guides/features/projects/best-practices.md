@@ -1,26 +1,95 @@
 ---
 {
   "title": "Best practices",
-  "titleTemplate": ":title · Projects · Develop · Guides · Tuist",
+  "titleTemplate": ":title · Projects · Features · Guides · Tuist",
   "description": "Learn about the best practices for working with Tuist and Xcode projects."
 }
 ---
-# Best practices {#best-practices}
+# Melhores práticas {#best-practices}
 
-Over the years working with different teams and projects, we've identified a set of best practices that we recommend following when working with Tuist and Xcode projects. These practices are not mandatory, but they can help you structure your projects in a way that makes them easier to maintain and scale.
+Ao longo dos anos em que trabalhamos com diferentes equipas e projectos,
+identificámos um conjunto de práticas recomendadas que recomendamos seguir
+quando trabalhamos com projectos Tuist e Xcode. Estas práticas não são
+obrigatórias, mas podem ajudá-lo a estruturar os seus projectos de uma forma que
+os torne mais fáceis de manter e escalar.
 
 ## Xcode {#xcode}
 
-### Discouraged patterns {#discouraged-patterns}
+### Padrões desencorajados {#discouraged-patterns}
 
-#### Configurations to model remote environments {#configurations-to-model-remote-environments}
+#### Configurações para modelar ambientes remotos {#configurações-para-modelar-ambientes-remotos}
 
-Many organizations use build configurations to model different remote environments (e.g., `Debug-Production` or `Release-Canary`), but this approach has some downsides:
+Muitas organizações utilizam configurações de compilação para modelar diferentes
+ambientes remotos (por exemplo, `Debug-Production` ou `Release-Canary`), mas
+esta abordagem tem algumas desvantagens:
 
-- **Inconsistencies:** If there are configuration inconsistencies throughout the graph, the build system might end up using the wrong configuration for some targets.
-- **Complexity:** Projects can end up with a long list of local configurations and remote environments that are hard to reason about and maintain.
+- **Inconsistências:** Se houver inconsistências de configuração em todo o
+  gráfico, o sistema de compilação pode acabar usando a configuração errada para
+  alguns alvos.
+- **Complexidade:** Os projectos podem acabar com uma longa lista de
+  configurações locais e ambientes remotos que são difíceis de analisar e
+  manter.
 
-Build configurations were designed to embody different build settings, and projects rarely need more than just `Debug` and `Release`. The need to model different environments can be achieved by using schemes:
+As configurações de compilação foram concebidas para incorporar diferentes
+definições de compilação, e os projectos raramente precisam de mais do que
+apenas `Debug` e `Release`. A necessidade de modelar diferentes ambientes pode
+ser alcançada de forma diferente:
 
-- **In Debug builds:** You can include all the configurations that should be accessible in development in the app (e.g. endpoints), and switch them at runtime. The switch can happen either using scheme launch environment variables, or with a UI within the app.
-- **In Release builds:** In case of release, you can only include the configuration that the release build is bound to, and not include the runtime logic for switching configurations by using compiler directives.
+- **Em compilações de depuração:** Você pode incluir todas as configurações que
+  devem estar acessíveis no desenvolvimento do aplicativo (por exemplo, pontos
+  de extremidade) e alterná-las em tempo de execução. A troca pode acontecer
+  usando variáveis de ambiente de inicialização de esquema ou com uma interface
+  do usuário dentro do aplicativo.
+- **Em compilações de lançamento:** Em caso de lançamento, só pode incluir a
+  configuração à qual a compilação de lançamento está ligada e não incluir a
+  lógica de tempo de execução para mudar de configuração utilizando diretivas do
+  compilador.
+
+::: info Configurações não-padrão Embora o Tuist suporte configurações
+não-padrão e as torne mais fáceis de gerenciar em comparação com os projetos
+Xcode comuns, você receberá avisos se as configurações não forem consistentes em
+todo o gráfico de dependências. Isso ajuda a garantir a confiabilidade da
+compilação e evita problemas relacionados à configuração ::::
+
+## Generated projects
+
+### Pastas edificáveis
+
+O Tuist 4.62.0 adicionou suporte para **pastas compiláveis** (grupos
+sincronizados do Xcode), um recurso introduzido no Xcode 16 para reduzir
+conflitos de mesclagem.
+
+Enquanto os padrões curinga do Tuist (por exemplo, `Sources/**/*.swift`) já
+eliminam conflitos de mesclagem em projetos gerados, as pastas compiláveis
+oferecem benefícios adicionais:
+
+- **Sincronização automática**: A estrutura do seu projeto mantém-se
+  sincronizada com o sistema de ficheiros - sem necessidade de regeneração ao
+  adicionar ou remover ficheiros
+- **Fluxos de trabalho compatíveis com IA**: Os assistentes e agentes de
+  codificação podem modificar a sua base de código sem desencadear a regeneração
+  do projeto
+- **Configuração mais simples**: Definir caminhos de pastas em vez de gerir
+  listas de ficheiros explícitas
+
+Recomendamos a adoção de pastas compiláveis em vez dos tradicionais atributos
+`Target.sources` e `Target.resources` para uma experiência de desenvolvimento
+mais simplificada.
+
+:::grupo de códigos
+
+```swift [With buildable folders]
+let target = Target(
+  name: "App",
+  buildableFolders: ["App/Sources", "App/Resources"]
+)
+```
+
+```swift [Without buildable folders]
+let target = Target(
+  name: "App",
+  sources: ["App/Sources/**"],
+  resources: ["App/Resources/**"]
+)
+```
+:::
