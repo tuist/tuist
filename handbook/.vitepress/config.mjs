@@ -11,6 +11,7 @@ import {
 } from "./icons.mjs";
 import * as path from "node:path";
 import * as fs from "node:fs/promises";
+import llmstxtPlugin from "vitepress-plugin-llmstxt";
 
 // https://vitepress.dev/reference/site-config
 export default defineConfig({
@@ -19,6 +20,9 @@ export default defineConfig({
   description: "Tuist company handbook",
   srcDir: "./handbook",
   cleanUrls: true,
+  vite: {
+    plugins: [llmstxtPlugin()],
+  },
   sitemap: {
     hostname: "https://handbook.tuist.io",
   },

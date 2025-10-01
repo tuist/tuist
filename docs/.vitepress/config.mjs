@@ -9,6 +9,7 @@ import {
 } from "./bars.mjs";
 import { cliSidebar } from "./data/cli.js";
 import { localizedString } from "./i18n.mjs";
+import llmstxtPlugin from "vitepress-plugin-llmstxt";
 
 async function themeConfig(locale) {
   const sidebar = {};
@@ -150,6 +151,9 @@ export default defineConfig({
   lastUpdated: false,
   experimental: {
     metaChunk: true,
+  },
+  vite: {
+    plugins: [llmstxtPlugin()],
   },
   mpa: false,
   locales: {
