@@ -1,15 +1,16 @@
 ---
 {
-  "title": "Начало работы",
-  "titleTemplate": ":title · Начало · Руководства · Tuist",
-  "description": "Узнайте, как установить Tuist в вашей среде."
+  "title": "Get started",
+  "titleTemplate": ":title · Quick-start · Guides · Tuist",
+  "description": "Learn how to install Tuist in your environment."
 }
 ---
-# Начало работы {#get-started}
+# Начните {#get-started}
 
-Самый простой способ начать работу с Tuist в любом каталоге или в каталоге вашего Xcode-проекта или workspace:
+Проще всего начать работу с Tuist в любой директории или в директории вашего
+проекта или рабочей области Xcode:
 
-::: code-group
+::: кодовая группа
 
 ```bash [Mise]
 mise x tuist@latest -- tuist init
@@ -18,10 +19,22 @@ mise x tuist@latest -- tuist init
 ```bash [Global Tuist (Homebrew)]
 tuist init
 ```
-
 :::
 
-Команда проведет вас по шагам для <LocalizedLink href="/guides/features/projects">создания сгенерированного проекта</LocalizedLink> или интегрирования существующего Xcode-проекта или workspace. Это поможет вам подключить вашу среду к удаленному серверу, предоставляя доступ к таким функциям, как <LocalizedLink href="/guides/features/selective-testing">выборочное тестирование</LocalizedLink>, <LocalizedLink href="/guides/features/previews">предварительные просмотры</LocalizedLink>, и <LocalizedLink href="/guides/features/registry">реестры</LocalizedLink>.
+Команда проведет вас по шагам, чтобы
+<LocalizedLink href="/guides/features/projects">создать сгенерированный
+проект</LocalizedLink> или интегрировать существующий проект или рабочее
+пространство Xcode. Она поможет вам подключить вашу установку к удаленному
+серверу, предоставляя доступ к таким функциям, как
+<LocalizedLink href="/guides/features/selective-testing">выборочное
+тестирование</LocalizedLink>,
+<LocalizedLink href="/guides/features/previews">предварительные
+просмотры</LocalizedLink> и
+<LocalizedLink href="/guides/features/registry">реестр</LocalizedLink>.
 
-> [!NOTE] MIGRATE AN EXISTING PROJECT
-> If you want to migrate an existing project to generated projects to improve the developer experience and take advantage of our <LocalizedLink href="/guides/features/cache">cache</LocalizedLink>, check out our <LocalizedLink href="/guides/features/projects/adoption/migrate/xcode-project">migration guide</LocalizedLink>.
+> [Если вы хотите перенести существующий проект в генерируемые проекты, чтобы
+> улучшить работу разработчиков и воспользоваться преимуществами нашего
+> <LocalizedLink href="/guides/features/cache">кэша</LocalizedLink>,
+> ознакомьтесь с нашим руководством
+> <LocalizedLink href="/guides/features/projects/adoption/migrate/xcode-project">по
+> миграции</LocalizedLink>.
