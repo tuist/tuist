@@ -1,14 +1,15 @@
 ---
 {
   "title": "Generated project with the XcodeProj-based package integration",
-  "titleTemplate": ":title · Registry · Develop · Guides · Tuist",
+  "titleTemplate": ":title · Registry · Features · Guides · Tuist",
   "description": "Learn how to use the Tuist Registry in a generated Xcode project with the XcodeProj-based package integration."
 }
 ---
-# Generated project with the XcodeProj-based package integration {#generated-project-with-xcodeproj-based-integration}
+# XcodeProj ベースのパッケージ統合 {#generated-project-with-xcodeproj-based-integration} で生成されたプロジェクト。
 
-When using the <LocalizedLink href="/guides/features/projects/dependencies#tuists-xcodeprojbased-integration">XcodeProj-based integration</LocalizedLink>, you can use the `--replace-scm-with-registry` flag to resolve dependencies from the registry if they are available. Add it to the `installOptions` in your `Tuist.swift` file:
-
+1}XcodeProjベースの統合</LocalizedLink>を使用する場合、``--replace-scm-with-registry``
+フラグを使用すると、利用可能な場合はレジストリから依存関係を解決できます。`Tuist.swift` ファイルの`installOptions`
+に追加してください：
 ```swift
 import ProjectDescription
 
@@ -20,8 +21,9 @@ let tuist = Tuist(
 )
 ```
 
-If you want to ensure that the registry is used every time you resolve dependencies, you will need to update `dependencies` in your `Tuist/Package.swift` file to use the registry identifier instead of a URL. The registry identifier is always in the form of `{organization}.{repository}`. For example, to use the registry for the `swift-composable-architecture` package, do the following:
-
+依存関係を解決するたびにレジストリが使用されるようにするには、`Tuist/Package.swift` ファイルの`dependencies`
+を更新して、URL ではなくレジストリ識別子を使用するようにする必要があります。レジストリ識別子は常に`{organization}.{repository}`
+の形式です。たとえば、`swift-composable-architecture` パッケージのレジストリを使用するには、次のようにします：
 ```diff
 dependencies: [
 -   .package(url: "https://github.com/pointfreeco/swift-composable-architecture", from: "0.1.0")
