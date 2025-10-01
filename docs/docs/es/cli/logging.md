@@ -5,11 +5,11 @@
   "description": "Learn how to enable and configure logging in Tuist."
 }
 ---
-# Registro {#logging}
+# Logging {#logging}
 
 La CLI registra mensajes internamente para ayudarle a diagnosticar problemas.
 
-## Diagnosticar problemas utilizando registros {#diagnose-issues-using-logs}
+## Diagnostica problemas utilizando logs {#diagnose-issues-using-logs}
 
 Si la invocación de un comando no produce los resultados esperados, puede
 diagnosticar el problema inspeccionando los registros. La CLI envía los
