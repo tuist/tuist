@@ -77,7 +77,8 @@ Tuist. Esto es lo que están experimentando:
 - **Compilaciones un 65% más rápidas** con caché inteligente
 - **Cero conflictos de mergeo** en proyectos Xcode
 - Resolución e paquetes **de minutos a segundos**
-- **Desarrolladores contentos** que pueden centrarse en crear funciones
+- **Desarrolladores contentos** que pueden centrarse en desarrollar
+  funcionalidades
 
 <HomeCards type="carousel">
     <HomeCard icon="🚀"
@@ -102,12 +103,12 @@ Tuist. Esto es lo que están experimentando:
 
 ## Vea Tuist en acción
 
-**Aprenda de implementaciones reales** e inspírese en lo que es posible cuando
-su cadena de herramientas simplemente funciona.
+**Aprenda de implementaciones reales** e inspírese al ver lo que es posible
+cuando sus herramientas simplemente funcionan.
 
 <HomeVideos/>
 
-## Únase a una comunidad próspera
+## Únase a una comunidad vibrante
 
 **Conéctate con miles de desarrolladores de la plataforma Apple** que están
 creando mejores aplicaciones con Tuist. Obtén ayuda, comparte victorias y da
