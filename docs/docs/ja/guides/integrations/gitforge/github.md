@@ -2,20 +2,17 @@
 {
   "title": "GitHub",
   "titleTemplate": ":title | Git forges | Integrations | Guides | Tuist",
-  "description": "Learn how to connect Tuist to other tools and services."
+  "description": "Learn how to integrate Tuist with GitHub for enhanced workflows."
 }
 ---
-# Integrations {#integrations}
+# GitHubの統合{#github}。
 
-We strongly believe we should meet developers where they are, and let's be honest, developers spend time outside of their coding environments, such as reviewing pull request on [GitHub](https://github.com) or communicating with their team on [Slack](https://slack.com). That's why we've built integrations with popular tools and services to make it easier for you to use Tuist in your workflows. This page lists the integrations we currently support.
+Gitリポジトリは、世の中の大半のソフトウェアプロジェクトの中心的存在です。私たちはGitHubと統合し、プルリクエストでTuistの洞察を提供したり、デフォルトブランチの同期などの設定を省くことができます。
 
-## Git platforms {#git-platforms}
+## セットアップ {#setup}
 
-Git repositories are the centerpiece of the vast majority of software projects out there. We integrate with your Git platform to provide Tuist insights right in your pull requests or to save you some configuration such as syncing your default branch.
-
-### GitHub {#github}
-
-Install the [Tuist GitHub app](https://github.com/marketplace/tuist). Once installed, you will need to tell Tuist the URL of your repository, such as:
+Tuist
+GitHubアプリ](https://github.com/marketplace/tuist)をインストールします。インストールしたら、TuistにリポジトリのURLを次のように伝える必要がある：
 
 ```sh
 tuist project update tuist/tuist --repository-url https://github.com/tuist/tuist
