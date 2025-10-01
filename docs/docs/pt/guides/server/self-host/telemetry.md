@@ -1,404 +1,520 @@
 ---
 {
-  "title": "Metrics",
+  "title": "Telemetry",
   "titleTemplate": ":title | Self-hosting | Server | Guides | Tuist",
-  "description": "Optimize your build times by caching compiled binaries and sharing them across different environments."
+  "description": "Monitor your Tuist server with Prometheus and Grafana telemetry."
 }
 ---
-# Metrics {#metrics}
+# Telemetria
 
-You can ingest metrics gathered by the Tuist server using [Prometheus](https://prometheus.io/) and a visualization tool such as [Grafana](https://grafana.com/) to create a custom dashboard tailored to your needs. The Prometheus metrics are served via the `/metrics` endpoint on port 9091. The Prometheus' [scrape_interval](https://prometheus.io/docs/introduction/first_steps/#configuring-prometheus) should be set as less than 10_000 seconds (we recommend keeping the default of 15 seconds).
+Você pode ingerir métricas coletadas pelo servidor Tuist usando
+[Prometheus](https://prometheus.io/) e uma ferramenta de visualização como
+[Grafana](https://grafana.com/) para criar um painel personalizado adaptado às
+suas necessidades. As métricas do Prometheus são servidas através do ponto final
+`/metrics` na porta 9091. O
+[scrape_interval](https://prometheus.io/docs/introduction/first_steps/#configuring-prometheus)
+do Prometheus deve ser definido como inferior a 10_000 segundos (recomendamos
+manter o padrão de 15 segundos).
 
-## Elixir metrics {#elixir-metrics}
+## Análise PostHog {#posthog-analytics}
 
-By default we include metrics of the Elixir runtime, BEAM, Elixir, and some of the libraries we use. The following are some of the metrics you can expect to see:
+O Tuist integra-se com [PostHog](https://posthog.com/) para análise do
+comportamento do utilizador e acompanhamento de eventos. Isto permite-lhe
+compreender como os utilizadores interagem com o seu servidor Tuist, acompanhar
+a utilização de funcionalidades e obter informações sobre o comportamento do
+utilizador no site de marketing, painel de instrumentos e documentação API.
 
-- [Application](https://hexdocs.pm/prom_ex/PromEx.Plugins.Application.html)
+### Configuração {#posthog-configuration}
+
+A integração do PostHog é opcional e pode ser activada definindo as variáveis de
+ambiente apropriadas. Quando configurado, o Tuist irá rastrear automaticamente
+os eventos do utilizador, as visualizações de página e as viagens do utilizador.
+
+| Variável de ambiente    | Descrição                                       | Necessário | Predefinição | Exemplos                                          |
+| ----------------------- | ----------------------------------------------- | ---------- | ------------ | ------------------------------------------------- |
+| `TUIST_POSTHOG_API_KEY` | A sua chave API do projeto PostHog              | Não        |              | `phc_fpR9c0Hs5H5VXUsupU1I0WlEq366FaZH6HJR3lRIWVR` |
+| `TUIST_POSTHOG_URL`     | O URL do ponto de extremidade da API do PostHog | Não        |              | `https://eu.i.posthog.com`                        |
+
+> [A análise só é activada quando `TUIST_POSTHOG_API_KEY` e `TUIST_POSTHOG_URL`
+> estão configurados. Se uma das variáveis estiver ausente, nenhum evento de
+> análise será enviado.
+
+### Caraterísticas {#posthog-features}
+
+Quando o PostHog está ativado, o Tuist monitoriza automaticamente:
+
+- **Identificação do utilizador**: Os utilizadores são identificados pelo seu ID
+  único e endereço de correio eletrónico
+- **Aliasing de utilizadores**: Os utilizadores são identificados pelo nome da
+  sua conta para facilitar a identificação
+- **Análises de grupo**: Os utilizadores são agrupados pelo projeto e
+  organização selecionados para análises segmentadas
+- **Secções da página**: Os eventos incluem super propriedades que indicam qual
+  a secção da aplicação que os gerou:
+  - `marketing` - Eventos de páginas de marketing e conteúdos públicos
+  - `dashboard` - Eventos do dashboard principal da aplicação e das áreas
+    autenticadas
+  - `api-docs` - Eventos das páginas de documentação da API
+- **Visualizações de página**: Seguimento automático da navegação na página
+  utilizando o Phoenix LiveView
+- **Eventos personalizados**: Eventos específicos da aplicação para utilização
+  de funcionalidades e interações do utilizador
+
+### Considerações sobre privacidade {#posthog-privacy}
+
+- Para utilizadores autenticados, o PostHog utiliza o ID único do utilizador
+  como identificador distinto e inclui o seu endereço de correio eletrónico
+- Para utilizadores anónimos, o PostHog utiliza a persistência apenas na memória
+  para evitar armazenar dados localmente
+- Todas as análises respeitam a privacidade do utilizador e seguem as melhores
+  práticas de proteção de dados
+- Os dados do PostHog são processados de acordo com a política de privacidade do
+  PostHog e a sua configuração
+
+## Métricas de Elixir {#elixir-metrics}
+
+Por padrão, incluímos métricas do tempo de execução do Elixir, BEAM, Elixir e
+algumas das bibliotecas que usamos. A seguir estão algumas das métricas que você
+pode esperar ver:
+
+- [Aplicação](https://hexdocs.pm/prom_ex/PromEx.Plugins.Application.html)
 - [BEAM](https://hexdocs.pm/prom_ex/PromEx.Plugins.Beam.html)
-- [Phoenix](https://hexdocs.pm/prom_ex/PromEx.Plugins.Phoenix.html)
-- [Phoenix LiveView](https://hexdocs.pm/prom_ex/PromEx.Plugins.PhoenixLiveView.html)
+- [Fénix](https://hexdocs.pm/prom_ex/PromEx.Plugins.Phoenix.html)
+- [Phoenix
+  LiveView](https://hexdocs.pm/prom_ex/PromEx.Plugins.PhoenixLiveView.html)
 - [Ecto](https://hexdocs.pm/prom_ex/PromEx.Plugins.Ecto.html)
 - [Oban](https://hexdocs.pm/prom_ex/PromEx.Plugins.Oban.html)
 
-We recommend checking those pages to know which metrics are available and how to use them.
+Recomendamos que consulte essas páginas para saber que métricas estão
+disponíveis e como as utilizar.
 
-## Runs metrics {#runs-metrics}
+## Métricas de execuções {#runs-metrics}
 
-A set of metrics related to Tuist Runs.
+Um conjunto de métricas relacionadas com as execuções Tuist.
 
-### `tuist_runs_total` (counter) {#tuist_runs_total-counter}
+### `tuist_runs_total` (contador) {#tuist_runs_total-counter}
 
-The total number of Tuist Runs.
+O número total de execuções Tuist.
 
-#### Tags {#tuist-runs-total-tags}
+#### Etiquetas {#tuist-runs-total-tags}
 
-| Tag      | Description                                                                                 |
-| -------- | ------------------------------------------------------------------------------------------- |
-| `name`   | The name of the `tuist` command that was run, such as `build`, `test`, etc. |
-| `is_ci`  | A boolean indicating if the executor was a CI or a developer's machine.     |
-| `status` | `0` in case of `success`, `1` in case of `failure`.                         |
+| Etiqueta   | Descrição                                                                      |
+| ---------- | ------------------------------------------------------------------------------ |
+| `nome`     | O nome do comando `tuist` que foi executado, tal como `build`, `test`, etc.    |
+| `is_ci`    | Um booleano indicando se o executor era um CI ou uma máquina de desenvolvedor. |
+| `estatuto` | `0` em caso de sucesso de `` , `1` em caso de insucesso de `` .                |
 
-### `tuist_runs_duration_milliseconds` (histogram) {#tuist_runs_duration_milliseconds-histogram}
+### `tuist_runs_duration_milliseconds` (histograma) {#tuist_runs_duration_milliseconds-histogram}
 
-The total duration of each tuist run in milliseconds.
+A duração total de cada execução da tuist em milissegundos.
 
-#### Tags {#tuist-runs-duration-miliseconds-tags}
+#### Etiquetas {#tuist-runs-duration-miliseconds-tags}
 
-| Tag      | Description                                                                                 |
-| -------- | ------------------------------------------------------------------------------------------- |
-| `name`   | The name of the `tuist` command that was run, such as `build`, `test`, etc. |
-| `is_ci`  | A boolean indicating if the executor was a CI or a developer's machine.     |
-| `status` | `0` in case of `success`, `1` in case of `failure`.                         |
+| Etiqueta   | Descrição                                                                      |
+| ---------- | ------------------------------------------------------------------------------ |
+| `nome`     | O nome do comando `tuist` que foi executado, tal como `build`, `test`, etc.    |
+| `is_ci`    | Um booleano indicando se o executor era um CI ou uma máquina de desenvolvedor. |
+| `estatuto` | `0` em caso de sucesso de `` , `1` em caso de insucesso de `` .                |
 
-## Cache metrics {#cache-metrics}
+## Métricas de cache {#cache-metrics}
 
-A set of metrics related to the Tuist Cache.
+Um conjunto de métricas relacionadas com a Cache Tuist.
 
-### `tuist_cache_events_total` (counter) {#tuist_cache_events_total-counter}
+### `tuist_cache_events_total` (contador) {#tuist_cache_events_total-counter}
 
-The total number of binary cache events.
+O número total de eventos de cache binária.
 
-#### Tags {#tuist-cache-events-total-tags}
+#### Etiquetas {#tuist-cache-events-total-tags}
 
-| Tag          | Description                                                            |
-| ------------ | ---------------------------------------------------------------------- |
-| `event_type` | Can be either of `local_hit`, `remote_hit`, or `miss`. |
+| Etiqueta         | Descrição                                                        |
+| ---------------- | ---------------------------------------------------------------- |
+| `tipo de evento` | Pode ser um dos seguintes: `local_hit`, `remote_hit`, ou `miss`. |
 
 ### `tuist_cache_uploads_total` (counter) {#tuist_cache_uploads_total-counter}
 
-The number of uploads to the binary cache.
+O número de carregamentos para a cache binária.
 
 ### `tuist_cache_uploaded_bytes` (sum) {#tuist_cache_uploaded_bytes-sum}
 
-The number of bytes uploaded to the binary cache.
+O número de bytes carregados para a cache binária.
 
-### `tuist_cache_downloads_total` (counter) {#tuist_cache_downloads_total-counter}
+### `tuist_cache_downloads_total` (contador) {#tuist_cache_downloads_total-counter}
 
-The number of downloads to the binary cache.
+O número de descarregamentos para a cache binária.
 
 ### `tuist_cache_downloaded_bytes` (sum) {#tuist_cache_downloaded_bytes-sum}
 
-The number of bytes downloaded from the binary cache.
+O número de bytes descarregados da cache binária.
 
 ---
 
-## Previews metrics {#previews-metrics}
+## Métricas de pré-visualizações {#previews-metrics}
 
-A set of metrics related to the previews feature.
+Um conjunto de métricas relacionadas com a funcionalidade de pré-visualização.
 
 ### `tuist_previews_uploads_total` (sum) {#tuist_previews_uploads_total-counter}
 
-The total number of previews uploaded.
+O número total de pré-visualizações carregadas.
 
 ### `tuist_previews_downloads_total` (sum) {#tuist_previews_downloads_total-counter}
 
-The total number of previews downloaded.
+O número total de pré-visualizações descarregadas.
 
 ---
 
-## Storage metrics {#storage-metrics}
+## Métricas de armazenamento {#métricas de armazenamento}
 
-A set of metrics related to the storage of artifacts in a remote storage (e.g. s3).
+Um conjunto de métricas relacionadas com o armazenamento de artefactos num
+armazenamento remoto (por exemplo, s3).
 
-> [!TIP]
-> These metrics are useful to understand the performance of the storage operations and to identify potential bottlenecks.
+> [Estas métricas são úteis para compreender o desempenho das operações de
+> armazenamento e para identificar potenciais estrangulamentos.
 
-### `tuist_storage_get_object_size_size_bytes` (histogram) {#tuist_storage_get_object_size_size_bytes-histogram}
+### `tuist_storage_get_object_size_size_bytes` (histograma) {#tuist_storage_get_object_size_size_bytes-histogram}
 
-The size (in bytes) of an object fetched from the remote storage.
+O tamanho (em bytes) de um objeto obtido a partir do armazenamento remoto.
 
-#### Tags {#tuist-storage-get-object-size-size-bytes-tags}
+#### Etiquetas {#tuist-storage-get-object-size-size-bytes-tags}
 
-| Tag          | Description                                                         |
-| ------------ | ------------------------------------------------------------------- |
-| `object_key` | The lookup key of the object in the remote storage. |
+| Etiqueta        | Descrição                                              |
+| --------------- | ------------------------------------------------------ |
+| `chave_objecto` | A chave de pesquisa do objeto no armazenamento remoto. |
 
-### `tuist_storage_get_object_size_duration_miliseconds` (histogram) {#tuist_storage_get_object_size_duration_miliseconds-histogram}
 
-The duration (in milliseconds) of fetching an object size from the remote storage.
+### `tuist_storage_get_object_size_duration_miliseconds` (histograma) {#tuist_storage_get_object_size_duration_miliseconds-histogram}
 
-#### Tags {#tuist-storage-get-object-size-duration-miliseconds-tags}
+A duração (em milissegundos) da obtenção de um tamanho de objeto a partir do
+armazenamento remoto.
 
-| Tag          | Description                                                         |
-| ------------ | ------------------------------------------------------------------- |
-| `object_key` | The lookup key of the object in the remote storage. |
+#### Etiquetas {#tuist-storage-get-object-size-duration-miliseconds-tags}
+
+| Etiqueta        | Descrição                                              |
+| --------------- | ------------------------------------------------------ |
+| `chave_objecto` | A chave de pesquisa do objeto no armazenamento remoto. |
+
 
 ### `tuist_storage_get_object_size_count` (counter) {#tuist_storage_get_object_size_count-counter}
 
-The number of times an object size was fetched from the remote storage.
+O número de vezes que um tamanho de objeto foi obtido a partir do armazenamento
+remoto.
 
-#### Tags {#tuist-storage-get-object-size-count-tags}
+#### Etiquetas {#tuist-storage-get-object-size-count-tags}
 
-| Tag          | Description                                                         |
-| ------------ | ------------------------------------------------------------------- |
-| `object_key` | The lookup key of the object in the remote storage. |
+| Etiqueta        | Descrição                                              |
+| --------------- | ------------------------------------------------------ |
+| `chave_objecto` | A chave de pesquisa do objeto no armazenamento remoto. |
 
 ### `tuist_storage_delete_all_objects_duration_milliseconds` (histogram) {#tuist_storage_delete_all_objects_duration_milliseconds-histogram}
 
-The duration (in milliseconds) of deleting all objects from the remote storage.
+A duração (em milissegundos) da eliminação de todos os objectos do armazenamento
+remoto.
 
-#### Tags {#tuist-storage-delete-all-objects-duration-milliseconds-tags}
+#### Etiquetas {#tuist-storage-delete-all-objects-duration-milliseconds-tags}
 
-| Tag            | Description                                                                      |
-| -------------- | -------------------------------------------------------------------------------- |
-| `project_slug` | The project slug of the project whose objects are being deleted. |
+| Etiqueta        | Descrição                                                |
+| --------------- | -------------------------------------------------------- |
+| `projecto_slug` | O slug do projeto cujos objectos estão a ser eliminados. |
+
 
 ### `tuist_storage_delete_all_objects_count` (counter) {#tuist_storage_delete_all_objects_count-counter}
 
-The number of times all project objects were deleted from the remote storage.
+O número de vezes que todos os objectos de projeto foram eliminados do
+armazenamento remoto.
 
-#### Tags {#tuist-storage-delete-all-objects-count-tags}
+#### Etiquetas {#tuist-storage-delete-all-objects-count-tags}
 
-| Tag            | Description                                                                      |
-| -------------- | -------------------------------------------------------------------------------- |
-| `project_slug` | The project slug of the project whose objects are being deleted. |
+| Etiqueta        | Descrição                                                |
+| --------------- | -------------------------------------------------------- |
+| `projecto_slug` | O slug do projeto cujos objectos estão a ser eliminados. |
 
-### `tuist_storage_multipart_start_upload_duration_milliseconds` (histogram) {#tuist_storage_multipart_start_upload_duration_milliseconds-histogram}
 
-The duration (in milliseconds) of starting an upload to the remote storage.
+### `tuist_storage_multipart_start_upload_duration_milliseconds` (histograma) {#tuist_storage_multipart_start_upload_duration_milliseconds-histogram}
 
-#### Tags {#tuist-storage-multipart-start-upload-duration-milliseconds-tags}
+A duração (em milissegundos) do início de um carregamento para o armazenamento
+remoto.
 
-| Tag          | Description                                                         |
-| ------------ | ------------------------------------------------------------------- |
-| `object_key` | The lookup key of the object in the remote storage. |
+#### Etiquetas {#tuist-storage-multipart-start-upload-duration-milliseconds-tags}
+
+| Etiqueta        | Descrição                                              |
+| --------------- | ------------------------------------------------------ |
+| `chave_objecto` | A chave de pesquisa do objeto no armazenamento remoto. |
 
 ### `tuist_storage_multipart_start_upload_duration_count` (counter) {#tuist_storage_multipart_start_upload_duration_count-counter}
 
-The number of times an upload was started to the remote storage.
+O número de vezes que foi iniciado um carregamento para o armazenamento remoto.
 
-#### Tags {#tuist-storage-multipart-start-upload-duration-count-tags}
+#### Etiquetas {#tuist-storage-multipart-start-upload-duration-count-tags}
 
-| Tag          | Description                                                         |
-| ------------ | ------------------------------------------------------------------- |
-| `object_key` | The lookup key of the object in the remote storage. |
+| Etiqueta        | Descrição                                              |
+| --------------- | ------------------------------------------------------ |
+| `chave_objecto` | A chave de pesquisa do objeto no armazenamento remoto. |
 
-### `tuist_storage_get_object_as_string_duration_milliseconds` (histogram) {#tuist_storage_get_object_as_string_duration_milliseconds-histogram}
 
-The duration (in milliseconds) of fetching an object as a string from the remote storage.
+### `tuist_storage_get_object_as_string_duration_milliseconds` (histograma) {#tuist_storage_get_object_as_string_duration_milliseconds-histogram}
 
-#### Tags {#tuist-storage-get-object-as-string-duration-milliseconds-tags}
+A duração (em milissegundos) da pesquisa de um objeto como uma cadeia de
+caracteres a partir do armazenamento remoto.
 
-| Tag          | Description                                                         |
-| ------------ | ------------------------------------------------------------------- |
-| `object_key` | The lookup key of the object in the remote storage. |
+#### Etiquetas {#tuist-storage-get-object-as-string-duration-milliseconds-tags}
+
+| Etiqueta        | Descrição                                              |
+| --------------- | ------------------------------------------------------ |
+| `chave_objecto` | A chave de pesquisa do objeto no armazenamento remoto. |
 
 ### `tuist_storage_get_object_as_string_count` (count) {#tuist_storage_get_object_as_string_count-count}
 
-The number of times an object was fetched as a string from the remote storage.
+O número de vezes que um objeto foi obtido como uma cadeia de caracteres a
+partir do armazenamento remoto.
 
-#### Tags {#tuist-storage-get-object-as-string-count-tags}
+#### Etiquetas {#tuist-storage-get-object-as-string-count-tags}
 
-| Tag          | Description                                                         |
-| ------------ | ------------------------------------------------------------------- |
-| `object_key` | The lookup key of the object in the remote storage. |
+| Etiqueta        | Descrição                                              |
+| --------------- | ------------------------------------------------------ |
+| `chave_objecto` | A chave de pesquisa do objeto no armazenamento remoto. |
 
-### `tuist_storage_check_object_existence_duration_milliseconds` (histogram) {#tuist_storage_check_object_existence_duration_milliseconds-histogram}
 
-The duration (in milliseconds) of checking the existence of an object in the remote storage.
+### `tuist_storage_check_object_existence_duration_milliseconds` (histograma) {#tuist_storage_check_object_existence_duration_milliseconds-histogram}
 
-#### Tags {#tuist-storage-check-object-existence-duration-milliseconds-tags}
+A duração (em milissegundos) da verificação da existência de um objeto no
+armazenamento remoto.
 
-| Tag          | Description                                                         |
-| ------------ | ------------------------------------------------------------------- |
-| `object_key` | The lookup key of the object in the remote storage. |
+#### Etiquetas {#tuist-storage-check-object-existence-duration-milliseconds-tags}
+
+| Etiqueta        | Descrição                                              |
+| --------------- | ------------------------------------------------------ |
+| `chave_objecto` | A chave de pesquisa do objeto no armazenamento remoto. |
 
 ### `tuist_storage_check_object_existence_count` (count) {#tuist_storage_check_object_existence_count-count}
 
-The number of times the existence of an object was checked in the remote storage.
+O número de vezes que a existência de um objeto foi verificada no armazenamento
+remoto.
 
-#### Tags {#tuist-storage-check-object-existence-count-tags}
+#### Etiquetas {#tuist-storage-check-object-existence-count-tags}
 
-| Tag          | Description                                                         |
-| ------------ | ------------------------------------------------------------------- |
-| `object_key` | The lookup key of the object in the remote storage. |
+| Etiqueta        | Descrição                                              |
+| --------------- | ------------------------------------------------------ |
+| `chave_objecto` | A chave de pesquisa do objeto no armazenamento remoto. |
 
-### `tuist_storage_generate_download_presigned_url_duration_milliseconds` (histogram) {#tuist_storage_generate_download_presigned_url_duration_milliseconds-histogram}
+### `tuist_storage_generate_download_presigned_url_duration_milliseconds` (histograma) {#tuist_storage_generate_download_presigned_url_duration_milliseconds-histogram}
 
-The duration (in milliseconds) of generating a download presigned URL for an object in the remote storage.
+A duração (em milissegundos) da geração de um URL predefinido de transferência
+para um objeto no armazenamento remoto.
 
-#### Tags {#tuist-storage-generate-download-presigned-url-duration-milliseconds-tags}
+#### Etiquetas {#tuist-storage-generate-download-presigned-url-duration-milliseconds-tags}
 
-| Tag          | Description                                                         |
-| ------------ | ------------------------------------------------------------------- |
-| `object_key` | The lookup key of the object in the remote storage. |
+| Etiqueta        | Descrição                                              |
+| --------------- | ------------------------------------------------------ |
+| `chave_objecto` | A chave de pesquisa do objeto no armazenamento remoto. |
+
 
 ### `tuist_storage_generate_download_presigned_url_count` (count) {#tuist_storage_generate_download_presigned_url_count-count}
 
-The number of times a download presigned URL was generated for an object in the remote storage.
+O número de vezes que um URL predefinido de download foi gerado para um objeto
+no armazenamento remoto.
 
-#### Tags {#tuist-storage-generate-download-presigned-url-count-tags}
+#### Etiquetas {#tuist-storage-generate-download-presigned-url-count-tags}
 
-| Tag          | Description                                                         |
-| ------------ | ------------------------------------------------------------------- |
-| `object_key` | The lookup key of the object in the remote storage. |
+| Etiqueta        | Descrição                                              |
+| --------------- | ------------------------------------------------------ |
+| `chave_objecto` | A chave de pesquisa do objeto no armazenamento remoto. |
 
 ### `tuist_storage_multipart_generate_upload_part_presigned_url_duration_milliseconds` (histogram) {#tuist_storage_multipart_generate_upload_part_presigned_url_duration_milliseconds-histogram}
 
-The duration (in milliseconds) of generating a part upload presigned URL for an object in the remote storage.
+A duração (em milissegundos) da geração de um URL predefinido de carregamento de
+peças para um objeto no armazenamento remoto.
 
-#### Tags {#tuist-storage-multipart-generate-upload-part-presigned-url-duration-milliseconds-tags}
+#### Etiquetas {#tuist-storage-multipart-generate-upload-part-presigned-url-duration-milliseconds-tags}
 
-| Tag           | Description                                                         |
-| ------------- | ------------------------------------------------------------------- |
-| `object_key`  | The lookup key of the object in the remote storage. |
-| `part_number` | The part number of the object being uploaded.       |
-| `upload_id`   | The upload ID of the multipart upload.              |
+| Etiqueta          | Descrição                                              |
+| ----------------- | ------------------------------------------------------ |
+| `chave_objecto`   | A chave de pesquisa do objeto no armazenamento remoto. |
+| `número_de_peças` | O número de peça do objeto que está a ser carregado.   |
+| `upload_id`       | O ID de carregamento do carregamento de várias partes. |
 
 ### `tuist_storage_multipart_generate_upload_part_presigned_url_count` (count) {#tuist_storage_multipart_generate_upload_part_presigned_url_count-count}
 
-The number of times a part upload presigned URL was generated for an object in the remote storage.
+O número de vezes que um URL predefinido de carregamento de peças foi gerado
+para um objeto no armazenamento remoto.
 
-#### Tags {#tuist-storage-multipart-generate-upload-part-presigned-url-count-tags}
+#### Etiquetas {#tuist-storage-multipart-generate-upload-part-presigned-url-count-tags}
 
-| Tag           | Description                                                         |
-| ------------- | ------------------------------------------------------------------- |
-| `object_key`  | The lookup key of the object in the remote storage. |
-| `part_number` | The part number of the object being uploaded.       |
-| `upload_id`   | The upload ID of the multipart upload.              |
+| Etiqueta          | Descrição                                              |
+| ----------------- | ------------------------------------------------------ |
+| `chave_objecto`   | A chave de pesquisa do objeto no armazenamento remoto. |
+| `número_de_peças` | O número de peça do objeto que está a ser carregado.   |
+| `upload_id`       | O ID de carregamento do carregamento de várias partes. |
 
-### `tuist_storage_multipart_complete_upload_duration_milliseconds` (histogram) {#tuist_storage_multipart_complete_upload_duration_milliseconds-histogram}
+### `tuist_storage_multipart_complete_upload_duration_milliseconds` (histograma) {#tuist_storage_multipart_complete_upload_duration_milliseconds-histogram}
 
-The duration (in milliseconds) of completing an upload to the remote storage.
+A duração (em milissegundos) da conclusão de um carregamento para o
+armazenamento remoto.
 
-#### Tags {#tuist-storage-multipart-complete-upload-duration-milliseconds-tags}
+#### Etiquetas {#tuist-storage-multipart-complete-upload-duration-milliseconds-tags}
 
-| Tag          | Description                                                         |
-| ------------ | ------------------------------------------------------------------- |
-| `object_key` | The lookup key of the object in the remote storage. |
-| `upload_id`  | The upload ID of the multipart upload.              |
+| Etiqueta        | Descrição                                              |
+| --------------- | ------------------------------------------------------ |
+| `chave_objecto` | A chave de pesquisa do objeto no armazenamento remoto. |
+| `upload_id`     | O ID de carregamento do carregamento de várias partes. |
+
 
 ### `tuist_storage_multipart_complete_upload_count` (count) {#tuist_storage_multipart_complete_upload_count-count}
 
-The total number of times an upload was completed to the remote storage.
+O número total de vezes que um carregamento foi concluído para o armazenamento
+remoto.
 
-#### Tags {#tuist-storage-multipart-complete-upload-count-tags}
+#### Etiquetas {#tuist-storage-multipart-complete-upload-count-tags}
 
-| Tag          | Description                                                         |
-| ------------ | ------------------------------------------------------------------- |
-| `object_key` | The lookup key of the object in the remote storage. |
-| `upload_id`  | The upload ID of the multipart upload.              |
+| Etiqueta        | Descrição                                              |
+| --------------- | ------------------------------------------------------ |
+| `chave_objecto` | A chave de pesquisa do objeto no armazenamento remoto. |
+| `upload_id`     | O ID de carregamento do carregamento de várias partes. |
 
 ---
 
-## Projects metrics {#projects-metrics}
+## Métricas de autenticação {#authentication-metrics}
 
-A set of metrics related to the projects.
+Um conjunto de métricas relacionadas com a autenticação.
+
+### `tuist_authentication_token_refresh_error_total` (counter) {#tuist_authentication_token_refresh_error_total-counter}
+
+O número total de erros de atualização de fichas.
+
+#### Etiquetas {#tuist-authentication-token-refresh-error-total-tags}
+
+| Etiqueta     | Descrição                                                                               |
+| ------------ | --------------------------------------------------------------------------------------- |
+| `versão_cli` | A versão do Tuist CLI que encontrou o erro.                                             |
+| `razão`      | O motivo do erro de atualização do token, como `invalid_token_type` ou `invalid_token`. |
+
+---
+
+## Métricas de projectos {#projects-metrics}
+
+Um conjunto de métricas relacionadas com os projectos.
 
 ### `tuist_projects_total` (last_value) {#tuist_projects_total-last_value}
 
-The total number of projects.
+O número total de projectos.
 
 ---
 
-## Accounts metrics {#accounts-metrics}
+## Métricas de contas {#accounts-metrics}
 
-A set of metrics related to accounts (users and organizations).
+Um conjunto de métricas relacionadas com contas (utilizadores e organizações).
 
 ### `tuist_accounts_organizations_total` (last_value) {#tuist_accounts_organizations_total-last_value}
 
-The total number of organizations.
+O número total de organizações.
 
 ### `tuist_accounts_users_total` (last_value) {#tuist_accounts_users_total-last_value}
 
-The total number of users.
+O número total de utilizadores.
 
-## Database metrics {#database-metrics}
 
-A set of metrics related to the database connection.
+## Métricas da base de dados {#database-metrics}
+
+Um conjunto de métricas relacionadas com a ligação à base de dados.
 
 ### `tuist_repo_pool_checkout_queue_length` (last_value) {#tuist_repo_pool_checkout_queue_length-last_value}
 
-The number of database queries that are sitting in a queue waiting to be assigned to a database connection.
+O número de consultas à base de dados que estão numa fila de espera para serem
+atribuídas a uma ligação à base de dados.
 
 ### `tuist_repo_pool_ready_conn_count` (last_value) {#tuist_repo_pool_ready_conn_count-last_value}
 
-The number of database connections that are ready to be assigned to a database query.
+O número de ligações à base de dados que estão prontas para serem atribuídas a
+uma consulta da base de dados.
+
 
 ### `tuist_repo_pool_db_connection_connected` (counter) {#tuist_repo_pool_db_connection_connected-counter}
 
-The number of connections that have been established to the database.
+O número de ligações que foram estabelecidas à base de dados.
 
 ### `tuist_repo_pool_db_connection_disconnected` (counter) {#tuist_repo_pool_db_connection_disconnected-counter}
 
-The number of connections that have been disconnected from the database.
+O número de ligações que foram desligadas da base de dados.
 
-## HTTP metrics {#http-metrics}
+## Métricas HTTP {#http-metrics}
 
-A set of metrics related to Tuist's interactions with other services via HTTP.
+Um conjunto de métricas relacionadas com as interações do Tuist com outros
+serviços via HTTP.
 
 ### `tuist_http_request_count` (counter) {#tuist_http_request_count-last_value}
 
-The number of outgoing HTTP requests.
+O número de pedidos HTTP de saída.
 
 ### `tuist_http_request_duration_nanosecond_sum` (sum) {#tuist_http_request_duration_nanosecond_sum-last_value}
 
-The sum of the duration of the outgoing requests (including the time that they spent waiting to be assigned to a connection).
+A soma da duração dos pedidos de saída (incluindo o tempo que passaram à espera
+de serem atribuídos a uma ligação).
 
-### `tuist_http_request_duration_nanosecond_bucket` (distribution) {#tuist_http_request_duration_nanosecond_bucket-distribution}
-
-The distribution of the duration of outgoing requests (including the time that they spent waiting to be assigned to a connection).
+### `tuist_http_request_duration_nanosecond_bucket` (distribuição) {#tuist_http_request_duration_nanosecond_bucket-distribution}
+A distribuição da duração dos pedidos de saída (incluindo o tempo que passaram à
+espera de serem atribuídos a uma ligação).
 
 ### `tuist_http_queue_count` (counter) {#tuist_http_queue_count-counter}
 
-The number of requests that have been retrieved from the pool.
+O número de pedidos que foram recuperados do conjunto.
 
 ### `tuist_http_queue_duration_nanoseconds_sum` (sum) {#tuist_http_queue_duration_nanoseconds_sum-sum}
 
-The time it takes to retrieve a connection from the pool.
+O tempo que demora a recuperar uma ligação do grupo.
 
 ### `tuist_http_queue_idle_time_nanoseconds_sum` (sum) {#tuist_http_queue_idle_time_nanoseconds_sum-sum}
 
-The time a connection has been idle waiting to be retrieved.
+O tempo que uma ligação esteve inativa à espera de ser recuperada.
 
-### `tuist_http_queue_duration_nanoseconds_bucket` (distribution) {#tuist_http_queue_duration_nanoseconds_bucket-distribution}
+### `tuist_http_queue_duration_nanoseconds_bucket` (distribuição) {#tuist_http_queue_duration_nanoseconds_bucket-distribution}
 
-The time it takes to retrieve a connection from the pool.
+O tempo que demora a recuperar uma ligação do grupo.
 
-### `tuist_http_queue_idle_time_nanoseconds_bucket` (distribution) {#tuist_http_queue_idle_time_nanoseconds_bucket-distribution}
+### `tuist_http_queue_idle_time_nanoseconds_bucket` (distribuição) {#tuist_http_queue_idle_time_nanoseconds_bucket-distribution}
 
-The time a connection has been idle waiting to be retrieved.
+O tempo que uma ligação esteve inativa à espera de ser recuperada.
 
 ### `tuist_http_connection_count` (counter) {#tuist_http_connection_count-counter}
 
-The number of connections that have been established.
+O número de ligações que foram estabelecidas.
 
 ### `tuist_http_connection_duration_nanoseconds_sum` (sum) {#tuist_http_connection_duration_nanoseconds_sum-sum}
 
-The time it takes to establish a connection against a host.
+O tempo que demora a estabelecer uma ligação com um anfitrião.
 
-### `tuist_http_connection_duration_nanoseconds_bucket` (distribution) {#tuist_http_connection_duration_nanoseconds_bucket-distribution}
+### `tuist_http_connection_duration_nanoseconds_bucket` (distribuição) {#tuist_http_connection_duration_nanoseconds_bucket-distribution}
 
-The distribution of the time it takes to establish a connection against a host.
+A distribuição do tempo que demora a estabelecer uma ligação com um anfitrião.
 
-### `tuist_http_send_count` (counter) {#tuist_http_send_count-counter}
+### `tuist_http_send_count` (contador) {#tuist_http_send_count-counter}
 
-The number of requests that have been sent once assigned to a connection from the pool.
+O número de pedidos que foram enviados depois de atribuídos a uma ligação do
+grupo.
 
 ### `tuist_http_send_duration_nanoseconds_sum` (sum) {#tuist_http_send_duration_nanoseconds_sum-sum}
 
-The time that it takes for requests to complete once assigned to a connection from the pool.
+O tempo que os pedidos demoram a ser concluídos depois de atribuídos a uma
+ligação do grupo.
 
-### `tuist_http_send_duration_nanoseconds_bucket` (distribution) {#tuist_http_send_duration_nanoseconds_bucket-distribution}
+### `tuist_http_send_duration_nanoseconds_bucket` (distribuição) {#tuist_http_send_duration_nanoseconds_bucket-distribution}
 
-The distribution of the time that it takes for requests to complete once assigned to a connection from the pool.
+A distribuição do tempo que os pedidos demoram a ser concluídos depois de
+atribuídos a uma ligação do grupo.
 
 ### `tuist_http_receive_count` (counter) {#tuist_http_receive_count-counter}
 
-The number of responses that have been received from sent requests.
+O número de respostas que foram recebidas de pedidos enviados.
 
 ### `tuist_http_receive_duration_nanoseconds_sum` (sum) {#tuist_http_receive_duration_nanoseconds_sum-sum}
 
-The time spent receiving responses.
+O tempo gasto a receber respostas.
 
-### `tuist_http_receive_duration_nanoseconds_bucket` (distribution) {#tuist_http_receive_duration_nanoseconds_bucket-distribution}
+### `tuist_http_receive_duration_nanoseconds_bucket` (distribuição) {#tuist_http_receive_duration_nanoseconds_bucket-distribution}
 
-The distribution of the time spent receiving responses.
+A distribuição do tempo gasto na receção de respostas.
 
 ### `tuist_http_queue_available_connections` (last_value) {#tuist_http_queue_available_connections-last_value}
 
-The number of connections available in the queue.
+O número de ligações disponíveis na fila de espera.
 
 ### `tuist_http_queue_in_use_connections` (last_value) {#tuist_http_queue_in_use_connections-last_value}
 
-The number of queue connections that are in use.
+O número de ligações de fila que estão a ser utilizadas.
