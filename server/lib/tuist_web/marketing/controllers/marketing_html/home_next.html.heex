@@ -1,0 +1,448 @@
+<TuistWeb.Marketing.Layouts.marketing_next {assigns}>
+  <main id="marketing-home">
+    <TuistWeb.Marketing.MarketingComponents.navbar />
+
+    <div data-part="container">
+      <div data-part="background" aria-hidden="true">
+        <img src="/marketing/images/background.webp" alt="Background decoration" />
+      </div>
+    </div>
+
+    <section data-part="hero">
+      <header data-part="title">
+        <div data-part="title">
+          <h1>{gettext("Make mobile")}</h1>
+        </div>
+        <div data-part="title">
+          <h1>{gettext("your competitive advantage")}</h1>
+        </div>
+      </header>
+
+      <div data-part="subtitle">
+        <p>
+          {gettext(
+            "The same iOS tooling that powers apps with millions of users, delivered as a service for your team"
+          )}
+        </p>
+      </div>
+
+      <nav data-part="actions" aria-label="Primary actions">
+        <.button href="https://docs.tuist.dev/en/" label="Get started"></.button>
+        <.button
+          href="https://cal.tuist.dev/team/tuist/tuist?overlayCalendar=true"
+          variant="secondary"
+          label="Talk to us"
+        >
+        </.button>
+      </nav>
+    </section>
+
+    <section data-part="graphic" aria-labelledby="metrics-heading">
+      <div data-part="rows">
+        <img data-part="runs" src="/marketing/images/runs.webp" alt="Build runs statistics" />
+        <img
+          data-part="builds-time"
+          src="/marketing/images/builds-time.webp"
+          alt="Build time analytics"
+        />
+      </div>
+      <div data-part="rows">
+        <img
+          data-part="time-saved"
+          src="/marketing/images/time-saved.webp"
+          alt="Time saved metrics"
+        />
+        <img
+          data-part="sunburst"
+          src="/marketing/images/sunburst.webp"
+          alt="Sunburst chart visualization"
+        />
+        <img
+          data-part="binary-cache"
+          src="/marketing/images/binary-cache.webp"
+          alt="Binary cache performance"
+        />
+      </div>
+    </section>
+
+    <section data-part="supporters">
+      <h3>{gettext("Trusted by the world's best developer teams")}</h3>
+    </section>
+
+    <section data-part="orgs-list" aria-label="Organizations using Tuist">
+      <div data-part="rows">
+        <a
+          data-part="org-logo"
+          href="https://www.trendyol.com"
+          target="_blank"
+          aria-label="Trendyol"
+        >
+          <.trendyol_org_logo />
+        </a>
+        <a
+          data-part="org-logo"
+          href="https://www.adidas.com"
+          target="_blank"
+          aria-label="Adidas"
+        >
+          <.adidas_org_logo />
+        </a>
+        <a
+          data-part="org-logo"
+          href="https://www.americanexpress.com"
+          target="_blank"
+          aria-label="American Express"
+        >
+          <.amex_org_logo />
+        </a>
+        <a
+          data-part="org-logo"
+          href="https://www.chegg.com"
+          target="_blank"
+          aria-label="Chegg"
+        >
+          <.chegg_org_logo />
+        </a>
+      </div>
+      <div data-part="rows">
+        <a
+          data-part="org-logo"
+          href="https://www.bumble.com"
+          target="_blank"
+          aria-label="Bumble"
+        >
+          <.bumble_org_logo />
+        </a>
+        <a
+          data-part="org-logo"
+          href="https://www.asana.com"
+          target="_blank"
+          aria-label="Asana"
+        >
+          <.asana_org_logo />
+        </a>
+        <a
+          data-part="org-logo"
+          href="https://www.bendingspoons.com"
+          target="_blank"
+          aria-label="Bending Spoons"
+        >
+          <.bending_spoons_org_logo />
+        </a>
+        <a
+          data-part="org-logo"
+          href="https://www.etsy.com"
+          target="_blank"
+          aria-label="Etsy"
+        >
+          <.etsy_org_logo />
+        </a>
+      </div>
+    </section>
+
+    <section data-part="features-title">
+      <h2>{gettext("All the features you need,")}
+        <span data-part="box">{gettext("in one platform")}</span></h2>
+    </section>
+
+    <section data-part="features" aria-label="Product features">
+      <div data-part="row">
+        <article data-part="generated-projects">
+          <div data-part="background" aria-hidden="true">
+            <img
+              src="/marketing/images/features/generated-projects/background.webp"
+              alt=""
+            />
+          </div>
+          <div data-part="graphic">
+            <img
+              src="/marketing/images/features/generated-projects/graphic.webp"
+              alt=""
+            />
+          </div>
+          <div data-part="content">
+            <p data-part="title">{gettext("Generated projects")}</p>
+            <p data-part="description">
+              {gettext(
+                "Conceptually compress the complexities of modular Xcode projects and make them more accessible to maintain and scale."
+              )}
+            </p>
+          </div>
+        </article>
+
+        <article data-part="cache">
+          <div data-part="background" aria-hidden="true">
+            <img
+              src="/marketing/images/features/cache/background.webp"
+              alt=""
+            />
+          </div>
+          <div data-part="graphic">
+            <img src="/marketing/images/features/cache/graphic.webp" alt="" />
+          </div>
+          <div data-part="content">
+            <p data-part="title">{gettext("Cache")}</p>
+            <p data-part="description">
+              {gettext(
+                "Speeds up builds by reusing compiled binaries, cutting down build times in both local development and CI."
+              )}
+            </p>
+          </div>
+        </article>
+      </div>
+
+      <div data-part="row">
+        <article data-part="previews">
+          <div data-part="background" aria-hidden="true">
+            <img
+              src="/marketing/images/features/previews/background.webp"
+              alt=""
+            />
+          </div>
+          <div data-part="graphic">
+            <img src="/marketing/images/features/previews/graphic.webp" alt="" />
+          </div>
+          <div data-part="content">
+            <p data-part="title">{gettext("Previews")}</p>
+            <p data-part="description">
+              {gettext(
+                "Instantly share your app using a URL. Tuist lets you create and share previews of your apps with ease."
+              )}
+            </p>
+          </div>
+        </article>
+
+        <article data-part="selective-testing">
+          <div data-part="graphic">
+            <img
+              src="/marketing/images/features/selective-testing/graphic.webp"
+              alt=""
+            />
+          </div>
+          <div data-part="content">
+            <p data-part="title">{gettext("Selective testing")}</p>
+            <p data-part="description">
+              {gettext(
+                "Speed up CI test runs with selective testing — runs only the tests affected by recent changes."
+              )}
+            </p>
+          </div>
+        </article>
+      </div>
+
+      <div data-part="row">
+        <article data-part="builds">
+          <div data-part="background" aria-hidden="true">
+            <img
+              src="/marketing/images/features/builds/background.webp"
+              alt=""
+            />
+          </div>
+          <div data-part="graphic">
+            <img src="/marketing/images/features/builds/graphic.webp" alt="" />
+          </div>
+          <div data-part="content">
+            <p data-part="title">{gettext("Builds")}</p>
+            <p data-part="description">
+              {gettext(
+                "Skip the manual steps — auto-generate projects, speeds up builds, and explore insights with built-in analytics."
+              )}
+            </p>
+          </div>
+        </article>
+
+        <article data-part="bundle-analysis">
+          <div data-part="background" aria-hidden="true">
+            <img
+              src="/marketing/images/features/bundle-analysis/background.webp"
+              alt=""
+            />
+          </div>
+          <div data-part="graphic">
+            <img
+              src="/marketing/images/features/bundle-analysis/graphic.webp"
+              alt=""
+            />
+          </div>
+          <div data-part="content">
+            <p data-part="title">{gettext("Bundle analysis")}</p>
+            <p data-part="description">
+              {gettext(
+                "Track and reduce app size by spotting duplicate assets, unused symbols, and legacy code."
+              )}
+            </p>
+          </div>
+        </article>
+
+        <article data-part="registry">
+          <div data-part="background" aria-hidden="true">
+            <img
+              src="/marketing/images/features/registry/background.webp"
+              alt=""
+            />
+          </div>
+          <div data-part="graphic">
+            <img src="/marketing/images/features/registry/graphic.webp" alt="" />
+          </div>
+          <div data-part="content">
+            <p data-part="title">{gettext("Registry")}</p>
+            <p data-part="description">
+              {gettext("Download only what you need — faster, lighter builds locally and on CI.")}
+            </p>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section data-part="testimonial">
+      <blockquote data-part="quote">
+        <h3 data-part="line-one">
+          {gettext(
+            "“We could solve our immediate problems and do so while maintaining a familiar"
+          )}
+        </h3>
+        <h3 data-part="line-two">{gettext("core development experience”")}</h3>
+      </blockquote>
+      <footer data-part="name">
+        <.avatar
+          id="avatar-basic-with-image"
+          name="Jonathan Crooke"
+          image_href="https://www.gravatar.com/avatar/292c129cf17a552c08b4d9dcf2c6c1f8"
+          size="small"
+        />
+        <p>{gettext("Jonathan Crooke, Bumble")}</p>
+      </footer>
+    </section>
+
+    <section data-part="case-study">
+      <article data-part="customer-one">
+        <div data-part="background" aria-hidden="true">
+          <img
+            src="/marketing/images/testimonials/trendyol/background.webp"
+            alt=""
+          />
+        </div>
+        <header data-part="content">
+          <div data-part="name">
+            <.trendyol_testimonial_logo />
+            <.button
+              href="#"
+              variant="secondary"
+              icon_position="right"
+              label="Read customer story"
+            >
+              <:icon_right><.chevron_right /></:icon_right>
+            </.button>
+          </div>
+          <h3>{gettext("Trendyol reduced build times by 65% with Tuist")}</h3>
+        </header>
+        <div data-part="graphic">
+          <img src="/marketing/images/testimonials/trendyol/graphic.webp" alt="Trendyol graph" />
+        </div>
+      </article>
+
+      <article data-part="customer-two">
+        <div data-part="background" aria-hidden="true">
+          <img
+            src="/marketing/images/testimonials/bumble/background.webp"
+            alt=""
+          />
+        </div>
+        <header data-part="content">
+          <div data-part="name">
+            <.bumble_testimonial_logo />
+            <.button
+              href="#"
+              variant="secondary"
+              icon_position="right"
+              label="Read customer story"
+            >
+              <:icon_right><.chevron_right /></:icon_right>
+            </.button>
+          </div>
+          <h3>{gettext("Bumble solved key issues without changing the core dev experience")}</h3>
+        </header>
+        <div data-part="graphic">
+          <img src="/marketing/images/testimonials/bumble/graphic.webp" alt="Bumble graphic" />
+        </div>
+      </article>
+    </section>
+
+    <section data-part="features-title">
+      <h2>{gettext("Powered by")}
+        <span data-part="box">{gettext("open source")}</span></h2>
+    </section>
+
+    <section data-part="stats" aria-label="Platform statistics">
+      <div data-part="column">
+        <article data-part="github-card">
+          <div data-part="background">
+            <img src="/marketing/images/stats/github.webp" alt="" />
+          </div>
+          <div data-part="content">
+            <h1>{gettext("5K+")}</h1>
+            <p>{gettext("Stars on GitHub")}</p>
+          </div>
+        </article>
+
+        <article data-part="oss-card">
+          <div data-part="background">
+            <img src="/marketing/images/stats/oss.webp" alt="" />
+          </div>
+          <div data-part="content">
+            <h1>{gettext("7+")}</h1>
+            <p>{gettext("Years of building OSS Foundation")}</p>
+          </div>
+        </article>
+      </div>
+
+      <div data-part="column">
+        <article data-part="minutes-card">
+          <div data-part="background">
+            <img src="/marketing/images/stats/minutes.webp" alt="" />
+          </div>
+          <div data-part="content">
+            <h1>{gettext("200,344,123")}</h1>
+            <p>{gettext("Millions of minutes saved")}</p>
+          </div>
+        </article>
+
+        <article data-part="slack-card">
+          <div data-part="background">
+            <img src="/marketing/images/stats/slack.webp" alt="" />
+          </div>
+          <div data-part="content">
+            <h1>{gettext("1400+")}</h1>
+            <p>{gettext("Active community members and counting")}</p>
+          </div>
+        </article>
+      </div>
+
+      <div data-part="column">
+        <article data-part="teams-card">
+          <div data-part="background">
+            <img src="/marketing/images/stats/teams.webp" alt="" />
+          </div>
+          <div data-part="content">
+            <h1>{gettext("10K+")}</h1>
+            <p>{gettext("Teams using Tuist")}</p>
+          </div>
+        </article>
+
+        <article data-part="contributors-card">
+          <div data-part="background">
+            <img src="/marketing/images/stats/contributors.webp" alt="" />
+          </div>
+          <div data-part="content">
+            <h1>{gettext("300+")}</h1>
+            <p>{gettext("Contributors")}</p>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section data-part="cta">
+      <.marketing_banner title={gettext("Supercharge your app development")} />
+    </section>
+  </main>
+</TuistWeb.Marketing.Layouts.marketing_next>
