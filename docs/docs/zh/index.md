@@ -8,9 +8,10 @@
 import VPFeatures from "vitepress/dist/client/theme-default/components/VPFeatures.vue"
 </script>
 
-# A virtual platform team for developers who ship
+# 为开发人员提供虚拟平台团队
 
-**Tuist extends Apple's toolchain to help teams scale and focus on building apps** – transforming Apple platform development from frustrating complexity into a smooth, productive experience that grows with your team.
+**Tuist 扩展了 Apple 的工具链，帮助团队扩大规模并专注于构建应用程序** - 将 Apple
+平台开发从令人沮丧的复杂性转变为流畅、高效的体验，并与团队共同成长。
 
 <br/>
 
@@ -38,11 +39,11 @@ import VPFeatures from "vitepress/dist/client/theme-default/components/VPFeature
         linkText="Share and iterate faster"
         link="/guides/features/previews"/>
     <HomeCard
-        icon="📦"
-        title="Package Registry"
-        details="Resolve Swift packages in seconds, not minutes. Our registry makes dependency management a breeze."
-        linkText="Speed up package resolution"
-        link="/guides/features/registry"/>
+        icon="✅"
+        title="QA"
+        details="Automate your QA with our agent that tests your app and reports any issues autonomously."
+        linkText="Let us test your app for you"
+        link="/guides/features/qa"/>
     <HomeCard
         icon="📊"
         title="Insights"
@@ -50,21 +51,29 @@ import VPFeatures from "vitepress/dist/client/theme-default/components/VPFeature
         linkText="Stay ahead of issues"
         link="/guides/features/insights"/>
     <HomeCard
-        icon="🎯"
+        icon="⚖️"
         title="Bundle size"
         details="Keep your app lean and fast. Analyze and optimize your bundle size to delight users and pass App Store guidelines."
         linkText="Optimize your app"
         link="/guides/features/bundle-size"/>
+    <HomeCard
+        icon="📦"
+        title="Package Registry"
+        details="Resolve Swift packages in seconds, not minutes. Our registry makes dependency management a breeze."
+        linkText="Speed up package resolution"
+        link="/guides/features/registry"/>
 </HomeCards>
 
-## Join thousands of developers who've made the switch
+## 加入数以千计的开发人员的行列
 
-**Teams at [Trendyol](https://www.trendyol.com/), [Etsy](https://www.etsy.com/), [Bumble](https://bumble.com/), [Monzo](https://monzo.com/), [Bending Spoons](https://bendingspoons.com/), and 100+ other companies** have already transformed their Apple platform development with Tuist. Here's what they're experiencing:
+**Trendyol](https://www.trendyol.com/)、[Etsy](https://www.etsy.com/)、[Bumble](https://bumble.com/)、[Monzo](https://monzo.com/)、[Bending
+Spoons](https://bendingspoons.com/)以及其他 100 多家公司** 的团队已经使用 Tuist
+改变了他们的苹果平台开发。以下是他们的经验之谈：
 
-- **65% faster builds** with intelligent caching
-- **Zero merge conflicts** in Xcode projects
-- **Minutes to seconds** package resolution
-- **Happy developers** who can focus on building features
+- **通过智能缓存，构建速度提高 65%**
+- **Xcode 项目中的零合并冲突**
+- **分至秒** 包裹分辨率
+- **快乐的开发人员** ，他们可以专注于构建功能
 
 <HomeCards type="carousel">
     <HomeCard icon="🚀"
@@ -87,15 +96,15 @@ import VPFeatures from "vitepress/dist/client/theme-default/components/VPFeature
 </HomeCards>
 
 
-## See Tuist in action
+## 观看 Tuist 的实际操作
 
-**Learn from real implementations** and get inspired by what's possible when your toolchain just works.
+**从实际实施中学习** ，并从工具链的运行中获得灵感。
 
 <HomeVideos/>
 
-## Join a thriving community
+## 加入蓬勃发展的社区
 
-**Connect with thousands of Apple platform developers** who are shipping better apps with Tuist. Get help, share wins, and shape the future of Apple platform development.
+**与成千上万的 Apple 平台开发者联系** ，他们正在使用 Tuist 发布更好的应用程序。获取帮助，分享成功，共同塑造 Apple 平台开发的未来。
 
 <HomeCommunity>
     <HomeCommunityItem title="Forum" description="Interact with other community members in a synchronous manner" href="https://community.tuist.dev">
