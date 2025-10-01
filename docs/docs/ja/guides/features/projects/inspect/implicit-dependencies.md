@@ -1,24 +1,24 @@
 ---
 {
   "title": "Implicit imports",
-  "titleTemplate": ":title · Inspect · Projects · Develop · Guides · Tuist",
-  "description": "Learn how to use Tuist to find implicit dependencies."
+  "titleTemplate": ":title · Inspect · Projects · Features · Guides · Tuist",
+  "description": "Learn how to use Tuist to find implicit imports."
 }
 ---
-# Implicit imports {#implicit-imports}
+# 暗黙のインポート{#implicit-imports}。
 
-To alleviate the complexity of maintaining an Xcode project graph with raw Xcode project, Apple designed the build system in a way that allows dependencies to be implicitly defined. This means that a product, for example an app, can depend on a framework, even without declaring the dependency explicitly. At a small scale, this is is fine, but as the project graph grows in complexity, the implicitness might manifest as unreliable incremental builds or editor-based features such as previews or code completion.
+生のXcodeプロジェクトでXcodeプロジェクトグラフを維持する複雑さを軽減するために、Appleは依存関係を暗黙的に定義できるようにビルドシステムを設計した。これは、ある製品、例えばアプリが、明示的に依存関係を宣言しなくても、フレームワークに依存できることを意味する。小規模であれば、これは問題ないが、プロジェクト・グラフが複雑になると、暗黙的な依存関係は、信頼性の低いインクリメンタル・ビルドや、プレビューやコード補完のようなエディタ・ベースの機能として現れるかもしれない。
 
-The problem is that you can't prevent implicit dependencies from happening. Any developer can add an `import` statement to their Swift code, and the implicit dependency will be created. This is where Tuist comes in. Tuist provides a command to inspect the implicit dependencies by statically analyzing the code in your project. The following command will output the implicit dependencies of your project:
+問題は、暗黙の依存関係が起こるのを防ぐことができないということだ。どんな開発者でも、Swiftのコードに`import`
+ステートメントを追加することができ、暗黙の依存関係が作られてしまう。そこでTuistの出番だ。Tuistは、プロジェクト内のコードを静的に分析することで、暗黙の依存関係を検査するコマンドを提供します。以下のコマンドは、あなたのプロジェクトの暗黙の依存関係を出力する：
 
 ```bash
 tuist inspect implicit-imports
 ```
 
-If the command detects any implicit imports, it exits with an exit code other than zero.
+コマンドが暗黙のインポートを検出した場合、0以外の終了コードで終了する。
 
-> [!TIP] VALIDATE IN CI
-> We strongly recommend to run this command as part of your <LocalizedLink href="/guides/features/automate/continuous-integration">continuous integration</LocalizedLink> command every time new code is pushed upstream.
+> [新しいコードがアップストリームにプッシュされるたびに、<LocalizedLink href="/guides/features/automate/continuous-integration">継続的インテグレーション</LocalizedLink>コマンドの一部としてこのコマンドを実行することを強く推奨します。
 
-> [!IMPORTANT] NOT ALL IMPLICIT CASES ARE DETECTED
-> Since Tuist relies on static code analysis to detect implicit dependencies, it might not catch all cases. For example, Tuist is unable to understand conditional imports through compiler directives in code.
+> [重要】すべての暗黙的なケースを検出するわけではない
+> Tuistは暗黙的な依存関係を検出するために静的なコード解析に依存しているため、すべてのケースを検出できるとは限らない。例えば、Tuistはコード中のコンパイラ指令による条件付きインポートを理解することができない。
