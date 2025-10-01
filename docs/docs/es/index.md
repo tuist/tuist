@@ -8,12 +8,12 @@
 import VPFeatures from "vitepress/dist/client/theme-default/components/VPFeatures.vue"
 </script>
 
-# Un equipo de plataforma virtual para desarrolladores que envían
+# Un equipo de plataforma virtual para desarrolladores que shippean
 
-**Tuist amplía la cadena de herramientas de Apple para ayudar a los equipos a
-escalar y centrarse en la creación de aplicaciones** - transformando el
-desarrollo de la plataforma de Apple de una complejidad frustrante a una
-experiencia fluida y productiva que crece con tu equipo.
+**Tuist extiende la herramientas de Apple para ayudar a los equipos a escalar y
+centrarse en la creación de aplicaciones** - transformando el desarrollo de la
+plataforma de Apple de una complejidad frustrante a una experiencia fluida y
+productiva que crece con tu equipo.
 
 <br/>
 
@@ -74,7 +74,7 @@ experiencia fluida y productiva que crece con tu equipo.
 de 100 empresas** ya han transformado el desarrollo de su plataforma Apple con
 Tuist. Esto es lo que están experimentando:
 
-- **Construcciones un 65% más rápidas** con caché inteligente
+- **Compilaciones un 65% más rápidas** con caché inteligente
 - **Cero conflictos de fusión** en proyectos Xcode
 - **De minutos a segundos** resolución del paquete
 - **Desarrolladores contentos** que pueden centrarse en crear funciones
