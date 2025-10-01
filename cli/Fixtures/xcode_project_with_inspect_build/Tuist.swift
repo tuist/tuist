@@ -1,6 +1,6 @@
 import ProjectDescription
 
 let tuist = Tuist(
-    fullHandle: "tuist/xcode_project_with_inspect_build",
+    fullHandle: "tuist/tuist",
     url: "https://canary.tuist.dev"
 )

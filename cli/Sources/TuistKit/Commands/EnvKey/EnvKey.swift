@@ -107,16 +107,21 @@ public enum EnvKey: String, CaseIterable {
 
     case lintRedundantDependenciesPath = "TUIST_LINT_REDUNDANT_DEPENDENCIES_PATH"
 
-    // BUILD
+    // INSPECT BUILD
 
     case inspectBuildPath = "TUIST_INSPECT_BUILD_PATH"
     case inspectBuildDerivedDataPath = "TUIST_INSPECT_BUILD_DERIVED_DATA_PATH"
 
-    // BUNDLE
+    // INSPECT BUNDLE
 
     case inspectBundle = "TUIST_INSPECT_BUNDLE"
     case inspectBundleJSON = "TUIST_INSPECT_BUNDLE_JSON"
     case inspectBundlePath = "TUIST_INSPECT_BUNDLE_PATH"
+    
+    // INSPECT TEST
+
+    case inspectTestPath = "TUIST_INSPECT_TEST_PATH"
+    case inspectTestDerivedDataPath = "TUIST_INSPECT_TEST_DERIVED_DATA_PATH"
 
     // RUN
 

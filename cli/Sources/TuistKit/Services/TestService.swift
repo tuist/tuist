@@ -7,6 +7,7 @@ import TuistLoader
 import TuistServer
 import TuistSupport
 import XcodeGraph
+import TuistXCResultService
 
 import struct TSCUtility.Version
 
