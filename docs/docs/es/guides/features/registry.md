@@ -1,45 +1,76 @@
 ---
 {
   "title": "Registry",
-  "titleTemplate": ":title · Develop · Guides · Tuist",
+  "titleTemplate": ":title · Features · Guides · Tuist",
   "description": "Optimize your Swift package resolution times by leveraging the Tuist Registry."
 }
 ---
-# Registry {#registry}
+# Registro {#registry}
 
-> [!IMPORTANT] REQUIREMENTS
->
-> - A <LocalizedLink href="/server/introduction/accounts-and-projects">Tuist account and project</LocalizedLink>
+> [REQUISITOS
+> - A <LocalizedLink href="/guides/server/accounts-and-projects">Cuenta tuista y
+>   proyecto</LocalizedLink>
 
-As the number of dependencies grows, so does the time to resolve them. While other package managers like [CocoaPods](https://cocoapods.org/) or [npm](https://www.npmjs.com/) are centralized, Swift Package Manager is not. Because of that, SwiftPM needs to resolve dependencies by doing a deep clone of each repository, which can be time-consuming. To address this, Tuist provides an implementation of the [Package Registry](https://github.com/swiftlang/swift-package-manager/blob/main/Documentation/PackageRegistry/PackageRegistryUsage.md), so you can download only the commit you _actually need_. The packages in the registry are based on the [Swift Package Index](https://swiftpackageindex.com/) – if you can find a package there, the package is also available in the Tuist Registry. Additionally, the packages are distributed across the globe using an edge storage for minimum latency when resolving them.
+A medida que el número de dependencias crece, también lo hace el tiempo para
+resolverlas. Mientras que otros gestores de paquetes como
+[CocoaPods](https://cocoapods.org/) o [npm](https://www.npmjs.com/) están
+centralizados, Swift Package Manager no lo está. Debido a esto, SwiftPM necesita
+resolver las dependencias haciendo un clon profundo de cada repositorio, lo que
+puede llevar mucho tiempo y ocupa más memoria que un enfoque centralizado. Para
+solucionar esto, Tuist proporciona una implementación del [Registro de
+Paquetes](https://github.com/swiftlang/swift-package-manager/blob/main/Documentation/PackageRegistry/PackageRegistryUsage.md),
+para que puedas descargar sólo los commits que _realmente necesita_. Los
+paquetes del registro se basan en el [Índice de paquetes
+Swift](https://swiftpackageindex.com/). - Si encuentra un paquete allí, también
+estará disponible en el Registro Tuist. Además, los paquetes se distribuyen por
+todo el mundo utilizando un almacenamiento de borde para una latencia mínima al
+resolverlos.
 
-## Usage {#usage}
+## Uso {#usage}
 
-To set up and log in to the registry, run the following command in your project's directory:
+Para configurar e iniciar sesión en el registro, ejecute el siguiente comando en
+el directorio de su proyecto:
 
 ```bash
 tuist registry setup
 ```
 
-This command generates a registry configuration files and logs you in to the registry. To ensure the rest of your team can access the registry, ensure the generated files is committed and that your team members run the following command to log in:
+Este comando genera un archivo de configuración del registro y le permite
+acceder al mismo. Para asegurarse de que el resto de su equipo puede acceder al
+registro, asegúrese de que los archivos generados están confirmados y de que los
+miembros de su equipo ejecutan el siguiente comando para iniciar sesión:
 
 ```bash
 tuist registry login
 ```
 
-Now you can access the registry! To resolve dependencies from the registry instead of from source control, continue reading based on your project setup:
+Ahora puede acceder al registro. Para resolver dependencias desde el registro en
+lugar de desde el control de código fuente, siga leyendo en función de la
+configuración de su proyecto:
+- <LocalizedLink href="/guides/features/registry/xcode-project">Xcode
+  project</LocalizedLink>
+- <LocalizedLink href="/guides/features/registry/generated-project">Proyecto
+  generado con la integración del paquete Xcode</LocalizedLink>
+- <LocalizedLink href="/guides/features/registry/xcodeproj-integration">Proyecto
+  generado con la integración de paquetes basada en XcodeProj</LocalizedLink>
+- <LocalizedLink href="/guides/features/registry/swift-package">Swift
+  package</LocalizedLink>
 
-- <LocalizedLink href="/guides/features/registry/xcode-project">Xcode project</LocalizedLink>
-- <LocalizedLink href="/guides/features/registry/generated-project">Generated project with the Xcode package integration</LocalizedLink>
-- <LocalizedLink href="/guides/features/registry/xcodeproj-integration">Generated project with the XcodeProj-based package integration</LocalizedLink>
-- <LocalizedLink href="/guides/features/registry/swift-package">Swift package</LocalizedLink>
+Para configurar el registro en la IC, siga esta guía:
+<LocalizedLink href="/guides/features/registry/continuous-integration">Integración
+continua</LocalizedLink>.
 
-To set up the registry on the CI, follow this guide: <LocalizedLink href="/guides/features/registry/continuous-integration">Continuous integration</LocalizedLink>.
+### Identificadores del registro de paquetes {#package-registry-identifiers}
 
-### Package registry identifiers {#package-registry-identifiers}
+Cuando utilice identificadores de registro de paquetes en un archivo
+`Package.swift` o `Project.swift`, deberá convertir la URL del paquete a la
+convención del registro. El identificador del registro siempre tiene la forma
+`{organization}.{repository}`. Por ejemplo, para utilizar el registro del
+paquete `https://github.com/pointfreeco/swift-composable-architecture`, el
+identificador del registro del paquete sería
+`pointfreeco.swift-composable-architecture`.
 
-If you want to ensure that the registry is used every time you resolve dependencies, you will need to update `dependencies` in your `Package.swift` file to use the registry identifier instead of a URL. The registry identifier is always in the form of `{organization}.{repository}`. For example, to use the registry for the `swift-composable-architecture` package, do the following:
-
-> [!NOTE]
-> The identifier can't contain more than one dot. If the repository name contains a dot, it's replaced with an underscore.
-> For example, the `https://github.com/groue/GRDB.swift` package would have the registry identifier `groue.GRDB_swift`.
+> [El identificador no puede contener más de un punto. Si el nombre del
+> repositorio contiene un punto, se sustituye por un guión bajo. Por ejemplo, el
+> paquete `https://github.com/groue/GRDB.swift` tendría el identificador de
+> registro `groue.GRDB_swift`.
