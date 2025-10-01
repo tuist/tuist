@@ -5,20 +5,25 @@
   "description": "Learn how to migrate your projects from XcodeGen to Tuist."
 }
 ---
-# Migrate an XcodeGen project {#migrate-an-xcodegen-project}
+# 迁移 XcodeGen 项目 {#migrate-an-xcodegen-project}
 
-[XcodeGen](https://github.com/yonaskolb/XcodeGen) is a project-generation tool that uses YAML as [a configuration format](https://github.com/yonaskolb/XcodeGen/blob/master/Docs/ProjectSpec.md) to define Xcode projects. Many organizations **adopted it trying to escape from the frequent Git conflicts that arise when working with Xcode projects.** However, frequent Git conflicts is just one of the many problems that organizations experience. Xcode exposes developers with a lot of intricacies and implicit configurations that make it hard to maintain and optimize projects at scale. XcodeGen falls short there by design because it's a tool that generates Xcode projects, not a project manager. If you need a tool that helps you beyond generating Xcode projects, you might want to consider Tuist.
+[XcodeGen](https://github.com/yonaskolb/XcodeGen) 是一款项目生成工具，它使用 YAML
+作为[一种配置格式](https://github.com/yonaskolb/XcodeGen/blob/master/Docs/ProjectSpec.md)来定义
+Xcode 项目。许多组织**都采用了该工具，试图摆脱在处理 Xcode 项目时频繁出现的 Git 冲突。** 然而，频繁的 Git
+冲突只是企业遇到的众多问题之一。Xcode 为开发人员提供了大量错综复杂的隐含配置，这使得大规模维护和优化项目变得十分困难。XcodeGen
+在设计上存在不足，因为它只是一个生成 Xcode 项目的工具，而不是一个项目管理器。如果您除了需要一个生成 Xcode
+项目的工具外，还需要一个其他的工具，那么您可以考虑 Tuist。
 
-> [!TIP] SWIFT OVER YAML
-> Many organizations prefer Tuist as a project generation tool too because it uses Swift as a configuration format. Swift is a programming language that developers are familiar with, and that provides them with the convenience of using Xcode's autocompletion, type-checking, and validation features.
+> [提示] 与 YAML 相比，SWIFT 更适合作为项目生成工具，这也是因为 Tuist 使用 Swift 作为配置格式。Swift
+> 是一种开发人员非常熟悉的编程语言，可以方便地使用 Xcode 的自动完成、类型检查和验证功能。
 
-What follows are some considerations and guidelines to help you migrate your projects from XcodeGen to Tuist.
+以下是一些注意事项和指南，可帮助您将项目从 XcodeGen 移植到 Tuist。
 
-## Project generation {#project-generation}
+## 项目生成 {#project-generation}
 
-Both Tuist and XcodeGen provide a `generate` command that turns your project declaration into Xcode projects and workspaces.
+Tuist 和 XcodeGen 都提供了一个`生成` 命令，可将项目声明转化为 Xcode 项目和工作区。
 
-::: code-group
+代码组
 
 ```bash [XcodeGen]
 xcodegen generate
@@ -29,13 +34,16 @@ tuist generate
 ```
 :::
 
-The difference lays in the editing experience. With Tuist, you can run the `tuist edit` command, which generates an Xcode project on the fly that you can open and start working on. This is particularly useful when you want to make quick changes to your project.
+不同之处在于编辑体验。使用 Tuist，您可以运行`tuist edit` 命令，该命令会即时生成一个 Xcode
+项目，您可以打开并开始工作。当您想对项目进行快速修改时，这一点尤其有用。
 
 ## `project.yaml` {#projectyaml}
 
-XcodeGen's `project.yaml` description file becomes `Project.swift`. Moreover, you can have `Workspace.swift` as a way to customize how projects are grouped in workspaces. You can also have a project `Project.swift` with targets that reference targets from other projects. In those cases, Tuist will generate an Xcode Workspace including all the projects.
+XcodeGen 的`project.yaml` 描述文件变为`Project.swift` 。此外，您还可以使用`Workspace.swift`
+来自定义项目在工作区中的分组方式。您也可以让项目`Project.swift` 包含引用其他项目目标的目标。在这种情况下，Tuist 将生成一个包含所有项目的
+Xcode 工作区。
 
-::: code-group
+代码组
 
 ```bash [XcodeGen directory structure]
 /
@@ -50,14 +58,17 @@ XcodeGen's `project.yaml` description file becomes `Project.swift`. Moreover, yo
 ```
 :::
 
-> [!TIP] XCODE'S LANGUAGE
-> Both XcodeGen and Tuist embrace Xcode's language and concepts. However, Tuist's Swift-based configuration provides you with the convenience of using Xcode's autocompletion, type-checking, and validation features.
+> [提示] XCODE 的语言 XcodeGen 和 Tuist 都支持 Xcode 的语言和概念。然而，Tuist 基于 Swift 的配置为您提供了使用
+> Xcode 的自动完成、类型检查和验证功能的便利。
 
-## Spec templates {#spec-templates}
+## 规范模板 {#spec-templates}
 
-One of the disadvantages of YAML as a language for project configuration is that it doesn't support reusability across YAML files out of the box. This is a common need when describing projects, which XcodeGen had to solve with their own propietary solution named *"templates"*. With Tuist's re-usability is built into the language itself, Swift, and through a Swift module named <LocalizedLink href="/guides/features/projects/code-sharing">project description helpers</LocalizedLink>, which allow reusing code across all your manifest files.
+YAML 作为项目配置语言的一个缺点是，它不支持开箱即用的 YAML 文件之间的复用。这是描述项目时的一个常见需求，XcodeGen
+不得不使用自己的专利解决方案（名为*"templates"* ）来解决这个问题。Tuist 的可重用性内置于 Swift 语言本身，并通过名为
+<LocalizedLink href="/guides/features/projects/code-sharing">project description
+helpers</LocalizedLink> 的 Swift 模块实现，该模块允许在所有清单文件中重用代码。
 
-::: code-group
+代码组
 ```swift [Tuist/ProjectDescriptionHelpers/Target+Features.swift]
 import ProjectDescription
 
