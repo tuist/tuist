@@ -5,52 +5,36 @@
   "description": "Get insights into your projects to maintain a product developer environment."
 }
 ---
-# Insights {#insights}
+# 洞察 {#insights}
 
-> [!IMPORTANT] REQUIREMENTS
-> - A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account
->   and project</LocalizedLink>
+> [重要】要件
+> - A<LocalizedLink href="/guides/server/accounts-and-projects">トゥイストのアカウントとプロジェクト</LocalizedLink>
 
-Working on large projects shouldn't feel like a chore. In fact, it should be as
-enjoyable as working on a project you started just two weeks ago. One of the
-reasons it is not is because as the project grows, the developer experience
-suffers. The build times increase and tests become slow and flaky. It's often
-easy to overlook these issues until it gets to a point where they become
-unbearable – however, at that point, it's difficult to address them. Tuist
-Insights provides you with the tools to monitor the health of your project and
-maintain a productive developer environment as your project scales.
+大規模なプロジェクトに取り組むことは、雑用のように感じるべきではない。実際、ほんの2週間前に始めたプロジェクトと同じくらい楽しいはずだ。そうならない理由の一つは、プロジェクトが大きくなるにつれて、開発者の体験が損なわれるからだ。ビルドにかかる時間は長くなり、テストは遅く、不安定になる。耐えられなくなるまで、これらの問題を見過ごすのは簡単なことだが、しかしその時点で対処するのは難しい。Tuist
+Insightsは、プロジェクトの健全性を監視し、プロジェクトの規模が拡大しても生産性の高い開発者環境を維持するためのツールを提供する。
 
-In other words, Tuist Insights helps you to anwer questions such as:
-- Has the build time significantly increased in the last week?
-- Have my tests become slower? Which ones?
+言い換えれば、Tuist Insightsは次のような質問に答えるのに役立つ：
+- この1週間で、ビルドタイムが大幅に伸びましたか？
+- 私のテストは遅くなりましたか？どのテストですか？
 
-> [!NOTE] Tuist Insights are in early development.
+> [注】Tuist Insightsは開発初期段階にある。
 
-## Builds {#builds}
+## ビルド {#builds}
 
-While you probably have some metrics for the performance of CI workflows, you
-might not have the same visibility into the local development environment.
-However, local build times are one of the most important factors that contribute
-to the developer experience.
+おそらくCIワークフローのパフォーマンスに関するメトリクスは持っているだろうが、ローカルの開発環境については同じように可視化できていないかもしれない。しかし、ローカルのビルド時間は開発者のエクスペリエンスに貢献する最も重要な要素の1つです。
 
-To start tracking local build times, you can leverage the `tuist inspect build`
-command by adding it to your scheme's post-action:
+ローカルビルド時間の追跡を開始するには、`tuist inspect build` コマンドをスキームのポストアクションに追加することで活用できる：
 
-![Post-action for inspecting
-builds](/images/guides/features/insights/inspect-build-scheme-post-action.png)
+![ビルド検査の事後処理](/images/guides/features/insights/inspect-build-scheme-post-action.png)。
 
-> [!NOTE] We recommend setting the "Provide build settings from" to the
-> executable or your main build target to enable Tuist to track the build
-> configuration.
+> [注意]Tuistがビルド設定を追跡できるように、"Provide build settings from
+> "を実行ファイルまたはメインのビルドターゲットに設定することをお勧めします。
 
-> [!NOTE] If you are not using
-> <LocalizedLink href="/guides/features/projects">generated
-> projects</LocalizedLink>, the post-scheme action is not executed in case the
-> build fails.
+> [注意]
+> <LocalizedLink href="/guides/features/projects">生成されたプロジェクト</LocalizedLink>を使用していない場合、ビルドに失敗してもポスト・スキーム・アクションは実行されません。
 > 
-> An undocumented feature in Xcode allows you to execute it even in this case.
-> Set the attribute `runPostActionsOnFailure` to `YES` in your scheme's
-> `BuildAction` in the relevant `project.pbxproj` file as follows:
+> Xcodeの文書化されていない機能により、この場合でも実行することができます。`project.pbxproj`
+> ファイルの該当するスキームの`BuildAction` の`runPostActionsOnFailure` 属性を`YES` に設定します：
 > 
 > ```diff
 > <BuildAction
@@ -59,8 +43,7 @@ builds](/images/guides/features/insights/inspect-build-scheme-post-action.png)
 > +  runPostActionsOnFailure="YES">
 > ```
 
-In case you're using [Mise](https://mise.jdx.dev/), your script will need to
-activate `tuist` in the post-action environment:
+Mise](https://mise.jdx.dev/)を使用している場合、スクリプトはポストアクション環境で`tuist` ：
 ```sh
 # -C ensures that Mise loads the configuration from the Mise configuration
 # file in the project's root directory.
@@ -70,30 +53,20 @@ tuist inspect build
 ```
 
 
-Your local builds are now tracked as long as you are logged in to your Tuist
-account. You can now access your build times in the Tuist dashboard and see how
-they evolve over time:
+Tuistアカウントにログインしている限り、ローカルのビルドが追跡されるようになりました。Tuistダッシュボードでビルドタイムにアクセスし、時間の経過とともにビルドタイムがどのように変化していくかを確認できるようになりました：
 
 
-> [!TIP] To quickly access the dashboard, run `tuist project show --web` from
-> the CLI.
+> [ヒント] ダッシュボードに素早くアクセスするには、CLIから`tuist project show --web` を実行する。
 
-![Dashboard with build
-insights](/images/guides/features/insights/builds-dashboard.png)
+ビルド・インサイトのダッシュボード](/images/guides/features/insights/builds-dashboard.png)。
 
-## Generated projects {#generated-projects}
+## 生成されたプロジェクト{#generated-projects}。
 
-> [!NOTE] Auto-generated schemes automatically include the `tuist inspect build`
-> post-action.
+> [注意】自動生成されたスキームには、`tuist inspect build` post-actionが自動的に含まれる。
 > 
-> If you are not interested in tracking build insights in your auto-generated
-> schemes, disable them using the
-> <LocalizedLink href="references/project-description/structs/tuist.generationoptions#buildinsightsdisabled">buildInsightsDisabled</LocalizedLink>
-> generation option.
+> 自動生成されたスキームでビルドインサイトを追跡することに興味がない場合は、<LocalizedLink href="references/project-description/structs/tuist.generationoptions#buildinsightsdisabled">buildInsightsDisabled</LocalizedLink>生成オプションを使用して無効にしてください。
 
-If you are using generated projects, you can set up a custom
-<LocalizedLink href="references/project-description/structs/buildaction#postactions">build
-post-action</LocalizedLink> using a custom scheme, such as:
+生成されたプロジェクトを使用している場合、カスタムスキームを使用してカスタム<LocalizedLink href="references/project-description/structs/buildaction#postactions">ビルドポストアクション</LocalizedLink>を設定できます：
 
 ```swift
 let project = Project(
@@ -126,7 +99,7 @@ let project = Project(
 )
 ```
 
-If you're not using Mise, your script can be simplified to just:
+三瀬を使わないのであれば、スクリプトは単純化できる：
 
 ```swift
 .postAction(
@@ -136,16 +109,16 @@ If you're not using Mise, your script can be simplified to just:
 )
 ```
 
-## Continuous integration {#continuous-integration}
+## 継続的インテグレーション{#continuous-integration}。
 
-To track build times also on the CI, you will need to ensure that your CI is
-<LocalizedLink href="/guides/integrations/continuous-integration#authentication">authenticated</LocalizedLink>.
+CI上でもビルド時間を追跡するには、CIが<LocalizedLink href="/guides/integrations/continuous-integration#authentication">認証済み</LocalizedLink>であることを確認する必要があります。
 
-Additionally, you will either need to:
-- Use the <LocalizedLink href="/cli/xcodebuild#tuist-xcodebuild">`tuist
-  xcodebuild`</LocalizedLink> command when invoking `xcodebuild` actions.
-- Add `-resultBundlePath` to your `xcodebuild` invocation.
+さらに、以下のいずれかが必要となる：
+- `xcodebuild`
+  アクションを呼び出すときは、<LocalizedLink href="/cli/xcodebuild#tuist-xcodebuild">`tuist
+  xcodebuild`</LocalizedLink> コマンドを使用する。
+- `xcodebuild` の呼び出しに`-resultBundlePath` を追加する。
 
-When `xcodebuild` builds your project without `-resultBundlePath`, the
-`.xcactivitylog` file is not generated. But the `tuist inspect build`
-post-action requires that file to be generated to analyze your build.
+`xcodebuild` が`-resultBundlePath` なしでプロジェクトをビルドするとき、`.xcactivitylog`
+ファイルは生成されません。しかし、`tuist inspect build`
+ポスト・アクションでは、ビルドを分析するためにこのファイルが生成される必要があります。
