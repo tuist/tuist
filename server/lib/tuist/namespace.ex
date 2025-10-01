@@ -5,6 +5,7 @@ defmodule Tuist.Namespace do
 
   alias Tuist.Accounts.Account
   alias Tuist.Environment
+  alias Tuist.KeyValueStore
   alias Tuist.Namespace.Instance
   alias Tuist.Namespace.JWTToken
   alias Tuist.SSHClient
@@ -47,18 +48,32 @@ defmodule Tuist.Namespace do
 
   @doc """
   Issues a tenant token for a specific tenant.
+
+  Tokens are cached for 30 minutes to reduce API calls to Namespace.
   """
   def issue_tenant_token(tenant_id, actor_id) do
-    case iam_request(&Req.post/1,
-           url: "#{@base_tenant_url}/IssueTenantToken",
-           json: %{"tenant_id" => tenant_id, "actor_id" => actor_id}
-         ) do
-      {:ok, %{"bearerToken" => bearer_token}} ->
-        {:ok, bearer_token}
+    cache_key = ["namespace", "tenant_token", tenant_id, actor_id]
 
-      {:error, reason} ->
-        {:error, reason}
-    end
+    KeyValueStore.get_or_update(
+      cache_key,
+      [ttl: to_timeout(minute: 30)],
+      fn ->
+        case iam_request(&Req.post/1,
+               url: "#{@base_tenant_url}/IssueTenantToken",
+               json: %{
+                 "tenant_id" => tenant_id,
+                 "actor_id" => actor_id,
+                 "duration_secs" => 1800
+               }
+             ) do
+          {:ok, %{"bearerToken" => bearer_token}} ->
+            {:ok, bearer_token}
+
+          {:error, reason} ->
+            {:error, reason}
+        end
+      end
+    )
   end
 
   @doc """

@@ -3,6 +3,7 @@ defmodule Tuist.NamespaceTest do
   use Mimic
 
   alias Tuist.Accounts.Account
+  alias Tuist.KeyValueStore
   alias Tuist.Namespace
   alias Tuist.Namespace.Instance
   alias Tuist.Namespace.JWTToken
@@ -122,7 +123,8 @@ defmodule Tuist.NamespaceTest do
 
         assert opts[:json] == %{
                  "tenant_id" => "tenant-123",
-                 "actor_id" => "tuist-qa"
+                 "actor_id" => "tuist-qa",
+                 "duration_secs" => 1800
                }
 
         {:ok, %{status: 200, body: %{"bearerToken" => expected_token}}}
@@ -133,6 +135,50 @@ defmodule Tuist.NamespaceTest do
       end)
 
       assert {:ok, ^expected_token} = Namespace.issue_tenant_token("tenant-123", "tuist-qa")
+    end
+
+    test "caches tenant tokens for 30 minutes" do
+      tenant_id = "tenant-cache-test"
+      actor_id = "tuist-qa"
+      expected_token = "cached-bearer-token-123"
+
+      # Mock the KeyValueStore to return a cached value
+      expect(KeyValueStore, :get_or_update, fn cache_key, opts, _func ->
+        assert cache_key == ["namespace", "tenant_token", tenant_id, actor_id]
+        assert opts[:ttl] == to_timeout(minute: 30)
+        {:ok, expected_token}
+      end)
+
+      assert {:ok, ^expected_token} = Namespace.issue_tenant_token(tenant_id, actor_id)
+    end
+
+    test "issues new token when cache miss occurs" do
+      tenant_id = "tenant-no-cache"
+      actor_id = "tuist-qa"
+      expected_token = "new-bearer-token-456"
+
+      expect(JWTToken, :generate_id_token, fn ->
+        {:ok, "test-jwt-token"}
+      end)
+
+      expect(Req, :post, fn opts ->
+        assert opts[:url] == "https://iam.namespaceapis.com/namespace.cloud.iam.v1beta.TenantService/IssueTenantToken"
+
+        assert opts[:json] == %{
+                 "tenant_id" => tenant_id,
+                 "actor_id" => actor_id,
+                 "duration_secs" => 1800
+               }
+
+        {:ok, %{status: 200, body: %{"bearerToken" => expected_token}}}
+      end)
+
+      # Mock KeyValueStore to execute the function (cache miss scenario)
+      expect(KeyValueStore, :get_or_update, fn _cache_key, _opts, func ->
+        func.()
+      end)
+
+      assert {:ok, ^expected_token} = Namespace.issue_tenant_token(tenant_id, actor_id)
     end
   end
 

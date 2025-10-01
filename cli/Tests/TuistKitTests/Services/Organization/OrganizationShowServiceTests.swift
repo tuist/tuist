@@ -89,6 +89,8 @@ final class OrganizationShowServiceTests: TuistUnitTestCase {
 
                 \(TerminalStyle.bold.open)Usage\(TerminalStyle.reset.open) (current calendar month)
                 Remote cache hits: 210
+                Compute unit minutes: 0
+                LLM tokens: input 0, output 0, total 0
 
                 \(TerminalStyle.bold.open)Organization members\(TerminalStyle.reset.open) (total number: 2)
                 username  email              role
@@ -170,6 +172,51 @@ final class OrganizationShowServiceTests: TuistUnitTestCase {
                 SSO: Okta (tuist.okta.com)
                 """
             )
+        }
+    }
+
+    func test_organization_show_json() async throws {
+        try await withMockedDependencies {
+            // Given
+            given(getOrganizationService)
+                .getOrganization(organizationName: .any, serverURL: .any)
+                .willReturn(
+                    .test(
+                        name: "test-one",
+                        plan: .air,
+                        members: [
+                            .test(
+                                name: "name-one",
+                                email: "name-one@email.io",
+                                role: .user
+                            )
+                        ]
+                    )
+                )
+
+            given(getOrganizationUsageService)
+                .getOrganizationUsage(organizationName: .any, serverURL: .any)
+                .willReturn(.test(
+                    currentMonthRemoteCacheHits: 210,
+                    currentMonthComputeUnitMinutes: 45,
+                    currentMonthLLMTokens: .init(input: 100, output: 200, total: 300)
+                ))
+
+            // When
+            try await subject.run(
+                organizationName: "tuist",
+                json: true,
+                directory: nil
+            )
+
+            // Then
+            XCTAssertPrinterOutputContains("\"organization\"")
+            XCTAssertPrinterOutputContains("\"usage\"")
+            XCTAssertPrinterOutputContains("\"currentMonthRemoteCacheHits\" : 210")
+            XCTAssertPrinterOutputContains("\"currentMonthComputeUnitMinutes\" : 45")
+            XCTAssertPrinterOutputContains("\"input\" : 100")
+            XCTAssertPrinterOutputContains("\"output\" : 200")
+            XCTAssertPrinterOutputContains("\"total\" : 300")
         }
     }
 }

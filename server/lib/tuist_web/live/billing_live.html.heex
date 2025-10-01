@@ -15,7 +15,7 @@
         <div data-part="usage-details-title">
           <span data-part="label">{gettext("Usage details")}</span>
           <.badge
-            :if={@current_month_remote_cache_hits_count > 200}
+            :if={@month_to_date_remote_cache_hits_count > 200}
             label={gettext("Free tier exceeded")}
             color="attention"
             size="small"
@@ -23,7 +23,7 @@
           />
         </div>
         <.progress_bar
-          value={@current_month_remote_cache_hits_count}
+          value={@month_to_date_remote_cache_hits_count}
           max={200}
           title={gettext("Remote cache hits:")}
         >
@@ -39,6 +39,41 @@
               />
               <span data-part="label">
                 {gettext("about remote cache hits")}
+              </span>
+            </div>
+          </:description>
+        </.progress_bar>
+        <.progress_bar
+          :if={FunWithFlags.enabled?(:qa, for: @selected_account)}
+          value={@month_to_date_llm_token_usage.total}
+          max={
+            if @month_to_date_llm_token_usage.total > 0,
+              do: @month_to_date_llm_token_usage.total,
+              else: 1
+          }
+          title={gettext("LLM tokens:")}
+        >
+          <:description>
+            <div data-part="description">
+              <span data-part="label">
+                {gettext("LLM tokens free of charge during the limited early access period.")}
+              </span>
+            </div>
+          </:description>
+        </.progress_bar>
+        <.progress_bar
+          value={@month_to_date_compute_unit_minutes}
+          max={
+            if @month_to_date_compute_unit_minutes > 0,
+              do: @month_to_date_compute_unit_minutes,
+              else: 1
+          }
+          title={gettext("Compute minutes:")}
+        >
+          <:description>
+            <div data-part="description">
+              <span data-part="label">
+                {gettext("Compute minutes free of charge during the limited early access period.")}
               </span>
             </div>
           </:description>
@@ -157,7 +192,7 @@
     <.pricing_cards id="billing-pricing-plans" plan={@plan} />
   </div>
   <.card
-    :if={@plan == :pro and @current_month_remote_cache_hits_count > 200}
+    :if={@plan == :pro and @month_to_date_remote_cache_hits_count > 200}
     data-part="usage-card"
     icon="history"
     title={gettext("Usage")}
@@ -172,7 +207,7 @@
         id="usage-table"
         rows={[
           %{
-            current_month_remote_cache_hits_count: @current_month_remote_cache_hits_count,
+            month_to_date_remote_cache_hits_count: @month_to_date_remote_cache_hits_count,
             price: gettext("$0.50"),
             total: @estimated_next_payment
           }
@@ -180,7 +215,7 @@
       >
         <:col :let={usage_item} label={gettext("Remote cache hits")}>
           <.text_and_description_cell
-            label={usage_item.current_month_remote_cache_hits_count}
+            label={usage_item.month_to_date_remote_cache_hits_count}
             description={gettext("above free tier")}
           />
         </:col>
