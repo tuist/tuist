@@ -5,29 +5,59 @@
   "description": "Learn how to contribute to Tuist by reviewing code"
 }
 ---
-# Code reviews {#code-reviews}
+# Revisões de código {#revisões de código}
 
-Reviewing pull requests is a common type of contribution. Despite continuous integration (CI) ensuring the code does what’s supposed to do, it’s not enough. There are contribution traits that can’t be automated: design, code structure & architecture, tests quality, or typos. The following sections represent different aspects of the code review process.
+A revisão de pedidos pull é um tipo comum de contribuição. Apesar da integração
+contínua (CI) garantir que o código faz o que é suposto fazer, não é suficiente.
+Existem caraterísticas de contribuição que não podem ser automatizadas: design,
+estrutura e arquitetura do código, qualidade dos testes ou erros de digitação.
+As secções seguintes representam diferentes aspectos do processo de revisão do
+código.
 
-## Readability {#readability}
+## Legibilidade {#readability}
 
-Does the code express its intention clearly? **If you need to spend a bunch of time figuring out what the code does, the code implementation needs to be improved.** Suggest splitting the code into smaller abstractions that are easier to understand. Alternative, and as a last resource, they can add a comment explaining the reasoning behind it. Ask yourself if you’d be able to understand the code in a near future, without any surrounding context like the pull request description.
+O código expressa claramente a sua intenção? **Se precisar de perder muito tempo
+a descobrir o que o código faz, a implementação do código precisa de ser
+melhorada.** Sugira a divisão do código em abstracções mais pequenas que sejam
+mais fáceis de compreender. Alternativamente, e como último recurso, podem
+acrescentar um comentário a explicar o raciocínio subjacente. Pergunte a si
+próprio se seria capaz de compreender o código num futuro próximo, sem qualquer
+contexto envolvente como a descrição do pull request.
 
-## Small pull requests {#small-pull-requests}
+## Pedidos pequenos {#small-pull-requests}
 
-Large pull requests are hard to review and it’s easier to miss out details. If a pull request becomes too large and unmanageable, suggest the author to break it down.
+Os pull requests grandes são difíceis de rever e é mais fácil perder pormenores.
+Se um pull request se tornar demasiado grande e impossível de gerir, sugira ao
+autor que o divida em partes.
 
-> [!NOTE] EXCEPTIONS
-> There are few scenarios where splitting up the pull request is not possible, like when the changes are tightly coupled and can’t be split. In those cases, the author should provide a clear explanation of the changes and the reasoning behind them.
+> [EXCEPÇÕES Há alguns cenários em que dividir o pull request não é possível,
+> como quando as alterações estão fortemente acopladas e não podem ser
+> divididas. Nesses casos, o autor deve fornecer uma explicação clara das
+> alterações e o raciocínio por trás delas.
 
-## Consistency {#consistency}
+## Consistência {#consistência}
 
-It’s important that the changes are consistent with the rest of the project. Inconsistencies complicate maintenance, and therefore we should avoid them. If there’s an approach to output messages to the user, or report errors, we should stick to that. If the author disagrees with the project’s standards, suggest them to open an issue where we can discuss them further.
+É importante que as alterações sejam coerentes com o resto do projeto. As
+inconsistências complicam a manutenção e, por isso, devemos evitá-las. Se houver
+uma abordagem para enviar mensagens ao utilizador, ou reportar erros, devemos
+manter essa abordagem. Se o autor não concordar com os padrões do projeto,
+sugira-lhe que abra uma issue onde possamos discuti-los melhor.
 
-## Tests {#tests}
+## Testes {#tests}
 
-Tests allow changing code with confidence. The code on pull requests should be tested, and all tests should pass. A good test is a test that consistently produces the same result and that it’s easy to understand and maintain. Reviewers spend most of the review time in the implementation code, but tests are equally important because they are code too.
+Os testes permitem alterar o código com confiança. O código nos pedidos pull
+deve ser testado, e todos os testes devem passar. Um bom teste é um teste que
+produz consistentemente o mesmo resultado e que é fácil de entender e manter. Os
+revisores passam a maior parte do tempo de revisão no código de implementação,
+mas os testes são igualmente importantes porque também são código.
 
-## Breaking changes {#breaking-changes}
+## Alterações de rutura {#breaking-changes}
 
-Breaking changes are a bad user experience for users of Tuist. Contributions should avoid introducing breaking changes unless it’s strictly necessary. There are many language features that we can leverage to evolve the interface of Tuist without resorting to a breaking change. Whether a change is breaking or not might not be obvious. A method to verify whether the change is breaking is running Tuist against the fixture projects in the fixtures directory. It requires putting ourselves in the user’s shoes and imagine how the changes would impact them.
+As alterações de rutura são uma má experiência para os utilizadores do Tuist. As
+contribuições devem evitar a introdução de alterações de rutura, a menos que
+seja estritamente necessário. Há muitas caraterísticas da linguagem que podem
+ser aproveitadas para evoluir a interface do Tuist sem recorrer a uma mudança de
+rutura. Se uma mudança é ou não quebrável pode não ser óbvio. Um método para
+verificar se a mudança é uma quebra é rodar o Tuist contra os projetos de
+fixtures no diretório de fixtures. É necessário colocarmo-nos no lugar do
+utilizador e imaginar como as alterações o afectariam.
