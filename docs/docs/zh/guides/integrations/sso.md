@@ -5,44 +5,47 @@
   "description": "Learn how to set up Single Sign-On (SSO) with your organization."
 }
 ---
-# SSO {#sso}
+# SSO {#sso｝
 
-## Google {#google}
+## 谷歌 {#google｝
 
-If you have a Google Workspace organization and you want any developer who signs in with the same Google hosted domain to be added to your Tuist organization, you can set it up with:
+如果您有一个 Google Workspace 组织，并希望使用相同的 Google 托管域登录的开发人员添加到您的 Tuist
+组织中，您可以使用以下方法进行设置：
 ```bash
 tuist organization update sso my-organization --provider google --organization-id my-google-domain.com
 ```
 
-> [!IMPORTANT]
-> You must be authenticated with Google using an email tied to the organization whose domain you are setting up.
+> [重要提示] 您必须使用与您要设置的域名所属机构绑定的电子邮件在 Google 上进行身份验证。
 
 ## Okta {#okta}
 
-SSO with Okta is available only for enterprise customers. If you are interested in setting it up, please contact us at [contact@tuist.dev](mailto:contact@tuist.dev).
+使用 Okta 的 SSO 仅适用于企业客户。如果您有兴趣设置，请通过
+[contact@tuist.dev](mailto:contact@tuist.dev) 联系我们。
 
-During the process, you will be assigned a point of contact to help you set up the Okta SSO.
+在此过程中，我们会为您指定一个联系人，帮助您设置 Okta SSO。
 
-Firstly, you will need to create an Okta application and configure it to work with Tuist:
-1. Go to Okta admin dashboard
-2. Applications > Applications > Create App Integration
-3. Select "OIDC - OpenID Connect" and "Web Application"
-4. Enter the display name for the application, for example, "Tuist". Upload a Tuist logo located at [this URL](https://tuist.dev/images/tuist_dashboard.png).
-5. Leave sign-in redirect URIs as it is for now
-6. Under "Assignments" choose the desired access control to the SSO Application and save.
-7. After saving, the general settings for the application will be available. Copy the "Client ID" and "Client Secret" – you will need to safely share this with your point of contact.
-8. The Tuist team will need to redeploy the Tuist server with the provided client ID and secret. This may take up to one business day.
-9. Once the server is deployed, click on General Settings "Edit" button.
-10. Paste the following redirect URL: `https://tuist.dev/users/auth/okta/callback`
-13. Change "Login initiated by" to "Either Okta or App".
-14. Select "Display application icon to users"
-15. Update the "Initiate login URL" with `https://tuist.dev/users/auth/okta?organization_id=1`. The `organization_id` will be supplied by your point of contact.
-16. Click "Save".
-17. Initiate Tuist login from your Okta dashboard.
-18. Give automatically access to your Tuist organization to users signed from your Okta domain by running the following command:
+首先，您需要创建一个 Okta 应用程序，并将其配置为与 Tuist 一起工作：
+1. 转到 Okta 管理仪表板
+2. 应用程序 > 应用程序 > 创建应用程序集成
+3. 选择 "OIDC - OpenID Connect "和 "Web 应用程序
+4. 输入应用程序的显示名称，例如 "Tuist"。上传位于 [this
+   URL](https://tuist.dev/images/tuist_dashboard.png) 的 Tuist 徽标。
+5. 登录重定向 URI 暂时保持不变
+6. 在 "分配 "下选择所需的 SSO 应用程序访问控制并保存。
+7. 保存后，应用程序的常规设置将可用。复制 "客户 ID "和 "客户保密信息"--您需要与联系人安全共享。
+8. Tuist 团队需要使用提供的客户端 ID 和秘密重新部署 Tuist 服务器。这可能需要一个工作日。
+9. 部署服务器后，单击常规设置 "编辑 "按钮。
+10. 粘贴以下重定向 URL：`https://tuist.dev/users/auth/okta/callback`
+13. 将 "登录由......发起 "更改为 "Okta 或应用程序"。
+14. 选择 "向用户显示应用程序图标
+15. 用`https://tuist.dev/users/auth/okta?organization_id=1` 更新 "启动登录 URL"。`组织编号`
+    将由联系人提供。
+16. 点击 "保存"。
+17. 从 Okta 面板启动 Tuist 登录。
+18. 运行以下命令，让从 Okta 域签名的用户自动访问 Tuist 组织：
 ```bash
 tuist organization update sso my-organization --provider okta --organization-id my-okta-domain.com
 ```
 
-> [!IMPORTANT]
-> Users need to initially sign in via their Okta dashboard as Tuist currently doesn't support automatic provisioning and deprovisioning of users from your Okta organization. Once they sign in via their Okta dashboard, they will be automatically added to your Tuist organization.
+> [重要]用户最初需要通过 Okta 面板登录，因为 Tuist 目前不支持从您的 Okta 组织自动配置和删除用户。一旦他们通过 Okta
+> 面板登录，就会自动添加到您的 Tuist 组织中。
