@@ -8,8 +8,8 @@
 # Auto-completado en shells
 
 Si tienes Tuist **instalado globalmente** (por ejemplo, a través de Homebrew),
-puedes instalar completions de shell para Bash y Zsh para autocompletar comandos
-y opciones.
+puedes instalar complementos de shell para Bash y Zsh para autocompletar
+comandos y opciones.
 
 ::: aviso QUÉ ES UNA INSTALACIÓN GLOBAL Una instalación global es una
 instalación que está disponible en la variable de entorno `$PATH` de su shell.
