@@ -1,71 +1,83 @@
 ---
 {
-  "title": "はじめに",
-  "titleTemplate": ":title · コントリビューター · Tuist",
-  "description": "このガイドに従って、Tuistへのコントリビューションを始めましょう。"
+  "title": "Get started",
+  "titleTemplate": ":title · Contributors · Tuist",
+  "description": "Get started contributing to Tuist by following this guide."
 }
 ---
-# はじめに {#get-started}
+# 始めよう{#get-started}。
 
-iOS などの Apple プラットフォーム向けのアプリ開発経験がある場合、Tuist にコードを追加することもそれほど違いはないでしょう。 アプリ開発と比べて、触れておくべき違いが2点あります。
+iOSのようなアップル・プラットフォーム向けのアプリを作った経験があれば、Tuistにコードを追加することはそれほど変わらないはずだ。アプリの開発と比べて、特筆すべき違いが2つある：
 
-- **CLIとのやり取りはターミナルを通じて行われます。** ユーザーはTuistを実行し、指定したタスクを実行した後、正常に終了するか、またはステータスコードを返します。 実行中は、標準出力や標準エラーに情報を出力することで、ユーザーに通知を行うことができます。 ジェスチャーやグラフィカルな操作はなく、あるのはユーザーの意図だけです。
+- **CLIとのやりとりはターミナルを通して行われる。**
+  ユーザーはTuistを実行し、目的のタスクを実行し、成功するかステータスコードとともに戻る。実行中、標準出力と標準エラーに出力情報を送ることでユーザーに通知することができる。ジェスチャーやグラフィカルなインタラクションはなく、ユーザーの意図だけがある。
 
-- **プロセスを保持して入力待ちをするランループはありません。** これはiOSアプリがシステムやユーザーのイベントを受け取るときの挙動とは異なります。  CLIはそのプロセス内で実行され、タスクが完了すると終了します。  非同期処理は、[DispatchQueue](https://developer.apple.com/documentation/dispatch/dispatchqueue) や [構造化並行処理](https://developer.apple.com/tutorials/app-dev-training/managing-structured-concurrency) などのシステムAPIを使用して実行できますが、非同期処理が実行されている間はプロセスが稼働していることを確認する必要があります。  さもなければ、プロセスが終了し、非同期処理も中断されてしまいます。
+- **iOSアプリでアプリがシステム・イベントやユーザー・イベントを受信したときに起こるような、入力待ちでプロセスを存続させるランループ（**
+  ）はない。CLIはそのプロセスの中で実行され、作業が終わると終了する。非同期作業は、[DispatchQueue](https://developer.apple.com/documentation/dispatch/dispatchqueue)
+  や [structured
+  concurrency](https://developer.apple.com/tutorials/app-dev-training/managing-structured-concurrency)のようなシステムAPIを使用して行うことができますが、非同期作業が実行されている間、プロセスが実行されていることを確認する必要があります。そうしないと、プロセスは非同期作業を終了してしまいます。
 
-Swiftに関する経験がない場合は、言語と Foundation API の主要な要素に慣れるために、[Appleの公式ブック](https://docs.swift.org/swift-book/)をお勧めします。
+Swiftの経験がない場合は、言語とFoundationのAPIから最も使用される要素に慣れるために、[Appleの公式本](https://docs.swift.org/swift-book/)をお勧めします。
 
-## 最小要件 {#minimum-requirements}
+## 最低要件 {#minimum-requirements}
 
-Tuist に貢献するには、最低限の要件があります。
+Tuistに貢献するための最低条件は以下の通り：
 
-- macOS 14.0 以上
+- macOS 14.0+
 - Xcode 16.3+
 
-## ローカルでプロジェクトをセットアップする {#set-up-the-project-locally}
+## プロジェクトをローカルにセットアップする {#set-up-the-project-locally}
 
-プロジェクトの作業を開始するには、以下の手順に従います。
+プロジェクトを開始するには、以下のステップを踏む：
 
-- `git clone git@github.com:tuist/tuist.git` を実行してリポジトリをクローンします。
-- 開発環境を整えるため、Mise を [インストール](https://mise.jdx.dev/getting-started.html) します。
-- Tuist が必要とするシステム依存関係をインストールするため、 `mise install` を実行します。
-- Tuist が必要とする外部依存関係をインストールするため、 `tuist install` を実行します。
-- (任意) `tuist auth login` を実行して、 <LocalizedLink href="/guides/features/build/cache">Tuist Cache</LocalizedLink> へのアクセスを取得します
-- `tuist generate` を実行して、Tuist の Xcode プロジェクトを生成します。
+- `git clone git@github.com:tuist/tuist.git を実行してリポジトリをクローンします。`
+- [インストール](https://mise.jdx.dev/getting-started.html)。開発環境のプロビジョニングを行います。
+- `mise install` を実行し、Tuistが必要とするシステム依存関係をインストールする。
+- `tuist install` を実行し、Tuistが必要とする外部依存関係をインストールする。
+- (オプション)`tuist auth login` を実行して
+  <LocalizedLink href="/guides/features/cache">Tuist Cache
+  にアクセスする。</LocalizedLink>
+- `tuist generate` を実行し、Tuist自身を使用してTuist Xcodeプロジェクトを生成する。
 
-**生成されたプロジェクトは自動的に開きます。** 再生成せずにもう一度開くには、`open Tuist.xcworkspace` を実行するか、Finderを使ってください。
+**生成されたプロジェクトは自動的に開きます** 。生成せずに再度開く必要がある場合は、`open Tuist.xcworkspace`
+を実行する（またはFinderを使用する）。
 
-> [!NOTE] XED .
-> `xed .` を使ってプロジェクトを開いた場合、Tuist が生成したプロジェクトではなく、パッケージが開きます。  Tuist で生成されたプロジェクトを使って、自分でツールを試すことを推奨します。
+> [注意] XED .`xed .`
+> を使ってプロジェクトを開こうとすると、Tuistによって生成されたプロジェクトではなく、パッケージを開いてしまう。ツールのドッグフードにはTuistが生成したプロジェクトを使うことを推奨する。
 
-## プロジェクトの編集 {#edit-the-project}
+## プロジェクトを編集する {#edit-the-project}
 
-依存関係の追加やターゲットの調整など、プロジェクトを編集する必要がある場合は、<LocalizedLink href="/guides/features/projects/editing">`tuist edit` コマンド</LocalizedLink>を使用できます。  あまり使われることはありませんが、知っておいて損はありません。
+依存関係の追加やターゲットの調整など、プロジェクトの編集が必要な場合は、<LocalizedLink href="/guides/features/projects/editing">`tuist
+edit` command</LocalizedLink>を使うことができる。これはほとんど使われませんが、存在を知っておくのは良いことです。
 
-## Tuist を実行する {#run-tuist}
+## ラン・トゥイスト {#run-tuist}
 
-### Xcode 経由 {#from-xcode}
+### Xcodeから {#from-xcode}
 
-生成されたXcodeプロジェクトから `tuist` を実行するには、`tuist` スキームを編集し、コマンドに渡す引数を設定します。 例えば、`tuist generate` コマンドを実行する際に、引数を `generate --no-open` に設定すると、生成後にプロジェクトが開かれるのを防げます。
+生成されたXcodeプロジェクトから`tuist` を実行するには、`tuist` スキームを編集し、コマンドに渡したい引数を設定します。例えば、`tuist
+generate` コマンドを実行するには、`generate --no-open` に引数を設定して、生成後にプロジェクトが開かないようにします。
 
-![Tuist で生成コマンドを実行するためのスキーム設定例](/images/contributors/scheme-arguments.png)
+![Tuistでgenerateコマンドを実行するスキーム設定の例](/images/contributors/scheme-arguments.png)。
 
-また、生成されるプロジェクトのルートを作業ディレクトリに設定する必要があります。 `--path` 引数を使用して設定することも、以下のようにスキームで作業ディレクトリを設定することもできます。
+また、作業ディレクトリを生成されるプロジェクトのルートに設定する必要があります。すべてのコマンドが受け入れる`--path`
+引数を使うか、以下のようにスキームで作業ディレクトリを設定することでできます：
 
-![Tuistを実行するための作業ディレクトリの設定例](/images/contributors/scheme-working-directory.png)
 
-> [!WARNING] PROJECTDESCRIPTION COMPILATION
-> `tuist` CLI は、ビルドされたプロダクトのディレクトリにある `ProjectDescription` フレームワークの存在に依存します。 `ProjectDescription` フレームワークが見つからずに `tuist` の実行が失敗した場合は、まず `Tuist-Workspace` スキームをビルドしてください。
+![Tuistを実行するための作業ディレクトリの設定例](/images/contributors/scheme-working-directory.png)。
 
-### ターミナル経由 {#from-the-terminal}
+> [!WARNING] PROJECTDESCRIPTION COMPILATION`tuist` CLIは、`ProjectDescription`
+> フレームワークがビルドされたproductsディレクトリに存在するかどうかに依存します。`tuist` が`ProjectDescription`
+> フレームワークが見つからないために実行に失敗する場合は、まず`Tuist-Workspace` スキームをビルドしてください。
 
-Tuist 自体の `run` コマンドを使って `tuist` を実行できます。
+### ターミナルから{#from-the-terminal}。
+
+`run` コマンドでTuistそのものを使って`tuist` を実行することができる：
 
 ```bash
 tuist run tuist generate --path /path/to/project --no-open
 ```
 
-または、Swift Package Manager で直接実行することもできます。
+あるいは、Swift パッケージマネージャを通して直接実行することもできます：
 
 ```bash
 swift build --product ProjectDescription
