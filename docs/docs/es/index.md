@@ -76,7 +76,7 @@ Tuist. Esto es lo que están experimentando:
 
 - **Compilaciones un 65% más rápidas** con caché inteligente
 - **Cero conflictos de mergeo** en proyectos Xcode
-- **De minutos a segundos** resolución del paquete
+- Resolución e paquetes **de minutos a segundos**
 - **Desarrolladores contentos** que pueden centrarse en crear funciones
 
 <HomeCards type="carousel">
