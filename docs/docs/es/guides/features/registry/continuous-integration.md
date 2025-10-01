@@ -1,19 +1,25 @@
 ---
 {
   "title": "Continuous integration",
-  "titleTemplate": ":title · Registry · Develop · Guides · Tuist",
+  "titleTemplate": ":title · Registry · Features · Guides · Tuist",
   "description": "Learn how to use the Tuist Registry in continuous integration."
 }
 ---
-# Continuous Integration (CI) {#continuous-integration-ci}
+# Integración continua (IC) {#continuous-integration-ci}
 
-To use the registry on your CI, you need to ensure that you have logged in to the registry by running `tuist registry login` as part of your workflow.
+Para utilizar el registro en su CI, debe asegurarse de que ha iniciado sesión en
+el registro ejecutando `tuist registry login` como parte de su flujo de trabajo.
 
-> [!NOTE] ONLY XCODE INTEGRATION
-> Creating a new pre-unlocked keychain is required only if you are using the Xcode integration of packages.
+> [NOTA] SÓLO INTEGRACIÓN DE XCODE La creación de un nuevo llavero
+> predesbloqueado sólo es necesaria si se utiliza la integración de paquetes de
+> Xcode.
 
-Since the registry credentials are stored in a keychain, you need to ensure the keychain can be accessed in the CI environment. Note some CI providers or automation tools like [Fastlane](https://fastlane.tools/) already create a temporary keychain or provide a built-in way how to create one. However, you can also create one by creating a custom step with the following code:
-
+Dado que las credenciales de registro se almacenan en un llavero, es necesario
+asegurarse de que el llavero se puede acceder en el entorno de CI. Tenga en
+cuenta que algunos proveedores de CI o herramientas de automatización como
+[Fastlane](https://fastlane.tools/) ya crean un llavero temporal o proporcionan
+una forma integrada de crearlo. Sin embargo, también puede crear uno creando un
+paso personalizado con el siguiente código:
 ```bash
 TMP_DIRECTORY=$(mktemp -d)
 KEYCHAIN_PATH=$TMP_DIRECTORY/keychain.keychain
@@ -24,12 +30,15 @@ security default-keychain -s $KEYCHAIN_PATH
 security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
 ```
 
-`tuist registry login` will then store the credentials in the default keychain. Ensure that your default keychain is created and unlocked _before_ `tuist registry login` is run.
+`tuist registry login` almacenará las credenciales en el llavero por defecto.
+Asegúrese de que su llavero predeterminado está creado y desbloqueado _antes de
+ejecutar_ `tuist registry login`.
 
-Additionally, you need to ensure the `TUIST_CONFIG_TOKEN` environment variable is set. You can create one by following the documentation <LocalizedLink href="/guides/features/automate/continuous-integration#authentication">here</LocalizedLink>.
+Además, debe asegurarse de que la variable de entorno `TUIST_CONFIG_TOKEN` está
+configurada. Puedes crear una siguiendo la documentación
+<LocalizedLink href="/guides/features/automate/continuous-integration#authentication">aquí</LocalizedLink>.
 
-An example workflow for GitHub Actions could then look like this:
-
+Un ejemplo de flujo de trabajo para GitHub Actions podría ser el siguiente:
 ```yaml
 name: Build
 
@@ -53,21 +62,40 @@ jobs:
       - # Your build steps
 ```
 
-### Incremental resolution across environments {#incremental-resolution-across-environments}
+### Resolución incremental entre entornos {#incremental-resolution-across-environments}
 
-Clean/cold resolutions are slightly faster with our registry, and you can experience even greater improvements if you persist the resolved dependencies across CI builds. Note that thanks to the registry, the size of the directory that you need to store and restore is much smaller than without the registry, taking significantly less time.
-To cache dependencies when using the default Xcode package integration, the best way is to specify a custom `-clonedSourcePackagesDirPath` when resolving dependencies via `xcodebuild`, such as:
+Las resoluciones limpias/frías son ligeramente más rápidas con nuestro registro,
+y puede experimentar mejoras aún mayores si persiste las dependencias resueltas
+a través de las compilaciones CI. Ten en cuenta que gracias al registro, el
+tamaño del directorio que necesitas almacenar y restaurar es mucho menor que sin
+el registro, tardando significativamente menos tiempo. Para almacenar en caché
+las dependencias cuando se utiliza la integración de paquetes por defecto de
+Xcode, lo mejor es especificar una `clonedSourcePackagesDirPath` personalizada
+cuando se resuelven las dependencias a través de `xcodebuild`. Esto puede
+hacerse añadiendo lo siguiente a su archivo `Config.swift`:
 
-```sh
-xcodebuild -resolvePackageDependencies -clonedSourcePackagesDirPath .build
+```swift
+import ProjectDescription
+
+let config = Config(
+    generationOptions: .options(
+        additionalPackageResolutionArguments: ["-clonedSourcePackagesDirPath", ".build"]
+    )
+)
 ```
 
-Additionally, you will need to find a path of the `Package.resolved`. You can grab the path by running `ls **/Package.resolved`. The path should look something like `App.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved`.
+Además, necesitará encontrar una ruta del `Package.resolved`. Puede obtener la
+ruta ejecutando `ls **/Package.resolved`. La ruta debería ser algo parecido a
+`App.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved`.
 
-For Swift packages and the XcodeProj-based integration, we can use the default `.build` directory located either in the root of the project or in the `Tuist` directory. Make sure the path is correct when setting up your pipeline.
+Para los paquetes Swift y la integración basada en XcodeProj, podemos utilizar
+el directorio por defecto `.build` ubicado en la raíz del proyecto o en el
+directorio `Tuist`. Asegúrate de que la ruta es correcta cuando configures tu
+pipeline.
 
-Here's an example workflow for GitHub Actions for resolving and caching dependencies when using the default Xcode package integration:
-
+A continuación se muestra un flujo de trabajo de ejemplo para las Acciones de
+GitHub para resolver y almacenar en caché las dependencias cuando se utiliza la
+integración de paquetes de Xcode por defecto:
 ```yaml
 - name: Restore cache
   id: cache-restore
