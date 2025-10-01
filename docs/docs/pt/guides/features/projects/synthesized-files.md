@@ -1,104 +1,153 @@
 ---
 {
   "title": "Synthesized files",
-  "titleTemplate": ":title · Projects · Develop · Guides · Tuist",
+  "titleTemplate": ":title · Projects · Features · Guides · Tuist",
   "description": "Learn about synthesized files in Tuist projects."
 }
 ---
-# Synthesized files {#synthesized-files}
+# Ficheiros sintetizados {#synthesized-files}
 
-Tuist can generate files and code at generation-time to bring some convenience to managing and working with Xcode projects. In this page you'll learn about this functionality, and how you can use it in your projects.
+O Tuist pode gerar arquivos e código em tempo de geração para trazer alguma
+conveniência para gerenciar e trabalhar com projetos do Xcode. Nesta página,
+você aprenderá sobre essa funcionalidade e como usá-la em seus projetos.
 
-## Target resources {#target-resources}
+## Recursos alvo {#target-resources}
 
-Xcode projects support adding resources to targets. However, they present teams with a few challenges, specially when working with a modular project where sources and resources are often moved around:
+Os projectos Xcode suportam a adição de recursos a alvos. No entanto, eles
+apresentam às equipas alguns desafios, especialmente quando se trabalha com um
+projeto modular em que as fontes e os recursos são frequentemente deslocados:
 
-- **Inconsistent runtime access**: Where the resources end up in the final product and how you access them depends on the target product. For example, if your target represents an application, the resources are copied to the application bundle. This leads to code accessing the resources that makes assumptions on the bundle structure, which is not ideal because it makes the code harder to reason about and the resources to move around.
-- **Products that don't support resources**: There are certain products like static libraries that are not bundles and therefore don't support resources. Because of that, you either have to resort to a different product type, for example frameworks, that might add some overhead on your project or app. For example, static frameworks will be linked statically to the final product, and a build phase is required to only copy the resources to the final product. Or dynamic frameworks, where Xcode will copy both the binary and the resources into the final product, but it'll increase the startup time of your app because the framework needs to be loaded dynamically.
-- **Prone to runtime errors**: Resources are identified by their name and extension (strings). Therefore, a typo in any of those will lead to a runtime error when trying to access the resource. This is not ideal because it's not caught at compile time and might lead to crashes in release.
+- **Acesso inconsistente em tempo de execução**: A localização dos recursos no
+  produto final e a forma de aceder aos mesmos depende do produto de destino.
+  Por exemplo, se o alvo representar uma aplicação, os recursos são copiados
+  para o pacote da aplicação. Isto leva a que o código que acede aos recursos
+  faça suposições sobre a estrutura do pacote, o que não é ideal, porque torna o
+  código mais difícil de compreender e os recursos mais móveis.
+- **Produtos que não suportam recursos**: Há certos produtos, como bibliotecas
+  estáticas, que não são pacotes e, portanto, não suportam recursos. Por isso, é
+  necessário recorrer a um tipo de produto diferente, por exemplo, frameworks,
+  que podem adicionar algumas despesas gerais ao seu projeto ou aplicação. Por
+  exemplo, frameworks estáticos serão ligados estaticamente ao produto final, e
+  uma fase de construção é necessária para copiar apenas os recursos para o
+  produto final. Ou frameworks dinâmicos, onde o Xcode copiará tanto o binário
+  quanto os recursos para o produto final, mas aumentará o tempo de
+  inicialização da sua aplicação porque o framework precisa ser carregado
+  dinamicamente.
+- **Propenso a erros de tempo de execução**: Os recursos são identificados pelo
+  seu nome e extensão (strings). Por conseguinte, um erro de digitação em
+  qualquer uma delas conduzirá a um erro de tempo de execução ao tentar aceder
+  ao recurso. Isto não é ideal porque não é detectado em tempo de compilação e
+  pode levar a falhas no lançamento.
 
-Tuist solves the problems above by **synthesizing a unified interface to access bundles and resources** that abstracts away the implementation details.
+Tuist resolve os problemas acima referidos **sintetizando uma interface
+unificada para aceder a pacotes e recursos** que abstrai os pormenores de
+implementação.
 
-> [!IMPORTANT] RECOMMENDED
-> Even though accessing resources through the Tuist-synthesized interface is not mandatory, we recommend it because it makes the code easier to reason about and the resources to move around.
+> [IMPORTANTE] RECOMENDADO Apesar de o acesso aos recursos através da interface
+> sintetizada por Tuist não ser obrigatório, recomendamo-lo porque torna o
+> código mais fácil de compreender e os recursos mais fáceis de movimentar.
 
-## Resources {#resources}
+## Recursos {#resources}
 
-Tuist provides interfaces to declare the content of files such as `Info.plist` or entitlements in Swift.
-This is useful to ensure consistency across targets and projects,
-and leverage the compiler to catch issues at compile time.
-You can also come up with your own abstractions to model the content and share it across targets and projects.
+O Tuist fornece interfaces para declarar o conteúdo de ficheiros como
+`Info.plist` ou direitos em Swift. Isso é útil para garantir a consistência
+entre destinos e projetos, e aproveitar o compilador para detetar problemas em
+tempo de compilação. Você também pode criar suas próprias abstrações para
+modelar o conteúdo e compartilhá-lo entre destinos e projetos.
 
-When your project is generated,
-Tuist will synthesize the content of those files and write them into the `Derived` directory relative to the directory containing the project that defines them.
+Quando o seu projeto é gerado, o Tuist sintetiza o conteúdo desses ficheiros e
+escreve-os no diretório `Derived` relativamente ao diretório que contém o
+projeto que os define.
 
-> [!TIP] GITIGNORE THE DERIVED DIRECTORY
-> We recommend adding the `Derived` directory to the `.gitignore` file of your project.
+> [Recomendamos que adicione o diretório `Derived` ao ficheiro `.gitignore` do
+> seu projeto.
 
-## Bundle accessors {#bundle-accessors}
+## Acessores de pacotes {#bundle-accessors}
 
-Tuist synthesizes an interface to access the bundle that contains the target resources.
+O Tuist sintetiza uma interface para aceder ao pacote que contém os recursos
+alvo.
 
 ### Swift {#swift}
 
-The target will contain an extension of the `Bundle` type that exposes the bundle:
+O alvo conterá uma extensão do tipo `Bundle` que expõe o pacote:
 
 ```swift
 let bundle = Bundle.module
 ```
 
-### Objective-C {#objectivec}
+### Objetivo-C {#objectivec}
 
-In Objective-C, you'll get an interface `{Target}Resources` to access the bundle:
+Em Objective-C, terá uma interface `{Target}Resources` para aceder ao pacote:
 
 ```objc
 NSBundle *bundle = [MyFeatureResources bundle];
 ```
 
-> [!TIP] SUPPORTING RESOURCES IN LIBRARIES THROUGH BUNDLES
-> If a target product, for example a library, doesn't support resources, Tuist will include the resources in a target of product type `bundle` ensuring that it ends up in the final product and that the interface points to the right bundle.
+> [!WARNING] LIMITAÇÃO COM ALVOS INTERNOS Atualmente, o Tuist não gera acessores
+> de pacotes de recursos para alvos internos que contêm apenas fontes
+> Objective-C. Esta é uma limitação conhecida e registada em [issue
+> #6456](https://github.com/tuist/tuist/issues/6456).
 
-## Resource accessors {#resource-accessors}
+> [!DICA] SUPORTAR RECURSOS EM BIBLIOTECAS ATRAVÉS DE PACOTES Se um produto
+> alvo, por exemplo uma biblioteca, não suportar recursos, o Tuist incluirá os
+> recursos num alvo do tipo de produto `bundle`, assegurando que acaba no
+> produto final e que a interface aponta para o pacote correto.
 
-Resources are identified by their name and extension using strings. This is not ideal because it's not caught at compile time and might lead to crashes in release. To prevent that, Tuist integrates [SwiftGen](https://github.com/SwiftGen/SwiftGen) into the project generation process to synthesize an interface to access the resources. Thanks to that, you can confidently access the resources leveraging the compiler to catch any issues.
+## Acessores de recursos {#resource-accessors}
 
-Tuist includes [templates](https://github.com/tuist/tuist/tree/main/Sources/TuistGenerator/Templates) to synthesize accessors for the following resource types by default:
+Os recursos são identificados pelo seu nome e extensão utilizando cadeias de
+caracteres. Isso não é ideal porque não é detectado em tempo de compilação e
+pode levar a falhas no lançamento. Para evitar isso, o Tuist integra o
+[SwiftGen](https://github.com/SwiftGen/SwiftGen) no processo de geração do
+projeto para sintetizar uma interface para acessar os recursos. Graças a isso, é
+possível acessar os recursos com confiança, aproveitando o compilador para
+detetar qualquer problema.
 
-| Resource type     | Synthesized file         |
-| ----------------- | ------------------------ |
-| Images and colors | `Assets+{Target}.swift`  |
-| Strings           | `Strings+{Target}.swift` |
-| Plists            | `{NameOfPlist}.swift`    |
-| Fonts             | `Fonts+{Target}.swift`   |
-| Files             | `Files+{Target}.swift`   |
+O Tuist inclui
+[templates](https://github.com/tuist/tuist/tree/main/Sources/TuistGenerator/Templates)
+para sintetizar acessores para os seguintes tipos de recursos por padrão:
 
-> Note: You can disable the synthesizing of resource accessors on a per-project basis by passing the `disableSynthesizedResourceAccessors` option to the project options.
+| Tipo de recurso | Synthesized files               |
+| --------------- | ------------------------------- |
+| Imagens e cores | `Activos+{Alvo}.swift`          |
+| Cordas          | `Strings+{Target}.swift`        |
+| Listas          | `{NomeDaLista}.swift`           |
+| Fontes          | `Tipos de letra+{Target}.swift` |
+| Ficheiros       | `Ficheiros+{Target}.swift`      |
 
-#### Custom templates {#custom-templates}
+> Nota: É possível desativar a sintetização de acessores de recursos por
+> projeto, passando a opção `disableSynthesizedResourceAccessors` para as opções
+> do projeto.
 
-If you want to provide your own templates to synthesize accessors to other resource types,
-which must be supported by [SwiftGen](https://github.com/SwiftGen/SwiftGen),
-you can create them at `Tuist/ResourceSynthesizers/{name}.stencil`,
-where the name is the camel-case version of the resource.
+#### Modelos personalizados {#custom-templates}
 
-| Resource         | Template name              |
+Se pretender fornecer os seus próprios modelos para sintetizar acessores para
+outros tipos de recursos, que devem ser suportados pelo
+[SwiftGen](https://github.com/SwiftGen/SwiftGen), pode criá-los em
+`Tuist/ResourceSynthesizers/{name}.stencil`, onde o nome é a versão em
+maiúsculas do recurso.
+
+| Resources        | Nome do modelo             |
 | ---------------- | -------------------------- |
-| strings          | `Strings.stencil`          |
-| assets           | `Assets.stencil`           |
-| plists           | `Plists.stencil`           |
-| fonts            | `Fonts.stencil`            |
-| coreData         | `CoreData.stencil`         |
+| cordas           | `Strings.stencil`          |
+| activos          | `Activos.stencil`          |
+| listas           | `Plists.stencil`           |
+| fontes           | `Tipos de letra.stencil`   |
+| dados principais | `CoreData.stencil`         |
 | interfaceBuilder | `InterfaceBuilder.stencil` |
 | json             | `JSON.stencil`             |
 | yaml             | `YAML.stencil`             |
-| files            | `Files.stencil`            |
+| ficheiros        | `Ficheiros.stencil`        |
 
-If you want to configure the list of resource types to synthesize accessors for,
-you can use the `Project.resourceSynthesizers` property passing the list of resource synthesizers you want to use:
+Se pretender configurar a lista de tipos de recursos para os quais sintetizar os
+acessores, pode utilizar a propriedade `Project.resourceSynthesizers` passando a
+lista de sintetizadores de recursos que pretende utilizar:
 
 ```swift
 let project = Project(resourceSynthesizers: [.string(), .fonts()])
 ```
 
-> [!NOTE] REFERENCE
-> You can check out [this fixture](https://github.com/tuist/tuist/tree/main/fixtures/ios_app_with_templates) to see an example of how to use custom templates to synthesize accessors to resources.
+> [REFERÊNCIA Pode consultar [este
+> acessório](https://github.com/tuist/tuist/tree/main/cli/Fixtures/ios_app_with_templates)
+> para ver um exemplo de como utilizar modelos personalizados para sintetizar os
+> acessores dos recursos.
