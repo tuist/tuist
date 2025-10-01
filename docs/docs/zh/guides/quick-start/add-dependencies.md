@@ -5,15 +5,15 @@
   "description": "Learn how to add dependencies to your first Swift project"
 }
 ---
-# Add dependencies {#add-dependencies}
+# 添加依赖项 {#add-dependencies}
 
-It's common for projects to depend on third-party libraries to provide additional functionality. To do so, run the following command to have the best experience editing your project:
+项目通常依赖第三方库来提供额外功能。为此，请运行以下命令，以获得最佳的项目编辑体验：
 
 ```bash
 tuist edit
 ```
 
-An Xcode project will open containing your project files. Edit the `Package.swift` and add the
+将打开一个包含项目文件的 Xcode 项目。编辑`Package.swift` 并添加
 
 ```swift
 // swift-tools-version: 5.9
@@ -41,7 +41,7 @@ let package = Package(
 )
 ```
 
-Then edit the application target in your project to declare `Kingfisher` as a dependency:
+然后编辑项目中的应用程序目标，将`Kingfisher` 声明为依赖关系：
 
 ```swift
 import ProjectDescription
@@ -59,8 +59,10 @@ let project = Project(
                     "UILaunchStoryboardName": "LaunchScreen.storyboard",
                 ]
             ),
-            sources: ["MyApp/Sources/**"],
-            resources: ["MyApp/Resources/**"],
+            buildableFolders: [
+                "MyApp/Sources",
+                "MyApp/Resources",
+            ],
             dependencies: [
                 .external(name: "Kingfisher") // [!code ++]
             ]
@@ -79,26 +81,27 @@ let project = Project(
 )
 ```
 
-Then run `tuist install` to resolve and pull the dependencies using the [Swift Package Manager](https://www.swift.org/documentation/package-manager/).
+然后运行`tuist install` ，使用[Swift
+软件包管理器](https://www.swift.org/documentation/package-manager/)解析并提取依赖项。
 
-> [!NOTE] SPM AS A DEPENDENCY RESOLVER
-> Tuist recommended approach to dependencies uses the Swift Package Manager (SPM) only to resolve dependencies. Tuist then converts them into Xcode projects and targets for maximum configurability and control.
+> [注意] SPM 作为依赖关系解析器 Tuist 推荐的依赖关系处理方法仅使用 Swift Package Manager (SPM)
+> 来解析依赖关系。然后，Tuist 将它们转换为 Xcode 项目和目标，以实现最大程度的可配置性和可控性。
 
-## Visualize the project {#visualize-the-project}
+## 可视化项目 {#visualize-the-project}
 
-You can visualize the project structure by running:
+您可以通过运行
 
 ```bash
 tuist graph
 ```
 
-The command will output and open a `graph.png` file in the project's directory:
+该命令将输出并打开项目目录下的`graph.png` 文件：
 
-![Project graph](/images/guides/quick-start/graph.png)
+![项目图](/images/guides/quick-start/graph.png)!
 
-## Use the dependency {#use-the-dependency}
+## 使用依赖项 {#use-the-dependency}
 
-Run `tuist generate` to open the project in Xcode, and make the following changes to the `ContentView.swift` file:
+运行`tuist generate` 在 Xcode 中打开项目，并对`ContentView.swift` 文件进行以下修改：
 
 ```swift
 import SwiftUI
@@ -122,4 +125,4 @@ struct ContentView_Previews: PreviewProvider {
 }
 ```
 
-Run the app from Xcode, and you should see the image loaded from the URL.
+在 Xcode 中运行应用程序，您应该会看到从 URL 加载的图像。
