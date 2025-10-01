@@ -1,74 +1,84 @@
 ---
 {
   "title": "The Modular Architecture (TMA)",
-  "titleTemplate": ":title · Projects · Develop · Guides · Tuist",
+  "titleTemplate": ":title · Projects · Features · Guides · Tuist",
   "description": "Learn about The Modular Architecture (TMA) and how to structure your projects using it."
 }
 ---
-# The Modular Architecture (TMA) {#the-modular-architecture-tma}
+# モジュラー・アーキテクチャ（TMA）{#the-modular-architecture-tma}。
 
-TMA is an architectural approach to structure Apple OS applications to enable scalability, optimize build and test cycles, and ensure good practices in your team. Its core idea is to build your apps by building independent features that are interconnected using clear and concise APIs.
+TMAは、スケーラビリティを可能にし、ビルドとテストのサイクルを最適化し、チーム内のグッドプラクティスを保証するために、Apple
+OSアプリケーションを構造化するアーキテクチャアプローチです。その中核となる考え方は、明確で簡潔なAPIを使用して相互接続された独立した機能を構築することで、アプリケーションを構築することです。
 
-These guidelines introduce the principles of the architecture, helping you identify and organize your application features in different layers. It also introduces tips, tools, and advice if you decide to use this architecture.
+このガイドラインでは、アーキテクチャの原則を紹介し、アプリケーションの機能を特定し、さまざまなレイヤーに整理するのに役立ちます。また、このアーキテクチャを使うことにした場合のヒントやツール、アドバイスも紹介します。
 
-> [!INFO] µFEATURES
-> This architecture was previously known as µFeatures. We've renamed it to The Modular Architecture (TMA) to better reflect its purpose and the principles behind it.
+> [INFO] µFEATURES
+> このアーキテクチャは、以前はµFeaturesとして知られていました。その目的と背後にある原則をよりよく反映させるために、モジュラー・アーキテクチャー(TMA)と改名しました。
 
-## Core principle {#core-principle}
+## コア・プリンシプル{#core-principle}。
 
-Developers should be able to **build, test, and try** their features fast, independently of the main app, and while ensuring Xcode features like UI previews, code completion, and debugging work reliably.
+開発者は、**ビルド、テスト、** 機能を、メインアプリから独立して、高速に試すことができ、UI プレビュー、コード補完、およびデバッグのような Xcode
+機能が確実に動作するようにする必要があります。
 
-## What is a module {#what-is-a-module}
+## モジュールとは何か {#what-is-a-module}。
 
-A module represents an application feature and is a combination of the following five targets (where target referts to an Xcode target):
+モジュールは、アプリケーションの機能を表し、以下の 5 つのターゲットの組み合わせです（ここで、ターゲットは Xcode のターゲットを指します）：
 
-- **Source:** Contains the feature source code (Swift, Objective-C, C++, JavaScript...) and its resources (images, fonts, storyboards, xibs).
-- **Interface:** It's a companion target that contains the public interface and models of the feature.
-- **Tests:** Contains the feature unit and integration tests.
-- **Testing:** Provides testing data that can be used in tests and the example app. It also provides mocks for module classes and protocols that can be used by other features as we'll see later.
-- **Example:** Contains an example app that developers can use to try out the feature under certain conditions (different languages, screen sizes, settings).
+- **ソース：**
+  機能のソースコード（Swift、Objective-C、C++、JavaScript...）とそのリソース（画像、フォント、ストーリーボード、xibs）が含まれています。
+- **インターフェイス：** 機能のパブリック・インターフェースとモデルを含むコンパニオン・ターゲット。
+- **テスト：** 機能のユニットテストと統合テストが含まれます。
+- **テスト：**
+  テストやサンプルアプリで使えるテストデータを提供する。また、後で説明するように、モジュール・クラスや他の機能で使用できるプロトコルのモックも提供します。
+- **例：** 開発者が特定の条件下（異なる言語、画面サイズ、設定）で機能を試すために使用できるサンプルアプリが含まれています。
 
-We recommend following a naming convention for targets, something that you can enforce in your project thanks to Tuist's DSL.
+TuistのDSLのおかげでプロジェクトで強制できることだが、ターゲットの命名規則に従うことをお勧めする。
 
-| Target             | Dependencies                | Content                     |
-| ------------------ | --------------------------- | --------------------------- |
-| `Feature`          | `FeatureInterface`          | Source code and resources   |
-| `FeatureInterface` | -                           | Public interface and models |
-| `FeatureTests`     | `Feature`, `FeatureTesting` | Unit and integration tests  |
-| `FeatureTesting`   | `FeatureInterface`          | Testing data and mocks      |
-| `FeatureExample`   | `FeatureTesting`, `Feature` | Example app                 |
+| ターゲット        | 依存関係                       | 内容                 |
+| ------------ | -------------------------- | ------------------ |
+| `特徴`         | `機能インターフェース`               | ソースコードとリソース        |
+| `機能インターフェース` | -                          | パブリック・インターフェースとモデル |
+| `フィーチャーテスト`  | `フィーチャー`,`フィーチャー・テスト`      | 単体テストと統合テスト        |
+| `フィーチャー・テスト` | `機能インターフェース`               | データとモックのテスト        |
+| `機能例`        | `FeatureTesting`,`Feature` | アプリ例               |
 
-> [!TIP] UI Previews
-> `Feature` can use `FeatureTesting` as a Development Asset to allow for UI previews
+> [!TIP] UIプレビュー`Feature` は、`FeatureTesting` を開発アセットとして使用し、UIプレビューを可能にすることができます。
 
-> [!IMPORTANT] COMPILER DIRECTIVES INSTEAD OF TESTING TARGETS
-> Alternatively, you can use compiler directives to include test data and mocks in the `Feature` or `FeatureInterface` targets when compiling for `Debug`. You simplify the graph, but you'll end up compiling code that you won't need for running the app.
+> [重要] テスト・ターゲットの代わりにコンパイラ・ディレクティブ`Feature` または`FeatureInterface`
+> のコンパイル時に、コンパイラ・ディレクティブを使用して、テスト・データとモックを`Debug`
+> のターゲットに含めることができます。グラフは単純化されますが、アプリの実行には必要のないコードをコンパイルすることになります。
 
-## Why a module {#why-a-module}
+## なぜモジュールなのか {#why-a-module}
 
-### Clear and concise APIs {#clear-and-concise-apis}
+### 明確で簡潔なAPI {#clear-and-concise-apis}。
 
-When all the app source code lives in the same target it is very easy to build implicit dependencies in code and end up with the so well-known spaghetti code. Everything is strongly coupled, the state is sometimes unpredictable, and introducing new changes become a nightmare. When we define features in independent targets we need to design public APIs as part of our feature implementation. We need to decide what should be public, how our feature should be consumed, what should remain private. We have more control over how we want our feature clients to use the feature and we can enforce good practices by designing safe APIs.
+すべてのアプリのソースコードが同じターゲットに存在する場合、コードに暗黙の依存関係を構築するのは非常に簡単で、よく知られたスパゲッティ・コードになってしまう。すべてが強く結合され、状態は時に予測不可能になり、新しい変更の導入は悪夢となる。独立したターゲットで機能を定義する場合、機能実装の一部としてパブリックAPIを設計する必要がある。何をパブリックにするか、どのように機能を消費させるか、何をプライベートのままにするかを決める必要がある。私たちは、クライアントがどのようにその機能を使うかをよりコントロールしやすくなり、安全なAPIを設計することで、グッドプラクティスを実施することができる。
 
-### Small modules {#small-modules}
+### スモール・モジュール {#small-modules}
 
-[Divide and conquer](https://en.wikipedia.org/wiki/Divide_and_conquer). Working in small modules allows you to have more focus and test and try the feature in isolation. Moreover, development cycles are much faster since we have a more selective compilation, compiling only the components that are necessary to get our feature working. The compilation of the whole app is only necessary at the very end of our work, when we need to integrate the feature into the app.
+[分割統治](https://en.wikipedia.org/wiki/Divide_and_conquer)。小さなモジュールで作業することで、より集中することができ、機能を分離してテストしたり試したりすることができる。さらに、機能を動作させるために必要なコンポーネントだけをコンパイルする、より選択的なコンパイルができるため、開発サイクルはより速くなる。アプリ全体のコンパイルが必要になるのは、機能をアプリに統合する必要がある作業の最後の最後だけです。
 
-### Reusability {#reusability}
+### 再利用性 {#reusability}
 
-Reusing code across apps and other products like extensions is encouraged using frameworks or libraries. By building modules reusing them is pretty straightforward. We can build an iMessage extension, a Today Extension, or a watchOS application by just combining existing modules and adding _(when necessary)_ platform-specific UI layers.
+アプリやエクステンションのような他の製品間でコードを再利用するには、フレームワークやライブラリを使用することが推奨されている。モジュールをビルドすることで、それらを再利用するのはとても簡単だ。既存のモジュールを組み合わせ、_
+（必要な場合）_
+プラットフォーム固有のUIレイヤーを追加するだけで、iMessageエクステンション、Todayエクステンション、watchOSアプリケーションを構築できる。
 
-## Dependencies {#dependencies}
+## 依存関係 {#dependencies}
 
-When a module depends on another module, it declares a dependency against its interface target. The benefit of this is two-fold. It prevents the implementation of a module to be coupled to the implementation of another module, and it speeds up clean builds because they only have to compile the implementation of our feature, and the interfaces of direct and transitive dependencies. This approach is inspired by SwiftRock's idea of [Reducing iOS Build Times by using Interface Modules](https://swiftrocks.com/reducing-ios-build-times-by-using-interface-targets).
+モジュールが他のモジュールに依存するとき、そのモジュールはインターフェイスのターゲットに対して依存関係を宣言する。この利点は2つある。モジュールの実装が別のモジュールの実装に結合されるのを防ぎ、クリーンビルドをスピードアップします。このアプローチは、SwiftRockの[Reducing
+iOS Build Times by using Interface
+Modules](https://swiftrocks.com/reducing-ios-build-times-by-using-interface-targets)のアイデアにインスパイアされています。
 
-Depending on interfaces requires apps to build the graph of implementations at runtime, and dependency-inject it into the modules that need it. Although TMA is non-opinionated about how to do this, we recommend using dependency-injection solutions or patterns or solutions that don't add built-time indirections or use platform APIs that were not designed for this purpose.
+インターフェースに依存する場合、アプリは実行時に実装のグラフを構築し、それを必要とするモジュールに依存性注入する必要がある。TMAはこれを行う方法について専門家ではないが、依存性注入ソリューションやパターン、あるいはビルド時に間接処理を追加しないソリューションや、この目的のために設計されていないプラットフォームAPIを使用するソリューションを使用することを推奨する。
 
-## Product types {#product-types}
+## 製品タイプ {#product-types}
 
-When building a module, you can choose between **libraries and frameworks**, and **static and dynamic linking** for the targets. Without Tuist, making this decision is a bit more complex because you need to configure the dependency graph manually. However, thanks to Tuist Projects, this is no longer a problem.
+モジュールをビルドするとき、**ライブラリとフレームワーク** 、**静的リンクと動的リンク**
+のいずれかをターゲットに選択できる。Tuistがなければ、依存関係グラフを手動で設定する必要があるため、この決定を行うのは少し複雑です。しかし、Tuist
+Projectsのおかげで、これはもはや問題ではない。
 
-We recommend using dynamic libraries or frameworks during development using <LocalizedLink href="/guides/features/projects/synthesized-files#bundle-accessors">bundle accessors</LocalizedLink> to decouple the bundle-accessing logic from the library or framework nature of the target. This is key for fast compilation times and to ensure [SwiftUI Previews](https://developer.apple.com/documentation/swiftui/previews-in-xcode) work reliably. And static libraries or frameworks for the release builds to ensure the app boots fast. You can leverage <LocalizedLink href="/guides/features/projects/dynamic-configuration#configuration-through-environment-variables">dynamic configuration</LocalizedLink> to change the product type at generation-time:
+バンドルアクセスロジックをターゲットのライブラリやフレームワークの性質から切り離すために<LocalizedLink href="/guides/features/projects/synthesized-files#bundle-accessors">バンドルアクセサ</LocalizedLink>を使用して、開発中に動的なライブラリやフレームワークを使用することをお勧めします。これは高速なコンパイル時間と[SwiftUIプレビュー](https://developer.apple.com/documentation/swiftui/previews-in-xcode)が確実に動作するためのキーです。そして、アプリが高速に起動することを保証するために、リリースビルドのための静的なライブラリまたはフレームワーク。生成時に製品の種類を変更するために<LocalizedLink href="/guides/features/projects/dynamic-configuration#configuration-through-environment-variables">動的設定</LocalizedLink>を活用することができます：
 
 ```bash
 # You'll have to read the value of the variable from the manifest {#youll-have-to-read-the-value-of-the-variable-from-the-manifest}
@@ -88,24 +98,28 @@ func productType() -> Product {
 }
 ```
 
-> [!IMPORTANT] MERGEABLE LIBRARIES
-> Apple attempted to alleviate the cumbersomeness of switching between static and dynamic libraries by introducing [mergeable libraries](https://developer.apple.com/documentation/xcode/configuring-your-project-to-use-mergeable-libraries). However, that introduces build-time non-determinism that makes your build non-reproducible and harder to optimize so we don't recommend using it.
 
-## Code {#code}
+> [重要] マージ可能なライブラリ
+> Appleは、[マージ可能なライブラリ](https://developer.apple.com/documentation/xcode/configuring-your-project-to-use-mergeable-libraries)を導入することで、スタティック・ライブラリとダイナミック・ライブラリの切り替えの煩雑さを軽減しようとしました。しかし、これはビルド時に非決定性をもたらし、ビルドを再現不可能にし、最適化しにくくするので、私たちはこれを使うことをお勧めしません。
 
-TMA is non-opinionated about the code architecture and patterns for your modules. However, we'd like to share some tips based on our experience:
+## コード {#code}
 
-- **Leveraging the compiler is great.** Over-leveraging the compiler might end up being non-productive and cause some Xcode features like previews to work unreliably. We recommend using the compiler to enforce good practices and catch errors early, but not to the point that it makes the code harder to read and maintain.
-- **Use Swift Macros sparingly.** They can be very powerful but can also make the code harder to read and maintain.
-- **Embrace the platform and the language, don't abstract them.** Trying to come up with ellaborated abstraction layers might end up being counterproductive. The platform and the language are powerful enough to build great apps without the need for additional abstraction layers. Use good programming and design patterns as a reference to build your features.
+TMAは、あなたのモジュールのコード・アーキテクチャやパターンについて意見を述べることはありません。しかし、私たちの経験に基づいたいくつかのヒントを共有したいと思います：
 
-## Resources {#resources}
+- **コンパイラを活用することは素晴らしいことです。**
+  コンパイラを過度に活用することは、非生産的に終わるかもしれませんし、プレビューのようないくつかのXcodeの機能が信頼性なく動作する原因になるかもしれません。私たちは、グッドプラクティスを強制し、エラーを早期に発見するためにコンパイラを使用することを推奨しますが、コードを読みにくくし、保守しにくくするほどではありません。
+- **Swiftマクロは控えめに使いましょう。** マクロは非常に強力ですが、コードを読みにくくし、保守しにくくします。
+- **プラットフォームと言語を受け入れ、抽象化してはいけない。**
+  精巧な抽象化レイヤーを考え出そうとすると、逆効果に終わるかもしれない。プラットフォームと言語は、抽象化レイヤーを追加することなく、優れたアプリを構築するのに十分強力です。優れたプログラミング・パターンやデザイン・パターンを参考にして、機能を構築しよう。
 
-- [Building µFeatures](https://speakerdeck.com/pepibumur/building-ufeatures)
-- [Framework Oriented Programming](https://speakerdeck.com/pepibumur/framework-oriented-programming-mobilization-dot-pl)
-- [A Journey into frameworks and Swift](https://speakerdeck.com/pepibumur/a-journey-into-frameworks-and-swift)
-- [Leveraging frameworks to speed up our development on iOS - Part 1](https://developers.soundcloud.com/blog/leveraging-frameworks-to-speed-up-our-development-on-ios-part-1)
-- [Library Oriented Programming](https://academy.realm.io/posts/justin-spahr-summers-library-oriented-programming/)
-- [Building Modern Frameworks](https://developer.apple.com/videos/play/wwdc2014/416/)
-- [The Unofficial Guide to xcconfig files](https://pewpewthespells.com/blog/xcconfig_guide.html)
-- [Static and Dynamic Libraries](https://pewpewthespells.com/blog/static_and_dynamic_libraries.html)
+## リソース {#resources}
+
+- [建物μ特徴](https://speakerdeck.com/pepibumur/building-ufeatures)。
+- [フレームワーク指向プログラミング](https://speakerdeck.com/pepibumur/framework-oriented-programming-mobilization-dot-pl)。
+- [フレームワークとスウィフトへの旅](https://speakerdeck.com/pepibumur/a-journey-into-frameworks-and-swift)。
+- [iOSでの開発をスピードアップするフレームワークの活用 -
+  前編](https://developers.soundcloud.com/blog/leveraging-frameworks-to-speed-up-our-development-on-ios-part-1)。
+- [ライブラリ指向プログラミング](https://academy.realm.io/posts/justin-spahr-summers-library-oriented-programming/)。
+- [モダンなフレームワークの構築](https://developer.apple.com/videos/play/wwdc2014/416/)
+- [xcconfigファイル非公式ガイド](https://pewpewthespells.com/blog/xcconfig_guide.html)。
+- [静的ライブラリと動的ライブラリ](https://pewpewthespells.com/blog/static_and_dynamic_libraries.html)。
