@@ -5,48 +5,35 @@
   "description": "Learn how to authenticate with the Tuist server from the CLI."
 }
 ---
-# Authentication {#authentication}
+# 認証 {#authentication}
 
-To interact with the server, the CLI needs to authenticate the requests using [bearer authentication](https://swagger.io/docs/specification/authentication/bearer-authentication/). The CLI supports authenticating as a user or as a project.
+サーバと対話するために、CLIは[ベアラ認証](https://swagger.io/docs/specification/authentication/bearer-authentication/)を使用して要求を認証する必要がある。CLIはユーザーまたはプロジェクトとしての認証をサポートする。
 
-## As a user {#as-a-user}
+## ユーザーとして{#as-a-user}。
 
-When using the CLI locally on your machine, we recommend authenticating as a user. To authenticate as a user, you need to run the following command:
+お使いのマシンでCLIをローカルに使用する場合は、ユーザーとして認証することをお勧めします。ユーザーとして認証するには、以下のコマンドを実行する必要があります：
 
 ```bash
 tuist auth login
 ```
 
-The command will take you through a web-based authentication flow. Once you authenticate, the CLI will store a long-lived refresh token and a short-lived access token under `~/.config/tuist/credentials`. Each file in the directory represents the domain you authenticated against, which by default should be `cloud.tuist.io.json`. The information stored in that directory is sensitive, so **make sure to keep it safe**.
+このコマンドは、Webベースの認証フローを実行する。認証が完了すると、CLIは、`~/.config/tuist/credentials`
+の下に、長期間のリフレッシュ・トークンと短期間のアクセストークンを保存します。このディレクトリの各ファイルは、認証したドメインを表し、デフォルトでは`tuist.dev.json`
+となります。そのディレクトリに保存されている情報は機密なので、**安全を確保してください** 。
 
-The CLI will automatically look up the credentials when making requests to the server. If the access token is expired, the CLI will use the refresh token to get a new access token.
+CLI は、サーバへのリクエスト時に自動的に認証情報を検索します。アクセストークンの有効期限が切れている場合、CLI
+はリフレッシュトークンを使用して新しいアクセストークンを取得します。
 
-### Organization SSO {#organization-sso}
+## プロジェクトとして{#as-a-project}。
 
-If you have a Google Workspace organization and you want any developer who signs in with the same Google hosted domain to be added to your Tuist organization, you can set it up with:
-
-```bash
-tuist organization update sso my-organization --provider google --organization-id my-google-domain.com
-```
-
-For on-premise customers that have Okta set up, you can get the same behavior as for Google by running:
-
-```bash
-tuist organization update sso my-organization --provider okta --organization-id my-okta-domain.com
-```
-
-> [!IMPORTANT]
-> You must be authenticated with Google using an email tied to the organization whose domain you are setting up.
-
-## As a project {#as-a-project}
-
-In non-interactive environments like continuous integrations', you can't authenticate through an interactive flow. For those environments, we recommend authenticating as a project by using a project-scoped token:
+継続的インテグレーションのような非インタラクティブ環境では、インタラクティブフローによる認証はできません。そのような環境では、プロジェクトスコープのトークンを使ってプロジェクトとして認証することをお勧めします：
 
 ```bash
 tuist project tokens create
 ```
 
-The CLI expects the token to be defined as the environment variable `TUIST_CONFIG_TOKEN`, and the `CI=1` environment variable to be set. The CLI will use the token to authenticate the requests.
+CLIは、トークンが環境変数`TUIST_CONFIG_TOKEN` として定義され、`CI=1`
+環境変数が設定されていることを期待する。CLIはリクエストを認証するためにトークンを使用する。
 
-> [!IMPORTANT] LIMITED SCOPE
-> The permissions of the project-scoped token are limited to the actions that we consider safe for projects to perform from a CI environment. We plan to document the permissions that the token has in the future.
+> [重要] 限定された範囲
+> プロジェクト・スコープ・トークンの権限は、CI環境からプロジェクトが安全に実行できると考えられるアクションに限定されています。今後、トークンが持つ権限を文書化する予定です。

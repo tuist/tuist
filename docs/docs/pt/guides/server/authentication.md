@@ -5,48 +5,49 @@
   "description": "Learn how to authenticate with the Tuist server from the CLI."
 }
 ---
-# Authentication {#authentication}
+# Autenticação {#authentication}
 
-To interact with the server, the CLI needs to authenticate the requests using [bearer authentication](https://swagger.io/docs/specification/authentication/bearer-authentication/). The CLI supports authenticating as a user or as a project.
+Para interagir com o servidor, a CLI precisa de autenticar os pedidos utilizando
+[autenticação de
+portador](https://swagger.io/docs/specification/authentication/bearer-authentication/).
+O CLI suporta a autenticação como utilizador ou como projeto.
 
-## As a user {#as-a-user}
+## Como utilizador {#como utilizador}
 
-When using the CLI locally on your machine, we recommend authenticating as a user. To authenticate as a user, you need to run the following command:
+Quando utilizar o CLI localmente no seu computador, recomendamos a autenticação
+como utilizador. Para se autenticar como utilizador, é necessário executar o
+seguinte comando:
 
 ```bash
 tuist auth login
 ```
 
-The command will take you through a web-based authentication flow. Once you authenticate, the CLI will store a long-lived refresh token and a short-lived access token under `~/.config/tuist/credentials`. Each file in the directory represents the domain you authenticated against, which by default should be `cloud.tuist.io.json`. The information stored in that directory is sensitive, so **make sure to keep it safe**.
+O comando conduzi-lo-á através de um fluxo de autenticação baseado na Web. Após
+a autenticação, a CLI armazenará um token de atualização de longa duração e um
+token de acesso de curta duração em `~/.config/tuist/credentials`. Cada ficheiro
+no diretório representa o domínio em que se autenticou, que por predefinição
+deve ser `tuist.dev.json`. As informações armazenadas nesse diretório são
+sensíveis, por isso **certifique-se de que as mantém seguras**.
 
-The CLI will automatically look up the credentials when making requests to the server. If the access token is expired, the CLI will use the refresh token to get a new access token.
+A CLI procurará automaticamente as credenciais quando efetuar pedidos ao
+servidor. Se o token de acesso tiver expirado, o CLI utilizará o token de
+atualização para obter um novo token de acesso.
 
-### Organization SSO {#organization-sso}
+## Como um projeto {#como um projeto}
 
-If you have a Google Workspace organization and you want any developer who signs in with the same Google hosted domain to be added to your Tuist organization, you can set it up with:
-
-```bash
-tuist organization update sso my-organization --provider google --organization-id my-google-domain.com
-```
-
-For on-premise customers that have Okta set up, you can get the same behavior as for Google by running:
-
-```bash
-tuist organization update sso my-organization --provider okta --organization-id my-okta-domain.com
-```
-
-> [!IMPORTANT]
-> You must be authenticated with Google using an email tied to the organization whose domain you are setting up.
-
-## As a project {#as-a-project}
-
-In non-interactive environments like continuous integrations', you can't authenticate through an interactive flow. For those environments, we recommend authenticating as a project by using a project-scoped token:
+Em ambientes não interactivos, como as integrações contínuas, não é possível
+autenticar através de um fluxo interativo. Para esses ambientes, recomendamos a
+autenticação como um projeto usando um token com escopo de projeto:
 
 ```bash
 tuist project tokens create
 ```
 
-The CLI expects the token to be defined as the environment variable `TUIST_CONFIG_TOKEN`, and the `CI=1` environment variable to be set. The CLI will use the token to authenticate the requests.
+A CLI espera que o token seja definido como a variável de ambiente
+`TUIST_CONFIG_TOKEN`, e que a variável de ambiente `CI=1` seja definida. A CLI
+utilizará o token para autenticar os pedidos.
 
-> [!IMPORTANT] LIMITED SCOPE
-> The permissions of the project-scoped token are limited to the actions that we consider safe for projects to perform from a CI environment. We plan to document the permissions that the token has in the future.
+> [IMPORTANTE] ESCOPO LIMITADO As permissões do token com escopo de projeto são
+> limitadas às ações que consideramos seguras para os projetos executarem a
+> partir de um ambiente de CI. Planeamos documentar as permissões que o token
+> tem no futuro.
