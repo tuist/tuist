@@ -5,43 +5,44 @@
   "description": "This document describes the principles that guide the development of Tuist."
 }
 ---
-# Translate {#translate}
+# 翻译 {#translate｝
 
-Languages can be barriers to understanding. We want to make sure that Tuist is accessible to as many people as possible. If you speak a language that Tuist doesn't support, you can help us by translating the various surfaces of Tuist.
+语言可能成为理解的障碍。我们希望尽可能多的人都能使用 Tuist。如果您使用的语言不支持 Tuist，您可以帮助我们翻译 Tuist 的各种表面。
 
-Since maintaining translations is a continuous effort, we add languages as we see contributors willing to help us maintain them. The following languages are currently supported:
+由于维护翻译是一项持续性的工作，因此我们会在看到有贡献者愿意帮助我们维护翻译时添加语言。目前支持以下语言：
 
-- English
-- Korean
-- Japanese
-- Russian
+- 英语
+- 韩语
+- 日语
+- 俄罗斯
+- 中文
+- 西班牙语
+- 葡萄牙语
 
-> [!TIP] REQUEST A NEW LANGUAGE
-> If you believe Tuist would benefit from supporting a new language, please create a new [topic in the community forum](https://community.tuist.io/c/general/4) to discuss it with the community.
+> [提示] 申请一种新语言 如果您认为支持一种新语言会使 Tuist
+> 受益，请在社区论坛创建一个新的[主题](https://community.tuist.io/c/general/4)，与社区讨论。
 
-## How to translate {#how-to-translate}
+## 如何翻译 {#how-to-translate｝
 
-We use [Crowdin](https://crowdin.com/) to manage the translations. First, go to the project that you want to contribute to:
+我们在 [translate.tuist.dev](https://translate.tuist.dev) 上运行了
+[Weblate](https://weblate.org/en-gb/) 实例。您可以前往
+[项目](https://translate.tuist.dev/engage/tuist/)，创建一个账户，然后开始翻译。
 
-- [Documentation](https://crowdin.com/project/tuist-documentation)
-- [Website](https://crowdin.com/project/tuist-documentation)
+翻译会通过 GitHub 的拉取请求同步回源代码库，维护者会审核并合并这些请求。
 
-You'll need an account to start translating. You can sign in with GitHub. Once you have access, you can start translating. You'll see the list of resources that are available for translation. When you click on a resource, the editor will open, and you'll see a split view with the resource in the source language on the left and the translation on the right. Translate the text on the right and save your changes.
+> [重要] 请勿修改目标语言中的资源 Weblate 将文件分段绑定源语言和目标语言。如果您修改了源语言，就会破坏绑定，调和可能会产生意想不到的结果。
 
-As translations are updated, Crowdin will push them automatically to the right repository opening a pull request, which the maintainers will review and merge.
+## 指导方针 {#guidelines｝
 
-> [!IMPORTANT] DON'T MODIFY THE RESOURCES IN THE TARGET LANGUAGE
-> Crowdin segments the files to bind source and target languages. If you modify the source language, you'll break the binding, and the reconciliation might yield unexpected results.
+以下是我们在翻译时遵循的准则。
 
-## Guidelines {#guidelines}
+### 自定义容器和 GitHub 警报 {#custom-containers-and-github-alerts}
 
-The following are the guidelines we follow when translating.
+翻译 [自定义容器](https://vitepress.dev/guide/markdown#custom-containers)或 [GitHub
+警报](https://docs.github.com/en/get-started/writing-on-github/getting-started-with-writing-and-formatting-on-github/basic-writing-and-formatting-syntax#alerts)时，只翻译标题和内容**，而不翻译警报类型**
+。
 
-### Custom containers and GitHub alerts {#custom-containers-and-github-alerts}
-
-When translating [custom containers](https://vitepress.dev/guide/markdown#custom-containers) or [GitHub Alerts](https://docs.github.com/en/get-started/writing-on-github/getting-started-with-writing-and-formatting-on-github/basic-writing-and-formatting-syntax#alerts), only translate the title and the content **but not the type of alert**.
-
-::: details Example with GitHub Alert
+带有 GitHub 警报的详细示例
 ```markdown
     > [!WARNING] 루트 변수
     > 매니페스트의 루트에 있어야 하는 변수는...
@@ -54,7 +55,7 @@ When translating [custom containers](https://vitepress.dev/guide/markdown#custom
 
 
 ::: details Example with custom container
-```markdown
+```
     ::: warning 루트 변수\
     매니페스트의 루트에 있어야 하는 변수는...
     :::
@@ -70,12 +71,14 @@ When translating [custom containers](https://vitepress.dev/guide/markdown#custom
 
 When translating headings, only translate tht title but not the id. For example, when translating the following heading:
 
-```markdown
-# Add dependencies {#add-dependencies}
+```
+# 添加依赖项 {#add-dependencies}
 ```
 
 It should be translated as (note the id is not translated):
 
-```markdown
+```
 # 의존성 추가하기 {#add-dependencies}
+```
+
 ```
