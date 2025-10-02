@@ -1,39 +1,72 @@
 ---
 {
   "title": "Cache",
-  "titleTemplate": ":title · Develop · Guides · Tuist",
+  "titleTemplate": ":title · Features · Guides · Tuist",
   "description": "Optimize your build times by caching compiled binaries and sharing them across different environments."
 }
 ---
-# Cache {#cache}
+# Caché {#cache}
 
-> [!IMPORTANT] REQUIREMENTS
->
-> - A <LocalizedLink href="/guides/features/projects">generated project</LocalizedLink>
-> - A <LocalizedLink href="/server/introduction/accounts-and-projects">Tuist account and project</LocalizedLink>
+> [REQUISITOS
+> - Un proyecto generado por
+>   <LocalizedLink href="/guides/features/projects"></LocalizedLink>
+> - A <LocalizedLink href="/guides/server/accounts-and-projects">Cuenta tuista y
+>   proyecto</LocalizedLink>
 
-Xcode's build system provides [incremental builds](https://en.wikipedia.org/wiki/Incremental_build_model), enhancing efficiency under normal circumstances. However, this feature falls short in [Continuous Integration (CI) environments](https://en.wikipedia.org/wiki/Continuous_integration), where data essential for incremental builds is not shared across different builds. Additionally, **developers often reset this data locally to troubleshoot complex compilation problems**, leading to more frequent clean builds. This results in teams spending excessive time waiting for local builds to finish or for Continuous Integration pipelines to provide feedback on pull requests. Furthermore, the frequent context switching in such an environment compounds this unproductiveness.
+El sistema de compilación de Xcode proporciona [compilaciones
+incrementales](https://en.wikipedia.org/wiki/Incremental_build_model), mejorando
+la eficiencia en circunstancias normales. Sin embargo, esta característica se
+queda corta en [entornos de integración continua
+(IC)](https://en.wikipedia.org/wiki/Continuous_integration), donde los datos
+esenciales para las compilaciones incrementales no se comparten entre diferentes
+compilaciones. Además, los desarrolladores de **suelen restablecer estos datos
+localmente para solucionar problemas de compilación complejos**, lo que provoca
+que las compilaciones limpias sean más frecuentes. Esto hace que los equipos
+pasen demasiado tiempo esperando a que finalicen las compilaciones locales o a
+que las canalizaciones de integración continua proporcionen información sobre
+las solicitudes de extracción. Además, el frecuente cambio de contexto en un
+entorno de este tipo agrava esta improductividad.
 
-Tuist addresses these challenges effectively with its caching feature. This tool optimizes the build process by caching compiled binaries, significantly reducing build times both in local development and CI environments. This approach not only accelerates feedback loops but also minimizes the need for context switching, ultimately boosting productivity.
+Tuist aborda estos retos con eficacia gracias a su función de almacenamiento en
+caché. Esta herramienta optimiza el proceso de compilación almacenando en caché
+los binarios compilados, lo que reduce significativamente los tiempos de
+compilación tanto en entornos de desarrollo local como de CI. Este enfoque no
+sólo acelera los bucles de retroalimentación, sino que también minimiza la
+necesidad de cambiar de contexto, lo que en última instancia aumenta la
+productividad.
 
-## Warming {#warming}
+## Calentamiento {#warming}
 
-Tuist efficiently <LocalizedLink href="/guides/features/projects/hashing">utilizes hashes</LocalizedLink> for each target in the dependency graph to detect changes. Utilizing this data, it builds and assigns unique identifiers to binaries derived from these targets. At the time of graph generation, Tuist then seamlessly substitutes the original targets with their corresponding binary versions.
+Tuist <LocalizedLink href="/guides/features/projects/hashing">utiliza
+eficientemente hashes</LocalizedLink> para cada objetivo en el grafo de
+dependencia para detectar cambios. Utilizando estos datos, construye y asigna
+identificadores únicos a los binarios derivados de estos objetivos. En el
+momento de generar el grafo, Tuist sustituye sin problemas los objetivos
+originales por sus correspondientes versiones binarias.
 
-This operation, known as _"warming,"_ produces binaries for local use or for sharing with teammates and CI environments via Tuist. The process of warming the cache is straightforward and can be initiated with a simple command:
+Esta operación, conocida como *"warming",* produce binarios para uso local o
+para compartir con compañeros de equipo y entornos CI a través de Tuist. El
+proceso de calentamiento de la caché es sencillo y puede iniciarse con un simple
+comando:
+
 
 ```bash
 tuist cache
 ```
 
-The command re-uses binaries to speed up the process.
+El comando reutiliza binarios para acelerar el proceso.
 
-## Usage {#usage}
+## Uso {#usage}
 
-By default, when Tuist commands necessitate project generation, they automatically substitute dependencies with their binary equivalents from the cache, if available. Additionally, if you specify a list of targets to focus on, Tuist will also replace any dependent targets with their cached binaries, provided they are available. For those who prefer a different approach, there is an option to opt out of this behavior entirely by using a specific flag:
+Por defecto, cuando los comandos de Tuist necesitan generar un proyecto,
+sustituyen automáticamente las dependencias por sus equivalentes binarios de la
+caché, si están disponibles. Además, si especificas una lista de objetivos en
+los que centrarte, Tuist también sustituirá cualquier objetivo dependiente por
+sus binarios de la caché, siempre que estén disponibles. Para aquellos que
+prefieren un enfoque diferente, hay una opción para optar por este
+comportamiento por completo mediante el uso de una bandera específica:
 
-::: code-group
-
+::: grupo de códigos
 ```bash [Project generation]
 tuist generate # Only dependencies
 tuist generate Search # Dependencies + Search dependencies
@@ -44,60 +77,90 @@ tuist generate --no-binary-cache # No cache at all
 ```bash [Testing]
 tuist test
 ```
-
 :::
 
-> [!WARNING]
-> Binary caching is a feature designed for development workflows such as running the app on a simulator or device, or running tests. It is not intended for release builds. When archiving the app, generate a project with the sources by using the `--no-binary-cache` flag.
+> [ADVERTENCIA] La caché binaria es una función diseñada para flujos de trabajo
+> de desarrollo, como la ejecución de la aplicación en un simulador o
+> dispositivo, o la ejecución de pruebas. No está pensada para compilaciones de
+> lanzamiento. Al archivar la aplicación, genere un proyecto con los fuentes
+> utilizando la opción `--no-binary-cache`.
 
-## Supported products {#supported-products}
+## Productos compatibles {#supported-products}
 
-Only the following target products are cacheable by Tuist:
+Tuist sólo puede almacenar en caché los siguientes productos de destino:
 
-- Frameworks (static and dynamic) that don't depend on [XCTest](https://developer.apple.com/documentation/xctest)
-- Bundles
-- Swift Macros
+- Frameworks (estáticos y dinámicos) que no dependen de
+  [XCTest](https://developer.apple.com/documentation/xctest)
+- Paquetes
+- Macros Swift
 
-We are working on supporting libraries and targets that depend on XCTest.
+Estamos trabajando para dar soporte a las librerías y objetivos que dependen de
+XCTest.
 
-> [!NOTE] UPSTREAM DEPENDENCIES
-> When a target is non-cacheable it makes the upstream targets non-cacheable too. For example, if you have the dependency graph `A > B`, where A depends on B, if B is non-cacheable, A will also be non-cacheable.
+> [Cuando un objetivo no es almacenable en caché, hace que los objetivos
+> anteriores tampoco lo sean. Por ejemplo, si tienes el gráfico de dependencias
+> `A &gt; B`, donde A depende de B, si B no es almacenable en caché, A tampoco
+> lo será.
 
-## Efficiency {#efficiency}
+## Eficiencia {#efficiency}
 
-The level of efficiency that can be achieved with binary caching depends strongly on the graph structure. To achieve the best results, we recommend the following:
+El nivel de eficacia que puede alcanzarse con la caché binaria depende en gran
+medida de la estructura del grafo. Para obtener los mejores resultados,
+recomendamos lo siguiente:
 
-1. Avoid very nested dependency graphs. The shallower the graph, the better.
-2. Define dependencies with protocol/interface targets instead of implementation ones, and dependency-inject implementations from the top-most targets.
-3. Split frequently-modified targets into smaller ones whose likelihood of change is lower.
+1. Evite los gráficos de dependencia muy anidados. Cuanto menos profundo sea el
+   gráfico, mejor.
+2. Define las dependencias con objetivos de protocolo/interfaz en lugar de
+   objetivos de implementación, e inyecta las implementaciones de dependencias
+   desde los objetivos superiores.
+3. Dividir los objetivos modificados con frecuencia en otros más pequeños cuya
+   probabilidad de cambio sea menor.
 
-The above suggestions are part of the <LocalizedLink href="/guides/features/projects/tma-architecture">The Modular Architecture</LocalizedLink>, which we propose as a way to structure your projects to maximize the benefits not only of binary caching but also of Xcode's capabilities.
+Las sugerencias anteriores forman parte de
+<LocalizedLink href="/guides/features/projects/tma-architecture">La arquitectura
+modular</LocalizedLink>, que proponemos como una forma de estructurar sus
+proyectos para maximizar los beneficios no sólo de la caché binaria, sino
+también de las capacidades de Xcode.
 
-## Recommended setup {#recommended-setup}
+## Configuración recomendada {#recommended-setup}
 
-We recommend having a CI job that **runs in every commit in the main branch** to warm the cache. This will ensure the cache always contains binaries for the changes in `main` so local and CI branch build incrementally upon them.
+Recomendamos tener un trabajo CI que **ejecute en cada commit en la rama
+principal** para calentar la caché. Esto asegurará que la caché siempre contenga
+binarios para los cambios en `main` para que la rama local y CI construyan
+incrementalmente sobre ellos.
 
-> [!TIP] CACHE WARMING USES BINARIES
-> The `tuist cache` command also makes use of the binary cache to speed up the warming.
+> [EL CALENTAMIENTO DE LA CACHE UTILIZA BINARIOS El comando `tuist cache`
+> también hace uso de la caché binaria para acelerar el calentamiento.
 
-The following are some examples of common workflows:
+A continuación se ofrecen algunos ejemplos de flujos de trabajo habituales:
 
-### A developer starts to work on a new feature {#a-developer-starts-to-work-on-a-new-feature}
+### Un desarrollador empieza a trabajar en una nueva característica {#a-developer-starts-to-work-on-a-new-feature}
 
-1. They create a new branch from `main`.
-2. They run `tuist generate`.
-3. Tuist pulls the most recent binaries from `main` and generates the project with them.
+1. Crean una nueva rama a partir de `principal`.
+2. Ejecutan `tuist generan`.
+3. Tuist extrae los binarios más recientes de `main` y genera el proyecto con
+   ellos.
 
-### A developer pushes changes upstream {#a-developer-pushes-changes-upstream}
+### Un desarrollador empuja los cambios aguas arriba {#a-developer-pushes-changes-upstream}
 
-1. The CI pipeline will run `tuist build` or `tuist test` to build or test the project.
-2. The workflow will pull the most recent binaries from `main` and generate the project with them.
-3. It will then build or test the project incrementally.
+1. El proceso CI ejecutará `tuist build` o `tuist test` para construir o probar
+   el proyecto.
+2. El flujo de trabajo extraerá los binarios más recientes de `main` y generará
+   el proyecto con ellos.
+3. A continuación, construirá o probará el proyecto de forma incremental.
 
-## Troubleshooting {#troubleshooting}
+## Solución de problemas {#troubleshooting}
 
-### It doesn't use binaries for my targets {#it-doesnt-use-binaries-for-my-targets}
+### No utiliza binarios para mis objetivos {#it-doesnt-use-binaries-for-my-targets}
 
-Ensure that the <LocalizedLink href="/guides/features/projects/hashing#debugging">hashes are deterministic</LocalizedLink> across environments and runs. This might happen if the project has references to the environment, for example through absolute paths. You can use the `diff` command to compare the projects generated by two consecutive invocations of `tuist generate` or across environments or runs.
+Asegúrese de que los
+<LocalizedLink href="/guides/features/projects/hashing#debugging">hashes son
+deterministas</LocalizedLink> entre entornos y ejecuciones. Esto puede ocurrir
+si el proyecto tiene referencias al entorno, por ejemplo a través de rutas
+absolutas. Puede utilizar el comando `diff` para comparar los proyectos
+generados por dos invocaciones consecutivas de `tuist generate` o a través de
+entornos o ejecuciones.
 
-Also make sure that the target doesn't depend either directly or indirectly on a <LocalizedLink href="/guides/features/cache.html#supported-products">non-cacheable target</LocalizedLink>.
+Asegúrese también de que el objetivo no depende directa o indirectamente de un
+<LocalizedLink href="/guides/features/cache#supported-products">objetivo no
+almacenable en caché</LocalizedLink>.
