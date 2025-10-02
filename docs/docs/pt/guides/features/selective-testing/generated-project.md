@@ -1,43 +1,58 @@
 ---
 {
   "title": "Generated project",
-  "titleTemplate": ":title · Selective testing · Develop · Guides · Tuist",
+  "titleTemplate": ":title · Selective testing · Features · Guides · Tuist",
   "description": "Learn how to leverage selective testing with a generated project."
 }
 ---
-# Generated project {#generated-project}
+# Projeto gerado {#projeto gerado}
 
-> [!IMPORTANT] REQUIREMENTS
->
-> - A <LocalizedLink href="/guides/features/projects">generated project</LocalizedLink>
-> - A <LocalizedLink href="/server/introduction/accounts-and-projects">Tuist account and project</LocalizedLink>
+> REQUISITOS [!IMPORTANTE]
+> - Um projeto gerado por
+>   <LocalizedLink href="/guides/features/projects"></LocalizedLink>
+> - Uma conta e um projeto
+>   <LocalizedLink href="/guides/server/accounts-and-projects">Tuist</LocalizedLink>
 
-To run tests selectively with your generated project, use the `tuist test` command. The command <LocalizedLink href="/guides/features/projects/hashing">hashes</LocalizedLink> your Xcode project the same way it does for <LocalizedLink href="/guides/features/build/cache#cache-warming">warming the cache</LocalizedLink>, and on success, it persists the hashes on to determine what has changed in future runs.
+Para executar testes seletivamente com seu projeto gerado, use o comando `tuist
+test`. O comando
+<LocalizedLink href="/guides/features/projects/hashing">hashes</LocalizedLink>
+seu projeto Xcode da mesma forma que faz para
+<LocalizedLink href="/guides/features/cache#cache-warming">aquecer o
+cache</LocalizedLink> e, em caso de sucesso, ele persiste os hashes para
+determinar o que foi alterado em execuções futuras.
 
-In future runs `tuist test` transparently uses the hashes to filter down the tests to run only the ones that have changed since the last successful test run.
+Em execuções futuras `tuist test` utiliza transparentemente os hashes para
+filtrar os testes e executar apenas os que foram alterados desde a última
+execução de teste bem sucedida.
 
-For example, assuming the following dependency graph:
+Por exemplo, supondo o seguinte gráfico de dependências:
 
-- `FeatureA` has tests `FeatureATests`, and depends on `Core`
-- `FeatureB` has tests `FeatureBTests`, and depends on `Core`
-- `Core` has tests `CoreTests`
+- `A característicaA` tem testes `FeatureATests`, e depende de `Core`
+- `FeatureB` tem testes `FeatureBTests`, e depende de `Core`
+- `O núcleo` tem testes `CoreTests`
 
-`tuist test` will behave as such:
+`O teste tuista` comportar-se-á como tal:
 
-| Action                  | Description                                                         | Internal state                                                                 |
-| ----------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| `tuist test` invocation | Runs the tests in `CoreTests`, `FeatureATests`, and `FeatureBTests` | The hashes of `FeatureATests`, `FeatureBTests` and `CoreTests` are persisted   |
-| `FeatureA` is updated   | The developer modifies the code of a target                         | Same as before                                                                 |
-| `tuist test` invocation | Runs the tests in `FeatureATests` because it hash has changed       | The new hash of `FeatureATests` is persisted                                   |
-| `Core` is updated       | The developer modifies the code of a target                         | Same as before                                                                 |
-| `tuist test` invocation | Runs the tests in `CoreTests`, `FeatureATests`, and `FeatureBTests` | The new hash of `FeatureATests` `FeatureBTests`, and `CoreTests` are persisted |
+| Ação                           | Descrição                                                            | Estado interno                                                             |
+| ------------------------------ | -------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `teste tuist` invocação        | Executa os testes em `CoreTests`, `FeatureATests`, e `FeatureBTests` | Os hashes de `FeatureATests`, `FeatureBTests` e `CoreTests` são mantidos   |
+| `FuncionalidadeA` é atualizado | O programador modifica o código de um destino                        | Igual ao anterior                                                          |
+| `teste tuist` invocação        | Executa os testes em `FeatureATests` porque o seu hash foi alterado  | O novo hash de `FeatureATests` é mantido                                   |
+| `O núcleo` está atualizado     | O programador modifica o código de um destino                        | Igual ao anterior                                                          |
+| `teste tuist` invocação        | Executa os testes em `CoreTests`, `FeatureATests`, e `FeatureBTests` | O novo hash de `FeatureATests` `FeatureBTests`, e `CoreTests` são mantidos |
 
-`tuist test` integrates directly with binary caching to use as many binaries from your local or remote storage to improve the build time when running your test suite. The combination of selective testing with binary caching can dramatically reduce the time it takes to run tests on your CI.
+`tuist test` integra-se diretamente com o cache binário para utilizar tantos
+binários do seu armazenamento local ou remoto para melhorar o tempo de
+construção ao executar o seu conjunto de testes. A combinação de testes
+selectivos com cache de binários pode reduzir drasticamente o tempo necessário
+para executar testes no seu CI.
 
-## UI Tests {#ui-tests}
+## Testes de IU {#ui-tests}
 
-Tuist supports selective testing of UI tests. However, Tuist needs to know the destination in advance. Only if you specify the `destination` parameter, Tuist will run the UI tests selectively, such as:
-
+O Tuist suporta testes selectivos de testes de IU. No entanto, o Tuist precisa
+saber o destino com antecedência. Somente se você especificar o parâmetro
+`destination`, o Tuist executará os testes de interface do usuário
+seletivamente, como:
 ```sh
 tuist test --device 'iPhone 14 Pro'
 # or

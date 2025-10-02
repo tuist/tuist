@@ -1,43 +1,45 @@
 ---
 {
-  "title": "生成されたプロジェクト",
-  "titleTemplate": ":title · Selective testing · Develop · Guides · Tuist",
+  "title": "Generated project",
+  "titleTemplate": ":title · Selective testing · Features · Guides · Tuist",
   "description": "Learn how to leverage selective testing with a generated project."
 }
 ---
-# Generated project {#generated-project}
+# 生成されたプロジェクト{#generated-project}。
 
-> [!IMPORTANT] REQUIREMENTS
->
-> - A <LocalizedLink href="/guides/features/projects">generated project</LocalizedLink>
-> - A <LocalizedLink href="/server/introduction/accounts-and-projects">Tuist account and project</LocalizedLink>
+> [重要】要件
+> - 1}生成プロジェクト</LocalizedLink>
+> - A<LocalizedLink href="/guides/server/accounts-and-projects">トゥイストのアカウントとプロジェクト</LocalizedLink>
 
-To run tests selectively with your generated project, use the `tuist test` command. The command <LocalizedLink href="/guides/features/projects/hashing">hashes</LocalizedLink> your Xcode project the same way it does for <LocalizedLink href="/guides/features/build/cache#cache-warming">warming the cache</LocalizedLink>, and on success, it persists the hashes on to determine what has changed in future runs.
+生成されたプロジェクトでテストを選択的に実行するには、`tuist test`
+コマンドを使用します。このコマンドは、<LocalizedLink href="/guides/features/projects/hashing">キャッシュを温める<LocalizedLink href="/guides/features/cache#cache-warming">のと同じように</LocalizedLink>あなたの
+Xcode プロジェクトをハッシュ化し、成功すると、将来の実行で何が変更されたかを判断するためにハッシュを持続させます。
 
-In future runs `tuist test` transparently uses the hashes to filter down the tests to run only the ones that have changed since the last successful test run.
+今後の実行では、`tuist test` 、透過的にハッシュを使用してテストを絞り込み、最後に成功したテストの実行以降に変更されたものだけを実行する。
 
-For example, assuming the following dependency graph:
+例えば、次のような依存関係グラフを仮定する：
 
-- `FeatureA` has tests `FeatureATests`, and depends on `Core`
-- `FeatureB` has tests `FeatureBTests`, and depends on `Core`
-- `Core` has tests `CoreTests`
+- `FeatureA` は`FeatureATests` を持ち、`Core に依存している。`
+- `FeatureB` は、`FeatureBTests` をテストし、`Core に依存する。`
+- `コア` にはテストがある`CoreTests`
 
-`tuist test` will behave as such:
+`tuistテスト` ：
 
-| Action                  | Description                                                         | Internal state                                                                 |
-| ----------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| `tuist test` invocation | Runs the tests in `CoreTests`, `FeatureATests`, and `FeatureBTests` | The hashes of `FeatureATests`, `FeatureBTests` and `CoreTests` are persisted   |
-| `FeatureA` is updated   | The developer modifies the code of a target                         | Same as before                                                                 |
-| `tuist test` invocation | Runs the tests in `FeatureATests` because it hash has changed       | The new hash of `FeatureATests` is persisted                                   |
-| `Core` is updated       | The developer modifies the code of a target                         | Same as before                                                                 |
-| `tuist test` invocation | Runs the tests in `CoreTests`, `FeatureATests`, and `FeatureBTests` | The new hash of `FeatureATests` `FeatureBTests`, and `CoreTests` are persisted |
+| アクション             | 説明                                                       | 内部状態                                                             |
+| ----------------- | -------------------------------------------------------- | ---------------------------------------------------------------- |
+| `tuistテスト` 呼び出し   | `CoreTests` 、`FeatureATests` 、`FeatureBTests のテストを実行する。` | `FeatureATests`,`FeatureBTests` and`CoreTests` のハッシュが永続化される。     |
+| `FeatureA` が更新される | 開発者はターゲットのコードを修正する。                                      | 同上                                                               |
+| `tuistテスト` 呼び出し   | ハッシュが変更されたため、`FeatureATests` のテストを実行する。                  | `FeatureATests` の新しいハッシュが永続化される。                                 |
+| `コア` を更新          | 開発者はターゲットのコードを修正する。                                      | 同上                                                               |
+| `tuistテスト` 呼び出し   | `CoreTests` 、`FeatureATests` 、`FeatureBTests のテストを実行する。` | `FeatureATests` `FeatureBTests` 、および`CoreTests` の新しいハッシュが永続化される。 |
 
-`tuist test` integrates directly with binary caching to use as many binaries from your local or remote storage to improve the build time when running your test suite. The combination of selective testing with binary caching can dramatically reduce the time it takes to run tests on your CI.
+`tuist test`
+はバイナリキャッシングと直接統合し、ローカルまたはリモートのストレージからできるだけ多くのバイナリを使用して、テストスイートを実行する際のビルド時間を改善します。選択的テストとバイナリキャッシングを組み合わせることで、CIでテストを実行する時間を劇的に短縮できます。
 
-## UI Tests {#ui-tests}
+## UIテスト {#ui-tests}
 
-Tuist supports selective testing of UI tests. However, Tuist needs to know the destination in advance. Only if you specify the `destination` parameter, Tuist will run the UI tests selectively, such as:
-
+TuistはUIテストの選択テストをサポートしている。ただし、Tuistは事前にデスティネーションを知っておく必要がある。`destination`
+パラメータを指定した場合のみ、Tuist は次のように UI テストを選択的に実行する：
 ```sh
 tuist test --device 'iPhone 14 Pro'
 # or
