@@ -5,64 +5,86 @@
   "description": "This page documents how to migrate the Tuist CLI from the version 3 to version 4."
 }
 ---
-# From Tuist v3 to v4 {#from-tuist-v3-to-v4}
+# 从 Tuist v3 到 v4 {#from-tuist-v3-to-v4}
 
-With the release of [Tuist 4](https://github.com/tuist/tuist/releases/tag/4.0.0), we took the opportunity to introduce some breaking changes to the project, which we believed would make the project easier to use and maintain in the long run. This document outlines the changes you will need to make to your project to upgrade from Tuist 3 to Tuist 4.
+随着 [Tuist 4](https://github.com/tuist/tuist/releases/tag/4.0.0)
+的发布，我们借此机会对项目进行了一些突破性的改动，我们相信从长远来看，这些改动将使项目更易于使用和维护。本文档概述了从 Tuist 3 升级到 Tuist 4
+时需要对项目做出的更改。
 
-### Dropped version management through `tuistenv` {#dropped-version-management-through-tuistenv}
+### 通过`tuistenv 放弃版本管理` {#dropped-version-management-through-tuistenv}
 
-Prior to Tuist 4, the installation script installed a tool, `tuistenv`, that would get renamed to `tuist` at installation time. The tool would take care of installing and activating versions of Tuist ensuring determinism across environments. With the aim of reducing the feature surface of Tuist, we decided to drop `tuistenv` in favor of [Mise](https://mise.jdx.dev/), a tool that does the same job but is more flexible and can be used across different tools. If you were using `tuistenv`, you'll have to uninstall the current version of Tuist by running `curl -Ls https://uninstall.tuist.io | bash` and then install it using the installation method of your choice. We strongly recommend the usage of Mise because it's able to install and activate versions deterministically across environments.
+在 Tuist 4 之前，安装脚本会安装一个工具`tuistenv` ，在安装时会更名为`tuist` 。该工具将负责安装和激活 Tuist
+版本，以确保跨环境的确定性。为了减少 Tuist 的功能面，我们决定放弃`tuistenv` ，转而使用
+[Mise](https://mise.jdx.dev/)，该工具可完成相同的工作，但更加灵活，可用于不同的工具。如果您使用的是`tuistenv`
+，则必须卸载当前版本的 Tuist，方法是运行`curl -Ls https://uninstall.tuist.io | bash`
+，然后使用您选择的安装方法安装。我们强烈推荐使用 Mise，因为它能在不同环境中确定性地安装和激活版本。
 
-::: code-group
+代码组
 
 ```bash [Uninstall tuistenv]
 curl -Ls https://uninstall.tuist.io | bash
 ```
 :::
 
-> [!IMPORTANT] MISE IN CI ENVIRONMENTS AND XCODE PROJECTS
-> If you decide to embrace the determinism that Mise brings across the board, we recommend checking out the documentation for how to use Mise in [CI environments](https://mise.jdx.dev/continuous-integration.html) and [Xcode projects](https://mise.jdx.dev/ide-integration.html#xcode).
+> [重要] CI 环境和 XCODE 项目中的 Mise 如果您决定全面接受 Mise 带来的确定性，我们建议您查看有关如何在 [CI
+> 环境](https://mise.jdx.dev/continuous-integration.html)和 [Xcode
+> 项目](https://mise.jdx.dev/ide-integration.html#xcode)中使用 Mise 的文档。
 
-> [!NOTE] HOMEBREW IS SUPPORTED
-> Note that you can still install Tuist using Homebrew, which is a popular package manager for macOS. You can find the instructions on how to install Tuist using Homebrew in the <LocalizedLink href="/guides/quick-start/install-tuist#alternative-homebrew">installation guide</LocalizedLink>.
+> [注意] 支持 Homebrew 请注意，您仍然可以使用 Homebrew 安装 Tuist，Homebrew 是 MacOS
+> 上常用的软件包管理器。您可以在<LocalizedLink href="/guides/quick-start/install-tuist#alternative-homebrew">安装指南</LocalizedLink>中找到如何使用
+> Homebrew 安装 Tuist 的说明。
 
-### Dropped `init` constructors from `ProjectDescription` models {#dropped-init-constructors-from-projectdescription-models}
+### 从`ProjectDescription` 模型丢弃`init` 构造函数 {#dropped-init-constructors-from-projectdescription-models}
 
-With the aim of improving the readability and expressiveness of the APIs, we decided to remove the `init` constructors from all the `ProjectDescription` models. Every model now provides a static constructor that you can use to create instances of the models. If you were using the `init` constructors, you'll have to update your project to use the static constructors instead.
+为了提高 API 的可读性和表现力，我们决定从`ProjectDescription` 模型中移除`init`
+构造函数。现在，每个模型都提供了一个静态构造函数，您可以用它来创建模型的实例。如果您正在使用`init` 构造函数，则必须更新您的项目以使用静态构造函数。
 
-> [!TIP] NAMING CONVENTION
-> The naming convention that we follow is to use the name of the model as the name of the static constructor. For example, the static constructor for the `Target` model is `Target.target`.
+> [命名约定 我们遵循的命名约定是使用模型的名称作为静态构造函数的名称。例如，`Target` 模型的静态构造函数是`Target.target` 。
 
-### Renamed `--no-cache` to `--no-binary-cache` {#renamed-nocache-to-nobinarycache}
+### 将`--no-cache` 更名为`--no-binary-cache` {#renamed-nocache-to-nobinarycache}
 
-Because the `--no-cache` flag was ambiguous, we decided to rename it to `--no-binary-cache` to make it clear that it refers to the binary cache. If you were using the `--no-cache` flag, you'll have to update your project to use the `--no-binary-cache` flag instead.
+由于`--no-cache` 标志含糊不清，我们决定将其更名为`--no-binary-cache`
+，以明确它指的是二进制缓存。如果使用`--no-cache` 标志，则必须更新项目，改用`--no-binary-cache` 标志。
 
-### Renamed `tuist fetch` to `tuist install` {#renamed-tuist-fetch-to-tuist-install}
+### 将`tuist fetch` 更名为`tuist install` {#renamed-tuist-fetch-to-tuist-install}
 
-We renamed the `tuist fetch` command to `tuist install` to align with the industry convention. If you were using the `tuist fetch` command, you'll have to update your project to use the `tuist install` command instead.
+我们将`tuist fetch` 命令更名为`tuist install` ，以便与行业惯例保持一致。如果使用`tuist fetch`
+命令，则必须更新项目，改用`tuist install` 命令。
 
-### [Adopt `Package.swift` as the DSL for dependencies](https://github.com/tuist/tuist/pull/5862) {#adopt-packageswift-as-the-dsl-for-dependencieshttpsgithubcomtuisttuistpull5862}
+### [采用`Package.swift` 作为依赖项的 DSL](https://github.com/tuist/tuist/pull/5862){#adopt-packageswift-as-the-dsl-for-dependencieshttpsgithubcomtuisttuistpull5862}
 
-Before Tuist 4, you could define dependencies in a `Dependencies.swift` file. This proprietary format broke the support in tools like [Dependabot](https://github.com/dependabot) or [Renovatebot](https://github.com/renovatebot/renovate) to automatically update dependencies. Moreover, it introduced unnecessary indirections for users. Therefore, we decided to embrace `Package.swift` as the only way to define dependencies in Tuist. If you were using the `Dependencies.swift` file, you'll have to move the content from your `Tuist/Dependencies.swift` to a `Package.swift` at the root, and use the `#if TUIST` directive to configure the integration. You can read more about how to integrate Swift Package dependencies <LocalizedLink href="/guides/features/projects/dependencies#swift-packages">here</LocalizedLink>
+在 Tuist 4 之前，您可以在`Dependencies.swift` 文件中定义依赖关系。这种专有格式破坏了
+[Dependabot](https://github.com/dependabot) 或
+[Renovatebot](https://github.com/renovatebot/renovate)
+等工具对自动更新依赖关系的支持。此外，它还为用户带来了不必要的间接性。因此，我们决定将`Package.swift` 作为在 Tuist
+中定义依赖关系的唯一方式。如果您使用`Dependencies.swift` 文件，则必须将`Tuist/Dependencies.swift`
+中的内容移至`Package.swift` 的根目录，并使用`#if TUIST` 指令配置集成。有关如何集成 Swift
+软件包依赖项的更多信息，请参阅此处<LocalizedLink href="/guides/features/projects/dependencies#swift-packages">。</LocalizedLink>
 
-### Renamed `tuist cache warm` to `tuist cache` {#renamed-tuist-cache-warm-to-tuist-cache}
+### 将`tuist cache warm` 重命名为`tuist cache` {#renamed-tuist-cache-warm-to-tuist-cache}
 
-For brevity, we decided to rename the `tuist cache warm` command to `tuist cache`. If you were using the `tuist cache warm` command, you'll have to update your project to use the `tuist cache` command instead.
+为简洁起见，我们决定将`tuist cache warm` 命令更名为`tuist cache` 。如果使用`tuist cache warm`
+命令，则必须更新项目，改用`tuist cache` 命令。
 
 
-### Renamed `tuist cache print-hashes` to `tuist cache --print-hashes` {#renamed-tuist-cache-printhashes-to-tuist-cache-printhashes}
+### 将`tuist cache print-hashes` 重命名为`tuist cache --print-hashes` {#renamed-tuist-cache-printhashes-to-tuist-cache-printhashes}
 
-We decided to rename the `tuist cache print-hashes` command to `tuist cache --print-hashes` to make it clear that it's a flag of the `tuist cache` command. If you were using the `tuist cache print-hashes` command, you'll have to update your project to use the `tuist cache --print-hashes` flag instead.
+我们决定将`tuist cache print-hashes` 命令更名为`tuist cache --print-hashes` ，以明确它是`tuist
+cache` 命令的一个标志。如果您使用的是`tuist cache print-hashes` 命令，则必须更新您的项目，改用`tuist cache
+--print-hashes` 标志。
 
-### Removed caching profiles {#removed-caching-profiles}
+### 移除缓存配置文件 {#removed-caching-profiles}
 
-Before Tuist 4, you could define caching profiles in `Tuist/Config.swift` which contained a configuration for the cache. We decided to remove this feature because it could lead to confusion when using it in the generation process with a profile other than the one that was used to generate the project. Moreover, it could lead to users using a debug profile to build a release version of the app, which could lead to unexpected results. In its place, we introduced the `--configuration` option, which you can use to specify the configuration you want to use when generating the project. If you were using caching profiles, you'll have to update your project to use the `--configuration` option instead.
+在 Tuist 4 之前，您可以在`Tuist/Config.swift`
+中定义缓存配置文件，其中包含缓存的配置。我们决定移除这一功能，因为在生成过程中，如果使用的配置文件与生成项目时使用的配置文件不同，可能会导致混淆。此外，它还可能导致用户使用调试配置文件来构建应用程序的发布版本，从而导致意想不到的结果。为此，我们引入了`--configuration`
+选项，用于指定生成项目时要使用的配置。如果使用缓存配置文件，则必须更新项目，使用`--configuration` 选项。
 
-### Removed `--skip-cache` in favor of arguments {#removed-skipcache-in-favor-of-arguments}
+### 已移除`--skip-cache` ，改为使用参数 {#removed-skipcache-in-favor-of-arguments}
 
-We removed the flag `--skip-cache` from the `generate` command in favor of controlling for which targets the binary cache should be skipped by using the arguments. If you were using the `--skip-cache` flag, you'll have to update your project to use the arguments instead.
+我们从`生成` 命令中移除了`--skip-cache` 标志，转而使用参数来控制哪些目标应跳过二进制缓存。如果使用`--skip-cache`
+标志，则必须更新项目以使用参数。
 
-::: code-group
+代码组
 
 ```bash [Before]
 tuist generate --skip-cache Foo
@@ -73,26 +95,36 @@ tuist generate Foo
 ```
 :::
 
-### [Dropped signing capabilities](https://github.com/tuist/tuist/pull/5716) {#dropped-signing-capabilitieshttpsgithubcomtuisttuistpull5716}
+### [已删除的签名功能](https://github.com/tuist/tuist/pull/5716)。{#已删除的签名功能httpsgithubcomtuisttuistpull5716}(https://github.com/tuist/tuist/pull/5716)。
 
-Signing is already solved by community tooling like [Fastlane](https://fastlane.tools/) and Xcode itself, which do a much better job at that. We felt that signing was an stretch goal for Tuist, and that it was better to focus on the core features of the project. If you were using Tuist signing capabilities, which consisted of encrypting the certificates and profiles in the repository and installing them in the right places at generation time, you might want to replicate that logic in your own scripts that run before project generation. In particular:
-  - A script that decrypts the certificates and profiles using a key either stored in the file-system or in an environment variable, and installs certificates in the keychain, and the provisioning profiles in the directory `~/Library/MobileDevice/Provisioning\ Profiles`.
-  - A script that can take an existing profiles and certificates and encrypt them.
+社区工具（如 [Fastlane](https://fastlane.tools/) 和 Xcode
+本身）已经解决了签名问题，它们在这方面做得更好。我们认为签名只是 Tuist 的一个延伸目标，最好将重点放在项目的核心功能上。如果您正在使用 Tuist
+签名功能，其中包括对版本库中的证书和配置文件进行加密，并在生成时将其安装到正确的位置，那么您可能希望在项目生成前运行的脚本中复制这一逻辑。特别是
+  - 脚本会使用存储在文件系统或环境变量中的密钥解密证书和配置文件，并将证书安装到钥匙串中，将配置文件安装到`~/Library/MobileDevice/Provisioning\
+    Profiles` 目录中。
+  - 该脚本可对现有配置文件和证书进行加密。
 
-> [!TIP] SIGNING REQUIREMENTS
-> Signing requires the right certificates to be present in the keychain and the provisioning profiles to be present in the directory `~/Library/MobileDevice/Provisioning\ Profiles`. You can use the `security` command-line tool to install certificates in the keychain and the `cp` command to copy the provisioning profiles to the right directory.
+> [！提示] 签名要求 签名需要在钥匙串中安装正确的证书，并在`~/Library/MobileDevice/Provisioning\ Profiles`
+> 目录中安装配置文件。您可以使用`security` 命令行工具在钥匙串中安装证书，并使用`cp` 命令将供应配置文件复制到正确的目录。
 
-### Dropped Carthage integration via `Dependencies.swift` {#dropped-carthage-integration-via-dependenciesswift}
+### 通过`Dependencies.swift 删除迦太基集成` {#dropped-carthage-integration-via-dependenciesswift}
 
-Before Tuist 4, Carthage dependencies could be defined in a `Dependencies.swift` file, which users could then fetch by running `tuist fetch`. We also felt that this was a stretch goal for Tuist, specially considering a future where Swift Package Manager would be the preferred way to manage dependencies. If you were using Carthage dependencies, you'll have to use `Carthage` directly to pull the pre-compiled frameworks and XCFrameworks into Carthage's standard directory, and then reference those binaries from your tagets using the `TargetDependency.xcframework` and `TargetDependency.framework` cases.
+在 Tuist 4 之前，迦太基的依赖关系可以定义在`Dependencies.swift` 文件中，然后用户可以通过运行`tuist fetch`
+来获取。我们还认为这是 Tuist 的一个扩展目标，特别是考虑到未来 Swift 包管理器将成为管理依赖关系的首选方式。如果您使用 Carthage
+依赖项，则必须直接使用`Carthage` 将预编译框架和 XCFrameworks 拉入 Carthage
+的标准目录，然后使用`TargetDependency.xcframework` 和`TargetDependency.framework`
+从您的标签中引用这些二进制文件。
 
-> [!NOTE] CARTHAGE IS STILL SUPPORTED
-> Some users understood that we dropped Carthage support. We didn't. The contract between Tuist and Carthage's output is to system-stored frameworks and XCFrameworks. The only thing that changed is who is responsible for fetching the dependencies. It used to be Tuist through Carthage, now it's Carthage.
+> [注意] Carthage 仍受支持 有些用户认为我们放弃了对 Carthage 的支持。我们没有。Tuist 与 Carthage
+> 输出之间的契约是系统存储框架和 XCFrameworks。唯一改变的是谁负责获取依赖关系。以前是 Tuist 通过 Carthage，现在是
+> Carthage。
 
-### Dropped the `TargetDependency.packagePlugin` API {#dropped-the-targetdependencypackageplugin-api}
+### 删除`TargetDependency.packagePlugin` API {#dropped-the-targetdependencypackageplugin-api}
 
-Before Tuist 4, you could define a package plugin dependency using the `TargetDependency.packagePlugin` case. After seeing the Swift Package Manager introducing new package types, we decided to iterate on the API towards something that would be more flexible and future-proof. If you were using `TargetDependency.packagePlugin`, you'll have to use `TargetDependency.package` instead, and pass the type of package you want to use as an argument.
+在 Tuist 4 之前，您可以使用`TargetDependency.packagePlugin` 案例来定义包插件依赖关系。在看到 Swift
+包管理器引入了新的包类型后，我们决定对 API 进行迭代，使其更灵活、更面向未来。如果您正在使用`TargetDependency.packagePlugin`
+，则必须使用`TargetDependency.package` ，并将您要使用的包类型作为参数传递。
 
-### [Dropped deprecated APIs](https://github.com/tuist/tuist/pull/5560) {#dropped-deprecated-apishttpsgithubcomtuisttuistpull5560}
+### [已删除的废弃 API](https://github.com/tuist/tuist/pull/5560){#dropped-deprecated-apishttpsgithubcomtuisttuistpull5560}（已停用的 API
 
-We removed the APIs that were marked as deprecated in Tuist 3. If you were using any of the deprecated APIs, you'll have to update your project to use the new APIs.
+我们删除了 Tuist 3 中被标记为过时的 API。 如果您正在使用任何过时的 API，则必须更新您的项目以使用新的 API。

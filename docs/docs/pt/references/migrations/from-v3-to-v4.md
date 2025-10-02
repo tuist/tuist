@@ -5,64 +5,123 @@
   "description": "This page documents how to migrate the Tuist CLI from the version 3 to version 4."
 }
 ---
-# From Tuist v3 to v4 {#from-tuist-v3-to-v4}
+# De Tuist v3 para v4 {#from-tuist-v3-to-v4}
 
-With the release of [Tuist 4](https://github.com/tuist/tuist/releases/tag/4.0.0), we took the opportunity to introduce some breaking changes to the project, which we believed would make the project easier to use and maintain in the long run. This document outlines the changes you will need to make to your project to upgrade from Tuist 3 to Tuist 4.
+Com o lançamento do [Tuist
+4](https://github.com/tuist/tuist/releases/tag/4.0.0), aproveitamos a
+oportunidade para introduzir algumas mudanças significativas no projeto, que
+acreditamos que tornariam o projeto mais fácil de usar e manter a longo prazo.
+Este documento descreve as mudanças que você precisará fazer no seu projeto para
+atualizar do Tuist 3 para o Tuist 4.
 
-### Dropped version management through `tuistenv` {#dropped-version-management-through-tuistenv}
+### Gestão de versões abandonada através de `tuistenv` {#dropped-version-management-through-tuistenv}
 
-Prior to Tuist 4, the installation script installed a tool, `tuistenv`, that would get renamed to `tuist` at installation time. The tool would take care of installing and activating versions of Tuist ensuring determinism across environments. With the aim of reducing the feature surface of Tuist, we decided to drop `tuistenv` in favor of [Mise](https://mise.jdx.dev/), a tool that does the same job but is more flexible and can be used across different tools. If you were using `tuistenv`, you'll have to uninstall the current version of Tuist by running `curl -Ls https://uninstall.tuist.io | bash` and then install it using the installation method of your choice. We strongly recommend the usage of Mise because it's able to install and activate versions deterministically across environments.
+Antes do Tuist 4, o script de instalação instalava uma ferramenta, `tuistenv`,
+que seria renomeada para `tuist` no momento da instalação. A ferramenta cuidaria
+da instalação e ativação das versões do Tuist, garantindo o determinismo entre
+ambientes. Com o objetivo de reduzir a superfície de recursos do Tuist,
+decidimos abandonar `tuistenv` em favor de [Mise](https://mise.jdx.dev/), uma
+ferramenta que faz o mesmo trabalho, mas é mais flexível e pode ser usada em
+diferentes ferramentas. Se estava a usar `tuistenv`, terá de desinstalar a
+versão atual do Tuist executando `curl -Ls https://uninstall.tuist.io | bash` e
+depois instalá-lo usando o método de instalação da sua escolha. Nós recomendamos
+fortemente o uso do Mise porque ele é capaz de instalar e ativar versões de
+forma determinística em todos os ambientes.
 
-::: code-group
+::: grupo de códigos
 
 ```bash [Uninstall tuistenv]
 curl -Ls https://uninstall.tuist.io | bash
 ```
-
 :::
 
-> [!IMPORTANT] MISE IN CI ENVIRONMENTS AND XCODE PROJECTS
-> If you decide to embrace the determinism that Mise brings across the board, we recommend checking out the documentation for how to use Mise in [CI environments](https://mise.jdx.dev/continuous-integration.html) and [Xcode projects](https://mise.jdx.dev/ide-integration.html#xcode).
+> [!IMPORTANTE] MISE EM AMBIENTES CI E PROJETOS XCODE Se você decidir abraçar o
+> determinismo que o Mise traz em toda a linha, nós recomendamos verificar a
+> documentação de como usar o Mise em [ambientes
+> CI](https://mise.jdx.dev/continuous-integration.html) e [projetos
+> Xcode](https://mise.jdx.dev/ide-integration.html#xcode).
 
-> [!NOTE] HOMEBREW IS SUPPORTED
-> Note that you can still install Tuist using Homebrew, which is a popular package manager for macOS. You can find the instructions on how to install Tuist using Homebrew in the <LocalizedLink href="/guides/quick-start/install-tuist#alternative-homebrew">installation guide</LocalizedLink>.
+> [Note que ainda é possível instalar o Tuist usando o Homebrew, que é um
+> gerenciador de pacotes popular para macOS. Pode encontrar as instruções sobre
+> como instalar o Tuist utilizando o Homebrew no
+> <LocalizedLink href="/guides/quick-start/install-tuist#alternative-homebrew">guia
+> de instalação</LocalizedLink>.
 
-### Dropped `init` constructors from `ProjectDescription` models {#dropped-init-constructors-from-projectdescription-models}
+### Eliminado `init` constructors from `ProjectDescription` models {#dropped-init-constructors-from-projectdescription-models}
 
-With the aim of improving the readability and expressiveness of the APIs, we decided to remove the `init` constructors from all the `ProjectDescription` models. Every model now provides a static constructor that you can use to create instances of the models. If you were using the `init` constructors, you'll have to update your project to use the static constructors instead.
+Com o objetivo de melhorar a legibilidade e a expressividade das APIs, decidimos
+remover os construtores `init` de todos os modelos `ProjectDescription`. Cada
+modelo agora fornece um construtor estático que pode ser usado para criar
+instâncias dos modelos. Se estava a utilizar os construtores `init`, terá de
+atualizar o seu projeto para utilizar os construtores estáticos.
 
-> [!TIP] NAMING CONVENTION
-> The naming convention that we follow is to use the name of the model as the name of the static constructor. For example, the static constructor for the `Target` model is `Target.target`.
+> [CONVENÇÃO DE NOMEAÇÃO A convenção de nomeação que seguimos é usar o nome do
+> modelo como o nome do construtor estático. Por exemplo, o construtor estático
+> para o modelo `Target` é `Target.target`.
 
-### Renamed `--no-cache` to `--no-binary-cache` {#renamed-nocache-to-nobinarycache}
+### Renomeado `--no-cache` para `--no-binary-cache` {#renamed-nocache-to-nobinarycache}
 
-Because the `--no-cache` flag was ambiguous, we decided to rename it to `--no-binary-cache` to make it clear that it refers to the binary cache. If you were using the `--no-cache` flag, you'll have to update your project to use the `--no-binary-cache` flag instead.
+Como a flag `--no-cache` era ambígua, decidimos renomeá-la para
+`--no-binary-cache` para deixar claro que ela se refere ao cache binário. Se
+estava a utilizar a flag `--no-cache`, terá de atualizar o seu projeto para
+utilizar a flag `--no-binary-cache`.
 
-### Renamed `tuist fetch` to `tuist install` {#renamed-tuist-fetch-to-tuist-install}
+### Renomeado `tuist fetch` para `tuist install` {#renamed-tuist-fetch-to-tuist-install}
 
-We renamed the `tuist fetch` command to `tuist install` to align with the industry convention. If you were using the `tuist fetch` command, you'll have to update your project to use the `tuist install` command instead.
+Renomeámos o comando `tuist fetch` para `tuist install` para nos alinharmos com
+a convenção do sector. Se estava a utilizar o comando `tuist fetch`, terá de
+atualizar o seu projeto para utilizar o comando `tuist install`.
 
-### [Adopt `Package.swift` as the DSL for dependencies](https://github.com/tuist/tuist/pull/5862) {#adopt-packageswift-as-the-dsl-for-dependencieshttpsgithubcomtuisttuistpull5862}
+### [Adotar `Package.swift` como a DSL para dependências](https://github.com/tuist/tuist/pull/5862) {#adopt-packageswift-as-the-dsl-for-dependencieshttpsgithubcomtuisttuistpull5862}
 
-Before Tuist 4, you could define dependencies in a `Dependencies.swift` file. This proprietary format broke the support in tools like [Dependabot](https://github.com/dependabot) or [Renovatebot](https://github.com/renovatebot/renovate) to automatically update dependencies. Moreover, it introduced unnecessary indirections for users. Therefore, we decided to embrace `Package.swift` as the only way to define dependencies in Tuist. If you were using the `Dependencies.swift` file, you'll have to move the content from your `Tuist/Dependencies.swift` to a `Package.swift` at the root, and use the `#if TUIST` directive to configure the integration. You can read more about how to integrate Swift Package dependencies <LocalizedLink href="/guides/features/projects/dependencies#swift-packages">here</LocalizedLink>
+Antes do Tuist 4, era possível definir dependências em um arquivo
+`Dependencies.swift`. Este formato proprietário quebrou o suporte em ferramentas
+como [Dependabot](https://github.com/dependabot) ou
+[Renovatebot](https://github.com/renovatebot/renovate) para atualizar
+automaticamente as dependências. Além disso, introduzia indirecções
+desnecessárias para os utilizadores. Portanto, decidimos adotar `Package.swift`
+como a única forma de definir dependências no Tuist. Se estava a utilizar o
+ficheiro `Dependencies.swift`, terá de mover o conteúdo do seu
+`Tuist/Dependencies.swift` para um `Package.swift` na raiz e utilizar a diretiva
+`#if TUIST` para configurar a integração. Você pode ler mais sobre como integrar
+as dependências do Pacote Swift
+<LocalizedLink href="/guides/features/projects/dependencies#swift-packages">aqui</LocalizedLink>
 
-### Renamed `tuist cache warm` to `tuist cache` {#renamed-tuist-cache-warm-to-tuist-cache}
+### Renomeado `tuist cache warm` para `tuist cache` {#renamed-tuist-cache-warm-to-tuist-cache}
 
-For brevity, we decided to rename the `tuist cache warm` command to `tuist cache`. If you were using the `tuist cache warm` command, you'll have to update your project to use the `tuist cache` command instead.
+Por uma questão de brevidade, decidimos renomear o comando `tuist cache warm`
+para `tuist cache`. Se estava a utilizar o comando `tuist cache warm`, terá de
+atualizar o seu projeto para utilizar o comando `tuist cache`.
 
-### Renamed `tuist cache print-hashes` to `tuist cache --print-hashes` {#renamed-tuist-cache-printhashes-to-tuist-cache-printhashes}
 
-We decided to rename the `tuist cache print-hashes` command to `tuist cache --print-hashes` to make it clear that it's a flag of the `tuist cache` command. If you were using the `tuist cache print-hashes` command, you'll have to update your project to use the `tuist cache --print-hashes` flag instead.
+### Renomeado `tuist cache print-hashes` para `tuist cache --print-hashes` {#renamed-tuist-cache-printhashes-to-tuist-cache-printhashes}
 
-### Removed caching profiles {#removed-caching-profiles}
+Decidimos renomear o comando `tuist cache print-hashes` para `tuist cache
+--print-hashes` para tornar claro que é uma bandeira do comando `tuist cache`.
+Se estava a utilizar o comando `tuist cache print-hashes`, terá de atualizar o
+seu projeto para utilizar a bandeira `tuist cache --print-hashes`.
 
-Before Tuist 4, you could define caching profiles in `Tuist/Config.swift` which contained a configuration for the cache. We decided to remove this feature because it could lead to confusion when using it in the generation process with a profile other than the one that was used to generate the project. Moreover, it could lead to users using a debug profile to build a release version of the app, which could lead to unexpected results. In its place, we introduced the `--configuration` option, which you can use to specify the configuration you want to use when generating the project. If you were using caching profiles, you'll have to update your project to use the `--configuration` option instead.
+### Perfis de cache removidos {#removed-caching-profiles}
 
-### Removed `--skip-cache` in favor of arguments {#removed-skipcache-in-favor-of-arguments}
+Antes do Tuist 4, era possível definir perfis de cache em `Tuist/Config.swift`
+que continha uma configuração para o cache. Decidimos remover esse recurso
+porque ele poderia levar a confusão ao usá-lo no processo de geração com um
+perfil diferente daquele que foi usado para gerar o projeto. Além disso, poderia
+levar a que os utilizadores utilizassem um perfil de depuração para criar uma
+versão de lançamento da aplicação, o que poderia levar a resultados inesperados.
+Em seu lugar, introduzimos a opção `--configuration`, que pode ser usada para
+especificar a configuração que deseja usar ao gerar o projeto. Se estava a
+utilizar perfis de cache, terá de atualizar o seu projeto para utilizar a opção
+`--configuration`.
 
-We removed the flag `--skip-cache` from the `generate` command in favor of controlling for which targets the binary cache should be skipped by using the arguments. If you were using the `--skip-cache` flag, you'll have to update your project to use the arguments instead.
+### Removido `--skip-cache` a favor dos argumentos {#removed-skipcache-in-favor-of-arguments}
 
-::: code-group
+Nós removemos a flag `--skip-cache` do comando `generate` em favor de controlar
+para quais alvos o cache binário deve ser ignorado usando os argumentos. Se
+estava a utilizar a flag `--skip-cache`, terá de atualizar o seu projeto para
+utilizar os argumentos.
+
+::: grupo de códigos
 
 ```bash [Before]
 tuist generate --skip-cache Foo
@@ -71,30 +130,60 @@ tuist generate --skip-cache Foo
 ```bash [After]
 tuist generate Foo
 ```
-
 :::
 
-### [Dropped signing capabilities](https://github.com/tuist/tuist/pull/5716) {#dropped-signing-capabilitieshttpsgithubcomtuisttuistpull5716}
+### [Capacidades de assinatura eliminadas](https://github.com/tuist/tuist/pull/5716) {#dropped-signing-capabilitieshttpsgithubcomtuisttuistpull5716}
 
-Signing is already solved by community tooling like [Fastlane](https://fastlane.tools/) and Xcode itself, which do a much better job at that. We felt that signing was an stretch goal for Tuist, and that it was better to focus on the core features of the project. If you were using Tuist signing capabilities, which consisted of encrypting the certificates and profiles in the repository and installing them in the right places at generation time, you might want to replicate that logic in your own scripts that run before project generation. In particular:
+A assinatura já é resolvida por ferramentas da comunidade como
+[Fastlane](https://fastlane.tools/) e o próprio Xcode, que fazem um trabalho
+muito melhor nisso. Nós sentimos que a assinatura era um objetivo extenso para o
+Tuist, e que era melhor focar nos recursos principais do projeto. Se você estava
+usando os recursos de assinatura do Tuist, que consistia em criptografar os
+certificados e perfis no repositório e instalá-los nos lugares certos no momento
+da geração, você pode querer replicar essa lógica em seus próprios scripts que
+são executados antes da geração do projeto. Em particular:
+  - Um script que desencripta os certificados e perfis utilizando uma chave
+    armazenada no sistema de ficheiros ou numa variável de ambiente e instala os
+    certificados no chaveiro e os perfis de aprovisionamento no diretório
+    `~/Library/MobileDevice/Provisioning\ Profiles`.
+  - Um script que pode pegar em perfis e certificados existentes e encriptá-los.
 
-- A script that decrypts the certificates and profiles using a key either stored in the file-system or in an environment variable, and installs certificates in the keychain, and the provisioning profiles in the directory `~/Library/MobileDevice/Provisioning\ Profiles`.
-- A script that can take an existing profiles and certificates and encrypt them.
+> [REQUISITOS DE ASSINATURA A assinatura requer que os certificados corretos
+> estejam presentes no chaveiro e que os perfis de aprovisionamento estejam
+> presentes no diretório `~/Library/MobileDevice/Provisioning\ Profiles`. Pode
+> utilizar a ferramenta de linha de comandos `security` para instalar
+> certificados no chaveiro e o comando `cp` para copiar os perfis de
+> aprovisionamento para o diretório correto.
 
-> [!TIP] SIGNING REQUIREMENTS
-> Signing requires the right certificates to be present in the keychain and the provisioning profiles to be present in the directory `~/Library/MobileDevice/Provisioning\ Profiles`. You can use the `security` command-line tool to install certificates in the keychain and the `cp` command to copy the provisioning profiles to the right directory.
+### Integração de Cartago abandonada através de `Dependencies.swift` {#dropped-carthage-integration-via-dependenciesswift}
 
-### Dropped Carthage integration via `Dependencies.swift` {#dropped-carthage-integration-via-dependenciesswift}
+Antes do Tuist 4, as dependências do Carthage podiam ser definidas em um arquivo
+`Dependencies.swift`, que os usuários podiam buscar executando `tuist fetch`.
+Nós também sentimos que este era um objetivo maior para o Tuist, especialmente
+considerando um futuro onde o Swift Package Manager seria a maneira preferida de
+gerenciar dependências. Se você estava usando as dependências do Carthage, você
+terá que usar `Carthage` diretamente para puxar os frameworks pré-compilados e
+XCFrameworks para o diretório padrão do Carthage, e então referenciar esses
+binários dos seus tagets usando os casos `TargetDependency.xcframework` e
+`TargetDependency.framework`.
 
-Before Tuist 4, Carthage dependencies could be defined in a `Dependencies.swift` file, which users could then fetch by running `tuist fetch`. We also felt that this was a stretch goal for Tuist, specially considering a future where Swift Package Manager would be the preferred way to manage dependencies. If you were using Carthage dependencies, you'll have to use `Carthage` directly to pull the pre-compiled frameworks and XCFrameworks into Carthage's standard directory, and then reference those binaries from your tagets using the `TargetDependency.xcframework` and `TargetDependency.framework` cases.
+> [NOTA] O CARTHAGE AINDA É SUPORTADO Alguns utilizadores entenderam que
+> deixámos de suportar o Carthage. Nós não o fizemos. O contrato entre o Tuist e
+> a saída do Carthage é para frameworks armazenados no sistema e XCFrameworks. A
+> única coisa que mudou é quem é responsável por buscar as dependências. Antes
+> era o Tuist através do Carthage, agora é o Carthage.
 
-> [!NOTE] CARTHAGE IS STILL SUPPORTED
-> Some users understood that we dropped Carthage support. We didn't. The contract between Tuist and Carthage's output is to system-stored frameworks and XCFrameworks. The only thing that changed is who is responsible for fetching the dependencies. It used to be Tuist through Carthage, now it's Carthage.
+### Eliminou o `TargetDependency.packagePlugin` API {#dropped-the-targetdependencypackageplugin-api}
 
-### Dropped the `TargetDependency.packagePlugin` API {#dropped-the-targetdependencypackageplugin-api}
+Antes do Tuist 4, era possível definir uma dependência de plugin de pacote
+usando o caso `TargetDependency.packagePlugin`. Depois de ver o Swift Package
+Manager introduzindo novos tipos de pacotes, decidimos iterar na API para algo
+que seria mais flexível e preparado para o futuro. Se você estava usando
+`TargetDependency.packagePlugin`, você terá que usar `TargetDependency.package`
+em vez disso, e passar o tipo de pacote que você quer usar como um argumento.
 
-Before Tuist 4, you could define a package plugin dependency using the `TargetDependency.packagePlugin` case. After seeing the Swift Package Manager introducing new package types, we decided to iterate on the API towards something that would be more flexible and future-proof. If you were using `TargetDependency.packagePlugin`, you'll have to use `TargetDependency.package` instead, and pass the type of package you want to use as an argument.
+### [APIs obsoletas abandonadas](https://github.com/tuist/tuist/pull/5560) {#dropped-deprecated-apishttpsgithubcomtuisttuistpull5560}
 
-### [Dropped deprecated APIs](https://github.com/tuist/tuist/pull/5560) {#dropped-deprecated-apishttpsgithubcomtuisttuistpull5560}
-
-We removed the APIs that were marked as deprecated in Tuist 3. If you were using any of the deprecated APIs, you'll have to update your project to use the new APIs.
+Removemos as APIs que estavam marcadas como obsoletas no Tuist 3. Se estava a
+utilizar alguma das APIs obsoletas, terá de atualizar o seu projeto para
+utilizar as novas APIs.
