@@ -5,44 +5,53 @@
   "description": "Learn how to use Tuist in your CI workflows."
 }
 ---
-# Continuous Integration (CI) {#continuous-integration-ci}
+# Integração contínua (CI) {#continuous-integration-ci}
 
-You can use Tuist in [continuous integration](https://en.wikipedia.org/wiki/Continuous_integration) environments. The following sections provide examples of how to do this on different CI platforms.
+Pode utilizar o Tuist em ambientes de [integração
+contínua](https://en.wikipedia.org/wiki/Continuous_integration). As secções
+seguintes fornecem exemplos de como fazer isto em diferentes plataformas de CI.
 
-## Examples {#examples}
+## Exemplos {#examples}
 
-To run Tuist commands in your CI workflows, you’ll need to install it in your CI environment.
+Para executar comandos Tuist em seus fluxos de trabalho de CI, você precisará
+instalá-lo em seu ambiente de CI.
 
-### Xcode Cloud {#xcode-cloud}
+### Nuvem do Xcode {#xcode-cloud}
 
-In [Xcode Cloud](https://developer.apple.com/xcode-cloud/), which uses Xcode projects as the source of truth, you'll need to add a [post-clone](https://developer.apple.com/documentation/xcode/writing-custom-build-scripts#Create-a-custom-build-script) script to install Tuist and run the commands you need, for example `tuist generate`:
+No [Xcode Cloud](https://developer.apple.com/xcode-cloud/), que utiliza
+projectos Xcode como fonte de verdade, será necessário adicionar um script
+[post-clone](https://developer.apple.com/documentation/xcode/writing-custom-build-scripts#Create-a-custom-build-script)
+para instalar o Tuist e executar os comandos necessários, por exemplo `tuist
+generate`:
 
-:::code-group
+:::grupo de códigos
 
 ```bash [Mise]
 #!/bin/sh
-curl https://mise.jdx.dev/install.sh | sh
+
+# Mise installation taken from https://mise.jdx.dev/continuous-integration.html#xcode-cloud
+curl https://mise.run | sh # Install Mise
+export PATH="$HOME/.local/bin:$PATH"
+
 mise install # Installs the version from .mise.toml
 
 # Runs the version of Tuist indicated in the .mise.toml file {#runs-the-version-of-tuist-indicated-in-the-misetoml-file}
-mise exec -- tuist generate
+mise exec -- tuist install --path ../ # `--path` needed as this is run from within the `ci_scripts` directory
+mise exec -- tuist generate -p ../ --no-open # `-p` needed as this is run from within the `ci_scripts` directory
 ```
-
 ```bash [Homebrew]
 #!/bin/sh
 brew install --formula tuist@x.y.z
 
 tuist generate
 ```
-
 :::
-
 ### Codemagic {#codemagic}
 
-In [Codemagic](https://codemagic.io), you can add an additional step to your workflow to install Tuist:
+Em [Codemagic](https://codemagic.io), pode acrescentar um passo adicional ao seu
+fluxo de trabalho para instalar o Tuist:
 
-::: code-group
-
+::: grupo de códigos
 ```yaml [Mise]
 workflows:
   lint:
@@ -58,7 +67,6 @@ workflows:
       - name: Build
         script: mise exec -- tuist build
 ```
-
 ```yaml [Homebrew]
 workflows:
   lint:
@@ -73,15 +81,16 @@ workflows:
       - name: Build
         script: tuist build
 ```
-
 :::
 
 ### GitHub Actions {#github-actions}
 
-On [GitHub Actions](https://docs.github.com/en/actions) you can add an additional step to install Tuist, and in the case of managing the installation of Mise, you can use the [mise-action](https://github.com/jdx/mise-action), which abstracts the installation of Mise and Tuist:
+Em [GitHub Actions](https://docs.github.com/en/actions) pode adicionar um passo
+adicional para instalar o Tuist, e no caso de gerir a instalação do Mise, pode
+utilizar a [mise-action](https://github.com/jdx/mise-action), que abstrai a
+instalação do Mise e do Tuist:
 
-::: code-group
-
+::: grupo de códigos
 ```yaml [Mise]
 name: Build Application
 on:
@@ -99,7 +108,6 @@ jobs:
       - uses: jdx/mise-action@v2
       - run: tuist build
 ```
-
 ```yaml [Homebrew]
 name: test
 on:
@@ -117,23 +125,30 @@ jobs:
       - run: brew install --formula tuist@x.y.z
       - run: tuist build
 ```
-
 :::
 
-:::tip
-We recommend using `mise use --pin` in your Tuist projects to pin the version of Tuist across environments. The command will create a `.tool-versions` file containing the version of Tuist.
-:::
+::: dica Recomendamos o uso do comando `mise use --pin` em seus projetos Tuist
+para fixar a versão do Tuist em todos os ambientes. O comando criará um arquivo
+`.tool-versions` contendo a versão do Tuist. :::
 
-## Authentication {#authentication}
+## Autenticação {#authentication}
 
-When using server-side features such as <LocalizedLink href="/guides/features/build/cache">cache</LocalizedLink>, you'll need a way to authenticate requests going from your CI workflows to the server. For that, you can generate a project-scoped token by running the following command:
+Ao usar recursos do lado do servidor, como
+<LocalizedLink href="/guides/features/cache">cache</LocalizedLink>, você
+precisará de uma maneira de autenticar solicitações que vão dos seus fluxos de
+trabalho de CI para o servidor. Para isso, você pode gerar um token com escopo
+de projeto executando o seguinte comando:
 
 ```bash
 tuist project tokens create my-handle/MyApp
 ```
 
-The command will generate a token for the project with full handle `my-account/my-project`. Set the value to the environment variable
-`TUIST_CONFIG_TOKEN` in your CI environment ensuring it's configured as a secret so it's not exposed.
+O comando irá gerar um token para o projeto com o identificador completo
+`my-account/my-project`. Defina o valor para a variável de ambiente
+`TUIST_CONFIG_TOKEN` no seu ambiente de CI assegurando que está configurado como
+um segredo para que não seja exposto.
 
-> [!IMPORTANT] CI ENVIRONMENT DETECTION
-> Tuist only uses the token when it detects it's running on a CI environment. If your CI environment is not detected, you can force the token usage by setting the environment variable `CI` to `1`.
+> [IMPORTANTE] DETECÇÃO DO AMBIENTE DE CI O Tuist apenas utiliza o token quando
+> detecta que está a ser executado num ambiente de CI. Se o seu ambiente de CI
+> não for detectado, pode forçar a utilização do token definindo a variável de
+> ambiente `CI` para `1`.
