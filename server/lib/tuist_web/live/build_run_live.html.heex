@@ -22,19 +22,31 @@
           <.alert_circle />
         </div>
       </div>
-      <h1 :if={not is_nil(@run.scheme)} data-part="label">{@run.scheme}</h1>
+      <h1 data-part="label">{@run.scheme || gettext("Unknown scheme")}</h1>
     </div>
-    <.button
-      :if={@has_result_bundle.ok? && @has_result_bundle.result && @command_event}
-      href={
-        ~p"/#{@selected_project.account.name}/#{@selected_project.name}/runs/#{@command_event.id}/download"
-      }
-      label={gettext("Download result")}
-      variant="secondary"
-      size="medium"
-    >
-      <:icon_left><.download /></:icon_left>
-    </.button>
+    <div data-part="actions">
+      <.button
+        :if={@has_result_bundle.ok? && @has_result_bundle.result && @command_event}
+        href={
+          ~p"/#{@selected_project.account.name}/#{@selected_project.name}/runs/#{@command_event.id}/download"
+        }
+        label={gettext("Download result")}
+        variant="secondary"
+        size="medium"
+      >
+        <:icon_left><.download /></:icon_left>
+      </.button>
+      <.button
+        :if={Tuist.Runs.build_ci_run_url(@run)}
+        href={Tuist.Runs.build_ci_run_url(@run)}
+        label={gettext("CI Run")}
+        variant="secondary"
+        size="medium"
+        target="_blank"
+      >
+        <:icon_left><.external_link /></:icon_left>
+      </.button>
+    </div>
   </div>
   <.tab_menu_horizontal>
     <.tab_menu_horizontal_item
