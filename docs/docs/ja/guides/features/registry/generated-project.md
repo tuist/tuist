@@ -1,14 +1,14 @@
 ---
 {
   "title": "Generated project with the Xcode package integration",
-  "titleTemplate": ":title · Registry · Develop · Guides · Tuist",
+  "titleTemplate": ":title · Registry · Features · Guides · Tuist",
   "description": "Learn how to use the Tuist Registry in a generated Xcode project with the Xcode package integration."
 }
 ---
-# Generated project with the Xcode package integration {#generated-project-with-xcode-based-integration}
+# Xcode パッケージ統合 {#generated-project-with-xcode-based-integration} で生成されたプロジェクト。
 
-If you are using the <LocalizedLink href="/guides/features/projects/dependencies#xcodes-default-integration">Xcode's default integration</LocalizedLink> of packages with Tuist Projects, you need to use the registry identifier instead of a URL when adding a package:
-
+1}XcodeのデフォルトのTuist
+Projectsとのパッケージの統合</LocalizedLink>を使用している場合、パッケージを追加する際にURLの代わりにレジストリ識別子を使用する必要があります：
 ```swift
 import ProjectDescription
 
@@ -20,13 +20,15 @@ let project = Project(
         // Registry resolution
         .package(id: "pointfreeco.swift-composable-architecture", from: "0.1.0")
     ],
-    .target(
-        name: "App",
-        product: .app,
-        bundleId: "io.tuist.App",
-        dependencies: [
-            .package(product: "ComposableArchitecture"),
-        ]
-    )
+    targets: [
+        .target(
+            name: "App",
+            product: .app,
+            bundleId: "dev.tuist.App",
+            dependencies: [
+                .package(product: "ComposableArchitecture"),
+            ]
+        )
+    ]
 )
 ```
