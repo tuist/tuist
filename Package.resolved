@@ -1,5 +1,5 @@
 {
-  "originHash" : "307aa8e17f91fb24e17133cddefd900fd38dceb3fad3dd2551ce6efcb368c2c5",
+  "originHash" : "b3e4a1c4881f4ab69292096f3c6f7839e4353bc5f59175a13eab1d645420b1e4",
   "pins" : [
     {
       "identity" : "aexml",
@@ -96,8 +96,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tuist/FileSystem.git",
       "state" : {
-        "revision" : "42df856138ba27cc1ed59358a37b86e7ea31051e",
-        "version" : "0.12.3"
+        "revision" : "a1e269795deada75a1a8291ca1595a0418283dcb",
+        "version" : "0.13.2"
       }
     },
     {
@@ -249,8 +249,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tuist/Rosalind",
       "state" : {
-        "revision" : "91f0b9f76429fe5a3ea7763a697a0fa75c1dc0cd",
-        "version" : "0.5.109"
+        "branch" : "feat/type",
+        "revision" : "74e485965381fa7140c1bec366d6d1438d44056a"
       }
     },
     {
@@ -339,8 +339,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-crypto.git",
       "state" : {
-        "revision" : "334e682869394ee239a57dbe9262bff3cd9495bd",
-        "version" : "3.14.0"
+        "revision" : "95ba0316a9b733e92bb6b071255ff46263bbe7dc",
+        "version" : "3.15.1"
       }
     },
     {
