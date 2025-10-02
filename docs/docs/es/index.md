@@ -8,12 +8,12 @@
 import VPFeatures from "vitepress/dist/client/theme-default/components/VPFeatures.vue"
 </script>
 
-# Un equipo de plataforma virtual para desarrolladores que envían
+# Un equipo de plataforma virtual para desarrolladores que shippean
 
-**Tuist amplía la cadena de herramientas de Apple para ayudar a los equipos a
-escalar y centrarse en la creación de aplicaciones** - transformando el
-desarrollo de la plataforma de Apple de una complejidad frustrante a una
-experiencia fluida y productiva que crece con tu equipo.
+**Tuist extiende la herramientas de Apple para ayudar a los equipos a escalar y
+centrarse en la creación de aplicaciones** - transformando el desarrollo de la
+plataforma de Apple de una complejidad frustrante a una experiencia fluida y
+productiva que crece con tu equipo.
 
 <br/>
 
@@ -74,10 +74,11 @@ experiencia fluida y productiva que crece con tu equipo.
 de 100 empresas** ya han transformado el desarrollo de su plataforma Apple con
 Tuist. Esto es lo que están experimentando:
 
-- **Construcciones un 65% más rápidas** con caché inteligente
-- **Cero conflictos de fusión** en proyectos Xcode
-- **De minutos a segundos** resolución del paquete
-- **Desarrolladores contentos** que pueden centrarse en crear funciones
+- **Compilaciones un 65% más rápidas** con caché inteligente
+- **Cero conflictos de mergeo** en proyectos Xcode
+- Resolución e paquetes **de minutos a segundos**
+- **Desarrolladores contentos** que pueden centrarse en desarrollar
+  funcionalidades
 
 <HomeCards type="carousel">
     <HomeCard icon="🚀"
@@ -102,12 +103,12 @@ Tuist. Esto es lo que están experimentando:
 
 ## Vea Tuist en acción
 
-**Aprenda de implementaciones reales** e inspírese en lo que es posible cuando
-su cadena de herramientas simplemente funciona.
+**Aprenda de implementaciones reales** e inspírese al ver lo que es posible
+cuando sus herramientas simplemente funcionan.
 
 <HomeVideos/>
 
-## Únase a una comunidad próspera
+## Únase a una comunidad vibrante
 
 **Conéctate con miles de desarrolladores de la plataforma Apple** que están
 creando mejores aplicaciones con Tuist. Obtén ayuda, comparte victorias y da
