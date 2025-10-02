@@ -5,73 +5,69 @@
   "description": "Learn how to declare dependencies in your Tuist project."
 }
 ---
-# Dependencies {#dependencies}
+# 依赖项 {#dependencies｝
 
-When a project grows, it's common to split it into multiple targets to share code, define boundaries, and improve build times.
-Multiple targets means defining dependencies between them forming a **dependency graph**, which might include external dependencies as well.
+当一个项目发展壮大时，通常会将其拆分为多个目标，以共享代码、定义边界并缩短构建时间。多个目标意味着要定义它们之间的依赖关系，形成**依赖关系图**
+，其中可能还包括外部依赖关系。
 
-## XcodeProj-codified graphs {#xcodeprojcodified-graphs}
+## XcodeProj 代码化图形 {#xcodeprojcodified-graphs}
 
-Due to Xcode and XcodeProj's design,
-the maintenance of a dependency graph can be a tedious and error-prone task.
-Here are some examples of the problems that you might encounter:
+由于 Xcode 和 XcodeProj 的设计，维护依赖关系图可能是一项繁琐且容易出错的任务。以下是您可能会遇到的问题的一些示例：
 
-- Because Xcode's build system outputs all the project's products into the same directory in derived data, targets might be able to import products that they shouldn't. Compilations might fail on CI, where clean builds are more common, or later on when a different configuration is used.
-- The transitive dynamic dependencies of a target need to be copied into any of the directories that are part of the `LD_RUNPATH_SEARCH_PATHS` build setting. If they aren't, the target won't be able to find them at runtime. This is easy to think about and set up when the graph is small, but it becomes a problem as the graph grows.
-- When a target links a static [XCFramework](https://developer.apple.com/documentation/xcode/creating-a-multi-platform-binary-framework-bundle), the target needs an additional build phase for Xcode to process the bundle and extract the right binary for the current platform and architecture. This build phase is not added automatically, and it's easy to forget to add it.
+- 由于 Xcode 的构建系统会将项目的所有产品输出到派生数据的同一目录中，因此目标可能会导入不该导入的产品。编译可能会在 CI 上失败，而在 CI
+  上，干净的编译更为常见，或者以后使用不同的配置时，编译可能会失败。
+- 目标的传递动态依赖项需要复制到`LD_RUNPATH_SEARCH_PATHS`
+  联编设置中的任何目录。否则，目标将无法在运行时找到它们。当图形较小时，这很容易考虑和设置，但当图形增大时就会成为问题。
+- 当目标链接静态
+  [XCFramework](https://developer.apple.com/documentation/xcode/creating-a-multi-platform-binary-framework-bundle)
+  时，目标需要一个额外的构建阶段，以便 Xcode 处理捆绑包并为当前平台和架构提取正确的二进制文件。该构建阶段不会自动添加，而且很容易忘记添加。
 
-The above are just a few examples, but there are many more that we've encountered over the years.
-Imagine if you required a team of engineers to maintain a dependency graph and ensure its validity.
-Or even worse,
-that the intricacies were resolved at build-time by a closed-source build system that you can't control or customize.
-Sounds familiar? This is the approach that Apple took with Xcode and XcodeProj and that the Swift Package Manager has inherited.
+以上只是几个例子，多年来我们遇到过的例子还有很多。想象一下，如果你需要一个工程师团队来维护依赖关系图并确保其有效性。更糟糕的是，这些错综复杂的问题在构建时由一个你无法控制或定制的闭源构建系统来解决。听起来耳熟吗？这就是
+Apple 在 Xcode 和 XcodeProj 中采用的方法，也是 Swift 包管理器所继承的方法。
 
-We strongly believe that the dependency graph should be **explicit** and **static** because only then can it be **validated** and **optimized**.
-With Tuist, you focus on describing what depends on what, and we take care of the rest.
-The intricacies and implementation details are abstracted away from you.
+我们坚信，依赖关系图应该是**显式的** 和**静态的** ，因为只有这样，依赖关系图才能被**验证** 和**优化** 。有了
+Tuist，您只需描述什么依赖于什么，剩下的就交给我们吧。错综复杂的实现细节将被抽象出来。
 
-In the following sections you'll learn how to declare dependencies in your project.
+在以下章节中，您将学习如何在项目中声明依赖关系。
 
-> [!TIP] GRAPH VALIDATION
-> Tuist validates the graph when generating the project to ensure that there are no cycles and that all the dependencies are valid. Thanks to this, any team can take part in evolving the dependency graph without worrying about breaking it.
+> [提示] 图形验证 Tuist
+> 在生成项目时会验证图形，以确保不存在循环，并且所有依赖关系都是有效的。正因为如此，任何团队都可以参与依赖关系图的演进，而不必担心会破坏依赖关系图。
 
-## Local dependencies {#local-dependencies}
+## 本地依赖项 {#local-dependencies}
 
-Targets can depend on other targets in the same and different projects, and on binaries.
-When instantiating a `Target`, you can pass the `dependencies` argument with any of the following options:
+目标可以依赖同一项目或不同项目中的其他目标，也可以依赖二进制文件。在实例化`Target` 时，可以通过`dependencies` 参数和以下任一选项：
 
-- `Target`: Declares a dependency with a target within the same project.
-- `Project`: Declares a dependency with a target in a different project.
-- `Framework`: Declares a dependency with a binary framework.
-- `Library`: Declares a dependency with a binary library.
-- `XCFramework`: Declares a dependency with a binary XCFramework.
-- `SDK`: Declares a dependency with a system SDK.
-- `XCTest`: Declares a dependency with XCTest.
+- `目标` ：声明同一项目中目标的依赖关系。
+- `项目` ：声明目标位于不同项目中的依赖关系。
+- `框架` ：声明与二进制框架的依赖关系。
+- `库` ：声明与二进制库的依赖关系。
+- `XCFramework` ：声明与二进制 XCFramework 的依赖关系。
+- `SDK` ：声明与系统 SDK 的依赖关系。
+- `XCTest` ：声明与 XCTest 的依赖关系。
 
-> [!NOTE] DEPENDENCY CONDITIONS
-> Every dependency type accepts a `condition` option to conditionally link the dependency based on the platform. By default, it links the dependency for all platforms the target supports.
+> [注意] 依赖关系条件（DEPENDENCY CONDITIONS） 每种依赖关系类型都接受`condition`
+> 选项，以便根据平台有条件地链接依赖关系。默认情况下，它会为目标支持的所有平台链接依赖关系。
 
-## External dependencies {#external-dependencies}
+## 外部依赖性 {#external-dependencies}
 
-Tuist also allows you to declare external dependencies in your project.
+Tuist 还允许您在项目中声明外部依赖关系。
 
-### Swift Packages {#swift-packages}
+### Swift 软件包 {#swift-packages}
 
-Swift Packages are our recommended way of declaring dependencies in your project.
-You can integrate them using Xcode's default integration mechanism or using Tuist's XcodeProj-based integration.
+Swift 包是我们推荐的在项目中声明依赖关系的方式。您可以使用 Xcode 的默认集成机制或 Tuist 基于 XcodeProj 的集成来集成它们。
 
-#### Tuist's XcodeProj-based integration {#tuists-xcodeprojbased-integration}
+#### 基于 XcodeProj 的 Tuist 集成 {#tuists-xcodeprojbased-integration}
 
-Xcode's default integration while being the most convenient one,
-lacks flexibility and control that's required for medium and large projects.
-To overcome this, Tuist offers an XcodeProj-based integration that allows you to integrate Swift Packages in your project using XcodeProj's targets.
-Thanks to that, we can not only give you more control over the integration but also make it compatible with workflows like <LocalizedLink href="/guides/features/cache">caching</LocalizedLink> and <LocalizedLink href="/guides/features/test/selective-testing">selective test runs</LocalizedLink>.
+Xcode 的默认集成虽然是最方便的集成，但缺乏大中型项目所需的灵活性和控制性。为了克服这一问题，Tuist 提供了基于 XcodeProj 的集成，允许您使用
+XcodeProj 的目标在您的项目中集成 Swift
+包。因此，我们不仅可以让您对集成进行更多控制，还可以使其与<LocalizedLink href="/guides/features/cache">缓存</LocalizedLink>和<LocalizedLink href="/guides/features/test/selective-testing">选择性测试运行</LocalizedLink>等工作流兼容。
 
-XcodeProj's integration is more likely to take more time to support new Swift Package features or handle more package configurations. However, the mapping logic between Swift Packages and XcodeProj targets is open-source and can be contributed to by the community. This is contrary to Xcode's default integration, which is closed-source and maintained by Apple.
+XcodeProj 的集成更有可能需要更多时间来支持新的 Swift 包功能或处理更多的包配置。不过，Swift 包和 XcodeProj
+目标之间的映射逻辑是开源的，可以由社区贡献。这与 Xcode 的默认集成相反，后者是闭源的，由 Apple 维护。
 
-To add external dependencies, you'll have to create a `Package.swift` either under `Tuist/` or at the root of the project.
+要添加外部依赖项，必须在`Tuist/` 或项目根目录下创建`Package.swift` 。
 
-::: code-group
+代码组
 ```swift [Tuist/Package.swift]
 // swift-tools-version: 5.9
 import PackageDescription
@@ -104,10 +100,12 @@ let package = Package(
 ```
 :::
 
-> [!TIP] PACKAGE SETTINGS
-> The `PackageSettings` instance wrapped in a compiler directive allows you to configure how packages are integrated. For example, in the example above it's used to override the default product type used for packages. By default, you shouldn't need it.
+> [！提示] 软件包设置`PackageSettings`
+> 实例封装在编译器指令中，允许你配置软件包的集成方式。例如，在上面的示例中，它用于覆盖用于软件包的默认产品类型。默认情况下，您不需要它。
 
-The `Package.swift` file is just an interface to declare external dependencies, nothing else. That's why you don't define any targets or products in the package. Once you have the dependencies defined, you can run the following command to resolve and pull the dependencies into the `Tuist/Dependencies` directory:
+`Package.swift`
+文件只是一个用于声明外部依赖关系的接口，除此之外别无其他。这就是为什么在软件包中不定义任何目标或产品的原因。一旦定义了依赖关系，就可以运行以下命令来解析依赖关系并将其拉入`Tuist/Dependencies`
+目录：
 
 ```bash
 tuist install
@@ -115,11 +113,13 @@ tuist install
 # Installing Swift Package Manager dependencies. {#installing-swift-package-manager-dependencies}
 ```
 
-As you might have noticed, we take an approach similar to [CocoaPods](https://cocoapods.org)', where the resolution of dependencies is its own command. This gives control to the users over when they'd like dependencies to be resolved and updated, and allows opening the Xcode in project and have it ready to compile. This is an area where we believe the developer experience provided by Apple's integration with the Swift Package Manager degrades over time as the project grows.
+正如您可能已经注意到的，我们采用了与
+[CocoaPods](https://cocoapods.org)'类似的方法，将依赖关系的解析作为自己的命令。这让用户可以控制何时解决和更新依赖关系，并允许在项目中打开
+Xcode 并准备编译。我们认为，随着项目的增长，苹果与 Swift 软件包管理器的集成所提供的开发人员体验也会随时间的推移而下降。
 
-From your project targets you can then reference those dependencies using the `TargetDependency.external` dependency type:
+然后，您可以在项目目标中使用`TargetDependency.external` 依赖关系类型引用这些依赖关系：
 
-::: code-group
+代码组
 ```swift [Project.swift]
 import ProjectDescription
 
@@ -144,12 +144,11 @@ let project = Project(
 ```
 :::
 
-> [!NOTE] NO SCHEMES GENERATED FOR EXTERNAL PACKAGES
-> The **schemes** are not automatically created for Swift Package projects to keep the schemes list clean. You can create them via Xcode's UI.
+> [注意] 不为外部软件包生成方案**方案** 不会为 Swift 软件包项目自动创建，以保持方案列表的整洁。您可以通过 Xcode 的用户界面创建它们。
 
-#### Xcode's default integration {#xcodes-default-integration}
+#### Xcode 的默认集成 {#xcodes-default-integration}
 
-If you want to use Xcode's default integration mechanism, you can pass the list `packages` when instantiating a project:
+如果想使用 Xcode 的默认集成机制，可以在实例化项目时通过`包列表` ：
 
 ```swift
 let project = Project(name: "MyProject", packages: [
@@ -157,7 +156,7 @@ let project = Project(name: "MyProject", packages: [
 ])
 ```
 
-And then reference them from your targets:
+然后从目标中引用它们：
 
 ```swift
 let target = .target(name: "MyTarget", dependencies: [
@@ -165,12 +164,13 @@ let target = .target(name: "MyTarget", dependencies: [
 ])
 ```
 
-For Swift Macros and Build Tool Plugins, you'll need to use the types `.macro` and `.plugin` respectively.
+对于 Swift 宏和构建工具插件，您需要分别使用`.macro` 和`.plugin` 类型。
 
-> [!WARNING] SPM Build Tool Plugins
-> SPM build tool plugins must be declared using [Xcode's default integration](#xcode-s-default-integration) mechanism, even when using Tuist's [XcodeProj-based integration](#tuist-s-xcodeproj-based-integration) for your project dependencies.
+> [！警告] SPM 构建工具插件 SPM 构建工具插件必须使用 [Xcode
+> 的默认集成](#xcode-s-default-integration)机制来声明，即使在使用 Tuist 的 [XcodeProj-based
+> integration](#tuist-s-xcodeproj-based-integration) 来声明项目依赖关系时也是如此。
 
-A practical application of an SPM build tool plugin is performing code linting during Xcode's "Run Build Tool Plug-ins" build phase. In a package manifest this is defined as follows:
+SPM 构建工具插件的一个实际应用是在 Xcode 的 "运行构建工具插件 "构建阶段执行代码检查。在软件包清单中的定义如下：
 
 ```swift
 // swift-tools-version: 5.9
@@ -195,7 +195,8 @@ let package = Package(
 )
 ```
 
-To generate an Xcode project with the build tool plugin intact, you must declare the package in the project manifest's `packages` array, and then include a package with type `.plugin` in a target's dependencies.
+要生成一个不含构建工具插件的 Xcode 项目，必须在项目清单的`packages` 数组中声明软件包，然后在目标的依赖项中包含一个类型为`.plugin`
+的软件包。
 
 ```swift
 import ProjectDescription
@@ -216,9 +217,12 @@ let project = Project(
 )
 ```
 
-### Carthage {#carthage}
+### 迦太基
 
-Since [Carthage](https://github.com/carthage/carthage) outputs `frameworks` or `xcframeworks`, you can run `carthage update` to output the dependencies in the `Carthage/Build` directory and then use the `.framework` or `.xcframework` target dependency type to declare the dependency in your target. You can wrap this in a script that you can run before generating the project.
+由于 [Carthage](https://github.com/carthage/carthage) 会输出`frameworks`
+或`xcframeworks` ，因此可以运行`carthage update` 输出`Carthage/Build`
+目录中的依赖关系，然后使用`.framework` 或`.xcframework` target
+依赖关系类型在目标中声明依赖关系。您可以在生成项目前运行脚本来实现这一点。
 
 ```bash
 #!/usr/bin/env bash
@@ -227,12 +231,13 @@ carthage update
 tuist generate
 ```
 
-> [!WARNING] BUILD AND TEST
-> If you build and test your project through `tuist build` and `tuist test`, you will similarly need to ensure that the Carthage-resolved dependencies are present by running the `carthage update` command before `tuist build` or `tuist test` are run.
+> [！警告] 如果通过`tuist build` 和`tuist test` 来构建和测试您的项目，同样需要在运行`tuist build` 或`tuist
+> test` 命令之前运行`carthage update` 命令，以确保存在已解决的 Carthage 依赖项。
 
-### CocoaPods {#cocoapods}
+### 可可小袋 {#cocoapods}
 
-[CocoaPods](https://cocoapods.org) expects an Xcode project to integrate the dependencies. You can use Tuist to generate the project, and then run `pod install` to integrate the dependencies by creating a workspace that contains your project and the Pods dependencies. You can wrap this in a script that you can run before generating the project.
+[CocoaPods](https://cocoapods.org)需要一个 Xcode 项目来集成依赖项。您可以使用 Tuist 生成项目，然后运行`pod
+install` ，通过创建包含项目和 Pods 依赖项的工作区来集成依赖项。您可以在生成项目前运行脚本来实现这一点。
 
 ```bash
 #!/usr/bin/env bash
@@ -241,18 +246,23 @@ tuist generate
 pod install
 ```
 
-> [!WARNING]
-> CocoaPods dependencies are not compatible with workflows like `build` or `test` that run `xcodebuild` right after generating the project. They are also incompatible with binary caching and selective testing since the fingerprinting logic doesn't account for the Pods dependencies.
+> [！警告] CocoaPods 依赖项与`build` 或`test` 等工作流不兼容，这些工作流会在生成项目后立即运行`xcodebuild`
+> 。它们还与二进制缓存和选择性测试不兼容，因为指纹识别逻辑没有考虑 Pods 依赖关系。
 
-## Static or dynamic {#static-or-dynamic}
+## 静态或动态 {#static-or-dynamic}
 
-Frameworks and libraries can be linked either statically or dynamically, **a choice that has significant implications for aspects like app size and boot time**. Despite its importance, this decision is often made without much consideration.
+框架和库可以静态或动态链接，**，这一选择对应用程序大小和启动时间等方面有重大影响** 。尽管这一选择很重要，但人们在做出这一决定时往往并没有过多考虑。
 
-The **general rule of thumb** is that you want as many things as possible to be statically linked in release builds to achieve fast boot times, and as many things as possible to be dynamically linked in debug builds to achieve fast iteration times.
+**一般经验法则** 是，在发布版本中，尽可能多的东西要静态链接，以实现快速启动；在调试版本中，尽可能多的东西要动态链接，以实现快速迭代。
 
-The challenge with changing between static and dynamic linking in a project graph is that is not trivial in Xcode because a change has cascading effect on the entire graph (e.g. libraries can't contain resources, static frameworks don't need to be embedded). Apple tried to solve the problem with compile time solutions like Swift Package Manager's automatic decision between static and dynamic linking, or [Mergeable Libraries](https://developer.apple.com/documentation/xcode/configuring-your-project-to-use-mergeable-libraries). However, this adds new dynamic variables to the compilation graph, adding new sources of non-determinism, and potentially causing some features like Swift Previews that rely on the compilation graph to become unreliable.
+在项目图中改变静态链接和动态链接之间的关系在 Xcode
+中并非易事，因为改变会对整个项目图产生连带影响（例如，库不能包含资源，静态框架无需嵌入）。苹果试图通过编译时解决方案来解决这一问题，例如 Swift
+包管理器自动决定静态链接和动态链接，或 [Mergeable
+Libraries](https://developer.apple.com/documentation/xcode/configuring-your-project-to-use-mergeable-libraries)。但是，这样会在编译图中添加新的动态变量，增加新的非确定性来源，并可能导致一些依赖于编译图的功能（如
+Swift 预览）变得不可靠。
 
-Luckily, Tuist conceptually compresses the complexity associated with changing between static and dynamic and synthesizes <LocalizedLink href="/guides/features/projects/synthesized-files#bundle-accessors">bundle accessors</LocalizedLink> that are standard across linking types. In combination with <LocalizedLink href="/guides/features/projects/dynamic-configuration">dynamic configurations via environment variables</LocalizedLink>, you can pass the linking type at invocation time, and use the value in your manifests to set the product type of your targets.
+幸运的是，Tuist
+从概念上压缩了在静态和动态之间切换的复杂性，并合成了跨链接类型的标准<LocalizedLink href="/guides/features/projects/synthesized-files#bundle-accessors">捆绑访问器</LocalizedLink>。结合<LocalizedLink href="/guides/features/projects/dynamic-configuration">通过环境变量进行的动态配置</LocalizedLink>，你可以在调用时传递链接类型，并在清单中使用该值来设置目标的产品类型。
 
 ```swift
 // Use the value returned by this function to set the product type of your targets.
@@ -265,39 +275,50 @@ func productType() -> Product {
 }
 ```
 
-Note that Tuist <LocalizedLink href="/guides/features/projects/cost-of-convenience">does not default to convenience through implicit configuration due to its costs</LocalizedLink>. What this means is that we rely on you setting the linking type and any additional build settings that are sometimes required, like the [`-ObjC` linker flag](https://github.com/pointfreeco/swift-composable-architecture/discussions/1657#discussioncomment-4119184), to ensure the resulting binaries are correct. Therefore, the stance that we take is providing you with the resources, usually in the shape of documentation, to make the right decisions.
+请注意，由于成本问题</LocalizedLink>，Tuist
+<LocalizedLink href="/guides/features/projects/cost-of-convenience">并不会通过隐式配置默认为便捷型。这意味着，我们需要您设置链接类型，以及有时需要的其他构建设置（如[`-ObjC`
+linker
+flag](https://github.com/pointfreeco/swift-composable-architecture/discussions/1657#discussioncomment-4119184)），以确保生成的二进制文件正确无误。因此，我们的立场是为您提供资源，通常是以文档的形式，让您做出正确的决定。
 
-> [!TIP] EXAMPLE: COMPOSABLE ARCHITECTURE
-> A Swift Package that many projects integrate is [Composable Architecture](https://github.com/pointfreeco/swift-composable-architecture). As described [here](https://github.com/pointfreeco/swift-composable-architecture/discussions/1657#discussioncomment-4119184) and the [troubleshooting section](#troubleshooting), you'll need to set the `OTHER_LDFLAGS` build setting to `$(inherited) -ObjC` when linking the packages statically, which is Tuist's default linking type. Alternatively, you can override the product type for the package to be dynamic.
+> [提示]示例：COMPOSABLE ARCHITECTURE 许多项目集成的 Swift 软件包是 [Composable
+> Architecture](https://github.com/pointfreeco/swift-composable-architecture)。正如[此处](https://github.com/pointfreeco/swift-composable-architecture/discussions/1657#discussioncomment-4119184)和[疑难解答部分](#troubleshooting)所述，在静态链接软件包（Tuist
+> 的默认链接类型）时，您需要将`OTHER_LDFLAGS` 构建设置设置为`$(inherited) -ObjC`
+> 。或者，您也可以覆盖产品类型，将软件包设置为动态连接。
 
-### Scenarios {#scenarios}
+### 情景 {#scenarios}
 
-There are some scenarios where setting the linking entirely to static or dynamic is not feasible or a good idea. The following is a non-exhaustive list of scenarios where you might need to mix static and dynamic linking:
+在某些情况下，将链接完全设置为静态或动态是不可行的，也不是一个好主意。下面列出了可能需要混合使用静态和动态链接的一些情况，但并非详尽无遗：
 
-- **Apps with extensions:** Since apps and their extensions need to share code, you might need to make those targets dynamic. Otherwise, you'll end up with the same code duplicated in both the app and the extension, causing the binary size to increase.
-- **Pre-compiled external dependencies:** Sometimes you are provided with pre-compiled binaries that are either static or dynamic. Static binaries can be wrapped in dynamic frameworks or libraries to be linked dynamically.
+- **带有扩展的应用程序：**
+  由于应用程序及其扩展需要共享代码，因此可能需要将这些目标设为动态目标。否则，应用程序和扩展会重复使用相同的代码，导致二进制文件增大。
+- **预编译外部依赖：** 有时，系统会提供预编译的静态或动态二进制文件。静态二进制文件可以封装在动态框架或库中，以便动态链接。
 
-When making changes to the graph, Tuist will analyze it and display a warning if it detects a "static side effect". This warning is meant to help you identify issues that might arise from linking a target statically that depends transitively on a static target through dynamic targets. These side effects often manifest as increased binary size or, in the worst cases, runtime crashes.
+对图形进行更改时，Tuist 会对其进行分析，如果检测到
+"静态副作用"，则会显示警告。该警告旨在帮助您识别静态链接目标时可能出现的问题，因为该目标通过动态目标过渡依赖于静态目标。这些副作用通常表现为二进制文件大小增大，最严重的情况是运行时崩溃。
 
-## Troubleshooting {#troubleshooting}
+## 故障排除 {#troubleshooting}
 
-### Objective-C Dependencies {#objectivec-dependencies}
+### Objective-C 依赖项 {#objectivec-dependencies}
 
-When integrating Objective-C dependencies, the inclusion of certain flags on the consuming target may be necessary to avoid runtime crashes as detailed in [Apple Technical Q&A QA1490](https://developer.apple.com/library/archive/qa/qa1490/_index.html).
+在集成 Objective-C 依赖项时，可能需要在消费目标上包含某些标志，以避免运行时崩溃，详见[Apple 技术问答
+QA1490](https://developer.apple.com/library/archive/qa/qa1490/_index.html)。
 
-Since the build system and Tuist have no way of inferring whether the flag is necessary or not, and since the flag comes with potentially undesirable side effects, Tuist will not automatically apply any of these flags, and because Swift Package Manager considers `-ObjC` to be included via an `.unsafeFlag` most packages cannot include it as part of their default linking settings when required.
+由于构建系统和 Tuist 无法推断该标记是否必要，而且该标记可能会带来不良的副作用，因此 Tuist 不会自动应用这些标记，而且由于 Swift
+软件包管理器认为`-ObjC` 是通过`.unsafeFlag` 包含的，因此大多数软件包在需要时无法将其作为默认链接设置的一部分。
 
-Consumers of Objective-C dependencies (or internal Objective-C targets) should apply `-ObjC` or `-force_load` flags when required by setting `OTHER_LDFLAGS` on consuming targets.
+在需要时，Objective-C 依赖项（或内部 Objective-C 目标）的消费者应通过在消费目标上设置`OTHER_LDFLAGS`
+来应用`-ObjC` 或`-force_load` 标志。
 
-### Firebase & Other Google Libraries {#firebase-other-google-libraries}
+### Firebase 和其他 Google 库 {#firebase-other-google-libraries}
 
-Google's open source libraries — while powerful — can be difficult to integrate within Tuist as they often use non-standard architecture and techniques in how they are built.
+谷歌的开源库虽然功能强大，但很难集成到 Tuist 中，因为它们在构建过程中通常使用非标准的架构和技术。
 
-Here are a few tips that may be necessary to follow to integrate Firebase and Google's other Apple-platform libraries:
+以下是集成 Firebase 和谷歌其他苹果平台库时可能需要遵循的一些提示：
 
-#### Ensure `-ObjC` is added to `OTHER_LDFLAGS` {#ensure-objc-is-added-to-other_ldflags}
+#### 确保`-ObjC` 添加至`OTHER_LDFLAGS` {#ensure-objc-is-added-to-other_ldflags}
 
-Many of Google's libraries are written in Objective-C. Because of this, any consuming target will need to include the `-ObjC` tag in its `OTHER_LDFLAGS` build setting. This can either be set in an `.xcconfig` file or manually specified in the target's settings within your Tuist manifests. An example:
+Google 的许多库都是用 Objective-C 编写的。因此，任何消费目标都需要在其`OTHER_LDFLAGS` 构建设置中包含`-ObjC`
+标签。这可以在`.xcconfig` 文件中设置，也可以在 Tuist 清单中的目标设置中手动指定。举例说明
 
 ```swift
 Target.target(
@@ -309,17 +330,17 @@ Target.target(
 )
 ```
 
-Refer to the [Objective-C Dependencies](#objective-c-dependencies) section above for more details.
+有关详情，请参阅上文 [Objective-C Dependencies](#objective-c-dependencies) 部分。
 
-#### Set the product type for `FBLPromises` to dynamic framework {#set-the-product-type-for-fblpromises-to-dynamic-framework}
+#### 将`FBLPromises` 的产品类型设为动态框架 {#set-the-product-type-for-fblpromises-to-dynamic-framework}
 
-Certain Google libraries depend on `FBLPromises`, another of Google's libraries. You may encounter a crash that mentions `FBLPromises`, looking something like this:
+某些 Google 库依赖于`FBLPromises` ，这是 Google 的另一个库。您可能会遇到这样的崩溃：`FBLPromises` ，看起来像这样：
 
 ```
 NSInvalidArgumentException. Reason: -[FBLPromise HTTPBody]: unrecognized selector sent to instance 0x600000cb2640.
 ```
 
-Explicitly setting the product type of `FBLPromises` to `.framework` in your `Package.swift` file should fix the issue:
+在`Package.swift` 文件中，将`FBLPromises` 的产品类型明确设置为`.framework` ，应该可以解决问题：
 
 ```swift [Tuist/Package.swift]
 // swift-tools-version: 5.10
@@ -341,16 +362,20 @@ let package = Package(
 ...
 ```
 
-### Transitive static dependencies leaking through `.swiftmodule` {#transitive-static-dependencies-leaking-through-swiftmodule}
+### Transitive static dependencies-leaking through`.swiftmodule` {#transitive-static-dependencies-leaking-through-swiftmodule}
 
-When a dynamic framework or library depends on static ones through `import StaticSwiftModule`, the symbols are included in the `.swiftmodule` of the dynamic framework or library, potentially <LocalizedLink href="https://forums.swift.org/t/compiling-a-dynamic-framework-with-a-statically-linked-library-creates-dependencies-in-swiftmodule-file/22708/1">causing the compilation to fail</LocalizedLink>. To prevent that, you'll have to import the static dependency using <LocalizedLink href="https://github.com/swiftlang/swift-evolution/blob/main/proposals/0409-access-level-on-imports.md">`internal import`</LocalizedLink>:
+当动态框架或库通过`import StaticSwiftModule` 来依赖静态框架或库时，动态框架或库的`.swiftmodule`
+中就会包含这些符号，从而可能<LocalizedLink href="https://forums.swift.org/t/compiling-a-dynamic-framework-with-a-statically-linked-library-creates-dependencies-in-swiftmodule-file/22708/1">导致编译失败</LocalizedLink>。为了避免这种情况，您必须使用
+<LocalizedLink href="https://github.com/swiftlang/swift-evolution/blob/main/proposals/0409-access-level-on-imports.md">`internal
+import`</LocalizedLink> 来导入静态依赖关系：
 
 ```swift
 internal import StaticModule
 ```
 
-> [!NOTE]
-> Access level on imports was included in Swift 6. If you're using older versions of Swift, you need to use <LocalizedLink href="https://github.com/apple/swift/blob/main/docs/ReferenceGuides/UnderscoredAttributes.md#_implementationonly">`@_implementationOnly`</LocalizedLink> instead:
+> [注意] Swift 6 中加入了导入的访问级别。如果您使用的是旧版本的 Swift，则需要使用
+> <LocalizedLink href="https://github.com/apple/swift/blob/main/docs/ReferenceGuides/UnderscoredAttributes.md#_implementationonly">`@_implementationOnly`</LocalizedLink>
+> 代替：
 
 ```swift
 @_implementationOnly import StaticModule
