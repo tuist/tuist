@@ -1,23 +1,31 @@
 ---
 {
   "title": "Templates",
-  "titleTemplate": ":title · Projects · Develop · Guides · Tuist",
+  "titleTemplate": ":title · Projects · Features · Guides · Tuist",
   "description": "Learn how to create and use templates in Tuist to generate code in your projects."
 }
 ---
-# Templates {#templates}
+# テンプレート {#templates}
 
-In projects with an established architecture, developers might want to bootstrap new components or features that are consistent with the project. With `tuist scaffold` you can generate files from a template. You can define your own templates or use the ones that are vendored with Tuist. These are some scenarios where scaffolding might be useful:
+確立されたアーキテクチャを持つプロジェクトでは、開発者はプロジェクトと一貫性のある新しいコンポーネントや機能をブートストラップしたいかもしれません。`tuist
+scaffold`
+を使えば、テンプレートからファイルを生成できます。独自のテンプレートを定義することも、Tuistで提供されているテンプレートを使用することもできます。これらはscaffoldが役に立つかもしれないいくつかのシナリオです：
 
-- Create a new feature that follows a given architecture: `tuist scaffold viper --name MyFeature`.
-- Create new projects: `tuist scaffold feature-project --name Home`
+- `tuist scaffold viper --name MyFeature`.
+- 新規プロジェクトの作成:`tuist scaffold feature-project --name Home`
 
-> [!NOTE] NON-OPINIONATED
-> Tuist is not opinionated about the content of your templates, and what you use them for. They are only required to be in a specific directory.
+> [注意] NON-OPINIONATED
+> Tuistはテンプレートの内容や使用目的については一切関知しません。特定のディレクトリにあることが要求されるだけです。
 
-## Defining a template {#defining-a-template}
+## テンプレートの定義 {#defining-a-template}。
 
-To define templates, you can run <LocalizedLink href="/guides/features/projects/editing">`tuist edit`</LocalizedLink> and then create a directory called `name_of_template` under `Tuist/Templates` that represents your template. So if you are creating a template called `framework`, you should create a new directory `framework` at `Tuist/Templates` with a manifest file called `framework.swift` that could look like this: To define templates, you can run <LocalizedLink href="/guides/features/projects/editing">`tuist edit`</LocalizedLink> and then create a directory called `name_of_template` under `Tuist/Templates` that represents your template. To define templates, you can run <LocalizedLink href="/guides/features/projects/editing">`tuist edit`</LocalizedLink> and then create a directory called `name_of_template` under `Tuist/Templates` that represents your template.
+テンプレートを定義するには、<LocalizedLink href="/guides/features/projects/editing">`tuist
+edit`</LocalizedLink>を実行し、`Tuist/Templates` の下に、`name_of_template`
+という、テンプレートを表すディレクトリを作成します。テンプレートには、`name_of_template.swift`
+という、テンプレートを説明するマニフェスト・ファイルが必要です。したがって、`framework`
+というテンプレートを作成する場合、`Tuist/Templates` に新しいディレクトリ`framework` を作成し、`framework.swift`
+というマニフェスト・ファイルを作成する必要があります：
+
 
 ```swift
 import ProjectDescription
@@ -47,22 +55,26 @@ let template = Template(
 )
 ```
 
-## Using a template {#using-a-template}
+## テンプレートを使う {#using-a-template}
 
-After defining the template, we can use it from the `scaffold` command:
+テンプレートを定義したら、`scaffold` コマンドから使用することができます：
 
 ```bash
 tuist scaffold name_of_template --name Name --platform macos
 ```
 
-> [!NOTE]
-> Since platform is an optional argument, we can also call the command without the `--platform macos` argument.
+> [注意】プラットフォームはオプションの引数なので、`--platform macos` 引数なしでコマンドを呼び出すこともできる。
 
-If `.string` and `.files` don't provide enough flexibility, you can leverage the [Stencil](https://stencil.fuller.li/en/latest/) templating language via the `.file` case. Besides that, you can also use additional filters defined here.
+`.string` や`.files` では柔軟性が足りない場合は、`.file` のケースで
+[Stencil](https://stencil.fuller.li/en/latest/)
+テンプレート言語を活用できます。それ以外にも、ここで定義された追加のフィルターを使うこともできます。
 
-Using string interpolation, `\(nameAttribute)` above would resolve to `{{ name }}`. If you'd like to use Stencil filters in the template definition, you can use that interpolation manually and add any filters you like. For example, you might use `{ { name | lowercase } }` instead of `\(nameAttribute)` to get the lowercased value of the name attribute.
+文字列補間を使用すると、上記の`\(nameAttribute)` は`{{ name }}`
+に解決されます。テンプレート定義でステンシル・フィルターを使用したい場合は、手動でこの補間を使用し、好きなフィルターを追加することができます。例えば、`{ {
+name | 小文字 } } を使うことができます。name 属性の小文字の値を取得するには、`\(nameAttribute)` の代わりに` { {
+name | 小文字 } を使用します。
 
-You can also use `.directory` which gives the possibility to copy entire folders to a given path.
+また、`.directory` を使えば、指定したパスにフォルダ全体をコピーすることもできる。
 
-> [!TIP] PROJECT DESCRIPTION HELPERS
-> Templates support the use of <LocalizedLink href="/guides/features/projects/code-sharing">project description helpers</LocalizedLink> to reuse code across templates.
+> [TIP] PROJECT DESCRIPTION HELPERS
+> テンプレートは<LocalizedLink href="/guides/features/projects/code-sharing">プロジェクト記述ヘルパー</LocalizedLink>の使用をサポートし、テンプレート間でコードを再利用します。
