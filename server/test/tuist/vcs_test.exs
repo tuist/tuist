@@ -81,8 +81,10 @@ defmodule Tuist.VCSTest do
 
       project =
         ProjectsFixtures.project_fixture(
-          vcs_repository_full_handle: "tuist/tuist",
-          vcs_provider: :github
+          vcs_connection: [
+            repository_full_handle: "tuist/tuist",
+            provider: :github
+          ]
         )
 
       # When
@@ -98,8 +100,10 @@ defmodule Tuist.VCSTest do
 
       project =
         ProjectsFixtures.project_fixture(
-          vcs_repository_full_handle: "tuist/tuist",
-          vcs_provider: :github
+          vcs_connection: [
+            repository_full_handle: "tuist/tuist",
+            provider: :github
+          ]
         )
 
       # When
@@ -115,8 +119,10 @@ defmodule Tuist.VCSTest do
 
       project =
         ProjectsFixtures.project_fixture(
-          vcs_repository_full_handle: "tuist/tuist",
-          vcs_provider: :github
+          vcs_connection: [
+            repository_full_handle: "tuist/tuist",
+            provider: :github
+          ]
         )
 
       # When
@@ -131,7 +137,7 @@ defmodule Tuist.VCSTest do
       stub(Environment, :github_app_configured?, fn -> false end)
 
       project =
-        ProjectsFixtures.project_fixture(vcs_repository_full_handle: nil)
+        ProjectsFixtures.project_fixture()
 
       # When
       got = VCS.connected?(%{project: project, repository_full_handle: "tuist/tuist"})
@@ -146,8 +152,10 @@ defmodule Tuist.VCSTest do
 
       project =
         ProjectsFixtures.project_fixture(
-          vcs_repository_full_handle: "tuist/tuist",
-          vcs_provider: :github
+          vcs_connection: [
+            repository_full_handle: "tuist/tuist",
+            provider: :github
+          ]
         )
 
       # When
@@ -283,8 +291,10 @@ defmodule Tuist.VCSTest do
       # Given
       project =
         ProjectsFixtures.project_fixture(
-          vcs_repository_full_handle: "tuist/tuist",
-          vcs_provider: :github
+          vcs_connection: [
+            repository_full_handle: "tuist/tuist",
+            provider: :github
+          ]
         )
 
       preview_one =
@@ -420,8 +430,10 @@ defmodule Tuist.VCSTest do
       # Given
       project =
         ProjectsFixtures.project_fixture(
-          vcs_repository_full_handle: "tuist/tuist",
-          vcs_provider: :github
+          vcs_connection: [
+            repository_full_handle: "tuist/tuist",
+            provider: :github
+          ]
         )
 
       preview_one =
@@ -508,8 +520,10 @@ defmodule Tuist.VCSTest do
       # Given
       project =
         ProjectsFixtures.project_fixture(
-          vcs_repository_full_handle: "tuist/tuist",
-          vcs_provider: :github
+          vcs_connection: [
+            repository_full_handle: "tuist/tuist",
+            provider: :github
+          ]
         )
 
       preview =
@@ -560,8 +574,10 @@ defmodule Tuist.VCSTest do
       # Given
       project =
         ProjectsFixtures.project_fixture(
-          vcs_repository_full_handle: "tuist/tuist",
-          vcs_provider: :github
+          vcs_connection: [
+            repository_full_handle: "tuist/tuist",
+            provider: :github
+          ]
         )
 
       preview =
@@ -612,8 +628,10 @@ defmodule Tuist.VCSTest do
       # Given
       project =
         ProjectsFixtures.project_fixture(
-          vcs_repository_full_handle: "tuist/tuist",
-          vcs_provider: :github
+          vcs_connection: [
+            repository_full_handle: "tuist/tuist",
+            provider: :github
+          ]
         )
 
       preview =
@@ -684,8 +702,10 @@ defmodule Tuist.VCSTest do
       # Given
       project =
         ProjectsFixtures.project_fixture(
-          vcs_repository_full_handle: "tuist/tuist",
-          vcs_provider: :github
+          vcs_connection: [
+            repository_full_handle: "tuist/tuist",
+            provider: :github
+          ]
         )
 
       expect(GitHub.Client, :get_comments, fn _ -> {:ok, []} end)
@@ -713,8 +733,10 @@ defmodule Tuist.VCSTest do
       # Given
       project =
         ProjectsFixtures.project_fixture(
-          vcs_repository_full_handle: "tuist/tuist",
-          vcs_provider: :github
+          vcs_connection: [
+            repository_full_handle: "tuist/tuist",
+            provider: :github
+          ]
         )
 
       preview =
@@ -777,8 +799,10 @@ defmodule Tuist.VCSTest do
       # Given
       project =
         ProjectsFixtures.project_fixture(
-          vcs_repository_full_handle: "tuist/tuist",
-          vcs_provider: :github
+          vcs_connection: [
+            repository_full_handle: "tuist/tuist",
+            provider: :github
+          ]
         )
 
       stub(Environment, :github_app_configured?, fn -> false end)
@@ -832,8 +856,10 @@ defmodule Tuist.VCSTest do
       # Given
       project =
         ProjectsFixtures.project_fixture(
-          vcs_repository_full_handle: "tuist/tuist",
-          vcs_provider: :github
+          vcs_connection: [
+            repository_full_handle: "tuist/tuist",
+            provider: :github
+          ]
         )
 
       reject(GitHub.Client, :get_comments, 1)
@@ -861,8 +887,10 @@ defmodule Tuist.VCSTest do
       # Given
       project =
         ProjectsFixtures.project_fixture(
-          vcs_repository_full_handle: "tuist/tuist",
-          vcs_provider: :github
+          vcs_connection: [
+            repository_full_handle: "tuist/tuist",
+            provider: :github
+          ]
         )
 
       reject(GitHub.Client, :get_comments, 1)
@@ -890,8 +918,10 @@ defmodule Tuist.VCSTest do
       # Given
       project =
         ProjectsFixtures.project_fixture(
-          vcs_repository_full_handle: "tuist/different-handle",
-          vcs_provider: :github
+          vcs_connection: [
+            repository_full_handle: "tuist/different-handle",
+            provider: :github
+          ]
         )
 
       reject(GitHub.Client, :get_comments, 1)
@@ -919,8 +949,10 @@ defmodule Tuist.VCSTest do
       # Given
       project =
         ProjectsFixtures.project_fixture(
-          vcs_repository_full_handle: "tuist/tuist",
-          vcs_provider: :github
+          vcs_connection: [
+            repository_full_handle: "tuist/tuist",
+            provider: :github
+          ]
         )
 
       BundlesFixtures.bundle_fixture(
@@ -995,8 +1027,10 @@ defmodule Tuist.VCSTest do
       # Given
       project =
         ProjectsFixtures.project_fixture(
-          vcs_repository_full_handle: "tuist/tuist",
-          vcs_provider: :github
+          vcs_connection: [
+            repository_full_handle: "tuist/tuist",
+            provider: :github
+          ]
         )
 
       {:ok, build_run} =
@@ -1056,8 +1090,10 @@ defmodule Tuist.VCSTest do
       # Given
       project =
         ProjectsFixtures.project_fixture(
-          vcs_repository_full_handle: "tuist/tuist",
-          vcs_provider: :github
+          vcs_connection: [
+            repository_full_handle: "tuist/tuist",
+            provider: :github
+          ]
         )
 
       bundle_ios_app =
@@ -1115,8 +1151,10 @@ defmodule Tuist.VCSTest do
       # Given
       project =
         ProjectsFixtures.project_fixture(
-          vcs_repository_full_handle: "tuist/tuist",
-          vcs_provider: :github
+          vcs_connection: [
+            repository_full_handle: "tuist/tuist",
+            provider: :github
+          ]
         )
 
       bundle_ios_app =
@@ -1181,8 +1219,10 @@ defmodule Tuist.VCSTest do
       # Given
       project =
         ProjectsFixtures.project_fixture(
-          vcs_repository_full_handle: "tuist/tuist",
-          vcs_provider: :github
+          vcs_connection: [
+            repository_full_handle: "tuist/tuist",
+            provider: :github
+          ]
         )
 
       expect(GitHub.Client, :create_comment, fn %{
@@ -1210,8 +1250,10 @@ defmodule Tuist.VCSTest do
       # Given
       project =
         ProjectsFixtures.project_fixture(
-          vcs_repository_full_handle: "tuist/tuist",
-          vcs_provider: :github
+          vcs_connection: [
+            repository_full_handle: "tuist/tuist",
+            provider: :github
+          ]
         )
 
       reject(GitHub.Client, :create_comment, 1)
@@ -1233,8 +1275,10 @@ defmodule Tuist.VCSTest do
       # Given
       project =
         ProjectsFixtures.project_fixture(
-          vcs_repository_full_handle: "tuist/tuist",
-          vcs_provider: :github
+          vcs_connection: [
+            repository_full_handle: "tuist/tuist",
+            provider: :github
+          ]
         )
 
       reject(GitHub.Client, :create_comment, 1)
@@ -1256,8 +1300,10 @@ defmodule Tuist.VCSTest do
       # Given
       project =
         ProjectsFixtures.project_fixture(
-          vcs_repository_full_handle: "different/repo",
-          vcs_provider: :github
+          vcs_connection: [
+            repository_full_handle: "different/repo",
+            provider: :github
+          ]
         )
 
       reject(GitHub.Client, :create_comment, 1)
@@ -1281,8 +1327,10 @@ defmodule Tuist.VCSTest do
 
       project =
         ProjectsFixtures.project_fixture(
-          vcs_repository_full_handle: "tuist/tuist",
-          vcs_provider: :github
+          vcs_connection: [
+            repository_full_handle: "tuist/tuist",
+            provider: :github
+          ]
         )
 
       reject(GitHub.Client, :create_comment, 1)
@@ -1304,8 +1352,10 @@ defmodule Tuist.VCSTest do
       # Given
       project =
         ProjectsFixtures.project_fixture(
-          vcs_repository_full_handle: "tuist/tuist",
-          vcs_provider: :github
+          vcs_connection: [
+            repository_full_handle: "tuist/tuist",
+            provider: :github
+          ]
         )
 
       expect(GitHub.Client, :create_comment, fn %{
@@ -1340,8 +1390,10 @@ defmodule Tuist.VCSTest do
       # Given
       project =
         ProjectsFixtures.project_fixture(
-          vcs_repository_full_handle: "tuist/tuist",
-          vcs_provider: :github
+          vcs_connection: [
+            repository_full_handle: "tuist/tuist",
+            provider: :github
+          ]
         )
 
       comment_params = %{
@@ -1370,8 +1422,10 @@ defmodule Tuist.VCSTest do
       # Given
       project =
         ProjectsFixtures.project_fixture(
-          vcs_repository_full_handle: "different/repo",
-          vcs_provider: :github
+          vcs_connection: [
+            repository_full_handle: "different/repo",
+            provider: :github
+          ]
         )
 
       comment_params = %{
@@ -1396,8 +1450,10 @@ defmodule Tuist.VCSTest do
 
       project =
         ProjectsFixtures.project_fixture(
-          vcs_repository_full_handle: "tuist/tuist",
-          vcs_provider: :github
+          vcs_connection: [
+            repository_full_handle: "tuist/tuist",
+            provider: :github
+          ]
         )
 
       comment_params = %{
@@ -1420,8 +1476,10 @@ defmodule Tuist.VCSTest do
       # Given
       project =
         ProjectsFixtures.project_fixture(
-          vcs_repository_full_handle: "tuist/tuist",
-          vcs_provider: :github
+          vcs_connection: [
+            repository_full_handle: "tuist/tuist",
+            provider: :github
+          ]
         )
 
       comment_params = %{
@@ -1450,8 +1508,10 @@ defmodule Tuist.VCSTest do
       # Given
       project =
         ProjectsFixtures.project_fixture(
-          vcs_repository_full_handle: "tuist/tuist",
-          vcs_provider: :github
+          vcs_connection: [
+            repository_full_handle: "tuist/tuist",
+            provider: :github
+          ]
         )
 
       comment_ids = ["123", "456789", "999"]

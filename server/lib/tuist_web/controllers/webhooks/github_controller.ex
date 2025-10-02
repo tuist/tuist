@@ -3,6 +3,7 @@ defmodule TuistWeb.Webhooks.GitHubController do
 
   alias Tuist.AppBuilds
   alias Tuist.Environment
+  alias Tuist.GitHubAppInstallations
   alias Tuist.Projects
   alias Tuist.QA
   alias Tuist.Repo
@@ -14,6 +15,9 @@ defmodule TuistWeb.Webhooks.GitHubController do
     case event_type do
       "issue_comment" ->
         handle_issue_comment(conn, params)
+
+      "installation" ->
+        handle_installation(conn, params)
 
       _ ->
         conn
@@ -48,6 +52,31 @@ defmodule TuistWeb.Webhooks.GitHubController do
     |> json(%{status: "ok"})
   end
 
+  defp handle_installation(conn, %{"action" => "deleted", "installation" => %{"id" => installation_id}}) do
+    {:ok, _} = delete_github_app_installation(installation_id)
+
+    conn
+    |> put_status(:ok)
+    |> json(%{status: "ok"})
+  end
+
+  defp handle_installation(conn, %{
+         "action" => "created",
+         "installation" => %{"id" => installation_id, "html_url" => html_url}
+       }) do
+    {:ok, _} = update_github_app_installation_html_url(installation_id, html_url)
+
+    conn
+    |> put_status(:ok)
+    |> json(%{status: "ok"})
+  end
+
+  defp handle_installation(conn, _params) do
+    conn
+    |> put_status(:ok)
+    |> json(%{status: "ok"})
+  end
+
   defp test_qa_prompt(repository_full_handle, issue_number, prompt) do
     case Projects.project_by_vcs_repository_full_handle(repository_full_handle, preload: :account) do
       {:error, :not_found} ->
@@ -71,6 +100,8 @@ defmodule TuistWeb.Webhooks.GitHubController do
   end
 
   defp start_or_enqueue_qa_run(project, prompt, git_ref) do
+    project = Repo.preload(project, :vcs_connection)
+
     simulator_app_build =
       AppBuilds.latest_app_build(git_ref, project, supported_platform: :ios_simulator)
 
@@ -79,8 +110,6 @@ defmodule TuistWeb.Webhooks.GitHubController do
         app_build_id: simulator_app_build && simulator_app_build.id,
         prompt: prompt,
         status: "pending",
-        vcs_provider: project.vcs_provider,
-        vcs_repository_full_handle: project.vcs_repository_full_handle,
         git_ref: git_ref,
         issue_comment_id: nil
       })
@@ -88,7 +117,7 @@ defmodule TuistWeb.Webhooks.GitHubController do
     {:ok, %{"id" => comment_id}} =
       post_initial_comment(
         simulator_app_build,
-        project.vcs_repository_full_handle,
+        project.vcs_connection && project.vcs_connection.repository_full_handle,
         git_ref,
         project,
         qa_run
@@ -144,5 +173,15 @@ defmodule TuistWeb.Webhooks.GitHubController do
       _ ->
         nil
     end
+  end
+
+  defp delete_github_app_installation(installation_id) do
+    {:ok, github_app_installation} = GitHubAppInstallations.get_by_installation_id(installation_id)
+    GitHubAppInstallations.delete(github_app_installation)
+  end
+
+  defp update_github_app_installation_html_url(installation_id, html_url) do
+    {:ok, github_app_installation} = GitHubAppInstallations.get_by_installation_id(installation_id)
+    GitHubAppInstallations.update(github_app_installation, %{html_url: html_url})
   end
 end

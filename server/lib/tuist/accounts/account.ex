@@ -9,6 +9,7 @@ defmodule Tuist.Accounts.Account do
   alias Tuist.Accounts.Organization
   alias Tuist.Accounts.User
   alias Tuist.Billing.Subscription
+  alias Tuist.GitHubAppInstallations.GitHubAppInstallation
   alias Tuist.Projects.Project
 
   @derive {
@@ -29,6 +30,7 @@ defmodule Tuist.Accounts.Account do
 
     has_many(:projects, Project, on_delete: :delete_all)
     has_many(:subscriptions, Subscription, on_delete: :delete_all)
+    has_one(:github_app_installation, GitHubAppInstallation, on_delete: :delete_all)
 
     # credo:disable-for-next-line Credo.Checks.TimestampsType
     timestamps(inserted_at: :created_at)

@@ -44,7 +44,6 @@ struct ProjectUpdateService {
     func run(
         fullHandle: String?,
         defaultBranch: String?,
-        repositoryURL: String?,
         visibility: ServerProject.Visibility?,
         path: String?
     ) async throws {
@@ -61,7 +60,6 @@ struct ProjectUpdateService {
             fullHandle: fullHandle,
             serverURL: serverURL,
             defaultBranch: defaultBranch,
-            repositoryURL: repositoryURL,
             visibility: visibility
         )
 

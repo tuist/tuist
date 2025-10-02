@@ -7,6 +7,7 @@ defmodule Tuist.ProjectsTest do
   alias Tuist.Accounts.ProjectAccount
   alias Tuist.Base64
   alias Tuist.CommandEvents
+  alias Tuist.GitHubAppInstallations
   alias Tuist.Projects
   alias Tuist.Projects.ProjectToken
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -461,8 +462,10 @@ defmodule Tuist.ProjectsTest do
       # Given
       project =
         ProjectsFixtures.project_fixture(
-          vcs_provider: :github,
-          vcs_repository_full_handle: "tuist/tuist"
+          vcs_connection: [
+            provider: :github,
+            repository_full_handle: "tuist/tuist"
+          ]
         )
 
       # When
@@ -902,7 +905,10 @@ defmodule Tuist.ProjectsTest do
       project =
         ProjectsFixtures.project_fixture(
           account_id: account.id,
-          vcs_repository_full_handle: vcs_handle
+          vcs_connection: [
+            repository_full_handle: vcs_handle,
+            provider: :github
+          ]
         )
 
       # When
@@ -936,12 +942,18 @@ defmodule Tuist.ProjectsTest do
       project_one =
         ProjectsFixtures.project_fixture(
           account_id: account_one.id,
-          vcs_repository_full_handle: vcs_handle_one
+          vcs_connection: [
+            repository_full_handle: vcs_handle_one,
+            provider: :github
+          ]
         )
 
       ProjectsFixtures.project_fixture(
         account_id: account_two.id,
-        vcs_repository_full_handle: vcs_handle_two
+        vcs_connection: [
+          repository_full_handle: vcs_handle_two,
+          provider: :github
+        ]
       )
 
       # When
@@ -960,7 +972,10 @@ defmodule Tuist.ProjectsTest do
       project =
         ProjectsFixtures.project_fixture(
           account_id: account.id,
-          vcs_repository_full_handle: vcs_handle
+          vcs_connection: [
+            repository_full_handle: vcs_handle,
+            provider: :github
+          ]
         )
 
       # When
@@ -969,6 +984,115 @@ defmodule Tuist.ProjectsTest do
       # Then
       assert got_project.id == project.id
       assert Ecto.assoc_loaded?(got_project.account)
+    end
+  end
+
+  describe "create_vcs_connection/1" do
+    test "creates a new VCS connection" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      account = Repo.preload(project, :account).account
+
+      {:ok, github_app_installation} =
+        GitHubAppInstallations.create(%{
+          account_id: account.id,
+          installation_id: "test-installation-123"
+        })
+
+      attrs = %{
+        project_id: project.id,
+        provider: :github,
+        repository_full_handle: "tuist/tuist",
+        github_app_installation_id: github_app_installation.id
+      }
+
+      # When
+      {:ok, vcs_connection} = Projects.create_vcs_connection(attrs)
+
+      # Then
+      assert vcs_connection.project_id == project.id
+      assert vcs_connection.provider == :github
+      assert vcs_connection.repository_full_handle == "tuist/tuist"
+      assert vcs_connection.github_app_installation_id == github_app_installation.id
+    end
+
+    test "returns error with invalid attrs" do
+      # Given
+      attrs = %{
+        provider: :github,
+        repository_full_handle: "tuist/tuist"
+      }
+
+      # When
+      {:error, changeset} = Projects.create_vcs_connection(attrs)
+
+      # Then
+      assert %{project_id: ["can't be blank"]} = errors_on(changeset)
+    end
+  end
+
+  describe "delete_vcs_connection/1" do
+    test "deletes a VCS connection" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      account = Repo.preload(project, :account).account
+
+      {:ok, github_app_installation} =
+        GitHubAppInstallations.create(%{
+          account_id: account.id,
+          installation_id: "test-installation-456"
+        })
+
+      {:ok, vcs_connection} =
+        Projects.create_vcs_connection(%{
+          project_id: project.id,
+          provider: :github,
+          repository_full_handle: "tuist/tuist",
+          github_app_installation_id: github_app_installation.id
+        })
+
+      # When
+      {:ok, _} = Projects.delete_vcs_connection(vcs_connection)
+
+      # Then
+      assert Projects.get_vcs_connection(vcs_connection.id) == {:error, :not_found}
+    end
+  end
+
+  describe "get_vcs_connection/1" do
+    test "returns VCS connection when it exists" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      account = Repo.preload(project, :account).account
+
+      {:ok, github_app_installation} =
+        GitHubAppInstallations.create(%{
+          account_id: account.id,
+          installation_id: "test-installation-789"
+        })
+
+      {:ok, vcs_connection} =
+        Projects.create_vcs_connection(%{
+          project_id: project.id,
+          provider: :github,
+          repository_full_handle: "tuist/tuist",
+          github_app_installation_id: github_app_installation.id
+        })
+
+      # When
+      {:ok, got} = Projects.get_vcs_connection(vcs_connection.id)
+
+      # Then
+      assert got.id == vcs_connection.id
+      assert got.repository_full_handle == "tuist/tuist"
+    end
+
+    test "returns error when VCS connection does not exist" do
+      # When
+      got = Projects.get_vcs_connection("01909854-f9d1-7f9d-8956-b59155b0d8cc")
+
+      # Then
+      assert got == {:error, :not_found}
     end
   end
 end

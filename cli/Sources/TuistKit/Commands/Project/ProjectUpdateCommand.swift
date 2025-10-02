@@ -24,12 +24,6 @@ struct ProjectUpdateCommand: AsyncParsableCommand {
 
     @Option(
         help:
-        "Set the connected Git repository. Example: --repository-url https://github.com/tuist/tuist"
-    )
-    var repositoryURL: String?
-
-    @Option(
-        help:
         "Set the project's visibility. When private, only project's members have access to the project. Public projects are accessible by anyone."
     )
     var visibility: ServerProject.Visibility?
@@ -46,7 +40,6 @@ struct ProjectUpdateCommand: AsyncParsableCommand {
             .run(
                 fullHandle: fullHandle,
                 defaultBranch: defaultBranch,
-                repositoryURL: repositoryURL,
                 visibility: visibility,
                 path: path
             )

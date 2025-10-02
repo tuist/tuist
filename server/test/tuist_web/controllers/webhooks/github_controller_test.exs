@@ -4,11 +4,14 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
 
   alias Tuist.Accounts.Account
   alias Tuist.AppBuilds
+  alias Tuist.GitHubAppInstallations
   alias Tuist.Projects
   alias Tuist.QA
+  alias Tuist.Repo
   alias Tuist.VCS
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.AppBuildsFixtures
+  alias TuistTestSupport.Fixtures.GitHubAppInstallationsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistWeb.Webhooks.GitHubController
 
@@ -101,11 +104,14 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
     test "posts message when QA feature flag is disabled for account", %{conn: conn} do
       # Given
       organization = AccountsFixtures.organization_fixture()
-      account = Tuist.Repo.get_by!(Account, organization_id: organization.id)
+      account = Repo.get_by!(Account, organization_id: organization.id)
 
       ProjectsFixtures.project_fixture(
         account_id: account.id,
-        vcs_repository_full_handle: "org/repo"
+        vcs_connection: [
+          repository_full_handle: "org/repo",
+          provider: :github
+        ]
       )
 
       conn = put_req_header(conn, "x-github-event", "issue_comment")
@@ -137,12 +143,15 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
     test "creates QA worker job when app build exists and feature flag is enabled", %{conn: conn} do
       # Given
       organization = AccountsFixtures.organization_fixture()
-      account = Tuist.Repo.get_by!(Account, organization_id: organization.id)
+      account = Repo.get_by!(Account, organization_id: organization.id)
 
       project =
         ProjectsFixtures.project_fixture(
           account_id: account.id,
-          vcs_repository_full_handle: "org/repo"
+          vcs_connection: [
+            repository_full_handle: "org/repo",
+            provider: :github
+          ]
         )
 
       preview = AppBuildsFixtures.preview_fixture(project: project)
@@ -163,8 +172,6 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
         app_build_id: app_build.id,
         prompt: "test login flow",
         status: "pending",
-        vcs_provider: :github,
-        vcs_repository_full_handle: "org/repo",
         git_ref: "refs/pull/42/merge",
         issue_comment_id: nil
       }
@@ -207,13 +214,15 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
     test "creates pending QA run when no app build exists and feature flag is enabled", %{conn: conn} do
       # Given
       organization = AccountsFixtures.organization_fixture()
-      account = Tuist.Repo.get_by!(Account, organization_id: organization.id)
+      account = Repo.get_by!(Account, organization_id: organization.id)
 
       project =
         ProjectsFixtures.project_fixture(
           account_id: account.id,
-          vcs_repository_full_handle: "org/repo",
-          vcs_provider: :github
+          vcs_connection: [
+            repository_full_handle: "org/repo",
+            provider: :github
+          ]
         )
 
       conn = put_req_header(conn, "x-github-event", "issue_comment")
@@ -226,7 +235,7 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
         true
       end)
 
-      expect(AppBuilds, :latest_app_build, fn "refs/pull/55/merge", ^project, _ ->
+      expect(AppBuilds, :latest_app_build, fn "refs/pull/55/merge", ^project, _opts ->
         nil
       end)
 
@@ -262,6 +271,88 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
           },
           "repository" => %{"full_name" => "org/repo"},
           "issue" => %{"number" => 42, "pull_request" => %{}}
+        })
+
+      # Then
+      assert result.status == 200
+    end
+
+    test "handles installation deleted event successfully", %{conn: conn} do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = user.account
+      installation_id = "12345"
+
+      github_app_installation =
+        GitHubAppInstallationsFixtures.github_app_installation_fixture(
+          account_id: account.id,
+          installation_id: installation_id
+        )
+
+      conn = put_req_header(conn, "x-github-event", "installation")
+
+      expect(GitHubAppInstallations, :get_by_installation_id, fn ^installation_id ->
+        {:ok, github_app_installation}
+      end)
+
+      expect(GitHubAppInstallations, :delete, fn ^github_app_installation ->
+        {:ok, github_app_installation}
+      end)
+
+      # When
+      result =
+        GitHubController.handle(conn, %{
+          "action" => "deleted",
+          "installation" => %{"id" => installation_id}
+        })
+
+      # Then
+      assert result.status == 200
+    end
+
+    test "handles installation created event successfully", %{conn: conn} do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = user.account
+      installation_id = "67890"
+      html_url = "https://github.com/organizations/tuist/settings/installations/67890"
+
+      github_app_installation =
+        GitHubAppInstallationsFixtures.github_app_installation_fixture(
+          account_id: account.id,
+          installation_id: installation_id
+        )
+
+      conn = put_req_header(conn, "x-github-event", "installation")
+
+      expect(GitHubAppInstallations, :get_by_installation_id, fn ^installation_id ->
+        {:ok, github_app_installation}
+      end)
+
+      expect(GitHubAppInstallations, :update, fn ^github_app_installation, %{html_url: ^html_url} ->
+        {:ok, %{github_app_installation | html_url: html_url}}
+      end)
+
+      # When
+      result =
+        GitHubController.handle(conn, %{
+          "action" => "created",
+          "installation" => %{"id" => installation_id, "html_url" => html_url}
+        })
+
+      # Then
+      assert result.status == 200
+    end
+
+    test "returns ok for installation events with non-deleted actions", %{conn: conn} do
+      # Given
+      conn = put_req_header(conn, "x-github-event", "installation")
+
+      # When
+      result =
+        GitHubController.handle(conn, %{
+          "action" => "suspend",
+          "installation" => %{"id" => "12345"}
         })
 
       # Then
