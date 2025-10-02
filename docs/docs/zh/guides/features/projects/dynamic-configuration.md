@@ -5,27 +5,31 @@
   "description": "Learn how how to use environment variables to dynamically configure your project."
 }
 ---
-# Dynamic configuration {#dynamic-configuration}
+# 动态配置 {#dynamic-configuration}
 
-There are certain scenarios where you might need to dynamically configure your project at generation time. For example, you might want to change the name of the app, the bundle identifier, or the deployment target based on the environment where the project is being generated. Tuist supports that via environment variables, which can be accessed from the manifest files.
+在某些情况下，您可能需要在生成时动态配置项目。例如，您可能需要根据生成项目的环境更改应用程序名称、捆绑标识符或部署目标。Tuist
+支持通过环境变量来实现这一点，这些变量可以从清单文件中访问。
 
-## Configuration through environment variables {#configuration-through-environment-variables}
+## 通过环境变量进行配置 {#configuration-through-environment-variables}
 
-Tuist allows passing configuration through environment variables that can be accessed from the manifest files. For example:
+Tuist 允许通过可从清单文件访问的环境变量传递配置。例如
 
 ```bash
 TUIST_APP_NAME=MyApp tuist generate
 ```
 
-If you want to pass multiple environment variables just separate them with a space. For example:
+如果要传递多个环境变量，只需用空格隔开即可。例如
 
 ```bash
 TUIST_APP_NAME=MyApp TUIST_APP_LOCALE=pl tuist generate
 ```
 
-## Reading the environment variables from manifests {#reading-the-environment-variables-from-manifests}
+## 从清单读取环境变量 {#reading-the-environment-variables-from-manifests}
 
-Variables can be accessed using the <LocalizedLink href="/references/project-description/enums/environment">`Environment`</LocalizedLink> type. Any variables following the convention `TUIST_XXX` defined in the environment or passed to Tuist when running commands will be accessible using the `Environment` type. The following example shows how we access the `TUIST_APP_NAME` variable:
+可以使用
+<LocalizedLink href="/references/project-description/enums/environment">`环境`</LocalizedLink>
+类型访问变量。环境中定义的或运行命令时传递给 Tuist 的变量`TUIST_XXX` 都可以使用`Environment`
+类型访问。下面的示例展示了如何访问`TUIST_APP_NAME` 变量：
 
 ```swift
 func appName() -> String {
@@ -37,15 +41,16 @@ func appName() -> String {
 }
 ```
 
-Accessing variables returns an instance of type `Environment.Value?` which can take any of the following values:
+访问变量时会返回一个`Environment.Value?` 类型的实例，它可以接受以下任何值：
 
-| Case | Description |
-| --- | --- |
-| `.string(String)` | Used when the variable represents a string. |
+| 案例                | 说明             |
+| ----------------- | -------------- |
+| `.string(String)` | 当变量表示一个字符串时使用。 |
 
-You can also retrieve the string or boolean `Environment` variable using either of the helper methods defined below, these methods require a default value to be passed to ensure the user gets consistent results each time. This avoids the need to define the function appName() defined above.
+您还可以使用下面定义的辅助方法检索字符串或布尔`环境` 变量，这些方法需要传递一个默认值，以确保用户每次都能获得一致的结果。这样就无需定义上文定义的函数
+appName()。
 
-::: code-group
+代码组
 
 ```swift [String]
 Environment.appName.getString(default: "TuistServer")
