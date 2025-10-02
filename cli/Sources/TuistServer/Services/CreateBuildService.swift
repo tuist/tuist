@@ -3,6 +3,7 @@ import Mockable
 import OpenAPIURLSession
 
 #if canImport(TuistSupport)
+    import TuistCI
     import TuistSupport
     import TuistXCActivityLog
 
@@ -27,7 +28,11 @@ import OpenAPIURLSession
             scheme: String?,
             targets: [XCActivityTarget],
             xcodeVersion: String?,
-            status: ServerBuildRunStatus
+            status: ServerBuildRunStatus,
+            ciRunId: String?,
+            ciProjectHandle: String?,
+            ciHost: String?,
+            ciProvider: CIProvider?
         ) async throws -> ServerBuild
     }
 
@@ -85,7 +90,11 @@ import OpenAPIURLSession
             scheme: String?,
             targets: [XCActivityTarget],
             xcodeVersion: String?,
-            status: ServerBuildRunStatus
+            status: ServerBuildRunStatus,
+            ciRunId: String?,
+            ciProjectHandle: String?,
+            ciHost: String?,
+            ciProvider: CIProvider?
         ) async throws -> ServerBuild {
             let client = Client.authenticated(serverURL: serverURL)
             let handles = try fullHandleService.parse(fullHandle)
@@ -105,6 +114,24 @@ import OpenAPIURLSession
                     .incremental
                 }
 
+            let ciProviderPayload: Operations.createRun.Input.Body.jsonPayload.Case1Payload.ci_providerPayload? =
+                switch ciProvider {
+                case .github:
+                    .github
+                case .gitlab:
+                    .gitlab
+                case .bitrise:
+                    .bitrise
+                case .circleci:
+                    .circleci
+                case .buildkite:
+                    .buildkite
+                case .codemagic:
+                    .codemagic
+                case .none:
+                    nil
+                }
+
             let response = try await client.createRun(
                 .init(
                     path: .init(
@@ -115,6 +142,10 @@ import OpenAPIURLSession
                         .case1(
                             .init(
                                 category: category,
+                                ci_host: ciHost,
+                                ci_project_handle: ciProjectHandle,
+                                ci_provider: ciProviderPayload,
+                                ci_run_id: ciRunId,
                                 configuration: configuration,
                                 duration: duration,
                                 files: files
