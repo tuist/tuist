@@ -25,7 +25,7 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
         subject = TargetsToCacheBinariesGraphMapper(
             config: config,
             cacheGraphContentHasher: cacheGraphContentHasher,
-            sources: .explicit([]),
+            decider: AllPossibleTargetReplacementDecider(exceptions: Set()),
             configuration: "Debug",
             cacheGraphMutator: cacheGraphMutator,
             cacheStorage: cacheStorage
@@ -39,33 +39,6 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
         cacheGraphMutator = nil
         subject = nil
         super.tearDown()
-    }
-
-    func test_map_when_a_source_is_not_available() async throws {
-        // Given
-        subject = TargetsToCacheBinariesGraphMapper(
-            config: config,
-            cacheGraphContentHasher: cacheGraphContentHasher,
-            sources: .explicit(["B", "C", "D"]),
-            configuration: "Debug",
-            cacheGraphMutator: cacheGraphMutator,
-            cacheStorage: cacheStorage
-        )
-        let projectPath = try temporaryPath()
-        let aTarget: Target = .test(name: "A")
-        let bTarget: Target = .test(name: "B")
-        let project: Project = .test(path: projectPath, targets: [aTarget, bTarget])
-        let graph = Graph.test(
-            projects: [
-                projectPath: project,
-            ]
-        )
-
-        // When / Then
-        await XCTAssertThrowsSpecific(
-            try await subject.map(graph: graph, environment: MapperEnvironment()),
-            FocusTargetsGraphMapperError.missingTargets(missingTargets: ["C", "D"])
-        )
     }
 
     func test_map_when_sources_are_tests() async throws {
@@ -149,7 +122,9 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
                 graph: .any,
                 precompiledArtifacts: .any,
                 sources: .any,
-                keepSourceTargets: .value(config.project.generatedProject?.cacheOptions.keepSourceTargets ?? false)
+                keepSourceTargets: .value(
+                    config.project.generatedProject?.cacheOptions.keepSourceTargets ?? false
+                )
             )
             .willReturn(outputGraph)
 
@@ -177,7 +152,7 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
         subject = TargetsToCacheBinariesGraphMapper(
             config: config,
             cacheGraphContentHasher: cacheGraphContentHasher,
-            sources: .build,
+            decider: AllPossibleTargetReplacementDecider(exceptions: Set()),
             configuration: "Debug",
             cacheGraphMutator: cacheGraphMutator,
             cacheStorage: cacheStorage
@@ -255,7 +230,9 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
                 graph: .any,
                 precompiledArtifacts: .any,
                 sources: .any,
-                keepSourceTargets: .value(config.project.generatedProject?.cacheOptions.keepSourceTargets ?? false)
+                keepSourceTargets: .value(
+                    config.project.generatedProject?.cacheOptions.keepSourceTargets ?? false
+                )
             )
             .willReturn(outputGraph)
         given(cacheStorage).fetch(.any, cacheCategory: .value(.binaries)).willReturn([:])
@@ -280,7 +257,7 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
         subject = TargetsToCacheBinariesGraphMapper(
             config: config,
             cacheGraphContentHasher: cacheGraphContentHasher,
-            sources: .build,
+            decider: AllPossibleTargetReplacementDecider(exceptions: Set()),
             configuration: "Debug",
             cacheGraphMutator: cacheGraphMutator,
             cacheStorage: cacheStorage
@@ -357,7 +334,9 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
                 graph: .any,
                 precompiledArtifacts: .any,
                 sources: .any,
-                keepSourceTargets: .value(config.project.generatedProject?.cacheOptions.keepSourceTargets ?? false)
+                keepSourceTargets: .value(
+                    config.project.generatedProject?.cacheOptions.keepSourceTargets ?? false
+                )
             )
             .willReturn(outputGraph)
         let bBinaryPath = try temporaryPath().appending(component: "B-Binary")
@@ -390,7 +369,7 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
         subject = TargetsToCacheBinariesGraphMapper(
             config: config,
             cacheGraphContentHasher: cacheGraphContentHasher,
-            sources: .explicit([]),
+            decider: AllPossibleTargetReplacementDecider(exceptions: Set()),
             configuration: "Debug",
             cacheGraphMutator: cacheGraphMutator,
             cacheStorage: cacheStorage
@@ -427,7 +406,9 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
                 graph: .any,
                 precompiledArtifacts: .any,
                 sources: .any,
-                keepSourceTargets: .value(config.project.generatedProject?.cacheOptions.keepSourceTargets ?? false)
+                keepSourceTargets: .value(
+                    config.project.generatedProject?.cacheOptions.keepSourceTargets ?? false
+                )
             )
             .willReturn(outputGraph)
 
@@ -453,7 +434,7 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
         subject = TargetsToCacheBinariesGraphMapper(
             config: config,
             cacheGraphContentHasher: cacheGraphContentHasher,
-            sources: .explicit([]),
+            decider: AllPossibleTargetReplacementDecider(exceptions: Set()),
             configuration: "Debug",
             cacheGraphMutator: cacheGraphMutator,
             cacheStorage: cacheStorage
@@ -486,7 +467,9 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
                 graph: .any,
                 precompiledArtifacts: .any,
                 sources: .any,
-                keepSourceTargets: .value(config.project.generatedProject?.cacheOptions.keepSourceTargets ?? false)
+                keepSourceTargets: .value(
+                    config.project.generatedProject?.cacheOptions.keepSourceTargets ?? false
+                )
             )
             .willReturn(outputGraph)
 

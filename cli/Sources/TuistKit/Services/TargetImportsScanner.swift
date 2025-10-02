@@ -21,7 +21,8 @@ final class TargetImportsScanner: TargetImportsScanning {
     }
 
     func imports(for target: XcodeGraph.Target) async throws -> Set<String> {
-        var filesToScan = target.sources.map(\.path)
+        var filesToScan = target.sources.map(\.path) + target.buildableFolders.flatMap(\.resolvedFiles).map(\.path)
+            .filter { Target.validSourceExtensions.contains($0.extension ?? "") }
         if let headers = target.headers {
             filesToScan.append(contentsOf: headers.private)
             filesToScan.append(contentsOf: headers.public)

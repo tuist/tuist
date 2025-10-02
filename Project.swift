@@ -9,14 +9,17 @@ func debugSettings() -> SettingsDictionary {
     return settings
 }
 
-let inspectBuildPostAction: ExecutionAction = .executionAction(
-    title: "Inspect build",
-    scriptText: """
-    eval "$($HOME/.local/bin/mise activate -C $SRCROOT bash --shims)"
+func inspectBuildPostAction(target: TargetReference) -> ExecutionAction {
+    .executionAction(
+        title: "Inspect build",
+        scriptText: """
+        eval "$($HOME/.local/bin/mise activate -C $SRCROOT bash --shims)"
 
-    tuist inspect build
-    """
-)
+        tuist inspect build
+        """,
+        target: target
+    )
+}
 
 func releaseSettings() -> SettingsDictionary {
     baseSettings
@@ -53,7 +56,7 @@ func schemes() -> [Scheme] {
                     .target($0)
                 } + (Module.includeEE() ? [.target("TuistCacheEE"), .target("TuistCacheEETests")] : []),
                 postActions: [
-                    inspectBuildPostAction,
+                    inspectBuildPostAction(target: "tuist"),
                 ],
                 runPostActionsOnFailure: true
             ),
@@ -74,7 +77,7 @@ func schemes() -> [Scheme] {
                 targets: Module.allCases.flatMap(\.acceptanceTestTargets).map(\.name).sorted()
                     .map { .target($0) } + (Module.includeEE() ? [.target("TuistCacheEEAcceptanceTests")] : []),
                 postActions: [
-                    inspectBuildPostAction,
+                    inspectBuildPostAction(target: "TuistKitAcceptabceTests"),
                 ],
                 runPostActionsOnFailure: true
             ),
@@ -95,7 +98,7 @@ func schemes() -> [Scheme] {
                 targets: Module.allCases.flatMap(\.unitTestTargets).map(\.name).sorted()
                     .map { .target($0) } + (Module.includeEE() ? [.target("TuistCacheEETests")] : []),
                 postActions: [
-                    inspectBuildPostAction,
+                    inspectBuildPostAction(target: "TuistKitTests"),
                 ],
                 runPostActionsOnFailure: true
             ),
@@ -130,7 +133,7 @@ func schemes() -> [Scheme] {
             buildAction: .buildAction(
                 targets: [.target("TuistCacheEEAcceptanceTests")],
                 postActions: [
-                    inspectBuildPostAction,
+                    inspectBuildPostAction(target: "TuistCacheEEAcceptanceTests"),
                 ],
                 runPostActionsOnFailure: true
             ),
@@ -151,7 +154,7 @@ func schemes() -> [Scheme] {
             buildAction: .buildAction(
                 targets: [.target("TuistCacheEETests")],
                 postActions: [
-                    inspectBuildPostAction,
+                    inspectBuildPostAction(target: "TuistCacheEEUnitTests"),
                 ],
                 runPostActionsOnFailure: true
             ),
@@ -178,7 +181,7 @@ func schemes() -> [Scheme] {
                 buildAction: .buildAction(
                     targets: [.target($0.targetName)],
                     postActions: [
-                        inspectBuildPostAction,
+                        inspectBuildPostAction(target: TargetReference(stringLiteral: $0.targetName)),
                     ],
                     runPostActionsOnFailure: true
                 ),
@@ -204,7 +207,7 @@ func schemes() -> [Scheme] {
                 buildAction: .buildAction(
                     targets: [.target($0)],
                     postActions: [
-                        inspectBuildPostAction,
+                        inspectBuildPostAction(target: TargetReference(stringLiteral: $0)),
                     ],
                     runPostActionsOnFailure: true
                 ),

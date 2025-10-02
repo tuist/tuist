@@ -11,6 +11,7 @@ import {
 } from "./icons.mjs";
 import * as path from "node:path";
 import * as fs from "node:fs/promises";
+import llmstxtPlugin from "vitepress-plugin-llmstxt";
 
 // https://vitepress.dev/reference/site-config
 export default defineConfig({
@@ -19,10 +20,18 @@ export default defineConfig({
   description: "Tuist company handbook",
   srcDir: "./handbook",
   cleanUrls: true,
+  vite: {
+    plugins: [llmstxtPlugin()],
+  },
   sitemap: {
     hostname: "https://handbook.tuist.io",
   },
   async buildEnd({ outDir }) {
+    // Copy functions directory to dist
+    const functionsSource = path.join(path.dirname(outDir), "functions");
+    const functionsDest = path.join(outDir, "functions");
+    await fs.cp(functionsSource, functionsDest, { recursive: true });
+
     const redirectsPath = path.join(outDir, "_redirects");
     const redirects = `
 /security/information-security-policy /security/information-security-framework/information-security-policy 301

@@ -5,6 +5,6 @@ let config = Config(
     swiftVersion: .init("5.10"),
     generationOptions: .options(
         optionalAuthentication: true,
-        disableSandbox: true
+        disableSandbox: true,
     )
 )

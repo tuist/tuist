@@ -9,6 +9,7 @@ import {
 } from "./bars.mjs";
 import { cliSidebar } from "./data/cli.js";
 import { localizedString } from "./i18n.mjs";
+import llmstxtPlugin from "vitepress-plugin-llmstxt";
 
 async function themeConfig(locale) {
   const sidebar = {};
@@ -151,6 +152,9 @@ export default defineConfig({
   experimental: {
     metaChunk: true,
   },
+  vite: {
+    plugins: [llmstxtPlugin()],
+  },
   mpa: false,
   locales: {
     en: {
@@ -253,6 +257,11 @@ export default defineConfig({
     hostname: "https://docs.tuist.io",
   },
   async buildEnd({ outDir }) {
+    // Copy functions directory to dist
+    const functionsSource = path.join(path.dirname(outDir), "functions");
+    const functionsDest = path.join(outDir, "functions");
+    await fs.cp(functionsSource, functionsDest, { recursive: true });
+
     const redirectsPath = path.join(outDir, "_redirects");
     const redirects = `
 /documentation/tuist/installation /guide/introduction/installation 301
