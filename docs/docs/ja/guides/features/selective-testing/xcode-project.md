@@ -1,38 +1,42 @@
 ---
 {
-  "title": "xcodebuild",
-  "titleTemplate": ":title · Selective testing · Develop · Guides · Tuist",
+  "title": "Xcode project",
+  "titleTemplate": ":title · Selective testing · Features · Guides · Tuist",
   "description": "Learn how to leverage selective testing with `xcodebuild`."
 }
 ---
-# xcodebuild {#xcodebuild}
+# Xcodeプロジェクト {#xcode-project}
 
-> [!IMPORTANT] REQUIREMENTS
->
-> - A <LocalizedLink href="/server/introduction/accounts-and-projects">Tuist account and project</LocalizedLink>
+> [重要】要件
+> - A<LocalizedLink href="/guides/server/accounts-and-projects">トゥイストのアカウントとプロジェクト</LocalizedLink>
 
-You can run the tests of your Xcode projects selectively through the command line. To run tests selectively using `xcodebuild`, you can prepend your `xcodebuild` command with `tuist` – for example, `tuist xcodebuild test -scheme App`. The command hashes your project and on success, it persists the hashes to determine what has changed in future runs.
+Xcode プロジェクトのテストをコマンドラインから選択的に実行することができます。そのためには、`xcodebuild` コマンドの前に、`tuist`
+を付けることができます - 例えば、`tuist xcodebuild test -scheme App`
+。このコマンドはプロジェクトをハッシュし、成功すると、将来の実行で何が変更されたかを判断するためにハッシュを永続化します。
 
-In future runs `tuist xcodebuild test` transparently uses the hashes to filter down the tests to run only the ones that have changed since the last successful test run.
+今後の実行では、`tuist xcodebuild test`
+は透過的にハッシュを使用してテストを絞り込み、最後に成功したテストの実行以降に変更されたものだけを実行する。
 
-For example, assuming the following dependency graph:
+例えば、次のような依存関係グラフを仮定する：
 
-- `FeatureA` has tests `FeatureATests`, and depends on `Core`
-- `FeatureB` has tests `FeatureBTests`, and depends on `Core`
-- `Core` has tests `CoreTests`
+- `FeatureA` は`FeatureATests` を持ち、`Core に依存している。`
+- `FeatureB` は、`FeatureBTests` をテストし、`Core に依存する。`
+- `コア` にはテストがある`CoreTests`
 
-`tuist xcodebuild test` will behave as such:
+`tuist xcodebuild test` このように動作する：
 
-| Action                             | Description                                                         | Internal state                                                                 |
-| ---------------------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| `tuist xcodebuild test` invocation | Runs the tests in `CoreTests`, `FeatureATests`, and `FeatureBTests` | The hashes of `FeatureATests`, `FeatureBTests` and `CoreTests` are persisted   |
-| `FeatureA` is updated              | The developer modifies the code of a target                         | Same as before                                                                 |
-| `tuist xcodebuild test` invocation | Runs the tests in `FeatureATests` because it hash has changed       | The new hash of `FeatureATests` is persisted                                   |
-| `Core` is updated                  | The developer modifies the code of a target                         | Same as before                                                                 |
-| `tuist xcodebuild test` invocation | Runs the tests in `CoreTests`, `FeatureATests`, and `FeatureBTests` | The new hash of `FeatureATests` `FeatureBTests`, and `CoreTests` are persisted |
+| アクション                        | 説明                                                       | 内部状態                                                             |
+| ---------------------------- | -------------------------------------------------------- | ---------------------------------------------------------------- |
+| `tuist xcodebuild test` 呼び出し | `CoreTests` 、`FeatureATests` 、`FeatureBTests のテストを実行する。` | `FeatureATests`,`FeatureBTests` and`CoreTests` のハッシュが永続化される。     |
+| `FeatureA` が更新される            | 開発者はターゲットのコードを修正する。                                      | 同上                                                               |
+| `tuist xcodebuild test` 呼び出し | ハッシュが変更されたため、`FeatureATests` のテストを実行する。                  | `FeatureATests` の新しいハッシュが永続化される。                                 |
+| `コア` を更新                     | 開発者はターゲットのコードを修正する。                                      | 同上                                                               |
+| `tuist xcodebuild test` 呼び出し | `CoreTests` 、`FeatureATests` 、`FeatureBTests のテストを実行する。` | `FeatureATests` `FeatureBTests` 、および`CoreTests` の新しいハッシュが永続化される。 |
 
-To use `tuist xcodebuild test` on your CI, follow the instructions in the <LocalizedLink href="/guides/automate/continuous-integration">Continuous integration guide</LocalizedLink>.
+CI で`tuist xcodebuild test`
+を使うには、<LocalizedLink href="/guides/integrations/continuous-integration">Continuous
+integration guide</LocalizedLink> の指示に従ってください。
 
-Check out the following video to see selective testing in action:
+次のビデオで、セレクティブ・テストの様子をご覧ください：
 
 <iframe title="Run tests selectively in your Xcode projects" width="560" height="315" src="https://videos.tuist.dev/videos/embed/1SjekbWSYJ2HAaVjchwjfQ" frameborder="0" allowfullscreen="" sandbox="allow-same-origin allow-scripts allow-popups allow-forms"></iframe>

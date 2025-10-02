@@ -5,33 +5,35 @@
   "description": "Learn how to leverage selective testing with `xcodebuild`."
 }
 ---
-# Xcode project {#xcode-project}
+# Xcode 项目 {#xcode-project}
 
-> [!IMPORTANT] REQUIREMENTS
-> - A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and project</LocalizedLink>
+> [！重要]要求
+> - <LocalizedLink href="/guides/server/accounts-and-projects">图斯特账户和项目</LocalizedLink>
 
-You can run the tests of your Xcode projects selectively through the command line. For that, you can prepend your `xcodebuild` command with `tuist` – for example, `tuist xcodebuild test -scheme App`. The command hashes your project and on success, it persists the hashes to determine what has changed in future runs.
+您可以通过命令行有选择地运行 Xcode 项目的测试。为此，您可以在`xcodebuild` 命令前加上`tuist` - 例如，`tuist
+xcodebuild test -scheme App` 。该命令会对您的项目进行散列，并在成功后持久化散列，以确定在未来的运行中发生了哪些变化。
 
-In future runs `tuist xcodebuild test` transparently uses the hashes to filter down the tests to run only the ones that have changed since the last successful test run.
+在以后的运行中，`tuist xcodebuild test` 会透明地使用哈希值来过滤测试，只运行自上次成功运行测试以来发生变化的测试。
 
-For example, assuming the following dependency graph:
+例如，假设依赖关系图如下：
 
-- `FeatureA` has tests `FeatureATests`, and depends on `Core`
-- `FeatureB` has tests `FeatureBTests`, and depends on `Core`
-- `Core` has tests `CoreTests`
+- `FeatureA` 有测试`FeatureATests` ，并依赖于`核心`
+- `FeatureB` 有测试`FeatureBTests` ，并依赖于`核心`
+- `核心` 有测试`CoreTests`
 
-`tuist xcodebuild test` will behave as such:
+`tuist xcodebuild test` 会有这样的表现：
 
-| Action | Description | Internal state |
-| ---- | --- | ---- |
-| `tuist xcodebuild test` invocation | Runs the tests in `CoreTests`, `FeatureATests`, and `FeatureBTests` | The hashes of `FeatureATests`, `FeatureBTests` and `CoreTests` are persisted |
-| `FeatureA` is updated | The developer modifies the code of a target | Same as before |
-| `tuist xcodebuild test` invocation | Runs the tests in `FeatureATests` because it hash has changed | The new hash of `FeatureATests` is persisted |
-| `Core` is updated | The developer modifies the code of a target | Same as before |
-| `tuist xcodebuild test` invocation | Runs the tests in `CoreTests`, `FeatureATests`, and `FeatureBTests` | The new hash of `FeatureATests` `FeatureBTests`, and `CoreTests` are persisted |
+| 行动                                 | 说明                                                  | 内部状态                                                      |
+| ---------------------------------- | --------------------------------------------------- | --------------------------------------------------------- |
+| `tuist xcodebuild test` invocation | 运行`CoreTests`,`FeatureATests` 和`FeatureBTests 中的测试` | `FeatureATests` 、`FeatureBTests` 和`CoreTests` 的哈希值被持久化。   |
+| `功能A` 已更新                          | 开发人员修改目标代码                                          | 和以前一样                                                     |
+| `tuist xcodebuild test` invocation | 运行`FeatureATests` 中的测试，因为它的哈希值已更改                   | `FeatureATests` 的新散列值被持久化                                 |
+| `核心` 已更新                           | 开发人员修改目标代码                                          | 和以前一样                                                     |
+| `tuist xcodebuild test` invocation | 运行`CoreTests`,`FeatureATests` 和`FeatureBTests 中的测试` | `FeatureATests` `FeatureBTests` ，以及`CoreTests` 的新散列值被持久化。 |
 
-To use `tuist xcodebuild test` on your CI, follow the instructions in the <LocalizedLink href="/guides/integrations/continuous-integration">Continuous integration guide</LocalizedLink>.
+要在您的 CI 上使用`tuist xcodebuild test` ，请遵循
+<LocalizedLink href="/guides/integrations/continuous-integration">持续集成指南</LocalizedLink>中的说明。
 
-Check out the following video to see selective testing in action:
+请观看以下视频，了解选择性测试的实际操作：
 
 <iframe title="Run tests selectively in your Xcode projects" width="560" height="315" src="https://videos.tuist.dev/videos/embed/1SjekbWSYJ2HAaVjchwjfQ" frameborder="0" allowfullscreen="" sandbox="allow-same-origin allow-scripts allow-popups allow-forms"></iframe>
