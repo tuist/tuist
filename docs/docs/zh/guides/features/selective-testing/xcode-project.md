@@ -23,13 +23,13 @@ xcodebuild test -scheme App` 。该命令会对您的项目进行散列，并在
 
 `tuist xcodebuild test` 会有这样的表现：
 
-| 行动                                 | 说明                                                  | 内部状态                                                      |
-| ---------------------------------- | --------------------------------------------------- | --------------------------------------------------------- |
-| `tuist xcodebuild test` invocation | 运行`CoreTests`,`FeatureATests` 和`FeatureBTests 中的测试` | `FeatureATests` 、`FeatureBTests` 和`CoreTests` 的哈希值被持久化。   |
-| `功能A` 已更新                          | 开发人员修改目标代码                                          | 和以前一样                                                     |
-| `tuist xcodebuild test` invocation | 运行`FeatureATests` 中的测试，因为它的哈希值已更改                   | `FeatureATests` 的新散列值被持久化                                 |
-| `核心` 已更新                           | 开发人员修改目标代码                                          | 和以前一样                                                     |
-| `tuist xcodebuild test` invocation | 运行`CoreTests`,`FeatureATests` 和`FeatureBTests 中的测试` | `FeatureATests` `FeatureBTests` ，以及`CoreTests` 的新散列值被持久化。 |
+| 行动                                 | 说明                                                                  | 内部状态                                                      |
+| ---------------------------------- | ------------------------------------------------------------------- | --------------------------------------------------------- |
+| `tuist xcodebuild test` invocation | Runs the tests in `CoreTests`, `FeatureATests`, and `FeatureBTests` | `FeatureATests` 、`FeatureBTests` 和`CoreTests` 的哈希值被持久化。   |
+| `功能A` 已更新                          | The developer modifies the code of a target                         | Same as before                                            |
+| `tuist xcodebuild test` invocation | 运行`FeatureATests` 中的测试，因为它的哈希值已更改                                   | `FeatureATests` 的新散列值被持久化                                 |
+| `核心` 已更新                           | The developer modifies the code of a target                         | Same as before                                            |
+| `tuist xcodebuild test` invocation | Runs the tests in `CoreTests`, `FeatureATests`, and `FeatureBTests` | `FeatureATests` `FeatureBTests` ，以及`CoreTests` 的新散列值被持久化。 |
 
 要在您的 CI 上使用`tuist xcodebuild test` ，请遵循
 <LocalizedLink href="/guides/integrations/continuous-integration">持续集成指南</LocalizedLink>中的说明。
