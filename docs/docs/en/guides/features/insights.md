@@ -65,7 +65,7 @@ Your local builds are now tracked as long as you are logged in to your Tuist acc
 > [!NOTE]
 > Auto-generated schemes automatically include the `tuist inspect build` post-action.
 >
-> If you are not interested in tracking build insights in your auto-generated schemes, disable them using the <LocalizedLink href="references/project-description/structs/tuist.generationoptions#buildinsightsdisabled">buildInsightsDisabled</LocalizedLink> generation option.
+> If you are not interested in tracking build insights in your auto-generated schemes, disable them using the <LocalizedLink href="/references/project-description/structs/tuist.generationoptions#buildinsightsdisabled">buildInsightsDisabled</LocalizedLink> generation option.
 
 If you are using generated projects, you can set up a custom <LocalizedLink href="references/project-description/structs/buildaction#postactions">build post-action</LocalizedLink> using a custom scheme, such as:
 
