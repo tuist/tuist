@@ -1,47 +1,43 @@
 ---
 {
   "title": "Bundle Size",
-  "titleTemplate": ":title · Develop · Guides · Tuist",
+  "titleTemplate": ":title · Features · Guides · Tuist",
   "description": "Find out how to make and keep your app's memory footprint as small as possible."
 }
 ---
-# Bundle Size {#bundle-size}
+# バンドルサイズ {#bundle-size}
 
-> [!IMPORTANT] REQUIREMENTS
->
-> - A <LocalizedLink href="/server/introduction/accounts-and-projects">Tuist account and project</LocalizedLink>
+> [重要】要件
+> - A<LocalizedLink href="/guides/server/accounts-and-projects">トゥイストのアカウントとプロジェクト</LocalizedLink>
 
-As you add more features to your app, your app bundle size keeps growing. While some of the bundle size growth is inevitable as you ship more code and assets, there are many ways to minimze that growth, such as by ensuring your assets are not duplicated across your bundles or stripping unused binary symbols. Tuist provides you with tools and insights to help your app size stay small – and we also monitor your app size over time.
+アプリに機能を追加していくと、アプリのバンドルサイズはどんどん大きくなっていきます。より多くのコードやアセットを出荷するため、バンドルサイズの増加は避けられない部分もありますが、アセットがバンドル間で重複しないようにしたり、未使用のバイナリシンボルを削除したりするなど、その増加を最小限に抑える方法はたくさんあります。Tuistは、アプリのサイズを小さく保つためのツールとインサイトを提供し、アプリのサイズを長期的に監視します。
 
-## Usage {#usage}
+## 使用法 {#usage}
 
-To analyze a bundle, you can use the `tuist inspect bundle` command:
+バンドルを分析するには、`tuist inspect bundle` コマンドを使います：
 
-::: code-group
-
+コードグループ
 ```bash [Analyze an .ipa]
 tuist inspect bundle App.ipa
 ```
-
 ```bash [Analyze an .xcarchive]
 tuist inspect bundle App.xcarchive
 ```
-
 ```bash [Analyze an app bundle]
 tuist inspect bundle App.app
 ```
-
 :::
 
-The `tuist inspect bundle` command analyzes the bundle and provides you with a link to see a detailed overview of the bundle including a scan of the contents of the bundle or a module breakdown:
+`tuist inspect bundle`
+コマンドはバンドルを分析し、バンドルの内容のスキャンやモジュールの内訳を含むバンドルの詳細な概要を見るためのリンクを提供します：
 
-![Analyzed bundle](/images/guides/features/bundle-size/analyzed-bundle.png)
+分析されたバンドル](/images/guides/features/bundle-size/analyzed-bundle.png)。
 
-## Continuous integration {#continuous-integration}
+## 継続的インテグレーション{#continuous-integration}。
 
-To track bundle size over time, you will need to analyze the bundle on the CI. First, you will need to ensure that your CI is <LocalizedLink href="/guides/automate/continuous-integration#authentication">authenticated</LocalizedLink>:
+バンドルのサイズを経時的に追跡するには、CI上のバンドルを分析する必要があります。まず、CIが<LocalizedLink href="/guides/integrations/continuous-integration#authentication">認証済み</LocalizedLink>であることを確認する必要があります：
 
-An example workflow for GitHub Actions could then look like this:
+GitHub Actions のワークフローの例は次のようになります：
 
 ```yaml
 name: Build
@@ -56,14 +52,15 @@ jobs:
           TUIST_CONFIG_TOKEN: ${{ secrets.TUIST_CONFIG_TOKEN }}
 ```
 
-Once set up, you will be able to see how your bundle size evolves over time:
+一度設定すれば、時間の経過とともにバンドルサイズがどのように変化していくかを確認することができる：
 
-![Bundle size graph](/images/guides/features/bundle-size/bundle-size-graph.png)
+![バンドルサイズグラフ](/images/guides/features/bundle-size/bundle-size-graph.png)。
 
-## Pull/merge request comments {#pullmerge-request-comments}
+## プル/マージリクエストのコメント {#pullmerge-request-comments}
 
-> [!IMPORTANT] INTEGRATION WITH GIT PLATFORM REQUIRED
-> To get automatic pull/merge request comments, integrate your <LocalizedLink href="/server/introduction/accounts-and-projects">Tuist project</LocalizedLink> with a <LocalizedLink href="/server/introduction/integrations#git-platforms">Git platform</LocalizedLink>.
+> [重要】Gitプラットフォームとの統合が必要
+> プル/マージリクエストのコメントを自動的に取得するには、<LocalizedLink href="/guides/server/accounts-and-projects">Tuistプロジェクト</LocalizedLink>を<LocalizedLink href="/guides/server/authentication">Gitプラットフォーム</LocalizedLink>と統合してください。｝
 
-Once your Tuist project is connected with your Git platform such as [GitHub](https://github.com), Tuist will post a comment directly in your pull/merge requests whenever you run `tuist inspect bundle`:
-![GitHub app comment with inspected bundles](/images/guides/features/bundle-size/github-app-with-bundles.png)
+Tuistプロジェクトが[GitHub](https://github.com)のようなGitプラットフォームと接続されると、`tuist inspect
+bundle`: ![GitHub app comment with inspected
+bundles](/images/guides/features/bundle-size/github-app-with-bundles.png)を実行するたびに、Tuistはプル/マージリクエストに直接コメントを投稿します。
