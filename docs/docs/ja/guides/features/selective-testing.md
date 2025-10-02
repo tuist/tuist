@@ -1,31 +1,37 @@
 ---
 {
-  "title": "選択的テスト",
-  "titleTemplate": ":title · Develop · Guides · Tuist",
+  "title": "Selective testing",
+  "titleTemplate": ":title · Features · Guides · Tuist",
   "description": "Use selective testing to run only the tests that have changed since the last successful test run."
 }
 ---
-# Selective testing {#selective-testing}
+# 選択的テスト{#selective-testing}。
 
-As your project grows, so does the amount of your tests. For a long time, running all tests on every PR or push to `main` takes tens of seconds. But this solution does not scale to thousands of tests your team might have.
+プロジェクトが大きくなるにつれて、テストの量も増えていきます。長い間、PR や`main`
+へのプッシュのたびにすべてのテストを実行すると、数十秒かかっていました。しかし、この方法では何千ものテストに対応できません。
 
-On every test run on the CI, you most likely re-run all the tests, regardless of the changes. Tuist's selective testing helps you to drastically speed up running the tests themselves by running only the tests that have changed since the last successful test run based on our <LocalizedLink href="/guides/features/projects/hashing">hashing algorithm</LocalizedLink>.
+CI上でテストを実行するたびに、ほとんどの場合、変更点に関係なくすべてのテストを再実行することになる。Tuistの選択的テストは、私たちの<LocalizedLink href="/guides/features/projects/hashing">ハッシングアルゴリズム</LocalizedLink>に基づいて、最後に成功したテスト実行以降に変更されたテストのみを実行することで、テストの実行自体を劇的に高速化するのに役立ちます。
 
-Selective testing works with `xcodebuild`, which supports any Xcode project, or if you generate your projects with Tuist, you can use the `tuist test` command instead that provides some extra convenience such as integration with the <LocalizedLink href="/guides/features/build/cache">binary cache</LocalizedLink>. To get started with selective testing, follow the instructions based on your project setup:
+選択的テストは、`xcodebuild`
+で動作します。これはあらゆるXcodeプロジェクトをサポートし、Tuistでプロジェクトを生成する場合は、代わりに`tuist test`
+コマンドを使用することができます。選択テストを始めるには、プロジェクトのセットアップに基づいた指示に従ってください：
 
-- <LocalizedLink href="/guides/features/selective-testing/xcodebuild">xcodebuild</LocalizedLink>
-- <LocalizedLink href="/guides/features/selective-testing/generated-project">Generated project</LocalizedLink>
+- <LocalizedLink href="/guides/features/selective-testing/xcode-project">エックスコードビルド</LocalizedLink>
+- <LocalizedLink href="/guides/features/selective-testing/generated-project">生成されたプロジェクト</LocalizedLink>
 
-> [!WARNING] MODULE VS FILE-LEVEL GRANULARITY
-> Due to the impossibility of detecting the in-code dependencies between tests and sources, the maximum granularity of selective testing is at the target level. Therefore, we recommend keeping your targets small and focused to maximize the benefits of selective testing.
+> [テストとソース間のコード内依存性を検出することが不可能なため、選択的テストの最大粒度はターゲットレベルです。したがって、選択的テストの利点を最大化するために、ターゲットを小さくして、集中させることを推奨します。
 
-> [!WARNING] TEST COVERAGE
-> Test coverage tools assume that the whole test suite runs at once, which makes them incompatible with selective test runs—this means the coverage data might not reflect reality when using test selection. That’s a known limitation, and it doesn’t mean you’re doing anything wrong. We encourage teams to reflect on whether coverage is still bringing meaningful insights in this context, and if it is, rest assured that we’re already thinking about how to make coverage work properly with selective runs in the future.
+> [警告] テストカバレッジ
+> テストカバレッジツールは、テストスイート全体を一度に実行することを想定しています。これは既知の制限事項であり、あなたが何か間違ったことをしているわけではありません。カバレッジがこのような状況でも意味のある洞察をもたらしているかどうか、チームの皆さんに考えていただくことをお勧めします。もしそうであれば、私たちは将来、カバレッジを選択的実行で適切に機能させる方法をすでに考えていますので、ご安心ください。
 
-## Pull/merge request comments {#pullmerge-request-comments}
 
-> [!IMPORTANT] INTEGRATION WITH GIT PLATFORM REQUIRED
-> To get automatic pull/merge request comments, integrate your <LocalizedLink href="/server/introduction/accounts-and-projects">Tuist project</LocalizedLink> with a <LocalizedLink href="/server/introduction/integrations#git-platforms">Git platform</LocalizedLink>.
+## プル/マージリクエストのコメント {#pullmerge-request-comments}
 
-Once your Tuist project is connected with your Git platform such as [GitHub](https://github.com), and you start using `tuist xcodebuild test` or `tuist test` as part of your CI wortkflow, Tuist will post a comment directly in your pull/merge requests, including which tests were run and which skipped:
-![GitHub app comment with a Tuist Preview link](/images/guides/features/github-app-comment.png)
+> [重要】Gitプラットフォームとの統合が必要
+> プル/マージリクエストのコメントを自動的に取得するには、<LocalizedLink href="/guides/server/accounts-and-projects">Tuistプロジェクト</LocalizedLink>を<LocalizedLink href="/guides/server/authentication">Gitプラットフォーム</LocalizedLink>と統合してください。｝
+
+Tuistプロジェクトが[GitHub](https://github.com)のようなGitプラットフォームと接続され、`tuist xcodebuild
+test` または`tuist test` をCI
+wortkflowの一部として使い始めると、Tuistはどのテストが実行され、どのテストがスキップされたかを含むコメントをプル/マージリクエストに直接投稿します:
+![GitHub app comment with a Tuist Preview
+link](/images/guides/features/selective-testing/github-app-comment.png).
