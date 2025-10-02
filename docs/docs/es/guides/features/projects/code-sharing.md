@@ -1,29 +1,45 @@
 ---
 {
   "title": "Code sharing",
-  "titleTemplate": ":title · Projects · Develop · Guides · Tuist",
+  "titleTemplate": ":title · Projects · Features · Guides · Tuist",
   "description": "Learn how to share code across manifest files to reduce duplications and ensure consistency"
 }
 ---
-# Code sharing {#code-sharing}
+# Código compartido {#code-sharing}
 
-One of the inconveniences of Xcode when we use it with large projects is that it doesn't allow reusing elements of the projects other than the build settings through `.xcconfig` files. Being able to reuse project definitions is useful for the following reasons:
+Uno de los inconvenientes de Xcode cuando lo usamos con proyectos grandes es que
+no permite reutilizar elementos de los proyectos que no sean las configuraciones
+de compilación a través de los archivos `.xcconfig`. Poder reutilizar
+definiciones de proyecto es útil por las siguientes razones:
 
-- It eases the **maintenance** because changes can be applied in one place and all the projects get the changes automatically.
-- It makes it possible to define **conventions** that new projects can conform to.
-- Projects are more **consistent** and therefore the likelihood of broken builds due inconsistencies is significantly less.
-- Adding a new projects becomes an easy task because we can reuse the existing logic.
+- Facilita el mantenimiento de **** porque los cambios pueden aplicarse en un
+  solo lugar y todos los proyectos reciben los cambios automáticamente.
+- Permite definir las convenciones de **** a las que pueden ajustarse los nuevos
+  proyectos.
+- Los proyectos son más coherentes **** y, por tanto, la probabilidad de que se
+  rompan las compilaciones debido a incoherencias es significativamente menor.
+- Añadir un nuevo proyecto se convierte en una tarea fácil porque podemos
+  reutilizar la lógica existente.
 
-Reusing code across manifest files is possible in Tuist thanks to the concept of **project description helpers**.
+En Tuist es posible reutilizar código en distintos archivos de manifiesto
+gracias al concepto de ayudantes de descripción de proyectos **** .
 
-> [!TIP] A TUIST UNIQUE ASSET
-> Many organizations like Tuist because they see in project description helpers a platform for platform teams to codify their own conventions and come up with their own language for describing their projects. For example, YAML-based project generators have to come up with their own YAML-based propietary templating solution, or force organizations onto building their tools upon.
+> [A muchas organizaciones les gusta Tuist porque ven en los ayudantes de
+> descripción de proyectos una plataforma para que los equipos de la plataforma
+> codifiquen sus propias convenciones y creen su propio lenguaje para describir
+> sus proyectos. Por ejemplo, los generadores de proyectos basados en YAML
+> tienen que idear su propia solución de plantillas propietarias basadas en
+> YAML, o forzar a las organizaciones a construir sus herramientas sobre ellas.
 
-## Project description helpers {#project-description-helpers}
+## Ayudas para la descripción de proyectos {#project-description-helpers}
 
-Project description helpers are Swift files that get compiled into a module, `ProjectDescriptionHelpers`, that manifest files can import. The module is compiled by gathering all the files in the `Tuist/ProjectDescriptionHelpers` directory.
+Las ayudas para la descripción de proyectos son archivos Swift que se compilan
+en un módulo, `ProjectDescriptionHelpers`, que los archivos de manifiesto pueden
+importar. El módulo se compila reuniendo todos los archivos en el directorio
+`Tuist/ProjectDescriptionHelpers`.
 
-You can import them into your manifest file by adding an import statement at the top of the file:
+Puede importarlos a su archivo de manifiesto añadiendo una declaración de
+importación en la parte superior del archivo:
 
 ```swift
 // Project.swift
@@ -31,18 +47,18 @@ import ProjectDescription
 import ProjectDescriptionHelpers
 ```
 
-`ProjectDescriptionHelpers` are available in the following manifests:
+`ProjectDescriptionHelpers` están disponibles en los siguientes manifiestos:
+- `Proyecto.swift`
+- `Package.swift` (sólo detrás de la bandera del compilador `#TUIST` )
+- `Espacio de trabajo.swift`
 
-- `Project.swift`
-- `Package.swift` (only behind the `#TUIST` compiler flag)
-- `Workspace.swift`
+## Ejemplo {#example}
 
-## Example {#example}
+Los siguientes fragmentos contienen un ejemplo de cómo ampliamos el modelo
+`Project` para añadir constructores estáticos y cómo los utilizamos desde un
+archivo `Project.swift`:
 
-The snippets below contain an example of how we extend the `Project` model to add static constructors and how we use them from a `Project.swift` file:
-
-::: code-group
-
+::: grupo de códigos
 ```swift [Tuist/Project+Templates.swift]
 import ProjectDescription
 
@@ -55,7 +71,7 @@ extension Project {
                 name: name,
                 destinations: .iOS,
                 product: .framework,
-                bundleId: "io.tuist.\(name)",
+                bundleId: "dev.tuist.\(name)",
                 infoPlist: "\(name).plist",
                 sources: ["Sources/\(name)/**"],
                 resources: ["Resources/\(name)/**",],
@@ -65,7 +81,7 @@ extension Project {
                 name: "\(name)Tests",
                 destinations: .iOS,
                 product: .unitTests,
-                bundleId: "io.tuist.\(name)Tests",
+                bundleId: "dev.tuist.\(name)Tests",
                 infoPlist: "\(name)Tests.plist",
                 sources: ["Sources/\(name)Tests/**"],
                 resources: ["Resources/\(name)Tests/**",],
@@ -83,8 +99,8 @@ import ProjectDescriptionHelpers
 
 let project = Project.featureFramework(name: "MyFeature")
 ```
-
 :::
 
-> [!TIP] A TOOL TO ESTABLISH CONVENTIONS
-> Note how through the function we are defining conventions about the name of the targets, the bundle identifier, and the folders structure.
+> [CONSEJO] UNA HERRAMIENTA PARA ESTABLECER CONVENCIONES Observe cómo a través
+> de la función estamos definiendo convenciones sobre el nombre de los
+> objetivos, el identificador del paquete y la estructura de carpetas.
