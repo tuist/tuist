@@ -71,6 +71,7 @@ import OpenAPIURLSession
             self.fullHandleService = fullHandleService
         }
 
+        // swiftlint:disable:next function_body_length
         public func createBuild(
             fullHandle: String,
             serverURL: URL,
