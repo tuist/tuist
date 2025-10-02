@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.81.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* Make implicit import detection work with buildable folders by [@pepicrft](https://github.com/pepicrft) in [#8358](https://github.com/tuist/tuist/pull/8358)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.80.0...4.81.0
+
 ## What's Changed in 4.80.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
