@@ -5,24 +5,33 @@
   "description": "Learn how to migrate from Swift Package Manager as a solution for managing your projects to Tuist projects."
 }
 ---
-# Migrate a Swift Package {#migrate-a-swift-package}
+# 迁移 Swift 软件包 {#migrate-a-swift-package}
 
-Swift Package Manager emerged as a dependency manager for Swift code that uninentionally found itself solving the problem of managing projects and supporting other programming languages like Objective-C. Because the tool was designed with a different purpose in mind, it can be challenging to use it to manage projects at scale because it lacks flexibility, performance, and power that Tuist provides. This is well captured in the [Scaling iOS at Bumble](https://medium.com/bumble-tech/scaling-ios-at-bumble-239e0fa009f2) article, which includes the following table comparing the performance of Swift Package Manager and native Xcode projects:
+Swift Package Manager 是作为 Swift 代码的依赖关系管理器出现的，它无意中解决了管理项目和支持 Objective-C
+等其他编程语言的问题。由于该工具在设计之初就考虑到了不同的目的，因此使用它来大规模管理项目可能具有挑战性，因为它缺乏 Tuist
+所提供的灵活性、性能和功能。这一点在[Scaling iOS at
+Bumble](https://medium.com/bumble-tech/scaling-ios-at-bumble-239e0fa009f2)一文中得到了很好的体现，文章中的下表比较了
+Swift 包管理器和原生 Xcode 项目的性能：
 
 <img style="max-width: 400px;" alt="A table that compares the regression in performance when using SPM over native Xcode projects" src="/images/guides/start/migrate/performance-table.webp">
 
-We often come across developers and organizations that challenge the need for Tuist considering that Swift Package Manager can take a similar project management role. Some venture into a migration to later on realize that their developer experience has degraded signicantly. For instance, the rename of a file might take up to 15 seconds to re-index. 15 seconds!
+我们经常会遇到一些开发人员和组织质疑 Tuist 的必要性，认为 Swift
+包管理器也可以发挥类似的项目管理作用。有些人冒险进行迁移，但后来发现开发人员的体验明显下降。例如，重命名一个文件可能需要 15 秒才能重新索引。15 秒
 
-**Whether Apple will make Swift Package Manager a built-for-scale project manager is uncertain.** However, we are not seeing any signs that it's happening. In fact, we are seeing quite the opposite. They are making Xcode-inspired decisions, like achieving convenience through implicit configurations, which <LocalizedLink href="/guides/features/projects/cost-of-convenience">as you might know,</LocalizedLink> is the source of complications at scale. We believe it'd take Apple to go to first principles and revisit some decisions that made sense as a dependency manager but not as a project manager, for example the usage of a compiled language as an interface to define projects.
+**苹果是否会让 Swift Package Manager 成为内置的大规模项目管理器，目前还不确定。**
+不过，我们没有看到任何迹象表明这种情况正在发生。事实上，我们看到的恰恰相反。他们正在做出受 Xcode
+启发的决定，比如通过隐式配置来实现便利性，而隐式配置<LocalizedLink href="/guides/features/projects/cost-of-convenience">可能是大规模复杂性的根源。我们认为，苹果应该遵循第一原则，重新审视一些作为依赖关系管理器而非项目管理器的决策，例如使用编译语言作为定义项目的接口。
 
-> [!TIP] SPM AS JUST A DEPENDENCY MANAGER
-> Tuist treats Swift Package Manager as a dependency manager, and it's a great one. We use it to resolve dependencies and to build them. We don't use it to define projects because it's not designed for that.
+> [提示】SPM 只是一个依赖关系管理器 Tuist 将 Swift
+> 包管理器视为一个依赖关系管理器，而且它是一个很棒的依赖关系管理器。我们用它来解决依赖关系并构建它们。我们不用它来定义项目，因为它不是为此而设计的。
 
-## Migrating from Swift Package Manager to Tuist {#migrating-from-swift-package-manager-to-tuist}
+## 从 Swift 包管理器迁移到 Tuist {#migrating-from-swift-package-manager-to-tuist}
 
-The similarities between Swift Package Manager and Tuist make the migration process straightforward. The main difference is that you'll be defining your projects using Tuist's DSL instead of `Package.swift`.
+Swift 软件包管理器和 Tuist 之间的相似之处使得迁移过程简单明了。主要区别在于，您将使用 Tuist 的 DSL 而不是`Package.swift`
+来定义项目。
 
-First, create a `Project.swift` file next to your `Package.swift` file. The `Project.swift` file will contain the definition of your project. Here's an example of a `Project.swift` file that defines a project with a single target:
+首先，在`Package.swift` 文件旁边创建`Project.swift` 文件。`Project.swift`
+文件将包含项目定义。下面是`Project.swift` 文件的示例，该文件定义了一个具有单一目标的项目：
 
 ```swift
 import ProjectDescription
@@ -41,13 +50,13 @@ let project = Project(
 )
 ```
 
-Some things to note:
+有些事情需要注意：
 
-- **ProjectDescription**: Instead of using `PackageDescription`, you'll be using `ProjectDescription`.
-- **Project:** Instead of exporting a `package` instance, you'll be exporting a `project` instance.
-- **Xcode language:** The primitives that you use to define your project mimic Xcode's language, so you'll find schemes, targets, and build phases among others.
+- **ProjectDescription** ：不要使用`PackageDescription` ，而是使用`ProjectDescription` 。
+- **项目：** 导出的不是`软件包` 实例，而是`项目` 实例。
+- **Xcode 语言：** 您用来定义项目的基元模仿 Xcode 的语言，因此您会发现方案、目标和构建阶段等。
 
-Then create a `Tuist.swift` file with the following content:
+然后创建`Tuist.swift` 文件，内容如下：
 
 ```swift
 import ProjectDescription
@@ -55,14 +64,17 @@ import ProjectDescription
 let tuist = Tuist()
 ```
 
-The `Tuist.swift` contains the configuration for your project and its path serves as a reference to determine the root of your project. You can check out the <LocalizedLink href="/guides/features/projects/directory-structure">directory structure</LocalizedLink> document to learn more about the structure of Tuist projects.
+`Tuist.swift` 包含项目配置，其路径可作为确定项目根目录的参考。您可以查看
+<LocalizedLink href="/guides/features/projects/directory-structure"> 目录结构
+</LocalizedLink> 文档，了解 Tuist 项目结构的更多信息。
 
-## Editing the project {#editing-the-project}
+## 编辑项目 {#editing-the-project}
 
-You can use <LocalizedLink href="/guides/features/projects/editing">`tuist edit`</LocalizedLink> to edit the project in Xcode. The command will generate an Xcode project that you can open and start working on.
+您可以使用 <LocalizedLink href="/guides/features/projects/editing">`tuist
+edit`</LocalizedLink> 在 Xcode 中编辑项目。该命令将生成一个 Xcode 项目，您可以打开并开始工作。
 
 ```bash
 tuist edit
 ```
 
-Depending on the size of the project, you might consider using it in one shot or incrementally. We recommend starting with a small project to get familiar with the DSL and the workflow. Our advise is always to start from the most depended upon target and work all the way up to the top-level target.
+根据项目的规模，您可以考虑一次性使用或逐步使用。我们建议从小型项目开始，熟悉 DSL 和工作流程。我们的建议是，始终从最依赖的目标开始，一直到顶层目标。
