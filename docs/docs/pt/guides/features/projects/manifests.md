@@ -1,22 +1,36 @@
 ---
 {
   "title": "Manifests",
-  "titleTemplate": ":title · Projects · Develop · Guides · Tuist",
+  "titleTemplate": ":title · Projects · Features · Guides · Tuist",
   "description": "Learn about the manifest files that Tuist uses to define projects and workspaces and configure the generation process."
 }
 ---
-# Manifests {#manifests}
+# Manifestos {#manifestos}
 
-Tuist defaults to Swift files as the primary way to define projects and workspaces and configure the generation process. These files are referred to as **manifest files** throughout the documentation.
+O Tuist usa como padrão os arquivos Swift como a principal maneira de definir
+projetos e espaços de trabalho e configurar o processo de geração. Estes
+ficheiros são referidos como **manifest files** em toda a documentação.
 
-The decision of using Swift was inspired by the [Swift Package Manager](https://www.swift.org/documentation/package-manager/), which also uses Swift files to define packages. Thanks to the usage of Swift, we can leverage the compiler to validate the correctness of the content and reuse code across different manifest files, and Xcode to provide a first-class editing experience thanks to the syntax highlighting, auto-completion, and validation.
+A decisão de utilizar Swift foi inspirada pelo [Swift Package
+Manager](https://www.swift.org/documentation/package-manager/), que também
+utiliza ficheiros Swift para definir pacotes. Graças à utilização do Swift,
+podemos aproveitar o compilador para validar a correção do conteúdo e reutilizar
+o código em diferentes ficheiros de manifesto, e o Xcode para proporcionar uma
+experiência de edição de primeira classe graças ao realce da sintaxe, ao
+preenchimento automático e à validação.
 
-> [!NOTE] CACHING
-> Since manifest files are Swift files that need to be compiled, Tuist caches the compilation results to speed up the parsing process. Therefore, you'll notice that the first time you run Tuist, it might take a bit longer to generate the project. Subsequent runs will be faster.
+> [Como os arquivos de manifesto são arquivos Swift que precisam ser compilados,
+> o Tuist armazena em cache os resultados da compilação para acelerar o processo
+> de análise. Portanto, você notará que na primeira vez que executar o Tuist,
+> ele pode demorar um pouco mais para gerar o projeto. As execuções subsequentes
+> serão mais rápidas.
 
 ## Project.swift {#projectswift}
 
-The <LocalizedLink href="/references/project-description/structs/project">`Project.swift`</LocalizedLink> manifest declares an Xcode project. The project gets generated in the same directory where the manifest file is located with the name indicated in the `name` property.
+O manifesto
+<LocalizedLink href="/references/project-description/structs/project">`Project.swift`</LocalizedLink>
+declara um projeto Xcode. O projeto é gerado no mesmo diretório onde o ficheiro
+de manifesto está localizado com o nome indicado na propriedade `name`.
 
 ```swift
 // Project.swift
@@ -28,12 +42,20 @@ let project = Project(
 )
 ```
 
-> [!WARNING] ROOT VARIABLES
-> The only variable that should be at the root of the manifest is `let project = Project(...)`. If you need to reuse code across various parts of the manifest, you can use Swift functions.
+
+> [!WARNING] ROOT VARIABLES A única variável que deve estar na raiz do manifesto
+> é `let project = Project(...)`. Se precisar de reutilizar código em várias
+> partes do manifesto, pode utilizar funções Swift.
 
 ## Workspace.swift {#workspaceswift}
 
-By default, Tuist generates an [Xcode Workspace](https://developer.apple.com/documentation/xcode/projects-and-workspaces) containing the project being generated and the projects of its dependencies. If for any reason you'd like to customize the workspace to add additional projects or include files and groups, you can do so by defining a <LocalizedLink href="/references/project-description/structs/workspace">`Workspace.swift`</LocalizedLink> manifest.
+Por padrão, o Tuist gera um [Xcode
+Workspace](https://developer.apple.com/documentation/xcode/projects-and-workspaces)
+contendo o projeto que está sendo gerado e os projetos de suas dependências. Se,
+por qualquer razão, quiser personalizar o espaço de trabalho para adicionar
+projectos adicionais ou incluir ficheiros e grupos, pode fazê-lo definindo um
+manifesto
+<LocalizedLink href="/references/project-description/structs/workspace">`Workspace.swift`</LocalizedLink>.
 
 ```swift
 // Workspace.swift
@@ -47,18 +69,37 @@ let workspace = Workspace(
 )
 ```
 
-> [!NOTE]
-> Tuist will resolve the dependency graph and include the projects of the dependencies in the workspace. You don't need to include them manually. This is necessary for the build system to resolve the dependencies correctly.
+> [NOTA] O Tuist resolverá o gráfico de dependências e incluirá os projetos das
+> dependências no espaço de trabalho. Não é necessário incluí-los manualmente.
+> Isso é necessário para que o sistema de construção resolva as dependências
+> corretamente.
 
-### Multi or mono-project {#multi-or-monoproject}
+### Multi ou mono-projeto {#multi-or-monoproject}
 
-A question that often comes up is whether to use a single project or multiple projects in a workspace. In a world without Tuist where a mono-project setup would lead to frequent Git conflicts the usage of workspaces is encouraged. However, since we don't recommend including the Tuist-generated Xcode projects in the Git repository, Git conflicts are not an issue. Therefore, the decision of using a single project or multiple projects in a workspace is up to you.
+Uma questão que surge frequentemente é se se deve usar um único projeto ou
+vários projectos num espaço de trabalho. Em um mundo sem o Tuist, onde uma
+configuração de projeto único levaria a conflitos frequentes do Git, o uso de
+espaços de trabalho é incentivado. No entanto, como não recomendamos a inclusão
+dos projetos Xcode gerados pelo Tuist no repositório Git, os conflitos do Git
+não são um problema. Portanto, a decisão de usar um único projeto ou vários
+projetos em um espaço de trabalho fica a seu critério.
 
-In the Tuist project we lean on mono-projects because the cold generation time is faster (fewer manifest files to compile) and we leverage <LocalizedLink href="/guides/features/projects/code-sharing">project description helpers</LocalizedLink> as a unit of encapsulation. However, you might want to use Xcode projects as a unit of encapsulation to represent different domains of your application, which aligns more closely with the Xcode's recommended project structure.
+No projeto Tuist, nos apoiamos em mono-projetos porque o tempo de geração de
+cold é mais rápido (menos arquivos de manifesto para compilar) e aproveitamos
+<LocalizedLink href="/guides/features/projects/code-sharing">project description
+helpers</LocalizedLink> como uma unidade de encapsulamento. No entanto, você
+pode querer usar projetos do Xcode como uma unidade de encapsulamento para
+representar diferentes domínios do seu aplicativo, que se alinha mais de perto
+com a estrutura de projeto recomendada do Xcode.
 
 ## Tuist.swift {#tuistswift}
 
-Tuist provides <LocalizedLink href="/contributors/principles.html#default-to-conventions">sensible defaults</LocalizedLink> to simplify project configuration. However, you can customize the configuration by defining a <LocalizedLink href="/references/project-description/structs/tuist">`Tuist.swift`</LocalizedLink> at the root of the project, which is used by Tuist to determine the root of the project.
+O Tuist fornece
+<LocalizedLink href="/contributors/principles.html#default-to-conventions">padrões
+sensíveis</LocalizedLink> para simplificar a configuração do projeto. No
+entanto, você pode personalizar a configuração definindo um
+<LocalizedLink href="/references/project-description/structs/tuist">`Tuist.swift`</LocalizedLink>
+na raiz do projeto, que é usado pelo Tuist para determinar a raiz do projeto.
 
 ```swift
 import ProjectDescription
