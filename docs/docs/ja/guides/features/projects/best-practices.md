@@ -1,26 +1,69 @@
 ---
 {
-  "title": "ベストプラクティス",
-  "titleTemplate": ":title · Projects · Develop · Guides · Tuist",
-  "description": "Tuist プロジェクトと Xcode プロジェクトのベストプラクティスについて学ぶ"
+  "title": "Best practices",
+  "titleTemplate": ":title · Projects · Features · Guides · Tuist",
+  "description": "Learn about the best practices for working with Tuist and Xcode projects."
 }
 ---
-# ベストプラクティス {#best-practices}
+# ベストプラクティス{#best-practices}。
 
-Over the years working with different teams and projects, we've identified a set of best practices that we recommend following when working with Tuist and Xcode projects. These practices are not mandatory, but they can help you structure your projects in a way that makes them easier to maintain and scale.
+長年、さまざまなチームやプロジェクトと作業する中で、私たちはTuistやXcodeプロジェクトで作業する際に従うことを推奨する一連のベストプラクティスを特定しました。これらのプラクティスは強制的なものではありませんが、維持と拡張を容易にする方法でプロジェクトを構造化するのに役立ちます。
 
 ## Xcode {#xcode}
 
-### 避けるべきパターン {#discouraged-patterns}
+### 落胆パターン{#discouraged-patterns}。
 
-#### リモート環境をモデル化するための設定 {#configurations-to-model-remote-environments}
+#### リモート環境をモデル化するための設定 {#configurations-to-model-remote-environments}。
 
-多くの組織は、異なるリモート環境（例: Debug-Production や Release-Canary）をモデル化するためにビルド設定を使用しますが、このアプローチにはいくつかの欠点があります：
+多くの組織では、異なるリモート環境をモデル化するためにビルド構成を使用している（例：`Debug-Production` や`Release-Canary`
+）が、この方法にはいくつかの欠点がある：
 
-- **Inconsistencies:** If there are configuration inconsistencies throughout the graph, the build system might end up using the wrong configuration for some targets.
-- **Complexity:** Projects can end up with a long list of local configurations and remote environments that are hard to reason about and maintain.
+- **不整合：**
+  グラフ全体にコンフィギュレーションの不整合があると、ビルドシステムはターゲットによっては間違ったコンフィギュレーションを使用してしまうかもしれない。
+- **複雑さ：** プロジェクトは、推論や保守が困難なローカル設定やリモート環境の長いリストを抱えることになりかねない。
 
-Build configurations were designed to embody different build settings, and projects rarely need more than just `Debug` and `Release`. The need to model different environments can be achieved by using schemes:
+ビルド構成は、さまざまなビルド設定を具現化するために設計されており、プロジェクトが`Debug` と`Release`
+以上のものを必要とすることはほとんどない。異なる環境をモデル化する必要性は、さまざまな方法で達成できる：
 
-- **In Debug builds:** You can include all the configurations that should be accessible in development in the app (e.g. endpoints), and switch them at runtime. The switch can happen either using scheme launch environment variables, or with a UI within the app.
-- **In Release builds:** In case of release, you can only include the configuration that the release build is bound to, and not include the runtime logic for switching configurations by using compiler directives.
+- **デバッグビルドでは**
+  開発時にアクセス可能なすべてのコンフィギュレーションをアプリに含めることができます（エンドポイントなど）。切り替えは、スキーム起動環境変数を使用するか、アプリ内のUIで行うことができます。
+- **リリースビルドの場合：**
+  リリースの場合、リリースビルドがバインドしているコンフィギュレーションのみを含めることができ、コンパイラディレクティブを使用してコンフィギュレーションを切り替えるためのランタイムロジックを含めることはできません。
+
+::: info 非標準のコンフィギュレーション
+Tuistは非標準のコンフィギュレーションをサポートし、バニラXcodeプロジェクトに比べて管理しやすくしていますが、コンフィギュレーションが依存関係グラフ全体で一貫していない場合は警告が表示されます。これは、ビルドの信頼性を確保し、構成に関連する問題を防ぐのに役立ちます：
+
+## プロジェクト
+
+### 構築可能なフォルダ
+
+Tuist 4.62.0は、**ビルド可能なフォルダ** (Xcodeの同期グループ)のサポートを追加した。これはXcode
+16で導入された機能で、マージの衝突を減らすことができる。
+
+Tuistのワイルドカードパターン（例えば、`Sources/**/*.swift`
+）は、すでに生成されたプロジェクトにおけるマージ競合を排除しているが、ビルド可能なフォルダにはさらなる利点がある：
+
+- **自動同期** ：プロジェクト構造はファイルシステムと同期したまま-ファイルの追加や削除時に再生成は不要
+- **AIフレンドリーなワークフロー** ：コーディングアシスタントやエージェントは、プロジェクトの再生をトリガーすることなくコードベースを修正できる
+- **よりシンプルなコンフィギュレーション** ：明示的なファイルリストを管理する代わりにフォルダパスを定義する
+
+より合理的な開発体験のために、従来の`Target.sources` および`Target.resources`
+属性の代わりに、ビルド可能なフォルダを採用することを推奨する。
+
+::コードグループ
+
+```swift [With buildable folders]
+let target = Target(
+  name: "App",
+  buildableFolders: ["App/Sources", "App/Resources"]
+)
+```
+
+```swift [Without buildable folders]
+let target = Target(
+  name: "App",
+  sources: ["App/Sources/**"],
+  resources: ["App/Resources/**"]
+)
+```
+:::
