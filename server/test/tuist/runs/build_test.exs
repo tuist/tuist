@@ -69,30 +69,5 @@ defmodule Tuist.Runs.BuildTest do
       changeset = Build.create_changeset(%Build{}, attrs)
       assert changeset.valid?
     end
-
-    test "is valid when ci_provider is a valid value" do
-      attrs = Map.put(@valid_attrs, :ci_provider, :github)
-      changeset = Build.create_changeset(%Build{}, attrs)
-      assert changeset.valid?
-    end
-
-    test "ensures ci_provider is a valid value" do
-      invalid_attrs = Map.put(@valid_attrs, :ci_provider, :invalid_provider)
-      changeset = Build.create_changeset(%Build{}, invalid_attrs)
-      assert "is invalid" in errors_on(changeset).ci_provider
-    end
-
-    test "is valid with optional CI metadata fields" do
-      attrs =
-        Map.merge(@valid_attrs, %{
-          ci_run_id: "run-123",
-          ci_project_handle: "org/repo",
-          ci_host: "github.com",
-          ci_provider: :github
-        })
-
-      changeset = Build.create_changeset(%Build{}, attrs)
-      assert changeset.valid?
-    end
   end
 end

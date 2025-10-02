@@ -113,46 +113,4 @@ defmodule TuistWeb.BuildRunLiveTest do
     # Then
     assert has_element?(lv, "[data-part='command-label']")
   end
-
-  test "shows CI Run button with GitHub CI metadata", %{
-    conn: conn,
-    organization: organization,
-    project: project
-  } do
-    # Given
-    {:ok, build_run} =
-      RunsFixtures.build_fixture(
-        project_id: project.id,
-        scheme: "App",
-        ci_provider: :github,
-        ci_run_id: "1234567890",
-        ci_project_handle: "tuist/tuist"
-      )
-
-    # When
-    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/builds/build-runs/#{build_run.id}")
-
-    # Then
-    assert has_element?(lv, "a", "CI Run")
-    assert has_element?(lv, ~s|a[href="https://github.com/tuist/tuist/actions/runs/1234567890"]|)
-  end
-
-  test "hides CI Run button when build run has no CI metadata", %{
-    conn: conn,
-    organization: organization,
-    project: project
-  } do
-    # Given
-    {:ok, build_run} =
-      RunsFixtures.build_fixture(
-        project_id: project.id,
-        scheme: "App"
-      )
-
-    # When
-    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/builds/build-runs/#{build_run.id}")
-
-    # Then
-    refute has_element?(lv, "a", "CI Run")
-  end
 end

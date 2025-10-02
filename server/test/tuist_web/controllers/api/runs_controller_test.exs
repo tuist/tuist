@@ -495,10 +495,6 @@ defmodule TuistWeb.API.RunsControllerTest do
       assert build.project_id == project.id
       assert build.account_id == user.account.id
       assert build.status == :success
-      assert build.ci_run_id == nil
-      assert build.ci_project_handle == nil
-      assert build.ci_host == nil
-      assert build.ci_provider == nil
 
       assert response == %{
                "id" => build.id,
@@ -508,87 +504,6 @@ defmodule TuistWeb.API.RunsControllerTest do
              }
 
       response
-    end
-
-    test "creates a new build with GitHub CI metadata", %{conn: conn} do
-      # Given
-      user = AccountsFixtures.user_fixture(preload: [:account], email: "tuist@tuist.io")
-      project = ProjectsFixtures.project_fixture(preload: [:account], account_id: user.account.id)
-
-      # When
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
-        |> put_req_header("content-type", "application/json")
-        |> post(~p"/api/projects/#{project.account.name}/#{project.name}/runs",
-          id: UUIDv7.generate(),
-          type: "build",
-          duration: 1000,
-          is_ci: true,
-          ci_run_id: "1234567890",
-          ci_project_handle: "tuist/tuist",
-          ci_provider: "github"
-        )
-
-      # Then
-      response = json_response(conn, :ok)
-      [build] = Tuist.Repo.all(Build)
-
-      assert build.duration == 1000
-      assert build.is_ci == true
-      assert build.ci_run_id == "1234567890"
-      assert build.ci_project_handle == "tuist/tuist"
-      assert build.ci_host == nil
-      assert build.ci_provider == :github
-      assert build.project_id == project.id
-      assert build.account_id == user.account.id
-
-      assert response == %{
-               "id" => build.id,
-               "duration" => 1000,
-               "project_id" => project.id,
-               "url" => url(~p"/#{project.account.name}/#{project.name}/builds/build-runs/#{build.id}")
-             }
-    end
-
-    test "creates a new build with GitLab CI metadata including a custom host", %{conn: conn} do
-      # Given
-      user = AccountsFixtures.user_fixture(preload: [:account], email: "tuist@tuist.io")
-      project = ProjectsFixtures.project_fixture(preload: [:account], account_id: user.account.id)
-
-      # When
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
-        |> put_req_header("content-type", "application/json")
-        |> post(~p"/api/projects/#{project.account.name}/#{project.name}/runs",
-          id: UUIDv7.generate(),
-          type: "build",
-          duration: 1500,
-          is_ci: true,
-          ci_run_id: "987654321",
-          ci_project_handle: "group/project",
-          ci_host: "gitlab.example.com",
-          ci_provider: "gitlab"
-        )
-
-      # Then
-      response = json_response(conn, :ok)
-      [build] = Tuist.Repo.all(Build)
-
-      assert build.duration == 1500
-      assert build.is_ci == true
-      assert build.ci_run_id == "987654321"
-      assert build.ci_project_handle == "group/project"
-      assert build.ci_host == "gitlab.example.com"
-      assert build.ci_provider == :gitlab
-
-      assert response == %{
-               "id" => build.id,
-               "duration" => 1500,
-               "project_id" => project.id,
-               "url" => url(~p"/#{project.account.name}/#{project.name}/builds/build-runs/#{build.id}")
-             }
     end
 
     test "returns :not_found when project doesn't exist", %{conn: conn} do

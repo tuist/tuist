@@ -738,33 +738,6 @@ components:
               type: string
               x-struct:
               x-validate:
-            ci_host:
-              description: The CI host URL (optional, for self-hosted instances).
-              type: string
-              x-struct:
-              x-validate:
-            ci_project_handle:
-              description: "The CI project handle (e.g., 'owner/repo' for GitHub, project path for GitLab)."
-              type: string
-              x-struct:
-              x-validate:
-            ci_provider:
-              description: The CI provider.
-              enum:
-                - github
-                - gitlab
-                - bitrise
-                - circleci
-                - buildkite
-                - codemagic
-              type: string
-              x-struct:
-              x-validate:
-            ci_run_id:
-              description: The CI run identifier (e.g., GitHub Actions run ID, GitLab pipeline ID).
-              type: string
-              x-struct:
-              x-validate:
             configuration:
               description: The build configuration (e.g., Debug, Release).
               type: string
@@ -1680,33 +1653,6 @@ components:
           enum:
             - clean
             - incremental
-          type: string
-          x-struct:
-          x-validate:
-        ci_host:
-          description: The CI host URL (optional, for self-hosted instances).
-          type: string
-          x-struct:
-          x-validate:
-        ci_project_handle:
-          description: "The CI project handle (e.g., 'owner/repo' for GitHub, project path for GitLab)."
-          type: string
-          x-struct:
-          x-validate:
-        ci_provider:
-          description: The CI provider.
-          enum:
-            - github
-            - gitlab
-            - bitrise
-            - circleci
-            - buildkite
-            - codemagic
-          type: string
-          x-struct:
-          x-validate:
-        ci_run_id:
-          description: The CI run identifier (e.g., GitHub Actions run ID, GitLab pipeline ID).
           type: string
           x-struct:
           x-validate:
@@ -5598,33 +5544,6 @@ paths:
                       enum:
                         - clean
                         - incremental
-                      type: string
-                      x-struct:
-                      x-validate:
-                    ci_host:
-                      description: The CI host URL (optional, for self-hosted instances).
-                      type: string
-                      x-struct:
-                      x-validate:
-                    ci_project_handle:
-                      description: "The CI project handle (e.g., 'owner/repo' for GitHub, project path for GitLab)."
-                      type: string
-                      x-struct:
-                      x-validate:
-                    ci_provider:
-                      description: The CI provider.
-                      enum:
-                        - github
-                        - gitlab
-                        - bitrise
-                        - circleci
-                        - buildkite
-                        - codemagic
-                      type: string
-                      x-struct:
-                      x-validate:
-                    ci_run_id:
-                      description: The CI run identifier (e.g., GitHub Actions run ID, GitLab pipeline ID).
                       type: string
                       x-struct:
                       x-validate:

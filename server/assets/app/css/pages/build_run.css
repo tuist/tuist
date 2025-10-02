@@ -57,12 +57,6 @@
         font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
       }
     }
-
-    & > [data-part="actions"] {
-      display: flex;
-      flex-direction: row;
-      gap: var(--noora-spacing-4);
-    }
   }
 
   & [data-part="build-details-section"] {

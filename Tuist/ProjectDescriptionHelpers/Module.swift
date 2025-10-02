@@ -29,7 +29,6 @@ public enum Module: String, CaseIterable {
     case git = "TuistGit"
     case rootDirectoryLocator = "TuistRootDirectoryLocator"
     case process = "TuistProcess"
-    case ci = "TuistCI"
 
     func forceStaticLinking() -> Bool {
         return Environment.forceStaticLinking.getBoolean(default: false)
@@ -385,7 +384,6 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.cache.targetName),
                     .target(name: Module.simulator.targetName),
                     .target(name: Module.rootDirectoryLocator.targetName),
-                    .target(name: Module.ci.targetName, condition: .when([.macos])),
                     .target(name: Module.process.targetName, condition: .when([.macos])),
                     .external(name: "MCP"),
                     .external(name: "FileSystem"),
@@ -517,7 +515,6 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.xcActivityLog.targetName, condition: .when([.macos])),
                     .target(name: Module.simulator.targetName),
                     .target(name: Module.automation.targetName, condition: .when([.macos])),
-                    .target(name: Module.ci.targetName, condition: .when([.macos])),
                     .target(name: Module.process.targetName, condition: .when([.macos])),
                     .external(name: "FileSystem"),
                     .external(name: "OpenAPIRuntime"),
@@ -567,10 +564,6 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.support.targetName),
                     .external(name: "SwiftToolsSupport"),
                     .external(name: "FileSystem"),
-                ]
-            case .ci:
-                [
-                    .target(name: Module.support.targetName),
                 ]
             }
         if self != .projectDescription, self != .projectAutomation {
@@ -622,7 +615,6 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.asyncQueue.targetName),
                     .target(name: Module.plugin.targetName),
                     .target(name: Module.git.targetName),
-                    .target(name: Module.ci.targetName, condition: .when([.macos])),
                     .target(name: Module.process.targetName, condition: .when([.macos])),
                     .external(name: "ArgumentParser"),
                     .external(name: "GraphViz"),
@@ -757,11 +749,6 @@ public enum Module: String, CaseIterable {
             case .git:
                 [
                     .target(name: Module.testing.targetName)
-                ]
-            case .ci:
-                [
-                    .target(name: Module.testing.targetName),
-                    .target(name: Module.support.targetName),
                 ]
             }
         dependencies =

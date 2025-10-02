@@ -18,8 +18,7 @@ defmodule Tuist.Runs.Build do
       :xcode_version,
       :macos_version,
       :account_id,
-      :is_ci,
-      :ci_provider
+      :is_ci
     ],
     sortable: [:inserted_at, :duration]
   }
@@ -38,10 +37,6 @@ defmodule Tuist.Runs.Build do
     field :git_branch, :string
     field :git_commit_sha, :string
     field :git_ref, :string
-    field :ci_run_id, :string
-    field :ci_project_handle, :string
-    field :ci_host, :string
-    field :ci_provider, Ecto.Enum, values: [github: 0, gitlab: 1, bitrise: 2, circleci: 3, buildkite: 4, codemagic: 5]
     belongs_to :project, Tuist.Projects.Project
     belongs_to :ran_by_account, Tuist.Accounts.Account, foreign_key: :account_id
     has_many :issues, Tuist.Runs.BuildIssue, foreign_key: :build_run_id
@@ -69,11 +64,7 @@ defmodule Tuist.Runs.Build do
       :configuration,
       :git_branch,
       :git_commit_sha,
-      :git_ref,
-      :ci_run_id,
-      :ci_project_handle,
-      :ci_host,
-      :ci_provider
+      :git_ref
     ])
     |> validate_required([
       :id,
@@ -84,6 +75,5 @@ defmodule Tuist.Runs.Build do
       :status
     ])
     |> validate_inclusion(:status, [:success, :failure])
-    |> validate_inclusion(:ci_provider, [:github, :gitlab, :bitrise, :circleci, :buildkite, :codemagic])
   end
 end

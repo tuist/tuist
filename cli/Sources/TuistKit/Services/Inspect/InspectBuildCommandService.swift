@@ -2,7 +2,6 @@ import FileSystem
 import Foundation
 import Path
 import TuistAutomation
-import TuistCI
 import TuistCore
 import TuistGit
 import TuistLoader
@@ -45,7 +44,6 @@ struct InspectBuildCommandService {
     private let dateService: DateServicing
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let gitController: GitControlling
-    private let ciController: CIControlling
 
     init(
         derivedDataLocator: DerivedDataLocating = DerivedDataLocator(),
@@ -58,8 +56,7 @@ struct InspectBuildCommandService {
         backgroundProcessRunner: BackgroundProcessRunning = BackgroundProcessRunner(),
         dateService: DateServicing = DateService(),
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
-        gitController: GitControlling = GitController(),
-        ciController: CIControlling = CIController()
+        gitController: GitControlling = GitController()
     ) {
         self.derivedDataLocator = derivedDataLocator
         self.fileSystem = fileSystem
@@ -72,7 +69,6 @@ struct InspectBuildCommandService {
         self.dateService = dateService
         self.serverEnvironmentService = serverEnvironmentService
         self.gitController = gitController
-        self.ciController = ciController
     }
 
     func run(
@@ -167,7 +163,6 @@ struct InspectBuildCommandService {
         }
 
         let gitInfo = try gitController.gitInfo(workingDirectory: projectPath)
-        let ciInfo = ciController.ciInfo()
         let build = try await createBuildService.createBuild(
             fullHandle: fullHandle,
             serverURL: serverURL,
@@ -188,11 +183,7 @@ struct InspectBuildCommandService {
             scheme: Environment.current.schemeName,
             targets: xcactivityLog.targets,
             xcodeVersion: try await xcodeBuildController.version()?.description,
-            status: xcactivityLog.buildStep.errorCount == 0 ? .success : .failure,
-            ciRunId: ciInfo?.runId,
-            ciProjectHandle: ciInfo?.projectHandle,
-            ciHost: ciInfo?.host,
-            ciProvider: ciInfo?.provider
+            status: xcactivityLog.buildStep.errorCount == 0 ? .success : .failure
         )
         AlertController.current.success(
             .alert("View the analyzed build at \(build.url.absoluteString)")
