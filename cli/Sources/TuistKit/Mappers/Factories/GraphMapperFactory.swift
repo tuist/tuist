@@ -158,6 +158,7 @@ public final class GraphMapperFactory: GraphMapperFactorying {
                     cacheStorage: cacheStorage
                 )
                 mappers.append(focusTargetsGraphMapper)
+                mappers.append(TreeShakePrunedTargetsGraphMapper())
             }
 
             mappers.append(UpdateWorkspaceProjectsGraphMapper())
@@ -197,6 +198,7 @@ public final class GraphMapperFactory: GraphMapperFactorying {
                 cacheStorage: cacheStorage
             )
             mappers.append(focusTargetsGraphMapper)
+            mappers.append(TreeShakePrunedTargetsGraphMapper())
 
             mappers.append(UpdateWorkspaceProjectsGraphMapper())
 
