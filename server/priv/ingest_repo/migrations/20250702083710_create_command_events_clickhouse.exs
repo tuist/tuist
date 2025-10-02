@@ -3,8 +3,7 @@ defmodule Tuist.ClickHouseRepo.Migrations.CreateCommandEventsClickhouse do
 
   def up do
     # In production, these are created by Clickhouse Pipes.
-    if Tuist.Environment.dev?() || Tuist.Environment.test?() ||
-         not Tuist.Environment.tuist_hosted?() do
+    if Tuist.Environment.dev?() || Tuist.Environment.test?() do
       # excellent_migrations:safety-assured-for-next-line raw_sql_executed
       execute """
        CREATE TABLE command_events
