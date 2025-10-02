@@ -1,36 +1,68 @@
 ---
 {
   "title": "Insights",
-  "titleTemplate": ":title · Develop · Guides · Tuist",
+  "titleTemplate": ":title · Features · Guides · Tuist",
   "description": "Get insights into your projects to maintain a product developer environment."
 }
 ---
-# Insights {#insights}
+# Озарения {#insights}
 
-> [!IMPORTANT] REQUIREMENTS
->
-> - A <LocalizedLink href="/server/introduction/accounts-and-projects">Tuist account and project</LocalizedLink>
+> [!ВАЖНЫЕ] ТРЕБОВАНИЯ
+> - A <LocalizedLink href="/guides/server/accounts-and-projects">Туистский счет
+>   и проект</LocalizedLink>
 
-Работа над большими проектами не должна чувствоваться как рутина. In fact, it should be as enjoyable as working on a project you started just two weeks ago. One of the reasons it is not is because as the project grows, the developer experience suffers. The build times increase and tests become slow and flaky. It's often easy to overlook these issues until it gets to a point where they become unbearable – however, at that point, it's difficult to address them. Tuist Insights provides you with the tools to monitor the health of your project and maintain a productive developer environment as your project scales.
+Работа над крупными проектами не должна казаться рутиной. На самом деле, она
+должна быть такой же приятной, как и работа над проектом, который вы начали
+всего две недели назад. Одна из причин, по которой это не так, заключается в
+том, что по мере роста проекта страдает опыт разработчиков. Время сборки
+увеличивается, а тесты становятся медленными и нестабильными. Зачастую на эти
+проблемы легко не обращать внимания, пока они не становятся невыносимыми -
+однако в этот момент их сложно решить. Tuist Insights предоставляет вам
+инструменты для мониторинга состояния проекта и поддержания продуктивной среды
+разработчиков по мере масштабирования проекта.
 
-In other words, Tuist Insights helps you to anwer questions such as:
+Другими словами, Tuist Insights поможет вам ответить на такие вопросы, как:
+- Значительно ли увеличилось время сборки за последнюю неделю?
+- Стали ли мои тесты работать медленнее? Какие именно?
 
-- Has the build time significantly increased in the last week?
-- Have my tests become slower? Which ones?
+> [!ПРИМЕЧАНИЕ] Tuist Insights находится на ранней стадии разработки.
 
-> [!NOTE]
-> Tuist Insights are in early development.
+## Сборки {#builds}
 
-## Builds {#builds}
+В то время как у вас, вероятно, есть некоторые показатели производительности
+рабочих процессов CI, вы можете не иметь такого же представления о локальной
+среде разработки. Однако время локальной сборки - один из важнейших факторов,
+влияющих на работу разработчиков.
 
-While you probably have some metrics for the performance of CI workflows, you might not have the same visibility into the local development environment. However, local build times are one of the most important factors that contribute to the developer experience.
+Чтобы начать отслеживать время локальной сборки, вы можете воспользоваться
+командой `tuist inspect build`, добавив ее в пост-акцию вашей схемы:
 
-To start tracking local build times, you can leverage the `tuist inspect build` command by adding it to your scheme's post-action:
+![Пост-акция для проверки
+построек](/images/guides/features/insights/inspect-build-scheme-post-action.png)
 
-![Post-action for inspecting builds](/images/guides/features/insights/inspect-build-scheme-post-action.png)
+> [!ПРИМЕЧАНИЕ] Мы рекомендуем установить параметр "Provide build settings from"
+> на исполняемый файл или вашу основную цель сборки, чтобы Tuist мог отслеживать
+> конфигурацию сборки.
 
-In case you're using [Mise](https://mise.jdx.dev/), your script will need to activate `tuist` in the post-action environment:
+> [!ПРИМЕЧАНИЕ] Если вы не используете
+> <LocalizedLink href="/guides/features/projects">сгенерированные
+> проекты</LocalizedLink>, действие post-scheme не выполняется в случае неудачи
+> сборки.
+> 
+> Недокументированная функция в Xcode позволяет выполнить его даже в этом
+> случае. Установите атрибут `runPostActionsOnFailure` в значение `YES` в
+> `BuildAction вашей схемы` в соответствующем `файле project.pbxproj` следующим
+> образом:
+> 
+> ```diff
+> <BuildAction
+>    buildImplicitDependencies="YES"
+>    parallelizeBuildables="YES"
+> +  runPostActionsOnFailure="YES">
+> ```
 
+Если вы используете [Mise](https://mise.jdx.dev/), ваш сценарий должен будет
+активировать `tuist` в пост-активном окружении:
 ```sh
 # -C ensures that Mise loads the configuration from the Mise configuration
 # file in the project's root directory.
@@ -39,21 +71,31 @@ eval "$($HOME/.local/bin/mise activate -C $SRCROOT bash --shims)"
 tuist inspect build
 ```
 
-Your local builds are now tracked as long as you are logged in to your Tuist account. You can now access your build times in the Tuist dashboard and see how they evolve over time:
 
-> [!TIP]
-> To quickly access the dashboard, run `tuist project show --web` from the CLI.
+Ваши локальные сборки теперь отслеживаются, пока вы входите в свой аккаунт
+Tuist. Теперь вы можете получить доступ к времени сборки на панели Tuist и
+посмотреть, как оно изменяется с течением времени:
 
-![Dashboard with build insights](/images/guides/features/insights/builds-dashboard.png)
+
+> [!СОВЕТ] Чтобы быстро получить доступ к приборной панели, выполните команду
+> `tuist project show --web` из CLI.
+
+![Приборная панель с информацией о
+сборке](/images/guides/features/insights/builds-dashboard.png)
 
 ## Сгенерированные проекты {#generated-projects}
 
-> [!NOTE]
-> Auto-generated schemes automatically include the `tuist inspect build` post-action.
->
-> If you are not interested in tracking build insights in your auto-generated schemes, disable them using the <LocalizedLink href="references/project-description/structs/tuist.generationoptions#buildinsightsdisabled">buildInsightsDisabled</LocalizedLink> generation option.
+> [!ПРИМЕЧАНИЕ] Автоматически созданные схемы автоматически включают `tuist
+> inspect build` post-action.
+> 
+> Если вы не заинтересованы в отслеживании информации о сборке в ваших
+> автоматически генерируемых схемах, отключите их с помощью опции генерации
+> <LocalizedLink href="/references/project-description/structs/tuist.generationoptions#buildinsightsdisabled">buildInsightsDisabled</LocalizedLink>.
 
-If you are using generated projects, you can set up a custom <LocalizedLink href="references/project-description/structs/buildaction#postactions">build post-action</LocalizedLink> using a custom scheme, such as:
+Если вы используете сгенерированные проекты, вы можете настроить
+пользовательское
+<LocalizedLink href="references/project-description/structs/buildaction#postactions">пост-действие
+сборки</LocalizedLink> с помощью пользовательской схемы, например:
 
 ```swift
 let project = Project(
@@ -73,7 +115,8 @@ let project = Project(
                         scriptText: """
                         eval \"$($HOME/.local/bin/mise activate -C $SRCROOT bash --shims)\"
                         tuist inspect build
-                        """
+                        """,
+                        target: "MyApp"
                     )
                 ],
                 runPostActionsOnFailure: true
@@ -85,7 +128,7 @@ let project = Project(
 )
 ```
 
-If you're not using Mise, your script can be simplified to just:
+Если вы не используете Mise, ваш сценарий может быть упрощен до простого:
 
 ```swift
 .postAction(
@@ -95,13 +138,17 @@ If you're not using Mise, your script can be simplified to just:
 )
 ```
 
-## Continuous integration {#continuous-integration}
+## Непрерывная интеграция {#continuous-integration}
 
-To track build times also on the CI, you will need to ensure that your CI is <LocalizedLink href="/guides/automate/continuous-integration#authentication">authenticated</LocalizedLink>.
+Чтобы отслеживать время сборки также на CI, вам нужно убедиться, что ваш CI
+<LocalizedLink href="/guides/integrations/continuous-integration#authentication">аутентифицирован</LocalizedLink>.
 
-Additionally, you will either need to:
+Кроме того, вам потребуется:
+- Используйте команду
+  <LocalizedLink href="/cli/xcodebuild#tuist-xcodebuild">`tuist
+  xcodebuild`</LocalizedLink> при вызове действий `xcodebuild`.
+- Добавьте `-resultBundlePath` к вызову `xcodebuild`.
 
-- Use the <LocalizedLink href="/cli/xcodebuild#tuist-xcodebuild">`tuist xcodebuild`</LocalizedLink> command when invoking `xcodebuild` actions.
-- Add `-resultBundlePath` to your `xcodebuild` invocation.
-
-When `xcodebuild` builds your project without `-resultBundlePath`, the `.xcactivitylog` file is not generated. But the `tuist inspect build` post-action requires that file to be generated to analyze your build.
+Когда `xcodebuild` собирает ваш проект без `-resultBundlePath`, файл
+`.xcactivitylog` не генерируется. Однако пост-акция `tuist inspect build`
+требует, чтобы этот файл был создан для анализа вашей сборки.
