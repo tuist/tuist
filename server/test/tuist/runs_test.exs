@@ -504,4 +504,185 @@ defmodule Tuist.RunsTest do
     assert result.successful_count == 1
     assert result.failed_count == 1
   end
+
+  describe "build_ci_run_url/1" do
+    test "returns GitHub Actions URL for GitHub provider" do
+      # Given
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          ci_provider: :github,
+          ci_run_id: "123456789",
+          ci_project_handle: "owner/repo"
+        )
+
+      # When
+      url = Runs.build_ci_run_url(build)
+
+      # Then
+      assert url == "https://github.com/owner/repo/actions/runs/123456789"
+    end
+
+    test "returns GitLab CI URL for GitLab provider with default host" do
+      # Given
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          ci_provider: :gitlab,
+          ci_run_id: "987654321",
+          ci_project_handle: "namespace/project",
+          ci_host: nil
+        )
+
+      # When
+      url = Runs.build_ci_run_url(build)
+
+      # Then
+      assert url == "https://gitlab.com/namespace/project/-/pipelines/987654321"
+    end
+
+    test "returns GitLab CI URL for GitLab provider with custom host" do
+      # Given
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          ci_provider: :gitlab,
+          ci_run_id: "987654321",
+          ci_project_handle: "namespace/project",
+          ci_host: "gitlab.example.com"
+        )
+
+      # When
+      url = Runs.build_ci_run_url(build)
+
+      # Then
+      assert url == "https://gitlab.example.com/namespace/project/-/pipelines/987654321"
+    end
+
+    test "returns Bitrise URL for Bitrise provider" do
+      # Given
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          ci_provider: :bitrise,
+          ci_run_id: "build-slug-123",
+          ci_project_handle: "app-slug-456"
+        )
+
+      # When
+      url = Runs.build_ci_run_url(build)
+
+      # Then
+      assert url == "https://app.bitrise.io/build/build-slug-123"
+    end
+
+    test "returns CircleCI URL for CircleCI provider" do
+      # Given
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          ci_provider: :circleci,
+          ci_run_id: "42",
+          ci_project_handle: "owner/project"
+        )
+
+      # When
+      url = Runs.build_ci_run_url(build)
+
+      # Then
+      assert url == "https://app.circleci.com/pipelines/github/owner/project/42"
+    end
+
+    test "returns Buildkite URL for Buildkite provider" do
+      # Given
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          ci_provider: :buildkite,
+          ci_run_id: "1234",
+          ci_project_handle: "org/pipeline"
+        )
+
+      # When
+      url = Runs.build_ci_run_url(build)
+
+      # Then
+      assert url == "https://buildkite.com/org/pipeline/builds/1234"
+    end
+
+    test "returns Codemagic URL for Codemagic provider" do
+      # Given
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          ci_provider: :codemagic,
+          ci_run_id: "build-id-123",
+          ci_project_handle: "project-id-456"
+        )
+
+      # When
+      url = Runs.build_ci_run_url(build)
+
+      # Then
+      assert url == "https://codemagic.io/app/project-id-456/build/build-id-123"
+    end
+
+    test "returns nil when ci_provider is nil" do
+      # Given
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          ci_provider: nil,
+          ci_run_id: "123",
+          ci_project_handle: "owner/repo"
+        )
+
+      # When
+      url = Runs.build_ci_run_url(build)
+
+      # Then
+      assert url == nil
+    end
+
+    test "returns nil when ci_run_id is nil" do
+      # Given
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          ci_provider: :github,
+          ci_run_id: nil,
+          ci_project_handle: "owner/repo"
+        )
+
+      # When
+      url = Runs.build_ci_run_url(build)
+
+      # Then
+      assert url == nil
+    end
+
+    test "returns nil when ci_project_handle is nil" do
+      # Given
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          ci_provider: :github,
+          ci_run_id: "123",
+          ci_project_handle: nil
+        )
+
+      # When
+      url = Runs.build_ci_run_url(build)
+
+      # Then
+      assert url == nil
+    end
+
+    test "returns nil when all CI fields are nil" do
+      # Given
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          ci_provider: nil,
+          ci_run_id: nil,
+          ci_project_handle: nil,
+          ci_host: nil
+        )
+
+      # When
+      url = Runs.build_ci_run_url(build)
+
+      # Then
+      assert url == nil
+    end
+  end
 end

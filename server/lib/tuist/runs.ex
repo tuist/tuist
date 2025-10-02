@@ -177,4 +177,34 @@ defmodule Tuist.Runs do
     |> select([b], b.configuration)
     |> Repo.all()
   end
+
+  @doc """
+  Constructs a CI run URL based on the CI provider and metadata.
+  Returns nil if the build doesn't have complete CI information.
+  """
+  def build_ci_run_url(%Build{} = build) do
+    case {build.ci_provider, build.ci_run_id, build.ci_project_handle} do
+      {:github, run_id, project_handle} when not is_nil(run_id) and not is_nil(project_handle) ->
+        "https://github.com/#{project_handle}/actions/runs/#{run_id}"
+
+      {:gitlab, pipeline_id, project_path} when not is_nil(pipeline_id) and not is_nil(project_path) ->
+        host = build.ci_host || "gitlab.com"
+        "https://#{host}/#{project_path}/-/pipelines/#{pipeline_id}"
+
+      {:bitrise, build_slug, _app_slug} when not is_nil(build_slug) ->
+        "https://app.bitrise.io/build/#{build_slug}"
+
+      {:circleci, build_num, project_handle} when not is_nil(build_num) and not is_nil(project_handle) ->
+        "https://app.circleci.com/pipelines/github/#{project_handle}/#{build_num}"
+
+      {:buildkite, build_number, project_handle} when not is_nil(build_number) and not is_nil(project_handle) ->
+        "https://buildkite.com/#{project_handle}/builds/#{build_number}"
+
+      {:codemagic, build_id, project_id} when not is_nil(build_id) and not is_nil(project_id) ->
+        "https://codemagic.io/app/#{project_id}/build/#{build_id}"
+
+      _ ->
+        nil
+    end
+  end
 end

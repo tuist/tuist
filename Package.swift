@@ -83,6 +83,7 @@ let targets: [Target] = [
             "FileSystem",
             "TuistCache",
             "TuistRootDirectoryLocator",
+            "TuistCI",
             .product(name: "Noora", package: "Noora"),
             .product(name: "Command", package: "Command"),
             .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
@@ -354,6 +355,7 @@ let targets: [Target] = [
             "XcodeGraph",
             "Mockable",
             "KeychainAccess",
+            .target(name: "TuistCI", condition: .when(platforms: [.macOS])),
             .target(name: "TuistProcess", condition: .when(platforms: [.macOS])),
             pathDependency,
             .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
@@ -450,6 +452,18 @@ let targets: [Target] = [
             pathDependency,
         ],
         path: "cli/Sources/TuistRootDirectoryLocator",
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug))
+        ]
+    ),
+    .target(
+        name: "TuistCI",
+        dependencies: [
+            "TuistSupport",
+            "Mockable",
+            pathDependency,
+        ],
+        path: "cli/Sources/TuistCI",
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug))
         ]
