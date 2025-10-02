@@ -15,6 +15,7 @@ defmodule Tuist.Bundles.BundleTest do
         :ios_simulator
       ],
       version: "1.0.0",
+      type: :app,
       git_branch: "main",
       project_id: 1
     }
@@ -57,6 +58,11 @@ defmodule Tuist.Bundles.BundleTest do
     test "ensures supported_platforms are valid" do
       changeset = Bundle.changeset(%Bundle{}, Map.put(@valid_attrs, :supported_platforms, [:ios, :invalid]))
       assert "is invalid" in errors_on(changeset).supported_platforms
+    end
+
+    test "ensures type is valid" do
+      changeset = Bundle.changeset(%Bundle{}, Map.put(@valid_attrs, :type, :invalid_type))
+      assert "is invalid" in errors_on(changeset).type
     end
   end
 end

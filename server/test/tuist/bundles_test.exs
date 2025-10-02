@@ -31,6 +31,7 @@ defmodule Tuist.BundlesTest do
           ],
           version: "1.0.0",
           git_branch: "main",
+          type: :app,
           project_id: project_id
         })
 
@@ -57,6 +58,7 @@ defmodule Tuist.BundlesTest do
           ],
           version: "1.0.0",
           git_branch: "main",
+          type: :app,
           project_id: project_id,
           artifacts: [
             %{
@@ -271,6 +273,70 @@ defmodule Tuist.BundlesTest do
       # Then
       assert got == nil
     end
+
+    test "filters by bundle type when type option is provided" do
+      project = ProjectsFixtures.project_fixture()
+
+      ipa_bundle =
+        BundlesFixtures.bundle_fixture(
+          project: project,
+          type: :ipa,
+          inserted_at: ~U[2024-01-01 02:00:00Z]
+        )
+
+      app_bundle =
+        BundlesFixtures.bundle_fixture(
+          project: project,
+          type: :app,
+          inserted_at: ~U[2024-01-01 03:00:00Z]
+        )
+
+      got_ipa = Bundles.last_project_bundle(project, type: :ipa)
+
+      assert got_ipa.id == ipa_bundle.id
+      assert got_ipa.type == :ipa
+
+      got_app = Bundles.last_project_bundle(project, type: :app)
+
+      assert got_app.id == app_bundle.id
+      assert got_app.type == :app
+    end
+
+    test "returns nil when no bundles of specified type exist" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      BundlesFixtures.bundle_fixture(
+        project: project,
+        type: :app,
+        inserted_at: ~U[2024-01-01 02:00:00Z]
+      )
+
+      # When looking for xcarchive bundle
+      got = Bundles.last_project_bundle(project, type: :xcarchive)
+
+      # Then
+      assert got == nil
+    end
+
+    test "falls back to any type when no bundle of specified type and git_branch exist" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      fallback_bundle =
+        BundlesFixtures.bundle_fixture(
+          project: project,
+          type: :ipa,
+          git_branch: "develop",
+          inserted_at: ~U[2024-01-01 02:00:00Z]
+        )
+
+      # When
+      got = Bundles.last_project_bundle(project, git_branch: "main", type: :ipa)
+
+      # Then
+      assert got.id == fallback_bundle.id
+    end
   end
 
   describe "project_bundle_install_size_analytics/2" do
@@ -435,6 +501,60 @@ defmodule Tuist.BundlesTest do
                %{date: ~D[2024-05-10], bundle_install_size: 4200}
              ]
     end
+
+    test "filters analytics by bundle type when type option is provided" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      BundlesFixtures.bundle_fixture(
+        project: project,
+        git_branch: "main",
+        type: :ipa,
+        install_size: 2000,
+        inserted_at: ~U[2024-04-30 03:00:00Z]
+      )
+
+      BundlesFixtures.bundle_fixture(
+        project: project,
+        git_branch: "main",
+        type: :ipa,
+        install_size: 4000,
+        inserted_at: ~U[2024-04-29 04:00:00Z]
+      )
+
+      BundlesFixtures.bundle_fixture(
+        project: project,
+        git_branch: "main",
+        type: :app,
+        install_size: 10_000,
+        inserted_at: ~U[2024-04-30 04:00:00Z]
+      )
+
+      BundlesFixtures.bundle_fixture(
+        project: project,
+        git_branch: "main",
+        type: :app,
+        install_size: 8000,
+        inserted_at: ~U[2024-04-29 05:00:00Z]
+      )
+
+      # When
+      got =
+        Bundles.project_bundle_install_size_analytics(
+          project,
+          start_date: Date.add(DateTime.utc_now(), -2),
+          git_branch: "main",
+          type: :ipa
+        )
+
+      # Then
+      assert got == [
+               %{date: ~D[2024-04-28], bundle_install_size: 0},
+               %{date: ~D[2024-04-29], bundle_install_size: 4000},
+               %{date: ~D[2024-04-30], bundle_install_size: 2000}
+             ]
+    end
   end
 
   describe "bundle_download_size_analytics/2" do
@@ -595,6 +715,62 @@ defmodule Tuist.BundlesTest do
                %{date: ~D[2024-05-08], bundle_download_size: 3500},
                %{date: ~D[2024-05-09], bundle_download_size: 4200},
                %{date: ~D[2024-05-10], bundle_download_size: 4200}
+             ]
+    end
+
+    test "filters download size analytics by bundle type when type option is provided" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      # Create IPA bundles
+      BundlesFixtures.bundle_fixture(
+        project: project,
+        git_branch: "main",
+        type: :ipa,
+        download_size: 1500,
+        inserted_at: ~U[2024-04-30 03:00:00Z]
+      )
+
+      BundlesFixtures.bundle_fixture(
+        project: project,
+        git_branch: "main",
+        type: :ipa,
+        download_size: 3000,
+        inserted_at: ~U[2024-04-29 04:00:00Z]
+      )
+
+      # Create XCARCHIVE bundles (should be excluded)
+      BundlesFixtures.bundle_fixture(
+        project: project,
+        git_branch: "main",
+        type: :xcarchive,
+        download_size: 9000,
+        inserted_at: ~U[2024-04-30 04:00:00Z]
+      )
+
+      BundlesFixtures.bundle_fixture(
+        project: project,
+        git_branch: "main",
+        type: :xcarchive,
+        download_size: 7500,
+        inserted_at: ~U[2024-04-29 05:00:00Z]
+      )
+
+      # When - get analytics for IPA bundles only
+      got =
+        Bundles.bundle_download_size_analytics(
+          project,
+          start_date: Date.add(DateTime.utc_now(), -2),
+          git_branch: "main",
+          type: :ipa
+        )
+
+      # Then - should only include IPA bundle data
+      assert got == [
+               %{date: ~D[2024-04-28], bundle_download_size: 0},
+               %{date: ~D[2024-04-29], bundle_download_size: 3000},
+               %{date: ~D[2024-04-30], bundle_download_size: 1500}
              ]
     end
   end

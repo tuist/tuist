@@ -11,6 +11,11 @@ public class MockFileSystem: FileSysteming {
         return try AbsolutePath(validating: "/tmp/\(prefix)\(UUID().uuidString)")
     }
 
+    public var contentsOfDirectoryOverride: ((_ path: Path.AbsolutePath) async throws -> [Path.AbsolutePath]) = { _ in [] }
+    public func contentsOfDirectory(_ path: Path.AbsolutePath) async throws -> [Path.AbsolutePath] {
+        try await contentsOfDirectoryOverride(path)
+    }
+
     public var readFileOverride: ((AbsolutePath) async throws -> Data) = { _ in throw NSError(
         domain: "File not found",
         code: 404,

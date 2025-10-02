@@ -214,6 +214,11 @@ defmodule TuistWeb.API.BundlesController do
                  description:
                    "Git reference of the repository. When run from CI in a pull request, this will be the remote reference to the pull request, such as `refs/pull/23958/merge`."
                },
+               type: %Schema{
+                 type: :string,
+                 enum: ["ipa", "app", "xcarchive"],
+                 description: "The type of the bundle"
+               },
                artifacts: %Schema{
                  type: :array,
                  description: "The artifacts in this bundle",
@@ -226,6 +231,7 @@ defmodule TuistWeb.API.BundlesController do
                :supported_platforms,
                :version,
                :install_size,
+               :type,
                :artifacts
              ]
            }
@@ -279,6 +285,7 @@ defmodule TuistWeb.API.BundlesController do
                git_branch: bundle["git_branch"],
                git_commit_sha: bundle["git_commit_sha"],
                git_ref: bundle["git_ref"],
+               type: bundle["type"],
                uploaded_by_account_id: account_id
              },
              preload: [:uploaded_by_account, project: [:account]]
@@ -301,6 +308,7 @@ defmodule TuistWeb.API.BundlesController do
       git_branch: bundle.git_branch,
       git_commit_sha: bundle.git_commit_sha,
       git_ref: bundle.git_ref,
+      type: bundle.type,
       inserted_at: bundle.inserted_at,
       uploaded_by_account: bundle.uploaded_by_account.name,
       url: url(~p"/#{bundle.project.account.name}/#{bundle.project.name}/bundles/#{bundle.id}")
@@ -325,6 +333,7 @@ defmodule TuistWeb.API.BundlesController do
       git_branch: bundle.git_branch,
       git_commit_sha: bundle.git_commit_sha,
       git_ref: bundle.git_ref,
+      type: bundle.type,
       inserted_at: bundle.inserted_at,
       uploaded_by_account: bundle.uploaded_by_account.name,
       artifacts: artifacts,

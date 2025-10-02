@@ -71,6 +71,7 @@ struct InspectBundleCommandServiceTests {
                 AppBundleReport(
                     bundleId: "dev.tuist",
                     name: "App",
+                    type: .app,
                     installSize: 10,
                     downloadSize: 10,
                     platforms: [],

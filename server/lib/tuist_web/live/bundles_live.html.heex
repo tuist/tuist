@@ -64,6 +64,44 @@
             <:right_icon><.check /></:right_icon>
           </.dropdown_item>
         </.dropdown>
+        <.dropdown
+          id="bundle-size-type-dropdown"
+          label={bundles_type_label(@bundles_type)}
+          secondary_text={gettext("Type:")}
+        >
+          <.dropdown_item
+            value="any"
+            label={gettext("Any")}
+            patch={"?#{Query.put(@uri.query, "bundles-type", "any")}"}
+            data-selected={@bundles_type == "any"}
+          >
+            <:right_icon><.check /></:right_icon>
+          </.dropdown_item>
+          <.dropdown_item
+            value="ipa"
+            label={gettext("IPA")}
+            patch={"?#{Query.put(@uri.query, "bundles-type", "ipa")}"}
+            data-selected={@bundles_type == "ipa"}
+          >
+            <:right_icon><.check /></:right_icon>
+          </.dropdown_item>
+          <.dropdown_item
+            value="app"
+            label={gettext("App bundle")}
+            patch={"?#{Query.put(@uri.query, "bundles-type", "app")}"}
+            data-selected={@bundles_type == "app"}
+          >
+            <:right_icon><.check /></:right_icon>
+          </.dropdown_item>
+          <.dropdown_item
+            value="xcarchive"
+            label={gettext("XCArchive")}
+            patch={"?#{Query.put(@uri.query, "bundles-type", "xcarchive")}"}
+            data-selected={@bundles_type == "xcarchive"}
+          >
+            <:right_icon><.check /></:right_icon>
+          </.dropdown_item>
+        </.dropdown>
         <.button_group size="large">
           <.button_group_item
             patch={"?#{Query.put(@uri.query, "bundle-size-date-range", "last-7-days")}"}
@@ -256,6 +294,9 @@
           </:col>
           <:col :let={bundle} label={gettext("Branch")}>
             <.text_cell icon="git_branch" label={bundle.git_branch || "None"} />
+          </:col>
+          <:col :let={bundle} label={gettext("Type")}>
+            <.text_cell label={format_bundle_type(bundle.type)} />
           </:col>
           <:col
             :let={bundle}
