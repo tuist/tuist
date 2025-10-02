@@ -5,20 +5,29 @@
   "description": "Learn how to contribute to Tuist by reviewing code"
 }
 ---
-# Logging {#logging}
+# Registo {#logging}
 
-The CLI embraces the [swift-log](https://github.com/apple/swift-log) interface for logging. The package abstracts away the implementation details of logging, allowing the CLI to be agnostic to the logging backend. The logger is dependency-injected using task locals and can be accessed anywhere using:
+A CLI abraça a interface [swift-log](https://github.com/apple/swift-log) para
+logging. O pacote abstrai os detalhes de implementação de logging, permitindo
+que a CLI seja agnóstica ao backend de logging. O registrador é injetado na
+dependência usando locals de tarefas e pode ser acessado em qualquer lugar
+usando:
 
 ```bash
 Logger.current
 ```
 
-> [!NOTE]
-> Task locals don't propagate the value when using `Dispatch` or detached tasks, so if you use them, you'll need to get it and pass it to the asynchronous operation.
+> [NOTA] Os locais da tarefa não propagam o valor quando se utiliza `Dispatch`
+> ou tarefas separadas, por isso, se os utilizar, terá de o obter e passá-lo
+> para a operação assíncrona.
 
-## What to log {#what-to-log}
+## O que registar {#o que registar}
 
-Logs are not the CLI's UI. They are a tool to diagnose issues when they arise.
-Therefore, the more information you provide, the better.
-When building new features, put yourself in the shoes of a developer coming across unexpected behavior, and think about what information would be helpful to them.
-Ensure you you use the right [log level](https://www.swift.org/documentation/server/guides/libraries/log-levels.html). Otherwise developers won't be able to filter out the noise.
+Os registos não são a interface de utilizador do CLI. Eles são uma ferramenta
+para diagnosticar problemas quando eles surgem. Portanto, quanto mais
+informações você fornecer, melhor. Ao criar novos recursos, coloque-se no lugar
+de um desenvolvedor que se depara com um comportamento inesperado e pense em
+quais informações seriam úteis para ele. Certifique-se de que utiliza o [nível
+de
+registo](https://www.swift.org/documentation/server/guides/libraries/log-levels.html)
+correto. Caso contrário, os programadores não serão capazes de filtrar o ruído.
