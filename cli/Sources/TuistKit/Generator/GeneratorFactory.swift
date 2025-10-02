@@ -17,6 +17,7 @@ public protocol GeneratorFactorying {
     /// Returns the generator to generate a project to run tests on.
     /// - Parameter config: The project configuration
     /// - Parameter skipUITests: Whether UI tests should be skipped.
+    /// - Parameter skipUnitTests: Whether Unit tests should be skipped.
     /// - Parameter ignoreBinaryCache: True to not include binaries from the cache.
     /// - Parameter ignoreSelectiveTesting: True to run all tests
     /// - Parameter cacheStorage: The cache storage instance.
@@ -27,6 +28,7 @@ public protocol GeneratorFactorying {
         includedTargets: Set<String>,
         excludedTargets: Set<String>,
         skipUITests: Bool,
+        skipUnitTests: Bool,
         configuration: String?,
         ignoreBinaryCache: Bool,
         ignoreSelectiveTesting: Bool,
@@ -83,6 +85,7 @@ public class GeneratorFactory: GeneratorFactorying {
         includedTargets: Set<String>,
         excludedTargets: Set<String>,
         skipUITests: Bool,
+        skipUnitTests: Bool,
         configuration _: String?,
         ignoreBinaryCache _: Bool,
         ignoreSelectiveTesting _: Bool,
@@ -93,6 +96,7 @@ public class GeneratorFactory: GeneratorFactorying {
         let projectMapperFactory = ProjectMapperFactory(contentHasher: contentHasher)
         let projectMappers = projectMapperFactory.automation(
             skipUITests: skipUITests,
+            skipUnitTests: skipUnitTests,
             tuist: config
         )
         let workspaceMapperFactory = WorkspaceMapperFactory(
