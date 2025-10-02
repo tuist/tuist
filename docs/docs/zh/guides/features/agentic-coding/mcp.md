@@ -5,47 +5,47 @@
   "description": "Learn how to use Tuist's MCP server to have a language-based interface for your app development environment."
 }
 ---
-# Model Context Protocol (MCP)
+# 模型上下文协议（MCP）
 
-[Model Context Protocol (MCP)](https://www.claudemcp.com) is a standard proposed by [Claude](https://claude.ai) for LLMs to interact with development environments.
-You can think of it as the USB-C of LLMs.
-Like shipping containers, which made cargo and transportation more interoperable,
-or protocols like TCP, which decoupled the application layer from the transport layer,
-MCP makes LLM-powered applications such as [Claude](https://claude.ai/), [Claude Code](https://docs.anthropic.com/en/docs/claude-code), and editors like [Zed](https://zed.dev), [Cursor](https://www.cursor.com), or [VS Code](https://code.visualstudio.com) interoperable with other domains.
+[模型上下文协议（MCP）](https://www.claudemcp.com)是由[克劳德](https://claude.ai)提出的一个标准，用于
+LLM 与开发环境交互。您可以将其视为 LLM 的 USB-C。就像集装箱运输使货物和运输更具互操作性，或 TCP 等协议将应用层与传输层分离一样，MCP 使
+[Claude](https://claude.ai/)、[Claude
+Code](https://docs.anthropic.com/en/docs/claude-code) 等由 LLM 驱动的应用程序，以及
+[Zed](https://zed.dev)、[Cursor](https://www.cursor.com) 或 [VS
+Code](https://code.visualstudio.com) 等编辑器能够与其他领域互操作。
 
-Tuist provides a local server through its CLI so that you can interact with your **app development environment**.
-By connecting your client apps to it, you can use language to interact with your projects.
+Tuist 通过其 CLI 提供了一个本地服务器，这样您就可以与**应用程序开发环境**
+进行交互。通过将客户端应用程序连接到该服务器，您可以使用语言与项目进行交互。
 
-In this page you'll learn about how to set it up and its capabilities.
+在本页中，您将了解如何设置它及其功能。
 
-> [!NOTE]
-> Tuist MCP server uses Xcode's most-recent projects as the source of truth for projects you want to interact with.
+> [注意] Tuist MCP 服务器使用 Xcode 的最新项目作为您要与之交互的项目的真实来源。
 
-## Set it up
+## 设置
 
-Tuist provides automated setup commands for popular MCP-compatible clients. Simply run the appropriate command for your client:
+Tuist 为常用的 MCP 兼容客户端提供自动设置命令。只需为您的客户端运行相应的命令即可：
 
-### [Claude](https://claude.ai)
+### [克劳德](https://claude.ai)
 
-For [Claude desktop](https://claude.ai/download), run:
+运行[克劳德桌面](https://claude.ai/download)：
 ```bash
 tuist mcp setup claude
 ```
 
-This will configure the file at `~/Library/Application Support/Claude/claude_desktop_config.json`.
+这将配置`~/Library/Application Support/Claude/claude_desktop_config.json`.
 
-### [Claude Code](https://docs.anthropic.com/en/docs/claude-code)
+### [克劳德代码](https://docs.anthropic.com/en/docs/claude-code)
 
-For Claude Code, run:
+运行克劳德代码：
 ```bash
 tuist mcp setup claude-code
 ```
 
-This will configure the same file as Claude desktop.
+这将配置与克劳德桌面相同的文件。
 
-### [Cursor](https://www.cursor.com)
+### [光标](https://www.cursor.com)
 
-For Cursor IDE, you can configure it globally or locally:
+对于 Cursor IDE，您可以在全局或本地进行配置：
 ```bash
 # Global configuration
 tuist mcp setup cursor --global
@@ -57,9 +57,9 @@ tuist mcp setup cursor
 tuist mcp setup cursor --path /path/to/project
 ```
 
-### [Zed](https://zed.dev)
+### [泽德](https://zed.dev)
 
-For Zed editor, you can also configure it globally or locally:
+对于 Zed 编辑器，您也可以在全局或本地进行配置：
 ```bash
 # Global configuration
 tuist mcp setup zed --global
@@ -71,9 +71,9 @@ tuist mcp setup zed
 tuist mcp setup zed --path /path/to/project
 ```
 
-### [VS Code](https://code.visualstudio.com)
+### [VS代码](https://code.visualstudio.com)
 
-For VS Code with MCP extension, configure it globally or locally:
+对于带有 MCP 扩展的 VS Code，可在全局或本地进行配置：
 ```bash
 # Global configuration
 tuist mcp setup vscode --global
@@ -85,11 +85,11 @@ tuist mcp setup vscode
 tuist mcp setup vscode --path /path/to/project
 ```
 
-### Manual Configuration
+### 手动配置
 
-If you prefer to configure manually or are using a different MCP client, add the Tuist MCP server to your client's configuration:
+如果您喜欢手动配置或使用不同的 MCP 客户端，请将 Tuist MCP 服务器添加到客户端配置中：
 
-:::code-group
+代码组
 
 ```json [Global Tuist installation (e.g. Homebrew)]
 {
@@ -114,29 +114,30 @@ If you prefer to configure manually or are using a different MCP client, add the
 ```
 :::
 
-## Capabilities
+## 能力
 
-In the following sections you'll learn about the capabilities of the Tuist MCP server.
+在以下章节中，您将了解 Tuist MCP 服务器的功能。
 
-### Resources
+### 资源
 
-#### Recent projects and workspaces
+#### 近期项目和工作区
 
-Tuist keeps a record of the Xcode projects and workspaces you’ve recently worked with, giving your application access to their dependency graphs for powerful insights. You can query this data to uncover details about your project structure and relationships, such as:
+Tuist 会记录您最近使用过的 Xcode
+项目和工作区，让您的应用程序能够访问它们的依赖关系图，从而获得强大的洞察力。您可以查询这些数据，了解项目结构和关系的详细信息，例如
 
-- What are the direct and transitive dependencies of a specific target?
-- Which target has the most source files, and how many does it include?
-- What are all the static products (e.g., static libraries or frameworks) in the graph?
-- Can you list all targets, sorted alphabetically, along with their names and product types (e.g., app, framework, unit test)?
-- Which targets depend on a particular framework or external dependency?
-- What’s the total number of source files across all targets in the project?
-- Are there any circular dependencies between targets, and if so, where?
-- Which targets use a specific resource (e.g., an image or plist file)?
-- What’s the deepest dependency chain in the graph, and which targets are involved?
-- Can you show me all the test targets and their associated app or framework targets?
-- Which targets have the longest build times based on recent interactions?
-- What are the differences in dependencies between two specific targets?
-- Are there any unused source files or resources in the project?
-- Which targets share common dependencies, and what are they?
+- 特定目标的直接和传递依赖关系是什么？
+- 哪个目标的源文件最多？
+- 图中有哪些静态产品（如静态库或框架）？
+- 能否按字母顺序列出所有目标，以及它们的名称和产品类型（如应用程序、框架、单元测试）？
+- 哪些目标依赖于特定框架或外部依赖性？
+- 项目中所有目标的源文件总数是多少？
+- 目标之间是否存在循环依赖关系？
+- 哪些目标使用特定资源（如图像或 plist 文件）？
+- 图中最深的依赖链是什么，涉及哪些目标？
+- 能否向我展示所有测试目标及其相关应用程序或框架目标？
+- 根据最近的互动，哪些目标的构建时间最长？
+- 两个特定目标之间的依赖关系有何不同？
+- 项目中是否有未使用的源文件或资源？
+- 哪些目标有共同的依赖关系？
 
-With Tuist, you can dig into your Xcode projects like never before, making it easier to understand, optimize, and manage even the most complex setups!
+有了 Tuist，您可以前所未有地深入研究 Xcode 项目，从而更轻松地理解、优化和管理最复杂的设置！

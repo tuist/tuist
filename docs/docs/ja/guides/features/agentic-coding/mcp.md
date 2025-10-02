@@ -1,35 +1,93 @@
 ---
 {
-  "title": "モデルコンテキストプロトコル(MCP)",
-  "titleTemplate": ":title · AI · Guides · Tuist",
-  "description": "Tuist MCPサーバーを使用して、アプリ開発環境に自然言語インターフェースを導入する方法を学びましょう。"
+  "title": "Model Context Protocol (MCP)",
+  "titleTemplate": ":title · Agentic coding · Features · Guides · Tuist",
+  "description": "Learn how to use Tuist's MCP server to have a language-based interface for your app development environment."
 }
 ---
-# モデルコンテキストプロトコル (MCP)
+# モデルコンテキストプロトコル（MCP）
 
-[MCP](https://www.claudemcp.com) は、LLM（大規模言語モデル）が開発環境と連携するための標準仕様として、[Claude](https://claude.ai) によって提案されたプロトコルです。
-これは、LLM における USB-C のような存在と考えることができます。つまり、さまざまな開発環境とスムーズに接続できる、LLM 向けの共通インターフェースのようなものです。
-貨物輸送を相互運用可能にしたコンテナや、アプリケーション層とトランスポート層を分離した通信プロトコルのように、MCPは[Claude](https://claude.ai/) のような LLMを活用したアプリケーションと、[Zed](https://zed.dev) や[Cursor](https://www.cursor.com) のようなエディタを、他のドメインと相互運用可能にします。
-これは、LLM における USB-C のような存在と考えることができます。つまり、さまざまな開発環境とスムーズに接続できる、LLM 向けの共通インターフェースのようなものです。
-貨物輸送を相互運用可能にしたコンテナや、アプリケーション層とトランスポート層を分離した通信プロトコルのように、MCPは[Claude](https://claude.ai/) のような LLMを活用したアプリケーションと、[Zed](https://zed.dev) や[Cursor](https://www.cursor.com) のようなエディタを、他のドメインと相互運用可能にします。
+[モデル・コンテキスト・プロトコル（MCP）](https://www.claudemcp.com)は、LLMが開発環境と相互作用するために[クロード](https://claude.ai)によって提案された標準です。LLMのUSB-Cと考えることができる。貨物と輸送の相互運用性を高めた輸送用コンテナや、アプリケーション層とトランスポート層を切り離したTCPのようなプロトコルのように、MCPは[Claude](https://claude.ai/)や[Claude
+Code](https://docs.anthropic.com/en/docs/claude-code)のようなLLMを搭載したアプリケーションや、[Zed](https://zed.dev)や[Cursor](https://www.cursor.com)や[VS
+Code](https://code.visualstudio.com)のようなエディタを他のドメインと相互運用可能にします。
 
-Tuist provides a local server through its CLI so that you can interact with your **app development environment**.
-クライアントアプリをこのサーバーに接続することで、自然言語を用いてプロジェクトと対話できるようになります。
+TuistはCLIを通じてローカルサーバーを提供し、**アプリ開発環境**
+と対話することができる。クライアントアプリをこのサーバーに接続することで、言語を使ってプロジェクトとやり取りすることができる。
 
-このページではMCPの設定方法と、その機能について学ぶことができます。
+このページでは、その設定方法と機能について説明する。
 
-> [!NOTE]
-> Tuist MCPサーバーは、操作対象となるプロジェクトの情報源として、Xcodeの最新プロジェクトを利用します。
+> [注意]Tuist MCPサーバーは、対話したいプロジェクトの真実のソースとしてXcodeの最新のプロジェクトを使用します。
 
-## 導入手順
+## セットアップ
 
-### [Claude](https://claude.ai)
+Tuistは一般的なMCP互換クライアント用の自動セットアップコマンドを提供する。お使いのクライアントに適したコマンドを実行するだけです：
 
-[Claude desktop](https://claude.ai/download) を使用している場合は、<LocalizedLink href="/cli/mcp/setup/claude">tuist mcp setup claude</LocalizedLink> コマンドを実行することで、Claude 環境を構成できます。
+### [クロード](https://claude.ai)。
 
-または、 `~/Library/Application\ Support/Claude/claude_desktop_config.json` にあるファイルを手動で編集し、Tuist MCPサーバーを追加することもできます：
+クロードデスクトップ](https://claude.ai/download)の場合は、実行する：
+```bash
+tuist mcp setup claude
+```
 
-:::code-group
+これは`~/Library/Application Support/Claude/claude_desktop_config.json`
+にあるファイルを設定します。
+
+### [クロード・コード](https://docs.anthropic.com/en/docs/claude-code)
+
+クロード・コードは、実行する：
+```bash
+tuist mcp setup claude-code
+```
+
+これはクロードデスクトップと同じファイルを設定します。
+
+### [カーソル](https://www.cursor.com)
+
+Cursor IDEでは、グローバルまたはローカルに設定できます：
+```bash
+# Global configuration
+tuist mcp setup cursor --global
+
+# Local configuration (in current project)
+tuist mcp setup cursor
+
+# Custom path configuration
+tuist mcp setup cursor --path /path/to/project
+```
+
+### [ゼット](https://zed.dev)
+
+ゼットエディターでは、グローバルまたはローカルに設定することもできます：
+```bash
+# Global configuration
+tuist mcp setup zed --global
+
+# Local configuration (in current project)
+tuist mcp setup zed
+
+# Custom path configuration
+tuist mcp setup zed --path /path/to/project
+```
+
+### [VSコード](https://code.visualstudio.com)
+
+MCP拡張機能を持つVS Codeの場合は、グローバルまたはローカルに設定します：
+```bash
+# Global configuration
+tuist mcp setup vscode --global
+
+# Local configuration (in current project)
+tuist mcp setup vscode
+
+# Custom path configuration
+tuist mcp setup vscode --path /path/to/project
+```
+
+### マニュアル設定
+
+手動で設定したい場合、または別のMCPクライアントを使用している場合は、Tuist MCPサーバーをクライアントの設定に追加してください：
+
+::コードグループ
 
 ```json [Global Tuist installation (e.g. Homebrew)]
 {
@@ -52,32 +110,31 @@ Tuist provides a local server through its CLI so that you can interact with your
   }
 }
 ```
-
 :::
 
-## 主な機能
+## 能力
 
-以下のセクションでは、Tuist MCPサーバーの機能について解説します。
+以下のセクションでは、Tuist MCPサーバーの機能について説明します。
 
-### 参考文献
+### リソース
 
-#### 最近使用したプロジェクトとワークスペース
+#### 最近のプロジェクトとワークスペース
 
-Tuistは、最近操作したXcodeプロジェクトおよびワークスペースの記録を保持しており、アプリケーションがそれらの依存関係グラフにアクセスできるようにすることで、強力な分析や可視化を可能にします。 このデータに対してクエリを実行することで、例えば以下のようなプロジェクトの構造や依存関係などの詳細情報を把握できます：
+Tuistは、あなたが最近作業したXcodeプロジェクトとワークスペースの記録を保持し、あなたのアプリケーションに強力な洞察のためのそれらの依存関係グラフへのアクセスを提供します。このデータをクエリして、次のようなプロジェクト構造と関係の詳細を明らかにすることができます：
 
-- 特定のターゲットに対する直接的および推移的な依存関係は何か？
-- 最も多くのソースファイルを含むターゲットはどれで、いくつのファイルが含まれているか？
-- グラフ内に含まれるすべての静的プロダクト（スタティックライブラリやフレームワークなど）は何か？
-- すべてのターゲットを名前とプロダクトの種類（アプリ、フレームワーク、ユニットテストなど）とともに、アルファベット順で並び替えは可能か？
-- 特定のフレームワークや外部依存関係に依存しているターゲットはどれか？
-- プロジェクト内のすべてのターゲットに含まれるソースファイルの合計数はいくつか？
-- ターゲット間に循環依存は存在するか？ある場合は、その発生箇所はどこか？
-- 特定のリソース（画像や plistファイルなど）を使用しているターゲットはどれか？
-- グラフ内で最も深い依存関係のチェーンは何か？また、それに関与しているターゲットはどれか？
-- すべてのテストターゲットと、それぞれが関連付けられているアプリまたはフレームワークのターゲットを表示することは可能か？
-- 最近の操作履歴に基づいて、ビルド時間が最も長いターゲットはどれか？
-- 2つの特定のターゲット間で依存関係にどのような違いがあるか？
-- プロジェクトに使用されていないソース ファイルやリソースはあるか？
-- どのターゲットが共通の依存関係を持っており、それらは何か？
+- 特定のターゲットの直接的、推移的依存関係とは何か？
+- ソースファイルの数が最も多いのはどのターゲットで、いくつ含まれているか？
+- グラフ内のすべての静的製品（静的ライブラリやフレームワークなど）とは？
+- すべてのターゲットをアルファベット順に、名前と製品タイプ（アプリ、フレームワーク、ユニットテストなど）とともにリストアップできますか？
+- どのターゲットが特定のフレームワークや外部依存に依存しているか？
+- プロジェクト内の全ターゲットにわたるソース・ファイルの総数は？
+- ターゲット間に循環的な依存関係はあるか、あるとすればどこにあるか？
+- 特定のリソース（イメージやplistファイルなど）を使用するターゲットは？
+- グラフの中で最も深い依存関係の連鎖は何か？
+- すべてのテストターゲットと、関連するアプリまたはフレームワークのターゲットを見せてもらえますか？
+- 最近の交流に基づくと、建設期間が最も長いターゲットは？
+- 2つの特定のターゲット間の依存関係の違いは何か？
+- プロジェクトに未使用のソースファイルやリソースはありますか？
+- どのターゲットが共通の依存関係を持ち、それは何か？
 
-Tuist を使えば、これまでにない方法でXcodeプロジェクトを深く掘り下げて理解でき、複雑な構成であっても、理解・最適化・管理がより簡単になります！
+Tuistを使えば、Xcodeプロジェクトをかつてないほど深く掘り下げることができ、最も複雑なセットアップでさえ理解、最適化、管理しやすくなります！
