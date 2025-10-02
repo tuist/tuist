@@ -5,7 +5,7 @@
   "description": "Learn how to contribute to Tuist by reviewing code"
 }
 ---
-# Registro {#logging}
+# Logging {#logging}
 
 La CLI adopta la interfaz [swift-log](https://github.com/apple/swift-log) para
 el registro. El paquete abstrae los detalles de implementación de registro,
