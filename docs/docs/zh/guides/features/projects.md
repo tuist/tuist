@@ -5,37 +5,59 @@
   "description": "Learn about Tuist's DSL for defining Xcode projects."
 }
 ---
-# Generated projects {#generated-projects}
+# 生成的项目 {#generated-projects}
 
-Generated is a viable alternative that helps to overcome these challenges while keeping complexity and costs at an acceptable level. It considers Xcode projects as a fundamental element, ensuring resilience against future Xcode updates, and leverages Xcode project generation to provide teams with a modularization-focused declarative API. Tuist uses the project declaration to simplify the complexities of modularization**, optimize workflows like build or test across various environments, and facilitate and democratize the evolution of Xcode projects.
+Generated 是一种可行的替代方案，有助于克服这些挑战，同时将复杂性和成本保持在可接受的水平。它将 Xcode 项目视为基本要素，确保对未来 Xcode
+更新的适应性，并利用 Xcode 项目生成为团队提供以模块化为重点的声明式 API。Tuist
+利用项目声明来简化模块化**的复杂性，优化跨各种环境的构建或测试等工作流程，并促进 Xcode 项目的发展和民主化。
 
-## How does it work? {#how-does-it-work}
+## 它是如何工作的？{#如何工作｝
 
-To get started with generated projects, all you need is to define your project using **Tuist's Domain Specific Language (DSL)**. This entails using manifest files such as `Workspace.swift` or `Project.swift`. If you've worked with the Swift Package Manager before, the approach is very similar.
+要开始使用生成的项目，您只需使用**Tuist 的特定域语言 (DSL)** 定义您的项目。这需要使用清单文件，如`Workspace.swift`
+或`Project.swift` 。如果您以前使用过 Swift 包管理器，那么使用方法也非常相似。
 
-Once you've defined your project, Tuist offers various workflows to manage and interact with it:
+定义好项目后，Tuist 提供各种工作流程来管理项目并与之互动：
 
-- **Generate:** This is a foundational workflow. Use it to create an Xcode project that's compatible with Xcode.
-- **<LocalizedLink href="/guides/features/build">Build</LocalizedLink>:** This workflow not only generates the Xcode project but also employs `xcodebuild` to compile it.
-- **<LocalizedLink href="/guides/features/test">Test</LocalizedLink>:** Operating much like the build workflow, this not only generates the Xcode project but utilizes `xcodebuild` to test it.
+- **生成：** 这是一个基础工作流程。使用它可以创建一个与 Xcode 兼容的 Xcode 项目。
+- **<LocalizedLink href="/guides/features/build">编译</LocalizedLink>：**
+  此工作流程不仅会生成 Xcode 项目，还会使用`xcodebuild` 对其进行编译。
+- **<LocalizedLink href="/guides/features/test">测试</LocalizedLink>：**
+  操作方式与构建工作流程类似，它不仅生成 Xcode 项目，还利用`xcodebuild` 对其进行测试。
 
-## Challenges with Xcode projects {#challenges-with-xcode-projects}
+## Xcode 项目面临的挑战 {#challenges-with-xcode-projects}
 
-As Xcode projects grow, **organizations may face a decline in productivity** due to several factors, including unreliable incremental builds, frequent clearing of Xcode's global cache by developers encountering issues, and fragile project configurations. To maintain rapid feature development, organizations typically explore various strategies.
+随着 Xcode 项目的增长，**，组织可能会面临生产率下降的问题** ，这是由多种因素造成的，包括不可靠的增量构建、开发人员遇到问题时频繁清除 Xcode
+的全局缓存以及脆弱的项目配置。为了保持快速的功能开发，企业通常会探索各种策略。
 
-Some organizations choose to bypass the compiler by abstracting the platform using JavaScript-based dynamic runtimes, such as [React Native](https://reactnative.dev/). While this approach may be effective, it [complicates access to the platform's native features](https://shopify.engineering/building-app-clip-react-native). Other organizations opt for **modularizing the codebase**, which helps establish clear boundaries, making the codebase easier to work with and improving the reliability of build times. However, the Xcode project format is not designed for modularity and results in implicit configurations that few understand and frequent conflicts. This leads to a bad bus factor, and although incremental builds may improve, developers might still frequently clear Xcode's build cache (i.e., derived data) when builds fail. To address this, some organizations choose to **abandon Xcode's build system** and adopt alternatives like [Buck](https://buck.build/) or [Bazel](https://bazel.build/). However, this comes with a [high complexity and maintenance burden](https://bazel.build/migrate/xcode).
+一些企业选择绕过编译器，使用基于 JavaScript 的动态运行时（如 React
+Native）对平台进行抽象(https://reactnative.dev/)。这种方法虽然有效，但[使平台原生功能的访问变得复杂](https://shopify.engineering/building-app-clip-react-native)。其他组织则选择**，将代码库模块化**
+，这有助于建立清晰的边界，使代码库更易于使用，并提高构建时间的可靠性。然而，Xcode
+项目格式并非为模块化而设计，其结果是隐含的配置很少有人能理解，冲突也很频繁。这就导致了不良的总线因素，尽管增量构建可能会有所改善，但当构建失败时，开发人员可能仍会频繁清除
+Xcode 的构建缓存（即派生数据）。为了解决这个问题，一些企业选择**放弃 Xcode 的构建系统** ，并采用
+[Buck](https://buck.build/) 或 [Bazel](https://bazel.build/)
+等替代方案。然而，这也带来了[高复杂性和维护负担](https://bazel.build/migrate/xcode)。
 
 
-## Alternatives {#alternatives}
+## 替代品 {#alternatives}
 
-### Swift Package Manager {#swift-package-manager}
+### Swift 软件包管理器 {#swift-package-manager}
 
-While the Swift Package Manager (SPM) primarily focuses on dependencies, Tuist offers a different approach. With Tuist, you don't just define packages for SPM integration; you shape your projects using familiar concepts like projects, workspaces, targets, and schemes.
+Swift 软件包管理器（SPM）主要关注依赖关系，而 Tuist 提供了一种不同的方法。使用 Tuist，您不仅可以定义用于 SPM
+集成的软件包，还可以使用项目、工作区、目标和方案等熟悉的概念来构建您的项目。
 
 ### XcodeGen {#xcodegen}
 
-[XcodeGen](https://github.com/yonaskolb/XcodeGen) is a dedicated project generator designed to reduce conflicts in collaborative Xcode projects and simplify some complexities of Xcode's internal workings. However, projects are defined using serializable formats like [YAML](https://yaml.org/). Unlike Swift, this doesn't allow developers to build upon abstractions or checks without incorporating additional tools. While XcodeGen does offer a way to map dependencies to an internal representation for validation and optimization, it still exposes developers to the nuances of Xcode. This might make XcodeGen a suitable foundation for [building tools](https://github.com/MobileNativeFoundation/rules_xcodeproj), as seen in the Bazel community, but it's not optimal for inclusive project evolution that aims to maintain a healthy and productive environment.
+[XcodeGen](https://github.com/yonaskolb/XcodeGen) 是一个专用的项目生成器，旨在减少协作 Xcode
+项目中的冲突，并简化 Xcode 内部工作的一些复杂性。然而，项目是使用 [YAML](https://yaml.org/) 等可序列化格式定义的。与
+Swift 不同的是，这不允许开发人员在不使用其他工具的情况下在抽象或检查的基础上进行构建。虽然 XcodeGen
+确实提供了一种将依赖关系映射到内部表示以进行验证和优化的方法，但它仍然会让开发人员接触到 Xcode 的细微差别。这可能会使 XcodeGen 成为 Bazel
+社区中[构建工具](https://github.com/MobileNativeFoundation/rules_xcodeproj)的合适基础，但对于旨在维护健康和富有成效的环境的包容性项目演进而言，它并不是最佳选择。
 
-### Bazel {#bazel}
+### 巴泽尔 {#bazel｝
 
-[Bazel](https://bazel.build) is an advanced build system renowned for its remote caching features, gaining popularity within the Swift community primarily for this capability. However, given the limited extensibility of Xcode and its build system, substituting it with Bazel's system demands significant effort and maintenance. Only a few companies with abundant resources can bear this overhead, as evident from the select list of firms investing heavily to integrate Bazel with Xcode. Interestingly, the community created a [tool](https://github.com/MobileNativeFoundation/rules_xcodeproj) that employs Bazel's XcodeGen to generate an Xcode project. This results in a convoluted chain of conversions: from Bazel files to XcodeGen YAML and finally to Xcode Projects. Such layered indirection often complicates troubleshooting, making issues more challenging to diagnose and resolve.
+[Bazel](https://bazel.build)是一款先进的构建系统，以其远程缓存功能而闻名，在 Swift
+社区中广受欢迎也主要是因为它的这一功能。然而，由于 Xcode 及其构建系统的可扩展性有限，用 Bazel
+的系统取而代之需要大量的工作和维护。只有少数资源丰富的公司才能承受这种开销，这一点从精选出的投入巨资将 Bazel 与 Xcode
+集成的公司名单中可见一斑。有趣的是，社区创建了一个[工具](https://github.com/MobileNativeFoundation/rules_xcodeproj)，利用
+Bazel 的 XcodeGen 生成 Xcode 项目。这就产生了一个复杂的转换链：从 Bazel 文件到 XcodeGen YAML，最后到 Xcode
+项目。这种分层间接往往会使故障排除复杂化，使问题的诊断和解决更具挑战性。

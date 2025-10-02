@@ -1,40 +1,106 @@
 ---
 {
   "title": "Projects",
-  "titleTemplate": ":title · Develop · Guides · Tuist",
+  "titleTemplate": ":title · Features · Guides · Tuist",
   "description": "Learn about Tuist's DSL for defining Xcode projects."
 }
 ---
-# Projects {#projects}
+# Projectos gerados {#projectos gerados}
 
-Generated is a viable alternative that helps to overcome these challenges while keeping complexity and costs at an acceptable level. It considers Xcode projects as a fundamental element, ensuring resilience against future Xcode updates, and leverages Xcode project generation to provide teams with a modularization-focused declarative API. Tuist uses the project declaration to simplify the complexities of modularization\*\*, optimize workflows like build or test across various environments, and facilitate and democratize the evolution of Xcode projects.
+O Generated é uma alternativa viável que ajuda a superar esses desafios,
+mantendo a complexidade e os custos em um nível aceitável. Ele considera os
+projetos Xcode como um elemento fundamental, garantindo a resiliência contra
+futuras atualizações do Xcode, e aproveita a geração de projetos Xcode para
+fornecer às equipes uma API declarativa focada na modularização. A Tuist utiliza
+a declaração de projeto para simplificar as complexidades da modularização**,
+otimizar fluxos de trabalho como a construção ou o teste em vários ambientes e
+facilitar e democratizar a evolução dos projectos Xcode.
 
-## How does it work? {#how-does-it-work}
+## Como é que funciona? {Como é que funciona?}
 
-To get started with generated projects, all you need is to define your project using **Tuist's Domain Specific Language (DSL)**. This entails using manifest files such as `Workspace.swift` or `Project.swift`. If you've worked with the Swift Package Manager before, the approach is very similar.
+Para começar a utilizar os projectos gerados, basta definir o seu projeto
+utilizando **Tuist's Domain Specific Language (DSL)**. Isso implica no uso de
+arquivos de manifesto como `Workspace.swift` ou `Project.swift`. Se já trabalhou
+com o Swift Package Manager antes, a abordagem é muito semelhante.
 
-Once you've defined your project, Tuist offers various workflows to manage and interact with it:
+Depois de definir o seu projeto, o Tuist oferece vários fluxos de trabalho para
+o gerir e interagir com ele:
 
-- **Generate:** This is a foundational workflow. Use it to create an Xcode project that's compatible with Xcode.
-- **<LocalizedLink href="/guides/features/build">Build</LocalizedLink>:** This workflow not only generates the Xcode project but also employs `xcodebuild` to compile it.
-- **<LocalizedLink href="/guides/features/test">Test</LocalizedLink>:** Operating much like the build workflow, this not only generates the Xcode project but utilizes `xcodebuild` to test it.
+- **Gerar:** Este é um fluxo de trabalho fundamental. Use-o para criar um
+  projeto Xcode que seja compatível com o Xcode.
+- **<LocalizedLink href="/guides/features/build">Build</LocalizedLink>:** Este
+  fluxo de trabalho não só gera o projeto Xcode como também emprega `xcodebuild`
+  para o compilar.
+- **<LocalizedLink href="/guides/features/test">Test</LocalizedLink>:** Operando
+  de forma muito semelhante ao fluxo de trabalho de compilação, isto não só gera
+  o projeto Xcode como utiliza `xcodebuild` para o testar.
 
-## Challenges with Xcode projects {#challenges-with-xcode-projects}
+## Desafios com projectos Xcode {#challenges-with-xcode-projects}
 
-As Xcode projects grow, **organizations may face a decline in productivity** due to several factors, including unreliable incremental builds, frequent clearing of Xcode's global cache by developers encountering issues, and fragile project configurations. To maintain rapid feature development, organizations typically explore various strategies.
+À medida que os projetos do Xcode crescem, as organizações **podem enfrentar um
+declínio na produtividade** devido a vários fatores, incluindo compilações
+incrementais não confiáveis, limpeza frequente do cache global do Xcode por
+desenvolvedores que encontram problemas e configurações de projeto frágeis. Para
+manter o rápido desenvolvimento de recursos, as organizações normalmente
+exploram várias estratégias.
 
-Some organizations choose to bypass the compiler by abstracting the platform using JavaScript-based dynamic runtimes, such as [React Native](https://reactnative.dev/). While this approach may be effective, it [complicates access to the platform's native features](https://shopify.engineering/building-app-clip-react-native). Other organizations opt for **modularizing the codebase**, which helps establish clear boundaries, making the codebase easier to work with and improving the reliability of build times. However, the Xcode project format is not designed for modularity and results in implicit configurations that few understand and frequent conflicts. This leads to a bad bus factor, and although incremental builds may improve, developers might still frequently clear Xcode's build cache (i.e., derived data) when builds fail. To address this, some organizations choose to **abandon Xcode's build system** and adopt alternatives like [Buck](https://buck.build/) or [Bazel](https://bazel.build/). However, this comes with a [high complexity and maintenance burden](https://bazel.build/migrate/xcode).
+Algumas organizações optam por contornar o compilador abstraindo a plataforma
+usando tempos de execução dinâmicos baseados em JavaScript, como o [React
+Native](https://reactnative.dev/). Embora essa abordagem possa ser eficaz, ela
+[complica o acesso aos recursos nativos da
+plataforma](https://shopify.engineering/building-app-clip-react-native). Outras
+organizações optam por **modularizar a base de código**, o que ajuda a
+estabelecer limites claros, tornando a base de código mais fácil de trabalhar e
+melhorando a confiabilidade dos tempos de construção. No entanto, o formato do
+projeto Xcode não foi concebido para a modularidade e resulta em configurações
+implícitas que poucos compreendem e em conflitos frequentes. Isso leva a um
+fator de barramento ruim e, embora as compilações incrementais possam melhorar,
+os desenvolvedores ainda podem limpar frequentemente o cache de compilação do
+Xcode (ou seja, dados derivados) quando as compilações falham. Para resolver
+isso, algumas organizações optam por **abandonar o sistema de build do Xcode** e
+adotar alternativas como [Buck](https://buck.build/) ou
+[Bazel](https://bazel.build/). No entanto, isso acarreta uma [alta complexidade
+e carga de manutenção](https://bazel.build/migrate/xcode).
 
-## Alternatives {#alternatives}
 
-### Swift Package Manager {#swift-package-manager}
+## Alternativas {#alternativas}
 
-While the Swift Package Manager (SPM) primarily focuses on dependencies, Tuist offers a different approach. With Tuist, you don't just define packages for SPM integration; you shape your projects using familiar concepts like projects, workspaces, targets, and schemes.
+### Gestor de pacotes Swift {#swift-package-manager}
+
+Enquanto o Swift Package Manager (SPM) foca principalmente em dependências, o
+Tuist oferece uma abordagem diferente. Com o Tuist, você não define apenas
+pacotes para a integração do SPM; você molda seus projetos usando conceitos
+familiares como projetos, espaços de trabalho, alvos e esquemas.
 
 ### XcodeGen {#xcodegen}
 
-[XcodeGen](https://github.com/yonaskolb/XcodeGen) is a dedicated project generator designed to reduce conflicts in collaborative Xcode projects and simplify some complexities of Xcode's internal workings. However, projects are defined using serializable formats like [YAML](https://yaml.org/). Unlike Swift, this doesn't allow developers to build upon abstractions or checks without incorporating additional tools. While XcodeGen does offer a way to map dependencies to an internal representation for validation and optimization, it still exposes developers to the nuances of Xcode. This might make XcodeGen a suitable foundation for [building tools](https://github.com/MobileNativeFoundation/rules_xcodeproj), as seen in the Bazel community, but it's not optimal for inclusive project evolution that aims to maintain a healthy and productive environment.
+O [XcodeGen](https://github.com/yonaskolb/XcodeGen) é um gerador de projectos
+dedicado, concebido para reduzir conflitos em projectos Xcode colaborativos e
+simplificar algumas complexidades do funcionamento interno do Xcode. No entanto,
+os projetos são definidos usando formatos serializáveis como
+[YAML](https://yaml.org/). Ao contrário do Swift, isso não permite que os
+desenvolvedores construam sobre abstrações ou verificações sem incorporar
+ferramentas adicionais. Embora o XcodeGen ofereça uma maneira de mapear
+dependências para uma representação interna para validação e otimização, ele
+ainda expõe os desenvolvedores às nuances do Xcode. Isso pode fazer do XcodeGen
+uma base adequada para [construir
+ferramentas](https://github.com/MobileNativeFoundation/rules_xcodeproj), como
+visto na comunidade Bazel, mas não é ideal para a evolução de projetos
+inclusivos que visam manter um ambiente saudável e produtivo.
 
 ### Bazel {#bazel}
 
-[Bazel](https://bazel.build) is an advanced build system renowned for its remote caching features, gaining popularity within the Swift community primarily for this capability. However, given the limited extensibility of Xcode and its build system, substituting it with Bazel's system demands significant effort and maintenance. Only a few companies with abundant resources can bear this overhead, as evident from the select list of firms investing heavily to integrate Bazel with Xcode. Interestingly, the community created a [tool](https://github.com/MobileNativeFoundation/rules_xcodeproj) that employs Bazel's XcodeGen to generate an Xcode project. This results in a convoluted chain of conversions: from Bazel files to XcodeGen YAML and finally to Xcode Projects. Such layered indirection often complicates troubleshooting, making issues more challenging to diagnose and resolve.
+O [Bazel](https://bazel.build) é um sistema de compilação avançado conhecido por
+seus recursos de cache remoto, ganhando popularidade dentro da comunidade Swift
+principalmente por essa capacidade. No entanto, dada a extensibilidade limitada
+do Xcode e seu sistema de build, substituí-lo pelo sistema do Bazel exige
+esforço e manutenção significativos. Apenas algumas empresas com recursos
+abundantes podem suportar esta sobrecarga, como é evidente a partir da lista
+selecionada de empresas que investem fortemente para integrar o Bazel com o
+Xcode. Curiosamente, a comunidade criou uma
+[ferramenta](https://github.com/MobileNativeFoundation/rules_xcodeproj) que
+emprega o XcodeGen do Bazel para gerar um projeto Xcode. Isso resulta em uma
+cadeia complicada de conversões: de arquivos do Bazel para o XcodeGen YAML e,
+finalmente, para projetos do Xcode. Essa indireção em camadas muitas vezes
+complica a solução de problemas, tornando os problemas mais difíceis de
+diagnosticar e resolver.
