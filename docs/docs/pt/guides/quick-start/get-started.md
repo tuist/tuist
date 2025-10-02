@@ -5,11 +5,12 @@
   "description": "Learn how to install Tuist in your environment."
 }
 ---
-# Get started {#get-started}
+# Começar {#get-started}
 
-The easiest way to get started with Tuist in any directory or in the directory of your Xcode project or workspace:
+A forma mais fácil de começar a utilizar o Tuist em qualquer diretório ou no
+diretório do seu projeto Xcode ou espaço de trabalho:
 
-::: code-group
+::: grupo de códigos
 
 ```bash [Mise]
 mise x tuist@latest -- tuist init
@@ -18,10 +19,22 @@ mise x tuist@latest -- tuist init
 ```bash [Global Tuist (Homebrew)]
 tuist init
 ```
-
 :::
 
-The command will walk you through the steps to <LocalizedLink href="/guides/features/projects">create a generated project</LocalizedLink> or integrate an existing Xcode project or workspace. It helps you connect your setup to the remote server, giving you access to features like <LocalizedLink href="/guides/features/selective-testing">selective testing</LocalizedLink>, <LocalizedLink href="/guides/features/previews">previews</LocalizedLink>, and the <LocalizedLink href="/guides/features/registry">registry</LocalizedLink>.
+O comando irá guiá-lo através dos passos para
+<LocalizedLink href="/guides/features/projects">criar um projeto
+gerado</LocalizedLink> ou integrar um projeto ou espaço de trabalho Xcode
+existente. Ajuda-o a ligar a sua configuração ao servidor remoto, dando-lhe
+acesso a funcionalidades como
+<LocalizedLink href="/guides/features/selective-testing">testes
+selectivos</LocalizedLink>,
+<LocalizedLink href="/guides/features/previews">visualizações</LocalizedLink> e
+o <LocalizedLink href="/guides/features/registry">registo</LocalizedLink>.
 
-> [!NOTE] MIGRATE AN EXISTING PROJECT
-> If you want to migrate an existing project to generated projects to improve the developer experience and take advantage of our <LocalizedLink href="/guides/features/cache">cache</LocalizedLink>, check out our <LocalizedLink href="/guides/features/projects/adoption/migrate/xcode-project">migration guide</LocalizedLink>.
+> [NOTA] MIGRAR UM PROJECTO EXISTENTE Se pretender migrar um projeto existente
+> para projectos gerados para melhorar a experiência do programador e tirar
+> partido da nossa
+> <LocalizedLink href="/guides/features/cache">cache</LocalizedLink>, consulte o
+> nosso
+> <LocalizedLink href="/guides/features/projects/adoption/migrate/xcode-project">guia
+> de migração</LocalizedLink>.
