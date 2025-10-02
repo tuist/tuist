@@ -5,21 +5,20 @@
   "description": "Learn how to generate and share previews of your apps with anyone."
 }
 ---
-# Previews {#previews}
+# 预览 {#previews}
 
-> [!IMPORTANT] REQUIREMENTS
-> - A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and project</LocalizedLink>
+> [！重要]要求
+> - <LocalizedLink href="/guides/server/accounts-and-projects">图斯特账户和项目</LocalizedLink>
 
-When building an app, you may want to share it with others to get feedback.
-Traditionally, this is something that teams do by building, signing, and pushing their apps to platforms like Apple's [TestFlight](https://developer.apple.com/testflight/).
-However, this process can be cumbersome and slow, especially when you're just looking for quick feedback from a colleague or a friend.
+在开发应用程序时，您可能希望与他人分享以获得反馈。传统上，团队会通过构建、签名并将应用程序推送到 Apple 的
+[TestFlight](https://developer.apple.com/testflight/)
+等平台来实现这一目的。然而，这一过程可能会很繁琐和缓慢，尤其是当您只是想从同事或朋友那里获得快速反馈时。
 
-To make this process more streamlined, Tuist provides a way to generate and share previews of your apps with anyone.
+为了简化这一过程，Tuist 提供了一种生成并与任何人共享应用程序预览的方法。
 
-> [!IMPORTANT] DEVICE BUILDS NEED TO BE SIGNED
-> When building for device, it is currently your responsibility to ensure the app is signed correctly. We plan to streamline this in the future.
+> [重要] 为设备构建应用程序时需要签名 目前，您有责任确保应用程序已正确签名。我们计划在未来简化这一流程。
 
-:::code-group
+代码组
 ```bash [Tuist Project]
 tuist build App # Build the app for the simulator
 tuist build App -- -destination 'generic/platform=iOS' # Build the app for the device
@@ -33,17 +32,17 @@ tuist share App.ipa # Share an existing .ipa file
 ```
 :::
 
-The command will generate a link that you can share with anyone to run the app – either on a simulator or an actual device. All they'll need to do is to run the command below:
+该命令将生成一个链接，你可以与任何人共享该链接，让他们在模拟器或实际设备上运行应用程序。他们只需运行下面的命令即可：
 
 ```bash
 tuist run {url}
 tuist run --device "My iPhone" {url} # Run the app on a specific device
 ```
 
-When sharing an `.ipa` file, you can download the app directly from the mobile device using the Preview link.
-The links to `.ipa` previews are by default _public_. In the future, you will have an option to make them private, so that the recipient of the link would need to authenticate with their Tuist account to download the app.
+共享`.ipa` 文件时，可以使用预览链接直接从移动设备下载应用程序。`.ipa` 预览链接默认为_公共_
+。将来，您可以选择将其设置为私有，这样链接的接收者就需要使用 Tuist 帐户进行身份验证才能下载应用程序。
 
-`tuist run` also enables you to run a latest preview based on a specifier such as `latest`, branch name, or a specific commit hash:
+`tuist run` 还能根据指定符运行最新预览，如`latest` 、分支名称或特定提交哈希值：
 
 ```bash
 tuist run App@latest # Runs latest App preview associated with the project's default branch
@@ -51,57 +50,80 @@ tuist run App@my-feature-branch # Runs latest App preview associated with a give
 tuist run App@00dde7f56b1b8795a26b8085a781fb3715e834be # Runs latest App preview associated with a given git commit sha
 ```
 
-> [!IMPORTANT] PREVIEWS' VISIBILITY
-> Only people with access to the organization the project belongs to can access the previews. We plan to add support for expiring links.
+> [重要] 预览的可见性 只有拥有项目所属组织权限的人才能访问预览。我们计划添加对过期链接的支持。
 
-## Tuist macOS app {#tuist-macos-app}
+## Tuist macOS 应用程序 {#tuist-macos-app}
 
 <div style="display: flex; flex-direction: column; align-items: center;">
     <img src="/logo.png" style="height: 100px;" />
     <h1>Tuist</h1>
-    <a href="https://cloud.tuist.io/download" style="text-decoration: none;">Download</a>
+    <a href="https://tuist.dev/download" style="text-decoration: none;">Download</a>
     <img src="/images/guides/features/menu-bar-app.png" style="width: 300px;" />
 </div>
 
-To make running Tuist Previews even easier, we developed a Tuist macOS menu bar app. Instead of running Previews via the Tuist CLI, you can [download](https://tuist.dev/download) the macOS app. You can also install the app by running `brew install --cask tuist/tuist/tuist`.
+为了让运行 Tuist 预览变得更加简单，我们开发了一个 Tuist macOS 菜单栏应用程序。无需通过 Tuist CLI 运行预览，您可以
+[下载](https://tuist.dev/download) macOS 应用程序。您也可以通过运行`brew install --cask
+tuist/tuist/tuist` 来安装该应用。
 
-When you now click on "Run" in the Preview page, the macOS app will automatically launch it on your currently selected device.
+现在点击预览页面中的 "运行"，macOS 应用程序就会自动在当前选定的设备上启动。
 
-> [!IMPORTANT] REQUIREMENTS
->
-> You need to have Xcode locally installed and be on macOS 14 or later.
+> [！重要]要求
+> 
+> 您需要在本地安装 Xcode，并使用 macOS 14 或更高版本。
 
-## Pull/merge request comments {#pullmerge-request-comments}
+## Tuist iOS 应用程序 {#tuist-ios-app}
 
-> [!IMPORTANT] INTEGRATION WITH GIT PLATFORM REQUIRED
-> To get automatic pull/merge request comments, integrate your <LocalizedLink href="/guides/server/accounts-and-projects">remote project</LocalizedLink> with a <LocalizedLink href="/guides/server/authentication">Git platform</LocalizedLink>.
+<div style="display: flex; flex-direction: column; align-items: center;">
+    <img src="/images/guides/features/ios-icon.png" style="height: 100px;" />
+    <h1 style="padding-top: 2px;">Tuist</h1>
+    <img src="/images/guides/features/tuist-app.png" style="width: 300px; padding-top: 8px;" />
+    <a href="https://apps.apple.com/us/app/tuist/id6748460335" target="_blank" style="padding-top: 10px;">
+        <img src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg" alt="Download on the App Store" style="height: 40px;">
+    </a>
+</div>
 
-Testing new functionality should be a part of any code review. But having to build an app locally adds unnecessary friction, often leading to developers skipping testing functionality on their device at all. But *what if each pull request contained a link to the build that would automatically run the app on a device you selected in the Tuist macOS app?*
+与 macOS 应用程序类似，Tuist iOS 应用程序也能简化预览的访问和运行。
 
-Once your Tuist project is connected with your Git platform such as [GitHub](https://github.com), add a <LocalizedLink href="/cli/share">`tuist share MyApp`</LocalizedLink> to your CI workflow. Tuist will then post a Preview link directly in your pull requests:
-![GitHub app comment with a Tuist Preview link](/images/guides/features/github-app-with-preview.png)
+## 拉取/合并请求注释 {#pullmerge-request-comments}
 
-## README badge {#readme-badge}
+> [重要] 需要与 GIT 平台集成
+> 要获得自动拉取/合并请求注释，请将<LocalizedLink href="/guides/server/accounts-and-projects">远程项目</LocalizedLink>与<LocalizedLink href="/guides/server/authentication">Git
+> 平台</LocalizedLink>集成。
 
-To make Tuist Previews more visible in your repository, you can add a badge to your `README` file that points to the latest Tuist Preview:
+测试新功能应该是代码审查的一部分。但必须在本地构建应用程序会增加不必要的麻烦，这往往会导致开发人员根本不在自己的设备上测试功能。但是，*，如果每个拉取请求都包含一个指向构建的链接，可以在
+Tuist macOS 应用程序中选择的设备上自动运行应用程序呢？*
 
-[![Tuist Preview](https://tuist.dev/Dimillian/IcySky/previews/latest/badge.svg)](https://tuist.dev/Dimillian/IcySky/previews/latest)
+一旦您的 Tuist 项目与 [GitHub](https://github.com) 等 Git 平台连接，请在 CI 工作流中添加
+<LocalizedLink href="/cli/share">`tuist share MyApp`</LocalizedLink>。然后，Tuist
+会直接在您的拉取请求中发布预览链接：！[带有 Tuist 预览链接的 GitHub
+应用程序注释](/images/guides/features/github-app-with-preview.png)。
 
-To add the badge to your `README`, use the following markdown and replace the account and project handles with your own:
+## README 徽章 {#readme-badge}
+
+为了让 Tuist 预览版在你的版本库中更显眼，你可以在`README` 文件中添加一个徽章，指向最新的 Tuist 预览版：
+
+[！[Tuist
+Preview](https://tuist.dev/Dimillian/IcySky/previews/latest/badge.svg)](https://tuist.dev/Dimillian/IcySky/previews/latest)
+
+要在`README` 中添加徽章，请使用以下标记符，并用自己的账户和项目句柄替换：
 ```
 [![Tuist Preview](https://tuist.dev/{account-handle}/{project-handle}/previews/latest/badge.svg)](https://tuist.dev/{account-handle}/{project-handle}/previews/latest)
 ```
 
-## Automations {#automations}
+如果您的项目包含多个具有不同捆绑标识符的应用程序，您可以通过添加`bundle-id` 查询参数来指定链接到哪个应用程序的预览：
+```
+[![Tuist Preview](https://tuist.dev/{account-handle}/{project-handle}/previews/latest/badge.svg)](https://tuist.dev/{account-handle}/{project-handle}/previews/latest?bundle-id=com.example.app)
+```
 
-You can use the `--json` flag to get a JSON output from the `tuist share` command:
+## 自动化 {#automations｝
+
+您可以使用`--json` 标志从`tuist share` 命令获取 JSON 输出：
 ```
 tuist share --json
 ```
 
-The JSON output is useful to create custom automations, such as posting a Slack message using your CI provider.
-The JSON contains a `url` key with the full preview link and a `qrCodeURL` key with the URL to the QR code image
-to make it easier to download previews from a real device. An example of a JSON output is below:
+JSON 输出有助于创建自定义自动化，例如使用 CI 提供商发布 Slack 消息。JSON 包含一个`url` 密钥和一个`qrCodeURL`
+密钥，前者是完整预览链接，后者是二维码图片的 URL，以便于从真实设备下载预览。下面是一个 JSON 输出示例：
 ```json
 {
   "id": 1234567890,
