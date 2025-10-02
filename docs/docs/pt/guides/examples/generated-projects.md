@@ -1,10 +1,15 @@
 ---
 {
-  "title": "Exemplos de Projetos Gerados",
-  "titleTemplate": ":title · Exemplos · Guias · Tuist",
-  "description": "Exemplos de projetos gerados que usamos como fixtures para executar testes de aceitação."
+  "title": "Generated Projects Examples",
+  "titleTemplate": ":title · Examples · Guides · Tuist",
+  "description": "Examples of generated projects which we use as fixtures to run acceptance tests against."
 }
 ---
-# Exemplos de Projetos Gerados
+# Exemplos de projectos gerados
 
-Nesta seção você encontrará exemplos de <LocalizedLink to="/guides/features/projects">projetos gerados</LocalizedLink> que usamos como [fixtures](https://github.com/tuist/tuist/tree/main/cli/Fixtures) para executar testes de aceitação. Eles podem ser úteis ao criar um novo projeto gerado, ou migrar um projeto Xcode existente para ser gerado pelo Tuist.
+Nesta secção encontrará exemplos de
+<LocalizedLink to="/guides/features/projects">projectos gerados</LocalizedLink>
+que usamos como
+[fixtures](https://github.com/tuist/tuist/tree/main/cli/Fixtures) para executar
+testes de aceitação. Você pode achá-los úteis ao criar um novo projeto gerado,
+ou migrar um projeto Xcode existente para ser gerado pelo Tuist.
