@@ -5,11 +5,11 @@
   "description": "Learn how to use the Tuist Registry in an Xcode project."
 }
 ---
-# Xcode project {#xcode-project}
+# Xcode 项目 {#xcode-project}
 
-To add packages using the registry in your Xcode project, use the default Xcode UI. You can search for packages in the registry by clicking on the `+` button in the `Package Dependencies` tab in Xcode. If the package is available in the registry, you will see the `tuist.dev` registry in the top right:
+要在 Xcode 项目中使用注册表添加软件包，请使用默认的 Xcode UI。您可以点击 Xcode 中`Package Dependencies`
+标签页中的`+` 按钮，在注册表中搜索软件包。如果软件包在注册表中可用，您将在右上角看到`tuist.dev` 注册表：
 
-![Adding package dependencies](/images/guides/features/build/registry/registry-add-package.png)
+添加软件包依赖关系](/images/guides/features/build/registry/registry-add-package.png)。
 
-> [!NOTE]
-> Xcode currently doesn't support automatically replacing source control packages with their registry equivalents. You will need to manually remove the source control package and add the registry package to speed up the resolution.
+> [注意] Xcode 目前不支持将源代码控制包自动替换为注册表中的对应包。您需要手动移除源代码控制包并添加注册表包，以加快解决速度。

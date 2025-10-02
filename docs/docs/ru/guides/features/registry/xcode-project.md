@@ -1,15 +1,21 @@
 ---
 {
   "title": "Xcode project",
-  "titleTemplate": ":title · Registry · Develop · Guides · Tuist",
+  "titleTemplate": ":title · Registry · Features · Guides · Tuist",
   "description": "Learn how to use the Tuist Registry in an Xcode project."
 }
 ---
-# Xcode project {#xcode-project}
+# Проект Xcode {#xcode-project}
 
-To add packages using the registry in your Xcode project, use the default Xcode UI. You can search for packages in the registry by clicking on the `+` button in the `Package Dependencies` tab in Xcode. If the package is available in the registry, you will see the `tuist.dev` registry in the top right:
+Чтобы добавить пакеты с помощью реестра в проект Xcode, используйте стандартный
+пользовательский интерфейс Xcode. Вы можете искать пакеты в реестре, нажав на
+кнопку `+` на вкладке `Package Dependencies` в Xcode. Если пакет доступен в
+реестре, в правом верхнем углу вы увидите `tuist.dev` реестра:
 
-![Adding package dependencies](/images/guides/features/build/registry/registry-add-package.png)
+![Добавление зависимостей
+пакетов](/images/guides/features/build/registry/registry-add-package.png)
 
-> [!NOTE]
-> Xcode currently doesn't support automatically replacing source control packages with their registry equivalents. You will need to manually remove the source control package and add the registry package to speed up the resolution.
+> [!ПРИМЕЧАНИЕ] В настоящее время Xcode не поддерживает автоматическую замену
+> пакетов управления исходным кодом на их эквиваленты в реестре. Вам придется
+> вручную удалить пакет управления исходным кодом и добавить пакет реестра,
+> чтобы ускорить процесс разрешения.
