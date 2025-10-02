@@ -1,37 +1,50 @@
 ---
 {
   "title": "Build",
-  "titleTemplate": ":title · Develop · Guides · Tuist",
+  "titleTemplate": ":title · Features · Guides · Tuist",
   "description": "Learn how to use Tuist to build your projects efficiently."
 }
 ---
-# Build {#build}
+# Construir {#build}
 
-Projects are usually built through a build-system-provided CLI (e.g. `xcodebuild`). Tuist wraps them to improve the user experience and integrate the workflows with the platform to provide optimizations and analytics.
+Los proyectos se construyen normalmente a través de un CLI proporcionado por el
+sistema de construcción (por ejemplo, `xcodebuild`). Tuist los envuelve para
+mejorar la experiencia del usuario e integrar los flujos de trabajo con la
+plataforma para proporcionar optimizaciones y análisis.
 
-You might wonder what's the value of using `tuist build` over generating the project with `tuist generate` (if needed) and building it with the platform-specific CLI. Here are some reasons:
+Puede que te preguntes cuál es el valor de usar `tuist build` en lugar de
+generar el proyecto con `tuist generate` (si es necesario) y construirlo con la
+CLI específica de la plataforma. He aquí algunas razones:
 
-- **Single command:** `tuist build` ensures the project is generated if needed before compiling the project.
-- **Beautified output:** Tuist enriches the output using tools like [xcbeautify](https://github.com/cpisciotta/xcbeautify) that make the output more user-friendly.
-- <LocalizedLink href="/guides/features/build/cache"><bold>Cache:</bold></LocalizedLink> It optimizes the build by deterministically reusing the build artifacts from a remote cache.
-- **Analytics:** It collects and reports metrics that are correlated with other data points to provide you with actionable information to make informed decisions.
+- **Comando único:** `tuist build` asegura que el proyecto se genera si es
+  necesario antes de compilar el proyecto.
+- **Salida embellecida:** Tuist enriquece la salida utilizando herramientas como
+  [xcbeautify](https://github.com/cpisciotta/xcbeautify) que hacen que la salida
+  sea más fácil de usar.
+- <LocalizedLink href="/guides/features/cache"><bold>Caché:</bold></LocalizedLink>
+  Optimiza la compilación reutilizando de forma determinista los artefactos de
+  compilación de una caché remota.
+- **Analítica:** Recopila e informa métricas que se correlacionan con otros
+  puntos de datos para proporcionarle información procesable para tomar
+  decisiones informadas.
 
-## Usage {#usage}
+## Uso {#usage}
 
-`tuist build` generates the project if needed, and then build it using the platform-specific build tool. We support the use of the `--` terminator to forward all subsequent arguments directly to the underlying build tool. This is useful when you need to pass arguments that are not supported by `tuist build` but are supported by the underlying build tool.
+`tuist build` genera el proyecto si es necesario, y luego lo construye
+utilizando la herramienta de construcción específica de la plataforma. Apoyamos
+el uso del terminador `--` para reenviar todos los argumentos subsiguientes
+directamente a la herramienta de construcción subyacente. Esto es útil cuando
+necesitas pasar argumentos que no son soportados por `tuist build` pero sí por
+la herramienta de construcción subyacente.
 
-::: code-group
-
+::: grupo de códigos
 ```bash [Build a scheme]
 tuist build MyScheme
 ```
-
 ```bash [Build a specific configuration]
 tuist build MyScheme -- -configuration Debug
 ```
-
 ```bash [Build all schemes without binary cache]
 tuist build --no-binary-cache
 ```
-
 :::

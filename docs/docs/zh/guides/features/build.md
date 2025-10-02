@@ -5,22 +5,25 @@
   "description": "Learn how to use Tuist to build your projects efficiently."
 }
 ---
-# Build {#build}
+# 构建 {#build｝
 
-Projects are usually built through a build-system-provided CLI (e.g. `xcodebuild`). Tuist wraps them to improve the user experience and integrate the workflows with the platform to provide optimizations and analytics.
+项目通常通过构建系统提供的 CLI（如`xcodebuild` ）构建。Tuist 对其进行包装，以改善用户体验，并将工作流程与平台集成，以提供优化和分析功能。
 
-You might wonder what's the value of using `tuist build` over generating the project with `tuist generate` (if needed) and building it with the platform-specific CLI. Here are some reasons:
+您可能会问，使用`tuist build` 比使用`tuist generate` （如果需要）生成项目并使用特定平台的 CLI
+构建项目有什么价值？以下是一些原因：
 
-- **Single command:** `tuist build` ensures the project is generated if needed before compiling the project.
-- **Beautified output:** Tuist enriches the output using tools like [xcbeautify](https://github.com/cpisciotta/xcbeautify) that make the output more user-friendly.
-- <LocalizedLink href="/guides/features/cache"><bold>Cache:</bold></LocalizedLink> It optimizes the build by deterministically reusing the build artifacts from a remote cache.
-- **Analytics:** It collects and reports metrics that are correlated with other data points to provide you with actionable information to make informed decisions.
+- **单个命令：** `tuist build` 确保在编译项目前根据需要生成项目。
+- **美化输出：** Tuist 使用 [xcbeautify](https://github.com/cpisciotta/xcbeautify)
+  等工具丰富输出结果，使输出结果更方便用户使用。
+- <LocalizedLink href="/guides/features/cache"><bold>缓存：{1｝它通过确定性地重复使用远程缓存中的构建工件来优化构建过程。
+- **分析：** 它收集并报告与其他数据点相关联的指标，为您提供可操作的信息，以便您做出明智的决策。
 
-## Usage {#usage}
+## 用法 {#usage｝
 
-`tuist build` generates the project if needed, and then build it using the platform-specific build tool. We support the use of the `--` terminator to forward all subsequent arguments directly to the underlying build tool. This is useful when you need to pass arguments that are not supported by `tuist build` but are supported by the underlying build tool.
+`tuist build` 在需要时生成项目，然后使用特定平台的构建工具进行构建。我们支持使用`--`
+终结器，将所有后续参数直接转发给底层构建工具。当您需要传递`tuist build` 不支持但底层构建工具支持的参数时，这将非常有用。
 
-::: code-group
+代码组
 ```bash [Build a scheme]
 tuist build MyScheme
 ```
