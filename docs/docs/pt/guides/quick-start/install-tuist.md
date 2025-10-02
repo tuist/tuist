@@ -5,17 +5,21 @@
   "description": "Learn how to install Tuist in your environment."
 }
 ---
-# Install Tuist {#install-tuist}
+# Instalar o Tuist {#install-tuist}
 
-The Tuist CLI consists of an executable, dynamic frameworks, and a set of resources (for example, templates). Although you could manually build Tuist from [the sources](https://github.com/tuist/tuist), **we recommend using one of the following installation methods to ensure a valid installation.**
+A CLI do Tuist consiste em um executável, estruturas dinâmicas e um conjunto de
+recursos (por exemplo, modelos). Embora seja possível construir manualmente o
+Tuist a partir de [os fontes](https://github.com/tuist/tuist), **recomendamos o
+uso de um dos seguintes métodos de instalação para garantir uma instalação
+válida.**
 
 ### <a href="https://github.com/jdx/mise">Mise</a> {#recommended-mise}
 
-:::info
-Mise is a recommended alternative to [Homebrew](https://brew.sh) if you are a team or organization that needs to ensure deterministic versions of tools across different environments.
-:::
+::: info Mise é uma alternativa recomendada ao [Homebrew](https://brew.sh) se
+for uma equipa ou organização que precisa de assegurar versões determinísticas
+de ferramentas em diferentes ambientes ::::
 
-You can install Tuist through any of the following commands:
+Pode instalar o Tuist através de qualquer um dos seguintes comandos:
 
 ```bash
 mise install tuist            # Install the current version specified in .tool-versions/.mise.toml
@@ -23,7 +27,9 @@ mise install tuist@x.y.z      # Install a specific version number
 mise install tuist@3          # Install a fuzzy version number
 ```
 
-Note that unlike tools like Homebrew, which install and activate a single version of the tool globally, **Mise requires the activation of a version** either globally or scoped to a project. This is done by running `mise use`:
+Note que, ao contrário de ferramentas como Homebrew, que instalam e ativam uma
+única versão da ferramenta globalmente, **Mise requer a ativação de uma versão**
+globalmente ou com escopo para um projeto. Isso é feito executando `mise use`:
 
 ```bash
 mise use tuist@x.y.z          # Use tuist-x.y.z in the current project
@@ -34,7 +40,8 @@ mise use -g tuist@system      # Use the system's tuist as the global default
 
 ### <a href="https://brew.sh">Homebrew</a> {#recommended-homebrew}
 
-You can install Tuist using [Homebrew](https://brew.sh) and [our formulas](https://github.com/tuist/homebrew-tuist):
+Pode instalar o Tuist utilizando [Homebrew](https://brew.sh) e [as nossas
+fórmulas](https://github.com/tuist/homebrew-tuist):
 
 ```bash
 brew tap tuist/tuist
@@ -42,10 +49,11 @@ brew install --formula tuist
 brew install --formula tuist@x.y.z
 ```
 
-:::tip VERIFYING THE AUTHENTICITY OF THE BINARIES
+::: dica VERIFICAR A AUTENTICIDADE DOS BINÁRIOS Pode verificar que os binários
+da sua instalação foram construídos por nós executando o seguinte comando, que
+verifica se a equipa do certificado é `U6LC622NKF`:
 
 ```bash
 curl -fsSL "https://docs.tuist.dev/verify.sh" | bash
 ```
-
 :::
