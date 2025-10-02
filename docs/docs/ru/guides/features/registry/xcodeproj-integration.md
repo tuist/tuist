@@ -1,14 +1,17 @@
 ---
 {
   "title": "Generated project with the XcodeProj-based package integration",
-  "titleTemplate": ":title · Registry · Develop · Guides · Tuist",
+  "titleTemplate": ":title · Registry · Features · Guides · Tuist",
   "description": "Learn how to use the Tuist Registry in a generated Xcode project with the XcodeProj-based package integration."
 }
 ---
-# Generated project with the XcodeProj-based package integration {#generated-project-with-xcodeproj-based-integration}
+# Сгенерированный проект с интеграцией пакетов на основе XcodeProj {#generated-project-with-xcodeproj-based-integration}
 
-When using the <LocalizedLink href="/guides/features/projects/dependencies#tuists-xcodeprojbased-integration">XcodeProj-based integration</LocalizedLink>, you can use the `--replace-scm-with-registry` flag to resolve dependencies from the registry if they are available. Add it to the `installOptions` in your `Tuist.swift` file:
-
+При использовании интеграции на основе
+<LocalizedLink href="/guides/features/projects/dependencies#tuists-xcodeprojbased-integration">XcodeProj</LocalizedLink>
+вы можете использовать флаг ``--replace-scm-with-registry`` для разрешения
+зависимостей из реестра, если они доступны. Добавьте его в `installOptions` в
+ваш файл `Tuist.swift`:
 ```swift
 import ProjectDescription
 
@@ -20,8 +23,11 @@ let tuist = Tuist(
 )
 ```
 
-If you want to ensure that the registry is used every time you resolve dependencies, you will need to update `dependencies` in your `Tuist/Package.swift` file to use the registry identifier instead of a URL. The registry identifier is always in the form of `{organization}.{repository}`. For example, to use the registry for the `swift-composable-architecture` package, do the following:
-
+Если вы хотите, чтобы реестр использовался каждый раз при разрешении
+зависимостей, вам нужно обновить `зависимостей` в файле `Tuist/Package.swift`,
+чтобы использовать идентификатор реестра вместо URL. Идентификатор реестра
+всегда имеет вид `{organization}.{repository}`. Например, чтобы использовать
+реестр для пакета `swift-composable-architecture`, сделайте следующее:
 ```diff
 dependencies: [
 -   .package(url: "https://github.com/pointfreeco/swift-composable-architecture", from: "0.1.0")
