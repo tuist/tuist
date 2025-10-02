@@ -5,39 +5,48 @@
   "description": "Learn how to create and manage accounts and projects in Tuist."
 }
 ---
-# Accounts and projects {#accounts-and-projects}
+# アカウントとプロジェクト{#accounts-and-projects}。
 
-## Accounts {#accounts}
+Tuistの機能の中には、データの永続性を追加し、他のサービスと相互作用できるサーバーを必要とするものがある。サーバーと対話するには、アカウントとローカルプロジェクトに接続するプロジェクトが必要です。
 
-To use the server, you'll need an account. There are two types of accounts:
+## アカウント {#accounts}
 
-- **Personal account:** Those accounts are created automaticaly when you sign up and are identified by a handle that's obtained either from the identity provider (e.g. GitHub) or the first part of the email address.
-- **Organization account:** Those accounts are manually created and are identified by a handle that's defined by the developer. Organizations allow inviting other members to collaborate on projects.
+サーバーを利用するには、アカウントが必要です。アカウントには2種類あります：
 
-If you are familiar with [GitHub](https://github.com), the concept is similar to theirs, where you can have personal and organization accounts, and they are identified by a _handle_ that's used when constructing URLs.
+- **個人アカウント：**
+  これらのアカウントはサインアップ時に自動的に作成され、IDプロバイダー（GitHubなど）から取得したハンドルネームか、メールアドレスの最初の部分で識別されます。
+- **組織アカウント：**
+  これらのアカウントは手動で作成され、開発者によって定義されたハンドルによって識別されます。組織では、他のメンバーをプロジェクトに招待することができます。
 
-> [!NOTE] CLI-FIRST
-> Most operations to manage accounts and projects are done through the CLI. We are working on a web interface that will make it easier to manage accounts and projects.
+もしあなたが[GitHub](https://github.com)をご存知なら、コンセプトは彼らのものと似ていて、個人と組織のアカウントを持つことができ、それらはURLを構築するときに使われる*ハンドル*
+によって識別される。
 
-You can manage the organization through the subcommands under <LocalizedLink href="/cli/organization">`tuist organization`</LocalizedLink>. To create a new organization account, run:
+> [注意] CLI-FIRST
+> アカウントとプロジェクトを管理するためのほとんどの操作はCLIを通して行われます。私たちは、アカウントやプロジェクトをより簡単に管理できるウェブインターフェースの開発に取り組んでいます。
 
+1}`tuist
+organization`</LocalizedLink>のサブコマンドで組織を管理できます。新しい組織アカウントを作成するには、以下を実行する：
 ```bash
 tuist organization create {account-handle}
 ```
 
-## Projects {#projects}
+## プロジェクト {#projects}
 
-Your projects, either Tuist's or raw Xcode's, need to be integrated with your account through a remote project. Continuing with the comparison with GitHub, it's like having a local and a remote repository where you push your changes. You can use the <LocalizedLink href="/cli/project">`tuist project`</LocalizedLink> to create and manage projects.
+あなたのプロジェクトは、Tuistのものであれ、生のXcodeのものであれ、リモートプロジェクトを通してあなたのアカウントと統合される必要がある。GitHubとの比較を続けると、変更をプッシュするローカルとリモートのリポジトリがあるようなものです。1}`tuist
+project`</LocalizedLink>を使ってプロジェクトを作成・管理できます。
 
-Projects are identified by a full handle, which is the result of concatenating the organization handle and the project handle. For example, if you have an organization with the handle `tuist`, and a project with the handle `tuist`, the full handle would be `tuist/tuist`.
+プロジェクトは、組織ハンドルとプロジェクトハンドルを連結したフルハンドルで識別されます。例えば、`tuist` というハンドルの組織と、`tuist`
+というハンドルのプロジェクトがある場合、フルハンドルは`tuist/tuist` となります。
 
-The binding between the local and the remote project is done through the configuration file. If you don't have any, create it at `Tuist.swift` and add the following content:
+ローカルプロジェクトとリモートプロジェクト間のバインディングは、設定ファイルを通して行われます。ない場合は、`Tuist.swift`
+に作成し、以下の内容を追加してください：
 
 ```swift
 let tuist = Tuist(fullHandle: "{account-handle}/{project-handle}") // e.g. tuist/tuist
 ```
 
-> [!IMPORTANT] TUIST PROJECT-ONLY FEATURES
-> Note that there are some features like <LocalizedLink href="/guides/features/build/cache">binary caching</LocalizedLink> that require you having a Tuist project. If you are using raw Xcode projects, you won't be able to use those features.
+> [重要] TUIST PROJECT-ONLY FEATURES
+> <LocalizedLink href="/guides/features/cache">バイナリキャッシュ</LocalizedLink>のようにTuistプロジェクトが必要な機能があることに注意してください。生のXcodeプロジェクトを使用している場合、これらの機能を使用することはできません。
 
-Your project's URL is constructed by using the full handle. For example, Tuist's dashboard, which is public, is accessible at [cloud.tuist.io/tuist/tuist](https://cloud.tuist.io/tuist/tuist), where `tuist/tuist` is the project's full handle.
+プロジェクトのURLはフルハンドルで構成されます。例えば、公開されているTuistのダッシュボードは、[tuist.dev/tuist/tuist](https://tuist.dev/tuist/tuist)でアクセスできます。ここで、`tuist/tuist`
+はプロジェクトのフルハンドルです。

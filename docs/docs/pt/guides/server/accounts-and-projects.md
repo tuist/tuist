@@ -5,39 +5,69 @@
   "description": "Learn how to create and manage accounts and projects in Tuist."
 }
 ---
-# Accounts and projects {#accounts-and-projects}
+# Contas e projectos {#contas-e-projectos}
 
-## Accounts {#accounts}
+Algumas funcionalidades Tuist requerem um servidor que adiciona persistência de
+dados e pode interagir com outros serviços. Para interagir com o servidor, é
+necessária uma conta e um projeto que se liga ao seu projeto local.
 
-To use the server, you'll need an account. There are two types of accounts:
+## Contas {#accounts}
 
-- **Personal account:** Those accounts are created automaticaly when you sign up and are identified by a handle that's obtained either from the identity provider (e.g. GitHub) or the first part of the email address.
-- **Organization account:** Those accounts are manually created and are identified by a handle that's defined by the developer. Organizations allow inviting other members to collaborate on projects.
+Para utilizar o servidor, precisa de uma conta. Existem dois tipos de contas:
 
-If you are familiar with [GitHub](https://github.com), the concept is similar to theirs, where you can have personal and organization accounts, and they are identified by a _handle_ that's used when constructing URLs.
+- **Conta pessoal:** Estas contas são criadas automaticamente quando o
+  utilizador se inscreve e são identificadas por um identificador que é obtido a
+  partir do fornecedor de identidade (por exemplo, GitHub) ou da primeira parte
+  do endereço de correio eletrónico.
+- **Conta da organização:** Estas contas são criadas manualmente e são
+  identificadas por um identificador definido pelo programador. As organizações
+  permitem convidar outros membros para colaborar em projectos.
 
-> [!NOTE] CLI-FIRST
-> Most operations to manage accounts and projects are done through the CLI. We are working on a web interface that will make it easier to manage accounts and projects.
+Se estiver familiarizado com o [GitHub](https://github.com), o conceito é
+semelhante ao deles, em que é possível ter contas pessoais e de organizações, e
+estas são identificadas por um identificador ** que é utilizado na construção de
+URLs.
 
-You can manage the organization through the subcommands under <LocalizedLink href="/cli/organization">`tuist organization`</LocalizedLink>. To create a new organization account, run:
+> [A maioria das operações de gestão de contas e projectos é efectuada através
+> do CLI. Estamos a trabalhar numa interface Web que facilitará a gestão de
+> contas e projectos.
 
+Pode gerir a organização através dos subcomandos em
+<LocalizedLink href="/cli/organization">`tuist organization`</LocalizedLink>.
+Para criar uma nova conta de organização, execute:
 ```bash
 tuist organization create {account-handle}
 ```
 
-## Projects {#projects}
+## Projectos {#projectos}
 
-Your projects, either Tuist's or raw Xcode's, need to be integrated with your account through a remote project. Continuing with the comparison with GitHub, it's like having a local and a remote repository where you push your changes. You can use the <LocalizedLink href="/cli/project">`tuist project`</LocalizedLink> to create and manage projects.
+Os seus projectos, quer do Tuist quer do Xcode em bruto, têm de ser integrados
+na sua conta através de um projeto remoto. Continuando com a comparação com o
+GitHub, é como ter um repositório local e um repositório remoto para onde se
+enviam as alterações. Pode utilizar o projeto
+<LocalizedLink href="/cli/project">`tuist`</LocalizedLink> para criar e gerir
+projectos.
 
-Projects are identified by a full handle, which is the result of concatenating the organization handle and the project handle. For example, if you have an organization with the handle `tuist`, and a project with the handle `tuist`, the full handle would be `tuist/tuist`.
+Os projectos são identificados por um identificador completo, que é o resultado
+da concatenação do identificador da organização e do identificador do projeto.
+Por exemplo, se tiver uma organização com o identificador `tuist`, e um projeto
+com o identificador `tuist`, o identificador completo será `tuist/tuist`.
 
-The binding between the local and the remote project is done through the configuration file. If you don't have any, create it at `Tuist.swift` and add the following content:
+A ligação entre o projeto local e o remoto é feita através do ficheiro de
+configuração. Se não tiver nenhum, crie-o em `Tuist.swift` e adicione o seguinte
+conteúdo:
 
 ```swift
 let tuist = Tuist(fullHandle: "{account-handle}/{project-handle}") // e.g. tuist/tuist
 ```
 
-> [!IMPORTANT] TUIST PROJECT-ONLY FEATURES
-> Note that there are some features like <LocalizedLink href="/guides/features/build/cache">binary caching</LocalizedLink> that require you having a Tuist project. If you are using raw Xcode projects, you won't be able to use those features.
+> [IMPORTANTE] RECURSOS APENAS DO PROJETO TUIST Observe que há alguns recursos
+> como <LocalizedLink href="/guides/features/cache">cache
+> binário</LocalizedLink> que exigem que você tenha um projeto Tuist. Se estiver
+> a utilizar projectos Xcode em bruto, não poderá utilizar essas
+> funcionalidades.
 
-Your project's URL is constructed by using the full handle. For example, Tuist's dashboard, which is public, is accessible at [cloud.tuist.io/tuist/tuist](https://cloud.tuist.io/tuist/tuist), where `tuist/tuist` is the project's full handle.
+O URL do seu projeto é construído utilizando o identificador completo. Por
+exemplo, o painel de controlo do Tuist, que é público, está acessível em
+[tuist.dev/tuist/tuist](https://tuist.dev/tuist/tuist), onde `tuist/tuist` é o
+identificador completo do projeto.
