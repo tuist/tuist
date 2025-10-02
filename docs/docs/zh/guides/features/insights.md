@@ -64,7 +64,7 @@ tuist inspect build
 > [！注意] 自动生成的方案会自动包含`tuist 检查构建` 行动后。
 > 
 > 如果不想在自动生成的方案中跟踪构建洞察，请使用
-> <LocalizedLink href="references/project-description/structs/tuist.generationoptions#buildinsightsdisabled">buildInsightsDisabled</LocalizedLink>
+> <LocalizedLink href="/references/project-description/structs/tuist.generationoptions#buildinsightsdisabled">buildInsightsDisabled</LocalizedLink>
 > 生成选项禁用它们。
 
 如果使用的是生成的项目，则可以使用自定义方案设置自定义

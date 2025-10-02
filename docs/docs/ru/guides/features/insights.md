@@ -90,7 +90,7 @@ Tuist. Теперь вы можете получить доступ к врем�
 > 
 > Если вы не заинтересованы в отслеживании информации о сборке в ваших
 > автоматически генерируемых схемах, отключите их с помощью опции генерации
-> <LocalizedLink href="references/project-description/structs/tuist.generationoptions#buildinsightsdisabled">buildInsightsDisabled</LocalizedLink>.
+> <LocalizedLink href="/references/project-description/structs/tuist.generationoptions#buildinsightsdisabled">buildInsightsDisabled</LocalizedLink>.
 
 Если вы используете сгенерированные проекты, вы можете настроить
 пользовательское

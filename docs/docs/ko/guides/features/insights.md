@@ -70,7 +70,7 @@ tuist inspect build
 > [참고] 자동 생성된 계획에는 `tuist inspect build` 포스트 액션이 자동으로 포함됩니다.
 > 
 > 자동 생성된 스키마에서 빌드 인사이트를 추적하는 데 관심이 없는 경우
-> <LocalizedLink href="references/project-description/structs/tuist.generationoptions#buildinsightsdisabled">buildInsightsDisabled</LocalizedLink>
+> <LocalizedLink href="/references/project-description/structs/tuist.generationoptions#buildinsightsdisabled">buildInsightsDisabled</LocalizedLink>
 > 생성 옵션을 사용하여 비활성화하세요.
 
 생성된 프로젝트를 사용하는 경우 다음과 같은 사용자 지정 구성표를 사용하여 사용자 지정

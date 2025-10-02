@@ -64,7 +64,7 @@ Tuistアカウントにログインしている限り、ローカルのビルド
 
 > [注意】自動生成されたスキームには、`tuist inspect build` post-actionが自動的に含まれる。
 > 
-> 自動生成されたスキームでビルドインサイトを追跡することに興味がない場合は、<LocalizedLink href="references/project-description/structs/tuist.generationoptions#buildinsightsdisabled">buildInsightsDisabled</LocalizedLink>生成オプションを使用して無効にしてください。
+> 自動生成されたスキームでビルドインサイトを追跡することに興味がない場合は、<LocalizedLink href="/references/project-description/structs/tuist.generationoptions#buildinsightsdisabled">buildInsightsDisabled</LocalizedLink>生成オプションを使用して無効にしてください。
 
 生成されたプロジェクトを使用している場合、カスタムスキームを使用してカスタム<LocalizedLink href="references/project-description/structs/buildaction#postactions">ビルドポストアクション</LocalizedLink>を設定できます：
 

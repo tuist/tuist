@@ -92,7 +92,7 @@ información de construcción]
 > 
 > Si no le interesa realizar un seguimiento de los datos de construcción en sus
 > esquemas autogenerados, desactívelos mediante la opción de generación
-> <LocalizedLink href="references/project-description/structs/tuist.generationoptions#buildinsightsdisabled">buildInsightsDisabled</LocalizedLink>.
+> <LocalizedLink href="/references/project-description/structs/tuist.generationoptions#buildinsightsdisabled">buildInsightsDisabled</LocalizedLink>.
 
 Si está utilizando proyectos generados, puede configurar una
 <LocalizedLink href="references/project-description/structs/buildaction#postactions">acción

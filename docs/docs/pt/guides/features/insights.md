@@ -88,7 +88,7 @@ construção](/images/guides/features/insights/builds-dashboard.png)
 > 
 > Se não estiver interessado em rastrear informações de construção nos seus
 > esquemas gerados automaticamente, desactive-os utilizando a opção de geração
-> <LocalizedLink href="references/project-description/structs/tuist.generationoptions#buildinsightsdisabled">buildInsightsDisabled</LocalizedLink>.
+> <LocalizedLink href="/references/project-description/structs/tuist.generationoptions#buildinsightsdisabled">buildInsightsDisabled</LocalizedLink>.
 
 Se estiver a utilizar projectos gerados, pode configurar uma pós-ação
 personalizada
