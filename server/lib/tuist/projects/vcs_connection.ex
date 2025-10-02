@@ -6,9 +6,9 @@ defmodule Tuist.Projects.VCSConnection do
 
   import Ecto.Changeset
 
-  alias Tuist.Accounts.Account
-  alias Tuist.GitHubAppInstallations.GitHubAppInstallation
+  alias Tuist.Accounts.User
   alias Tuist.Projects.Project
+  alias Tuist.VCS.GitHubAppInstallation
 
   @primary_key {:id, UUIDv7, autogenerate: true}
   @foreign_key_type UUIDv7
@@ -17,7 +17,7 @@ defmodule Tuist.Projects.VCSConnection do
     field :repository_full_handle, :string
 
     belongs_to :project, Project, type: :integer
-    belongs_to :created_by, Account, foreign_key: :created_by_id, type: :integer
+    belongs_to :created_by, User, foreign_key: :created_by_id, type: :integer
     belongs_to :github_app_installation, GitHubAppInstallation
 
     timestamps(type: :utc_datetime)

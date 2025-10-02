@@ -4,9 +4,9 @@ defmodule TuistWeb.IntegrationsLive do
   use Noora
 
   alias Tuist.Authorization
-  alias Tuist.GitHubAppInstallations
   alias Tuist.Projects
   alias Tuist.Utilities.DateFormatter
+  alias Tuist.VCS
 
   @impl true
   def mount(_params, _uri, %{assigns: %{selected_account: selected_account, current_user: current_user}} = socket) do
@@ -31,7 +31,7 @@ defmodule TuistWeb.IntegrationsLive do
       |> then(fn socket ->
         if github_installation do
           assign_async(socket, :github_repositories, fn ->
-            {:ok, repositories} = GitHubAppInstallations.get_repositories(github_installation)
+            {:ok, repositories} = VCS.get_github_app_installation_repositories(github_installation)
             {:ok, %{github_repositories: repositories}}
           end)
         else
@@ -79,7 +79,7 @@ defmodule TuistWeb.IntegrationsLive do
       project_id: project_id,
       provider: :github,
       repository_full_handle: repository_full_handle,
-      created_by_id: current_user.account.id,
+      created_by_id: current_user.id,
       github_app_installation_id: selected_account.github_app_installation.id
     }
 

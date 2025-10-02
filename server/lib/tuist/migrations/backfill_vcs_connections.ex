@@ -12,12 +12,12 @@ defmodule Tuist.Migrations.BackfillVCSConnections do
   import Ecto.Query
 
   alias Tuist.GitHub.App
-  alias Tuist.GitHubAppInstallations
-  alias Tuist.GitHubAppInstallations.GitHubAppInstallation
   alias Tuist.Projects
   alias Tuist.Projects.Project
   alias Tuist.Projects.VCSConnection
   alias Tuist.Repo
+  alias Tuist.VCS
+  alias Tuist.VCS.GitHubAppInstallation
 
   require Logger
 
@@ -83,11 +83,12 @@ defmodule Tuist.Migrations.BackfillVCSConnections do
 
         attrs = %{
           account_id: account.id,
-          installation_id: Integer.to_string(installation["id"])
+          installation_id: Integer.to_string(installation["id"]),
+          html_url: installation["html_url"]
         }
 
         {:ok, github_installation} =
-          GitHubAppInstallations.create(attrs)
+          VCS.create_github_app_installation(attrs)
 
         Logger.info("Created GitHub app installation record for #{account.name}")
         {:ok, github_installation, true}
@@ -98,8 +99,6 @@ defmodule Tuist.Migrations.BackfillVCSConnections do
   end
 
   defp create_connection_for_project(project, github_app_installation, results) do
-    external_id = project.vcs_repository_full_handle
-
     existing_connection_query =
       from(pc in VCSConnection,
         where:
@@ -113,7 +112,6 @@ defmodule Tuist.Migrations.BackfillVCSConnections do
         attrs = %{
           project_id: project.id,
           provider: :github,
-          external_id: external_id,
           repository_full_handle: project.vcs_repository_full_handle,
           created_by_id: nil,
           github_app_installation_id: github_app_installation.id

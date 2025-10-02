@@ -3,7 +3,6 @@ defmodule TuistWeb.Webhooks.GitHubController do
 
   alias Tuist.AppBuilds
   alias Tuist.Environment
-  alias Tuist.GitHubAppInstallations
   alias Tuist.Projects
   alias Tuist.QA
   alias Tuist.Repo
@@ -176,12 +175,12 @@ defmodule TuistWeb.Webhooks.GitHubController do
   end
 
   defp delete_github_app_installation(installation_id) do
-    {:ok, github_app_installation} = GitHubAppInstallations.get_by_installation_id(installation_id)
-    GitHubAppInstallations.delete(github_app_installation)
+    {:ok, github_app_installation} = VCS.get_github_app_installation_by_installation_id(installation_id)
+    VCS.delete_github_app_installation(github_app_installation)
   end
 
   defp update_github_app_installation_html_url(installation_id, html_url) do
-    {:ok, github_app_installation} = GitHubAppInstallations.get_by_installation_id(installation_id)
-    GitHubAppInstallations.update(github_app_installation, %{html_url: html_url})
+    {:ok, github_app_installation} = VCS.get_github_app_installation_by_installation_id(installation_id)
+    VCS.update_github_app_installation(github_app_installation, %{html_url: html_url})
   end
 end

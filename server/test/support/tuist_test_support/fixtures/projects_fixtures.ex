@@ -1,9 +1,9 @@
 defmodule TuistTestSupport.Fixtures.ProjectsFixtures do
   @moduledoc false
 
-  alias Tuist.GitHubAppInstallations
   alias Tuist.Projects
   alias Tuist.Repo
+  alias Tuist.VCS
 
   def project_fixture(opts \\ []) do
     account_id =
@@ -41,13 +41,13 @@ defmodule TuistTestSupport.Fixtures.ProjectsFixtures do
       provider = Keyword.get(vcs_connection_opts, :provider, :github)
 
       github_app_installation =
-        case Repo.get_by(Tuist.GitHubAppInstallations.GitHubAppInstallation, account_id: account.id) do
+        case Repo.get_by(Tuist.VCS.GitHubAppInstallation, account_id: account.id) do
           nil ->
             # Use a unique installation_id based on account_id to avoid conflicts
             installation_id = "#{account.id}12345"
 
             {:ok, installation} =
-              GitHubAppInstallations.create(%{
+              VCS.create_github_app_installation(%{
                 account_id: account.id,
                 installation_id: installation_id
               })

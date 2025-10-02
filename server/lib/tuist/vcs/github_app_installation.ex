@@ -1,4 +1,4 @@
-defmodule Tuist.GitHubAppInstallations.GitHubAppInstallation do
+defmodule Tuist.VCS.GitHubAppInstallation do
   @moduledoc """
   A module that represents GitHub app installations for accounts.
   """
@@ -22,7 +22,7 @@ defmodule Tuist.GitHubAppInstallations.GitHubAppInstallation do
 
   def changeset(github_app_installation \\ %__MODULE__{}, attrs) do
     github_app_installation
-    |> cast(attrs, [:account_id, :installation_id])
+    |> cast(attrs, [:account_id, :installation_id, :html_url])
     |> validate_required([:account_id, :installation_id])
     |> unique_constraint([:account_id])
     |> unique_constraint([:installation_id])

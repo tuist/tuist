@@ -7,7 +7,7 @@ defmodule Tuist.Repo.Migrations.AddVcsConnectionsTable do
       add :project_id, references(:projects, on_delete: :delete_all), null: false
       add :provider, :integer, null: false
       add :repository_full_handle, :string, null: false
-      add :created_by_id, references(:accounts, on_delete: :nilify_all)
+      add :created_by_id, references(:users, on_delete: :nilify_all)
 
       add :github_app_installation_id,
           references(:github_app_installations, type: :uuid, on_delete: :delete_all),

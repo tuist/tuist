@@ -413,21 +413,22 @@ defmodule Tuist.GitHub.ClientTest do
     end
   end
 
-  describe "get_installation_repositories/1" do
-    test "returns repositories for a given installation" do
+  describe "list_installation_repositories/2" do
+    test "returns repositories for a given installation without pagination" do
       # Given
       stub(App, :get_installation_token, fn "123" ->
         {:ok, %{token: "github_token"}}
       end)
 
       expect(Req, :get, fn opts ->
-        assert opts[:url] == "https://api.github.com/installation/repositories"
+        assert opts[:url] == "https://api.github.com/installation/repositories?per_page=100"
         assert opts[:headers] == @default_api_headers
         assert opts[:finch] == Tuist.Finch
 
         {:ok,
          %Req.Response{
            status: 200,
+           headers: %{},
            body: %{
              "repositories" => [
                %{
@@ -450,27 +451,83 @@ defmodule Tuist.GitHub.ClientTest do
       end)
 
       # When
-      repositories = Client.get_installation_repositories("123")
+      result = Client.list_installation_repositories("123")
 
       # Then
-      assert repositories ==
+      assert result ==
                {:ok,
-                [
-                  %{
-                    id: 123,
-                    name: "tuist",
-                    full_name: "tuist/tuist",
-                    private: false,
-                    default_branch: "main"
-                  },
-                  %{
-                    id: 456,
-                    name: "private-repo",
-                    full_name: "tuist/private-repo",
-                    private: true,
-                    default_branch: "master"
-                  }
-                ]}
+                %{
+                  meta: %{next_url: nil},
+                  repositories: [
+                    %{
+                      id: 123,
+                      name: "tuist",
+                      full_name: "tuist/tuist",
+                      private: false,
+                      default_branch: "main"
+                    },
+                    %{
+                      id: 456,
+                      name: "private-repo",
+                      full_name: "tuist/private-repo",
+                      private: true,
+                      default_branch: "master"
+                    }
+                  ]
+                }}
+    end
+
+    test "returns repositories with pagination link" do
+      # Given
+      stub(App, :get_installation_token, fn "123" ->
+        {:ok, %{token: "github_token"}}
+      end)
+
+      expect(Req, :get, fn opts ->
+        assert opts[:url] == "https://api.github.com/installation/repositories?per_page=100"
+        assert opts[:headers] == @default_api_headers
+        assert opts[:finch] == Tuist.Finch
+
+        {:ok,
+         %Req.Response{
+           status: 200,
+           headers: %{
+             "link" => [
+               ~s(<https://api.github.com/installation/repositories?per_page=100&page=2>; rel="next", <https://api.github.com/installation/repositories?per_page=100&page=3>; rel="last")
+             ]
+           },
+           body: %{
+             "repositories" => [
+               %{
+                 "id" => 123,
+                 "name" => "tuist",
+                 "full_name" => "tuist/tuist",
+                 "private" => false,
+                 "default_branch" => "main"
+               }
+             ]
+           }
+         }}
+      end)
+
+      # When
+      result = Client.list_installation_repositories("123")
+
+      # Then
+      assert result ==
+               {:ok,
+                %{
+                  meta: %{next_url: "https://api.github.com/installation/repositories?per_page=100&page=2"},
+                  repositories: [
+                    %{
+                      id: 123,
+                      name: "tuist",
+                      full_name: "tuist/tuist",
+                      private: false,
+                      default_branch: "main"
+                    }
+                  ]
+                }}
     end
 
     test "returns error when API returns non-200 status" do
@@ -480,7 +537,7 @@ defmodule Tuist.GitHub.ClientTest do
       end)
 
       expect(Req, :get, fn opts ->
-        assert opts[:url] == "https://api.github.com/installation/repositories"
+        assert opts[:url] == "https://api.github.com/installation/repositories?per_page=100"
         assert opts[:headers] == @default_api_headers
         assert opts[:finch] == Tuist.Finch
 
@@ -492,10 +549,10 @@ defmodule Tuist.GitHub.ClientTest do
       end)
 
       # When
-      repositories = Client.get_installation_repositories("123")
+      result = Client.list_installation_repositories("123")
 
       # Then
-      assert repositories == {:error, "Failed to fetch repositories"}
+      assert result == {:error, "Failed to fetch repositories"}
     end
 
     test "handles empty repositories list" do
@@ -505,13 +562,14 @@ defmodule Tuist.GitHub.ClientTest do
       end)
 
       expect(Req, :get, fn opts ->
-        assert opts[:url] == "https://api.github.com/installation/repositories"
+        assert opts[:url] == "https://api.github.com/installation/repositories?per_page=100"
         assert opts[:headers] == @default_api_headers
         assert opts[:finch] == Tuist.Finch
 
         {:ok,
          %Req.Response{
            status: 200,
+           headers: %{},
            body: %{
              "repositories" => []
            }
@@ -519,10 +577,23 @@ defmodule Tuist.GitHub.ClientTest do
       end)
 
       # When
-      repositories = Client.get_installation_repositories("123")
+      result = Client.list_installation_repositories("123")
 
       # Then
-      assert repositories == {:ok, []}
+      assert result == {:ok, %{meta: %{next_url: nil}, repositories: []}}
+    end
+
+    test "returns error when getting installation token fails" do
+      # Given
+      stub(App, :get_installation_token, fn "123" ->
+        {:error, "Failed to get token"}
+      end)
+
+      # When
+      result = Client.list_installation_repositories("123")
+
+      # Then
+      assert result == {:error, "Failed to get token"}
     end
   end
 

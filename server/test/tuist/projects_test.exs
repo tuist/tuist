@@ -7,9 +7,9 @@ defmodule Tuist.ProjectsTest do
   alias Tuist.Accounts.ProjectAccount
   alias Tuist.Base64
   alias Tuist.CommandEvents
-  alias Tuist.GitHubAppInstallations
   alias Tuist.Projects
   alias Tuist.Projects.ProjectToken
+  alias Tuist.VCS
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.AppBuildsFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
@@ -994,7 +994,7 @@ defmodule Tuist.ProjectsTest do
       account = Repo.preload(project, :account).account
 
       {:ok, github_app_installation} =
-        GitHubAppInstallations.create(%{
+        VCS.create_github_app_installation(%{
           account_id: account.id,
           installation_id: "test-installation-123"
         })
@@ -1038,7 +1038,7 @@ defmodule Tuist.ProjectsTest do
       account = Repo.preload(project, :account).account
 
       {:ok, github_app_installation} =
-        GitHubAppInstallations.create(%{
+        VCS.create_github_app_installation(%{
           account_id: account.id,
           installation_id: "test-installation-456"
         })
@@ -1066,7 +1066,7 @@ defmodule Tuist.ProjectsTest do
       account = Repo.preload(project, :account).account
 
       {:ok, github_app_installation} =
-        GitHubAppInstallations.create(%{
+        VCS.create_github_app_installation(%{
           account_id: account.id,
           installation_id: "test-installation-789"
         })

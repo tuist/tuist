@@ -11,8 +11,7 @@ defmodule TuistWeb.GitHubAppSetupController do
 
   alias Tuist.Accounts
   alias Tuist.Accounts.Account
-  alias Tuist.GitHubAppInstallations
-  alias Tuist.GitHubStateToken
+  alias Tuist.VCS
   alias TuistWeb.Errors.BadRequestError
 
   def setup(conn, params) do
@@ -20,7 +19,7 @@ defmodule TuistWeb.GitHubAppSetupController do
          {:ok, account_id} <- extract_account_id(params),
          %Account{} = account <- Accounts.get_account_by_id(account_id),
          {:ok, _github_app_installation} <-
-           GitHubAppInstallations.create(%{account_id: account.id, installation_id: installation_id}) do
+           VCS.create_github_app_installation(%{account_id: account.id, installation_id: installation_id}) do
       redirect(conn, to: ~p"/#{account.name}/integrations")
     else
       {:error, :missing_installation_id} ->
@@ -43,7 +42,7 @@ defmodule TuistWeb.GitHubAppSetupController do
   end
 
   defp extract_account_id(%{"state" => state_token}) when is_binary(state_token) do
-    case GitHubStateToken.verify_token(state_token) do
+    case VCS.verify_github_state_token(state_token) do
       {:ok, account_id} -> {:ok, account_id}
       {:error, _reason} -> {:error, :invalid_state_token}
     end

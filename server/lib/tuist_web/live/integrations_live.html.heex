@@ -1,6 +1,6 @@
 <div id="integrations">
   <h1 data-part="title">{gettext("Integrations")}</h1>
-  <.card_section data-part="github-card-section">
+  <.card_section :if={Tuist.Environment.github_app_configured?()} data-part="github-card-section">
     <div data-part="header">
       <span data-part="title">
         {gettext("GitHub")}
@@ -15,7 +15,7 @@
           :if={is_nil(@github_app_installation)}
           label={gettext("Install GitHub App")}
           variant="primary"
-          href={GitHubAppInstallations.get_github_app_installation_url(@selected_account)}
+          href={VCS.get_github_app_installation_url(@selected_account)}
         />
         <.button
           :if={

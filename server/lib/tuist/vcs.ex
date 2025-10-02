@@ -7,6 +7,7 @@ defmodule Tuist.VCS do
 
   import Ecto.Query
 
+  alias Tuist.Accounts.Account
   alias Tuist.AppBuilds
   alias Tuist.AppBuilds.Preview
   alias Tuist.Bundles
@@ -14,11 +15,14 @@ defmodule Tuist.VCS do
   alias Tuist.CommandEvents
   alias Tuist.Environment
   alias Tuist.GitHub
+  alias Tuist.GitHub.Client
+  alias Tuist.KeyValueStore
   alias Tuist.Projects
   alias Tuist.Repo
   alias Tuist.Runs
   alias Tuist.Utilities.DateFormatter
   alias Tuist.VCS
+  alias Tuist.VCS.GitHubAppInstallation
 
   @tuist_run_report_prefix "### 🛠️ Tuist Run Report 🛠️"
 
@@ -124,7 +128,7 @@ defmodule Tuist.VCS do
   end
 
   defp get_client_for_provider(:github) do
-    GitHub.Client
+    Client
   end
 
   def get_repository_full_handle_from_url(repository_url) do
@@ -657,5 +661,105 @@ defmodule Tuist.VCS do
       :failure -> "❌"
       :success -> "✅"
     end
+  end
+
+  # GitHub App Installation functions
+
+  @doc """
+  Gets a GitHub app installation by its installation ID.
+  """
+  def get_github_app_installation_by_installation_id(installation_id) do
+    case Repo.get_by(GitHubAppInstallation, installation_id: to_string(installation_id)) do
+      nil -> {:error, :not_found}
+      github_app_installation -> {:ok, github_app_installation}
+    end
+  end
+
+  @doc """
+  Updates a GitHub app installation.
+  """
+  def update_github_app_installation(%GitHubAppInstallation{} = github_app_installation, attrs) do
+    github_app_installation
+    |> GitHubAppInstallation.update_changeset(attrs)
+    |> Repo.update()
+  end
+
+  @doc """
+  Creates a new GitHub app installation.
+  """
+  def create_github_app_installation(attrs) do
+    %GitHubAppInstallation{}
+    |> GitHubAppInstallation.changeset(attrs)
+    |> Repo.insert()
+  end
+
+  @doc """
+  Gets repositories for a GitHub app installation.
+  """
+  def get_github_app_installation_repositories(%GitHubAppInstallation{installation_id: installation_id}) do
+    KeyValueStore.get_or_update(
+      [__MODULE__, "repositories", installation_id],
+      [ttl: to_timeout(minute: 15)],
+      fn ->
+        # This can take long for organizations with a lot of repositories.
+        # Ideally, we would only fetch this information once, store it in the database, and then sync the repositories via webhooks.
+        # For now, we're sticking to this simple version.
+        get_all_repositories_recursively(installation_id, [])
+      end
+    )
+  end
+
+  defp get_all_repositories_recursively(installation_id, accumulated_repos, opts \\ []) do
+    case Client.list_installation_repositories(installation_id, opts) do
+      {:ok, %{meta: %{next_url: next_url}, repositories: repositories}} ->
+        all_repos = accumulated_repos ++ repositories
+
+        case next_url do
+          nil ->
+            {:ok, all_repos}
+
+          next_url ->
+            get_all_repositories_recursively(installation_id, all_repos, next_url: next_url)
+        end
+
+      {:error, _reason} = error ->
+        error
+    end
+  end
+
+  @doc """
+  Deletes a GitHub app installation.
+  """
+  def delete_github_app_installation(%GitHubAppInstallation{} = github_app_installation) do
+    Repo.delete(github_app_installation, stale_error_field: :id)
+  end
+
+  @doc """
+  Get GitHub app installation URL with encrypted state parameter for account-specific installation.
+  """
+  def get_github_app_installation_url(%Account{id: account_id}) do
+    app_name = Environment.github_app_name()
+    state_token = generate_github_state_token(account_id)
+    "https://github.com/apps/#{app_name}/installations/new?state=#{state_token}"
+  end
+
+  # GitHub State Token functions
+
+  @doc """
+  Generates a JWT state token for the given account ID.
+  Returns the signed token string that should be used in the GitHub installation URL.
+  """
+  def generate_github_state_token(account_id) do
+    Phoenix.Token.sign(TuistWeb.Endpoint, "github_state", account_id)
+  end
+
+  @doc """
+  Verifies the JWT state token to extract the account ID.
+  Returns {:ok, account_id} if valid, {:error, reason} if invalid or expired.
+  """
+  def verify_github_state_token(token) do
+    # 90 days
+    token_max_age_seconds = 7_776_000
+    Phoenix.Token.verify(TuistWeb.Endpoint, "github_state", token, max_age: token_max_age_seconds)
   end
 end

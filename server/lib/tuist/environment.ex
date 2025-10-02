@@ -420,6 +420,10 @@ defmodule Tuist.Environment do
     get([:github, :token, :update_package_releases], secrets)
   end
 
+  def github_app_name(secrets \\ secrets()) do
+    get([:github, :app_name], secrets)
+  end
+
   def github_app_client_id(secrets \\ secrets()) do
     get([:github, :app_client_id], secrets) || get([:github, :oauth_id], secrets)
   end
@@ -447,17 +451,7 @@ defmodule Tuist.Environment do
   end
 
   def github_app_configured?(secrets \\ secrets()) do
-    github_oauth_configured?(secrets) and github_app_private_key(secrets) != nil
-  end
-
-  def github_app_name do
-    case @env do
-      :dev -> "tuist-dev"
-      :test -> "tuist-test"
-      :can -> "tuist-canary"
-      :stag -> "tuist-staging"
-      :prod -> "tuist"
-    end
+    github_app_name(secrets) != nil and github_oauth_configured?(secrets) and github_app_private_key(secrets) != nil
   end
 
   def google_oauth_client_id(secrets \\ secrets()) do

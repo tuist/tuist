@@ -4,15 +4,14 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
 
   alias Tuist.Accounts.Account
   alias Tuist.AppBuilds
-  alias Tuist.GitHubAppInstallations
   alias Tuist.Projects
   alias Tuist.QA
   alias Tuist.Repo
   alias Tuist.VCS
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.AppBuildsFixtures
-  alias TuistTestSupport.Fixtures.GitHubAppInstallationsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistTestSupport.Fixtures.VCSFixtures
   alias TuistWeb.Webhooks.GitHubController
 
   describe "handle/2" do
@@ -284,18 +283,18 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
       installation_id = "12345"
 
       github_app_installation =
-        GitHubAppInstallationsFixtures.github_app_installation_fixture(
+        VCSFixtures.github_app_installation_fixture(
           account_id: account.id,
           installation_id: installation_id
         )
 
       conn = put_req_header(conn, "x-github-event", "installation")
 
-      expect(GitHubAppInstallations, :get_by_installation_id, fn ^installation_id ->
+      expect(VCS, :get_github_app_installation_by_installation_id, fn ^installation_id ->
         {:ok, github_app_installation}
       end)
 
-      expect(GitHubAppInstallations, :delete, fn ^github_app_installation ->
+      expect(VCS, :delete_github_app_installation, fn ^github_app_installation ->
         {:ok, github_app_installation}
       end)
 
@@ -318,18 +317,18 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
       html_url = "https://github.com/organizations/tuist/settings/installations/67890"
 
       github_app_installation =
-        GitHubAppInstallationsFixtures.github_app_installation_fixture(
+        VCSFixtures.github_app_installation_fixture(
           account_id: account.id,
           installation_id: installation_id
         )
 
       conn = put_req_header(conn, "x-github-event", "installation")
 
-      expect(GitHubAppInstallations, :get_by_installation_id, fn ^installation_id ->
+      expect(VCS, :get_github_app_installation_by_installation_id, fn ^installation_id ->
         {:ok, github_app_installation}
       end)
 
-      expect(GitHubAppInstallations, :update, fn ^github_app_installation, %{html_url: ^html_url} ->
+      expect(VCS, :update_github_app_installation, fn ^github_app_installation, %{html_url: ^html_url} ->
         {:ok, %{github_app_installation | html_url: html_url}}
       end)
 

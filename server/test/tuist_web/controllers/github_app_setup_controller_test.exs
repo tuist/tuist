@@ -3,7 +3,7 @@ defmodule TuistWeb.GitHubAppSetupControllerTest do
   use Mimic
 
   alias Tuist.Accounts
-  alias Tuist.GitHubStateToken
+  alias Tuist.VCS
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistWeb.Errors.BadRequestError
 
@@ -14,7 +14,7 @@ defmodule TuistWeb.GitHubAppSetupControllerTest do
       installation_id = "12345"
       state_token = "valid_token"
 
-      expect(GitHubStateToken, :verify_token, fn ^state_token ->
+      expect(VCS, :verify_github_state_token, fn ^state_token ->
         {:ok, account.id}
       end)
 
@@ -52,7 +52,7 @@ defmodule TuistWeb.GitHubAppSetupControllerTest do
       installation_id = "12345"
       invalid_token = "invalid_token"
 
-      expect(GitHubStateToken, :verify_token, fn ^invalid_token ->
+      expect(VCS, :verify_github_state_token, fn ^invalid_token ->
         {:error, :invalid}
       end)
 

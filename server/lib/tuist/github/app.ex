@@ -7,6 +7,8 @@ defmodule Tuist.GitHub.App do
   alias Tuist.KeyValueStore
   alias Tuist.Projects
 
+  # Temporary method for backfilling existing GitHub app installations
+  # This will be removed after the migration is complete
   def get_organization_installation(organization_name, _opts \\ []) do
     jwt = generate_app_jwt()
 
@@ -74,7 +76,7 @@ defmodule Tuist.GitHub.App do
         {:ok, installation_id}
 
       {:error, :not_found} ->
-        {:error, "The Tuist GitHub app is not installed for #{repository_full_handle}."}
+        {:error, "The Tuist GitHub app is not installed in the repository #{repository_full_handle}."}
     end
   end
 

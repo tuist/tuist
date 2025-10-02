@@ -1,8 +1,8 @@
-defmodule TuistTestSupport.Fixtures.GitHubAppInstallationsFixtures do
+defmodule TuistTestSupport.Fixtures.VCSFixtures do
   @moduledoc false
 
-  alias Tuist.GitHubAppInstallations.GitHubAppInstallation
   alias Tuist.Repo
+  alias Tuist.VCS.GitHubAppInstallation
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
   def github_app_installation_fixture(opts \\ []) do

@@ -3,8 +3,8 @@ defmodule Tuist.Projects.VCSConnectionTest do
 
   alias Tuist.Projects.VCSConnection
   alias TuistTestSupport.Fixtures.AccountsFixtures
-  alias TuistTestSupport.Fixtures.GitHubAppInstallationsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistTestSupport.Fixtures.VCSFixtures
 
   describe "changeset/2" do
     test "is valid with valid attributes" do
@@ -13,7 +13,7 @@ defmodule Tuist.Projects.VCSConnectionTest do
       user = AccountsFixtures.user_fixture()
 
       github_app_installation =
-        GitHubAppInstallationsFixtures.github_app_installation_fixture(account_id: project.account.id)
+        VCSFixtures.github_app_installation_fixture(account_id: project.account.id)
 
       # When
       changeset =
@@ -21,7 +21,7 @@ defmodule Tuist.Projects.VCSConnectionTest do
           project_id: project.id,
           provider: :github,
           repository_full_handle: "tuist/tuist",
-          created_by_id: user.account.id,
+          created_by_id: user.id,
           github_app_installation_id: github_app_installation.id
         })
 
@@ -46,7 +46,7 @@ defmodule Tuist.Projects.VCSConnectionTest do
       project = Repo.preload(ProjectsFixtures.project_fixture(), :account)
 
       github_app_installation =
-        GitHubAppInstallationsFixtures.github_app_installation_fixture(account_id: project.account.id)
+        VCSFixtures.github_app_installation_fixture(account_id: project.account.id)
 
       # When
       changeset =
@@ -66,7 +66,7 @@ defmodule Tuist.Projects.VCSConnectionTest do
       project = Repo.preload(ProjectsFixtures.project_fixture(), :account)
 
       github_app_installation =
-        GitHubAppInstallationsFixtures.github_app_installation_fixture(account_id: project.account.id)
+        VCSFixtures.github_app_installation_fixture(account_id: project.account.id)
 
       valid_handles = [
         "user/repo",
@@ -97,7 +97,7 @@ defmodule Tuist.Projects.VCSConnectionTest do
       project = Repo.preload(ProjectsFixtures.project_fixture(), :account)
 
       github_app_installation =
-        GitHubAppInstallationsFixtures.github_app_installation_fixture(account_id: project.account.id)
+        VCSFixtures.github_app_installation_fixture(account_id: project.account.id)
 
       invalid_handles = [
         "user",
@@ -132,7 +132,7 @@ defmodule Tuist.Projects.VCSConnectionTest do
       user = AccountsFixtures.user_fixture()
 
       github_app_installation =
-        GitHubAppInstallationsFixtures.github_app_installation_fixture(account_id: project.account.id)
+        VCSFixtures.github_app_installation_fixture(account_id: project.account.id)
 
       attrs = %{
         project_id: project.id,
@@ -158,10 +158,10 @@ defmodule Tuist.Projects.VCSConnectionTest do
       user = AccountsFixtures.user_fixture()
 
       github_app_installation1 =
-        GitHubAppInstallationsFixtures.github_app_installation_fixture(account_id: project1.account.id)
+        VCSFixtures.github_app_installation_fixture(account_id: project1.account.id)
 
       github_app_installation2 =
-        GitHubAppInstallationsFixtures.github_app_installation_fixture(account_id: project2.account.id)
+        VCSFixtures.github_app_installation_fixture(account_id: project2.account.id)
 
       # When
       {:ok, _connection1} =
@@ -170,7 +170,7 @@ defmodule Tuist.Projects.VCSConnectionTest do
           project_id: project1.id,
           provider: :github,
           repository_full_handle: "tuist/tuist",
-          created_by_id: user.account.id,
+          created_by_id: user.id,
           github_app_installation_id: github_app_installation1.id
         })
         |> Repo.insert()
@@ -181,7 +181,7 @@ defmodule Tuist.Projects.VCSConnectionTest do
           project_id: project2.id,
           provider: :github,
           repository_full_handle: "tuist/other-repo",
-          created_by_id: user.account.id,
+          created_by_id: user.id,
           github_app_installation_id: github_app_installation2.id
         })
         |> Repo.insert()
@@ -196,7 +196,7 @@ defmodule Tuist.Projects.VCSConnectionTest do
       user = Repo.preload(AccountsFixtures.user_fixture(), :account)
 
       github_app_installation =
-        GitHubAppInstallationsFixtures.github_app_installation_fixture(account_id: user.account.id)
+        VCSFixtures.github_app_installation_fixture(account_id: user.account.id)
 
       # When
       changeset =
@@ -204,7 +204,7 @@ defmodule Tuist.Projects.VCSConnectionTest do
           project_id: non_existent_project_id,
           provider: :github,
           repository_full_handle: "tuist/tuist",
-          created_by_id: user.account.id,
+          created_by_id: user.id,
           github_app_installation_id: github_app_installation.id
         })
 
@@ -220,7 +220,7 @@ defmodule Tuist.Projects.VCSConnectionTest do
       non_existent_user_id = 999_999
 
       github_app_installation =
-        GitHubAppInstallationsFixtures.github_app_installation_fixture(account_id: project.account.id)
+        VCSFixtures.github_app_installation_fixture(account_id: project.account.id)
 
       # When
       changeset =
@@ -250,7 +250,7 @@ defmodule Tuist.Projects.VCSConnectionTest do
           project_id: project.id,
           provider: :github,
           repository_full_handle: "tuist/tuist",
-          created_by_id: user.account.id,
+          created_by_id: user.id,
           github_app_installation_id: non_existent_installation_id
         })
 
@@ -264,7 +264,7 @@ defmodule Tuist.Projects.VCSConnectionTest do
       project = Repo.preload(ProjectsFixtures.project_fixture(), :account)
 
       github_app_installation =
-        GitHubAppInstallationsFixtures.github_app_installation_fixture(account_id: project.account.id)
+        VCSFixtures.github_app_installation_fixture(account_id: project.account.id)
 
       changeset =
         VCSConnection.changeset(%VCSConnection{}, %{

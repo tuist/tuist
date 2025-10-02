@@ -5,10 +5,10 @@ defmodule TuistWeb.IntegrationsLiveTest do
 
   import Phoenix.LiveViewTest
 
-  alias Tuist.GitHubAppInstallations
+  alias Tuist.VCS
   alias TuistTestSupport.Fixtures.AccountsFixtures
-  alias TuistTestSupport.Fixtures.GitHubAppInstallationsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistTestSupport.Fixtures.VCSFixtures
 
   setup %{conn: conn} do
     user = AccountsFixtures.user_fixture(handle: "user123#{System.unique_integer([:positive])}")
@@ -45,7 +45,7 @@ defmodule TuistWeb.IntegrationsLiveTest do
     organization: organization,
     account: _account
   } do
-    stub(GitHubAppInstallations, :get_github_app_installation_url, fn _account ->
+    stub(VCS, :get_github_app_installation_url, fn _account ->
       "https://github.com/apps/test-app/installations/new"
     end)
 
@@ -59,9 +59,9 @@ defmodule TuistWeb.IntegrationsLiveTest do
     organization: organization,
     account: account
   } do
-    _github_installation = GitHubAppInstallationsFixtures.github_app_installation_fixture(account_id: account.id)
+    _github_installation = VCSFixtures.github_app_installation_fixture(account_id: account.id)
 
-    stub(GitHubAppInstallations, :get_repositories, fn _installation ->
+    stub(VCS, :get_github_app_installation_repositories, fn _installation ->
       {:ok, [%{id: 123, full_name: "test-org/test-repo"}]}
     end)
 

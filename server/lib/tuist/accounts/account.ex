@@ -9,8 +9,8 @@ defmodule Tuist.Accounts.Account do
   alias Tuist.Accounts.Organization
   alias Tuist.Accounts.User
   alias Tuist.Billing.Subscription
-  alias Tuist.GitHubAppInstallations.GitHubAppInstallation
   alias Tuist.Projects.Project
+  alias Tuist.VCS.GitHubAppInstallation
 
   @derive {
     Flop.Schema,

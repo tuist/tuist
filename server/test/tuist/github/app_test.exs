@@ -1,10 +1,12 @@
 defmodule Tuist.GitHub.AppTest do
   use ExUnit.Case, async: true
+  use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
 
   alias Tuist.GitHub.App
   alias Tuist.KeyValueStore
   alias Tuist.Projects
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   setup do
     stub(JOSE.JWK, :from_pem, fn _ -> "pem" end)
@@ -75,26 +77,20 @@ defmodule Tuist.GitHub.AppTest do
       assert {:error, error_message} =
                App.get_app_installation_token_for_repository("tuist/tuist")
 
-      assert error_message =~ "The Tuist GitHub app is not installed for tuist/tuist"
+      assert error_message =~ "The Tuist GitHub app is not installed in the repository tuist/tuist"
     end
 
     test "returns installation token when project has VCS connection with GitHub app installation" do
       # Given
-      installation_id = "12345"
       token = "ghs_16C7e42F292c6912E7710c838347Ae178B4a"
       expires_at = "2024-04-30T11:20:30Z"
 
-      project = %{
-        vcs_connection: %{
-          github_app_installation: %{
-            installation_id: installation_id
-          }
-        }
-      }
-
-      stub(Projects, :project_by_vcs_repository_full_handle, fn _, _ ->
-        {:ok, project}
-      end)
+      ProjectsFixtures.project_fixture(
+        vcs_connection: [
+          repository_full_handle: "tuist/tuist",
+          provider: :github
+        ]
+      )
 
       stub(Req, :post, fn _opts ->
         {:ok,
