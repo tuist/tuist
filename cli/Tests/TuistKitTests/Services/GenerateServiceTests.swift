@@ -8,8 +8,8 @@ import TuistServer
 import TuistSupport
 import XcodeProj
 
-@testable import TuistLoader
 @testable import TuistKit
+@testable import TuistLoader
 @testable import TuistTesting
 
 struct GenerateServiceTests {

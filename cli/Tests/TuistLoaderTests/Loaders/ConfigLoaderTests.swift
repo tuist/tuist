@@ -152,14 +152,17 @@ final class ConfigLoaderTests: TuistUnitTestCase {
             default: .custom("missing")
         )
         stub(
-            config: ProjectDescription.Config(project: .tuist(cacheOptions: .options(keepSourceTargets: false, profiles: invalidProfiles))),
+            config: ProjectDescription.Config(project: .tuist(cacheOptions: .options(
+                keepSourceTargets: false,
+                profiles: invalidProfiles
+            ))),
             at: configPath.parentDirectory
         )
         stub(rootDirectory: projectPath)
 
         // When / Then
         await XCTAssertThrowsSpecific(
-            try await self.subject.loadConfig(path: configPath),
+            try await subject.loadConfig(path: configPath),
             ConfigManifestMapperError.defaultCacheProfileNotFound(profile: "missing", available: ["development"])
         )
     }

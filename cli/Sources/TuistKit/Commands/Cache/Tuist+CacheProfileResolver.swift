@@ -45,7 +45,8 @@ extension Tuist {
 
         // The default profile was already validated when loaded
         if let configDefault = profiles?.defaultProfile,
-           let profile = try? resolveFromProfileType(configDefault, profiles: profiles) {
+           let profile = try? resolveFromProfileType(configDefault, profiles: profiles)
+        {
             Logger.current.debug("Using cache profile \(configDefault)")
             return profile
         }
