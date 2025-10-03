@@ -7,6 +7,8 @@ public enum Module: String, CaseIterable {
     case tuistFixtureGenerator = "tuistfixturegenerator"
     case projectDescription = "ProjectDescription"
     case projectAutomation = "ProjectAutomation"
+    case projectCASPluginAPI = "ProjectCASPluginAPI"
+    case projectCASPlugin = "ProjectCASPlugin"
     case acceptanceTesting = "TuistAcceptanceTesting"
     case testing = "TuistTesting"
     case support = "TuistSupport"
@@ -213,7 +215,7 @@ public enum Module: String, CaseIterable {
     public var unitTestsTargetName: String? {
         switch self {
         case .analytics, .tuist, .tuistBenchmark, .tuistFixtureGenerator, .projectAutomation,
-            .projectDescription,
+            .projectDescription, .projectCASPlugin,
             .acceptanceTesting, .simulator, .testing, .process:
             return nil
         default:
@@ -231,10 +233,23 @@ public enum Module: String, CaseIterable {
             return .commandLineTool
         case .projectAutomation, .projectDescription:
             return forceStaticLinking() ? .staticFramework : .framework
+        case .projectCASPluginAPI:
+            return .staticFramework
+        case .projectCASPlugin:
+            return .dynamicLibrary
         default:
             return .staticFramework
         }
     }
+    
+//    public var headers: Headers? {
+//        switch self {
+//        case .projectCASPlugin:
+//            return .headers(public: ["cli/Sources/ProjectCASPlugin/include/**/*.h"])
+//        default:
+//            return nil
+//        }
+//    }
 
     public var acceptanceTestDependencies: [TargetDependency] {
         let dependencies: [TargetDependency] =
@@ -292,6 +307,14 @@ public enum Module: String, CaseIterable {
     public var dependencies: [TargetDependency] {
         var dependencies: [TargetDependency] =
             switch self {
+            case .projectCASPluginAPI:
+                []
+            case .projectCASPlugin:
+                [
+                    .target(name: Module.projectCASPluginAPI.targetName),
+                    .external(name: "Crypto"),
+                    .external(name: "SWBUtil"),
+                ]
             case .process:
                 []
             case .testing:
@@ -327,6 +350,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.kit.targetName),
                     .target(name: Module.projectDescription.targetName),
                     .target(name: Module.automation.targetName),
+                    .target(name: Module.projectCASPlugin.targetName),
                     .external(name: "GraphViz"),
                     .external(name: "ArgumentParser"),
                     .external(name: "SwiftToolsSupport"),
@@ -573,7 +597,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.support.targetName),
                 ]
             }
-        if self != .projectDescription, self != .projectAutomation {
+        if self != .projectDescription, self != .projectAutomation, self != .projectCASPlugin, self != .projectCASPlugin {
             dependencies.append(contentsOf: sharedDependencies)
         }
         return dependencies
@@ -582,7 +606,7 @@ public enum Module: String, CaseIterable {
     public var unitTestDependencies: [TargetDependency] {
         var dependencies: [TargetDependency] =
             switch self {
-            case .tuist, .tuistBenchmark, .acceptanceTesting, .simulator, .testing, .process:
+            case .tuist, .tuistBenchmark, .acceptanceTesting, .simulator, .testing, .process, .projectCASPluginAPI, .projectCASPlugin:
                 []
             case .tuistFixtureGenerator:
                 [
@@ -856,10 +880,23 @@ public enum Module: String, CaseIterable {
             bundleId: "dev.tuist.\(name)",
             deploymentTargets: deploymentTargets,
             infoPlist: .default,
-            buildableFolders: [.folder("\(rootFolder)/\(name)/")],
+            buildableFolders: [.folder("\(rootFolder)/\(name)/", exceptions: buildableFolderExceptions)],
             dependencies: dependencies,
             settings: settings
         )
+    }
+    
+    fileprivate var buildableFolderExceptions: BuildableFolderExceptions {
+        switch self {
+        case .projectCASPluginAPI:
+            return [
+                .exception(publicHeaders: [
+                    "include/ProjectCASPluginAPI.h"
+                ])
+            ]
+        default:
+            return []
+        }
     }
 
     fileprivate var settings: Settings {

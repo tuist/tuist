@@ -107,6 +107,7 @@ let targets: [Target] = [
             "TuistLoader",
             "ProjectDescription",
             "ProjectAutomation",
+            "ProjectCASPlugin",
             .product(name: "Noora", package: "Noora"),
             pathDependency,
             swiftToolsSupportDependency,
@@ -121,6 +122,24 @@ let targets: [Target] = [
     .target(
         name: "ProjectAutomation",
         path: "cli/Sources/ProjectAutomation",
+    ),
+    .target(
+        name: "ProjectCASPluginAPI",
+        dependencies: [],
+        path: "cli/Sources/ProjectCASPluginAPI",
+        publicHeadersPath: "include"
+    ),
+    .target(
+        name: "ProjectCASPlugin",
+        dependencies: [
+            .target(name: "ProjectCASPluginAPI"),
+            .product(name: "Crypto", package: "swift-crypto"),
+            .product(name: "SWBUtil", package: "swift-build"),
+        ],
+        path: "cli/Sources/ProjectCASPlugin",
+        swiftSettings: [
+            .unsafeFlags(["-Xfrontend", "-disable-actor-data-race-checks"]),
+        ]
     ),
     .target(
         name: "TuistSupport",
@@ -511,6 +530,11 @@ let package = Package(
             targets: ["ProjectAutomation"]
         ),
         .library(
+            name: "ProjectCASPlugin",
+            type: .dynamic,
+            targets: ["ProjectCASPlugin"]
+        ),
+        .library(
             name: "TuistKit",
             targets: ["TuistKit"]
         ),
@@ -643,6 +667,8 @@ let package = Package(
         .package(url: "https://github.com/leif-ibsen/SwiftECC", exact: "5.5.0"),
         .package(
             url: "https://github.com/lfroms/fluid-menu-bar-extra", .upToNextMajor(from: "1.1.0")),
+        .package(url: "https://github.com/apple/swift-crypto.git", from: "3.0.0"),
+        .package(url: "https://github.com/swiftlang/swift-build.git", branch: "main"),
     ],
     targets: targets
 )

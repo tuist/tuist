@@ -431,7 +431,18 @@ export async function guidesSidebar(locale) {
             locale,
             "sidebars.guides.items.develop.items.cache.text",
           )}</span>`,
-          link: `/${locale}/guides/features/cache`,
+          link: `/${locale}/guides/features/cache/module`,
+          collapsed: true,
+          items: [
+            {
+              text: "Module",
+              link: `/${locale}/guides/features/cache/module`,
+            },
+            {
+              text: "CAS",
+              link: `/${locale}/guides/features/cache/cas`,
+            },
+          ],
         },
         {
           text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${testIcon()} ${localizedString(

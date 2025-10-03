@@ -1,0 +1,4 @@
+module ProjectCASPluginAPI {
+    header "ProjectCASPluginAPI.h"
+    export *
+}

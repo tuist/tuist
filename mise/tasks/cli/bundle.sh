@@ -61,6 +61,27 @@ build_project_desscription() {
     rsync -a $DERIVED_DATA_PATH/Build/Products/Release/ProjectDescription.framework.dSYM $BUILD_DIRECTORY/
 }
 
+build_project_cas_plugin() {
+    # Build ProjectCASPlugin.dylib using swift build (supports both arm64 and x86_64)
+    # We use swift build instead of xcodebuild because Tuist generates it as a static framework
+    # but we need a dynamic library for the release artifacts
+
+    # Build for arm64
+    swift build --package-path $TUIST_DIR -c release --product ProjectCASPlugin --arch arm64
+
+    # Build for x86_64
+    swift build --package-path $TUIST_DIR -c release --product ProjectCASPlugin --arch x86_64
+
+    # Create universal binary
+    lipo -create \
+        $TUIST_DIR/.build/arm64-apple-macosx/release/libProjectCASPlugin.dylib \
+        $TUIST_DIR/.build/x86_64-apple-macosx/release/libProjectCASPlugin.dylib \
+        -output $BUILD_DIRECTORY/ProjectCASPlugin.dylib
+
+    # Copy dSYM for arm64 (primary architecture)
+    rsync -a $TUIST_DIR/.build/arm64-apple-macosx/release/libProjectCASPlugin.dylib.dSYM $BUILD_DIRECTORY/ProjectCASPlugin.dylib.dSYM
+}
+
 build_cli() {
     # arm64
     BINARY_PATH=$DERIVED_DATA_PATH/Build/Products/Release/tuist
@@ -95,6 +116,9 @@ build_cli
 echo "$(format_subsection "Building ProjectDescription framework")"
 build_project_desscription
 
+echo "$(format_subsection "Building ProjectCASPlugin dylib")"
+build_project_cas_plugin
+
 echo "$(format_section "Copying assets")"
 
 echo "$(format_subsection "Copying Tuist's templates")"
@@ -108,9 +132,10 @@ echo "$(format_section "Bundling")"
     echo "$(format_subsection "Signing")"
     /usr/bin/codesign --sign "$CERTIFICATE_NAME" --timestamp --options runtime --verbose tuist
     /usr/bin/codesign --sign "$CERTIFICATE_NAME" --timestamp --options runtime --verbose ProjectDescription.framework
+    /usr/bin/codesign --sign "$CERTIFICATE_NAME" --timestamp --options runtime --verbose ProjectCASPlugin.dylib
 
     echo "$(format_subsection "Notarizing")"
-    zip -q -r --symlinks "notarization-bundle.zip" tuist ProjectDescription.framework
+    zip -q -r --symlinks "notarization-bundle.zip" tuist ProjectDescription.framework ProjectCASPlugin.dylib
 
     RAW_JSON=$(xcrun notarytool submit "notarization-bundle.zip" \
         --apple-id "$APPLE_ID" \
@@ -154,13 +179,13 @@ echo "$(format_section "Bundling")"
     rm "notarization-bundle.zip"
 
     echo "$(format_subsection "Bundling tuist.zip")"
-    zip -q -r --symlinks tuist.zip tuist ProjectDescription.framework ProjectDescription.framework.dSYM Templates vendor
+    zip -q -r --symlinks tuist.zip tuist ProjectDescription.framework ProjectDescription.framework.dSYM ProjectCASPlugin.dylib ProjectCASPlugin.dylib.dSYM Templates vendor
 
     echo "$(format_subsection "Bundling ProjectDescription.xcframework.zip")"
     xcodebuild -create-xcframework -framework ProjectDescription.framework -output ProjectDescription.xcframework
     zip -q -r --symlinks ProjectDescription.xcframework.zip ProjectDescription.xcframework
 
-    rm -rf tuist ProjectDescription.framework ProjectDescription.xcframework ProjectDescription.framework.dSYM Templates vendor
+    rm -rf tuist ProjectDescription.framework ProjectDescription.xcframework ProjectDescription.framework.dSYM ProjectCASPlugin.dylib ProjectCASPlugin.dylib.dSYM Templates vendor
 
     : > SHASUMS256.txt
     : > SHASUMS512.txt

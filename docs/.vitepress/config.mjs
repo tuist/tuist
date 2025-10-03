@@ -353,6 +353,7 @@ export default defineConfig({
 /:locale/guides/develop/selective-testing/xcodebuild /:locale/guides/develop/selective-testing/xcode-project 301
 /:locale/guides/features/mcp /:locale/guides/features/agentic-coding/mcp 301
 /:locale/guides/features/agentic-building/mcp /:locale/guides/features/agentic-coding/mcp 301
+/:locale/guides/features/cache /:locale/guides/features/cache/module 301
 /:locale/guides/environments/continuous-integration /:locale/guides/integrations/continuous-integration 301
 /:locale/guides/environments/automate/continuous-integration /:locale/guides/integrations/continuous-integration 301
 /:locale/server/introduction/accounts-and-projects /:locale/guides/server/accounts-and-projects 301

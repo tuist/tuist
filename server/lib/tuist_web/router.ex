@@ -108,6 +108,10 @@ defmodule TuistWeb.Router do
     plug :accepts, ["json"]
   end
 
+  pipeline :cas_api do
+    plug :accepts, ["json", "octet-stream"]
+  end
+
   pipeline :api_registry_swift do
     plug :accepts, ["swift-registry-v1-json", "swift-registry-v1-zip", "swift-registry-v1-api"]
     plug TuistWeb.AuthenticationPlug, :load_authenticated_subject
@@ -399,6 +403,20 @@ defmodule TuistWeb.Router do
         post "/login", SwiftController, :login
       end
     end
+  end
+
+  scope "/api/cas", TuistWeb.API do
+    pipe_through [:cas_api]
+
+    # Content-Addressable Storage endpoints (Bazel/Gradle compatible)
+    get "/:hash", CASController, :get_object
+    head "/:hash", CASController, :head_object
+    put "/:hash", CASController, :put_object
+    delete "/:hash", CASController, :delete_object
+
+    # Action Cache endpoints
+    get "/ac/:hash", CASController, :get_action_cache
+    put "/ac/:hash", CASController, :put_action_cache
   end
 
   scope "/api" do
