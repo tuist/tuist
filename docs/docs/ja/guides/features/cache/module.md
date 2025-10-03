@@ -1,11 +1,11 @@
 ---
 {
-  "title": "Cache",
+  "title": "Module",
   "titleTemplate": ":title · Develop · Guides · Tuist",
   "description": "Optimize your build times by caching compiled binaries and sharing them across different environments."
 }
 ---
-# Cache {#cache}
+# Module {#module}
 
 > [!IMPORTANT] REQUIREMENTS
 >
