@@ -5,15 +5,13 @@ public enum ProjectCASPlugin {
         baseURL: URL,
         session: URLSession = URLSession(configuration: .default),
         headers: [String: String] = [:],
-        projectId: String? = nil,
-        credentialHelper: CredentialHelper? = nil
+        projectId: String? = nil
     ) -> RemoteCAS {
         let configuration = RemoteCASConfiguration(
             baseURL: baseURL,
             session: session,
             defaultHeaders: headers,
-            projectId: projectId,
-            credentialHelper: credentialHelper
+            projectId: projectId
         )
         return RemoteCAS(configuration: configuration)
     }
@@ -33,7 +31,6 @@ public enum ProjectCASPlugin {
         // Parse query parameters
         var baseURL = url
         var projectId: String?
-        var credentialHelper: CredentialHelper?
 
         if let components = URLComponents(url: url, resolvingAgainstBaseURL: false) {
             // Extract query parameters
@@ -43,10 +40,6 @@ public enum ProjectCASPlugin {
                 switch item.name {
                 case "projectId":
                     projectId = item.value
-                case "credentialHelper":
-                    if let path = item.value {
-                        credentialHelper = CredentialHelper(executablePath: path)
-                    }
                 default:
                     break
                 }
@@ -64,8 +57,7 @@ public enum ProjectCASPlugin {
             baseURL: baseURL,
             session: session,
             headers: headers,
-            projectId: projectId,
-            credentialHelper: credentialHelper
+            projectId: projectId
         )
     }
 }

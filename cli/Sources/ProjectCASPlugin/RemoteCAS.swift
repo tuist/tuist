@@ -6,20 +6,17 @@ public struct RemoteCASConfiguration: Sendable {
     public let session: URLSession
     public let defaultHeaders: [String: String]
     public let projectId: String?
-    public let credentialHelper: CredentialHelper?
 
     public init(
         baseURL: URL,
         session: URLSession = URLSession(configuration: .default),
         defaultHeaders: [String: String] = [:],
-        projectId: String? = nil,
-        credentialHelper: CredentialHelper? = nil
+        projectId: String? = nil
     ) {
         self.baseURL = baseURL
         self.session = session
         self.defaultHeaders = defaultHeaders
         self.projectId = projectId
-        self.credentialHelper = credentialHelper
     }
 }
 
@@ -59,7 +56,6 @@ public actor RemoteCAS: CASProtocol, ActionCacheProtocol {
     private let configuration: RemoteCASConfiguration
     private let encoder: JSONEncoder
     private let decoder: JSONDecoder
-    private var cachedToken: String?
 
     public init(configuration: RemoteCASConfiguration) {
         self.configuration = configuration
@@ -67,40 +63,33 @@ public actor RemoteCAS: CASProtocol, ActionCacheProtocol {
         encoder.outputFormatting = [.sortedKeys]
         self.encoder = encoder
         self.decoder = JSONDecoder()
-        self.cachedToken = nil
     }
 
     // MARK: - CASProtocol
 
     public func store(object: CASObject) async throws -> DataID {
-        let payload = StoreObjectPayload(
-            data: Data(object.data.bytes).base64EncodedString(),
-            refs: object.refs.map(\.hash)
-        )
-        let data = try encodePayload(payload)
+        // Calculate the hash from the object data
+        let id = object.id
+
+        // Store raw data directly (not JSON encoded)
         let request = try await makeRequest(
-            method: "POST",
-            path: "objects",
-            body: data,
-            additionalHeaders: ["Content-Type": "application/json"]
+            method: "PUT",
+            path: id.hash,
+            body: Data(object.data.bytes),
+            additionalHeaders: ["Content-Type": "application/octet-stream"]
         )
-        let (responseData, response) = try await perform(request)
+        let (_, response) = try await perform(request)
         try ensureSuccess(response, allowed: [200, 201])
-        let decoded: StoreObjectResponse = try decode(responseData)
-        return DataID(hash: decoded.id)
+        return id
     }
 
     public func load(id: DataID) async throws -> CASObject? {
-        let request = try await makeRequest(method: "GET", path: "objects/\(id.hash)")
+        let request = try await makeRequest(method: "GET", path: id.hash)
         let (data, response) = try await perform(request)
         switch response.statusCode {
         case 200:
-            let payload: ObjectPayload = try decode(data)
-            guard let decodedData = Data(base64Encoded: payload.data) else {
-                throw RemoteCASError.decodingFailed
-            }
-            let refs = payload.refs.map { DataID(hash: $0) }
-            return CASObject(data: ByteString(decodedData), refs: refs)
+            // Data is returned as raw bytes, not JSON
+            return CASObject(data: ByteString(data), refs: [])
         case 404:
             return nil
         default:
@@ -109,7 +98,7 @@ public actor RemoteCAS: CASProtocol, ActionCacheProtocol {
     }
 
     public func contains(id: DataID) async throws -> Bool {
-        let request = try await makeRequest(method: "HEAD", path: "objects/\(id.hash)")
+        let request = try await makeRequest(method: "HEAD", path: id.hash)
         let (_, response) = try await perform(request)
         switch response.statusCode {
         case 200:
@@ -122,7 +111,7 @@ public actor RemoteCAS: CASProtocol, ActionCacheProtocol {
     }
 
     public func delete(id: DataID) async throws {
-        let request = try await makeRequest(method: "DELETE", path: "objects/\(id.hash)")
+        let request = try await makeRequest(method: "DELETE", path: id.hash)
         let (data, response) = try await perform(request)
         switch response.statusCode {
         case 200, 204:
@@ -141,13 +130,13 @@ public actor RemoteCAS: CASProtocol, ActionCacheProtocol {
         let body = try encodePayload(payload)
         let request = try await makeRequest(
             method: "PUT",
-            path: "action-cache/\(key.hash)",
+            path: "ac/\(key.hash)",
             body: body,
             additionalHeaders: ["Content-Type": "application/json"]
         )
         let (data, response) = try await perform(request)
         switch response.statusCode {
-        case 200, 204:
+        case 200, 201, 204:
             return
         default:
             throw RemoteCASError.serverError(status: response.statusCode, message: errorMessage(from: data))
@@ -155,7 +144,7 @@ public actor RemoteCAS: CASProtocol, ActionCacheProtocol {
     }
 
     public func lookupCachedObject(for keyID: DataID) async throws -> DataID? {
-        let request = try await makeRequest(method: "GET", path: "action-cache/\(keyID.hash)")
+        let request = try await makeRequest(method: "GET", path: "ac/\(keyID.hash)")
         let (data, response) = try await perform(request)
         switch response.statusCode {
         case 200:
@@ -205,36 +194,13 @@ public actor RemoteCAS: CASProtocol, ActionCacheProtocol {
             request.httpBody = body
         }
 
-        // Merge headers in order: defaults -> additional -> auth
-        var headers = configuration.defaultHeaders.merging(additionalHeaders) { _, new in new }
-
-        // Add authentication if credential helper is configured
-        if let credentialHelper = configuration.credentialHelper {
-            let token = try await getToken(credentialHelper: credentialHelper)
-            headers["Authorization"] = "Bearer \(token)"
-        }
+        // Merge headers: defaults -> additional (no authentication for now)
+        let headers = configuration.defaultHeaders.merging(additionalHeaders) { _, new in new }
 
         for (key, value) in headers {
             request.setValue(value, forHTTPHeaderField: key)
         }
         return request
-    }
-
-    private func getToken(credentialHelper: CredentialHelper) async throws -> String {
-        // Return cached token if available
-        if let token = cachedToken {
-            return token
-        }
-
-        // Fetch token from credential helper
-        let token = try await credentialHelper.getCredential(
-            url: configuration.baseURL,
-            projectId: configuration.projectId
-        )
-
-        // Cache the token
-        cachedToken = token
-        return token
     }
 
     private func perform(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
@@ -275,20 +241,6 @@ public actor RemoteCAS: CASProtocol, ActionCacheProtocol {
         guard !data.isEmpty else { return nil }
         return String(data: data, encoding: .utf8)
     }
-}
-
-private struct StoreObjectPayload: Codable {
-    let data: String
-    let refs: [String]
-}
-
-private struct StoreObjectResponse: Codable {
-    let id: String
-}
-
-private struct ObjectPayload: Codable {
-    let data: String
-    let refs: [String]
 }
 
 private struct CacheValuePayload: Codable {
