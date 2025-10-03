@@ -2,7 +2,7 @@
 
 This fixture intentionally sets a `default` cache profile that does not exist in the `profiles` map to exercise loader validation.
 
-Expected behavior:
+## Expected behavior:
 
 ```bash
 tuist generate
