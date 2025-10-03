@@ -1,0 +1,15 @@
+{
+  "originHash" : "0f4251b6c1f2a7ed8c7ce968fa96ac9d636afc739415a0558c2084b268a0b68e",
+  "pins" : [
+    {
+      "identity" : "myspmplugin",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/YIshihara11201/MySPMPlugin",
+      "state" : {
+        "revision" : "a04f975140e0b42ef656bb61703faa2a0643ce9d",
+        "version" : "1.0.0"
+      }
+    }
+  ],
+  "version" : 3
+}
