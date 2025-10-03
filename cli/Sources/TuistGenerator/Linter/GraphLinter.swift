@@ -607,6 +607,7 @@ public class GraphLinter: GraphLinting {
         ],
         LintableTarget(platform: .macOS, product: .dynamicLibrary): [
             LintableTarget(platform: .macOS, product: .dynamicLibrary),
+            LintableTarget(platform: .macOS, product: .staticLibrary),
             LintableTarget(platform: .macOS, product: .bundle),
             LintableTarget(platform: .macOS, product: .macro),
         ],
