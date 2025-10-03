@@ -1,3 +1,3 @@
-public struct TaggedModuleAPI {
+public enum TaggedModuleAPI {
     public static func value() -> String { "tagged" }
 }

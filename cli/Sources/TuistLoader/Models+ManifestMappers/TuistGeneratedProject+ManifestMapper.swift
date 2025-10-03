@@ -55,7 +55,10 @@ extension TuistCore.TuistGeneratedProjectOptions.CacheOptions {
     ) throws -> Self {
         let profiles = TuistCore.TuistGeneratedProjectOptions.CacheProfiles.from(manifest: manifest.profiles)
         if case let .custom(name) = profiles.defaultProfile, profiles.profileByName[name] == nil {
-            throw ConfigManifestMapperError.defaultCacheProfileNotFound(profile: name, available: Array(profiles.profileByName.keys))
+            throw ConfigManifestMapperError.defaultCacheProfileNotFound(
+                profile: name,
+                available: Array(profiles.profileByName.keys)
+            )
         }
         return .init(
             keepSourceTargets: manifest.keepSourceTargets,
@@ -63,6 +66,7 @@ extension TuistCore.TuistGeneratedProjectOptions.CacheOptions {
         )
     }
 }
+
 extension TuistCore.TuistGeneratedProjectOptions.CacheProfiles {
     static func from(
         manifest: ProjectDescription.Tuist.CacheProfiles

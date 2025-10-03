@@ -25,9 +25,22 @@ struct TuistCacheProfileResolverTests {
         let config = Tuist.test(project: .testGeneratedProject())
 
         // When / Then
-        #expect(try config.resolveCacheProfile(ignoreBinaryCache: false, includedTargets: [], cacheProfile: "only-external") == .init(base: .onlyExternal, targets: []))
-        #expect(try config.resolveCacheProfile(ignoreBinaryCache: false, includedTargets: [], cacheProfile: "all-possible") == .init(base: .allPossible, targets: []))
-        #expect(try config.resolveCacheProfile(ignoreBinaryCache: false, includedTargets: [], cacheProfile: "none") == .init(base: .none, targets: []))
+        #expect(try config
+            .resolveCacheProfile(ignoreBinaryCache: false, includedTargets: [], cacheProfile: "only-external") == .init(
+                base: .onlyExternal,
+                targets: []
+            )
+        )
+        #expect(try config
+            .resolveCacheProfile(ignoreBinaryCache: false, includedTargets: [], cacheProfile: "all-possible") == .init(
+                base: .allPossible,
+                targets: []
+            )
+        )
+        #expect(try config.resolveCacheProfile(ignoreBinaryCache: false, includedTargets: [], cacheProfile: "none") == .init(
+            base: .none,
+            targets: []
+        ))
     }
 
     @Test func resolves_from_explicit_custom_profile() throws {
