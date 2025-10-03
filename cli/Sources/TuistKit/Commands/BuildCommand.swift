@@ -146,6 +146,13 @@ public struct BuildCommand: AsyncParsableCommand, LogConfigurableCommand,
     )
     var binaryCache: Bool = true
 
+    @Option(
+        name: .long,
+        help: "Binary cache profile to use: 'only-external', 'all-possible', 'none', or a custom profile name",
+        envKey: .buildCacheProfile
+    )
+    var cacheProfile: String?
+
     private var notAllowedPassthroughXcodeBuildArguments = [
         "-scheme",
         "-workspace",
@@ -184,6 +191,7 @@ public struct BuildCommand: AsyncParsableCommand, LogConfigurableCommand,
             clean: buildOptions.clean,
             configuration: buildOptions.configuration,
             ignoreBinaryCache: !binaryCache,
+            cacheProfile: cacheProfile,
             buildOutputPath: buildOptions.buildOutputPath.map {
                 try AbsolutePath(
                     validating: $0,

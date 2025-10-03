@@ -53,6 +53,7 @@ public final class BuildService {
         clean: Bool,
         configuration: String?,
         ignoreBinaryCache: Bool,
+        cacheProfile: String?,
         buildOutputPath: AbsolutePath?,
         derivedDataPath: String?,
         path: AbsolutePath,
@@ -71,10 +72,17 @@ public final class BuildService {
                 "The 'tuist build' command is for generated projects or Swift packages. Please use 'tuist xcodebuild build' instead."
             )
         let cacheStorage = try await cacheStorageFactory.cacheStorage(config: config)
+
+        let resolvedCacheProfile = try config.resolveCacheProfile(
+            ignoreBinaryCache: ignoreBinaryCache,
+            includedTargets: [],
+            cacheProfile: cacheProfile
+        )
+
         let generator = generatorFactory.building(
             config: config,
             configuration: configuration,
-            ignoreBinaryCache: ignoreBinaryCache,
+            cacheProfile: resolvedCacheProfile,
             cacheStorage: cacheStorage
         )
         let workspacePath = try await buildGraphInspector.workspacePath(directory: path)

@@ -5,14 +5,16 @@ import TSCUtility
 import TuistCore
 import TuistSupport
 
-enum ConfigManifestMapperError: FatalError {
+enum ConfigManifestMapperError: FatalError, Equatable {
     /// Thrown when the server URL is invalid.
     case invalidServerURL(String)
+    /// Thrown when the default cache profile references a non-existent profile name.
+    case defaultCacheProfileNotFound(profile: String, available: [String])
 
     /// Error type.
     var type: ErrorType {
         switch self {
-        case .invalidServerURL: return .abort
+        case .invalidServerURL, .defaultCacheProfileNotFound: return .abort
         }
     }
 
@@ -21,6 +23,14 @@ enum ConfigManifestMapperError: FatalError {
         switch self {
         case let .invalidServerURL(url):
             return "The server URL '\(url)' is not a valid URL"
+        case let .defaultCacheProfileNotFound(profile, available):
+            let builtins = ".onlyExternal, .allPossible, .none"
+            if available.isEmpty {
+                return "Default cache profile '\(profile)' not found. Available profiles: \(builtins)."
+            } else {
+                let custom = available.sorted().joined(separator: ", ")
+                return "Default cache profile '\(profile)' not found. Available profiles: \(builtins), or custom profiles: \(custom)."
+            }
         }
     }
 }
@@ -58,7 +68,7 @@ extension TuistCore.Tuist {
                 generatorPaths: generatorPaths,
                 fullHandle: manifest.fullHandle
             )
-            let cacheOptions = TuistCore.TuistGeneratedProjectOptions.CacheOptions.from(manifest: cacheOptions)
+            let cacheOptions = try TuistCore.TuistGeneratedProjectOptions.CacheOptions.from(manifest: cacheOptions)
 
             let compatibleXcodeVersions = TuistCore.CompatibleXcodeVersions.from(manifest: compatibleXcodeVersions)
             let plugins = try plugins.map { try PluginLocation.from(manifest: $0, generatorPaths: generatorPaths) }
