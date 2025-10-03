@@ -1,7 +1,7 @@
 import Testing
 import TuistCore
 import XcodeGraph
-@testable import TuistKit
+@testable import TuistCache
 
 struct CacheProfileTargetReplacementDeciderTests {
     @Test func allPossible_without_exceptions_replaces_everything() {
