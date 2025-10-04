@@ -509,7 +509,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
                         return .sdk(name: setting.value[0], type: .framework, status: .required, condition: condition)
                     case (.linker, .linkedLibrary):
                         return .sdk(name: setting.value[0], type: .library, status: .required, condition: condition)
-                    case (_, .interoperabilityMode):
+                    case (_, .interoperabilityMode), (_, .defaultIsolation):
                         return nil
                     case (.c, _), (.cxx, _), (_, .enableUpcomingFeature), (.swift, _), (.linker, .headerSearchPath), (
                         .linker,
@@ -974,7 +974,7 @@ extension ProjectDescription.TargetDependency {
                     return .sdk(name: setting.value[0], type: .framework, status: .required, condition: condition)
                 case (.linker, .linkedLibrary):
                     return .sdk(name: setting.value[0], type: .library, status: .required, condition: condition)
-                case (_, .interoperabilityMode):
+                case (_, .interoperabilityMode), (_, .defaultIsolation):
                     return nil
                 case (.c, _), (.cxx, _), (_, .enableUpcomingFeature), (.swift, _), (.linker, .headerSearchPath), (
                     .linker,
