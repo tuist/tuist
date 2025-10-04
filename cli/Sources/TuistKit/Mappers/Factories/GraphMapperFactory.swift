@@ -58,7 +58,7 @@ public final class GraphMapperFactory: GraphMapperFactorying {
     ) -> [GraphMapping] {
         self.default(
             config: config,
-            forceWorkspaceSchemes: false,
+            forceWorkspaceSchemes: false
         )
     }
 
