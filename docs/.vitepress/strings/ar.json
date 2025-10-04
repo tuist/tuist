@@ -57,8 +57,46 @@
     "guides": {
       "text": ""
     },
-    "cli": {
-      "text": ""
+    "search": {
+      "placeholder": "بحث",
+      "translations": {
+        "button": {
+          "button-text": "ابحث في المرجع",
+          "button-aria-label": "ابحث في المرجع"
+        },
+        "modal": {
+          "search-box": {
+            "reset-button-title": "مسح البحث",
+            "reset-button-aria-label": "مسح البحث",
+            "cancel-button-text": "إلغاء",
+            "cancel-button-aria-label": "إلغاء"
+          },
+          "start-screen": {
+            "recent-searches-title": "عمليات البحث الأخيرة",
+            "no-recent-searches-text": "",
+            "save-recent-search-button-title": "",
+            "remove-recent-search-button-title": "",
+            "favorite-searches-title": "",
+            "remove-favorite-search-button-title": ""
+          },
+          "error-screen": {
+            "title-text": "",
+            "help-text": ""
+          },
+          "footer": {
+            "select-text": "",
+            "navigate-text": "",
+            "close-text": "",
+            "search-by-text": ""
+          },
+          "no-results-screen": {
+            "no-results-text": "",
+            "suggested-query-text": "",
+            "report-missing-results-text": "",
+            "report-missing-results-link-text": ""
+          }
+        }
+      }
     },
     "server": {
       "text": ""
