@@ -55,13 +55,13 @@ struct TuistGeneratedProjectManifestMapperTests {
 
     @Test func from_mapsKeepSourceTargets_true() throws {
         let manifest = ProjectDescription.Config.CacheOptions.options(keepSourceTargets: true)
-        let got = TuistCore.TuistGeneratedProjectOptions.CacheOptions.from(manifest: manifest)
+        let got = try TuistCore.TuistGeneratedProjectOptions.CacheOptions.from(manifest: manifest)
         #expect(got.keepSourceTargets == true)
     }
 
     @Test func from_mapsKeepSourceTargets_false() throws {
         let manifest = ProjectDescription.Config.CacheOptions.options(keepSourceTargets: false)
-        let got = TuistCore.TuistGeneratedProjectOptions.CacheOptions.from(manifest: manifest)
+        let got = try TuistCore.TuistGeneratedProjectOptions.CacheOptions.from(manifest: manifest)
         #expect(got.keepSourceTargets == false)
     }
 
@@ -96,5 +96,78 @@ struct TuistGeneratedProjectManifestMapperTests {
             #expect(got.additionalPackageResolutionArguments == ["-verbose", "-configuration", "debug"])
             #expect(!got.additionalPackageResolutionArguments.contains("-resolvePackageDependenciesWithSystemScm"))
         }
+    }
+
+    @Test func from_mapsEmptyCacheProfiles_with_default_onlyExternal() throws {
+        // When
+        let got = TuistCore.TuistGeneratedProjectOptions.CacheProfiles.from(
+            manifest: .profiles(
+                [:],
+                default: .onlyExternal
+            )
+        )
+
+        // Then
+        #expect(got.profileByName == [:])
+        #expect(got.defaultProfile == .onlyExternal)
+    }
+
+    @Test func from_mapsCacheProfiles_entries_and_custom_default() throws {
+        // When
+        let got = TuistCore.TuistGeneratedProjectOptions.CacheProfiles.from(
+            manifest: .profiles(
+                [
+                    "development": .profile(
+                        base: .allPossible,
+                        targets: ["Expensive", .tagged("cacheable")]
+                    ),
+                    "ci": .profile(
+                        base: .onlyExternal,
+                        targets: []
+                    ),
+                ],
+                default: .custom("development")
+            )
+        )
+
+        // Then
+        #expect(got.profileByName == [
+            "development": .init(
+                base: .allPossible,
+                targets: ["Expensive", "tag:cacheable"]
+            ),
+            "ci": .init(
+                base: .onlyExternal,
+                targets: []
+            ),
+        ])
+        #expect(got.defaultProfile == .custom("development"))
+    }
+
+    @Test func from_mapsCacheOptions_profiles() throws {
+        // When
+        let got = try TuistCore.TuistGeneratedProjectOptions.CacheOptions.from(
+            manifest: .options(
+                keepSourceTargets: false,
+                profiles: .profiles(
+                    [
+                        "debug": .profile(
+                            base: .onlyExternal,
+                            targets: [.tagged("stable")]
+                        ),
+                    ],
+                    default: .custom("debug")
+                )
+            )
+        )
+
+        // Then
+        #expect(got.profiles.profileByName == [
+            "debug": .init(
+                base: .onlyExternal,
+                targets: ["tag:stable"]
+            ),
+        ])
+        #expect(got.profiles.defaultProfile == .custom("debug"))
     }
 }
