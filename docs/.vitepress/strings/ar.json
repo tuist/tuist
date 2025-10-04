@@ -2,32 +2,32 @@
     "aside": {
         "translate": {
             "title": {
-                "text": ""
+                "text": "الترجمة 🌍"
             },
             "description": {
-                "text": ""
+                "text": "ساهم في ترجمة هذه الصفحة أو تحسينها."
             },
             "cta": {
-                "text": ""
+                "text": "ساهم"
             }
         }
     },
     "search": {
-        "placeholder": "",
+        "placeholder": "بحث",
         "translations": {
             "button": {
-                "button-text": "",
-                "button-aria-label": ""
+                "button-text": "ابحث في المرجع",
+                "button-aria-label": "ابحث في المرجع"
             },
             "modal": {
                 "search-box": {
-                    "reset-button-title": "",
-                    "reset-button-aria-label": "",
-                    "cancel-button-text": "",
-                    "cancel-button-aria-label": ""
+                    "reset-button-title": "مسح البحث",
+                    "reset-button-aria-label": "مسح البحث",
+                    "cancel-button-text": "إلغاء",
+                    "cancel-button-aria-label": "إلغاء"
                 },
                 "start-screen": {
-                    "recent-searches-title": "",
+                    "recent-searches-title": "عمليات البحث الأخيرة",
                     "no-recent-searches-text": "",
                     "save-recent-search-button-title": "",
                     "remove-recent-search-button-title": "",
