@@ -2294,6 +2294,33 @@ public enum Components {
                 ///
                 /// - Remark: Generated from `#/components/schemas/RunParams/case1/category`.
                 public var category: Components.Schemas.RunParams.Case1Payload.categoryPayload?
+                /// The CI host URL (optional, for self-hosted instances).
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunParams/case1/ci_host`.
+                public var ci_host: Swift.String?
+                /// The CI project handle (e.g., 'owner/repo' for GitHub, project path for GitLab).
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunParams/case1/ci_project_handle`.
+                public var ci_project_handle: Swift.String?
+                /// The CI provider.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunParams/case1/ci_provider`.
+                @frozen public enum ci_providerPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case github = "github"
+                    case gitlab = "gitlab"
+                    case bitrise = "bitrise"
+                    case circleci = "circleci"
+                    case buildkite = "buildkite"
+                    case codemagic = "codemagic"
+                }
+                /// The CI provider.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunParams/case1/ci_provider`.
+                public var ci_provider: Components.Schemas.RunParams.Case1Payload.ci_providerPayload?
+                /// The CI run identifier (e.g., GitHub Actions run ID, GitLab pipeline ID).
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunParams/case1/ci_run_id`.
+                public var ci_run_id: Swift.String?
                 /// The build configuration (e.g., Debug, Release).
                 ///
                 /// - Remark: Generated from `#/components/schemas/RunParams/case1/configuration`.
@@ -2644,6 +2671,10 @@ public enum Components {
                 ///
                 /// - Parameters:
                 ///   - category: The category of the build run, can be clean or incremental.
+                ///   - ci_host: The CI host URL (optional, for self-hosted instances).
+                ///   - ci_project_handle: The CI project handle (e.g., 'owner/repo' for GitHub, project path for GitLab).
+                ///   - ci_provider: The CI provider.
+                ///   - ci_run_id: The CI run identifier (e.g., GitHub Actions run ID, GitLab pipeline ID).
                 ///   - configuration: The build configuration (e.g., Debug, Release).
                 ///   - duration: Duration of the run in milliseconds.
                 ///   - files: Compiled files associated with the build run.
@@ -2663,6 +2694,10 @@ public enum Components {
                 ///   - xcode_version: The version of Xcode used during the run.
                 public init(
                     category: Components.Schemas.RunParams.Case1Payload.categoryPayload? = nil,
+                    ci_host: Swift.String? = nil,
+                    ci_project_handle: Swift.String? = nil,
+                    ci_provider: Components.Schemas.RunParams.Case1Payload.ci_providerPayload? = nil,
+                    ci_run_id: Swift.String? = nil,
                     configuration: Swift.String? = nil,
                     duration: Swift.Int,
                     files: Components.Schemas.RunParams.Case1Payload.filesPayload? = nil,
@@ -2682,6 +2717,10 @@ public enum Components {
                     xcode_version: Swift.String? = nil
                 ) {
                     self.category = category
+                    self.ci_host = ci_host
+                    self.ci_project_handle = ci_project_handle
+                    self.ci_provider = ci_provider
+                    self.ci_run_id = ci_run_id
                     self.configuration = configuration
                     self.duration = duration
                     self.files = files
@@ -2702,6 +2741,10 @@ public enum Components {
                 }
                 public enum CodingKeys: String, CodingKey {
                     case category
+                    case ci_host
+                    case ci_project_handle
+                    case ci_provider
+                    case ci_run_id
                     case configuration
                     case duration
                     case files
@@ -3670,6 +3713,33 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/BuildRun/category`.
             public var category: Components.Schemas.BuildRun.categoryPayload?
+            /// The CI host URL (optional, for self-hosted instances).
+            ///
+            /// - Remark: Generated from `#/components/schemas/BuildRun/ci_host`.
+            public var ci_host: Swift.String?
+            /// The CI project handle (e.g., 'owner/repo' for GitHub, project path for GitLab).
+            ///
+            /// - Remark: Generated from `#/components/schemas/BuildRun/ci_project_handle`.
+            public var ci_project_handle: Swift.String?
+            /// The CI provider.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BuildRun/ci_provider`.
+            @frozen public enum ci_providerPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case github = "github"
+                case gitlab = "gitlab"
+                case bitrise = "bitrise"
+                case circleci = "circleci"
+                case buildkite = "buildkite"
+                case codemagic = "codemagic"
+            }
+            /// The CI provider.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BuildRun/ci_provider`.
+            public var ci_provider: Components.Schemas.BuildRun.ci_providerPayload?
+            /// The CI run identifier (e.g., GitHub Actions run ID, GitLab pipeline ID).
+            ///
+            /// - Remark: Generated from `#/components/schemas/BuildRun/ci_run_id`.
+            public var ci_run_id: Swift.String?
             /// The build configuration (e.g., Debug, Release).
             ///
             /// - Remark: Generated from `#/components/schemas/BuildRun/configuration`.
@@ -4020,6 +4090,10 @@ public enum Components {
             ///
             /// - Parameters:
             ///   - category: The category of the build run, can be clean or incremental.
+            ///   - ci_host: The CI host URL (optional, for self-hosted instances).
+            ///   - ci_project_handle: The CI project handle (e.g., 'owner/repo' for GitHub, project path for GitLab).
+            ///   - ci_provider: The CI provider.
+            ///   - ci_run_id: The CI run identifier (e.g., GitHub Actions run ID, GitLab pipeline ID).
             ///   - configuration: The build configuration (e.g., Debug, Release).
             ///   - duration: Duration of the run in milliseconds.
             ///   - files: Compiled files associated with the build run.
@@ -4039,6 +4113,10 @@ public enum Components {
             ///   - xcode_version: The version of Xcode used during the run.
             public init(
                 category: Components.Schemas.BuildRun.categoryPayload? = nil,
+                ci_host: Swift.String? = nil,
+                ci_project_handle: Swift.String? = nil,
+                ci_provider: Components.Schemas.BuildRun.ci_providerPayload? = nil,
+                ci_run_id: Swift.String? = nil,
                 configuration: Swift.String? = nil,
                 duration: Swift.Int,
                 files: Components.Schemas.BuildRun.filesPayload? = nil,
@@ -4058,6 +4136,10 @@ public enum Components {
                 xcode_version: Swift.String? = nil
             ) {
                 self.category = category
+                self.ci_host = ci_host
+                self.ci_project_handle = ci_project_handle
+                self.ci_provider = ci_provider
+                self.ci_run_id = ci_run_id
                 self.configuration = configuration
                 self.duration = duration
                 self.files = files
@@ -4078,6 +4160,10 @@ public enum Components {
             }
             public enum CodingKeys: String, CodingKey {
                 case category
+                case ci_host
+                case ci_project_handle
+                case ci_provider
+                case ci_run_id
                 case configuration
                 case duration
                 case files
@@ -19584,6 +19670,33 @@ public enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/category`.
                         public var category: Operations.createRun.Input.Body.jsonPayload.Case1Payload.categoryPayload?
+                        /// The CI host URL (optional, for self-hosted instances).
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/ci_host`.
+                        public var ci_host: Swift.String?
+                        /// The CI project handle (e.g., 'owner/repo' for GitHub, project path for GitLab).
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/ci_project_handle`.
+                        public var ci_project_handle: Swift.String?
+                        /// The CI provider.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/ci_provider`.
+                        @frozen public enum ci_providerPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                            case github = "github"
+                            case gitlab = "gitlab"
+                            case bitrise = "bitrise"
+                            case circleci = "circleci"
+                            case buildkite = "buildkite"
+                            case codemagic = "codemagic"
+                        }
+                        /// The CI provider.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/ci_provider`.
+                        public var ci_provider: Operations.createRun.Input.Body.jsonPayload.Case1Payload.ci_providerPayload?
+                        /// The CI run identifier (e.g., GitHub Actions run ID, GitLab pipeline ID).
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/ci_run_id`.
+                        public var ci_run_id: Swift.String?
                         /// The build configuration (e.g., Debug, Release).
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/configuration`.
@@ -19934,6 +20047,10 @@ public enum Operations {
                         ///
                         /// - Parameters:
                         ///   - category: The category of the build run, can be clean or incremental.
+                        ///   - ci_host: The CI host URL (optional, for self-hosted instances).
+                        ///   - ci_project_handle: The CI project handle (e.g., 'owner/repo' for GitHub, project path for GitLab).
+                        ///   - ci_provider: The CI provider.
+                        ///   - ci_run_id: The CI run identifier (e.g., GitHub Actions run ID, GitLab pipeline ID).
                         ///   - configuration: The build configuration (e.g., Debug, Release).
                         ///   - duration: Duration of the run in milliseconds.
                         ///   - files: Compiled files associated with the build run.
@@ -19953,6 +20070,10 @@ public enum Operations {
                         ///   - xcode_version: The version of Xcode used during the run.
                         public init(
                             category: Operations.createRun.Input.Body.jsonPayload.Case1Payload.categoryPayload? = nil,
+                            ci_host: Swift.String? = nil,
+                            ci_project_handle: Swift.String? = nil,
+                            ci_provider: Operations.createRun.Input.Body.jsonPayload.Case1Payload.ci_providerPayload? = nil,
+                            ci_run_id: Swift.String? = nil,
                             configuration: Swift.String? = nil,
                             duration: Swift.Int,
                             files: Operations.createRun.Input.Body.jsonPayload.Case1Payload.filesPayload? = nil,
@@ -19972,6 +20093,10 @@ public enum Operations {
                             xcode_version: Swift.String? = nil
                         ) {
                             self.category = category
+                            self.ci_host = ci_host
+                            self.ci_project_handle = ci_project_handle
+                            self.ci_provider = ci_provider
+                            self.ci_run_id = ci_run_id
                             self.configuration = configuration
                             self.duration = duration
                             self.files = files
@@ -19992,6 +20117,10 @@ public enum Operations {
                         }
                         public enum CodingKeys: String, CodingKey {
                             case category
+                            case ci_host
+                            case ci_project_handle
+                            case ci_provider
+                            case ci_run_id
                             case configuration
                             case duration
                             case files

@@ -262,7 +262,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
                         "-D", "TUIST",
                     ]),
                     "SWIFT_INCLUDE_PATHS": .array([
-                        "$(TOOLCHAIN_DIR)/usr/lib/swift/pm/ManifestAPI",
+                        "$(DT_TOOLCHAIN_DIR)/usr/lib/swift/pm/ManifestAPI",
                     ]),
                 ],
                 uniquingKeysWith: {

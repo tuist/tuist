@@ -138,6 +138,9 @@
                             "text": "Logging"
                         }
                     }
+                },
+                "releases": {
+                    "text": "Versiones"
                 }
             }
         },
@@ -343,6 +346,9 @@
                         },
                         "bundle-size": {
                             "text": "Bundle size"
+                        },
+                        "qa": {
+                            "text": "QA"
                         }
                     }
                 },

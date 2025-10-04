@@ -221,7 +221,7 @@ struct ProjectEditorMapperTests {
                         "-D", "TUIST",
                     ]),
                     "SWIFT_INCLUDE_PATHS": .array([
-                        "$(TOOLCHAIN_DIR)/usr/lib/swift/pm/ManifestAPI",
+                        "$(DT_TOOLCHAIN_DIR)/usr/lib/swift/pm/ManifestAPI",
                     ]),
                     "SWIFT_VERSION": "5.0.0",
                 ],

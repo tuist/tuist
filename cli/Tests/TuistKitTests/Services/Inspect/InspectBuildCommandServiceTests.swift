@@ -2,6 +2,7 @@ import FileSystem
 import Foundation
 import Mockable
 import Testing
+import TuistCI
 import TuistCore
 import TuistGit
 import TuistLoader
@@ -28,6 +29,7 @@ struct InspectBuildCommandServiceTests {
     private let dateService = MockDateServicing()
     private let serverEnvironmentService = MockServerEnvironmentServicing()
     private let gitController: MockGitControlling
+    private let ciController = MockCIControlling()
 
     init() throws {
         gitController = MockGitControlling()
@@ -43,7 +45,8 @@ struct InspectBuildCommandServiceTests {
             backgroundProcessRunner: backgroundProcessRunner,
             dateService: dateService,
             serverEnvironmentService: serverEnvironmentService,
-            gitController: gitController
+            gitController: gitController,
+            ciController: ciController
         )
         given(configLoader)
             .loadConfig(path: .any)
@@ -73,7 +76,11 @@ struct InspectBuildCommandServiceTests {
                 scheme: .any,
                 targets: .any,
                 xcodeVersion: .any,
-                status: .any
+                status: .any,
+                ciRunId: .any,
+                ciProjectHandle: .any,
+                ciHost: .any,
+                ciProvider: .any
             )
             .willReturn(.test())
 
@@ -101,6 +108,10 @@ struct InspectBuildCommandServiceTests {
 
         given(gitController)
             .gitInfo(workingDirectory: .any)
+            .willReturn(.test())
+
+        given(ciController)
+            .ciInfo()
             .willReturn(.test())
 
         Matcher.register([XCActivityIssue].self)
@@ -166,6 +177,18 @@ struct InspectBuildCommandServiceTests {
                 )
             )
 
+        ciController.reset()
+        given(ciController)
+            .ciInfo()
+            .willReturn(
+                .test(
+                    provider: .github,
+                    runId: "123",
+                    projectHandle: "test-project",
+                    host: "github.com"
+                )
+            )
+
         // When
         try await subject.run(path: nil)
 
@@ -190,7 +213,11 @@ struct InspectBuildCommandServiceTests {
                 scheme: .value("App"),
                 targets: .value([.test()]),
                 xcodeVersion: .value("16.0.0"),
-                status: .value(.failure)
+                status: .value(.failure),
+                ciRunId: .value("123"),
+                ciProjectHandle: .value("test-project"),
+                ciHost: .value("github.com"),
+                ciProvider: .value(.github)
             )
             .called(1)
     }
@@ -234,6 +261,11 @@ struct InspectBuildCommandServiceTests {
             .gitInfo(workingDirectory: .any)
             .willReturn(.test(ref: nil, branch: "branch", sha: "sha"))
 
+        ciController.reset()
+        given(ciController)
+            .ciInfo()
+            .willReturn(nil)
+
         // When
         try await subject.run(path: nil)
 
@@ -258,7 +290,11 @@ struct InspectBuildCommandServiceTests {
                 scheme: .any,
                 targets: .any,
                 xcodeVersion: .any,
-                status: .any
+                status: .any,
+                ciRunId: .any,
+                ciProjectHandle: .any,
+                ciHost: .any,
+                ciProvider: .any
             )
             .called(1)
     }
