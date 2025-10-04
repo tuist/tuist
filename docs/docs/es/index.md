@@ -8,11 +8,12 @@
 import VPFeatures from "vitepress/dist/client/theme-default/components/VPFeatures.vue"
 </script>
 
-# A virtual platform team for developers who ship
+# Un equipo de plataforma virtual para desarrolladores que shipean
 
-**Tuist extends Apple's toolchain to help teams scale and focus on building
-apps** – transforming Apple platform development from frustrating complexity
-into a smooth, productive experience that grows with your team.
+**Tuist extiende la herramientas de Apple para ayudar a los equipos a escalar y
+centrarse en la creación de aplicaciones** - transformando el desarrollo de la
+plataforma de Apple de una complejidad frustrante a una experiencia fluida y
+productiva que crece con tu equipo.
 
 <br/>
 
