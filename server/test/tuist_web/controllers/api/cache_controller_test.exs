@@ -75,11 +75,11 @@ defmodule TuistWeb.API.CacheControllerTest do
       project = ProjectsFixtures.project_fixture()
       account = Accounts.get_account_by_id(project.account_id)
 
-      Repo.update!(
-        Ecto.Changeset.change(account,
-          current_month_remote_cache_hits_count: Tuist.Billing.get_payment_thresholds()[:remote_cache_hits] * 2
-        )
-      )
+      account_id = account.id
+
+      stub(Tuist.Billing, :month_to_date_remote_cache_hits_count, fn ^account_id ->
+        Tuist.Billing.get_payment_thresholds()[:remote_cache_hits] * 2
+      end)
 
       hash = "hash"
       name = "name"
@@ -216,11 +216,11 @@ defmodule TuistWeb.API.CacheControllerTest do
       account = Accounts.get_account_by_id(project.account_id)
       hash = "hash"
 
-      Repo.update!(
-        Ecto.Changeset.change(account,
-          current_month_remote_cache_hits_count: Tuist.Billing.get_payment_thresholds()[:remote_cache_hits] * 2
-        )
-      )
+      account_id = account.id
+
+      stub(Tuist.Billing, :month_to_date_remote_cache_hits_count, fn ^account_id ->
+        Tuist.Billing.get_payment_thresholds()[:remote_cache_hits] * 2
+      end)
 
       CacheActionItems.create_cache_action_item(%{
         hash: hash,
@@ -375,11 +375,11 @@ defmodule TuistWeb.API.CacheControllerTest do
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
 
-      Repo.update!(
-        Ecto.Changeset.change(account,
-          current_month_remote_cache_hits_count: Tuist.Billing.get_payment_thresholds()[:remote_cache_hits] * 2
-        )
-      )
+      account_id = account.id
+
+      stub(Tuist.Billing, :month_to_date_remote_cache_hits_count, fn ^account_id ->
+        Tuist.Billing.get_payment_thresholds()[:remote_cache_hits] * 2
+      end)
 
       project = ProjectsFixtures.project_fixture(account_id: account.id)
       date = DateTime.utc_now(:second)
@@ -454,11 +454,11 @@ defmodule TuistWeb.API.CacheControllerTest do
       project_id = "#{account.name}/#{project.name}"
       cache_category = "builds"
 
-      Repo.update!(
-        Ecto.Changeset.change(account,
-          current_month_remote_cache_hits_count: Tuist.Billing.get_payment_thresholds()[:remote_cache_hits] * 2
-        )
-      )
+      account_id = account.id
+
+      stub(Tuist.Billing, :month_to_date_remote_cache_hits_count, fn ^account_id ->
+        Tuist.Billing.get_payment_thresholds()[:remote_cache_hits] * 2
+      end)
 
       conn = Authentication.put_current_project(conn, project)
 
@@ -530,11 +530,11 @@ defmodule TuistWeb.API.CacheControllerTest do
       upload_id = "1234"
       part_number = "3"
 
-      Repo.update!(
-        Ecto.Changeset.change(account,
-          current_month_remote_cache_hits_count: Tuist.Billing.get_payment_thresholds()[:remote_cache_hits] * 2
-        )
-      )
+      account_id = account.id
+
+      stub(Tuist.Billing, :month_to_date_remote_cache_hits_count, fn ^account_id ->
+        Tuist.Billing.get_payment_thresholds()[:remote_cache_hits] * 2
+      end)
 
       conn = Authentication.put_current_project(conn, project)
 
@@ -665,11 +665,11 @@ defmodule TuistWeb.API.CacheControllerTest do
         %{part_number: 3, etag: "etag3"}
       ]
 
-      Repo.update!(
-        Ecto.Changeset.change(account,
-          current_month_remote_cache_hits_count: Tuist.Billing.get_payment_thresholds()[:remote_cache_hits] * 2
-        )
-      )
+      account_id = account.id
+
+      stub(Tuist.Billing, :month_to_date_remote_cache_hits_count, fn ^account_id ->
+        Tuist.Billing.get_payment_thresholds()[:remote_cache_hits] * 2
+      end)
 
       conn = Authentication.put_current_project(conn, project)
 

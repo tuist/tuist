@@ -717,8 +717,8 @@ defmodule Tuist.CommandEvents do
     end
   end
 
-  def account_month_usage(account_id, date \\ DateTime.utc_now()) do
-    storage_module().account_month_usage(account_id, date)
+  def month_to_date_remote_cache_hits_count(account_id, date \\ DateTime.utc_now()) do
+    Clickhouse.month_to_date_remote_cache_hits_count(account_id, date)
   end
 
   def delete_account_events(account_id) do

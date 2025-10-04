@@ -102,25 +102,6 @@ defmodule Tuist.CommandEvents.Postgres do
     |> Repo.reload()
   end
 
-  def account_month_usage(account_id, date \\ DateTime.utc_now()) do
-    beginning_of_month = Timex.beginning_of_month(date)
-
-    query =
-      from(c in Event,
-        join: p in Project,
-        on: p.id == c.project_id and p.account_id == ^account_id,
-        where: c.created_at >= ^beginning_of_month,
-        where:
-          fragment("array_length(?, 1) > 0", c.remote_cache_target_hits) or
-            fragment("array_length(?, 1) > 0", c.remote_test_target_hits),
-        select: %{
-          remote_cache_hits_count: count(c.id)
-        }
-      )
-
-    Repo.one(query)
-  end
-
   def delete_account_events(account_id) do
     query =
       from(c in Event,

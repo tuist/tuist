@@ -326,9 +326,6 @@ defmodule Tuist.Accounts do
     okta_client_secret = Keyword.get(opts, :okta_client_secret)
     created_at = Keyword.get(opts, :created_at, DateTime.utc_now())
 
-    current_month_remote_cache_hits_count =
-      Keyword.get(opts, :current_month_remote_cache_hits_count, 0)
-
     Multi.new()
     |> Multi.insert(
       :organization,
@@ -345,7 +342,6 @@ defmodule Tuist.Accounts do
         Account.create_changeset(%Account{}, %{
           organization_id: organization_id,
           name: name,
-          current_month_remote_cache_hits_count: current_month_remote_cache_hits_count,
           billing_email: user_email,
           customer_id:
             Keyword.get(
@@ -516,9 +512,6 @@ defmodule Tuist.Accounts do
           Account.create_changeset(%Account{}, %{
             user_id: user_id,
             name: handle,
-            current_month_remote_cache_hits_count: Keyword.get(opts, :current_month_remote_cache_hits_count, 0),
-            current_month_remote_cache_hits_count_updated_at:
-              Keyword.get(opts, :current_month_remote_cache_hits_count_updated_at),
             customer_id: customer_id,
             billing_email: email
           })
@@ -585,30 +578,8 @@ defmodule Tuist.Accounts do
     end
   end
 
-  def update_account_current_month_usage(account_id, %{remote_cache_hits_count: remote_cache_hits_count}, opts \\ []) do
-    %Account{id: account_id}
-    |> Account.billing_changeset(%{
-      current_month_remote_cache_hits_count: remote_cache_hits_count,
-      current_month_remote_cache_hits_count_updated_at: Keyword.get(opts, :updated_at, NaiveDateTime.utc_now())
-    })
-    |> Repo.update!()
-  end
-
   def account_month_usage(account_id, date \\ DateTime.utc_now()) do
-    CommandEvents.account_month_usage(account_id, date)
-  end
-
-  def list_accounts_with_usage_not_updated_today(attrs \\ %{}) do
-    start_of_today = Timex.beginning_of_day(DateTime.utc_now())
-
-    query =
-      from(a in Account,
-        where:
-          is_nil(a.current_month_remote_cache_hits_count_updated_at) or
-            a.current_month_remote_cache_hits_count_updated_at < ^start_of_today
-      )
-
-    Flop.validate_and_run!(query, attrs, for: Account)
+    CommandEvents.month_to_date_remote_cache_hits_count(account_id, date)
   end
 
   def list_billable_customers do
