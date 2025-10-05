@@ -16,9 +16,8 @@ you can set it up with:
 tuist organization update sso my-organization --provider google --organization-id my-google-domain.com
 ```
 
-::: warning
-organization whose domain you are setting up.
-:::
+::: warning You must be authenticated with Google using an email tied to the
+organization whose domain you are setting up. :::
 
 ## Okta {#okta}
 
@@ -61,8 +60,7 @@ with Tuist:
 tuist organization update sso my-organization --provider okta --organization-id my-okta-domain.com
 ```
 
-::: warning
+::: warning Users need to initially sign in via their Okta dashboard as Tuist
 currently doesn't support automatic provisioning and deprovisioning of users
 from your Okta organization. Once they sign in via their Okta dashboard, they
-will be automatically added to your Tuist organization.
-:::
+will be automatically added to your Tuist organization. :::
