@@ -5,7 +5,7 @@
   "description": "Get started contributing to Tuist by following this guide."
 }
 ---
-# Get started {#get-started}
+# Empezar {#get-started}
 
 If you have experience building apps for Apple platforms, like iOS, adding code
 to Tuist shouldn’t be much different. There are two differences compared to
