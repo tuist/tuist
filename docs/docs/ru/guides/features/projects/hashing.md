@@ -34,10 +34,9 @@ between the targets and the binaries.
 `BUILD_LIBRARY_FOR_DISTRIBUTION` build setting to enable [module
 stability](https://www.swift.org/blog/library-evolution#enabling-library-evolution-support)
 and enable using binaries with any compiler version. However, it caused
-compilation issues in projects with targets that don't support module
-stability. Generated binaries are bound to the Swift version used to compile
-them, and the Swift version must match the one used to compile the project.
-:::
+compilation issues in projects with targets that don't support module stability.
+Generated binaries are bound to the Swift version used to compile them, and the
+Swift version must match the one used to compile the project. :::
 
 #### Configuration {#configuration}
 
@@ -63,5 +62,4 @@ to debug the issue:
 ::: info BETTER DEBUGGING EXPERIENCE PLANNED Improving our debugging experience
 is in our roadmap. The print-hashes command, which lacks the context to
 understand the differences, will be replaced by a more user-friendly command
-that uses a tree-like structure to show the differences between the hashes.
-:::
+that uses a tree-like structure to show the differences between the hashes. :::
