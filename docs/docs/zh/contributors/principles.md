@@ -76,7 +76,8 @@ dependency graph, or `tuist cache`, which caches all the targets as binaries.
 
 ::: tip
 <!-- -->
-opportunity to simplify concepts with simple and explicit APIs.
+We should treat each request to port features from Xcode as an opportunity to
+simplify concepts with simple and explicit APIs.
 <!-- -->
 :::
 
