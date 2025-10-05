@@ -12,9 +12,10 @@ require more control over their infrastructure. This version allows you to host
 Tuist on your own infrastructure, ensuring that your data remains secure and
 private.
 
-::: warning LICENSE REQUIRED
-Self-hosting Tuist requires a legally valid paid license. The on-premise version of Tuist is available only for organizations on the Enterprise plan. If you are interested in this version, please reach out to [contact@tuist.dev](mailto:contact@tuist.dev).
-:::
+::: warning LICENSE REQUIRED Self-hosting Tuist requires a legally valid paid
+license. The on-premise version of Tuist is available only for organizations on
+the Enterprise plan. If you are interested in this version, please reach out to
+[contact@tuist.dev](mailto:contact@tuist.dev). :::
 
 ## Release cadence {#release-cadence}
 
@@ -85,9 +86,8 @@ installation instructions
 you are unable to install the Timescale extension, you can set up your own
 dashboard using the Prometheus metrics.
 
-::: info MIGRATIONS
-The Docker image's entrypoint automatically runs any pending schema migrations before starting the service.
-:::
+::: info MIGRATIONS The Docker image's entrypoint automatically runs any pending
+schema migrations before starting the service. :::
 
 ### ClickHouse database {#clickhouse-database}
 
@@ -97,9 +97,8 @@ only work with ClickHouse enabled. ClickHouse will eventually replace the
 Timescale Postgres extension. You can choose whether to self-host ClickHouse or
 use their hosted service.
 
-::: info
-pending ClickHouse schema migrations before starting the service.
-:::
+::: info MIGRATIONS The Docker image's entrypoint automatically runs any pending
+ClickHouse schema migrations before starting the service. :::
 
 ### Storage {#storage}
 
@@ -114,9 +113,9 @@ and storing them in secure password management solutions. Rest assured, Tuist
 handles these variables with utmost care, ensuring they are never displayed in
 logs.
 
-::: info LAUNCH CHECKS
-The necessary variables are verified at startup. If any are missing, the launch will fail and the error message will detail the absent variables.
-:::
+::: info LAUNCH CHECKS The necessary variables are verified at startup. If any
+are missing, the launch will fail and the error message will detail the absent
+variables. :::
 
 ### License configuration {#license-configuration}
 
@@ -132,9 +131,10 @@ that the service is running within the terms of the agreement.
 \* Either `TUIST_LICENSE` or `TUIST_LICENSE_CERTIFICATE_BASE64` must be
 provided, but not both. Use `TUIST_LICENSE` for standard deployments.
 
-::: warning EXPIRATION DATE
-Licenses have an expiration date. Users will receive a warning while using Tuist commands that interact with the server if the license expires in less than 30 days. If you are interested in renewing your license, please reach out to [contact@tuist.dev](mailto:contact@tuist.dev).
-:::
+::: warning EXPIRATION DATE Licenses have an expiration date. Users will receive
+a warning while using Tuist commands that interact with the server if the
+license expires in less than 30 days. If you are interested in renewing your
+license, please reach out to [contact@tuist.dev](mailto:contact@tuist.dev). :::
 
 ### Base environment configuration {#base-environment-configuration}
 
@@ -221,9 +221,9 @@ is the URL your hosted-service is running at. Once you create the app, copy the
 client ID and secret and set them as environment variables `GOOGLE_CLIENT_ID`
 and `GOOGLE_CLIENT_SECRET` respectively.
 
-::: info CONSENT SCREEN SCOPES
-You might need to create a consent screen. When you do so, make sure to add the `userinfo.email` and `openid` scopes and mark the app as internal.
-:::
+::: info CONSENT SCREEN SCOPES You might need to create a consent screen. When
+you do so, make sure to add the `userinfo.email` and `openid` scopes and mark
+the app as internal. :::
 
 #### Okta {#okta}
 
@@ -273,8 +273,10 @@ with the storage provider:
 | `TUIST_S3_VIRTUAL_HOST`                              | Whether the URL should be constructed with the bucket name as a sub-domain (virtual host)                                  | No       | `false`                     | `1`                                        |
 
 ::: info AWS authentication with Web Identity Token from environment variables
-If your storage provider is AWS and you'd like to authenticate using a web identity token, you can set the environment variable `TUIST_S3_AUTHENTICATION_METHOD` to `aws_web_identity_token_from_env_vars`, and Tuist will use that method using the conventional AWS environment variables.
-:::
+If your storage provider is AWS and you'd like to authenticate using a web
+identity token, you can set the environment variable
+`TUIST_S3_AUTHENTICATION_METHOD` to `aws_web_identity_token_from_env_vars`, and
+Tuist will use that method using the conventional AWS environment variables. :::
 
 #### Google Cloud Storage {#google-cloud-storage}
 For Google Cloud Storage, follow [these
@@ -333,9 +335,9 @@ most cloud solutions and tools, like [Kubernetes](https://kubernetes.io/),
 utilize Docker images as fundamental units, the examples in this section should
 align well with your existing setup.
 
-::: warning
-If your deployment pipeline needs to validate that the server is up and running, you can send a `GET` HTTP request to `/ready` and assert a `200` status code in the response.
-:::
+::: warning If your deployment pipeline needs to validate that the server is up
+and running, you can send a `GET` HTTP request to `/ready` and assert a `200`
+status code in the response. :::
 
 #### Fly {#fly}
 
@@ -557,8 +559,8 @@ In addition to Finch metrics, Tuist exposes metrics for:
 Tuist provides a set of utilities under `/ops/` that you can use to manage your
 instance.
 
-::: warning Authorization
-Only people whose handles are listed in the `TUIST_OPS_USER_HANDLES` environment variable can access the `/ops/` endpoints.
+::: warning Authorization Only people whose handles are listed in the
+`TUIST_OPS_USER_HANDLES` environment variable can access the `/ops/` endpoints.
 :::
 
 - **Errors (`/ops/errors`):** You can view unexpected errors that ocurred in the
