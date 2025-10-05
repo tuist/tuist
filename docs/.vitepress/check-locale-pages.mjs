@@ -1,20 +1,20 @@
-import * as path from 'node:path';
-import * as fs from 'node:fs/promises';
-import fastGlob from 'fast-glob';
+import * as path from "node:path";
+import * as fs from "node:fs/promises";
+import fastGlob from "fast-glob";
 
-const LOCALES = ['en', 'ar', 'es', 'ja', 'ko', 'pt', 'ru', 'zh'];
-const BASE_LOCALE = 'en';
+const LOCALES = ["en", "ar", "es", "ja", "ko", "pt", "ru", "zh", "pl"];
+const BASE_LOCALE = "en";
 
 export async function checkLocalePages(outDir) {
-  const docsDir = path.join(path.dirname(outDir), 'docs');
+  const docsDir = path.join(path.dirname(outDir), "docs");
 
   // Get all English markdown files
   const baseLocalePath = path.join(docsDir, BASE_LOCALE);
-  const baseFiles = await fastGlob('**/*.md', { cwd: baseLocalePath });
+  const baseFiles = await fastGlob("**/*.md", { cwd: baseLocalePath });
 
   // Process all locales in parallel
   const results = await Promise.all(
-    LOCALES.filter(locale => locale !== BASE_LOCALE).map(async (locale) => {
+    LOCALES.filter((locale) => locale !== BASE_LOCALE).map(async (locale) => {
       const localePath = path.join(docsDir, locale);
 
       // Ensure locale directory exists
@@ -31,26 +31,26 @@ export async function checkLocalePages(outDir) {
           } catch {
             return relativeFile; // File is missing
           }
-        })
+        }),
       );
 
       return {
         locale,
-        missing: missingFiles.filter(f => f !== null)
+        missing: missingFiles.filter((f) => f !== null),
       };
-    })
+    }),
   );
 
   // Collect all missing files
   const missingFiles = [];
   results.forEach(({ locale, missing }) => {
-    missing.forEach(file => {
+    missing.forEach((file) => {
       missingFiles.push({ locale, file });
     });
   });
 
   if (missingFiles.length > 0) {
-    console.error('\n❌ Missing pages found in locales:\n');
+    console.error("\n❌ Missing pages found in locales:\n");
 
     const byLocale = {};
     missingFiles.forEach(({ locale, file }) => {
@@ -60,12 +60,12 @@ export async function checkLocalePages(outDir) {
 
     Object.entries(byLocale).forEach(([locale, files]) => {
       console.error(`  ${locale}: ${files.length} missing file(s)`);
-      files.forEach(file => console.error(`    - ${file}`));
+      files.forEach((file) => console.error(`    - ${file}`));
     });
 
     console.error(`\nTotal missing files: ${missingFiles.length}`);
-    console.error('\nAll locales must have the same pages as English (en).\n');
+    console.error("\nAll locales must have the same pages as English (en).\n");
 
-    throw new Error('Missing pages detected in locales');
+    throw new Error("Missing pages detected in locales");
   }
 }
