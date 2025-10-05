@@ -19,12 +19,11 @@ scale. XcodeGen falls short there by design because it's a tool that generates
 Xcode projects, not a project manager. If you need a tool that helps you beyond
 generating Xcode projects, you might want to consider Tuist.
 
-::: tip
-tool too because it uses Swift as a configuration format. Swift is a
-programming language that developers are familiar with, and that provides them
-with the convenience of using Xcode's autocompletion, type-checking, and
-validation features.
-:::
+::: tip SWIFT OVER YAML Many organizations prefer Tuist as a project generation
+tool too because it uses Swift as a configuration format. Swift is a programming
+language that developers are familiar with, and that provides them with the
+convenience of using Xcode's autocompletion, type-checking, and validation
+features. :::
 
 What follows are some considerations and guidelines to help you migrate your
 projects from XcodeGen to Tuist.
@@ -73,11 +72,10 @@ Xcode Workspace including all the projects.
 ```
 :::
 
-::: tip
+::: tip XCODE'S LANGUAGE Both XcodeGen and Tuist embrace Xcode's language and
 concepts. However, Tuist's Swift-based configuration provides you with the
 convenience of using Xcode's autocompletion, type-checking, and validation
-features.
-:::
+features. :::
 
 ## Spec templates {#spec-templates}
 
