@@ -37,14 +37,14 @@ In addition to running the Docker images, you’ll need a [Postgres database](ht
 
 For performant analytics, we use a [Timescale Postgres extension](https://www.timescale.com/). You need to make sure that TimescaleDB is installed on the machine running the Postgres database. Follow the installation instructions [here](https://docs.timescale.com/self-hosted/latest/install/) to learn more. If you are unable to install the Timescale extension, you can set up your own dashboard using the Prometheus metrics.
 
-> [!INFO] MIGRATIONS
+> [!NOTE] MIGRATIONS
 > The Docker image's entrypoint automatically runs any pending schema migrations before starting the service.
 
 ### ClickHouse database {#clickhouse-database}
 
 To store large amount of data, we are using [ClickHouse](https://clickhouse.com/). Some features, like build insights, will only work with ClickHouse enabled. ClickHouse will eventually replace the Timescale Postgres extension. You can choose whether to self-host ClickHouse or use their hosted service.
 
-> [!INFO] MIGRATIONS
+> [!NOTE] MIGRATIONS
 > The Docker image's entrypoint automatically runs any pending ClickHouse schema migrations before starting the service.
 
 ### Storage {#storage}

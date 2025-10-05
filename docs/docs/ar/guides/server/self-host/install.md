@@ -86,7 +86,7 @@ installation instructions
 you are unable to install the Timescale extension, you can set up your own
 dashboard using the Prometheus metrics.
 
-> [!INFO] MIGRATIONS The Docker image's entrypoint automatically runs any
+> [!NOTE] MIGRATIONS The Docker image's entrypoint automatically runs any
 > pending schema migrations before starting the service.
 
 ### ClickHouse database {#clickhouse-database}
@@ -97,7 +97,7 @@ only work with ClickHouse enabled. ClickHouse will eventually replace the
 Timescale Postgres extension. You can choose whether to self-host ClickHouse or
 use their hosted service.
 
-> [!INFO] MIGRATIONS The Docker image's entrypoint automatically runs any
+> [!NOTE] MIGRATIONS The Docker image's entrypoint automatically runs any
 > pending ClickHouse schema migrations before starting the service.
 
 ### Storage {#storage}
