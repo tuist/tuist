@@ -8,11 +8,11 @@
 import VPFeatures from "vitepress/dist/client/theme-default/components/VPFeatures.vue"
 </script>
 
-# A virtual platform team for developers who ship
+# Wirtualny zespół platformowy dla deweloperów, którzy dowożą
 
-**Tuist extends Apple's toolchain to help teams scale and focus on building
-apps** – transforming Apple platform development from frustrating complexity
-into a smooth, productive experience that grows with your team.
+**Tuist rozszerza narzędzia Apple, aby ułatwić zespołom skalowanie i skupienie
+się na tworzeniu aplikacji** - przekształcając budowanie na platformy Apple z
+frustrującego na produktywne doświadczenie, które skaluje się wraz z zespołem.
 
 <br/>
 
@@ -65,15 +65,15 @@ into a smooth, productive experience that grows with your team.
         link="/guides/features/registry"/>
 </HomeCards>
 
-## Join thousands of developers who've made the switch
+## Dołącz do tysięcy deweloperów, którzy dokonali zmiany
 
-**Teams at [Trendyol](https://www.trendyol.com/), [Etsy](https://www.etsy.com/),
-[Bumble](https://bumble.com/), [Monzo](https://monzo.com/), [Bending
-Spoons](https://bendingspoons.com/), and 100+ other companies** have already
-transformed their Apple platform development with Tuist. Here's what they're
-experiencing:
+**Zespoły w [Trendyol](https://www.trendyol.com/),
+[Etsy](https://www.etsy.com/), [Bumble](https://bumble.com/),
+[Monzo](https://monzo.com/), [Bending Spoons](https://bendingspoons.com/) i
+ponad 100 innych firmach** przekształciły już rozwój aplikacji na platformy
+Apple za pomocą Tuist. Oto co zyskują:
 
-- **65% faster builds** with intelligent caching
+- **65% szybsze kompilacje** z inteligentnym cache-owaniem
 - **Zero merge conflicts** in Xcode projects
 - **Minutes to seconds** package resolution
 - **Happy developers** who can focus on building features
