@@ -31,9 +31,8 @@ down.
 
 ::: info EXCEPTIONS There are few scenarios where splitting up the pull request
 is not possible, like when the changes are tightly coupled and can’t be split.
-In those cases, the author should provide a clear explanation of the changes
-and the reasoning behind them.
-:::
+In those cases, the author should provide a clear explanation of the changes and
+the reasoning behind them. :::
 
 ## Consistency {#consistency}
 
