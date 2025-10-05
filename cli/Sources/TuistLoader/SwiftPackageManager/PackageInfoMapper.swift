@@ -509,13 +509,13 @@ public final class PackageInfoMapper: PackageInfoMapping {
                         return .sdk(name: setting.value[0], type: .framework, status: .required, condition: condition)
                     case (.linker, .linkedLibrary):
                         return .sdk(name: setting.value[0], type: .library, status: .required, condition: condition)
-                    case (_, .interoperabilityMode), (_, .defaultIsolation):
+                    case (_, .interoperabilityMode):
                         return nil
                     case (.c, _), (.cxx, _), (_, .enableUpcomingFeature), (.swift, _), (.linker, .headerSearchPath), (
                         .linker,
                         .define
                     ),
-                    (.linker, .unsafeFlags), (_, .enableExperimentalFeature), (_, .swiftLanguageMode):
+                    (.linker, .unsafeFlags), (_, .enableExperimentalFeature), (_, .swiftLanguageMode), (_, .defaultIsolation):
                         return nil
                     }
                 } catch {
@@ -974,13 +974,13 @@ extension ProjectDescription.TargetDependency {
                     return .sdk(name: setting.value[0], type: .framework, status: .required, condition: condition)
                 case (.linker, .linkedLibrary):
                     return .sdk(name: setting.value[0], type: .library, status: .required, condition: condition)
-                case (_, .interoperabilityMode), (_, .defaultIsolation):
+                case (_, .interoperabilityMode):
                     return nil
                 case (.c, _), (.cxx, _), (_, .enableUpcomingFeature), (.swift, _), (.linker, .headerSearchPath), (
                     .linker,
                     .define
                 ),
-                (.linker, .unsafeFlags), (_, .enableExperimentalFeature), (_, .swiftLanguageMode):
+                (.linker, .unsafeFlags), (_, .enableExperimentalFeature), (_, .swiftLanguageMode), (_, .defaultIsolation):
                     return nil
                 }
             } catch {
