@@ -3,6 +3,10 @@ import Foundation
 import Path
 
 public class MockFileSystem: FileSysteming {
+    public func contentsOfDirectory(_: Path.AbsolutePath) async throws -> [Path.AbsolutePath] {
+        return []
+    }
+
     public var existsOverride: ((AbsolutePath) async throws -> Bool) = { _ in true }
     public var existsInDirectoryOverride: ((AbsolutePath, Bool) async throws -> Bool) = { _, _ in true }
     public var touchOverride: ((AbsolutePath) async throws -> Void) = { _ in }

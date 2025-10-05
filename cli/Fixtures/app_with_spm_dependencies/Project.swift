@@ -37,6 +37,7 @@ let project = Project(
                 .sdk(name: "c++", type: .library, status: .required),
                 .external(name: "Alamofire"),
                 .external(name: "FirebaseCrashlytics"),
+                .external(name: "AIProxy"),
             ]
         ),
         .target(
