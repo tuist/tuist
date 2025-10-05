@@ -18,9 +18,8 @@ where scaffolding might be useful:
 - Create new projects: `tuist scaffold feature-project --name Home`
 
 ::: info NON-OPINIONATED Tuist is not opinionated about the content of your
-templates, and what you use them for. They are only required to be in a
-specific directory.
-:::
+templates, and what you use them for. They are only required to be in a specific
+directory. :::
 
 ## Defining a template {#defining-a-template}
 
@@ -71,8 +70,7 @@ tuist scaffold name_of_template --name Name --platform macos
 ```
 
 ::: info Since platform is an optional argument, we can also call the command
-without the `--platform macos` argument.
-:::
+without the `--platform macos` argument. :::
 
 If `.string` and `.files` don't provide enough flexibility, you can leverage the
 [Stencil](https://stencil.fuller.li/en/latest/) templating language via the
@@ -88,6 +86,5 @@ You can also use `.directory` which gives the possibility to copy entire folders
 to a given path.
 
 ::: tip PROJECT DESCRIPTION HELPERS Templates support the use of
-<LocalizedLink href="/guides/features/projects/code-sharing">project
-description helpers</LocalizedLink> to reuse code across templates.
-:::
+<LocalizedLink href="/guides/features/projects/code-sharing">project description
+helpers</LocalizedLink> to reuse code across templates. :::
