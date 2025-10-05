@@ -1,12 +1,12 @@
 import * as path from 'node:path';
 import * as fs from 'node:fs/promises';
-import { glob } from 'fast-glob';
+import fastGlob from 'fast-glob';
 
 const VALID_KEYWORDS = ['NOTE', 'TIP', 'IMPORTANT', 'WARNING', 'CAUTION'];
 
 export async function validateAdmonitions(outDir) {
   const docsDir = path.join(path.dirname(outDir), 'docs');
-  const files = await glob('**/*.md', { cwd: docsDir });
+  const files = await fastGlob('**/*.md', { cwd: docsDir });
 
   let hasErrors = false;
   const errors = [];
