@@ -29,11 +29,12 @@ Large pull requests are hard to review and it’s easier to miss out details. If
 pull request becomes too large and unmanageable, suggest the author to break it
 down.
 
-::: info EXCEPTIONS There are few scenarios where splitting up the pull request
+::: info EXCEPTIONS
 <!-- -->
-is not possible, like when the changes are tightly coupled and can’t be split.
-In those cases, the author should provide a clear explanation of the changes
-and the reasoning behind them.
+There are few scenarios where splitting up the pull request is not possible,
+like when the changes are tightly coupled and can’t be split. In those cases,
+the author should provide a clear explanation of the changes and the reasoning
+behind them.
 <!-- -->
 :::
 

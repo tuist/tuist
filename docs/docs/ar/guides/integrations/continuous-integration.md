@@ -131,10 +131,13 @@ jobs:
 <!-- -->
 :::
 
-::: tip We recommend using `mise use --pin` in your Tuist projects to pin the
+::: tip
 <!-- -->
-version of Tuist across environments. The command will create a `.tool-versions`
-file containing the version of Tuist. :::
+We recommend using `mise use --pin` in your Tuist projects to pin the version of
+Tuist across environments. The command will create a `.tool-versions` file
+containing the version of Tuist.
+<!-- -->
+:::
 
 ## Authentication {#authentication}
 
@@ -152,10 +155,10 @@ The command will generate a token for the project with full handle
 `TUIST_CONFIG_TOKEN` in your CI environment ensuring it's configured as a secret
 so it's not exposed.
 
-::: warning CI ENVIRONMENT DETECTION Tuist only uses the token when it
+::: warning CI ENVIRONMENT DETECTION
 <!-- -->
-detects it's running on a CI environment. If your CI environment is not
-detected, you can force the token usage by setting the environment variable
-`CI` to `1`.
+Tuist only uses the token when it detects it's running on a CI environment. If
+your CI environment is not detected, you can force the token usage by setting
+the environment variable `CI` to `1`.
 <!-- -->
 :::

@@ -7,8 +7,9 @@
 ---
 # QA {#qa}
 
-::: warning EARLY PREVIEW Tuist QA is currently in early preview. Sign up at
+::: warning EARLY PREVIEW
 <!-- -->
+Tuist QA is currently in early preview. Sign up at
 [tuist.dev/qa](https://tuist.dev/qa) to get access.
 <!-- -->
 :::
@@ -57,13 +58,14 @@ You can see all QA runs that we do for our
 <LocalizedLink href="/guides/features/previews#tuist-ios-app">iOS
 app</LocalizedLink> in our public dashboard: https://tuist.dev/tuist/tuist/qa
 
-::: info The QA agent runs autonomously and cannot be interrupted with
+::: info
 <!-- -->
-additional prompts once started. We provide detailed logs throughout the
-execution to help you understand how the agent interacted with your app. These
-logs are valuable for iterating on your app context and testing prompts to
-better guide the agent's behavior. If you have feedback about how the agent
-performs with your app, please let us know through [GitHub
+The QA agent runs autonomously and cannot be interrupted with additional prompts
+once started. We provide detailed logs throughout the execution to help you
+understand how the agent interacted with your app. These logs are valuable for
+iterating on your app context and testing prompts to better guide the agent's
+behavior. If you have feedback about how the agent performs with your app,
+please let us know through [GitHub
 Issues](https://github.com/tuist/tuist/issues), our [Slack
 community](https://slack.tuist.dev) or our [community
 forum](https://community.tuist.dev).

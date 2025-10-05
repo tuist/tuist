@@ -18,11 +18,12 @@ the compiler to validate the correctness of the content and reuse code across
 different manifest files, and Xcode to provide a first-class editing experience
 thanks to the syntax highlighting, auto-completion, and validation.
 
-::: info CACHING Since manifest files are Swift files that need to be compiled,
+::: info CACHING
 <!-- -->
-Tuist caches the compilation results to speed up the parsing process.
-Therefore, you'll notice that the first time you run Tuist, it might take a
-bit longer to generate the project. Subsequent runs will be faster.
+Since manifest files are Swift files that need to be compiled, Tuist caches the
+compilation results to speed up the parsing process. Therefore, you'll notice
+that the first time you run Tuist, it might take a bit longer to generate the
+project. Subsequent runs will be faster.
 <!-- -->
 :::
 
@@ -45,10 +46,11 @@ let project = Project(
 ```
 
 
-::: warning ROOT VARIABLES The only variable that should be at the root of the
+::: warning ROOT VARIABLES
 <!-- -->
-manifest is `let project = Project(...)`. If you need to reuse code across
-various parts of the manifest, you can use Swift functions.
+The only variable that should be at the root of the manifest is `let project =
+Project(...)`. If you need to reuse code across various parts of the manifest,
+you can use Swift functions.
 <!-- -->
 :::
 
@@ -74,10 +76,11 @@ let workspace = Workspace(
 )
 ```
 
-::: info Tuist will resolve the dependency graph and include the projects of
+::: info
 <!-- -->
-the dependencies in the workspace. You don't need to include them manually.
-This is necessary for the build system to resolve the dependencies correctly.
+Tuist will resolve the dependency graph and include the projects of the
+dependencies in the workspace. You don't need to include them manually. This is
+necessary for the build system to resolve the dependencies correctly.
 <!-- -->
 :::
 

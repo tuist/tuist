@@ -23,9 +23,9 @@ By default, the CLI outputs the logs path when the execution exits unexpectedly.
 If it doesn't, you can find the logs in the path mentioned above (i.e., the most
 recent log file).
 
-::: warning Sensitive information is not redacted, so be cautious when
+::: warning
 <!-- -->
-sharing logs.
+Sensitive information is not redacted, so be cautious when sharing logs.
 <!-- -->
 :::
 

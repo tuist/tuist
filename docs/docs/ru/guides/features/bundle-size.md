@@ -9,7 +9,8 @@
 
 ::: warning REQUIREMENTS
 <!-- -->
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and project</LocalizedLink>
+- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and
+  project</LocalizedLink>
 <!-- -->
 :::
 
@@ -70,9 +71,9 @@ Once set up, you will be able to see how your bundle size evolves over time:
 
 ## Pull/merge request comments {#pullmerge-request-comments}
 
-::: warning INTEGRATION WITH GIT PLATFORM REQUIRED To get automatic
+::: warning INTEGRATION WITH GIT PLATFORM REQUIRED
 <!-- -->
-pull/merge request comments, integrate your
+To get automatic pull/merge request comments, integrate your
 <LocalizedLink href="/guides/server/accounts-and-projects">Tuist
 project</LocalizedLink> with a
 <LocalizedLink href="/guides/server/authentication">Git

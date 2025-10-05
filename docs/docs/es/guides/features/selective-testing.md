@@ -29,33 +29,33 @@ project setup:
 - <LocalizedLink href="/guides/features/selective-testing/generated-project">Generated
   project</LocalizedLink>
 
-::: warning
+::: warning MODULE VS FILE-LEVEL GRANULARITY
 <!-- -->
-detecting the in-code dependencies between tests and sources, the maximum
-granularity of selective testing is at the target level. Therefore, we
-recommend keeping your targets small and focused to maximize the benefits of
-selective testing.
+Due to the impossibility of detecting the in-code dependencies between tests and
+sources, the maximum granularity of selective testing is at the target level.
+Therefore, we recommend keeping your targets small and focused to maximize the
+benefits of selective testing.
 <!-- -->
 :::
 
-::: warning
+::: warning TEST COVERAGE
 <!-- -->
-runs at once, which makes them incompatible with selective test runs—this
-means the coverage data might not reflect reality when using test selection.
-That’s a known limitation, and it doesn’t mean you’re doing anything wrong. We
-encourage teams to reflect on whether coverage is still bringing meaningful
-insights in this context, and if it is, rest assured that we’re already
-thinking about how to make coverage work properly with selective runs in the
-future.
+Test coverage tools assume that the whole test suite runs at once, which makes
+them incompatible with selective test runs—this means the coverage data might
+not reflect reality when using test selection. That’s a known limitation, and it
+doesn’t mean you’re doing anything wrong. We encourage teams to reflect on
+whether coverage is still bringing meaningful insights in this context, and if
+it is, rest assured that we’re already thinking about how to make coverage work
+properly with selective runs in the future.
 <!-- -->
 :::
 
 
 ## Pull/merge request comments {#pullmerge-request-comments}
 
-::: warning
+::: warning INTEGRATION WITH GIT PLATFORM REQUIRED
 <!-- -->
-pull/merge request comments, integrate your
+To get automatic pull/merge request comments, integrate your
 <LocalizedLink href="/guides/server/accounts-and-projects">Tuist
 project</LocalizedLink> with a
 <LocalizedLink href="/guides/server/authentication">Git

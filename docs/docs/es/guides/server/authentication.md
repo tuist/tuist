@@ -48,6 +48,8 @@ will use the token to authenticate the requests.
 
 ::: warning LIMITED SCOPE
 <!-- -->
-The permissions of the project-scoped token are limited to the actions that we consider safe for projects to perform from a CI environment. We plan to document the permissions that the token has in the future.
+The permissions of the project-scoped token are limited to the actions that we
+consider safe for projects to perform from a CI environment. We plan to document
+the permissions that the token has in the future.
 <!-- -->
 :::

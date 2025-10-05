@@ -26,10 +26,11 @@ If you are familiar with [GitHub](https://github.com), the concept is similar to
 theirs, where you can have personal and organization accounts, and they are
 identified by a *handle* that's used when constructing URLs.
 
-::: info
+::: info CLI-FIRST
 <!-- -->
-through the CLI. We are working on a web interface that will make it easier to
-manage accounts and projects.
+Most operations to manage accounts and projects are done through the CLI. We are
+working on a web interface that will make it easier to manage accounts and
+projects.
 <!-- -->
 :::
 
@@ -61,11 +62,12 @@ the following content:
 let tuist = Tuist(fullHandle: "{account-handle}/{project-handle}") // e.g. tuist/tuist
 ```
 
-::: warning
+::: warning TUIST PROJECT-ONLY FEATURES
 <!-- -->
-like <LocalizedLink href="/guides/features/cache">binary
-caching</LocalizedLink> that require you having a Tuist project. If you are
-using raw Xcode projects, you won't be able to use those features.
+Note that there are some features like
+<LocalizedLink href="/guides/features/cache">binary caching</LocalizedLink> that
+require you having a Tuist project. If you are using raw Xcode projects, you
+won't be able to use those features.
 <!-- -->
 :::
 

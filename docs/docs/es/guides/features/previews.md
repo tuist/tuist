@@ -7,9 +7,10 @@
 ---
 # Previews {#previews}
 
-::: warning
+::: warning REQUIREMENTS
 <!-- -->
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and project</LocalizedLink>
+- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and
+  project</LocalizedLink>
 <!-- -->
 :::
 
@@ -23,10 +24,10 @@ from a colleague or a friend.
 To make this process more streamlined, Tuist provides a way to generate and
 share previews of your apps with anyone.
 
-::: warning
+::: warning DEVICE BUILDS NEED TO BE SIGNED
 <!-- -->
-currently your responsibility to ensure the app is signed correctly. We plan
-to streamline this in the future.
+When building for device, it is currently your responsibility to ensure the app
+is signed correctly. We plan to streamline this in the future.
 <!-- -->
 :::
 
@@ -69,10 +70,10 @@ tuist run App@my-feature-branch # Runs latest App preview associated with a give
 tuist run App@00dde7f56b1b8795a26b8085a781fb3715e834be # Runs latest App preview associated with a given git commit sha
 ```
 
-::: warning
+::: warning PREVIEWS' VISIBILITY
 <!-- -->
-the project belongs to can access the previews. We plan to add support for
-expiring links.
+Only people with access to the organization the project belongs to can access
+the previews. We plan to add support for expiring links.
 <!-- -->
 :::
 
@@ -93,9 +94,8 @@ app by running `brew install --cask tuist/tuist/tuist`.
 When you now click on "Run" in the Preview page, the macOS app will
 automatically launch it on your currently selected device.
 
-::: warning
+::: warning REQUIREMENTS
 <!-- -->
-
 You need to have Xcode locally installed and be on macOS 14 or later.
 <!-- -->
 :::
@@ -116,9 +116,9 @@ your previews.
 
 ## Pull/merge request comments {#pullmerge-request-comments}
 
-::: warning
+::: warning INTEGRATION WITH GIT PLATFORM REQUIRED
 <!-- -->
-pull/merge request comments, integrate your
+To get automatic pull/merge request comments, integrate your
 <LocalizedLink href="/guides/server/accounts-and-projects">remote
 project</LocalizedLink> with a
 <LocalizedLink href="/guides/server/authentication">Git

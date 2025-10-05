@@ -90,7 +90,9 @@ Package Manager](https://www.swift.org/documentation/package-manager/).
 
 ::: info SPM AS A DEPENDENCY RESOLVER
 <!-- -->
-Tuist recommended approach to dependencies uses the Swift Package Manager (SPM) only to resolve dependencies. Tuist then converts them into Xcode projects and targets for maximum configurability and control.
+Tuist recommended approach to dependencies uses the Swift Package Manager (SPM)
+only to resolve dependencies. Tuist then converts them into Xcode projects and
+targets for maximum configurability and control.
 <!-- -->
 :::
 

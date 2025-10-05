@@ -83,10 +83,11 @@ let package = Package(
 `Tuist.swift` file is where you can define project-scoped Tuist settings for
 your project.
 
-::: tip PROJECT NAME WITH -TUIST SUFFIX To prevent conflicts with the existing
+::: tip PROJECT NAME WITH -TUIST SUFFIX
 <!-- -->
-Xcode project, we recommend adding the `-Tuist` suffix to the project name.
-You can drop it once you've fully migrated your project to Tuist.
+To prevent conflicts with the existing Xcode project, we recommend adding the
+`-Tuist` suffix to the project name. You can drop it once you've fully migrated
+your project to Tuist.
 <!-- -->
 :::
 
@@ -170,10 +171,11 @@ let package = Package(
 )
 ```
 
-::: tip PRODUCT TYPES You can override the product type for a specific package
+::: tip PRODUCT TYPES
 <!-- -->
-by adding it to the `productTypes` dictionary in the `PackageSettings` struct.
-By default, Tuist assumes that all packages are static frameworks.
+You can override the product type for a specific package by adding it to the
+`productTypes` dictionary in the `PackageSettings` struct. By default, Tuist
+assumes that all packages are static frameworks.
 <!-- -->
 :::
 
@@ -242,9 +244,10 @@ let project = Project(
 )
 ```
 
-::: info TEST TARGETS If the target has an associated test target, you should
+::: info TEST TARGETS
 <!-- -->
-define it in the `Project.swift` file as well repeating the same steps.
+If the target has an associated test target, you should define it in the
+`Project.swift` file as well repeating the same steps.
 <!-- -->
 :::
 
