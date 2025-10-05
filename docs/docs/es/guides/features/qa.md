@@ -7,9 +7,8 @@
 ---
 # QA {#qa}
 
-::: warning
-[tuist.dev/qa](https://tuist.dev/qa) to get access.
-:::
+::: warning EARLY PREVIEW Tuist QA is currently in early preview. Sign up at
+[tuist.dev/qa](https://tuist.dev/qa) to get access. :::
 
 Quality mobile app development relies on comprehensive testing, but traditional
 approaches have limitations. Unit tests are fast and cost-effective, yet they
@@ -55,7 +54,7 @@ You can see all QA runs that we do for our
 <LocalizedLink href="/guides/features/previews#tuist-ios-app">iOS
 app</LocalizedLink> in our public dashboard: https://tuist.dev/tuist/tuist/qa
 
-::: info
+::: info The QA agent runs autonomously and cannot be interrupted with
 additional prompts once started. We provide detailed logs throughout the
 execution to help you understand how the agent interacted with your app. These
 logs are valuable for iterating on your app context and testing prompts to
@@ -63,8 +62,7 @@ better guide the agent's behavior. If you have feedback about how the agent
 performs with your app, please let us know through [GitHub
 Issues](https://github.com/tuist/tuist/issues), our [Slack
 community](https://slack.tuist.dev) or our [community
-forum](https://community.tuist.dev).
-:::
+forum](https://community.tuist.dev). :::
 
 ### App context {#app-context}
 
