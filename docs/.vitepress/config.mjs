@@ -145,6 +145,7 @@ const searchOptionsLocales = {
   es: getSearchOptionsForLocale("es"),
   ar: getSearchOptionsForLocale("ar"),
   zh: getSearchOptionsForLocale("zh"),
+  pl: getSearchOptionsForLocale("pl"),
 };
 
 export default defineConfig({
@@ -211,6 +212,11 @@ export default defineConfig({
       label: "中文 (Chinese)",
       lang: "zh",
       themeConfig: await themeConfig("zh"),
+    },
+    pl: {
+      label: "Polski (Polish)",
+      lang: "pl",
+      themeConfig: await themeConfig("pl"),
     },
   },
   cleanUrls: true,
