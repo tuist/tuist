@@ -7,10 +7,12 @@
 ---
 # Cache {#cache}
 
-::: warning
+::: warning REQUIREMENTS
 <!-- -->
-- A <LocalizedLink href="/guides/features/projects">generated project</LocalizedLink>
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and project</LocalizedLink>
+- A <LocalizedLink href="/guides/features/projects">generated
+  project</LocalizedLink>
+- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and
+  project</LocalizedLink>
 <!-- -->
 :::
 
@@ -79,9 +81,10 @@ tuist test
 
 ::: warning
 <!-- -->
-as running the app on a simulator or device, or running tests. It is not
-intended for release builds. When archiving the app, generate a project with
-the sources by using the `--no-binary-cache` flag.
+Binary caching is a feature designed for development workflows such as running
+the app on a simulator or device, or running tests. It is not intended for
+release builds. When archiving the app, generate a project with the sources by
+using the `--no-binary-cache` flag.
 <!-- -->
 :::
 
@@ -96,11 +99,11 @@ Only the following target products are cacheable by Tuist:
 
 We are working on supporting libraries and targets that depend on XCTest.
 
-::: info
+::: info UPSTREAM DEPENDENCIES
 <!-- -->
-upstream targets non-cacheable too. For example, if you have the dependency
-graph `A > B`, where A depends on B, if B is non-cacheable, A will also be
-non-cacheable.
+When a target is non-cacheable it makes the upstream targets non-cacheable too.
+For example, if you have the dependency graph `A > B`, where A depends on B, if
+B is non-cacheable, A will also be non-cacheable.
 <!-- -->
 :::
 
@@ -128,9 +131,10 @@ We recommend having a CI job that **runs in every commit in the main branch** to
 warm the cache. This will ensure the cache always contains binaries for the
 changes in `main` so local and CI branch build incrementally upon them.
 
-::: tip
+::: tip CACHE WARMING USES BINARIES
 <!-- -->
-the binary cache to speed up the warming.
+The `tuist cache` command also makes use of the binary cache to speed up the
+warming.
 <!-- -->
 :::
 
