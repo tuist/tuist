@@ -37,12 +37,11 @@ implicitness as a valid design choice to achieve convenience, a principle that
 the Swift Package Manager has inherited, the difficulties of using Xcode are
 also present in the Swift Package Manager.
 
-::: info
+::: info THE ROLE OF TUIST We could summarize Tuist's role as a tool that
 prevents implicitly-defined projects and leverages explicitness to provide a
 better developer experience (e.g. validations, optimizations). Tools like
 [Bazel](https://bazel.build) take it further by bringing it down to the build
-system level.
-:::
+system level. :::
 
 This is an issue that's barely discussed in the community, but it's a
 significant one. While working on Tuist, we've noticed many organizations and
@@ -73,11 +72,10 @@ failing builds that are hard to debug when the project grows.
 The consequence of this design decision is that many projects acidentally
 compile with a graph that is not well-defined.
 
-::: tip
+::: tip TUIST DETECTION OF IMPLICIT DEPENDENCIES Tuist provides a
 <LocalizedLink href="/guides/features/inspect/implicit-dependencies">command</LocalizedLink>
-to detect implicit dependencies. You can use the command to validate in CI
-that all your dependencies are explicit.
-:::
+to detect implicit dependencies. You can use the command to validate in CI that
+all your dependencies are explicit. :::
 
 ### Find implicit dependencies in schemes {#find-implicit-dependencies-in-schemes}
 
@@ -96,9 +94,8 @@ For example, a build might pass locally due to some state in derive data, which
 acts as a [singleton](https://en.wikipedia.org/wiki/Singleton_pattern), but then
 fail to compile on CI because the state is different.
 
-::: tip
-that eases the management of the dependency graph.
-:::
+::: tip We recommend disabling this in your project schemes, and use like Tuist
+that eases the management of the dependency graph. :::
 
 ### SwiftUI Previews and static libraries/frameworks {#swiftui-previews-and-static-librariesframeworks}
 
