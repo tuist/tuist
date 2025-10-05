@@ -30,7 +30,7 @@ Because Xcode and Xcode projects embraced implicitness as a valid design choice 
 a principle that the Swift Package Manager has inherited,
 the difficulties of using Xcode are also present in the Swift Package Manager.
 
-> [!INFO] THE ROLE OF TUIST
+> [!NOTE] THE ROLE OF TUIST
 > We could summarize Tuist's role as a tool that prevents implicitly-defined projects and leverages explicitness to provide a better developer experience (e.g. validations, optimizations). Tools like [Bazel](https://bazel.build) take it further by bringing it down to the build system level.
 
 This is an issue that's barely discussed in the community, but it's a significant one.

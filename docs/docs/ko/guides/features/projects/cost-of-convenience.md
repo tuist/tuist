@@ -27,7 +27,7 @@ Xcode와 Xcode 프로젝트는 편리성을 위해 암시성을 유효한 설계
 Swift Package Manager도 이 원칙을 계승하였으며,
 Xcode를 사용할 때의 어려움이 Swift Package Manager에서도 나타납니다.
 
-> [!INFO] TUIST의 역할
+> [!NOTE] TUIST의 역할
 > Tuist의 역할은 프로젝트의 암시적 정의를 방지하고 명시성을 활용해 더 나은 개발자 경험 (예: 검증, 최적화) 을 제공하는 툴로 요약할 수 있습니다. [Bazel](https://bazel.build)과 같은 툴은 이를 한단계 더 발전시켜 빌드 시스템 수준까지 확장합니다.
 
 이 문제는 커뮤니티에서 거의 언급이 되지 않지만, 중요한 문제입니다.

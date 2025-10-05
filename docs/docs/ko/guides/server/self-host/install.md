@@ -37,14 +37,14 @@ Docker 이미지를 실행하는 것 외에도, 관계형 데이터를 저장하
 
 뛰어난 성능 측정을 위해 우리는 [Timescale Postgres 확장](https://www.timescale.com/)을 사용합니다. Postgres 데이터베이스가 실행되는 머신에 TimescaleDB가 설치되어 있는지 확인해야 합니다. 자세한 설치 방법은 [여기](https://docs.timescale.com/self-hosted/latest/install/)에서 확인할 수 있습니다. Timescale 확장을 설치할 수 없는 경우, Prometheus 메트릭을 사용하여 자체 대시보드를 설정할 수 있습니다.
 
-> [!INFO] 마이그레이션\
+> [!NOTE] 마이그레이션\
 > Docker 이미지의 엔트리포인트는 컨테이너가 실행되기 전에 자동으로 대기 중인 스킴 마이그레이션을 실행합니다.
 
 ### ClickHouse 데이터베이스 {#clickhouse-database}
 
 대용량 데이터 저장을 위해 [ClickHouse](https://clickhouse.com/)를 사용합니다. 빌드 인사이트와 같은 기능은 ClickHouse가 활성화된 경우에만 동작합니다. ClickHouse는 Timescale Postgres 확장을 대체할 것입니다. ClickHouse를 자체 호스팅을 사용할지 아니면 호스팅 서비스를 이용할지 선택할 수 있습니다.
 
-> [!INFO] MIGRATIONS\
+> [!NOTE] MIGRATIONS\
 > Docker 이미지의 엔트리포인트는 서비스를 시작하기 전에 자동으로 대기 중인 ClickHouse 스킴 마이그레이션을 실행합니다.
 
 ### 저장소 {#storage}
