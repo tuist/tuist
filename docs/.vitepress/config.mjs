@@ -10,6 +10,7 @@ import {
 import { cliSidebar } from "./data/cli.js";
 import { localizedString } from "./i18n.mjs";
 import llmstxtPlugin from "vitepress-plugin-llmstxt";
+import postcssRtlcss from "postcss-rtlcss";
 
 async function themeConfig(locale) {
   const sidebar = {};
@@ -155,6 +156,16 @@ export default defineConfig({
   },
   vite: {
     plugins: [llmstxtPlugin()],
+    css: {
+      postcss: {
+        plugins: [
+          postcssRtlcss({
+            ltrPrefix: ':where([dir="ltr"])',
+            rtlPrefix: ':where([dir="rtl"])',
+          }),
+        ],
+      },
+    },
   },
   mpa: false,
   locales: {
@@ -191,6 +202,7 @@ export default defineConfig({
     ar: {
       label: "العربية (Arabic)",
       lang: "ar",
+      dir: "rtl",
       themeConfig: await themeConfig("ar"),
     },
     zh: {
