@@ -7,9 +7,9 @@
 ---
 # Insights {#insights}
 
-::: warning
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and project</LocalizedLink>
-:::
+::: warning REQUIREMENTS
+- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and
+  project</LocalizedLink> :::
 
 Working on large projects shouldn't feel like a chore. In fact, it should be as
 enjoyable as working on a project you started just two weeks ago. One of the
@@ -24,8 +24,7 @@ In other words, Tuist Insights helps you to anwer questions such as:
 - Has the build time significantly increased in the last week?
 - Have my tests become slower? Which ones?
 
-::: info
-:::
+::: info Tuist Insights are in early development. :::
 
 ## Builds {#builds}
 
@@ -40,25 +39,25 @@ command by adding it to your scheme's post-action:
 ![Post-action for inspecting
 builds](/images/guides/features/insights/inspect-build-scheme-post-action.png)
 
-::: info
+::: info We recommend setting the "Provide build settings from" to the
 executable or your main build target to enable Tuist to track the build
-configuration.
-:::
+configuration. :::
 
-::: info
+::: info If you are not using
 <LocalizedLink href="/guides/features/projects">generated
 projects</LocalizedLink>, the post-scheme action is not executed in case the
-build fails.
-
-An undocumented feature in Xcode allows you to execute it even in this case.
-Set the attribute `runPostActionsOnFailure` to `YES` in your scheme's
-`BuildAction` in the relevant `project.pbxproj` file as follows:
-
-```diff
-<BuildAction buildImplicitDependencies="YES" parallelizeBuildables="YES"
-+  runPostActionsOnFailure="YES">
-```
-:::
+build fails. :::
+> 
+> An undocumented feature in Xcode allows you to execute it even in this case.
+> Set the attribute `runPostActionsOnFailure` to `YES` in your scheme's
+> `BuildAction` in the relevant `project.pbxproj` file as follows:
+> 
+> ```diff
+> <BuildAction
+>    buildImplicitDependencies="YES"
+>    parallelizeBuildables="YES"
+> +  runPostActionsOnFailure="YES">
+> ```
 
 In case you're using [Mise](https://mise.jdx.dev/), your script will need to
 activate `tuist` in the post-action environment:
@@ -76,23 +75,21 @@ account. You can now access your build times in the Tuist dashboard and see how
 they evolve over time:
 
 
-::: tip
-the CLI.
-:::
+::: tip To quickly access the dashboard, run `tuist project show --web` from the
+CLI. :::
 
 ![Dashboard with build
 insights](/images/guides/features/insights/builds-dashboard.png)
 
 ## Generated projects {#generated-projects}
 
-::: info
-post-action.
-
-If you are not interested in tracking build insights in your auto-generated
-schemes, disable them using the
-<LocalizedLink href="/references/project-description/structs/tuist.generationoptions#buildinsightsdisabled">buildInsightsDisabled</LocalizedLink>
-generation option.
-:::
+::: info Auto-generated schemes automatically include the `tuist inspect build`
+post-action. :::
+> 
+> If you are not interested in tracking build insights in your auto-generated
+> schemes, disable them using the
+> <LocalizedLink href="/references/project-description/structs/tuist.generationoptions#buildinsightsdisabled">buildInsightsDisabled</LocalizedLink>
+> generation option.
 
 If you are using generated projects, you can set up a custom
 <LocalizedLink href="references/project-description/structs/buildaction#postactions">build
