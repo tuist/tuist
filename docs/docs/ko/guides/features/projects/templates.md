@@ -17,10 +17,10 @@ where scaffolding might be useful:
   --name MyFeature`.
 - Create new projects: `tuist scaffold feature-project --name Home`
 
-::: info NON-OPINIONATED Tuist is not opinionated about the content of your
+::: info NON-OPINIONATED
 <!-- -->
-templates, and what you use them for. They are only required to be in a
-specific directory.
+Tuist is not opinionated about the content of your templates, and what you use
+them for. They are only required to be in a specific directory.
 <!-- -->
 :::
 
@@ -72,9 +72,10 @@ After defining the template, we can use it from the `scaffold` command:
 tuist scaffold name_of_template --name Name --platform macos
 ```
 
-::: info Since platform is an optional argument, we can also call the command
+::: info
 <!-- -->
-without the `--platform macos` argument.
+Since platform is an optional argument, we can also call the command without the
+`--platform macos` argument.
 <!-- -->
 :::
 
@@ -91,9 +92,10 @@ lowercased value of the name attribute.
 You can also use `.directory` which gives the possibility to copy entire folders
 to a given path.
 
-::: tip PROJECT DESCRIPTION HELPERS Templates support the use of
+::: tip PROJECT DESCRIPTION HELPERS
 <!-- -->
-<LocalizedLink href="/guides/features/projects/code-sharing">project
-description helpers</LocalizedLink> to reuse code across templates.
+Templates support the use of
+<LocalizedLink href="/guides/features/projects/code-sharing">project description
+helpers</LocalizedLink> to reuse code across templates.
 <!-- -->
 :::
