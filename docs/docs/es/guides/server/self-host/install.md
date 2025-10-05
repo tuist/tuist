@@ -14,7 +14,10 @@ private.
 
 ::: warning LICENSE REQUIRED
 <!-- -->
-Self-hosting Tuist requires a legally valid paid license. The on-premise version of Tuist is available only for organizations on the Enterprise plan. If you are interested in this version, please reach out to [contact@tuist.dev](mailto:contact@tuist.dev).
+Self-hosting Tuist requires a legally valid paid license. The on-premise version
+of Tuist is available only for organizations on the Enterprise plan. If you are
+interested in this version, please reach out to
+[contact@tuist.dev](mailto:contact@tuist.dev).
 <!-- -->
 :::
 
@@ -89,7 +92,8 @@ dashboard using the Prometheus metrics.
 
 ::: info MIGRATIONS
 <!-- -->
-The Docker image's entrypoint automatically runs any pending schema migrations before starting the service.
+The Docker image's entrypoint automatically runs any pending schema migrations
+before starting the service.
 <!-- -->
 :::
 
@@ -103,7 +107,8 @@ use their hosted service.
 
 ::: info MIGRATIONS
 <!-- -->
-The Docker image's entrypoint automatically runs any pending ClickHouse schema migrations before starting the service.
+The Docker image's entrypoint automatically runs any pending ClickHouse schema
+migrations before starting the service.
 <!-- -->
 :::
 
@@ -122,7 +127,8 @@ logs.
 
 ::: info LAUNCH CHECKS
 <!-- -->
-The necessary variables are verified at startup. If any are missing, the launch will fail and the error message will detail the absent variables.
+The necessary variables are verified at startup. If any are missing, the launch
+will fail and the error message will detail the absent variables.
 <!-- -->
 :::
 
@@ -142,7 +148,10 @@ provided, but not both. Use `TUIST_LICENSE` for standard deployments.
 
 ::: warning EXPIRATION DATE
 <!-- -->
-Licenses have an expiration date. Users will receive a warning while using Tuist commands that interact with the server if the license expires in less than 30 days. If you are interested in renewing your license, please reach out to [contact@tuist.dev](mailto:contact@tuist.dev).
+Licenses have an expiration date. Users will receive a warning while using Tuist
+commands that interact with the server if the license expires in less than 30
+days. If you are interested in renewing your license, please reach out to
+[contact@tuist.dev](mailto:contact@tuist.dev).
 <!-- -->
 :::
 
@@ -233,7 +242,8 @@ and `GOOGLE_CLIENT_SECRET` respectively.
 
 ::: info CONSENT SCREEN SCOPES
 <!-- -->
-You might need to create a consent screen. When you do so, make sure to add the `userinfo.email` and `openid` scopes and mark the app as internal.
+You might need to create a consent screen. When you do so, make sure to add the
+`userinfo.email` and `openid` scopes and mark the app as internal.
 <!-- -->
 :::
 
@@ -286,7 +296,10 @@ with the storage provider:
 
 ::: info AWS authentication with Web Identity Token from environment variables
 <!-- -->
-If your storage provider is AWS and you'd like to authenticate using a web identity token, you can set the environment variable `TUIST_S3_AUTHENTICATION_METHOD` to `aws_web_identity_token_from_env_vars`, and Tuist will use that method using the conventional AWS environment variables.
+If your storage provider is AWS and you'd like to authenticate using a web
+identity token, you can set the environment variable
+`TUIST_S3_AUTHENTICATION_METHOD` to `aws_web_identity_token_from_env_vars`, and
+Tuist will use that method using the conventional AWS environment variables.
 <!-- -->
 :::
 
@@ -349,7 +362,9 @@ align well with your existing setup.
 
 ::: warning
 <!-- -->
-If your deployment pipeline needs to validate that the server is up and running, you can send a `GET` HTTP request to `/ready` and assert a `200` status code in the response.
+If your deployment pipeline needs to validate that the server is up and running,
+you can send a `GET` HTTP request to `/ready` and assert a `200` status code in
+the response.
 <!-- -->
 :::
 
@@ -575,7 +590,8 @@ instance.
 
 ::: warning Authorization
 <!-- -->
-Only people whose handles are listed in the `TUIST_OPS_USER_HANDLES` environment variable can access the `/ops/` endpoints.
+Only people whose handles are listed in the `TUIST_OPS_USER_HANDLES` environment
+variable can access the `/ops/` endpoints.
 <!-- -->
 :::
 
