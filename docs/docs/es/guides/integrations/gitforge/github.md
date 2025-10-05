@@ -5,7 +5,7 @@
   "description": "Learn how to integrate Tuist with GitHub for enhanced workflows."
 }
 ---
-# GitHub integration {#github}
+# Integración con GitHub {#github}
 
 Git repositories are the centerpiece of the vast majority of software projects
 out there. We integrate with GitHub to provide Tuist insights right in your pull
