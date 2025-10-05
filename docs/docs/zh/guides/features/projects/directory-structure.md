@@ -72,9 +72,10 @@ the root of the project.
 
 ::: tip
 <!-- -->
-projects to reduce the likelihood of merge conflicts. If that's what you were
-using workspaces for, you don't need them in Tuist. Tuist auto-generates a
-workspace containing a project and its dependencies' projects.
+Xcode workspaces allowed splitting projects into multiple Xcode projects to
+reduce the likelihood of merge conflicts. If that's what you were using
+workspaces for, you don't need them in Tuist. Tuist auto-generates a workspace
+containing a project and its dependencies' projects.
 <!-- -->
 :::
 
