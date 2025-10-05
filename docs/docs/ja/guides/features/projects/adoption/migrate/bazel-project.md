@@ -22,12 +22,11 @@ and had to drop it after the engineers that led the effort left the company.
 Apple's stance on the strong coupling between Xcode and the build system is
 another factor that makes it hard to maintain Bazel projects over time.
 
-::: tip TUIST UNIQUENESS LIES IN ITS FINESSE Instead of fighting Xcode and
-Xcode projects, Tuist embraces it. It's the same concepts (e.g., targets,
-schemes, build settings), a familiar language (i.e., Swift), and a simple and
-enjoyable experience that makes maintaining and scaling projects everyone's
-job and not just the iOS platform team's.
-:::
+::: tip TUIST UNIQUENESS LIES IN ITS FINESSE Instead of fighting Xcode and Xcode
+projects, Tuist embraces it. It's the same concepts (e.g., targets, schemes,
+build settings), a familiar language (i.e., Swift), and a simple and enjoyable
+experience that makes maintaining and scaling projects everyone's job and not
+just the iOS platform team's. :::
 
 ## Rules {#rules}
 
