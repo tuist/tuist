@@ -14,10 +14,13 @@ following installation methods to ensure a valid installation.**
 
 ### <a href="https://github.com/jdx/mise">Mise</a> {#recommended-mise}
 
-::: info Mise is a recommended alternative to [Homebrew](https://brew.sh) if you
+::: info
 <!-- -->
-are a team or organization that needs to ensure deterministic versions of tools
-across different environments. :::
+Mise is a recommended alternative to [Homebrew](https://brew.sh) if you are a
+team or organization that needs to ensure deterministic versions of tools across
+different environments.
+<!-- -->
+:::
 
 You can install Tuist through any of the following commands:
 
@@ -49,10 +52,11 @@ brew install --formula tuist
 brew install --formula tuist@x.y.z
 ```
 
-::: tip VERIFYING THE AUTHENTICITY OF THE BINARIES You can verify that your
+::: tip VERIFYING THE AUTHENTICITY OF THE BINARIES
 <!-- -->
-installation's binaries have been built by us by running the following command,
-which checks if the certificate's team is `U6LC622NKF`:
+You can verify that your installation's binaries have been built by us by
+running the following command, which checks if the certificate's team is
+`U6LC622NKF`:
 
 ```bash
 curl -fsSL "https://docs.tuist.dev/verify.sh" | bash
