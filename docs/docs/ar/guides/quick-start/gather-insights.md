@@ -46,8 +46,7 @@ Voilà! You're now ready to gather insights about your project and builds. Run
 
 ::: info Tuist enqueues the results locally and tries to send them without
 blocking the command. Therefore, they might not be sent immediately after the
-command finishes. In CI, the results are sent immediately.
-:::
+command finishes. In CI, the results are sent immediately. :::
 
 
 ![An image that shows a list of runs in the
