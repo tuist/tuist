@@ -40,12 +40,14 @@ different environments can be achieved differently:
   configuration that the release build is bound to, and not include the runtime
   logic for switching configurations by using compiler directives.
 
-::: info Non-standard configurations While Tuist supports non-standard
+::: info Non-standard configurations
 <!-- -->
-configurations and makes them easier to manage compared to vanilla Xcode
-projects, you'll receive warnings if configurations are not consistent
-throughout the dependency graph. This helps ensure build reliability and
-prevents configuration-related issues. :::
+While Tuist supports non-standard configurations and makes them easier to manage
+compared to vanilla Xcode projects, you'll receive warnings if configurations
+are not consistent throughout the dependency graph. This helps ensure build
+reliability and prevents configuration-related issues.
+<!-- -->
+:::
 
 ## Generated projects
 
@@ -58,9 +60,12 @@ While Tuist's wildcard patterns (e.g., `Sources/**/*.swift`) already eliminate
 merge conflicts in generated projects, buildable folders offer additional
 benefits:
 
-- **Automatic synchronization**: Your project structure stays in sync with the file system—no regeneration needed when adding or removing files
-- **AI-friendly workflows**: Coding assistants and agents can modify your codebase without triggering project regeneration
-- **Simpler configuration**: Define folder paths instead of managing explicit file lists
+- **Automatic synchronization**: Your project structure stays in sync with the
+  file system—no regeneration needed when adding or removing files
+- **AI-friendly workflows**: Coding assistants and agents can modify your
+  codebase without triggering project regeneration
+- **Simpler configuration**: Define folder paths instead of managing explicit
+  file lists
 
 We recommend adopting buildable folders instead of traditional `Target.sources`
 and `Target.resources` attributes for a more streamlined development experience.
@@ -68,12 +73,17 @@ and `Target.resources` attributes for a more streamlined development experience.
 ::: code-group
 
 ```swift [With buildable folders]
-let target = Target( name: "App", buildableFolders: ["App/Sources", "App/Resources"]
+let target = Target(
+  name: "App",
+  buildableFolders: ["App/Sources", "App/Resources"]
 )
 ```
 
 ```swift [Without buildable folders]
-let target = Target( name: "App", sources: ["App/Sources/**"], resources: ["App/Resources/**"]
+let target = Target(
+  name: "App",
+  sources: ["App/Sources/**"],
+  resources: ["App/Resources/**"]
 )
 ```
 <!-- -->
