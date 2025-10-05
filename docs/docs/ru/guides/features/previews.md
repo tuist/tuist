@@ -8,8 +8,8 @@
 # Previews {#previews}
 
 ::: warning REQUIREMENTS
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and project</LocalizedLink>
-:::
+- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and
+  project</LocalizedLink> :::
 
 When building an app, you may want to share it with others to get feedback.
 Traditionally, this is something that teams do by building, signing, and pushing
@@ -22,9 +22,8 @@ To make this process more streamlined, Tuist provides a way to generate and
 share previews of your apps with anyone.
 
 ::: warning DEVICE BUILDS NEED TO BE SIGNED When building for device, it is
-currently your responsibility to ensure the app is signed correctly. We plan
-to streamline this in the future.
-:::
+currently your responsibility to ensure the app is signed correctly. We plan to
+streamline this in the future. :::
 
 ::: code-group
 ```bash [Tuist Project]
@@ -64,10 +63,9 @@ tuist run App@my-feature-branch # Runs latest App preview associated with a give
 tuist run App@00dde7f56b1b8795a26b8085a781fb3715e834be # Runs latest App preview associated with a given git commit sha
 ```
 
-::: warning PREVIEWS' VISIBILITY Only people with access to the organization
-the project belongs to can access the previews. We plan to add support for
-expiring links.
-:::
+::: warning PREVIEWS' VISIBILITY Only people with access to the organization the
+project belongs to can access the previews. We plan to add support for expiring
+links. :::
 
 ## Tuist macOS app {#tuist-macos-app}
 
@@ -86,10 +84,8 @@ app by running `brew install --cask tuist/tuist/tuist`.
 When you now click on "Run" in the Preview page, the macOS app will
 automatically launch it on your currently selected device.
 
-::: warning REQUIREMENTS
-
-You need to have Xcode locally installed and be on macOS 14 or later.
-:::
+::: warning REQUIREMENTS You need to have Xcode locally installed and be on
+macOS 14 or later. :::
 
 ## Tuist iOS app {#tuist-ios-app}
 
@@ -107,13 +103,12 @@ your previews.
 
 ## Pull/merge request comments {#pullmerge-request-comments}
 
-::: warning INTEGRATION WITH GIT PLATFORM REQUIRED To get automatic
-pull/merge request comments, integrate your
+::: warning INTEGRATION WITH GIT PLATFORM REQUIRED To get automatic pull/merge
+request comments, integrate your
 <LocalizedLink href="/guides/server/accounts-and-projects">remote
 project</LocalizedLink> with a
 <LocalizedLink href="/guides/server/authentication">Git
-platform</LocalizedLink>.
-:::
+platform</LocalizedLink>. :::
 
 Testing new functionality should be a part of any code review. But having to
 build an app locally adds unnecessary friction, often leading to developers
