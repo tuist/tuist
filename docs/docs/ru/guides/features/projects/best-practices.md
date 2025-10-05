@@ -57,9 +57,12 @@ While Tuist's wildcard patterns (e.g., `Sources/**/*.swift`) already eliminate
 merge conflicts in generated projects, buildable folders offer additional
 benefits:
 
-- **Automatic synchronization**: Your project structure stays in sync with the file system—no regeneration needed when adding or removing files
-- **AI-friendly workflows**: Coding assistants and agents can modify your codebase without triggering project regeneration
-- **Simpler configuration**: Define folder paths instead of managing explicit file lists
+- **Automatic synchronization**: Your project structure stays in sync with the
+  file system—no regeneration needed when adding or removing files
+- **AI-friendly workflows**: Coding assistants and agents can modify your
+  codebase without triggering project regeneration
+- **Simpler configuration**: Define folder paths instead of managing explicit
+  file lists
 
 We recommend adopting buildable folders instead of traditional `Target.sources`
 and `Target.resources` attributes for a more streamlined development experience.
@@ -67,12 +70,17 @@ and `Target.resources` attributes for a more streamlined development experience.
 ::: code-group
 
 ```swift [With buildable folders]
-let target = Target( name: "App", buildableFolders: ["App/Sources", "App/Resources"]
+let target = Target(
+  name: "App",
+  buildableFolders: ["App/Sources", "App/Resources"]
 )
 ```
 
 ```swift [Without buildable folders]
-let target = Target( name: "App", sources: ["App/Sources/**"], resources: ["App/Resources/**"]
+let target = Target(
+  name: "App",
+  sources: ["App/Sources/**"],
+  resources: ["App/Resources/**"]
 )
 ```
 :::
