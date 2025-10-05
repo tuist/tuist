@@ -9,7 +9,8 @@
 
 ::: warning REQUIREMENTS
 <!-- -->
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and project</LocalizedLink>
+- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and
+  project</LocalizedLink>
 <!-- -->
 :::
 
@@ -70,10 +71,11 @@ convention. The registry identifier is always in the form of
 package registry identifier would be
 `pointfreeco.swift-composable-architecture`.
 
-::: info The identifier can't contain more than one dot. If the repository name
+::: info
 <!-- -->
-contains a dot, it's replaced with an underscore. For example, the
-`https://github.com/groue/GRDB.swift` package would have the registry
-identifier `groue.GRDB_swift`.
+The identifier can't contain more than one dot. If the repository name contains
+a dot, it's replaced with an underscore. For example, the
+`https://github.com/groue/GRDB.swift` package would have the registry identifier
+`groue.GRDB_swift`.
 <!-- -->
 :::
