@@ -8,8 +8,8 @@
 # Bundle Size {#bundle-size}
 
 ::: warning REQUIREMENTS
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and project</LocalizedLink>
-:::
+- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and
+  project</LocalizedLink> :::
 
 As you add more features to your app, your app bundle size keeps growing. While
 some of the bundle size growth is inevitable as you ship more code and assets,
@@ -67,13 +67,12 @@ Once set up, you will be able to see how your bundle size evolves over time:
 
 ## Pull/merge request comments {#pullmerge-request-comments}
 
-::: warning INTEGRATION WITH GIT PLATFORM REQUIRED To get automatic
-pull/merge request comments, integrate your
+::: warning INTEGRATION WITH GIT PLATFORM REQUIRED To get automatic pull/merge
+request comments, integrate your
 <LocalizedLink href="/guides/server/accounts-and-projects">Tuist
 project</LocalizedLink> with a
 <LocalizedLink href="/guides/server/authentication">Git
-platform</LocalizedLink>.
-:::
+platform</LocalizedLink>. :::
 
 Once your Tuist project is connected with your Git platform such as
 [GitHub](https://github.com), Tuist will post a comment directly in your
