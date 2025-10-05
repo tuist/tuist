@@ -10,9 +10,8 @@
 To use the registry on your CI, you need to ensure that you have logged in to
 the registry by running `tuist registry login` as part of your workflow.
 
-::: info ONLY XCODE INTEGRATION Creating a new pre-unlocked keychain is
-required only if you are using the Xcode integration of packages.
-:::
+::: info ONLY XCODE INTEGRATION Creating a new pre-unlocked keychain is required
+only if you are using the Xcode integration of packages. :::
 
 Since the registry credentials are stored in a keychain, you need to ensure the
 keychain can be accessed in the CI environment. Note some CI providers or
