@@ -35,17 +35,19 @@ curl -Ls https://uninstall.tuist.io | bash
 ```
 :::
 
-> [!IMPORTANT] MISE IN CI ENVIRONMENTS AND XCODE PROJECTS If you decide to
-> embrace the determinism that Mise brings across the board, we recommend
-> checking out the documentation for how to use Mise in [CI
-> environments](https://mise.jdx.dev/continuous-integration.html) and [Xcode
-> projects](https://mise.jdx.dev/ide-integration.html#xcode).
+::: warning MISE IN CI ENVIRONMENTS AND XCODE PROJECTS If you decide to
+embrace the determinism that Mise brings across the board, we recommend
+checking out the documentation for how to use Mise in [CI
+environments](https://mise.jdx.dev/continuous-integration.html) and [Xcode
+projects](https://mise.jdx.dev/ide-integration.html#xcode).
+:::
 
-> [!NOTE] HOMEBREW IS SUPPORTED Note that you can still install Tuist using
-> Homebrew, which is a popular package manager for macOS. You can find the
-> instructions on how to install Tuist using Homebrew in the
-> <LocalizedLink href="/guides/quick-start/install-tuist#alternative-homebrew">installation
-> guide</LocalizedLink>.
+::: info HOMEBREW IS SUPPORTED Note that you can still install Tuist using
+Homebrew, which is a popular package manager for macOS. You can find the
+instructions on how to install Tuist using Homebrew in the
+<LocalizedLink href="/guides/quick-start/install-tuist#alternative-homebrew">installation
+guide</LocalizedLink>.
+:::
 
 ### Dropped `init` constructors from `ProjectDescription` models {#dropped-init-constructors-from-projectdescription-models}
 
@@ -55,9 +57,10 @@ models. Every model now provides a static constructor that you can use to create
 instances of the models. If you were using the `init` constructors, you'll have
 to update your project to use the static constructors instead.
 
-> [!TIP] NAMING CONVENTION The naming convention that we follow is to use the
-> name of the model as the name of the static constructor. For example, the
-> static constructor for the `Target` model is `Target.target`.
+::: tip NAMING CONVENTION The naming convention that we follow is to use the
+name of the model as the name of the static constructor. For example, the
+static constructor for the `Target` model is `Target.target`.
+:::
 
 ### Renamed `--no-cache` to `--no-binary-cache` {#renamed-nocache-to-nobinarycache}
 
@@ -147,11 +150,12 @@ project generation. In particular:
   - A script that can take an existing profiles and certificates and encrypt
     them.
 
-> [!TIP] SIGNING REQUIREMENTS Signing requires the right certificates to be
-> present in the keychain and the provisioning profiles to be present in the
-> directory `~/Library/MobileDevice/Provisioning\ Profiles`. You can use the
-> `security` command-line tool to install certificates in the keychain and the
-> `cp` command to copy the provisioning profiles to the right directory.
+::: tip SIGNING REQUIREMENTS Signing requires the right certificates to be
+present in the keychain and the provisioning profiles to be present in the
+directory `~/Library/MobileDevice/Provisioning\ Profiles`. You can use the
+`security` command-line tool to install certificates in the keychain and the
+`cp` command to copy the provisioning profiles to the right directory.
+:::
 
 ### Dropped Carthage integration via `Dependencies.swift` {#dropped-carthage-integration-via-dependenciesswift}
 
@@ -164,11 +168,12 @@ pre-compiled frameworks and XCFrameworks into Carthage's standard directory, and
 then reference those binaries from your tagets using the
 `TargetDependency.xcframework` and `TargetDependency.framework` cases.
 
-> [!NOTE] CARTHAGE IS STILL SUPPORTED Some users understood that we dropped
-> Carthage support. We didn't. The contract between Tuist and Carthage's output
-> is to system-stored frameworks and XCFrameworks. The only thing that changed
-> is who is responsible for fetching the dependencies. It used to be Tuist
-> through Carthage, now it's Carthage.
+::: info CARTHAGE IS STILL SUPPORTED Some users understood that we dropped
+Carthage support. We didn't. The contract between Tuist and Carthage's output
+is to system-stored frameworks and XCFrameworks. The only thing that changed
+is who is responsible for fetching the dependencies. It used to be Tuist
+through Carthage, now it's Carthage.
+:::
 
 ### Dropped the `TargetDependency.packagePlugin` API {#dropped-the-targetdependencypackageplugin-api}
 

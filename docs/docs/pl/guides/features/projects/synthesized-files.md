@@ -19,8 +19,9 @@ Xcode projects support adding resources to targets. However, they present teams 
 
 Tuist solves the problems above by **synthesizing a unified interface to access bundles and resources** that abstracts away the implementation details.
 
-> [!IMPORTANT] RECOMMENDED
-> Even though accessing resources through the Tuist-synthesized interface is not mandatory, we recommend it because it makes the code easier to reason about and the resources to move around.
+::: warning
+Even though accessing resources through the Tuist-synthesized interface is not mandatory, we recommend it because it makes the code easier to reason about and the resources to move around.
+:::
 
 ## Resources {#resources}
 
@@ -32,8 +33,9 @@ You can also come up with your own abstractions to model the content and share i
 When your project is generated,
 Tuist will synthesize the content of those files and write them into the `Derived` directory relative to the directory containing the project that defines them.
 
-> [!TIP] GITIGNORE THE DERIVED DIRECTORY
-> We recommend adding the `Derived` directory to the `.gitignore` file of your project.
+::: tip
+We recommend adding the `Derived` directory to the `.gitignore` file of your project.
+:::
 
 ## Bundle accessors {#bundle-accessors}
 
@@ -55,11 +57,13 @@ In Objective-C, you'll get an interface `{Target}Resources` to access the bundle
 NSBundle *bundle = [MyFeatureResources bundle];
 ```
 
-> [!WARNING] LIMITATION WITH INTERNAL TARGETS
-> Currently, Tuist does not generate resource bundle accessors for internal targets that contain only Objective-C sources. This is a known limitation tracked in [issue #6456](https://github.com/tuist/tuist/issues/6456).
+::: warning
+Currently, Tuist does not generate resource bundle accessors for internal targets that contain only Objective-C sources. This is a known limitation tracked in [issue #6456](https://github.com/tuist/tuist/issues/6456).
+:::
 
-> [!TIP] SUPPORTING RESOURCES IN LIBRARIES THROUGH BUNDLES
-> If a target product, for example a library, doesn't support resources, Tuist will include the resources in a target of product type `bundle` ensuring that it ends up in the final product and that the interface points to the right bundle.
+::: tip
+If a target product, for example a library, doesn't support resources, Tuist will include the resources in a target of product type `bundle` ensuring that it ends up in the final product and that the interface points to the right bundle.
+:::
 
 ## Resource accessors {#resource-accessors}
 
@@ -103,5 +107,6 @@ you can use the `Project.resourceSynthesizers` property passing the list of reso
 let project = Project(resourceSynthesizers: [.string(), .fonts()])
 ```
 
-> [!NOTE] REFERENCE
-> You can check out [this fixture](https://github.com/tuist/tuist/tree/main/cli/Fixtures/ios_app_with_templates) to see an example of how to use custom templates to synthesize accessors to resources.
+::: info
+You can check out [this fixture](https://github.com/tuist/tuist/tree/main/cli/Fixtures/ios_app_with_templates) to see an example of how to use custom templates to synthesize accessors to resources.
+:::

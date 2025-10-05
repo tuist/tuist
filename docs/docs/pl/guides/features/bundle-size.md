@@ -7,8 +7,9 @@
 ---
 # Bundle Size {#bundle-size}
 
-> [!IMPORTANT] REQUIREMENTS
-> - A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and project</LocalizedLink>
+::: warning
+- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and project</LocalizedLink>
+:::
 
 As you add more features to your app, your app bundle size keeps growing. While some of the bundle size growth is inevitable as you ship more code and assets, there are many ways to minimze that growth, such as by ensuring your assets are not duplicated across your bundles or stripping unused binary symbols. Tuist provides you with tools and insights to help your app size stay small – and we also monitor your app size over time.
 
@@ -57,8 +58,9 @@ Once set up, you will be able to see how your bundle size evolves over time:
 
 ## Pull/merge request comments {#pullmerge-request-comments}
 
-> [!IMPORTANT] INTEGRATION WITH GIT PLATFORM REQUIRED
-> To get automatic pull/merge request comments, integrate your <LocalizedLink href="/guides/server/accounts-and-projects">Tuist project</LocalizedLink> with a <LocalizedLink href="/guides/server/authentication">Git platform</LocalizedLink>.
+::: warning
+To get automatic pull/merge request comments, integrate your <LocalizedLink href="/guides/server/accounts-and-projects">Tuist project</LocalizedLink> with a <LocalizedLink href="/guides/server/authentication">Git platform</LocalizedLink>.
+:::
 
 Once your Tuist project is connected with your Git platform such as [GitHub](https://github.com), Tuist will post a comment directly in your pull/merge requests whenever you run `tuist inspect bundle`:
 ![GitHub app comment with inspected bundles](/images/guides/features/bundle-size/github-app-with-bundles.png)

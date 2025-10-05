@@ -44,9 +44,10 @@ let tuist = Tuist(fullHandle: "my-handle/MyApp")
 Voilà! You're now ready to gather insights about your project and builds. Run
 `tuist test` to run the tests reporting the results to the server.
 
-> [!NOTE] Tuist enqueues the results locally and tries to send them without
-> blocking the command. Therefore, they might not be sent immediately after the
-> command finishes. In CI, the results are sent immediately.
+::: info
+blocking the command. Therefore, they might not be sent immediately after the
+command finishes. In CI, the results are sent immediately.
+:::
 
 
 ![An image that shows a list of runs in the

@@ -74,8 +74,9 @@ optimizations on the projects that otherwise wouldn’t be possible.** Moreover,
 it enables features like `tuist graph`, which exports a representation of the
 dependency graph, or `tuist cache`, which caches all the targets as binaries.
 
-> [!TIP] We should treat each request to port features from Xcode as an
-> opportunity to simplify concepts with simple and explicit APIs.
+::: tip We should treat each request to port features from Xcode as an
+opportunity to simplify concepts with simple and explicit APIs.
+:::
 
 ## Keep it simple {#keep-it-simple}
 

@@ -25,7 +25,7 @@ projects as the source of truth, you'll need to add a
 script to install Tuist and run the commands you need, for example `tuist
 generate`:
 
-:::code-group
+::: code-group
 
 ```bash [Mise]
 #!/bin/sh
@@ -148,7 +148,8 @@ The command will generate a token for the project with full handle
 `TUIST_CONFIG_TOKEN` in your CI environment ensuring it's configured as a secret
 so it's not exposed.
 
-> [!IMPORTANT] CI ENVIRONMENT DETECTION Tuist only uses the token when it
-> detects it's running on a CI environment. If your CI environment is not
-> detected, you can force the token usage by setting the environment variable
-> `CI` to `1`.
+::: warning CI ENVIRONMENT DETECTION Tuist only uses the token when it
+detects it's running on a CI environment. If your CI environment is not
+detected, you can force the token usage by setting the environment variable
+`CI` to `1`.
+:::

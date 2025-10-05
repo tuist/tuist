@@ -70,10 +70,11 @@ directory indicated via the `--path` flag. The manifest should be in a directory
 or subdirectory of a directory containing a `Tuist` directory, which represents
 the root of the project.
 
-> [!TIP] Xcode workspaces allowed splitting projects into multiple Xcode
-> projects to reduce the likelihood of merge conflicts. If that's what you were
-> using workspaces for, you don't need them in Tuist. Tuist auto-generates a
-> workspace containing a project and its dependencies' projects.
+::: tip Xcode workspaces allowed splitting projects into multiple Xcode
+projects to reduce the likelihood of merge conflicts. If that's what you were
+using workspaces for, you don't need them in Tuist. Tuist auto-generates a
+workspace containing a project and its dependencies' projects.
+:::
 
 ## Swift Package <Badge type="warning" text="beta" /> {#swift-package-badge-typewarning-textbeta-}
 

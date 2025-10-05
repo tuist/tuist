@@ -43,7 +43,7 @@ While Tuist's wildcard patterns (e.g., `Sources/**/*.swift`) already eliminate m
 
 We recommend adopting buildable folders instead of traditional `Target.sources` and `Target.resources` attributes for a more streamlined development experience.
 
-:::code-group
+::: code-group
 
 ```swift [With buildable folders]
 let target = Target(

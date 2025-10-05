@@ -9,8 +9,9 @@
 
 [Bazel](https://bazel.build) is a build system that Google open-sourced in 2015. It's a powerful tool that allows you to build and test software of any size, quickly and reliably. Some large organizations like [Spotify](https://engineering.atspotify.com/2023/10/switching-build-systems-seamlessly/), [Tinder](https://medium.com/tinder/bazel-hermetic-toolchain-and-tooling-migration-c244dc0d3ae), or [Lyft](https://semaphoreci.com/blog/keith-smiley-bazel) use it, however, it requires an upfront (i.e., learning the technology) and ongoing investment (i.e., keeping up with Xcode updates) to introduce and maintain. While this works for some organizations that treat it as a cross-cutting concern, it might not be the best fit for others that want to focus on their product development. For instance, we've seen organizations whose iOS platform team introduced Bazel and had to drop it after the engineers that led the effort left the company. Apple's stance on the strong coupling between Xcode and the build system is another factor that makes it hard to maintain Bazel projects over time.
 
-> [!TIP] TUIST UNIQUENESS LIES IN ITS FINESSE
-> Instead of fighting Xcode and Xcode projects, Tuist embraces it. It's the same concepts (e.g., targets, schemes, build settings), a familiar language (i.e., Swift), and a simple and enjoyable experience that makes maintaining and scaling projects everyone's job and not just the iOS platform team's.
+::: tip TUIST UNIQUENESS LIES IN ITS FINESSE
+Instead of fighting Xcode and Xcode projects, Tuist embraces it. It's the same concepts (e.g., targets, schemes, build settings), a familiar language (i.e., Swift), and a simple and enjoyable experience that makes maintaining and scaling projects everyone's job and not just the iOS platform team's.
+:::
 
 ## Rules {#rules}
 
@@ -37,7 +38,7 @@ let project = Project(
 
 Here's another example but compating how to define unit tests in Bazel and Tuist:
 
-:::code-group
+::: code-group
 ```txt [BUILD (Bazel)]
 ios_unit_test(
     name = "MyLibraryTests",

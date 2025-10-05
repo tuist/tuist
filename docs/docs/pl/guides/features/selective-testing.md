@@ -16,17 +16,20 @@ Selective testing works with `xcodebuild`, which supports any Xcode project, or 
 - <LocalizedLink href="/guides/features/selective-testing/xcode-project">xcodebuild</LocalizedLink>
 - <LocalizedLink href="/guides/features/selective-testing/generated-project">Generated project</LocalizedLink>
 
-> [!WARNING] MODULE VS FILE-LEVEL GRANULARITY
-> Due to the impossibility of detecting the in-code dependencies between tests and sources, the maximum granularity of selective testing is at the target level. Therefore, we recommend keeping your targets small and focused to maximize the benefits of selective testing.
+::: warning
+Due to the impossibility of detecting the in-code dependencies between tests and sources, the maximum granularity of selective testing is at the target level. Therefore, we recommend keeping your targets small and focused to maximize the benefits of selective testing.
+:::
 
-> [!WARNING] TEST COVERAGE
-> Test coverage tools assume that the whole test suite runs at once, which makes them incompatible with selective test runs—this means the coverage data might not reflect reality when using test selection. That’s a known limitation, and it doesn’t mean you’re doing anything wrong. We encourage teams to reflect on whether coverage is still bringing meaningful insights in this context, and if it is, rest assured that we’re already thinking about how to make coverage work properly with selective runs in the future.
+::: warning
+Test coverage tools assume that the whole test suite runs at once, which makes them incompatible with selective test runs—this means the coverage data might not reflect reality when using test selection. That’s a known limitation, and it doesn’t mean you’re doing anything wrong. We encourage teams to reflect on whether coverage is still bringing meaningful insights in this context, and if it is, rest assured that we’re already thinking about how to make coverage work properly with selective runs in the future.
+:::
 
 
 ## Pull/merge request comments {#pullmerge-request-comments}
 
-> [!IMPORTANT] INTEGRATION WITH GIT PLATFORM REQUIRED
-> To get automatic pull/merge request comments, integrate your <LocalizedLink href="/guides/server/accounts-and-projects">Tuist project</LocalizedLink> with a <LocalizedLink href="/guides/server/authentication">Git platform</LocalizedLink>.
+::: warning
+To get automatic pull/merge request comments, integrate your <LocalizedLink href="/guides/server/accounts-and-projects">Tuist project</LocalizedLink> with a <LocalizedLink href="/guides/server/authentication">Git platform</LocalizedLink>.
+:::
 
 Once your Tuist project is connected with your Git platform such as [GitHub](https://github.com), and you start using `tuist xcodebuild test` or `tuist test` as part of your CI wortkflow, Tuist will post a comment directly in your pull/merge requests, including which tests were run and which skipped:
 ![GitHub app comment with a Tuist Preview link](/images/guides/features/selective-testing/github-app-comment.png)

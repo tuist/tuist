@@ -88,10 +88,11 @@ let project = Project(
 Then run `tuist install` to resolve and pull the dependencies using the [Swift
 Package Manager](https://www.swift.org/documentation/package-manager/).
 
-> [!NOTE] SPM AS A DEPENDENCY RESOLVER Tuist recommended approach to
-> dependencies uses the Swift Package Manager (SPM) only to resolve
-> dependencies. Tuist then converts them into Xcode projects and targets for
-> maximum configurability and control.
+::: info SPM AS A DEPENDENCY RESOLVER Tuist recommended approach to
+dependencies uses the Swift Package Manager (SPM) only to resolve
+dependencies. Tuist then converts them into Xcode projects and targets for
+maximum configurability and control.
+:::
 
 ## Visualize the project {#visualize-the-project}
 

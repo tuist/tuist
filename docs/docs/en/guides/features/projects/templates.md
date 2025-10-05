@@ -12,8 +12,9 @@ In projects with an established architecture, developers might want to bootstrap
 - Create a new feature that follows a given architecture: `tuist scaffold viper --name MyFeature`.
 - Create new projects: `tuist scaffold feature-project --name Home`
 
-> [!NOTE] NON-OPINIONATED
-> Tuist is not opinionated about the content of your templates, and what you use them for. They are only required to be in a specific directory.
+::: info NON-OPINIONATED
+Tuist is not opinionated about the content of your templates, and what you use them for. They are only required to be in a specific directory.
+:::
 
 ## Defining a template {#defining-a-template}
 
@@ -56,8 +57,9 @@ After defining the template, we can use it from the `scaffold` command:
 tuist scaffold name_of_template --name Name --platform macos
 ```
 
-> [!NOTE]
-> Since platform is an optional argument, we can also call the command without the `--platform macos` argument.
+::: info
+Since platform is an optional argument, we can also call the command without the `--platform macos` argument.
+:::
 
 If `.string` and `.files` don't provide enough flexibility, you can leverage the [Stencil](https://stencil.fuller.li/en/latest/) templating language via the `.file` case. Besides that, you can also use additional filters defined here.
 
@@ -65,5 +67,6 @@ Using string interpolation, `\(nameAttribute)` above would resolve to `{{ name }
 
 You can also use `.directory` which gives the possibility to copy entire folders to a given path.
 
-> [!TIP] PROJECT DESCRIPTION HELPERS
-> Templates support the use of <LocalizedLink href="/guides/features/projects/code-sharing">project description helpers</LocalizedLink> to reuse code across templates.
+::: tip PROJECT DESCRIPTION HELPERS
+Templates support the use of <LocalizedLink href="/guides/features/projects/code-sharing">project description helpers</LocalizedLink> to reuse code across templates.
+:::

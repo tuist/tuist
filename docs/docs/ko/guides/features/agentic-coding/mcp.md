@@ -23,8 +23,9 @@ use language to interact with your projects.
 
 In this page you'll learn about how to set it up and its capabilities.
 
-> [!NOTE] Tuist MCP server uses Xcode's most-recent projects as the source of
-> truth for projects you want to interact with.
+::: info Tuist MCP server uses Xcode's most-recent projects as the source of
+truth for projects you want to interact with.
+:::
 
 ## Set it up
 
@@ -97,7 +98,7 @@ tuist mcp setup vscode --path /path/to/project
 If you prefer to configure manually or are using a different MCP client, add the
 Tuist MCP server to your client's configuration:
 
-:::code-group
+::: code-group
 
 ```json [Global Tuist installation (e.g. Homebrew)]
 {

@@ -2,7 +2,7 @@ import * as path from 'node:path';
 import * as fs from 'node:fs/promises';
 import fastGlob from 'fast-glob';
 
-const VALID_KEYWORDS = ['NOTE', 'TIP', 'IMPORTANT', 'WARNING', 'CAUTION'];
+const VALID_KEYWORDS = ['info', 'tip', 'warning', 'danger', 'details'];
 
 export async function validateAdmonitions(outDir) {
   const docsDir = path.join(path.dirname(outDir), 'docs');
@@ -17,18 +17,32 @@ export async function validateAdmonitions(outDir) {
     const lines = content.split('\n');
 
     lines.forEach((line, index) => {
-      const match = line.match(/^>\s*\[!([^\]]+)\]/);
-      if (match) {
-        const keyword = match[1];
-        const keywordOnly = keyword.split(/[\s\\]/)[0];
+      // Check for old GitHub-style admonitions
+      const oldStyleMatch = line.match(/^>\s*\[!([^\]]+)\]/);
+      if (oldStyleMatch) {
+        hasErrors = true;
+        errors.push({
+          file: `docs/${file}`,
+          line: index + 1,
+          type: 'old-syntax',
+          content: line.trim(),
+          message: 'Found GitHub-style admonition. Please use VitePress syntax instead: ::: keyword'
+        });
+      }
 
-        if (!VALID_KEYWORDS.includes(keywordOnly)) {
+      // Check for VitePress admonitions with invalid keywords
+      const vitepressMatch = line.match(/^:::\s+([a-z]+)/);
+      if (vitepressMatch) {
+        const keyword = vitepressMatch[1];
+        if (!VALID_KEYWORDS.includes(keyword)) {
           hasErrors = true;
           errors.push({
             file: `docs/${file}`,
             line: index + 1,
+            type: 'invalid-keyword',
             keyword: keyword,
-            content: line.trim()
+            content: line.trim(),
+            message: `Invalid keyword: "${keyword}". Must be one of: ${VALID_KEYWORDS.join(', ')}`
           });
         }
       }
@@ -37,18 +51,27 @@ export async function validateAdmonitions(outDir) {
 
   if (hasErrors) {
     console.error('\n❌ Invalid admonition syntax found:\n');
-    console.error(`Valid keywords are: ${VALID_KEYWORDS.join(', ')}\n`);
+    console.error(`Valid VitePress admonition keywords are: ${VALID_KEYWORDS.join(', ')}\n`);
 
     errors.forEach(error => {
       console.error(`${error.file}:${error.line}`);
-      console.error(`  Invalid keyword: [!${error.keyword}]`);
+      console.error(`  ${error.message}`);
       console.error(`  Found: ${error.content}`);
       console.error('');
     });
 
     console.error(`\nTotal errors: ${errors.length}`);
-    console.error('\nAdmonitions must use the syntax: > [!KEYWORD] where KEYWORD is one of:');
-    console.error(`  ${VALID_KEYWORDS.join(', ')}\n`);
+    console.error('\nAdmonitions must use VitePress syntax: ::: keyword');
+    console.error('Example:');
+    console.error('  ::: danger STOP');
+    console.error('  Danger zone, do not proceed');
+    console.error('  :::');
+    console.error('');
+    console.error('  ::: details Click me to view the code');
+    console.error('  ```js');
+    console.error('  console.log("Hello, VitePress!")');
+    console.error('  ```');
+    console.error('  :::\n');
 
     throw new Error('Invalid admonition syntax detected');
   }
