@@ -30,9 +30,11 @@ pull request becomes too large and unmanageable, suggest the author to break it
 down.
 
 ::: info
+<!-- -->
 is not possible, like when the changes are tightly coupled and can’t be split.
 In those cases, the author should provide a clear explanation of the changes
 and the reasoning behind them.
+<!-- -->
 :::
 
 ## Consistency {#consistency}

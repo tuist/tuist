@@ -27,8 +27,10 @@ theirs, where you can have personal and organization accounts, and they are
 identified by a *handle* that's used when constructing URLs.
 
 ::: info
+<!-- -->
 through the CLI. We are working on a web interface that will make it easier to
 manage accounts and projects.
+<!-- -->
 :::
 
 You can manage the organization through the subcommands under
@@ -60,9 +62,11 @@ let tuist = Tuist(fullHandle: "{account-handle}/{project-handle}") // e.g. tuist
 ```
 
 ::: warning
+<!-- -->
 like <LocalizedLink href="/guides/features/cache">binary
 caching</LocalizedLink> that require you having a Tuist project. If you are
 using raw Xcode projects, you won't be able to use those features.
+<!-- -->
 :::
 
 Your project's URL is constructed by using the full handle. For example, Tuist's

@@ -24,7 +24,9 @@ use language to interact with your projects.
 In this page you'll learn about how to set it up and its capabilities.
 
 ::: info
+<!-- -->
 truth for projects you want to interact with.
+<!-- -->
 :::
 
 ## Set it up
@@ -121,6 +123,7 @@ Tuist MCP server to your client's configuration:
   }
 }
 ```
+<!-- -->
 :::
 
 ## Capabilities

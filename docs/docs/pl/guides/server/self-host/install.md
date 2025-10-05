@@ -10,7 +10,9 @@
 We offer a self-hosted version of the Tuist server for organizations that require more control over their infrastructure. This version allows you to host Tuist on your own infrastructure, ensuring that your data remains secure and private.
 
 ::: warning
+<!-- -->
 Self-hosting Tuist requires a legally valid paid license. The on-premise version of Tuist is available only for organizations on the Enterprise plan. If you are interested in this version, please reach out to [contact@tuist.dev](mailto:contact@tuist.dev).
+<!-- -->
 :::
 
 ## Release cadence {#release-cadence}
@@ -78,7 +80,9 @@ You’ll also need a solution to store files (e.g. framework and library binarie
 The configuration of the service is done at runtime through environment variables. Given the sensitive nature of these variables, we advise encrypting and storing them in secure password management solutions. Rest assured, Tuist handles these variables with utmost care, ensuring they are never displayed in logs.
 
 ::: info
+<!-- -->
 The necessary variables are verified at startup. If any are missing, the launch will fail and the error message will detail the absent variables.
+<!-- -->
 :::
 
 ### License configuration {#license-configuration}
@@ -93,7 +97,9 @@ As an on-premise user, you'll receive a license key that you'll need to expose a
 \* Either `TUIST_LICENSE` or `TUIST_LICENSE_CERTIFICATE_BASE64` must be provided, but not both. Use `TUIST_LICENSE` for standard deployments.
 
 ::: warning
+<!-- -->
 Licenses have an expiration date. Users will receive a warning while using Tuist commands that interact with the server if the license expires in less than 30 days. If you are interested in renewing your license, please reach out to [contact@tuist.dev](mailto:contact@tuist.dev).
+<!-- -->
 :::
 
 ### Base environment configuration {#base-environment-configuration}
@@ -159,7 +165,9 @@ You'll then need to expose the following environment variables in the environmen
 You can set up authentication with Google using [OAuth 2](https://developers.google.com/identity/protocols/oauth2). For that, you'll need to create a new credential of type OAuth client ID. When creating the credentials, select "Web Application" as application type, name it `Tuist`, and set the redirect URI to `{base_url}/users/auth/google/callback` where `base_url` is the URL your hosted-service is running at. Once you create the app, copy the client ID and secret and set them as environment variables `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` respectively.
 
 ::: info
+<!-- -->
 You might need to create a consent screen. When you do so, make sure to add the `userinfo.email` and `openid` scopes and mark the app as internal.
+<!-- -->
 :::
 
 #### Okta {#okta}
@@ -200,7 +208,9 @@ You can use any S3-compliant storage provider to store artifacts. The following 
 | `TUIST_S3_VIRTUAL_HOST` | Whether the URL should be constructed with the bucket name as a sub-domain (virtual host) | No | `false` | `1` |
 
 ::: info
+<!-- -->
 If your storage provider is AWS and you'd like to authenticate using a web identity token, you can set the environment variable `TUIST_S3_AUTHENTICATION_METHOD` to `aws_web_identity_token_from_env_vars`, and Tuist will use that method using the conventional AWS environment variables.
+<!-- -->
 :::
 
 #### Google Cloud Storage {#google-cloud-storage}
@@ -245,7 +255,9 @@ docker pull ghcr.io/tuist/tuist:0.1.0
 The deployment process for the Docker image will differ based on your chosen cloud provider and your organization's continuous deployment approach. Since most cloud solutions and tools, like [Kubernetes](https://kubernetes.io/), utilize Docker images as fundamental units, the examples in this section should align well with your existing setup.
 
 ::: warning
+<!-- -->
 If your deployment pipeline needs to validate that the server is up and running, you can send a `GET` HTTP request to `/ready` and assert a `200` status code in the response.
+<!-- -->
 :::
 
 #### Fly {#fly}
@@ -449,7 +461,9 @@ In addition to Finch metrics, Tuist exposes metrics for:
 Tuist provides a set of utilities under `/ops/` that you can use to manage your instance.
 
 ::: warning
+<!-- -->
 Only people whose handles are listed in the `TUIST_OPS_USER_HANDLES` environment variable can access the `/ops/` endpoints.
+<!-- -->
 :::
 
 - **Errors (`/ops/errors`):** You can view unexpected errors that ocurred in the application. This is useful for debugging and understanding what went wrong and we might ask you to share this information with us if you're facing issues.

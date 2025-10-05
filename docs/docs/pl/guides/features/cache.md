@@ -8,8 +8,10 @@
 # Cache {#cache}
 
 ::: warning
+<!-- -->
 - A <LocalizedLink href="/guides/features/projects">generated project</LocalizedLink>
 - A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and project</LocalizedLink>
+<!-- -->
 :::
 
 Xcode's build system provides [incremental builds](https://en.wikipedia.org/wiki/Incremental_build_model), enhancing efficiency under normal circumstances. However, this feature falls short in [Continuous Integration (CI) environments](https://en.wikipedia.org/wiki/Continuous_integration), where data essential for incremental builds is not shared across different builds. Additionally, **developers often reset this data locally to troubleshoot complex compilation problems**, leading to more frequent clean builds. This results in teams spending excessive time waiting for local builds to finish or for Continuous Integration pipelines to provide feedback on pull requests. Furthermore, the frequent context switching in such an environment compounds this unproductiveness.
@@ -44,10 +46,13 @@ tuist generate --no-binary-cache # No cache at all
 ```bash [Testing]
 tuist test
 ```
+<!-- -->
 :::
 
 ::: warning
+<!-- -->
 Binary caching is a feature designed for development workflows such as running the app on a simulator or device, or running tests. It is not intended for release builds. When archiving the app, generate a project with the sources by using the `--no-binary-cache` flag.
+<!-- -->
 :::
 
 ## Supported products {#supported-products}
@@ -61,7 +66,9 @@ Only the following target products are cacheable by Tuist:
 We are working on supporting libraries and targets that depend on XCTest.
 
 ::: info
+<!-- -->
 When a target is non-cacheable it makes the upstream targets non-cacheable too. For example, if you have the dependency graph `A > B`, where A depends on B, if B is non-cacheable, A will also be non-cacheable.
+<!-- -->
 :::
 
 ## Efficiency {#efficiency}
@@ -79,7 +86,9 @@ The above suggestions are part of the <LocalizedLink href="/guides/features/proj
 We recommend having a CI job that **runs in every commit in the main branch** to warm the cache. This will ensure the cache always contains binaries for the changes in `main` so local and CI branch build incrementally upon them.
 
 ::: tip
+<!-- -->
 The `tuist cache` command also makes use of the binary cache to speed up the warming.
+<!-- -->
 :::
 
 The following are some examples of common workflows:

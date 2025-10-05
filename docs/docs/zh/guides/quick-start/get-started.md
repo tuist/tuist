@@ -19,6 +19,7 @@ mise x tuist@latest -- tuist init
 ```bash [Global Tuist (Homebrew)]
 tuist init
 ```
+<!-- -->
 :::
 
 The command will walk you through the steps to
@@ -31,5 +32,7 @@ testing</LocalizedLink>,
 the <LocalizedLink href="/guides/features/registry">registry</LocalizedLink>.
 
 ::: info MIGRATE AN EXISTING PROJECT
+<!-- -->
 If you want to migrate an existing project to generated projects to improve the developer experience and take advantage of our <LocalizedLink href="/guides/features/cache">cache</LocalizedLink>, check out our <LocalizedLink href="/guides/features/projects/adoption/migrate/xcode-project">migration guide</LocalizedLink>.
+<!-- -->
 :::

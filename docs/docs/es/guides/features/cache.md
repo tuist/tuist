@@ -8,8 +8,10 @@
 # Cache {#cache}
 
 ::: warning
+<!-- -->
 - A <LocalizedLink href="/guides/features/projects">generated project</LocalizedLink>
 - A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and project</LocalizedLink>
+<!-- -->
 :::
 
 Xcode's build system provides [incremental
@@ -72,12 +74,15 @@ tuist generate --no-binary-cache # No cache at all
 ```bash [Testing]
 tuist test
 ```
+<!-- -->
 :::
 
 ::: warning
+<!-- -->
 as running the app on a simulator or device, or running tests. It is not
 intended for release builds. When archiving the app, generate a project with
 the sources by using the `--no-binary-cache` flag.
+<!-- -->
 :::
 
 ## Supported products {#supported-products}
@@ -92,9 +97,11 @@ Only the following target products are cacheable by Tuist:
 We are working on supporting libraries and targets that depend on XCTest.
 
 ::: info
+<!-- -->
 upstream targets non-cacheable too. For example, if you have the dependency
 graph `A > B`, where A depends on B, if B is non-cacheable, A will also be
 non-cacheable.
+<!-- -->
 :::
 
 ## Efficiency {#efficiency}
@@ -122,7 +129,9 @@ warm the cache. This will ensure the cache always contains binaries for the
 changes in `main` so local and CI branch build incrementally upon them.
 
 ::: tip
+<!-- -->
 the binary cache to speed up the warming.
+<!-- -->
 :::
 
 The following are some examples of common workflows:

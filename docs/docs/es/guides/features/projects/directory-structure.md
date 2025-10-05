@@ -71,9 +71,11 @@ or subdirectory of a directory containing a `Tuist` directory, which represents
 the root of the project.
 
 ::: tip
+<!-- -->
 projects to reduce the likelihood of merge conflicts. If that's what you were
 using workspaces for, you don't need them in Tuist. Tuist auto-generates a
 workspace containing a project and its dependencies' projects.
+<!-- -->
 :::
 
 ## Swift Package <Badge type="warning" text="beta" /> {#swift-package-badge-typewarning-textbeta-}

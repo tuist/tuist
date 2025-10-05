@@ -19,7 +19,9 @@ By connecting your client apps to it, you can use language to interact with your
 In this page you'll learn about how to set it up and its capabilities.
 
 ::: info
+<!-- -->
 Tuist MCP server uses Xcode's most-recent projects as the source of truth for projects you want to interact with.
+<!-- -->
 :::
 
 ## Set it up
@@ -113,6 +115,7 @@ If you prefer to configure manually or are using a different MCP client, add the
   }
 }
 ```
+<!-- -->
 :::
 
 ## Capabilities

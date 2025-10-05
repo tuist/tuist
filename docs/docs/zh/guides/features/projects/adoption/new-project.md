@@ -56,12 +56,15 @@ let project = Project(
     ]
 )
 ```
+<!-- -->
 :::
 
 ::: info
+<!-- -->
 minimize maintenance overhead. If you want to create a project that doesn't
 represent an application, for example a framework, you can use `tuist init` as
 a starting point and then modify the generated project to suit your needs.
+<!-- -->
 :::
 
 ## Manually creating a project {#manually-creating-a-project}
@@ -102,10 +105,13 @@ import ProjectDescription
 
 let tuist = Tuist()
 ```
+<!-- -->
 :::
 
 ::: warning
+<!-- -->
 project, and from there it looks for other manifest files globbing the
 directories. We recommend creating those files with your editor of choice, and
 from that point on, you can use `tuist edit` to edit the project with Xcode.
+<!-- -->
 :::

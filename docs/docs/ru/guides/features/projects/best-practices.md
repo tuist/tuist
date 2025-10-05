@@ -41,6 +41,7 @@ different environments can be achieved differently:
   logic for switching configurations by using compiler directives.
 
 ::: info Non-standard configurations While Tuist supports non-standard
+<!-- -->
 configurations and makes them easier to manage compared to vanilla Xcode
 projects, you'll receive warnings if configurations are not consistent
 throughout the dependency graph. This helps ensure build reliability and
@@ -75,4 +76,5 @@ let target = Target( name: "App", buildableFolders: ["App/Sources", "App/Resourc
 let target = Target( name: "App", sources: ["App/Sources/**"], resources: ["App/Resources/**"]
 )
 ```
+<!-- -->
 :::

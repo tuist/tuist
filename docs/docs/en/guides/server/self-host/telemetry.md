@@ -23,7 +23,9 @@ PostHog integration is optional and can be enabled by setting the appropriate en
 | `TUIST_POSTHOG_URL` | The PostHog API endpoint URL | No | | `https://eu.i.posthog.com` |
 
 ::: info ANALYTICS ENABLEMENT
+<!-- -->
 Analytics are only enabled when both `TUIST_POSTHOG_API_KEY` and `TUIST_POSTHOG_URL` are configured. If either variable is missing, no analytics events will be sent.
+<!-- -->
 :::
 
 ### Features {#posthog-features}
@@ -139,7 +141,9 @@ The total number of previews downloaded.
 A set of metrics related to the storage of artifacts in a remote storage (e.g. s3).
 
 ::: tip
+<!-- -->
 These metrics are useful to understand the performance of the storage operations and to identify potential bottlenecks.
+<!-- -->
 :::
 
 ### `tuist_storage_get_object_size_size_bytes` (histogram) {#tuist_storage_get_object_size_size_bytes-histogram}

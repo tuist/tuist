@@ -69,4 +69,5 @@ Environment.appName.getString(default: "TuistServer")
 ```swift [Boolean]
 Environment.isCI.getBoolean(default: false)
 ```
+<!-- -->
 :::

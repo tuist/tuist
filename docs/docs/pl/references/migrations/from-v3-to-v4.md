@@ -18,14 +18,19 @@ Prior to Tuist 4, the installation script installed a tool, `tuistenv`, that wou
 ```bash [Uninstall tuistenv]
 curl -Ls https://uninstall.tuist.io | bash
 ```
+<!-- -->
 :::
 
 ::: warning MISE IN CI ENVIRONMENTS AND XCODE PROJECTS
+<!-- -->
 If you decide to embrace the determinism that Mise brings across the board, we recommend checking out the documentation for how to use Mise in [CI environments](https://mise.jdx.dev/continuous-integration.html) and [Xcode projects](https://mise.jdx.dev/ide-integration.html#xcode).
+<!-- -->
 :::
 
 ::: info HOMEBREW IS SUPPORTED
+<!-- -->
 Note that you can still install Tuist using Homebrew, which is a popular package manager for macOS. You can find the instructions on how to install Tuist using Homebrew in the <LocalizedLink href="/guides/quick-start/install-tuist#alternative-homebrew">installation guide</LocalizedLink>.
+<!-- -->
 :::
 
 ### Dropped `init` constructors from `ProjectDescription` models {#dropped-init-constructors-from-projectdescription-models}
@@ -33,7 +38,9 @@ Note that you can still install Tuist using Homebrew, which is a popular package
 With the aim of improving the readability and expressiveness of the APIs, we decided to remove the `init` constructors from all the `ProjectDescription` models. Every model now provides a static constructor that you can use to create instances of the models. If you were using the `init` constructors, you'll have to update your project to use the static constructors instead.
 
 ::: tip NAMING CONVENTION
+<!-- -->
 The naming convention that we follow is to use the name of the model as the name of the static constructor. For example, the static constructor for the `Target` model is `Target.target`.
+<!-- -->
 :::
 
 ### Renamed `--no-cache` to `--no-binary-cache` {#renamed-nocache-to-nobinarycache}
@@ -74,6 +81,7 @@ tuist generate --skip-cache Foo
 ```bash [After]
 tuist generate Foo
 ```
+<!-- -->
 :::
 
 ### [Dropped signing capabilities](https://github.com/tuist/tuist/pull/5716) {#dropped-signing-capabilitieshttpsgithubcomtuisttuistpull5716}
@@ -83,7 +91,9 @@ Signing is already solved by community tooling like [Fastlane](https://fastlane.
   - A script that can take an existing profiles and certificates and encrypt them.
 
 ::: tip SIGNING REQUIREMENTS
+<!-- -->
 Signing requires the right certificates to be present in the keychain and the provisioning profiles to be present in the directory `~/Library/MobileDevice/Provisioning\ Profiles`. You can use the `security` command-line tool to install certificates in the keychain and the `cp` command to copy the provisioning profiles to the right directory.
+<!-- -->
 :::
 
 ### Dropped Carthage integration via `Dependencies.swift` {#dropped-carthage-integration-via-dependenciesswift}
@@ -91,7 +101,9 @@ Signing requires the right certificates to be present in the keychain and the pr
 Before Tuist 4, Carthage dependencies could be defined in a `Dependencies.swift` file, which users could then fetch by running `tuist fetch`. We also felt that this was a stretch goal for Tuist, specially considering a future where Swift Package Manager would be the preferred way to manage dependencies. If you were using Carthage dependencies, you'll have to use `Carthage` directly to pull the pre-compiled frameworks and XCFrameworks into Carthage's standard directory, and then reference those binaries from your tagets using the `TargetDependency.xcframework` and `TargetDependency.framework` cases.
 
 ::: info CARTHAGE IS STILL SUPPORTED
+<!-- -->
 Some users understood that we dropped Carthage support. We didn't. The contract between Tuist and Carthage's output is to system-stored frameworks and XCFrameworks. The only thing that changed is who is responsible for fetching the dependencies. It used to be Tuist through Carthage, now it's Carthage.
+<!-- -->
 :::
 
 ### Dropped the `TargetDependency.packagePlugin` API {#dropped-the-targetdependencypackageplugin-api}

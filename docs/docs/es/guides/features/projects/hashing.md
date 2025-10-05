@@ -31,12 +31,14 @@ swift --version` to prevent compilation errors due to Swift version mismatches
 between the targets and the binaries.
 
 ::: info
+<!-- -->
 `BUILD_LIBRARY_FOR_DISTRIBUTION` build setting to enable [module
 stability](https://www.swift.org/blog/library-evolution#enabling-library-evolution-support)
 and enable using binaries with any compiler version. However, it caused
 compilation issues in projects with targets that don't support module
 stability. Generated binaries are bound to the Swift version used to compile
 them, and the Swift version must match the one used to compile the project.
+<!-- -->
 :::
 
 #### Configuration {#configuration}
@@ -61,7 +63,9 @@ to debug the issue:
    include **absolute paths** causing the hashing logic to be non-deterministic.
 
 ::: info
+<!-- -->
 is in our roadmap. The print-hashes command, which lacks the context to
 understand the differences, will be replaced by a more user-friendly command
 that uses a tree-like structure to show the differences between the hashes.
+<!-- -->
 :::

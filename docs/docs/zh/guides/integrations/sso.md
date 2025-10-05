@@ -17,7 +17,9 @@ tuist organization update sso my-organization --provider google --organization-i
 ```
 
 ::: warning
+<!-- -->
 organization whose domain you are setting up.
+<!-- -->
 :::
 
 ## Okta {#okta}
@@ -62,7 +64,9 @@ tuist organization update sso my-organization --provider okta --organization-id 
 ```
 
 ::: warning
+<!-- -->
 currently doesn't support automatic provisioning and deprovisioning of users
 from your Okta organization. Once they sign in via their Okta dashboard, they
 will be automatically added to your Tuist organization.
+<!-- -->
 :::

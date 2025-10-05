@@ -19,9 +19,11 @@ different manifest files, and Xcode to provide a first-class editing experience
 thanks to the syntax highlighting, auto-completion, and validation.
 
 ::: info
+<!-- -->
 Tuist caches the compilation results to speed up the parsing process.
 Therefore, you'll notice that the first time you run Tuist, it might take a
 bit longer to generate the project. Subsequent runs will be faster.
+<!-- -->
 :::
 
 ## Project.swift {#projectswift}
@@ -44,8 +46,10 @@ let project = Project(
 
 
 ::: warning
+<!-- -->
 manifest is `let project = Project(...)`. If you need to reuse code across
 various parts of the manifest, you can use Swift functions.
+<!-- -->
 :::
 
 ## Workspace.swift {#workspaceswift}
@@ -71,8 +75,10 @@ let workspace = Workspace(
 ```
 
 ::: info
+<!-- -->
 the dependencies in the workspace. You don't need to include them manually.
 This is necessary for the build system to resolve the dependencies correctly.
+<!-- -->
 :::
 
 ### Multi or mono-project {#multi-or-monoproject}

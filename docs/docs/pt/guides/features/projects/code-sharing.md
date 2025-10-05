@@ -25,11 +25,13 @@ Reusing code across manifest files is possible in Tuist thanks to the concept of
 **project description helpers**.
 
 ::: tip A TUIST UNIQUE ASSET Many organizations like Tuist because they see in
+<!-- -->
 project description helpers a platform for platform teams to codify their own
 conventions and come up with their own language for describing their projects.
 For example, YAML-based project generators have to come up with their own
 YAML-based propietary templating solution, or force organizations onto
 building their tools upon.
+<!-- -->
 :::
 
 ## Project description helpers {#project-description-helpers}
@@ -99,9 +101,12 @@ import ProjectDescriptionHelpers
 
 let project = Project.featureFramework(name: "MyFeature")
 ```
+<!-- -->
 :::
 
 ::: tip A TOOL TO ESTABLISH CONVENTIONS Note how through the function we are
+<!-- -->
 defining conventions about the name of the targets, the bundle identifier, and
 the folders structure.
+<!-- -->
 :::

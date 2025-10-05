@@ -89,9 +89,11 @@ Then run `tuist install` to resolve and pull the dependencies using the [Swift
 Package Manager](https://www.swift.org/documentation/package-manager/).
 
 ::: info
+<!-- -->
 dependencies uses the Swift Package Manager (SPM) only to resolve
 dependencies. Tuist then converts them into Xcode projects and targets for
 maximum configurability and control.
+<!-- -->
 :::
 
 ## Visualize the project {#visualize-the-project}

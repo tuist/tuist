@@ -8,7 +8,9 @@
 # Insights {#insights}
 
 ::: warning
+<!-- -->
 - A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and project</LocalizedLink>
+<!-- -->
 :::
 
 Working on large projects shouldn't feel like a chore. In fact, it should be as
@@ -25,6 +27,8 @@ In other words, Tuist Insights helps you to anwer questions such as:
 - Have my tests become slower? Which ones?
 
 ::: info
+<!-- -->
+<!-- -->
 :::
 
 ## Builds {#builds}
@@ -41,11 +45,14 @@ command by adding it to your scheme's post-action:
 builds](/images/guides/features/insights/inspect-build-scheme-post-action.png)
 
 ::: info
+<!-- -->
 executable or your main build target to enable Tuist to track the build
 configuration.
+<!-- -->
 :::
 
 ::: info
+<!-- -->
 <LocalizedLink href="/guides/features/projects">generated
 projects</LocalizedLink>, the post-scheme action is not executed in case the
 build fails.
@@ -58,6 +65,7 @@ Set the attribute `runPostActionsOnFailure` to `YES` in your scheme's
 <BuildAction buildImplicitDependencies="YES" parallelizeBuildables="YES"
 +  runPostActionsOnFailure="YES">
 ```
+<!-- -->
 :::
 
 In case you're using [Mise](https://mise.jdx.dev/), your script will need to
@@ -77,7 +85,9 @@ they evolve over time:
 
 
 ::: tip
+<!-- -->
 the CLI.
+<!-- -->
 :::
 
 ![Dashboard with build
@@ -86,12 +96,14 @@ insights](/images/guides/features/insights/builds-dashboard.png)
 ## Generated projects {#generated-projects}
 
 ::: info
+<!-- -->
 post-action.
 
 If you are not interested in tracking build insights in your auto-generated
 schemes, disable them using the
 <LocalizedLink href="/references/project-description/structs/tuist.generationoptions#buildinsightsdisabled">buildInsightsDisabled</LocalizedLink>
 generation option.
+<!-- -->
 :::
 
 If you are using generated projects, you can set up a custom

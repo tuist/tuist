@@ -24,7 +24,9 @@ If it doesn't, you can find the logs in the path mentioned above (i.e., the most
 recent log file).
 
 ::: warning
+<!-- -->
 sharing logs.
+<!-- -->
 :::
 
 ### Continuous integration {#diagnose-issues-using-logs-ci}

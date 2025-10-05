@@ -8,7 +8,9 @@
 # Previews {#previews}
 
 ::: warning
+<!-- -->
 - A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and project</LocalizedLink>
+<!-- -->
 :::
 
 When building an app, you may want to share it with others to get feedback.
@@ -18,7 +20,9 @@ However, this process can be cumbersome and slow, especially when you're just lo
 To make this process more streamlined, Tuist provides a way to generate and share previews of your apps with anyone.
 
 ::: warning
+<!-- -->
 When building for device, it is currently your responsibility to ensure the app is signed correctly. We plan to streamline this in the future.
+<!-- -->
 :::
 
 ::: code-group
@@ -33,6 +37,7 @@ xcodebuild -scheme App -project App.xcodeproj -configuration Debug -destination 
 tuist share App --configuration Debug --platforms iOS
 tuist share App.ipa # Share an existing .ipa file
 ```
+<!-- -->
 :::
 
 The command will generate a link that you can share with anyone to run the app – either on a simulator or an actual device. All they'll need to do is to run the command below:
@@ -54,7 +59,9 @@ tuist run App@00dde7f56b1b8795a26b8085a781fb3715e834be # Runs latest App preview
 ```
 
 ::: warning
+<!-- -->
 Only people with access to the organization the project belongs to can access the previews. We plan to add support for expiring links.
+<!-- -->
 :::
 
 ## Tuist macOS app {#tuist-macos-app}
@@ -71,8 +78,10 @@ To make running Tuist Previews even easier, we developed a Tuist macOS menu bar 
 When you now click on "Run" in the Preview page, the macOS app will automatically launch it on your currently selected device.
 
 ::: warning
+<!-- -->
 
 You need to have Xcode locally installed and be on macOS 14 or later.
+<!-- -->
 :::
 
 ## Tuist iOS app {#tuist-ios-app}
@@ -91,7 +100,9 @@ Similarly to the macOS app, the Tuist iOS apps streamlines accessing and running
 ## Pull/merge request comments {#pullmerge-request-comments}
 
 ::: warning
+<!-- -->
 To get automatic pull/merge request comments, integrate your <LocalizedLink href="/guides/server/accounts-and-projects">remote project</LocalizedLink> with a <LocalizedLink href="/guides/server/authentication">Git platform</LocalizedLink>.
+<!-- -->
 :::
 
 Testing new functionality should be a part of any code review. But having to build an app locally adds unnecessary friction, often leading to developers skipping testing functionality on their device at all. But *what if each pull request contained a link to the build that would automatically run the app on a device you selected in the Tuist macOS app?*

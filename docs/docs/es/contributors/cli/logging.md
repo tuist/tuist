@@ -17,8 +17,10 @@ Logger.current
 ```
 
 ::: info
+<!-- -->
 detached tasks, so if you use them, you'll need to get it and pass it to the
 asynchronous operation.
+<!-- -->
 :::
 
 ## What to log {#what-to-log}
