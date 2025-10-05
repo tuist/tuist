@@ -21,10 +21,10 @@
             },
             "modal": {
                 "search-box": {
-                    "reset-button-title": "Limpiar término de búsqueda",
-                    "reset-button-aria-label": "Limpiar término de búsqueda",
-                    "cancel-button-text": "Cancelar",
-                    "cancel-button-aria-label": "Cancelar"
+                    "reset-button-title": "Limpia el término de búsqueda",
+                    "reset-button-aria-label": "Limpia el término de búsqueda",
+                    "cancel-button-text": "Cancela",
+                    "cancel-button-aria-label": "Cancela"
                 },
                 "start-screen": {
                     "recent-searches-title": "Historial de búsqueda",
@@ -140,7 +140,7 @@
                     }
                 },
                 "releases": {
-                    "text": "Versiones"
+                    "text": "Releases"
                 }
             }
         },
