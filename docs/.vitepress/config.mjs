@@ -10,6 +10,7 @@ import {
 import { cliSidebar } from "./data/cli.js";
 import { localizedString } from "./i18n.mjs";
 import llmstxtPlugin from "vitepress-plugin-llmstxt";
+import postcssRtlcss from "postcss-rtlcss";
 
 async function themeConfig(locale) {
   const sidebar = {};
@@ -140,6 +141,7 @@ const searchOptionsLocales = {
   ja: getSearchOptionsForLocale("ja"),
   ru: getSearchOptionsForLocale("ru"),
   es: getSearchOptionsForLocale("es"),
+  ar: getSearchOptionsForLocale("ar"),
   zh: getSearchOptionsForLocale("zh"),
 };
 
@@ -154,6 +156,16 @@ export default defineConfig({
   },
   vite: {
     plugins: [llmstxtPlugin()],
+    css: {
+      postcss: {
+        plugins: [
+          postcssRtlcss({
+            ltrPrefix: ':where([dir="ltr"])',
+            rtlPrefix: ':where([dir="rtl"])',
+          }),
+        ],
+      },
+    },
   },
   mpa: false,
   locales: {
@@ -186,6 +198,12 @@ export default defineConfig({
       label: "Português (Portuguese)",
       lang: "pt",
       themeConfig: await themeConfig("pt"),
+    },
+    ar: {
+      label: "العربية (Arabic)",
+      lang: "ar",
+      dir: "rtl",
+      themeConfig: await themeConfig("ar"),
     },
     zh: {
       label: "中文 (Chinese)",
