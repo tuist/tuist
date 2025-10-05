@@ -16,10 +16,9 @@ dependency-injected using task locals and can be accessed anywhere using:
 Logger.current
 ```
 
-::: info
-detached tasks, so if you use them, you'll need to get it and pass it to the
-asynchronous operation.
-:::
+::: info Task locals don't propagate the value when using `Dispatch` or detached
+tasks, so if you use them, you'll need to get it and pass it to the asynchronous
+operation. :::
 
 ## What to log {#what-to-log}
 
