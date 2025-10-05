@@ -5,7 +5,7 @@
   "description": "Examples of generated projects which we use as fixtures to run acceptance tests against."
 }
 ---
-# Generated Projects Examples
+# Ejemplos de proyectos generados
 
 In this section you'll find examples of
 <LocalizedLink to="/guides/features/projects">generated projects</LocalizedLink>
