@@ -12,6 +12,7 @@ import { localizedString } from "./i18n.mjs";
 import llmstxtPlugin from "vitepress-plugin-llmstxt";
 import postcssRtlcss from "postcss-rtlcss";
 import { validateAdmonitions } from "./validate-admonitions.mjs";
+import { checkLocalePages } from "./check-locale-pages.mjs";
 
 async function themeConfig(locale) {
   const sidebar = {};
@@ -276,8 +277,11 @@ export default defineConfig({
     hostname: "https://docs.tuist.io",
   },
   async buildEnd({ outDir }) {
-    // Validate admonition syntax
-    await validateAdmonitions(outDir);
+    // Run validations in parallel
+    await Promise.all([
+      validateAdmonitions(outDir),
+      checkLocalePages(outDir)
+    ]);
 
     // Copy functions directory to dist
     const functionsSource = path.join(path.dirname(outDir), "functions");
