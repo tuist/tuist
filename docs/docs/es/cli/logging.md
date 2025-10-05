@@ -25,7 +25,7 @@ recent log file).
 
 ::: warning
 <!-- -->
-sharing logs.
+Sensitive information is not redacted, so be cautious when sharing logs.
 <!-- -->
 :::
 
