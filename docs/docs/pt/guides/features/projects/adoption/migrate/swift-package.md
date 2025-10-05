@@ -36,11 +36,11 @@ take Apple to go to first principles and revisit some decisions that made sense
 as a dependency manager but not as a project manager, for example the usage of a
 compiled language as an interface to define projects.
 
-::: tip SPM AS JUST A DEPENDENCY MANAGER Tuist treats Swift Package Manager as
+::: tip SPM AS JUST A DEPENDENCY MANAGER
 <!-- -->
-a dependency manager, and it's a great one. We use it to resolve dependencies
-and to build them. We don't use it to define projects because it's not
-designed for that.
+Tuist treats Swift Package Manager as a dependency manager, and it's a great
+one. We use it to resolve dependencies and to build them. We don't use it to
+define projects because it's not designed for that.
 <!-- -->
 :::
 
