@@ -5,7 +5,7 @@
   "description": "Find out how to make and keep your app's memory footprint as small as possible."
 }
 ---
-# Bundle Size {#bundle-size}
+# Tamaño del bundle {#bundle-size}
 
 ::: warning REQUIREMENTS
 <!-- -->

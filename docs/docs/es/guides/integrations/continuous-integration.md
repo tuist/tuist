@@ -5,7 +5,7 @@
   "description": "Learn how to use Tuist in your CI workflows."
 }
 ---
-# Continuous Integration (CI) {#continuous-integration-ci}
+# Integración continua (CI) {#continuous-integration-ci}
 
 You can use Tuist in [continuous
 integration](https://en.wikipedia.org/wiki/Continuous_integration) environments.

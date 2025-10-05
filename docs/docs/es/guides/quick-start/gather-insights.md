@@ -5,7 +5,7 @@
   "description": "Learn how to gather insights about your project."
 }
 ---
-# Gather insights {#gather-insights}
+# Recopila insights {#gather-insights}
 
 Tuist can integrate with a server to extend its capabilities. One of those
 capabilities is gathering insights about your project and builds. All you need

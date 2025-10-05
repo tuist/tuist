@@ -5,7 +5,7 @@
   "description": "Learn how to install Tuist in your environment."
 }
 ---
-# Install Tuist {#install-tuist}
+# Instalar Tuist {#install-tuist}
 
 The Tuist CLI consists of an executable, dynamic frameworks, and a set of
 resources (for example, templates). Although you could manually build Tuist from
