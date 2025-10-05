@@ -48,11 +48,11 @@ rest. The intricacies and implementation details are abstracted away from you.
 In the following sections you'll learn how to declare dependencies in your
 project.
 
-::: tip
+::: tip GRAPH VALIDATION
 <!-- -->
-to ensure that there are no cycles and that all the dependencies are valid.
-Thanks to this, any team can take part in evolving the dependency graph
-without worrying about breaking it.
+Tuist validates the graph when generating the project to ensure that there are
+no cycles and that all the dependencies are valid. Thanks to this, any team can
+take part in evolving the dependency graph without worrying about breaking it.
 <!-- -->
 :::
 
@@ -70,10 +70,11 @@ argument with any of the following options:
 - `SDK`: Declares a dependency with a system SDK.
 - `XCTest`: Declares a dependency with XCTest.
 
-::: info
+::: info DEPENDENCY CONDITIONS
 <!-- -->
-option to conditionally link the dependency based on the platform. By default,
-it links the dependency for all platforms the target supports.
+Every dependency type accepts a `condition` option to conditionally link the
+dependency based on the platform. By default, it links the dependency for all
+platforms the target supports.
 <!-- -->
 :::
 
@@ -142,11 +143,12 @@ let package = Package(
 <!-- -->
 :::
 
-::: tip
+::: tip PACKAGE SETTINGS
 <!-- -->
-directive allows you to configure how packages are integrated. For example, in
-the example above it's used to override the default product type used for
-packages. By default, you shouldn't need it.
+The `PackageSettings` instance wrapped in a compiler directive allows you to
+configure how packages are integrated. For example, in the example above it's
+used to override the default product type used for packages. By default, you
+shouldn't need it.
 <!-- -->
 :::
 
@@ -199,10 +201,10 @@ let project = Project(
 <!-- -->
 :::
 
-::: info
+::: info NO SCHEMES GENERATED FOR EXTERNAL PACKAGES
 <!-- -->
-automatically created for Swift Package projects to keep the schemes list
-clean. You can create them via Xcode's UI.
+The **schemes** are not automatically created for Swift Package projects to keep
+the schemes list clean. You can create them via Xcode's UI.
 <!-- -->
 :::
 
@@ -228,12 +230,12 @@ let target = .target(name: "MyTarget", dependencies: [
 For Swift Macros and Build Tool Plugins, you'll need to use the types `.macro`
 and `.plugin` respectively.
 
-::: warning
+::: warning SPM Build Tool Plugins
 <!-- -->
-using [Xcode's default integration](#xcode-s-default-integration) mechanism,
-even when using Tuist's [XcodeProj-based
-integration](#tuist-s-xcodeproj-based-integration) for your project
-dependencies.
+SPM build tool plugins must be declared using [Xcode's default
+integration](#xcode-s-default-integration) mechanism, even when using Tuist's
+[XcodeProj-based integration](#tuist-s-xcodeproj-based-integration) for your
+project dependencies.
 <!-- -->
 :::
 
@@ -302,11 +304,12 @@ carthage update
 tuist generate
 ```
 
-::: warning
+::: warning BUILD AND TEST
 <!-- -->
-build` and `tuist test`, you will similarly need to ensure that the
-Carthage-resolved dependencies are present by running the `carthage update`
-command before `tuist build` or `tuist test` are run.
+If you build and test your project through `tuist build` and `tuist test`, you
+will similarly need to ensure that the Carthage-resolved dependencies are
+present by running the `carthage update` command before `tuist build` or `tuist
+test` are run.
 <!-- -->
 :::
 
@@ -327,9 +330,10 @@ pod install
 
 ::: warning
 <!-- -->
-`build` or `test` that run `xcodebuild` right after generating the project.
-They are also incompatible with binary caching and selective testing since the
-fingerprinting logic doesn't account for the Pods dependencies.
+CocoaPods dependencies are not compatible with workflows like `build` or `test`
+that run `xcodebuild` right after generating the project. They are also
+incompatible with binary caching and selective testing since the fingerprinting
+logic doesn't account for the Pods dependencies.
 <!-- -->
 :::
 
@@ -388,16 +392,16 @@ to ensure the resulting binaries are correct. Therefore, the stance that we take
 is providing you with the resources, usually in the shape of documentation, to
 make the right decisions.
 
-::: tip
+::: tip EXAMPLE: COMPOSABLE ARCHITECTURE
 <!-- -->
-integrate is [Composable
-Architecture](https://github.com/pointfreeco/swift-composable-architecture).
-As described
+A Swift Package that many projects integrate is [Composable
+Architecture](https://github.com/pointfreeco/swift-composable-architecture). As
+described
 [here](https://github.com/pointfreeco/swift-composable-architecture/discussions/1657#discussioncomment-4119184)
 and the [troubleshooting section](#troubleshooting), you'll need to set the
-`OTHER_LDFLAGS` build setting to `$(inherited) -ObjC` when linking the
-packages statically, which is Tuist's default linking type. Alternatively, you
-can override the product type for the package to be dynamic.
+`OTHER_LDFLAGS` build setting to `$(inherited) -ObjC` when linking the packages
+statically, which is Tuist's default linking type. Alternatively, you can
+override the product type for the package to be dynamic.
 <!-- -->
 :::
 
@@ -520,7 +524,8 @@ internal import StaticModule
 
 ::: info
 <!-- -->
-versions of Swift, you need to use
+Access level on imports was included in Swift 6. If you're using older versions
+of Swift, you need to use
 <LocalizedLink href="https://github.com/apple/swift/blob/main/docs/ReferenceGuides/UnderscoredAttributes.md#_implementationonly">`@_implementationOnly`</LocalizedLink>
 instead:
 <!-- -->
