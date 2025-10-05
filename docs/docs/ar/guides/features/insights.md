@@ -109,7 +109,7 @@ let project = Project(
                 targets: ["MyApp"],
                 postActions: [
                     .executionAction(
-                        name: "Inspect Build",
+                        title: "Inspect Build",
                         scriptText: """
                         eval \"$($HOME/.local/bin/mise activate -C $SRCROOT bash --shims)\"
                         tuist inspect build

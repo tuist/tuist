@@ -7,42 +7,50 @@
 ---
 # Releases
 
-Tuist uses a continuous release system that automatically publishes new versions whenever meaningful changes are merged to the main branch. This approach ensures that improvements reach users quickly without manual intervention from maintainers.
+Tuist uses a continuous release system that automatically publishes new versions
+whenever meaningful changes are merged to the main branch. This approach ensures
+that improvements reach users quickly without manual intervention from
+maintainers.
 
 ## Overview
 
 We continuously release three main components:
 - **Tuist CLI** - The command-line tool
 - **Tuist Server** - The backend services
-- **Tuist App** - The macOS and iOS apps (iOS app is only continuously deployed to TestFlight, see more [here](#app-store-release)
+- **Tuist App** - The macOS and iOS apps (iOS app is only continuously deployed
+  to TestFlight, see more [here](#app-store-release)
 
-Each component has its own release pipeline that runs automatically on every push to the main branch.
+Each component has its own release pipeline that runs automatically on every
+push to the main branch.
 
 ## How it works
 
 ### 1. Commit conventions
 
-We use [Conventional Commits](https://www.conventionalcommits.org/) to structure our commit messages. This allows our tooling to understand the nature of changes, determine version bumps, and generate appropriate changelogs.
+We use [Conventional Commits](https://www.conventionalcommits.org/) to structure
+our commit messages. This allows our tooling to understand the nature of
+changes, determine version bumps, and generate appropriate changelogs.
 
 Format: `type(scope): description`
 
 #### Commit types and their impact
 
-| Type | Description | Version Impact | Example |
-|------|-------------|----------------|---------|
-| `feat` | New feature or capability | Minor version bump (x.Y.z) | `feat(cli): add support for Swift 6` |
-| `fix` | Bug fix | Patch version bump (x.y.Z) | `fix(app): resolve crash when opening projects` |
-| `docs` | Documentation changes | No release | `docs: update installation guide` |
-| `style` | Code style changes | No release | `style: format code with swiftformat` |
-| `refactor` | Code refactoring | No release | `refactor(server): simplify auth logic` |
-| `perf` | Performance improvements | Patch version bump | `perf(cli): optimize dependency resolution` |
-| `test` | Test additions/changes | No release | `test: add unit tests for cache` |
-| `chore` | Maintenance tasks | No release | `chore: update dependencies` |
-| `ci` | CI/CD changes | No release | `ci: add workflow for releases` |
+| Type       | Description               | Version Impact             | Example                                         |
+| ---------- | ------------------------- | -------------------------- | ----------------------------------------------- |
+| `feat`     | New feature or capability | Minor version bump (x.Y.z) | `feat(cli): add support for Swift 6`            |
+| `fix`      | Bug fix                   | Patch version bump (x.y.Z) | `fix(app): resolve crash when opening projects` |
+| `docs`     | Documentation changes     | No release                 | `docs: update installation guide`               |
+| `style`    | Code style changes        | No release                 | `style: format code with swiftformat`           |
+| `refactor` | Code refactoring          | No release                 | `refactor(server): simplify auth logic`         |
+| `perf`     | Performance improvements  | Patch version bump         | `perf(cli): optimize dependency resolution`     |
+| `test`     | Test additions/changes    | No release                 | `test: add unit tests for cache`                |
+| `chore`    | Maintenance tasks         | No release                 | `chore: update dependencies`                    |
+| `ci`       | CI/CD changes             | No release                 | `ci: add workflow for releases`                 |
 
 #### Breaking changes
 
-Breaking changes trigger a major version bump (X.0.0) and should be indicated in the commit body:
+Breaking changes trigger a major version bump (X.0.0) and should be indicated in
+the commit body:
 
 ```
 feat(cli): change default cache location
@@ -67,7 +75,8 @@ When releasable changes are detected:
 2. **Changelog generation**: git cliff creates a changelog from commit messages
 3. **Build process**: The component is built and tested
 4. **Release creation**: A GitHub release is created with artifacts
-5. **Distribution**: Updates are pushed to package managers (e.g., Homebrew for CLI)
+5. **Distribution**: Updates are pushed to package managers (e.g., Homebrew for
+   CLI)
 
 ### 4. Scope filtering
 
@@ -79,13 +88,15 @@ Each component only releases when it has relevant changes:
 
 ## Writing good commit messages
 
-Since commit messages directly influence release notes, it's important to write clear, descriptive messages:
+Since commit messages directly influence release notes, it's important to write
+clear, descriptive messages:
 
 ### Do:
 - Use present tense: "add feature" not "added feature"
 - Be concise but descriptive
 - Include the scope when changes are component-specific
-- Reference issues when applicable: `fix(cli): resolve build cache issue (#1234)`
+- Reference issues when applicable: `fix(cli): resolve build cache issue
+  (#1234)`
 
 ### Don't:
 - Use vague messages like "fix bug" or "update code"
@@ -149,12 +160,19 @@ For urgent fixes that need immediate release:
 
 ## App Store release
 
-While the CLI and Server follow the continuous release process described above, the **iOS app** is an exception due to Apple's App Store review process:
+While the CLI and Server follow the continuous release process described above,
+the **iOS app** is an exception due to Apple's App Store review process:
 
-- **Manual releases**: iOS app releases require manual submission to the App Store
-- **Review delays**: Each release must go through Apple's review process, which can take 1-7 days
-- **Batched changes**: Multiple changes are typically bundled together in each iOS release
-- **TestFlight**: Beta versions may be distributed via TestFlight before App Store release
+- **Manual releases**: iOS app releases require manual submission to the App
+  Store
+- **Review delays**: Each release must go through Apple's review process, which
+  can take 1-7 days
+- **Batched changes**: Multiple changes are typically bundled together in each
+  iOS release
+- **TestFlight**: Beta versions may be distributed via TestFlight before App
+  Store release
 - **Release notes**: Must be written specifically for App Store guidelines
 
-The iOS app still follows the same commit conventions and uses git cliff for changelog generation, but the actual release to users happens on a less frequent, manual schedule.
+The iOS app still follows the same commit conventions and uses git cliff for
+changelog generation, but the actual release to users happens on a less
+frequent, manual schedule.
