@@ -36,7 +36,9 @@ events, page views, and user journeys.
 
 ::: info ANALYTICS ENABLEMENT
 <!-- -->
-Analytics are only enabled when both `TUIST_POSTHOG_API_KEY` and `TUIST_POSTHOG_URL` are configured. If either variable is missing, no analytics events will be sent.
+Analytics are only enabled when both `TUIST_POSTHOG_API_KEY` and
+`TUIST_POSTHOG_URL` are configured. If either variable is missing, no analytics
+events will be sent.
 <!-- -->
 :::
 
@@ -168,7 +170,8 @@ s3).
 
 ::: tip
 <!-- -->
-These metrics are useful to understand the performance of the storage operations and to identify potential bottlenecks.
+These metrics are useful to understand the performance of the storage operations
+and to identify potential bottlenecks.
 <!-- -->
 :::
 
