@@ -5,7 +5,7 @@
   "description": "Learn how to add dependencies to your first Swift project"
 }
 ---
-# Add dependencies {#add-dependencies}
+# Añadir dependencias {#add-dependencies}
 
 It's common for projects to depend on third-party libraries to provide
 additional functionality. To do so, run the following command to have the best
