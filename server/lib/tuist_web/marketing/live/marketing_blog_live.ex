@@ -10,6 +10,7 @@ defmodule TuistWeb.Marketing.MarketingBlogLive do
     posts = Blog.get_posts()
     categories = Blog.get_categories()
     highlighted_posts = posts |> Enum.filter(& &1.highlighted) |> Enum.take(5)
+    highlighted_post = List.first(posts)
     category = Map.get(params, "category")
     posts = if is_nil(category), do: posts, else: Enum.filter(posts, &(&1.category == category))
 
@@ -17,6 +18,7 @@ defmodule TuistWeb.Marketing.MarketingBlogLive do
       socket
       |> assign(:posts, posts)
       |> assign(:highlighted_posts, highlighted_posts)
+      |> assign(:highlighted_post, highlighted_post)
       |> assign(:categories, categories)
       |> attach_hook(:assign_current_path, :handle_params, fn _params, url, socket ->
         uri = URI.parse(url)
