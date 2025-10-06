@@ -717,6 +717,7 @@
       & > [data-part="column"] {
         display: flex;
         flex-direction: column;
+        flex: 1;
 
         &:not(:first-child) {
           border-left: 1px solid rgba(183, 183, 183, 0.4);
@@ -756,11 +757,14 @@
           }
 
           & > [data-part="main"] {
+            flex: 1;
             display: flex;
             flex-direction: column;
+            justify-content: space-between;
             gap: var(--noora-spacing-13);
 
             & > [data-part="quote"] {
+              flex: 1;
               color: var(--noora-surface-label-primary);
               font-family: var(--noora-font-heading);
               font: var(--noora-font-weight-semibold) var(--noora-font-heading-small);
