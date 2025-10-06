@@ -94,15 +94,15 @@ final class TargetScriptManifestMapperTests: TuistUnitTestCase {
         XCTAssertEqual(model.order, .pre)
         XCTAssertEqual(
             model.inputFileListPaths,
-            [temporaryPath.appending(try RelativePath(validating: "$(SRCROOT)/foo/bar/**/*.swift")).pathString]
+            ["$(SRCROOT)/foo/bar/**/*.swift"]
         )
         XCTAssertEqual(
             model.outputPaths,
-            [temporaryPath.appending(try RelativePath(validating: "$(SRCROOT)/foo/bar/**/*.swift")).pathString]
+            ["$(SRCROOT)/foo/bar/**/*.swift"]
         )
         XCTAssertEqual(
             model.outputFileListPaths,
-            [temporaryPath.appending(try RelativePath(validating: "$(SRCROOT)/foo/bar/**/*.swift")).pathString]
+            ["$(SRCROOT)/foo/bar/**/*.swift"]
         )
     }
 
@@ -142,15 +142,15 @@ final class TargetScriptManifestMapperTests: TuistUnitTestCase {
         XCTAssertEqual(model.order, .pre)
         XCTAssertEqual(
             model.inputFileListPaths,
-            [temporaryPath.appending(try RelativePath(validating: "foo/bar/inputPathList1.swift")).pathString]
+            ["foo/bar/inputPathList1.swift"]
         )
         XCTAssertEqual(
             model.outputPaths,
-            [temporaryPath.appending(try RelativePath(validating: "foo/bar/outputPath1.swift")).pathString]
+            ["foo/bar/outputPath1.swift"]
         )
         XCTAssertEqual(
             model.outputFileListPaths,
-            [temporaryPath.appending(try RelativePath(validating: "foo/bar/outputPathList1.swift")).pathString]
+            ["foo/bar/outputPathList1.swift"]
         )
     }
 
@@ -211,15 +211,64 @@ final class TargetScriptManifestMapperTests: TuistUnitTestCase {
         XCTAssertEqual(model.order, .pre)
         XCTAssertEqual(
             model.inputFileListPaths,
-            [temporaryPath.appending(try RelativePath(validating: "$(SRCROOT)/foo/bar/**/*.swift")).pathString]
+            ["$(SRCROOT)/foo/bar/**/*.swift"]
         )
         XCTAssertEqual(
             model.outputPaths,
-            [temporaryPath.appending(try RelativePath(validating: "$(SRCROOT)/foo/bar/**/*.swift")).pathString]
+            ["$(SRCROOT)/foo/bar/**/*.swift"]
         )
         XCTAssertEqual(
             model.outputFileListPaths,
-            [temporaryPath.appending(try RelativePath(validating: "$(SRCROOT)/foo/bar/**/*.swift")).pathString]
+            ["$(SRCROOT)/foo/bar/**/*.swift"]
         )
+    }
+
+    func test_relativeToManifest_paths_are_kept_as_strings() async throws {
+        // Given
+        let temporaryPath = try temporaryPath()
+        let rootDirectory = temporaryPath
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryPath,
+            rootDirectory: rootDirectory
+        )
+
+        let manifest = ProjectDescription.TargetScript.test(
+            name: "TestScript",
+            tool: "my_tool",
+            order: .pre,
+            arguments: ["arg1"],
+            inputPaths: [],
+            inputFileListPaths: [
+                .relativeToManifest("relative/to/manifest.txt"),
+                .relativeToRoot("relative/to/root.txt"),
+            ],
+            outputPaths: [
+                .relativeToManifest("output/manifest.txt"),
+                .relativeToRoot("output/root.txt"),
+            ],
+            outputFileListPaths: [
+                .relativeToManifest("output_list/manifest.txt"),
+            ]
+        )
+
+        // When
+        let model = try await XcodeGraph.TargetScript.from(
+            manifest: manifest,
+            generatorPaths: generatorPaths,
+            fileSystem: fileSystem
+        )
+
+        // Then
+        // relativeToManifest paths should be kept as strings
+        XCTAssertTrue(model.inputFileListPaths.contains("relative/to/manifest.txt"))
+        XCTAssertTrue(model.outputPaths.contains("output/manifest.txt"))
+        XCTAssertTrue(model.outputFileListPaths.contains("output_list/manifest.txt"))
+
+        // relativeToRoot and relativeToCurrentFile should be resolved to absolute paths
+        let expectedRootPath = temporaryPath.appending(try RelativePath(validating: "relative/to/root.txt")).pathString
+        let expectedOutputRootPath = temporaryPath.appending(try RelativePath(validating: "output/root.txt")).pathString
+
+        XCTAssertTrue(model.inputFileListPaths.contains(expectedRootPath))
+        XCTAssertTrue(model.outputPaths.contains(expectedOutputRootPath))
     }
 }
