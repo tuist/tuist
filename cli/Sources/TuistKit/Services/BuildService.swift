@@ -64,6 +64,7 @@ public final class BuildService {
         generator _: ((Tuist) throws -> Generating)? = nil,
         passthroughXcodeBuildArguments: [String]
     ) async throws {
+        AlertController.current.warning(.alert("'tuist build' is deprecated in favor of \(.command("tuist build"))", takeaway: "Run \(.command("tuist generate")) and then build the generated project using the xcodebuild wrapper \(.command("tuist xcodebuild build"))"))
         let graph: Graph
         let config = try await configLoader.loadConfig(path: path)
             .assertingIsGeneratedProjectOrSwiftPackage(
