@@ -303,6 +303,40 @@ jobs:
   #         else
   #           echo "✅ Generated OpenAPI spec is up-to-date"
   #         fi
+  gettext:
+    name: Gettext
+    runs-on: namespace-profile-default
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore Mix Cache
+        uses: actions/cache@v4
+        id: mix-cache
+        with:
+          path: |
+            deps
+            _build
+            _site
+          key: mix-${{ hashFiles('mix.lock') }}
+      - name: Restore PNPM Cache
+        uses: actions/cache@v4
+        id: pnpm-cache
+        with:
+          path: |
+            ~/.pnpm/store
+          key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
+      - run: mise run install
+      - name: Check gettext template is up-to-date
+        run: |
+          if ! mix gettext.extract --check-up-to-date; then
+            echo "::error title=Gettext template out of sync::The gettext template file (default.pot) is not up-to-date. Please run 'mix gettext.extract' in the server directory and commit the changes."
+            exit 1
+          else
+            echo "✅ Gettext template file is up-to-date"
+          fi
   seed:
     name: Seed
     runs-on: namespace-profile-default
