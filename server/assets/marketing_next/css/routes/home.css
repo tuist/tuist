@@ -716,8 +716,8 @@
 
       & > [data-part="column"] {
         display: flex;
-        flex-direction: column;
         flex: 1;
+        flex-direction: column;
 
         &:not(:first-child) {
           border-left: 1px solid rgba(183, 183, 183, 0.4);
@@ -757,8 +757,8 @@
           }
 
           & > [data-part="main"] {
-            flex: 1;
             display: flex;
+            flex: 1;
             flex-direction: column;
             justify-content: space-between;
             gap: var(--noora-spacing-13);
