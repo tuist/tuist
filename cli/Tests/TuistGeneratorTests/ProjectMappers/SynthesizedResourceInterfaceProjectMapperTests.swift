@@ -415,7 +415,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
                         BuildableFolderFile(path: otfFont, compilerFlags: nil),
                         BuildableFolderFile(path: ttcFont, compilerFlags: nil),
                         BuildableFolderFile(path: lottieFile, compilerFlags: nil),
-                    ])
+                    ]),
                 ]
             )
 
