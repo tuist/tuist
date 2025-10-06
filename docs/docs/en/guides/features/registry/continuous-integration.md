@@ -7,7 +7,15 @@
 ---
 # Continuous Integration (CI) {#continuous-integration-ci}
 
-To use the registry on your CI, you need to ensure that you have logged in to the registry by running `tuist registry login` as part of your workflow.
+The setup for CI depends on whether you're using authenticated or unauthenticated access to the registry.
+
+## Unauthenticated Access {#unauthenticated-access}
+
+If you're using unauthenticated access (the default mode), no special CI setup is required. Simply ensure your registry configuration file (`.swiftpm/configuration/registries.json`) is committed to your repository. The registry will work automatically in CI with standard rate limits.
+
+## Authenticated Access {#authenticated-access}
+
+If you're using authenticated access for higher rate limits, you need to ensure that you have logged in to the registry by running `tuist registry login` as part of your workflow.
 
 ::: info ONLY XCODE INTEGRATION
 <!-- -->

@@ -58,6 +58,10 @@ defmodule TuistWeb.Plugs.LoaderPlug do
     end
   end
 
+  def call(%{path_params: path_params} = conn, _opts) when path_params == %{} do
+    conn
+  end
+
   def call(%{body_params: %{project_id: project_slug}} = conn, _opts) do
     assign_selected_project(conn, project_slug)
   end

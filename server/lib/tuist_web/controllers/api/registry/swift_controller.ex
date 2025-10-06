@@ -52,15 +52,21 @@ defmodule TuistWeb.API.Registry.SwiftController do
     end
   end
 
-  def list_releases(%{assigns: %{package: package}} = conn, %{"account_handle" => account_handle}) do
+  def list_releases(%{assigns: %{package: package}, params: params} = conn, _opts) do
+    account_handle = Map.get(params, "account_handle")
+
     payload =
       %{
         releases:
           Map.new(package.package_releases, fn %PackageRelease{version: version} ->
-            {version,
-             %{
-               url: ~p"/api/accounts/#{account_handle}/registry/swift/#{package.scope}/#{package.name}/#{version}"
-             }}
+            url =
+              if account_handle do
+                ~p"/api/accounts/#{account_handle}/registry/swift/#{package.scope}/#{package.name}/#{version}"
+              else
+                ~p"/api/registry/swift/#{package.scope}/#{package.name}/#{version}"
+              end
+
+            {version, %{url: url}}
           end)
       }
 
@@ -104,9 +110,11 @@ defmodule TuistWeb.API.Registry.SwiftController do
   end
 
   def show_package_swift(
-        %{assigns: %{package: package}, params: %{"account_handle" => account_handle}} = conn,
+        %{assigns: %{package: package}, params: params} = conn,
         %{"scope" => scope, "name" => name, "version" => version} = opts
       ) do
+    account_handle = Map.get(params, "account_handle")
+
     package_release =
       Packages.get_package_release_by_version(
         %{
@@ -131,7 +139,7 @@ defmodule TuistWeb.API.Registry.SwiftController do
 
       conn =
         if is_nil(swift_version) do
-          put_resp_header(conn, "link", alternate_manifests_link(package, package_release))
+          put_resp_header(conn, "link", alternate_manifests_link(package, package_release, account_handle))
         else
           conn
         end
@@ -147,10 +155,17 @@ defmodule TuistWeb.API.Registry.SwiftController do
         |> put_status(:not_found)
         |> json(%{})
       else
+        redirect_url =
+          if account_handle do
+            ~p"/api/accounts/#{account_handle}/registry/swift/#{scope}/#{name}/#{version}/Package.swift"
+          else
+            ~p"/api/registry/swift/#{scope}/#{name}/#{version}/Package.swift"
+          end
+
         conn
         |> put_resp_header("content-version", "1")
         |> put_status(303)
-        |> redirect(to: ~p"/api/accounts/#{account_handle}/registry/swift/#{scope}/#{name}/#{version}/Package.swift")
+        |> redirect(to: redirect_url)
         |> halt()
       end
     end
@@ -184,10 +199,14 @@ defmodule TuistWeb.API.Registry.SwiftController do
     end
   end
 
-  defp alternate_manifests_link(%Package{scope: scope, name: name}, %PackageRelease{
-         manifests: manifests,
-         version: version
-       }) do
+  defp alternate_manifests_link(
+         %Package{scope: scope, name: name},
+         %PackageRelease{
+           manifests: manifests,
+           version: version
+         },
+         account_handle
+       ) do
     manifests
     |> Enum.filter(&(not is_nil(&1.swift_version)))
     |> Enum.map_join(
@@ -197,7 +216,11 @@ defmodule TuistWeb.API.Registry.SwiftController do
            swift_tools_version: swift_tools_version
          } ->
         url =
-          ~p"/api/accounts/tuist/registry/swift/#{scope}/#{name}/#{version}/Package.swift?swift-version=#{swift_version}"
+          if account_handle do
+            ~p"/api/accounts/#{account_handle}/registry/swift/#{scope}/#{name}/#{version}/Package.swift?swift-version=#{swift_version}"
+          else
+            ~p"/api/registry/swift/#{scope}/#{name}/#{version}/Package.swift?swift-version=#{swift_version}"
+          end
 
         # This is a workaround for: https://github.com/swiftlang/swift-package-manager/pull/8188
         swift_version =
@@ -225,6 +248,7 @@ defmodule TuistWeb.API.Registry.SwiftController do
       case Authentication.authenticated_subject(conn) do
         %Project{} = project -> Map.get(project, :account)
         %AuthenticatedAccount{account: account} -> account
+        _ -> nil
       end
 
     package = Packages.get_package_by_scope_and_name(%{scope: scope, name: name})
@@ -245,10 +269,12 @@ defmodule TuistWeb.API.Registry.SwiftController do
       package_release =
         Packages.get_package_release_by_version(%{package: package, version: version})
 
-      Packages.create_package_download_event(%{
-        package_release: package_release,
-        account: account
-      })
+      if account do
+        Packages.create_package_download_event(%{
+          package_release: package_release,
+          account: account
+        })
+      end
 
       conn
       |> put_resp_header("content-version", "1")

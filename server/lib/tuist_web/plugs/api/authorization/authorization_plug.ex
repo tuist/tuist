@@ -54,27 +54,43 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
     authorize_project(conn, :cache, opts)
   end
 
-  defp authorize_account(%{assigns: %{selected_account: selected_account}} = conn, category) do
+  defp authorize_account(%{assigns: assigns} = conn, category) do
     action = get_action(conn)
+    subject = Authentication.authenticated_subject(conn)
+    selected_account = Map.get(assigns, :selected_account)
 
-    subject =
-      Authentication.authenticated_subject(conn)
+    # For registry endpoints, allow unauthenticated access if no account is selected
+    cond do
+      category == :registry and is_nil(selected_account) and is_nil(subject) ->
+        conn
 
-    if authorize(subject, action, selected_account, category) do
-      conn
-    else
-      status =
-        case category do
-          :registry -> :unauthorized
-          _ -> :forbidden
-        end
+      category == :registry and is_nil(selected_account) ->
+        conn
 
-      conn
-      |> put_status(status)
-      |> json(%{
-        message: "You are not authorized to #{Atom.to_string(action)} #{Atom.to_string(category)}"
-      })
-      |> halt()
+      is_nil(selected_account) ->
+        conn
+        |> put_status(:forbidden)
+        |> json(%{
+          message: "You are not authorized to #{Atom.to_string(action)} #{Atom.to_string(category)}"
+        })
+        |> halt()
+
+      authorize(subject, action, selected_account, category) ->
+        conn
+
+      true ->
+        status =
+          case category do
+            :registry -> :unauthorized
+            _ -> :forbidden
+          end
+
+        conn
+        |> put_status(status)
+        |> json(%{
+          message: "You are not authorized to #{Atom.to_string(action)} #{Atom.to_string(category)}"
+        })
+        |> halt()
     end
   end
 

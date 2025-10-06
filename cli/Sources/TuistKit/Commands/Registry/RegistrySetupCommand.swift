@@ -18,9 +18,16 @@ struct RegistrySetupCommand: AsyncParsableCommand {
     )
     var path: String?
 
+    @Flag(
+        name: .long,
+        help: "Set up the registry with account authentication for higher rate limits."
+    )
+    var authenticated: Bool = false
+
     func run() async throws {
         try await RegistrySetupCommandService().run(
-            path: path
+            path: path,
+            authenticated: authenticated
         )
     }
 }
