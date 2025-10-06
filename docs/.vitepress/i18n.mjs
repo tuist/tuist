@@ -4,6 +4,8 @@ import koStrings from "./strings/ko.json";
 import jaStrings from "./strings/ja.json";
 import esStrings from "./strings/es.json";
 import ptStrings from "./strings/pt.json";
+import arStrings from "./strings/ar.json";
+import plStrings from "./strings/pl.json";
 
 const strings = {
   en: enStrings,
@@ -12,6 +14,8 @@ const strings = {
   ja: jaStrings,
   es: esStrings,
   pt: ptStrings,
+  ar: arStrings,
+  pl: plStrings,
 };
 
 export function localizedString(locale, key) {
@@ -31,7 +35,10 @@ export function localizedString(locale, key) {
 
   let localizedValue = getString(strings[locale], key);
 
-  if (localizedValue === undefined && locale !== "en") {
+  if (
+    (localizedValue === undefined || localizedValue === "") &&
+    locale !== "en"
+  ) {
     localizedValue = getString(strings["en"], key);
   }
 

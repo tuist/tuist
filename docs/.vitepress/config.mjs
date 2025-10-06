@@ -10,6 +10,9 @@ import {
 import { cliSidebar } from "./data/cli.js";
 import { localizedString } from "./i18n.mjs";
 import llmstxtPlugin from "vitepress-plugin-llmstxt";
+import postcssRtlcss from "postcss-rtlcss";
+import { validateAdmonitions } from "./validate-admonitions.mjs";
+import { checkLocalePages } from "./check-locale-pages.mjs";
 
 async function themeConfig(locale) {
   const sidebar = {};
@@ -140,7 +143,9 @@ const searchOptionsLocales = {
   ja: getSearchOptionsForLocale("ja"),
   ru: getSearchOptionsForLocale("ru"),
   es: getSearchOptionsForLocale("es"),
+  ar: getSearchOptionsForLocale("ar"),
   zh: getSearchOptionsForLocale("zh"),
+  pl: getSearchOptionsForLocale("pl"),
 };
 
 export default defineConfig({
@@ -154,6 +159,16 @@ export default defineConfig({
   },
   vite: {
     plugins: [llmstxtPlugin()],
+    css: {
+      postcss: {
+        plugins: [
+          postcssRtlcss({
+            ltrPrefix: ':where([dir="ltr"])',
+            rtlPrefix: ':where([dir="rtl"])',
+          }),
+        ],
+      },
+    },
   },
   mpa: false,
   locales: {
@@ -187,10 +202,21 @@ export default defineConfig({
       lang: "pt",
       themeConfig: await themeConfig("pt"),
     },
+    ar: {
+      label: "العربية (Arabic)",
+      lang: "ar",
+      dir: "rtl",
+      themeConfig: await themeConfig("ar"),
+    },
     zh: {
       label: "中文 (Chinese)",
       lang: "zh",
       themeConfig: await themeConfig("zh"),
+    },
+    pl: {
+      label: "Polski (Polish)",
+      lang: "pl",
+      themeConfig: await themeConfig("pl"),
     },
   },
   cleanUrls: true,
@@ -257,6 +283,12 @@ export default defineConfig({
     hostname: "https://docs.tuist.io",
   },
   async buildEnd({ outDir }) {
+    // Run validations in parallel
+    await Promise.all([
+      validateAdmonitions(outDir),
+      checkLocalePages(outDir)
+    ]);
+
     // Copy functions directory to dist
     const functionsSource = path.join(path.dirname(outDir), "functions");
     const functionsDest = path.join(outDir, "functions");

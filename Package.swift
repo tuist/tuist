@@ -637,7 +637,7 @@ let package = Package(
         .package(url: "https://github.com/SwiftyJSON/SwiftyJSON", .upToNextMajor(from: "5.0.2")),
         .package(
             url: "https://github.com/tuist/Rosalind",
-            .upToNextMajor(from: "0.5.108")
+            .upToNextMajor(from: "0.6.0")
         ),
         .package(url: "https://github.com/kean/Nuke", .upToNextMajor(from: "12.8.0")),
         .package(url: "https://github.com/leif-ibsen/SwiftECC", exact: "5.5.0"),

@@ -1325,6 +1325,18 @@ public enum Components {
                 ///
                 /// - Remark: Generated from `#/components/schemas/BundleRequest/bundle/supported_platforms`.
                 public var supported_platforms: [Components.Schemas.BundleSupportedPlatform]
+                /// The type of the bundle
+                ///
+                /// - Remark: Generated from `#/components/schemas/BundleRequest/bundle/type`.
+                @frozen public enum _typePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case ipa = "ipa"
+                    case app = "app"
+                    case xcarchive = "xcarchive"
+                }
+                /// The type of the bundle
+                ///
+                /// - Remark: Generated from `#/components/schemas/BundleRequest/bundle/type`.
+                public var _type: Components.Schemas.BundleRequest.bundlePayload._typePayload
                 /// The version of the bundle
                 ///
                 /// - Remark: Generated from `#/components/schemas/BundleRequest/bundle/version`.
@@ -1341,6 +1353,7 @@ public enum Components {
                 ///   - install_size: The bundle install size in bytes
                 ///   - name: The name of the bundle
                 ///   - supported_platforms: List of supported platforms
+                ///   - _type: The type of the bundle
                 ///   - version: The version of the bundle
                 public init(
                     app_bundle_id: Swift.String,
@@ -1352,6 +1365,7 @@ public enum Components {
                     install_size: Swift.Int,
                     name: Swift.String,
                     supported_platforms: [Components.Schemas.BundleSupportedPlatform],
+                    _type: Components.Schemas.BundleRequest.bundlePayload._typePayload,
                     version: Swift.String
                 ) {
                     self.app_bundle_id = app_bundle_id
@@ -1363,6 +1377,7 @@ public enum Components {
                     self.install_size = install_size
                     self.name = name
                     self.supported_platforms = supported_platforms
+                    self._type = _type
                     self.version = version
                 }
                 public enum CodingKeys: String, CodingKey {
@@ -1375,6 +1390,7 @@ public enum Components {
                     case install_size
                     case name
                     case supported_platforms
+                    case _type = "type"
                     case version
                 }
             }
@@ -6828,28 +6844,28 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page`.
                 public var page: Swift.Int?
-                /// Filter bundles by git branch.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/git_branch`.
-                public var git_branch: Swift.String?
                 /// Number of items per page.
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page_size`.
                 public var page_size: Swift.Int?
+                /// Filter bundles by git branch.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/git_branch`.
+                public var git_branch: Swift.String?
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
                 ///   - page: Page number for pagination.
-                ///   - git_branch: Filter bundles by git branch.
                 ///   - page_size: Number of items per page.
+                ///   - git_branch: Filter bundles by git branch.
                 public init(
                     page: Swift.Int? = nil,
-                    git_branch: Swift.String? = nil,
-                    page_size: Swift.Int? = nil
+                    page_size: Swift.Int? = nil,
+                    git_branch: Swift.String? = nil
                 ) {
                     self.page = page
-                    self.git_branch = git_branch
                     self.page_size = page_size
+                    self.git_branch = git_branch
                 }
             }
             public var query: Operations.listBundles.Input.Query
@@ -7176,6 +7192,18 @@ public enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/requestBody/json/bundle/supported_platforms`.
                         public var supported_platforms: [Components.Schemas.BundleSupportedPlatform]
+                        /// The type of the bundle
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/requestBody/json/bundle/type`.
+                        @frozen public enum _typePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                            case ipa = "ipa"
+                            case app = "app"
+                            case xcarchive = "xcarchive"
+                        }
+                        /// The type of the bundle
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/requestBody/json/bundle/type`.
+                        public var _type: Operations.createBundle.Input.Body.jsonPayload.bundlePayload._typePayload
                         /// The version of the bundle
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/requestBody/json/bundle/version`.
@@ -7192,6 +7220,7 @@ public enum Operations {
                         ///   - install_size: The bundle install size in bytes
                         ///   - name: The name of the bundle
                         ///   - supported_platforms: List of supported platforms
+                        ///   - _type: The type of the bundle
                         ///   - version: The version of the bundle
                         public init(
                             app_bundle_id: Swift.String,
@@ -7203,6 +7232,7 @@ public enum Operations {
                             install_size: Swift.Int,
                             name: Swift.String,
                             supported_platforms: [Components.Schemas.BundleSupportedPlatform],
+                            _type: Operations.createBundle.Input.Body.jsonPayload.bundlePayload._typePayload,
                             version: Swift.String
                         ) {
                             self.app_bundle_id = app_bundle_id
@@ -7214,6 +7244,7 @@ public enum Operations {
                             self.install_size = install_size
                             self.name = name
                             self.supported_platforms = supported_platforms
+                            self._type = _type
                             self.version = version
                         }
                         public enum CodingKeys: String, CodingKey {
@@ -7226,6 +7257,7 @@ public enum Operations {
                             case install_size
                             case name
                             case supported_platforms
+                            case _type = "type"
                             case version
                         }
                     }
