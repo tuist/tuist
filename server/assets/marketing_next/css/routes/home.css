@@ -2,7 +2,7 @@
   display: flex;
   flex-direction: column;
   justify-content: center;
-  align-items: center;
+  align-items: stretch;
   gap: var(--noora-spacing-11);
 
   & > [data-part="container"] {
@@ -707,11 +707,37 @@
         display: flex;
         flex-direction: column;
 
+        &:not(:first-child) {
+          border-left: 1px solid rgba(183, 183, 183, 0.4);
+          padding-left: var(--noora-spacing-5);
+        }
+
+        &:not(:last-child) {
+          padding-right: var(--noora-spacing-5);
+        }
+
         & > [data-part="testimonial"] {
+          display: flex;
+          flex: 1;
+          flex-direction: column;
           justify-content: space-between;
           align-items: stretch;
           gap: var(--noora-spacing-13);
           padding: var(--noora-spacing-8);
+
+          &:not(:first-child) {
+            margin-top: var(--noora-spacing-5);
+            margin-right: calc(-1 * var(--noora-spacing-5));
+            margin-left: calc(-1 * var(--noora-spacing-5));
+            border-top: 1px solid rgba(183, 183, 183, 0.4);
+            padding-top: calc(var(--noora-spacing-8) + var(--noora-spacing-5));
+            padding-right: var(--noora-spacing-8);
+            padding-left: var(--noora-spacing-8);
+          }
+
+          &:has([data-part="logo"]) {
+            flex: 2;
+          }
 
           & > [data-part="logo"] {
             align-self: flex-start;
@@ -719,6 +745,10 @@
           }
 
           & > [data-part="main"] {
+            display: flex;
+            flex-direction: column;
+            gap: var(--noora-spacing-13);
+
             & > [data-part="quote"] {
               color: var(--noora-surface-label-primary);
               font-family: var(--noora-font-heading);
@@ -753,13 +783,14 @@
                 }
               }
             }
+          }
         }
       }
     }
   }
 
   & > [data-part="cta"] {
-    align-self: stretch;
+    padding-top: var(--noora-spacing-14);
     padding-right: var(--noora-spacing-14);
     padding-left: var(--noora-spacing-14);
   }
