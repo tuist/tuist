@@ -1,7 +1,15 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.82.0<!-- RELEASE NOTES START -->
+## What's Changed in 4.82.2<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* don't convert script input and output file list paths relative to manifest paths or with build variables to absolute by [@fortmarek](https://github.com/fortmarek) in [#8397](https://github.com/tuist/tuist/pull/8397)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.82.1...4.82.2
+
+## What's Changed in 4.82.1<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
 
@@ -16,7 +24,7 @@ All notable changes to this project will be documented in this file.
 * [@Monsteel](https://github.com/Monsteel) made their first contribution in [#8369](https://github.com/tuist/tuist/pull/8369)
 * [@skalinina](https://github.com/skalinina) made their first contribution in [#8373](https://github.com/tuist/tuist/pull/8373)
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.81.0...4.82.0
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.81.0...4.82.1
 
 ## What's Changed in 4.81.0<!-- RELEASE NOTES START -->
 
