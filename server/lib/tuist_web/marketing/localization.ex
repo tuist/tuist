@@ -10,7 +10,7 @@ defmodule TuistWeb.Marketing.Localization do
 
   import Plug.Conn
 
-  @additional_locales ["ko", "ja"]
+  @additional_locales ["ko", "ja", "ru", "es", "pt", "ar", "zh", "pl"]
 
   def init(:put_locale), do: :put_locale
   def init(:redirect_to_localized_route), do: :redirect_to_localized_route
@@ -26,7 +26,13 @@ defmodule TuistWeb.Marketing.Localization do
     else
       Gettext.put_locale(locale)
 
-      put_session(conn, :locale, locale)
+      conn
+      |> put_session(:locale, locale)
+      |> put_resp_cookie("user_locale_preference", locale,
+        max_age: 60 * 60 * 24 * 365,
+        http_only: true,
+        same_site: "Lax"
+      )
     end
   end
 
@@ -34,11 +40,21 @@ defmodule TuistWeb.Marketing.Localization do
     private_locale = Map.get(conn.private, :locale, "en")
     headers_locale = fetch_locale_from_headers(conn) || "en"
 
+    # Check if user has explicitly disabled redirect via query param or cookie
     disable_locale_redirect =
-      Map.get(conn.query_params, "disable_locale_redirect", "false") == "true"
+      Map.get(conn.query_params, "disable_locale_redirect", "false") == "true" or
+        has_user_locale_preference?(conn)
 
-    if Enum.member?(all_locales(), headers_locale) and private_locale != headers_locale and
-         !disable_locale_redirect do
+    # Only redirect when:
+    # 1. User is on English pages (private_locale == "en")
+    # 2. Browser language is a different supported locale
+    # 3. Redirect is not disabled (no query param or user preference)
+    should_redirect =
+      private_locale == "en" and
+        Enum.member?(additional_locales(), headers_locale) and
+        !disable_locale_redirect
+
+    if should_redirect do
       redirect_to_path =
         Path.join(
           locale_path_prefix(headers_locale),
@@ -62,8 +78,18 @@ defmodule TuistWeb.Marketing.Localization do
 
   def path_without_locale(path) do
     Enum.reduce(all_locales(), path, fn locale, acc ->
-      prefix = "^" <> Regex.escape(locale_path_prefix(locale)) <> "/"
-      Regex.replace(~r/#{prefix}/, acc, "/")
+      # For marketing URLs, English uses "/" as prefix
+      # For docs URLs, we need to handle "/en/" explicitly
+      locale_prefix = if locale == "en", do: "/en", else: locale_path_prefix(locale)
+
+      # Handle paths like /ko/ or /ko/pricing using regex
+      if String.contains?(acc, "/") do
+        prefix = "^" <> Regex.escape(locale_prefix) <> "(?=/|$)"
+        result = Regex.replace(~r/#{prefix}/, acc, "")
+        if result == "", do: "/", else: result
+      else
+        acc
+      end
     end)
   end
 
@@ -126,5 +152,90 @@ defmodule TuistWeb.Marketing.Localization do
           locale
         end
     end
+  end
+
+  defp has_user_locale_preference?(conn) do
+    # Check if user has a locale preference cookie set
+    # This cookie is set when user explicitly switches language
+    case Map.get(conn.req_cookies, "user_locale_preference") do
+      nil -> false
+      _value -> true
+    end
+  end
+
+  @doc """
+  Localizes a URL path based on the current locale.
+
+  For docs.tuist.dev URLs, inserts locale after domain (or replaces existing locale).
+  For relative marketing URLs, prepends locale (except for English which has no prefix).
+  External URLs that are not docs.tuist.dev are returned as-is.
+  """
+  def localized_href(href) do
+    locale = Gettext.get_locale(TuistWeb.Gettext)
+    localized_href(href, locale)
+  end
+
+  @doc """
+  Localizes a URL path to a specific target locale.
+
+  For docs.tuist.dev URLs, inserts locale after domain (or replaces existing locale).
+  For relative marketing URLs, prepends locale (except for English which has no prefix).
+  External URLs that are not docs.tuist.dev are returned as-is.
+  """
+  def localized_href(href, target_locale) do
+    uri = URI.parse(href)
+
+    cond do
+      # Handle non-http(s) schemes (mailto, tel, etc.)
+      not is_nil(uri.scheme) and uri.scheme not in ["http", "https"] ->
+        href
+
+      # Handle docs.tuist.dev URLs
+      uri.host == "docs.tuist.dev" ->
+        clean_path = path_without_locale(uri.path || "/")
+        localized_path = "/#{target_locale}#{clean_path}"
+
+        uri
+        |> Map.put(:path, localized_path)
+        |> URI.to_string()
+
+      # Handle relative marketing URLs (no host and no scheme means relative)
+      is_nil(uri.host) and is_nil(uri.scheme) and not is_nil(uri.path) ->
+        if target_locale == "en" do
+          # For English, remove any locale prefix
+          path_without_locale = path_without_locale(uri.path)
+
+          uri
+          |> Map.put(:path, path_without_locale)
+          |> URI.to_string()
+        else
+          # Remove any existing locale prefix first
+          path_without_locale = path_without_locale(uri.path)
+
+          # Build the localized path
+          localized_path =
+            if path_without_locale == "/" do
+              locale_path_prefix(target_locale)
+            else
+              locale_path_prefix(target_locale) <> path_without_locale
+            end
+
+          uri
+          |> Map.put(:path, localized_path)
+          |> URI.to_string()
+        end
+
+      # Return as-is for other external URLs
+      true ->
+        href
+    end
+  end
+
+  @doc """
+  Returns the current path from the connection, suitable for use in language switchers.
+  Gets the path from conn.assigns.current_path or falls back to conn.request_path.
+  """
+  def current_path(assigns) do
+    Map.get(assigns, :current_path, "/")
   end
 end
