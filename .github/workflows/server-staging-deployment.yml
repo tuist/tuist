@@ -50,11 +50,3 @@ jobs:
       - name: Trigger canary deploy with Render CLI
         run: |
           mise exec "github:render-oss/cli@2.2.0" -- cli_v2.2.0 deploys create srv-d35uk7pr0fns73bg0gq0 --output json --confirm --wait --commit "$GITHUB_SHA"
-      - name: Notify about the deployment in Slack
-        uses: slackapi/slack-github-action@v2.0.0
-        with:
-          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
-          webhook-type: webhook-trigger
-          payload: |
-            commit: "${{ github.sha }}"
-            environment: "staging"
