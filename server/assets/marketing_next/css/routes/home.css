@@ -5,7 +5,8 @@
   align-items: stretch;
   gap: var(--noora-spacing-11);
 
-  & > section {
+  & > section,
+  & > header {
     align-self: center;
     width: 100%;
     max-width: 1296px;
