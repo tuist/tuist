@@ -2932,20 +2932,20 @@ paths:
             type: string
             x-struct:
             x-validate:
-        - description: Filter bundles by git branch.
-          in: query
-          name: git_branch
-          required: false
-          schema:
-            type: string
-            x-struct:
-            x-validate:
         - description: Number of items per page.
           in: query
           name: page_size
           required: false
           schema:
             type: integer
+            x-struct:
+            x-validate:
+        - description: Filter bundles by git branch.
+          in: query
+          name: git_branch
+          required: false
+          schema:
+            type: string
             x-struct:
             x-validate:
       responses:
@@ -5429,11 +5429,6 @@ paths:
                   type: string
                   x-struct:
                   x-validate:
-                repository_url:
-                  description: The repository URL for the project.
-                  type: string
-                  x-struct:
-                  x-validate:
                 visibility:
                   description: The visibility of the project. Public projects are visible to everyone, private projects are only visible to the project's members.
                   enum:
@@ -5459,7 +5454,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: The request is invalid, for example when attempting to link the project to a repository the authenticated user doesn't have access to.
+          description: The request is invalid
         '401':
           content:
             application/json:

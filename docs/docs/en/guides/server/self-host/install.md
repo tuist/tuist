@@ -119,6 +119,7 @@ Licenses have an expiration date. Users will receive a warning while using Tuist
 | `TUIST_SECRET_KEY_ENCRYPTION` | 32-byte key for AES-GCM encryption of sensitive data | No | `$TUIST_SECRET_KEY_BASE` | |
 | `TUIST_USE_IPV6` | When `1` it configures the app to use IPv6 addresses | No | `0` | `1`|
 | `TUIST_LOG_LEVEL` | The log level to use for the app | No | `info` | [Log levels](https://hexdocs.pm/logger/1.12.3/Logger.html#module-levels) |
+| `TUIST_GITHUB_APP_NAME` | The URL version of your GitHub app name | No | | `my-app` |
 | `TUIST_GITHUB_APP_PRIVATE_KEY_BASE64` | The base64-encoded private key used for the GitHub app to unlock extra functionality such as posting automatic PR comments | No | `LS0tLS1CRUdJTiBSU0EgUFJJVkFUR...` | |
 | `TUIST_GITHUB_APP_PRIVATE_KEY` | The private key used for the GitHub app to unlock extra functionality such as posting automatic PR comments. **We recommend using the base64-encoded version instead to avoid issues with special characters** | No | `-----BEGIN RSA...` | |
 | `TUIST_OPS_USER_HANDLES` | A comma-separated list of user handles that have access to the operations URLs | No | | `user1,user2` |

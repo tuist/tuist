@@ -13,6 +13,7 @@ defmodule Tuist.Projects do
   alias Tuist.CommandEvents
   alias Tuist.Projects.Project
   alias Tuist.Projects.ProjectToken
+  alias Tuist.Projects.VCSConnection
   alias Tuist.Repo
 
   def get_projects_count do
@@ -170,9 +171,7 @@ defmodule Tuist.Projects do
       name: name,
       account_id: account_id,
       created_at: created_at,
-      visibility: visibility,
-      vcs_repository_full_handle: Keyword.get(opts, :vcs_repository_full_handle),
-      vcs_provider: Keyword.get(opts, :vcs_provider)
+      visibility: visibility
     }
     |> Project.create_changeset()
     |> Repo.insert()
@@ -191,8 +190,6 @@ defmodule Tuist.Projects do
       account_id: account_id,
       created_at: created_at,
       visibility: visibility,
-      vcs_repository_full_handle: Keyword.get(opts, :vcs_repository_full_handle),
-      vcs_provider: Keyword.get(opts, :vcs_provider),
       default_previews_visibility: Keyword.get(opts, :default_previews_visibility, :private)
     })
     |> Repo.insert!()
@@ -277,10 +274,12 @@ defmodule Tuist.Projects do
     |> Repo.update()
   end
 
-  def get_repository_url(%Project{vcs_provider: vcs_provider, vcs_repository_full_handle: vcs_repository_full_handle}) do
-    case vcs_provider do
-      :github ->
-        "https://github.com/#{vcs_repository_full_handle}"
+  def get_repository_url(%Project{} = project) do
+    project = Repo.preload(project, :vcs_connection)
+
+    case project.vcs_connection do
+      %VCSConnection{provider: :github, repository_full_handle: repository_full_handle} ->
+        "https://github.com/#{repository_full_handle}"
 
       nil ->
         nil
@@ -401,13 +400,41 @@ defmodule Tuist.Projects do
     project =
       Repo.one(
         from p in Project,
-          where: p.vcs_repository_full_handle == ^vcs_repository_full_handle,
+          join: pc in VCSConnection,
+          on: pc.project_id == p.id,
+          where: pc.repository_full_handle == ^vcs_repository_full_handle,
           preload: ^preload
       )
 
     case project do
       nil -> {:error, :not_found}
       _ -> {:ok, project}
+    end
+  end
+
+  @doc """
+  Create a new VCS connection to a repository.
+  """
+  def create_vcs_connection(attrs) do
+    %VCSConnection{}
+    |> VCSConnection.changeset(attrs)
+    |> Repo.insert()
+  end
+
+  @doc """
+  Delete a VCS connection.
+  """
+  def delete_vcs_connection(%VCSConnection{} = vcs_connection) do
+    Repo.delete(vcs_connection)
+  end
+
+  @doc """
+  Get a VCS connection by ID.
+  """
+  def get_vcs_connection(id) do
+    case Repo.get(VCSConnection, id) do
+      nil -> {:error, :not_found}
+      connection -> {:ok, connection}
     end
   end
 end

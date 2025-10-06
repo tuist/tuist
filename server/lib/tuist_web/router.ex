@@ -247,6 +247,12 @@ defmodule TuistWeb.Router do
     get "/api/docs", APIController, :docs
   end
 
+  scope "/integrations", TuistWeb do
+    pipe_through [:open_api, :browser_app]
+
+    get "/github/setup", GitHubAppSetupController, :setup
+  end
+
   scope "/.well-known", TuistWeb do
     pipe_through [:open_api, :non_authenticated_api]
 
@@ -646,6 +652,7 @@ defmodule TuistWeb.Router do
       live "/projects", ProjectsLive
       live "/members", MembersLive
       live "/billing", BillingLive
+      live "/integrations", IntegrationsLive
       live "/settings", AccountSettingsLive
     end
   end

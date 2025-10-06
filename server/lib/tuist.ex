@@ -75,6 +75,7 @@ defmodule Tuist do
       Namespace.JWTToken,
       QA,
       QA.LaunchArgumentGroup,
+      VCS.GitHubAppInstallation,
       # Support
       # -----
       # These modules represent Tuist-agnostic utilities that are used by other features.

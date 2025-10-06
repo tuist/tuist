@@ -38,9 +38,67 @@ defmodule Tuist.GitHub.Client do
   end
 
   @doc """
-  `repository_full_handle` is necessary as to interact with the user endpoint,
-  we need to be authenticated with the GitHub app installation token associated with a specific repository.
+  Lists repositories for a GitHub app installation with pagination support.
+  Returns {:ok, %{meta: %{next_url: ...}, repositories: [...]}} format similar to Flop.
   """
+  def list_installation_repositories(installation_id, opts \\ []) do
+    url = Keyword.get(opts, :next_url, "https://api.github.com/installation/repositories?per_page=100")
+
+    case App.get_installation_token(installation_id) do
+      {:ok, %{token: token}} ->
+        case Req.get(
+               url: url,
+               headers: default_headers(token),
+               finch: Tuist.Finch,
+               retry: &retry/2
+             ) do
+          {:ok, %{status: 200, body: %{"repositories" => repositories}, headers: headers}} ->
+            formatted_repos =
+              Enum.map(repositories, fn repo ->
+                %{
+                  id: repo["id"],
+                  name: repo["name"],
+                  full_name: repo["full_name"],
+                  private: repo["private"],
+                  default_branch: repo["default_branch"]
+                }
+              end)
+
+            next_url = extract_next_url(headers)
+            meta = %{next_url: next_url}
+
+            {:ok, %{meta: meta, repositories: formatted_repos}}
+
+          {:ok, %{status: _status, body: _body}} ->
+            {:error, "Failed to fetch repositories"}
+
+          {:error, reason} ->
+            {:error, "Request failed: #{inspect(reason)}"}
+        end
+
+      response ->
+        response
+    end
+  end
+
+  defp extract_next_url(headers) do
+    Enum.find_value(headers, fn
+      {"link", [link_header | _]} ->
+        parse_link_header(link_header)
+
+      _ ->
+        nil
+    end)
+  end
+
+  defp parse_link_header(link_header) do
+    # Parse GitHub's Link header format: <url>; rel="next"
+    case Regex.run(~r/<([^>]+)>;\s*rel="next"/, link_header) do
+      [_, next_url] -> next_url
+      _ -> nil
+    end
+  end
+
   def get_user_by_id(%{id: github_id, repository_full_handle: repository_full_handle}) do
     url = "https://api.github.com/user/#{github_id}"
 
