@@ -1235,6 +1235,15 @@ extension APIProtocol {
 
 /// Server URLs defined in the OpenAPI document.
 public enum Servers {
+    public enum Server1 {
+        public static func url() throws -> Foundation.URL {
+            try Foundation.URL(
+                validatingOpenAPIServerURL: "http://localhost:8080",
+                variables: []
+            )
+        }
+    }
+    @available(*, deprecated, renamed: "Servers.Server1.url")
     public static func server1() throws -> Foundation.URL {
         try Foundation.URL(
             validatingOpenAPIServerURL: "http://localhost:8080",
@@ -2953,10 +2962,10 @@ public enum Components {
             /// - Remark: Generated from `#/components/schemas/BundleArtifact/artifact_type`.
             public var artifact_type: Components.Schemas.BundleArtifact.artifact_typePayload {
                 get  {
-                    storage.value.artifact_type
+                    self.storage.value.artifact_type
                 }
                 _modify {
-                    yield &storage.value.artifact_type
+                    yield &self.storage.value.artifact_type
                 }
             }
             /// Nested child artifacts, for example for artifacts that represent a directory.
@@ -2964,10 +2973,10 @@ public enum Components {
             /// - Remark: Generated from `#/components/schemas/BundleArtifact/children`.
             public var children: [Components.Schemas.BundleArtifact]? {
                 get  {
-                    storage.value.children
+                    self.storage.value.children
                 }
                 _modify {
-                    yield &storage.value.children
+                    yield &self.storage.value.children
                 }
             }
             /// The path to the artifact relative to the root of the bundle.
@@ -2975,10 +2984,10 @@ public enum Components {
             /// - Remark: Generated from `#/components/schemas/BundleArtifact/path`.
             public var path: Swift.String {
                 get  {
-                    storage.value.path
+                    self.storage.value.path
                 }
                 _modify {
-                    yield &storage.value.path
+                    yield &self.storage.value.path
                 }
             }
             /// The SHA checksum of the artifact
@@ -2986,10 +2995,10 @@ public enum Components {
             /// - Remark: Generated from `#/components/schemas/BundleArtifact/shasum`.
             public var shasum: Swift.String {
                 get  {
-                    storage.value.shasum
+                    self.storage.value.shasum
                 }
                 _modify {
-                    yield &storage.value.shasum
+                    yield &self.storage.value.shasum
                 }
             }
             /// The size of the artifact in bytes
@@ -2997,10 +3006,10 @@ public enum Components {
             /// - Remark: Generated from `#/components/schemas/BundleArtifact/size`.
             public var size: Swift.Int {
                 get  {
-                    storage.value.size
+                    self.storage.value.size
                 }
                 _modify {
-                    yield &storage.value.size
+                    yield &self.storage.value.size
                 }
             }
             /// Creates a new `BundleArtifact`.
@@ -3018,7 +3027,7 @@ public enum Components {
                 shasum: Swift.String,
                 size: Swift.Int
             ) {
-                storage = .init(value: .init(
+                self.storage = .init(value: .init(
                     artifact_type: artifact_type,
                     children: children,
                     path: path,
@@ -3034,10 +3043,10 @@ public enum Components {
                 case size
             }
             public init(from decoder: any Decoder) throws {
-                storage = try .init(from: decoder)
+                self.storage = try .init(from: decoder)
             }
             public func encode(to encoder: any Encoder) throws {
-                try storage.encode(to: encoder)
+                try self.storage.encode(to: encoder)
             }
             /// Internal reference storage to allow type recursion.
             private var storage: OpenAPIRuntime.CopyOnWriteBox<Storage>
@@ -6555,6 +6564,14 @@ public enum Operations {
             ///
             /// HTTP response code: `204 noContent`.
             case noContent(Operations.completeAnalyticsArtifactMultipartUploadProject.Output.NoContent)
+            /// The upload has been completed
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/runs/{run_id}/complete/post(completeAnalyticsArtifactMultipartUploadProject)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            public static var noContent: Self {
+                .noContent(.init())
+            }
             /// The associated value of the enum case if `self` is `.noContent`.
             ///
             /// - Throws: An error if `self` is not `.noContent`.
@@ -10288,6 +10305,14 @@ public enum Operations {
             ///
             /// HTTP response code: `204 noContent`.
             case noContent(Operations.completeAnalyticsArtifactsUploadsProject.Output.NoContent)
+            /// The run artifact uploads were successfully finished
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/runs/{run_id}/complete_artifacts_uploads/put(completeAnalyticsArtifactsUploadsProject)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            public static var noContent: Self {
+                .noContent(.init())
+            }
             /// The associated value of the enum case if `self` is `.noContent`.
             ///
             /// - Throws: An error if `self` is not `.noContent`.
@@ -13342,6 +13367,14 @@ public enum Operations {
             ///
             /// HTTP response code: `204 noContent`.
             case noContent(Operations.deleteOrganization.Output.NoContent)
+            /// The organization was deleted
+            ///
+            /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/delete(deleteOrganization)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            public static var noContent: Self {
+                .noContent(.init())
+            }
             /// The associated value of the enum case if `self` is `.noContent`.
             ///
             /// - Throws: An error if `self` is not `.noContent`.
@@ -14956,6 +14989,14 @@ public enum Operations {
             ///
             /// HTTP response code: `204 noContent`.
             case noContent(Operations.cleanCache.Output.NoContent)
+            /// The cache has been successfully cleaned
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/clean/put(cleanCache)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            public static var noContent: Self {
+                .noContent(.init())
+            }
             /// The associated value of the enum case if `self` is `.noContent`.
             ///
             /// - Throws: An error if `self` is not `.noContent`.
@@ -15605,6 +15646,14 @@ public enum Operations {
             ///
             /// HTTP response code: `204 noContent`.
             case noContent(Operations.cancelInvitation.Output.NoContent)
+            /// The invitation was cancelled
+            ///
+            /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/invitations/delete(cancelInvitation)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            public static var noContent: Self {
+                .noContent(.init())
+            }
             /// The associated value of the enum case if `self` is `.noContent`.
             ///
             /// - Throws: An error if `self` is not `.noContent`.
@@ -16584,6 +16633,14 @@ public enum Operations {
             ///
             /// HTTP response code: `204 noContent`.
             case noContent(Operations.completeAnalyticsArtifactMultipartUpload.Output.NoContent)
+            /// The upload has been completed
+            ///
+            /// - Remark: Generated from `#/paths//api/runs/{run_id}/complete/post(completeAnalyticsArtifactMultipartUpload)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            public static var noContent: Self {
+                .noContent(.init())
+            }
             /// The associated value of the enum case if `self` is `.noContent`.
             ///
             /// - Throws: An error if `self` is not `.noContent`.
@@ -17686,6 +17743,14 @@ public enum Operations {
             ///
             /// HTTP response code: `204 noContent`.
             case noContent(Operations.deletePreview.Output.NoContent)
+            /// The preview was deleted
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/delete(deletePreview)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            public static var noContent: Self {
+                .noContent(.init())
+            }
             /// The associated value of the enum case if `self` is `.noContent`.
             ///
             /// - Throws: An error if `self` is not `.noContent`.
@@ -18440,6 +18505,14 @@ public enum Operations {
             ///
             /// HTTP response code: `204 noContent`.
             case noContent(Operations.revokeProjectToken.Output.NoContent)
+            /// The project token was revoked
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/{id}/delete(revokeProjectToken)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            public static var noContent: Self {
+                .noContent(.init())
+            }
             /// The associated value of the enum case if `self` is `.noContent`.
             ///
             /// - Throws: An error if `self` is not `.noContent`.
@@ -20966,6 +21039,14 @@ public enum Operations {
             ///
             /// HTTP response code: `204 noContent`.
             case noContent(Operations.removeOrganizationMember.Output.NoContent)
+            /// The member was removed
+            ///
+            /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/members/{user_name}/delete(removeOrganizationMember)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            public static var noContent: Self {
+                .noContent(.init())
+            }
             /// The associated value of the enum case if `self` is `.noContent`.
             ///
             /// - Throws: An error if `self` is not `.noContent`.
@@ -21916,6 +21997,14 @@ public enum Operations {
             ///
             /// HTTP response code: `204 noContent`.
             case noContent(Operations.deleteProject.Output.NoContent)
+            /// The project was successfully deleted.
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{id}/delete(deleteProject)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            public static var noContent: Self {
+                .noContent(.init())
+            }
             /// The associated value of the enum case if `self` is `.noContent`.
             ///
             /// - Throws: An error if `self` is not `.noContent`.
@@ -22539,6 +22628,14 @@ public enum Operations {
             ///
             /// HTTP response code: `204 noContent`.
             case noContent(Operations.deleteAccount.Output.NoContent)
+            /// The account was deleted
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/delete(deleteAccount)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            public static var noContent: Self {
+                .noContent(.init())
+            }
             /// The associated value of the enum case if `self` is `.noContent`.
             ///
             /// - Throws: An error if `self` is not `.noContent`.
@@ -22809,6 +22906,14 @@ public enum Operations {
             ///
             /// HTTP response code: `204 noContent`.
             case noContent(Operations.completeAnalyticsArtifactsUploads.Output.NoContent)
+            /// The run artifact uploads were successfully finished
+            ///
+            /// - Remark: Generated from `#/paths//api/runs/{run_id}/complete_artifacts_uploads/put(completeAnalyticsArtifactsUploads)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            public static var noContent: Self {
+                .noContent(.init())
+            }
             /// The associated value of the enum case if `self` is `.noContent`.
             ///
             /// - Throws: An error if `self` is not `.noContent`.
