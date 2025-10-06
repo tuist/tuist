@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import Logging
 import Mockable
@@ -14,11 +15,16 @@ public protocol TargetScriptsContentHashing {
 /// is responsible for computing a unique hash that identifies a list of target scripts
 public struct TargetScriptsContentHasher: TargetScriptsContentHashing {
     private let contentHasher: ContentHashing
+    private let fileSystem: FileSysteming
 
     // MARK: - Init
 
-    public init(contentHasher: ContentHashing) {
+    public init(
+        contentHasher: ContentHashing,
+        fileSystem: FileSysteming = FileSystem()
+    ) {
         self.contentHasher = contentHasher
+        self.fileSystem = fileSystem
     }
 
     // MARK: - TargetScriptsContentHashing
@@ -32,9 +38,23 @@ public struct TargetScriptsContentHasher: TargetScriptsContentHashing {
             var pathsToHash: [AbsolutePath] = []
             script.path.map { pathsToHash.append($0) }
 
-            var dynamicPaths = (script.inputPaths + script.inputFileListPaths)
+            var dynamicPaths = script.inputPaths
                 .compactMap { try? AbsolutePath(validating: $0) }
                 .sorted()
+
+            let fileListPaths = script.inputFileListPaths
+                .compactMap { try? AbsolutePath(validating: $0) }
+                .sorted()
+
+            for fileListPath in fileListPaths {
+                await processInputFileListPath(
+                    fileListPath,
+                    sourceRootPath: sourceRootPath,
+                    pathsToHash: &pathsToHash,
+                    stringsToHash: &stringsToHash
+                )
+            }
+
             if let dependencyFile = script.dependencyFile {
                 dynamicPaths += [dependencyFile]
             }
@@ -63,5 +83,64 @@ public struct TargetScriptsContentHasher: TargetScriptsContentHashing {
             ] + script.arguments)
         }
         return try contentHasher.hash(stringsToHash)
+    }
+
+    // MARK: - Private
+
+    private func processInputFileListPath(
+        _ fileListPath: AbsolutePath,
+        sourceRootPath: AbsolutePath,
+        pathsToHash: inout [AbsolutePath],
+        stringsToHash: inout [String]
+    ) async {
+        if fileListPath.pathString.contains("$") {
+            stringsToHash.append(fileListPath.relative(to: sourceRootPath).pathString)
+            Logger.current.notice(
+                "The path of the file \'\(fileListPath.url.lastPathComponent)\' is hashed, not the content. Because it has a build variable."
+            )
+        } else if fileListPath.extension == "xcfilelist" {
+            await processXCFileList(
+                fileListPath,
+                sourceRootPath: sourceRootPath,
+                pathsToHash: &pathsToHash,
+                stringsToHash: &stringsToHash
+            )
+        } else {
+            pathsToHash.append(fileListPath)
+        }
+    }
+
+    private func processXCFileList(
+        _ fileListPath: AbsolutePath,
+        sourceRootPath: AbsolutePath,
+        pathsToHash: inout [AbsolutePath],
+        stringsToHash: inout [String]
+    ) async {
+        do {
+            let fileListContent = try await fileSystem.readTextFile(at: fileListPath)
+            let pathStrings = fileListContent
+                .components(separatedBy: .newlines)
+                .map { $0.trimmingCharacters(in: .whitespaces) }
+                .filter { !$0.isEmpty && !$0.hasPrefix("#") }
+
+            for pathString in pathStrings {
+                if pathString.contains("$") {
+                    stringsToHash.append(pathString)
+                    Logger.current.notice(
+                        "The path '\(pathString)' is hashed, not the content. Because it has a build variable."
+                    )
+                } else if let absolutePath = try? AbsolutePath(validating: pathString) {
+                    pathsToHash.append(absolutePath)
+                } else {
+                    let resolvedPath = sourceRootPath.appending(try RelativePath(validating: pathString))
+                    pathsToHash.append(resolvedPath)
+                }
+            }
+        } catch {
+            Logger.current.warning(
+                "Failed to read .xcfilelist file at \'\(fileListPath.pathString)\': \(error). Hashing the file list path instead."
+            )
+            pathsToHash.append(fileListPath)
+        }
     }
 }

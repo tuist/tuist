@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import Mockable
 import Path
@@ -48,7 +49,7 @@ final class TargetScriptsContentHasherTests: TuistUnitTestCase {
         inputFileListPaths: [AbsolutePath] = [try! AbsolutePath(validating: "/inputFileListPaths1")],
         outputPaths: [AbsolutePath] = [try! AbsolutePath(validating: "/outputPaths1")],
         outputFileListPaths: [AbsolutePath] = [try! AbsolutePath(validating: "/outputFileListPaths1")],
-        dependencyFile: AbsolutePath = try! AbsolutePath(validating: "/dependencyFile1")
+        dependencyFile: AbsolutePath? = try! AbsolutePath(validating: "/dependencyFile1")
     ) -> TargetScript {
         TargetScript(
             name: name,
@@ -277,5 +278,119 @@ final class TargetScriptsContentHasherTests: TuistUnitTestCase {
         verify(contentHasher)
             .hash(.value(expected))
             .called(2)
+    }
+
+    func test_hash_xcfilelist_readsAndHashesReferencedFiles() async throws {
+        // Given
+        let xcfilelistPath = temporaryDirectory.path.appending(component: "input.xcfilelist")
+        let referencedFile1 = temporaryDirectory.path.appending(component: "file1.swift")
+        let referencedFile2 = temporaryDirectory.path.appending(component: "file2.swift")
+
+        try FileHandler.shared.write("", path: referencedFile1, atomically: true)
+        try FileHandler.shared.write("", path: referencedFile2, atomically: true)
+        let xcfilelistContent = """
+        \(referencedFile1.pathString)
+        \(referencedFile2.pathString)
+        """
+        try FileHandler.shared.write(xcfilelistContent, path: xcfilelistPath, atomically: true)
+
+        let referencedFile1Hash = "file1-hash"
+        let referencedFile2Hash = "file2-hash"
+        given(contentHasher)
+            .hash(path: .value(referencedFile1))
+            .willReturn(referencedFile1Hash)
+        given(contentHasher)
+            .hash(path: .value(referencedFile2))
+            .willReturn(referencedFile2Hash)
+
+        let targetScript = makeTargetScript(
+            inputPaths: [],
+            inputFileListPaths: [xcfilelistPath],
+            outputPaths: [],
+            outputFileListPaths: [],
+            dependencyFile: try AbsolutePath(validating: "/dependencyFile1")
+        )
+
+        // When
+        _ = try await subject.hash(targetScripts: [targetScript], sourceRootPath: temporaryDirectory.path)
+
+        // Then
+        verify(contentHasher)
+            .hash(path: .value(referencedFile1))
+            .called(1)
+        verify(contentHasher)
+            .hash(path: .value(referencedFile2))
+            .called(1)
+    }
+
+    func test_hash_xcfilelist_ignoresEmptyLinesAndComments() async throws {
+        // Given
+        let fileSystem = FileSystem()
+        let xcfilelistPath = temporaryDirectory.path.appending(component: "input.xcfilelist")
+        let referencedFile1 = temporaryDirectory.path.appending(component: "file1.swift")
+
+        try FileHandler.shared.write("", path: referencedFile1, atomically: true)
+        let xcfilelistContent = """
+        # This is a comment
+        \(referencedFile1.pathString)
+
+        # Another comment
+        """
+        try FileHandler.shared.write(xcfilelistContent, path: xcfilelistPath, atomically: true)
+
+        let referencedFile1Hash = "file1-hash"
+        given(contentHasher)
+            .hash(path: .value(referencedFile1))
+            .willReturn(referencedFile1Hash)
+
+        let targetScript = makeTargetScript(
+            inputPaths: [],
+            inputFileListPaths: [xcfilelistPath],
+            outputPaths: [],
+            outputFileListPaths: [],
+            dependencyFile: try AbsolutePath(validating: "/dependencyFile1")
+        )
+
+        // When
+        _ = try await subject.hash(targetScripts: [targetScript], sourceRootPath: temporaryDirectory.path)
+
+        // Then
+        verify(contentHasher)
+            .hash(path: .value(referencedFile1))
+            .called(1)
+    }
+
+    func test_hash_xcfilelist_handlesReferencedFilesWithBuildVariables() async throws {
+        // Given
+        let fileSystem = FileSystem()
+        let xcfilelistPath = temporaryDirectory.path.appending(component: "input.xcfilelist")
+        let referencedFile1 = temporaryDirectory.path.appending(component: "file1.swift")
+        try await fileSystem.touch(referencedFile1)
+        let xcfilelistContent = """
+        \(referencedFile1.pathString)
+        $(DERIVED_FILE_DIR)/generated.swift
+        """
+        try await fileSystem.writeText(xcfilelistContent, at: xcfilelistPath)
+
+        let referencedFile1Hash = "file1-hash"
+        given(contentHasher)
+            .hash(path: .value(referencedFile1))
+            .willReturn(referencedFile1Hash)
+
+        let targetScript = makeTargetScript(
+            inputPaths: [],
+            inputFileListPaths: [xcfilelistPath],
+            outputPaths: [],
+            outputFileListPaths: [],
+            dependencyFile: nil
+        )
+
+        // When
+        _ = try await subject.hash(targetScripts: [targetScript], sourceRootPath: temporaryDirectory.path)
+
+        // Then
+        verify(contentHasher)
+            .hash(path: .value(referencedFile1))
+            .called(1)
     }
 }
