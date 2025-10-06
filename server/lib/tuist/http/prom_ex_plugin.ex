@@ -41,7 +41,7 @@ defmodule Tuist.HTTP.PromExPlugin do
             measurement: :duration,
             unit: {:native, :nanosecond},
             reporter_options: [
-              buckets: exponential!(50, 2, 15)
+              buckets: exponential!(2_000_000, 2.15, 15)
             ]
           )
         ]
@@ -83,7 +83,7 @@ defmodule Tuist.HTTP.PromExPlugin do
             measurement: :duration,
             unit: {:native, :nanosecond},
             reporter_options: [
-              buckets: exponential!(50, 2, 15)
+              buckets: exponential!(2_000_000, 2.15, 15)
             ]
           ),
           distribution(
@@ -95,7 +95,7 @@ defmodule Tuist.HTTP.PromExPlugin do
             measurement: :idle_time,
             unit: {:native, :nanosecond},
             reporter_options: [
-              buckets: exponential!(50, 2, 15)
+              buckets: exponential!(2_000_000, 2.15, 15)
             ]
           )
         ]
@@ -125,7 +125,7 @@ defmodule Tuist.HTTP.PromExPlugin do
             measurement: :duration,
             unit: {:native, :nanosecond},
             reporter_options: [
-              buckets: exponential!(50, 2, 15)
+              buckets: exponential!(2_000_000, 2.15, 15)
             ]
           )
         ]
@@ -158,7 +158,7 @@ defmodule Tuist.HTTP.PromExPlugin do
             measurement: :duration,
             unit: {:native, :nanosecond},
             reporter_options: [
-              buckets: exponential!(50, 2, 15)
+              buckets: exponential!(2_000_000, 2.15, 15)
             ]
           )
         ]
@@ -191,7 +191,7 @@ defmodule Tuist.HTTP.PromExPlugin do
             measurement: :duration,
             unit: {:native, :nanosecond},
             reporter_options: [
-              buckets: exponential!(50, 2, 15)
+              buckets: exponential!(2_000_000, 2.15, 15)
             ]
           )
         ]
