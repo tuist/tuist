@@ -668,6 +668,96 @@
     }
   }
 
+  & > [data-part="testimonials"] {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding-top: var(--noora-spacing-12);
+    padding-right: var(--noora-spacing-14);
+    padding-left: var(--noora-spacing-14);
+
+    & > [data-part="header"] {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: var(--noora-spacing-6);
+
+      & > [data-part="title"] {
+        color: var(--noora-surface-label-primary);
+        font-family: var(--noora-font-heading);
+        font: var(--noora-font-weight-medium) var(--noora-font-heading-xlarge);
+      }
+
+      & > [data-part="subtitle"] {
+        color: var(--noora-surface-label-primary);
+        font-family: var(--noora-font-body);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+      }
+
+      & > [data-part="actions"] {
+        gap: var(--noora-spacing-4);
+      }
+    }
+
+    & > [data-part="main"] {
+      display: flex;
+      flex-direction: row;
+
+      & > [data-part="column"] {
+        display: flex;
+        flex-direction: column;
+
+        & > [data-part="testimonial"] {
+          justify-content: space-between;
+          align-items: stretch;
+          gap: var(--noora-spacing-13);
+          padding: var(--noora-spacing-8);
+
+          & > [data-part="logo"] {
+            align-self: flex-start;
+            color: var(--noora-surface-label-secondary);
+          }
+
+          & > [data-part="main"] {
+            & > [data-part="quote"] {
+              color: var(--noora-surface-label-primary);
+              font-family: var(--noora-font-heading);
+              font: var(--noora-font-weight-semibold) var(--noora-font-heading-small);
+            }
+
+            & > [data-part="person"] {
+              display: flex;
+              flex-direction: row;
+              justify-content: space-between;
+
+              & > [data-part="avatar"] {
+                border-radius: var(--noora-radius-large);
+                width: 40px;
+                height: 40px;
+              }
+
+              & > [data-part="details"] {
+                display: flex;
+                flex-direction: column;
+                gap: var(--noora-spacing-3);
+
+                & > [data-part="name"] {
+                  color: var(--noora-surface-label-primary);
+                  font-family: var(--noora-font-body);
+                  font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+                }
+                & > [data-part="role"] {
+                  color: var(--noora-surface-label-secondary);
+                  font-family: var(--noora-font-body);
+                  font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+                }
+              }
+            }
+        }
+      }
+    }
+  }
+
   & > [data-part="cta"] {
     align-self: stretch;
     padding-right: var(--noora-spacing-14);
