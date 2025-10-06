@@ -9,6 +9,9 @@ defmodule TuistWeb.Marketing.MarketingHTML do
 
   embed_templates "marketing_html/*"
 
+  # Delegate to Localization module
+  defdelegate localized_href(href), to: TuistWeb.Marketing.Localization
+
   attr :title, :string, required: true
   attr :primary_action_title, :string, required: false
   attr :primary_action_href, :string, required: false
@@ -18,14 +21,16 @@ defmodule TuistWeb.Marketing.MarketingHTML do
   attr :secondary_action_target, :string, default: "_blank"
 
   defp marketing_banner(assigns) do
+    default_primary_href = localized_href("https://docs.tuist.dev/")
+
     assigns =
       assigns
       |> assign(:primary_action_title, Map.get(assigns, :primary_action_title, gettext("Get started")))
-      |> assign(:primary_action_href, Map.get(assigns, :primary_action_href, gettext("https://docs.tuist.dev/en/")))
+      |> assign(:primary_action_href, Map.get(assigns, :primary_action_href, default_primary_href))
       |> assign(:secondary_action_title, Map.get(assigns, :secondary_action_title, gettext("Talk to us")))
       |> assign(
         :secondary_action_href,
-        Map.get(assigns, :secondary_action_href, gettext("https://cal.tuist.dev/team/tuist/tuist?overlayCalendar=true"))
+        Map.get(assigns, :secondary_action_href, "https://cal.tuist.dev/team/tuist/tuist?overlayCalendar=true")
       )
 
     ~H"""
