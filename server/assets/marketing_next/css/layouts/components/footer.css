@@ -2,7 +2,7 @@
   display: flex;
   position: relative;
   flex-direction: row;
-  justify-content: space-between;
+  justify-content: center;
   padding: var(--noora-spacing-14);
 
   &::before {
@@ -29,7 +29,15 @@
     object-fit: fill;
   }
 
-  & > [data-part="header"] {
+  & > [data-part="content"] {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    width: 100%;
+    max-width: 1296px;
+  }
+
+  & > [data-part="content"] > [data-part="header"] {
     display: flex;
     flex-direction: column;
     gap: var(--noora-spacing-9);
@@ -60,7 +68,7 @@
     }
   }
 
-  & > [data-part="columns"] {
+  & > [data-part="content"] > [data-part="columns"] {
     display: flex;
     flex-direction: row;
     gap: var(--noora-spacing-9);
