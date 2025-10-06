@@ -75,6 +75,14 @@
                 }
             }
 
+            let bundleType: Operations.createBundle.Input.Body.jsonPayload.bundlePayload._typePayload = switch appBundleReport
+                .type
+            {
+            case .ipa: .ipa
+            case .app: .app
+            case .xcarchive: .xcarchive
+            }
+
             let response = try await client.createBundle(
                 .init(
                     path: .init(
@@ -93,6 +101,7 @@
                                 install_size: appBundleReport.installSize,
                                 name: appBundleReport.name,
                                 supported_platforms: supportedPlatforms,
+                                _type: bundleType,
                                 version: appBundleReport.version
                             )
                         )
