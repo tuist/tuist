@@ -7,36 +7,6 @@ defmodule Tuist.GitHub.App do
   alias Tuist.KeyValueStore
   alias Tuist.Projects
 
-  # Temporary method for backfilling existing GitHub app installations
-  # This will be removed after the migration is complete
-  def get_organization_installation(organization_name, _opts \\ []) do
-    jwt = generate_app_jwt()
-
-    headers = [
-      {"Accept", "application/vnd.github+json"},
-      {"Authorization", "Bearer #{jwt}"},
-      {"X-GitHub-Api-Version", "2022-11-28"}
-    ]
-
-    case Req.get(
-           url: "https://api.github.com/orgs/#{organization_name}/installation",
-           headers: headers,
-           finch: Tuist.Finch
-         ) do
-      {:ok, %Req.Response{status: 200, body: installation}} ->
-        tuist_app_id = Environment.github_app_client_id()
-
-        if installation["client_id"] == tuist_app_id do
-          {:ok, installation}
-        else
-          {:error, "Tuist GitHub app is not installed for organization #{organization_name}"}
-        end
-
-      {:ok, %Req.Response{status: 404}} ->
-        {:error, "Organization #{organization_name} not found or GitHub app not installed"}
-    end
-  end
-
   def get_installation_token(installation_id, opts \\ []) do
     ttl = to_timeout(minute: 10)
 
@@ -88,7 +58,7 @@ defmodule Tuist.GitHub.App do
     Keyword.get(opts, :cache, :tuist)
   end
 
-  defp generate_app_jwt(opts \\ []) do
+  defp generate_app_jwt(opts) do
     private_key = JOSE.JWK.from_pem(Environment.github_app_private_key())
 
     now = DateTime.to_unix(DateTime.utc_now())

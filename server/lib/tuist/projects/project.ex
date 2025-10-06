@@ -22,8 +22,6 @@ defmodule Tuist.Projects.Project do
     field :name, :string
     field :visibility, Ecto.Enum, values: [private: 0, public: 1], default: :private
     field :default_branch, :string, default: "main"
-    # Deprecated, should be removed in the future along with BackfillVCSConnections
-    field :vcs_repository_full_handle, :string
     field :last_interacted_at, :naive_datetime, virtual: true
     field :default_previews_visibility, Ecto.Enum, values: [private: 0, public: 1], default: :private
     field :qa_app_description, :string, default: ""
