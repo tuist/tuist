@@ -5,6 +5,12 @@
   align-items: stretch;
   gap: var(--noora-spacing-11);
 
+  & > section {
+    align-self: center;
+    width: 100%;
+    max-width: 1296px;
+  }
+
   & > [data-part="container"] {
     display: flex;
     justify-content: center;
@@ -703,6 +709,9 @@
     & > [data-part="main"] {
       display: flex;
       flex-direction: row;
+      margin: 0;
+      padding: 0;
+      list-style: none;
 
       & > [data-part="column"] {
         display: flex;
