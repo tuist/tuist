@@ -681,6 +681,7 @@
       flex-direction: column;
       align-items: center;
       gap: var(--noora-spacing-6);
+      margin-bottom: var(--noora-spacing-11);
 
       & > [data-part="title"] {
         color: var(--noora-surface-label-primary);
