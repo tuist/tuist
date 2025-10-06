@@ -4,6 +4,14 @@
   flex-direction: column;
   gap: var(--noora-spacing-11);
 
+  & > section,
+  & > header,
+  & > figure {
+    align-self: center;
+    width: 100%;
+    max-width: 1296px;
+  }
+
   & > [data-part="background"] {
     position: absolute;
     top: 0;
