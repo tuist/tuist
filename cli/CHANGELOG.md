@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.82.3<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* clean up downloaded binary artifacts from temporary directory by [@fortmarek](https://github.com/fortmarek) in [#8402](https://github.com/tuist/tuist/pull/8402)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.82.2...4.82.3
+
 ## What's Changed in 4.82.2<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
