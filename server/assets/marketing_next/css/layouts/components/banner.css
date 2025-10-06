@@ -31,6 +31,7 @@
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     font: var(--noora-font-weight-medium) var(--noora-font-display-large);
+    text-align: center;
     text-shadow: 0 1px 3px rgba(27, 37, 80, 0.25);
   }
 

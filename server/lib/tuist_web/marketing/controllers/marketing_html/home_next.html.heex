@@ -441,13 +441,13 @@
       </div>
     </section>
 
-    <section data-part="testimonials">
+    <section data-part="testimonials" aria-labelledby="testimonials-title">
       <header data-part="header">
-        <h2 data-part="title">{gettext("Beyond expectations")}</h2>
+        <h2 id="testimonials-title" data-part="title">{gettext("Beyond expectations")}</h2>
         <p data-part="subtitle">
           {gettext("Hear from our community about their experience with Tuist")}
         </p>
-        <div data-part="actions">
+        <nav data-part="actions" aria-label="Community links">
           <.button
             label="Slack"
             variant="secondary"
@@ -464,10 +464,10 @@
           >
             <:icon_left><.message_circle /></:icon_left>
           </.button>
-        </div>
+        </nav>
       </header>
-      <div data-part="main">
-        <div data-part="column">
+      <ul data-part="main">
+        <li data-part="column">
           <.home_testimonial_card
             logo="chegg"
             quote={
@@ -489,8 +489,8 @@
             role="Senior iOS Developer / TechCorp"
             avatar_src="/marketing/images/home/testimonials/avatar.png"
           />
-        </div>
-        <div data-part="column">
+        </li>
+        <li data-part="column">
           <.home_testimonial_card
             quote={
               gettext(
@@ -521,8 +521,8 @@
             role="Mobile Architect / RetailTech"
             avatar_src="/marketing/images/home/testimonials/avatar.png"
           />
-        </div>
-        <div data-part="column">
+        </li>
+        <li data-part="column">
           <.home_testimonial_card
             quote={
               gettext(
@@ -544,8 +544,8 @@
             role="Engineering Manager / CloudSolutions"
             avatar_src="/marketing/images/home/testimonials/avatar.png"
           />
-        </div>
-      </div>
+        </li>
+      </ul>
     </section>
 
     <section data-part="cta">
