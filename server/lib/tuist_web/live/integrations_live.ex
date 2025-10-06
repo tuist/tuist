@@ -155,7 +155,7 @@ defmodule TuistWeb.IntegrationsLive do
     else
       gettext("Connected %{time_ago} by %{name}",
         time_ago: time_ago,
-        name: vcs_connection.created_by.name
+        name: vcs_connection.created_by.account.name
       )
     end
   end
@@ -167,7 +167,7 @@ defmodule TuistWeb.IntegrationsLive do
       Tuist.Repo.preload(
         account,
         [
-          projects: [vcs_connection: [:created_by, :project]]
+          projects: [vcs_connection: [created_by: [:account], project: []]]
         ],
         force: force
       )
