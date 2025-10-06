@@ -1,6 +1,7 @@
 defmodule TuistWeb.Marketing.MarketingBlogLive do
   @moduledoc false
   use TuistWeb, :live_view
+  use Noora
 
   import TuistWeb.Marketing.StructuredMarkup
 
@@ -13,10 +14,12 @@ defmodule TuistWeb.Marketing.MarketingBlogLive do
     highlighted_post = List.first(posts)
     category = Map.get(params, "category")
     posts = if is_nil(category), do: posts, else: Enum.filter(posts, &(&1.category == category))
+    filtered_posts = posts
 
     socket =
       socket
       |> assign(:posts, posts)
+      |> assign(:filtered_posts, filtered_posts)
       |> assign(:highlighted_posts, highlighted_posts)
       |> assign(:highlighted_post, highlighted_post)
       |> assign(:categories, categories)

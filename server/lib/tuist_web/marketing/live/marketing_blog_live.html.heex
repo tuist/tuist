@@ -8,7 +8,6 @@
       </div>
     </div>
 
-
     <section data-part="header">
       <div data-part="title">
         <div data-part="subtitle">{gettext("Blog")}</div>
@@ -17,39 +16,90 @@
         </h1>
       </div>
       <div data-part="main">
-        <% highlighted_post_img_src = if @highlighted_post.og_image_path do
-                  Tuist.Environment.app_url(
-                    path: @highlighted_post.og_image_path,
-                    marketing: true
-                  )
-                else
-                  Tuist.Environment.app_url(
-                    path: "/marketing/images/og/generated#{@highlighted_post.slug}.jpg",
-                    marketing: true
-                  )
-                end
-        %>
+        <% highlighted_post_img_src =
+          if @highlighted_post.og_image_path do
+            Tuist.Environment.app_url(
+              path: @highlighted_post.og_image_path,
+              marketing: true
+            )
+          else
+            Tuist.Environment.app_url(
+              path: "/marketing/images/og/generated#{@highlighted_post.slug}.jpg",
+              marketing: true
+            )
+          end %>
         <% highlighted_post_author = Blog.get_authors()[@highlighted_post.author] %>
         <img data-part="image" src={highlighted_post_img_src} />
         <div data-part="content">
           <h2 data-part="title">
-            <.link href={TuistWeb.Marketing.MarketingHTML.localized_href(
-            @highlighted_post.slug
-            )}>{@highlighted_post.title}</.link>
+            <.link href={TuistWeb.Marketing.MarketingHTML.localized_href(@highlighted_post.slug)}>
+              {@highlighted_post.title}
+            </.link>
           </h2>
           <p data-part="excerpt">{@highlighted_post.excerpt}</p>
           <div data-part="footer">
             <div data-part="author">{highlighted_post_author["name"]}</div>
             <div>•</div>
-            <div data-part="date">{Timex.format!(@highlighted_post.date, "{Mfull} {D}, {YYYY}")}</div>
+            <div data-part="date">
+              {Timex.format!(@highlighted_post.date, "{Mfull} {D}, {YYYY}")}
+            </div>
           </div>
         </div>
       </div>
     </section>
 
     <section data-part="bar">
+      <.tab_menu_horizontal label="Categories">
+        <.tab_menu_horizontal_item
+          :for={category <- @categories}
+          label={category |> to_string() |> String.capitalize()}
+        />
+      </.tab_menu_horizontal>
+      <div data-part="actions">
+        <.text_input
+          id="text-input-types-search"
+          name="search"
+          type="search"
+          placeholder="Search..."
+        />
+        <.button variant="secondary" icon_only={true} size="large">
+          <.rss />
+        </.button>
+        <.button variant="secondary" icon_only={true} size="large">
+          <.atom />
+        </.button>
+      </div>
+    </section>
 
-    </section
+    <section data-part="posts">
+      <div :for={post <- @filtered_posts} data-part="post">
+        <% post_img_src =
+          if post.og_image_path do
+            Tuist.Environment.app_url(
+              path: post.og_image_path,
+              marketing: true
+            )
+          else
+            Tuist.Environment.app_url(
+              path: "/marketing/images/og/generated#{post.slug}.jpg",
+              marketing: true
+            )
+          end %>
+        <% post_author = Blog.get_authors()[post.author] %>
+        <img data-part="image" src={post_img_src} />
+        <div data-part="content">
+          <header data-part="header">
+            <div data-part="author">{post_author["name"]}</div>
+            <div>•</div>
+            <div data-part="date">
+              {Timex.format!(post.date, "{Mfull} {D}, {YYYY}")}
+            </div>
+          </header>
+          <h3 data-part="title">{post.title}</h3>
+          <p data-part="excerpt">{post.excerpt}</p>
+        </div>
+      </div>
+    </section>
   </main>
 </TuistWeb.Marketing.Layouts.marketing_next>
 <TuistWeb.Marketing.Layouts.marketing :if={not FunWithFlags.enabled?(:marketing_next)} {assigns}>
