@@ -14,7 +14,6 @@ defmodule Tuist.VCS do
   alias Tuist.Bundles.Bundle
   alias Tuist.CommandEvents
   alias Tuist.Environment
-  alias Tuist.GitHub
   alias Tuist.GitHub.Client
   alias Tuist.KeyValueStore
   alias Tuist.Projects

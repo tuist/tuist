@@ -138,7 +138,7 @@ defmodule Tuist.Projects.VCSConnectionTest do
         project_id: project.id,
         provider: :github,
         repository_full_handle: "tuist/tuist",
-        created_by_id: user.account.id,
+        created_by_id: user.id,
         github_app_installation_id: github_app_installation.id
       }
 
