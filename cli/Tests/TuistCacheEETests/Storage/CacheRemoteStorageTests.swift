@@ -146,6 +146,10 @@ struct CacheRemoteStorageTests {
         let exists = try await fileSystem.exists(path)
         #expect(exists == true)
         #expect(try artifactSigner.isValid(path) == true)
+
+        // Verify that the downloaded zip file was removed after extraction
+        let zipExists = try await fileSystem.exists(zipPath)
+        #expect(zipExists == false, "Downloaded zip file should be removed after extraction")
     }
 
     @Test(.inTemporaryDirectory) func fetch_when_get_cache_returns_internal_server_error()
