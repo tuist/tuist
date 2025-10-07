@@ -1345,7 +1345,7 @@ public enum Components {
                 /// The type of the bundle
                 ///
                 /// - Remark: Generated from `#/components/schemas/BundleRequest/bundle/type`.
-                public var _type: Components.Schemas.BundleRequest.bundlePayload._typePayload
+                public var _type: Components.Schemas.BundleRequest.bundlePayload._typePayload?
                 /// The version of the bundle
                 ///
                 /// - Remark: Generated from `#/components/schemas/BundleRequest/bundle/version`.
@@ -1374,7 +1374,7 @@ public enum Components {
                     install_size: Swift.Int,
                     name: Swift.String,
                     supported_platforms: [Components.Schemas.BundleSupportedPlatform],
-                    _type: Components.Schemas.BundleRequest.bundlePayload._typePayload,
+                    _type: Components.Schemas.BundleRequest.bundlePayload._typePayload? = nil,
                     version: Swift.String
                 ) {
                     self.app_bundle_id = app_bundle_id
@@ -6861,28 +6861,28 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page`.
                 public var page: Swift.Int?
-                /// Number of items per page.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page_size`.
-                public var page_size: Swift.Int?
                 /// Filter bundles by git branch.
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/git_branch`.
                 public var git_branch: Swift.String?
+                /// Number of items per page.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page_size`.
+                public var page_size: Swift.Int?
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
                 ///   - page: Page number for pagination.
-                ///   - page_size: Number of items per page.
                 ///   - git_branch: Filter bundles by git branch.
+                ///   - page_size: Number of items per page.
                 public init(
                     page: Swift.Int? = nil,
-                    page_size: Swift.Int? = nil,
-                    git_branch: Swift.String? = nil
+                    git_branch: Swift.String? = nil,
+                    page_size: Swift.Int? = nil
                 ) {
                     self.page = page
-                    self.page_size = page_size
                     self.git_branch = git_branch
+                    self.page_size = page_size
                 }
             }
             public var query: Operations.listBundles.Input.Query
@@ -7220,7 +7220,7 @@ public enum Operations {
                         /// The type of the bundle
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/requestBody/json/bundle/type`.
-                        public var _type: Operations.createBundle.Input.Body.jsonPayload.bundlePayload._typePayload
+                        public var _type: Operations.createBundle.Input.Body.jsonPayload.bundlePayload._typePayload?
                         /// The version of the bundle
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/requestBody/json/bundle/version`.
@@ -7249,7 +7249,7 @@ public enum Operations {
                             install_size: Swift.Int,
                             name: Swift.String,
                             supported_platforms: [Components.Schemas.BundleSupportedPlatform],
-                            _type: Operations.createBundle.Input.Body.jsonPayload.bundlePayload._typePayload,
+                            _type: Operations.createBundle.Input.Body.jsonPayload.bundlePayload._typePayload? = nil,
                             version: Swift.String
                         ) {
                             self.app_bundle_id = app_bundle_id
