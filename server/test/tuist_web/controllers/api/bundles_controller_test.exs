@@ -112,6 +112,87 @@ defmodule TuistWeb.API.BundlesControllerTest do
       assert bundle.git_ref == "refs/pull/14/merge"
     end
 
+    test "creates a bundle without type field", %{conn: conn, user: user, project: project} do
+      # Given
+      bundle_params = %{
+        "bundle" => %{
+          "app_bundle_id" => "com.example.app",
+          "name" => "Test Bundle No Type",
+          "install_size" => 1024,
+          "download_size" => 2048,
+          "supported_platforms" => ["ios", "ios_simulator"],
+          "version" => "1.0.0",
+          "artifacts" => [
+            %{
+              "artifact_type" => "file",
+              "path" => "app.ipa",
+              "size" => 1024,
+              "shasum" => "abc123"
+            }
+          ]
+        }
+      }
+
+      # When
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/projects/#{project.account.name}/#{project.name}/bundles", bundle_params)
+
+      # Then
+      assert %{
+               "id" => id,
+               "name" => "Test Bundle No Type",
+               "type" => "ipa"
+             } = json_response(conn, :ok)
+
+      {:ok, bundle} = Bundles.get_bundle(id)
+      assert bundle.type == :ipa
+    end
+
+    test "creates a bundle without type field and no download_size defaults to app", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      # Given
+      bundle_params = %{
+        "bundle" => %{
+          "app_bundle_id" => "com.example.app",
+          "name" => "Test Bundle No Type No Download Size",
+          "install_size" => 1024,
+          "supported_platforms" => ["ios", "ios_simulator"],
+          "version" => "1.0.0",
+          "artifacts" => [
+            %{
+              "artifact_type" => "file",
+              "path" => "app.ipa",
+              "size" => 1024,
+              "shasum" => "abc123"
+            }
+          ]
+        }
+      }
+
+      # When
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/projects/#{project.account.name}/#{project.name}/bundles", bundle_params)
+
+      # Then
+      assert %{
+               "id" => id,
+               "name" => "Test Bundle No Type No Download Size",
+               "type" => "app"
+             } = json_response(conn, :ok)
+
+      {:ok, bundle} = Bundles.get_bundle(id)
+      assert bundle.type == :app
+    end
+
     test "returns error when params are invalid", %{conn: conn, project: project, user: user} do
       # Given incomplete bundle parameters
       bundle_params = %{
