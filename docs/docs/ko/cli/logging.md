@@ -11,9 +11,8 @@ CLI는 문제를 진단하는데 도움이 되는 메세지를 내부적으로 �
 
 ## 로그를 사용해 문제 진단 {#diagnose-issues-using-logs}
 
-If a command invocation doesn't yield the intended results, you can diagnose the
-issue by inspecting the logs. The CLI forwards the logs to
-[OSLog](https://developer.apple.com/documentation/os/oslog) and the file-system.
+명령어 실행이 원하지 않는 결과가 나오면 로그를 확인해 문제를 진단할 수 있습니다. CLI는 로그를
+[OSLog](https://developer.apple.com/documentation/os/oslog)와 파일 시스템으로 전달합니다.
 
 In every run, it creates a log file at `$XDG_STATE_HOME/tuist/logs/{uuid}.log`
 where `$XDG_STATE_HOME` takes the value `~/.local/state` if the environment
