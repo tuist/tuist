@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.83.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* Support the `defaultIsolation` setting when integrating packages using native Xcode project targets by [@pepicrft](https://github.com/pepicrft) in [#8372](https://github.com/tuist/tuist/pull/8372)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.82.3...4.83.0
+
 ## What's Changed in 4.82.3<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
