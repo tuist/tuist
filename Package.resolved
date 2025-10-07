@@ -1,5 +1,5 @@
 {
-  "originHash" : "e738ff2673df052374cefdeb37340e5e6a84c42306185fae8ef3b883e555143b",
+  "originHash" : "6c9a9174407da8cfb6f8c168059ffe0b177f7c124507309d65feb18053601888",
   "pins" : [
     {
       "identity" : "aexml",
@@ -168,8 +168,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/Kolos65/Mockable.git",
       "state" : {
-        "revision" : "ee133a696dce312da292b00d0944aafaa808eaca",
-        "version" : "0.4.0"
+        "revision" : "0a822d53fa7516abe659b44a9c508b8eb9b666bd",
+        "version" : "0.4.1"
       }
     },
     {
@@ -537,8 +537,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tuist/XcodeGraph",
       "state" : {
-        "revision" : "cbbac1d9e9bcb34abfc548780f2a31a4ade7f3a9",
-        "version" : "1.23.0"
+        "revision" : "ffbfce69a0d8b634c898fb7fb578bbb6722f926d",
+        "version" : "1.24.0"
       }
     },
     {
@@ -546,8 +546,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tuist/XcodeProj",
       "state" : {
-        "revision" : "e1f2a4365669e02272b2f381b13a2378b15fb485",
-        "version" : "9.5.0"
+        "revision" : "a0cbb0174e71dba41c1bb572e8cd1fb6138daa03",
+        "version" : "9.6.0"
       }
     },
     {
