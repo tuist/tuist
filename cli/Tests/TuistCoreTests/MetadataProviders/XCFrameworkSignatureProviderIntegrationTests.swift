@@ -245,5 +245,4 @@ private class SelfSignedXCFrameworkMockFileSystem: FileSysteming {
     }
 
     func fileMetadata(at _: AbsolutePath) async throws -> FileMetadata? { throw unexpectedCallError() }
-    func contentsOfDirectory(_: Path.AbsolutePath) async throws -> [Path.AbsolutePath] { throw unexpectedCallError() }
 }
