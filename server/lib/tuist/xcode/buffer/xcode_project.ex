@@ -9,7 +9,7 @@ defmodule Tuist.Xcode.XcodeProject.Buffer do
     insert_opts: insert_opts,
     fields: fields,
     encoding_types: encoding_types
-  } = Tuist.Xcode.Clickhouse.XcodeProject.buffer_opts()
+  } = Tuist.Xcode.XcodeProject.buffer_opts()
 
   def child_spec(opts) do
     opts =
