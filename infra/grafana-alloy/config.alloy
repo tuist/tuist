@@ -1,0 +1,27 @@
+logging {
+  level  = "info"
+  format = "logfmt"
+}
+
+prometheus.scrape "tuist" {
+  targets = [
+    {"__address__" = "tuist:9091", "instance" = "production"},
+    {"__address__" = "tuist-canary:9091", "instance" = "canary"},
+    {"__address__" = "tuist-staging:9091", "instance" = "staging"},
+  ]
+
+  metrics_path    = "/metrics"
+  scrape_interval = "10s"
+
+  forward_to = [prometheus.remote_write.grafanacloud.receiver]
+}
+
+prometheus.remote_write "grafanacloud" {
+  endpoint {
+    url = "https://prometheus-prod-24-prod-eu-west-2.grafana.net/api/prom/push"
+      basic_auth {
+        username = sys.env("PROMETHEUS_USERNAME")
+        password = sys.env("PROMETHEUS_TOKEN")
+      }
+  }
+}
