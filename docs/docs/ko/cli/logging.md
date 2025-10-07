@@ -25,7 +25,7 @@ CLI는 문제를 진단하는데 도움이 되는 메세지를 내부적으로 �
 <!-- -->
 :::
 
-### Continuous integration {#diagnose-issues-using-logs-ci}
+### 지속적 통합(CI) {#diagnose-issues-using-logs-ci}
 
 In CI, where environments are disposable, you might want to configure your CI
 pipeline to export Tuist logs. Exporting artifacts is a common capability across
