@@ -98,7 +98,7 @@ struct CacheRemoteStorageTests {
             name: .value("target"),
             cacheCategory: .value(.binaries)
         ).willReturn(serverCacheArtifact)
-        given(downloader).download(url: .value(serverCacheArtifact.url)).willReturn(zipPath)
+        given(downloader).download(item: .any, url: .value(serverCacheArtifact.url)).willReturn(zipPath)
 
         // When
         let got = try await subject.fetch(
@@ -115,7 +115,7 @@ struct CacheRemoteStorageTests {
         #expect(try artifactSigner.isValid(path) == true)
     }
 
-    @Test(.inTemporaryDirectory) func Ocach() async throws {
+    @Test(.inTemporaryDirectory) func fetch_when_framework_artifact_exists() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let frameworkPath = temporaryDirectory.appending(component: "target.framework")
@@ -131,7 +131,7 @@ struct CacheRemoteStorageTests {
             name: .value("target"),
             cacheCategory: .value(.binaries)
         ).willReturn(serverCacheArtifact)
-        given(downloader).download(url: .value(serverCacheArtifact.url)).willReturn(zipPath)
+        given(downloader).download(item: .any, url: .value(serverCacheArtifact.url)).willReturn(zipPath)
 
         // When
         let got = try await subject.fetch(
@@ -229,8 +229,8 @@ struct CacheRemoteStorageTests {
             name: .value("frameworkTwo"),
             cacheCategory: .value(.binaries)
         ).willReturn(serverCacheArtifactTwo)
-        given(downloader).download(url: .value(serverCacheArtifactOne.url)).willReturn(zipPathOne)
-        given(downloader).download(url: .value(serverCacheArtifactTwo.url)).willReturn(zipPathTwo)
+        given(downloader).download(item: .any, url: .value(serverCacheArtifactOne.url)).willReturn(zipPathOne)
+        given(downloader).download(item: .any, url: .value(serverCacheArtifactTwo.url)).willReturn(zipPathTwo)
 
         // When
         let got = try await subject.fetch(
@@ -279,7 +279,7 @@ struct CacheRemoteStorageTests {
             name: .value("target"),
             cacheCategory: .value(.binaries)
         ).willReturn(serverCacheArtifact)
-        given(downloader).download(url: .value(serverCacheArtifact.url)).willReturn(zipPath)
+        given(downloader).download(item: .any, url: .value(serverCacheArtifact.url)).willReturn(zipPath)
 
         // When
         let got = try await subject.fetch(
@@ -312,7 +312,7 @@ struct CacheRemoteStorageTests {
             name: .value("target"),
             cacheCategory: .value(.binaries)
         ).willReturn(serverCacheArtifact)
-        given(downloader).download(url: .value(serverCacheArtifact.url)).willReturn(zipPath)
+        given(downloader).download(item: .any, url: .value(serverCacheArtifact.url)).willReturn(zipPath)
 
         // When
         let got = try await subject.fetch(
@@ -346,21 +346,14 @@ struct CacheRemoteStorageTests {
             name: .value("target"),
             cacheCategory: .value(.binaries)
         ).willReturn(serverCacheArtifact)
-        given(downloader).download(url: .value(serverCacheArtifact.url)).willReturn(zipPath)
+        given(downloader).download(item: .any, url: .value(serverCacheArtifact.url)).willReturn(zipPath)
 
-        // When
-        let got = try await subject.fetch(
-            Set([.init(name: "target", hash: "hash")]), cacheCategory: .binaries
-        )
-
-        // Then
-        #expect(got.isEmpty == true)
-        #expect(AlertController.current.warnings().map(\.message)
-            .map { $0.plain() } ==
-            [
-                "Skipping fetching binaries due to an unexpected error: The downloaded artifact with hash \'hash\' has an incorrect format and doesn\'t contain xcframework, framework, bundle, or macro",
-            ]
-        )
+        // When/Then
+        await #expect(throws: CacheRemoteStorageError.self) {
+            try await subject.fetch(
+                Set([.init(name: "target", hash: "hash")]), cacheCategory: .binaries
+            )
+        }
     }
 
     @Test(
@@ -387,7 +380,8 @@ struct CacheRemoteStorageTests {
         // Then
         #expect(got.isEmpty == true)
         #expect(AlertController.current.warnings().map(\.message)
-            .map { $0.plain() } == ["Skipping fetching binaries due to an unexpected error: \(error.localizedDescription)"]
+            .map { $0.plain() } ==
+            ["The remote cache server is currently unavailable. These artifacts could not be fetched: target"]
         )
     }
 
@@ -419,7 +413,7 @@ struct CacheRemoteStorageTests {
         // Then
         #expect(got.isEmpty == true)
         #expect(AlertController.current.warnings().map(\.message)
-            .map { $0.plain() } == ["You seem to be offline, skipping fetching remote binaries..."]
+            .map { $0.plain() } == ["The network is unreachable. The following cached artifacts remain out of grasp: target"]
         )
     }
 
@@ -451,7 +445,8 @@ struct CacheRemoteStorageTests {
         // Then
         #expect(got.isEmpty == true)
         #expect(AlertController.current.warnings().map(\.message)
-            .map { $0.plain() } == ["The Tuist server is unreachable, skipping fetching remote binaries"]
+            .map { $0.plain() } ==
+            ["The remote cache server is currently unavailable. These artifacts could not be fetched: target"]
         )
     }
 
@@ -487,7 +482,8 @@ struct CacheRemoteStorageTests {
         // Then
         #expect(got.isEmpty == true)
         #expect(AlertController.current.warnings().map(\.message)
-            .map { $0.plain() } == [serverErrorMessage]
+            .map { $0.plain() } ==
+            ["Your subscription limits have been reached. Unable to retrieve the following cached artifacts: target"]
         )
     }
 
@@ -522,7 +518,8 @@ struct CacheRemoteStorageTests {
         // Then
         #expect(got.isEmpty == true)
         #expect(AlertController.current.warnings().map(\.message)
-            .map { $0.plain() } == ["We skipped fetching remote binaries because the account subscription is not active."]
+            .map { $0.plain() } ==
+            ["Your subscription limits have been reached. Unable to retrieve the following cached artifacts: target"]
         )
     }
 
@@ -556,7 +553,7 @@ struct CacheRemoteStorageTests {
         #expect(got.isEmpty == true)
         #expect(AlertController.current.warnings().map(\.message)
             .map { $0.plain() } ==
-            ["Skipping fetching binaries due to an unexpected error: \(error.underlyingError.localizedDescription)"]
+            ["The remote cache server is currently unavailable. These artifacts could not be fetched: target"]
         )
     }
 
@@ -576,7 +573,7 @@ struct CacheRemoteStorageTests {
             name: .value("target"),
             cacheCategory: .value(.binaries)
         ).willReturn(serverCacheArtifact)
-        given(downloader).download(url: .value(serverCacheArtifact.url)).willThrow(error)
+        given(downloader).download(item: .any, url: .value(serverCacheArtifact.url)).willThrow(error)
 
         // When
         let got = try await subject.fetch(
@@ -586,7 +583,8 @@ struct CacheRemoteStorageTests {
         // Then
         #expect(got.isEmpty == true)
         #expect(AlertController.current.warnings().map(\.message)
-            .map { $0.plain() } == ["Skipping fetching binaries due to an unexpected error: \(error.localizedDescription)"]
+            .map { $0.plain() } ==
+            ["The remote cache server is currently unavailable. These artifacts could not be fetched: target"]
         )
     }
 
