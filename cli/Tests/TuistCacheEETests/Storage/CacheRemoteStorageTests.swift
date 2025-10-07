@@ -115,7 +115,7 @@ struct CacheRemoteStorageTests {
         #expect(try artifactSigner.isValid(path) == true)
     }
 
-    @Test(.inTemporaryDirectory) func fetch_when_framework_artifact_exists() async throws {
+    @Test(.inTemporaryDirectory) func Ocach() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let frameworkPath = temporaryDirectory.appending(component: "target.framework")
