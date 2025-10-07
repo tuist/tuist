@@ -10,15 +10,6 @@
       }
     },
     {
-      "identity" : "aiproxyswift",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/lzell/AIProxySwift",
-      "state" : {
-        "revision" : "4b0ce5e040894f82761a324819dd7fac0eb0bdd4",
-        "version" : "0.130.0"
-      }
-    },
-    {
       "identity" : "alamofire",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/Alamofire/Alamofire",
