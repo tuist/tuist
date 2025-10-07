@@ -21,7 +21,7 @@ CLI는 문제를 진단하는데 도움이 되는 메세지를 내부적으로 �
 
 ::: warning
 <!-- -->
-Sensitive information is not redacted, so be cautious when sharing logs.
+민감한 정보는 수정되지 않으므로 로그를 공유할 때 주의해야 합니다.
 <!-- -->
 :::
 
