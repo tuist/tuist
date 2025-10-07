@@ -5,11 +5,11 @@
   "description": "Learn how to enable and configure logging in Tuist."
 }
 ---
-# Logging {#logging}
+# 로그 {#logging}
 
-The CLI logs messages internally to help you diagnose issues.
+CLI는 문제를 진단하는데 도움이 되는 메세지를 내부적으로 기록합니다.
 
-## Diagnose issues using logs {#diagnose-issues-using-logs}
+## 로그를 사용해 문제 진단 {#diagnose-issues-using-logs}
 
 If a command invocation doesn't yield the intended results, you can diagnose the
 issue by inspecting the logs. The CLI forwards the logs to
