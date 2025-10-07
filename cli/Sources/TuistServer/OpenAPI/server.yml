@@ -105,7 +105,6 @@ components:
             - supported_platforms
             - version
             - install_size
-            - type
             - artifacts
           type: object
           x-struct:
@@ -2932,20 +2931,20 @@ paths:
             type: string
             x-struct:
             x-validate:
-        - description: Number of items per page.
-          in: query
-          name: page_size
-          required: false
-          schema:
-            type: integer
-            x-struct:
-            x-validate:
         - description: Filter bundles by git branch.
           in: query
           name: git_branch
           required: false
           schema:
             type: string
+            x-struct:
+            x-validate:
+        - description: Number of items per page.
+          in: query
+          name: page_size
+          required: false
+          schema:
+            type: integer
             x-struct:
             x-validate:
       responses:
@@ -3081,7 +3080,6 @@ paths:
                     - supported_platforms
                     - version
                     - install_size
-                    - type
                     - artifacts
                   type: object
                   x-struct:
