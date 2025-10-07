@@ -152,6 +152,28 @@ shouldn't need it.
 <!-- -->
 :::
 
+> [!IMPORTANT] CUSTOM BUILD CONFIGURATIONS If your project uses custom build
+> configurations (configurations other than the standard `Debug` and `Release`),
+> you must specify them in the `PackageSettings` using `baseSettings`. External
+> dependencies need to know about your project's configurations to build
+> correctly. For example:
+> 
+> ```swift
+> #if TUIST
+>     import ProjectDescription
+> 
+>     let packageSettings = PackageSettings(
+>         productTypes: [:],
+>         baseSettings: .settings(configurations: [
+>             .debug(name: "Base"),
+>             .release(name: "Production")
+>         ])
+>     )
+> #endif
+> ```
+> 
+> See [#8345](https://github.com/tuist/tuist/issues/8345) for more details.
+
 The `Package.swift` file is just an interface to declare external dependencies,
 nothing else. That's why you don't define any targets or products in the
 package. Once you have the dependencies defined, you can run the following
