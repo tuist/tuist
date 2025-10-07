@@ -1,4 +1,4 @@
-defmodule Tuist.Xcode.Clickhouse.XcodeTarget do
+defmodule Tuist.Xcode.XcodeTarget do
   @moduledoc false
   use Ecto.Schema
   use Tuist.Ingestion.Bufferable
@@ -25,12 +25,12 @@ defmodule Tuist.Xcode.Clickhouse.XcodeTarget do
     field :xcode_project_id, Ch, type: "UUID"
     field :command_event_id, Ch, type: "UUID"
 
-    belongs_to :command_event, Tuist.CommandEvents.Clickhouse.Event,
+    belongs_to :command_event, Tuist.CommandEvents.Event,
       foreign_key: :command_event_id,
       references: :id,
       define_field: false
 
-    belongs_to :xcode_project, Tuist.Xcode.Clickhouse.XcodeProject,
+    belongs_to :xcode_project, Tuist.Xcode.XcodeProject,
       foreign_key: :xcode_project_id,
       references: :id,
       define_field: false
