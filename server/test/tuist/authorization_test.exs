@@ -474,7 +474,6 @@ defmodule Tuist.AuthorizationTest do
     assert Authorization.authorize(:project_read, user, account) == {:error, :forbidden}
   end
 
-
   test "can.read.project.dashboard when the subject is a user that belongs to an organization" do
     # Given
     organization = AccountsFixtures.organization_fixture()

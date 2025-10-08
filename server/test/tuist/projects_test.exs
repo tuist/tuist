@@ -960,10 +960,7 @@ defmodule Tuist.ProjectsTest do
       projects = Projects.projects_by_vcs_repository_full_handle(vcs_handle)
 
       # Then
-      assert length(projects) == 2
-      project_ids = Enum.map(projects, & &1.id)
-      assert project_one.id in project_ids
-      assert project_two.id in project_ids
+      assert projects |> Enum.map(& &1.id) |> Enum.sort() == [project_one.id, project_two.id]
     end
 
     test "returns projects with preloaded associations" do
@@ -972,20 +969,20 @@ defmodule Tuist.ProjectsTest do
       account = Accounts.get_account_from_organization(organization)
       vcs_handle = "test-org/test-project"
 
-      ProjectsFixtures.project_fixture(
-        account_id: account.id,
-        vcs_connection: [
-          repository_full_handle: vcs_handle,
-          provider: :github
-        ]
-      )
+      project =
+        ProjectsFixtures.project_fixture(
+          account_id: account.id,
+          vcs_connection: [
+            repository_full_handle: vcs_handle,
+            provider: :github
+          ]
+        )
 
       # When
-      projects = Projects.projects_by_vcs_repository_full_handle(vcs_handle, preload: [:account])
+      [got_project] = Projects.projects_by_vcs_repository_full_handle(vcs_handle, preload: [:account])
 
       # Then
-      assert length(projects) == 1
-      assert Ecto.assoc_loaded?(List.first(projects).account)
+      assert got_project.id == project.id
     end
   end
 

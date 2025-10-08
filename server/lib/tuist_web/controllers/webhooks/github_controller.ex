@@ -51,7 +51,7 @@ defmodule TuistWeb.Webhooks.GitHubController do
               VCS.create_comment(%{
                 repository_full_handle: repository_full_name,
                 git_ref: git_ref,
-                body: "Project '#{project_name}' not found in this repository.",
+                body: "Project '#{project_name}' is not connected to this repository.",
                 project: nil
               })
 
@@ -66,7 +66,7 @@ defmodule TuistWeb.Webhooks.GitHubController do
             repository_full_handle: repository_full_name,
             git_ref: git_ref,
             body:
-              "Multiple Tuist projects found in this repository. Please specify the project handle: `/tuist <project-handle> qa <your-prompt>`\n\nAvailable projects: #{project_handles}",
+              "Multiple Tuist projects are connected to this repository. Please specify the project handle: `/tuist <project-handle> qa <your-prompt>`\n\nAvailable projects: #{project_handles}",
             project: List.first(projects)
           })
       end
@@ -111,11 +111,9 @@ defmodule TuistWeb.Webhooks.GitHubController do
   defp get_project_for_qa(qa_result, repository_full_name) do
     case qa_result do
       {project_name, _prompt} when not is_nil(project_name) ->
-        # User specified a project name
         Projects.project_by_name_and_vcs_repository_full_handle(project_name, repository_full_name, preload: :account)
 
       {nil, _prompt} ->
-        # No project name specified - check how many projects are connected to this repo
         projects = Projects.projects_by_vcs_repository_full_handle(repository_full_name, preload: :account)
 
         case projects do
@@ -208,7 +206,7 @@ defmodule TuistWeb.Webhooks.GitHubController do
     # Pattern 1: /tuist <project-name> qa <prompt> (with project name)
     pattern_with_project = ~r/^\s*#{Regex.escape(base_command)}\s+(\S+)\s+qa\s+(.*)$/im
 
-    # Pattern 2: /tuist qa <prompt> (backward compatibility, no project name)
+    # Pattern 2: /tuist qa <prompt> (no project name, valid in case only a single Tuist project is connected to the GitHub repository)
     pattern_without_project = ~r/^\s*#{Regex.escape(base_command)}\s+qa\s+(.*)$/im
 
     case Regex.run(pattern_with_project, body) do

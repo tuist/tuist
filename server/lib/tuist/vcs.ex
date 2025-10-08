@@ -65,7 +65,6 @@ defmodule Tuist.VCS do
     })
   end
 
-
   def get_provider_from_repository_url(repository_url) do
     vcs_uri = URI.parse(repository_url)
     host = Map.get(vcs_uri, :host)
@@ -75,7 +74,6 @@ defmodule Tuist.VCS do
       _ -> {:error, :unsupported_vcs}
     end
   end
-
 
   defp get_client_for_provider(:github) do
     Client
@@ -98,16 +96,21 @@ defmodule Tuist.VCS do
     end
   end
 
-  @doc """
-  Returns `true` if the repository, identified by the `repository_full_handle`, is connected to the given project.
-  """
-  def connected?(%{repository_full_handle: repository_full_handle, project: project}) do
-    project = Repo.preload(project, :vcs_connection)
+  defp get_github_app_installation_id(%{repository_full_handle: repository_full_handle, project: project}) do
+    project = Repo.preload(project, vcs_connection: :github_app_installation)
 
-    Environment.github_app_configured?() and
-      not is_nil(project.vcs_connection) and
-      String.downcase(project.vcs_connection.repository_full_handle) ==
-        String.downcase(repository_full_handle)
+    with true <- Environment.github_app_configured?(),
+         %{
+           vcs_connection: %{
+             repository_full_handle: connected_handle,
+             github_app_installation: %{installation_id: installation_id}
+           }
+         } <- project,
+         true <- String.downcase(connected_handle) == String.downcase(repository_full_handle) do
+      {:ok, installation_id}
+    else
+      _ -> {:error, :not_found}
+    end
   end
 
   def enqueue_vcs_pull_request_comment(args) do
@@ -120,26 +123,21 @@ defmodule Tuist.VCS do
   Creates a comment on a VCS issue/pull request.
   """
   def create_comment(%{repository_full_handle: repository_full_handle, git_ref: git_ref, body: body, project: project}) do
-    cond do
-      not String.starts_with?(git_ref, "refs/pull/") ->
-        {:error, :not_pull_request}
+    with true <- String.starts_with?(git_ref, "refs/pull/"),
+         {:ok, installation_id} <-
+           get_github_app_installation_id(%{repository_full_handle: repository_full_handle, project: project}) do
+      client = get_client_for_provider(:github)
+      issue_id = get_issue_id_from_git_ref(git_ref)
 
-      not connected?(%{repository_full_handle: repository_full_handle, project: project}) ->
-        {:error, :repository_not_connected}
-
-      true ->
-        client = get_client_for_provider(:github)
-        issue_id = get_issue_id_from_git_ref(git_ref)
-        
-        project = Repo.preload(project, vcs_connection: :github_app_installation)
-        installation_id = project.vcs_connection.github_app_installation.installation_id
-
-        client.create_comment(%{
-          repository_full_handle: repository_full_handle,
-          issue_id: issue_id,
-          body: body,
-          installation_id: installation_id
-        })
+      client.create_comment(%{
+        repository_full_handle: repository_full_handle,
+        issue_id: issue_id,
+        body: body,
+        installation_id: installation_id
+      })
+    else
+      false -> {:error, :not_pull_request}
+      {:error, :not_found} -> {:error, :repository_not_connected}
     end
   end
 
@@ -152,20 +150,19 @@ defmodule Tuist.VCS do
         body: body,
         project: project
       }) do
-    if connected?(%{repository_full_handle: repository_full_handle, project: project}) do
-      client = get_client_for_provider(:github)
-      
-      project = Repo.preload(project, vcs_connection: :github_app_installation)
-      installation_id = project.vcs_connection.github_app_installation.installation_id
+    case get_github_app_installation_id(%{repository_full_handle: repository_full_handle, project: project}) do
+      {:ok, installation_id} ->
+        client = get_client_for_provider(:github)
 
-      client.update_comment(%{
-        repository_full_handle: repository_full_handle,
-        comment_id: comment_id,
-        body: body,
-        installation_id: installation_id
-      })
-    else
-      {:error, :repository_not_connected}
+        client.update_comment(%{
+          repository_full_handle: repository_full_handle,
+          comment_id: comment_id,
+          body: body,
+          installation_id: installation_id
+        })
+
+      {:error, :not_found} ->
+        {:error, :repository_not_connected}
     end
   end
 
@@ -187,61 +184,55 @@ defmodule Tuist.VCS do
         git_remote_url_origin |> get_repository_full_handle_from_url() |> elem(1)
       end
 
-    should_post_report =
-      not is_nil(git_commit_sha) and
-        not is_nil(git_ref) and
-        not is_nil(repository_full_handle) and
-        connected?(%{
-          repository_full_handle: repository_full_handle,
+    with true <- not is_nil(git_commit_sha),
+         true <- not is_nil(git_ref),
+         true <- not is_nil(repository_full_handle),
+         true <- String.starts_with?(git_ref, "refs/pull/"),
+         {:ok, installation_id} <-
+           get_github_app_installation_id(%{repository_full_handle: repository_full_handle, project: project}) do
+      client = get_client_for_provider(:github)
+      issue_id = get_issue_id_from_git_ref(git_ref)
+
+      vcs_comment_body =
+        get_vcs_comment_body(%{
+          git_ref: git_ref,
+          git_remote_url_origin: Projects.get_repository_url(project),
+          preview_url: preview_url,
+          preview_qr_code_url: preview_qr_code_url,
+          command_run_url: command_run_url,
+          build_url: build_url,
+          bundle_url: bundle_url,
           project: project
-        }) and
-        String.starts_with?(git_ref, "refs/pull/")
+        })
 
-    if should_post_report do
-      project = Repo.preload(project, vcs_connection: :github_app_installation)
-      
-      case project do
-        %{vcs_connection: %{github_app_installation: %{installation_id: installation_id}}} ->
-          client = get_client_for_provider(:github)
-          issue_id = get_issue_id_from_git_ref(git_ref)
+      existing_comment =
+        get_existing_vcs_comment_id(%{
+          client: client,
+          repository: repository_full_handle,
+          issue_id: issue_id,
+          installation_id: installation_id
+        })
 
-          vcs_comment_body =
-            get_vcs_comment_body(%{
-              git_ref: git_ref,
-              git_remote_url_origin: Projects.get_repository_url(project),
-              preview_url: preview_url,
-              preview_qr_code_url: preview_qr_code_url,
-              command_run_url: command_run_url,
-              build_url: build_url,
-              bundle_url: bundle_url,
-              project: project
-            })
-
-          existing_comment =
-            get_existing_vcs_comment_id(%{
-              client: client,
-              repository: repository_full_handle,
-              issue_id: issue_id,
-              installation_id: installation_id
-            })
-
-          update_or_create_vcs_comment(%{
-            vcs_comment_body: vcs_comment_body,
-            repository: repository_full_handle,
-            issue_id: issue_id,
-            existing_comment: existing_comment,
-            client: client,
-            installation_id: installation_id
-          })
-        
-        _ ->
-          # No GitHub app installation, skip posting comment
-          :ok
-      end
+      update_or_create_vcs_comment(%{
+        vcs_comment_body: vcs_comment_body,
+        repository: repository_full_handle,
+        issue_id: issue_id,
+        existing_comment: existing_comment,
+        client: client,
+        installation_id: installation_id
+      })
+    else
+      # No GitHub app installation, skip posting comment
+      _ -> :ok
     end
   end
 
-  defp get_existing_vcs_comment_id(%{client: client, repository: repository, issue_id: issue_id, installation_id: installation_id}) do
+  defp get_existing_vcs_comment_id(%{
+         client: client,
+         repository: repository,
+         issue_id: issue_id,
+         installation_id: installation_id
+       }) do
     case client.get_comments(%{repository_full_handle: repository, issue_id: issue_id, installation_id: installation_id}) do
       {:ok, comments} ->
         Enum.find(comments, fn comment ->

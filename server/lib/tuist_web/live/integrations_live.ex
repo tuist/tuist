@@ -125,8 +125,7 @@ defmodule TuistWeb.IntegrationsLive do
         []
       end
 
-    repositories
-    |> Enum.sort_by(& &1.full_name, :asc)
+    Enum.sort_by(repositories, & &1.full_name, :asc)
   end
 
   defp get_selected_project(assigns) do

@@ -395,7 +395,7 @@ defmodule Tuist.Projects do
   end
 
   @doc """
-  Get all projects connected to a VCS repository (supports monorepos).
+  Get all projects connected to a VCS repository.
   """
   def projects_by_vcs_repository_full_handle(vcs_repository_full_handle, opts \\ []) do
     preload = Keyword.get(opts, :preload, [:account])

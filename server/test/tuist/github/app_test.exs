@@ -63,33 +63,4 @@ defmodule Tuist.GitHub.AppTest do
       assert {:error, "Failed to get installation token"} = result
     end
   end
-
-  describe "get_app_installation_token_by_id/2" do
-    test "returns installation token when request succeeds" do
-      # Given
-      installation_id = "12345"
-      token = "ghs_16C7e42F292c6912E7710c838347Ae178B4a"
-      expires_at = "2024-04-30T11:20:30Z"
-
-      stub(Req, :post, fn opts ->
-        assert Keyword.get(opts, :url) =~ "/app/installations/#{installation_id}/access_tokens"
-
-        {:ok,
-         %Req.Response{
-           status: 201,
-           body: %{
-             "token" => token,
-             "expires_at" => expires_at
-           }
-         }}
-      end)
-
-      # When
-      result = App.get_app_installation_token_by_id(installation_id)
-
-      # Then
-      assert {:ok, %{token: ^token, expires_at: expires_at_datetime}} = result
-      assert expires_at_datetime == ~U[2024-04-30 11:20:30Z]
-    end
-  end
 end

@@ -111,9 +111,11 @@ defmodule Tuist.GitHub.Client do
     end
   end
 
-
-
-  def get_comments(%{repository_full_handle: repository_full_handle, issue_id: issue_id, installation_id: installation_id}) do
+  def get_comments(%{
+        repository_full_handle: repository_full_handle,
+        issue_id: issue_id,
+        installation_id: installation_id
+      }) do
     url = "https://api.github.com/repos/#{repository_full_handle}/issues/#{issue_id}/comments"
 
     case github_request(&Req.get/1, url: url, installation_id: installation_id) do
@@ -135,7 +137,12 @@ defmodule Tuist.GitHub.Client do
     end
   end
 
-  def create_comment(%{repository_full_handle: repository_full_handle, issue_id: issue_id, body: body, installation_id: installation_id}) do
+  def create_comment(%{
+        repository_full_handle: repository_full_handle,
+        issue_id: issue_id,
+        body: body,
+        installation_id: installation_id
+      }) do
     url = "https://api.github.com/repos/#{repository_full_handle}/issues/#{issue_id}/comments"
 
     github_request(&Req.post/1,
@@ -145,7 +152,12 @@ defmodule Tuist.GitHub.Client do
     )
   end
 
-  def update_comment(%{repository_full_handle: repository_full_handle, comment_id: comment_id, body: body, installation_id: installation_id}) do
+  def update_comment(%{
+        repository_full_handle: repository_full_handle,
+        comment_id: comment_id,
+        body: body,
+        installation_id: installation_id
+      }) do
     url = "https://api.github.com/repos/#{repository_full_handle}/issues/comments/#{comment_id}"
 
     github_request(&Req.patch/1,

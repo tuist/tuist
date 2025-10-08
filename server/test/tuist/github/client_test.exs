@@ -50,7 +50,8 @@ defmodule Tuist.GitHub.ClientTest do
       end)
 
       # When
-      comments = Client.get_comments(%{repository_full_handle: "tuist/tuist", issue_id: 1, installation_id: "installation-id"})
+      comments =
+        Client.get_comments(%{repository_full_handle: "tuist/tuist", issue_id: 1, installation_id: "installation-id"})
 
       # Then
       assert comments ==
@@ -63,8 +64,6 @@ defmodule Tuist.GitHub.ClientTest do
 
     test "refreshes token when the response initially returns unauthenticated error" do
       # Given
-      call_count = :counters.new(1, [:atomics])
-      
       stub(Req, :get, fn options ->
         headers = Keyword.get(options, :headers)
         [_json_header, auth_header] = headers
@@ -78,20 +77,18 @@ defmodule Tuist.GitHub.ClientTest do
       end)
 
       stub(App, :get_installation_token, fn _installation_id ->
-        :counters.add(call_count, 1, 1)
-        call_number = :counters.get(call_count, 1)
-        
-        if call_number == 1 do
-          {:ok, %{token: "old_token", expires_at: ~U[2024-04-30 10:20:29Z]}}
-        else
+        stub(App, :get_installation_token, fn _installation_id ->
           {:ok, %{token: "new_token", expires_at: ~U[2024-04-30 10:30:31Z]}}
-        end
+        end)
+
+        {:ok, %{token: "old_token", expires_at: ~U[2024-04-30 10:20:29Z]}}
       end)
 
       stub(App, :clear_token, fn -> :ok end)
 
       # When
-      comments = Client.get_comments(%{repository_full_handle: "tuist/tuist", issue_id: 1, installation_id: "installation-id"})
+      comments =
+        Client.get_comments(%{repository_full_handle: "tuist/tuist", issue_id: 1, installation_id: "installation-id"})
 
       # Then
       assert comments == {:ok, [%Comment{id: "comment-id", client_id: nil}]}
@@ -104,7 +101,8 @@ defmodule Tuist.GitHub.ClientTest do
       end)
 
       # When
-      comments = Client.get_comments(%{repository_full_handle: "tuist/tuist", issue_id: 1, installation_id: "installation-id"})
+      comments =
+        Client.get_comments(%{repository_full_handle: "tuist/tuist", issue_id: 1, installation_id: "installation-id"})
 
       # Then
       assert comments == {:error, "Unexpected status code: 500. Body: \"\""}
@@ -117,7 +115,8 @@ defmodule Tuist.GitHub.ClientTest do
       end)
 
       # When
-      comments = Client.get_comments(%{repository_full_handle: "tuist/tuist", issue_id: 1, installation_id: "installation-id"})
+      comments =
+        Client.get_comments(%{repository_full_handle: "tuist/tuist", issue_id: 1, installation_id: "installation-id"})
 
       # Then
       assert comments == {:error, "Unexpected status code: 403. Body: \"\""}
@@ -225,7 +224,6 @@ defmodule Tuist.GitHub.ClientTest do
       assert user == {:error, "Unexpected status code: 404. Body: \"Not found\""}
     end
   end
-
 
   describe "get_tags/1" do
     test "returns tags" do

@@ -287,7 +287,6 @@ defmodule Tuist.Authorization do
       allow([:authenticated_as_user, user_role: :admin])
     end
 
-
     action :delete do
       desc("Allows the admin of an account to delete a project.")
       allow([:authenticated_as_user, user_role: :admin])
