@@ -17,7 +17,7 @@ defmodule TuistWeb.AuthenticationPlug do
   def init({:require_authentication, _} = opts), do: opts
 
   def call(conn, :load_authenticated_subject) do
-    token = TuistWeb.Authentication.get_app_installation_token_for_repository(conn)
+    token = TuistWeb.Authentication.get_authorization_token_from_conn(conn)
 
     if token do
       get_authenticated_subject(conn, token)

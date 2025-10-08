@@ -21,7 +21,7 @@ defmodule Tuist.GitHub.ClientTest do
   ]
 
   setup do
-    stub(App, :get_app_installation_token_for_repository, fn _ ->
+    stub(App, :get_installation_token, fn _installation_id ->
       {:ok, %{token: "github_token", expires_at: ~U[2024-04-30 10:30:31Z]}}
     end)
 
@@ -50,7 +50,8 @@ defmodule Tuist.GitHub.ClientTest do
       end)
 
       # When
-      comments = Client.get_comments(%{repository_full_handle: "tuist/tuist", issue_id: 1})
+      comments =
+        Client.get_comments(%{repository_full_handle: "tuist/tuist", issue_id: 1, installation_id: "installation-id"})
 
       # Then
       assert comments ==
@@ -75,8 +76,8 @@ defmodule Tuist.GitHub.ClientTest do
         end
       end)
 
-      stub(App, :get_app_installation_token_for_repository, fn _ ->
-        stub(App, :get_app_installation_token_for_repository, fn _ ->
+      stub(App, :get_installation_token, fn _installation_id ->
+        stub(App, :get_installation_token, fn _installation_id ->
           {:ok, %{token: "new_token", expires_at: ~U[2024-04-30 10:30:31Z]}}
         end)
 
@@ -86,7 +87,8 @@ defmodule Tuist.GitHub.ClientTest do
       stub(App, :clear_token, fn -> :ok end)
 
       # When
-      comments = Client.get_comments(%{repository_full_handle: "tuist/tuist", issue_id: 1})
+      comments =
+        Client.get_comments(%{repository_full_handle: "tuist/tuist", issue_id: 1, installation_id: "installation-id"})
 
       # Then
       assert comments == {:ok, [%Comment{id: "comment-id", client_id: nil}]}
@@ -99,7 +101,8 @@ defmodule Tuist.GitHub.ClientTest do
       end)
 
       # When
-      comments = Client.get_comments(%{repository_full_handle: "tuist/tuist", issue_id: 1})
+      comments =
+        Client.get_comments(%{repository_full_handle: "tuist/tuist", issue_id: 1, installation_id: "installation-id"})
 
       # Then
       assert comments == {:error, "Unexpected status code: 500. Body: \"\""}
@@ -112,7 +115,8 @@ defmodule Tuist.GitHub.ClientTest do
       end)
 
       # When
-      comments = Client.get_comments(%{repository_full_handle: "tuist/tuist", issue_id: 1})
+      comments =
+        Client.get_comments(%{repository_full_handle: "tuist/tuist", issue_id: 1, installation_id: "installation-id"})
 
       # Then
       assert comments == {:error, "Unexpected status code: 403. Body: \"\""}
@@ -120,12 +124,12 @@ defmodule Tuist.GitHub.ClientTest do
 
     test "returns error when getting token fails" do
       # Given
-      stub(App, :get_app_installation_token_for_repository, fn _ ->
+      stub(App, :get_installation_token, fn _installation_id ->
         {:error, "Failed to get token."}
       end)
 
       # When
-      got = Client.get_comments(%{repository_full_handle: "tuist/tuist", issue_id: 1})
+      got = Client.get_comments(%{repository_full_handle: "tuist/tuist", issue_id: 1, installation_id: "installation-id"})
 
       # Then
       assert got ==
@@ -150,7 +154,8 @@ defmodule Tuist.GitHub.ClientTest do
         Client.create_comment(%{
           repository_full_handle: "tuist/tuist",
           issue_id: 1,
-          body: "comment"
+          body: "comment",
+          installation_id: "installation-id"
         })
 
       # Then
@@ -175,7 +180,8 @@ defmodule Tuist.GitHub.ClientTest do
         Client.update_comment(%{
           repository_full_handle: "tuist/tuist",
           comment_id: 1,
-          body: "comment"
+          body: "comment",
+          installation_id: "installation-id"
         })
 
       # Then
@@ -195,7 +201,7 @@ defmodule Tuist.GitHub.ClientTest do
       end)
 
       # When
-      user = Client.get_user_by_id(%{id: "123", repository_full_handle: "tuist/tuist"})
+      user = Client.get_user_by_id(%{id: "123", installation_id: "installation-id"})
 
       # Then
       assert user == {:ok, %VCS.User{username: "tuist"}}
@@ -212,61 +218,10 @@ defmodule Tuist.GitHub.ClientTest do
       end)
 
       # When
-      user = Client.get_user_by_id(%{id: "123", repository_full_handle: "tuist/tuist"})
+      user = Client.get_user_by_id(%{id: "123", installation_id: "installation-id"})
 
       # Then
       assert user == {:error, "Unexpected status code: 404. Body: \"Not found\""}
-    end
-  end
-
-  describe "get_user_permission/1" do
-    test "returns user permission" do
-      # Given
-      stub(Req, :get, fn opts ->
-        case opts[:url] do
-          "https://api.github.com/user/123" ->
-            {:ok, %Req.Response{status: 200, body: %{"login" => "tuist"}}}
-
-          "https://api.github.com/repos/tuist/tuist/collaborators/tuist/permission" ->
-            {:ok, %Req.Response{status: 200, body: %{"permission" => "admin"}}}
-        end
-      end)
-
-      # When
-      permission =
-        Client.get_user_permission(%{username: "tuist", repository_full_handle: "tuist/tuist"})
-
-      # Then
-      assert permission == {:ok, %VCS.Repositories.Permission{permission: "admin"}}
-    end
-  end
-
-  describe "get_repository/1" do
-    test "returns repository" do
-      # Given
-      expect(Req, :get, fn opts ->
-        assert opts[:finch] == Tuist.Finch
-        assert opts[:headers] == @default_headers
-        assert opts[:url] == "https://api.github.com/repos/tuist/tuist"
-
-        {:ok,
-         %Req.Response{
-           status: 200,
-           body: %{"full_name" => "tuist/tuist", "default_branch" => "main"}
-         }}
-      end)
-
-      # When
-      repository = Client.get_repository("tuist/tuist")
-
-      # Then
-      assert repository ==
-               {:ok,
-                %VCS.Repositories.Repository{
-                  default_branch: "main",
-                  full_handle: "tuist/tuist",
-                  provider: :github
-                }}
     end
   end
 

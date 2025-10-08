@@ -5,7 +5,6 @@ defmodule Tuist.GitHub.App do
 
   alias Tuist.Environment
   alias Tuist.KeyValueStore
-  alias Tuist.Projects
 
   def get_installation_token(installation_id, opts \\ []) do
     ttl = to_timeout(minute: 10)
@@ -25,28 +24,6 @@ defmodule Tuist.GitHub.App do
 
       {:error, error} ->
         {:error, error}
-    end
-  end
-
-  def get_app_installation_token_for_repository(repository_full_handle, opts \\ []) do
-    case get_installation_id_for_repository(repository_full_handle) do
-      {:ok, installation_id} ->
-        get_installation_token(installation_id, opts)
-
-      {:error, error} ->
-        {:error, error}
-    end
-  end
-
-  defp get_installation_id_for_repository(repository_full_handle) do
-    case Projects.project_by_vcs_repository_full_handle(repository_full_handle,
-           preload: [vcs_connection: :github_app_installation]
-         ) do
-      {:ok, %{vcs_connection: %{github_app_installation: %{installation_id: installation_id}}}} ->
-        {:ok, installation_id}
-
-      {:error, :not_found} ->
-        {:error, "The Tuist GitHub app is not installed in the repository #{repository_full_handle}."}
     end
   end
 

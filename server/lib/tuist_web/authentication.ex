@@ -111,7 +111,7 @@ defmodule TuistWeb.Authentication do
     end
   end
 
-  def get_app_installation_token_for_repository(conn) do
+  def get_authorization_token_from_conn(conn) do
     case get_req_header(conn, "authorization") do
       ["Bearer " <> token] -> token
       _ -> nil

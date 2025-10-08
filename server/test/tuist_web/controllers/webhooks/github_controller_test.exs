@@ -64,7 +64,7 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
       # Given
       conn = put_req_header(conn, "x-github-event", "issue_comment")
 
-      reject(Projects, :project_by_vcs_repository_full_handle, 2)
+      reject(Projects, :projects_by_vcs_repository_full_handle, 2)
 
       # When
       result =
@@ -82,10 +82,6 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
     test "handles project not found gracefully", %{conn: conn} do
       # Given
       conn = put_req_header(conn, "x-github-event", "issue_comment")
-
-      expect(Projects, :project_by_vcs_repository_full_handle, fn "org/repo", _ ->
-        {:error, :not_found}
-      end)
 
       # When
       result =
@@ -226,10 +222,6 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
 
       conn = put_req_header(conn, "x-github-event", "issue_comment")
 
-      expect(Projects, :project_by_vcs_repository_full_handle, fn "org/repo", _ ->
-        {:ok, project}
-      end)
-
       expect(FunWithFlags, :enabled?, fn :qa, [for: ^account] ->
         true
       end)
@@ -258,8 +250,6 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
     test "ignores QA prompt in quoted text with > prefix", %{conn: conn} do
       # Given
       conn = put_req_header(conn, "x-github-event", "issue_comment")
-
-      reject(Projects, :project_by_vcs_repository_full_handle, 2)
 
       # When
       result =
@@ -352,6 +342,242 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
         GitHubController.handle(conn, %{
           "action" => "suspend",
           "installation" => %{"id" => "12345"}
+        })
+
+      # Then
+      assert result.status == 200
+    end
+
+    test "handles QA prompt with explicit project name", %{conn: conn} do
+      # Given
+      organization = AccountsFixtures.organization_fixture()
+      account = Repo.get_by!(Account, organization_id: organization.id)
+
+      ProjectsFixtures.project_fixture(
+        name: "mobile-app",
+        account_id: account.id,
+        vcs_connection: [
+          repository_full_handle: "org/monorepo",
+          provider: :github
+        ]
+      )
+
+      conn = put_req_header(conn, "x-github-event", "issue_comment")
+
+      expect(FunWithFlags, :enabled?, fn :qa, [for: ^account] ->
+        true
+      end)
+
+      expect(VCS, :create_comment, fn _comment_params ->
+        {:ok, %{"id" => "comment_123"}}
+      end)
+
+      expect(QA, :create_qa_run, fn _params ->
+        {:ok, %QA.Run{id: "qa-run-id", issue_comment_id: nil}}
+      end)
+
+      expect(QA, :update_qa_run, fn _, _ ->
+        {:ok, %QA.Run{id: "qa-run-id", issue_comment_id: "comment_123"}}
+      end)
+
+      # When
+      result =
+        GitHubController.handle(conn, %{
+          "action" => "created",
+          "comment" => %{"body" => "/tuist mobile-app qa test login flow"},
+          "repository" => %{"full_name" => "org/monorepo"},
+          "issue" => %{"number" => 42, "pull_request" => %{}}
+        })
+
+      # Then
+      assert result.status == 200
+    end
+
+    test "posts error message when project not found with explicit name", %{conn: conn} do
+      # Given
+      conn = put_req_header(conn, "x-github-event", "issue_comment")
+
+      expect(Projects, :project_by_name_and_vcs_repository_full_handle, fn "nonexistent", "org/monorepo", _ ->
+        {:error, :not_found}
+      end)
+
+      expect(VCS, :create_comment, fn comment_params ->
+        assert comment_params.body == "Project 'nonexistent' is not connected to this repository."
+        assert comment_params.project == nil
+        {:ok, %{"id" => "comment_456"}}
+      end)
+
+      # When
+      result =
+        GitHubController.handle(conn, %{
+          "action" => "created",
+          "comment" => %{"body" => "/tuist nonexistent qa test something"},
+          "repository" => %{"full_name" => "org/monorepo"},
+          "issue" => %{"number" => 42, "pull_request" => %{}}
+        })
+
+      # Then
+      assert result.status == 200
+    end
+
+    test "requires project name when multiple projects in monorepo", %{conn: conn} do
+      # Given
+      organization = AccountsFixtures.organization_fixture()
+      account = Repo.get_by!(Account, organization_id: organization.id)
+
+      _project_one =
+        ProjectsFixtures.project_fixture(
+          name: "mobile-app",
+          account_id: account.id,
+          vcs_connection: [
+            repository_full_handle: "org/monorepo",
+            provider: :github
+          ]
+        )
+
+      _project_two =
+        ProjectsFixtures.project_fixture(
+          name: "admin-panel",
+          account_id: account.id,
+          vcs_connection: [
+            repository_full_handle: "org/monorepo",
+            provider: :github
+          ]
+        )
+
+      conn = put_req_header(conn, "x-github-event", "issue_comment")
+
+      expect(VCS, :create_comment, fn comment_params ->
+        expected_message =
+          "Multiple Tuist projects are connected to this repository. Please specify the project handle: `/tuist <project-handle> qa <your-prompt>`\n\nAvailable projects: mobile-app, admin-panel"
+
+        assert comment_params.body == expected_message
+        {:ok, %{"id" => "comment_789"}}
+      end)
+
+      # When
+      result =
+        GitHubController.handle(conn, %{
+          "action" => "created",
+          "comment" => %{"body" => "/tuist qa test everything"},
+          "repository" => %{"full_name" => "org/monorepo"},
+          "issue" => %{"number" => 42, "pull_request" => %{}}
+        })
+
+      # Then
+      assert result.status == 200
+    end
+
+    test "handles multiple projects connected to same repository with deterministic comment creation", %{conn: conn} do
+      # Given
+      organization = AccountsFixtures.organization_fixture()
+      account = Repo.get_by!(Account, organization_id: organization.id)
+
+      # Create two projects connected to the same GitHub repository (monorepo scenario)
+      _project_one =
+        ProjectsFixtures.project_fixture(
+          name: "project-one",
+          account_id: account.id,
+          vcs_connection: [
+            repository_full_handle: "company/monorepo",
+            provider: :github
+          ]
+        )
+
+      _project_two =
+        ProjectsFixtures.project_fixture(
+          name: "project-two",
+          account_id: account.id,
+          vcs_connection: [
+            repository_full_handle: "company/monorepo",
+            provider: :github
+          ]
+        )
+
+      conn = put_req_header(conn, "x-github-event", "issue_comment")
+
+      expect(VCS, :create_comment, fn comment_params ->
+        expected_message =
+          "Multiple Tuist projects are connected to this repository. Please specify the project handle: `/tuist <project-handle> qa <your-prompt>`\n\nAvailable projects: project-one, project-two"
+
+        assert comment_params.body == expected_message
+        assert comment_params.repository_full_handle == "company/monorepo"
+        assert comment_params.git_ref == "refs/pull/123/merge"
+        {:ok, %{"id" => "comment_multiple_projects"}}
+      end)
+
+      # When
+      result =
+        GitHubController.handle(conn, %{
+          "action" => "created",
+          "comment" => %{"body" => "/tuist qa test user authentication"},
+          "repository" => %{"full_name" => "company/monorepo"},
+          "issue" => %{"number" => 123, "pull_request" => %{}}
+        })
+
+      # Then
+      assert result.status == 200
+    end
+
+    test "successfully processes QA prompt with specified project in monorepo", %{conn: conn} do
+      # Given
+      organization = AccountsFixtures.organization_fixture()
+      account = Repo.get_by!(Account, organization_id: organization.id)
+
+      # Create two projects connected to the same GitHub repository (monorepo scenario)
+      _project_one =
+        ProjectsFixtures.project_fixture(
+          name: "project-one",
+          account_id: account.id,
+          vcs_connection: [
+            repository_full_handle: "company/monorepo",
+            provider: :github
+          ]
+        )
+
+      project_two =
+        ProjectsFixtures.project_fixture(
+          name: "project-two",
+          account_id: account.id,
+          vcs_connection: [
+            repository_full_handle: "company/monorepo",
+            provider: :github
+          ]
+        )
+
+      conn = put_req_header(conn, "x-github-event", "issue_comment")
+
+      expect(FunWithFlags, :enabled?, fn :qa, [for: ^account] ->
+        true
+      end)
+
+      expect(VCS, :create_comment, fn comment_params ->
+        assert comment_params.body =~ "No preview found for your PR"
+        assert comment_params.repository_full_handle == "company/monorepo"
+        assert comment_params.git_ref == "refs/pull/456/merge"
+        assert comment_params.project == project_two
+        {:ok, %{"id" => "comment_project_two"}}
+      end)
+
+      expect(QA, :create_qa_run, fn params ->
+        assert params.prompt == "test checkout flow"
+        assert params.git_ref == "refs/pull/456/merge"
+        assert params.status == "pending"
+        assert params.app_build_id == nil
+        {:ok, %QA.Run{id: "qa-run-project-two", issue_comment_id: nil}}
+      end)
+
+      expect(QA, :update_qa_run, fn _, %{issue_comment_id: "comment_project_two"} ->
+        {:ok, %QA.Run{id: "qa-run-project-two", issue_comment_id: "comment_project_two"}}
+      end)
+
+      # When
+      result =
+        GitHubController.handle(conn, %{
+          "action" => "created",
+          "comment" => %{"body" => "/tuist project-two qa test checkout flow"},
+          "repository" => %{"full_name" => "company/monorepo"},
+          "issue" => %{"number" => 456, "pull_request" => %{}}
         })
 
       # Then
