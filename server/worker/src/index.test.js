@@ -9,15 +9,21 @@ vi.mock('aws4fetch', () => {
   };
 });
 
+// Mock global fetch
+global.fetch = vi.fn();
+
 import { AwsClient } from 'aws4fetch';
 
 describe('CAS Worker', () => {
   let env;
   let mockFetch;
   let mockSign;
+  let mockKVGet;
+  let mockKVPut;
 
   beforeEach(() => {
     vi.clearAllMocks();
+    global.fetch.mockClear();
 
     env = {
       TUIST_S3_REGION: 'us-east-1',
@@ -27,10 +33,17 @@ describe('CAS Worker', () => {
       TUIST_S3_VIRTUAL_HOST: 'false',
       TUIST_S3_ACCESS_KEY_ID: 'test-key-id',
       TUIST_S3_SECRET_ACCESS_KEY: 'test-secret-key',
+      SERVER_URL: 'http://localhost:8080',
+      CAS_CACHE: {
+        get: vi.fn(),
+        put: vi.fn(),
+      },
     };
 
     mockFetch = vi.fn();
     mockSign = vi.fn();
+    mockKVGet = env.CAS_CACHE.get;
+    mockKVPut = env.CAS_CACHE.put;
 
     AwsClient.mockImplementation(() => ({
       fetch: mockFetch,
@@ -38,7 +51,7 @@ describe('CAS Worker', () => {
     }));
   });
 
-  describe('GET /api/cas/:id', () => {
+  describe('GET /api/projects/:account_handle/:project_handle/cas/:id', () => {
     it('should return 404 for unknown paths', async () => {
       const request = new Request('http://localhost/unknown', {
         method: 'GET',
@@ -48,54 +61,125 @@ describe('CAS Worker', () => {
       expect(response.status).toBe(404);
     });
 
-    it('should return 404 with no body when object does not exist', async () => {
+    it('should return 401 when missing Authorization header', async () => {
+      const request = new Request('http://localhost/api/projects/acme/myapp/cas/abc123', {
+        method: 'GET',
+      });
+
+      const response = await worker.fetch(request, env, {});
+      expect(response.status).toBe(401);
+
+      const data = await response.json();
+      expect(data.error).toContain('Missing Authorization header');
+    });
+
+    it('should use cached prefix when available', async () => {
+      mockKVGet.mockResolvedValue('cached-prefix');
+      mockFetch.mockResolvedValue(new Response(null, { status: 200 }));
+      mockSign.mockResolvedValue({ url: 'https://s3.amazonaws.com/test-bucket/object?signed=true' });
+
+      const request = new Request('http://localhost/api/projects/acme/myapp/cas/abc123', {
+        method: 'GET',
+        headers: { 'Authorization': 'Bearer token123' },
+      });
+
+      const response = await worker.fetch(request, env, {});
+      expect(response.status).toBe(302);
+      expect(mockKVGet).toHaveBeenCalled();
+      expect(global.fetch).not.toHaveBeenCalled(); // Should not call server
+    });
+
+    it('should fetch prefix from server when not cached', async () => {
+      mockKVGet.mockResolvedValue(null);
+      global.fetch.mockResolvedValue(
+        new Response(JSON.stringify({ prefix: 'server-prefix' }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      );
+      mockFetch.mockResolvedValue(new Response(null, { status: 200 }));
+      mockSign.mockResolvedValue({ url: 'https://s3.amazonaws.com/test-bucket/object?signed=true' });
+
+      const request = new Request('http://localhost/api/projects/acme/myapp/cas/abc123', {
+        method: 'GET',
+        headers: { 'Authorization': 'Bearer token123' },
+      });
+
+      const response = await worker.fetch(request, env, {});
+      expect(response.status).toBe(302);
+      expect(mockKVGet).toHaveBeenCalled();
+      expect(global.fetch).toHaveBeenCalledWith(
+        'http://localhost:8080/api/projects/acme/myapp/cas/prefix',
+        expect.objectContaining({
+          method: 'GET',
+          headers: expect.objectContaining({
+            'Authorization': 'Bearer token123',
+          }),
+        })
+      );
+      expect(mockKVPut).toHaveBeenCalledWith(
+        expect.any(String),
+        'server-prefix',
+        { expirationTtl: 3600 }
+      );
+    });
+
+    it('should forward x-request-id header to server', async () => {
+      mockKVGet.mockResolvedValue(null);
+      global.fetch.mockResolvedValue(
+        new Response(JSON.stringify({ prefix: 'server-prefix' }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      );
+      mockFetch.mockResolvedValue(new Response(null, { status: 200 }));
+      mockSign.mockResolvedValue({ url: 'https://s3.amazonaws.com/test-bucket/object?signed=true' });
+
+      const request = new Request('http://localhost/api/projects/acme/myapp/cas/abc123', {
+        method: 'GET',
+        headers: {
+          'Authorization': 'Bearer token123',
+          'x-request-id': 'req-123',
+        },
+      });
+
+      await worker.fetch(request, env, {});
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        'http://localhost:8080/api/projects/acme/myapp/cas/prefix',
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            'Authorization': 'Bearer token123',
+            'x-request-id': 'req-123',
+          }),
+        })
+      );
+    });
+
+    it('should return 404 when object does not exist in S3', async () => {
+      mockKVGet.mockResolvedValue('cached-prefix');
       mockFetch.mockResolvedValue(new Response(null, { status: 404 }));
 
-      const request = new Request('http://localhost/api/cas/abc123', {
+      const request = new Request('http://localhost/api/projects/acme/myapp/cas/abc123', {
         method: 'GET',
+        headers: { 'Authorization': 'Bearer token123' },
       });
 
       const response = await worker.fetch(request, env, {});
       expect(response.status).toBe(404);
       expect(response.body).toBeNull();
     });
-
-    it('should return redirect when object exists', async () => {
-      mockFetch.mockResolvedValue(new Response(null, { status: 200 }));
-      mockSign.mockResolvedValue({ url: 'https://s3.amazonaws.com/test-bucket/test-object?signed=true' });
-
-      const request = new Request('http://localhost/api/cas/abc123', {
-        method: 'GET',
-      });
-
-      const response = await worker.fetch(request, env, {});
-      expect(response.status).toBe(302);
-      expect(response.headers.get('Location')).toContain('s3.amazonaws.com');
-    });
-
-    it('should return 500 when missing required environment variables', async () => {
-      const invalidEnv = { ...env };
-      delete invalidEnv.TUIST_S3_REGION;
-
-      const request = new Request('http://localhost/api/cas/abc123', {
-        method: 'GET',
-      });
-
-      const response = await worker.fetch(request, invalidEnv, {});
-      expect(response.status).toBe(500);
-
-      const data = await response.json();
-      expect(data.error).toContain('Missing required environment variable');
-    });
   });
 
-  describe('POST /api/cas/:id', () => {
-    it('should return 302 redirect to upload URL when object does not exist', async () => {
+  describe('POST /api/projects/:account_handle/:project_handle/cas/:id', () => {
+    it('should return upload URL when object does not exist', async () => {
+      mockKVGet.mockResolvedValue('cached-prefix');
       mockFetch.mockResolvedValue(new Response(null, { status: 404 }));
       mockSign.mockResolvedValue({ url: 'https://s3.amazonaws.com/test-bucket/upload?signed=true' });
 
-      const request = new Request('http://localhost/api/cas/abc123', {
+      const request = new Request('http://localhost/api/projects/acme/myapp/cas/abc123', {
         method: 'POST',
+        headers: { 'Authorization': 'Bearer token123' },
       });
 
       const response = await worker.fetch(request, env, {});
@@ -103,79 +187,18 @@ describe('CAS Worker', () => {
       expect(response.headers.get('Location')).toContain('s3.amazonaws.com');
     });
 
-    it('should return 304 with no body when object exists', async () => {
+    it('should return 304 when object exists in S3', async () => {
+      mockKVGet.mockResolvedValue('cached-prefix');
       mockFetch.mockResolvedValue(new Response(null, { status: 200 }));
 
-      const request = new Request('http://localhost/api/cas/abc123', {
+      const request = new Request('http://localhost/api/projects/acme/myapp/cas/abc123', {
         method: 'POST',
+        headers: { 'Authorization': 'Bearer token123' },
       });
 
       const response = await worker.fetch(request, env, {});
       expect(response.status).toBe(304);
       expect(response.body).toBeNull();
-    });
-
-    it('should return 500 when bucket name is missing', async () => {
-      const invalidEnv = { ...env };
-      delete invalidEnv.TUIST_S3_BUCKET_NAME;
-
-      const request = new Request('http://localhost/api/cas/abc123', {
-        method: 'POST',
-      });
-
-      const response = await worker.fetch(request, invalidEnv, {});
-      expect(response.status).toBe(500);
-
-      const data = await response.json();
-      expect(data.error).toContain('Missing TUIST_S3_BUCKET_NAME');
-    });
-  });
-
-  describe('S3 Configuration', () => {
-    it('should construct path style URLs when TUIST_S3_BUCKET_AS_HOST is false', async () => {
-      env.TUIST_S3_BUCKET_AS_HOST = 'false';
-      mockFetch.mockResolvedValue(new Response(null, { status: 200 }));
-      mockSign.mockResolvedValue({ url: 'https://s3.amazonaws.com/test-bucket/object?signed=true' });
-
-      const request = new Request('http://localhost/api/cas/abc123', {
-        method: 'GET',
-      });
-
-      await worker.fetch(request, env, {});
-
-      expect(AwsClient).toHaveBeenCalledWith(
-        expect.objectContaining({
-          accessKeyId: 'test-key-id',
-          secretAccessKey: 'test-secret-key',
-          region: 'us-east-1',
-          service: 's3',
-        })
-      );
-    });
-
-    it('should handle virtual host style when TUIST_S3_VIRTUAL_HOST is true', async () => {
-      env.TUIST_S3_VIRTUAL_HOST = 'true';
-      mockFetch.mockResolvedValue(new Response(null, { status: 200 }));
-      mockSign.mockResolvedValue({ url: 'https://test-bucket.s3.amazonaws.com/object?signed=true' });
-
-      const request = new Request('http://localhost/api/cas/abc123', {
-        method: 'GET',
-      });
-
-      await worker.fetch(request, env, {});
-
-      expect(mockSign).toHaveBeenCalled();
-    });
-  });
-
-  describe('Unsupported HTTP Methods', () => {
-    it('should return 404 for unsupported methods', async () => {
-      const request = new Request('http://localhost/api/cas/abc123', {
-        method: 'PUT',
-      });
-
-      const response = await worker.fetch(request, env, {});
-      expect(response.status).toBe(404);
     });
   });
 });

@@ -2,3 +2,12 @@ name = "tuist-worker"
 main = "src/index.js"
 compatibility_date = "2025-01-08"
 compatibility_flags = ["nodejs_compat"]
+
+# KV namespace for caching CAS prefixes
+[[kv_namespaces]]
+binding = "CAS_CACHE"
+id = "placeholder" # This will be replaced with actual KV namespace ID in production
+preview_id = "placeholder" # For preview environments
+
+[dev]
+port = 8787
