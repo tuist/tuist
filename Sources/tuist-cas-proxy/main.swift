@@ -1,8 +1,9 @@
 import Foundation
+import Dispatch
 
 @main
 struct TuistCASProxy {
-    static func main() async {
+    static func main() {
         print("Starting Tuist CAS Proxy...")
         
         let socketPath: String
@@ -18,7 +19,9 @@ struct TuistCASProxy {
         let server = CASProxyServer(socketPath: socketPath)
         
         do {
-            try await server.start()
+            try server.start()
+            // Keep the main thread alive
+            RunLoop.current.run()
         } catch {
             print("Error starting server: \(error)")
             exit(1)
@@ -26,15 +29,16 @@ struct TuistCASProxy {
     }
 }
 
-actor CASProxyServer {
+class CASProxyServer {
     private let socketPath: String
     private var socketFileDescriptor: Int32 = -1
+    private let queue = DispatchQueue(label: "cas.proxy.server", attributes: .concurrent)
     
     init(socketPath: String) {
         self.socketPath = socketPath
     }
     
-    func start() async throws {
+    func start() throws {
         print("Creating Unix domain socket at: \(socketPath)")
         
         // Create Unix domain socket
@@ -42,6 +46,10 @@ actor CASProxyServer {
         guard socketFileDescriptor >= 0 else {
             throw ProxyError.socketCreationFailed(errno: errno)
         }
+        
+        // Set socket options for reuse
+        var reuseOn = Int32(1)
+        setsockopt(socketFileDescriptor, SOL_SOCKET, SO_REUSEADDR, &reuseOn, socklen_t(MemoryLayout<Int32>.size))
         
         // Configure socket address
         var addr = sockaddr_un()
@@ -76,463 +84,277 @@ actor CASProxyServer {
             throw ProxyError.bindFailed(errno: errno)
         }
         
-        // Listen for connections
-        guard listen(socketFileDescriptor, 5) >= 0 else {
+        // Listen for connections with higher backlog
+        guard listen(socketFileDescriptor, 128) >= 0 else {
             close(socketFileDescriptor)
             throw ProxyError.listenFailed(errno: errno)
         }
         
         print("Listening on \(socketPath)")
         
-        // Accept connections
-        await acceptConnections()
+        // Start accepting connections in background
+        queue.async {
+            self.acceptLoop()
+        }
     }
     
-    private func acceptConnections() async {
-        print("Starting to accept connections...")
+    private func acceptLoop() {
+        print("Starting accept loop...")
         var connectionCount = 0
         
         while true {
-            print("Waiting for connection \(connectionCount + 1)...")
-            let clientSocket = accept(socketFileDescriptor, nil, nil)
-            if clientSocket < 0 {
-                if errno == EAGAIN || errno == EWOULDBLOCK {
-                    // Non-blocking socket, no connection available
-                    try? await Task.sleep(nanoseconds: 100_000_000) // 100ms
-                    continue
+            var clientAddr = sockaddr_un()
+            var clientAddrLen = socklen_t(MemoryLayout<sockaddr_un>.size)
+            
+            let clientSocket = withUnsafeMutablePointer(to: &clientAddr) { addrPtr in
+                addrPtr.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockaddrPtr in
+                    accept(socketFileDescriptor, sockaddrPtr, &clientAddrLen)
                 }
-                print("Error accepting connection: \(errno) - \(String(cString: strerror(errno)))")
+            }
+            
+            if clientSocket < 0 {
+                if errno != EINTR {
+                    print("Error accepting connection: \(errno) - \(String(cString: strerror(errno)))")
+                }
                 continue
             }
             
             connectionCount += 1
-            print("Accepted connection #\(connectionCount), socket: \(clientSocket)")
+            print("\n[Connection #\(connectionCount)] Accepted, fd=\(clientSocket)")
             
-            Task {
-                await handleClient(socket: clientSocket)
+            // Handle each client in a separate concurrent queue task
+            queue.async {
+                self.handleClient(socket: clientSocket, connectionId: connectionCount)
             }
         }
     }
     
-    private func handleClient(socket: Int32) async {
-        print("\n=== New client connected ===")
-        print("Socket descriptor: \(socket)")
+    private func handleClient(socket: Int32, connectionId: Int) {
+        print("[Connection #\(connectionId)] Handling client on thread: \(Thread.current)")
         
-        // Set socket to non-blocking mode for better debugging
-        var flags = fcntl(socket, F_GETFL, 0)
-        if flags != -1 {
-            fcntl(socket, F_SETFL, flags | O_NONBLOCK)
-        }
+        // Set socket options for better performance
+        var noDelay = Int32(1)
+        setsockopt(socket, IPPROTO_TCP, TCP_NODELAY, &noDelay, socklen_t(MemoryLayout<Int32>.size))
         
-        let connection = HTTP2Connection(socket: socket)
+        // Set a reasonable timeout
+        var timeout = timeval()
+        timeout.tv_sec = 30  // 30 seconds
+        timeout.tv_usec = 0
+        setsockopt(socket, SOL_SOCKET, SO_RCVTIMEO, &timeout, socklen_t(MemoryLayout<timeval>.size))
         
-        do {
-            try await connection.handleConnection()
-        } catch {
-            print("Error handling client: \(error)")
-            print("Error details: \(String(describing: error))")
+        // Try to read initial data
+        var buffer = [UInt8](repeating: 0, count: 4096)
+        let bytesRead = recv(socket, &buffer, buffer.count, 0)
+        
+        if bytesRead > 0 {
+            print("[Connection #\(connectionId)] Received \(bytesRead) bytes")
+            let data = Data(bytes: buffer, count: bytesRead)
+            
+            // Check if it's HTTP/2 preface
+            if bytesRead >= 24 {
+                let preface = String(data: data.prefix(24), encoding: .ascii) ?? ""
+                if preface == "PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n" {
+                    print("[Connection #\(connectionId)] Detected HTTP/2 preface")
+                    handleHTTP2Connection(socket: socket, connectionId: connectionId, initialData: data)
+                    return
+                }
+            }
+            
+            // Otherwise, show what we got
+            print("[Connection #\(connectionId)] Data hex: \(data.prefix(100).hexEncodedString())")
+            if let str = String(data: data, encoding: .utf8) {
+                print("[Connection #\(connectionId)] Data string: \(str.prefix(100))")
+            }
+        } else if bytesRead == 0 {
+            print("[Connection #\(connectionId)] Connection closed by peer")
+        } else {
+            print("[Connection #\(connectionId)] recv error: \(errno) - \(String(cString: strerror(errno)))")
         }
         
         close(socket)
-        print("=== Client disconnected ===\n")
-    }
-}
-
-class HTTP2Connection {
-    private let socket: Int32
-    private let reader: SocketReader
-    private var streamStates: [UInt32: StreamState] = [:]
-    
-    struct StreamState {
-        var headers: [String: String] = [:]
-        var data: Data = Data()
+        print("[Connection #\(connectionId)] Closed")
     }
     
-    init(socket: Int32) {
-        self.socket = socket
-        self.reader = SocketReader(socket: socket)
-    }
-    
-    func handleConnection() async throws {
-        print("Starting to handle connection...")
+    private func handleHTTP2Connection(socket: Int32, connectionId: Int, initialData: Data) {
+        print("[Connection #\(connectionId)] Starting HTTP/2 handler")
         
-        // Try to read initial data to see what we're getting
-        print("Attempting to read initial bytes...")
+        // Send HTTP/2 SETTINGS frame immediately
+        let settingsFrame = createHTTP2Frame(type: 0x04, flags: 0x00, streamId: 0, payload: Data())
+        _ = settingsFrame.withUnsafeBytes { bytes in
+            send(socket, bytes.baseAddress, settingsFrame.count, 0)
+        }
+        print("[Connection #\(connectionId)] Sent SETTINGS frame")
         
-        do {
-            // Try to peek at the first few bytes
-            let initialBytes = try await reader.readExactly(1)
-            print("First byte: 0x\(String(format: "%02X", initialBytes[0]))")
-            
-            // Check if this looks like HTTP/2
-            if initialBytes[0] == 0x50 { // 'P' from "PRI"
-                print("Detected HTTP/2 preface start")
-                // Read the rest of the preface
-                let restOfPreface = try await reader.readExactly(23)
-                let fullPreface = initialBytes + restOfPreface
-                let prefaceString = String(data: fullPreface, encoding: .ascii) ?? ""
-                print("Received preface: \(prefaceString.debugDescription)")
-                print("Preface hex: \(fullPreface.hexEncodedString())")
+        // Process remaining data after preface
+        var remainingData = initialData.dropFirst(24)
+        
+        while true {
+            // Read more data if needed
+            if remainingData.count < 9 {
+                var buffer = [UInt8](repeating: 0, count: 4096)
+                let bytesRead = recv(socket, &buffer, buffer.count, 0)
                 
-                if prefaceString != "PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n" {
-                    print("Invalid HTTP/2 preface!")
-                    throw ProxyError.invalidHTTP2Preface
+                if bytesRead > 0 {
+                    remainingData.append(contentsOf: buffer[0..<bytesRead])
+                } else if bytesRead == 0 {
+                    print("[Connection #\(connectionId)] Connection closed")
+                    break
+                } else if errno == EAGAIN || errno == EWOULDBLOCK {
+                    usleep(1000) // 1ms
+                    continue
+                } else {
+                    print("[Connection #\(connectionId)] recv error: \(errno)")
+                    break
+                }
+            }
+            
+            // Parse HTTP/2 frame header
+            if remainingData.count >= 9 {
+                let frameLength = Int(remainingData[0]) << 16 | Int(remainingData[1]) << 8 | Int(remainingData[2])
+                let frameType = remainingData[3]
+                let frameFlags = remainingData[4]
+                let streamId = UInt32(remainingData[5] & 0x7F) << 24 |
+                              UInt32(remainingData[6]) << 16 |
+                              UInt32(remainingData[7]) << 8 |
+                              UInt32(remainingData[8])
+                
+                print("[Connection #\(connectionId)] Frame: type=\(frameType), flags=\(frameFlags), streamId=\(streamId), length=\(frameLength)")
+                
+                // Wait for full frame
+                if remainingData.count < 9 + frameLength {
+                    continue
                 }
                 
-                print("Valid HTTP/2 preface received")
+                // Extract frame payload
+                let framePayload = remainingData.subdata(in: 9..<9+frameLength)
+                remainingData = remainingData.dropFirst(9 + frameLength)
                 
-                // Send initial SETTINGS frame
-                print("Sending SETTINGS frame...")
-                try await sendSettingsFrame()
-                
-                // Process frames
-                while true {
-                    print("\nWaiting for next frame...")
-                    guard let frame = try await readHTTP2Frame() else {
-                        print("No more frames, connection closing")
-                        break
+                // Handle frame based on type
+                switch frameType {
+                case 0x00: // DATA
+                    handleDataFrame(socket: socket, connectionId: connectionId, streamId: streamId, flags: frameFlags, payload: framePayload)
+                case 0x01: // HEADERS
+                    handleHeadersFrame(socket: socket, connectionId: connectionId, streamId: streamId, flags: frameFlags, payload: framePayload)
+                case 0x04: // SETTINGS
+                    if frameFlags & 0x01 == 0 {
+                        // Send SETTINGS ACK
+                        let ackFrame = createHTTP2Frame(type: 0x04, flags: 0x01, streamId: 0, payload: Data())
+                        _ = ackFrame.withUnsafeBytes { bytes in
+                            send(socket, bytes.baseAddress, ackFrame.count, 0)
+                        }
+                        print("[Connection #\(connectionId)] Sent SETTINGS ACK")
                     }
-                    
-                    try await handleFrame(frame)
-                }
-            } else {
-                print("Unexpected first byte, not HTTP/2")
-                print("Reading more data to understand protocol...")
-                
-                // Read more data to see what this is
-                let moreData = try await reader.readExactly(100)
-                let allData = initialBytes + moreData
-                print("Raw data (first 101 bytes): \(allData.hexEncodedString())")
-                if let str = String(data: allData, encoding: .utf8) {
-                    print("As string: \(str.debugDescription)")
-                }
-            }
-        } catch {
-            print("Error during initial connection handling: \(error)")
-            throw error
-        }
-    }
-    
-    private func readHTTP2Frame() async throws -> HTTP2Frame? {
-        // Read frame header (9 bytes)
-        guard let headerData = try? await reader.readExactly(9) else {
-            return nil
-        }
-        
-        // Parse frame header
-        let length = Int(headerData[0]) << 16 | Int(headerData[1]) << 8 | Int(headerData[2])
-        let type = HTTP2FrameType(rawValue: headerData[3]) ?? .unknown
-        let flags = headerData[4]
-        let streamId = UInt32(headerData[5] & 0x7F) << 24 | UInt32(headerData[6]) << 16 |
-                      UInt32(headerData[7]) << 8 | UInt32(headerData[8])
-        
-        // Read payload
-        let payload = length > 0 ? try await reader.readExactly(length) : Data()
-        
-        return HTTP2Frame(type: type, flags: flags, streamId: streamId, payload: payload)
-    }
-    
-    private func handleFrame(_ frame: HTTP2Frame) async throws {
-        print("Received frame: type=\(frame.type), streamId=\(frame.streamId), flags=\(frame.flags), length=\(frame.payload.count)")
-        
-        switch frame.type {
-        case .settings:
-            if frame.flags & 0x01 == 0 { // Not ACK
-                // Send SETTINGS ACK
-                try await sendFrame(HTTP2Frame(type: .settings, flags: 0x01, streamId: 0, payload: Data()))
-            }
-            
-        case .headers:
-            // Initialize stream state
-            streamStates[frame.streamId] = StreamState()
-            
-            // Parse headers (simplified - should use HPACK)
-            print("HEADERS frame for stream \(frame.streamId)")
-            print("Raw headers: \(frame.payload.hexEncodedString())")
-            
-        case .data:
-            if var state = streamStates[frame.streamId] {
-                state.data.append(frame.payload)
-                streamStates[frame.streamId] = state
-                
-                print("DATA frame for stream \(frame.streamId): \(frame.payload.count) bytes")
-                
-                // Check if this is the end of the stream
-                if frame.flags & 0x01 != 0 { // END_STREAM
-                    try await handleGRPCRequest(streamId: frame.streamId, data: state.data)
-                    streamStates[frame.streamId] = nil
+                case 0x06: // PING
+                    if frameFlags & 0x01 == 0 {
+                        // Echo PING with ACK
+                        let pingAck = createHTTP2Frame(type: 0x06, flags: 0x01, streamId: 0, payload: framePayload)
+                        _ = pingAck.withUnsafeBytes { bytes in
+                            send(socket, bytes.baseAddress, pingAck.count, 0)
+                        }
+                        print("[Connection #\(connectionId)] Sent PING ACK")
+                    }
+                case 0x08: // WINDOW_UPDATE
+                    print("[Connection #\(connectionId)] WINDOW_UPDATE")
+                default:
+                    print("[Connection #\(connectionId)] Unhandled frame type: \(frameType)")
                 }
             }
+        }
+        
+        close(socket)
+        print("[Connection #\(connectionId)] HTTP/2 connection closed")
+    }
+    
+    private func handleHeadersFrame(socket: Int32, connectionId: Int, streamId: UInt32, flags: UInt8, payload: Data) {
+        print("[Connection #\(connectionId)] Stream \(streamId) - HEADERS frame, \(payload.count) bytes")
+        print("[Connection #\(connectionId)] Headers hex: \(payload.hexEncodedString())")
+        
+        // For now, prepare to handle the request
+        // In a real implementation, we'd decode HPACK headers here
+    }
+    
+    private func handleDataFrame(socket: Int32, connectionId: Int, streamId: UInt32, flags: UInt8, payload: Data) {
+        print("[Connection #\(connectionId)] Stream \(streamId) - DATA frame, \(payload.count) bytes")
+        
+        // Check if this is a gRPC message
+        if payload.count >= 5 {
+            let compressed = payload[0]
+            let messageLength = UInt32(payload[1]) << 24 | UInt32(payload[2]) << 16 |
+                               UInt32(payload[3]) << 8 | UInt32(payload[4])
             
-        case .windowUpdate:
-            print("WINDOW_UPDATE frame")
+            print("[Connection #\(connectionId)] gRPC message: compressed=\(compressed), length=\(messageLength)")
             
-        case .ping:
-            if frame.flags & 0x01 == 0 { // Not ACK
-                // Send PING ACK
-                try await sendFrame(HTTP2Frame(type: .ping, flags: 0x01, streamId: 0, payload: frame.payload))
+            if payload.count >= 5 + messageLength {
+                let messageData = payload.subdata(in: 5..<5+Int(messageLength))
+                print("[Connection #\(connectionId)] Message hex: \(messageData.prefix(100).hexEncodedString())")
+                
+                // Send a response
+                sendGRPCResponse(socket: socket, connectionId: connectionId, streamId: streamId)
             }
-            
-        default:
-            print("Unhandled frame type: \(frame.type.rawValue)")
         }
     }
     
-    private func handleGRPCRequest(streamId: UInt32, data: Data) async throws {
-        print("\nProcessing gRPC request for stream \(streamId)")
+    private func sendGRPCResponse(socket: Int32, connectionId: Int, streamId: UInt32) {
+        print("[Connection #\(connectionId)] Sending response for stream \(streamId)")
         
-        // Parse gRPC message
-        guard data.count >= 5 else {
-            print("Invalid gRPC message: too short")
-            return
+        // Send HEADERS frame with :status = 200
+        let headersData = Data([0x88]) // :status = 200 (indexed)
+        let headersFrame = createHTTP2Frame(type: 0x01, flags: 0x04, streamId: streamId, payload: headersData)
+        _ = headersFrame.withUnsafeBytes { bytes in
+            send(socket, bytes.baseAddress, headersFrame.count, 0)
         }
         
-        let compressed = data[0] != 0
-        let messageLength = UInt32(data[1]) << 24 | UInt32(data[2]) << 16 |
-                           UInt32(data[3]) << 8 | UInt32(data[4])
-        let messageData = data.subdata(in: 5..<data.count)
-        
-        print("gRPC message: compressed=\(compressed), length=\(messageLength)")
-        
-        // Decode protobuf
-        let decoded = try decodeProtobufMessage(messageData)
-        print("Decoded message: \(decoded)")
-        
-        // Determine request type and send response
-        if decoded.keys.contains(where: { $0.contains("cas_id") }) || 
-           decoded.keys.contains(where: { $0.contains("data") }) {
-            print("Detected Save request")
-            try await sendSaveResponse(streamId: streamId)
-        } else {
-            print("Detected GetValue request")
-            try await sendGetValueResponse(streamId: streamId)
-        }
-    }
-    
-    private func sendGetValueResponse(streamId: UInt32) async throws {
-        print("Sending GetValue response for stream \(streamId)")
-        
-        // Create protobuf response
+        // Create GetValue response (not found)
         var response = Data()
-        
-        // Field 1 (found): tag = (1 << 3) | 0 = 8, wire type 0 (varint)
-        response.append(0x08)
+        response.append(0x08) // field 1, wire type 0
         response.append(0x00) // found = false
         
-        // Send response
-        try await sendGRPCResponse(streamId: streamId, data: response, endStream: true)
-    }
-    
-    private func sendSaveResponse(streamId: UInt32) async throws {
-        print("Sending Save response for stream \(streamId)")
-        
-        // Create protobuf response
-        var response = Data()
-        
-        // Field 1 (cas_id): tag = (1 << 3) | 2 = 10, wire type 2 (length-delimited)
-        response.append(0x0A)
-        let casId = "fake-cas-id"
-        response.append(UInt8(casId.count))
-        response.append(casId.data(using: .utf8)!)
-        
-        // Field 2 (success): tag = (2 << 3) | 0 = 16, wire type 0 (varint)
-        response.append(0x10)
-        response.append(0x01) // success = true
-        
-        // Send response
-        try await sendGRPCResponse(streamId: streamId, data: response, endStream: true)
-    }
-    
-    private func sendGRPCResponse(streamId: UInt32, data: Data, endStream: Bool) async throws {
-        // Send HEADERS frame first (minimal headers)
-        let headersPayload = Data([
-            0x88, // :status = 200 (indexed header field)
-        ])
-        try await sendFrame(HTTP2Frame(type: .headers, flags: 0x04, streamId: streamId, payload: headersPayload))
-        
-        // Create gRPC message
+        // Wrap in gRPC message
         var grpcMessage = Data()
-        grpcMessage.append(0x00) // Not compressed
-        var length = UInt32(data.count).bigEndian
+        grpcMessage.append(0x00) // not compressed
+        var length = UInt32(response.count).bigEndian
         grpcMessage.append(Data(bytes: &length, count: 4))
-        grpcMessage.append(data)
+        grpcMessage.append(response)
         
-        // Send DATA frame
-        let flags: UInt8 = endStream ? 0x01 : 0x00
-        try await sendFrame(HTTP2Frame(type: .data, flags: flags, streamId: streamId, payload: grpcMessage))
+        // Send DATA frame with END_STREAM
+        let dataFrame = createHTTP2Frame(type: 0x00, flags: 0x01, streamId: streamId, payload: grpcMessage)
+        _ = dataFrame.withUnsafeBytes { bytes in
+            send(socket, bytes.baseAddress, dataFrame.count, 0)
+        }
+        
+        print("[Connection #\(connectionId)] Response sent for stream \(streamId)")
     }
     
-    private func sendSettingsFrame() async throws {
-        // Empty SETTINGS frame
-        try await sendFrame(HTTP2Frame(type: .settings, flags: 0x00, streamId: 0, payload: Data()))
-    }
-    
-    private func sendFrame(_ frame: HTTP2Frame) async throws {
-        var data = Data()
+    private func createHTTP2Frame(type: UInt8, flags: UInt8, streamId: UInt32, payload: Data) -> Data {
+        var frame = Data()
         
-        // Frame header (9 bytes)
         // Length (3 bytes)
-        data.append(UInt8((frame.payload.count >> 16) & 0xFF))
-        data.append(UInt8((frame.payload.count >> 8) & 0xFF))
-        data.append(UInt8(frame.payload.count & 0xFF))
+        let length = payload.count
+        frame.append(UInt8((length >> 16) & 0xFF))
+        frame.append(UInt8((length >> 8) & 0xFF))
+        frame.append(UInt8(length & 0xFF))
         
-        // Type (1 byte)
-        data.append(frame.type.rawValue)
-        
-        // Flags (1 byte)
-        data.append(frame.flags)
+        // Type and flags
+        frame.append(type)
+        frame.append(flags)
         
         // Stream ID (4 bytes)
-        data.append(UInt8((frame.streamId >> 24) & 0x7F))
-        data.append(UInt8((frame.streamId >> 16) & 0xFF))
-        data.append(UInt8((frame.streamId >> 8) & 0xFF))
-        data.append(UInt8(frame.streamId & 0xFF))
+        frame.append(UInt8((streamId >> 24) & 0x7F))
+        frame.append(UInt8((streamId >> 16) & 0xFF))
+        frame.append(UInt8((streamId >> 8) & 0xFF))
+        frame.append(UInt8(streamId & 0xFF))
         
         // Payload
-        data.append(frame.payload)
+        frame.append(payload)
         
-        _ = data.withUnsafeBytes { bytes in
-            send(socket, bytes.baseAddress, data.count, 0)
-        }
+        return frame
     }
-    
-    private func decodeProtobufMessage(_ data: Data) throws -> [String: Any] {
-        var result: [String: Any] = [:]
-        var index = 0
-        
-        while index < data.count {
-            guard index < data.count else { break }
-            
-            let tag = data[index]
-            index += 1
-            
-            let fieldNumber = tag >> 3
-            let wireType = tag & 0x07
-            
-            print("  Field \(fieldNumber), wire type \(wireType)")
-            
-            switch wireType {
-            case 0: // Varint
-                let (value, newIndex) = readVarint(data, from: index)
-                index = newIndex
-                result["field_\(fieldNumber)"] = value
-                print("    Varint value: \(value)")
-                
-            case 2: // Length-delimited
-                let (length, lengthEndIndex) = readVarint(data, from: index)
-                index = lengthEndIndex
-                
-                if index + Int(length) <= data.count {
-                    let fieldData = data[index..<index + Int(length)]
-                    index += Int(length)
-                    
-                    // Try to decode as string
-                    if let string = String(data: fieldData, encoding: .utf8) {
-                        result["field_\(fieldNumber)"] = string
-                        print("    String value: \(string)")
-                    } else {
-                        result["field_\(fieldNumber)"] = fieldData
-                        print("    Binary data: \(fieldData.count) bytes")
-                    }
-                }
-                
-            default:
-                print("  Unknown wire type: \(wireType)")
-                break
-            }
-        }
-        
-        return result
-    }
-    
-    private func readVarint(_ data: Data, from startIndex: Int) -> (value: UInt64, endIndex: Int) {
-        var value: UInt64 = 0
-        var index = startIndex
-        var shift = 0
-        
-        while index < data.count {
-            let byte = data[index]
-            value |= UInt64(byte & 0x7F) << shift
-            index += 1
-            
-            if byte & 0x80 == 0 {
-                break
-            }
-            
-            shift += 7
-        }
-        
-        return (value, index)
-    }
-}
-
-class SocketReader {
-    private let socket: Int32
-    private var buffer = Data()
-    
-    init(socket: Int32) {
-        self.socket = socket
-    }
-    
-    func readExactly(_ count: Int) async throws -> Data {
-        print("  readExactly: need \(count) bytes, have \(buffer.count) in buffer")
-        
-        while buffer.count < count {
-            var tempBuffer = [UInt8](repeating: 0, count: 4096)
-            let bytesRead = recv(socket, &tempBuffer, tempBuffer.count, 0)
-            
-            if bytesRead > 0 {
-                print("  readExactly: read \(bytesRead) bytes from socket")
-                buffer.append(contentsOf: tempBuffer[0..<bytesRead])
-                print("  readExactly: buffer now has \(buffer.count) bytes")
-            } else if bytesRead == 0 {
-                print("  readExactly: connection closed (recv returned 0)")
-                throw ProxyError.connectionClosed
-            } else if errno == EAGAIN || errno == EWOULDBLOCK {
-                // Non-blocking socket, no data available yet
-                print("  readExactly: would block, waiting...")
-                try await Task.sleep(nanoseconds: 10_000_000) // 10ms
-            } else {
-                print("  readExactly: recv error \(errno)")
-                throw ProxyError.readError(errno: errno)
-            }
-        }
-        
-        let result = buffer.prefix(count)
-        buffer.removeFirst(count)
-        print("  readExactly: returning \(result.count) bytes")
-        return Data(result)
-    }
-}
-
-struct HTTP2Frame {
-    let type: HTTP2FrameType
-    let flags: UInt8
-    let streamId: UInt32
-    let payload: Data
-}
-
-enum HTTP2FrameType: UInt8 {
-    case data = 0x0
-    case headers = 0x1
-    case priority = 0x2
-    case rstStream = 0x3
-    case settings = 0x4
-    case pushPromise = 0x5
-    case ping = 0x6
-    case goaway = 0x7
-    case windowUpdate = 0x8
-    case continuation = 0x9
-    case unknown = 0xFF
 }
 
 enum ProxyError: Error {
     case socketCreationFailed(errno: Int32)
     case bindFailed(errno: Int32)
     case listenFailed(errno: Int32)
-    case connectionClosed
-    case readError(errno: Int32)
-    case invalidHTTP2Preface
 }
 
 extension Data {
