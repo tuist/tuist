@@ -153,6 +153,7 @@ public enum EnvKey: String, CaseIterable {
     case testRosetta = "TUIST_TEST_ROSETTA"
     case testConfiguration = "TUIST_TEST_CONFIGURATION"
     case testSkipUITests = "TUIST_TEST_SKIP_UITESTS"
+    case testSkipUnitTests = "TUIST_TEST_SKIP_UNITTESTS"
     case testResultBundlePath = "TUIST_TEST_RESULT_BUNDLE_PATH"
     case testDerivedDataPath = "TUIST_TEST_DERIVED_DATA_PATH"
     case testRetryCount = "TUIST_TEST_RETRY_COUNT"
