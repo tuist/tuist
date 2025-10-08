@@ -2,7 +2,7 @@ import Foundation
 import Dispatch
 
 @main
-struct TuistCASProxy {
+private enum TuistCASProxy {
     static func main() {
         print("Starting Tuist CAS Proxy...")
         
@@ -120,11 +120,12 @@ class CASProxyServer {
             }
             
             connectionCount += 1
-            print("\n[Connection #\(connectionCount)] Accepted, fd=\(clientSocket)")
+            let currentConnectionId = connectionCount
+            print("\n[Connection #\(currentConnectionId)] Accepted, fd=\(clientSocket)")
             
             // Handle each client in a separate concurrent queue task
             queue.async {
-                self.handleClient(socket: clientSocket, connectionId: connectionCount)
+                self.handleClient(socket: clientSocket, connectionId: currentConnectionId)
             }
         }
     }
@@ -186,16 +187,16 @@ class CASProxyServer {
         print("[Connection #\(connectionId)] Sent SETTINGS frame")
         
         // Process remaining data after preface
-        var remainingData = initialData.dropFirst(24)
+        var buffer = [UInt8](initialData.dropFirst(24))
         
         while true {
             // Read more data if needed
-            if remainingData.count < 9 {
-                var buffer = [UInt8](repeating: 0, count: 4096)
-                let bytesRead = recv(socket, &buffer, buffer.count, 0)
+            if buffer.count < 9 {
+                var readBuffer = [UInt8](repeating: 0, count: 4096)
+                let bytesRead = recv(socket, &readBuffer, readBuffer.count, 0)
                 
                 if bytesRead > 0 {
-                    remainingData.append(contentsOf: buffer[0..<bytesRead])
+                    buffer.append(contentsOf: readBuffer[0..<bytesRead])
                 } else if bytesRead == 0 {
                     print("[Connection #\(connectionId)] Connection closed")
                     break
@@ -209,25 +210,25 @@ class CASProxyServer {
             }
             
             // Parse HTTP/2 frame header
-            if remainingData.count >= 9 {
-                let frameLength = Int(remainingData[0]) << 16 | Int(remainingData[1]) << 8 | Int(remainingData[2])
-                let frameType = remainingData[3]
-                let frameFlags = remainingData[4]
-                let streamId = UInt32(remainingData[5] & 0x7F) << 24 |
-                              UInt32(remainingData[6]) << 16 |
-                              UInt32(remainingData[7]) << 8 |
-                              UInt32(remainingData[8])
+            if buffer.count >= 9 {
+                let frameLength = Int(buffer[0]) << 16 | Int(buffer[1]) << 8 | Int(buffer[2])
+                let frameType = buffer[3]
+                let frameFlags = buffer[4]
+                let streamId = UInt32(buffer[5] & 0x7F) << 24 |
+                              UInt32(buffer[6]) << 16 |
+                              UInt32(buffer[7]) << 8 |
+                              UInt32(buffer[8])
                 
                 print("[Connection #\(connectionId)] Frame: type=\(frameType), flags=\(frameFlags), streamId=\(streamId), length=\(frameLength)")
                 
                 // Wait for full frame
-                if remainingData.count < 9 + frameLength {
+                if buffer.count < 9 + frameLength {
                     continue
                 }
                 
-                // Extract frame payload
-                let framePayload = remainingData.subdata(in: 9..<9+frameLength)
-                remainingData = remainingData.dropFirst(9 + frameLength)
+                // Extract frame payload safely
+                let framePayload = Data(buffer[9..<9+frameLength])
+                buffer.removeFirst(9 + frameLength)
                 
                 // Handle frame based on type
                 switch frameType {

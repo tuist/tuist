@@ -39,7 +39,7 @@ let targets: [Target] = [
     .executableTarget(
         name: "tuist-cas-proxy",
         dependencies: [],
-        path: "Sources/tuist-cas-proxy"
+        path: "cli/Sources/tuist-cas-proxy"
     ),
     .target(
         name: "TuistCore",
