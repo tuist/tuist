@@ -1,0 +1,23 @@
+{
+  "name": "@tuist/cas",
+  "private": true,
+  "description": "A Cloudflare worker that implements a remote interface for CAS-compatible build systems",
+  "license": "MIT",
+  "packageManager": "pnpm@10.17.1",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "test": "vitest",
+    "test:watch": "vitest --watch"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.705.0",
+    "@aws-sdk/s3-request-presigner": "^3.705.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250110.0",
+    "vitest": "^2.1.8",
+    "wrangler": "^3.99.0"
+  }
+}
