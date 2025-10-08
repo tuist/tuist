@@ -1,0 +1,34 @@
+syntax = "proto3";
+
+package cas;
+
+// KeyValueDB service for cache lookups
+service KeyValueDB {
+  rpc GetValue(GetValueRequest) returns (GetValueResponse);
+}
+
+// CAS DB service for storing artifacts
+service CASDBService {
+  rpc Save(SaveRequest) returns (SaveResponse);
+}
+
+message GetValueRequest {
+  bytes key = 1;
+}
+
+message GetValueResponse {
+  bool found = 1;
+  bytes value = 2;
+}
+
+message SaveRequest {
+  string cas_id = 1;
+  bytes data = 2;
+  string type = 3;
+}
+
+message SaveResponse {
+  string cas_id = 1;
+  bool success = 2;
+  string message = 3;
+}
