@@ -12,6 +12,7 @@ defmodule TuistTestSupport.Utilities do
   def with_flushed_ingestion_buffers(fun) when is_function(fun, 0) do
     result = fun.()
     Tuist.CommandEvents.Buffer.flush()
+    Tuist.Runs.BuildBuffer.flush()
     Tuist.Xcode.XcodeGraph.Buffer.flush()
     Tuist.Xcode.XcodeProject.Buffer.flush()
     Tuist.Xcode.XcodeTarget.Buffer.flush()
@@ -20,6 +21,7 @@ defmodule TuistTestSupport.Utilities do
 
   def truncate_clickhouse_tables do
     commands = [
+      "TRUNCATE TABLE IF EXISTS build_runs",
       "TRUNCATE TABLE IF EXISTS command_events",
       "TRUNCATE TABLE IF EXISTS xcode_graphs",
       "TRUNCATE TABLE IF EXISTS xcode_projects",
