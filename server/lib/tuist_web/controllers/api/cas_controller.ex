@@ -74,7 +74,7 @@ defmodule TuistWeb.API.CASController do
         |> put_status(:not_found)
         |> json(%Error{message: "Project #{account_handle}/#{project_handle} not found."})
 
-      Authorization.authorize(:cache_read, authenticated_subject, project) != :ok ->
+      Authorization.authorize(:cas_read, authenticated_subject, project) != :ok ->
         conn
         |> put_status(:forbidden)
         |> json(%Error{
@@ -144,7 +144,7 @@ defmodule TuistWeb.API.CASController do
         |> put_status(:not_found)
         |> send_resp(:not_found, "")
 
-      Authorization.authorize(:cache_read, authenticated_subject, project) != :ok ->
+      Authorization.authorize(:cas_read, authenticated_subject, project) != :ok ->
         conn
         |> put_status(:forbidden)
         |> json(%Error{
@@ -218,7 +218,7 @@ defmodule TuistWeb.API.CASController do
         |> put_status(:not_found)
         |> send_resp(:not_found, "")
 
-      Authorization.authorize(:cache_create, authenticated_subject, project) != :ok ->
+      Authorization.authorize(:cas_create, authenticated_subject, project) != :ok ->
         conn
         |> put_status(:forbidden)
         |> json(%Error{
@@ -238,9 +238,10 @@ defmodule TuistWeb.API.CASController do
     end
   end
 
-  # Convert CAS ID to S3 key format: first-2-chars/full-id
+  # Convert CAS ID to S3 key format by replacing ~ with /
+  # Format: {version}~{hash} -> {version}/{hash}
+  # Example: 0~YWoYNXX... -> 0/YWoYNXX...
   defp get_s3_key(cas_id) do
-    hex = Base.encode16(cas_id, case: :lower)
-    "#{String.slice(hex, 0, 2)}/#{hex}"
+    String.replace(cas_id, "~", "/")
   end
 end

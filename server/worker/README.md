@@ -173,11 +173,17 @@ pnpm deploy
 Artifacts are stored with keys in the format:
 
 ```
-{prefix}/{first-2-chars-of-id}/{id}
+{prefix}/{version}/{hash}
 ```
 
 Where:
 - `{prefix}` is retrieved from the server based on account/project authorization
-- The 2-character prefix improves S3 performance by distributing objects across partitions
+- `{version}` is the CAS schema version identifier (e.g., `0`)
+- `{hash}` is the base64-encoded hash of the artifact
+- The version prefix improves S3 performance by distributing objects across partitions
 
-Example: `projects/acme/myapp/ab/abc123def456`
+The CAS ID format from the client is `{version}~{hash}`, which is transformed to `{version}/{hash}` for S3 storage.
+
+Example:
+- Client CAS ID: `0~YWoYNXXwg7v_Gpj7EqwaHJeXMY6Q0FSYANeEC3z_Laeez9xEdOC9TWkHvdglkVr5U8HVuYxo2G9nK11Cl9N9xQ==`
+- S3 Key: `projects/acme/myapp/0/YWoYNXXwg7v_Gpj7EqwaHJeXMY6Q0FSYANeEC3z_Laeez9xEdOC9TWkHvdglkVr5U8HVuYxo2G9nK11Cl9N9xQ==`

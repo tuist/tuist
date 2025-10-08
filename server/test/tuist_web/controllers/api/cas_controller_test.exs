@@ -157,9 +157,8 @@ defmodule TuistWeb.API.CASControllerTest do
       artifact_id = "abc123"
       presigned_url = "https://s3.amazonaws.com/bucket/object?signed=true"
 
-      Storage
-      |> expect(:object_exists?, fn _key, _actor -> true end)
-      |> expect(:generate_download_url, fn _key, _actor -> presigned_url end)
+      expect(Storage, :object_exists?, fn _key, _actor -> true end)
+      expect(Storage, :generate_download_url, fn _key, _actor -> presigned_url end)
 
       # When
       conn = get(conn, ~p"/api/projects/#{user.account.name}/#{project.name}/cas/#{artifact_id}")
@@ -264,9 +263,8 @@ defmodule TuistWeb.API.CASControllerTest do
       artifact_id = "abc123"
       presigned_url = "https://s3.amazonaws.com/bucket/upload?signed=true"
 
-      Storage
-      |> expect(:object_exists?, fn _key, _actor -> false end)
-      |> expect(:generate_upload_url, fn _key, _actor -> presigned_url end)
+      expect(Storage, :object_exists?, fn _key, _actor -> false end)
+      expect(Storage, :generate_upload_url, fn _key, _actor -> presigned_url end)
 
       # When
       conn = post(conn, ~p"/api/projects/#{user.account.name}/#{project.name}/cas/#{artifact_id}")

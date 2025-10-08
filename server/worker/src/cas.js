@@ -5,7 +5,7 @@ import {
   getPresignedDownloadUrl,
   getPresignedUploadUrl
 } from './s3.js';
-import { createServerClient } from './server-client.js';
+import { serverFetch } from './server-fetch.js';
 
 /**
  * Generate cache key from account, project, and authorization token
@@ -42,7 +42,6 @@ async function getS3Prefix(request, env, accountHandle, projectHandle) {
   }
 
   // Query server for prefix
-  const serverClient = createServerClient(env);
   const headers = {
     'Authorization': authHeader,
   };
@@ -52,9 +51,10 @@ async function getS3Prefix(request, env, accountHandle, projectHandle) {
   }
 
   try {
-    const response = await serverClient.get(
+    const response = await serverFetch(
+      env,
       `/api/projects/${accountHandle}/${projectHandle}/cas/prefix`,
-      { headers }
+      { method: 'GET', headers }
     );
 
     if (!response.ok) {
@@ -82,20 +82,18 @@ export async function handleGetValue(request, env, ctx) {
   const { params } = request;
   const { id, account_handle: accountHandle, project_handle: projectHandle } = params;
 
-  if (!accountHandle || !projectHandle) {
-    return new Response(
-      JSON.stringify({ error: 'Missing required path parameters: account_handle and project_handle' }),
-      { status: 400, headers: { 'Content-Type': 'application/json' } }
-    );
-  }
-
   // Get S3 prefix (from cache or server)
   const prefixResult = await getS3Prefix(request, env, accountHandle, projectHandle);
   if (prefixResult.error) {
-    return new Response(
-      JSON.stringify({ error: prefixResult.error }),
-      { status: prefixResult.status, headers: { 'Content-Type': 'application/json' } }
-    );
+    // Match Phoenix behavior: 401/403 with JSON, 404 with empty body
+    if (prefixResult.status === 401 || prefixResult.status === 403) {
+      return new Response(
+        JSON.stringify({ message: prefixResult.error }),
+        { status: prefixResult.status, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+    // 404 or other errors: empty body
+    return new Response(null, { status: prefixResult.status });
   }
 
   const s3Client = createS3Client(env);
@@ -105,12 +103,12 @@ export async function handleGetValue(request, env, ctx) {
 
   if (!bucket) {
     return new Response(
-      JSON.stringify({ error: 'Missing TUIST_S3_BUCKET_NAME' }),
+      JSON.stringify({ message: 'Missing TUIST_S3_BUCKET_NAME' }),
       { status: 500, headers: { 'Content-Type': 'application/json' } }
     );
   }
 
-  const key = `${prefixResult.prefix}/${getS3Key(id)}`;
+  const key = `${prefixResult.prefix}${getS3Key(id)}`;
   const exists = await checkS3ObjectExists(s3Client, endpoint, bucket, key, virtualHost);
 
   if (!exists) {
@@ -128,20 +126,18 @@ export async function handleSave(request, env, ctx) {
   const { params } = request;
   const { id, account_handle: accountHandle, project_handle: projectHandle } = params;
 
-  if (!accountHandle || !projectHandle) {
-    return new Response(
-      JSON.stringify({ error: 'Missing required path parameters: account_handle and project_handle' }),
-      { status: 400, headers: { 'Content-Type': 'application/json' } }
-    );
-  }
-
   // Get S3 prefix (from cache or server)
   const prefixResult = await getS3Prefix(request, env, accountHandle, projectHandle);
   if (prefixResult.error) {
-    return new Response(
-      JSON.stringify({ error: prefixResult.error }),
-      { status: prefixResult.status, headers: { 'Content-Type': 'application/json' } }
-    );
+    // Match Phoenix behavior: 401/403 with JSON, 404 with empty body
+    if (prefixResult.status === 401 || prefixResult.status === 403) {
+      return new Response(
+        JSON.stringify({ message: prefixResult.error }),
+        { status: prefixResult.status, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+    // 404 or other errors: empty body
+    return new Response(null, { status: prefixResult.status });
   }
 
   const s3Client = createS3Client(env);
@@ -151,12 +147,12 @@ export async function handleSave(request, env, ctx) {
 
   if (!bucket) {
     return new Response(
-      JSON.stringify({ error: 'Missing TUIST_S3_BUCKET_NAME' }),
+      JSON.stringify({ message: 'Missing TUIST_S3_BUCKET_NAME' }),
       { status: 500, headers: { 'Content-Type': 'application/json' } }
     );
   }
 
-  const key = `${prefixResult.prefix}/${getS3Key(id)}`;
+  const key = `${prefixResult.prefix}${getS3Key(id)}`;
   const exists = await checkS3ObjectExists(s3Client, endpoint, bucket, key, virtualHost);
 
   if (exists) {

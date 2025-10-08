@@ -26,13 +26,12 @@ export function createS3Client(env) {
 }
 
 /**
- * Constructs S3 key from cas_id
+ * Constructs S3 key from cas_id by replacing ~ with /
+ * Format: {version}~{hash} -> {version}/{hash}
+ * Example: 0~YWoYNXX... -> 0/YWoYNXX...
  */
 export function getS3Key(casId) {
-  // Convert bytes to hex string for S3 key
-  const hex = Buffer.from(casId).toString('hex');
-  // Use first 2 chars as prefix for better S3 performance
-  return `${hex.substring(0, 2)}/${hex}`;
+  return casId.replace('~', '/');
 }
 
 /**

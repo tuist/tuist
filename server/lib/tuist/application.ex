@@ -241,8 +241,7 @@ defmodule Tuist.Application do
   defp worker_children do
     if Environment.dev?() do
       worker_path = Path.join([File.cwd!(), "worker"])
-      {pnpm_path, 0} = System.cmd("which", ["pnpm"])
-      pnpm_path = String.trim(pnpm_path)
+      wrangler_path = Path.join([worker_path, "node_modules/.bin/wrangler"])
 
       # Get endpoint configuration
       endpoint_config = Application.get_env(:tuist, TuistWeb.Endpoint)
@@ -267,7 +266,7 @@ defmodule Tuist.Application do
       [
         {MuonTrap.Daemon,
          [
-           pnpm_path,
+           wrangler_path,
            ["dev"],
            [
              cd: worker_path,
