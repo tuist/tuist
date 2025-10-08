@@ -4,7 +4,6 @@ defmodule Tuist.VCSTest do
   use TuistTestSupport.Cases.DataCase
   use Mimic
 
-  alias Tuist.Accounts
   alias Tuist.Environment
   alias Tuist.GitHub
   alias Tuist.GitHub.Client
@@ -12,8 +11,6 @@ defmodule Tuist.VCSTest do
   alias Tuist.VCS
   alias Tuist.VCS.Comment
   alias Tuist.VCS.GitHubAppInstallation
-  alias Tuist.VCS.Repositories.Permission
-  alias Tuist.VCS.Repositories.Repository
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.AppBuildsFixtures
   alias TuistTestSupport.Fixtures.BundlesFixtures
@@ -32,52 +29,15 @@ defmodule Tuist.VCSTest do
       {:ok, %{token: "github_token", expires_at: ~U[2024-04-30 10:30:31Z]}}
     end)
 
+    stub(GitHub.App, :get_installation_token, fn _installation_id ->
+      {:ok, %{token: "github_token", expires_at: ~U[2024-04-30 10:30:31Z]}}
+    end)
+
     stub(Environment, :github_app_client_id, fn -> "client_id" end)
 
     :ok
   end
 
-  describe "get_user_permission/1" do
-    test "returns user permission when admin" do
-      # Given
-      user =
-        Accounts.find_or_create_user_from_oauth2(%{
-          provider: :github,
-          uid: 123,
-          info: %{
-            email: "tuist@tuist.dev"
-          }
-        })
-
-      expect(Client, :get_user_by_id, fn %{
-                                           id: "123",
-                                           repository_full_handle: "tuist/tuist"
-                                         } ->
-        {:ok, %VCS.User{username: "tuist"}}
-      end)
-
-      expect(Client, :get_user_permission, fn %{
-                                                repository_full_handle: "tuist/tuist",
-                                                username: "tuist"
-                                              } ->
-        {:ok, %Permission{permission: "admin"}}
-      end)
-
-      # When
-      got =
-        VCS.get_user_permission(%{
-          user: user,
-          repository: %Repository{
-            provider: :github,
-            full_handle: "tuist/tuist",
-            default_branch: "main"
-          }
-        })
-
-      # Then
-      assert got == {:ok, %Permission{permission: "admin"}}
-    end
-  end
 
   describe "connected/1" do
     test "returns true when connected" do
@@ -171,115 +131,6 @@ defmodule Tuist.VCSTest do
     end
   end
 
-  describe "get_repository_from_repository_url/1" do
-    test "returns repository when it exists" do
-      # Given
-      repository_url = "https://github.com/tuist/tuist"
-
-      expect(Client, :get_repository, fn "tuist/tuist" ->
-        {:ok,
-         %Repository{
-           provider: :github,
-           full_handle: "tuist/tuist",
-           default_branch: "main"
-         }}
-      end)
-
-      # When
-      got =
-        VCS.get_repository_from_repository_url(repository_url)
-
-      # Then
-      assert got ==
-               {:ok,
-                %Repository{
-                  provider: :github,
-                  full_handle: "tuist/tuist",
-                  default_branch: "main"
-                }}
-    end
-
-    test "returns repository with username" do
-      # Given
-      repository_url = "https://tuist@github.com/tuist/tuist.git"
-
-      expect(Client, :get_repository, fn "tuist/tuist" ->
-        {:ok,
-         %Repository{
-           provider: :github,
-           full_handle: "tuist/tuist",
-           default_branch: "main"
-         }}
-      end)
-
-      # When
-      got =
-        VCS.get_repository_from_repository_url(repository_url)
-
-      # Then
-      assert got ==
-               {:ok,
-                %Repository{
-                  provider: :github,
-                  full_handle: "tuist/tuist",
-                  default_branch: "main"
-                }}
-    end
-
-    test "returns repository with .git suffix" do
-      # Given
-      repository_url = "https://github.com/tuist/tuist.git"
-
-      expect(Client, :get_repository, fn "tuist/tuist" ->
-        {:ok,
-         %Repository{
-           provider: :github,
-           full_handle: "tuist/tuist",
-           default_branch: "main"
-         }}
-      end)
-
-      # When
-      got =
-        VCS.get_repository_from_repository_url(repository_url)
-
-      # Then
-      assert got ==
-               {:ok,
-                %Repository{
-                  provider: :github,
-                  full_handle: "tuist/tuist",
-                  default_branch: "main"
-                }}
-    end
-
-    test "returns repository with trailing slash" do
-      # Given
-      repository_url = "https://github.com/tuist/tuist/"
-
-      expect(Client, :get_repository, fn "tuist/tuist" ->
-        {:ok,
-         %Repository{
-           provider: :github,
-           full_handle: "tuist/tuist",
-           default_branch: "main"
-         }}
-      end)
-
-      # When
-      got =
-        VCS.get_repository_from_repository_url(repository_url)
-
-      # Then
-      assert got ==
-               {:ok,
-                %Repository{
-                  provider: :github,
-                  full_handle: "tuist/tuist",
-                  default_branch: "main"
-                }}
-    end
-  end
 
   describe "post_vcs_pull_request_comment/1" do
     @git_ref "refs/pull/1/merge"

@@ -6,6 +6,10 @@ defmodule Tuist.GitHub.App do
   alias Tuist.Environment
   alias Tuist.KeyValueStore
   alias Tuist.Projects
+  alias Tuist.Projects.Project
+  alias Tuist.Projects.VCSConnection
+  alias Tuist.Repo
+  alias Tuist.VCS.GitHubAppInstallation
 
   def get_installation_token(installation_id, opts \\ []) do
     ttl = to_timeout(minute: 10)
@@ -28,24 +32,71 @@ defmodule Tuist.GitHub.App do
     end
   end
 
-  def get_app_installation_token_for_repository(repository_full_handle, opts \\ []) do
-    case get_installation_id_for_repository(repository_full_handle) do
-      {:ok, installation_id} ->
+  def get_app_installation_token_by_id(installation_id, opts \\ []) do
+    get_installation_token(installation_id, opts)
+  end
+
+  @doc """
+  Gets an app installation token for a specific project.
+  This ensures deterministic token retrieval in monorepo setups.
+  """
+  def get_app_installation_token_by_project(%Project{} = project, opts \\ []) do
+    project = Repo.preload(project, vcs_connection: :github_app_installation)
+
+    case project do
+      %{vcs_connection: %{github_app_installation: %{installation_id: installation_id}}} ->
         get_installation_token(installation_id, opts)
 
-      {:error, error} ->
-        {:error, error}
+      _ ->
+        {:error, "The Tuist GitHub app is not installed for project #{project.name}."}
     end
   end
 
-  defp get_installation_id_for_repository(repository_full_handle) do
-    case Projects.project_by_vcs_repository_full_handle(repository_full_handle,
-           preload: [vcs_connection: :github_app_installation]
-         ) do
-      {:ok, %{vcs_connection: %{github_app_installation: %{installation_id: installation_id}}}} ->
-        {:ok, installation_id}
+  @doc """
+  Gets an app installation token for a specific VCS connection.
+  This ensures deterministic token retrieval in monorepo setups.
+  """
+  def get_app_installation_token_by_vcs_connection(%VCSConnection{} = vcs_connection, opts \\ []) do
+    vcs_connection = Repo.preload(vcs_connection, :github_app_installation)
 
-      {:error, :not_found} ->
+    case vcs_connection do
+      %{github_app_installation: %{installation_id: installation_id}} ->
+        get_installation_token(installation_id, opts)
+
+      _ ->
+        {:error, "The Tuist GitHub app is not installed for this VCS connection."}
+    end
+  end
+
+  @doc """
+  Gets an app installation token for a specific GitHub app installation.
+  This ensures deterministic token retrieval in monorepo setups.
+  """
+  def get_app_installation_token_by_github_app_installation(%GitHubAppInstallation{} = github_app_installation, opts \\ []) do
+    get_installation_token(github_app_installation.installation_id, opts)
+  end
+
+  # Temporary compatibility function for GitHub client
+  # TODO: Refactor GitHub client to pass installation_id directly
+  def get_app_installation_token_for_repository(repository_full_handle, opts \\ []) do
+    # With monorepo support, multiple projects can connect to the same repository.
+    # We just need one installation ID since it's the same for all projects in a repository.
+    projects =
+      Projects.projects_by_vcs_repository_full_handle(repository_full_handle,
+        preload: [vcs_connection: :github_app_installation]
+      )
+
+    case projects do
+      [project | _] ->
+        case project do
+          %{vcs_connection: %{github_app_installation: %{installation_id: installation_id}}} ->
+            get_installation_token(installation_id, opts)
+
+          _ ->
+            {:error, "The Tuist GitHub app is not installed in the repository #{repository_full_handle}."}
+        end
+
+      [] ->
         {:error, "The Tuist GitHub app is not installed in the repository #{repository_full_handle}."}
     end
   end

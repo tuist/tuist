@@ -5,8 +5,6 @@ defmodule Tuist.GitHub.AppTest do
 
   alias Tuist.GitHub.App
   alias Tuist.KeyValueStore
-  alias Tuist.Projects
-  alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   setup do
     stub(JOSE.JWK, :from_pem, fn _ -> "pem" end)
@@ -66,33 +64,16 @@ defmodule Tuist.GitHub.AppTest do
     end
   end
 
-  describe "get_app_installation_token_for_repository/2" do
-    test "returns a not found error when the GitHub app is not installed" do
+  describe "get_app_installation_token_by_id/2" do
+    test "returns installation token when request succeeds" do
       # Given
-      stub(Projects, :project_by_vcs_repository_full_handle, fn _, _ ->
-        {:error, :not_found}
-      end)
-
-      # When/Then
-      assert {:error, error_message} =
-               App.get_app_installation_token_for_repository("tuist/tuist")
-
-      assert error_message =~ "The Tuist GitHub app is not installed in the repository tuist/tuist"
-    end
-
-    test "returns installation token when project has VCS connection with GitHub app installation" do
-      # Given
+      installation_id = "12345"
       token = "ghs_16C7e42F292c6912E7710c838347Ae178B4a"
       expires_at = "2024-04-30T11:20:30Z"
 
-      ProjectsFixtures.project_fixture(
-        vcs_connection: [
-          repository_full_handle: "tuist/tuist",
-          provider: :github
-        ]
-      )
+      stub(Req, :post, fn opts ->
+        assert Keyword.get(opts, :url) =~ "/app/installations/#{installation_id}/access_tokens"
 
-      stub(Req, :post, fn _opts ->
         {:ok,
          %Req.Response{
            status: 201,
@@ -104,7 +85,7 @@ defmodule Tuist.GitHub.AppTest do
       end)
 
       # When
-      result = App.get_app_installation_token_for_repository("tuist/tuist")
+      result = App.get_app_installation_token_by_id(installation_id)
 
       # Then
       assert {:ok, %{token: ^token, expires_at: expires_at_datetime}} = result

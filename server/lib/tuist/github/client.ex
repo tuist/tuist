@@ -99,10 +99,10 @@ defmodule Tuist.GitHub.Client do
     end
   end
 
-  def get_user_by_id(%{id: github_id, repository_full_handle: repository_full_handle}) do
+  def get_user_by_id(%{id: github_id, installation_id: installation_id}) do
     url = "https://api.github.com/user/#{github_id}"
 
-    case github_request(&Req.get/1, url: url, repository_full_handle: repository_full_handle) do
+    case github_request(&Req.get/1, url: url, installation_id: installation_id) do
       {:ok, user} ->
         {:ok, %VCS.User{username: user["login"]}}
 
@@ -111,40 +111,12 @@ defmodule Tuist.GitHub.Client do
     end
   end
 
-  def get_repository(repository_full_handle) do
-    url = "https://api.github.com/repos/#{repository_full_handle}"
 
-    case github_request(&Req.get/1, url: url, repository_full_handle: repository_full_handle) do
-      {:ok, repository} ->
-        {:ok,
-         %VCS.Repositories.Repository{
-           full_handle: repository["full_name"],
-           default_branch: repository["default_branch"],
-           provider: :github
-         }}
 
-      response ->
-        response
-    end
-  end
-
-  def get_user_permission(%{username: username, repository_full_handle: repository_full_handle}) do
-    url =
-      "https://api.github.com/repos/#{repository_full_handle}/collaborators/#{username}/permission"
-
-    case github_request(&Req.get/1, url: url, repository_full_handle: repository_full_handle) do
-      {:ok, permission} ->
-        {:ok, %VCS.Repositories.Permission{permission: permission["permission"]}}
-
-      response ->
-        response
-    end
-  end
-
-  def get_comments(%{repository_full_handle: repository_full_handle, issue_id: issue_id}) do
+  def get_comments(%{repository_full_handle: repository_full_handle, issue_id: issue_id, installation_id: installation_id}) do
     url = "https://api.github.com/repos/#{repository_full_handle}/issues/#{issue_id}/comments"
 
-    case github_request(&Req.get/1, url: url, repository_full_handle: repository_full_handle) do
+    case github_request(&Req.get/1, url: url, installation_id: installation_id) do
       {:ok, comments} ->
         {:ok,
          Enum.map(comments, fn comment ->
@@ -163,22 +135,22 @@ defmodule Tuist.GitHub.Client do
     end
   end
 
-  def create_comment(%{repository_full_handle: repository_full_handle, issue_id: issue_id, body: body}) do
+  def create_comment(%{repository_full_handle: repository_full_handle, issue_id: issue_id, body: body, installation_id: installation_id}) do
     url = "https://api.github.com/repos/#{repository_full_handle}/issues/#{issue_id}/comments"
 
     github_request(&Req.post/1,
       url: url,
-      repository_full_handle: repository_full_handle,
+      installation_id: installation_id,
       json: %{body: body}
     )
   end
 
-  def update_comment(%{repository_full_handle: repository_full_handle, comment_id: comment_id, body: body}) do
+  def update_comment(%{repository_full_handle: repository_full_handle, comment_id: comment_id, body: body, installation_id: installation_id}) do
     url = "https://api.github.com/repos/#{repository_full_handle}/issues/comments/#{comment_id}"
 
     github_request(&Req.patch/1,
       url: url,
-      repository_full_handle: repository_full_handle,
+      installation_id: installation_id,
       json: %{body: body}
     )
   end
@@ -248,9 +220,9 @@ defmodule Tuist.GitHub.Client do
   end
 
   defp github_request(method, attrs) do
-    repository_full_handle = Keyword.get(attrs, :repository_full_handle)
+    installation_id = Keyword.get(attrs, :installation_id)
 
-    case App.get_app_installation_token_for_repository(repository_full_handle) do
+    case App.get_installation_token(installation_id) do
       {:ok, %{token: token}} ->
         attrs_with_headers =
           attrs
@@ -260,7 +232,7 @@ defmodule Tuist.GitHub.Client do
           ])
           |> Keyword.put(:finch, Tuist.Finch)
           |> Keyword.put(:retry, &retry/2)
-          |> Keyword.delete(:repository_full_handle)
+          |> Keyword.delete(:installation_id)
 
         attrs_with_headers |> method.() |> handle_github_response(method, attrs)
 

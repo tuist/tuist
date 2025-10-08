@@ -895,8 +895,19 @@ defmodule Tuist.ProjectsTest do
     end
   end
 
-  describe "project_by_vcs_repository_full_handle/1" do
-    test "returns project when found" do
+  describe "projects_by_vcs_repository_full_handle/1" do
+    test "returns empty list when no projects found" do
+      # Given
+      vcs_handle = "nonexistent/project"
+
+      # When
+      projects = Projects.projects_by_vcs_repository_full_handle(vcs_handle)
+
+      # Then
+      assert [] == projects
+    end
+
+    test "returns single project when one project connected to repository" do
       # Given
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
@@ -912,65 +923,32 @@ defmodule Tuist.ProjectsTest do
         )
 
       # When
-      {:ok, got_project} = Projects.project_by_vcs_repository_full_handle(vcs_handle)
+      projects = Projects.projects_by_vcs_repository_full_handle(vcs_handle)
 
       # Then
-      assert got_project.id == project.id
+      assert length(projects) == 1
+      assert List.first(projects).id == project.id
     end
 
-    test "returns error when project not found" do
+    test "returns multiple projects for monorepo" do
       # Given
-      vcs_handle = "nonexistent/project"
-
-      # When
-      result = Projects.project_by_vcs_repository_full_handle(vcs_handle)
-
-      # Then
-      assert {:error, :not_found} == result
-    end
-
-    test "returns correct project when multiple projects exist" do
-      # Given
-      user_one = AccountsFixtures.user_fixture()
-      user_two = AccountsFixtures.user_fixture()
-      account_one = Accounts.get_account_from_user(user_one)
-      account_two = Accounts.get_account_from_user(user_two)
-
-      vcs_handle_one = "tuist/project-one"
-      vcs_handle_two = "tuist/project-two"
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      vcs_handle = "tuist/monorepo"
 
       project_one =
         ProjectsFixtures.project_fixture(
-          account_id: account_one.id,
+          name: "mobile-app",
+          account_id: account.id,
           vcs_connection: [
-            repository_full_handle: vcs_handle_one,
+            repository_full_handle: vcs_handle,
             provider: :github
           ]
         )
 
-      ProjectsFixtures.project_fixture(
-        account_id: account_two.id,
-        vcs_connection: [
-          repository_full_handle: vcs_handle_two,
-          provider: :github
-        ]
-      )
-
-      # When
-      {:ok, got_project} = Projects.project_by_vcs_repository_full_handle(vcs_handle_one)
-
-      # Then
-      assert got_project.id == project_one.id
-    end
-
-    test "returns project with preloaded account association" do
-      # Given
-      organization = AccountsFixtures.organization_fixture(name: "test-org")
-      account = Accounts.get_account_from_organization(organization)
-      vcs_handle = "test-org/test-project"
-
-      project =
+      project_two =
         ProjectsFixtures.project_fixture(
+          name: "admin-panel",
           account_id: account.id,
           vcs_connection: [
             repository_full_handle: vcs_handle,
@@ -979,11 +957,105 @@ defmodule Tuist.ProjectsTest do
         )
 
       # When
-      {:ok, got_project} = Projects.project_by_vcs_repository_full_handle(vcs_handle, preload: [:account])
+      projects = Projects.projects_by_vcs_repository_full_handle(vcs_handle)
+
+      # Then
+      assert length(projects) == 2
+      project_ids = Enum.map(projects, & &1.id)
+      assert project_one.id in project_ids
+      assert project_two.id in project_ids
+    end
+
+    test "returns projects with preloaded associations" do
+      # Given
+      organization = AccountsFixtures.organization_fixture(name: "test-org")
+      account = Accounts.get_account_from_organization(organization)
+      vcs_handle = "test-org/test-project"
+
+      ProjectsFixtures.project_fixture(
+        account_id: account.id,
+        vcs_connection: [
+          repository_full_handle: vcs_handle,
+          provider: :github
+        ]
+      )
+
+      # When
+      projects = Projects.projects_by_vcs_repository_full_handle(vcs_handle, preload: [:account])
+
+      # Then
+      assert length(projects) == 1
+      assert Ecto.assoc_loaded?(List.first(projects).account)
+    end
+  end
+
+  describe "project_by_name_and_vcs_repository_full_handle/2" do
+    test "returns project when found" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      vcs_handle = "tuist/monorepo"
+      project_name = "mobile-app"
+
+      project =
+        ProjectsFixtures.project_fixture(
+          name: project_name,
+          account_id: account.id,
+          vcs_connection: [
+            repository_full_handle: vcs_handle,
+            provider: :github
+          ]
+        )
+
+      # When
+      {:ok, got_project} = Projects.project_by_name_and_vcs_repository_full_handle(project_name, vcs_handle)
 
       # Then
       assert got_project.id == project.id
-      assert Ecto.assoc_loaded?(got_project.account)
+    end
+
+    test "returns error when project not found" do
+      # Given
+      vcs_handle = "tuist/monorepo"
+      project_name = "nonexistent"
+
+      # When
+      result = Projects.project_by_name_and_vcs_repository_full_handle(project_name, vcs_handle)
+
+      # Then
+      assert {:error, :not_found} == result
+    end
+
+    test "returns correct project when multiple projects in monorepo" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      vcs_handle = "tuist/monorepo"
+
+      project_one =
+        ProjectsFixtures.project_fixture(
+          name: "mobile-app",
+          account_id: account.id,
+          vcs_connection: [
+            repository_full_handle: vcs_handle,
+            provider: :github
+          ]
+        )
+
+      ProjectsFixtures.project_fixture(
+        name: "admin-panel",
+        account_id: account.id,
+        vcs_connection: [
+          repository_full_handle: vcs_handle,
+          provider: :github
+        ]
+      )
+
+      # When
+      {:ok, got_project} = Projects.project_by_name_and_vcs_repository_full_handle("mobile-app", vcs_handle)
+
+      # Then
+      assert got_project.id == project_one.id
     end
   end
 
