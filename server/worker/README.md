@@ -4,22 +4,24 @@ A Cloudflare Worker that implements a Content-Addressable Storage (CAS) API for 
 
 ## API
 
-### `GET /api/projects/:account_handle/:project_handle/cas/:id`
+### `GET /api/cas/:id`
 
 Download an artifact.
 
 **Request:**
 - Method: `GET`
 - Path parameters:
-  - `:account_handle` - Account handle
-  - `:project_handle` - Project handle
   - `:id` - Artifact identifier
+- Query parameters (required):
+  - `account_handle` - Account handle
+  - `project_handle` - Project handle
 - Headers (required):
   - `Authorization` - Bearer token for authentication
 - Headers (optional):
   - `x-request-id` - Request ID for tracing (forwarded to server)
 
 **Response:**
+- `400 Bad Request` - Missing account_handle or project_handle query parameter
 - `401 Unauthorized` - Missing or invalid Authorization header
 - `302 Found` - Artifact exists, redirects to presigned S3 download URL
 - `404 Not Found` - Artifact does not exist (no body)
@@ -27,26 +29,28 @@ Download an artifact.
 
 **Example:**
 ```bash
-GET /api/projects/acme/myapp/cas/abc123
+GET /api/cas/abc123?account_handle=acme&project_handle=myapp
 Authorization: Bearer <token>
 ```
 
-### `POST /api/projects/:account_handle/:project_handle/cas/:id`
+### `POST /api/cas/:id`
 
 Upload an artifact (or verify it already exists).
 
 **Request:**
 - Method: `POST`
 - Path parameters:
-  - `:account_handle` - Account handle
-  - `:project_handle` - Project handle
   - `:id` - Artifact identifier
+- Query parameters (required):
+  - `account_handle` - Account handle
+  - `project_handle` - Project handle
 - Headers (required):
   - `Authorization` - Bearer token for authentication
 - Headers (optional):
   - `x-request-id` - Request ID for tracing (forwarded to server)
 
 **Response:**
+- `400 Bad Request` - Missing account_handle or project_handle query parameter
 - `401 Unauthorized` - Missing or invalid Authorization header
 - `302 Found` - Artifact doesn't exist, redirects to presigned S3 upload URL
 - `304 Not Modified` - Artifact already exists, no upload needed (no body)
@@ -54,7 +58,7 @@ Upload an artifact (or verify it already exists).
 
 **Example:**
 ```bash
-POST /api/projects/acme/myapp/cas/abc123
+POST /api/cas/abc123?account_handle=acme&project_handle=myapp
 Authorization: Bearer <token>
 ```
 

@@ -16,7 +16,7 @@ defmodule TuistWeb.API.CASControllerTest do
     %{user: user, project: project}
   end
 
-  describe "GET /api/projects/:account_handle/:project_handle/cas/prefix" do
+  describe "GET /api/cas/prefix" do
     test "returns the CAS prefix for an authenticated user with access to the project", %{
       conn: conn,
       user: user,
@@ -26,7 +26,7 @@ defmodule TuistWeb.API.CASControllerTest do
       conn = Authentication.put_current_user(conn, user)
 
       # When
-      conn = get(conn, ~p"/api/projects/#{user.account.name}/#{project.name}/cas/prefix")
+      conn = get(conn, ~p"/api/cas/prefix?account_handle=#{user.account.name}&project_handle=#{project.name}")
 
       # Then
       response = json_response(conn, :ok)
@@ -46,7 +46,7 @@ defmodule TuistWeb.API.CASControllerTest do
       conn = put_req_header(conn, "authorization", "Bearer #{full_token}")
 
       # When
-      conn = get(conn, ~p"/api/projects/#{user.account.name}/#{project.name}/cas/prefix")
+      conn = get(conn, ~p"/api/cas/prefix?account_handle=#{user.account.name}&project_handle=#{project.name}")
 
       # Then
       response = json_response(conn, :ok)
@@ -61,7 +61,7 @@ defmodule TuistWeb.API.CASControllerTest do
       project: project
     } do
       # When
-      conn = get(conn, ~p"/api/projects/#{user.account.name}/#{project.name}/cas/prefix")
+      conn = get(conn, ~p"/api/cas/prefix?account_handle=#{user.account.name}&project_handle=#{project.name}")
 
       # Then
       response = json_response(conn, :unauthorized)
@@ -78,7 +78,7 @@ defmodule TuistWeb.API.CASControllerTest do
       conn = Authentication.put_current_user(conn, user)
 
       # When
-      conn = get(conn, ~p"/api/projects/non-existent-account/#{project.name}/cas/prefix")
+      conn = get(conn, ~p"/api/cas/prefix?account_handle=non-existent-account&project_handle=#{project.name}")
 
       # Then
       response = json_response(conn, :not_found)
@@ -94,7 +94,7 @@ defmodule TuistWeb.API.CASControllerTest do
       conn = Authentication.put_current_user(conn, user)
 
       # When
-      conn = get(conn, ~p"/api/projects/#{user.account.name}/non-existent-project/cas/prefix")
+      conn = get(conn, ~p"/api/cas/prefix?account_handle=#{user.account.name}&project_handle=non-existent-project")
 
       # Then
       response = json_response(conn, :not_found)
@@ -114,7 +114,7 @@ defmodule TuistWeb.API.CASControllerTest do
       conn = Authentication.put_current_user(conn, user)
 
       # When
-      conn = get(conn, ~p"/api/projects/#{other_user.account.name}/#{other_project.name}/cas/prefix")
+      conn = get(conn, ~p"/api/cas/prefix?account_handle=#{other_user.account.name}&project_handle=#{other_project.name}")
 
       # Then
       response = json_response(conn, :forbidden)
@@ -136,7 +136,7 @@ defmodule TuistWeb.API.CASControllerTest do
       conn = Authentication.put_current_user(conn, user)
 
       # When
-      conn = get(conn, ~p"/api/projects/#{organization.account.name}/#{org_project.name}/cas/prefix")
+      conn = get(conn, ~p"/api/cas/prefix?account_handle=#{organization.account.name}&project_handle=#{org_project.name}")
 
       # Then
       response = json_response(conn, :ok)
@@ -146,7 +146,7 @@ defmodule TuistWeb.API.CASControllerTest do
     end
   end
 
-  describe "GET /api/projects/:account_handle/:project_handle/cas/:id" do
+  describe "GET /api/cas/:id" do
     test "redirects to presigned S3 URL when artifact exists", %{
       conn: conn,
       user: user,
@@ -161,7 +161,7 @@ defmodule TuistWeb.API.CASControllerTest do
       expect(Storage, :generate_download_url, fn _key, _actor -> presigned_url end)
 
       # When
-      conn = get(conn, ~p"/api/projects/#{user.account.name}/#{project.name}/cas/#{artifact_id}")
+      conn = get(conn, ~p"/api/cas/#{artifact_id}?account_handle=#{user.account.name}&project_handle=#{project.name}")
 
       # Then
       assert redirected_to(conn, 302) == presigned_url
@@ -179,7 +179,7 @@ defmodule TuistWeb.API.CASControllerTest do
       expect(Storage, :object_exists?, fn _key, _actor -> false end)
 
       # When
-      conn = get(conn, ~p"/api/projects/#{user.account.name}/#{project.name}/cas/#{artifact_id}")
+      conn = get(conn, ~p"/api/cas/#{artifact_id}?account_handle=#{user.account.name}&project_handle=#{project.name}")
 
       # Then
       assert conn.status == 404
@@ -192,7 +192,7 @@ defmodule TuistWeb.API.CASControllerTest do
       project: project
     } do
       # When
-      conn = get(conn, ~p"/api/projects/#{user.account.name}/#{project.name}/cas/abc123")
+      conn = get(conn, ~p"/api/cas/abc123?account_handle=#{user.account.name}&project_handle=#{project.name}")
 
       # Then
       response = json_response(conn, :unauthorized)
@@ -209,7 +209,7 @@ defmodule TuistWeb.API.CASControllerTest do
       conn = Authentication.put_current_user(conn, user)
 
       # When
-      conn = get(conn, ~p"/api/projects/non-existent-account/#{project.name}/cas/abc123")
+      conn = get(conn, ~p"/api/cas/abc123?account_handle=non-existent-account&project_handle=#{project.name}")
 
       # Then
       assert conn.status == 404
@@ -224,7 +224,7 @@ defmodule TuistWeb.API.CASControllerTest do
       conn = Authentication.put_current_user(conn, user)
 
       # When
-      conn = get(conn, ~p"/api/projects/#{user.account.name}/non-existent-project/cas/abc123")
+      conn = get(conn, ~p"/api/cas/abc123?account_handle=#{user.account.name}&project_handle=non-existent-project")
 
       # Then
       assert conn.status == 404
@@ -242,7 +242,7 @@ defmodule TuistWeb.API.CASControllerTest do
       conn = Authentication.put_current_user(conn, user)
 
       # When
-      conn = get(conn, ~p"/api/projects/#{other_user.account.name}/#{other_project.name}/cas/abc123")
+      conn = get(conn, ~p"/api/cas/abc123?account_handle=#{other_user.account.name}&project_handle=#{other_project.name}")
 
       # Then
       response = json_response(conn, :forbidden)
@@ -252,7 +252,7 @@ defmodule TuistWeb.API.CASControllerTest do
     end
   end
 
-  describe "POST /api/projects/:account_handle/:project_handle/cas/:id" do
+  describe "POST /api/cas/:id" do
     test "redirects to presigned upload URL when artifact does not exist", %{
       conn: conn,
       user: user,
@@ -267,7 +267,7 @@ defmodule TuistWeb.API.CASControllerTest do
       expect(Storage, :generate_upload_url, fn _key, _actor -> presigned_url end)
 
       # When
-      conn = post(conn, ~p"/api/projects/#{user.account.name}/#{project.name}/cas/#{artifact_id}")
+      conn = post(conn, ~p"/api/cas/#{artifact_id}?account_handle=#{user.account.name}&project_handle=#{project.name}")
 
       # Then
       assert redirected_to(conn, 302) == presigned_url
@@ -285,7 +285,7 @@ defmodule TuistWeb.API.CASControllerTest do
       expect(Storage, :object_exists?, fn _key, _actor -> true end)
 
       # When
-      conn = post(conn, ~p"/api/projects/#{user.account.name}/#{project.name}/cas/#{artifact_id}")
+      conn = post(conn, ~p"/api/cas/#{artifact_id}?account_handle=#{user.account.name}&project_handle=#{project.name}")
 
       # Then
       assert conn.status == 304
@@ -298,7 +298,7 @@ defmodule TuistWeb.API.CASControllerTest do
       project: project
     } do
       # When
-      conn = post(conn, ~p"/api/projects/#{user.account.name}/#{project.name}/cas/abc123")
+      conn = post(conn, ~p"/api/cas/abc123?account_handle=#{user.account.name}&project_handle=#{project.name}")
 
       # Then
       response = json_response(conn, :unauthorized)
@@ -315,7 +315,7 @@ defmodule TuistWeb.API.CASControllerTest do
       conn = Authentication.put_current_user(conn, user)
 
       # When
-      conn = post(conn, ~p"/api/projects/non-existent-account/#{project.name}/cas/abc123")
+      conn = post(conn, ~p"/api/cas/abc123?account_handle=non-existent-account&project_handle=#{project.name}")
 
       # Then
       assert conn.status == 404
@@ -330,7 +330,7 @@ defmodule TuistWeb.API.CASControllerTest do
       conn = Authentication.put_current_user(conn, user)
 
       # When
-      conn = post(conn, ~p"/api/projects/#{user.account.name}/non-existent-project/cas/abc123")
+      conn = post(conn, ~p"/api/cas/abc123?account_handle=#{user.account.name}&project_handle=non-existent-project")
 
       # Then
       assert conn.status == 404
@@ -348,7 +348,8 @@ defmodule TuistWeb.API.CASControllerTest do
       conn = Authentication.put_current_user(conn, user)
 
       # When
-      conn = post(conn, ~p"/api/projects/#{other_user.account.name}/#{other_project.name}/cas/abc123")
+      conn =
+        post(conn, ~p"/api/cas/abc123?account_handle=#{other_user.account.name}&project_handle=#{other_project.name}")
 
       # Then
       response = json_response(conn, :forbidden)

@@ -359,13 +359,13 @@ defmodule TuistWeb.Router do
             get "/:hash", CacheController, :get_cache_action_item
           end
         end
-
-        scope "/cas" do
-          get "/prefix", CASController, :prefix
-          get "/:id", CASController, :show
-          post "/:id", CASController, :create
-        end
       end
+    end
+
+    scope "/cas" do
+      get "/prefix", CASController, :prefix
+      get "/:id", CASController, :show
+      post "/:id", CASController, :create
     end
 
     scope "/cache" do

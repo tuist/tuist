@@ -22,13 +22,13 @@ defmodule TuistWeb.API.CASController do
     operation_id: "getCASPrefix",
     parameters: [
       account_handle: [
-        in: :path,
+        in: :query,
         type: :string,
         required: true,
         description: "The handle of the project's account."
       ],
       project_handle: [
-        in: :path,
+        in: :query,
         type: :string,
         required: true,
         description: "The handle of the project."
@@ -54,7 +54,8 @@ defmodule TuistWeb.API.CASController do
     }
   )
 
-  def prefix(%{path_params: %{"account_handle" => account_handle, "project_handle" => project_handle}} = conn, _params) do
+  def prefix(conn, _params) do
+    %{account_handle: account_handle, project_handle: project_handle} = conn.private.open_api_spex.params
     authenticated_subject = Authentication.authenticated_subject(conn)
     account = Accounts.get_account_by_handle(account_handle)
 
@@ -95,13 +96,13 @@ defmodule TuistWeb.API.CASController do
     operation_id: "getCASArtifact",
     parameters: [
       account_handle: [
-        in: :path,
+        in: :query,
         type: :string,
         required: true,
         description: "The handle of the project's account."
       ],
       project_handle: [
-        in: :path,
+        in: :query,
         type: :string,
         required: true,
         description: "The handle of the project."
@@ -121,10 +122,8 @@ defmodule TuistWeb.API.CASController do
     }
   )
 
-  def show(
-        %{path_params: %{"account_handle" => account_handle, "project_handle" => project_handle, "id" => id}} = conn,
-        _params
-      ) do
+  def show(conn, _params) do
+    %{id: id, account_handle: account_handle, project_handle: project_handle} = conn.private.open_api_spex.params
     authenticated_subject = Authentication.authenticated_subject(conn)
     account = Accounts.get_account_by_handle(account_handle)
 
@@ -169,13 +168,13 @@ defmodule TuistWeb.API.CASController do
     operation_id: "uploadCASArtifact",
     parameters: [
       account_handle: [
-        in: :path,
+        in: :query,
         type: :string,
         required: true,
         description: "The handle of the project's account."
       ],
       project_handle: [
-        in: :path,
+        in: :query,
         type: :string,
         required: true,
         description: "The handle of the project."
@@ -195,10 +194,8 @@ defmodule TuistWeb.API.CASController do
     }
   )
 
-  def create(
-        %{path_params: %{"account_handle" => account_handle, "project_handle" => project_handle, "id" => id}} = conn,
-        _params
-      ) do
+  def create(conn, _params) do
+    %{id: id, account_handle: account_handle, project_handle: project_handle} = conn.private.open_api_spex.params
     authenticated_subject = Authentication.authenticated_subject(conn)
     account = Accounts.get_account_by_handle(account_handle)
 

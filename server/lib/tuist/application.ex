@@ -252,28 +252,36 @@ defmodule Tuist.Application do
       # Get S3 configuration from Environment
       secrets = Environment.decrypt_secrets()
 
-      env_vars = [
-        {"SERVER_URL", server_url},
-        {"TUIST_S3_REGION", Environment.s3_region(secrets)},
-        {"TUIST_S3_ENDPOINT", Environment.s3_endpoint(secrets)},
-        {"TUIST_S3_BUCKET_NAME", Environment.s3_bucket_name(secrets)},
-        {"TUIST_S3_ACCESS_KEY_ID", Environment.s3_access_key_id(secrets)},
-        {"TUIST_S3_SECRET_ACCESS_KEY", Environment.s3_secret_access_key(secrets)},
-        {"TUIST_S3_VIRTUAL_HOST", to_string(Environment.s3_virtual_host(secrets))},
-        {"TUIST_S3_BUCKET_AS_HOST", to_string(Environment.s3_bucket_as_host(secrets))}
+      wrangler_args = [
+        "dev",
+        "--var",
+        "SERVER_URL:#{server_url}",
+        "--var",
+        "TUIST_S3_REGION:#{Environment.s3_region(secrets)}",
+        "--var",
+        "TUIST_S3_ENDPOINT:#{Environment.s3_endpoint(secrets)}",
+        "--var",
+        "TUIST_S3_BUCKET_NAME:#{Environment.s3_bucket_name(secrets)}",
+        "--var",
+        "TUIST_S3_ACCESS_KEY_ID:#{Environment.s3_access_key_id(secrets)}",
+        "--var",
+        "TUIST_S3_SECRET_ACCESS_KEY:#{Environment.s3_secret_access_key(secrets)}",
+        "--var",
+        "TUIST_S3_VIRTUAL_HOST:#{to_string(Environment.s3_virtual_host(secrets))}",
+        "--var",
+        "TUIST_S3_BUCKET_AS_HOST:#{to_string(Environment.s3_bucket_as_host(secrets))}"
       ]
 
       [
         {MuonTrap.Daemon,
          [
            wrangler_path,
-           ["dev"],
+           wrangler_args,
            [
              cd: worker_path,
              stderr_to_stdout: true,
              log_output: :debug,
-             log_prefix: "[Worker] ",
-             env: env_vars
+             log_prefix: "[Worker] "
            ]
          ]}
       ]

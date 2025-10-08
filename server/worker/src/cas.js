@@ -35,9 +35,16 @@ async function getS3Prefix(request, env, accountHandle, projectHandle) {
 
   // Check KV cache first
   if (env.CAS_CACHE) {
-    const cachedPrefix = await env.CAS_CACHE.get(cacheKey);
-    if (cachedPrefix) {
-      return { prefix: cachedPrefix };
+    const cached = await env.CAS_CACHE.get(cacheKey);
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        // Cached value can be either { prefix: "..." } or { error: "...", status: 403 }
+        return parsed;
+      } catch {
+        // Legacy cache format: just the prefix string
+        return { prefix: cached };
+      }
     }
   }
 
@@ -53,20 +60,35 @@ async function getS3Prefix(request, env, accountHandle, projectHandle) {
   try {
     const response = await serverFetch(
       env,
-      `/api/projects/${accountHandle}/${projectHandle}/cas/prefix`,
+      `/api/cas/prefix?account_handle=${accountHandle}&project_handle=${projectHandle}`,
       { method: 'GET', headers }
     );
 
     if (!response.ok) {
-      return { error: 'Unauthorized or not found', status: response.status };
+      const result = { error: 'Unauthorized or not found', status: response.status };
+
+      // Cache authorization failures (401/403) with shorter TTL
+      if (env.CAS_CACHE && (response.status === 401 || response.status === 403)) {
+        await env.CAS_CACHE.put(
+          cacheKey,
+          JSON.stringify(result),
+          { expirationTtl: 300 } // Cache failures for 5 minutes
+        );
+      }
+
+      return result;
     }
 
     const data = await response.json();
     const prefix = data.prefix;
 
-    // Cache the prefix in KV
+    // Cache the successful prefix in KV
     if (env.CAS_CACHE && prefix) {
-      await env.CAS_CACHE.put(cacheKey, prefix, { expirationTtl: 3600 }); // Cache for 1 hour
+      await env.CAS_CACHE.put(
+        cacheKey,
+        JSON.stringify({ prefix }),
+        { expirationTtl: 3600 } // Cache success for 1 hour
+      );
     }
 
     return { prefix };
@@ -79,8 +101,17 @@ async function getS3Prefix(request, env, accountHandle, projectHandle) {
  * Handles GET request - check if artifact exists and return download URL
  */
 export async function handleGetValue(request, env, ctx) {
-  const { params } = request;
-  const { id, account_handle: accountHandle, project_handle: projectHandle } = params;
+  const { params, query } = request;
+  const { id } = params;
+  const accountHandle = query?.account_handle;
+  const projectHandle = query?.project_handle;
+
+  if (!accountHandle || !projectHandle) {
+    return new Response(
+      JSON.stringify({ message: 'Missing account_handle or project_handle query parameter' }),
+      { status: 400, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
 
   // Get S3 prefix (from cache or server)
   const prefixResult = await getS3Prefix(request, env, accountHandle, projectHandle);
@@ -123,8 +154,17 @@ export async function handleGetValue(request, env, ctx) {
  * Handles POST request - check if artifact exists, return upload URL if needed
  */
 export async function handleSave(request, env, ctx) {
-  const { params } = request;
-  const { id, account_handle: accountHandle, project_handle: projectHandle } = params;
+  const { params, query } = request;
+  const { id } = params;
+  const accountHandle = query?.account_handle;
+  const projectHandle = query?.project_handle;
+
+  if (!accountHandle || !projectHandle) {
+    return new Response(
+      JSON.stringify({ message: 'Missing account_handle or project_handle query parameter' }),
+      { status: 400, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
 
   // Get S3 prefix (from cache or server)
   const prefixResult = await getS3Prefix(request, env, accountHandle, projectHandle);

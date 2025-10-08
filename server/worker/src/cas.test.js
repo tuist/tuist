@@ -46,9 +46,11 @@ describe('CAS Module', () => {
 
     mockRequest = {
       params: {
+        id: '0~abc123',
+      },
+      query: {
         account_handle: 'acme',
         project_handle: 'myapp',
-        id: '0~abc123',
       },
       headers: {
         get: vi.fn(),
@@ -57,6 +59,17 @@ describe('CAS Module', () => {
   });
 
   describe('handleGetValue', () => {
+    it('should return 400 when query parameters are missing', async () => {
+      mockRequest.query = {};
+      mockRequest.headers.get.mockReturnValue('Bearer token123');
+
+      const response = await handleGetValue(mockRequest, env, {});
+
+      expect(response.status).toBe(400);
+      const data = await response.json();
+      expect(data.message).toContain('Missing account_handle or project_handle');
+    });
+
     it('should return 401 when Authorization header is missing', async () => {
       mockRequest.headers.get.mockReturnValue(null);
 
@@ -115,9 +128,57 @@ describe('CAS Module', () => {
       );
       expect(env.CAS_CACHE.put).toHaveBeenCalledWith(
         expect.any(String),
-        'server-prefix',
+        JSON.stringify({ prefix: 'server-prefix' }),
         { expirationTtl: 3600 }
       );
+    });
+
+    it('should use cached authorization success', async () => {
+      mockRequest.headers.get.mockReturnValue('Bearer token123');
+      env.CAS_CACHE.get.mockResolvedValue(JSON.stringify({ prefix: 'cached-prefix' }));
+      checkS3ObjectExists.mockResolvedValue(true);
+      getPresignedDownloadUrl.mockResolvedValue('https://s3.amazonaws.com/signed-url');
+
+      const response = await handleGetValue(mockRequest, env, {});
+
+      expect(response.status).toBe(302);
+      expect(serverFetch).not.toHaveBeenCalled();
+      expect(checkS3ObjectExists).toHaveBeenCalledWith(
+        expect.anything(),
+        'https://s3.amazonaws.com',
+        'test-bucket',
+        'cached-prefix0/abc123',
+        false
+      );
+    });
+
+    it('should cache authorization failures with shorter TTL', async () => {
+      mockRequest.headers.get.mockReturnValue('Bearer invalid-token');
+      env.CAS_CACHE.get.mockResolvedValue(null);
+      serverFetch.mockResolvedValue(new Response(null, { status: 403 }));
+
+      const response = await handleGetValue(mockRequest, env, {});
+
+      expect(response.status).toBe(403);
+      expect(env.CAS_CACHE.put).toHaveBeenCalledWith(
+        expect.any(String),
+        JSON.stringify({ error: 'Unauthorized or not found', status: 403 }),
+        { expirationTtl: 300 } // 5 minutes
+      );
+    });
+
+    it('should use cached authorization failure', async () => {
+      mockRequest.headers.get.mockReturnValue('Bearer invalid-token');
+      env.CAS_CACHE.get.mockResolvedValue(
+        JSON.stringify({ error: 'Unauthorized or not found', status: 403 })
+      );
+
+      const response = await handleGetValue(mockRequest, env, {});
+
+      expect(response.status).toBe(403);
+      expect(serverFetch).not.toHaveBeenCalled();
+      const data = await response.json();
+      expect(data.message).toBe('Unauthorized or not found');
     });
 
     it('should forward x-request-id header to server', async () => {
@@ -202,6 +263,17 @@ describe('CAS Module', () => {
   });
 
   describe('handleSave', () => {
+    it('should return 400 when query parameters are missing', async () => {
+      mockRequest.query = {};
+      mockRequest.headers.get.mockReturnValue('Bearer token123');
+
+      const response = await handleSave(mockRequest, env, {});
+
+      expect(response.status).toBe(400);
+      const data = await response.json();
+      expect(data.message).toContain('Missing account_handle or project_handle');
+    });
+
     it('should return 401 when Authorization header is missing', async () => {
       mockRequest.headers.get.mockReturnValue(null);
 
@@ -292,8 +364,23 @@ describe('CAS Module', () => {
 
       expect(env.CAS_CACHE.put).toHaveBeenCalledWith(
         expect.stringMatching(/^[0-9a-f]{64}$/), // SHA-256 hash
-        'new-prefix',
+        JSON.stringify({ prefix: 'new-prefix' }),
         { expirationTtl: 3600 }
+      );
+    });
+
+    it('should cache 401 authorization failures', async () => {
+      mockRequest.headers.get.mockReturnValue('Bearer bad-token');
+      env.CAS_CACHE.get.mockResolvedValue(null);
+      serverFetch.mockResolvedValue(new Response(null, { status: 401 }));
+
+      const response = await handleSave(mockRequest, env, {});
+
+      expect(response.status).toBe(401);
+      expect(env.CAS_CACHE.put).toHaveBeenCalledWith(
+        expect.any(String),
+        JSON.stringify({ error: 'Unauthorized or not found', status: 401 }),
+        { expirationTtl: 300 } // 5 minutes
       );
     });
   });
