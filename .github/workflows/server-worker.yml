@@ -50,4 +50,5 @@ jobs:
         with:
           cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
       - run: mise install
+      - run: pnpm install
       - run: pnpm run test
