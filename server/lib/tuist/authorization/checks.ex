@@ -123,6 +123,10 @@ defmodule Tuist.Authorization.Checks do
     end
   end
 
+  def ops_access(_, _) do
+    false
+  end
+
   def repository_permission_check(%User{} = user, %{project: %Project{} = project, repository: repository}) do
     account = Accounts.get_account_by_id(project.account_id)
 
