@@ -27,11 +27,9 @@ CLI는 문제를 진단하는데 도움이 되는 메세지를 내부적으로 �
 
 ### 지속적 통합(CI) {#diagnose-issues-using-logs-ci}
 
-In CI, where environments are disposable, you might want to configure your CI
-pipeline to export Tuist logs. Exporting artifacts is a common capability across
-CI services, and the configuration depends on the service you use. For example,
-in GitHub Actions, you can use the `actions/upload-artifact` action to upload
-the logs as an artifact:
+환경이 일회성인 CI에서 CI 파이프라인이 Tuist 로그를 내보내도록 구성할 수 있습니다. 아티팩트(Artifact)를 내보내는 것은 대부분의
+CI 서비스에서 공통적으로 지원하는 기능이며, 구성 방법은 서비스에 따라 다릅니다. 예를 들어 GitHub Actions에서는
+`actions/upload-artifact` 액션으로 로그를 아티팩트로 업로드할 수 있습니다.
 
 ```yaml
 name: Node CI

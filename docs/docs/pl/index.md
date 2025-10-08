@@ -70,13 +70,14 @@ frustrującego na produktywne doświadczenie, które skaluje się wraz z zespoł
 **Zespoły w [Trendyol](https://www.trendyol.com/),
 [Etsy](https://www.etsy.com/), [Bumble](https://bumble.com/),
 [Monzo](https://monzo.com/), [Bending Spoons](https://bendingspoons.com/) i
-ponad 100 innych firmach** przekształciły już rozwój aplikacji na platformy
-Apple za pomocą Tuist. Oto co zyskują:
+ponad 100 innych firmach** przekształciły już sposób rozwoju aplikacji na
+platformy Apple za pomocą Tuist. Oto co zyskują:
 
 - **65% szybsze kompilacje** z inteligentnym cache-owaniem
-- **Zero merge conflicts** in Xcode projects
-- **Minutes to seconds** package resolution
-- **Happy developers** who can focus on building features
+- **Zero konfliktów** w projektach Xcode
+- Rozwiązywanie zależności paczek z **minut do sekund**
+- **Szczęśliwi deweloperzy**, którzy mogą skupić się na tworzeniu
+  funkcjonalności
 
 <HomeCards type="carousel">
     <HomeCard icon="🚀"
@@ -99,18 +100,18 @@ Apple za pomocą Tuist. Oto co zyskują:
 </HomeCards>
 
 
-## See Tuist in action
+## Zobacz Tuist w akcji
 
-**Learn from real implementations** and get inspired by what's possible when
-your toolchain just works.
+**Ucz się z prawdziwych wdrożeń** i zainspiruj się tym, co jest możliwe, gdy
+twoje narzędzia po prostu działają.
 
 <HomeVideos/>
 
-## Join a thriving community
+## Dołącz do prężnie rozwijającej się społeczności
 
-**Connect with thousands of Apple platform developers** who are shipping better
-apps with Tuist. Get help, share wins, and shape the future of Apple platform
-development.
+**Nawiąż kontakt z tysiącami programistów platformy Apple**, którzy dostarczają
+lepsze aplikacje za pomocą Tuist. Uzyskaj pomoc, dziel się zwycięstwami i
+kształtuj przyszłość rozwoju platform Apple.
 
 <HomeCommunity>
     <HomeCommunityItem title="Forum" description="Interact with other community members in a synchronous manner" href="https://community.tuist.dev">
