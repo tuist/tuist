@@ -37,7 +37,7 @@ export function getS3Key(casId) {
 /**
  * Constructs S3 URL for an object
  */
-function getS3Url(endpoint, bucket, key, virtualHost = false) {
+export function getS3Url(endpoint, bucket, key, virtualHost = false) {
   if (virtualHost) {
     // Virtual host style: https://bucket.endpoint/key
     const url = new URL(endpoint);
@@ -64,34 +64,4 @@ export async function checkS3ObjectExists(s3Client, endpoint, bucket, key, virtu
   } catch (error) {
     return false;
   }
-}
-
-/**
- * Generates a presigned URL for S3 GET
- */
-export async function getPresignedDownloadUrl(s3Client, endpoint, bucket, key, virtualHost = false) {
-  const url = getS3Url(endpoint, bucket, key, virtualHost);
-
-  // aws4fetch automatically signs the URL
-  const signedRequest = await s3Client.sign(url, {
-    method: 'GET',
-    aws: { signQuery: true },
-  });
-
-  return signedRequest.url;
-}
-
-/**
- * Generates a presigned URL for S3 PUT
- */
-export async function getPresignedUploadUrl(s3Client, endpoint, bucket, key, virtualHost = false) {
-  const url = getS3Url(endpoint, bucket, key, virtualHost);
-
-  // aws4fetch automatically signs the URL
-  const signedRequest = await s3Client.sign(url, {
-    method: 'PUT',
-    aws: { signQuery: true },
-  });
-
-  return signedRequest.url;
 }

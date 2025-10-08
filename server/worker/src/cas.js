@@ -2,8 +2,7 @@ import {
   createS3Client,
   getS3Key,
   checkS3ObjectExists,
-  getPresignedDownloadUrl,
-  getPresignedUploadUrl
+  getS3Url
 } from './s3.js';
 import { serverFetch } from './server-fetch.js';
 
@@ -146,8 +145,16 @@ export async function handleGetValue(request, env, ctx) {
     return new Response(null, { status: 404 });
   }
 
-  const url = await getPresignedDownloadUrl(s3Client, endpoint, bucket, key, virtualHost);
-  return Response.redirect(url, 302);
+  const url = getS3Url(endpoint, bucket, key, virtualHost);
+
+  // Stream the GET request from S3 with proper AWS signature
+  const s3Response = await s3Client.fetch(url, { method: 'GET' });
+
+  // Return the response with streaming body
+  return new Response(s3Response.body, {
+    status: s3Response.status,
+    headers: s3Response.headers,
+  });
 }
 
 /**
@@ -199,6 +206,20 @@ export async function handleSave(request, env, ctx) {
     return new Response(null, { status: 304 });
   }
 
-  const url = await getPresignedUploadUrl(s3Client, endpoint, bucket, key, virtualHost);
-  return Response.redirect(url, 302);
+  const url = getS3Url(endpoint, bucket, key, virtualHost);
+
+  // Stream the PUT request to S3 with proper AWS signature
+  const s3Response = await s3Client.fetch(url, {
+    method: 'PUT',
+    body: request.body,
+    headers: {
+      'Content-Type': request.headers.get('Content-Type') || 'application/octet-stream',
+    },
+  });
+
+  // Return the S3 response
+  return new Response(s3Response.body, {
+    status: s3Response.status,
+    headers: s3Response.headers,
+  });
 }

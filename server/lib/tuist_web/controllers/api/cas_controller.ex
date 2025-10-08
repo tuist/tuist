@@ -83,7 +83,7 @@ defmodule TuistWeb.API.CASController do
         })
 
       true ->
-        prefix = "#{project.account.id}/#{project.id}/xcode/cas/"
+        prefix = "#{project.account.name}/#{project.name}/cas/"
 
         conn
         |> put_status(:ok)
@@ -115,7 +115,7 @@ defmodule TuistWeb.API.CASController do
       ]
     ],
     responses: %{
-      found: {"Artifact exists, redirect to presigned S3 download URL", "application/json", nil},
+      ok: {"Artifact content stream", "application/octet-stream", nil},
       not_found: {"Artifact does not exist", "application/json", nil},
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error}
@@ -151,16 +151,29 @@ defmodule TuistWeb.API.CASController do
         })
 
       true ->
-        prefix = "#{project.account.id}/#{project.id}/xcode/cas/"
+        prefix = "#{project.account.name}/#{project.name}/cas/"
         key = "#{prefix}#{get_s3_key(id)}"
 
         if Storage.object_exists?(key, authenticated_subject) do
-          url = Storage.generate_download_url(key, authenticated_subject)
-          redirect(conn, external: url)
+          stream = Storage.stream_object(key, authenticated_subject)
+
+          conn
+          |> put_resp_content_type("application/octet-stream")
+          |> send_chunked(200)
+          |> stream_data(stream)
         else
           send_resp(conn, :not_found, "")
         end
     end
+  end
+
+  defp stream_data(conn, stream) do
+    Enum.reduce_while(stream, conn, fn chunk, conn ->
+      case chunk(conn, chunk) do
+        {:ok, conn} -> {:cont, conn}
+        {:error, :closed} -> {:halt, conn}
+      end
+    end)
   end
 
   operation(:create,
@@ -187,7 +200,7 @@ defmodule TuistWeb.API.CASController do
       ]
     ],
     responses: %{
-      found: {"Artifact doesn't exist, redirect to presigned S3 upload URL", "application/json", nil},
+      ok: {"Upload successful", "application/json", nil},
       not_modified: {"Artifact already exists, no upload needed", "application/json", nil},
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error}
@@ -223,14 +236,16 @@ defmodule TuistWeb.API.CASController do
         })
 
       true ->
-        prefix = "#{project.account.id}/#{project.id}/xcode/cas/"
+        prefix = "#{project.account.name}/#{project.name}/cas/"
         key = "#{prefix}#{get_s3_key(id)}"
 
         if Storage.object_exists?(key, authenticated_subject) do
           send_resp(conn, :not_modified, "")
         else
-          url = Storage.generate_upload_url(key, authenticated_subject)
-          redirect(conn, external: url)
+          # Stream the upload from the request body to S3
+          {:ok, body, _conn} = Plug.Conn.read_body(conn)
+          Storage.put_object(key, body, authenticated_subject)
+          send_resp(conn, 200, "")
         end
     end
   end

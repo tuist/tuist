@@ -3,8 +3,7 @@ import {
   createS3Client,
   getS3Key,
   checkS3ObjectExists,
-  getPresignedDownloadUrl,
-  getPresignedUploadUrl
+  getS3Url
 } from './s3.js';
 
 // Mock aws4fetch
@@ -179,118 +178,6 @@ describe('S3 Module', () => {
       );
 
       expect(result).toBe(false);
-    });
-  });
-
-  describe('getPresignedDownloadUrl', () => {
-    let mockS3Client;
-
-    beforeEach(() => {
-      mockS3Client = {
-        sign: vi.fn(),
-      };
-    });
-
-    it('should generate presigned download URL (path style)', async () => {
-      mockS3Client.sign.mockResolvedValue({
-        url: 'https://s3.amazonaws.com/test-bucket/object?X-Amz-Signature=abc123',
-      });
-
-      const result = await getPresignedDownloadUrl(
-        mockS3Client,
-        'https://s3.amazonaws.com',
-        'test-bucket',
-        'path/to/object',
-        false
-      );
-
-      expect(result).toBe('https://s3.amazonaws.com/test-bucket/object?X-Amz-Signature=abc123');
-      expect(mockS3Client.sign).toHaveBeenCalledWith(
-        'https://s3.amazonaws.com/test-bucket/path/to/object',
-        {
-          method: 'GET',
-          aws: { signQuery: true },
-        }
-      );
-    });
-
-    it('should generate presigned download URL (virtual host style)', async () => {
-      mockS3Client.sign.mockResolvedValue({
-        url: 'https://test-bucket.s3.amazonaws.com/object?X-Amz-Signature=abc123',
-      });
-
-      const result = await getPresignedDownloadUrl(
-        mockS3Client,
-        'https://s3.amazonaws.com',
-        'test-bucket',
-        'path/to/object',
-        true
-      );
-
-      expect(result).toBe('https://test-bucket.s3.amazonaws.com/object?X-Amz-Signature=abc123');
-      expect(mockS3Client.sign).toHaveBeenCalledWith(
-        'https://test-bucket.s3.amazonaws.com/path/to/object',
-        {
-          method: 'GET',
-          aws: { signQuery: true },
-        }
-      );
-    });
-  });
-
-  describe('getPresignedUploadUrl', () => {
-    let mockS3Client;
-
-    beforeEach(() => {
-      mockS3Client = {
-        sign: vi.fn(),
-      };
-    });
-
-    it('should generate presigned upload URL (path style)', async () => {
-      mockS3Client.sign.mockResolvedValue({
-        url: 'https://s3.amazonaws.com/test-bucket/object?X-Amz-Signature=xyz789',
-      });
-
-      const result = await getPresignedUploadUrl(
-        mockS3Client,
-        'https://s3.amazonaws.com',
-        'test-bucket',
-        'path/to/object',
-        false
-      );
-
-      expect(result).toBe('https://s3.amazonaws.com/test-bucket/object?X-Amz-Signature=xyz789');
-      expect(mockS3Client.sign).toHaveBeenCalledWith(
-        'https://s3.amazonaws.com/test-bucket/path/to/object',
-        {
-          method: 'PUT',
-          aws: { signQuery: true },
-        }
-      );
-    });
-
-    it('should generate presigned upload URL (virtual host style)', async () => {
-      mockS3Client.sign.mockResolvedValue({
-        url: 'https://test-bucket.s3.amazonaws.com/object?X-Amz-Signature=xyz789',
-      });
-
-      const result = await getPresignedUploadUrl(
-        mockS3Client,
-        'https://s3.amazonaws.com',
-        'test-bucket',
-        'path/to/object',
-        true
-      );
-
-      expect(result).toBe('https://test-bucket.s3.amazonaws.com/object?X-Amz-Signature=xyz789');
-      expect(mockS3Client.sign).toHaveBeenCalledWith(
-        'https://test-bucket.s3.amazonaws.com/path/to/object',
-        {
-          method: 'PUT',
-          aws: { signQuery: true },
-        }
-      );
     });
   });
 });

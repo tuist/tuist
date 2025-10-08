@@ -32,7 +32,7 @@ defmodule TuistWeb.API.CASControllerTest do
       response = json_response(conn, :ok)
 
       assert %{"prefix" => prefix} = response
-      assert prefix == "#{user.account.id}/#{project.id}/xcode/cas/"
+      assert prefix == "#{user.account.name}/#{project.name}/cas/"
     end
 
     test "returns the CAS prefix for an authenticated project token", %{
@@ -52,7 +52,7 @@ defmodule TuistWeb.API.CASControllerTest do
       response = json_response(conn, :ok)
 
       assert %{"prefix" => prefix} = response
-      assert prefix == "#{user.account.id}/#{project.id}/xcode/cas/"
+      assert prefix == "#{user.account.name}/#{project.name}/cas/"
     end
 
     test "returns 401 when not authenticated", %{
@@ -142,29 +142,31 @@ defmodule TuistWeb.API.CASControllerTest do
       response = json_response(conn, :ok)
 
       assert %{"prefix" => prefix} = response
-      assert prefix == "#{organization.account.id}/#{org_project.id}/xcode/cas/"
+      assert prefix == "#{organization.account.name}/#{org_project.name}/cas/"
     end
   end
 
   describe "GET /api/cas/:id" do
-    test "redirects to presigned S3 URL when artifact exists", %{
+    test "streams artifact content when artifact exists", %{
       conn: conn,
       user: user,
       project: project
     } do
       # Given
       conn = Authentication.put_current_user(conn, user)
-      artifact_id = "abc123"
-      presigned_url = "https://s3.amazonaws.com/bucket/object?signed=true"
+      artifact_id = "0~abc123"
+      content = "file content"
 
       expect(Storage, :object_exists?, fn _key, _actor -> true end)
-      expect(Storage, :generate_download_url, fn _key, _actor -> presigned_url end)
+      expect(Storage, :stream_object, fn _key, _actor -> [content] end)
 
       # When
       conn = get(conn, ~p"/api/cas/#{artifact_id}?account_handle=#{user.account.name}&project_handle=#{project.name}")
 
       # Then
-      assert redirected_to(conn, 302) == presigned_url
+      assert conn.status == 200
+      assert get_resp_header(conn, "content-type") == ["application/octet-stream; charset=utf-8"]
+      assert conn.resp_body == content
     end
 
     test "returns 404 when artifact does not exist", %{
@@ -253,24 +255,30 @@ defmodule TuistWeb.API.CASControllerTest do
   end
 
   describe "POST /api/cas/:id" do
-    test "redirects to presigned upload URL when artifact does not exist", %{
+    test "uploads artifact when it does not exist", %{
       conn: conn,
       user: user,
       project: project
     } do
       # Given
       conn = Authentication.put_current_user(conn, user)
-      artifact_id = "abc123"
-      presigned_url = "https://s3.amazonaws.com/bucket/upload?signed=true"
+      conn = put_req_header(conn, "content-type", "application/octet-stream")
+      artifact_id = "0~abc123"
+      content = "file content"
 
       expect(Storage, :object_exists?, fn _key, _actor -> false end)
-      expect(Storage, :generate_upload_url, fn _key, _actor -> presigned_url end)
+      expect(Storage, :put_object, fn _key, _content, _actor -> :ok end)
 
       # When
-      conn = post(conn, ~p"/api/cas/#{artifact_id}?account_handle=#{user.account.name}&project_handle=#{project.name}")
+      conn =
+        post(
+          conn,
+          ~p"/api/cas/#{artifact_id}?account_handle=#{user.account.name}&project_handle=#{project.name}",
+          content
+        )
 
       # Then
-      assert redirected_to(conn, 302) == presigned_url
+      assert conn.status == 200
     end
 
     test "returns 304 when artifact already exists", %{
