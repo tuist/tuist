@@ -1,26 +1,20 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import worker from './index.js';
 
-// Mock AWS SDK
-vi.mock('@aws-sdk/client-s3', () => {
-  const HeadObjectCommand = vi.fn();
-  const S3Client = vi.fn();
+// Mock aws4fetch
+vi.mock('aws4fetch', () => {
+  const AwsClient = vi.fn();
   return {
-    S3Client,
-    HeadObjectCommand,
+    AwsClient,
   };
 });
 
-vi.mock('@aws-sdk/s3-request-presigner', () => ({
-  getSignedUrl: vi.fn(),
-}));
-
-import { S3Client, HeadObjectCommand } from '@aws-sdk/client-s3';
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { AwsClient } from 'aws4fetch';
 
 describe('CAS Worker', () => {
   let env;
-  let mockS3Send;
+  let mockFetch;
+  let mockSign;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -35,9 +29,12 @@ describe('CAS Worker', () => {
       TUIST_S3_SECRET_ACCESS_KEY: 'test-secret-key',
     };
 
-    mockS3Send = vi.fn();
-    S3Client.mockImplementation(() => ({
-      send: mockS3Send,
+    mockFetch = vi.fn();
+    mockSign = vi.fn();
+
+    AwsClient.mockImplementation(() => ({
+      fetch: mockFetch,
+      sign: mockSign,
     }));
   });
 
@@ -52,9 +49,7 @@ describe('CAS Worker', () => {
     });
 
     it('should return 404 with no body when object does not exist', async () => {
-      const notFoundError = new Error('Not found');
-      notFoundError.name = 'NotFound';
-      mockS3Send.mockRejectedValue(notFoundError);
+      mockFetch.mockResolvedValue(new Response(null, { status: 404 }));
 
       const request = new Request('http://localhost/api/cas/abc123', {
         method: 'GET',
@@ -66,8 +61,8 @@ describe('CAS Worker', () => {
     });
 
     it('should return redirect when object exists', async () => {
-      mockS3Send.mockResolvedValue({});
-      getSignedUrl.mockResolvedValue('https://s3.amazonaws.com/test-bucket/test-object?signed=true');
+      mockFetch.mockResolvedValue(new Response(null, { status: 200 }));
+      mockSign.mockResolvedValue({ url: 'https://s3.amazonaws.com/test-bucket/test-object?signed=true' });
 
       const request = new Request('http://localhost/api/cas/abc123', {
         method: 'GET',
@@ -96,10 +91,8 @@ describe('CAS Worker', () => {
 
   describe('POST /api/cas/:id', () => {
     it('should return 302 redirect to upload URL when object does not exist', async () => {
-      const notFoundError = new Error('Not found');
-      notFoundError.name = 'NotFound';
-      mockS3Send.mockRejectedValue(notFoundError);
-      getSignedUrl.mockResolvedValue('https://s3.amazonaws.com/test-bucket/upload?signed=true');
+      mockFetch.mockResolvedValue(new Response(null, { status: 404 }));
+      mockSign.mockResolvedValue({ url: 'https://s3.amazonaws.com/test-bucket/upload?signed=true' });
 
       const request = new Request('http://localhost/api/cas/abc123', {
         method: 'POST',
@@ -111,7 +104,7 @@ describe('CAS Worker', () => {
     });
 
     it('should return 304 with no body when object exists', async () => {
-      mockS3Send.mockResolvedValue({});
+      mockFetch.mockResolvedValue(new Response(null, { status: 200 }));
 
       const request = new Request('http://localhost/api/cas/abc123', {
         method: 'POST',
@@ -139,10 +132,10 @@ describe('CAS Worker', () => {
   });
 
   describe('S3 Configuration', () => {
-    it('should use path style when TUIST_S3_BUCKET_AS_HOST is false', async () => {
+    it('should construct path style URLs when TUIST_S3_BUCKET_AS_HOST is false', async () => {
       env.TUIST_S3_BUCKET_AS_HOST = 'false';
-      mockS3Send.mockResolvedValue({});
-      getSignedUrl.mockResolvedValue('https://s3.amazonaws.com/test-bucket/object');
+      mockFetch.mockResolvedValue(new Response(null, { status: 200 }));
+      mockSign.mockResolvedValue({ url: 'https://s3.amazonaws.com/test-bucket/object?signed=true' });
 
       const request = new Request('http://localhost/api/cas/abc123', {
         method: 'GET',
@@ -150,17 +143,20 @@ describe('CAS Worker', () => {
 
       await worker.fetch(request, env, {});
 
-      expect(S3Client).toHaveBeenCalledWith(
+      expect(AwsClient).toHaveBeenCalledWith(
         expect.objectContaining({
-          forcePathStyle: true,
+          accessKeyId: 'test-key-id',
+          secretAccessKey: 'test-secret-key',
+          region: 'us-east-1',
+          service: 's3',
         })
       );
     });
 
-    it('should use virtual host style when TUIST_S3_BUCKET_AS_HOST is true', async () => {
-      env.TUIST_S3_BUCKET_AS_HOST = 'true';
-      mockS3Send.mockResolvedValue({});
-      getSignedUrl.mockResolvedValue('https://s3.amazonaws.com/test-bucket/object');
+    it('should handle virtual host style when TUIST_S3_VIRTUAL_HOST is true', async () => {
+      env.TUIST_S3_VIRTUAL_HOST = 'true';
+      mockFetch.mockResolvedValue(new Response(null, { status: 200 }));
+      mockSign.mockResolvedValue({ url: 'https://test-bucket.s3.amazonaws.com/object?signed=true' });
 
       const request = new Request('http://localhost/api/cas/abc123', {
         method: 'GET',
@@ -168,11 +164,18 @@ describe('CAS Worker', () => {
 
       await worker.fetch(request, env, {});
 
-      expect(S3Client).toHaveBeenCalledWith(
-        expect.objectContaining({
-          forcePathStyle: false,
-        })
-      );
+      expect(mockSign).toHaveBeenCalled();
+    });
+  });
+
+  describe('Unsupported HTTP Methods', () => {
+    it('should return 404 for unsupported methods', async () => {
+      const request = new Request('http://localhost/api/cas/abc123', {
+        method: 'PUT',
+      });
+
+      const response = await worker.fetch(request, env, {});
+      expect(response.status).toBe(404);
     });
   });
 });

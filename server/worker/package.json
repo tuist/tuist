@@ -1,7 +1,7 @@
 {
-  "name": "@tuist/cas",
+  "name": "@tuist/worker",
   "private": true,
-  "description": "A Cloudflare worker that implements a remote interface for CAS-compatible build systems",
+  "description": "A sub-component of the server that runs closer to the users leveraging Cloudflare workers",
   "license": "MIT",
   "packageManager": "pnpm@10.17.1",
   "type": "module",
@@ -12,8 +12,8 @@
     "test:watch": "vitest --watch"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.705.0",
-    "@aws-sdk/s3-request-presigner": "^3.705.0"
+    "aws4fetch": "^1.0.20",
+    "itty-router": "^5.0.22"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250110.0",
