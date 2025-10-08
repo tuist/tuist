@@ -6,6 +6,7 @@ defmodule TuistWeb.BuildRunsLive do
   import Noora.Filter
   import TuistWeb.Components.EmptyCardSection
   import TuistWeb.Runs.RanByBadge
+  import TuistWeb.Utilities.FormatHelpers
 
   alias Noora.Filter
   alias Tuist.Accounts
