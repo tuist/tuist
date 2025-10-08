@@ -517,10 +517,6 @@ defmodule Tuist.Environment do
       smtp_user_name(secrets) != nil
   end
 
-  def clickhouse_configured?(secrets \\ secrets()) do
-    clickhouse_url(secrets) != nil
-  end
-
   def clickhouse_url(secrets \\ secrets()) do
     get([:clickhouse, :url], secrets)
   end

@@ -9,7 +9,7 @@ defmodule Tuist.CommandEvents.Buffer do
     insert_opts: insert_opts,
     fields: fields,
     encoding_types: encoding_types
-  } = Tuist.CommandEvents.Clickhouse.Event.buffer_opts()
+  } = Tuist.CommandEvents.Event.buffer_opts()
 
   def child_spec(opts) do
     opts =

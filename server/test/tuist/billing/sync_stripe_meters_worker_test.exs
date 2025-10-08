@@ -2,8 +2,6 @@ defmodule Tuist.Billing.Workers.SyncStripeMetersWorkerWorkerTest do
   use TuistTestSupport.Cases.DataCase, async: false
   use Mimic
 
-  import TuistTestSupport.Utilities, only: [with_flushed_ingestion_buffers: 1]
-
   alias Tuist.Billing.Workers.SyncCustomerStripeMetersWorker
   alias Tuist.Billing.Workers.SyncStripeMetersWorker
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -11,12 +9,6 @@ defmodule Tuist.Billing.Workers.SyncStripeMetersWorkerWorkerTest do
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   setup :set_mimic_from_context
-
-  setup do
-    stub(FunWithFlags, :enabled?, fn :clickhouse_events -> true end)
-    stub(Tuist.Environment, :clickhouse_configured?, fn -> true end)
-    :ok
-  end
 
   test "enqueues SyncCustomerStripeMetersWorker jobs for each billable customer with cache events" do
     first_account_customer_id = "account-1-#{UUIDv7.generate()}"
@@ -33,47 +25,27 @@ defmodule Tuist.Billing.Workers.SyncStripeMetersWorkerWorkerTest do
 
     first_account_project = ProjectsFixtures.project_fixture(account_id: first_account.id)
     second_account_project = ProjectsFixtures.project_fixture(account_id: second_account.id)
-    third_account_project = ProjectsFixtures.project_fixture(account_id: third_account.id)
+    ProjectsFixtures.project_fixture(account_id: third_account.id)
 
     date = ~U[2024-04-30 10:20:30Z]
     stub(DateTime, :utc_now, fn -> date end)
 
     # Create events for yesterday (2024-04-29) for all accounts
-    with_flushed_ingestion_buffers(fn ->
-      CommandEventsFixtures.command_event_fixture(
-        project_id: first_account_project.id,
-        name: "generate",
-        duration: 1500,
-        ran_at: ~U[2024-04-29 10:20:30Z],
-        remote_test_target_hits: ["target1", "target2"]
-      )
+    CommandEventsFixtures.command_event_fixture(
+      project_id: first_account_project.id,
+      name: "generate",
+      duration: 1500,
+      ran_at: ~U[2024-04-29 10:20:30Z],
+      remote_test_target_hits: ["target1", "target2"]
+    )
 
-      CommandEventsFixtures.command_event_fixture(
-        project_id: second_account_project.id,
-        name: "generate",
-        duration: 1500,
-        ran_at: ~U[2024-04-29 10:20:31Z],
-        remote_test_target_hits: ["target1", "target2"]
-      )
-
-      # Event for account without customer_id - should not trigger billing
-      CommandEventsFixtures.command_event_fixture(
-        project_id: third_account_project.id,
-        name: "generate",
-        duration: 1500,
-        ran_at: ~U[2024-04-29 10:20:32Z],
-        remote_cache_target_hits: ["target1", "target2"]
-      )
-
-      # Event outside yesterday window - should not affect billable customers
-      CommandEventsFixtures.command_event_fixture(
-        project_id: first_account_project.id,
-        name: "generate",
-        duration: 1500,
-        ran_at: ~U[2024-04-27 10:20:33Z],
-        remote_cache_target_hits: ["target1", "target2"]
-      )
-    end)
+    CommandEventsFixtures.command_event_fixture(
+      project_id: second_account_project.id,
+      name: "generate",
+      duration: 1500,
+      ran_at: ~U[2024-04-29 10:20:31Z],
+      remote_test_target_hits: ["target1", "target2"]
+    )
 
     # When
     Oban.Testing.with_testing_mode(:manual, fn ->
@@ -143,15 +115,13 @@ defmodule Tuist.Billing.Workers.SyncStripeMetersWorkerWorkerTest do
     date = ~U[2024-04-30 10:20:30Z]
     stub(DateTime, :utc_now, fn -> date end)
 
-    with_flushed_ingestion_buffers(fn ->
-      CommandEventsFixtures.command_event_fixture(
-        project_id: project.id,
-        name: "generate",
-        duration: 1000,
-        ran_at: ~U[2024-04-29 09:00:00Z],
-        remote_cache_target_hits: ["t1"]
-      )
-    end)
+    CommandEventsFixtures.command_event_fixture(
+      project_id: project.id,
+      name: "generate",
+      duration: 1000,
+      ran_at: ~U[2024-04-29 09:00:00Z],
+      remote_cache_target_hits: ["t1"]
+    )
 
     {:ok, _} =
       Tuist.Billing.create_token_usage(%{

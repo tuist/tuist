@@ -1,4 +1,4 @@
-defmodule Tuist.CommandEvents.Clickhouse.Event do
+defmodule Tuist.CommandEvents.Event do
   @moduledoc false
 
   use Ecto.Schema
@@ -62,6 +62,9 @@ defmodule Tuist.CommandEvents.Clickhouse.Event do
     field :local_test_hits_count, Ch, type: "UInt32", default: :database
     field :remote_test_hits_count, Ch, type: "UInt32", default: :database
     field :hit_rate, Ch, type: "Nullable(Float32)", default: :database
+
+    belongs_to :project, Tuist.Projects.Project, define_field: false
+    belongs_to :user, Tuist.Accounts.User, define_field: false
 
     field :user_account_name, :string, virtual: true
   end

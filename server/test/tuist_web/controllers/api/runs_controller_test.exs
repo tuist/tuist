@@ -86,7 +86,7 @@ defmodule TuistWeb.API.RunsControllerTest do
       assert run["git_branch"] == nil
       assert run["git_commit_sha"] == nil
       assert run["cacheable_targets"] == ["A", "B", "C"]
-      assert run["command_arguments"] == nil
+      assert run["command_arguments"] == ""
       assert run["duration"] == 0
       assert run["git_ref"] == nil
       assert run["local_cache_target_hits"] == ["A", "B"]
@@ -97,7 +97,7 @@ defmodule TuistWeb.API.RunsControllerTest do
       assert run["remote_cache_target_hits"] == ["C"]
       assert run["remote_test_target_hits"] == ["CTests"]
       assert run["status"] == "success"
-      assert run["subcommand"] == nil
+      assert run["subcommand"] == ""
       assert run["swift_version"] == "5.2"
       assert run["test_targets"] == ["ATests", "BTests", "CTests"]
       assert run["tuist_version"] == "4.1.0"
@@ -170,7 +170,7 @@ defmodule TuistWeb.API.RunsControllerTest do
       assert run["git_branch"] == nil
       assert run["git_commit_sha"] == nil
       assert run["cacheable_targets"] == []
-      assert run["command_arguments"] == nil
+      assert run["command_arguments"] == ""
       assert run["duration"] == 0
       assert run["git_ref"] == "refs/heads/main"
       assert run["local_cache_target_hits"] == []
@@ -181,7 +181,7 @@ defmodule TuistWeb.API.RunsControllerTest do
       assert run["remote_cache_target_hits"] == []
       assert run["remote_test_target_hits"] == []
       assert run["status"] == "success"
-      assert run["subcommand"] == nil
+      assert run["subcommand"] == ""
       assert run["swift_version"] == "5.2"
       assert run["test_targets"] == []
       assert run["tuist_version"] == "4.1.0"

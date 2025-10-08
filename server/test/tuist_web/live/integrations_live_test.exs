@@ -12,6 +12,7 @@ defmodule TuistWeb.IntegrationsLiveTest do
 
   setup %{conn: conn} do
     user = AccountsFixtures.user_fixture(handle: "user123#{System.unique_integer([:positive])}")
+    stub(Tuist.Environment, :github_app_configured?, fn -> true end)
 
     %{account: account} =
       organization =

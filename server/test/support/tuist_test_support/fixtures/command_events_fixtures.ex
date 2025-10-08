@@ -3,6 +3,8 @@ defmodule TuistTestSupport.Fixtures.CommandEventsFixtures do
   Fixtures for command events.
   """
 
+  import TuistTestSupport.Utilities, only: [with_flushed_ingestion_buffers: 1]
+
   alias Tuist.CommandEvents
   alias Tuist.CommandEvents.ResultBundle.ActionTestMetadata
   alias Tuist.CommandEvents.TargetTestSummary
@@ -15,37 +17,46 @@ defmodule TuistTestSupport.Fixtures.CommandEventsFixtures do
         ProjectsFixtures.project_fixture().id
       end)
 
-    CommandEvents.create_command_event(
-      %{
-        name: Keyword.get(attrs, :name, "generate"),
-        subcommand: Keyword.get(attrs, :subcommand, ""),
-        command_arguments: Keyword.get(attrs, :command_arguments, []),
-        duration: Keyword.get(attrs, :duration, 0),
-        tuist_version: "4.1.0",
-        swift_version: "5.2",
-        macos_version: "10.15",
-        project_id: project_id,
-        cacheable_targets: Keyword.get(attrs, :cacheable_targets, []),
-        local_cache_target_hits: Keyword.get(attrs, :local_cache_target_hits, []),
-        remote_cache_target_hits: Keyword.get(attrs, :remote_cache_target_hits, []),
-        test_targets: Keyword.get(attrs, :test_targets, []),
-        local_test_target_hits: Keyword.get(attrs, :local_test_target_hits, []),
-        remote_test_target_hits: Keyword.get(attrs, :remote_test_target_hits, []),
-        is_ci: Keyword.get(attrs, :is_ci, false),
-        client_id: "client-id",
-        user_id: Keyword.get(attrs, :user_id, 1),
-        status: Keyword.get(attrs, :status, :success),
-        error_message: Keyword.get(attrs, :error_message),
-        preview_id: Keyword.get(attrs, :preview_id),
-        git_commit_sha: Keyword.get(attrs, :git_commit_sha),
-        git_ref: Keyword.get(attrs, :git_ref),
-        git_branch: Keyword.get(attrs, :git_branch),
-        created_at: Keyword.get(attrs, :created_at, Time.utc_now()),
-        ran_at: Keyword.get(attrs, :ran_at, DateTime.utc_now()),
-        build_run_id: Keyword.get(attrs, :build_run_id)
-      },
-      preload: Keyword.get(attrs, :preload, [])
-    )
+    created_at = Keyword.get_lazy(attrs, :created_at, fn -> Time.utc_now() end)
+
+    ran_at =
+      Keyword.get_lazy(attrs, :ran_at, fn ->
+        default_ran_at(created_at)
+      end)
+
+    with_flushed_ingestion_buffers(fn ->
+      CommandEvents.create_command_event(
+        %{
+          name: Keyword.get(attrs, :name, "generate"),
+          subcommand: Keyword.get(attrs, :subcommand, ""),
+          command_arguments: Keyword.get(attrs, :command_arguments, []),
+          duration: Keyword.get(attrs, :duration, 0),
+          tuist_version: "4.1.0",
+          swift_version: "5.2",
+          macos_version: "10.15",
+          project_id: project_id,
+          cacheable_targets: Keyword.get(attrs, :cacheable_targets, []),
+          local_cache_target_hits: Keyword.get(attrs, :local_cache_target_hits, []),
+          remote_cache_target_hits: Keyword.get(attrs, :remote_cache_target_hits, []),
+          test_targets: Keyword.get(attrs, :test_targets, []),
+          local_test_target_hits: Keyword.get(attrs, :local_test_target_hits, []),
+          remote_test_target_hits: Keyword.get(attrs, :remote_test_target_hits, []),
+          is_ci: Keyword.get(attrs, :is_ci, false),
+          client_id: "client-id",
+          user_id: Keyword.get(attrs, :user_id, 1),
+          status: Keyword.get(attrs, :status, :success),
+          error_message: Keyword.get(attrs, :error_message),
+          preview_id: Keyword.get(attrs, :preview_id),
+          git_commit_sha: Keyword.get(attrs, :git_commit_sha),
+          git_ref: Keyword.get(attrs, :git_ref),
+          git_branch: Keyword.get(attrs, :git_branch),
+          created_at: created_at,
+          ran_at: ran_at,
+          build_run_id: Keyword.get(attrs, :build_run_id)
+        },
+        preload: Keyword.get(attrs, :preload, [])
+      )
+    end)
   end
 
   def test_case_fixture(attrs \\ []) do
@@ -1678,4 +1689,14 @@ defmodule TuistTestSupport.Fixtures.CommandEventsFixtures do
     }
     """
   end
+
+  defp default_ran_at(%DateTime{} = created_at), do: created_at
+
+  defp default_ran_at(%NaiveDateTime{} = created_at) do
+    DateTime.from_naive!(created_at, "Etc/UTC")
+  end
+
+  defp default_ran_at(<<_::binary>> = created_at), do: created_at
+
+  defp default_ran_at(_), do: DateTime.utc_now()
 end

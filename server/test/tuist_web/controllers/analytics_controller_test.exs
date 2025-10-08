@@ -7,21 +7,16 @@ defmodule TuistWeb.AnalyticsControllerTest do
   alias Tuist.Accounts
   alias Tuist.ClickHouseRepo
   alias Tuist.CommandEvents
+  alias Tuist.CommandEvents.Buffer
   alias Tuist.CommandEvents.TestCaseRun
   alias Tuist.Environment
   alias Tuist.Repo
   alias Tuist.Storage
-  alias Tuist.VCS
-  alias Tuist.Xcode.Clickhouse.XcodeGraph
-  alias Tuist.Xcode.Clickhouse.XcodeProject
-  alias Tuist.Xcode.Postgres.XcodeGraph, as: PGXcodeGraph
-  alias Tuist.Xcode.Postgres.XcodeProject, as: PGXcodeProject
-  alias Tuist.Xcode.Postgres.XcodeTarget, as: PGXcodeTarget
+  alias Tuist.Xcode.XcodeGraph
+  alias Tuist.Xcode.XcodeProject
   alias TuistTestSupport.Fixtures.AccountsFixtures
-  alias TuistTestSupport.Fixtures.AppBuildsFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
-  alias TuistTestSupport.Fixtures.RunsFixtures
   alias TuistTestSupport.Fixtures.XcodeFixtures
   alias TuistWeb.Authentication
 
@@ -33,61 +28,6 @@ defmodule TuistWeb.AnalyticsControllerTest do
   end
 
   describe "POST /api/analytics" do
-    test "returns newly created command event - postgres", %{conn: conn, user: user} do
-      stub(Environment, :clickhouse_configured?, fn -> false end)
-      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> false end)
-
-      # Given
-      conn = Authentication.put_current_user(conn, user)
-
-      account = Accounts.get_account_from_user(user)
-      project = ProjectsFixtures.project_fixture(account_id: account.id)
-      ran_at_string = "2025-02-28T15:51:12Z"
-
-      {:ok, ran_at, _} =
-        DateTime.from_iso8601(ran_at_string)
-
-      conn =
-        conn
-        |> put_req_header("content-type", "application/json")
-        |> post(
-          "/api/analytics?project_id=#{account.name}/#{project.name}",
-          %{
-            name: "generate",
-            subcommand: "generate",
-            command_arguments: ["App"],
-            duration: 100,
-            tuist_version: "1.0.0",
-            swift_version: "5.0",
-            macos_version: "10.15",
-            ran_at: ran_at_string,
-            params: %{
-              cacheable_targets: ["target1", "target2"],
-              local_cache_target_hits: ["target1"],
-              remote_cache_target_hits: ["target2"]
-            },
-            is_ci: false,
-            client_id: "client-id"
-          }
-        )
-
-      response = json_response(conn, :ok)
-
-      {:ok, command_event} = CommandEvents.get_command_event_by_id(response["id"])
-
-      assert response == %{
-               "name" => "generate",
-               "id" => response["id"],
-               "project_id" => project.id,
-               "url" => url(~p"/#{account.name}/#{project.name}/runs/#{command_event.id}")
-             }
-
-      assert command_event.ran_at == ran_at
-      assert command_event.is_ci == false
-      assert command_event.client_id == "client-id"
-      assert command_event.cacheable_targets == ["target1", "target2"]
-    end
-
     test "errors if it authentices as a project from a non-CI environment", %{
       conn: conn,
       user: user
@@ -132,91 +72,6 @@ defmodule TuistWeb.AnalyticsControllerTest do
              }
     end
 
-    test "returns newly created command event when the date is missing - postgres", %{
-      conn: conn,
-      user: user
-    } do
-      stub(Environment, :clickhouse_configured?, fn -> false end)
-      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> false end)
-
-      # Given
-      conn = Authentication.put_current_user(conn, user)
-
-      account = Accounts.get_account_from_user(user)
-      project = ProjectsFixtures.project_fixture(account_id: account.id)
-      date = ~U[2025-02-28 15:51:12Z]
-
-      stub(DateTime, :utc_now, fn -> date end)
-
-      conn =
-        conn
-        |> put_req_header("content-type", "application/json")
-        |> post(
-          "/api/analytics?project_id=#{account.name}/#{project.name}",
-          %{
-            name: "generate",
-            subcommand: "generate",
-            command_arguments: ["App"],
-            duration: 100,
-            tuist_version: "1.0.0",
-            swift_version: "5.0",
-            macos_version: "10.15",
-            is_ci: false,
-            client_id: "client-id"
-          }
-        )
-
-      response = json_response(conn, :ok)
-
-      {:ok, command_event} = CommandEvents.get_command_event_by_id(response["id"])
-
-      assert command_event.ran_at == date
-    end
-
-    test "returns newly created preview command event - postgres", %{conn: conn, user: user} do
-      stub(Environment, :clickhouse_configured?, fn -> false end)
-      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> false end)
-
-      # Given
-      conn = Authentication.put_current_user(conn, user)
-
-      account = Accounts.get_account_from_user(user)
-      project = ProjectsFixtures.project_fixture(account_id: account.id)
-
-      preview = AppBuildsFixtures.app_build_fixture(project: project, display_name: "App")
-
-      expect(VCS, :enqueue_vcs_pull_request_comment, fn _ ->
-        {:ok, %{}}
-      end)
-
-      conn =
-        conn
-        |> put_req_header("content-type", "application/json")
-        |> post(
-          "/api/analytics?project_id=#{account.name}/#{project.name}",
-          %{
-            name: "share",
-            subcommand: "",
-            command_arguments: ["App"],
-            duration: 100,
-            tuist_version: "1.0.0",
-            swift_version: "5.0",
-            macos_version: "10.15",
-            params: %{},
-            preview_id: preview.id,
-            is_ci: false,
-            client_id: "client-id"
-          }
-        )
-
-      response = json_response(conn, :ok)
-
-      {:ok, command_event} = CommandEvents.get_command_event_by_id(response["id"])
-
-      assert response["name"] == "share"
-      assert command_event.preview_id == preview.id
-    end
-
     test "returns newly created command event when cacheable analytics are missing", %{
       conn: conn,
       user: user
@@ -247,6 +102,8 @@ defmodule TuistWeb.AnalyticsControllerTest do
         )
 
       response = json_response(conn, :ok)
+
+      Buffer.flush()
 
       {:ok, command_event} = CommandEvents.get_command_event_by_id(response["id"])
 
@@ -293,6 +150,8 @@ defmodule TuistWeb.AnalyticsControllerTest do
         )
 
       response = json_response(conn, :ok)
+
+      Buffer.flush()
 
       {:ok, command_event} = CommandEvents.get_command_event_by_id(response["id"])
 
@@ -344,6 +203,8 @@ defmodule TuistWeb.AnalyticsControllerTest do
 
       response = json_response(conn, :ok)
 
+      Buffer.flush()
+
       {:ok, command_event} = CommandEvents.get_command_event_by_id(response["id"])
 
       assert response == %{
@@ -356,13 +217,10 @@ defmodule TuistWeb.AnalyticsControllerTest do
       assert command_event.is_ci == true
     end
 
-    test "returns newly created command event with xcode_graph - postgres", %{
+    test "returns newly created command event with xcode_graph", %{
       conn: conn,
       user: user
     } do
-      stub(Environment, :clickhouse_configured?, fn -> false end)
-      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> false end)
-
       # Given
       conn = Authentication.put_current_user(conn, user)
 
@@ -409,6 +267,8 @@ defmodule TuistWeb.AnalyticsControllerTest do
         )
 
       response = json_response(conn, :ok)
+
+      Buffer.flush()
 
       {:ok, command_event} = CommandEvents.get_command_event_by_id(response["id"])
 
@@ -426,105 +286,9 @@ defmodule TuistWeb.AnalyticsControllerTest do
       assert command_event.local_test_target_hits == []
       assert command_event.remote_test_target_hits == ["TargetATests"]
 
-      xcode_graph =
-        Repo.one(from(xg in PGXcodeGraph, where: xg.command_event_id == ^command_event.id))
-
-      assert xcode_graph.name == "Graph"
-      assert xcode_graph.binary_build_duration == 1000
-
-      xcode_projects =
-        Repo.all(from(xp in PGXcodeProject, where: xp.xcode_graph_id == ^xcode_graph.id))
-
-      assert Enum.map(xcode_projects, & &1.name) == ["ProjectA"]
-
-      xcode_project = hd(xcode_projects)
-
-      xcode_targets =
-        Repo.all(
-          from(xt in PGXcodeTarget,
-            where: xt.xcode_project_id == ^xcode_project.id,
-            order_by: xt.name
-          )
-        )
-
-      assert Enum.map(xcode_targets, & &1.name) == ["TargetA", "TargetATests"]
-      assert Enum.map(xcode_targets, & &1.binary_cache_hash) == ["hash-a", nil]
-      assert Enum.map(xcode_targets, & &1.binary_cache_hit) == [:local, nil]
-      assert Enum.map(xcode_targets, & &1.binary_build_duration) == [1000, nil]
-      assert Enum.map(xcode_targets, & &1.selective_testing_hash) == [nil, "hash-a-tests"]
-      assert Enum.map(xcode_targets, & &1.selective_testing_hit) == [nil, :remote]
-    end
-
-    test "returns newly created command event with xcode_graph - clickhouse", %{
-      conn: conn,
-      user: user
-    } do
-      # Given
-      conn = Authentication.put_current_user(conn, user)
-
-      account = Accounts.get_account_from_user(user)
-      project = ProjectsFixtures.project_fixture(account_id: account.id)
-
-      conn =
-        conn
-        |> put_req_header("content-type", "application/json")
-        |> post(
-          "/api/analytics?project_id=#{account.name}/#{project.name}",
-          %{
-            name: "generate",
-            subcommand: "generate",
-            command_arguments: ["App"],
-            duration: 100,
-            tuist_version: "1.0.0",
-            swift_version: "5.0",
-            macos_version: "10.15",
-            params: %{},
-            is_ci: false,
-            client_id: "client-id",
-            xcode_graph: %{
-              name: "Graph",
-              binary_build_duration: 1000,
-              projects: [
-                %{
-                  name: "ProjectA",
-                  path: ".",
-                  targets: [
-                    %{
-                      name: "TargetA",
-                      binary_cache_metadata: %{hash: "hash-a", hit: "local", build_duration: 1000}
-                    },
-                    %{
-                      name: "TargetATests",
-                      selective_testing_metadata: %{hash: "hash-a-tests", hit: "remote"}
-                    }
-                  ]
-                }
-              ]
-            }
-          }
-        )
-
-      response = json_response(conn, :ok)
-
-      Tuist.CommandEvents.Buffer.flush()
       Tuist.Xcode.XcodeGraph.Buffer.flush()
       Tuist.Xcode.XcodeProject.Buffer.flush()
       Tuist.Xcode.XcodeTarget.Buffer.flush()
-      {:ok, command_event} = CommandEvents.get_command_event_by_id(response["id"])
-
-      assert response == %{
-               "name" => "generate",
-               "id" => response["id"],
-               "project_id" => project.id,
-               "url" => url(~p"/#{account.name}/#{project.name}/runs/#{command_event.id}")
-             }
-
-      assert command_event.cacheable_targets == ["TargetA"]
-      assert command_event.local_cache_target_hits == ["TargetA"]
-      assert command_event.remote_cache_target_hits == []
-      assert command_event.test_targets == ["TargetATests"]
-      assert command_event.local_test_target_hits == []
-      assert command_event.remote_test_target_hits == ["TargetATests"]
 
       xcode_graph =
         ClickHouseRepo.one(from(xg in XcodeGraph, where: xg.command_event_id == ^command_event.id))
@@ -545,57 +309,6 @@ defmodule TuistWeb.AnalyticsControllerTest do
       assert Enum.map(xcode_targets, & &1.binary_build_duration) == [1000, nil]
       assert Enum.map(xcode_targets, & &1.selective_testing_hash) == [nil, "hash-a-tests"]
       assert Enum.map(xcode_targets, & &1.selective_testing_hit) == [:miss, :remote]
-    end
-
-    test "returns newly created command event with build_run_id - postgres", %{
-      conn: conn,
-      user: user
-    } do
-      stub(Environment, :clickhouse_configured?, fn -> false end)
-      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> false end)
-
-      # Given
-      conn = Authentication.put_current_user(conn, user)
-
-      account = Accounts.get_account_from_user(user)
-      project = ProjectsFixtures.project_fixture(account_id: account.id)
-      {:ok, build_run} = RunsFixtures.build_fixture(project_id: project.id, user_id: account.id)
-
-      conn =
-        conn
-        |> put_req_header("content-type", "application/json")
-        |> post(
-          "/api/analytics?project_id=#{account.name}/#{project.name}",
-          %{
-            name: "build",
-            subcommand: "build",
-            command_arguments: ["App"],
-            duration: 100,
-            tuist_version: "1.0.0",
-            swift_version: "5.0",
-            macos_version: "10.15",
-            params: %{},
-            is_ci: false,
-            client_id: "client-id",
-            build_run_id: build_run.id
-          }
-        )
-
-      response = json_response(conn, :ok)
-
-      {:ok, command_event} = CommandEvents.get_command_event_by_id(response["id"])
-      command_event = Repo.preload(command_event, :build_run)
-
-      assert response == %{
-               "name" => "build",
-               "id" => response["id"],
-               "project_id" => project.id,
-               "url" => url(~p"/#{account.name}/#{project.name}/builds/build-runs/#{build_run.id}")
-             }
-
-      assert command_event.build_run.id == build_run.id
-      command_event_with_build_run = Repo.preload(command_event, :build_run)
-      assert command_event_with_build_run.build_run.id == build_run.id
     end
 
     test "returns command event URL with runs route when build_run_id is not provided", %{
@@ -628,6 +341,10 @@ defmodule TuistWeb.AnalyticsControllerTest do
         )
 
       response = json_response(conn, :ok)
+
+      # Flush ingestion buffers to ensure the event is available
+      Buffer.flush()
+
       {:ok, command_event} = CommandEvents.get_command_event_by_id(response["id"])
 
       assert response["url"] == url(~p"/#{account.name}/#{project.name}/runs/#{command_event.id}")
@@ -801,9 +518,6 @@ defmodule TuistWeb.AnalyticsControllerTest do
 
   describe "POST /api/runs/:run_id/start" do
     test "starts multipart upload - postgres", %{conn: conn} do
-      stub(Environment, :clickhouse_configured?, fn -> false end)
-      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> false end)
-
       # Given
       project = ProjectsFixtures.project_fixture()
       account = Accounts.get_account_by_id(project.account_id)
@@ -835,9 +549,6 @@ defmodule TuistWeb.AnalyticsControllerTest do
     end
 
     test "starts multipart upload for a result_bundle_object - postgres", %{conn: conn} do
-      stub(Environment, :clickhouse_configured?, fn -> false end)
-      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> false end)
-
       # Given
       project = ProjectsFixtures.project_fixture()
       account = Accounts.get_account_by_id(project.account_id)
@@ -872,9 +583,6 @@ defmodule TuistWeb.AnalyticsControllerTest do
 
   describe "POST /api/runs/:run_id/generate-url" do
     test "generates URL for a part of the multipart upload - postgres", %{conn: conn} do
-      stub(Environment, :clickhouse_configured?, fn -> false end)
-      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> false end)
-
       # Given
       project = ProjectsFixtures.project_fixture()
       account = Accounts.get_account_by_id(project.account_id)
@@ -918,61 +626,13 @@ defmodule TuistWeb.AnalyticsControllerTest do
   end
 
   describe "POST /api/runs/:run_id/complete" do
-    test "completes a multipart upload returns a raw error - postgres", %{conn: conn} do
-      stub(Environment, :clickhouse_configured?, fn -> false end)
-      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> false end)
-
-      # Given
-      project = ProjectsFixtures.project_fixture()
-      account = Accounts.get_account_by_id(project.account_id)
-      command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
-      upload_id = "1234"
-
-      object_key =
-        "#{account.name}/#{project.name}/runs/#{command_event.legacy_id}/result_bundle.zip"
-
-      parts = [
-        %{part_number: 1, etag: "etag1"},
-        %{part_number: 2, etag: "etag2"},
-        %{part_number: 3, etag: "etag3"}
-      ]
-
-      expect(Storage, :multipart_complete_upload, fn ^object_key,
-                                                     ^upload_id,
-                                                     [{1, "etag1"}, {2, "etag2"}, {3, "etag3"}],
-                                                     _actor ->
-        :ok
-      end)
-
-      conn = Authentication.put_current_project(conn, project)
-      conn = assign(conn, :selected_project, project)
-
-      conn =
-        conn
-        |> put_req_header("content-type", "application/json")
-        |> post(
-          ~p"/api/runs/#{command_event.id}/complete",
-          command_event_artifact: %{type: "result_bundle"},
-          multipart_upload_parts: %{
-            parts: parts,
-            upload_id: upload_id
-          }
-        )
-
-      # Then
-      response = json_response(conn, :no_content)
-      assert response == %{}
-    end
-
-    test "completes a multipart upload returns a raw error - clickhouse", %{conn: conn} do
+    test "completes a multipart upload returns a raw error", %{conn: conn} do
       # Given
       project = ProjectsFixtures.project_fixture()
       account = Accounts.get_account_by_id(project.account_id)
 
       command_event =
-        with_flushed_ingestion_buffers(fn ->
-          CommandEventsFixtures.command_event_fixture(project_id: project.id)
-        end)
+        CommandEventsFixtures.command_event_fixture(project_id: project.id)
 
       upload_id = "1234"
 
@@ -1012,10 +672,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
   end
 
   describe "PUT /api/runs/:run_id/complete_artifacts_uploads" do
-    test "creates test action events - postgres", %{conn: conn} do
-      stub(Environment, :clickhouse_configured?, fn -> false end)
-      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> false end)
-
+    test "creates test action events", %{conn: conn} do
       # Given
       project = ProjectsFixtures.project_fixture()
 
@@ -1119,10 +776,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
       assert Enum.empty?(test_case_runs) == true
     end
 
-    test "runs with older CLI versions that send modules - postgres", %{conn: conn} do
-      stub(Environment, :clickhouse_configured?, fn -> false end)
-      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> false end)
-
+    test "runs with older CLI versions that send modules", %{conn: conn} do
       # Given
       project = ProjectsFixtures.project_fixture()
 
@@ -1245,9 +899,6 @@ defmodule TuistWeb.AnalyticsControllerTest do
     end
 
     test "noops when test_summary is missing - postgres", %{conn: conn} do
-      stub(Environment, :clickhouse_configured?, fn -> false end)
-      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> false end)
-
       # Given
       project = ProjectsFixtures.project_fixture()
 
@@ -1280,9 +931,6 @@ defmodule TuistWeb.AnalyticsControllerTest do
     test "returns unauthorized if authenticated subject doesn't have access to the project", %{
       conn: conn
     } do
-      stub(Environment, :clickhouse_configured?, fn -> false end)
-      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> false end)
-
       # Given - Create two users and their accounts
       user1 = AccountsFixtures.user_fixture(email: "user1@example.com")
       user2 = AccountsFixtures.user_fixture(email: "user2@example.com")
@@ -1310,10 +958,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
              }
     end
 
-    test "starts multipart upload using project from URL - postgres", %{conn: conn, user: user} do
-      stub(Environment, :clickhouse_configured?, fn -> false end)
-      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> false end)
-
+    test "starts multipart upload using project from URL", %{conn: conn, user: user} do
       # Given
       account = Accounts.get_account_from_user(user)
       project = ProjectsFixtures.project_fixture(account_id: account.id)
@@ -1344,11 +989,8 @@ defmodule TuistWeb.AnalyticsControllerTest do
       assert response_data["upload_id"] == upload_id
     end
 
-    test "starts multipart upload for a result_bundle_object using project from URL - postgres",
+    test "starts multipart upload for a result_bundle_object using project from URL",
          %{conn: conn, user: user} do
-      stub(Environment, :clickhouse_configured?, fn -> false end)
-      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> false end)
-
       # Given
       account = Accounts.get_account_from_user(user)
       project = ProjectsFixtures.project_fixture(account_id: account.id)
@@ -1384,9 +1026,6 @@ defmodule TuistWeb.AnalyticsControllerTest do
       conn: conn,
       user: user
     } do
-      stub(Environment, :clickhouse_configured?, fn -> false end)
-      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> false end)
-
       # Given
       account = Accounts.get_account_from_user(user)
       project = ProjectsFixtures.project_fixture(account_id: account.id)
@@ -1424,9 +1063,6 @@ defmodule TuistWeb.AnalyticsControllerTest do
     test "returns unauthorized if authenticated subject doesn't have access to the project", %{
       conn: conn
     } do
-      stub(Environment, :clickhouse_configured?, fn -> false end)
-      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> false end)
-
       # Given - Create two users and their accounts
       user1 = AccountsFixtures.user_fixture(email: "user3@example.com")
       user2 = AccountsFixtures.user_fixture(email: "user4@example.com")
@@ -1459,13 +1095,10 @@ defmodule TuistWeb.AnalyticsControllerTest do
              }
     end
 
-    test "generates URL for a part of the multipart upload using project from URL - postgres", %{
+    test "generates URL for a part of the multipart upload using project from URL", %{
       conn: conn,
       user: user
     } do
-      stub(Environment, :clickhouse_configured?, fn -> false end)
-      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> false end)
-
       # Given
       account = Accounts.get_account_from_user(user)
       project = ProjectsFixtures.project_fixture(account_id: account.id)
@@ -1511,9 +1144,6 @@ defmodule TuistWeb.AnalyticsControllerTest do
       conn: conn,
       user: user
     } do
-      stub(Environment, :clickhouse_configured?, fn -> false end)
-      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> false end)
-
       # Given
       account = Accounts.get_account_from_user(user)
       project = ProjectsFixtures.project_fixture(account_id: account.id)
@@ -1562,9 +1192,6 @@ defmodule TuistWeb.AnalyticsControllerTest do
     test "returns unauthorized if authenticated subject doesn't have access to the project", %{
       conn: conn
     } do
-      stub(Environment, :clickhouse_configured?, fn -> false end)
-      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> false end)
-
       # Given - Create two users and their accounts
       user1 = AccountsFixtures.user_fixture(email: "user5@example.com")
       user2 = AccountsFixtures.user_fixture(email: "user6@example.com")
@@ -1601,13 +1228,10 @@ defmodule TuistWeb.AnalyticsControllerTest do
              }
     end
 
-    test "completes a multipart upload using project from URL - postgres", %{
+    test "completes a multipart upload using project from URL", %{
       conn: conn,
       user: user
     } do
-      stub(Environment, :clickhouse_configured?, fn -> false end)
-      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> false end)
-
       # Given
       account = Accounts.get_account_from_user(user)
       project = ProjectsFixtures.project_fixture(account_id: account.id)
@@ -1655,9 +1279,6 @@ defmodule TuistWeb.AnalyticsControllerTest do
     test "returns unauthorized if authenticated subject doesn't have access to the project", %{
       conn: conn
     } do
-      stub(Environment, :clickhouse_configured?, fn -> false end)
-      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> false end)
-
       # Given - Create two users and their accounts
       user1 = AccountsFixtures.user_fixture(email: "user7@example.com")
       user2 = AccountsFixtures.user_fixture(email: "user8@example.com")
@@ -1682,13 +1303,10 @@ defmodule TuistWeb.AnalyticsControllerTest do
              }
     end
 
-    test "completes artifacts uploads using project from URL - postgres", %{
+    test "completes artifacts uploads using project from URL", %{
       conn: conn,
       user: user
     } do
-      stub(Environment, :clickhouse_configured?, fn -> false end)
-      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> false end)
-
       # Given
       account = Accounts.get_account_from_user(user)
       project = ProjectsFixtures.project_fixture(account_id: account.id)
@@ -1710,9 +1328,6 @@ defmodule TuistWeb.AnalyticsControllerTest do
 
   describe "Backward compatibility" do
     test "old routes still work with project-scoped authentication", %{conn: conn} do
-      stub(Environment, :clickhouse_configured?, fn -> false end)
-      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> false end)
-
       # Given
       project = ProjectsFixtures.project_fixture()
       account = Accounts.get_account_by_id(project.account_id)
