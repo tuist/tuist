@@ -36,6 +36,11 @@ let targets: [Target] = [
         ],
         path: "cli/Sources/tuistfixturegenerator"
     ),
+    .executableTarget(
+        name: "tuist-cas-proxy",
+        dependencies: [],
+        path: "Sources/tuist-cas-proxy"
+    ),
     .target(
         name: "TuistCore",
         dependencies: [
@@ -496,6 +501,7 @@ let package = Package(
         .executable(name: "tuistbenchmark", targets: ["tuistbenchmark"]),
         .executable(name: "tuistfixturegenerator", targets: ["tuistfixturegenerator"]),
         .executable(name: "tuist", targets: ["tuist"]),
+        .executable(name: "tuist-cas-proxy", targets: ["tuist-cas-proxy"]),
         .library(
             name: "ProjectDescription",
             type: .dynamic,
