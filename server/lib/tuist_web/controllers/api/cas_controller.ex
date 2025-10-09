@@ -199,6 +199,7 @@ defmodule TuistWeb.API.CASController do
         description: "The artifact identifier."
       ]
     ],
+    request_body: {"The CAS artifact data", "application/octet-stream", nil, required: true},
     responses: %{
       ok: {"Upload successful", "application/json", nil},
       not_modified: {"Artifact already exists, no upload needed", "application/json", nil},

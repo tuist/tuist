@@ -5055,6 +5055,11 @@ paths:
             type: string
             x-struct:
             x-validate:
+      requestBody:
+        content:
+          application/octet-stream: {}
+        description: The CAS artifact data
+        required: true
       responses:
         '200':
           content:

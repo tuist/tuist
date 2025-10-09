@@ -993,12 +993,14 @@ extension APIProtocol {
     public func uploadCASArtifact(
         path: Operations.uploadCASArtifact.Input.Path,
         query: Operations.uploadCASArtifact.Input.Query,
-        headers: Operations.uploadCASArtifact.Input.Headers = .init()
+        headers: Operations.uploadCASArtifact.Input.Headers = .init(),
+        body: Operations.uploadCASArtifact.Input.Body
     ) async throws -> Operations.uploadCASArtifact.Output {
         try await uploadCASArtifact(Operations.uploadCASArtifact.Input(
             path: path,
             query: query,
-            headers: headers
+            headers: headers,
+            body: body
         ))
     }
     /// It completes a multi-part upload.
@@ -17282,20 +17284,29 @@ public enum Operations {
                 }
             }
             public var headers: Operations.uploadCASArtifact.Input.Headers
+            /// - Remark: Generated from `#/paths/api/cas/{id}/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/cas/{id}/POST/requestBody/content/application\/octet-stream`.
+                case binary(OpenAPIRuntime.HTTPBody)
+            }
+            public var body: Operations.uploadCASArtifact.Input.Body
             /// Creates a new `Input`.
             ///
             /// - Parameters:
             ///   - path:
             ///   - query:
             ///   - headers:
+            ///   - body:
             public init(
                 path: Operations.uploadCASArtifact.Input.Path,
                 query: Operations.uploadCASArtifact.Input.Query,
-                headers: Operations.uploadCASArtifact.Input.Headers = .init()
+                headers: Operations.uploadCASArtifact.Input.Headers = .init(),
+                body: Operations.uploadCASArtifact.Input.Body
             ) {
                 self.path = path
                 self.query = query
                 self.headers = headers
+                self.body = body
             }
         }
         @frozen public enum Output: Sendable, Hashable {

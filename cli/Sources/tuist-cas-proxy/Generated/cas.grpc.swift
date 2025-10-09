@@ -15,26 +15,27 @@ import GRPCProtobuf
 
 /// Namespace containing generated types for the "compilation_cache_service.cas.v1.CASDBService" service.
 @available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
-internal enum CompilationCacheService_Cas_V1_CASDBService {
+enum CompilationCacheService_Cas_V1_CASDBService {
     /// Service descriptor for the "compilation_cache_service.cas.v1.CASDBService" service.
-    internal static let descriptor = GRPCCore.ServiceDescriptor(fullyQualifiedService: "compilation_cache_service.cas.v1.CASDBService")
+    static let descriptor = GRPCCore.ServiceDescriptor(fullyQualifiedService: "compilation_cache_service.cas.v1.CASDBService")
     /// Namespace for method metadata.
-    internal enum Method {
+    enum Method {
         /// Namespace for "Save" metadata.
-        internal enum Save {
+        enum Save {
             /// Request type for "Save".
-            internal typealias Input = CompilationCacheService_Cas_V1_SaveRequest
+            typealias Input = CompilationCacheService_Cas_V1_SaveRequest
             /// Response type for "Save".
-            internal typealias Output = CompilationCacheService_Cas_V1_SaveResponse
+            typealias Output = CompilationCacheService_Cas_V1_SaveResponse
             /// Descriptor for "Save".
-            internal static let descriptor = GRPCCore.MethodDescriptor(
+            static let descriptor = GRPCCore.MethodDescriptor(
                 service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "compilation_cache_service.cas.v1.CASDBService"),
                 method: "Save"
             )
         }
+
         /// Descriptors for all methods in the "compilation_cache_service.cas.v1.CASDBService" service.
-        internal static let descriptors: [GRPCCore.MethodDescriptor] = [
-            Save.descriptor
+        static let descriptors: [GRPCCore.MethodDescriptor] = [
+            Save.descriptor,
         ]
     }
 }
@@ -42,7 +43,8 @@ internal enum CompilationCacheService_Cas_V1_CASDBService {
 @available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
 extension GRPCCore.ServiceDescriptor {
     /// Service descriptor for the "compilation_cache_service.cas.v1.CASDBService" service.
-    internal static let compilationCacheService_cas_v1_CASDBService = GRPCCore.ServiceDescriptor(fullyQualifiedService: "compilation_cache_service.cas.v1.CASDBService")
+    static let compilationCacheService_cas_v1_CASDBService = GRPCCore
+        .ServiceDescriptor(fullyQualifiedService: "compilation_cache_service.cas.v1.CASDBService")
 }
 
 // MARK: compilation_cache_service.cas.v1.CASDBService (server)
@@ -63,7 +65,7 @@ extension CompilationCacheService_Cas_V1_CASDBService {
     /// > Source IDL Documentation:
     /// >
     /// > CASDBService for content-addressable storage operations
-    internal protocol StreamingServiceProtocol: GRPCCore.RegistrableRPCService {
+    protocol StreamingServiceProtocol: GRPCCore.RegistrableRPCService {
         /// Handle the "Save" method.
         ///
         /// > Source IDL Documentation:
@@ -94,7 +96,7 @@ extension CompilationCacheService_Cas_V1_CASDBService {
     /// > Source IDL Documentation:
     /// >
     /// > CASDBService for content-addressable storage operations
-    internal protocol ServiceProtocol: CompilationCacheService_Cas_V1_CASDBService.StreamingServiceProtocol {
+    protocol ServiceProtocol: CompilationCacheService_Cas_V1_CASDBService.StreamingServiceProtocol {
         /// Handle the "Save" method.
         ///
         /// > Source IDL Documentation:
@@ -123,7 +125,7 @@ extension CompilationCacheService_Cas_V1_CASDBService {
     /// > Source IDL Documentation:
     /// >
     /// > CASDBService for content-addressable storage operations
-    internal protocol SimpleServiceProtocol: CompilationCacheService_Cas_V1_CASDBService.ServiceProtocol {
+    protocol SimpleServiceProtocol: CompilationCacheService_Cas_V1_CASDBService.ServiceProtocol {
         /// Handle the "Save" method.
         ///
         /// > Source IDL Documentation:
@@ -144,10 +146,10 @@ extension CompilationCacheService_Cas_V1_CASDBService {
     }
 }
 
-// Default implementation of 'registerMethods(with:)'.
+/// Default implementation of 'registerMethods(with:)'.
 @available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
 extension CompilationCacheService_Cas_V1_CASDBService.StreamingServiceProtocol {
-    internal func registerMethods<Transport>(with router: inout GRPCCore.RPCRouter<Transport>) where Transport: GRPCCore.ServerTransport {
+    func registerMethods(with router: inout GRPCCore.RPCRouter<some GRPCCore.ServerTransport>) {
         router.registerHandler(
             forMethod: CompilationCacheService_Cas_V1_CASDBService.Method.Save.descriptor,
             deserializer: GRPCProtobuf.ProtobufDeserializer<CompilationCacheService_Cas_V1_SaveRequest>(),
@@ -162,14 +164,14 @@ extension CompilationCacheService_Cas_V1_CASDBService.StreamingServiceProtocol {
     }
 }
 
-// Default implementation of streaming methods from 'StreamingServiceProtocol'.
+/// Default implementation of streaming methods from 'StreamingServiceProtocol'.
 @available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
 extension CompilationCacheService_Cas_V1_CASDBService.ServiceProtocol {
-    internal func save(
+    func save(
         request: GRPCCore.StreamingServerRequest<CompilationCacheService_Cas_V1_SaveRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.StreamingServerResponse<CompilationCacheService_Cas_V1_SaveResponse> {
-        let response = try await self.save(
+        let response = try await save(
             request: GRPCCore.ServerRequest(stream: request),
             context: context
         )
@@ -177,15 +179,15 @@ extension CompilationCacheService_Cas_V1_CASDBService.ServiceProtocol {
     }
 }
 
-// Default implementation of methods from 'ServiceProtocol'.
+/// Default implementation of methods from 'ServiceProtocol'.
 @available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
 extension CompilationCacheService_Cas_V1_CASDBService.SimpleServiceProtocol {
-    internal func save(
+    func save(
         request: GRPCCore.ServerRequest<CompilationCacheService_Cas_V1_SaveRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.ServerResponse<CompilationCacheService_Cas_V1_SaveResponse> {
         return GRPCCore.ServerResponse<CompilationCacheService_Cas_V1_SaveResponse>(
-            message: try await self.save(
+            message: try await save(
                 request: request.message,
                 context: context
             ),
@@ -206,7 +208,7 @@ extension CompilationCacheService_Cas_V1_CASDBService {
     /// > Source IDL Documentation:
     /// >
     /// > CASDBService for content-addressable storage operations
-    internal protocol ClientProtocol: Sendable {
+    protocol ClientProtocol: Sendable {
         /// Call the "Save" method.
         ///
         /// > Source IDL Documentation:
@@ -227,7 +229,9 @@ extension CompilationCacheService_Cas_V1_CASDBService {
             serializer: some GRPCCore.MessageSerializer<CompilationCacheService_Cas_V1_SaveRequest>,
             deserializer: some GRPCCore.MessageDeserializer<CompilationCacheService_Cas_V1_SaveResponse>,
             options: GRPCCore.CallOptions,
-            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<CompilationCacheService_Cas_V1_SaveResponse>) async throws -> Result
+            onResponse handleResponse: @Sendable @escaping (GRPCCore
+                .ClientResponse<CompilationCacheService_Cas_V1_SaveResponse>
+            ) async throws -> Result
         ) async throws -> Result where Result: Sendable
     }
 
@@ -240,14 +244,14 @@ extension CompilationCacheService_Cas_V1_CASDBService {
     /// > Source IDL Documentation:
     /// >
     /// > CASDBService for content-addressable storage operations
-    internal struct Client<Transport>: ClientProtocol where Transport: GRPCCore.ClientTransport {
+    struct Client<Transport>: ClientProtocol where Transport: GRPCCore.ClientTransport {
         private let client: GRPCCore.GRPCClient<Transport>
 
         /// Creates a new client wrapping the provided `GRPCCore.GRPCClient`.
         ///
         /// - Parameters:
         ///   - client: A `GRPCCore.GRPCClient` providing a communication channel to the service.
-        internal init(wrapping client: GRPCCore.GRPCClient<Transport>) {
+        init(wrapping client: GRPCCore.GRPCClient<Transport>) {
             self.client = client
         }
 
@@ -266,16 +270,18 @@ extension CompilationCacheService_Cas_V1_CASDBService {
         ///       returned to the caller. Returning from the closure will cancel the RPC if it
         ///       hasn't already finished.
         /// - Returns: The result of `handleResponse`.
-        internal func save<Result>(
+        func save<Result>(
             request: GRPCCore.ClientRequest<CompilationCacheService_Cas_V1_SaveRequest>,
             serializer: some GRPCCore.MessageSerializer<CompilationCacheService_Cas_V1_SaveRequest>,
             deserializer: some GRPCCore.MessageDeserializer<CompilationCacheService_Cas_V1_SaveResponse>,
             options: GRPCCore.CallOptions = .defaults,
-            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<CompilationCacheService_Cas_V1_SaveResponse>) async throws -> Result = { response in
+            onResponse handleResponse: @Sendable @escaping (GRPCCore
+                .ClientResponse<CompilationCacheService_Cas_V1_SaveResponse>
+            ) async throws -> Result = { response in
                 try response.message
             }
         ) async throws -> Result where Result: Sendable {
-            try await self.client.unary(
+            try await client.unary(
                 request: request,
                 descriptor: CompilationCacheService_Cas_V1_CASDBService.Method.Save.descriptor,
                 serializer: serializer,
@@ -287,7 +293,7 @@ extension CompilationCacheService_Cas_V1_CASDBService {
     }
 }
 
-// Helpers providing default arguments to 'ClientProtocol' methods.
+/// Helpers providing default arguments to 'ClientProtocol' methods.
 @available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
 extension CompilationCacheService_Cas_V1_CASDBService.ClientProtocol {
     /// Call the "Save" method.
@@ -303,14 +309,16 @@ extension CompilationCacheService_Cas_V1_CASDBService.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func save<Result>(
+    func save<Result>(
         request: GRPCCore.ClientRequest<CompilationCacheService_Cas_V1_SaveRequest>,
         options: GRPCCore.CallOptions = .defaults,
-        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<CompilationCacheService_Cas_V1_SaveResponse>) async throws -> Result = { response in
+        onResponse handleResponse: @Sendable @escaping (GRPCCore
+            .ClientResponse<CompilationCacheService_Cas_V1_SaveResponse>
+        ) async throws -> Result = { response in
             try response.message
         }
     ) async throws -> Result where Result: Sendable {
-        try await self.save(
+        try await save(
             request: request,
             serializer: GRPCProtobuf.ProtobufSerializer<CompilationCacheService_Cas_V1_SaveRequest>(),
             deserializer: GRPCProtobuf.ProtobufDeserializer<CompilationCacheService_Cas_V1_SaveResponse>(),
@@ -320,7 +328,7 @@ extension CompilationCacheService_Cas_V1_CASDBService.ClientProtocol {
     }
 }
 
-// Helpers providing sugared APIs for 'ClientProtocol' methods.
+/// Helpers providing sugared APIs for 'ClientProtocol' methods.
 @available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
 extension CompilationCacheService_Cas_V1_CASDBService.ClientProtocol {
     /// Call the "Save" method.
@@ -337,11 +345,13 @@ extension CompilationCacheService_Cas_V1_CASDBService.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func save<Result>(
+    func save<Result>(
         _ message: CompilationCacheService_Cas_V1_SaveRequest,
         metadata: GRPCCore.Metadata = [:],
         options: GRPCCore.CallOptions = .defaults,
-        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<CompilationCacheService_Cas_V1_SaveResponse>) async throws -> Result = { response in
+        onResponse handleResponse: @Sendable @escaping (GRPCCore
+            .ClientResponse<CompilationCacheService_Cas_V1_SaveResponse>
+        ) async throws -> Result = { response in
             try response.message
         }
     ) async throws -> Result where Result: Sendable {
@@ -349,7 +359,7 @@ extension CompilationCacheService_Cas_V1_CASDBService.ClientProtocol {
             message: message,
             metadata: metadata
         )
-        return try await self.save(
+        return try await save(
             request: request,
             options: options,
             onResponse: handleResponse

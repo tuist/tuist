@@ -43,6 +43,12 @@ let targets: [Target] = [
             .product(name: "GRPCNIOTransportHTTP2", package: "grpc-swift-nio-transport"),
             .product(name: "GRPCReflectionService", package: "grpc-swift-extras"),
             argumentParserDependency,
+            "TuistServer",
+            "TuistLoader",
+            "TuistCore",
+            "TuistAutomation",
+            "FileSystem",
+            pathDependency,
         ],
         path: "cli/Sources/tuist-cas-proxy"
     ),
