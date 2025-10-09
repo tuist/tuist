@@ -86,11 +86,11 @@ struct DebugInterceptor: ServerInterceptor {
 // MARK: - CAS Proxy Service Implementation
 
 @available(macOS 15.0, *)
-struct CASProxyService: Cas_KeyValueDB.SimpleServiceProtocol {
+struct CASProxyService: CompilationCacheService_Keyvalue_V1_KeyValueDB.SimpleServiceProtocol {
     func getValue(
-        request: Cas_GetValueRequest,
+        request: CompilationCacheService_Keyvalue_V1_GetValueRequest,
         context: GRPCCore.ServerContext
-    ) async throws -> Cas_GetValueResponse {
+    ) async throws -> CompilationCacheService_Keyvalue_V1_GetValueResponse {
         print("🔍 KeyValueDB.GetValue called")
         print("  Request message size: \(request.key.count) bytes")
         
@@ -110,7 +110,7 @@ struct CASProxyService: Cas_KeyValueDB.SimpleServiceProtocol {
         }
         
         // For now, always return cache miss
-        var response = Cas_GetValueResponse()
+        var response = CompilationCacheService_Keyvalue_V1_GetValueResponse()
         response.found = false
         response.value = Data()
         
@@ -130,7 +130,6 @@ struct FallbackCASProxyService: RegistrableRPCService {
         
         // Register handlers for alternate paths that Xcode might use
         let alternatePaths = [
-            MethodDescriptor(fullyQualifiedService: "compilation_cache_service.keyvalue.v1.KeyValueDB", method: "GetValue"),
             MethodDescriptor(fullyQualifiedService: "", method: "builtin-swiftCachingKeyQuery"),
             MethodDescriptor(fullyQualifiedService: "builtin-swiftCachingKeyQuery", method: "Query"),
         ]
@@ -140,8 +139,8 @@ struct FallbackCASProxyService: RegistrableRPCService {
             
             router.registerHandler(
                 forMethod: method,
-                deserializer: GRPCProtobuf.ProtobufDeserializer<Cas_GetValueRequest>(),
-                serializer: GRPCProtobuf.ProtobufSerializer<Cas_GetValueResponse>()
+                deserializer: GRPCProtobuf.ProtobufDeserializer<CompilationCacheService_Keyvalue_V1_GetValueRequest>(),
+                serializer: GRPCProtobuf.ProtobufSerializer<CompilationCacheService_Keyvalue_V1_GetValueResponse>()
             ) { streamRequest, context in
                 print("✅ Alternate handler triggered for: '\(method.service)/\(method.method)'")
                 let singleRequest = try await ServerRequest(stream: streamRequest)

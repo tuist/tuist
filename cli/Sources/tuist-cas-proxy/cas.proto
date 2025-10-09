@@ -1,34 +1,36 @@
 syntax = "proto3";
 
-package cas;
+package compilation_cache_service.cas.v1;
 
-// KeyValueDB service for cache lookups
-service KeyValueDB {
-  rpc GetValue(GetValueRequest) returns (GetValueResponse);
-}
-
-// CAS DB service for storing artifacts
+// CASDBService for content-addressable storage operations
 service CASDBService {
+  // Store a compilation artifact in the Content-Addressable Storage
   rpc Save(SaveRequest) returns (SaveResponse);
 }
 
-message GetValueRequest {
-  bytes key = 1;
-}
-
-message GetValueResponse {
-  bool found = 1;
-  bytes value = 2;
-}
-
+// Request message for Save RPC
 message SaveRequest {
-  string cas_id = 1;
+  // Content-addressable storage ID (hash of the artifact data)
+  bytes cas_id = 1;
+
+  // The artifact data itself (precompiled modules, objects, metadata)
   bytes data = 2;
+
+  // Artifact type (e.g., "pcm", "o", "metadata")
   string type = 3;
+
+  // Optional metadata key-value pairs
+  map<string, string> metadata = 4;
 }
 
+// Response message for Save RPC
 message SaveResponse {
-  string cas_id = 1;
+  // Confirmed CAS ID
+  bytes cas_id = 1;
+
+  // Whether the save operation succeeded
   bool success = 2;
+
+  // Optional status message
   string message = 3;
 }

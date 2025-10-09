@@ -3557,6 +3557,66 @@ paths:
       summary: It initiates a multipart upload in the cache.
       tags:
         - Cache
+  /api/cas/prefix:
+    get:
+      callbacks: {}
+      operationId: getCASPrefix
+      parameters:
+        - description: The handle of the project's account.
+          in: query
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: query
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  prefix:
+                    description: The S3 object key prefix where CAS objects should be stored.
+                    example: account-123/project-456/xcode/cas/
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - prefix
+                type: object
+                x-struct:
+                x-validate:
+          description: The CAS storage prefix
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The project was not found
+      summary: Get the S3 object key prefix for a project's CAS storage.
+      tags:
+        - CAS
   /api/projects/{account_handle}/{project_handle}/cache/ac/{hash}:
     get:
       callbacks: {}
@@ -4914,6 +4974,111 @@ paths:
       summary: Downloads an artifact from the cache.
       tags:
         - Cache
+  /api/cas/{id}:
+    get:
+      callbacks: {}
+      operationId: getCASArtifact
+      parameters:
+        - description: The handle of the project's account.
+          in: query
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: query
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The artifact identifier.
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/octet-stream: {}
+          description: Artifact content stream
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        '404':
+          content:
+            application/json: {}
+          description: Artifact does not exist
+      summary: Download a CAS artifact.
+      tags:
+        - CAS
+    post:
+      callbacks: {}
+      operationId: uploadCASArtifact
+      parameters:
+        - description: The handle of the project's account.
+          in: query
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: query
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The artifact identifier.
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json: {}
+          description: Upload successful
+        '304':
+          content:
+            application/json: {}
+          description: Artifact already exists, no upload needed
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+      summary: Upload a CAS artifact (or verify it already exists).
+      tags:
+        - CAS
   /api/runs/{run_id}/complete:
     post:
       callbacks: {}
