@@ -1,10 +1,3 @@
-//
-//  ContentView.swift
-//  CAS
-//
-//  Created by Pedro Piñera Buendía on 08.10.25.
-//
-
 import SwiftUI
 
 struct ContentView: View {

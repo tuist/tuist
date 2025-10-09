@@ -139,6 +139,19 @@ export async function handleGetValue(request, env, ctx) {
   }
 
   const key = `${prefixResult.prefix}${getS3Key(id)}`;
+
+  // Try KV cache first for small blobs
+  if (env.CAS_CACHE_BLOBS) {
+    const cachedBlob = await env.CAS_CACHE_BLOBS.get(key, 'arrayBuffer');
+    if (cachedBlob) {
+      return new Response(cachedBlob, {
+        status: 200,
+        headers: { 'Content-Type': 'application/octet-stream' },
+      });
+    }
+  }
+
+  // Fallback to S3
   const exists = await checkS3ObjectExists(s3Client, endpoint, bucket, key, virtualHost);
 
   if (!exists) {
@@ -200,18 +213,38 @@ export async function handleSave(request, env, ctx) {
   }
 
   const key = `${prefixResult.prefix}${getS3Key(id)}`;
+
+  // Check KV cache first
+  if (env.CAS_CACHE_BLOBS) {
+    const cachedBlob = await env.CAS_CACHE_BLOBS.get(key);
+    if (cachedBlob) {
+      return new Response(null, { status: 304 });
+    }
+  }
+
+  // Check S3
   const exists = await checkS3ObjectExists(s3Client, endpoint, bucket, key, virtualHost);
 
   if (exists) {
     return new Response(null, { status: 304 });
   }
 
+  // Read the body to determine size and store appropriately
+  const bodyBuffer = await request.arrayBuffer();
+  const KV_SIZE_LIMIT = 25 * 1024 * 1024; // 25 MB KV limit
+
+  // Store in KV if small enough (and KV is available)
+  if (env.CAS_CACHE_BLOBS && bodyBuffer.byteLength < KV_SIZE_LIMIT) {
+    await env.CAS_CACHE_BLOBS.put(key, bodyBuffer);
+    return new Response(null, { status: 200 });
+  }
+
+  // Store in S3 for larger files or if KV not available
   const url = getS3Url(endpoint, bucket, key, virtualHost);
 
-  // Stream the PUT request to S3 with proper AWS signature
   const s3Response = await s3Client.fetch(url, {
     method: 'PUT',
-    body: request.body,
+    body: bodyBuffer,
     headers: {
       'Content-Type': request.headers.get('Content-Type') || 'application/octet-stream',
     },
