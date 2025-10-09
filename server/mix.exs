@@ -141,6 +141,7 @@ defmodule Tuist.MixProject do
       {:runner, path: "runner", runtime: false},
       {:slipstream, "~> 1.2.0"},
       {:lazy_html, ">= 0.1.0", only: :test},
+      {:muontrap, "~> 0.5.0"},
       # peep assumes all telemetry events' data conforms to the String.Chars,
       # causing runime errors when processing the telemetry events. We opened
       # a PR (https://github.com/rkallos/peep/pull/54) but it's still pending to
