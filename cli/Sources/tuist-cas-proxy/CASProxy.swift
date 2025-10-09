@@ -231,13 +231,17 @@ struct CASDBServiceImpl: CompilationCacheService_Cas_V1_CASDBService.SimpleServi
             print("  Full Handle: \(fullHandle)")
             print("  CAS ID String: \(casIdString)")
 
-            // Upload the artifact
-            try await uploadService.uploadCASArtifact(
-                request.data,
-                casId: casIdString,
-                fullHandle: fullHandle,
-                serverURL: serverURL
-            )
+            if !request.data.isEmpty {
+                // Upload the artifact
+                try await uploadService.uploadCASArtifact(
+                    request.data,
+                    casId: casIdString,
+                    fullHandle: fullHandle,
+                    serverURL: serverURL
+                )
+            } else {
+                print("Data is empty")
+            }
 
             print("✅ CAS artifact uploaded successfully")
 

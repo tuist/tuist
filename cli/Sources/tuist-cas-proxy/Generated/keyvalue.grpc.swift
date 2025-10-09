@@ -15,27 +15,26 @@ import GRPCProtobuf
 
 /// Namespace containing generated types for the "compilation_cache_service.keyvalue.v1.KeyValueDB" service.
 @available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
-enum CompilationCacheService_Keyvalue_V1_KeyValueDB {
+internal enum CompilationCacheService_Keyvalue_V1_KeyValueDB {
     /// Service descriptor for the "compilation_cache_service.keyvalue.v1.KeyValueDB" service.
-    static let descriptor = GRPCCore.ServiceDescriptor(fullyQualifiedService: "compilation_cache_service.keyvalue.v1.KeyValueDB")
+    internal static let descriptor = GRPCCore.ServiceDescriptor(fullyQualifiedService: "compilation_cache_service.keyvalue.v1.KeyValueDB")
     /// Namespace for method metadata.
-    enum Method {
+    internal enum Method {
         /// Namespace for "GetValue" metadata.
-        enum GetValue {
+        internal enum GetValue {
             /// Request type for "GetValue".
-            typealias Input = CompilationCacheService_Keyvalue_V1_GetValueRequest
+            internal typealias Input = CompilationCacheService_Keyvalue_V1_GetValueRequest
             /// Response type for "GetValue".
-            typealias Output = CompilationCacheService_Keyvalue_V1_GetValueResponse
+            internal typealias Output = CompilationCacheService_Keyvalue_V1_GetValueResponse
             /// Descriptor for "GetValue".
-            static let descriptor = GRPCCore.MethodDescriptor(
+            internal static let descriptor = GRPCCore.MethodDescriptor(
                 service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "compilation_cache_service.keyvalue.v1.KeyValueDB"),
                 method: "GetValue"
             )
         }
-
         /// Descriptors for all methods in the "compilation_cache_service.keyvalue.v1.KeyValueDB" service.
-        static let descriptors: [GRPCCore.MethodDescriptor] = [
-            GetValue.descriptor,
+        internal static let descriptors: [GRPCCore.MethodDescriptor] = [
+            GetValue.descriptor
         ]
     }
 }
@@ -43,8 +42,7 @@ enum CompilationCacheService_Keyvalue_V1_KeyValueDB {
 @available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
 extension GRPCCore.ServiceDescriptor {
     /// Service descriptor for the "compilation_cache_service.keyvalue.v1.KeyValueDB" service.
-    static let compilationCacheService_keyvalue_v1_KeyValueDB = GRPCCore
-        .ServiceDescriptor(fullyQualifiedService: "compilation_cache_service.keyvalue.v1.KeyValueDB")
+    internal static let compilationCacheService_keyvalue_v1_KeyValueDB = GRPCCore.ServiceDescriptor(fullyQualifiedService: "compilation_cache_service.keyvalue.v1.KeyValueDB")
 }
 
 // MARK: compilation_cache_service.keyvalue.v1.KeyValueDB (server)
@@ -65,7 +63,7 @@ extension CompilationCacheService_Keyvalue_V1_KeyValueDB {
     /// > Source IDL Documentation:
     /// >
     /// > KeyValueDB service for cache lookups
-    protocol StreamingServiceProtocol: GRPCCore.RegistrableRPCService {
+    internal protocol StreamingServiceProtocol: GRPCCore.RegistrableRPCService {
         /// Handle the "GetValue" method.
         ///
         /// - Parameters:
@@ -92,7 +90,7 @@ extension CompilationCacheService_Keyvalue_V1_KeyValueDB {
     /// > Source IDL Documentation:
     /// >
     /// > KeyValueDB service for cache lookups
-    protocol ServiceProtocol: CompilationCacheService_Keyvalue_V1_KeyValueDB.StreamingServiceProtocol {
+    internal protocol ServiceProtocol: CompilationCacheService_Keyvalue_V1_KeyValueDB.StreamingServiceProtocol {
         /// Handle the "GetValue" method.
         ///
         /// - Parameters:
@@ -117,7 +115,7 @@ extension CompilationCacheService_Keyvalue_V1_KeyValueDB {
     /// > Source IDL Documentation:
     /// >
     /// > KeyValueDB service for cache lookups
-    protocol SimpleServiceProtocol: CompilationCacheService_Keyvalue_V1_KeyValueDB.ServiceProtocol {
+    internal protocol SimpleServiceProtocol: CompilationCacheService_Keyvalue_V1_KeyValueDB.ServiceProtocol {
         /// Handle the "GetValue" method.
         ///
         /// - Parameters:
@@ -134,10 +132,10 @@ extension CompilationCacheService_Keyvalue_V1_KeyValueDB {
     }
 }
 
-/// Default implementation of 'registerMethods(with:)'.
+// Default implementation of 'registerMethods(with:)'.
 @available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
 extension CompilationCacheService_Keyvalue_V1_KeyValueDB.StreamingServiceProtocol {
-    func registerMethods(with router: inout GRPCCore.RPCRouter<some GRPCCore.ServerTransport>) {
+    internal func registerMethods<Transport>(with router: inout GRPCCore.RPCRouter<Transport>) where Transport: GRPCCore.ServerTransport {
         router.registerHandler(
             forMethod: CompilationCacheService_Keyvalue_V1_KeyValueDB.Method.GetValue.descriptor,
             deserializer: GRPCProtobuf.ProtobufDeserializer<CompilationCacheService_Keyvalue_V1_GetValueRequest>(),
@@ -152,14 +150,14 @@ extension CompilationCacheService_Keyvalue_V1_KeyValueDB.StreamingServiceProtoco
     }
 }
 
-/// Default implementation of streaming methods from 'StreamingServiceProtocol'.
+// Default implementation of streaming methods from 'StreamingServiceProtocol'.
 @available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
 extension CompilationCacheService_Keyvalue_V1_KeyValueDB.ServiceProtocol {
-    func getValue(
+    internal func getValue(
         request: GRPCCore.StreamingServerRequest<CompilationCacheService_Keyvalue_V1_GetValueRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.StreamingServerResponse<CompilationCacheService_Keyvalue_V1_GetValueResponse> {
-        let response = try await getValue(
+        let response = try await self.getValue(
             request: GRPCCore.ServerRequest(stream: request),
             context: context
         )
@@ -167,15 +165,15 @@ extension CompilationCacheService_Keyvalue_V1_KeyValueDB.ServiceProtocol {
     }
 }
 
-/// Default implementation of methods from 'ServiceProtocol'.
+// Default implementation of methods from 'ServiceProtocol'.
 @available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
 extension CompilationCacheService_Keyvalue_V1_KeyValueDB.SimpleServiceProtocol {
-    func getValue(
+    internal func getValue(
         request: GRPCCore.ServerRequest<CompilationCacheService_Keyvalue_V1_GetValueRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.ServerResponse<CompilationCacheService_Keyvalue_V1_GetValueResponse> {
         return GRPCCore.ServerResponse<CompilationCacheService_Keyvalue_V1_GetValueResponse>(
-            message: try await getValue(
+            message: try await self.getValue(
                 request: request.message,
                 context: context
             ),
@@ -196,7 +194,7 @@ extension CompilationCacheService_Keyvalue_V1_KeyValueDB {
     /// > Source IDL Documentation:
     /// >
     /// > KeyValueDB service for cache lookups
-    protocol ClientProtocol: Sendable {
+    internal protocol ClientProtocol: Sendable {
         /// Call the "GetValue" method.
         ///
         /// - Parameters:
@@ -213,9 +211,7 @@ extension CompilationCacheService_Keyvalue_V1_KeyValueDB {
             serializer: some GRPCCore.MessageSerializer<CompilationCacheService_Keyvalue_V1_GetValueRequest>,
             deserializer: some GRPCCore.MessageDeserializer<CompilationCacheService_Keyvalue_V1_GetValueResponse>,
             options: GRPCCore.CallOptions,
-            onResponse handleResponse: @Sendable @escaping (GRPCCore
-                .ClientResponse<CompilationCacheService_Keyvalue_V1_GetValueResponse>
-            ) async throws -> Result
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<CompilationCacheService_Keyvalue_V1_GetValueResponse>) async throws -> Result
         ) async throws -> Result where Result: Sendable
     }
 
@@ -228,14 +224,14 @@ extension CompilationCacheService_Keyvalue_V1_KeyValueDB {
     /// > Source IDL Documentation:
     /// >
     /// > KeyValueDB service for cache lookups
-    struct Client<Transport>: ClientProtocol where Transport: GRPCCore.ClientTransport {
+    internal struct Client<Transport>: ClientProtocol where Transport: GRPCCore.ClientTransport {
         private let client: GRPCCore.GRPCClient<Transport>
 
         /// Creates a new client wrapping the provided `GRPCCore.GRPCClient`.
         ///
         /// - Parameters:
         ///   - client: A `GRPCCore.GRPCClient` providing a communication channel to the service.
-        init(wrapping client: GRPCCore.GRPCClient<Transport>) {
+        internal init(wrapping client: GRPCCore.GRPCClient<Transport>) {
             self.client = client
         }
 
@@ -250,18 +246,16 @@ extension CompilationCacheService_Keyvalue_V1_KeyValueDB {
         ///       returned to the caller. Returning from the closure will cancel the RPC if it
         ///       hasn't already finished.
         /// - Returns: The result of `handleResponse`.
-        func getValue<Result>(
+        internal func getValue<Result>(
             request: GRPCCore.ClientRequest<CompilationCacheService_Keyvalue_V1_GetValueRequest>,
             serializer: some GRPCCore.MessageSerializer<CompilationCacheService_Keyvalue_V1_GetValueRequest>,
             deserializer: some GRPCCore.MessageDeserializer<CompilationCacheService_Keyvalue_V1_GetValueResponse>,
             options: GRPCCore.CallOptions = .defaults,
-            onResponse handleResponse: @Sendable @escaping (GRPCCore
-                .ClientResponse<CompilationCacheService_Keyvalue_V1_GetValueResponse>
-            ) async throws -> Result = { response in
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<CompilationCacheService_Keyvalue_V1_GetValueResponse>) async throws -> Result = { response in
                 try response.message
             }
         ) async throws -> Result where Result: Sendable {
-            try await client.unary(
+            try await self.client.unary(
                 request: request,
                 descriptor: CompilationCacheService_Keyvalue_V1_KeyValueDB.Method.GetValue.descriptor,
                 serializer: serializer,
@@ -273,7 +267,7 @@ extension CompilationCacheService_Keyvalue_V1_KeyValueDB {
     }
 }
 
-/// Helpers providing default arguments to 'ClientProtocol' methods.
+// Helpers providing default arguments to 'ClientProtocol' methods.
 @available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
 extension CompilationCacheService_Keyvalue_V1_KeyValueDB.ClientProtocol {
     /// Call the "GetValue" method.
@@ -285,16 +279,14 @@ extension CompilationCacheService_Keyvalue_V1_KeyValueDB.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    func getValue<Result>(
+    internal func getValue<Result>(
         request: GRPCCore.ClientRequest<CompilationCacheService_Keyvalue_V1_GetValueRequest>,
         options: GRPCCore.CallOptions = .defaults,
-        onResponse handleResponse: @Sendable @escaping (GRPCCore
-            .ClientResponse<CompilationCacheService_Keyvalue_V1_GetValueResponse>
-        ) async throws -> Result = { response in
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<CompilationCacheService_Keyvalue_V1_GetValueResponse>) async throws -> Result = { response in
             try response.message
         }
     ) async throws -> Result where Result: Sendable {
-        try await getValue(
+        try await self.getValue(
             request: request,
             serializer: GRPCProtobuf.ProtobufSerializer<CompilationCacheService_Keyvalue_V1_GetValueRequest>(),
             deserializer: GRPCProtobuf.ProtobufDeserializer<CompilationCacheService_Keyvalue_V1_GetValueResponse>(),
@@ -304,7 +296,7 @@ extension CompilationCacheService_Keyvalue_V1_KeyValueDB.ClientProtocol {
     }
 }
 
-/// Helpers providing sugared APIs for 'ClientProtocol' methods.
+// Helpers providing sugared APIs for 'ClientProtocol' methods.
 @available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
 extension CompilationCacheService_Keyvalue_V1_KeyValueDB.ClientProtocol {
     /// Call the "GetValue" method.
@@ -317,13 +309,11 @@ extension CompilationCacheService_Keyvalue_V1_KeyValueDB.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    func getValue<Result>(
+    internal func getValue<Result>(
         _ message: CompilationCacheService_Keyvalue_V1_GetValueRequest,
         metadata: GRPCCore.Metadata = [:],
         options: GRPCCore.CallOptions = .defaults,
-        onResponse handleResponse: @Sendable @escaping (GRPCCore
-            .ClientResponse<CompilationCacheService_Keyvalue_V1_GetValueResponse>
-        ) async throws -> Result = { response in
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<CompilationCacheService_Keyvalue_V1_GetValueResponse>) async throws -> Result = { response in
             try response.message
         }
     ) async throws -> Result where Result: Sendable {
@@ -331,336 +321,7 @@ extension CompilationCacheService_Keyvalue_V1_KeyValueDB.ClientProtocol {
             message: message,
             metadata: metadata
         )
-        return try await getValue(
-            request: request,
-            options: options,
-            onResponse: handleResponse
-        )
-    }
-}
-
-// MARK: - compilation_cache_service.keyvalue.v1.CASDBService
-
-/// Namespace containing generated types for the "compilation_cache_service.keyvalue.v1.CASDBService" service.
-@available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
-enum CompilationCacheService_Keyvalue_V1_CASDBService {
-    /// Service descriptor for the "compilation_cache_service.keyvalue.v1.CASDBService" service.
-    static let descriptor = GRPCCore
-        .ServiceDescriptor(fullyQualifiedService: "compilation_cache_service.keyvalue.v1.CASDBService")
-    /// Namespace for method metadata.
-    enum Method {
-        /// Namespace for "Save" metadata.
-        enum Save {
-            /// Request type for "Save".
-            typealias Input = CompilationCacheService_Keyvalue_V1_SaveRequest
-            /// Response type for "Save".
-            typealias Output = CompilationCacheService_Keyvalue_V1_SaveResponse
-            /// Descriptor for "Save".
-            static let descriptor = GRPCCore.MethodDescriptor(
-                service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "compilation_cache_service.keyvalue.v1.CASDBService"),
-                method: "Save"
-            )
-        }
-
-        /// Descriptors for all methods in the "compilation_cache_service.keyvalue.v1.CASDBService" service.
-        static let descriptors: [GRPCCore.MethodDescriptor] = [
-            Save.descriptor,
-        ]
-    }
-}
-
-@available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
-extension GRPCCore.ServiceDescriptor {
-    /// Service descriptor for the "compilation_cache_service.keyvalue.v1.CASDBService" service.
-    static let compilationCacheService_keyvalue_v1_CASDBService = GRPCCore
-        .ServiceDescriptor(fullyQualifiedService: "compilation_cache_service.keyvalue.v1.CASDBService")
-}
-
-// MARK: compilation_cache_service.keyvalue.v1.CASDBService (server)
-
-@available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
-extension CompilationCacheService_Keyvalue_V1_CASDBService {
-    /// Streaming variant of the service protocol for the "compilation_cache_service.keyvalue.v1.CASDBService" service.
-    ///
-    /// This protocol is the lowest-level of the service protocols generated for this service
-    /// giving you the most flexibility over the implementation of your service. This comes at
-    /// the cost of more verbose and less strict APIs. Each RPC requires you to implement it in
-    /// terms of a request stream and response stream. Where only a single request or response
-    /// message is expected, you are responsible for enforcing this invariant is maintained.
-    ///
-    /// Where possible, prefer using the stricter, less-verbose ``ServiceProtocol``
-    /// or ``SimpleServiceProtocol`` instead.
-    ///
-    /// > Source IDL Documentation:
-    /// >
-    /// > CAS DB service for storing artifacts
-    protocol StreamingServiceProtocol: GRPCCore.RegistrableRPCService {
-        /// Handle the "Save" method.
-        ///
-        /// - Parameters:
-        ///   - request: A streaming request of `CompilationCacheService_Keyvalue_V1_SaveRequest` messages.
-        ///   - context: Context providing information about the RPC.
-        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
-        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
-        ///     to an internal error.
-        /// - Returns: A streaming response of `CompilationCacheService_Keyvalue_V1_SaveResponse` messages.
-        func save(
-            request: GRPCCore.StreamingServerRequest<CompilationCacheService_Keyvalue_V1_SaveRequest>,
-            context: GRPCCore.ServerContext
-        ) async throws -> GRPCCore.StreamingServerResponse<CompilationCacheService_Keyvalue_V1_SaveResponse>
-    }
-
-    /// Service protocol for the "compilation_cache_service.keyvalue.v1.CASDBService" service.
-    ///
-    /// This protocol is higher level than ``StreamingServiceProtocol`` but lower level than
-    /// the ``SimpleServiceProtocol``, it provides access to request and response metadata and
-    /// trailing response metadata. If you don't need these then consider using
-    /// the ``SimpleServiceProtocol``. If you need fine grained control over your RPCs then
-    /// use ``StreamingServiceProtocol``.
-    ///
-    /// > Source IDL Documentation:
-    /// >
-    /// > CAS DB service for storing artifacts
-    protocol ServiceProtocol: CompilationCacheService_Keyvalue_V1_CASDBService.StreamingServiceProtocol {
-        /// Handle the "Save" method.
-        ///
-        /// - Parameters:
-        ///   - request: A request containing a single `CompilationCacheService_Keyvalue_V1_SaveRequest` message.
-        ///   - context: Context providing information about the RPC.
-        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
-        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
-        ///     to an internal error.
-        /// - Returns: A response containing a single `CompilationCacheService_Keyvalue_V1_SaveResponse` message.
-        func save(
-            request: GRPCCore.ServerRequest<CompilationCacheService_Keyvalue_V1_SaveRequest>,
-            context: GRPCCore.ServerContext
-        ) async throws -> GRPCCore.ServerResponse<CompilationCacheService_Keyvalue_V1_SaveResponse>
-    }
-
-    /// Simple service protocol for the "compilation_cache_service.keyvalue.v1.CASDBService" service.
-    ///
-    /// This is the highest level protocol for the service. The API is the easiest to use but
-    /// doesn't provide access to request or response metadata. If you need access to these
-    /// then use ``ServiceProtocol`` instead.
-    ///
-    /// > Source IDL Documentation:
-    /// >
-    /// > CAS DB service for storing artifacts
-    protocol SimpleServiceProtocol: CompilationCacheService_Keyvalue_V1_CASDBService.ServiceProtocol {
-        /// Handle the "Save" method.
-        ///
-        /// - Parameters:
-        ///   - request: A `CompilationCacheService_Keyvalue_V1_SaveRequest` message.
-        ///   - context: Context providing information about the RPC.
-        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
-        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
-        ///     to an internal error.
-        /// - Returns: A `CompilationCacheService_Keyvalue_V1_SaveResponse` to respond with.
-        func save(
-            request: CompilationCacheService_Keyvalue_V1_SaveRequest,
-            context: GRPCCore.ServerContext
-        ) async throws -> CompilationCacheService_Keyvalue_V1_SaveResponse
-    }
-}
-
-/// Default implementation of 'registerMethods(with:)'.
-@available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
-extension CompilationCacheService_Keyvalue_V1_CASDBService.StreamingServiceProtocol {
-    func registerMethods(with router: inout GRPCCore.RPCRouter<some GRPCCore.ServerTransport>) {
-        router.registerHandler(
-            forMethod: CompilationCacheService_Keyvalue_V1_CASDBService.Method.Save.descriptor,
-            deserializer: GRPCProtobuf.ProtobufDeserializer<CompilationCacheService_Keyvalue_V1_SaveRequest>(),
-            serializer: GRPCProtobuf.ProtobufSerializer<CompilationCacheService_Keyvalue_V1_SaveResponse>(),
-            handler: { request, context in
-                try await self.save(
-                    request: request,
-                    context: context
-                )
-            }
-        )
-    }
-}
-
-/// Default implementation of streaming methods from 'StreamingServiceProtocol'.
-@available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
-extension CompilationCacheService_Keyvalue_V1_CASDBService.ServiceProtocol {
-    func save(
-        request: GRPCCore.StreamingServerRequest<CompilationCacheService_Keyvalue_V1_SaveRequest>,
-        context: GRPCCore.ServerContext
-    ) async throws -> GRPCCore.StreamingServerResponse<CompilationCacheService_Keyvalue_V1_SaveResponse> {
-        let response = try await save(
-            request: GRPCCore.ServerRequest(stream: request),
-            context: context
-        )
-        return GRPCCore.StreamingServerResponse(single: response)
-    }
-}
-
-/// Default implementation of methods from 'ServiceProtocol'.
-@available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
-extension CompilationCacheService_Keyvalue_V1_CASDBService.SimpleServiceProtocol {
-    func save(
-        request: GRPCCore.ServerRequest<CompilationCacheService_Keyvalue_V1_SaveRequest>,
-        context: GRPCCore.ServerContext
-    ) async throws -> GRPCCore.ServerResponse<CompilationCacheService_Keyvalue_V1_SaveResponse> {
-        return GRPCCore.ServerResponse<CompilationCacheService_Keyvalue_V1_SaveResponse>(
-            message: try await save(
-                request: request.message,
-                context: context
-            ),
-            metadata: [:]
-        )
-    }
-}
-
-// MARK: compilation_cache_service.keyvalue.v1.CASDBService (client)
-
-@available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
-extension CompilationCacheService_Keyvalue_V1_CASDBService {
-    /// Generated client protocol for the "compilation_cache_service.keyvalue.v1.CASDBService" service.
-    ///
-    /// You don't need to implement this protocol directly, use the generated
-    /// implementation, ``Client``.
-    ///
-    /// > Source IDL Documentation:
-    /// >
-    /// > CAS DB service for storing artifacts
-    protocol ClientProtocol: Sendable {
-        /// Call the "Save" method.
-        ///
-        /// - Parameters:
-        ///   - request: A request containing a single `CompilationCacheService_Keyvalue_V1_SaveRequest` message.
-        ///   - serializer: A serializer for `CompilationCacheService_Keyvalue_V1_SaveRequest` messages.
-        ///   - deserializer: A deserializer for `CompilationCacheService_Keyvalue_V1_SaveResponse` messages.
-        ///   - options: Options to apply to this RPC.
-        ///   - handleResponse: A closure which handles the response, the result of which is
-        ///       returned to the caller. Returning from the closure will cancel the RPC if it
-        ///       hasn't already finished.
-        /// - Returns: The result of `handleResponse`.
-        func save<Result>(
-            request: GRPCCore.ClientRequest<CompilationCacheService_Keyvalue_V1_SaveRequest>,
-            serializer: some GRPCCore.MessageSerializer<CompilationCacheService_Keyvalue_V1_SaveRequest>,
-            deserializer: some GRPCCore.MessageDeserializer<CompilationCacheService_Keyvalue_V1_SaveResponse>,
-            options: GRPCCore.CallOptions,
-            onResponse handleResponse: @Sendable @escaping (GRPCCore
-                .ClientResponse<CompilationCacheService_Keyvalue_V1_SaveResponse>
-            ) async throws -> Result
-        ) async throws -> Result where Result: Sendable
-    }
-
-    /// Generated client for the "compilation_cache_service.keyvalue.v1.CASDBService" service.
-    ///
-    /// The ``Client`` provides an implementation of ``ClientProtocol`` which wraps
-    /// a `GRPCCore.GRPCCClient`. The underlying `GRPCClient` provides the long-lived
-    /// means of communication with the remote peer.
-    ///
-    /// > Source IDL Documentation:
-    /// >
-    /// > CAS DB service for storing artifacts
-    struct Client<Transport>: ClientProtocol where Transport: GRPCCore.ClientTransport {
-        private let client: GRPCCore.GRPCClient<Transport>
-
-        /// Creates a new client wrapping the provided `GRPCCore.GRPCClient`.
-        ///
-        /// - Parameters:
-        ///   - client: A `GRPCCore.GRPCClient` providing a communication channel to the service.
-        init(wrapping client: GRPCCore.GRPCClient<Transport>) {
-            self.client = client
-        }
-
-        /// Call the "Save" method.
-        ///
-        /// - Parameters:
-        ///   - request: A request containing a single `CompilationCacheService_Keyvalue_V1_SaveRequest` message.
-        ///   - serializer: A serializer for `CompilationCacheService_Keyvalue_V1_SaveRequest` messages.
-        ///   - deserializer: A deserializer for `CompilationCacheService_Keyvalue_V1_SaveResponse` messages.
-        ///   - options: Options to apply to this RPC.
-        ///   - handleResponse: A closure which handles the response, the result of which is
-        ///       returned to the caller. Returning from the closure will cancel the RPC if it
-        ///       hasn't already finished.
-        /// - Returns: The result of `handleResponse`.
-        func save<Result>(
-            request: GRPCCore.ClientRequest<CompilationCacheService_Keyvalue_V1_SaveRequest>,
-            serializer: some GRPCCore.MessageSerializer<CompilationCacheService_Keyvalue_V1_SaveRequest>,
-            deserializer: some GRPCCore.MessageDeserializer<CompilationCacheService_Keyvalue_V1_SaveResponse>,
-            options: GRPCCore.CallOptions = .defaults,
-            onResponse handleResponse: @Sendable @escaping (GRPCCore
-                .ClientResponse<CompilationCacheService_Keyvalue_V1_SaveResponse>
-            ) async throws -> Result = { response in
-                try response.message
-            }
-        ) async throws -> Result where Result: Sendable {
-            try await client.unary(
-                request: request,
-                descriptor: CompilationCacheService_Keyvalue_V1_CASDBService.Method.Save.descriptor,
-                serializer: serializer,
-                deserializer: deserializer,
-                options: options,
-                onResponse: handleResponse
-            )
-        }
-    }
-}
-
-/// Helpers providing default arguments to 'ClientProtocol' methods.
-@available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
-extension CompilationCacheService_Keyvalue_V1_CASDBService.ClientProtocol {
-    /// Call the "Save" method.
-    ///
-    /// - Parameters:
-    ///   - request: A request containing a single `CompilationCacheService_Keyvalue_V1_SaveRequest` message.
-    ///   - options: Options to apply to this RPC.
-    ///   - handleResponse: A closure which handles the response, the result of which is
-    ///       returned to the caller. Returning from the closure will cancel the RPC if it
-    ///       hasn't already finished.
-    /// - Returns: The result of `handleResponse`.
-    func save<Result>(
-        request: GRPCCore.ClientRequest<CompilationCacheService_Keyvalue_V1_SaveRequest>,
-        options: GRPCCore.CallOptions = .defaults,
-        onResponse handleResponse: @Sendable @escaping (GRPCCore
-            .ClientResponse<CompilationCacheService_Keyvalue_V1_SaveResponse>
-        ) async throws -> Result = { response in
-            try response.message
-        }
-    ) async throws -> Result where Result: Sendable {
-        try await save(
-            request: request,
-            serializer: GRPCProtobuf.ProtobufSerializer<CompilationCacheService_Keyvalue_V1_SaveRequest>(),
-            deserializer: GRPCProtobuf.ProtobufDeserializer<CompilationCacheService_Keyvalue_V1_SaveResponse>(),
-            options: options,
-            onResponse: handleResponse
-        )
-    }
-}
-
-/// Helpers providing sugared APIs for 'ClientProtocol' methods.
-@available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
-extension CompilationCacheService_Keyvalue_V1_CASDBService.ClientProtocol {
-    /// Call the "Save" method.
-    ///
-    /// - Parameters:
-    ///   - message: request message to send.
-    ///   - metadata: Additional metadata to send, defaults to empty.
-    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
-    ///   - handleResponse: A closure which handles the response, the result of which is
-    ///       returned to the caller. Returning from the closure will cancel the RPC if it
-    ///       hasn't already finished.
-    /// - Returns: The result of `handleResponse`.
-    func save<Result>(
-        _ message: CompilationCacheService_Keyvalue_V1_SaveRequest,
-        metadata: GRPCCore.Metadata = [:],
-        options: GRPCCore.CallOptions = .defaults,
-        onResponse handleResponse: @Sendable @escaping (GRPCCore
-            .ClientResponse<CompilationCacheService_Keyvalue_V1_SaveResponse>
-        ) async throws -> Result = { response in
-            try response.message
-        }
-    ) async throws -> Result where Result: Sendable {
-        let request = GRPCCore.ClientRequest<CompilationCacheService_Keyvalue_V1_SaveRequest>(
-            message: message,
-            metadata: metadata
-        )
-        return try await save(
+        return try await self.getValue(
             request: request,
             options: options,
             onResponse: handleResponse
