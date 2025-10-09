@@ -10,11 +10,11 @@ service CASDBService {
 
 // Request message for Save RPC
 message SaveRequest {
-  // Content-addressable storage ID (hash of the artifact data)
-  bytes cas_id = 1;
-
   // The artifact data itself (precompiled modules, objects, metadata)
-  bytes data = 2;
+  bytes data = 1;
+
+  // Content-addressable storage ID (hash of the artifact data)
+  bytes cas_id = 2;
 
   // Artifact type (e.g., "pcm", "o", "metadata")
   string type = 3;

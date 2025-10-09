@@ -26,11 +26,11 @@ struct CompilationCacheService_Cas_V1_SaveRequest {
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
   // methods supported on all messages.
 
-  /// Content-addressable storage ID (hash of the artifact data)
-  var casID: Data = Data()
-
   /// The artifact data itself (precompiled modules, objects, metadata)
   var data: Data = Data()
+
+  /// Content-addressable storage ID (hash of the artifact data)
+  var casID: Data = Data()
 
   /// Artifact type (e.g., "pcm", "o", "metadata")
   var type: String = String()
@@ -70,8 +70,8 @@ fileprivate let _protobuf_package = "compilation_cache_service.cas.v1"
 extension CompilationCacheService_Cas_V1_SaveRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".SaveRequest"
   static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
-    1: .standard(proto: "cas_id"),
-    2: .same(proto: "data"),
+    1: .same(proto: "data"),
+    2: .standard(proto: "cas_id"),
     3: .same(proto: "type"),
     4: .same(proto: "metadata"),
   ]
@@ -82,8 +82,8 @@ extension CompilationCacheService_Cas_V1_SaveRequest: SwiftProtobuf.Message, Swi
       // allocates stack space for every case branch when no optimizations are
       // enabled. https://github.com/apple/swift-protobuf/issues/1034
       switch fieldNumber {
-      case 1: try { try decoder.decodeSingularBytesField(value: &self.casID) }()
-      case 2: try { try decoder.decodeSingularBytesField(value: &self.data) }()
+      case 1: try { try decoder.decodeSingularBytesField(value: &self.data) }()
+      case 2: try { try decoder.decodeSingularBytesField(value: &self.casID) }()
       case 3: try { try decoder.decodeSingularStringField(value: &self.type) }()
       case 4: try { try decoder.decodeMapField(fieldType: SwiftProtobuf._ProtobufMap<SwiftProtobuf.ProtobufString,SwiftProtobuf.ProtobufString>.self, value: &self.metadata) }()
       default: break
@@ -92,11 +92,11 @@ extension CompilationCacheService_Cas_V1_SaveRequest: SwiftProtobuf.Message, Swi
   }
 
   func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
-    if !self.casID.isEmpty {
-      try visitor.visitSingularBytesField(value: self.casID, fieldNumber: 1)
-    }
     if !self.data.isEmpty {
-      try visitor.visitSingularBytesField(value: self.data, fieldNumber: 2)
+      try visitor.visitSingularBytesField(value: self.data, fieldNumber: 1)
+    }
+    if !self.casID.isEmpty {
+      try visitor.visitSingularBytesField(value: self.casID, fieldNumber: 2)
     }
     if !self.type.isEmpty {
       try visitor.visitSingularStringField(value: self.type, fieldNumber: 3)
@@ -108,8 +108,8 @@ extension CompilationCacheService_Cas_V1_SaveRequest: SwiftProtobuf.Message, Swi
   }
 
   static func ==(lhs: CompilationCacheService_Cas_V1_SaveRequest, rhs: CompilationCacheService_Cas_V1_SaveRequest) -> Bool {
-    if lhs.casID != rhs.casID {return false}
     if lhs.data != rhs.data {return false}
+    if lhs.casID != rhs.casID {return false}
     if lhs.type != rhs.type {return false}
     if lhs.metadata != rhs.metadata {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
