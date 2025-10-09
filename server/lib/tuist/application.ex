@@ -83,6 +83,7 @@ defmodule Tuist.Application do
       ]
 
     children
+    |> Kernel.++(worker_children())
     |> Kernel.++(
       if Environment.clickhouse_configured?() do
         [
@@ -235,6 +236,58 @@ defmodule Tuist.Application do
   def config_change(changed, _new, removed) do
     TuistWeb.Endpoint.config_change(changed, removed)
     :ok
+  end
+
+  defp worker_children do
+    if Environment.dev?() do
+      worker_path = Path.join([File.cwd!(), "worker"])
+      wrangler_path = Path.join([worker_path, "node_modules/.bin/wrangler"])
+
+      # Get endpoint configuration
+      endpoint_config = Application.get_env(:tuist, TuistWeb.Endpoint)
+      http_config = Keyword.get(endpoint_config, :http, [])
+      port = Keyword.get(http_config, :port, 8080)
+      server_url = "http://localhost:#{port}"
+
+      # Get S3 configuration from Environment
+      secrets = Environment.decrypt_secrets()
+
+      wrangler_args = [
+        "dev",
+        "--var",
+        "SERVER_URL:#{server_url}",
+        "--var",
+        "TUIST_S3_REGION:#{Environment.s3_region(secrets)}",
+        "--var",
+        "TUIST_S3_ENDPOINT:#{Environment.s3_endpoint(secrets)}",
+        "--var",
+        "TUIST_S3_BUCKET_NAME:#{Environment.s3_bucket_name(secrets)}",
+        "--var",
+        "TUIST_S3_ACCESS_KEY_ID:#{Environment.s3_access_key_id(secrets)}",
+        "--var",
+        "TUIST_S3_SECRET_ACCESS_KEY:#{Environment.s3_secret_access_key(secrets)}",
+        "--var",
+        "TUIST_S3_VIRTUAL_HOST:#{to_string(Environment.s3_virtual_host(secrets))}",
+        "--var",
+        "TUIST_S3_BUCKET_AS_HOST:#{to_string(Environment.s3_bucket_as_host(secrets))}"
+      ]
+
+      [
+        {MuonTrap.Daemon,
+         [
+           wrangler_path,
+           wrangler_args,
+           [
+             cd: worker_path,
+             stderr_to_stdout: true,
+             log_output: :debug,
+             log_prefix: "[Worker] "
+           ]
+         ]}
+      ]
+    else
+      []
+    end
   end
 
   def redis_opts do
