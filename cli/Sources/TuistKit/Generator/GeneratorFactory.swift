@@ -236,6 +236,20 @@ public class GeneratorFactory: GeneratorFactorying {
             cacheStorage: CacheStoring
         ) -> Generating
 
+        /// Returns the generator for hash calculation.
+        /// This uses the generation mapper pipeline but excludes scheme generation mappers that don't affect hashing.
+        /// - Parameter config: The project configuration.
+        /// - Parameter includedTargets: The list of targets whose sources should be included.
+        /// - Parameter configuration: The configuration to generate for.
+        /// - Parameter cacheStorage: The cache storage instance.
+        /// - Returns: The generator for hash calculation.
+        func generationForHashing(
+            config: Tuist,
+            includedTargets: Set<TargetQuery>,
+            configuration: String?,
+            cacheStorage: CacheStoring
+        ) -> Generating
+
         /// Returns a generator for building a project.
         /// - Parameters:
         ///     - config: The project configuration
@@ -279,6 +293,7 @@ public class GeneratorFactory: GeneratorFactorying {
             self.contentHasher = contentHasher
         }
 
+        /// Implementation for base protocol (GeneratorFactorying) - regular generation with schemes
         func generation(
             config: Tuist,
             includedTargets: Set<TargetQuery>,
@@ -297,7 +312,41 @@ public class GeneratorFactory: GeneratorFactorying {
                 ignoreBinaryCache: ignoreBinaryCache,
                 cacheSources: includedTargets,
                 configuration: configuration,
-                cacheStorage: cacheStorage
+                cacheStorage: cacheStorage,
+                forHashCalculation: false
+            )
+            let workspaceMappers = workspaceMapperFactory.default(tuist: config)
+            let manifestLoader = ManifestLoaderFactory().createManifestLoader()
+            return Generator(
+                manifestLoader: manifestLoader,
+                manifestGraphLoader: ManifestGraphLoader(
+                    manifestLoader: manifestLoader,
+                    workspaceMapper: SequentialWorkspaceMapper(mappers: workspaceMappers),
+                    graphMapper: SequentialGraphMapper(graphMappers)
+                )
+            )
+        }
+
+        /// Implementation for hash calculation - generation without scheme mappers
+        func generationForHashing(
+            config: Tuist,
+            includedTargets: Set<TargetQuery>,
+            configuration: String?,
+            cacheStorage: CacheStoring
+        ) -> Generating {
+            let contentHasher = ContentHasher()
+            let projectMapperFactory = ProjectMapperFactory(contentHasher: contentHasher)
+            let projectMappers = projectMapperFactory.default(tuist: config)
+            let workspaceMapperFactory = WorkspaceMapperFactory(projectMapper: SequentialProjectMapper(mappers: projectMappers))
+            let graphMapperFactory = CacheGraphMapperFactory(contentHasher: contentHasher)
+
+            let graphMappers = graphMapperFactory.generation(
+                config: config,
+                ignoreBinaryCache: true,
+                cacheSources: includedTargets,
+                configuration: configuration,
+                cacheStorage: cacheStorage,
+                forHashCalculation: true
             )
             let workspaceMappers = workspaceMapperFactory.default(tuist: config)
             let manifestLoader = ManifestLoaderFactory().createManifestLoader()
