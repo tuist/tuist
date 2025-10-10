@@ -117,8 +117,8 @@ defmodule TuistWeb.Router do
     plug :accepts, ["json", "application/octet-stream"]
 
     plug TuistWeb.WarningsHeaderPlug
-    plug TuistWeb.AuthenticationPlug, :load_authenticated_subject
-    plug TuistWeb.AuthenticationPlug, {:require_authentication, response_type: :open_api}
+    # plug TuistWeb.AuthenticationPlug, :load_authenticated_subject
+    # plug TuistWeb.AuthenticationPlug, {:require_authentication, response_type: :open_api}
   end
 
   pipeline :authenticated do

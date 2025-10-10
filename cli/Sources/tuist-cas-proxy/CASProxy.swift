@@ -132,6 +132,21 @@ extension Character {
     }
 }
 
+// MARK: - Upload Serializer Actor
+
+@available(macOS 15.0, *)
+actor UploadSerializer {
+    private let uploadService: UploadCASArtifactServicing
+    
+    init() {
+        self.uploadService = UploadCASArtifactService()
+    }
+    
+    func uploadCASArtifact(_ data: Data, casId: String, fullHandle: String, serverURL: URL) async throws {
+        try await uploadService.uploadCASArtifact(data, casId: casId, fullHandle: fullHandle, serverURL: serverURL)
+    }
+}
+
 // MARK: - CAS Database Service Implementation
 
 @available(macOS 15.0, *)
@@ -153,11 +168,11 @@ struct CASDBServiceImpl: CompilationCacheService_Cas_V1_CASDBService.SimpleServi
     }
     
     private let config: TuistCore.Tuist
-    private let uploadService: UploadCASArtifactServicing
+    private let uploadSerializer: UploadSerializer
     
     init(config: TuistCore.Tuist) {
         self.config = config
-        uploadService = UploadCASArtifactService()
+        self.uploadSerializer = UploadSerializer()
     }
 
     
@@ -204,7 +219,7 @@ struct CASDBServiceImpl: CompilationCacheService_Cas_V1_CASDBService.SimpleServi
         
         print("  Computed CAS ID: \(casID)")
         
-        try! await uploadService.uploadCASArtifact(
+        try! await uploadSerializer.uploadCASArtifact(
             data,
             casId: casID,
             fullHandle: fullHandle,

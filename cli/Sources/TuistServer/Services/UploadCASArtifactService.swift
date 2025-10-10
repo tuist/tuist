@@ -73,45 +73,71 @@ public final class UploadCASArtifactService: UploadCASArtifactServicing {
         print("  - Project handle: \(handles.projectHandle)")
         
         print("🚀 Making upload request...")
-        let response = try! await client.uploadCASArtifact(
-            .init(
-                path: .init(id: casId),
-                query: .init(
-                    account_handle: handles.accountHandle,
-                    project_handle: handles.projectHandle
-                ),
-                body: .binary(HTTPBody(data))
+        let url = URL(string: "http://localhost:8080/api/cas/\(casId)?account_handle=tuist&project_handle=cas")!
+        let (_, response) = try await URLSession.shared.data(
+            for: uploadRequest(
+                url: url,
+                fileSize: Int64(data.count),
+                data: data
             )
         )
+
+        guard let urlResponse = response as? HTTPURLResponse,
+              (200 ..< 300).contains(urlResponse.statusCode)
+        else {
+            throw UploadPreviewIconServiceError.uploadFailed
+        }
+//        let response = try! await client.uploadCASArtifact(
+//            .init(
+//                path: .init(id: casId),
+//                query: .init(
+//                    account_handle: handles.accountHandle,
+//                    project_handle: handles.projectHandle
+//                ),
+//                body: .binary(HTTPBody(data))
+//            )
+//        )
+        print(response)
         print("✅ Upload request completed successfully")
 
-        switch response {
-        case .ok:
-            // Upload successful
-            print("✅ Upload successful (200 OK)")
-            return
-        case .notModified:
-            // Artifact already exists, no upload needed
-            print("✅ Upload not needed - artifact exists (304 Not Modified)")
-            return
-        case let .forbidden(forbidden):
-            print("❌ Upload forbidden (403)")
-            switch forbidden.body {
-            case let .json(error):
-                print("  - Error message: \(error.message)")
-                throw UploadCASArtifactServiceError.forbidden(error.message)
-            }
-        case let .unauthorized(unauthorized):
-            print("❌ Upload unauthorized (401)")
-            switch unauthorized.body {
-            case let .json(error):
-                print("  - Error message: \(error.message)")
-                throw UploadCASArtifactServiceError.unauthorized(error.message)
-            }
-        case let .undocumented(statusCode: statusCode, payload):
-            print("❌ Upload failed with undocumented status code: \(statusCode)")
-            print("  - Payload: \(payload)")
-            throw UploadCASArtifactServiceError.unknownError(statusCode)
+//        switch response {
+//        case .ok:
+//            // Upload successful
+//            print("✅ Upload successful (200 OK)")
+//            return
+//        case .notModified:
+//            // Artifact already exists, no upload needed
+//            print("✅ Upload not needed - artifact exists (304 Not Modified)")
+//            return
+//        case let .forbidden(forbidden):
+//            print("❌ Upload forbidden (403)")
+//            switch forbidden.body {
+//            case let .json(error):
+//                print("  - Error message: \(error.message)")
+//                throw UploadCASArtifactServiceError.forbidden(error.message)
+//            }
+//        case let .unauthorized(unauthorized):
+//            print("❌ Upload unauthorized (401)")
+//            switch unauthorized.body {
+//            case let .json(error):
+//                print("  - Error message: \(error.message)")
+//                throw UploadCASArtifactServiceError.unauthorized(error.message)
+//            }
+//        case let .undocumented(statusCode: statusCode, payload):
+//            print("❌ Upload failed with undocumented status code: \(statusCode)")
+//            print("  - Payload: \(payload)")
+//            throw UploadCASArtifactServiceError.unknownError(statusCode)
+//        }
+    }
+    
+    private func uploadRequest(url: URL, fileSize: Int64?, data: Data) -> URLRequest {
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/octet-stream", forHTTPHeaderField: "Content-Type")
+        if let fileSize {
+            request.setValue(String(fileSize), forHTTPHeaderField: "Content-Length")
         }
+        request.httpBody = data
+        return request
     }
 }
