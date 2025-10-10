@@ -10,10 +10,10 @@ defmodule TuistWeb.API.CASController do
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.Authentication
 
-  # plug(OpenApiSpex.Plug.CastAndValidate,
-  #   json_render_error_v2: true,
-  #   render_error: TuistWeb.RenderAPIErrorPlug
-  # ) when action not in [:create]
+  plug(OpenApiSpex.Plug.CastAndValidate,
+    json_render_error_v2: true,
+    render_error: TuistWeb.RenderAPIErrorPlug
+  )
 
   tags ["CAS"]
 
@@ -210,6 +210,7 @@ defmodule TuistWeb.API.CASController do
   )
 
   def create(conn, _params) do
+    {:ok, _body, conn} = Plug.Conn.read_body(conn, length: 100_000_000)
     # %{id: id, account_handle: account_handle, project_handle: project_handle} = conn.private.open_api_spex.params
     # dbg("Creating #{id}")
     # authenticated_subject = Authentication.authenticated_subject(conn)

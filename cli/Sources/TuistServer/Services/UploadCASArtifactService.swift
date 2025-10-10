@@ -53,91 +53,35 @@ public final class UploadCASArtifactService: UploadCASArtifactServicing {
         fullHandle: String,
         serverURL: URL
     ) async throws {
-        print("🔄 UploadCASArtifactService starting upload:")
-        print("  - CAS ID: \(casId)")
-        print("  - Data size: \(data.count) bytes")
-        print("  - Server URL: \(serverURL)")
-        print("  - Full handle: \(fullHandle)")
-        
-        // Log data characteristics
-        print("  - Data first 32 bytes: \(data.prefix(32).map { String(format: "%02x", $0) }.joined())")
-        print("  - Data last 32 bytes: \(data.suffix(32).map { String(format: "%02x", $0) }.joined())")
-        print("  - CAS ID length: \(casId.count)")
-        print("  - CAS ID contains '=': \(casId.contains("="))")
-        print("  - CAS ID contains URL-unsafe chars: \(casId.contains { !$0.isASCII || "/?#[]@!$&'()*+,;= ".contains($0) })")
-        
         let client = Client.authenticated(serverURL: serverURL)
         let handles = try fullHandleService.parse(fullHandle)
-
-        print("  - Account handle: \(handles.accountHandle)")
-        print("  - Project handle: \(handles.projectHandle)")
-        
-        print("🚀 Making upload request...")
-        let url = URL(string: "http://localhost:8080/api/cas/\(casId)?account_handle=tuist&project_handle=cas")!
-        let (_, response) = try await URLSession.shared.data(
-            for: uploadRequest(
-                url: url,
-                fileSize: Int64(data.count),
-                data: data
+        let response = try! await client.uploadCASArtifact(
+            .init(
+                path: .init(id: casId),
+                query: .init(
+                    account_handle: handles.accountHandle,
+                    project_handle: handles.projectHandle
+                ),
+                body: .binary(HTTPBody(data))
             )
         )
-
-        guard let urlResponse = response as? HTTPURLResponse,
-              (200 ..< 300).contains(urlResponse.statusCode)
-        else {
-            throw UploadPreviewIconServiceError.uploadFailed
+        switch response {
+        case .ok:
+            return
+        case .notModified:
+            return
+        case let .forbidden(forbidden):
+            switch forbidden.body {
+            case let .json(error):
+                throw UploadCASArtifactServiceError.forbidden(error.message)
+            }
+        case let .unauthorized(unauthorized):
+            switch unauthorized.body {
+            case let .json(error):
+                throw UploadCASArtifactServiceError.unauthorized(error.message)
+            }
+        case let .undocumented(statusCode: statusCode, _payload):
+            throw UploadCASArtifactServiceError.unknownError(statusCode)
         }
-//        let response = try! await client.uploadCASArtifact(
-//            .init(
-//                path: .init(id: casId),
-//                query: .init(
-//                    account_handle: handles.accountHandle,
-//                    project_handle: handles.projectHandle
-//                ),
-//                body: .binary(HTTPBody(data))
-//            )
-//        )
-        print(response)
-        print("✅ Upload request completed successfully")
-
-//        switch response {
-//        case .ok:
-//            // Upload successful
-//            print("✅ Upload successful (200 OK)")
-//            return
-//        case .notModified:
-//            // Artifact already exists, no upload needed
-//            print("✅ Upload not needed - artifact exists (304 Not Modified)")
-//            return
-//        case let .forbidden(forbidden):
-//            print("❌ Upload forbidden (403)")
-//            switch forbidden.body {
-//            case let .json(error):
-//                print("  - Error message: \(error.message)")
-//                throw UploadCASArtifactServiceError.forbidden(error.message)
-//            }
-//        case let .unauthorized(unauthorized):
-//            print("❌ Upload unauthorized (401)")
-//            switch unauthorized.body {
-//            case let .json(error):
-//                print("  - Error message: \(error.message)")
-//                throw UploadCASArtifactServiceError.unauthorized(error.message)
-//            }
-//        case let .undocumented(statusCode: statusCode, payload):
-//            print("❌ Upload failed with undocumented status code: \(statusCode)")
-//            print("  - Payload: \(payload)")
-//            throw UploadCASArtifactServiceError.unknownError(statusCode)
-//        }
-    }
-    
-    private func uploadRequest(url: URL, fileSize: Int64?, data: Data) -> URLRequest {
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/octet-stream", forHTTPHeaderField: "Content-Type")
-        if let fileSize {
-            request.setValue(String(fileSize), forHTTPHeaderField: "Content-Length")
-        }
-        request.httpBody = data
-        return request
     }
 }
