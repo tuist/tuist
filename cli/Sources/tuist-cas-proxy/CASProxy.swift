@@ -72,10 +72,13 @@ struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.SimpleSer
     func putValue(request: CompilationCacheService_Keyvalue_V1_PutValueRequest, context: ServerContext) async throws -> CompilationCacheService_Keyvalue_V1_PutValueResponse {
         print(try request.jsonString())
         let binaryKey = request.key.dropFirst()
-        let base64Key = binaryKey.base64EncodedString().replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: "+", with: "-")
-        print("  Cache key: 0~\(base64Key)")
-        fatalError()
+        let caseID = "0~" + binaryKey.base64EncodedString().replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: "+", with: "-")
+        print("  Put value entries \(caseID)", request.value.entries)
+        print("  Put value entry values \(caseID)", request.value.entries.values.map { $0.base64EncodedString() })
+        print("  Put value cache key: \(caseID)")
+        return CompilationCacheService_Keyvalue_V1_PutValueResponse()
     }
+    
     func getValue(
         request: CompilationCacheService_Keyvalue_V1_GetValueRequest,
         context: GRPCCore.ServerContext
@@ -84,22 +87,26 @@ struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.SimpleSer
         print("  Request message size: \(request.key.count) bytes")
         
         // Analyze the key data
-        if request.key.isEmpty {
-            print("  Empty key received")
-        } else if request.key.count == 65, request.key[0] == 0x00 {
-            // This appears to be the format: 0x00 followed by 64 bytes of binary data
-            let binaryKey = request.key.dropFirst()
-            let base64Key = binaryKey.base64EncodedString().replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: "+", with: "-")
-            print("  Cache key: 0~\(base64Key)")
-        } else if let keyString = String(data: request.key, encoding: .utf8) {
-            print("  Cache key (UTF-8): \(keyString)")
-        } else {
-            print("  Cache key (base64): \(request.key.base64EncodedString())")
-            print("  Cache key (hex): \(request.key.hexString)")
+        // This appears to be the format: 0x00 followed by 64 bytes of binary data
+        let binaryKey = request.key.dropFirst()
+        let casID = "0~" + binaryKey.base64EncodedString().replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: "+", with: "-")
+        print("  Cache key: \(casID)")
+        
+        var response = CompilationCacheService_Keyvalue_V1_GetValueResponse()
+        if casID == "0~mWDwdKKyuOJZbYfa7J6KbMT59jffSpsk9Ygaunmq5fKO6ZgvS7LkqbKYwq-lr46c8HcvaTF7c9zId4pmX2eXyQ==" {
+            var value = CompilationCacheService_Keyvalue_V1_Value()
+            value.entries = [
+                "value":  Data(
+                    base64Encoded: "CgQKAgABEqIBEp8BCkEADer7hRmI4NTCmYu2Jm1tPaKDj/NnMhh4RRjYMooOonMKumX1S9VKTT49tyVDqOzHPtMQFoT6oAqDUFuHoWyaNxJaMH44RS1NMk5jSmJ6Rk9FOHRGOUw0OWwtVHJud0FiMVFVXzNLMm45U1E0NXpEcXBETGVPTXVLeGlPLU1MV0dCSXlzYWRJMVM2R2g3Yll5RDE0Z1VDcVJLUT09EgIKABIrCilsbHZtOjpjYXM6OnNjaGVtYTo6Y29tcGlsZV9qb2JfcmVzdWx0Ojp2MQ=="
+                )!
+            ]
+            response.contents = .value(value)
+            response.outcome = .success
+            return response
         }
         
+        
         // For now, always return cache miss
-        var response = CompilationCacheService_Keyvalue_V1_GetValueResponse()
 //        response.found = false
 //        response.value = Data()
         response.outcome = .keyNotFound
@@ -130,6 +137,10 @@ extension Character {
 @available(macOS 15.0, *)
 struct CASDBServiceImpl: CompilationCacheService_Cas_V1_CASDBService.SimpleServiceProtocol {
     func load(request: CompilationCacheService_Cas_V1_CASLoadRequest, context: GRPCCore.ServerContext) async throws -> CompilationCacheService_Cas_V1_CASLoadResponse {
+        print(try request.jsonString())
+        let casID = String(data: request.casID.id, encoding: .utf8)!
+        print("Load value cas ID: \(casID)")
+        var response = CompilationCacheService_Cas_V1_CASLoadResponse()
         fatalError()
     }
     
