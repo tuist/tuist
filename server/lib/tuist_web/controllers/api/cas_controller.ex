@@ -210,53 +210,50 @@ defmodule TuistWeb.API.CASController do
   )
 
   def create(conn, _params) do
-    {:ok, _body, conn} = Plug.Conn.read_body(conn, length: 100_000_000)
-    # %{id: id, account_handle: account_handle, project_handle: project_handle} = conn.private.open_api_spex.params
-    # dbg("Creating #{id}")
-    # authenticated_subject = Authentication.authenticated_subject(conn)
-    # account = Accounts.get_account_by_handle(account_handle)
+    {:ok, body, conn} = Plug.Conn.read_body(conn, length: 100_000_000)
+    %{id: id, account_handle: account_handle, project_handle: project_handle} = conn.private.open_api_spex.params
+    authenticated_subject = Authentication.authenticated_subject(conn)
+    account = Accounts.get_account_by_handle(account_handle)
 
-    # project =
-    #   if is_nil(account),
-    #     do: nil,
-    #     else: Projects.get_project_by_account_and_project_handles(account.name, project_handle, preload: [:account])
+    project =
+      if is_nil(account),
+        do: nil,
+        else: Projects.get_project_by_account_and_project_handles(account.name, project_handle, preload: [:account])
 
-    # cond do
-    #   is_nil(account) ->
-    #     conn
-    #     |> put_status(:not_found)
-    #     |> send_resp(:not_found, "")
+    cond do
+      is_nil(account) ->
+        conn
+        |> put_status(:not_found)
+        |> send_resp(:not_found, "")
 
-    #   is_nil(project) ->
-    #     conn
-    #     |> put_status(:not_found)
-    #     |> send_resp(:not_found, "")
+      is_nil(project) ->
+        conn
+        |> put_status(:not_found)
+        |> send_resp(:not_found, "")
 
-    #   Authorization.authorize(:cas_create, authenticated_subject, project) != :ok ->
-    #     conn
-    #     |> put_status(:forbidden)
-    #     |> json(%Error{
-    #       message: "You don't have permission to write to the #{project.name} project."
-    #     })
+      Authorization.authorize(:cas_create, authenticated_subject, project) != :ok ->
+        conn
+        |> put_status(:forbidden)
+        |> json(%Error{
+          message: "You don't have permission to write to the #{project.name} project."
+        })
 
-    #   true ->
-    #     prefix = "#{project.account.name}/#{project.name}/cas/"
-    #     key = "#{prefix}#{get_s3_key(id)}"
+      true ->
+        prefix = "#{project.account.name}/#{project.name}/cas/"
+        key = "#{prefix}#{get_s3_key(id)}"
 
-    #     if Storage.object_exists?(key, authenticated_subject) do
-          # send_resp(conn, :not_modified, "")
+        if Storage.object_exists?(key, authenticated_subject) do
           conn
           |> put_status(:ok)
           |> json(%{id: "key"})
-        # else
-        #   # Stream the upload from the request body to S3
-        #   {:ok, body, _conn} = Plug.Conn.read_body(conn)
-        #   Storage.put_object(key, body, authenticated_subject)
-        #   conn
-        #   |> put_status(:ok)
-        #   |> json(%{id: key})
-        # end
-    # end
+        else
+          # Stream the upload from the request body to S3
+          Storage.put_object(key, body, authenticated_subject)
+          conn
+          |> put_status(:ok)
+          |> json(%{id: key})
+        end
+    end
   end
 
   # Convert CAS ID to S3 key format by replacing ~ with /

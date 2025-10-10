@@ -132,21 +132,6 @@ extension Character {
     }
 }
 
-// MARK: - Upload Serializer Actor
-
-@available(macOS 15.0, *)
-actor UploadSerializer {
-    private let uploadService: UploadCASArtifactServicing
-    
-    init() {
-        self.uploadService = UploadCASArtifactService()
-    }
-    
-    func uploadCASArtifact(_ data: Data, casId: String, fullHandle: String, serverURL: URL) async throws {
-        try await uploadService.uploadCASArtifact(data, casId: casId, fullHandle: fullHandle, serverURL: serverURL)
-    }
-}
-
 // MARK: - CAS Database Service Implementation
 
 @available(macOS 15.0, *)
@@ -168,11 +153,11 @@ struct CASDBServiceImpl: CompilationCacheService_Cas_V1_CASDBService.SimpleServi
     }
     
     private let config: TuistCore.Tuist
-    private let uploadSerializer: UploadSerializer
+    private let uploadCASArtifactService: UploadCASArtifactServicing
     
-    init(config: TuistCore.Tuist) {
+    init(config: TuistCore.Tuist, uploadCASArtifactService: UploadCASArtifactServicing = UploadCASArtifactService()) {
         self.config = config
-        self.uploadSerializer = UploadSerializer()
+        self.uploadCASArtifactService = uploadCASArtifactService
     }
 
     
@@ -217,23 +202,18 @@ struct CASDBServiceImpl: CompilationCacheService_Cas_V1_CASDBService.SimpleServi
             .replacingOccurrences(of: "/", with: "_")
             .replacingOccurrences(of: "+", with: "-")
         
-        print("  Computed CAS ID: \(casID)")
-        
-        try! await uploadSerializer.uploadCASArtifact(
+        try! await uploadCASArtifactService.uploadCASArtifact(
             data,
             casId: casID,
             fullHandle: fullHandle,
             serverURL: serverURL
         )
         
-        print("✅ CAS artifact uploaded successfully")
         
         var response = CompilationCacheService_Cas_V1_CASSaveResponse()
         var message = CompilationCacheService_Cas_V1_CASDataID()
         message.id = ("0~" + casID).data(using: String.Encoding.utf8)!
         response.casID = message
-//        response.success = true
-//        response.message = "Artifact uploaded successfully"
         return response
         
         //        } catch {
