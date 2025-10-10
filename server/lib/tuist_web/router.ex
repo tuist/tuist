@@ -113,6 +113,12 @@ defmodule TuistWeb.Router do
     plug TuistWeb.AuthenticationPlug, :load_authenticated_subject
   end
 
+  pipeline :api_registry_swift_unauthenticated do
+    plug :accepts, ["swift-registry-v1-json", "swift-registry-v1-zip", "swift-registry-v1-api"]
+    plug TuistWeb.AuthenticationPlug, :load_authenticated_subject
+    plug :rate_limit_registry
+  end
+
   pipeline :authenticated_api do
     plug :accepts, ["json"]
 
@@ -393,6 +399,19 @@ defmodule TuistWeb.Router do
   end
 
   scope "/api", TuistWeb.API do
+    scope "/registry", Registry do
+      scope "/swift" do
+        pipe_through [:api_registry_swift_unauthenticated]
+
+        get "/identifiers", SwiftController, :identifiers
+        get "/:scope/:name", SwiftController, :list_releases
+        get "/:scope/:name/:version", SwiftController, :show_release
+        get "/:scope/:name/:version/Package.swift", SwiftController, :show_package_swift
+        get "/availability", SwiftController, :availability
+        post "/login", SwiftController, :login
+      end
+    end
+
     scope "/accounts/:account_handle/registry", Registry do
       scope "/swift" do
         pipe_through [:api_registry_swift]
@@ -711,6 +730,23 @@ defmodule TuistWeb.Router do
       put_resp_header(conn, "x-robots-tag", "index, follow")
     else
       disable_robot_indexing(conn, params)
+    end
+  end
+
+  def rate_limit_registry(conn, _params) do
+    # Only rate limit unauthenticated requests
+    # Authenticated requests (with account_handle) don't go through this pipeline
+    if Tuist.Environment.tuist_hosted?() do
+      case TuistWeb.RateLimit.Registry.hit(conn) do
+        {:allow, _count} ->
+          conn
+
+        {:deny, _limit} ->
+          raise TuistWeb.Errors.TooManyRequestsError,
+            message: "You have made too many requests to the registry. Please try again later. Consider using an authenticated account for higher rate limits."
+      end
+    else
+      conn
     end
   end
 end
