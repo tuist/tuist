@@ -1,3 +1,11 @@
+//===--- compilation_caching_cas.proto - CAS service definition -----------===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
 // DO NOT EDIT.
 // swift-format-ignore-file
 // swiftlint:disable all
@@ -20,12 +28,48 @@ internal enum CompilationCacheService_Cas_V1_CASDBService {
     internal static let descriptor = GRPCCore.ServiceDescriptor(fullyQualifiedService: "compilation_cache_service.cas.v1.CASDBService")
     /// Namespace for method metadata.
     internal enum Method {
+        /// Namespace for "Get" metadata.
+        internal enum Get {
+            /// Request type for "Get".
+            internal typealias Input = CompilationCacheService_Cas_V1_CASGetRequest
+            /// Response type for "Get".
+            internal typealias Output = CompilationCacheService_Cas_V1_CASGetResponse
+            /// Descriptor for "Get".
+            internal static let descriptor = GRPCCore.MethodDescriptor(
+                service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "compilation_cache_service.cas.v1.CASDBService"),
+                method: "Get"
+            )
+        }
+        /// Namespace for "Put" metadata.
+        internal enum Put {
+            /// Request type for "Put".
+            internal typealias Input = CompilationCacheService_Cas_V1_CASPutRequest
+            /// Response type for "Put".
+            internal typealias Output = CompilationCacheService_Cas_V1_CASPutResponse
+            /// Descriptor for "Put".
+            internal static let descriptor = GRPCCore.MethodDescriptor(
+                service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "compilation_cache_service.cas.v1.CASDBService"),
+                method: "Put"
+            )
+        }
+        /// Namespace for "Load" metadata.
+        internal enum Load {
+            /// Request type for "Load".
+            internal typealias Input = CompilationCacheService_Cas_V1_CASLoadRequest
+            /// Response type for "Load".
+            internal typealias Output = CompilationCacheService_Cas_V1_CASLoadResponse
+            /// Descriptor for "Load".
+            internal static let descriptor = GRPCCore.MethodDescriptor(
+                service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "compilation_cache_service.cas.v1.CASDBService"),
+                method: "Load"
+            )
+        }
         /// Namespace for "Save" metadata.
         internal enum Save {
             /// Request type for "Save".
-            internal typealias Input = CompilationCacheService_Cas_V1_SaveRequest
+            internal typealias Input = CompilationCacheService_Cas_V1_CASSaveRequest
             /// Response type for "Save".
-            internal typealias Output = CompilationCacheService_Cas_V1_SaveResponse
+            internal typealias Output = CompilationCacheService_Cas_V1_CASSaveResponse
             /// Descriptor for "Save".
             internal static let descriptor = GRPCCore.MethodDescriptor(
                 service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "compilation_cache_service.cas.v1.CASDBService"),
@@ -34,6 +78,9 @@ internal enum CompilationCacheService_Cas_V1_CASDBService {
         }
         /// Descriptors for all methods in the "compilation_cache_service.cas.v1.CASDBService" service.
         internal static let descriptors: [GRPCCore.MethodDescriptor] = [
+            Get.descriptor,
+            Put.descriptor,
+            Load.descriptor,
             Save.descriptor
         ]
     }
@@ -62,25 +109,63 @@ extension CompilationCacheService_Cas_V1_CASDBService {
     ///
     /// > Source IDL Documentation:
     /// >
-    /// > CASDBService for content-addressable storage operations
+    /// > Interface exported by the service.
     internal protocol StreamingServiceProtocol: GRPCCore.RegistrableRPCService {
-        /// Handle the "Save" method.
-        ///
-        /// > Source IDL Documentation:
-        /// >
-        /// > Store a compilation artifact in the Content-Addressable Storage
+        /// Handle the "Get" method.
         ///
         /// - Parameters:
-        ///   - request: A streaming request of `CompilationCacheService_Cas_V1_SaveRequest` messages.
+        ///   - request: A streaming request of `CompilationCacheService_Cas_V1_CASGetRequest` messages.
         ///   - context: Context providing information about the RPC.
         /// - Throws: Any error which occurred during the processing of the request. Thrown errors
         ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
         ///     to an internal error.
-        /// - Returns: A streaming response of `CompilationCacheService_Cas_V1_SaveResponse` messages.
-        func save(
-            request: GRPCCore.StreamingServerRequest<CompilationCacheService_Cas_V1_SaveRequest>,
+        /// - Returns: A streaming response of `CompilationCacheService_Cas_V1_CASGetResponse` messages.
+        func get(
+            request: GRPCCore.StreamingServerRequest<CompilationCacheService_Cas_V1_CASGetRequest>,
             context: GRPCCore.ServerContext
-        ) async throws -> GRPCCore.StreamingServerResponse<CompilationCacheService_Cas_V1_SaveResponse>
+        ) async throws -> GRPCCore.StreamingServerResponse<CompilationCacheService_Cas_V1_CASGetResponse>
+
+        /// Handle the "Put" method.
+        ///
+        /// - Parameters:
+        ///   - request: A streaming request of `CompilationCacheService_Cas_V1_CASPutRequest` messages.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A streaming response of `CompilationCacheService_Cas_V1_CASPutResponse` messages.
+        func put(
+            request: GRPCCore.StreamingServerRequest<CompilationCacheService_Cas_V1_CASPutRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.StreamingServerResponse<CompilationCacheService_Cas_V1_CASPutResponse>
+
+        /// Handle the "Load" method.
+        ///
+        /// - Parameters:
+        ///   - request: A streaming request of `CompilationCacheService_Cas_V1_CASLoadRequest` messages.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A streaming response of `CompilationCacheService_Cas_V1_CASLoadResponse` messages.
+        func load(
+            request: GRPCCore.StreamingServerRequest<CompilationCacheService_Cas_V1_CASLoadRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.StreamingServerResponse<CompilationCacheService_Cas_V1_CASLoadResponse>
+
+        /// Handle the "Save" method.
+        ///
+        /// - Parameters:
+        ///   - request: A streaming request of `CompilationCacheService_Cas_V1_CASSaveRequest` messages.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A streaming response of `CompilationCacheService_Cas_V1_CASSaveResponse` messages.
+        func save(
+            request: GRPCCore.StreamingServerRequest<CompilationCacheService_Cas_V1_CASSaveRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.StreamingServerResponse<CompilationCacheService_Cas_V1_CASSaveResponse>
     }
 
     /// Service protocol for the "compilation_cache_service.cas.v1.CASDBService" service.
@@ -93,25 +178,63 @@ extension CompilationCacheService_Cas_V1_CASDBService {
     ///
     /// > Source IDL Documentation:
     /// >
-    /// > CASDBService for content-addressable storage operations
+    /// > Interface exported by the service.
     internal protocol ServiceProtocol: CompilationCacheService_Cas_V1_CASDBService.StreamingServiceProtocol {
-        /// Handle the "Save" method.
-        ///
-        /// > Source IDL Documentation:
-        /// >
-        /// > Store a compilation artifact in the Content-Addressable Storage
+        /// Handle the "Get" method.
         ///
         /// - Parameters:
-        ///   - request: A request containing a single `CompilationCacheService_Cas_V1_SaveRequest` message.
+        ///   - request: A request containing a single `CompilationCacheService_Cas_V1_CASGetRequest` message.
         ///   - context: Context providing information about the RPC.
         /// - Throws: Any error which occurred during the processing of the request. Thrown errors
         ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
         ///     to an internal error.
-        /// - Returns: A response containing a single `CompilationCacheService_Cas_V1_SaveResponse` message.
-        func save(
-            request: GRPCCore.ServerRequest<CompilationCacheService_Cas_V1_SaveRequest>,
+        /// - Returns: A response containing a single `CompilationCacheService_Cas_V1_CASGetResponse` message.
+        func get(
+            request: GRPCCore.ServerRequest<CompilationCacheService_Cas_V1_CASGetRequest>,
             context: GRPCCore.ServerContext
-        ) async throws -> GRPCCore.ServerResponse<CompilationCacheService_Cas_V1_SaveResponse>
+        ) async throws -> GRPCCore.ServerResponse<CompilationCacheService_Cas_V1_CASGetResponse>
+
+        /// Handle the "Put" method.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `CompilationCacheService_Cas_V1_CASPutRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A response containing a single `CompilationCacheService_Cas_V1_CASPutResponse` message.
+        func put(
+            request: GRPCCore.ServerRequest<CompilationCacheService_Cas_V1_CASPutRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.ServerResponse<CompilationCacheService_Cas_V1_CASPutResponse>
+
+        /// Handle the "Load" method.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `CompilationCacheService_Cas_V1_CASLoadRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A response containing a single `CompilationCacheService_Cas_V1_CASLoadResponse` message.
+        func load(
+            request: GRPCCore.ServerRequest<CompilationCacheService_Cas_V1_CASLoadRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.ServerResponse<CompilationCacheService_Cas_V1_CASLoadResponse>
+
+        /// Handle the "Save" method.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `CompilationCacheService_Cas_V1_CASSaveRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A response containing a single `CompilationCacheService_Cas_V1_CASSaveResponse` message.
+        func save(
+            request: GRPCCore.ServerRequest<CompilationCacheService_Cas_V1_CASSaveRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.ServerResponse<CompilationCacheService_Cas_V1_CASSaveResponse>
     }
 
     /// Simple service protocol for the "compilation_cache_service.cas.v1.CASDBService" service.
@@ -122,25 +245,63 @@ extension CompilationCacheService_Cas_V1_CASDBService {
     ///
     /// > Source IDL Documentation:
     /// >
-    /// > CASDBService for content-addressable storage operations
+    /// > Interface exported by the service.
     internal protocol SimpleServiceProtocol: CompilationCacheService_Cas_V1_CASDBService.ServiceProtocol {
-        /// Handle the "Save" method.
-        ///
-        /// > Source IDL Documentation:
-        /// >
-        /// > Store a compilation artifact in the Content-Addressable Storage
+        /// Handle the "Get" method.
         ///
         /// - Parameters:
-        ///   - request: A `CompilationCacheService_Cas_V1_SaveRequest` message.
+        ///   - request: A `CompilationCacheService_Cas_V1_CASGetRequest` message.
         ///   - context: Context providing information about the RPC.
         /// - Throws: Any error which occurred during the processing of the request. Thrown errors
         ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
         ///     to an internal error.
-        /// - Returns: A `CompilationCacheService_Cas_V1_SaveResponse` to respond with.
-        func save(
-            request: CompilationCacheService_Cas_V1_SaveRequest,
+        /// - Returns: A `CompilationCacheService_Cas_V1_CASGetResponse` to respond with.
+        func get(
+            request: CompilationCacheService_Cas_V1_CASGetRequest,
             context: GRPCCore.ServerContext
-        ) async throws -> CompilationCacheService_Cas_V1_SaveResponse
+        ) async throws -> CompilationCacheService_Cas_V1_CASGetResponse
+
+        /// Handle the "Put" method.
+        ///
+        /// - Parameters:
+        ///   - request: A `CompilationCacheService_Cas_V1_CASPutRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A `CompilationCacheService_Cas_V1_CASPutResponse` to respond with.
+        func put(
+            request: CompilationCacheService_Cas_V1_CASPutRequest,
+            context: GRPCCore.ServerContext
+        ) async throws -> CompilationCacheService_Cas_V1_CASPutResponse
+
+        /// Handle the "Load" method.
+        ///
+        /// - Parameters:
+        ///   - request: A `CompilationCacheService_Cas_V1_CASLoadRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A `CompilationCacheService_Cas_V1_CASLoadResponse` to respond with.
+        func load(
+            request: CompilationCacheService_Cas_V1_CASLoadRequest,
+            context: GRPCCore.ServerContext
+        ) async throws -> CompilationCacheService_Cas_V1_CASLoadResponse
+
+        /// Handle the "Save" method.
+        ///
+        /// - Parameters:
+        ///   - request: A `CompilationCacheService_Cas_V1_CASSaveRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A `CompilationCacheService_Cas_V1_CASSaveResponse` to respond with.
+        func save(
+            request: CompilationCacheService_Cas_V1_CASSaveRequest,
+            context: GRPCCore.ServerContext
+        ) async throws -> CompilationCacheService_Cas_V1_CASSaveResponse
     }
 }
 
@@ -149,9 +310,42 @@ extension CompilationCacheService_Cas_V1_CASDBService {
 extension CompilationCacheService_Cas_V1_CASDBService.StreamingServiceProtocol {
     internal func registerMethods<Transport>(with router: inout GRPCCore.RPCRouter<Transport>) where Transport: GRPCCore.ServerTransport {
         router.registerHandler(
+            forMethod: CompilationCacheService_Cas_V1_CASDBService.Method.Get.descriptor,
+            deserializer: GRPCProtobuf.ProtobufDeserializer<CompilationCacheService_Cas_V1_CASGetRequest>(),
+            serializer: GRPCProtobuf.ProtobufSerializer<CompilationCacheService_Cas_V1_CASGetResponse>(),
+            handler: { request, context in
+                try await self.get(
+                    request: request,
+                    context: context
+                )
+            }
+        )
+        router.registerHandler(
+            forMethod: CompilationCacheService_Cas_V1_CASDBService.Method.Put.descriptor,
+            deserializer: GRPCProtobuf.ProtobufDeserializer<CompilationCacheService_Cas_V1_CASPutRequest>(),
+            serializer: GRPCProtobuf.ProtobufSerializer<CompilationCacheService_Cas_V1_CASPutResponse>(),
+            handler: { request, context in
+                try await self.put(
+                    request: request,
+                    context: context
+                )
+            }
+        )
+        router.registerHandler(
+            forMethod: CompilationCacheService_Cas_V1_CASDBService.Method.Load.descriptor,
+            deserializer: GRPCProtobuf.ProtobufDeserializer<CompilationCacheService_Cas_V1_CASLoadRequest>(),
+            serializer: GRPCProtobuf.ProtobufSerializer<CompilationCacheService_Cas_V1_CASLoadResponse>(),
+            handler: { request, context in
+                try await self.load(
+                    request: request,
+                    context: context
+                )
+            }
+        )
+        router.registerHandler(
             forMethod: CompilationCacheService_Cas_V1_CASDBService.Method.Save.descriptor,
-            deserializer: GRPCProtobuf.ProtobufDeserializer<CompilationCacheService_Cas_V1_SaveRequest>(),
-            serializer: GRPCProtobuf.ProtobufSerializer<CompilationCacheService_Cas_V1_SaveResponse>(),
+            deserializer: GRPCProtobuf.ProtobufDeserializer<CompilationCacheService_Cas_V1_CASSaveRequest>(),
+            serializer: GRPCProtobuf.ProtobufSerializer<CompilationCacheService_Cas_V1_CASSaveResponse>(),
             handler: { request, context in
                 try await self.save(
                     request: request,
@@ -165,10 +359,43 @@ extension CompilationCacheService_Cas_V1_CASDBService.StreamingServiceProtocol {
 // Default implementation of streaming methods from 'StreamingServiceProtocol'.
 @available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
 extension CompilationCacheService_Cas_V1_CASDBService.ServiceProtocol {
-    internal func save(
-        request: GRPCCore.StreamingServerRequest<CompilationCacheService_Cas_V1_SaveRequest>,
+    internal func get(
+        request: GRPCCore.StreamingServerRequest<CompilationCacheService_Cas_V1_CASGetRequest>,
         context: GRPCCore.ServerContext
-    ) async throws -> GRPCCore.StreamingServerResponse<CompilationCacheService_Cas_V1_SaveResponse> {
+    ) async throws -> GRPCCore.StreamingServerResponse<CompilationCacheService_Cas_V1_CASGetResponse> {
+        let response = try await self.get(
+            request: GRPCCore.ServerRequest(stream: request),
+            context: context
+        )
+        return GRPCCore.StreamingServerResponse(single: response)
+    }
+
+    internal func put(
+        request: GRPCCore.StreamingServerRequest<CompilationCacheService_Cas_V1_CASPutRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.StreamingServerResponse<CompilationCacheService_Cas_V1_CASPutResponse> {
+        let response = try await self.put(
+            request: GRPCCore.ServerRequest(stream: request),
+            context: context
+        )
+        return GRPCCore.StreamingServerResponse(single: response)
+    }
+
+    internal func load(
+        request: GRPCCore.StreamingServerRequest<CompilationCacheService_Cas_V1_CASLoadRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.StreamingServerResponse<CompilationCacheService_Cas_V1_CASLoadResponse> {
+        let response = try await self.load(
+            request: GRPCCore.ServerRequest(stream: request),
+            context: context
+        )
+        return GRPCCore.StreamingServerResponse(single: response)
+    }
+
+    internal func save(
+        request: GRPCCore.StreamingServerRequest<CompilationCacheService_Cas_V1_CASSaveRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.StreamingServerResponse<CompilationCacheService_Cas_V1_CASSaveResponse> {
         let response = try await self.save(
             request: GRPCCore.ServerRequest(stream: request),
             context: context
@@ -180,11 +407,50 @@ extension CompilationCacheService_Cas_V1_CASDBService.ServiceProtocol {
 // Default implementation of methods from 'ServiceProtocol'.
 @available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
 extension CompilationCacheService_Cas_V1_CASDBService.SimpleServiceProtocol {
-    internal func save(
-        request: GRPCCore.ServerRequest<CompilationCacheService_Cas_V1_SaveRequest>,
+    internal func get(
+        request: GRPCCore.ServerRequest<CompilationCacheService_Cas_V1_CASGetRequest>,
         context: GRPCCore.ServerContext
-    ) async throws -> GRPCCore.ServerResponse<CompilationCacheService_Cas_V1_SaveResponse> {
-        return GRPCCore.ServerResponse<CompilationCacheService_Cas_V1_SaveResponse>(
+    ) async throws -> GRPCCore.ServerResponse<CompilationCacheService_Cas_V1_CASGetResponse> {
+        return GRPCCore.ServerResponse<CompilationCacheService_Cas_V1_CASGetResponse>(
+            message: try await self.get(
+                request: request.message,
+                context: context
+            ),
+            metadata: [:]
+        )
+    }
+
+    internal func put(
+        request: GRPCCore.ServerRequest<CompilationCacheService_Cas_V1_CASPutRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.ServerResponse<CompilationCacheService_Cas_V1_CASPutResponse> {
+        return GRPCCore.ServerResponse<CompilationCacheService_Cas_V1_CASPutResponse>(
+            message: try await self.put(
+                request: request.message,
+                context: context
+            ),
+            metadata: [:]
+        )
+    }
+
+    internal func load(
+        request: GRPCCore.ServerRequest<CompilationCacheService_Cas_V1_CASLoadRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.ServerResponse<CompilationCacheService_Cas_V1_CASLoadResponse> {
+        return GRPCCore.ServerResponse<CompilationCacheService_Cas_V1_CASLoadResponse>(
+            message: try await self.load(
+                request: request.message,
+                context: context
+            ),
+            metadata: [:]
+        )
+    }
+
+    internal func save(
+        request: GRPCCore.ServerRequest<CompilationCacheService_Cas_V1_CASSaveRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.ServerResponse<CompilationCacheService_Cas_V1_CASSaveResponse> {
+        return GRPCCore.ServerResponse<CompilationCacheService_Cas_V1_CASSaveResponse>(
             message: try await self.save(
                 request: request.message,
                 context: context
@@ -205,29 +471,82 @@ extension CompilationCacheService_Cas_V1_CASDBService {
     ///
     /// > Source IDL Documentation:
     /// >
-    /// > CASDBService for content-addressable storage operations
+    /// > Interface exported by the service.
     internal protocol ClientProtocol: Sendable {
-        /// Call the "Save" method.
-        ///
-        /// > Source IDL Documentation:
-        /// >
-        /// > Store a compilation artifact in the Content-Addressable Storage
+        /// Call the "Get" method.
         ///
         /// - Parameters:
-        ///   - request: A request containing a single `CompilationCacheService_Cas_V1_SaveRequest` message.
-        ///   - serializer: A serializer for `CompilationCacheService_Cas_V1_SaveRequest` messages.
-        ///   - deserializer: A deserializer for `CompilationCacheService_Cas_V1_SaveResponse` messages.
+        ///   - request: A request containing a single `CompilationCacheService_Cas_V1_CASGetRequest` message.
+        ///   - serializer: A serializer for `CompilationCacheService_Cas_V1_CASGetRequest` messages.
+        ///   - deserializer: A deserializer for `CompilationCacheService_Cas_V1_CASGetResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response, the result of which is
+        ///       returned to the caller. Returning from the closure will cancel the RPC if it
+        ///       hasn't already finished.
+        /// - Returns: The result of `handleResponse`.
+        func get<Result>(
+            request: GRPCCore.ClientRequest<CompilationCacheService_Cas_V1_CASGetRequest>,
+            serializer: some GRPCCore.MessageSerializer<CompilationCacheService_Cas_V1_CASGetRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<CompilationCacheService_Cas_V1_CASGetResponse>,
+            options: GRPCCore.CallOptions,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<CompilationCacheService_Cas_V1_CASGetResponse>) async throws -> Result
+        ) async throws -> Result where Result: Sendable
+
+        /// Call the "Put" method.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `CompilationCacheService_Cas_V1_CASPutRequest` message.
+        ///   - serializer: A serializer for `CompilationCacheService_Cas_V1_CASPutRequest` messages.
+        ///   - deserializer: A deserializer for `CompilationCacheService_Cas_V1_CASPutResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response, the result of which is
+        ///       returned to the caller. Returning from the closure will cancel the RPC if it
+        ///       hasn't already finished.
+        /// - Returns: The result of `handleResponse`.
+        func put<Result>(
+            request: GRPCCore.ClientRequest<CompilationCacheService_Cas_V1_CASPutRequest>,
+            serializer: some GRPCCore.MessageSerializer<CompilationCacheService_Cas_V1_CASPutRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<CompilationCacheService_Cas_V1_CASPutResponse>,
+            options: GRPCCore.CallOptions,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<CompilationCacheService_Cas_V1_CASPutResponse>) async throws -> Result
+        ) async throws -> Result where Result: Sendable
+
+        /// Call the "Load" method.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `CompilationCacheService_Cas_V1_CASLoadRequest` message.
+        ///   - serializer: A serializer for `CompilationCacheService_Cas_V1_CASLoadRequest` messages.
+        ///   - deserializer: A deserializer for `CompilationCacheService_Cas_V1_CASLoadResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response, the result of which is
+        ///       returned to the caller. Returning from the closure will cancel the RPC if it
+        ///       hasn't already finished.
+        /// - Returns: The result of `handleResponse`.
+        func load<Result>(
+            request: GRPCCore.ClientRequest<CompilationCacheService_Cas_V1_CASLoadRequest>,
+            serializer: some GRPCCore.MessageSerializer<CompilationCacheService_Cas_V1_CASLoadRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<CompilationCacheService_Cas_V1_CASLoadResponse>,
+            options: GRPCCore.CallOptions,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<CompilationCacheService_Cas_V1_CASLoadResponse>) async throws -> Result
+        ) async throws -> Result where Result: Sendable
+
+        /// Call the "Save" method.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `CompilationCacheService_Cas_V1_CASSaveRequest` message.
+        ///   - serializer: A serializer for `CompilationCacheService_Cas_V1_CASSaveRequest` messages.
+        ///   - deserializer: A deserializer for `CompilationCacheService_Cas_V1_CASSaveResponse` messages.
         ///   - options: Options to apply to this RPC.
         ///   - handleResponse: A closure which handles the response, the result of which is
         ///       returned to the caller. Returning from the closure will cancel the RPC if it
         ///       hasn't already finished.
         /// - Returns: The result of `handleResponse`.
         func save<Result>(
-            request: GRPCCore.ClientRequest<CompilationCacheService_Cas_V1_SaveRequest>,
-            serializer: some GRPCCore.MessageSerializer<CompilationCacheService_Cas_V1_SaveRequest>,
-            deserializer: some GRPCCore.MessageDeserializer<CompilationCacheService_Cas_V1_SaveResponse>,
+            request: GRPCCore.ClientRequest<CompilationCacheService_Cas_V1_CASSaveRequest>,
+            serializer: some GRPCCore.MessageSerializer<CompilationCacheService_Cas_V1_CASSaveRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<CompilationCacheService_Cas_V1_CASSaveResponse>,
             options: GRPCCore.CallOptions,
-            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<CompilationCacheService_Cas_V1_SaveResponse>) async throws -> Result
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<CompilationCacheService_Cas_V1_CASSaveResponse>) async throws -> Result
         ) async throws -> Result where Result: Sendable
     }
 
@@ -239,7 +558,7 @@ extension CompilationCacheService_Cas_V1_CASDBService {
     ///
     /// > Source IDL Documentation:
     /// >
-    /// > CASDBService for content-addressable storage operations
+    /// > Interface exported by the service.
     internal struct Client<Transport>: ClientProtocol where Transport: GRPCCore.ClientTransport {
         private let client: GRPCCore.GRPCClient<Transport>
 
@@ -251,27 +570,113 @@ extension CompilationCacheService_Cas_V1_CASDBService {
             self.client = client
         }
 
-        /// Call the "Save" method.
-        ///
-        /// > Source IDL Documentation:
-        /// >
-        /// > Store a compilation artifact in the Content-Addressable Storage
+        /// Call the "Get" method.
         ///
         /// - Parameters:
-        ///   - request: A request containing a single `CompilationCacheService_Cas_V1_SaveRequest` message.
-        ///   - serializer: A serializer for `CompilationCacheService_Cas_V1_SaveRequest` messages.
-        ///   - deserializer: A deserializer for `CompilationCacheService_Cas_V1_SaveResponse` messages.
+        ///   - request: A request containing a single `CompilationCacheService_Cas_V1_CASGetRequest` message.
+        ///   - serializer: A serializer for `CompilationCacheService_Cas_V1_CASGetRequest` messages.
+        ///   - deserializer: A deserializer for `CompilationCacheService_Cas_V1_CASGetResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response, the result of which is
+        ///       returned to the caller. Returning from the closure will cancel the RPC if it
+        ///       hasn't already finished.
+        /// - Returns: The result of `handleResponse`.
+        internal func get<Result>(
+            request: GRPCCore.ClientRequest<CompilationCacheService_Cas_V1_CASGetRequest>,
+            serializer: some GRPCCore.MessageSerializer<CompilationCacheService_Cas_V1_CASGetRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<CompilationCacheService_Cas_V1_CASGetResponse>,
+            options: GRPCCore.CallOptions = .defaults,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<CompilationCacheService_Cas_V1_CASGetResponse>) async throws -> Result = { response in
+                try response.message
+            }
+        ) async throws -> Result where Result: Sendable {
+            try await self.client.unary(
+                request: request,
+                descriptor: CompilationCacheService_Cas_V1_CASDBService.Method.Get.descriptor,
+                serializer: serializer,
+                deserializer: deserializer,
+                options: options,
+                onResponse: handleResponse
+            )
+        }
+
+        /// Call the "Put" method.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `CompilationCacheService_Cas_V1_CASPutRequest` message.
+        ///   - serializer: A serializer for `CompilationCacheService_Cas_V1_CASPutRequest` messages.
+        ///   - deserializer: A deserializer for `CompilationCacheService_Cas_V1_CASPutResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response, the result of which is
+        ///       returned to the caller. Returning from the closure will cancel the RPC if it
+        ///       hasn't already finished.
+        /// - Returns: The result of `handleResponse`.
+        internal func put<Result>(
+            request: GRPCCore.ClientRequest<CompilationCacheService_Cas_V1_CASPutRequest>,
+            serializer: some GRPCCore.MessageSerializer<CompilationCacheService_Cas_V1_CASPutRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<CompilationCacheService_Cas_V1_CASPutResponse>,
+            options: GRPCCore.CallOptions = .defaults,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<CompilationCacheService_Cas_V1_CASPutResponse>) async throws -> Result = { response in
+                try response.message
+            }
+        ) async throws -> Result where Result: Sendable {
+            try await self.client.unary(
+                request: request,
+                descriptor: CompilationCacheService_Cas_V1_CASDBService.Method.Put.descriptor,
+                serializer: serializer,
+                deserializer: deserializer,
+                options: options,
+                onResponse: handleResponse
+            )
+        }
+
+        /// Call the "Load" method.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `CompilationCacheService_Cas_V1_CASLoadRequest` message.
+        ///   - serializer: A serializer for `CompilationCacheService_Cas_V1_CASLoadRequest` messages.
+        ///   - deserializer: A deserializer for `CompilationCacheService_Cas_V1_CASLoadResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response, the result of which is
+        ///       returned to the caller. Returning from the closure will cancel the RPC if it
+        ///       hasn't already finished.
+        /// - Returns: The result of `handleResponse`.
+        internal func load<Result>(
+            request: GRPCCore.ClientRequest<CompilationCacheService_Cas_V1_CASLoadRequest>,
+            serializer: some GRPCCore.MessageSerializer<CompilationCacheService_Cas_V1_CASLoadRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<CompilationCacheService_Cas_V1_CASLoadResponse>,
+            options: GRPCCore.CallOptions = .defaults,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<CompilationCacheService_Cas_V1_CASLoadResponse>) async throws -> Result = { response in
+                try response.message
+            }
+        ) async throws -> Result where Result: Sendable {
+            try await self.client.unary(
+                request: request,
+                descriptor: CompilationCacheService_Cas_V1_CASDBService.Method.Load.descriptor,
+                serializer: serializer,
+                deserializer: deserializer,
+                options: options,
+                onResponse: handleResponse
+            )
+        }
+
+        /// Call the "Save" method.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `CompilationCacheService_Cas_V1_CASSaveRequest` message.
+        ///   - serializer: A serializer for `CompilationCacheService_Cas_V1_CASSaveRequest` messages.
+        ///   - deserializer: A deserializer for `CompilationCacheService_Cas_V1_CASSaveResponse` messages.
         ///   - options: Options to apply to this RPC.
         ///   - handleResponse: A closure which handles the response, the result of which is
         ///       returned to the caller. Returning from the closure will cancel the RPC if it
         ///       hasn't already finished.
         /// - Returns: The result of `handleResponse`.
         internal func save<Result>(
-            request: GRPCCore.ClientRequest<CompilationCacheService_Cas_V1_SaveRequest>,
-            serializer: some GRPCCore.MessageSerializer<CompilationCacheService_Cas_V1_SaveRequest>,
-            deserializer: some GRPCCore.MessageDeserializer<CompilationCacheService_Cas_V1_SaveResponse>,
+            request: GRPCCore.ClientRequest<CompilationCacheService_Cas_V1_CASSaveRequest>,
+            serializer: some GRPCCore.MessageSerializer<CompilationCacheService_Cas_V1_CASSaveRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<CompilationCacheService_Cas_V1_CASSaveResponse>,
             options: GRPCCore.CallOptions = .defaults,
-            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<CompilationCacheService_Cas_V1_SaveResponse>) async throws -> Result = { response in
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<CompilationCacheService_Cas_V1_CASSaveResponse>) async throws -> Result = { response in
                 try response.message
             }
         ) async throws -> Result where Result: Sendable {
@@ -290,30 +695,101 @@ extension CompilationCacheService_Cas_V1_CASDBService {
 // Helpers providing default arguments to 'ClientProtocol' methods.
 @available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
 extension CompilationCacheService_Cas_V1_CASDBService.ClientProtocol {
-    /// Call the "Save" method.
-    ///
-    /// > Source IDL Documentation:
-    /// >
-    /// > Store a compilation artifact in the Content-Addressable Storage
+    /// Call the "Get" method.
     ///
     /// - Parameters:
-    ///   - request: A request containing a single `CompilationCacheService_Cas_V1_SaveRequest` message.
+    ///   - request: A request containing a single `CompilationCacheService_Cas_V1_CASGetRequest` message.
+    ///   - options: Options to apply to this RPC.
+    ///   - handleResponse: A closure which handles the response, the result of which is
+    ///       returned to the caller. Returning from the closure will cancel the RPC if it
+    ///       hasn't already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func get<Result>(
+        request: GRPCCore.ClientRequest<CompilationCacheService_Cas_V1_CASGetRequest>,
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<CompilationCacheService_Cas_V1_CASGetResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        try await self.get(
+            request: request,
+            serializer: GRPCProtobuf.ProtobufSerializer<CompilationCacheService_Cas_V1_CASGetRequest>(),
+            deserializer: GRPCProtobuf.ProtobufDeserializer<CompilationCacheService_Cas_V1_CASGetResponse>(),
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "Put" method.
+    ///
+    /// - Parameters:
+    ///   - request: A request containing a single `CompilationCacheService_Cas_V1_CASPutRequest` message.
+    ///   - options: Options to apply to this RPC.
+    ///   - handleResponse: A closure which handles the response, the result of which is
+    ///       returned to the caller. Returning from the closure will cancel the RPC if it
+    ///       hasn't already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func put<Result>(
+        request: GRPCCore.ClientRequest<CompilationCacheService_Cas_V1_CASPutRequest>,
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<CompilationCacheService_Cas_V1_CASPutResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        try await self.put(
+            request: request,
+            serializer: GRPCProtobuf.ProtobufSerializer<CompilationCacheService_Cas_V1_CASPutRequest>(),
+            deserializer: GRPCProtobuf.ProtobufDeserializer<CompilationCacheService_Cas_V1_CASPutResponse>(),
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "Load" method.
+    ///
+    /// - Parameters:
+    ///   - request: A request containing a single `CompilationCacheService_Cas_V1_CASLoadRequest` message.
+    ///   - options: Options to apply to this RPC.
+    ///   - handleResponse: A closure which handles the response, the result of which is
+    ///       returned to the caller. Returning from the closure will cancel the RPC if it
+    ///       hasn't already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func load<Result>(
+        request: GRPCCore.ClientRequest<CompilationCacheService_Cas_V1_CASLoadRequest>,
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<CompilationCacheService_Cas_V1_CASLoadResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        try await self.load(
+            request: request,
+            serializer: GRPCProtobuf.ProtobufSerializer<CompilationCacheService_Cas_V1_CASLoadRequest>(),
+            deserializer: GRPCProtobuf.ProtobufDeserializer<CompilationCacheService_Cas_V1_CASLoadResponse>(),
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "Save" method.
+    ///
+    /// - Parameters:
+    ///   - request: A request containing a single `CompilationCacheService_Cas_V1_CASSaveRequest` message.
     ///   - options: Options to apply to this RPC.
     ///   - handleResponse: A closure which handles the response, the result of which is
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
     internal func save<Result>(
-        request: GRPCCore.ClientRequest<CompilationCacheService_Cas_V1_SaveRequest>,
+        request: GRPCCore.ClientRequest<CompilationCacheService_Cas_V1_CASSaveRequest>,
         options: GRPCCore.CallOptions = .defaults,
-        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<CompilationCacheService_Cas_V1_SaveResponse>) async throws -> Result = { response in
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<CompilationCacheService_Cas_V1_CASSaveResponse>) async throws -> Result = { response in
             try response.message
         }
     ) async throws -> Result where Result: Sendable {
         try await self.save(
             request: request,
-            serializer: GRPCProtobuf.ProtobufSerializer<CompilationCacheService_Cas_V1_SaveRequest>(),
-            deserializer: GRPCProtobuf.ProtobufDeserializer<CompilationCacheService_Cas_V1_SaveResponse>(),
+            serializer: GRPCProtobuf.ProtobufSerializer<CompilationCacheService_Cas_V1_CASSaveRequest>(),
+            deserializer: GRPCProtobuf.ProtobufDeserializer<CompilationCacheService_Cas_V1_CASSaveResponse>(),
             options: options,
             onResponse: handleResponse
         )
@@ -323,11 +799,94 @@ extension CompilationCacheService_Cas_V1_CASDBService.ClientProtocol {
 // Helpers providing sugared APIs for 'ClientProtocol' methods.
 @available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
 extension CompilationCacheService_Cas_V1_CASDBService.ClientProtocol {
-    /// Call the "Save" method.
+    /// Call the "Get" method.
     ///
-    /// > Source IDL Documentation:
-    /// >
-    /// > Store a compilation artifact in the Content-Addressable Storage
+    /// - Parameters:
+    ///   - message: request message to send.
+    ///   - metadata: Additional metadata to send, defaults to empty.
+    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
+    ///   - handleResponse: A closure which handles the response, the result of which is
+    ///       returned to the caller. Returning from the closure will cancel the RPC if it
+    ///       hasn't already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func get<Result>(
+        _ message: CompilationCacheService_Cas_V1_CASGetRequest,
+        metadata: GRPCCore.Metadata = [:],
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<CompilationCacheService_Cas_V1_CASGetResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        let request = GRPCCore.ClientRequest<CompilationCacheService_Cas_V1_CASGetRequest>(
+            message: message,
+            metadata: metadata
+        )
+        return try await self.get(
+            request: request,
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "Put" method.
+    ///
+    /// - Parameters:
+    ///   - message: request message to send.
+    ///   - metadata: Additional metadata to send, defaults to empty.
+    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
+    ///   - handleResponse: A closure which handles the response, the result of which is
+    ///       returned to the caller. Returning from the closure will cancel the RPC if it
+    ///       hasn't already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func put<Result>(
+        _ message: CompilationCacheService_Cas_V1_CASPutRequest,
+        metadata: GRPCCore.Metadata = [:],
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<CompilationCacheService_Cas_V1_CASPutResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        let request = GRPCCore.ClientRequest<CompilationCacheService_Cas_V1_CASPutRequest>(
+            message: message,
+            metadata: metadata
+        )
+        return try await self.put(
+            request: request,
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "Load" method.
+    ///
+    /// - Parameters:
+    ///   - message: request message to send.
+    ///   - metadata: Additional metadata to send, defaults to empty.
+    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
+    ///   - handleResponse: A closure which handles the response, the result of which is
+    ///       returned to the caller. Returning from the closure will cancel the RPC if it
+    ///       hasn't already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func load<Result>(
+        _ message: CompilationCacheService_Cas_V1_CASLoadRequest,
+        metadata: GRPCCore.Metadata = [:],
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<CompilationCacheService_Cas_V1_CASLoadResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        let request = GRPCCore.ClientRequest<CompilationCacheService_Cas_V1_CASLoadRequest>(
+            message: message,
+            metadata: metadata
+        )
+        return try await self.load(
+            request: request,
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "Save" method.
     ///
     /// - Parameters:
     ///   - message: request message to send.
@@ -338,14 +897,14 @@ extension CompilationCacheService_Cas_V1_CASDBService.ClientProtocol {
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
     internal func save<Result>(
-        _ message: CompilationCacheService_Cas_V1_SaveRequest,
+        _ message: CompilationCacheService_Cas_V1_CASSaveRequest,
         metadata: GRPCCore.Metadata = [:],
         options: GRPCCore.CallOptions = .defaults,
-        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<CompilationCacheService_Cas_V1_SaveResponse>) async throws -> Result = { response in
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<CompilationCacheService_Cas_V1_CASSaveResponse>) async throws -> Result = { response in
             try response.message
         }
     ) async throws -> Result where Result: Sendable {
-        let request = GRPCCore.ClientRequest<CompilationCacheService_Cas_V1_SaveRequest>(
+        let request = GRPCCore.ClientRequest<CompilationCacheService_Cas_V1_CASSaveRequest>(
             message: message,
             metadata: metadata
         )

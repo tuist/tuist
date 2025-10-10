@@ -121,6 +121,18 @@ extension Character {
 
 @available(macOS 15.0, *)
 struct CASDBServiceImpl: CompilationCacheService_Cas_V1_CASDBService.SimpleServiceProtocol {
+    func load(request: CompilationCacheService_Cas_V1_CASLoadRequest, context: GRPCCore.ServerContext) async throws -> CompilationCacheService_Cas_V1_CASLoadResponse {
+        fatalError()
+    }
+    
+    func put(request: CompilationCacheService_Cas_V1_CASPutRequest, context: GRPCCore.ServerContext) async throws -> CompilationCacheService_Cas_V1_CASPutResponse {
+        fatalError()
+    }
+    
+    func get(request: CompilationCacheService_Cas_V1_CASGetRequest, context: GRPCCore.ServerContext) async throws -> CompilationCacheService_Cas_V1_CASGetResponse {
+        fatalError()
+    }
+    
     private let config: TuistCore.Tuist
     private let uploadService: UploadCASArtifactServicing
     
@@ -128,16 +140,17 @@ struct CASDBServiceImpl: CompilationCacheService_Cas_V1_CASDBService.SimpleServi
         self.config = config
         uploadService = UploadCASArtifactService()
     }
+
     
     func save(
-        request: CompilationCacheService_Cas_V1_SaveRequest,
+        request: CompilationCacheService_Cas_V1_CASSaveRequest,
         context _: GRPCCore.ServerContext
-    ) async throws -> CompilationCacheService_Cas_V1_SaveResponse {
+    ) async throws -> CompilationCacheService_Cas_V1_CASSaveResponse {
         print("🔍 CASDBService.Save called")
-        print("  CAS ID field: \(request.casID.base64EncodedString()) (size: \(request.casID.count) bytes)")
-        print("  Data size: \(request.data.count) bytes")
-        print("  Type: \(request.type)")
-        print("  Metadata: \(request.metadata)")
+//        print("  CAS ID field: \(request.casID.base64EncodedString()) (size: \(request.casID.count) bytes)")
+//        print("  Data size: \(request.data.count) bytes")
+//        print("  Type: \(request.type)")
+//        print("  Metadata: \(request.metadata)")
         
         let serverURL = config.url
         
@@ -161,7 +174,7 @@ struct CASDBServiceImpl: CompilationCacheService_Cas_V1_CASDBService.SimpleServi
         
         print("✅ CAS artifact uploaded successfully")
         
-        var response = CompilationCacheService_Cas_V1_SaveResponse()
+        var response = CompilationCacheService_Cas_V1_CASSaveResponse()
         // hardcoded ID
         var message = CompilationCacheService_Cas_V1_CASDataID()
         message.id = "0~8E-M2NcJbzFOE8tF9L49l-TrnwAb1QU_3K2n9SQ45zDqpDLeOMuKxiO-MLWGBIysadI1S6Gh7bYyD14gUCqRKQ==".data(using: .utf8)!
