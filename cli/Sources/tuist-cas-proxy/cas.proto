@@ -2,6 +2,12 @@ syntax = "proto3";
 
 package compilation_cache_service.cas.v1;
 
+message CASDataID {
+  bytes id = 1;
+}
+
+message ResponseError { string description = 1; }
+
 // CASDBService for content-addressable storage operations
 service CASDBService {
   // Store a compilation artifact in the Content-Addressable Storage
@@ -25,12 +31,8 @@ message SaveRequest {
 
 // Response message for Save RPC
 message SaveResponse {
-  // Confirmed CAS ID
-  bytes cas_id = 1;
-
-  // Whether the save operation succeeded
-  bool success = 2;
-
-  // Optional status message
-  string message = 3;
+  oneof contents {
+    ResponseError error = 1;
+    CASDataID cas_id = 2;
+  }
 }

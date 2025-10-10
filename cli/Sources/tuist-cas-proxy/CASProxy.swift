@@ -163,9 +163,11 @@ struct CASDBServiceImpl: CompilationCacheService_Cas_V1_CASDBService.SimpleServi
         
         var response = CompilationCacheService_Cas_V1_SaveResponse()
         // hardcoded ID
-        response.casID = "0~8E-M2NcJbzFOE8tF9L49l-TrnwAb1QU_3K2n9SQ45zDqpDLeOMuKxiO-MLWGBIysadI1S6Gh7bYyD14gUCqRKQ==".data(using: .utf8)!
-        response.success = true
-        response.message = "Artifact uploaded successfully"
+        var message = CompilationCacheService_Cas_V1_CASDataID()
+        message.id = "0~8E-M2NcJbzFOE8tF9L49l-TrnwAb1QU_3K2n9SQ45zDqpDLeOMuKxiO-MLWGBIysadI1S6Gh7bYyD14gUCqRKQ==".data(using: .utf8)!
+        response.casID = message
+//        response.success = true
+//        response.message = "Artifact uploaded successfully"
         return response
         
         //        } catch {

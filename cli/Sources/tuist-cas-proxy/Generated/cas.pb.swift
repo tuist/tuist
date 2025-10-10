@@ -20,6 +20,30 @@ fileprivate struct _GeneratedWithProtocGenSwiftVersion: SwiftProtobuf.ProtobufAP
   typealias Version = _2
 }
 
+struct CompilationCacheService_Cas_V1_CASDataID {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  var id: Data = Data()
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+}
+
+struct CompilationCacheService_Cas_V1_ResponseError {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  var description_p: String = String()
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+}
+
 /// Request message for Save RPC
 struct CompilationCacheService_Cas_V1_SaveRequest {
   // SwiftProtobuf.Message conformance is added in an extension below. See the
@@ -49,16 +73,49 @@ struct CompilationCacheService_Cas_V1_SaveResponse {
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
   // methods supported on all messages.
 
-  /// Confirmed CAS ID
-  var casID: Data = Data()
+  var contents: CompilationCacheService_Cas_V1_SaveResponse.OneOf_Contents? = nil
 
-  /// Whether the save operation succeeded
-  var success: Bool = false
+  var error: CompilationCacheService_Cas_V1_ResponseError {
+    get {
+      if case .error(let v)? = contents {return v}
+      return CompilationCacheService_Cas_V1_ResponseError()
+    }
+    set {contents = .error(newValue)}
+  }
 
-  /// Optional status message
-  var message: String = String()
+  var casID: CompilationCacheService_Cas_V1_CASDataID {
+    get {
+      if case .casID(let v)? = contents {return v}
+      return CompilationCacheService_Cas_V1_CASDataID()
+    }
+    set {contents = .casID(newValue)}
+  }
 
   var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  enum OneOf_Contents: Equatable {
+    case error(CompilationCacheService_Cas_V1_ResponseError)
+    case casID(CompilationCacheService_Cas_V1_CASDataID)
+
+  #if !swift(>=4.1)
+    static func ==(lhs: CompilationCacheService_Cas_V1_SaveResponse.OneOf_Contents, rhs: CompilationCacheService_Cas_V1_SaveResponse.OneOf_Contents) -> Bool {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch (lhs, rhs) {
+      case (.error, .error): return {
+        guard case .error(let l) = lhs, case .error(let r) = rhs else { preconditionFailure() }
+        return l == r
+      }()
+      case (.casID, .casID): return {
+        guard case .casID(let l) = lhs, case .casID(let r) = rhs else { preconditionFailure() }
+        return l == r
+      }()
+      default: return false
+      }
+    }
+  #endif
+  }
 
   init() {}
 }
@@ -66,6 +123,70 @@ struct CompilationCacheService_Cas_V1_SaveResponse {
 // MARK: - Code below here is support for the SwiftProtobuf runtime.
 
 fileprivate let _protobuf_package = "compilation_cache_service.cas.v1"
+
+extension CompilationCacheService_Cas_V1_CASDataID: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".CASDataID"
+  static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
+    1: .same(proto: "id"),
+  ]
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularBytesField(value: &self.id) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if !self.id.isEmpty {
+      try visitor.visitSingularBytesField(value: self.id, fieldNumber: 1)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: CompilationCacheService_Cas_V1_CASDataID, rhs: CompilationCacheService_Cas_V1_CASDataID) -> Bool {
+    if lhs.id != rhs.id {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+extension CompilationCacheService_Cas_V1_ResponseError: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".ResponseError"
+  static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
+    1: .same(proto: "description"),
+  ]
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularStringField(value: &self.description_p) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if !self.description_p.isEmpty {
+      try visitor.visitSingularStringField(value: self.description_p, fieldNumber: 1)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: CompilationCacheService_Cas_V1_ResponseError, rhs: CompilationCacheService_Cas_V1_ResponseError) -> Bool {
+    if lhs.description_p != rhs.description_p {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
 
 extension CompilationCacheService_Cas_V1_SaveRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".SaveRequest"
@@ -120,9 +241,8 @@ extension CompilationCacheService_Cas_V1_SaveRequest: SwiftProtobuf.Message, Swi
 extension CompilationCacheService_Cas_V1_SaveResponse: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".SaveResponse"
   static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
-    1: .standard(proto: "cas_id"),
-    2: .same(proto: "success"),
-    3: .same(proto: "message"),
+    1: .same(proto: "error"),
+    2: .standard(proto: "cas_id"),
   ]
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
@@ -131,31 +251,49 @@ extension CompilationCacheService_Cas_V1_SaveResponse: SwiftProtobuf.Message, Sw
       // allocates stack space for every case branch when no optimizations are
       // enabled. https://github.com/apple/swift-protobuf/issues/1034
       switch fieldNumber {
-      case 1: try { try decoder.decodeSingularBytesField(value: &self.casID) }()
-      case 2: try { try decoder.decodeSingularBoolField(value: &self.success) }()
-      case 3: try { try decoder.decodeSingularStringField(value: &self.message) }()
+      case 1: try {
+        var v: CompilationCacheService_Cas_V1_ResponseError?
+        if let current = self.contents {
+          try decoder.handleConflictingOneOf()
+          if case .error(let m) = current {v = m}
+        }
+        try decoder.decodeSingularMessageField(value: &v)
+        if let v = v {self.contents = .error(v)}
+      }()
+      case 2: try {
+        var v: CompilationCacheService_Cas_V1_CASDataID?
+        if let current = self.contents {
+          try decoder.handleConflictingOneOf()
+          if case .casID(let m) = current {v = m}
+        }
+        try decoder.decodeSingularMessageField(value: &v)
+        if let v = v {self.contents = .casID(v)}
+      }()
       default: break
       }
     }
   }
 
   func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
-    if !self.casID.isEmpty {
-      try visitor.visitSingularBytesField(value: self.casID, fieldNumber: 1)
-    }
-    if self.success != false {
-      try visitor.visitSingularBoolField(value: self.success, fieldNumber: 2)
-    }
-    if !self.message.isEmpty {
-      try visitor.visitSingularStringField(value: self.message, fieldNumber: 3)
+    // The use of inline closures is to circumvent an issue where the compiler
+    // allocates stack space for every case branch when no optimizations are
+    // enabled. https://github.com/apple/swift-protobuf/issues/1034
+    switch self.contents {
+    case .error?: try {
+      guard case .error(let v)? = self.contents else { preconditionFailure() }
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 1)
+    }()
+    case .casID?: try {
+      guard case .casID(let v)? = self.contents else { preconditionFailure() }
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 2)
+    }()
+    case nil: break
     }
     try unknownFields.traverse(visitor: &visitor)
   }
 
   static func ==(lhs: CompilationCacheService_Cas_V1_SaveResponse, rhs: CompilationCacheService_Cas_V1_SaveResponse) -> Bool {
-    if lhs.casID != rhs.casID {return false}
-    if lhs.success != rhs.success {return false}
-    if lhs.message != rhs.message {return false}
+    if lhs.contents != rhs.contents {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
