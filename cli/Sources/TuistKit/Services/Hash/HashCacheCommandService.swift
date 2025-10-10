@@ -89,10 +89,14 @@ final class HashCacheCommandService {
             let config = try await configLoader.loadConfig(path: absolutePath)
 
             #if canImport(TuistCacheEE)
-                /// Use the same generator as CacheService to ensure consistent hashing
-                let generator = (generatorFactory as! CacheGeneratorFactory).binaryCacheWarmingPreload(
+                let cacheStorage = try await CacheStorageFactory().cacheStorage(config: config)
+
+                /// Use generationForHashing to ensure consistent hashing with CacheService
+                let generator = (generatorFactory as! CacheGeneratorFactory).generationForHashing(
                     config: config,
-                    targetsToBinaryCache: []
+                    includedTargets: [],
+                    configuration: configuration,
+                    cacheStorage: cacheStorage
                 )
             #else
                 let generator = generatorFactory.defaultGenerator(config: config, includedTargets: [])

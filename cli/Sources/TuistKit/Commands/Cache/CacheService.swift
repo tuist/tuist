@@ -128,14 +128,16 @@ final class EmptyCacheService: CacheServicing {
             }
             let config = try await configLoader.loadConfig(path: path)
             let cacheStorage = try await CacheStorageFactory().cacheStorage(config: config)
-            let generator = generatorFactory.binaryCacheWarmingPreload(
-                config: config,
-                targetsToBinaryCache: Set(targetsToBinaryCache.map { TargetQuery(stringLiteral: $0) })
-            )
 
-            // The loading of the graph triggers the fetching of remote binaries into the local cache to speed up warming.
-            // Because we only need to pull the binaries, we don't generate a project in this step.
-            let graph = try await generator.load(path: path, options: config.project.generatedProject?.generationOptions)
+            // Load the graph for hash calculation using the generation mapper
+            // This ensures consistent hashing with HashCacheCommandService
+            let hashingGenerator = generatorFactory.generationForHashing(
+                config: config,
+                includedTargets: Set(targetsToBinaryCache.map { TargetQuery(stringLiteral: $0) }),
+                configuration: configuration,
+                cacheStorage: cacheStorage
+            )
+            let graph = try await hashingGenerator.load(path: path, options: config.project.generatedProject?.generationOptions)
 
             let configuration = try defaultConfigurationFetcher.fetch(
                 configuration: configuration,
