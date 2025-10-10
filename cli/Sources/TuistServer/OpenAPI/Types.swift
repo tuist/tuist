@@ -2362,6 +2362,21 @@ public enum Components {
                 case message
             }
         }
+        /// - Remark: Generated from `#/components/schemas/CASArtifact`.
+        public struct CASArtifact: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/CASArtifact/id`.
+            public var id: Swift.String?
+            /// Creates a new `CASArtifact`.
+            ///
+            /// - Parameters:
+            ///   - id:
+            public init(id: Swift.String? = nil) {
+                self.id = id
+            }
+            public enum CodingKeys: String, CodingKey {
+                case id
+            }
+        }
         /// Parameters to create a single run.
         ///
         /// - Remark: Generated from `#/components/schemas/RunParams`.
@@ -17313,13 +17328,28 @@ public enum Operations {
             public struct Ok: Sendable, Hashable {
                 /// - Remark: Generated from `#/paths/api/cas/{id}/POST/responses/200/content`.
                 @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/cas/{id}/POST/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/cas/{id}/POST/responses/200/content/json/id`.
+                        public var id: Swift.String?
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - id:
+                        public init(id: Swift.String? = nil) {
+                            self.id = id
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case id
+                        }
+                    }
                     /// - Remark: Generated from `#/paths/api/cas/{id}/POST/responses/200/content/application\/json`.
-                    case json(OpenAPIRuntime.OpenAPIValueContainer)
+                    case json(Operations.uploadCASArtifact.Output.Ok.Body.jsonPayload)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: OpenAPIRuntime.OpenAPIValueContainer {
+                    public var json: Operations.uploadCASArtifact.Output.Ok.Body.jsonPayload {
                         get throws {
                             switch self {
                             case let .json(body):

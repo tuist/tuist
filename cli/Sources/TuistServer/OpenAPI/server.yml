@@ -735,6 +735,16 @@ components:
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.ValidationError
       x-validate:
+    CASArtifact:
+      properties:
+        id:
+          type: string
+          x-struct:
+          x-validate:
+      title: CASArtifact
+      type: object
+      x-struct:
+      x-validate:
     RunParams:
       description: Parameters to create a single run.
       oneOf:
@@ -5063,7 +5073,17 @@ paths:
       responses:
         '200':
           content:
-            application/json: {}
+            application/json:
+              schema:
+                properties:
+                  id:
+                    type: string
+                    x-struct:
+                    x-validate:
+                title: CASArtifact
+                type: object
+                x-struct:
+                x-validate:
           description: Upload successful
         '304':
           content:

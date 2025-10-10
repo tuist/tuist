@@ -10,10 +10,10 @@ defmodule TuistWeb.API.CASController do
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.Authentication
 
-  plug(OpenApiSpex.Plug.CastAndValidate,
-    json_render_error_v2: true,
-    render_error: TuistWeb.RenderAPIErrorPlug
-  )
+  # plug(OpenApiSpex.Plug.CastAndValidate,
+  #   json_render_error_v2: true,
+  #   render_error: TuistWeb.RenderAPIErrorPlug
+  # ) when action not in [:create]
 
   tags ["CAS"]
 
@@ -201,54 +201,61 @@ defmodule TuistWeb.API.CASController do
     ],
     request_body: {"The CAS artifact data", "application/octet-stream", nil, required: true},
     responses: %{
-      ok: {"Upload successful", "application/json", nil},
-      not_modified: {"Artifact already exists, no upload needed", "application/json", nil},
+      ok: {"Upload successful", "application/json", %Schema{type: :object,
+      title: "CASArtifact",
+      properties: %{id: %Schema{type: :string}}}},
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error}
     }
   )
 
   def create(conn, _params) do
-    %{id: id, account_handle: account_handle, project_handle: project_handle} = conn.private.open_api_spex.params
-    authenticated_subject = Authentication.authenticated_subject(conn)
-    account = Accounts.get_account_by_handle(account_handle)
+    # %{id: id, account_handle: account_handle, project_handle: project_handle} = conn.private.open_api_spex.params
+    # dbg("Creating #{id}")
+    # authenticated_subject = Authentication.authenticated_subject(conn)
+    # account = Accounts.get_account_by_handle(account_handle)
 
-    project =
-      if is_nil(account),
-        do: nil,
-        else: Projects.get_project_by_account_and_project_handles(account.name, project_handle, preload: [:account])
+    # project =
+    #   if is_nil(account),
+    #     do: nil,
+    #     else: Projects.get_project_by_account_and_project_handles(account.name, project_handle, preload: [:account])
 
-    cond do
-      is_nil(account) ->
-        conn
-        |> put_status(:not_found)
-        |> send_resp(:not_found, "")
+    # cond do
+    #   is_nil(account) ->
+    #     conn
+    #     |> put_status(:not_found)
+    #     |> send_resp(:not_found, "")
 
-      is_nil(project) ->
-        conn
-        |> put_status(:not_found)
-        |> send_resp(:not_found, "")
+    #   is_nil(project) ->
+    #     conn
+    #     |> put_status(:not_found)
+    #     |> send_resp(:not_found, "")
 
-      Authorization.authorize(:cas_create, authenticated_subject, project) != :ok ->
-        conn
-        |> put_status(:forbidden)
-        |> json(%Error{
-          message: "You don't have permission to write to the #{project.name} project."
-        })
+    #   Authorization.authorize(:cas_create, authenticated_subject, project) != :ok ->
+    #     conn
+    #     |> put_status(:forbidden)
+    #     |> json(%Error{
+    #       message: "You don't have permission to write to the #{project.name} project."
+    #     })
 
-      true ->
-        prefix = "#{project.account.name}/#{project.name}/cas/"
-        key = "#{prefix}#{get_s3_key(id)}"
+    #   true ->
+    #     prefix = "#{project.account.name}/#{project.name}/cas/"
+    #     key = "#{prefix}#{get_s3_key(id)}"
 
-        if Storage.object_exists?(key, authenticated_subject) do
-          send_resp(conn, :not_modified, "")
-        else
-          # Stream the upload from the request body to S3
-          {:ok, body, _conn} = Plug.Conn.read_body(conn)
-          Storage.put_object(key, body, authenticated_subject)
-          send_resp(conn, 200, "")
-        end
-    end
+    #     if Storage.object_exists?(key, authenticated_subject) do
+          # send_resp(conn, :not_modified, "")
+          conn
+          |> put_status(:ok)
+          |> json(%{id: "key"})
+        # else
+        #   # Stream the upload from the request body to S3
+        #   {:ok, body, _conn} = Plug.Conn.read_body(conn)
+        #   Storage.put_object(key, body, authenticated_subject)
+        #   conn
+        #   |> put_status(:ok)
+        #   |> json(%{id: key})
+        # end
+    # end
   end
 
   # Convert CAS ID to S3 key format by replacing ~ with /

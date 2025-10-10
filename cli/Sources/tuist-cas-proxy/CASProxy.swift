@@ -93,17 +93,17 @@ struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.SimpleSer
         print("  Cache key: \(casID)")
         
         var response = CompilationCacheService_Keyvalue_V1_GetValueResponse()
-        if casID == "0~mWDwdKKyuOJZbYfa7J6KbMT59jffSpsk9Ygaunmq5fKO6ZgvS7LkqbKYwq-lr46c8HcvaTF7c9zId4pmX2eXyQ==" {
-            var value = CompilationCacheService_Keyvalue_V1_Value()
-            value.entries = [
-                "value":  Data(
-                    base64Encoded: "CgQKAgABEqIBEp8BCkEADer7hRmI4NTCmYu2Jm1tPaKDj/NnMhh4RRjYMooOonMKumX1S9VKTT49tyVDqOzHPtMQFoT6oAqDUFuHoWyaNxJaMH44RS1NMk5jSmJ6Rk9FOHRGOUw0OWwtVHJud0FiMVFVXzNLMm45U1E0NXpEcXBETGVPTXVLeGlPLU1MV0dCSXlzYWRJMVM2R2g3Yll5RDE0Z1VDcVJLUT09EgIKABIrCilsbHZtOjpjYXM6OnNjaGVtYTo6Y29tcGlsZV9qb2JfcmVzdWx0Ojp2MQ=="
-                )!
-            ]
-            response.contents = .value(value)
-            response.outcome = .success
-            return response
-        }
+//        if casID == "0~mWDwdKKyuOJZbYfa7J6KbMT59jffSpsk9Ygaunmq5fKO6ZgvS7LkqbKYwq-lr46c8HcvaTF7c9zId4pmX2eXyQ==" {
+//            var value = CompilationCacheService_Keyvalue_V1_Value()
+//            value.entries = [
+//                "value":  Data(
+//                    base64Encoded: "CgQKAgABEqIBEp8BCkEADer7hRmI4NTCmYu2Jm1tPaKDj/NnMhh4RRjYMooOonMKumX1S9VKTT49tyVDqOzHPtMQFoT6oAqDUFuHoWyaNxJaMH44RS1NMk5jSmJ6Rk9FOHRGOUw0OWwtVHJud0FiMVFVXzNLMm45U1E0NXpEcXBETGVPTXVLeGlPLU1MV0dCSXlzYWRJMVM2R2g3Yll5RDE0Z1VDcVJLUT09EgIKABIrCilsbHZtOjpjYXM6OnNjaGVtYTo6Y29tcGlsZV9qb2JfcmVzdWx0Ojp2MQ=="
+//                )!
+//            ]
+//            response.contents = .value(value)
+//            response.outcome = .success
+//            return response
+//        }
         
         
         // For now, always return cache miss
@@ -179,25 +179,43 @@ struct CASDBServiceImpl: CompilationCacheService_Cas_V1_CASDBService.SimpleServi
         print("  Server URL: \(serverURL)")
         print("  Full Handle: \(fullHandle)")
         
-        //            We are skipping the actual upload for now before we can figure out how to obtain the CAS ID
-        //            if !actualArtifactData.isEmpty {
-        //                // Upload the artifact with extracted data
-        //                try await uploadService.uploadCASArtifact(
-        //                    actualArtifactData,
-        //                    casId: casIdString,
-        //                    fullHandle: fullHandle,
-        //                    serverURL: serverURL
-        //                )
-        //            } else {
-        //                print("Artifact data is empty after extraction")
-        //            }
+        // Compute SHA-512 checksum of the data
+        let data: Data
+        if !request.data.blob.filePath.isEmpty {
+            // Read data from file path
+            let fileURL = URL(fileURLWithPath: request.data.blob.filePath)
+            data = try Data(contentsOf: fileURL)
+            print("  Reading data from file: \(request.data.blob.filePath)")
+            print("  File size: \(data.count) bytes")
+        } else {
+            // Use the provided data
+            data = request.data.blob.data
+        }
+        
+        if data.isEmpty {
+            fatalError()
+        }
+        
+        let digest = SHA512.hash(data: data)
+        let hashData = Data(digest)
+        let casID = hashData.base64EncodedString()
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "+", with: "-")
+        
+        print("  Computed CAS ID: \(casID)")
+        
+        try! await uploadService.uploadCASArtifact(
+            data,
+            casId: casID,
+            fullHandle: fullHandle,
+            serverURL: serverURL
+        )
         
         print("✅ CAS artifact uploaded successfully")
         
         var response = CompilationCacheService_Cas_V1_CASSaveResponse()
-        // hardcoded ID
         var message = CompilationCacheService_Cas_V1_CASDataID()
-        message.id = "0~8E-M2NcJbzFOE8tF9L49l-TrnwAb1QU_3K2n9SQ45zDqpDLeOMuKxiO-MLWGBIysadI1S6Gh7bYyD14gUCqRKQ==".data(using: .utf8)!
+        message.id = ("0~" + casID).data(using: String.Encoding.utf8)!
         response.casID = message
 //        response.success = true
 //        response.message = "Artifact uploaded successfully"
