@@ -141,7 +141,7 @@ public struct GraphContentHasher: GraphContentHashing {
         for graph: Graph
     ) async throws -> String? {
         if let lockFilePath = try await rootDirectoryLocator.locate(from: graph.path)
-            .map({ $0.appending(component: ".package.resolved") }),
+            .map({ $0.appending(component: packageResolvedFilename()) }),
             try await fileSystem.exists(lockFilePath)
         {
             return try await contentHasher.hash(

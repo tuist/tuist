@@ -5,6 +5,7 @@ import Path
 import Testing
 import TuistCore
 import TuistRootDirectoryLocator
+import TuistSupport
 import TuistTesting
 import XcodeGraph
 
@@ -121,7 +122,7 @@ struct GraphContentHasherTests {
             given(rootDirectoryLocator)
                 .locate(from: .any)
                 .willReturn(temporaryDirectory)
-            let lockFilePath = temporaryDirectory.appending(component: ".package.resolved")
+            let lockFilePath = temporaryDirectory.appending(component: packageResolvedFilename())
             try await fileSystem.touch(lockFilePath)
             let targetContentHasher = MockTargetContentHashing()
             given(targetContentHasher)
