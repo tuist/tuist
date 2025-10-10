@@ -4,9 +4,14 @@ import TuistCache
 import TuistCore
 import TuistHasher
 import TuistLoader
+import TuistServer
 import TuistSupport
 import XcodeGraph
 import XcodeGraphMapper
+
+#if canImport(TuistCacheEE)
+    import TuistCacheEE
+#endif
 
 enum HashCacheCommandServiceError: LocalizedError, Equatable {
     case generatedProjectNotFound(AbsolutePath)
@@ -28,8 +33,7 @@ final class HashCacheCommandService {
     private let manifestGraphLoader: ManifestGraphLoading
 
     convenience init(
-        contentHasher: ContentHashing = CachedContentHasher(),
-        generatorFactory: GeneratorFactorying = GeneratorFactory()
+        contentHasher: ContentHashing = CachedContentHasher()
     ) {
         let manifestLoader = ManifestLoaderFactory()
             .createManifestLoader()
@@ -39,7 +43,7 @@ final class HashCacheCommandService {
             graphMapper: SequentialGraphMapper([])
         )
         self.init(
-            generatorFactory: generatorFactory,
+            generatorFactory: Extension.generatorFactory,
             cacheGraphContentHasher: CacheGraphContentHasher(contentHasher: contentHasher),
             clock: WallClock(),
             configLoader: ConfigLoader(manifestLoader: ManifestLoader()),
@@ -83,7 +87,17 @@ final class HashCacheCommandService {
 
         if try await manifestLoader.hasRootManifest(at: absolutePath) {
             let config = try await configLoader.loadConfig(path: absolutePath)
-            let generator = generatorFactory.defaultGenerator(config: config, includedTargets: [])
+
+            #if canImport(TuistCacheEE)
+                /// Use the same generator as CacheService to ensure consistent hashing
+                let generator = (generatorFactory as! CacheGeneratorFactory).binaryCacheWarmingPreload(
+                    config: config,
+                    targetsToBinaryCache: []
+                )
+            #else
+                let generator = generatorFactory.defaultGenerator(config: config, includedTargets: [])
+            #endif
+
             graph = try await generator.load(
                 path: absolutePath,
                 options: config.project.generatedProject?.generationOptions

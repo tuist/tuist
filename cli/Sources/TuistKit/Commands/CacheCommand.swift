@@ -64,9 +64,7 @@ public struct CacheCommand: AsyncParsableCommand {
                 "The \(.command("tuist cache --print-hashes")) syntax is deprecated.",
                 takeaway: "Use \(.command("tuist hash cache")) instead."
             ))
-            try await HashCacheCommandService(
-                generatorFactory: Extension.generatorFactory
-            ).run(
+            try await HashCacheCommandService().run(
                 path: path,
                 configuration: configuration
             )
