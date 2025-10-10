@@ -69,6 +69,13 @@ struct CASProxy: AsyncParsableCommand {
 
 @available(macOS 15.0, *)
 struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.SimpleServiceProtocol {
+    func putValue(request: CompilationCacheService_Keyvalue_V1_PutValueRequest, context: ServerContext) async throws -> CompilationCacheService_Keyvalue_V1_PutValueResponse {
+        print(try request.jsonString())
+        let binaryKey = request.key.dropFirst()
+        let base64Key = binaryKey.base64EncodedString().replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: "+", with: "-")
+        print("  Cache key: 0~\(base64Key)")
+        fatalError()
+    }
     func getValue(
         request: CompilationCacheService_Keyvalue_V1_GetValueRequest,
         context: GRPCCore.ServerContext
@@ -93,8 +100,9 @@ struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.SimpleSer
         
         // For now, always return cache miss
         var response = CompilationCacheService_Keyvalue_V1_GetValueResponse()
-        response.found = false
-        response.value = Data()
+//        response.found = false
+//        response.value = Data()
+        response.outcome = .keyNotFound
         
         print("  Sending GetValue response: found=false (cache miss)")
         return response
@@ -147,6 +155,7 @@ struct CASDBServiceImpl: CompilationCacheService_Cas_V1_CASDBService.SimpleServi
         context _: GRPCCore.ServerContext
     ) async throws -> CompilationCacheService_Cas_V1_CASSaveResponse {
         print("🔍 CASDBService.Save called")
+        print(try request.jsonString())
 //        print("  CAS ID field: \(request.casID.base64EncodedString()) (size: \(request.casID.count) bytes)")
 //        print("  Data size: \(request.data.count) bytes")
 //        print("  Type: \(request.type)")

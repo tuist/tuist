@@ -1,3 +1,11 @@
+//===--- compilation_caching_kv.proto - Key/Value service definition ------===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
 // DO NOT EDIT.
 // swift-format-ignore-file
 // swiftlint:disable all
@@ -32,9 +40,22 @@ internal enum CompilationCacheService_Keyvalue_V1_KeyValueDB {
                 method: "GetValue"
             )
         }
+        /// Namespace for "PutValue" metadata.
+        internal enum PutValue {
+            /// Request type for "PutValue".
+            internal typealias Input = CompilationCacheService_Keyvalue_V1_PutValueRequest
+            /// Response type for "PutValue".
+            internal typealias Output = CompilationCacheService_Keyvalue_V1_PutValueResponse
+            /// Descriptor for "PutValue".
+            internal static let descriptor = GRPCCore.MethodDescriptor(
+                service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "compilation_cache_service.keyvalue.v1.KeyValueDB"),
+                method: "PutValue"
+            )
+        }
         /// Descriptors for all methods in the "compilation_cache_service.keyvalue.v1.KeyValueDB" service.
         internal static let descriptors: [GRPCCore.MethodDescriptor] = [
-            GetValue.descriptor
+            GetValue.descriptor,
+            PutValue.descriptor
         ]
     }
 }
@@ -62,7 +83,7 @@ extension CompilationCacheService_Keyvalue_V1_KeyValueDB {
     ///
     /// > Source IDL Documentation:
     /// >
-    /// > KeyValueDB service for cache lookups
+    /// > Interface exported by the service.
     internal protocol StreamingServiceProtocol: GRPCCore.RegistrableRPCService {
         /// Handle the "GetValue" method.
         ///
@@ -77,6 +98,20 @@ extension CompilationCacheService_Keyvalue_V1_KeyValueDB {
             request: GRPCCore.StreamingServerRequest<CompilationCacheService_Keyvalue_V1_GetValueRequest>,
             context: GRPCCore.ServerContext
         ) async throws -> GRPCCore.StreamingServerResponse<CompilationCacheService_Keyvalue_V1_GetValueResponse>
+
+        /// Handle the "PutValue" method.
+        ///
+        /// - Parameters:
+        ///   - request: A streaming request of `CompilationCacheService_Keyvalue_V1_PutValueRequest` messages.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A streaming response of `CompilationCacheService_Keyvalue_V1_PutValueResponse` messages.
+        func putValue(
+            request: GRPCCore.StreamingServerRequest<CompilationCacheService_Keyvalue_V1_PutValueRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.StreamingServerResponse<CompilationCacheService_Keyvalue_V1_PutValueResponse>
     }
 
     /// Service protocol for the "compilation_cache_service.keyvalue.v1.KeyValueDB" service.
@@ -89,7 +124,7 @@ extension CompilationCacheService_Keyvalue_V1_KeyValueDB {
     ///
     /// > Source IDL Documentation:
     /// >
-    /// > KeyValueDB service for cache lookups
+    /// > Interface exported by the service.
     internal protocol ServiceProtocol: CompilationCacheService_Keyvalue_V1_KeyValueDB.StreamingServiceProtocol {
         /// Handle the "GetValue" method.
         ///
@@ -104,6 +139,20 @@ extension CompilationCacheService_Keyvalue_V1_KeyValueDB {
             request: GRPCCore.ServerRequest<CompilationCacheService_Keyvalue_V1_GetValueRequest>,
             context: GRPCCore.ServerContext
         ) async throws -> GRPCCore.ServerResponse<CompilationCacheService_Keyvalue_V1_GetValueResponse>
+
+        /// Handle the "PutValue" method.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `CompilationCacheService_Keyvalue_V1_PutValueRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A response containing a single `CompilationCacheService_Keyvalue_V1_PutValueResponse` message.
+        func putValue(
+            request: GRPCCore.ServerRequest<CompilationCacheService_Keyvalue_V1_PutValueRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.ServerResponse<CompilationCacheService_Keyvalue_V1_PutValueResponse>
     }
 
     /// Simple service protocol for the "compilation_cache_service.keyvalue.v1.KeyValueDB" service.
@@ -114,7 +163,7 @@ extension CompilationCacheService_Keyvalue_V1_KeyValueDB {
     ///
     /// > Source IDL Documentation:
     /// >
-    /// > KeyValueDB service for cache lookups
+    /// > Interface exported by the service.
     internal protocol SimpleServiceProtocol: CompilationCacheService_Keyvalue_V1_KeyValueDB.ServiceProtocol {
         /// Handle the "GetValue" method.
         ///
@@ -129,6 +178,20 @@ extension CompilationCacheService_Keyvalue_V1_KeyValueDB {
             request: CompilationCacheService_Keyvalue_V1_GetValueRequest,
             context: GRPCCore.ServerContext
         ) async throws -> CompilationCacheService_Keyvalue_V1_GetValueResponse
+
+        /// Handle the "PutValue" method.
+        ///
+        /// - Parameters:
+        ///   - request: A `CompilationCacheService_Keyvalue_V1_PutValueRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A `CompilationCacheService_Keyvalue_V1_PutValueResponse` to respond with.
+        func putValue(
+            request: CompilationCacheService_Keyvalue_V1_PutValueRequest,
+            context: GRPCCore.ServerContext
+        ) async throws -> CompilationCacheService_Keyvalue_V1_PutValueResponse
     }
 }
 
@@ -147,6 +210,17 @@ extension CompilationCacheService_Keyvalue_V1_KeyValueDB.StreamingServiceProtoco
                 )
             }
         )
+        router.registerHandler(
+            forMethod: CompilationCacheService_Keyvalue_V1_KeyValueDB.Method.PutValue.descriptor,
+            deserializer: GRPCProtobuf.ProtobufDeserializer<CompilationCacheService_Keyvalue_V1_PutValueRequest>(),
+            serializer: GRPCProtobuf.ProtobufSerializer<CompilationCacheService_Keyvalue_V1_PutValueResponse>(),
+            handler: { request, context in
+                try await self.putValue(
+                    request: request,
+                    context: context
+                )
+            }
+        )
     }
 }
 
@@ -158,6 +232,17 @@ extension CompilationCacheService_Keyvalue_V1_KeyValueDB.ServiceProtocol {
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.StreamingServerResponse<CompilationCacheService_Keyvalue_V1_GetValueResponse> {
         let response = try await self.getValue(
+            request: GRPCCore.ServerRequest(stream: request),
+            context: context
+        )
+        return GRPCCore.StreamingServerResponse(single: response)
+    }
+
+    internal func putValue(
+        request: GRPCCore.StreamingServerRequest<CompilationCacheService_Keyvalue_V1_PutValueRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.StreamingServerResponse<CompilationCacheService_Keyvalue_V1_PutValueResponse> {
+        let response = try await self.putValue(
             request: GRPCCore.ServerRequest(stream: request),
             context: context
         )
@@ -180,6 +265,19 @@ extension CompilationCacheService_Keyvalue_V1_KeyValueDB.SimpleServiceProtocol {
             metadata: [:]
         )
     }
+
+    internal func putValue(
+        request: GRPCCore.ServerRequest<CompilationCacheService_Keyvalue_V1_PutValueRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.ServerResponse<CompilationCacheService_Keyvalue_V1_PutValueResponse> {
+        return GRPCCore.ServerResponse<CompilationCacheService_Keyvalue_V1_PutValueResponse>(
+            message: try await self.putValue(
+                request: request.message,
+                context: context
+            ),
+            metadata: [:]
+        )
+    }
 }
 
 // MARK: compilation_cache_service.keyvalue.v1.KeyValueDB (client)
@@ -193,7 +291,7 @@ extension CompilationCacheService_Keyvalue_V1_KeyValueDB {
     ///
     /// > Source IDL Documentation:
     /// >
-    /// > KeyValueDB service for cache lookups
+    /// > Interface exported by the service.
     internal protocol ClientProtocol: Sendable {
         /// Call the "GetValue" method.
         ///
@@ -213,6 +311,25 @@ extension CompilationCacheService_Keyvalue_V1_KeyValueDB {
             options: GRPCCore.CallOptions,
             onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<CompilationCacheService_Keyvalue_V1_GetValueResponse>) async throws -> Result
         ) async throws -> Result where Result: Sendable
+
+        /// Call the "PutValue" method.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `CompilationCacheService_Keyvalue_V1_PutValueRequest` message.
+        ///   - serializer: A serializer for `CompilationCacheService_Keyvalue_V1_PutValueRequest` messages.
+        ///   - deserializer: A deserializer for `CompilationCacheService_Keyvalue_V1_PutValueResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response, the result of which is
+        ///       returned to the caller. Returning from the closure will cancel the RPC if it
+        ///       hasn't already finished.
+        /// - Returns: The result of `handleResponse`.
+        func putValue<Result>(
+            request: GRPCCore.ClientRequest<CompilationCacheService_Keyvalue_V1_PutValueRequest>,
+            serializer: some GRPCCore.MessageSerializer<CompilationCacheService_Keyvalue_V1_PutValueRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<CompilationCacheService_Keyvalue_V1_PutValueResponse>,
+            options: GRPCCore.CallOptions,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<CompilationCacheService_Keyvalue_V1_PutValueResponse>) async throws -> Result
+        ) async throws -> Result where Result: Sendable
     }
 
     /// Generated client for the "compilation_cache_service.keyvalue.v1.KeyValueDB" service.
@@ -223,7 +340,7 @@ extension CompilationCacheService_Keyvalue_V1_KeyValueDB {
     ///
     /// > Source IDL Documentation:
     /// >
-    /// > KeyValueDB service for cache lookups
+    /// > Interface exported by the service.
     internal struct Client<Transport>: ClientProtocol where Transport: GRPCCore.ClientTransport {
         private let client: GRPCCore.GRPCClient<Transport>
 
@@ -264,6 +381,36 @@ extension CompilationCacheService_Keyvalue_V1_KeyValueDB {
                 onResponse: handleResponse
             )
         }
+
+        /// Call the "PutValue" method.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `CompilationCacheService_Keyvalue_V1_PutValueRequest` message.
+        ///   - serializer: A serializer for `CompilationCacheService_Keyvalue_V1_PutValueRequest` messages.
+        ///   - deserializer: A deserializer for `CompilationCacheService_Keyvalue_V1_PutValueResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response, the result of which is
+        ///       returned to the caller. Returning from the closure will cancel the RPC if it
+        ///       hasn't already finished.
+        /// - Returns: The result of `handleResponse`.
+        internal func putValue<Result>(
+            request: GRPCCore.ClientRequest<CompilationCacheService_Keyvalue_V1_PutValueRequest>,
+            serializer: some GRPCCore.MessageSerializer<CompilationCacheService_Keyvalue_V1_PutValueRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<CompilationCacheService_Keyvalue_V1_PutValueResponse>,
+            options: GRPCCore.CallOptions = .defaults,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<CompilationCacheService_Keyvalue_V1_PutValueResponse>) async throws -> Result = { response in
+                try response.message
+            }
+        ) async throws -> Result where Result: Sendable {
+            try await self.client.unary(
+                request: request,
+                descriptor: CompilationCacheService_Keyvalue_V1_KeyValueDB.Method.PutValue.descriptor,
+                serializer: serializer,
+                deserializer: deserializer,
+                options: options,
+                onResponse: handleResponse
+            )
+        }
     }
 }
 
@@ -290,6 +437,31 @@ extension CompilationCacheService_Keyvalue_V1_KeyValueDB.ClientProtocol {
             request: request,
             serializer: GRPCProtobuf.ProtobufSerializer<CompilationCacheService_Keyvalue_V1_GetValueRequest>(),
             deserializer: GRPCProtobuf.ProtobufDeserializer<CompilationCacheService_Keyvalue_V1_GetValueResponse>(),
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "PutValue" method.
+    ///
+    /// - Parameters:
+    ///   - request: A request containing a single `CompilationCacheService_Keyvalue_V1_PutValueRequest` message.
+    ///   - options: Options to apply to this RPC.
+    ///   - handleResponse: A closure which handles the response, the result of which is
+    ///       returned to the caller. Returning from the closure will cancel the RPC if it
+    ///       hasn't already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func putValue<Result>(
+        request: GRPCCore.ClientRequest<CompilationCacheService_Keyvalue_V1_PutValueRequest>,
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<CompilationCacheService_Keyvalue_V1_PutValueResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        try await self.putValue(
+            request: request,
+            serializer: GRPCProtobuf.ProtobufSerializer<CompilationCacheService_Keyvalue_V1_PutValueRequest>(),
+            deserializer: GRPCProtobuf.ProtobufDeserializer<CompilationCacheService_Keyvalue_V1_PutValueResponse>(),
             options: options,
             onResponse: handleResponse
         )
@@ -322,6 +494,35 @@ extension CompilationCacheService_Keyvalue_V1_KeyValueDB.ClientProtocol {
             metadata: metadata
         )
         return try await self.getValue(
+            request: request,
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "PutValue" method.
+    ///
+    /// - Parameters:
+    ///   - message: request message to send.
+    ///   - metadata: Additional metadata to send, defaults to empty.
+    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
+    ///   - handleResponse: A closure which handles the response, the result of which is
+    ///       returned to the caller. Returning from the closure will cancel the RPC if it
+    ///       hasn't already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func putValue<Result>(
+        _ message: CompilationCacheService_Keyvalue_V1_PutValueRequest,
+        metadata: GRPCCore.Metadata = [:],
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<CompilationCacheService_Keyvalue_V1_PutValueResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        let request = GRPCCore.ClientRequest<CompilationCacheService_Keyvalue_V1_PutValueRequest>(
+            message: message,
+            metadata: metadata
+        )
+        return try await self.putValue(
             request: request,
             options: options,
             onResponse: handleResponse
