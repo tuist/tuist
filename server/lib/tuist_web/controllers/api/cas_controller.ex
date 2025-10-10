@@ -199,15 +199,18 @@ defmodule TuistWeb.API.CASController do
         description: "The artifact identifier."
       ]
     ],
+    request_body: {"The CAS artifact data", "application/octet-stream", nil, required: true},
     responses: %{
-      ok: {"Upload successful", "application/json", nil},
-      not_modified: {"Artifact already exists, no upload needed", "application/json", nil},
+      ok: {"Upload successful", "application/json", %Schema{type: :object,
+      title: "CASArtifact",
+      properties: %{id: %Schema{type: :string}}}},
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error}
     }
   )
 
   def create(conn, _params) do
+    {:ok, body, conn} = Plug.Conn.read_body(conn, length: 100_000_000)
     %{id: id, account_handle: account_handle, project_handle: project_handle} = conn.private.open_api_spex.params
     authenticated_subject = Authentication.authenticated_subject(conn)
     account = Accounts.get_account_by_handle(account_handle)
@@ -240,12 +243,15 @@ defmodule TuistWeb.API.CASController do
         key = "#{prefix}#{get_s3_key(id)}"
 
         if Storage.object_exists?(key, authenticated_subject) do
-          send_resp(conn, :not_modified, "")
+          conn
+          |> put_status(:ok)
+          |> json(%{id: "key"})
         else
           # Stream the upload from the request body to S3
-          {:ok, body, _conn} = Plug.Conn.read_body(conn)
           Storage.put_object(key, body, authenticated_subject)
-          send_resp(conn, 200, "")
+          conn
+          |> put_status(:ok)
+          |> json(%{id: key})
         end
     end
   end
