@@ -56,6 +56,7 @@ public enum TuistAcceptanceFixtures {
     case iosAppWithExtensions
     case iosAppWithDynamicFrameworksLinkingStaticFrameworks
     case iosAppWithFrameworkAndResources
+    case iosAppWithFrameworkXcassetsAndDefaultInternalImports
     case iosAppWithFrameworkAndDisabledResources
     case iosAppWithFrameworkLinkingStaticFramework
     case iosAppWithFrameworks
@@ -231,6 +232,8 @@ public enum TuistAcceptanceFixtures {
             return "ios_app_with_framework_and_resources"
         case .iosAppWithFrameworkAndDisabledResources:
             return "ios_app_with_framework_and_disabled_resources"
+        case .iosAppWithFrameworkXcassetsAndDefaultInternalImports:
+            return "ios_app_with_framework_xcassets_and_default_internal_imports"
         case .iosAppWithFrameworkLinkingStaticFramework:
             return "ios_app_with_framework_linking_static_framework"
         case .iosAppWithFrameworks:
