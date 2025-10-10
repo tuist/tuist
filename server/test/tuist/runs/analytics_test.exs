@@ -299,7 +299,7 @@ defmodule Tuist.Runs.AnalyticsTest do
         )
 
       # Then
-      assert got.values == [0, 1500.0, 3000.0]
+      assert got.values == [0.0, 1500.0, 4000.0]
     end
   end
 

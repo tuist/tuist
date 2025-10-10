@@ -105,8 +105,8 @@ defmodule Tuist.RunsTest do
         Runs.list_build_runs(Flop.to_next_page(got_meta_first_page.flop))
 
       # Then
-      assert got_builds_first_page == [Repo.reload(build_two)]
-      assert got_builds_second_page == [Repo.reload(build_one)]
+      assert Enum.map(got_builds_first_page, & &1.id) == [build_two.id]
+      assert Enum.map(got_builds_second_page, & &1.id) == [build_one.id]
     end
   end
 

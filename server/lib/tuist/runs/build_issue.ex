@@ -1,6 +1,7 @@
 defmodule Tuist.Runs.BuildIssue do
   @moduledoc false
   use Ecto.Schema
+  use Tuist.Ingestion.Bufferable
 
   @primary_key false
   schema "build_issues" do
@@ -21,7 +22,8 @@ defmodule Tuist.Runs.BuildIssue do
     field :starting_column, Ch, type: "UInt64"
     field :ending_column, Ch, type: "UInt64"
 
-    belongs_to :build_run, Tuist.Runs.Build, type: Ecto.UUID
+    field :build_run_id, Ch, type: "UUID"
+    belongs_to :build_run, Tuist.Runs.Build, define_field: false
     # credo:disable-for-next-line Credo.Checks.TimestampsType
     timestamps(updated_at: false)
   end

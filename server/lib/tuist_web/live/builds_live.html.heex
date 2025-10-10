@@ -714,17 +714,17 @@
         }
       >
         <:col :let={build} label={gettext("Scheme")}>
-          <.text_and_description_cell label={build.scheme || gettext("Unknown")} />
+          <.text_and_description_cell label={value_or_unknown(build.scheme)} />
         </:col>
         <:col :let={build} label="Status">
-          <%= if build.status == :success do %>
+          <%= if build.status == "success" do %>
             <.status_badge_cell label={gettext("Passed")} status="success" />
           <% else %>
             <.status_badge_cell label={gettext("Failed")} status="error" />
           <% end %>
         </:col>
         <:col :let={build} label={gettext("Xcode version")}>
-          <.text_cell label={build.xcode_version || gettext("Unknown")} />
+          <.text_cell label={value_or_unknown(build.xcode_version)} />
         </:col>
         <:col :let={build} label={gettext("Ran by")}>
           <.build_ran_by_badge_cell build={build} />
@@ -739,10 +739,7 @@
         </:col>
         <:col :let={build_run} label={gettext("Category")}>
           <.badge_cell
-            label={
-              (build_run.category && Atom.to_string(build_run.category) |> String.capitalize()) ||
-                gettext("Unknown")
-            }
+            label={value_or_unknown(build_run.category)}
             style="light-fill"
           />
         </:col>
