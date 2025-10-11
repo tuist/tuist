@@ -20,7 +20,7 @@ enum RegistryCommandSetupServiceError: Equatable, LocalizedError {
         switch self {
         case .missingFullHandle:
             return
-                "We couldn't set up the registry because the project is missing the 'fullHandle' in the 'Tuist.swift' file."
+                "We couldn't set up the registry with account authentication because the project is missing the 'fullHandle' in the 'Tuist.swift' file."
         case let .noProjectFound(path):
             return
                 "We couldn't find an Xcode, SwiftPM, or Tuist project at \(path.pathString). Make sure you're in the right directory."
@@ -60,38 +60,43 @@ struct RegistrySetupCommandService {
     }
 
     func run(
-        path: String?
+        path: String?,
+        authenticated: Bool = false
     ) async throws {
         let path = try await Environment.current.pathRelativeToWorkingDirectory(path)
         let config = try await configLoader.loadConfig(path: path)
 
-        guard let fullHandle = config.fullHandle else {
-            throw RegistryCommandSetupServiceError.missingFullHandle
-        }
-        let accountHandle = try fullHandleService.parse(fullHandle).accountHandle
-
         let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
 
-        try await Noora.current.progressStep(
-            message: "Logging into the registry...",
-            successMessage: "Logged in to the \(accountHandle) registry",
-            errorMessage: nil,
-            showSpinner: true
-        ) { _ in
-            let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
-            let registryURL = serverURL.appending(
-                path: "api/accounts/\(accountHandle)/registry/swift"
-            )
+        let accountHandle: String?
+        if authenticated {
+            guard let fullHandle = config.fullHandle else {
+                throw RegistryCommandSetupServiceError.missingFullHandle
+            }
+            accountHandle = try fullHandleService.parse(fullHandle).accountHandle
 
-            let token = try await createAccountTokenService.createAccountToken(
-                accountHandle: accountHandle,
-                scopes: [.accountRegistryRead],
-                serverURL: serverURL
-            )
-            try await swiftPackageManagerController.packageRegistryLogin(
-                token: token,
-                registryURL: registryURL
-            )
+            try await Noora.current.progressStep(
+                message: "Logging into the registry...",
+                successMessage: "Logged in to the \(accountHandle!) registry",
+                errorMessage: nil,
+                showSpinner: true
+            ) { _ in
+                let registryURL = serverURL.appending(
+                    path: "api/accounts/\(accountHandle!)/registry/swift"
+                )
+
+                let token = try await createAccountTokenService.createAccountToken(
+                    accountHandle: accountHandle!,
+                    scopes: [.accountRegistryRead],
+                    serverURL: serverURL
+                )
+                try await swiftPackageManagerController.packageRegistryLogin(
+                    token: token,
+                    registryURL: registryURL
+                )
+            }
+        } else {
+            accountHandle = nil
         }
 
         let swiftPackageManagerPath: AbsolutePath
@@ -137,23 +142,57 @@ struct RegistrySetupCommandService {
             at: configurationJSONPath
         )
 
-        AlertController.current.success(
-            .alert(
-                "Generated the \(accountHandle) registry configuration file at \(.accent(configurationJSONPath.relative(to: path).pathString))",
-                takeaways: [
-                    "Commit the generated configuration file to share the configuration with the rest of your team",
-                    "Ensure that your team members run \(.command("tuist registry login")) to log in to the registry",
-                    "For more information about the registry, such as how to set up the registry in your CI, head to our \(.link(title: "docs", href: "https://docs.tuist.dev/en/guides/features/registry"))",
-                ]
+        if let accountHandle {
+            AlertController.current.success(
+                .alert(
+                    "Generated the \(accountHandle) registry configuration file at \(.accent(configurationJSONPath.relative(to: path).pathString))",
+                    takeaways: [
+                        "Commit the generated configuration file to share the configuration with the rest of your team",
+                        "Ensure that your team members run \(.command("tuist registry login")) to log in to the registry",
+                        "You're using authenticated access with higher rate limits",
+                        "For more information about the registry, head to our \(.link(title: "docs", href: "https://docs.tuist.dev/en/guides/features/registry"))",
+                    ]
+                )
             )
-        )
+        } else {
+            AlertController.current.success(
+                .alert(
+                    "Generated the registry configuration file at \(.accent(configurationJSONPath.relative(to: path).pathString))",
+                    takeaways: [
+                        "Commit the generated configuration file to share the configuration with the rest of your team",
+                        "The registry is now accessible without authentication",
+                        "You're using unauthenticated access with standard rate limits",
+                        "To use higher rate limits, run \(.command("tuist registry setup --authenticated"))",
+                        "For more information about the registry, head to our \(.link(title: "docs", href: "https://docs.tuist.dev/en/guides/features/registry"))",
+                    ]
+                )
+            )
+        }
     }
 
     private func registryConfigurationJSON(
         serverURL: URL,
-        accountHandle: String
+        accountHandle: String?
     ) -> String {
-        """
+        let registryURL: String
+        let authenticationSection: String
+
+        if let accountHandle {
+            registryURL = "\(serverURL.absoluteString.dropSuffix("/"))/api/accounts/\(accountHandle)/registry/swift"
+            authenticationSection = """
+              "authentication": {
+                "\(serverURL.host() ?? Constants.URLs.production.host()!)": {
+                  "loginAPIPath": "/api/accounts/\(accountHandle)/registry/swift/login",
+                  "type": "token"
+                }
+              },
+            """
+        } else {
+            registryURL = "\(serverURL.absoluteString.dropSuffix("/"))/api/registry/swift"
+            authenticationSection = ""
+        }
+
+        return """
         {
           "security": {
             "default": {
@@ -162,16 +201,10 @@ struct RegistrySetupCommandService {
               }
             }
           },
-          "authentication": {
-            "\(serverURL.host() ?? Constants.URLs.production.host()!)": {
-              "loginAPIPath": "/api/accounts/\(accountHandle)/registry/swift/login",
-              "type": "token"
-            }
-          },
-          "registries": {
+        \(authenticationSection)  "registries": {
             "[default]": {
               "supportsAvailability": false,
-              "url": "\(serverURL.absoluteString.dropSuffix("/"))/api/accounts/\(accountHandle)/registry/swift"
+              "url": "\(registryURL)"
             }
           },
           "version": 1
