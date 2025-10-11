@@ -214,6 +214,14 @@ final class GenerateAcceptanceTestiOSAppWithFrameworkAndResources: TuistAcceptan
     }
 }
 
+final class GenerateAcceptanceTestiOSAppWithFrameworkXcassetsAndDefaultIntenalImports: TuistAcceptanceTestCase {
+    func test_ios_app_with_framework_xcassets_and_default_internal_imports() async throws {
+        try await setUpFixture(.iosAppWithFrameworkXcassetsAndDefaultInternalImports)
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self)
+    }
+}
+
 final class GenerateAcceptanceTestiOSAppWithOnDemandResources: TuistAcceptanceTestCase {
     func test_ios_app_with_on_demand_resources() async throws {
         try await setUpFixture(.iosAppWithOnDemandResources)
