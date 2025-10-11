@@ -29,6 +29,7 @@ hello-*.tar
 /priv/static/assets/
 /priv/static/app/assets/
 /priv/static/marketing/assets/
+/priv/static/marketing_next/assets/
 /priv/static/apidocs/assets/
 /priv/static/storybook/assets/
 
@@ -58,10 +59,5 @@ uuid
 .opencode/
 .claude/
 minio/
-
-# Gettext
-# NOTE: We currently do not utilise gettext for actual translations and relying on key-as-value gettext calls.
-# This will be changed once we start localising the dashboard.
-priv/gettext/default.pot
 
 burrito_out

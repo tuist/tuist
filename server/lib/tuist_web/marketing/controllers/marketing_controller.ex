@@ -1,5 +1,6 @@
 defmodule TuistWeb.Marketing.MarketingController do
   use TuistWeb, :controller
+  use Noora
 
   import TuistWeb.Marketing.StructuredMarkup
 
@@ -32,27 +33,36 @@ defmodule TuistWeb.Marketing.MarketingController do
   end
 
   def home(conn, _params) do
-    read_more_posts = Enum.take(Blog.get_posts(), 3)
-    testimonials = home_testimonials()
+    conn =
+      conn
+      |> assign(:head_title, "Tuist · Make mobile your competitive advantage")
+      |> assign(
+        :head_description,
+        "The same iOS tooling that powers billion-user apps, delivered as a service for your team"
+      )
+      |> assign(
+        :head_image,
+        Tuist.Environment.app_url(path: "/marketing/images/og/home.jpg")
+      )
+      |> assign(:head_twitter_card, "summary_large_image")
 
-    conn
-    |> assign(:head_title, "Tuist · Make mobile your competitive advantage")
-    |> assign(
-      :head_description,
-      "The same iOS tooling that powers billion-user apps, delivered as a service for your team"
-    )
-    |> assign(
-      :head_image,
-      Tuist.Environment.app_url(path: "/marketing/images/og/home.jpg")
-    )
-    |> assign(:head_twitter_card, "summary_large_image")
-    |> assign_structured_data(get_testimonials_structured_data(testimonials))
-    |> assign(:testimonials, testimonials)
-    |> assign(:read_more_posts, read_more_posts)
-    |> render(:home, layout: false)
+    if FunWithFlags.enabled?(:marketing_next) do
+      render(conn, :home_next, layout: false)
+    else
+      read_more_posts = Enum.take(Blog.get_posts(), 3)
+      testimonials = home_testimonials()
+
+      conn
+      |> assign_structured_data(get_testimonials_structured_data(testimonials))
+      |> assign(:testimonials, testimonials)
+      |> assign(:read_more_posts, read_more_posts)
+      |> render(:home, layout: false)
+    end
   end
 
   def about(conn, _params) do
+    template = if(FunWithFlags.enabled?(:marketing_next), do: :about_next, else: :about)
+
     conn
     |> assign_structured_data(get_organization_structured_data())
     |> assign_structured_data(
@@ -71,7 +81,7 @@ defmodule TuistWeb.Marketing.MarketingController do
       "Learn more about Tuist, the open-source project that helps you scale your Swift development."
     )
     |> assign(:head_title, "About Tuist")
-    |> render(:about, layout: false)
+    |> render(template, layout: false)
   end
 
   def support(conn, _params) do
