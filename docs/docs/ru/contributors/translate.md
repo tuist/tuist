@@ -39,10 +39,10 @@
 [проекту](https://translate.tuist.dev/engage/tuist/), создайте учётную запись и
 начните перевод.
 
-Translations are synchronized back to the source repository using GitHub pull
-requests which maintainers will review and merge.
+Переводы синхронизируются с исходным репозиторием через pull-реквесты GitHub,
+которые мейнтейнеры проверяют и сливают.
 
-::: warning DON'T MODIFY THE RESOURCES IN THE TARGET LANGUAGE
+::: warning НЕ МЕНЯЙТЕ РЕСУРСЫ В ЦЕЛЕВОМ ЯЗЫКЕ
 <!-- -->
 Weblate segments the files to bind source and target languages. If you modify
 the source language, you'll break the binding, and the reconciliation might
