@@ -10,38 +10,147 @@ defmodule Tuist.License do
   @validation_url "https://api.keygen.sh/v1/accounts/cce51171-9339-4430-8441-73bb5abd9a5c/licenses/actions/validate-key"
 
   @enforce_keys [:id, :features, :expiration_date, :valid]
-  defstruct [:id, :features, :expiration_date, :valid, :signing_certificate]
+  defstruct [:id, :features, :expiration_date, :valid, :signing_key]
 
   def get_validation_url do
     @validation_url
   end
 
-  def sign(item) do
+  def sign(value) when is_binary(value) do
     if Tuist.Environment.dev?() or Tuist.Environment.test?() do
       nil
     else
-      {:ok, %{signing_certificate: pem}} = get_license()
-      [{_, der, _}] = :public_key.pem_decode(pem)
-      key_size = byte_size(der) - 32
-      <<_::binary-size(key_size), key::binary-size(32)>> = der
-
-      signature = :crypto.sign(:eddsa, :none, JSON.encode!(item), [key, :ed25519])
+      {:ok, %{signing_key: key_base64}} = get_license()
+      key = Base.decode64!(key_base64)
+      signature = :crypto.mac(:hmac, :sha256, key, value)
       Base.encode64(signature)
     end
   end
 
   def get_license(opts \\ []) do
-    case KeyValueStore.get_or_update(
-           [__MODULE__, "license"],
-           [
-             ttl: Keyword.get(opts, :ttl, to_timeout(day: 1))
-           ],
-           fn ->
-             resolve_license(Tuist.Environment.get_license_key())
-           end
-         ) do
-      {:ok, license} -> {:ok, license}
-      {:error, error} -> {:error, error}
+    ttl = Keyword.get(opts, :ttl, to_timeout(day: 1))
+
+    KeyValueStore.get_or_update(
+      [__MODULE__, "license"],
+      [ttl: ttl],
+      fn -> fetch_license() end
+    )
+  end
+
+  defp fetch_license do
+    cond do
+      key = Tuist.Environment.license_key() ->
+        resolve_license(key)
+
+      Tuist.Environment.license_certificate_base64() ->
+        resolve_certificate()
+
+      true ->
+        {:error, :license_not_found}
+    end
+  end
+
+  # Ed25519 128-bit Verify Key
+  def ed25519_verify_key do
+    "58f8d43c65b5a3e200e8ef6ecefa6b700432124527edf50a5b5b0577242c51fd"
+  end
+
+  def certificate do
+    Base.decode64!(Tuist.Environment.license_certificate_base64())
+  end
+
+  @doc """
+  Resolves a license from a certificate, validating it against the Ed25519 verify key.
+
+  Returns {:ok, %Tuist.License{}} if valid, {:error, reason} otherwise.
+
+  Supports Keygen offline license format with Ed25519 signatures.
+  """
+  def resolve_certificate(verify_key \\ ed25519_verify_key(), certificate \\ certificate()) do
+    cert_content =
+      certificate
+      |> String.replace(~r/-----.*?-----/s, "")
+      |> String.replace(~r/\s/, "")
+      |> String.trim()
+
+    with {:ok, decoded} <- Base.decode64(cert_content),
+         {:ok, payload} <- Jason.decode(decoded) do
+      case payload do
+        %{"enc" => enc_data, "sig" => sig_data, "alg" => alg} ->
+          verify_and_build_license(verify_key, enc_data, sig_data, alg)
+
+        %{"data" => data, "sig" => sig, "alg" => alg} ->
+          verify_and_build_license(verify_key, data, sig, alg)
+
+        _ ->
+          {:error, "Invalid certificate format - missing required fields"}
+      end
+    else
+      :error ->
+        {:error, "Failed to decode base64 certificate"}
+
+      {:error, %Jason.DecodeError{} = error} ->
+        {:error, "Invalid certificate JSON: #{Exception.message(error)}"}
+    end
+  end
+
+  defp verify_and_build_license(verify_key, enc_data, signature, _algorithm) do
+    with {:ok, public_key} <- Base.decode16(verify_key, case: :lower),
+         {:ok, sig_binary} <- Base.decode64(signature) do
+      # For Ed25519 signatures, verify against "license/" + base64 data
+      data_to_verify = "license/" <> enc_data
+
+      if :crypto.verify(:eddsa, :none, data_to_verify, sig_binary, [public_key, :ed25519]) do
+        case Base.decode64(enc_data) do
+          {:ok, decoded} ->
+            case JSON.decode(decoded) do
+              {:ok, license_data} -> build_license_struct(license_data)
+              {:error, _} -> {:error, "Failed to parse license data"}
+            end
+
+          :error ->
+            {:error, "Failed to decode license data"}
+        end
+      else
+        {:error, "Invalid signature"}
+      end
+    else
+      :error ->
+        {:error, "Failed to decode verify key or signature"}
+    end
+  end
+
+  defp build_license_struct(license_data) do
+    # Extract the main data section
+    data = license_data["data"]
+    attributes = data["attributes"]
+    metadata = attributes["metadata"] || %{}
+
+    # Determine validity based on expiry and status
+    expiry = attributes["expiry"]
+
+    valid =
+      case DateTime.from_iso8601(expiry) do
+        {:ok, exp_date, _} -> DateTime.after?(exp_date, DateTime.utc_now())
+        _ -> false
+      end
+
+    {:ok,
+     %__MODULE__{
+       id: data["id"],
+       valid: valid,
+       features: [],
+       expiration_date: parse_datetime(expiry),
+       signing_key: metadata["signingKey"]
+     }}
+  end
+
+  defp parse_datetime(nil), do: nil
+
+  defp parse_datetime(datetime_string) do
+    case DateTime.from_iso8601(datetime_string) do
+      {:ok, datetime, _} -> datetime
+      _ -> nil
     end
   end
 
@@ -55,8 +164,11 @@ defmodule Tuist.License do
         {:ok, %{valid: true}} ->
           :ok
 
-        {:ok, nil} ->
+        {:error, :license_not_found} ->
           raise "The license key exposed through the environment variable TUIST_LICENSE or TUIST_LICENSE_KEY is missing."
+
+        {:ok, nil} ->
+          raise "The license key is invalid or does not exist."
 
         {:ok, %{valid: false}} ->
           raise "The license key is invalid or expired. Please, contact contact@tuist.dev to get a new one."
@@ -83,11 +195,8 @@ defmodule Tuist.License do
         if is_nil(payload["data"]) do
           {:ok, nil}
         else
-          base_64_signing_certificate =
-            (payload["data"]["attributes"]["metadata"] || %{})["base64SigningCertificate"]
-
-          signing_certificate =
-            base_64_signing_certificate && Base.decode64!(base_64_signing_certificate)
+          signing_key =
+            (payload["data"]["attributes"]["metadata"] || %{})["signingKey"]
 
           {:ok,
            %__MODULE__{
@@ -95,7 +204,7 @@ defmodule Tuist.License do
              id: payload["data"]["id"],
              features: [],
              expiration_date: Timex.parse!(payload["data"]["attributes"]["expiry"], "{RFC3339}"),
-             signing_certificate: signing_certificate
+             signing_key: signing_key
            }}
         end
 

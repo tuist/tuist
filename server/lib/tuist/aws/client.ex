@@ -14,10 +14,14 @@ defmodule Tuist.AWS.Client do
 
   @behaviour ExAws.Request.HttpClient
 
-  @default_opts [receive_timeout: 30_000]
-
   @impl true
   def request(method, url, body \\ "", headers \\ [], http_opts \\ []) do
+    # Get req_opts from config
+    req_opts = Application.get_env(:ex_aws, :req_opts, [])
+
+    # Convert http_opts to keyword list if it's a map
+    http_opts_list = if is_map(http_opts), do: Map.to_list(http_opts), else: http_opts
+
     [
       method: method,
       url: url,
@@ -26,9 +30,9 @@ defmodule Tuist.AWS.Client do
       decode_body: false,
       finch: Tuist.Finch
     ]
-    |> Keyword.merge(Application.get_env(:ex_aws, :req_opts, @default_opts))
-    # the temporary fix!
-    |> Keyword.merge(Keyword.delete(http_opts, :follow_redirect))
+    |> Keyword.merge(req_opts)
+    |> Keyword.merge(http_opts_list)
+    |> Keyword.delete(:follow_redirect)
     |> Req.request()
     |> case do
       {:ok, %{status: status, headers: headers, body: body}} ->

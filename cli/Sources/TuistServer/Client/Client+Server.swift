@@ -3,24 +3,20 @@ import OpenAPIRuntime
 import OpenAPIURLSession
 
 extension Client {
-    private static let commonMiddlewares: [any ClientMiddleware] = [
-        ServerClientRequestIdMiddleware(),
-        ServerClientVerboseLoggingMiddleware(),
-        ServerClientOutputWarningsMiddleware(),
-    ]
+    @TaskLocal public static var additionalMiddlewares: [any ClientMiddleware] = []
 
     /// Tuist client for authenticated sessions
     public static func authenticated(serverURL: URL) -> Client {
         .init(
             serverURL: serverURL,
             transport: URLSessionTransport(configuration: .init(session: .tuistShared)),
-            middlewares: commonMiddlewares + [
+            middlewares: [
                 ServerClientRequestIdMiddleware(),
                 ServerClientCLIMetadataHeadersMiddleware(),
                 ServerClientAuthenticationMiddleware(),
                 ServerClientVerboseLoggingMiddleware(),
                 ServerClientOutputWarningsMiddleware(),
-            ]
+            ] + additionalMiddlewares
         )
     }
 
@@ -29,7 +25,11 @@ extension Client {
         .init(
             serverURL: serverURL,
             transport: URLSessionTransport(configuration: .init(session: .tuistShared)),
-            middlewares: commonMiddlewares
+            middlewares: [
+                ServerClientRequestIdMiddleware(),
+                ServerClientVerboseLoggingMiddleware(),
+                ServerClientOutputWarningsMiddleware(),
+            ]
         )
     }
 }

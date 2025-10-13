@@ -29,7 +29,25 @@ struct TargetGeneratorTests {
             product: .framework,
             scripts: [],
             buildableFolders: [
-                BuildableFolder(path: buildableFolderPath),
+                BuildableFolder(path: buildableFolderPath, exceptions: BuildableFolderExceptions(exceptions: [
+                    BuildableFolderException(
+                        excluded: [path.appending(components: ["Sources", "Excluded.swift"])],
+                        compilerFlags: [path.appending(components: ["Sources", "CompilerFlags.swift"]): "-print-stats"],
+                        publicHeaders: [path.appending(components: ["Sources", "Headers", "Public.h"])],
+                        privateHeaders: [path.appending(components: ["Sources", "Headers", "Private.h"])]
+                    ),
+                ]), resolvedFiles: [
+                    BuildableFolderFile(path: path.appending(components: ["Sources", "Included.swift"]), compilerFlags: nil),
+                    BuildableFolderFile(
+                        path: path.appending(components: ["Sources", "CompilerFlags.swift"]),
+                        compilerFlags: "-print-stats"
+                    ),
+                    BuildableFolderFile(path: path.appending(components: ["Sources", "Headers", "Public.h"]), compilerFlags: nil),
+                    BuildableFolderFile(
+                        path: path.appending(components: ["Sources", "Headers", "Private.h"]),
+                        compilerFlags: nil
+                    ),
+                ]),
             ]
         )
         let project = Project.test(
@@ -67,6 +85,12 @@ struct TargetGeneratorTests {
         #expect(generatedTarget.fileSystemSynchronizedGroups?.count != 0)
         let group = try #require(generatedTarget.fileSystemSynchronizedGroups?.first)
         #expect(group.path == "Sources")
+        #expect(group.exceptions?.count == 1)
+        let exception = try #require(group.exceptions?.first as? PBXFileSystemSynchronizedBuildFileExceptionSet)
+        #expect(exception.membershipExceptions == ["Excluded.swift"])
+        #expect(exception.additionalCompilerFlagsByRelativePath == ["CompilerFlags.swift": "-print-stats"])
+        #expect(exception.publicHeaders == ["Headers/Public.h"])
+        #expect(exception.privateHeaders == ["Headers/Private.h"])
     }
 
     @Test func generateTarget_productName() async throws {

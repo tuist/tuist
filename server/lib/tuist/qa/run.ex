@@ -16,7 +16,6 @@ defmodule Tuist.QA.Run do
     filterable: [
       :id,
       :status,
-      :vcs_provider,
       :git_ref
     ],
     sortable: [:inserted_at, :finished_at]
@@ -27,13 +26,13 @@ defmodule Tuist.QA.Run do
   schema "qa_runs" do
     field :prompt, :string
     field :status, :string, default: "pending"
-    field :vcs_repository_full_handle, :string
-    field :vcs_provider, Ecto.Enum, values: [github: 0]
     field :git_ref, :string
     field :issue_comment_id, :integer
     field :finished_at, :utc_datetime
     field :launch_argument_groups, {:array, :map}, default: []
     field :app_description, :string, default: ""
+    field :email, :string, default: ""
+    field :password, :string, default: ""
 
     belongs_to :app_build, AppBuild, type: UUIDv7
     has_one :recording, Recording, foreign_key: :qa_run_id
@@ -49,12 +48,12 @@ defmodule Tuist.QA.Run do
       :app_build_id,
       :prompt,
       :status,
-      :vcs_repository_full_handle,
-      :vcs_provider,
       :git_ref,
       :issue_comment_id,
       :launch_argument_groups,
-      :app_description
+      :app_description,
+      :email,
+      :password
     ])
     |> validate_required([:prompt, :status])
     |> validate_inclusion(:status, ["pending", "running", "completed", "failed"])
@@ -62,6 +61,14 @@ defmodule Tuist.QA.Run do
   end
 
   def update_changeset(qa_run, attrs) do
-    cast(qa_run, attrs, [:app_build_id, :status, :finished_at, :launch_argument_groups, :app_description])
+    cast(qa_run, attrs, [
+      :app_build_id,
+      :status,
+      :finished_at,
+      :launch_argument_groups,
+      :app_description,
+      :email,
+      :password
+    ])
   end
 end

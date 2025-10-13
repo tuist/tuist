@@ -214,6 +214,11 @@ defmodule TuistWeb.API.BundlesController do
                  description:
                    "Git reference of the repository. When run from CI in a pull request, this will be the remote reference to the pull request, such as `refs/pull/23958/merge`."
                },
+               type: %Schema{
+                 type: :string,
+                 enum: ["ipa", "app", "xcarchive"],
+                 description: "The type of the bundle"
+               },
                artifacts: %Schema{
                  type: :array,
                  description: "The artifacts in this bundle",
@@ -264,6 +269,9 @@ defmodule TuistWeb.API.BundlesController do
         %AuthenticatedAccount{account: account} -> account.id
       end
 
+    # Derive type if not provided for older CLI versions: :ipa if download_size is specified, :app otherwise
+    type = bundle["type"] || derive_bundle_type(bundle["download_size"])
+
     with {:ok, %Bundles.Bundle{} = bundle} <-
            Bundles.create_bundle(
              %{
@@ -279,6 +287,7 @@ defmodule TuistWeb.API.BundlesController do
                git_branch: bundle["git_branch"],
                git_commit_sha: bundle["git_commit_sha"],
                git_ref: bundle["git_ref"],
+               type: type,
                uploaded_by_account_id: account_id
              },
              preload: [:uploaded_by_account, project: [:account]]
@@ -288,6 +297,9 @@ defmodule TuistWeb.API.BundlesController do
       |> json(bundle_to_map(bundle))
     end
   end
+
+  defp derive_bundle_type(download_size) when is_nil(download_size), do: "app"
+  defp derive_bundle_type(_download_size), do: "ipa"
 
   defp bundle_list_to_map(bundle) do
     %{
@@ -301,6 +313,7 @@ defmodule TuistWeb.API.BundlesController do
       git_branch: bundle.git_branch,
       git_commit_sha: bundle.git_commit_sha,
       git_ref: bundle.git_ref,
+      type: bundle.type,
       inserted_at: bundle.inserted_at,
       uploaded_by_account: bundle.uploaded_by_account.name,
       url: url(~p"/#{bundle.project.account.name}/#{bundle.project.name}/bundles/#{bundle.id}")
@@ -325,6 +338,7 @@ defmodule TuistWeb.API.BundlesController do
       git_branch: bundle.git_branch,
       git_commit_sha: bundle.git_commit_sha,
       git_ref: bundle.git_ref,
+      type: bundle.type,
       inserted_at: bundle.inserted_at,
       uploaded_by_account: bundle.uploaded_by_account.name,
       artifacts: artifacts,

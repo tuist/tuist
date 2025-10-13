@@ -24,7 +24,7 @@ defmodule TuistWeb.QARunLive do
            preload: [
              run_steps: :screenshot,
              recording: [],
-             app_build: [preview: [project: :account]]
+             app_build: [preview: [project: [:account, :vcs_connection]]]
            ]
          ) do
       {:error, :not_found} ->
@@ -68,7 +68,8 @@ defmodule TuistWeb.QARunLive do
          |> assign(:video_url, video_url)
          |> assign(:steps, steps)
          |> assign(:current_step, List.first(steps))
-         |> assign(:is_playing, false)}
+         |> assign(:is_playing, false)
+         |> assign(:playback_speed, 1.0)}
     end
   end
 
@@ -101,14 +102,13 @@ defmodule TuistWeb.QARunLive do
   end
 
   defp build_pr_comment_url(%{issue_comment_id: nil}), do: nil
-  defp build_pr_comment_url(%{vcs_repository_full_handle: nil}), do: nil
   defp build_pr_comment_url(%{git_ref: nil}), do: nil
+  defp build_pr_comment_url(%{app_build: %{preview: %{project: %{vcs_connection: nil}}}}), do: nil
 
   defp build_pr_comment_url(%{
          issue_comment_id: comment_id,
-         vcs_repository_full_handle: repo_handle,
-         vcs_provider: :github,
-         git_ref: git_ref
+         git_ref: git_ref,
+         app_build: %{preview: %{project: %{vcs_connection: %{provider: :github, repository_full_handle: repo_handle}}}}
        })
        when is_integer(comment_id) do
     case extract_pr_number_from_git_ref(git_ref) do
@@ -245,6 +245,18 @@ defmodule TuistWeb.QARunLive do
   end
 
   @impl true
+  def handle_event("change_playback_speed", %{"speed" => speed}, socket) do
+    speed = String.to_float(speed)
+
+    socket =
+      socket
+      |> assign(:playback_speed, speed)
+      |> push_event("set-playback-speed", %{speed: speed, id: "qa-recording"})
+
+    {:noreply, socket}
+  end
+
+  @impl true
   def handle_event(
         "seek_previous_step",
         _params,
@@ -283,7 +295,10 @@ defmodule TuistWeb.QARunLive do
 
   defp find_current_step(steps, current_time) do
     steps
-    |> Enum.filter(fn step -> step.time <= current_time end)
+    |> Enum.filter(fn step ->
+      step_time = if step.started_time, do: step.started_time, else: step.time
+      step_time <= current_time
+    end)
     |> List.last()
   end
 
@@ -292,6 +307,14 @@ defmodule TuistWeb.QARunLive do
     mins = div(total_seconds, 60)
     secs = rem(total_seconds, 60)
     "#{mins}:#{String.pad_leading(Integer.to_string(secs), 2, "0")}"
+  end
+
+  defp format_playback_speed(speed) do
+    if speed == trunc(speed) do
+      "#{trunc(speed)}x"
+    else
+      "#{speed}x"
+    end
   end
 
   defp steps_with_times(%{recording: nil} = _qa_run), do: []
@@ -305,15 +328,31 @@ defmodule TuistWeb.QARunLive do
     |> Enum.with_index()
     |> Enum.map(fn {step, index} ->
       time_seconds =
-        max(
-          min(
-            DateTime.diff(step.inserted_at, recording_started_at, :millisecond) + 300,
-            duration
-          ) / 1000.0,
+        if index == 0 do
           0
-        )
+        else
+          calculate_time_in_seconds(step.inserted_at, recording_started_at, duration)
+        end
 
-      step |> Map.put(:time, time_seconds) |> Map.put(:index, index)
+      started_time_seconds =
+        if step.started_at do
+          calculate_time_in_seconds(step.started_at, recording_started_at, duration)
+        end
+
+      step
+      |> Map.put(:time, time_seconds)
+      |> Map.put(:started_time, started_time_seconds)
+      |> Map.put(:index, index)
     end)
+  end
+
+  defp calculate_time_in_seconds(datetime, recording_started_at, duration) do
+    max(
+      min(
+        DateTime.diff(datetime, recording_started_at, :millisecond),
+        duration
+      ) / 1000.0,
+      0
+    )
   end
 end

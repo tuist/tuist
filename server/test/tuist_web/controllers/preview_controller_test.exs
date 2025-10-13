@@ -67,6 +67,104 @@ defmodule TuistWeb.PreviewControllerTest do
         get(conn, ~p"/#{project.account.name}/#{project.name}/previews/latest")
       end
     end
+
+    test "redirects to the latest preview when only non-main branch preview exists", %{conn: conn} do
+      # Given
+      project =
+        ProjectsFixtures.project_fixture(preload: [:account])
+
+      preview =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          display_name: "App",
+          git_branch: "feature-branch",
+          git_ref: "refs/heads/feature-branch"
+        )
+
+      # When
+      conn = get(conn, ~p"/#{project.account.name}/#{project.name}/previews/latest")
+
+      # Then
+      assert redirected_to(conn) ==
+               "/#{project.account.name}/#{project.name}/previews/#{preview.id}"
+    end
+
+    test "prefers main branch preview when both main and non-main branch previews exist", %{conn: conn} do
+      # Given
+      project =
+        ProjectsFixtures.project_fixture(preload: [:account])
+
+      main_preview =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          display_name: "App",
+          git_branch: "main",
+          git_ref: "refs/heads/main",
+          inserted_at: ~U[2023-01-02 10:00:00Z]
+        )
+
+      _feature_preview =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          display_name: "App",
+          git_branch: "feature-branch",
+          git_ref: "refs/heads/feature-branch",
+          inserted_at: ~U[2023-01-01 10:00:00Z]
+        )
+
+      # When
+      conn = get(conn, ~p"/#{project.account.name}/#{project.name}/previews/latest")
+
+      # Then
+      assert redirected_to(conn) ==
+               "/#{project.account.name}/#{project.name}/previews/#{main_preview.id}"
+    end
+
+    test "filters by bundle-id query parameter when provided", %{conn: conn} do
+      # Given
+      project =
+        ProjectsFixtures.project_fixture(preload: [:account])
+
+      _other_preview =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          display_name: "Other App",
+          bundle_identifier: "com.example.other",
+          inserted_at: ~U[2023-01-02 10:00:00Z]
+        )
+
+      target_preview =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          display_name: "Target App",
+          bundle_identifier: "com.tuist.dev",
+          inserted_at: ~U[2023-01-01 10:00:00Z]
+        )
+
+      # When
+      conn = get(conn, ~p"/#{project.account.name}/#{project.name}/previews/latest?bundle-id=com.tuist.dev")
+
+      # Then
+      assert redirected_to(conn) ==
+               "/#{project.account.name}/#{project.name}/previews/#{target_preview.id}"
+    end
+
+    test "raises not found error when bundle-id does not match any preview", %{conn: conn} do
+      # Given
+      project =
+        ProjectsFixtures.project_fixture(preload: [:account])
+
+      AppBuildsFixtures.preview_fixture(
+        project: project,
+        display_name: "App",
+        bundle_identifier: "com.example.app"
+      )
+
+      # When / Then
+      assert_raise NotFoundError, fn ->
+        get(conn, ~p"/#{project.account.name}/#{project.name}/previews/latest?bundle-id=com.nonexistent.app")
+      end
+    end
   end
 
   describe "download_qr_code_svg/2" do

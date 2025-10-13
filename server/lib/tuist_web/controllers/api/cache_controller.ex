@@ -29,9 +29,9 @@ defmodule TuistWeb.API.CacheController do
 
   plug(TuistWeb.API.Authorization.BillingPlug)
 
-  plug :sign
+  plug(:sign)
 
-  tags ["Cache"]
+  tags(["Cache"])
 
   operation(:get_cache_action_item,
     summary: "Get a cache action item.",
@@ -702,12 +702,23 @@ defmodule TuistWeb.API.CacheController do
     end
   end
 
+  defp sign(%{query_params: %{"hash" => hash}} = conn, _opts) do
+    sign_conn(conn, hash)
+  end
+
+  defp sign(%{path_params: %{"hash" => hash}} = conn, _opts) do
+    sign_conn(conn, hash)
+  end
+
   defp sign(conn, _opts) do
-    with hash when not is_nil(hash) <- conn.params[:hash],
-         signature when not is_nil(signature) <- Tuist.License.sign([hash]) do
-      put_resp_header(conn, "x-tuist-signature", signature)
+    conn
+  end
+
+  defp sign_conn(conn, hash) do
+    if Tuist.Environment.test?() or Tuist.Environment.dev?() do
+      put_resp_header(conn, "x-tuist-signature", "tuist")
     else
-      _ -> conn
+      put_resp_header(conn, "x-tuist-signature", Tuist.License.sign(hash))
     end
   end
 end

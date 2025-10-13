@@ -82,8 +82,8 @@ let project = Project(
                     "SUPublicEDKey": "ObyvL/hvYnFyAypkWwYaoeqE/iqB0LK6ioI3SA/Y1+k=",
                     "SUFeedURL":
                         "https://raw.githubusercontent.com/tuist/tuist/main/app/appcast.xml",
-                    "CFBundleShortVersionString": "0.20.2",
-                    "CFBundleVersion": "0.20.2",
+                    "CFBundleShortVersionString": "0.22.7",
+                    "CFBundleVersion": "8759",
                     "UILaunchStoryboardName": "LaunchScreen.storyboard",
                     "UISupportedInterfaceOrientations": [
                         "UIInterfaceOrientationPortrait",
@@ -114,6 +114,7 @@ let project = Project(
                     "CODE_SIGN_IDENTITY": "Apple Development",
                     "CODE_SIGN_ENTITLEMENTS[sdk=iphone*]":
                         "Resources/TuistApp/TuistApp.entitlements",
+                    "ASSETCATALOG_COMPILER_APPICON_NAME": "AppIcon",
                 ],
                 release: [
                     // Needed for the app notarization

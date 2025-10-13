@@ -64,9 +64,9 @@ extension Tuist {
         /// Default value is `true`.
         public var buildInsightsDisabled: Bool
 
-        /// Disables building manifests in a sandboxed environment.
+        /// Disables building manifests in a sandboxed environment. This option is currently opt-in.
         ///
-        /// - Warning: This is discouraged and should only be used if absolutely necessary. It guards against using file system
+        /// - It is encouraged to set `disableSandbox` to `false` (and thus to enable it). It guards against using file system
         /// operations which:
         ///   - Make generation slow
         ///   - Cause issues with manifest caching
@@ -81,7 +81,7 @@ extension Tuist {
             defaultConfiguration: String? = nil,
             optionalAuthentication: Bool = false,
             buildInsightsDisabled: Bool = false,
-            disableSandbox: Bool = false,
+            disableSandbox: Bool = true,
             includeGenerateScheme: Bool = true,
             additionalPackageResolutionArguments: [String] = []
         ) -> Self {
@@ -113,7 +113,7 @@ extension Tuist {
             defaultConfiguration: String? = nil,
             optionalAuthentication: Bool = false,
             buildInsightsDisabled: Bool = false,
-            disableSandbox: Bool = false,
+            disableSandbox: Bool = true,
             includeGenerateScheme: Bool = true
         ) -> Self {
             self.init(
@@ -155,7 +155,7 @@ extension Tuist {
                 defaultConfiguration: defaultConfiguration,
                 optionalAuthentication: optionalAuthentication,
                 buildInsightsDisabled: false,
-                disableSandbox: false,
+                disableSandbox: true,
                 includeGenerateScheme: false
             )
         }

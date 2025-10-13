@@ -22,19 +22,31 @@
           <.alert_circle />
         </div>
       </div>
-      <h1 :if={not is_nil(@run.scheme)} data-part="label">{@run.scheme}</h1>
+      <h1 data-part="label">{@run.scheme || gettext("Unknown scheme")}</h1>
     </div>
-    <.button
-      :if={@has_result_bundle.ok? && @has_result_bundle.result && @command_event}
-      href={
-        ~p"/#{@selected_project.account.name}/#{@selected_project.name}/runs/#{@command_event.id}/download"
-      }
-      label={gettext("Download result")}
-      variant="secondary"
-      size="medium"
-    >
-      <:icon_left><.download /></:icon_left>
-    </.button>
+    <div data-part="actions">
+      <.button
+        :if={@has_result_bundle.ok? && @has_result_bundle.result && @command_event}
+        href={
+          ~p"/#{@selected_project.account.name}/#{@selected_project.name}/runs/#{@command_event.id}/download"
+        }
+        label={gettext("Download result")}
+        variant="secondary"
+        size="medium"
+      >
+        <:icon_left><.download /></:icon_left>
+      </.button>
+      <.button
+        :if={Tuist.Runs.build_ci_run_url(@run)}
+        href={Tuist.Runs.build_ci_run_url(@run)}
+        label={gettext("CI Run")}
+        variant="secondary"
+        size="medium"
+        target="_blank"
+      >
+        <:icon_left><.external_link /></:icon_left>
+      </.button>
+    </div>
   </div>
   <.tab_menu_horizontal>
     <.tab_menu_horizontal_item
@@ -73,6 +85,12 @@
                 {Tuist.Apple.devices()[@run.model_identifier]}
               </span>
             </div>
+            <div data-part="metadata">
+              <div data-part="title">{gettext("Configuration")}</div>
+              <span data-part="label">
+                {@run.configuration || gettext("Unknown")}
+              </span>
+            </div>
           </div>
           <div data-part="metadata-row">
             <div data-part="metadata">
@@ -105,7 +123,11 @@
             <div data-part="metadata">
               <div data-part="title">{gettext("Category")}</div>
               <.badge
-                label={@run.category |> Atom.to_string() |> String.capitalize()}
+                label={
+                  if is_nil(@run.category),
+                    do: gettext("Unknown"),
+                    else: @run.category |> Atom.to_string() |> String.capitalize()
+                }
                 style="fill"
               />
             </div>
@@ -232,6 +254,7 @@
             label={
               case @module_breakdown_sort_by do
                 "name" -> gettext("Module")
+                "build-duration" -> gettext("Build duration")
                 _ -> gettext("Compilation duration")
               end
             }

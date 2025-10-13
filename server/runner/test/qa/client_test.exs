@@ -70,6 +70,46 @@ defmodule Runner.QA.ClientTest do
       # Then
       assert result == {:error, "Server returned unexpected status 500"}
     end
+
+    test "includes started_at in request body when provided" do
+      # Given
+      action = "Test step with timestamp"
+      issues = []
+      started_at = DateTime.utc_now()
+      server_url = "https://example.com"
+      run_id = "test-run-123"
+      auth_token = "test-token"
+
+      expect(Req, :post, fn opts ->
+        assert opts[:url] ==
+                 "#{server_url}/api/projects/test-account/test-project/qa/runs/#{run_id}/steps"
+
+        assert opts[:json] == %{
+                 action: action,
+                 issues: issues,
+                 started_at: DateTime.to_iso8601(started_at)
+               }
+
+        assert opts[:headers] == %{"Authorization" => "Bearer #{auth_token}"}
+        {:ok, %{status: 201, body: %{"id" => "step-123"}}}
+      end)
+
+      # When
+      result =
+        Client.create_step(%{
+          action: action,
+          issues: issues,
+          started_at: started_at,
+          server_url: server_url,
+          run_id: run_id,
+          auth_token: auth_token,
+          account_handle: "test-account",
+          project_handle: "test-project"
+        })
+
+      # Then
+      assert result == {:ok, "step-123"}
+    end
   end
 
   describe "start_run/3" do

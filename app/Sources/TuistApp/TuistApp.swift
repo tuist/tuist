@@ -1,4 +1,3 @@
-import ArgumentParser
 import SwiftUI
 import TuistAuthentication
 import TuistServer
@@ -49,6 +48,7 @@ import TuistServer
         }
     }
 #else
+    import ArgumentParser
     import TuistErrorHandling
     import TuistNoora
     import TuistOnboarding
@@ -131,7 +131,7 @@ import TuistServer
 
                 try await authenticationService.signInWithEmailAndPassword(email: email, password: password)
             } catch {
-                // Skipping automatic log in, such as when the credentials are not passed.
+                // Skipping automatic log in, such as when the credentials are not passed
             }
         }
     }

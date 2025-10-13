@@ -40,6 +40,19 @@ struct XCActivityLogControllerTests {
         #expect(got.category == .clean)
     }
 
+    @Test func parseBuildWithWarningXCActivityLog() async throws {
+        // Given
+        let buildWithWarningXCActivityLog = try AbsolutePath(validating: #file).parentDirectory
+            .appending(try RelativePath(validating: "../../Fixtures/build-with-warning.xcactivitylog"))
+
+        // When
+        let got = try await subject.parse(buildWithWarningXCActivityLog)
+
+        // Then
+        #expect(got.buildStep.errorCount == 0)
+        #expect(got.issues.map(\.type) == [.warning, .warning])
+    }
+
     @Test func parseIncrementalBuildXCActivityLog() async throws {
         // Given
         let incrementalBuildXCActivityLog = try AbsolutePath(validating: #file).parentDirectory

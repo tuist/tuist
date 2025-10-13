@@ -8,7 +8,6 @@ public protocol UpdateProjectServicing {
         fullHandle: String,
         serverURL: URL,
         defaultBranch: String?,
-        repositoryURL: String?,
         visibility: ServerProject.Visibility?
     ) async throws -> ServerProject
 }
@@ -49,7 +48,6 @@ public final class UpdateProjectService: UpdateProjectServicing {
         fullHandle: String,
         serverURL: URL,
         defaultBranch: String?,
-        repositoryURL: String?,
         visibility: ServerProject.Visibility?
     ) async throws -> ServerProject {
         let client = Client.authenticated(serverURL: serverURL)
@@ -74,7 +72,6 @@ public final class UpdateProjectService: UpdateProjectServicing {
                 body: .json(
                     .init(
                         default_branch: defaultBranch,
-                        repository_url: repositoryURL,
                         visibility: visibility
                     )
                 )

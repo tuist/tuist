@@ -864,7 +864,7 @@ defmodule Tuist.AccountsTest do
       assert got == Repo.preload(invitation, inviter: :account)
     end
 
-    test "returns :forbidden error when invitee email does not match" do
+    test "returns :not_found error when invitee email does not match" do
       # Given
       user = AccountsFixtures.user_fixture()
       organization = AccountsFixtures.organization_fixture(creator: user)
@@ -881,7 +881,7 @@ defmodule Tuist.AccountsTest do
       got = Accounts.get_invitation_by_token(invitation.token, invitee)
 
       # Then
-      assert got == {:error, :forbidden}
+      assert got == {:error, :not_found}
     end
 
     test "returns :not_found when an invitation with a given token does not exist" do
@@ -893,6 +893,26 @@ defmodule Tuist.AccountsTest do
 
       # Then
       assert got == {:error, :not_found}
+    end
+
+    test "returns invitation when invitee email case differs from invitation email" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(creator: user)
+      invitee = AccountsFixtures.user_fixture(email: "NEW@tuist.io")
+
+      {:ok, invitation} =
+        Accounts.invite_user_to_organization("neW@tuist.io", %{
+          inviter: user,
+          to: organization,
+          url: fn token -> token end
+        })
+
+      # When
+      {:ok, got} = Accounts.get_invitation_by_token(invitation.token, invitee)
+
+      # Then
+      assert got == Repo.preload(invitation, inviter: :account)
     end
   end
 

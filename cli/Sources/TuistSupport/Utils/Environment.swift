@@ -1,10 +1,10 @@
+import _NIOFileSystem
 import Command
 import Darwin
 import FileSystem
 import Foundation
 import Mockable
 import NIOCore
-import NIOFileSystem
 import Path
 
 /// Protocol that defines the interface of a local environment controller.
@@ -192,7 +192,7 @@ public struct Environment: Environmenting {
     }
 
     public func currentWorkingDirectory() async throws -> AbsolutePath {
-        return try await AbsolutePath(validating: NIOFileSystem.FileSystem.shared.currentWorkingDirectory.string)
+        return try await AbsolutePath(validating: _NIOFileSystem.FileSystem.shared.currentWorkingDirectory.string)
     }
 
     public var cacheDirectory: AbsolutePath {

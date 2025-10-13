@@ -55,7 +55,9 @@ defmodule Tuist.QA do
               "value" => group.value
             }
           end),
-        app_description: app_build.preview.project.qa_app_description
+        app_description: app_build.preview.project.qa_app_description,
+        email: app_build.preview.project.qa_email,
+        password: app_build.preview.project.qa_password
       })
 
     app_build_url = generate_app_build_download_url(app_build)
@@ -71,7 +73,9 @@ defmodule Tuist.QA do
         auth_token: auth_token,
         account_handle: app_build.preview.project.account.name,
         project_handle: app_build.preview.project.name,
-        app_description: app_build.preview.project.qa_app_description
+        app_description: app_build.preview.project.qa_app_description,
+        email: app_build.preview.project.qa_email,
+        password: app_build.preview.project.qa_password
       }
 
       if Environment.namespace_enabled?() do
@@ -134,7 +138,9 @@ defmodule Tuist.QA do
          auth_token: auth_token,
          account_handle: account_handle,
          project_handle: project_handle,
-         app_description: app_description
+         app_description: app_description,
+         email: email,
+         password: password
        }) do
     """
     set -e
@@ -144,7 +150,7 @@ defmodule Tuist.QA do
     npm i --location=global appium
     appium driver install xcuitest
     tmux new-session -d -s appium 'appium'
-    runner qa --preview-url "#{app_build_url}" --bundle-identifier #{bundle_identifier} --server-url #{server_url} --run-id #{run_id} --auth-token #{auth_token} --account-handle #{account_handle} --project-handle #{project_handle} --prompt "#{prompt}" --launch-arguments "\\"#{launch_arguments}\\"" --app-description "#{app_description}" --anthropic-api-key #{Environment.anthropic_api_key()} --openai-api-key #{Environment.openai_api_key()}
+    runner qa --preview-url "#{app_build_url}" --bundle-identifier #{bundle_identifier} --server-url #{server_url} --run-id #{run_id} --auth-token #{auth_token} --account-handle #{account_handle} --project-handle #{project_handle} --prompt "#{prompt}" --launch-arguments "\\"#{launch_arguments}\\"" --app-description "#{app_description}" --email "#{email}" --password "#{password}" --anthropic-api-key #{Environment.anthropic_api_key()} --openai-api-key #{Environment.openai_api_key()}
     """
   end
 
@@ -471,17 +477,14 @@ defmodule Tuist.QA do
   and git_ref, and have no app_build_id assigned yet.
   """
   def find_pending_qa_runs_for_app_build(app_build) do
-    app_build = Repo.preload(app_build, preview: [project: :account])
-    project = app_build.preview.project
+    app_build = Repo.preload(app_build, preview: [project: [:account, :vcs_connection]])
     preview = app_build.preview
 
-    if project.vcs_repository_full_handle && project.vcs_provider && preview.git_ref do
+    if preview.git_ref do
       Repo.all(
         from(run in Run,
           where:
             is_nil(run.app_build_id) and run.status == "pending" and
-              run.vcs_repository_full_handle == ^project.vcs_repository_full_handle and
-              run.vcs_provider == ^project.vcs_provider and
               run.git_ref == ^preview.git_ref
         )
       )
@@ -496,7 +499,7 @@ defmodule Tuist.QA do
   def post_vcs_test_summary(qa_run) do
     qa_run =
       Repo.preload(qa_run,
-        app_build: [preview: [project: :account]],
+        app_build: [preview: [project: [:account, :vcs_connection]]],
         run_steps: :screenshot
       )
 
@@ -504,20 +507,22 @@ defmodule Tuist.QA do
     project = preview.project
     comment_body = render_qa_summary_comment_body(qa_run, project)
 
-    if qa_run.issue_comment_id do
-      VCS.update_comment(%{
-        repository_full_handle: project.vcs_repository_full_handle,
-        comment_id: qa_run.issue_comment_id,
-        body: comment_body,
-        project: project
-      })
-    else
-      VCS.create_comment(%{
-        repository_full_handle: project.vcs_repository_full_handle,
-        git_ref: preview.git_ref,
-        body: comment_body,
-        project: project
-      })
+    if project.vcs_connection do
+      if qa_run.issue_comment_id do
+        VCS.update_comment(%{
+          repository_full_handle: project.vcs_connection.repository_full_handle,
+          comment_id: qa_run.issue_comment_id,
+          body: comment_body,
+          project: project
+        })
+      else
+        VCS.create_comment(%{
+          repository_full_handle: project.vcs_connection.repository_full_handle,
+          git_ref: preview.git_ref,
+          body: comment_body,
+          project: project
+        })
+      end
     end
   end
 
@@ -935,6 +940,15 @@ defmodule Tuist.QA do
 
   defp apply_app_filter(query, app_name, [:qa, :ab, :pr, :step]),
     do: where(query, [qa, ab, pr, step], pr.display_name == ^app_name)
+
+  @doc """
+  Enqueues a TestWorker job for the given QA run.
+  """
+  def enqueue_test_worker(%Run{} = qa_run) do
+    %{"qa_run_id" => qa_run.id}
+    |> Tuist.QA.Workers.TestWorker.new()
+    |> Oban.insert()
+  end
 
   @doc """
   Prepares logs with metadata (screenshot information) for display and formats them.

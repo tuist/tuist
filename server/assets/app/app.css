@@ -5,6 +5,10 @@
 
 @import "noora/noora.css";
 
+:root * {
+  --tuist-app-icon-radius: calc(var(--size) / 2 * 0.4453125);
+}
+
 body {
   margin: 0;
 }

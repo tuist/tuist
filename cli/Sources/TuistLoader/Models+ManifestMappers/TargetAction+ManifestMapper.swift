@@ -29,24 +29,21 @@ extension XcodeGraph.TargetScript {
             }
             .flatMap { $0 }
             .map(\.pathString)
-        let inputFileListPaths = try await absolutePaths(
+        let inputFileListPaths = try await pathStrings(
             for: manifest.inputFileListPaths,
             generatorPaths: generatorPaths,
             fileSystem: fileSystem
         )
-        .map(\.pathString)
-        let outputPaths = try await absolutePaths(
+        let outputPaths = try await pathStrings(
             for: manifest.outputPaths,
             generatorPaths: generatorPaths,
             fileSystem: fileSystem
         )
-        .map(\.pathString)
-        let outputFileListPaths = try await absolutePaths(
+        let outputFileListPaths = try await pathStrings(
             for: manifest.outputFileListPaths,
             generatorPaths: generatorPaths,
             fileSystem: fileSystem
         )
-        .map(\.pathString)
         let basedOnDependencyAnalysis = manifest.basedOnDependencyAnalysis
         let runForInstallBuildsOnly = manifest.runForInstallBuildsOnly
         let shellPath = manifest.shellPath
@@ -54,11 +51,7 @@ extension XcodeGraph.TargetScript {
         let dependencyFile: AbsolutePath?
 
         if let manifestDependencyFile = manifest.dependencyFile {
-            dependencyFile = try await absolutePaths(
-                for: [manifestDependencyFile],
-                generatorPaths: generatorPaths,
-                fileSystem: fileSystem
-            ).first
+            dependencyFile = try generatorPaths.resolve(path: manifestDependencyFile)
         } else {
             dependencyFile = nil
         }
@@ -91,27 +84,39 @@ extension XcodeGraph.TargetScript {
         )
     }
 
-    private static func absolutePaths(
+    private static func pathStrings(
         for paths: [Path],
         generatorPaths: GeneratorPaths,
         fileSystem: FileSysteming
-    ) async throws -> [AbsolutePath] {
-        try await paths.concurrentMap { (path: Path) -> [AbsolutePath] in
+    ) async throws -> [String] {
+        try await paths.concurrentMap { (path: Path) -> [String] in
+            // For relativeToManifest paths that are not glob patterns, keep them as strings
+            if path.type == .relativeToManifest, !fileSystem.isGlobPattern(path) {
+                return [path.pathString]
+            }
+
             // avoid globbing paths that contain variables
             if path.pathString.contains("$") {
-                return [try generatorPaths.resolve(path: path)]
+                return [path.pathString]
             }
             // Avoid globbing paths that are not glob patterns.
             // More than that - globbing requires the path to be existing at the moment of the globbing
             // which is not always the case.
             // For example, output paths of a script that are not created yet.
             if !fileSystem.isGlobPattern(path) {
-                return [try generatorPaths.resolve(path: path)]
+                return [try generatorPaths.resolve(path: path).pathString]
             }
 
             let absolutePath = try generatorPaths.resolve(path: path)
             let base = try AbsolutePath(validating: absolutePath.dirname)
-            return try await fileSystem.glob(directory: base, include: [absolutePath.basename]).collect()
+            let globResults = try await fileSystem.glob(directory: base, include: [absolutePath.basename]).collect()
+
+            // For relativeToManifest paths, convert back to relative paths
+            if path.type == .relativeToManifest {
+                return globResults.map { $0.relative(to: generatorPaths.manifestDirectory).pathString }
+            } else {
+                return globResults.map(\.pathString)
+            }
         }.reduce([], +)
     }
 }

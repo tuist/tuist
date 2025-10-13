@@ -2,6 +2,9 @@ import ProjectDescription
 
 let project = Project(
     name: "iOSAppWithTransistiveStaticLibraries",
+    settings: .settings(
+        base: ["SWIFT_ENABLE_EXPLICIT_MODULES": false]
+    ),
     targets: [
         .target(
             name: "App",

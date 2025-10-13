@@ -33,9 +33,10 @@
   }
 
   & > [data-part="icon"] {
-    border-radius: 8.42px;
-    width: 48px;
-    height: 48px;
+    --size: 48px;
+    border-radius: var(--tuist-app-icon-radius);
+    width: var(--size);
+    height: var(--size);
   }
 
   & > [data-part="metadata"] {

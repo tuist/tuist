@@ -13,7 +13,6 @@ defmodule Tuist do
       # -----
       # These modules contain utilities that are used for the marketing-related
       # routes and features.
-      Mautic,
       Marketing.Blog,
       Marketing.Pages,
       Marketing.Changelog,
@@ -76,6 +75,7 @@ defmodule Tuist do
       Namespace.JWTToken,
       QA,
       QA.LaunchArgumentGroup,
+      VCS.GitHubAppInstallation,
       # Support
       # -----
       # These modules represent Tuist-agnostic utilities that are used by other features.

@@ -90,7 +90,16 @@ defmodule TuistWeb.LayoutLive do
              show_avatar: true,
              avatar_color: Accounts.avatar_color(account)
            }
-         end)
+         end) ++
+           [
+             %{
+               label: gettext("Create organization"),
+               value: "create-organization",
+               href: ~p"/organizations/new",
+               icon: "building_plus",
+               selected: false
+             }
+           ]
      })
      |> append_breadcrumb(%{
        label: selected_project.name,

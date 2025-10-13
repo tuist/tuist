@@ -3,8 +3,6 @@ defmodule TuistWeb.Marketing.MarketingQALive do
   use TuistWeb, :live_view
   use Noora
 
-  @mautic_qa_segment 3
-
   def mount(_params, session, socket) do
     socket =
       socket
@@ -34,7 +32,7 @@ defmodule TuistWeb.Marketing.MarketingQALive do
   end
 
   def handle_event("add-to-waiting-list", %{"email" => email}, socket) do
-    {:ok, _} = Tuist.Mautic.add_email_to_segment(email, @mautic_qa_segment)
+    :ok = Tuist.Loops.add_to_qa_waiting_list(email)
 
     socket = assign(socket, :email_submitted?, true)
 

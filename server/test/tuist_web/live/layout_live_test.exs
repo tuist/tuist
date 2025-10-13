@@ -128,6 +128,13 @@ defmodule TuistWeb.LayoutLiveTest do
                      selected: false,
                      avatar_color: "gray",
                      show_avatar: true
+                   },
+                   %{
+                     label: "Create organization",
+                     value: "create-organization",
+                     href: ~p"/organizations/new",
+                     selected: false,
+                     icon: "building_plus"
                    }
                  ]
                },

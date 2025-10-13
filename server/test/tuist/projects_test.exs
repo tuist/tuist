@@ -9,6 +9,7 @@ defmodule Tuist.ProjectsTest do
   alias Tuist.CommandEvents
   alias Tuist.Projects
   alias Tuist.Projects.ProjectToken
+  alias Tuist.VCS
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.AppBuildsFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
@@ -461,8 +462,10 @@ defmodule Tuist.ProjectsTest do
       # Given
       project =
         ProjectsFixtures.project_fixture(
-          vcs_provider: :github,
-          vcs_repository_full_handle: "tuist/tuist"
+          vcs_connection: [
+            provider: :github,
+            repository_full_handle: "tuist/tuist"
+          ]
         )
 
       # When
@@ -892,8 +895,19 @@ defmodule Tuist.ProjectsTest do
     end
   end
 
-  describe "project_by_vcs_repository_full_handle/1" do
-    test "returns project when found" do
+  describe "projects_by_vcs_repository_full_handle/1" do
+    test "returns empty list when no projects found" do
+      # Given
+      vcs_handle = "nonexistent/project"
+
+      # When
+      projects = Projects.projects_by_vcs_repository_full_handle(vcs_handle)
+
+      # Then
+      assert [] == projects
+    end
+
+    test "returns single project when one project connected to repository" do
       # Given
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
@@ -902,56 +916,54 @@ defmodule Tuist.ProjectsTest do
       project =
         ProjectsFixtures.project_fixture(
           account_id: account.id,
-          vcs_repository_full_handle: vcs_handle
+          vcs_connection: [
+            repository_full_handle: vcs_handle,
+            provider: :github
+          ]
         )
 
       # When
-      {:ok, got_project} = Projects.project_by_vcs_repository_full_handle(vcs_handle)
+      projects = Projects.projects_by_vcs_repository_full_handle(vcs_handle)
 
       # Then
-      assert got_project.id == project.id
+      assert length(projects) == 1
+      assert List.first(projects).id == project.id
     end
 
-    test "returns error when project not found" do
+    test "returns multiple projects for monorepo" do
       # Given
-      vcs_handle = "nonexistent/project"
-
-      # When
-      result = Projects.project_by_vcs_repository_full_handle(vcs_handle)
-
-      # Then
-      assert {:error, :not_found} == result
-    end
-
-    test "returns correct project when multiple projects exist" do
-      # Given
-      user_one = AccountsFixtures.user_fixture()
-      user_two = AccountsFixtures.user_fixture()
-      account_one = Accounts.get_account_from_user(user_one)
-      account_two = Accounts.get_account_from_user(user_two)
-
-      vcs_handle_one = "tuist/project-one"
-      vcs_handle_two = "tuist/project-two"
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      vcs_handle = "tuist/monorepo"
 
       project_one =
         ProjectsFixtures.project_fixture(
-          account_id: account_one.id,
-          vcs_repository_full_handle: vcs_handle_one
+          name: "mobile-app",
+          account_id: account.id,
+          vcs_connection: [
+            repository_full_handle: vcs_handle,
+            provider: :github
+          ]
         )
 
-      ProjectsFixtures.project_fixture(
-        account_id: account_two.id,
-        vcs_repository_full_handle: vcs_handle_two
-      )
+      project_two =
+        ProjectsFixtures.project_fixture(
+          name: "admin-panel",
+          account_id: account.id,
+          vcs_connection: [
+            repository_full_handle: vcs_handle,
+            provider: :github
+          ]
+        )
 
       # When
-      {:ok, got_project} = Projects.project_by_vcs_repository_full_handle(vcs_handle_one)
+      projects = Projects.projects_by_vcs_repository_full_handle(vcs_handle)
 
       # Then
-      assert got_project.id == project_one.id
+      assert projects |> Enum.map(& &1.id) |> Enum.sort() == [project_one.id, project_two.id]
     end
 
-    test "returns project with preloaded account association" do
+    test "returns projects with preloaded associations" do
       # Given
       organization = AccountsFixtures.organization_fixture(name: "test-org")
       account = Accounts.get_account_from_organization(organization)
@@ -960,15 +972,196 @@ defmodule Tuist.ProjectsTest do
       project =
         ProjectsFixtures.project_fixture(
           account_id: account.id,
-          vcs_repository_full_handle: vcs_handle
+          vcs_connection: [
+            repository_full_handle: vcs_handle,
+            provider: :github
+          ]
         )
 
       # When
-      {:ok, got_project} = Projects.project_by_vcs_repository_full_handle(vcs_handle, preload: [:account])
+      [got_project] = Projects.projects_by_vcs_repository_full_handle(vcs_handle, preload: [:account])
 
       # Then
       assert got_project.id == project.id
-      assert Ecto.assoc_loaded?(got_project.account)
+    end
+  end
+
+  describe "project_by_name_and_vcs_repository_full_handle/2" do
+    test "returns project when found" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      vcs_handle = "tuist/monorepo"
+      project_name = "mobile-app"
+
+      project =
+        ProjectsFixtures.project_fixture(
+          name: project_name,
+          account_id: account.id,
+          vcs_connection: [
+            repository_full_handle: vcs_handle,
+            provider: :github
+          ]
+        )
+
+      # When
+      {:ok, got_project} = Projects.project_by_name_and_vcs_repository_full_handle(project_name, vcs_handle)
+
+      # Then
+      assert got_project.id == project.id
+    end
+
+    test "returns error when project not found" do
+      # Given
+      vcs_handle = "tuist/monorepo"
+      project_name = "nonexistent"
+
+      # When
+      result = Projects.project_by_name_and_vcs_repository_full_handle(project_name, vcs_handle)
+
+      # Then
+      assert {:error, :not_found} == result
+    end
+
+    test "returns correct project when multiple projects in monorepo" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      vcs_handle = "tuist/monorepo"
+
+      project_one =
+        ProjectsFixtures.project_fixture(
+          name: "mobile-app",
+          account_id: account.id,
+          vcs_connection: [
+            repository_full_handle: vcs_handle,
+            provider: :github
+          ]
+        )
+
+      ProjectsFixtures.project_fixture(
+        name: "admin-panel",
+        account_id: account.id,
+        vcs_connection: [
+          repository_full_handle: vcs_handle,
+          provider: :github
+        ]
+      )
+
+      # When
+      {:ok, got_project} = Projects.project_by_name_and_vcs_repository_full_handle("mobile-app", vcs_handle)
+
+      # Then
+      assert got_project.id == project_one.id
+    end
+  end
+
+  describe "create_vcs_connection/1" do
+    test "creates a new VCS connection" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      account = Repo.preload(project, :account).account
+
+      {:ok, github_app_installation} =
+        VCS.create_github_app_installation(%{
+          account_id: account.id,
+          installation_id: "test-installation-123"
+        })
+
+      attrs = %{
+        project_id: project.id,
+        provider: :github,
+        repository_full_handle: "tuist/tuist",
+        github_app_installation_id: github_app_installation.id
+      }
+
+      # When
+      {:ok, vcs_connection} = Projects.create_vcs_connection(attrs)
+
+      # Then
+      assert vcs_connection.project_id == project.id
+      assert vcs_connection.provider == :github
+      assert vcs_connection.repository_full_handle == "tuist/tuist"
+      assert vcs_connection.github_app_installation_id == github_app_installation.id
+    end
+
+    test "returns error with invalid attrs" do
+      # Given
+      attrs = %{
+        provider: :github,
+        repository_full_handle: "tuist/tuist"
+      }
+
+      # When
+      {:error, changeset} = Projects.create_vcs_connection(attrs)
+
+      # Then
+      assert %{project_id: ["can't be blank"]} = errors_on(changeset)
+    end
+  end
+
+  describe "delete_vcs_connection/1" do
+    test "deletes a VCS connection" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      account = Repo.preload(project, :account).account
+
+      {:ok, github_app_installation} =
+        VCS.create_github_app_installation(%{
+          account_id: account.id,
+          installation_id: "test-installation-456"
+        })
+
+      {:ok, vcs_connection} =
+        Projects.create_vcs_connection(%{
+          project_id: project.id,
+          provider: :github,
+          repository_full_handle: "tuist/tuist",
+          github_app_installation_id: github_app_installation.id
+        })
+
+      # When
+      {:ok, _} = Projects.delete_vcs_connection(vcs_connection)
+
+      # Then
+      assert Projects.get_vcs_connection(vcs_connection.id) == {:error, :not_found}
+    end
+  end
+
+  describe "get_vcs_connection/1" do
+    test "returns VCS connection when it exists" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      account = Repo.preload(project, :account).account
+
+      {:ok, github_app_installation} =
+        VCS.create_github_app_installation(%{
+          account_id: account.id,
+          installation_id: "test-installation-789"
+        })
+
+      {:ok, vcs_connection} =
+        Projects.create_vcs_connection(%{
+          project_id: project.id,
+          provider: :github,
+          repository_full_handle: "tuist/tuist",
+          github_app_installation_id: github_app_installation.id
+        })
+
+      # When
+      {:ok, got} = Projects.get_vcs_connection(vcs_connection.id)
+
+      # Then
+      assert got.id == vcs_connection.id
+      assert got.repository_full_handle == "tuist/tuist"
+    end
+
+    test "returns error when VCS connection does not exist" do
+      # When
+      got = Projects.get_vcs_connection("01909854-f9d1-7f9d-8956-b59155b0d8cc")
+
+      # Then
+      assert got == {:error, :not_found}
     end
   end
 end

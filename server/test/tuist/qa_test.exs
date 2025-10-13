@@ -326,7 +326,9 @@ defmodule Tuist.QATest do
       {:ok, project} =
         project
         |> Tuist.Projects.Project.update_changeset(%{
-          qa_app_description: "Test iOS shopping app with user authentication"
+          qa_app_description: "Test iOS shopping app with user authentication",
+          qa_email: "test@example.com",
+          qa_password: "testpassword123"
         })
         |> Repo.update()
 
@@ -383,6 +385,9 @@ defmodule Tuist.QATest do
 
       expect(Agent, :test, fn attrs, _opts ->
         assert attrs.launch_arguments == "--email user@example.com --password test123"
+        assert attrs.app_description == "Test iOS shopping app with user authentication"
+        assert attrs.email == "test@example.com"
+        assert attrs.password == "testpassword123"
         :ok
       end)
 
@@ -399,6 +404,8 @@ defmodule Tuist.QATest do
       # Then
       assert updated_qa_run.prompt == prompt
       assert updated_qa_run.app_description == "Test iOS shopping app with user authentication"
+      assert updated_qa_run.email == "test@example.com"
+      assert updated_qa_run.password == "testpassword123"
 
       assert updated_qa_run.launch_argument_groups == [
                %{
@@ -1076,8 +1083,10 @@ defmodule Tuist.QATest do
       # Given
       project =
         ProjectsFixtures.project_fixture(
-          vcs_provider: :github,
-          vcs_repository_full_handle: "testaccount/testproject"
+          vcs_connection: [
+            provider: :github,
+            repository_full_handle: "testaccount/testproject"
+          ]
         )
 
       preview = AppBuildsFixtures.preview_fixture(project: project)
@@ -1092,8 +1101,6 @@ defmodule Tuist.QATest do
         QA.create_qa_run(%{
           app_build_id: nil,
           status: "pending",
-          vcs_repository_full_handle: "testaccount/testproject",
-          vcs_provider: :github,
           git_ref: preview.git_ref,
           prompt: "Test prompt 1"
         })
@@ -1102,8 +1109,6 @@ defmodule Tuist.QATest do
         QA.create_qa_run(%{
           app_build_id: nil,
           status: "pending",
-          vcs_repository_full_handle: "testaccount/testproject",
-          vcs_provider: :github,
           git_ref: preview.git_ref,
           prompt: "Test prompt 2"
         })
@@ -1112,8 +1117,6 @@ defmodule Tuist.QATest do
         QA.create_qa_run(%{
           app_build_id: app_build.id,
           status: "pending",
-          vcs_repository_full_handle: "testaccount/testproject",
-          vcs_provider: :github,
           git_ref: preview.git_ref,
           prompt: "Test prompt 3"
         })
@@ -1122,18 +1125,14 @@ defmodule Tuist.QATest do
         QA.create_qa_run(%{
           app_build_id: nil,
           status: "completed",
-          vcs_repository_full_handle: "testaccount/testproject",
-          vcs_provider: :github,
           git_ref: preview.git_ref,
           prompt: "Test prompt 4"
         })
 
-      {:ok, _qa_run_different_repo} =
+      {:ok, qa_run_different_repo} =
         QA.create_qa_run(%{
           app_build_id: nil,
           status: "pending",
-          vcs_repository_full_handle: "other/repo",
-          vcs_provider: :github,
           git_ref: preview.git_ref,
           prompt: "Test prompt 5"
         })
@@ -1142,8 +1141,6 @@ defmodule Tuist.QATest do
         QA.create_qa_run(%{
           app_build_id: nil,
           status: "pending",
-          vcs_repository_full_handle: "testaccount/testproject",
-          vcs_provider: :github,
           git_ref: "refs/pull/456/merge",
           prompt: "Test prompt 6"
         })
@@ -1154,7 +1151,8 @@ defmodule Tuist.QATest do
       # Then
       assert result |> Enum.sort_by(& &1.inserted_at) |> Enum.map(& &1.id) == [
                qa_run1.id,
-               qa_run2.id
+               qa_run2.id,
+               qa_run_different_repo.id
              ]
     end
 
@@ -1162,8 +1160,10 @@ defmodule Tuist.QATest do
       # Given
       project =
         ProjectsFixtures.project_fixture(
-          vcs_provider: :github,
-          vcs_repository_full_handle: "testaccount/testproject"
+          vcs_connection: [
+            provider: :github,
+            repository_full_handle: "testaccount/testproject"
+          ]
         )
 
       preview = AppBuildsFixtures.preview_fixture(project: project)
@@ -1183,11 +1183,7 @@ defmodule Tuist.QATest do
 
     test "returns empty list when project has no repository URL" do
       # Given
-      project =
-        ProjectsFixtures.project_fixture(
-          vcs_provider: nil,
-          vcs_repository_full_handle: nil
-        )
+      project = ProjectsFixtures.project_fixture()
 
       preview = AppBuildsFixtures.preview_fixture(project: project)
 
@@ -1208,8 +1204,10 @@ defmodule Tuist.QATest do
       # Given
       project =
         ProjectsFixtures.project_fixture(
-          vcs_provider: :github,
-          vcs_repository_full_handle: "testaccount/testproject"
+          vcs_connection: [
+            provider: :github,
+            repository_full_handle: "testaccount/testproject"
+          ]
         )
 
       preview = AppBuildsFixtures.preview_fixture(project: project, git_ref: nil)
@@ -1225,8 +1223,6 @@ defmodule Tuist.QATest do
         QA.create_qa_run(%{
           app_build_id: nil,
           status: "pending",
-          vcs_repository_full_handle: "testaccount/testproject",
-          vcs_provider: :github,
           git_ref: "refs/heads/main",
           prompt: "Test prompt"
         })
@@ -1310,8 +1306,10 @@ defmodule Tuist.QATest do
       project =
         ProjectsFixtures.project_fixture(
           name: "TestProject",
-          vcs_repository_full_handle: "testaccount/testproject",
-          vcs_provider: :github
+          vcs_connection: [
+            repository_full_handle: "testaccount/testproject",
+            provider: :github
+          ]
         )
 
       preview =
@@ -1419,8 +1417,10 @@ defmodule Tuist.QATest do
       project =
         ProjectsFixtures.project_fixture(
           name: "TestProject",
-          vcs_repository_full_handle: "testaccount/testproject",
-          vcs_provider: :github
+          vcs_connection: [
+            repository_full_handle: "testaccount/testproject",
+            provider: :github
+          ]
         )
 
       preview =
@@ -2001,6 +2001,30 @@ defmodule Tuist.QATest do
 
       # Then
       assert {:error, :not_found} = result
+    end
+  end
+
+  describe "enqueue_test_worker/1" do
+    test "enqueues TestWorker job with correct qa_run_id" do
+      # Given
+      qa_run = QAFixtures.qa_run_fixture()
+
+      expect(Tuist.QA.Workers.TestWorker, :new, fn args ->
+        assert args == %{"qa_run_id" => qa_run.id}
+        %Oban.Job{args: args, worker: "Tuist.QA.Workers.TestWorker"}
+      end)
+
+      expect(Oban, :insert, fn %Oban.Job{args: args} ->
+        assert args == %{"qa_run_id" => qa_run.id}
+        {:ok, %Oban.Job{id: 1, args: args}}
+      end)
+
+      # When
+      result = QA.enqueue_test_worker(qa_run)
+
+      # Then
+      assert {:ok, %Oban.Job{id: 1, args: %{"qa_run_id" => qa_run_id}}} = result
+      assert qa_run_id == qa_run.id
     end
   end
 end

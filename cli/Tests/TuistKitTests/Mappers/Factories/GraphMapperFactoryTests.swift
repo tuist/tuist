@@ -240,28 +240,5 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
                 got, FocusTargetsGraphMappers.self, after: TestsCacheGraphMapper.self
             )
         }
-
-        func test_automation_contains_the_tests_cache_tree_shaking_mapper() throws {
-            // Given
-            let config = Tuist.test()
-
-            // When
-            let got = subject.automation(
-                config: config,
-                ignoreBinaryCache: true,
-                ignoreSelectiveTesting: false,
-                testPlan: nil,
-                includedTargets: [],
-                excludedTargets: [],
-                configuration: "Debug",
-                cacheStorage: cacheStorage,
-                destination: nil
-            )
-
-            // Then
-            XCTAssertContainsElementOfType(
-                got, TreeShakePrunedTargetsGraphMapper.self, after: FocusTargetsGraphMappers.self
-            )
-        }
     }
 #endif

@@ -11,7 +11,8 @@ defmodule Tuist.Bundles.Bundle do
     Flop.Schema,
     filterable: [
       :project_id,
-      :git_branch
+      :git_branch,
+      :type
     ],
     sortable: [:inserted_at, :install_size]
   }
@@ -42,6 +43,13 @@ defmodule Tuist.Bundles.Bundle do
 
     field :version, :string
 
+    field :type, Ecto.Enum,
+      values: [
+        ipa: 0,
+        app: 1,
+        xcarchive: 2
+      ]
+
     belongs_to :project, Tuist.Projects.Project, type: :integer
     belongs_to :uploaded_by_account, Tuist.Accounts.Account, type: :integer
     has_many :artifacts, Artifact
@@ -59,6 +67,7 @@ defmodule Tuist.Bundles.Bundle do
       :download_size,
       :supported_platforms,
       :version,
+      :type,
       :project_id,
       :uploaded_by_account_id,
       :git_commit_sha,
@@ -72,6 +81,7 @@ defmodule Tuist.Bundles.Bundle do
       :install_size,
       :supported_platforms,
       :version,
+      :type,
       :project_id
     ])
     |> validate_subset(:supported_platforms, Ecto.Enum.values(__MODULE__, :supported_platforms))

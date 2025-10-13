@@ -27,7 +27,7 @@ defmodule TuistWeb.BuildRunLive do
 
     run =
       run
-      |> Tuist.Repo.preload([:project, :ran_by_account])
+      |> Tuist.Repo.preload([:project, :ran_by_account, project: :vcs_connection])
       |> Tuist.ClickHouseRepo.preload([:issues])
 
     command_event =
@@ -421,12 +421,12 @@ defmodule TuistWeb.BuildRunLive do
 
   defp issue_title(title, issue, run) do
     if not is_nil(issue.path) and String.contains?(title, issue.path) and
-         not is_nil(run.project.vcs_repository_full_handle) and
-         run.project.vcs_provider == :github and not is_nil(run.git_commit_sha) do
+         not is_nil(run.project.vcs_connection) and
+         run.project.vcs_connection.provider == :github and not is_nil(run.git_commit_sha) do
       title
       |> String.replace(
         issue.path,
-        ~s(<a href="https://github.com/#{run.project.vcs_repository_full_handle}/blob/#{run.git_commit_sha}/#{issue.path}" target="_blank">#{issue.path}</a>)
+        ~s(<a href="https://github.com/#{run.project.vcs_connection.repository_full_handle}/blob/#{run.git_commit_sha}/#{issue.path}" target="_blank">#{issue.path}</a>)
       )
       |> raw()
     else
@@ -436,13 +436,13 @@ defmodule TuistWeb.BuildRunLive do
 
   defp issue_message(issue, run) do
     if not is_nil(issue.path) and issue.path != "" and
-         not is_nil(run.project.vcs_repository_full_handle) and
-         run.project.vcs_provider == :github and not is_nil(run.git_commit_sha) do
+         not is_nil(run.project.vcs_connection) and
+         run.project.vcs_connection.provider == :github and not is_nil(run.git_commit_sha) do
       raw(
         gettext("%{message} in %{link}",
           message: issue.message,
           link:
-            ~s(<a href="https://github.com/#{run.project.vcs_repository_full_handle}/blob/#{run.git_commit_sha}/#{issue.path}#L#{issue.starting_line}" target="_blank">#{issue.path}#L#{issue.starting_line}</a>)
+            ~s(<a href="https://github.com/#{run.project.vcs_connection.repository_full_handle}/blob/#{run.git_commit_sha}/#{issue.path}#L#{issue.starting_line}" target="_blank">#{issue.path}#L#{issue.starting_line}</a>)
         )
       )
     else

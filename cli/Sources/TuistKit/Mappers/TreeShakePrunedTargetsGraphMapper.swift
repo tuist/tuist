@@ -5,20 +5,11 @@ import TuistCore
 import XcodeGraph
 
 public final class TreeShakePrunedTargetsGraphMapper: GraphMapping {
-    /// When the user configures the cache to keep the source targets, users don't expect
-    /// to get anything tree-shaked. Down the line we might want to make this behaviour
-    /// configurable
-    private let cacheKeepSourceTargets: Bool
-
-    public init(cacheKeepSourceTargets: Bool) {
-        self.cacheKeepSourceTargets = cacheKeepSourceTargets
-    }
+    public init() {}
 
     public func map(graph: Graph, environment: MapperEnvironment) throws -> (
         Graph, [SideEffectDescriptor], MapperEnvironment
     ) {
-        if cacheKeepSourceTargets { return (graph, [], environment) }
-
         Logger.current.debug("Transforming graph \(graph.name): Tree-shaking nodes")
         let sourceTargets: Set<TargetReference> = Set(
             graph.projects.flatMap { projectPath, project -> [TargetReference] in

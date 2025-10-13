@@ -2,6 +2,9 @@ import ProjectDescription
 
 let project = Project(
     name: "Framework1",
+    settings: .settings(
+        base: ["SWIFT_ENABLE_EXPLICIT_MODULES": false]
+    ),
     targets: [
         .target(
             name: "Framework1-iOS",

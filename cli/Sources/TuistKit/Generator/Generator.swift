@@ -103,7 +103,7 @@ public class Generator: Generating {
 
         let (graph, sideEffectDescriptors, environment, issues) = try await manifestGraphLoader.load(
             path: path,
-            disableSandbox: options?.disableSandbox ?? false
+            disableSandbox: options?.disableSandbox ?? true
         )
 
         lintingIssues.append(contentsOf: issues)

@@ -16,6 +16,7 @@ defmodule Tuist.QA.Step do
     field :action, :string
     field :result, :string
     field :issues, {:array, :string}
+    field :started_at, :utc_datetime
 
     belongs_to :qa_run, Run, foreign_key: :qa_run_id, type: UUIDv7
     has_one :screenshot, Screenshot, foreign_key: :qa_step_id
@@ -25,7 +26,7 @@ defmodule Tuist.QA.Step do
 
   def changeset(qa_step, attrs) do
     qa_step
-    |> cast(attrs, [:qa_run_id, :action, :result, :issues])
+    |> cast(attrs, [:qa_run_id, :action, :result, :issues, :started_at])
     |> validate_required([:qa_run_id, :action, :issues])
     |> foreign_key_constraint(:qa_run_id)
   end

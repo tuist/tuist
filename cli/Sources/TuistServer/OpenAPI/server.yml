@@ -85,6 +85,15 @@ components:
               type: array
               x-struct:
               x-validate:
+            type:
+              description: The type of the bundle
+              enum:
+                - ipa
+                - app
+                - xcarchive
+              type: string
+              x-struct:
+              x-validate:
             version:
               description: The version of the bundle
               type: string
@@ -735,6 +744,38 @@ components:
               enum:
                 - clean
                 - incremental
+              type: string
+              x-struct:
+              x-validate:
+            ci_host:
+              description: The CI host URL (optional, for self-hosted instances).
+              type: string
+              x-struct:
+              x-validate:
+            ci_project_handle:
+              description: "The CI project handle (e.g., 'owner/repo' for GitHub, project path for GitLab)."
+              type: string
+              x-struct:
+              x-validate:
+            ci_provider:
+              description: The CI provider.
+              enum:
+                - github
+                - gitlab
+                - bitrise
+                - circleci
+                - buildkite
+                - codemagic
+              type: string
+              x-struct:
+              x-validate:
+            ci_run_id:
+              description: The CI run identifier (e.g., GitHub Actions run ID, GitLab pipeline ID).
+              type: string
+              x-struct:
+              x-validate:
+            configuration:
+              description: The build configuration (e.g., Debug, Release).
               type: string
               x-struct:
               x-validate:
@@ -1648,6 +1689,38 @@ components:
           enum:
             - clean
             - incremental
+          type: string
+          x-struct:
+          x-validate:
+        ci_host:
+          description: The CI host URL (optional, for self-hosted instances).
+          type: string
+          x-struct:
+          x-validate:
+        ci_project_handle:
+          description: "The CI project handle (e.g., 'owner/repo' for GitHub, project path for GitLab)."
+          type: string
+          x-struct:
+          x-validate:
+        ci_provider:
+          description: The CI provider.
+          enum:
+            - github
+            - gitlab
+            - bitrise
+            - circleci
+            - buildkite
+            - codemagic
+          type: string
+          x-struct:
+          x-validate:
+        ci_run_id:
+          description: The CI run identifier (e.g., GitHub Actions run ID, GitLab pipeline ID).
+          type: string
+          x-struct:
+          x-validate:
+        configuration:
+          description: The build configuration (e.g., Debug, Release).
           type: string
           x-struct:
           x-validate:
@@ -2842,22 +2915,6 @@ paths:
             type: integer
             x-struct:
             x-validate:
-        - description: Number of items per page.
-          in: query
-          name: page_size
-          required: false
-          schema:
-            type: integer
-            x-struct:
-            x-validate:
-        - description: Filter bundles by git branch.
-          in: query
-          name: git_branch
-          required: false
-          schema:
-            type: string
-            x-struct:
-            x-validate:
         - description: The handle of the account.
           in: path
           name: account_handle
@@ -2872,6 +2929,22 @@ paths:
           required: true
           schema:
             type: string
+            x-struct:
+            x-validate:
+        - description: Filter bundles by git branch.
+          in: query
+          name: git_branch
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Number of items per page.
+          in: query
+          name: page_size
+          required: false
+          schema:
+            type: integer
             x-struct:
             x-validate:
       responses:
@@ -2985,6 +3058,15 @@ paths:
                       items:
                         $ref: '#/components/schemas/BundleSupportedPlatform'
                       type: array
+                      x-struct:
+                      x-validate:
+                    type:
+                      description: The type of the bundle
+                      enum:
+                        - ipa
+                        - app
+                        - xcarchive
+                      type: string
                       x-struct:
                       x-validate:
                     version:
@@ -5345,11 +5427,6 @@ paths:
                   type: string
                   x-struct:
                   x-validate:
-                repository_url:
-                  description: The repository URL for the project.
-                  type: string
-                  x-struct:
-                  x-validate:
                 visibility:
                   description: The visibility of the project. Public projects are visible to everyone, private projects are only visible to the project's members.
                   enum:
@@ -5375,7 +5452,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: The request is invalid, for example when attempting to link the project to a repository the authenticated user doesn't have access to.
+          description: The request is invalid
         '401':
           content:
             application/json:
@@ -5534,6 +5611,38 @@ paths:
                       enum:
                         - clean
                         - incremental
+                      type: string
+                      x-struct:
+                      x-validate:
+                    ci_host:
+                      description: The CI host URL (optional, for self-hosted instances).
+                      type: string
+                      x-struct:
+                      x-validate:
+                    ci_project_handle:
+                      description: "The CI project handle (e.g., 'owner/repo' for GitHub, project path for GitLab)."
+                      type: string
+                      x-struct:
+                      x-validate:
+                    ci_provider:
+                      description: The CI provider.
+                      enum:
+                        - github
+                        - gitlab
+                        - bitrise
+                        - circleci
+                        - buildkite
+                        - codemagic
+                      type: string
+                      x-struct:
+                      x-validate:
+                    ci_run_id:
+                      description: The CI run identifier (e.g., GitHub Actions run ID, GitLab pipeline ID).
+                      type: string
+                      x-struct:
+                      x-validate:
+                    configuration:
+                      description: The build configuration (e.g., Debug, Release).
                       type: string
                       x-struct:
                       x-validate:

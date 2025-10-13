@@ -1235,6 +1235,15 @@ extension APIProtocol {
 
 /// Server URLs defined in the OpenAPI document.
 public enum Servers {
+    public enum Server1 {
+        public static func url() throws -> Foundation.URL {
+            try Foundation.URL(
+                validatingOpenAPIServerURL: "http://localhost:8080",
+                variables: []
+            )
+        }
+    }
+    @available(*, deprecated, renamed: "Servers.Server1.url")
     public static func server1() throws -> Foundation.URL {
         try Foundation.URL(
             validatingOpenAPIServerURL: "http://localhost:8080",
@@ -1325,6 +1334,18 @@ public enum Components {
                 ///
                 /// - Remark: Generated from `#/components/schemas/BundleRequest/bundle/supported_platforms`.
                 public var supported_platforms: [Components.Schemas.BundleSupportedPlatform]
+                /// The type of the bundle
+                ///
+                /// - Remark: Generated from `#/components/schemas/BundleRequest/bundle/type`.
+                @frozen public enum _typePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case ipa = "ipa"
+                    case app = "app"
+                    case xcarchive = "xcarchive"
+                }
+                /// The type of the bundle
+                ///
+                /// - Remark: Generated from `#/components/schemas/BundleRequest/bundle/type`.
+                public var _type: Components.Schemas.BundleRequest.bundlePayload._typePayload?
                 /// The version of the bundle
                 ///
                 /// - Remark: Generated from `#/components/schemas/BundleRequest/bundle/version`.
@@ -1341,6 +1362,7 @@ public enum Components {
                 ///   - install_size: The bundle install size in bytes
                 ///   - name: The name of the bundle
                 ///   - supported_platforms: List of supported platforms
+                ///   - _type: The type of the bundle
                 ///   - version: The version of the bundle
                 public init(
                     app_bundle_id: Swift.String,
@@ -1352,6 +1374,7 @@ public enum Components {
                     install_size: Swift.Int,
                     name: Swift.String,
                     supported_platforms: [Components.Schemas.BundleSupportedPlatform],
+                    _type: Components.Schemas.BundleRequest.bundlePayload._typePayload? = nil,
                     version: Swift.String
                 ) {
                     self.app_bundle_id = app_bundle_id
@@ -1363,6 +1386,7 @@ public enum Components {
                     self.install_size = install_size
                     self.name = name
                     self.supported_platforms = supported_platforms
+                    self._type = _type
                     self.version = version
                 }
                 public enum CodingKeys: String, CodingKey {
@@ -1375,6 +1399,7 @@ public enum Components {
                     case install_size
                     case name
                     case supported_platforms
+                    case _type = "type"
                     case version
                 }
             }
@@ -2294,6 +2319,37 @@ public enum Components {
                 ///
                 /// - Remark: Generated from `#/components/schemas/RunParams/case1/category`.
                 public var category: Components.Schemas.RunParams.Case1Payload.categoryPayload?
+                /// The CI host URL (optional, for self-hosted instances).
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunParams/case1/ci_host`.
+                public var ci_host: Swift.String?
+                /// The CI project handle (e.g., 'owner/repo' for GitHub, project path for GitLab).
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunParams/case1/ci_project_handle`.
+                public var ci_project_handle: Swift.String?
+                /// The CI provider.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunParams/case1/ci_provider`.
+                @frozen public enum ci_providerPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case github = "github"
+                    case gitlab = "gitlab"
+                    case bitrise = "bitrise"
+                    case circleci = "circleci"
+                    case buildkite = "buildkite"
+                    case codemagic = "codemagic"
+                }
+                /// The CI provider.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunParams/case1/ci_provider`.
+                public var ci_provider: Components.Schemas.RunParams.Case1Payload.ci_providerPayload?
+                /// The CI run identifier (e.g., GitHub Actions run ID, GitLab pipeline ID).
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunParams/case1/ci_run_id`.
+                public var ci_run_id: Swift.String?
+                /// The build configuration (e.g., Debug, Release).
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunParams/case1/configuration`.
+                public var configuration: Swift.String?
                 /// Duration of the run in milliseconds.
                 ///
                 /// - Remark: Generated from `#/components/schemas/RunParams/case1/duration`.
@@ -2640,6 +2696,11 @@ public enum Components {
                 ///
                 /// - Parameters:
                 ///   - category: The category of the build run, can be clean or incremental.
+                ///   - ci_host: The CI host URL (optional, for self-hosted instances).
+                ///   - ci_project_handle: The CI project handle (e.g., 'owner/repo' for GitHub, project path for GitLab).
+                ///   - ci_provider: The CI provider.
+                ///   - ci_run_id: The CI run identifier (e.g., GitHub Actions run ID, GitLab pipeline ID).
+                ///   - configuration: The build configuration (e.g., Debug, Release).
                 ///   - duration: Duration of the run in milliseconds.
                 ///   - files: Compiled files associated with the build run.
                 ///   - git_branch: The git branch.
@@ -2658,6 +2719,11 @@ public enum Components {
                 ///   - xcode_version: The version of Xcode used during the run.
                 public init(
                     category: Components.Schemas.RunParams.Case1Payload.categoryPayload? = nil,
+                    ci_host: Swift.String? = nil,
+                    ci_project_handle: Swift.String? = nil,
+                    ci_provider: Components.Schemas.RunParams.Case1Payload.ci_providerPayload? = nil,
+                    ci_run_id: Swift.String? = nil,
+                    configuration: Swift.String? = nil,
                     duration: Swift.Int,
                     files: Components.Schemas.RunParams.Case1Payload.filesPayload? = nil,
                     git_branch: Swift.String? = nil,
@@ -2676,6 +2742,11 @@ public enum Components {
                     xcode_version: Swift.String? = nil
                 ) {
                     self.category = category
+                    self.ci_host = ci_host
+                    self.ci_project_handle = ci_project_handle
+                    self.ci_provider = ci_provider
+                    self.ci_run_id = ci_run_id
+                    self.configuration = configuration
                     self.duration = duration
                     self.files = files
                     self.git_branch = git_branch
@@ -2695,6 +2766,11 @@ public enum Components {
                 }
                 public enum CodingKeys: String, CodingKey {
                     case category
+                    case ci_host
+                    case ci_project_handle
+                    case ci_provider
+                    case ci_run_id
+                    case configuration
                     case duration
                     case files
                     case git_branch
@@ -2886,10 +2962,10 @@ public enum Components {
             /// - Remark: Generated from `#/components/schemas/BundleArtifact/artifact_type`.
             public var artifact_type: Components.Schemas.BundleArtifact.artifact_typePayload {
                 get  {
-                    storage.value.artifact_type
+                    self.storage.value.artifact_type
                 }
                 _modify {
-                    yield &storage.value.artifact_type
+                    yield &self.storage.value.artifact_type
                 }
             }
             /// Nested child artifacts, for example for artifacts that represent a directory.
@@ -2897,10 +2973,10 @@ public enum Components {
             /// - Remark: Generated from `#/components/schemas/BundleArtifact/children`.
             public var children: [Components.Schemas.BundleArtifact]? {
                 get  {
-                    storage.value.children
+                    self.storage.value.children
                 }
                 _modify {
-                    yield &storage.value.children
+                    yield &self.storage.value.children
                 }
             }
             /// The path to the artifact relative to the root of the bundle.
@@ -2908,10 +2984,10 @@ public enum Components {
             /// - Remark: Generated from `#/components/schemas/BundleArtifact/path`.
             public var path: Swift.String {
                 get  {
-                    storage.value.path
+                    self.storage.value.path
                 }
                 _modify {
-                    yield &storage.value.path
+                    yield &self.storage.value.path
                 }
             }
             /// The SHA checksum of the artifact
@@ -2919,10 +2995,10 @@ public enum Components {
             /// - Remark: Generated from `#/components/schemas/BundleArtifact/shasum`.
             public var shasum: Swift.String {
                 get  {
-                    storage.value.shasum
+                    self.storage.value.shasum
                 }
                 _modify {
-                    yield &storage.value.shasum
+                    yield &self.storage.value.shasum
                 }
             }
             /// The size of the artifact in bytes
@@ -2930,10 +3006,10 @@ public enum Components {
             /// - Remark: Generated from `#/components/schemas/BundleArtifact/size`.
             public var size: Swift.Int {
                 get  {
-                    storage.value.size
+                    self.storage.value.size
                 }
                 _modify {
-                    yield &storage.value.size
+                    yield &self.storage.value.size
                 }
             }
             /// Creates a new `BundleArtifact`.
@@ -2951,7 +3027,7 @@ public enum Components {
                 shasum: Swift.String,
                 size: Swift.Int
             ) {
-                storage = .init(value: .init(
+                self.storage = .init(value: .init(
                     artifact_type: artifact_type,
                     children: children,
                     path: path,
@@ -2967,10 +3043,10 @@ public enum Components {
                 case size
             }
             public init(from decoder: any Decoder) throws {
-                storage = try .init(from: decoder)
+                self.storage = try .init(from: decoder)
             }
             public func encode(to encoder: any Encoder) throws {
-                try storage.encode(to: encoder)
+                try self.storage.encode(to: encoder)
             }
             /// Internal reference storage to allow type recursion.
             private var storage: OpenAPIRuntime.CopyOnWriteBox<Storage>
@@ -3662,6 +3738,37 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/BuildRun/category`.
             public var category: Components.Schemas.BuildRun.categoryPayload?
+            /// The CI host URL (optional, for self-hosted instances).
+            ///
+            /// - Remark: Generated from `#/components/schemas/BuildRun/ci_host`.
+            public var ci_host: Swift.String?
+            /// The CI project handle (e.g., 'owner/repo' for GitHub, project path for GitLab).
+            ///
+            /// - Remark: Generated from `#/components/schemas/BuildRun/ci_project_handle`.
+            public var ci_project_handle: Swift.String?
+            /// The CI provider.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BuildRun/ci_provider`.
+            @frozen public enum ci_providerPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case github = "github"
+                case gitlab = "gitlab"
+                case bitrise = "bitrise"
+                case circleci = "circleci"
+                case buildkite = "buildkite"
+                case codemagic = "codemagic"
+            }
+            /// The CI provider.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BuildRun/ci_provider`.
+            public var ci_provider: Components.Schemas.BuildRun.ci_providerPayload?
+            /// The CI run identifier (e.g., GitHub Actions run ID, GitLab pipeline ID).
+            ///
+            /// - Remark: Generated from `#/components/schemas/BuildRun/ci_run_id`.
+            public var ci_run_id: Swift.String?
+            /// The build configuration (e.g., Debug, Release).
+            ///
+            /// - Remark: Generated from `#/components/schemas/BuildRun/configuration`.
+            public var configuration: Swift.String?
             /// Duration of the run in milliseconds.
             ///
             /// - Remark: Generated from `#/components/schemas/BuildRun/duration`.
@@ -4008,6 +4115,11 @@ public enum Components {
             ///
             /// - Parameters:
             ///   - category: The category of the build run, can be clean or incremental.
+            ///   - ci_host: The CI host URL (optional, for self-hosted instances).
+            ///   - ci_project_handle: The CI project handle (e.g., 'owner/repo' for GitHub, project path for GitLab).
+            ///   - ci_provider: The CI provider.
+            ///   - ci_run_id: The CI run identifier (e.g., GitHub Actions run ID, GitLab pipeline ID).
+            ///   - configuration: The build configuration (e.g., Debug, Release).
             ///   - duration: Duration of the run in milliseconds.
             ///   - files: Compiled files associated with the build run.
             ///   - git_branch: The git branch.
@@ -4026,6 +4138,11 @@ public enum Components {
             ///   - xcode_version: The version of Xcode used during the run.
             public init(
                 category: Components.Schemas.BuildRun.categoryPayload? = nil,
+                ci_host: Swift.String? = nil,
+                ci_project_handle: Swift.String? = nil,
+                ci_provider: Components.Schemas.BuildRun.ci_providerPayload? = nil,
+                ci_run_id: Swift.String? = nil,
+                configuration: Swift.String? = nil,
                 duration: Swift.Int,
                 files: Components.Schemas.BuildRun.filesPayload? = nil,
                 git_branch: Swift.String? = nil,
@@ -4044,6 +4161,11 @@ public enum Components {
                 xcode_version: Swift.String? = nil
             ) {
                 self.category = category
+                self.ci_host = ci_host
+                self.ci_project_handle = ci_project_handle
+                self.ci_provider = ci_provider
+                self.ci_run_id = ci_run_id
+                self.configuration = configuration
                 self.duration = duration
                 self.files = files
                 self.git_branch = git_branch
@@ -4063,6 +4185,11 @@ public enum Components {
             }
             public enum CodingKeys: String, CodingKey {
                 case category
+                case ci_host
+                case ci_project_handle
+                case ci_provider
+                case ci_run_id
+                case configuration
                 case duration
                 case files
                 case git_branch
@@ -6437,6 +6564,14 @@ public enum Operations {
             ///
             /// HTTP response code: `204 noContent`.
             case noContent(Operations.completeAnalyticsArtifactMultipartUploadProject.Output.NoContent)
+            /// The upload has been completed
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/runs/{run_id}/complete/post(completeAnalyticsArtifactMultipartUploadProject)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            public static var noContent: Self {
+                .noContent(.init())
+            }
             /// The associated value of the enum case if `self` is `.noContent`.
             ///
             /// - Throws: An error if `self` is not `.noContent`.
@@ -6726,28 +6861,28 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page`.
                 public var page: Swift.Int?
-                /// Number of items per page.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page_size`.
-                public var page_size: Swift.Int?
                 /// Filter bundles by git branch.
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/git_branch`.
                 public var git_branch: Swift.String?
+                /// Number of items per page.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page_size`.
+                public var page_size: Swift.Int?
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
                 ///   - page: Page number for pagination.
-                ///   - page_size: Number of items per page.
                 ///   - git_branch: Filter bundles by git branch.
+                ///   - page_size: Number of items per page.
                 public init(
                     page: Swift.Int? = nil,
-                    page_size: Swift.Int? = nil,
-                    git_branch: Swift.String? = nil
+                    git_branch: Swift.String? = nil,
+                    page_size: Swift.Int? = nil
                 ) {
                     self.page = page
-                    self.page_size = page_size
                     self.git_branch = git_branch
+                    self.page_size = page_size
                 }
             }
             public var query: Operations.listBundles.Input.Query
@@ -7074,6 +7209,18 @@ public enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/requestBody/json/bundle/supported_platforms`.
                         public var supported_platforms: [Components.Schemas.BundleSupportedPlatform]
+                        /// The type of the bundle
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/requestBody/json/bundle/type`.
+                        @frozen public enum _typePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                            case ipa = "ipa"
+                            case app = "app"
+                            case xcarchive = "xcarchive"
+                        }
+                        /// The type of the bundle
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/requestBody/json/bundle/type`.
+                        public var _type: Operations.createBundle.Input.Body.jsonPayload.bundlePayload._typePayload?
                         /// The version of the bundle
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/requestBody/json/bundle/version`.
@@ -7090,6 +7237,7 @@ public enum Operations {
                         ///   - install_size: The bundle install size in bytes
                         ///   - name: The name of the bundle
                         ///   - supported_platforms: List of supported platforms
+                        ///   - _type: The type of the bundle
                         ///   - version: The version of the bundle
                         public init(
                             app_bundle_id: Swift.String,
@@ -7101,6 +7249,7 @@ public enum Operations {
                             install_size: Swift.Int,
                             name: Swift.String,
                             supported_platforms: [Components.Schemas.BundleSupportedPlatform],
+                            _type: Operations.createBundle.Input.Body.jsonPayload.bundlePayload._typePayload? = nil,
                             version: Swift.String
                         ) {
                             self.app_bundle_id = app_bundle_id
@@ -7112,6 +7261,7 @@ public enum Operations {
                             self.install_size = install_size
                             self.name = name
                             self.supported_platforms = supported_platforms
+                            self._type = _type
                             self.version = version
                         }
                         public enum CodingKeys: String, CodingKey {
@@ -7124,6 +7274,7 @@ public enum Operations {
                             case install_size
                             case name
                             case supported_platforms
+                            case _type = "type"
                             case version
                         }
                     }
@@ -10154,6 +10305,14 @@ public enum Operations {
             ///
             /// HTTP response code: `204 noContent`.
             case noContent(Operations.completeAnalyticsArtifactsUploadsProject.Output.NoContent)
+            /// The run artifact uploads were successfully finished
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/runs/{run_id}/complete_artifacts_uploads/put(completeAnalyticsArtifactsUploadsProject)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            public static var noContent: Self {
+                .noContent(.init())
+            }
             /// The associated value of the enum case if `self` is `.noContent`.
             ///
             /// - Throws: An error if `self` is not `.noContent`.
@@ -13208,6 +13367,14 @@ public enum Operations {
             ///
             /// HTTP response code: `204 noContent`.
             case noContent(Operations.deleteOrganization.Output.NoContent)
+            /// The organization was deleted
+            ///
+            /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/delete(deleteOrganization)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            public static var noContent: Self {
+                .noContent(.init())
+            }
             /// The associated value of the enum case if `self` is `.noContent`.
             ///
             /// - Throws: An error if `self` is not `.noContent`.
@@ -14822,6 +14989,14 @@ public enum Operations {
             ///
             /// HTTP response code: `204 noContent`.
             case noContent(Operations.cleanCache.Output.NoContent)
+            /// The cache has been successfully cleaned
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/clean/put(cleanCache)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            public static var noContent: Self {
+                .noContent(.init())
+            }
             /// The associated value of the enum case if `self` is `.noContent`.
             ///
             /// - Throws: An error if `self` is not `.noContent`.
@@ -15471,6 +15646,14 @@ public enum Operations {
             ///
             /// HTTP response code: `204 noContent`.
             case noContent(Operations.cancelInvitation.Output.NoContent)
+            /// The invitation was cancelled
+            ///
+            /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/invitations/delete(cancelInvitation)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            public static var noContent: Self {
+                .noContent(.init())
+            }
             /// The associated value of the enum case if `self` is `.noContent`.
             ///
             /// - Throws: An error if `self` is not `.noContent`.
@@ -16450,6 +16633,14 @@ public enum Operations {
             ///
             /// HTTP response code: `204 noContent`.
             case noContent(Operations.completeAnalyticsArtifactMultipartUpload.Output.NoContent)
+            /// The upload has been completed
+            ///
+            /// - Remark: Generated from `#/paths//api/runs/{run_id}/complete/post(completeAnalyticsArtifactMultipartUpload)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            public static var noContent: Self {
+                .noContent(.init())
+            }
             /// The associated value of the enum case if `self` is `.noContent`.
             ///
             /// - Throws: An error if `self` is not `.noContent`.
@@ -17552,6 +17743,14 @@ public enum Operations {
             ///
             /// HTTP response code: `204 noContent`.
             case noContent(Operations.deletePreview.Output.NoContent)
+            /// The preview was deleted
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/delete(deletePreview)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            public static var noContent: Self {
+                .noContent(.init())
+            }
             /// The associated value of the enum case if `self` is `.noContent`.
             ///
             /// - Throws: An error if `self` is not `.noContent`.
@@ -18306,6 +18505,14 @@ public enum Operations {
             ///
             /// HTTP response code: `204 noContent`.
             case noContent(Operations.revokeProjectToken.Output.NoContent)
+            /// The project token was revoked
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/{id}/delete(revokeProjectToken)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            public static var noContent: Self {
+                .noContent(.init())
+            }
             /// The associated value of the enum case if `self` is `.noContent`.
             ///
             /// - Throws: An error if `self` is not `.noContent`.
@@ -18903,10 +19110,6 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/PUT/requestBody/json/default_branch`.
                     public var default_branch: Swift.String?
-                    /// The repository URL for the project.
-                    ///
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/PUT/requestBody/json/repository_url`.
-                    public var repository_url: Swift.String?
                     /// The visibility of the project. Public projects are visible to everyone, private projects are only visible to the project's members.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/PUT/requestBody/json/visibility`.
@@ -18922,20 +19125,16 @@ public enum Operations {
                     ///
                     /// - Parameters:
                     ///   - default_branch: The default branch for the project.
-                    ///   - repository_url: The repository URL for the project.
                     ///   - visibility: The visibility of the project. Public projects are visible to everyone, private projects are only visible to the project's members.
                     public init(
                         default_branch: Swift.String? = nil,
-                        repository_url: Swift.String? = nil,
                         visibility: Operations.updateProject.Input.Body.jsonPayload.visibilityPayload? = nil
                     ) {
                         self.default_branch = default_branch
-                        self.repository_url = repository_url
                         self.visibility = visibility
                     }
                     public enum CodingKeys: String, CodingKey {
                         case default_branch
-                        case repository_url
                         case visibility
                     }
                 }
@@ -19039,7 +19238,7 @@ public enum Operations {
                     self.body = body
                 }
             }
-            /// The request is invalid, for example when attempting to link the project to a repository the authenticated user doesn't have access to.
+            /// The request is invalid
             ///
             /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/put(updateProject)/responses/400`.
             ///
@@ -19568,6 +19767,37 @@ public enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/category`.
                         public var category: Operations.createRun.Input.Body.jsonPayload.Case1Payload.categoryPayload?
+                        /// The CI host URL (optional, for self-hosted instances).
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/ci_host`.
+                        public var ci_host: Swift.String?
+                        /// The CI project handle (e.g., 'owner/repo' for GitHub, project path for GitLab).
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/ci_project_handle`.
+                        public var ci_project_handle: Swift.String?
+                        /// The CI provider.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/ci_provider`.
+                        @frozen public enum ci_providerPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                            case github = "github"
+                            case gitlab = "gitlab"
+                            case bitrise = "bitrise"
+                            case circleci = "circleci"
+                            case buildkite = "buildkite"
+                            case codemagic = "codemagic"
+                        }
+                        /// The CI provider.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/ci_provider`.
+                        public var ci_provider: Operations.createRun.Input.Body.jsonPayload.Case1Payload.ci_providerPayload?
+                        /// The CI run identifier (e.g., GitHub Actions run ID, GitLab pipeline ID).
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/ci_run_id`.
+                        public var ci_run_id: Swift.String?
+                        /// The build configuration (e.g., Debug, Release).
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/configuration`.
+                        public var configuration: Swift.String?
                         /// Duration of the run in milliseconds.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/duration`.
@@ -19914,6 +20144,11 @@ public enum Operations {
                         ///
                         /// - Parameters:
                         ///   - category: The category of the build run, can be clean or incremental.
+                        ///   - ci_host: The CI host URL (optional, for self-hosted instances).
+                        ///   - ci_project_handle: The CI project handle (e.g., 'owner/repo' for GitHub, project path for GitLab).
+                        ///   - ci_provider: The CI provider.
+                        ///   - ci_run_id: The CI run identifier (e.g., GitHub Actions run ID, GitLab pipeline ID).
+                        ///   - configuration: The build configuration (e.g., Debug, Release).
                         ///   - duration: Duration of the run in milliseconds.
                         ///   - files: Compiled files associated with the build run.
                         ///   - git_branch: The git branch.
@@ -19932,6 +20167,11 @@ public enum Operations {
                         ///   - xcode_version: The version of Xcode used during the run.
                         public init(
                             category: Operations.createRun.Input.Body.jsonPayload.Case1Payload.categoryPayload? = nil,
+                            ci_host: Swift.String? = nil,
+                            ci_project_handle: Swift.String? = nil,
+                            ci_provider: Operations.createRun.Input.Body.jsonPayload.Case1Payload.ci_providerPayload? = nil,
+                            ci_run_id: Swift.String? = nil,
+                            configuration: Swift.String? = nil,
                             duration: Swift.Int,
                             files: Operations.createRun.Input.Body.jsonPayload.Case1Payload.filesPayload? = nil,
                             git_branch: Swift.String? = nil,
@@ -19950,6 +20190,11 @@ public enum Operations {
                             xcode_version: Swift.String? = nil
                         ) {
                             self.category = category
+                            self.ci_host = ci_host
+                            self.ci_project_handle = ci_project_handle
+                            self.ci_provider = ci_provider
+                            self.ci_run_id = ci_run_id
+                            self.configuration = configuration
                             self.duration = duration
                             self.files = files
                             self.git_branch = git_branch
@@ -19969,6 +20214,11 @@ public enum Operations {
                         }
                         public enum CodingKeys: String, CodingKey {
                             case category
+                            case ci_host
+                            case ci_project_handle
+                            case ci_provider
+                            case ci_run_id
+                            case configuration
                             case duration
                             case files
                             case git_branch
@@ -20789,6 +21039,14 @@ public enum Operations {
             ///
             /// HTTP response code: `204 noContent`.
             case noContent(Operations.removeOrganizationMember.Output.NoContent)
+            /// The member was removed
+            ///
+            /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/members/{user_name}/delete(removeOrganizationMember)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            public static var noContent: Self {
+                .noContent(.init())
+            }
             /// The associated value of the enum case if `self` is `.noContent`.
             ///
             /// - Throws: An error if `self` is not `.noContent`.
@@ -21739,6 +21997,14 @@ public enum Operations {
             ///
             /// HTTP response code: `204 noContent`.
             case noContent(Operations.deleteProject.Output.NoContent)
+            /// The project was successfully deleted.
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{id}/delete(deleteProject)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            public static var noContent: Self {
+                .noContent(.init())
+            }
             /// The associated value of the enum case if `self` is `.noContent`.
             ///
             /// - Throws: An error if `self` is not `.noContent`.
@@ -22362,6 +22628,14 @@ public enum Operations {
             ///
             /// HTTP response code: `204 noContent`.
             case noContent(Operations.deleteAccount.Output.NoContent)
+            /// The account was deleted
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/delete(deleteAccount)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            public static var noContent: Self {
+                .noContent(.init())
+            }
             /// The associated value of the enum case if `self` is `.noContent`.
             ///
             /// - Throws: An error if `self` is not `.noContent`.
@@ -22632,6 +22906,14 @@ public enum Operations {
             ///
             /// HTTP response code: `204 noContent`.
             case noContent(Operations.completeAnalyticsArtifactsUploads.Output.NoContent)
+            /// The run artifact uploads were successfully finished
+            ///
+            /// - Remark: Generated from `#/paths//api/runs/{run_id}/complete_artifacts_uploads/put(completeAnalyticsArtifactsUploads)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            public static var noContent: Self {
+                .noContent(.init())
+            }
             /// The associated value of the enum case if `self` is `.noContent`.
             ///
             /// - Throws: An error if `self` is not `.noContent`.

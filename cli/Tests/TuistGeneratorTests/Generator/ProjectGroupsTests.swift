@@ -133,8 +133,8 @@ final class ProjectGroupsTests: XCTestCase {
         // Then
         let paths = subject.sortedMain.children.map(\.nameOrPath)
         XCTAssertEqual(paths, [
-            "Project",
             "Products",
+            "Project",
         ])
     }
 
@@ -155,8 +155,8 @@ final class ProjectGroupsTests: XCTestCase {
         // Then
         let paths = subject.sortedMain.children.map(\.nameOrPath)
         XCTAssertEqual(paths, [
-            "Project",
             "Products",
+            "Project",
             "Frameworks",
             "Cache",
         ])

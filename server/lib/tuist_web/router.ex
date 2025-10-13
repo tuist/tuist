@@ -36,11 +36,22 @@ defmodule TuistWeb.Router do
   end
 
   pipeline :browser_app do
-    plug :accepts, ["html", "svg", "png"]
+    plug :accepts, ["html"]
     plug :disable_robot_indexing
     plug :fetch_session
     plug :fetch_live_flash
     plug :put_root_layout, html: {TuistWeb.Layouts, :app}
+    plug :protect_from_forgery
+    plug :put_secure_browser_headers
+    plug :fetch_current_user
+    plug :content_security_policy
+  end
+
+  pipeline :browser_app_image do
+    plug :accepts, ["svg", "png"]
+    plug :disable_robot_indexing
+    plug :fetch_session
+    plug :fetch_live_flash
     plug :protect_from_forgery
     plug :put_secure_browser_headers
     plug :fetch_current_user
@@ -234,6 +245,12 @@ defmodule TuistWeb.Router do
 
     get "/ready", PageController, :ready
     get "/api/docs", APIController, :docs
+  end
+
+  scope "/integrations", TuistWeb do
+    pipe_through [:open_api, :browser_app]
+
+    get "/github/setup", GitHubAppSetupController, :setup
   end
 
   scope "/.well-known", TuistWeb do
@@ -550,6 +567,15 @@ defmodule TuistWeb.Router do
     ]
 
     get "/latest", PreviewController, :latest
+  end
+
+  scope "/:account_handle/:project_handle/previews", TuistWeb do
+    pipe_through [
+      :open_api,
+      :browser_app_image,
+      :analytics
+    ]
+
     get "/latest/badge.svg", PreviewController, :latest_badge
     get "/:id/icon.png", PreviewController, :download_icon
   end
@@ -557,7 +583,7 @@ defmodule TuistWeb.Router do
   scope "/:account_handle/:project_handle/qa/runs/:qa_run_id/screenshots", TuistWeb do
     pipe_through [
       :open_api,
-      :browser_app,
+      :browser_app_image,
       :analytics
     ]
 
@@ -573,6 +599,15 @@ defmodule TuistWeb.Router do
 
     get "/manifest.plist", PreviewController, :manifest
     get "/app.ipa", PreviewController, :download_archive
+  end
+
+  scope "/:account_handle/:project_handle/previews/:id", TuistWeb do
+    pipe_through [
+      :open_api,
+      :browser_app_image,
+      :analytics
+    ]
+
     get "/qr-code.svg", PreviewController, :download_qr_code_svg
     get "/qr-code.png", PreviewController, :download_qr_code_png
   end
@@ -617,6 +652,7 @@ defmodule TuistWeb.Router do
       live "/projects", ProjectsLive
       live "/members", MembersLive
       live "/billing", BillingLive
+      live "/integrations", IntegrationsLive
       live "/settings", AccountSettingsLive
     end
   end

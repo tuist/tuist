@@ -224,6 +224,10 @@ defmodule TuistWeb.API.RunsController do
                  type: :string,
                  description: "The scheme used for the build."
                },
+               configuration: %Schema{
+                 type: :string,
+                 description: "The build configuration (e.g., Debug, Release)."
+               },
                status: %Schema{
                  type: :string,
                  description: "The status of the build run.",
@@ -249,6 +253,23 @@ defmodule TuistWeb.API.RunsController do
                git_remote_url_origin: %Schema{
                  type: :string,
                  description: "The git remote URL origin."
+               },
+               ci_run_id: %Schema{
+                 type: :string,
+                 description: "The CI run identifier (e.g., GitHub Actions run ID, GitLab pipeline ID)."
+               },
+               ci_project_handle: %Schema{
+                 type: :string,
+                 description: "The CI project handle (e.g., 'owner/repo' for GitHub, project path for GitLab)."
+               },
+               ci_host: %Schema{
+                 type: :string,
+                 description: "The CI host URL (optional, for self-hosted instances)."
+               },
+               ci_provider: %Schema{
+                 type: :string,
+                 description: "The CI provider.",
+                 enum: [:github, :gitlab, :bitrise, :circleci, :buildkite, :codemagic]
                },
                issues: %Schema{
                  type: :array,
@@ -487,6 +508,7 @@ defmodule TuistWeb.API.RunsController do
           is_ci: Map.get(params, :is_ci),
           model_identifier: Map.get(params, :model_identifier),
           scheme: Map.get(params, :scheme),
+          configuration: Map.get(params, :configuration),
           project_id: params.project.id,
           account_id: params.account.id,
           status: Map.get(params, :status, :success),
@@ -494,6 +516,10 @@ defmodule TuistWeb.API.RunsController do
           git_branch: Map.get(params, :git_branch),
           git_commit_sha: Map.get(params, :git_commit_sha),
           git_ref: Map.get(params, :git_ref),
+          ci_run_id: Map.get(params, :ci_run_id),
+          ci_project_handle: Map.get(params, :ci_project_handle),
+          ci_host: Map.get(params, :ci_host),
+          ci_provider: Map.get(params, :ci_provider),
           issues: Map.get(params, :issues, []),
           files: Map.get(params, :files, []),
           targets: Map.get(params, :targets, [])

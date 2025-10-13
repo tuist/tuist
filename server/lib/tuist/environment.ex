@@ -86,9 +86,13 @@ defmodule Tuist.Environment do
     end
   end
 
-  def get_license_key(secrets \\ secrets()) do
-    System.get_env("TUIST_LICENSE_KEY") ||
-      get([:license], secrets)
+  def license_key(secrets \\ secrets()) do
+    System.get_env("TUIST_LICENSE_KEY") || get([:license], secrets) || get([:license, :key], secrets)
+  end
+
+  def license_certificate_base64(secrets \\ secrets()) do
+    System.get_env("TUIST_LICENSE_CERTIFICATE_BASE64") ||
+      get([:license, :certificate, :base64], secrets)
   end
 
   def use_ipv6?(secrets \\ secrets()) do
@@ -138,10 +142,7 @@ defmodule Tuist.Environment do
   end
 
   def version do
-    case Version.parse(get([:version]) || "0.1.0") do
-      :error -> nil
-      {:ok, version} -> version
-    end
+    Application.spec(:tuist)[:vsn]
   end
 
   def ops_user_handles(secrets \\ secrets()) do
@@ -172,17 +173,59 @@ defmodule Tuist.Environment do
     end
   end
 
-  def s3_request_timeout(secrets \\ secrets()) do
-    case get([:s3, :request_timeout], secrets) do
-      request_timeout when is_binary(request_timeout) -> String.to_integer(request_timeout)
-      _ -> 30
+  def s3_connect_timeout(secrets \\ secrets()) do
+    case get([:s3, :connect_timeout], secrets) do
+      "infinity" ->
+        :infinity
+
+      connect_timeout when is_binary(connect_timeout) ->
+        to_timeout(second: String.to_integer(connect_timeout))
+
+      _ ->
+        # Standard timeout for establishing connections
+        to_timeout(second: 10)
+    end
+  end
+
+  def s3_receive_timeout(secrets \\ secrets()) do
+    case get([:s3, :receive_timeout], secrets) do
+      "infinity" ->
+        :infinity
+
+      receive_timeout when is_binary(receive_timeout) ->
+        to_timeout(second: String.to_integer(receive_timeout))
+
+      _ ->
+        # Generous receive timeout for large file downloads
+        to_timeout(minute: 1)
     end
   end
 
   def s3_pool_timeout(secrets \\ secrets()) do
     case get([:s3, :pool_timeout], secrets) do
-      pool_timeout when is_binary(pool_timeout) -> String.to_integer(pool_timeout)
-      _ -> 5
+      "infinity" ->
+        :infinity
+
+      pool_timeout when is_binary(pool_timeout) ->
+        to_timeout(second: String.to_integer(pool_timeout))
+
+      _ ->
+        # Standard pool timeout
+        to_timeout(second: 5)
+    end
+  end
+
+  def s3_pool_max_idle_time(secrets \\ secrets()) do
+    case get([:s3, :pool_max_idle_time], secrets) do
+      "infinity" ->
+        :infinity
+
+      pool_max_idle_time when is_binary(pool_max_idle_time) ->
+        to_timeout(second: String.to_integer(pool_max_idle_time))
+
+      _ ->
+        # Keep the connections alive for reusability
+        :infinity
     end
   end
 
@@ -197,7 +240,7 @@ defmodule Tuist.Environment do
   def s3_pool_count(secrets \\ secrets()) do
     case get([:s3, :pool_count], secrets) do
       pool_count when is_binary(pool_count) -> String.to_integer(pool_count)
-      _ -> 1
+      _ -> System.schedulers_online()
     end
   end
 
@@ -377,6 +420,10 @@ defmodule Tuist.Environment do
     get([:github, :token, :update_package_releases], secrets)
   end
 
+  def github_app_name(secrets \\ secrets()) do
+    get([:github, :app_name], secrets)
+  end
+
   def github_app_client_id(secrets \\ secrets()) do
     get([:github, :app_client_id], secrets) || get([:github, :oauth_id], secrets)
   end
@@ -404,7 +451,7 @@ defmodule Tuist.Environment do
   end
 
   def github_app_configured?(secrets \\ secrets()) do
-    github_oauth_configured?(secrets) and github_app_private_key(secrets) != nil
+    github_app_name(secrets) != nil and github_oauth_configured?(secrets) and github_app_private_key(secrets) != nil
   end
 
   def google_oauth_client_id(secrets \\ secrets()) do
@@ -516,6 +563,28 @@ defmodule Tuist.Environment do
     case get([:clickhouse, :buffer_pool_size], secrets) do
       buffer_pool_size when is_binary(buffer_pool_size) -> String.to_integer(buffer_pool_size)
       _ -> 5
+    end
+  end
+
+  @doc """
+  Returns the bucket size for the authentication rate limiter.
+
+  This configures the maximum number of authentication requests allowed
+  in the rate limit window. The bucket size determines how many requests
+  can be made before rate limiting kicks in.
+
+  The default values are:
+  - 100 requests for canary environments (to allow higher throughput testing)
+  - 10 requests for other environments (production, staging, dev)
+
+  This can be overridden via:
+  - Environment variable: TUIST_AUTH_RATE_LIMIT_BUCKET_SIZE
+  - Secrets configuration: auth_rate_limit.bucket_size
+  """
+  def auth_rate_limit_bucket_size(secrets \\ secrets()) do
+    case get([:auth_rate_limit, :bucket_size], secrets) do
+      bucket_size when is_binary(bucket_size) -> String.to_integer(bucket_size)
+      _ -> if can?(), do: 100, else: 10
     end
   end
 
@@ -659,7 +728,7 @@ defmodule Tuist.Environment do
       if System.get_env(env_variable) do
         System.get_env(env_variable)
       else
-        get_in(secrets, string_keys)
+        safe_get_in(secrets, string_keys)
       end
 
     if is_nil(value) do
@@ -668,6 +737,17 @@ defmodule Tuist.Environment do
       value
     end
   end
+
+  defp safe_get_in(data, []), do: data
+
+  defp safe_get_in(data, [key | rest]) when is_map(data) do
+    case Map.get(data, key) do
+      nil -> nil
+      value -> safe_get_in(value, rest)
+    end
+  end
+
+  defp safe_get_in(_data, _keys), do: nil
 
   def secrets do
     Application.get_env(:tuist, :secrets) || %{}

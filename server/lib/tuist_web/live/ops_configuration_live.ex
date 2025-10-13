@@ -34,18 +34,34 @@ defmodule TuistWeb.OpsConfigurationLive do
       %{name: "Version", value: "#{version}"},
       %{name: "S3 region", value: Tuist.Environment.s3_region()},
       %{
-        name: "S3 request timeout",
+        name: "S3 connect timeout",
         value:
-          Tuist.Environment.s3_request_timeout()
-          |> Timex.Duration.from_seconds()
+          Tuist.Environment.s3_connect_timeout()
+          |> Timex.Duration.from_milliseconds()
+          |> Humanized.format()
+      },
+      %{
+        name: "S3 receive timeout",
+        value:
+          Tuist.Environment.s3_receive_timeout()
+          |> Timex.Duration.from_milliseconds()
           |> Humanized.format()
       },
       %{
         name: "S3 pool timeout",
         value:
-          Tuist.Environment.s3_pool_timeout()
-          |> Timex.Duration.from_seconds()
-          |> Humanized.format()
+          case Tuist.Environment.s3_pool_timeout() do
+            :infinity -> "Infinity"
+            timeout -> timeout |> Timex.Duration.from_milliseconds() |> Humanized.format()
+          end
+      },
+      %{
+        name: "S3 pool max idle time",
+        value:
+          case Tuist.Environment.s3_pool_max_idle_time() do
+            :infinity -> "Infinity"
+            timeout -> timeout |> Timex.Duration.from_milliseconds() |> Humanized.format()
+          end
       },
       %{name: "S3 endpoint", value: Tuist.Environment.s3_endpoint()},
       %{

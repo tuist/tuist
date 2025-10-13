@@ -63,6 +63,46 @@ defmodule TuistWeb.API.QAControllerTest do
       assert response["action"] == "Successfully logged in to the app"
     end
 
+    test "creates a QA run step with started_at timestamp", %{
+      conn: conn,
+      user: user,
+      qa_run: qa_run,
+      account_handle: account_handle,
+      project_handle: project_handle
+    } do
+      # Given
+      conn =
+        assign(conn, :current_subject, %AuthenticatedAccount{
+          account: user.account,
+          scopes: [:qa_step_create]
+        })
+
+      started_at = DateTime.add(DateTime.utc_now(), -5, :second)
+      started_at_iso = DateTime.to_iso8601(started_at)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          ~p"/api/projects/#{account_handle}/#{project_handle}/qa/runs/#{qa_run.id}/steps",
+          %{
+            "action" => "Tap login button",
+            "result" => "Login button successfully tapped",
+            "issues" => [],
+            "started_at" => started_at_iso
+          }
+        )
+
+      # Then
+      response = json_response(conn, :created)
+
+      assert response["qa_run_id"] == qa_run.id
+      assert response["action"] == "Tap login button"
+      {:ok, saved_step} = QA.step(response["id"])
+      assert DateTime.truncate(saved_step.started_at, :second) == DateTime.truncate(started_at, :second)
+    end
+
     test "creates a QA run step and updates screenshots with step ID", %{
       conn: conn,
       user: user,

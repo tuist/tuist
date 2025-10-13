@@ -71,8 +71,7 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
 
     /// Map and generate resource interfaces for a given `Target` and `Project`
     private func mapTarget(_ target: Target, project: Project) throws -> (Target, [SideEffectDescriptor]) {
-        let resourcesForSynthesizersPaths = target.resources.resources
-            .map(\.path) + target.coreDataModels.map(\.path)
+        let resourcesForSynthesizersPaths = resourcePaths(target, project: project)
         guard !resourcesForSynthesizersPaths.isEmpty, target.supportsSources else { return (target, []) }
 
         var target = target
@@ -153,10 +152,10 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
     private func paths(
         for resourceSynthesizer: ResourceSynthesizer,
         target: Target,
+        project: Project,
         developmentRegion: String?
     ) -> [AbsolutePath] {
-        let resourcesPaths = target.resources.resources
-            .map(\.path) + target.coreDataModels.map(\.path)
+        let resourcesPaths = resourcePaths(target, project: project)
 
         var paths = resourcesPaths
             .filter { $0.extension.map(resourceSynthesizer.extensions.contains) ?? false }
@@ -218,6 +217,19 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
         return false
     }
 
+    private func resourcePaths(_ target: Target, project: Project) -> [AbsolutePath] {
+        let resourcePaths = target.resources.resources.map(\.path)
+        let coreDataModelPaths = target.coreDataModels.map(\.path)
+        let extensions = project.resourceSynthesizers.map(\.extensions).flatMap(Array.init)
+        let buildableFolderResources = target.buildableFolders.flatMap { buildableFolder in
+            return buildableFolder.resolvedFiles.compactMap { buildableFolderFile -> AbsolutePath? in
+                guard extensions.contains(buildableFolderFile.path.extension ?? "") else { return nil }
+                return buildableFolderFile.path
+            }
+        }
+        return resourcePaths + coreDataModelPaths + buildableFolderResources
+    }
+
     private func templateString(for parser: ResourceSynthesizer.Parser) throws -> String {
         switch parser {
         case .assets:
@@ -246,6 +258,7 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
         let paths = try paths(
             for: resourceSynthesizer,
             target: target,
+            project: project,
             developmentRegion: project.developmentRegion
         )
         .filter(isResourceEmpty)

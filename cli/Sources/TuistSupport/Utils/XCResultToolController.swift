@@ -1,6 +1,5 @@
 import Mockable
 import Path
-import TuistSupport
 
 import struct TSCUtility.Version
 

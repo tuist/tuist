@@ -588,15 +588,11 @@ defmodule TuistWeb.PreviewsControllerTest do
 
       expect(Storage, :generate_download_url, fn _object_key, _actor, _opts -> "https://mocked-url.com" end)
 
-      expect(Oban, :insert, fn job ->
-        assert job.changes.worker == "Tuist.QA.Workers.TestWorker"
+      expect(QA, :enqueue_test_worker, fn qa_run ->
+        assert qa_run.app_build_id == app_build.id
+        assert qa_run.prompt == "Test login functionality"
 
-        assert job.changes.args == %{
-                 "app_build_id" => app_build.id,
-                 "prompt" => "Test login functionality"
-               }
-
-        {:ok, job}
+        {:ok, %Oban.Job{}}
       end)
 
       conn = Authentication.put_current_user(conn, user)

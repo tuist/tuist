@@ -8,11 +8,13 @@ on:
       - "app/**"
       - ".github/workflows/app.yml"
       - "Tuist/**"
+      - ".xcode-version"
   pull_request:
     paths:
       - "app/**"
       - ".github/workflows/app.yml"
       - "Tuist/**"
+      - ".xcode-version"
 
 permissions:
   contents: read
@@ -66,7 +68,7 @@ jobs:
             }
   app-build:
     name: Build
-    runs-on: macos-15
+    runs-on: namespace-profile-default-macos
     needs: [check-team-membership]
     if: |
       always() &&
@@ -88,11 +90,10 @@ jobs:
           key: ${{ runner.os }}-app-${{ hashFiles('Package.resolved') }}
           restore-keys: .build
       - uses: jdx/mise-action@v2
-      - run: tuist install
       - name: Generate TuistApp
         run: mise x -- tuist generate TuistApp
       - name: Build TuistApp
-        run: mise x -- tuist xcodebuild build -scheme TuistApp -destination "generic/platform=iOS Simulator" -workspace Tuist.xcworkspace CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO ARCHS="arm64"
+        run: mise x -- tuist xcodebuild build -scheme TuistApp -destination "generic/platform=iOS Simulator" -workspace Tuist.xcworkspace
       - name: Share TuistApp
         if: |
           github.event_name == 'push' ||
@@ -108,7 +109,7 @@ jobs:
 
   app-test:
     name: Test
-    runs-on: macos-15
+    runs-on: macos-26
     needs: [check-team-membership]
     if: |
       always() &&
@@ -130,7 +131,6 @@ jobs:
           key: ${{ runner.os }}-app-${{ hashFiles('Package.resolved') }}
           restore-keys: .build
       - uses: jdx/mise-action@v2
-      - run: tuist install
       - name: Test TuistApp
         run: mise x -- tuist test TuistApp -- CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
       - name: Save cache
@@ -142,7 +142,7 @@ jobs:
 
   app-device-build:
     name: Device Build
-    runs-on: macos-15
+    runs-on: macos-26
     needs: [check-team-membership]
     if: |
       always() &&
@@ -164,7 +164,6 @@ jobs:
           key: ${{ runner.os }}-app-${{ hashFiles('Package.resolved') }}
           restore-keys: .build
       - uses: jdx/mise-action@v2
-      - run: tuist install
       - name: Generate TuistApp
         run: mise x -- tuist generate TuistApp
       - name: Bundle iOS app

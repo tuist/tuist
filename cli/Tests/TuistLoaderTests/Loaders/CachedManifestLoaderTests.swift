@@ -1,8 +1,8 @@
+import _NIOFileSystem
 import FileSystem
 import FileSystemTesting
 import Foundation
 import Mockable
-import NIOFileSystem
 import Path
 import ProjectDescription
 import Testing
@@ -311,7 +311,7 @@ class CachedManifestLoaderTests {
         // Given
         let fileSystem = MockFileSystem()
         fileSystem.writeTextOverride = { _, _, _ in
-            throw NIOFileSystem.FileSystemError(
+            throw _NIOFileSystem.FileSystemError(
                 code: .fileAlreadyExists,
                 message: "",
                 cause: nil,
@@ -335,7 +335,7 @@ class CachedManifestLoaderTests {
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment()) func throwing_otherNIOErrors() async throws {
         // Given
-        let expectedError = NIOFileSystem.FileSystemError(
+        let expectedError = _NIOFileSystem.FileSystemError(
             code: .invalidArgument,
             message: "",
             cause: nil,
@@ -441,7 +441,7 @@ class CachedManifestLoaderTests {
     }
 }
 
-extension NIOFileSystem.FileSystemError: Equatable {
+extension _NIOFileSystem.FileSystemError: Equatable {
     public static func == (lhs: _NIOFileSystem.FileSystemError, rhs: _NIOFileSystem.FileSystemError) -> Bool {
         return lhs.code == rhs.code && lhs.message == rhs.message && lhs.location == rhs.location
     }

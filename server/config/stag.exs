@@ -13,4 +13,4 @@ config :tuist, Tuist.Mailer, adapter: Bamboo.MailgunAdapter
 # before starting your production server.
 config :tuist,
   cache_static_manifest: "priv/static/cache_manifest.json",
-  package_sync_allowlist: ["tuist/*"]
+  package_sync_allowlist: ["tuist/*", "Alamofire/*"]

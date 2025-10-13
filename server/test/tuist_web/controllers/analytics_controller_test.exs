@@ -185,8 +185,8 @@ defmodule TuistWeb.AnalyticsControllerTest do
 
       preview = AppBuildsFixtures.app_build_fixture(project: project, display_name: "App")
 
-      expect(VCS, :post_vcs_pull_request_comment, fn _ ->
-        :ok
+      expect(VCS, :enqueue_vcs_pull_request_comment, fn _ ->
+        {:ok, %{}}
       end)
 
       conn =

@@ -66,9 +66,9 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         fileElements: ProjectFileElements,
         pbxproj: PBXProj
     ) async throws {
-        if target.shouldIncludeHeadersBuildPhase, let headers = target.headers {
+        if shouldAddHeadersBuildPhase(target) {
             try generateHeadersBuildPhase(
-                headers: headers,
+                headers: target.headers,
                 pbxTarget: pbxTarget,
                 fileElements: fileElements,
                 pbxproj: pbxproj
@@ -189,6 +189,16 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
             fileElements: fileElements,
             pbxproj: pbxproj
         )
+    }
+
+    fileprivate func shouldAddHeadersBuildPhase(_ target: Target) -> Bool {
+        guard target.shouldIncludeHeadersBuildPhase else { return false }
+        for buildableFolder in target.buildableFolders {
+            if buildableFolder.resolvedFiles.first(where: { $0.path.extension == "h" }) != nil {
+                return true
+            }
+        }
+        return target.headers != nil
     }
 
     func generateScripts(
@@ -333,7 +343,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
     }
 
     func generateHeadersBuildPhase(
-        headers: Headers,
+        headers: Headers?,
         pbxTarget: PBXTarget,
         fileElements: ProjectFileElements,
         pbxproj: PBXProj
@@ -351,12 +361,14 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
             }
             return PBXBuildFile(file: fileReference, settings: settings)
         }
-        let pbxBuildFiles = try headers.private.sorted().map { try addHeader($0, "private") } +
-            headers.public.sorted().map { try addHeader($0, "public") } +
-            headers.project.sorted().map { try addHeader($0, nil) }
+        if let headers {
+            let pbxBuildFiles = try headers.private.sorted().map { try addHeader($0, "private") } +
+                headers.public.sorted().map { try addHeader($0, "public") } +
+                headers.project.sorted().map { try addHeader($0, nil) }
 
-        pbxBuildFiles.forEach { pbxproj.add(object: $0) }
-        headersBuildPhase.files = pbxBuildFiles
+            pbxBuildFiles.forEach { pbxproj.add(object: $0) }
+            headersBuildPhase.files = pbxBuildFiles
+        }
     }
 
     func generateResourcesBuildPhase(

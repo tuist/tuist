@@ -1,6 +1,6 @@
+import _NIOFileSystem
 import FileSystem
 import Foundation
-import NIOFileSystem
 import Path
 import ProjectDescription
 import TuistCore
@@ -57,7 +57,7 @@ public class CachedManifestLoader: ManifestLoading {
     }
 
     public func loadConfig(at path: AbsolutePath) async throws -> ProjectDescription.Config {
-        try await load(manifest: .config, at: path, disableSandbox: false) {
+        try await load(manifest: .config, at: path, disableSandbox: true) {
             let projectDescriptionConfig = try await manifestLoader.loadConfig(at: path)
             return projectDescriptionConfig
         }
@@ -96,7 +96,7 @@ public class CachedManifestLoader: ManifestLoading {
     }
 
     public func loadPackage(at path: AbsolutePath) async throws -> PackageInfo {
-        try await load(manifest: .package, at: path, disableSandbox: false) {
+        try await load(manifest: .package, at: path, disableSandbox: true) {
             try await manifestLoader.loadPackage(at: path)
         }
     }
@@ -290,7 +290,7 @@ public class CachedManifestLoader: ManifestLoading {
         }
         do {
             try await write(cachedManifestContent: cachedManifestContent, to: cachedManifestPath)
-        } catch let error as NIOFileSystem.FileSystemError {
+        } catch let error as _NIOFileSystem.FileSystemError {
             if error.code == .fileAlreadyExists {
                 Logger.current.debug("The manifest at \(cachedManifestPath) is already cached, skipping...")
             } else {

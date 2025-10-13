@@ -103,6 +103,7 @@ let project = Project(
             ),
             dependencies: [
                 .target(name: "Framework3"),
+                .external(name: "GULNSData"),
             ],
             metadata: .metadata(tags: ["Framework2", "Frameworks"])
         ),

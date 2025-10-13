@@ -44,7 +44,7 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
                 disablePackageVersionLocking: false,
                 staticSideEffectsWarningTargets: .all,
                 buildInsightsDisabled: true,
-                disableSandbox: false,
+                disableSandbox: true,
                 includeGenerateScheme: false
             ),
             installOptions: .init(passthroughSwiftPackageManagerArguments: []),
@@ -178,7 +178,7 @@ extension TuistGeneratedProjectOptions {
             defaultConfiguration: String? = nil,
             optionalAuthentication: Bool = false,
             buildInsightsDisabled: Bool = true,
-            disableSandbox: Bool = false,
+            disableSandbox: Bool = true,
             includeGenerateScheme: Bool = true
         ) -> Self {
             .init(

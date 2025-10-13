@@ -11,31 +11,12 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
 
     override func setUp() {
         super.setUp()
-        subject = TreeShakePrunedTargetsGraphMapper(cacheKeepSourceTargets: false)
+        subject = TreeShakePrunedTargetsGraphMapper()
     }
 
     override func tearDown() {
         subject = nil
         super.tearDown()
-    }
-
-    func test_map_returns_the_same_graph_and_no_side_effects_when_cacheKeepSourceTargets_is_true() throws {
-        // Given
-        subject = TreeShakePrunedTargetsGraphMapper(cacheKeepSourceTargets: true)
-        let target = Target.test(metadata: .metadata(tags: ["tuist:prunable"]))
-        let project = Project.test(targets: [target])
-
-        let graph = Graph.test(
-            path: project.path,
-            projects: [project.path: project]
-        )
-
-        // When
-        let (gotGraph, gotSideEffects, _) = try subject.map(graph: graph, environment: MapperEnvironment())
-
-        // Then
-        XCTAssertEqual(gotGraph, graph)
-        XCTAssertEqual(gotSideEffects, [])
     }
 
     func test_map_removes_projects_when_all_its_targets_are_pruned() throws {

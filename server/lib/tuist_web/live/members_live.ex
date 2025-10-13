@@ -147,7 +147,7 @@ defmodule TuistWeb.MembersLive do
   defp invite_member_form(assigns) do
     ~H"""
     <.form id={@id} for={@form} phx-submit="invite-members">
-      <.modal id={"#{@id}-modal"} title={gettext("Create project")} on_dismiss="close-invite-members">
+      <.modal id={"#{@id}-modal"} title={gettext("Invite member")} on_dismiss="close-invite-members">
         <:trigger :let={attrs}>
           <.button variant="primary" label={gettext("Invite members")} {attrs} />
         </:trigger>

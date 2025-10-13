@@ -998,14 +998,11 @@ defmodule Tuist.Accounts do
   end
 
   def get_invitation_by_token(token, %User{} = invitee) do
-    invitation = Invitation |> Repo.get_by(token: token) |> Repo.preload(inviter: :account)
+    invitation = Invitation |> Repo.get_by(token: token, invitee_email: invitee.email) |> Repo.preload(inviter: :account)
 
     cond do
       is_nil(invitation) ->
         {:error, :not_found}
-
-      invitation.invitee_email != invitee.email ->
-        {:error, :forbidden}
 
       !is_nil(invitation) ->
         {:ok, invitation}

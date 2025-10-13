@@ -31,5 +31,8 @@ tuist project tokens create
 
 The CLI expects the token to be defined as the environment variable `TUIST_CONFIG_TOKEN`, and the `CI=1` environment variable to be set. The CLI will use the token to authenticate the requests.
 
-> [!IMPORTANT] LIMITED SCOPE
-> The permissions of the project-scoped token are limited to the actions that we consider safe for projects to perform from a CI environment. We plan to document the permissions that the token has in the future.
+::: warning LIMITED SCOPE
+<!-- -->
+The permissions of the project-scoped token are limited to the actions that we consider safe for projects to perform from a CI environment. We plan to document the permissions that the token has in the future.
+<!-- -->
+:::

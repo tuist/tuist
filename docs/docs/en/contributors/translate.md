@@ -19,8 +19,11 @@ Since maintaining translations is a continuous effort, we add languages as we se
 - Spanish
 - Portuguese
 
-> [!TIP] REQUEST A NEW LANGUAGE
-> If you believe Tuist would benefit from supporting a new language, please create a new [topic in the community forum](https://community.tuist.io/c/general/4) to discuss it with the community.
+::: tip REQUEST A NEW LANGUAGE
+<!-- -->
+If you believe Tuist would benefit from supporting a new language, please create a new [topic in the community forum](https://community.tuist.io/c/general/4) to discuss it with the community.
+<!-- -->
+:::
 
 ## How to translate {#how-to-translate}
 
@@ -29,8 +32,11 @@ You can head to [the project](https://translate.tuist.dev/engage/tuist/), create
 
 Translations are synchronized back to the source repository using GitHub pull requests which maintainers will review and merge.
 
-> [!IMPORTANT] DON'T MODIFY THE RESOURCES IN THE TARGET LANGUAGE
-> Weblate segments the files to bind source and target languages. If you modify the source language, you'll break the binding, and the reconciliation might yield unexpected results.
+::: warning DON'T MODIFY THE RESOURCES IN THE TARGET LANGUAGE
+<!-- -->
+Weblate segments the files to bind source and target languages. If you modify the source language, you'll break the binding, and the reconciliation might yield unexpected results.
+<!-- -->
+:::
 
 ## Guidelines {#guidelines}
 
@@ -38,32 +44,16 @@ The following are the guidelines we follow when translating.
 
 ### Custom containers and GitHub alerts {#custom-containers-and-github-alerts}
 
-When translating [custom containers](https://vitepress.dev/guide/markdown#custom-containers) or [GitHub Alerts](https://docs.github.com/en/get-started/writing-on-github/getting-started-with-writing-and-formatting-on-github/basic-writing-and-formatting-syntax#alerts), only translate the title and the content **but not the type of alert**.
+When translating [custom containers](https://vitepress.dev/guide/markdown#custom-containers) only translate the title and the content **but not the type of alert**.
 
-::: details Example with GitHub Alert
 ```markdown
-    > [!WARNING] 루트 변수
-    > 매니페스트의 루트에 있어야 하는 변수는...
-
-    // Instead of
-    > [!주의] 루트 변수
-    > 매니페스트의 루트에 있어야 하는 변수는...
-    ```
+<!-- -->
+::: warning 루트 변수
+<!-- -->
+매니페스트의 루트에 있어야 하는 변수는...
+<!-- -->
 :::
-
-
-::: details Example with custom container
-```markdown
-    ::: warning 루트 변수\
-    매니페스트의 루트에 있어야 하는 변수는...
-    :::
-
-    # Instead of
-    ::: 주의 루트 변수\
-    매니페스트의 루트에 있어야 하는 변수는...
-    :::
 ```
-:::
 
 ### Heading titles {#heading-titles}
 

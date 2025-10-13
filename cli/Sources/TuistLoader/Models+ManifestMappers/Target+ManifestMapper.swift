@@ -135,7 +135,7 @@ extension XcodeGraph.Target {
         }
 
         let metadata = XcodeGraph.TargetMetadata(tags: Set(manifest.metadata.tags))
-        let buildableFolders = try manifest.buildableFolders.map { try XcodeGraph.BuildableFolder.from(
+        let buildableFolders = try await manifest.buildableFolders.concurrentMap { try await XcodeGraph.BuildableFolder.from(
             manifest: $0,
             generatorPaths: generatorPaths
         ) }

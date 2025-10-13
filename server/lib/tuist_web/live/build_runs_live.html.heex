@@ -54,6 +54,9 @@
           <:col :let={build_run} label={gettext("Scheme")}>
             <.text_cell label={build_run.scheme || "None"} />
           </:col>
+          <:col :let={build_run} label={gettext("Configuration")}>
+            <.text_cell label={build_run.configuration || gettext("Unknown")} />
+          </:col>
           <:col :let={build_run} label="Status">
             <%= if build_run.status == :success do %>
               <.status_badge_cell label={gettext("Passed")} status="success" />

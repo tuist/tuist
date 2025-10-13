@@ -168,6 +168,12 @@ public struct XCActivityLogController: XCActivityLogControlling {
 
         let files = try await files(steps: steps, rootDirectory: rootDirectory)
 
+        let errorCount: Int = steps.reduce(0) { acc, step in
+            let errors = step.errors ?? []
+
+            return errors.filter { $0.severity == 2 }.count + acc
+        }
+
         return XCActivityLog(
             version: activityLog.version,
             mainSection: XCActivityLogSection(
@@ -176,7 +182,7 @@ public struct XCActivityLogController: XCActivityLogControlling {
                 timeStoppedRecording: activityLog.mainSection.timeStoppedRecording
             ),
             buildStep: XCActivityBuildStep(
-                errorCount: buildStep.errorCount
+                errorCount: errorCount
             ),
             category: category,
             issues: issues,
@@ -188,7 +194,8 @@ public struct XCActivityLogController: XCActivityLogControlling {
                     project: targetSteps.first(where: { $0.project() != "" })?.project() ?? "",
                     buildDuration: Int(($0.step.duration * 1000).rounded(.up)),
                     compilationDuration: Int(($0.step.compilationDuration * 1000).rounded(.up)),
-                    status: targetSteps.allSatisfy { $0.errorCount == 0 } ? .success : .failure
+                    status: targetSteps
+                        .contains(where: { ($0.errors ?? []).contains(where: { $0.severity == 2 }) }) ? .failure : .success
                 )
             }
         )
@@ -270,15 +277,11 @@ public struct XCActivityLogController: XCActivityLogControlling {
         let errors = step.errors ?? []
         let warnings = step.warnings ?? []
         return (errors + warnings).map { notice in
-            let type: XCActivityIssueType =
-                switch notice.type {
-                case .analyzerWarning, .clangWarning, .deprecatedWarning, .interfaceBuilderWarning,
-                     .swiftWarning, .projectWarning, .note:
-                    .warning
-                case .error, .clangError, .swiftError, .linkerError, .scriptPhaseError,
-                     .failedCommandError, .packageLoadingError:
-                    .error
-                }
+            let type: XCActivityIssueType = if notice.severity == 1 {
+                .warning
+            } else {
+                .error
+            }
 
             var message: String? = notice.detail
             if var noticeDetail = notice.detail {

@@ -27,7 +27,9 @@ public struct XcodeBuildCommand: AsyncParsableCommand, TrackableParsableCommand,
                 XcodeBuildBuildCommand.self,
                 XcodeBuildBuildForTestingCommand.self,
                 XcodeBuildArchiveCommand.self,
-            ]
+                XcodeBuildCommandReorderer.self,
+            ],
+            defaultSubcommand: XcodeBuildCommandReorderer.self
         )
     }
 

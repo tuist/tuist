@@ -216,6 +216,7 @@ defmodule TuistWeb.AppLayoutComponents do
             href={breadcrumb_item.href}
             show_avatar={Map.get(breadcrumb_item, :show_avatar, false)}
             avatar_color={Map.get(breadcrumb_item, :avatar_color)}
+            icon={Map.get(breadcrumb_item, :icon)}
           />
         </.breadcrumb>
       <% end %>
