@@ -5,10 +5,9 @@
   "description": "Learn how to install Tuist in your environment."
 }
 ---
-# Get started {#get-started}
+# 시작하기 {#get-started}
 
-The easiest way to get started with Tuist in any directory or in the directory
-of your Xcode project or workspace:
+어떤 디렉토리나 Xcode 프로젝트나 워크스페이스의 디렉토리에서 Tuist를 시작하는 가장 간단한 방법은 다음과 같습니다:
 
 ::: code-group
 
@@ -22,22 +21,19 @@ tuist init
 <!-- -->
 :::
 
-The command will walk you through the steps to
-<LocalizedLink href="/guides/features/projects">create a generated
-project</LocalizedLink> or integrate an existing Xcode project or workspace. It
-helps you connect your setup to the remote server, giving you access to features
-like <LocalizedLink href="/guides/features/selective-testing">selective
-testing</LocalizedLink>,
-<LocalizedLink href="/guides/features/previews">previews</LocalizedLink>, and
-the <LocalizedLink href="/guides/features/registry">registry</LocalizedLink>.
+이 명령어는 <LocalizedLink href="/guides/features/projects">생성된 프로젝트를
+만들거나</LocalizedLink> 기존 Xcode 프로젝트나 워크스페이스를 통합하는 과정을 안내합니다. 이 명령어는 또한 원격 서버와의
+연결을 설정하여 <LocalizedLink href="/guides/features/selective-testing">선택
+테스트</LocalizedLink>,
+<LocalizedLink href="/guides/features/previews">프리뷰</LocalizedLink>,
+<LocalizedLink href="/guides/features/registry">레지스트리</LocalizedLink>와 같은 기능을
+활용할 수 있도록 해줍니다.
 
 ::: info MIGRATE AN EXISTING PROJECT
 <!-- -->
-If you want to migrate an existing project to generated projects to improve the
-developer experience and take advantage of our
-<LocalizedLink href="/guides/features/cache">cache</LocalizedLink>, check out
-our
-<LocalizedLink href="/guides/features/projects/adoption/migrate/xcode-project">migration
-guide</LocalizedLink>.
+기존 프로젝트를 생성된 프로젝트로 마이그레이션하여 개발자 경험을 증진시키고
+<LocalizedLink href="/guides/features/cache">캐시</LocalizedLink>를 활용하려면
+<LocalizedLink href="/guides/features/projects/adoption/migrate/xcode-project">마이그레이션
+가이드</LocalizedLink>를 참고바랍니다.
 <!-- -->
 :::
