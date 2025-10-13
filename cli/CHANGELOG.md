@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.84.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* align 'tuist hash cache' to use same generator as cache warming by [@pepicrft](https://github.com/pepicrft) in [#8427](https://github.com/tuist/tuist/pull/8427)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.84.0...4.84.1
+
 ## What's Changed in 4.84.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
