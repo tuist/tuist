@@ -169,7 +169,7 @@ defmodule Tuist.Runs do
 
     from(b in Build)
     |> where([b], b.project_id == ^project.id)
-    |> where([b], not is_nil(b.scheme))
+    |> where([b], b.scheme != "")
     |> where([b], b.inserted_at > ^cutoff)
     |> distinct([b], b.scheme)
     |> select([b], b.scheme)
@@ -185,7 +185,7 @@ defmodule Tuist.Runs do
 
     from(b in Build)
     |> where([b], b.project_id == ^project.id)
-    |> where([b], not is_nil(b.configuration))
+    |> where([b], b.configuration != "")
     |> where([b], b.inserted_at > ^cutoff)
     |> distinct([b], b.configuration)
     |> select([b], b.configuration)
@@ -198,23 +198,23 @@ defmodule Tuist.Runs do
   """
   def build_ci_run_url(%Build{} = build) do
     case {build.ci_provider, build.ci_run_id, build.ci_project_handle} do
-      {:github, run_id, project_handle} when not is_nil(run_id) and not is_nil(project_handle) ->
+      {"github", run_id, project_handle} when not is_nil(run_id) and not is_nil(project_handle) ->
         "https://github.com/#{project_handle}/actions/runs/#{run_id}"
 
-      {:gitlab, pipeline_id, project_path} when not is_nil(pipeline_id) and not is_nil(project_path) ->
-        host = build.ci_host || "gitlab.com"
+        {"gitlab", pipeline_id, project_path} when not is_nil(pipeline_id) and not is_nil(project_path) ->
+        host = if build.ci_host != "", do: build.ci_host, else: "gitlab.com"
         "https://#{host}/#{project_path}/-/pipelines/#{pipeline_id}"
 
-      {:bitrise, build_slug, _app_slug} when not is_nil(build_slug) ->
+        {"bitrise", build_slug, _app_slug} when not is_nil(build_slug) ->
         "https://app.bitrise.io/build/#{build_slug}"
 
-      {:circleci, build_num, project_handle} when not is_nil(build_num) and not is_nil(project_handle) ->
+        {"circleci", build_num, project_handle} when not is_nil(build_num) and not is_nil(project_handle) ->
         "https://app.circleci.com/pipelines/github/#{project_handle}/#{build_num}"
 
-      {:buildkite, build_number, project_handle} when not is_nil(build_number) and not is_nil(project_handle) ->
+        {"buildkite", build_number, project_handle} when not is_nil(build_number) and not is_nil(project_handle) ->
         "https://buildkite.com/#{project_handle}/builds/#{build_number}"
 
-      {:codemagic, build_id, project_id} when not is_nil(build_id) and not is_nil(project_id) ->
+        {"codemagic", build_id, project_id} when not is_nil(build_id) and not is_nil(project_id) ->
         "https://codemagic.io/app/#{project_id}/build/#{build_id}"
 
       _ ->

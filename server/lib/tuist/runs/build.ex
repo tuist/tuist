@@ -131,9 +131,20 @@ defmodule Tuist.Runs.Build do
 
   def add_inserted_at(build) do
     inserted_at =
-      DateTime.utc_now()
-      |> DateTime.truncate(:second)
-      |> DateTime.to_naive()
+      case Map.get(build, :inserted_at) do
+        %NaiveDateTime{} = value ->
+          value
+
+        %DateTime{} = value ->
+          value
+          |> DateTime.truncate(:second)
+          |> DateTime.to_naive()
+
+        nil ->
+          DateTime.utc_now()
+          |> DateTime.truncate(:second)
+          |> DateTime.to_naive()
+      end
 
     Map.put(build, :inserted_at, inserted_at)
   end
