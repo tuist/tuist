@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.84.2<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* Handle target action input and output file paths that contain variables by [@pepicrft](https://github.com/pepicrft) in [#8432](https://github.com/tuist/tuist/pull/8432)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.84.1...4.84.2
+
 ## What's Changed in 4.84.1<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
