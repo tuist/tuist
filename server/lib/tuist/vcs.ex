@@ -355,9 +355,11 @@ defmodule Tuist.VCS do
          git_remote_url_origin: git_remote_url_origin,
          bundle_url: bundle_url
        }) do
+    git_ref_pattern = get_git_ref_pattern(git_ref)
+
     bundles =
       from(b in Bundle)
-      |> where([b], b.project_id == ^project.id and b.git_ref == ^git_ref)
+      |> where([b], b.project_id == ^project.id and like(b.git_ref, ^git_ref_pattern))
       |> order_by([b], desc: b.inserted_at)
       |> distinct([b], b.name)
       |> Repo.all()
@@ -425,15 +427,23 @@ defmodule Tuist.VCS do
     issue_id
   end
 
+  defp get_git_ref_pattern(git_ref) do
+    case String.split(git_ref, "/") do
+      ["refs", "pull", pr_number, _suffix] -> "refs/pull/#{pr_number}/%"
+      _ -> git_ref
+    end
+  end
+
   defp get_latest_command_events(
          %{get_identifier: get_identifier, name: name, git_ref: git_ref, project: project},
          opts \\ []
        ) do
     filter = Keyword.get(opts, :filter, fn _ -> true end)
+    git_ref_pattern = get_git_ref_pattern(git_ref)
 
     %{
       name: name,
-      git_ref: git_ref,
+      git_ref: git_ref_pattern,
       project: project
     }
     |> CommandEvents.get_command_events_by_name_git_ref_and_project(preload: [:preview])
@@ -456,8 +466,10 @@ defmodule Tuist.VCS do
   end
 
   defp latest_previews(%{git_ref: git_ref, project: project}) do
+    git_ref_pattern = get_git_ref_pattern(git_ref)
+
     from(p in Preview)
-    |> where([p], p.project_id == ^project.id and p.git_ref == ^git_ref)
+    |> where([p], p.project_id == ^project.id and like(p.git_ref, ^git_ref_pattern))
     |> order_by([p], desc: p.inserted_at)
     |> distinct([p], p.display_name)
     |> Repo.all()
@@ -565,8 +577,10 @@ defmodule Tuist.VCS do
   end
 
   defp get_latest_builds(%{git_ref: git_ref, project: project}) do
+    git_ref_pattern = get_git_ref_pattern(git_ref)
+
     from(b in Runs.Build)
-    |> where([b], b.project_id == ^project.id and b.git_ref == ^git_ref)
+    |> where([b], b.project_id == ^project.id and like(b.git_ref, ^git_ref_pattern))
     |> order_by([b], desc: b.inserted_at)
     |> Repo.all()
     |> Enum.filter(&(not is_nil(&1.scheme)))
