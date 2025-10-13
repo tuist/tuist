@@ -88,16 +88,6 @@ extension XcodeGraph.TargetScript {
         try await globs.concurrentMap { (glob: FileListGlob) -> [String] in
             let path = glob.glob
 
-            // For relativeToManifest paths that are not glob patterns, keep them as strings
-            if path.type == .relativeToManifest, !fileSystem.isGlobPattern(path) {
-                return [path.pathString]
-            }
-
-            // avoid globbing paths that contain variables
-            if path.pathString.contains("$") {
-                return [path.pathString]
-            }
-
             // If it's a glob pattern with excludes, use the unfold method
             if !glob.excluding.isEmpty || fileSystem.isGlobPattern(path) {
                 let unfolded = try await glob.unfold(
@@ -113,11 +103,11 @@ extension XcodeGraph.TargetScript {
                 }
             }
 
-            // Avoid globbing paths that are not glob patterns.
-            // More than that - globbing requires the path to be existing at the moment of the globbing
-            // which is not always the case.
-            // For example, output paths of a script that are not created yet.
-            return [try generatorPaths.resolve(path: path).pathString]
+            return try await resolvePathStrings(
+                path: path,
+                generatorPaths: generatorPaths,
+                fileSystem: fileSystem
+            )
         }.reduce([], +)
     }
 
@@ -127,34 +117,47 @@ extension XcodeGraph.TargetScript {
         fileSystem: FileSysteming
     ) async throws -> [String] {
         try await paths.concurrentMap { (path: Path) -> [String] in
-            // For relativeToManifest paths that are not glob patterns, keep them as strings
-            if path.type == .relativeToManifest, !fileSystem.isGlobPattern(path) {
-                return [path.pathString]
-            }
-
-            // avoid globbing paths that contain variables
-            if path.pathString.contains("$") {
-                return [path.pathString]
-            }
-            // Avoid globbing paths that are not glob patterns.
-            // More than that - globbing requires the path to be existing at the moment of the globbing
-            // which is not always the case.
-            // For example, output paths of a script that are not created yet.
-            if !fileSystem.isGlobPattern(path) {
-                return [try generatorPaths.resolve(path: path).pathString]
-            }
-
-            let absolutePath = try generatorPaths.resolve(path: path)
-            let base = try AbsolutePath(validating: absolutePath.dirname)
-            let globResults = try await fileSystem.glob(directory: base, include: [absolutePath.basename]).collect()
-
-            // For relativeToManifest paths, convert back to relative paths
-            if path.type == .relativeToManifest {
-                return globResults.map { $0.relative(to: generatorPaths.manifestDirectory).pathString }
-            } else {
-                return globResults.map(\.pathString)
-            }
+            try await resolvePathStrings(
+                path: path,
+                generatorPaths: generatorPaths,
+                fileSystem: fileSystem
+            )
         }.reduce([], +)
+    }
+
+    private static func resolvePathStrings(
+        path: Path,
+        generatorPaths: GeneratorPaths,
+        fileSystem: FileSysteming
+    ) async throws -> [String] {
+        // For relativeToManifest paths that are not glob patterns, keep them as strings
+        if path.type == .relativeToManifest, !fileSystem.isGlobPattern(path) {
+            return [path.pathString]
+        }
+
+        // avoid globbing paths that contain variables
+        if path.pathString.contains("$") {
+            return [path.pathString]
+        }
+
+        // Avoid globbing paths that are not glob patterns.
+        // More than that - globbing requires the path to be existing at the moment of the globbing
+        // which is not always the case.
+        // For example, output paths of a script that are not created yet.
+        if !fileSystem.isGlobPattern(path) {
+            return [try generatorPaths.resolve(path: path).pathString]
+        }
+
+        let absolutePath = try generatorPaths.resolve(path: path)
+        let base = try AbsolutePath(validating: absolutePath.dirname)
+        let globResults = try await fileSystem.glob(directory: base, include: [absolutePath.basename]).collect()
+
+        // For relativeToManifest paths, convert back to relative paths
+        if path.type == .relativeToManifest {
+            return globResults.map { $0.relative(to: generatorPaths.manifestDirectory).pathString }
+        } else {
+            return globResults.map(\.pathString)
+        }
     }
 }
 
