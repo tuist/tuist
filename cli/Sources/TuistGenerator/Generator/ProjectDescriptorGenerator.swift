@@ -276,28 +276,46 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
 
         for package in project.packages {
             switch package {
-            case let .local(path):
-                let relativePath = path.relative(to: project.sourceRootPath).pathString
+            case let .local(config):
+                let relativePath = config.path.relative(to: project.sourceRootPath).pathString
                 let reference = PBXFileReference(
-                    sourceTree: .group,
-                    name: path.components.last,
+                    sourceTree: .sourceRoot,
+                    name: config.path.components.last,
                     lastKnownFileType: "folder",
                     path: relativePath
                 )
 
                 let packageReference = XCLocalSwiftPackageReference(
-                    relativePath: relativePath
+                    relativePath: config.path.pathString
                 )
                 pbxproj.add(object: packageReference)
-                localPackageReferences[path.pathString] = packageReference
+                localPackageReferences[config.path.pathString] = packageReference
 
                 pbxproj.add(object: reference)
 
-                if let existingPackageGroup = try pbxproj.rootGroup()?.group(named: "Packages") {
-                    existingPackageGroup.children.append(reference)
+                guard let root = try pbxproj.rootGroup() else { continue }
+
+                if !config.isStandardReference {
+                    let localConfig = GeneratorLocalPackageReferenceConfig(
+                        path: config.path.pathString,
+                        sourceRoot: project.sourceRootPath.pathString,
+                        groupPath: config.groupPath,
+                        excludingPath: config.excludingPath,
+                        keepStructure: config.keepStructure
+                    )
+                    try addLocalPackageReference(
+                        root: root,
+                        reference: reference,
+                        project: pbxproj,
+                        localConfig: localConfig
+                    )
                 } else {
-                    let packageGroup = try pbxproj.rootGroup()?.addGroup(named: "Packages", options: .withoutFolder)
-                    packageGroup?.first?.children.append(reference)
+                    if let existingPackageGroup = root.group(named: "Packages") {
+                        existingPackageGroup.children.append(reference)
+                    } else {
+                        let packageGroup = try root.addGroup(named: "Packages", options: .withoutFolder)
+                        packageGroup.first?.children.append(reference)
+                    }
                 }
 
             case let .remote(url: url, requirement: requirement):
@@ -312,6 +330,86 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
 
         pbxProject.remotePackages = remotePackageReferences.sorted { $0.key < $1.key }.map { $1 }
         pbxProject.localPackages = localPackageReferences.sorted { $0.key < $1.key }.map { $1 }
+    }
+
+    func addLocalPackageReference(
+        root: PBXGroup,
+        reference: PBXFileReference,
+        project: PBXProj?,
+        localConfig: GeneratorLocalPackageReferenceConfig
+    ) throws {
+        let mainGroupName = localConfig.keepStructure ? "Project" : "Packages"
+        let baseGroup = try root.group(namedOrPath: mainGroupName)
+            ?? root.addGroup(named: mainGroupName, options: .withoutFolder).first
+
+        let components = makeGroupComponents(from: localConfig)
+
+        var currentGroup = baseGroup
+        for folder in components {
+            guard let group = currentGroup else { break }
+
+            if localConfig.keepStructure {
+                currentGroup = try resolveStructuredReference(named: folder, in: group, project: project)
+            } else {
+                currentGroup = try group.group(namedOrPath: folder)
+                    ?? group.addGroup(named: folder, options: .withoutFolder).first
+            }
+        }
+
+        currentGroup?.children.append(reference)
+    }
+
+    func resolveStructuredReference(
+        named name: String,
+        in parent: PBXGroup,
+        project: PBXProj?
+    ) throws -> PBXGroup {
+        if let group = parent.children.compactMap({ $0 as? PBXGroup }).first(where: { $0.name == name || $0.path == name }) {
+            return group
+        }
+        
+        if let reference = parent.childReference(namedOrPath: name),
+           !(reference is PBXGroup),
+           let index = parent.children.firstIndex(of: reference) {
+            parent.children.remove(at: index)
+        }
+        
+        let newGroup = PBXGroup(
+            children: [],
+            sourceTree: .group,
+            name: nil,
+            path: name
+        )
+        project?.add(object: newGroup)
+        parent.children.append(newGroup)
+        return newGroup
+    }
+
+    private func makeGroupComponents(from config: GeneratorLocalPackageReferenceConfig) -> [String] {
+        if let groupPath = config.groupPath {
+            return groupPath.split(separator: "/").map(String.init)
+        }
+
+        // Calculate relative path to sourceRoot
+        var relativePath = config.path
+        if relativePath.hasPrefix(config.sourceRoot + "/") {
+            relativePath.removeFirst(config.sourceRoot.count + 1)
+        }
+
+        var components = relativePath.split(separator: "/").map(String.init)
+
+        // Remove excluding prefix
+        if let excludingPath = config.excludingPath {
+            let excludeComponents = excludingPath.split(separator: "/").map(String.init)
+            if components.starts(with: excludeComponents) {
+                components.removeFirst(excludeComponents.count)
+            }
+        }
+
+        // Remove last element
+        components.removeLast()
+
+        return components
     }
 
     private func generateAttributes(project: Project) -> [String: ProjectAttribute] {
@@ -346,5 +444,39 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
     private func determineProjectConstants() throws -> ProjectConstants {
         // TODO: Determine if this can be inferred by the set Xcode version
         .xcode13
+    }
+}
+
+private extension PBXGroup {
+    func group(namedOrPath nameOrPath: String) -> PBXGroup? {
+        return children
+            .compactMap { $0 as? PBXGroup }
+            .first(where: { $0.name == nameOrPath || $0.path == nameOrPath })
+    }
+
+    func childReference(namedOrPath nameOrPath: String) -> PBXFileElement? {
+        return children.first(where: { $0.path == nameOrPath || ($0.name == nameOrPath) })
+    }
+}
+
+struct GeneratorLocalPackageReferenceConfig: Equatable, Codable, Sendable {
+    let path: String
+    let sourceRoot: String
+    let groupPath: String?
+    let excludingPath: String?
+    let keepStructure: Bool
+    
+    init(
+        path: String,
+        sourceRoot: String,
+        groupPath: String? = nil,
+        excludingPath: String? = nil,
+        keepStructure: Bool = false
+    ) {
+        self.path = path
+        self.sourceRoot = sourceRoot
+        self.groupPath = groupPath
+        self.excludingPath = excludingPath
+        self.keepStructure = keepStructure
     }
 }
