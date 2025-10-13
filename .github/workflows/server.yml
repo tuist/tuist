@@ -30,7 +30,7 @@ env:
 
 defaults:
   run:
-    working-directory: server
+    working_directory: server
 
 jobs:
   test:
@@ -71,7 +71,7 @@ jobs:
       - uses: jdx/mise-action@v3.2.0
         with:
           cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
-          working-directory: server
+          working_directory: server
       - run: mise run install
       - run: mise run clickhouse:start
       - run: mise run db:reset
@@ -102,7 +102,7 @@ jobs:
       - uses: jdx/mise-action@v3.2.0
         with:
           cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
-          working-directory: server
+          working_directory: server
       - run: mise run install
       - name: Run Credo
         run: mix credo
@@ -131,7 +131,7 @@ jobs:
       - uses: jdx/mise-action@v3.2.0
         with:
           cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
-          working-directory: server
+          working_directory: server
       - run: mise run install
       - name: Check format
         run: mise run format --check
@@ -160,7 +160,7 @@ jobs:
       - uses: jdx/mise-action@v3.2.0
         with:
           cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
-          working-directory: server
+          working_directory: server
       - run: mise run install
       - name: Install esbuild
         run: mix esbuild.install
@@ -205,7 +205,7 @@ jobs:
       - uses: jdx/mise-action@v3.2.0
         with:
           cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
-          working-directory: server
+          working_directory: server
       - run: mise run install
       - name: Check
         run: mise run security
@@ -236,7 +236,7 @@ jobs:
       - uses: jdx/mise-action@v3.2.0
         with:
           cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
-          working-directory: server
+          working_directory: server
       - run: mise run install
       # We move it so that we can copy it inside the Docker image for
       # reproducibility of dependency resolution.
@@ -347,7 +347,7 @@ jobs:
       - uses: jdx/mise-action@v3.2.0
         with:
           cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
-          working-directory: server
+          working_directory: server
       - run: mise run install
       - run: mise run clickhouse:start
       - run: mise run db:reset
