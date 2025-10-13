@@ -5,7 +5,7 @@
   "description": "Learn about Tuist's DSL for defining Xcode projects."
 }
 ---
-# Generated projects {#generated-projects}
+# Generated 프로젝트 {#generated-projects}
 
 Generated is a viable alternative that helps to overcome these challenges while
 keeping complexity and costs at an acceptable level. It considers Xcode projects
