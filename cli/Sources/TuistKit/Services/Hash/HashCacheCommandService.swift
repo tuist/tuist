@@ -4,11 +4,8 @@ import TuistCache
 import TuistCore
 import TuistHasher
 import TuistLoader
-import TuistServer
 import TuistSupport
 import XcodeGraph
-import XcodeGraphMapper
-
 #if canImport(TuistCacheEE)
     import TuistCacheEE
 #endif
@@ -25,48 +22,56 @@ enum HashCacheCommandServiceError: LocalizedError, Equatable {
 }
 
 final class HashCacheCommandService {
-    private let generatorFactory: GeneratorFactorying
+    #if canImport(TuistCacheEE)
+        private let generatorFactory: CacheGeneratorFactorying
+    #else
+        private let generatorFactory: GeneratorFactorying
+    #endif
     private let cacheGraphContentHasher: CacheGraphContentHashing
-    private let clock: Clock
     private let configLoader: ConfigLoading
     private let manifestLoader: ManifestLoading
-    private let manifestGraphLoader: ManifestGraphLoading
 
     convenience init(
         contentHasher: ContentHashing = CachedContentHasher()
     ) {
-        let manifestLoader = ManifestLoaderFactory()
-            .createManifestLoader()
-        let manifestGraphLoader = ManifestGraphLoader(
-            manifestLoader: manifestLoader,
-            workspaceMapper: SequentialWorkspaceMapper(mappers: []),
-            graphMapper: SequentialGraphMapper([])
-        )
+        #if canImport(TuistCacheEE)
+            let generatorFactory = CacheGeneratorFactory(contentHasher: contentHasher)
+        #else
+            let generatorFactory = GeneratorFactory()
+        #endif
         self.init(
-            generatorFactory: Extension.generatorFactory,
+            generatorFactory: generatorFactory,
             cacheGraphContentHasher: CacheGraphContentHasher(contentHasher: contentHasher),
-            clock: WallClock(),
             configLoader: ConfigLoader(manifestLoader: ManifestLoader()),
-            manifestLoader: manifestLoader,
-            manifestGraphLoader: manifestGraphLoader
+            manifestLoader: ManifestLoaderFactory().createManifestLoader()
         )
     }
 
-    init(
-        generatorFactory: GeneratorFactorying,
-        cacheGraphContentHasher: CacheGraphContentHashing,
-        clock: Clock,
-        configLoader: ConfigLoading,
-        manifestLoader: ManifestLoading,
-        manifestGraphLoader: ManifestGraphLoading,
-    ) {
-        self.generatorFactory = generatorFactory
-        self.cacheGraphContentHasher = cacheGraphContentHasher
-        self.clock = clock
-        self.configLoader = configLoader
-        self.manifestLoader = manifestLoader
-        self.manifestGraphLoader = manifestGraphLoader
-    }
+    #if canImport(TuistCacheEE)
+        init(
+            generatorFactory: CacheGeneratorFactorying,
+            cacheGraphContentHasher: CacheGraphContentHashing,
+            configLoader: ConfigLoading,
+            manifestLoader: ManifestLoading
+        ) {
+            self.generatorFactory = generatorFactory
+            self.cacheGraphContentHasher = cacheGraphContentHasher
+            self.configLoader = configLoader
+            self.manifestLoader = manifestLoader
+        }
+    #else
+        init(
+            generatorFactory: GeneratorFactorying,
+            cacheGraphContentHasher: CacheGraphContentHashing,
+            configLoader: ConfigLoading,
+            manifestLoader: ManifestLoading
+        ) {
+            self.generatorFactory = generatorFactory
+            self.cacheGraphContentHasher = cacheGraphContentHasher
+            self.configLoader = configLoader
+            self.manifestLoader = manifestLoader
+        }
+    #endif
 
     private func absolutePath(_ path: String?) throws -> AbsolutePath {
         if let path {
@@ -88,20 +93,12 @@ final class HashCacheCommandService {
         if try await manifestLoader.hasRootManifest(at: absolutePath) {
             let config = try await configLoader.loadConfig(path: absolutePath)
 
-            #if canImport(TuistCacheEE)
-                let cacheStorage = try await CacheStorageFactory().cacheStorage(config: config)
-
-                /// Use generationForHashing to ensure consistent hashing with CacheService
-                let generator = (generatorFactory as! CacheGeneratorFactory).generationForHashing(
-                    config: config,
-                    includedTargets: [],
-                    configuration: configuration,
-                    cacheStorage: cacheStorage
-                )
-            #else
-                let generator = generatorFactory.defaultGenerator(config: config, includedTargets: [])
-            #endif
-
+            // Use the same generator as binaryCacheWarmingPreload to ensure consistent hashing
+            // Pass empty set to load all targets without filtering
+            let generator = generatorFactory.binaryCacheWarmingPreload(
+                config: config,
+                targetsToBinaryCache: []
+            )
             graph = try await generator.load(
                 path: absolutePath,
                 options: config.project.generatedProject?.generationOptions

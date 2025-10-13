@@ -77,6 +77,7 @@ public final class CacheGraphContentHasher: CacheGraphContentHashing {
                 try await XcodeController.current.selectedVersion().xcodeStringValue,
             ]
         )
+
         return hashes
     }
 
