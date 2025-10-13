@@ -840,6 +840,125 @@ defmodule Tuist.VCSTest do
       })
     end
 
+    test "handles different git_ref suffixes (head/merge) connected with the same PR correctly" do
+      # Given
+      project =
+        ProjectsFixtures.project_fixture(
+          vcs_connection: [
+            repository_full_handle: "tuist/tuist",
+            provider: :github
+          ]
+        )
+
+      preview =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          display_name: "App",
+          git_ref: "refs/pull/1/head",
+          git_commit_sha: @git_commit_sha,
+          inserted_at: ~N[2024-04-30 03:00:00]
+        )
+
+      _app_build =
+        AppBuildsFixtures.app_build_fixture(
+          preview: preview,
+          project: project,
+          display_name: "App"
+        )
+
+      test_command_event =
+        CommandEventsFixtures.command_event_fixture(
+          name: "test",
+          git_ref: "refs/pull/1/merge",
+          project_id: project.id,
+          command_arguments: ["test"],
+          git_commit_sha: @git_commit_sha,
+          created_at: ~N[2024-04-30 04:00:00]
+        )
+
+      bundle =
+        BundlesFixtures.bundle_fixture(
+          project: project,
+          install_size: 1000,
+          download_size: 3000,
+          git_ref: "refs/pull/1/head",
+          git_commit_sha: @git_commit_sha,
+          inserted_at: ~U[2024-01-01 05:00:00Z]
+        )
+
+      {:ok, build_run} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          scheme: "MyApp",
+          status: :success,
+          duration: 45_000,
+          git_commit_sha: @git_commit_sha,
+          git_ref: "refs/pull/1/merge"
+        )
+
+      stub(Req, :get, fn _opts ->
+        {:ok, %Req.Response{status: 200, body: []}}
+      end)
+
+      commit_link = "[123456789](#{@git_remote_url_origin}/commit/#{@git_commit_sha})"
+
+      expected_body =
+        """
+        ### 🛠️ Tuist Run Report 🛠️
+
+        #### Previews 📦
+
+        | App | Commit |
+        | - | - |
+        | [App](https://tuist.dev/previews/#{preview.id}) | #{commit_link} |
+
+
+        #### Tests 🧪
+
+        | Command | Status | Cache hit rate | Tests | Skipped | Ran | Commit |
+        |:-:|:-:|:-:|:-:|:-:|:-:|:-:|
+        | [test](https://tuist.dev/runs/#{test_command_event.id}) | ✅ | 0 % | 0 | 0 | 0 | #{commit_link} |
+
+
+        #### Builds 🔨
+
+        | Scheme | Status | Duration | Commit |
+        |:-:|:-:|:-:|:-:|
+        | [MyApp](https://tuist.dev/build-runs/#{build_run.id}) | ✅ | 45.0s | #{commit_link} |
+
+
+        #### Bundles 🧰
+
+        | Bundle | Commit | Install size | Download size |
+        | - | - | - | - |
+        | [App](https://tuist.dev/bundles/#{bundle.id}) | #{commit_link} | <div align=\"center\">1.0 KB</div> | <div align=\"center\">3.0 KB</div> |
+
+        """
+
+      expect(Req, :post, fn opts ->
+        assert opts[:json] == %{body: expected_body}
+
+        {:ok, %Req.Response{status: 200, body: %{}}}
+      end)
+
+      # When / Then
+      VCS.post_vcs_pull_request_comment(%{
+        project: project,
+        git_commit_sha: @git_commit_sha,
+        git_ref: "refs/pull/1/merge",
+        git_remote_url_origin: @git_remote_url_origin,
+        preview_url: fn %{preview: preview} -> "https://tuist.dev/previews/#{preview.id}" end,
+        preview_qr_code_url: fn %{preview: preview} ->
+          "https://tuist.dev/previews/#{preview.id}/qr-code.svg"
+        end,
+        command_run_url: fn %{command_event: command_event} ->
+          "https://tuist.dev/runs/#{command_event.id}"
+        end,
+        bundle_url: fn %{bundle: bundle} -> "https://tuist.dev/bundles/#{bundle.id}" end,
+        build_url: fn %{build: build} -> "https://tuist.dev/build-runs/#{build.id}" end
+      })
+    end
+
     test "does not show size delta when there is no last bundle" do
       # Given
       project =
