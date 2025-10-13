@@ -7,11 +7,12 @@
 ---
 # Migrate an Xcode project {#migrate-an-xcode-project}
 
-Unless you <LocalizedLink href="/guides/start/new-project">create a new project
-using Tuist</LocalizedLink>, in which case you get everything configured
-automatically, you'll have to define your Xcode projects using Tuist's
-primitives. How tedious this process is, depends on how complex your projects
-are.
+Unless you
+<LocalizedLink href="/guides/features/projects/adoption/new-project">create a
+new project using Tuist</LocalizedLink>, in which case you get everything
+configured automatically, you'll have to define your Xcode projects using
+Tuist's primitives. How tedious this process is, depends on how complex your
+projects are.
 
 As you probably know, Xcode projects can become messy and complex over time:
 groups that don't match the directory structure, files that are shared across
