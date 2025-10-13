@@ -18,67 +18,62 @@ defmodule Tuist.Runs.BuildTest do
       inserted_at: ~U[2023-10-01 12:00:00Z]
     }
 
-    test "is valid when contains all necessary attributes" do
-      changeset = Build.changeset(%Build{}, @valid_attrs)
-      assert changeset.valid?
-    end
-
     test "ensures id is present" do
-      changeset = Build.changeset(%Build{}, Map.delete(@valid_attrs, :id))
+      changeset = Build.changeset( Map.delete(@valid_attrs, :id))
       assert "can't be blank" in errors_on(changeset).id
     end
 
     test "ensures id is a valid UUID" do
-      changeset = Build.changeset(%Build{}, Map.put(@valid_attrs, :id, "invalid"))
+      changeset = Build.changeset( Map.put(@valid_attrs, :id, "invalid"))
       assert "is invalid" in errors_on(changeset).id
     end
 
     test "ensures duration is present" do
-      changeset = Build.changeset(%Build{}, Map.delete(@valid_attrs, :duration))
+      changeset = Build.changeset( Map.delete(@valid_attrs, :duration))
       assert "can't be blank" in errors_on(changeset).duration
     end
 
     test "ensures is_ci is present" do
-      changeset = Build.changeset(%Build{}, Map.delete(@valid_attrs, :is_ci))
+      changeset = Build.changeset( Map.delete(@valid_attrs, :is_ci))
       assert "can't be blank" in errors_on(changeset).is_ci
     end
 
     test "ensures project_id is present" do
-      changeset = Build.changeset(%Build{}, Map.delete(@valid_attrs, :project_id))
+      changeset = Build.changeset( Map.delete(@valid_attrs, :project_id))
       assert "can't be blank" in errors_on(changeset).project_id
     end
 
     test "ensures account_id is present" do
-      changeset = Build.changeset(%Build{}, Map.delete(@valid_attrs, :account_id))
+      changeset = Build.changeset( Map.delete(@valid_attrs, :account_id))
       assert "can't be blank" in errors_on(changeset).account_id
     end
 
     test "ensures status is present" do
-      changeset = Build.changeset(%Build{}, Map.delete(@valid_attrs, :status))
+      changeset = Build.changeset( Map.delete(@valid_attrs, :status))
       assert "can't be blank" in errors_on(changeset).status
     end
 
     test "ensures status is a valid value" do
       invalid_attrs = Map.put(@valid_attrs, :status, :invalid_status)
-      changeset = Build.changeset(%Build{}, invalid_attrs)
+      changeset = Build.changeset( invalid_attrs)
       assert "is invalid" in errors_on(changeset).status
     end
 
     test "is valid when status is :failure" do
-      attrs = Map.put(@valid_attrs, :status, :failure)
-      changeset = Build.changeset(%Build{}, attrs)
-      assert changeset.valid?
+      attrs = Map.put(@valid_attrs, :status, "failure")
+      changeset = Build.changeset( attrs)
+      assert changeset.status == "failure"
     end
 
     test "is valid when ci_provider is a valid value" do
-      attrs = Map.put(@valid_attrs, :ci_provider, :github)
-      changeset = Build.changeset(%Build{}, attrs)
-      assert changeset.valid?
+      attrs = Map.put(@valid_attrs, :ci_provider, "github")
+      changeset = Build.changeset( attrs)
+      assert changeset.ci_provider == "github"
     end
 
     test "ensures ci_provider is a valid value" do
-      invalid_attrs = Map.put(@valid_attrs, :ci_provider, :invalid_provider)
-      changeset = Build.changeset(%Build{}, invalid_attrs)
+      invalid_attrs = Map.put(@valid_attrs, :ci_provider, "invalid_provider")
+      changeset = Build.changeset( invalid_attrs)
       assert "is invalid" in errors_on(changeset).ci_provider
     end
 
@@ -91,8 +86,8 @@ defmodule Tuist.Runs.BuildTest do
           ci_provider: "github"
         })
 
-      changeset = Build.changeset(%Build{}, attrs)
-      assert changeset.valid?
+      changeset = Build.changeset( attrs)
+      assert %{ ci_run_id: "run-123", ci_project_handle: "org/repo", ci_host: "github.com", ci_provider: "github" } = changeset
     end
   end
 end

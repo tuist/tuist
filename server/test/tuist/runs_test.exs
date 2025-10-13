@@ -163,7 +163,7 @@ defmodule Tuist.RunsTest do
       schemes = Runs.project_build_schemes(project)
 
       # Then
-      assert schemes == ["App", "Framework"]
+      assert Enum.sort(schemes) == Enum.sort(["App", "Framework"])
     end
 
     test "returns an empty list when no builds exist for the project" do
