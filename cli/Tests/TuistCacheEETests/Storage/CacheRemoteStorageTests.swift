@@ -349,11 +349,15 @@ struct CacheRemoteStorageTests {
         given(downloader).download(item: .any, url: .value(serverCacheArtifact.url)).willReturn(zipPath)
 
         // When/Then
-        await #expect(throws: CacheRemoteStorageError.self) {
-            try await subject.fetch(
-                Set([.init(name: "target", hash: "hash")]), cacheCategory: .binaries
-            )
-        }
+        let got = try await subject.fetch(
+            Set([.init(name: "target", hash: "hash")]), cacheCategory: .binaries
+        )
+        #expect(got == [:])
+
+        #expect(AlertController.current.warnings().map(\.message)
+            .map { $0.plain() } ==
+            ["The following artifacts do not exist in the remote cache: target"]
+        )
     }
 
     @Test(
