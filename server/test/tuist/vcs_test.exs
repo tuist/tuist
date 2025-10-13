@@ -935,7 +935,9 @@ defmodule Tuist.VCSTest do
 
         """
 
-      expect(Req, :post, fn _opts ->
+      expect(Req, :post, fn opts ->
+        assert opts[:json] == %{body: expected_body}
+
         {:ok, %Req.Response{status: 200, body: %{}}}
       end)
 
