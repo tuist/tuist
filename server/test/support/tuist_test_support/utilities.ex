@@ -20,6 +20,16 @@ defmodule TuistTestSupport.Utilities do
   end
 
   def truncate_clickhouse_tables do
+    # Ensure all buffers are flushed before truncating to prevent race conditions.
+    Tuist.CommandEvents.Buffer.flush()
+    Tuist.Runs.BuildBuffer.flush()
+    Tuist.Runs.BuildIssueBuffer.flush()
+    Tuist.Runs.BuildFileBuffer.flush()
+    Tuist.Runs.BuildTargetBuffer.flush()
+    Tuist.Xcode.XcodeGraph.Buffer.flush()
+    Tuist.Xcode.XcodeProject.Buffer.flush()
+    Tuist.Xcode.XcodeTarget.Buffer.flush()
+
     commands = [
       "TRUNCATE TABLE IF EXISTS build_runs",
       "TRUNCATE TABLE IF EXISTS command_events",

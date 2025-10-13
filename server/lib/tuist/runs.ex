@@ -5,8 +5,8 @@ defmodule Tuist.Runs do
 
   import Ecto.Query
 
-  alias Tuist.ClickHouseRepo
   alias Tuist.ClickHouseFlop
+  alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
   alias Tuist.Projects.Project
   alias Tuist.Repo

@@ -59,11 +59,27 @@ defmodule Tuist.Runs.Build do
     has_many :files, Tuist.Runs.BuildFile, foreign_key: :build_run_id
     has_many :targets, Tuist.Runs.BuildTarget, foreign_key: :build_run_id
 
-    field :inserted_at, Ch, type: "DateTime64(6)"
+    field :inserted_at, Ch, type: "DateTime"
   end
 
-  def create_changeset(build, attrs) do
-    build
+  @defaults %{
+    macos_version: "",
+    xcode_version: "",
+    model_identifier: "",
+    scheme: "",
+    category: "unknown",
+    configuration: "",
+    git_branch: "",
+    git_commit_sha: "",
+    git_ref: "",
+    ci_run_id: "",
+    ci_project_handle: "",
+    ci_host: "",
+    ci_provider: "unknown"
+  }
+
+  def changeset(attrs) do
+    %__MODULE__{}
     |> cast(attrs, [
       :id,
       :duration,
@@ -95,16 +111,30 @@ defmodule Tuist.Runs.Build do
       :status
     ])
     |> validate_number(:duration, greater_than_or_equal_to: 0)
+    |> Map.from_struct()
+    |> Map.get(:changes)
+    |> add_defaults()
+    |> add_inserted_at()
   end
 
-  def ensure_inserted_at(%__MODULE__{inserted_at: nil} = build) do
+  defp add_defaults(nil), do: @defaults
+
+  defp add_defaults(changes) do
+    Enum.reduce(@defaults, changes, fn {field, default}, acc ->
+      case Map.fetch(acc, field) do
+        :error -> Map.put(acc, field, default)
+        {:ok, nil} -> Map.put(acc, field, default)
+        {:ok, _value} -> acc
+      end
+    end)
+  end
+
+  def add_inserted_at(build) do
     inserted_at =
       DateTime.utc_now()
       |> DateTime.truncate(:second)
       |> DateTime.to_naive()
 
-    %{build | inserted_at: inserted_at}
+    Map.put(build, :inserted_at, inserted_at)
   end
-
-  def ensure_inserted_at(%__MODULE__{} = build), do: build
 end

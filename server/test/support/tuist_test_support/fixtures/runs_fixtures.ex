@@ -15,7 +15,7 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
         TuistTestSupport.Fixtures.AccountsFixtures.user_fixture(preload: [:account]).account.id
       end)
 
-    Runs.create_build(%{
+    build = Runs.create_build(%{
       id: Keyword.get(attrs, :id, UUIDv7.generate()),
       duration: Keyword.get(attrs, :duration, 1000),
       macos_version: Keyword.get(attrs, :macos_version, "11.2.3"),
@@ -27,8 +27,8 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
       project_id: project_id,
       account_id: account_id,
       inserted_at: Keyword.get(attrs, :inserted_at),
-      status: Keyword.get(attrs, :status, :success),
-      category: Keyword.get(attrs, :category, :incremental),
+      status: Keyword.get(attrs, :status, "success"),
+      category: Keyword.get(attrs, :category, "incremental"),
       git_commit_sha: Keyword.get(attrs, :git_commit_sha),
       git_branch: Keyword.get(attrs, :git_branch),
       git_ref: Keyword.get(attrs, :git_ref),
@@ -40,5 +40,9 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
       files: Keyword.get(attrs, :files, []),
       targets: Keyword.get(attrs, :targets, [])
     })
+
+    Tuist.Runs.BuildBuffer.flush()
+build
+
   end
 end

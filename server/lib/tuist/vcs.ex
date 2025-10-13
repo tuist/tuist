@@ -628,8 +628,8 @@ defmodule Tuist.VCS do
 
   defp get_build_status_text(build) do
     case build.status do
-      :failure -> "❌"
-      :success -> "✅"
+      "failure" -> "❌"
+      "success" -> "✅"
     end
   end
 
