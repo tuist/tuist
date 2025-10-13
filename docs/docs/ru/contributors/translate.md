@@ -5,7 +5,7 @@
   "description": "This document describes the principles that guide the development of Tuist."
 }
 ---
-# Translate {#translate}
+# Перевод {#translate}
 
 Languages can be barriers to understanding. We want to make sure that Tuist is
 accessible to as many people as possible. If you speak a language that Tuist
