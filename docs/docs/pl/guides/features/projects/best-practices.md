@@ -5,70 +5,73 @@
   "description": "Learn about the best practices for working with Tuist and Xcode projects."
 }
 ---
-# Best practices {#best-practices}
+# Dobre praktyki {#best-practices}
 
-Over the years working with different teams and projects, we've identified a set
-of best practices that we recommend following when working with Tuist and Xcode
-projects. These practices are not mandatory, but they can help you structure
-your projects in a way that makes them easier to maintain and scale.
+Przez lata pracy z różnymi zespołami i projektami zidentyfikowaliśmy zestaw
+dobrych praktyk, które zalecamy przestrzegać podczas pracy z projektami Tuist i
+Xcode. Praktyki te nie są obowiązkowe, ale mogą pomóc w ustrukturyzowaniu
+projektów w sposób ułatwiający ich utrzymanie i skalowanie.
 
 ## Xcode {#xcode}
 
-### Discouraged patterns {#discouraged-patterns}
+### Niepożądane wzorce {#discouraged-patterns}
 
-#### Configurations to model remote environments {#configurations-to-model-remote-environments}
+#### Konfiguracje do modelowania środowisk aplikacji {#configurations-to-model-remote-environments}
 
-Many organizations use build configurations to model different remote
-environments (e.g., `Debug-Production` or `Release-Canary`), but this approach
-has some downsides:
+Wiele organizacji używa konfiguracji kompilacji do modelowania różnych środowisk
+(np. `Debug-Production` lub `Release-Canary`), takie podejście ma niestety pewne
+wady:
 
-- **Inconsistencies:** If there are configuration inconsistencies throughout the
-  graph, the build system might end up using the wrong configuration for some
-  targets.
-- **Complexity:** Projects can end up with a long list of local configurations
-  and remote environments that are hard to reason about and maintain.
+- **Niespójności:** Jeśli wśród zależności występują niespójności konfiguracji,
+  kompilator może użyć niewłaściwej konfiguracji dla niektórych targetów.
+- **Złożoność:** Projekty mogą skończyć z długą listą konfiguracji, które są
+  trudne w zrozumieniu i utrzymaniu.
 
-Build configurations were designed to embody different build settings, and
-projects rarely need more than just `Debug` and `Release`. The need to model
-different environments can be achieved differently:
+Konfiguracje kompilatora zostały zaprojektowane w celu ucieleśnienia różnych
+ustawień kompilacji, a projekty rzadko potrzebują ich więcej niż `Debug` i
+`Release`. Potrzebę modelowania różnych środowisk można zrealizować na inne
+sposoby:
 
-- **In Debug builds:** You can include all the configurations that should be
-  accessible in development in the app (e.g. endpoints), and switch them at
-  runtime. The switch can happen either using scheme launch environment
-  variables, or with a UI within the app.
-- **In Release builds:** In case of release, you can only include the
-  configuration that the release build is bound to, and not include the runtime
-  logic for switching configurations by using compiler directives.
+- **W buildach Debug:** Można dołączyć wszystkie konfiguracje, które powinny być
+  dostępne w fazie rozwoju w aplikacji (np. endpointy) i podmieniać je w trakcie
+  pracy aplikacji. Wybór może odbywać się za pomocą zmiennych środowiskowych
+  ustawianych w scheme lub za pomocą interfejsu użytkownika w aplikacji.
+- **W wersjach Release:** W przypadku wersji release można dołączyć tylko
+  konfigurację, z którą powiązana jest wersja produkcyjna aplikacji
+  wykorzystując dyrektywy kompilatora.
 
-::: info Non-standard configurations
+::: info Niestandardowe konfiguracje
 <!-- -->
-While Tuist supports non-standard configurations and makes them easier to manage
-compared to vanilla Xcode projects, you'll receive warnings if configurations
-are not consistent throughout the dependency graph. This helps ensure build
-reliability and prevents configuration-related issues.
+Chociaż Tuist obsługuje niestandardowe konfiguracje i upraszcza zarządzanie nimi
+w porównaniu do zwykłych projektów Xcode, jeśli konfiguracje nie są spójne dla
+grafu zależności, otrzymasz ostrzeżenia . Pomaga to zapewnić niezawodność
+kompilacji i zapobiega problemom związanym z konfiguracją.
 <!-- -->
 :::
 
-## Generated projects
+## Wygenerowane projekty
 
-### Buildable folders
+### Foldery do zbudowania
 
-Tuist 4.62.0 added support for **buildable folders** (Xcode's synchronized
-groups), a feature introduced in Xcode 16 to reduce merge conflicts.
+W wersji Tuist 4.62.0 dodano obsługę **folderów do kompilacji**
+(zsynchronizowanych grup Xcode), funkcji wprowadzonej w Xcode 16 w celu
+ograniczenia konfliktów.
 
-While Tuist's wildcard patterns (e.g., `Sources/**/*.swift`) already eliminate
-merge conflicts in generated projects, buildable folders offer additional
-benefits:
+Podczas gdy wzorce wieloznaczne Tuist (np. `Sources/**/*.swift`) już eliminują
+konflikty scalania w generowanych projektach, foldery kompilowalne oferują
+dodatkowe korzyści:
 
-- **Automatic synchronization**: Your project structure stays in sync with the
-  file system—no regeneration needed when adding or removing files
-- **AI-friendly workflows**: Coding assistants and agents can modify your
-  codebase without triggering project regeneration
-- **Simpler configuration**: Define folder paths instead of managing explicit
-  file lists
+- **Automatyczna synchronizacja**: Struktura projektu pozostaje zsynchronizowana
+  z systemem plików - nie jest wymagana regeneracja projektu podczas dodawania
+  lub usuwania plików
+- **Przyjazne dla sztucznej inteligencji**: Asystenci i agenci AI mogą
+  modyfikować kodu źródłowy bez uruchamiania regeneracji projektu
+- **Prostsza konfiguracja**: Definiowanie ścieżek folderów zamiast zarządzania
+  jawnymi listami plików
 
-We recommend adopting buildable folders instead of traditional `Target.sources`
-and `Target.resources` attributes for a more streamlined development experience.
+Zalecamy stosowanie folderów do kompilacji zamiast tradycyjnych referencji
+`Target.sources` i `Target.resources` w celu usprawnienia procesu wywarzania
+oprogramowania.
 
 ::: code-group
 

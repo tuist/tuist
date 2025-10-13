@@ -59,7 +59,7 @@ jobs:
           restore-keys: ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-docs-
       - uses: jdx/mise-action@v2
         with:
-          working-directory: docs
+          working_directory: docs
       - name: Generate CLI docs
         working-directory: docs
         run: mise run generate-cli-docs

@@ -123,6 +123,10 @@ defmodule Tuist.Authorization.Checks do
     end
   end
 
+  def ops_access(_, _) do
+    false
+  end
+
   def project_command_event_access(%User{} = user, %{project: %Project{} = project}) do
     user_role(user, project, :user)
   end

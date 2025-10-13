@@ -303,4 +303,38 @@ defmodule Tuist.Authorization.ChecksTest do
              ) == false
     end
   end
+
+  describe "ops_access/2" do
+    test "returns true when user is in ops_user_handles", %{user: user} do
+      # Given
+      expect(Tuist.Environment, :ops_user_handles, fn -> [user.account.name] end)
+
+      # When/Then
+      assert Checks.ops_access(user, nil) == true
+    end
+
+    test "returns false when user is not in ops_user_handles", %{user: user} do
+      # Given
+      expect(Tuist.Environment, :ops_user_handles, fn -> ["other_user"] end)
+
+      # When/Then
+      assert Checks.ops_access(user, nil) == false
+    end
+
+    test "returns false when user is nil" do
+      # When/Then
+      assert Checks.ops_access(nil, nil) == false
+    end
+
+    test "returns false for non-user subjects", %{organization: organization} do
+      # Given
+      project = ProjectsFixtures.project_fixture(account_id: organization.account.id)
+      authenticated_account = %AuthenticatedAccount{account: organization.account, scopes: []}
+
+      # When/Then
+      assert Checks.ops_access(project, nil) == false
+      assert Checks.ops_access(authenticated_account, nil) == false
+      assert Checks.ops_access("string", nil) == false
+    end
+  end
 end
