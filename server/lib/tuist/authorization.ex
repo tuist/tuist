@@ -308,15 +308,6 @@ defmodule Tuist.Authorization do
       allow([:authenticated_as_user, user_role: :admin])
     end
 
-    action :update_repository do
-      desc("Allows the admin of an account to update a project with repository changes.")
-      allow([:authenticated_as_user, user_role: :admin])
-
-      desc("Allows users with repository write/admin permissions to update a project with repository changes.")
-
-      allow([:authenticated_as_user, :repository_permission_check])
-    end
-
     action :delete do
       desc("Allows the admin of an account to delete a project.")
       allow([:authenticated_as_user, user_role: :admin])
