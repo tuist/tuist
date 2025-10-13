@@ -22,7 +22,7 @@
           <.alert_circle />
         </div>
       </div>
-      <h1 data-part="label">{@run.scheme || gettext("Unknown scheme")}</h1>
+      <h1 data-part="label">{(@run.scheme == "" && gettext("Unknown scheme")) || @run.scheme}</h1>
     </div>
     <div data-part="actions">
       <.button
@@ -82,20 +82,20 @@
               <div data-part="title">{gettext("Mac device")}</div>
               <span data-part="label">
                 <.device_laptop />
-                {Tuist.Apple.devices()[@run.model_identifier]}
+                {device_name_or_unknown(@run.model_identifier)}
               </span>
             </div>
             <div data-part="metadata">
               <div data-part="title">{gettext("Configuration")}</div>
               <span data-part="label">
-                {@run.configuration || gettext("Unknown")}
+                {value_or_unknown(@run.configuration)}
               </span>
             </div>
           </div>
           <div data-part="metadata-row">
             <div data-part="metadata">
               <div data-part="title">{gettext("Status")}</div>
-              <%= if @run.status == :success do %>
+              <%= if @run.status == "success" do %>
                 <.badge label={gettext("Passed")} color="success" style="fill" />
               <% else %>
                 <.badge label={gettext("Failed")} color="destructive" style="fill" />
@@ -123,11 +123,7 @@
             <div data-part="metadata">
               <div data-part="title">{gettext("Category")}</div>
               <.badge
-                label={
-                  if is_nil(@run.category),
-                    do: gettext("Unknown"),
-                    else: @run.category |> Atom.to_string() |> String.capitalize()
-                }
+                label={value_or_unknown(@run.category)}
                 style="fill"
               />
             </div>
@@ -135,7 +131,7 @@
               <div data-part="title">{gettext("Source")}</div>
               <span data-part="label">
                 <.git_branch />
-                {@run.git_branch || gettext("None")}
+                {value_or_none(@run.git_branch)}
               </span>
             </div>
             <div data-part="metadata">

@@ -50,17 +50,17 @@ defmodule TuistWeb.BuildsLiveTest do
     # Given
     RunsFixtures.build_fixture(
       project_id: project.id,
-      status: :success
+      status: "success"
     )
 
     RunsFixtures.build_fixture(
       project_id: project.id,
-      status: :success
+      status: "success"
     )
 
     RunsFixtures.build_fixture(
       project_id: project.id,
-      status: :failure
+      status: "failure"
     )
 
     # When

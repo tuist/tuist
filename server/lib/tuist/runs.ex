@@ -5,7 +5,8 @@ defmodule Tuist.Runs do
 
   import Ecto.Query
 
-  alias Tuist.IngestRepo
+  alias Tuist.ClickHouseFlop
+  alias Tuist.ClickHouseRepo
   alias Tuist.Projects.Project
   alias Tuist.Repo
   alias Tuist.Runs.Build
@@ -14,36 +15,32 @@ defmodule Tuist.Runs do
   alias Tuist.Runs.BuildTarget
 
   def get_build(id) do
-    Repo.get(Build, id)
+    ClickHouseRepo.get(Build, id)
   end
 
   def create_build(attrs) do
-    case %Build{}
-         |> Build.create_changeset(attrs)
-         |> Repo.insert() do
-      {:ok, build} ->
-        Task.await_many(
-          [
-            Task.async(fn -> create_build_issues(build, attrs.issues) end),
-            Task.async(fn -> create_build_files(build, attrs.files) end),
-            Task.async(fn -> create_build_targets(build, attrs.targets) end)
-          ],
-          30_000
-        )
+    build_attrs = Build.changeset(attrs)
+    build = struct(Build, build_attrs)
 
-        build = Repo.preload(build, project: :account)
+    {:ok, _} = Build.Buffer.insert(build)
 
-        Tuist.PubSub.broadcast(
-          build,
-          "#{build.project.account.name}/#{build.project.name}",
-          :build_created
-        )
+    issues = Map.get(attrs, :issues, [])
+    files = Map.get(attrs, :files, [])
+    targets = Map.get(attrs, :targets, [])
 
-        {:ok, build}
+    create_build_issues(build, issues)
+    create_build_files(build, files)
+    create_build_targets(build, targets)
 
-      {:error, changeset} ->
-        {:error, changeset}
-    end
+    build = Repo.preload(build, project: :account)
+
+    Tuist.PubSub.broadcast(
+      build,
+      "#{build.project.account.name}/#{build.project.name}",
+      :build_created
+    )
+
+    {:ok, build}
   end
 
   defp create_build_files(build, files) do
@@ -59,17 +56,18 @@ defmodule Tuist.Runs do
           path: file_attrs.path,
           target: file_attrs.target,
           project: file_attrs.project,
-          compilation_duration: file_attrs.compilation_duration
+          compilation_duration: file_attrs.compilation_duration,
+          inserted_at: :second |> DateTime.utc_now() |> DateTime.to_naive()
         }
       end)
 
-    IngestRepo.insert_all(BuildFile, files)
+    BuildFile.Buffer.insert(files)
   end
 
   defp create_build_targets(build, targets) do
     targets = Enum.map(targets, &BuildTarget.changeset(build.id, &1))
 
-    IngestRepo.insert_all(BuildTarget, targets)
+    BuildTarget.Buffer.insert(targets)
   end
 
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
@@ -113,30 +111,27 @@ defmodule Tuist.Runs do
           starting_line: issue_attrs.starting_line,
           ending_line: issue_attrs.ending_line,
           starting_column: issue_attrs.starting_column,
-          ending_column: issue_attrs.ending_column
+          ending_column: issue_attrs.ending_column,
+          inserted_at: :second |> DateTime.utc_now() |> DateTime.to_naive()
         }
       end)
 
-    IngestRepo.insert_all(
-      BuildIssue,
-      issues
-    )
+    BuildIssue.Buffer.insert(issues)
   end
 
   def list_build_files(attrs) do
-    Tuist.ClickHouseFlop.validate_and_run!(BuildFile, attrs, for: BuildFile)
+    ClickHouseFlop.validate_and_run!(BuildFile, attrs, for: BuildFile)
   end
 
   def list_build_targets(attrs) do
-    Tuist.ClickHouseFlop.validate_and_run!(BuildTarget, attrs, for: BuildTarget)
+    ClickHouseFlop.validate_and_run!(BuildTarget, attrs, for: BuildTarget)
   end
 
   def list_build_runs(attrs, opts \\ []) do
     preload = Keyword.get(opts, :preload, [])
 
-    Build
-    |> preload(^preload)
-    |> Flop.validate_and_run!(attrs, for: Build)
+    {builds, meta} = ClickHouseFlop.validate_and_run!(Build, attrs, for: Build)
+    {Repo.preload(builds, preload), meta}
   end
 
   def recent_build_status_counts(project_id, opts \\ []) do
@@ -152,30 +147,42 @@ defmodule Tuist.Runs do
 
     from(s in subquery(subquery))
     |> select([s], %{
-      successful_count: count(fragment("CASE WHEN ? = 0 THEN 1 END", s.status)),
-      failed_count: count(fragment("CASE WHEN ? = 1 THEN 1 END", s.status))
+      successful_count: fragment("countIf(? = 0)", s.status),
+      failed_count: fragment("countIf(? = 1)", s.status)
     })
-    |> Repo.one()
+    |> ClickHouseRepo.one()
   end
 
   def project_build_schemes(%Project{} = project) do
+    cutoff =
+      DateTime.utc_now()
+      |> DateTime.add(-30, :day)
+      |> DateTime.truncate(:second)
+      |> DateTime.to_naive()
+
     from(b in Build)
     |> where([b], b.project_id == ^project.id)
-    |> where([b], not is_nil(b.scheme))
-    |> where([b], b.inserted_at > ^DateTime.add(DateTime.utc_now(), -30, :day))
+    |> where([b], b.scheme != "")
+    |> where([b], b.inserted_at > ^cutoff)
     |> distinct([b], b.scheme)
     |> select([b], b.scheme)
-    |> Repo.all()
+    |> ClickHouseRepo.all()
   end
 
   def project_build_configurations(%Project{} = project) do
+    cutoff =
+      DateTime.utc_now()
+      |> DateTime.add(-30, :day)
+      |> DateTime.truncate(:second)
+      |> DateTime.to_naive()
+
     from(b in Build)
     |> where([b], b.project_id == ^project.id)
-    |> where([b], not is_nil(b.configuration))
-    |> where([b], b.inserted_at > ^DateTime.add(DateTime.utc_now(), -30, :day))
+    |> where([b], b.configuration != "")
+    |> where([b], b.inserted_at > ^cutoff)
     |> distinct([b], b.configuration)
     |> select([b], b.configuration)
-    |> Repo.all()
+    |> ClickHouseRepo.all()
   end
 
   @doc """
@@ -184,23 +191,23 @@ defmodule Tuist.Runs do
   """
   def build_ci_run_url(%Build{} = build) do
     case {build.ci_provider, build.ci_run_id, build.ci_project_handle} do
-      {:github, run_id, project_handle} when not is_nil(run_id) and not is_nil(project_handle) ->
+      {"github", run_id, project_handle} when run_id != "" and project_handle != "" ->
         "https://github.com/#{project_handle}/actions/runs/#{run_id}"
 
-      {:gitlab, pipeline_id, project_path} when not is_nil(pipeline_id) and not is_nil(project_path) ->
-        host = build.ci_host || "gitlab.com"
+      {"gitlab", pipeline_id, project_path} when pipeline_id != "" and project_path != "" ->
+        host = if build.ci_host == "", do: "gitlab.com", else: build.ci_host
         "https://#{host}/#{project_path}/-/pipelines/#{pipeline_id}"
 
-      {:bitrise, build_slug, _app_slug} when not is_nil(build_slug) ->
+      {"bitrise", build_slug, _app_slug} when build_slug != "" ->
         "https://app.bitrise.io/build/#{build_slug}"
 
-      {:circleci, build_num, project_handle} when not is_nil(build_num) and not is_nil(project_handle) ->
+      {"circleci", build_num, project_handle} when build_num != "" and project_handle != "" ->
         "https://app.circleci.com/pipelines/github/#{project_handle}/#{build_num}"
 
-      {:buildkite, build_number, project_handle} when not is_nil(build_number) and not is_nil(project_handle) ->
+      {"buildkite", build_number, project_handle} when build_number != "" and project_handle != "" ->
         "https://buildkite.com/#{project_handle}/builds/#{build_number}"
 
-      {:codemagic, build_id, project_id} when not is_nil(build_id) and not is_nil(project_id) ->
+      {"codemagic", build_id, project_id} when build_id != "" and project_id != "" ->
         "https://codemagic.io/app/#{project_id}/build/#{build_id}"
 
       _ ->

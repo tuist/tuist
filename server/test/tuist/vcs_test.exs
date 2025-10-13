@@ -791,9 +791,9 @@ defmodule Tuist.VCSTest do
         RunsFixtures.build_fixture(
           project_id: project.id,
           scheme: "MyApp",
-          status: :success,
+          status: "success",
           duration: 45_000,
-          category: :clean,
+          category: "clean",
           xcode_version: "15.0",
           git_commit_sha: @git_commit_sha,
           git_ref: @git_ref

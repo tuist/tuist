@@ -5,6 +5,7 @@ defmodule TuistWeb.BuildsLive do
 
   import TuistWeb.Components.EmptyCardSection
   import TuistWeb.Runs.RanByBadge
+  import TuistWeb.Utilities.FormatHelpers
 
   alias Tuist.Runs
   alias Tuist.Runs.Analytics
@@ -231,9 +232,10 @@ defmodule TuistWeb.BuildsLive do
     recent_builds_chart_data =
       Enum.map(recent_builds, fn run ->
         color =
-          case run.status do
+          case normalize_build_status(run.status) do
             :success -> "var:noora-chart-primary"
             :failure -> "var:noora-chart-destructive"
+            _ -> "var:noora-chart-primary"
           end
 
         value = run.duration
@@ -266,6 +268,18 @@ defmodule TuistWeb.BuildsLive do
   defp configuration_insights_label("xcode-version"), do: gettext("Xcode version")
   defp configuration_insights_label("macos-version"), do: gettext("macOS version")
   defp configuration_insights_label("device"), do: gettext("Device")
+
+  defp normalize_build_status(status) when is_atom(status), do: status
+
+  defp normalize_build_status(status) when is_binary(status) do
+    status
+    |> String.downcase()
+    |> String.to_existing_atom()
+  rescue
+    ArgumentError -> status
+  end
+
+  defp normalize_build_status(status), do: status
 
   defp build_scheme_label("any"), do: gettext("Any")
   defp build_scheme_label(scheme), do: scheme

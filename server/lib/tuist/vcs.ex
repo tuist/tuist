@@ -565,10 +565,18 @@ defmodule Tuist.VCS do
   end
 
   defp get_latest_builds(%{git_ref: git_ref, project: project}) do
-    from(b in Runs.Build)
-    |> where([b], b.project_id == ^project.id and b.git_ref == ^git_ref)
-    |> order_by([b], desc: b.inserted_at)
-    |> Repo.all()
+    {builds, _meta} =
+      Runs.list_build_runs(%{
+        first: 200,
+        filters: [
+          %{field: :project_id, op: :==, value: project.id},
+          %{field: :git_ref, op: :==, value: git_ref}
+        ],
+        order_by: [:inserted_at],
+        order_directions: [:desc]
+      })
+
+    builds
     |> Enum.filter(&(not is_nil(&1.scheme)))
     |> Enum.reduce(%{}, fn build, acc ->
       scheme = build.scheme
@@ -620,8 +628,8 @@ defmodule Tuist.VCS do
 
   defp get_build_status_text(build) do
     case build.status do
-      :failure -> "❌"
-      :success -> "✅"
+      "failure" -> "❌"
+      "success" -> "✅"
     end
   end
 

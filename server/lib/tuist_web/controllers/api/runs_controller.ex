@@ -231,12 +231,12 @@ defmodule TuistWeb.API.RunsController do
                status: %Schema{
                  type: :string,
                  description: "The status of the build run.",
-                 enum: [:success, :failure]
+                 enum: ["success", "failure"]
                },
                category: %Schema{
                  type: :string,
                  description: "The category of the build run, can be clean or incremental.",
-                 enum: [:clean, :incremental]
+                 enum: ["clean", "incremental"]
                },
                git_commit_sha: %Schema{
                  type: :string,
@@ -269,7 +269,7 @@ defmodule TuistWeb.API.RunsController do
                ci_provider: %Schema{
                  type: :string,
                  description: "The CI provider.",
-                 enum: [:github, :gitlab, :bitrise, :circleci, :buildkite, :codemagic]
+                 enum: ["github", "gitlab", "bitrise", "circleci", "buildkite", "codemagic"]
                },
                issues: %Schema{
                  type: :array,
@@ -423,7 +423,7 @@ defmodule TuistWeb.API.RunsController do
                      status: %Schema{
                        type: :string,
                        description: "The status of the target's build.",
-                       enum: [:success, :failure]
+                       enum: ["success", "failure"]
                      }
                    },
                    required: [
@@ -465,33 +465,29 @@ defmodule TuistWeb.API.RunsController do
       |> Map.put(:project, selected_project)
       |> Map.put(:account, Authentication.authenticated_subject_account(conn))
 
-    case get_or_create_build(build_params) do
-      {:ok, build} ->
-        Tuist.VCS.enqueue_vcs_pull_request_comment(%{
-          build_id: build.id,
-          git_commit_sha: build.git_commit_sha,
-          git_ref: build.git_ref,
-          git_remote_url_origin: Map.get(body_params, :git_remote_url_origin),
-          project_id: selected_project.id,
-          preview_url_template: "#{url(~p"/")}:account_name/:project_name/previews/:preview_id",
-          preview_qr_code_url_template: "#{url(~p"/")}:account_name/:project_name/previews/:preview_id/qr-code.png",
-          command_run_url_template: "#{url(~p"/")}:account_name/:project_name/runs/:command_event_id",
-          bundle_url_template: "#{url(~p"/")}:account_name/:project_name/bundles/:bundle_id",
-          build_url_template: "#{url(~p"/")}:account_name/:project_name/builds/build-runs/:build_id"
-        })
+    {:ok, build} = get_or_create_build(build_params)
 
-        conn
-        |> put_status(:ok)
-        |> json(%{
-          id: build.id,
-          duration: build.duration,
-          project_id: build.project_id,
-          url: url(~p"/#{selected_project.account.name}/#{selected_project.name}/builds/build-runs/#{build.id}")
-        })
+    Tuist.VCS.enqueue_vcs_pull_request_comment(%{
+      build_id: build.id,
+      git_commit_sha: build.git_commit_sha,
+      git_ref: build.git_ref,
+      git_remote_url_origin: Map.get(body_params, :git_remote_url_origin),
+      project_id: selected_project.id,
+      preview_url_template: "#{url(~p"/")}:account_name/:project_name/previews/:preview_id",
+      preview_qr_code_url_template: "#{url(~p"/")}:account_name/:project_name/previews/:preview_id/qr-code.png",
+      command_run_url_template: "#{url(~p"/")}:account_name/:project_name/runs/:command_event_id",
+      bundle_url_template: "#{url(~p"/")}:account_name/:project_name/bundles/:bundle_id",
+      build_url_template: "#{url(~p"/")}:account_name/:project_name/builds/build-runs/:build_id"
+    })
 
-      {:error, _changeset} ->
-        conn |> put_status(:bad_request) |> json(%{message: "The request parameters are invalid"})
-    end
+    conn
+    |> put_status(:ok)
+    |> json(%{
+      id: build.id,
+      duration: build.duration,
+      project_id: build.project_id,
+      url: url(~p"/#{selected_project.account.name}/#{selected_project.name}/builds/build-runs/#{build.id}")
+    })
   end
 
   defp get_or_create_build(params) do
@@ -511,7 +507,7 @@ defmodule TuistWeb.API.RunsController do
           configuration: Map.get(params, :configuration),
           project_id: params.project.id,
           account_id: params.account.id,
-          status: Map.get(params, :status, :success),
+          status: Map.get(params, :status, "success"),
           category: Map.get(params, :category),
           git_branch: Map.get(params, :git_branch),
           git_commit_sha: Map.get(params, :git_commit_sha),

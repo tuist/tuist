@@ -5,6 +5,7 @@ defmodule TuistWeb.BuildRunLive do
 
   import Phoenix.Component
   import TuistWeb.Runs.RanByBadge
+  import TuistWeb.Utilities.FormatHelpers
 
   alias Noora.Filter
   alias Tuist.CommandEvents
@@ -808,4 +809,8 @@ defmodule TuistWeb.BuildRunLive do
     </svg>
     """
   end
+
+  defp device_name_or_unknown(nil), do: gettext("Unknown")
+  defp device_name_or_unknown(""), do: gettext("Unknown")
+  defp device_name_or_unknown(identifier), do: Tuist.Apple.devices()[identifier] || gettext("Unknown")
 end

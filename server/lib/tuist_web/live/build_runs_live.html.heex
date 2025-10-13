@@ -52,20 +52,20 @@
           }
         >
           <:col :let={build_run} label={gettext("Scheme")}>
-            <.text_cell label={build_run.scheme || "None"} />
+            <.text_cell label={value_or_none(build_run.scheme)} />
           </:col>
           <:col :let={build_run} label={gettext("Configuration")}>
-            <.text_cell label={build_run.configuration || gettext("Unknown")} />
+            <.text_cell label={value_or_unknown(build_run.configuration)} />
           </:col>
           <:col :let={build_run} label="Status">
-            <%= if build_run.status == :success do %>
+            <%= if build_run.status == "success" do %>
               <.status_badge_cell label={gettext("Passed")} status="success" />
             <% else %>
               <.status_badge_cell label={gettext("Failed")} status="error" />
             <% end %>
           </:col>
           <:col :let={build_run} label={gettext("Branch")}>
-            <.text_cell icon="git_branch" label={build_run.git_branch || "None"} />
+            <.text_cell icon="git_branch" label={value_or_none(build_run.git_branch)} />
           </:col>
           <:col :let={build_run} label={gettext("Commit SHA")}>
             <.text_cell label={SHA.format_commit_sha(build_run.git_commit_sha)} />
@@ -94,7 +94,7 @@
           <:col :let={build_run} label={gettext("Category")}>
             <.badge_cell
               label={
-                (build_run.category && Atom.to_string(build_run.category) |> String.capitalize()) ||
+                (build_run.category && build_run.category |> to_string() |> String.capitalize()) ||
                   gettext("Unknown")
               }
               style="light-fill"
@@ -112,10 +112,10 @@
             <.text_cell sublabel={Tuist.Utilities.DateFormatter.from_now(build_run.inserted_at)} />
           </:col>
           <:col :let={build_run} label={gettext("Xcode version")}>
-            <.text_cell label={build_run.xcode_version || gettext("Unknown")} />
+            <.text_cell label={value_or_unknown(build_run.xcode_version)} />
           </:col>
           <:col :let={build_run} label={gettext("macOS version")}>
-            <.text_cell label={build_run.macos_version || gettext("Unknown")} />
+            <.text_cell label={value_or_unknown(build_run.macos_version)} />
           </:col>
           <:col :let={build_run} label={gettext("Device")}>
             <.text_cell label={

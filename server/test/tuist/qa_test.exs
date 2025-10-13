@@ -8,6 +8,7 @@ defmodule Tuist.QATest do
   alias LangChain.Message.ContentPart
   alias Runner.QA.Agent
   alias Tuist.Authentication
+  alias Tuist.Environment
   alias Tuist.QA
   alias Tuist.QA.LaunchArgumentGroup
   alias Tuist.QA.Run
@@ -35,7 +36,7 @@ defmodule Tuist.QATest do
         {:ok, "test-jwt-token", claims}
       end)
 
-      expect(Tuist.Environment, :namespace_enabled?, fn -> false end)
+      expect(Environment, :namespace_enabled?, fn -> false end)
 
       expect(Agent, :test, fn %{
                                 preview_url: "https://example.com/preview.zip",
@@ -81,7 +82,7 @@ defmodule Tuist.QATest do
         {:ok, "test-jwt-token", claims}
       end)
 
-      expect(Tuist.Environment, :namespace_enabled?, fn -> true end)
+      expect(Environment, :namespace_enabled?, fn -> true end)
 
       expect(Tuist.Accounts, :create_namespace_tenant_for_account, fn ^account ->
         {:ok, Map.put(account, :namespace_tenant_id, "test-tenant-123")}
@@ -152,7 +153,7 @@ defmodule Tuist.QATest do
         {:ok, "test-jwt-token", claims}
       end)
 
-      expect(Tuist.Environment, :namespace_enabled?, fn -> true end)
+      expect(Environment, :namespace_enabled?, fn -> true end)
 
       expect(Tuist.Namespace, :create_instance_with_ssh_connection, fn "existing-tenant-456" ->
         {:ok,
@@ -207,7 +208,7 @@ defmodule Tuist.QATest do
         {:ok, "test-jwt-token", claims}
       end)
 
-      expect(Tuist.Environment, :namespace_enabled?, fn -> false end)
+      expect(Environment, :namespace_enabled?, fn -> false end)
 
       expect(Agent, :test, fn attrs, opts ->
         assert attrs.preview_url == "https://example.com/preview.zip"
@@ -245,7 +246,7 @@ defmodule Tuist.QATest do
         {:ok, "test-jwt-token", claims}
       end)
 
-      expect(Tuist.Environment, :namespace_enabled?, fn -> true end)
+      expect(Environment, :namespace_enabled?, fn -> true end)
 
       expect(Tuist.Accounts, :create_namespace_tenant_for_account, fn ^account ->
         {:ok, Map.put(account, :namespace_tenant_id, "test-tenant-123")}
@@ -362,8 +363,8 @@ defmodule Tuist.QATest do
         {:ok, "test-jwt-token", claims}
       end)
 
-      expect(Tuist.Environment, :namespace_enabled?, fn -> false end)
-      expect(Tuist.Environment, :anthropic_api_key, 2, fn -> "test-anthropic-key" end)
+      expect(Environment, :namespace_enabled?, fn -> false end)
+      expect(Environment, :anthropic_api_key, 2, fn -> "test-anthropic-key" end)
 
       expect(LLMChain, :new!, fn %{llm: _llm} -> %LLMChain{} end)
 
@@ -453,8 +454,8 @@ defmodule Tuist.QATest do
         {:ok, "test-jwt-token", claims}
       end)
 
-      expect(Tuist.Environment, :namespace_enabled?, fn -> false end)
-      expect(Tuist.Environment, :anthropic_api_key, 2, fn -> "test-anthropic-key" end)
+      expect(Environment, :namespace_enabled?, fn -> false end)
+      expect(Environment, :anthropic_api_key, 2, fn -> "test-anthropic-key" end)
 
       expect(LLMChain, :new!, fn %{llm: _llm} -> %LLMChain{} end)
 
@@ -517,8 +518,8 @@ defmodule Tuist.QATest do
         {:ok, "test-jwt-token", claims}
       end)
 
-      expect(Tuist.Environment, :namespace_enabled?, fn -> false end)
-      expect(Tuist.Environment, :anthropic_api_key, 2, fn -> "test-anthropic-key" end)
+      expect(Environment, :namespace_enabled?, fn -> false end)
+      expect(Environment, :anthropic_api_key, 2, fn -> "test-anthropic-key" end)
 
       expect(LLMChain, :new!, fn %{llm: _llm} -> %LLMChain{} end)
 
@@ -567,7 +568,7 @@ defmodule Tuist.QATest do
         {:ok, "test-jwt-token", claims}
       end)
 
-      expect(Tuist.Environment, :namespace_enabled?, fn -> false end)
+      expect(Environment, :namespace_enabled?, fn -> false end)
 
       expect(Agent, :test, fn attrs, _opts ->
         assert attrs.launch_arguments == ""
@@ -1355,13 +1356,15 @@ defmodule Tuist.QATest do
           qa_step: step2
         )
 
+      app_url = Environment.app_url()
+
       expected_body = """
       ### 🤖 QA Test Summary
       **Prompt:** Test the login functionality
       **Issues:** ⚠️ 1
-      **Preview:** [#{preview.display_name}](http://localhost:8080/#{project.account.name}/#{project.name}/previews/#{preview.id})
+      **Preview:** [#{preview.display_name}](#{app_url}/#{project.account.name}/#{project.name}/previews/#{preview.id})
       **Commit:** [abc123def](https://github.com/testaccount/testproject/commit/abc123def456)
-      **QA Session:** [View detailed results](http://localhost:8080/#{project.account.name}/#{project.name}/qa/#{qa_run.id})
+      **QA Session:** [View detailed results](#{app_url}/#{project.account.name}/#{project.name}/qa/#{qa_run.id})
 
 
 
@@ -1377,7 +1380,7 @@ defmodule Tuist.QATest do
       1. Login button not visible
 
 
-      <img src="http://localhost:8080/#{project.account.name}/#{project.name}/qa/runs/#{qa_run.id}/screenshots/#{screenshot1.id}" alt="Screenshot 1" width="500" />
+      <img src="#{app_url}/#{project.account.name}/#{project.name}/qa/runs/#{qa_run.id}/screenshots/#{screenshot1.id}" alt="Screenshot 1" width="500" />
       </details>
 
 
@@ -1386,7 +1389,7 @@ defmodule Tuist.QATest do
 
       User navigated to main screen
 
-      <img src="http://localhost:8080/#{project.account.name}/#{project.name}/qa/runs/#{qa_run.id}/screenshots/#{screenshot2.id}" alt="Screenshot 2" width="500" />
+      <img src="#{app_url}/#{project.account.name}/#{project.name}/qa/runs/#{qa_run.id}/screenshots/#{screenshot2.id}" alt="Screenshot 2" width="500" />
       </details>
 
 

@@ -24,7 +24,7 @@ defmodule Tuist.RunsTest do
           scheme: "App",
           project_id: project_id,
           account_id: account_id,
-          status: :success,
+          status: "success",
           issues: [],
           files: [],
           targets: []
@@ -39,7 +39,7 @@ defmodule Tuist.RunsTest do
       assert build.scheme == "App"
       assert build.project_id == project_id
       assert build.account_id == account_id
-      assert build.status == :success
+      assert build.status == "success"
     end
   end
 
@@ -105,8 +105,8 @@ defmodule Tuist.RunsTest do
         Runs.list_build_runs(Flop.to_next_page(got_meta_first_page.flop))
 
       # Then
-      assert got_builds_first_page == [Repo.reload(build_two)]
-      assert got_builds_second_page == [Repo.reload(build_one)]
+      assert Enum.map(got_builds_first_page, & &1.id) == [build_two.id]
+      assert Enum.map(got_builds_second_page, & &1.id) == [build_one.id]
     end
   end
 
@@ -163,7 +163,7 @@ defmodule Tuist.RunsTest do
       schemes = Runs.project_build_schemes(project)
 
       # Then
-      assert schemes == ["App", "Framework"]
+      assert Enum.sort(schemes) == Enum.sort(["App", "Framework"])
     end
 
     test "returns an empty list when no builds exist for the project" do
@@ -287,31 +287,31 @@ defmodule Tuist.RunsTest do
 
       RunsFixtures.build_fixture(
         project_id: project.id,
-        status: :success,
+        status: "success",
         inserted_at: ~U[2024-01-01 01:00:00Z]
       )
 
       RunsFixtures.build_fixture(
         project_id: project.id,
-        status: :failure,
+        status: "failure",
         inserted_at: ~U[2024-01-01 02:00:00Z]
       )
 
       RunsFixtures.build_fixture(
         project_id: project.id,
-        status: :success,
+        status: "success",
         inserted_at: ~U[2024-01-01 03:00:00Z]
       )
 
       RunsFixtures.build_fixture(
         project_id: project.id,
-        status: :success,
+        status: "success",
         inserted_at: ~U[2024-01-01 04:00:00Z]
       )
 
       RunsFixtures.build_fixture(
         project_id: other_project.id,
-        status: :failure,
+        status: "failure",
         inserted_at: ~U[2024-01-01 05:00:00Z]
       )
 
@@ -340,7 +340,7 @@ defmodule Tuist.RunsTest do
       project = ProjectsFixtures.project_fixture()
 
       for i <- 1..45 do
-        status = if rem(i, 2) == 0, do: :success, else: :failure
+        status = if rem(i, 2) == 0, do: "success", else: "failure"
 
         RunsFixtures.build_fixture(
           project_id: project.id,
@@ -362,7 +362,7 @@ defmodule Tuist.RunsTest do
       project = ProjectsFixtures.project_fixture()
 
       for i <- 1..10 do
-        status = if i <= 5, do: :success, else: :failure
+        status = if i <= 5, do: "success", else: "failure"
 
         RunsFixtures.build_fixture(
           project_id: project.id,
@@ -385,19 +385,19 @@ defmodule Tuist.RunsTest do
 
       RunsFixtures.build_fixture(
         project_id: project.id,
-        status: :success,
+        status: "success",
         inserted_at: ~U[2024-01-01 01:00:00Z]
       )
 
       RunsFixtures.build_fixture(
         project_id: project.id,
-        status: :failure,
+        status: "failure",
         inserted_at: ~U[2024-01-01 03:00:00Z]
       )
 
       RunsFixtures.build_fixture(
         project_id: project.id,
-        status: :success,
+        status: "success",
         inserted_at: ~U[2024-01-01 02:00:00Z]
       )
 
@@ -417,31 +417,31 @@ defmodule Tuist.RunsTest do
 
     RunsFixtures.build_fixture(
       project_id: project.id,
-      status: :success,
+      status: "success",
       inserted_at: ~U[2024-01-01 01:00:00Z]
     )
 
     RunsFixtures.build_fixture(
       project_id: project.id,
-      status: :failure,
+      status: "failure",
       inserted_at: ~U[2024-01-01 02:00:00Z]
     )
 
     RunsFixtures.build_fixture(
       project_id: project.id,
-      status: :success,
+      status: "success",
       inserted_at: ~U[2024-01-01 03:00:00Z]
     )
 
     RunsFixtures.build_fixture(
       project_id: project.id,
-      status: :success,
+      status: "success",
       inserted_at: ~U[2024-01-01 04:00:00Z]
     )
 
     RunsFixtures.build_fixture(
       project_id: other_project.id,
-      status: :failure,
+      status: "failure",
       inserted_at: ~U[2024-01-01 05:00:00Z]
     )
 
@@ -458,7 +458,7 @@ defmodule Tuist.RunsTest do
     project = ProjectsFixtures.project_fixture()
 
     for i <- 1..10 do
-      status = if i <= 5, do: :success, else: :failure
+      status = if i <= 5, do: "success", else: "failure"
 
       RunsFixtures.build_fixture(
         project_id: project.id,
@@ -481,19 +481,19 @@ defmodule Tuist.RunsTest do
 
     RunsFixtures.build_fixture(
       project_id: project.id,
-      status: :success,
+      status: "success",
       inserted_at: ~U[2024-01-01 03:00:00Z]
     )
 
     RunsFixtures.build_fixture(
       project_id: project.id,
-      status: :failure,
+      status: "failure",
       inserted_at: ~U[2024-01-01 01:00:00Z]
     )
 
     RunsFixtures.build_fixture(
       project_id: project.id,
-      status: :success,
+      status: "success",
       inserted_at: ~U[2024-01-01 02:00:00Z]
     )
 
@@ -510,7 +510,7 @@ defmodule Tuist.RunsTest do
       # Given
       {:ok, build} =
         RunsFixtures.build_fixture(
-          ci_provider: :github,
+          ci_provider: "github",
           ci_run_id: "123456789",
           ci_project_handle: "owner/repo"
         )
@@ -526,7 +526,7 @@ defmodule Tuist.RunsTest do
       # Given
       {:ok, build} =
         RunsFixtures.build_fixture(
-          ci_provider: :gitlab,
+          ci_provider: "gitlab",
           ci_run_id: "987654321",
           ci_project_handle: "namespace/project",
           ci_host: nil
@@ -543,7 +543,7 @@ defmodule Tuist.RunsTest do
       # Given
       {:ok, build} =
         RunsFixtures.build_fixture(
-          ci_provider: :gitlab,
+          ci_provider: "gitlab",
           ci_run_id: "987654321",
           ci_project_handle: "namespace/project",
           ci_host: "gitlab.example.com"
@@ -560,7 +560,7 @@ defmodule Tuist.RunsTest do
       # Given
       {:ok, build} =
         RunsFixtures.build_fixture(
-          ci_provider: :bitrise,
+          ci_provider: "bitrise",
           ci_run_id: "build-slug-123",
           ci_project_handle: "app-slug-456"
         )
@@ -576,7 +576,7 @@ defmodule Tuist.RunsTest do
       # Given
       {:ok, build} =
         RunsFixtures.build_fixture(
-          ci_provider: :circleci,
+          ci_provider: "circleci",
           ci_run_id: "42",
           ci_project_handle: "owner/project"
         )
@@ -592,7 +592,7 @@ defmodule Tuist.RunsTest do
       # Given
       {:ok, build} =
         RunsFixtures.build_fixture(
-          ci_provider: :buildkite,
+          ci_provider: "buildkite",
           ci_run_id: "1234",
           ci_project_handle: "org/pipeline"
         )
@@ -608,7 +608,7 @@ defmodule Tuist.RunsTest do
       # Given
       {:ok, build} =
         RunsFixtures.build_fixture(
-          ci_provider: :codemagic,
+          ci_provider: "codemagic",
           ci_run_id: "build-id-123",
           ci_project_handle: "project-id-456"
         )
@@ -640,7 +640,7 @@ defmodule Tuist.RunsTest do
       # Given
       {:ok, build} =
         RunsFixtures.build_fixture(
-          ci_provider: :github,
+          ci_provider: "github",
           ci_run_id: nil,
           ci_project_handle: "owner/repo"
         )
@@ -656,7 +656,7 @@ defmodule Tuist.RunsTest do
       # Given
       {:ok, build} =
         RunsFixtures.build_fixture(
-          ci_provider: :github,
+          ci_provider: "github",
           ci_run_id: "123",
           ci_project_handle: nil
         )

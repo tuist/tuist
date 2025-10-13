@@ -2,7 +2,11 @@ defmodule TuistWeb.API.RunsControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: false
   use Mimic
 
+  alias Tuist.ClickHouseRepo
   alias Tuist.Runs.Build
+  alias Tuist.Runs.BuildFile
+  alias Tuist.Runs.BuildIssue
+  alias Tuist.Runs.BuildTarget
   alias Tuist.VCS
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
@@ -38,6 +42,7 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       # Then
       response = json_response(conn, :ok)
+      Build.Buffer.flush()
 
       # Should return the two most recent runs
       run_urls = Enum.map(response["runs"], & &1["url"])
@@ -244,8 +249,8 @@ defmodule TuistWeb.API.RunsControllerTest do
           model_identifier: "machine-123",
           scheme: "App",
           configuration: "Release",
-          status: :failure,
-          category: :incremental,
+          status: "failure",
+          category: "incremental",
           issues: [
             %{
               type: "error",
@@ -298,21 +303,29 @@ defmodule TuistWeb.API.RunsControllerTest do
               project: "MyProject",
               build_duration: 1000,
               compilation_duration: 2000,
-              status: :success
+              status: "success"
             },
             %{
               name: "MyAppTests",
               project: "MyProject",
               build_duration: 1500,
               compilation_duration: 2500,
-              status: :failure
+              status: "failure"
             }
           ]
         )
 
       # Then
       response = json_response(conn, :ok)
-      [build] = Build |> Tuist.Repo.all() |> Tuist.ClickHouseRepo.preload([:issues, :files, :targets])
+      Build.Buffer.flush()
+      BuildIssue.Buffer.flush()
+      BuildFile.Buffer.flush()
+      BuildTarget.Buffer.flush()
+
+      [build] =
+        Build
+        |> ClickHouseRepo.all()
+        |> ClickHouseRepo.preload([:issues, :files, :targets])
 
       assert build.duration == 1000
       assert build.macos_version == "11.2.3"
@@ -323,8 +336,8 @@ defmodule TuistWeb.API.RunsControllerTest do
       assert build.configuration == "Release"
       assert build.project_id == project.id
       assert build.account_id == user.account.id
-      assert build.status == :failure
-      assert build.category == :incremental
+      assert build.status == "failure"
+      assert build.category == "incremental"
 
       assert build.issues |> Enum.map(&Map.take(&1, [:type, :message, :build_run_id])) |> Enum.sort_by(& &1.message) == [
                %{
@@ -402,7 +415,9 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       # Then
       response = json_response(conn, :ok)
-      [build] = Tuist.Repo.all(Build)
+      Build.Buffer.flush()
+
+      [build] = ClickHouseRepo.all(Build)
 
       assert build.duration == 1000
       assert build.macos_version == "11.2.3"
@@ -439,6 +454,8 @@ defmodule TuistWeb.API.RunsControllerTest do
         is_ci: false
       )
 
+      Build.Buffer.flush()
+
       # When
       conn =
         conn
@@ -453,7 +470,9 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       # Then
       response = json_response(conn, :ok)
-      [build] = Tuist.Repo.all(Build)
+      Build.Buffer.flush()
+
+      [build] = ClickHouseRepo.all(Build)
 
       assert response == %{
                "id" => build.id,
@@ -483,22 +502,25 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       # Then
       response = json_response(conn, :ok)
-      [build] = Tuist.Repo.all(Build)
+
+      Build.Buffer.flush()
+
+      [build] = ClickHouseRepo.all(Build)
 
       assert build.duration == 1000
-      assert build.macos_version == nil
-      assert build.xcode_version == nil
+      assert build.macos_version == ""
+      assert build.xcode_version == ""
       assert build.is_ci == false
-      assert build.model_identifier == nil
-      assert build.scheme == nil
-      assert build.configuration == nil
+      assert build.model_identifier == ""
+      assert build.scheme == ""
+      assert build.configuration == ""
       assert build.project_id == project.id
       assert build.account_id == user.account.id
-      assert build.status == :success
-      assert build.ci_run_id == nil
-      assert build.ci_project_handle == nil
-      assert build.ci_host == nil
-      assert build.ci_provider == nil
+      assert build.status == "success"
+      assert build.ci_run_id == ""
+      assert build.ci_project_handle == ""
+      assert build.ci_host == ""
+      assert build.ci_provider == "unknown"
 
       assert response == %{
                "id" => build.id,
@@ -532,14 +554,16 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       # Then
       response = json_response(conn, :ok)
-      [build] = Tuist.Repo.all(Build)
+      Build.Buffer.flush()
+
+      [build] = ClickHouseRepo.all(Build)
 
       assert build.duration == 1000
       assert build.is_ci == true
       assert build.ci_run_id == "1234567890"
       assert build.ci_project_handle == "tuist/tuist"
-      assert build.ci_host == nil
-      assert build.ci_provider == :github
+      assert build.ci_host == ""
+      assert build.ci_provider == "github"
       assert build.project_id == project.id
       assert build.account_id == user.account.id
 
@@ -574,14 +598,17 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       # Then
       response = json_response(conn, :ok)
-      [build] = Tuist.Repo.all(Build)
+
+      Build.Buffer.flush()
+
+      [build] = ClickHouseRepo.all(Build)
 
       assert build.duration == 1500
       assert build.is_ci == true
       assert build.ci_run_id == "987654321"
       assert build.ci_project_handle == "group/project"
       assert build.ci_host == "gitlab.example.com"
-      assert build.ci_provider == :gitlab
+      assert build.ci_provider == "gitlab"
 
       assert response == %{
                "id" => build.id,
