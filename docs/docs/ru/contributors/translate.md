@@ -7,36 +7,37 @@
 ---
 # Перевод {#translate}
 
-Languages can be barriers to understanding. We want to make sure that Tuist is
-accessible to as many people as possible. If you speak a language that Tuist
-doesn't support, you can help us by translating the various surfaces of Tuist.
+Языки могут быть барьером для понимания. Мы хотим, чтобы Tuist был доступен как
+можно большему числу людей. Если вы говорите на языке, который Tuist пока не
+поддерживает, вы можете помочь проекту, переведя его различные части.
 
-Since maintaining translations is a continuous effort, we add languages as we
-see contributors willing to help us maintain them. The following languages are
-currently supported:
+Поскольку поддержка переводов – это постоянная работа, мы добавляем новые языки,
+когда появляются участники, готовые помогать в их поддержке. В настоящее время
+поддерживаются следующие языки:
 
-- English
-- Korean
-- Japanese
-- Russian
-- Chinese
-- Spanish
-- Portuguese
+- Английский
+- Корейский
+- Японский
+- Русский
+- Китайский
+- Испанский
+- Португальский
 
-::: tip REQUEST A NEW LANGUAGE
+::: tip ЗАПРОСИТЬ НОВЫЙ ЯЗЫК
 <!-- -->
-If you believe Tuist would benefit from supporting a new language, please create
-a new [topic in the community forum](https://community.tuist.io/c/general/4) to
-discuss it with the community.
+Если вы считаете, что поддержка нового языка могла бы быть полезна для Tuist,
+пожалуйста, создайте новую [тему на форуме
+сообщества](https://community.tuist.io/c/general/4), чтобы обсудить это с
+участниками проекта.
 <!-- -->
 :::
 
-## How to translate {#how-to-translate}
+## Как перевести {#how-to-translate}
 
-We have an instance of [Weblate](https://weblate.org/en-gb/) running at
-[translate.tuist.dev](https://translate.tuist.dev). You can head to [the
-project](https://translate.tuist.dev/engage/tuist/), create an account, and
-start translating.
+У нас развернут инстанс [Weblate](https://weblate.org/en-gb/) по адресу
+[translate.tuist.dev](https://translate.tuist.dev). Перейдите к
+[проекту](https://translate.tuist.dev/engage/tuist/), создайте учётную запись и
+начните перевод.
 
 Translations are synchronized back to the source repository using GitHub pull
 requests which maintainers will review and merge.
