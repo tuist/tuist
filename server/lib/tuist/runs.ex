@@ -18,9 +18,7 @@ defmodule Tuist.Runs do
   alias Tuist.Runs.BuildTargetBuffer
 
   def get_build(id) do
-    Build
-    |> where([b], b.id == ^id)
-    |> ClickHouseRepo.one()
+    ClickHouseRepo.get(Build, id)
   end
 
   def create_build(attrs) do
