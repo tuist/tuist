@@ -50,15 +50,15 @@ Weblate сегментирует файлы, чтобы связывать ис�
 <!-- -->
 :::
 
-## Guidelines {#guidelines}
+## Рекомендации {#guidelines}
 
-The following are the guidelines we follow when translating.
+Ниже приведены рекомендации, которых мы придерживаемся при переводе.
 
-### Custom containers and GitHub alerts {#custom-containers-and-github-alerts}
+### Кастомные контейнеры и оповещения GitHub {#custom-containers-and-github-alerts}
 
-When translating [custom
-containers](https://vitepress.dev/guide/markdown#custom-containers) only
-translate the title and the content **but not the type of alert**.
+При переводе [кастомных
+контейнеров](https://vitepress.dev/guide/markdown#custom-containers) переводите
+только заголовок и содержимое, **но не тип оповещения**.
 
 ```markdown
 <!-- -->
@@ -69,16 +69,17 @@ translate the title and the content **but not the type of alert**.
 :::
 ```
 
-### Heading titles {#heading-titles}
+### Заголовки разделов {#heading-titles}
 
-When translating headings, only translate tht title but not the id. For example,
-when translating the following heading:
+При переводе заголовков переводите только название, но не идентификатор.
+Например, при переводе следующего заголовка:
 
 ```markdown
 # Add dependencies {#add-dependencies}
 ```
 
-It should be translated as (note the id is not translated):
+Перевод должен выглядеть так (обратите внимание, что идентификатор не
+переводится):
 
 ```markdown
 # 의존성 추가하기 {#add-dependencies}
