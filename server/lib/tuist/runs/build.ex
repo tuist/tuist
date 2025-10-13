@@ -112,17 +112,16 @@ defmodule Tuist.Runs.Build do
     ])
     |> validate_number(:duration, greater_than_or_equal_to: 0)
     |> case do
-      %{valid?: true}  = changeset ->
+      %{valid?: true} = changeset ->
         changeset
+        |> Map.from_struct()
+        |> Map.get(:changes)
+        |> add_defaults()
+        |> add_inserted_at()
 
-    |> Map.from_struct()
-    |> Map.get(:changes)
-    |> add_defaults()
-    |> add_inserted_at()
       changeset ->
         changeset
     end
-
   end
 
   defp add_defaults(nil), do: @defaults

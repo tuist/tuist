@@ -2,6 +2,9 @@ defmodule TuistTestSupport.Utilities do
   @moduledoc ~S"""
   A module that provides functions for testing.
   """
+  alias Tuist.CommandEvents.Buffer
+  alias Tuist.Runs.BuildBuffer
+
   def unique_integer(length \\ 3) do
     System.unique_integer([:positive, :monotonic]) + (10 |> :math.pow(length - 1) |> round())
   end
@@ -11,8 +14,8 @@ defmodule TuistTestSupport.Utilities do
   """
   def with_flushed_ingestion_buffers(fun) when is_function(fun, 0) do
     result = fun.()
-    Tuist.CommandEvents.Buffer.flush()
-    Tuist.Runs.BuildBuffer.flush()
+    Buffer.flush()
+    BuildBuffer.flush()
     Tuist.Xcode.XcodeGraph.Buffer.flush()
     Tuist.Xcode.XcodeProject.Buffer.flush()
     Tuist.Xcode.XcodeTarget.Buffer.flush()
@@ -21,8 +24,8 @@ defmodule TuistTestSupport.Utilities do
 
   def truncate_clickhouse_tables do
     # Ensure all buffers are flushed before truncating to prevent race conditions.
-    Tuist.CommandEvents.Buffer.flush()
-    Tuist.Runs.BuildBuffer.flush()
+    Buffer.flush()
+    BuildBuffer.flush()
     Tuist.Runs.BuildIssueBuffer.flush()
     Tuist.Runs.BuildFileBuffer.flush()
     Tuist.Runs.BuildTargetBuffer.flush()

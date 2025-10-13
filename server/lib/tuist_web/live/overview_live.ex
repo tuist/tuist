@@ -67,8 +67,8 @@ defmodule TuistWeb.OverviewLive do
       Enum.map(recent_test_runs, fn run ->
         color =
           case run.status do
-            "success" -> "var:noora-chart-primary"
-            "failure" -> "var:noora-chart-destructive"
+            status when status in [:success, "success"] -> "var:noora-chart-primary"
+            status when status in [:failure, "failure"] -> "var:noora-chart-destructive"
           end
 
         value = (run.duration / 1000) |> Decimal.from_float() |> Decimal.round(0)
@@ -198,8 +198,10 @@ defmodule TuistWeb.OverviewLive do
     Enum.map(recent_build_runs, fn run ->
       color =
         case run.status do
-          "success" -> "var:noora-chart-primary"
-          "failure" -> "var:noora-chart-destructive"
+          # TODO: Remove this when we're removing the atom normalization in CommandEvents.
+          # Currently, these are using atoms, while build runs are already using strings.
+          status when status in [:success, "success"] -> "var:noora-chart-primary"
+          status when status in [:failure, "failure"] -> "var:noora-chart-destructive"
         end
 
       value = (run.duration / 1000) |> Decimal.from_float() |> Decimal.round(0)

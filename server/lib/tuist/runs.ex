@@ -196,23 +196,23 @@ defmodule Tuist.Runs do
   """
   def build_ci_run_url(%Build{} = build) do
     case {build.ci_provider, build.ci_run_id, build.ci_project_handle} do
-      {"github", run_id, project_handle} when run_id != "" and  project_handle != "" ->
+      {"github", run_id, project_handle} when run_id != "" and project_handle != "" ->
         "https://github.com/#{project_handle}/actions/runs/#{run_id}"
 
-        {"gitlab", pipeline_id, project_path} when pipeline_id != "" and project_path != "" ->
-        host = if build.ci_host != "", do: build.ci_host, else: "gitlab.com"
+      {"gitlab", pipeline_id, project_path} when pipeline_id != "" and project_path != "" ->
+        host = if build.ci_host == "", do: "gitlab.com", else: build.ci_host
         "https://#{host}/#{project_path}/-/pipelines/#{pipeline_id}"
 
-        {"bitrise", build_slug, _app_slug} when  build_slug != "" ->
+      {"bitrise", build_slug, _app_slug} when build_slug != "" ->
         "https://app.bitrise.io/build/#{build_slug}"
 
-        {"circleci", build_num, project_handle} when build_num != "" and project_handle != "" ->
+      {"circleci", build_num, project_handle} when build_num != "" and project_handle != "" ->
         "https://app.circleci.com/pipelines/github/#{project_handle}/#{build_num}"
 
-        {"buildkite", build_number, project_handle} when build_number != "" and project_handle != "" ->
+      {"buildkite", build_number, project_handle} when build_number != "" and project_handle != "" ->
         "https://buildkite.com/#{project_handle}/builds/#{build_number}"
 
-        {"codemagic", build_id, project_id} when build_id != "" and project_id != "" ->
+      {"codemagic", build_id, project_id} when build_id != "" and project_id != "" ->
         "https://codemagic.io/app/#{project_id}/build/#{build_id}"
 
       _ ->

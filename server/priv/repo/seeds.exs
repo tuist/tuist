@@ -110,7 +110,7 @@ end
 
 builds =
   Enum.map(1..2000, fn _ ->
-    status = Enum.random([:success, :failure])
+    status = Enum.random(["success", "failure"])
     is_ci = Enum.random([true, false])
     scheme = Enum.random(["App", "AppTests"])
     xcode_version = Enum.random(["12.4", "13.0", "13.2"])
@@ -124,14 +124,17 @@ builds =
     account_id = if is_ci, do: organization.account.id, else: user.account.id
 
     inserted_at =
-      DateTime.new!(
-        Date.add(DateTime.utc_now(), -Enum.random(0..400)),
+      DateTime.utc_now()
+      |> Date.add(-Enum.random(0..400))
+      |> DateTime.new!(
         Time.new!(
           Enum.random(0..23),
           Enum.random(0..59),
           Enum.random(0..59)
         )
       )
+      |> DateTime.truncate(:second)
+      |> DateTime.to_naive()
 
     %{
       id: UUIDv7.generate(),
@@ -149,7 +152,7 @@ builds =
     }
   end)
 
-Repo.insert_all(Build, builds)
+IngestRepo.insert_all(Build, builds)
 
 command_events =
   Enum.map(1..8000, fn _event ->
