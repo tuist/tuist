@@ -12,7 +12,6 @@ option java_multiple_files = true;
 option java_package = "com.apple.dt.compilation_cache_service";
 option java_outer_classname = "CompilationCachingProto";
 option objc_class_prefix = "CCS";
-option go_package = "github.com/bitrise-io/bitrise-build-cache-cli/llvm/kv;llvmkv";
 
 package compilation_cache_service.keyvalue.v1;
 
