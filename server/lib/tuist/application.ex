@@ -10,10 +10,10 @@ defmodule Tuist.Application do
   alias Tuist.DBConnection.TelemetryListener
   alias Tuist.Environment
   alias Tuist.QA.Logs
-  alias Tuist.Runs.BuildBuffer
-  alias Tuist.Runs.BuildFileBuffer
-  alias Tuist.Runs.BuildIssueBuffer
-  alias Tuist.Runs.BuildTargetBuffer
+  alias Tuist.Runs.Build
+  alias Tuist.Runs.BuildFile
+  alias Tuist.Runs.BuildIssue
+  alias Tuist.Runs.BuildTarget
   alias Tuist.Xcode.XcodeGraph
   alias Tuist.Xcode.XcodeProject
   alias Tuist.Xcode.XcodeTarget
@@ -77,10 +77,10 @@ defmodule Tuist.Application do
         Tuist.ClickHouseRepo,
         Tuist.IngestRepo,
         Supervisor.child_spec(CommandEvents.Buffer, id: CommandEvents.Buffer),
-        Supervisor.child_spec(BuildBuffer, id: BuildBuffer),
-        Supervisor.child_spec(BuildIssueBuffer, id: BuildIssueBuffer),
-        Supervisor.child_spec(BuildFileBuffer, id: BuildFileBuffer),
-        Supervisor.child_spec(BuildTargetBuffer, id: BuildTargetBuffer),
+        Supervisor.child_spec(Build.Buffer, id: Build.Buffer),
+        Supervisor.child_spec(BuildIssue.Buffer, id: BuildIssue.Buffer),
+        Supervisor.child_spec(BuildFile.Buffer, id: BuildFile.Buffer),
+        Supervisor.child_spec(BuildTarget.Buffer, id: BuildTarget.Buffer),
         Supervisor.child_spec(Logs.Buffer, id: Logs.Buffer),
         Supervisor.child_spec(XcodeGraph.Buffer, id: XcodeGraph.Buffer),
         Supervisor.child_spec(XcodeProject.Buffer, id: XcodeProject.Buffer),

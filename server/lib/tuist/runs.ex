@@ -10,12 +10,9 @@ defmodule Tuist.Runs do
   alias Tuist.Projects.Project
   alias Tuist.Repo
   alias Tuist.Runs.Build
-  alias Tuist.Runs.BuildBuffer
   alias Tuist.Runs.BuildFile
-  alias Tuist.Runs.BuildFileBuffer
-  alias Tuist.Runs.BuildIssueBuffer
+  alias Tuist.Runs.BuildIssue
   alias Tuist.Runs.BuildTarget
-  alias Tuist.Runs.BuildTargetBuffer
 
   def get_build(id) do
     ClickHouseRepo.get(Build, id)
@@ -25,7 +22,7 @@ defmodule Tuist.Runs do
     build_attrs = Build.changeset(attrs)
     build = struct(Build, build_attrs)
 
-    {:ok, _} = BuildBuffer.insert(build)
+    {:ok, _} = Build.Buffer.insert(build)
 
     issues = Map.get(attrs, :issues, [])
     files = Map.get(attrs, :files, [])
@@ -64,13 +61,13 @@ defmodule Tuist.Runs do
         }
       end)
 
-    BuildFileBuffer.insert(files)
+    BuildFile.Buffer.insert(files)
   end
 
   defp create_build_targets(build, targets) do
     targets = Enum.map(targets, &BuildTarget.changeset(build.id, &1))
 
-    BuildTargetBuffer.insert(targets)
+    BuildTarget.Buffer.insert(targets)
   end
 
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
@@ -119,7 +116,7 @@ defmodule Tuist.Runs do
         }
       end)
 
-    BuildIssueBuffer.insert(issues)
+    BuildIssue.Buffer.insert(issues)
   end
 
   def list_build_files(attrs) do

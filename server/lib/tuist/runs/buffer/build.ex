@@ -1,4 +1,4 @@
-defmodule Tuist.Runs.BuildBuffer do
+defmodule Tuist.Runs.Build.Buffer do
   @moduledoc false
 
   alias Tuist.Ingestion.Buffer

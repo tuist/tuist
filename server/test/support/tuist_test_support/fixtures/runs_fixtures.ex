@@ -3,6 +3,7 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
   Fixtures for runs.
   """
   alias Tuist.Runs
+  alias Tuist.Runs.Build
 
   def build_fixture(attrs \\ []) do
     project_id =
@@ -42,7 +43,7 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
         targets: Keyword.get(attrs, :targets, [])
       })
 
-    Tuist.Runs.BuildBuffer.flush()
+    Build.Buffer.flush()
     build
   end
 end

@@ -1,8 +1,8 @@
-defmodule Tuist.Runs.BuildFileBuffer do
+defmodule Tuist.Runs.BuildIssue.Buffer do
   @moduledoc false
 
   alias Tuist.Ingestion.Buffer
-  alias Tuist.Runs.BuildFile
+  alias Tuist.Runs.BuildIssue
 
   %{
     header: header,
@@ -10,7 +10,7 @@ defmodule Tuist.Runs.BuildFileBuffer do
     insert_opts: insert_opts,
     fields: fields,
     encoding_types: encoding_types
-  } = BuildFile.buffer_opts()
+  } = BuildIssue.buffer_opts()
 
   def child_spec(opts) do
     opts =
@@ -24,25 +24,25 @@ defmodule Tuist.Runs.BuildFileBuffer do
     Buffer.child_spec(opts)
   end
 
-  def insert(build_file_or_files) do
-    :ok = Buffer.insert(__MODULE__, encode(build_file_or_files))
-    {:ok, build_file_or_files}
+  def insert(build_issue_or_issues) do
+    :ok = Buffer.insert(__MODULE__, encode(build_issue_or_issues))
+    {:ok, build_issue_or_issues}
   end
 
   def flush do
     Buffer.flush(__MODULE__)
   end
 
-  defp encode(build_files) when is_list(build_files) do
-    build_files
-    |> Enum.map(fn build_file ->
-      Enum.map(unquote(fields), fn field -> Map.fetch!(build_file, field) end)
+  defp encode(build_issues) when is_list(build_issues) do
+    build_issues
+    |> Enum.map(fn build_issue ->
+      Enum.map(unquote(fields), fn field -> Map.fetch!(build_issue, field) end)
     end)
     |> Ch.RowBinary._encode_rows(unquote(Macro.escape(encoding_types)))
     |> IO.iodata_to_binary()
   end
 
-  defp encode(build_file) do
-    encode([build_file])
+  defp encode(build_issue) do
+    encode([build_issue])
   end
 end

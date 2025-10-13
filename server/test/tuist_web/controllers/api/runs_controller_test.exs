@@ -4,7 +4,9 @@ defmodule TuistWeb.API.RunsControllerTest do
 
   alias Tuist.ClickHouseRepo
   alias Tuist.Runs.Build
-  alias Tuist.Runs.BuildBuffer
+  alias Tuist.Runs.BuildFile
+  alias Tuist.Runs.BuildIssue
+  alias Tuist.Runs.BuildTarget
   alias Tuist.VCS
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
@@ -40,7 +42,7 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       # Then
       response = json_response(conn, :ok)
-      BuildBuffer.flush()
+      Build.Buffer.flush()
 
       # Should return the two most recent runs
       run_urls = Enum.map(response["runs"], & &1["url"])
@@ -315,10 +317,10 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       # Then
       response = json_response(conn, :ok)
-      BuildBuffer.flush()
-      Tuist.Runs.BuildIssueBuffer.flush()
-      Tuist.Runs.BuildFileBuffer.flush()
-      Tuist.Runs.BuildTargetBuffer.flush()
+      Build.Buffer.flush()
+      BuildIssue.Buffer.flush()
+      BuildFile.Buffer.flush()
+      BuildTarget.Buffer.flush()
 
       [build] =
         Build
@@ -413,7 +415,7 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       # Then
       response = json_response(conn, :ok)
-      BuildBuffer.flush()
+      Build.Buffer.flush()
 
       [build] = ClickHouseRepo.all(Build)
 
@@ -452,7 +454,7 @@ defmodule TuistWeb.API.RunsControllerTest do
         is_ci: false
       )
 
-      BuildBuffer.flush()
+      Build.Buffer.flush()
 
       # When
       conn =
@@ -468,7 +470,7 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       # Then
       response = json_response(conn, :ok)
-      BuildBuffer.flush()
+      Build.Buffer.flush()
 
       [build] = ClickHouseRepo.all(Build)
 
@@ -501,7 +503,7 @@ defmodule TuistWeb.API.RunsControllerTest do
       # Then
       response = json_response(conn, :ok)
 
-      BuildBuffer.flush()
+      Build.Buffer.flush()
 
       [build] = ClickHouseRepo.all(Build)
 
@@ -552,7 +554,7 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       # Then
       response = json_response(conn, :ok)
-      BuildBuffer.flush()
+      Build.Buffer.flush()
 
       [build] = ClickHouseRepo.all(Build)
 
@@ -597,7 +599,7 @@ defmodule TuistWeb.API.RunsControllerTest do
       # Then
       response = json_response(conn, :ok)
 
-      BuildBuffer.flush()
+      Build.Buffer.flush()
 
       [build] = ClickHouseRepo.all(Build)
 
