@@ -58,7 +58,7 @@
             <.text_cell label={value_or_unknown(build_run.configuration)} />
           </:col>
           <:col :let={build_run} label="Status">
-            <%= if build_run.status == :success do %>
+            <%= if build_run.status == "success" do %>
               <.status_badge_cell label={gettext("Passed")} status="success" />
             <% else %>
               <.status_badge_cell label={gettext("Failed")} status="error" />
