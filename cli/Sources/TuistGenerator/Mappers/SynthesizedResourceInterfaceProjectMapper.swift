@@ -96,15 +96,11 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
             )
         }
 
-        var finalTarget = target
-        var allSideEffects: [SideEffectDescriptor] = []
+        var target = target
+        target.sources += results.flatMap(\.sources)
+        let sideEffects = results.flatMap(\.sideEffects)
 
-        for (sources, sideEffects) in results {
-            finalTarget.sources += sources
-            allSideEffects += sideEffects
-        }
-
-        return (finalTarget, allSideEffects)
+        return (target, sideEffects)
     }
 
     /// - Returns: Source files and side effects for a given resource synthesizer
