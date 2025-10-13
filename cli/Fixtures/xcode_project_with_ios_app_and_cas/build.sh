@@ -2,5 +2,5 @@
 
 # /usr/bin/xcodebuild -project CAS.xcodeproj -scheme CAS -destination 'platform=iOS Simulator,name=iPhone 17' clean build
 
-SOCKET_PATH="/Users/marekfort/Developer/tuist-bugfix/cas.sock"
+SOCKET_PATH="/Users/marekfort/Developer/tuist/cas.sock"
 /usr/bin/xcodebuild -project CAS.xcodeproj -scheme CAS -destination 'platform=iOS Simulator,name=iPhone 17' clean build COMPILATION_CACHE_ENABLE_DETACHED_KEY_QUERIES=YES SWIFT_ENABLE_COMPILE_CACHE=YES CLANG_ENABLE_MODULES=YES COMPILATION_CACHE_ENABLE_PLUGIN=YES COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS=YES SWIFT_USE_INTEGRATED_DRIVER=YES COMPILATION_CACHE_ENABLE_INTEGRATED_QUERIES=YES SWIFT_ENABLE_EXPLICIT_MODULES=YES CLANG_ENABLE_COMPILE_CACHE=YES COMPILATION_CACHE_REMOTE_SERVICE_PATH="$SOCKET_PATH"

@@ -28,7 +28,7 @@ struct CASProxy: AsyncParsableCommand {
         
         // Load config once at startup
         let configLoader = ConfigLoader()
-        let currentPath = try AbsolutePath(validating: "/Users/marekfort/Developer/tuist-bugfix/cli/Fixtures/xcode_project_with_ios_app_and_cas")
+        let currentPath = try AbsolutePath(validating: "/Users/marekfort/Developer/tuist/cli/Fixtures/xcode_project_with_ios_app_and_cas")
         let config = try await configLoader.loadConfig(path: currentPath)
         
         // Remove existing socket if it exists
@@ -70,24 +70,22 @@ struct CASProxy: AsyncParsableCommand {
 @available(macOS 15.0, *)
 struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.SimpleServiceProtocol {
     private let config: TuistCore.Tuist
-    private let putCASValueService: PutCASValueServicing
+    private let putKeyValueService: PutKeyValueServicing
+    private let getKeyValueService: GetKeyValueServicing
     
-    init(config: TuistCore.Tuist, putCASValueService: PutCASValueServicing = PutCASValueService()) {
+    init(config: TuistCore.Tuist, putKeyValueService: PutKeyValueServicing = PutKeyValueService(), getKeyValueService: GetKeyValueServicing = GetKeyValueService()) {
         self.config = config
-        self.putCASValueService = putCASValueService
+        self.putKeyValueService = putKeyValueService
+        self.getKeyValueService = getKeyValueService
     }
     
     func putValue(request: CompilationCacheService_Keyvalue_V1_PutValueRequest, context: ServerContext) async throws -> CompilationCacheService_Keyvalue_V1_PutValueResponse {
         print(try request.jsonString())
         let binaryKey = request.key.dropFirst()
         let casID = "0~" + binaryKey.base64EncodedString().replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: "+", with: "-")
-        print("  Put value entries \(casID)", request.value.entries)
-        print("  Put value entry values \(casID)", request.value.entries.values.map { $0.base64EncodedString() })
-        print("  Put value cache key: \(casID)")
         
         let serverURL = config.url
         guard let fullHandle = config.fullHandle else { 
-            print("❌ Error: No fullHandle configured")
             return CompilationCacheService_Keyvalue_V1_PutValueResponse()
         }
         
@@ -97,19 +95,23 @@ struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.SimpleSer
             entries[key] = data.base64EncodedString()
         }
         
+        var response = CompilationCacheService_Keyvalue_V1_PutValueResponse()
         do {
-            try await putCASValueService.putCASValue(
+            try await putKeyValueService.putKeyValue(
                 casId: casID,
                 entries: entries,
                 fullHandle: fullHandle,
                 serverURL: serverURL
             )
-            print("✅ Successfully stored CAS value entries for \(casID)")
-        } catch {
-            print("❌ Error storing CAS value: \(error)")
+            return response
+        } catch let error {
+            var responseError = CompilationCacheService_Keyvalue_V1_ResponseError()
+            responseError.description_p = error.localizedDescription
+            response.error = responseError
+            return response
         }
         
-        return CompilationCacheService_Keyvalue_V1_PutValueResponse()
+        
     }
     
     func getValue(
@@ -125,26 +127,40 @@ struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.SimpleSer
         let casID = "0~" + binaryKey.base64EncodedString().replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: "+", with: "-")
         print("  Cache key: \(casID)")
         
+        let serverURL = config.url
+        guard let fullHandle = config.fullHandle else { 
+            var response = CompilationCacheService_Keyvalue_V1_GetValueResponse()
+            response.outcome = .keyNotFound
+            return response
+        }
+        
         var response = CompilationCacheService_Keyvalue_V1_GetValueResponse()
-//        if casID == "0~mWDwdKKyuOJZbYfa7J6KbMT59jffSpsk9Ygaunmq5fKO6ZgvS7LkqbKYwq-lr46c8HcvaTF7c9zId4pmX2eXyQ==" {
-//            var value = CompilationCacheService_Keyvalue_V1_Value()
-//            value.entries = [
-//                "value":  Data(
-//                    base64Encoded: "CgQKAgABEqIBEp8BCkEADer7hRmI4NTCmYu2Jm1tPaKDj/NnMhh4RRjYMooOonMKumX1S9VKTT49tyVDqOzHPtMQFoT6oAqDUFuHoWyaNxJaMH44RS1NMk5jSmJ6Rk9FOHRGOUw0OWwtVHJud0FiMVFVXzNLMm45U1E0NXpEcXBETGVPTXVLeGlPLU1MV0dCSXlzYWRJMVM2R2g3Yll5RDE0Z1VDcVJLUT09EgIKABIrCilsbHZtOjpjYXM6OnNjaGVtYTo6Y29tcGlsZV9qb2JfcmVzdWx0Ojp2MQ=="
-//                )!
-//            ]
-//            response.contents = .value(value)
-//            response.outcome = .success
-//            return response
-//        }
         
+        do {
+            if let json = try await getKeyValueService.getKeyValue(
+                casId: casID,
+                fullHandle: fullHandle,
+                serverURL: serverURL
+            ) {
+                // Convert the entries back to protobuf format
+                var value = CompilationCacheService_Keyvalue_V1_Value()
+                for entry in json.entries {
+                    if let data = Data(base64Encoded: entry.value) {
+                        value.entries["value"] = data
+                    }
+                }
+                response.contents = .value(value)
+                response.outcome = .success
+                print("  Sending GetValue response: found=true (cache hit)")
+            } else {
+                response.outcome = .keyNotFound
+                print("  Sending GetValue response: found=false (cache miss)")
+            }
+        } catch {
+            print("  Error retrieving value: \(error.localizedDescription)")
+            response.outcome = .keyNotFound
+        }
         
-        // For now, always return cache miss
-//        response.found = false
-//        response.value = Data()
-        response.outcome = .keyNotFound
-        
-        print("  Sending GetValue response: found=false (cache miss)")
         return response
     }
 }
@@ -173,8 +189,40 @@ struct CASDBServiceImpl: CompilationCacheService_Cas_V1_CASDBService.SimpleServi
         print(try request.jsonString())
         let casID = String(data: request.casID.id, encoding: .utf8)!
         print("Load value cas ID: \(casID)")
+        
+        let serverURL = config.url
+        let fullHandle = config.fullHandle!
+        
         var response = CompilationCacheService_Cas_V1_CASLoadResponse()
-        fatalError()
+        
+        do {
+            let data = try await loadCASService.loadCAS(
+                casId: casID.hasPrefix("0~") ? String(casID.dropFirst(2)) : casID,
+                fullHandle: fullHandle,
+                serverURL: serverURL
+            )
+            
+            var bytes = CompilationCacheService_Cas_V1_CASBytes()
+            bytes.data = data
+
+            // Create response with the loaded data
+            var blob = CompilationCacheService_Cas_V1_CASBlob()
+            blob.blob = bytes
+            
+            response.contents = .data(blob)
+            response.outcome = .success
+            
+            print("  Successfully loaded CAS artifact: \(data.count) bytes")
+            
+        } catch let error {
+            print("  Error loading CAS artifact: \(error.localizedDescription)")
+            response.outcome = .error
+            var responseError = CompilationCacheService_Cas_V1_ResponseError()
+            responseError.description_p = error.localizedDescription
+            response.contents = .error(responseError)
+        }
+        
+        return response
     }
     
     func put(request: CompilationCacheService_Cas_V1_CASPutRequest, context: GRPCCore.ServerContext) async throws -> CompilationCacheService_Cas_V1_CASPutResponse {
@@ -187,10 +235,12 @@ struct CASDBServiceImpl: CompilationCacheService_Cas_V1_CASDBService.SimpleServi
     
     private let config: TuistCore.Tuist
     private let uploadCASArtifactService: UploadCASArtifactServicing
+    private let loadCASService: LoadCASServicing
     
-    init(config: TuistCore.Tuist, uploadCASArtifactService: UploadCASArtifactServicing = UploadCASArtifactService()) {
+    init(config: TuistCore.Tuist, uploadCASArtifactService: UploadCASArtifactServicing = UploadCASArtifactService(), loadCASService: LoadCASServicing = LoadCASService()) {
         self.config = config
         self.uploadCASArtifactService = uploadCASArtifactService
+        self.loadCASService = loadCASService
     }
 
     

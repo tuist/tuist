@@ -60,9 +60,9 @@ config :tuist, TuistWeb.Endpoint,
   ],
   max_request_line_length: 30_000_000,
   protocol_options: [
-  # max_header_value_length: 4096,
-  # max_headers: 100,
-  max_request_line_length: 30_000_000
+    # max_header_value_length: 4096,
+    # max_headers: 100,
+    max_request_line_length: 30_000_000
   ]
 
 # ## SSL Support

@@ -4,12 +4,11 @@ defmodule Tuist.CAS.Entry do
 
   @primary_key false
   schema "cas_entries" do
-    field :id, Ecto.UUID
-    field :cas_id, :string
-    field :key, :string
-    field :value, :string
-    field :project_id, :integer
+    field :id, Ch, type: "UUID"
+    field :cas_id, Ch, type: "String"
+    field :value, Ch, type: "String"
+    field :project_id, Ch, type: "Int64"
 
-    field :inserted_at, :naive_datetime
+    field :inserted_at, Ch, type: "DateTime"
   end
 end
