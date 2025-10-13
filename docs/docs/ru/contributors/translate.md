@@ -44,9 +44,9 @@
 
 ::: warning НЕ МЕНЯЙТЕ РЕСУРСЫ В ЦЕЛЕВОМ ЯЗЫКЕ
 <!-- -->
-Weblate segments the files to bind source and target languages. If you modify
-the source language, you'll break the binding, and the reconciliation might
-yield unexpected results.
+Weblate сегментирует файлы, чтобы связывать исходный и целевой языки. Если
+изменить текст на исходном языке, связь нарушится, и при последующей
+синхронизации могут возникнуть непредсказуемые результаты.
 <!-- -->
 :::
 
