@@ -95,10 +95,14 @@ final class HashCacheCommandService {
 
             // Use the same generator as binaryCacheWarmingPreload to ensure consistent hashing
             // Pass empty set to load all targets without filtering
-            let generator = generatorFactory.binaryCacheWarmingPreload(
-                config: config,
-                targetsToBinaryCache: []
-            )
+            #if canImport(TuistCacheEE)
+                let generator = generatorFactory.binaryCacheWarmingPreload(
+                    config: config,
+                    targetsToBinaryCache: []
+                )
+            #else
+                let generator = generatorFactory.defaultGenerator(config: config, includedTargets: [])
+            #endif
             graph = try await generator.load(
                 path: absolutePath,
                 options: config.project.generatedProject?.generationOptions
