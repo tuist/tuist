@@ -271,4 +271,45 @@ final class TargetScriptManifestMapperTests: TuistUnitTestCase {
         XCTAssertTrue(model.inputFileListPaths.contains(expectedRootPath))
         XCTAssertTrue(model.outputPaths.contains(expectedOutputRootPath))
     }
+
+    func test_inputPaths_with_build_variables_are_kept_as_strings() async throws {
+        // Given
+        let temporaryPath = try temporaryPath()
+        let rootDirectory = temporaryPath
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryPath,
+            rootDirectory: rootDirectory
+        )
+
+        let manifest = ProjectDescription.TargetScript.test(
+            name: "RunSwiftGen",
+            tool: "path/to/script",
+            order: .pre,
+            arguments: [],
+            inputPaths: [
+                "$(SRCROOT)/Resources/Images/Images.xcassets",
+                "$(SRCROOT)/Resources/Images/Symbols.xcassets",
+            ],
+            outputPaths: [
+                "$(SRCROOT)/Resources/SwiftGen/Assets.swift",
+            ]
+        )
+
+        // When
+        let model = try await XcodeGraph.TargetScript.from(
+            manifest: manifest,
+            generatorPaths: generatorPaths,
+            fileSystem: fileSystem
+        )
+
+        // Then
+        // Paths with build variables should be kept as-is, not resolved to absolute paths
+        XCTAssertEqual(model.inputPaths, [
+            "$(SRCROOT)/Resources/Images/Images.xcassets",
+            "$(SRCROOT)/Resources/Images/Symbols.xcassets",
+        ])
+        XCTAssertEqual(model.outputPaths, [
+            "$(SRCROOT)/Resources/SwiftGen/Assets.swift",
+        ])
+    }
 }

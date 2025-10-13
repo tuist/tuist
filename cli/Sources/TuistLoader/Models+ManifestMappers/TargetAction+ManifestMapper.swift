@@ -20,15 +20,11 @@ extension XcodeGraph.TargetScript {
     {
         let name = manifest.name
         let order = XcodeGraph.TargetScript.Order.from(manifest: manifest.order)
-        let inputPaths = try await manifest.inputPaths
-            .concurrentCompactMap {
-                try await $0.unfold(
-                    generatorPaths: generatorPaths,
-                    fileSystem: fileSystem
-                )
-            }
-            .flatMap { $0 }
-            .map(\.pathString)
+        let inputPaths = try await fileListGlobStrings(
+            for: manifest.inputPaths,
+            generatorPaths: generatorPaths,
+            fileSystem: fileSystem
+        )
         let inputFileListPaths = try await pathStrings(
             for: manifest.inputFileListPaths,
             generatorPaths: generatorPaths,
@@ -82,6 +78,47 @@ extension XcodeGraph.TargetScript {
             shellPath: shellPath,
             dependencyFile: dependencyFile
         )
+    }
+
+    private static func fileListGlobStrings(
+        for globs: [FileListGlob],
+        generatorPaths: GeneratorPaths,
+        fileSystem: FileSysteming
+    ) async throws -> [String] {
+        try await globs.concurrentMap { (glob: FileListGlob) -> [String] in
+            let path = glob.glob
+
+            // For relativeToManifest paths that are not glob patterns, keep them as strings
+            if path.type == .relativeToManifest, !fileSystem.isGlobPattern(path) {
+                return [path.pathString]
+            }
+
+            // avoid globbing paths that contain variables
+            if path.pathString.contains("$") {
+                return [path.pathString]
+            }
+
+            // If it's a glob pattern with excludes, use the unfold method
+            if !glob.excluding.isEmpty || fileSystem.isGlobPattern(path) {
+                let unfolded = try await glob.unfold(
+                    generatorPaths: generatorPaths,
+                    fileSystem: fileSystem
+                )
+
+                // For relativeToManifest paths, convert back to relative paths
+                if path.type == .relativeToManifest {
+                    return unfolded.map { $0.relative(to: generatorPaths.manifestDirectory).pathString }
+                } else {
+                    return unfolded.map(\.pathString)
+                }
+            }
+
+            // Avoid globbing paths that are not glob patterns.
+            // More than that - globbing requires the path to be existing at the moment of the globbing
+            // which is not always the case.
+            // For example, output paths of a script that are not created yet.
+            return [try generatorPaths.resolve(path: path).pathString]
+        }.reduce([], +)
     }
 
     private static func pathStrings(
