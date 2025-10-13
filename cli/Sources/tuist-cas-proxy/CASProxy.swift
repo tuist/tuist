@@ -40,7 +40,7 @@ struct CASProxy: AsyncParsableCommand {
                 transportSecurity: .plaintext
             ),
             services: [
-                KeyValueService(),
+                KeyValueService(config: config),
                 CASDBServiceImpl(config: config),
             ]
         )
@@ -69,13 +69,46 @@ struct CASProxy: AsyncParsableCommand {
 
 @available(macOS 15.0, *)
 struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.SimpleServiceProtocol {
+    private let config: TuistCore.Tuist
+    private let putCASValueService: PutCASValueServicing
+    
+    init(config: TuistCore.Tuist, putCASValueService: PutCASValueServicing = PutCASValueService()) {
+        self.config = config
+        self.putCASValueService = putCASValueService
+    }
+    
     func putValue(request: CompilationCacheService_Keyvalue_V1_PutValueRequest, context: ServerContext) async throws -> CompilationCacheService_Keyvalue_V1_PutValueResponse {
         print(try request.jsonString())
         let binaryKey = request.key.dropFirst()
-        let caseID = "0~" + binaryKey.base64EncodedString().replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: "+", with: "-")
-        print("  Put value entries \(caseID)", request.value.entries)
-        print("  Put value entry values \(caseID)", request.value.entries.values.map { $0.base64EncodedString() })
-        print("  Put value cache key: \(caseID)")
+        let casID = "0~" + binaryKey.base64EncodedString().replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: "+", with: "-")
+        print("  Put value entries \(casID)", request.value.entries)
+        print("  Put value entry values \(casID)", request.value.entries.values.map { $0.base64EncodedString() })
+        print("  Put value cache key: \(casID)")
+        
+        let serverURL = config.url
+        guard let fullHandle = config.fullHandle else { 
+            print("❌ Error: No fullHandle configured")
+            return CompilationCacheService_Keyvalue_V1_PutValueResponse()
+        }
+        
+        // Convert protobuf entries to [String: String] format
+        var entries: [String: String] = [:]
+        for (key, data) in request.value.entries {
+            entries[key] = data.base64EncodedString()
+        }
+        
+        do {
+            try await putCASValueService.putCASValue(
+                casId: casID,
+                entries: entries,
+                fullHandle: fullHandle,
+                serverURL: serverURL
+            )
+            print("✅ Successfully stored CAS value entries for \(casID)")
+        } catch {
+            print("❌ Error storing CAS value: \(error)")
+        }
+        
         return CompilationCacheService_Keyvalue_V1_PutValueResponse()
     }
     
@@ -165,13 +198,6 @@ struct CASDBServiceImpl: CompilationCacheService_Cas_V1_CASDBService.SimpleServi
         request: CompilationCacheService_Cas_V1_CASSaveRequest,
         context _: GRPCCore.ServerContext
     ) async throws -> CompilationCacheService_Cas_V1_CASSaveResponse {
-        print("🔍 CASDBService.Save called")
-        print(try request.jsonString())
-//        print("  CAS ID field: \(request.casID.base64EncodedString()) (size: \(request.casID.count) bytes)")
-//        print("  Data size: \(request.data.count) bytes")
-//        print("  Type: \(request.type)")
-//        print("  Metadata: \(request.metadata)")
-        
         let serverURL = config.url
         
         guard let fullHandle = config.fullHandle else { fatalError() }

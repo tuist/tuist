@@ -366,6 +366,7 @@ defmodule TuistWeb.Router do
       get "/prefix", CASController, :prefix
       get "/:id", CASController, :show
       post "/:id", CASController, :create
+      post "/put_value", CASController, :put_value
     end
 
     scope "/cache" do

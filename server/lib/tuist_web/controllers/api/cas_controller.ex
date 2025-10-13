@@ -5,6 +5,7 @@ defmodule TuistWeb.API.CASController do
   alias OpenApiSpex.Schema
   alias Tuist.Accounts
   alias Tuist.Authorization
+  alias Tuist.CAS
   alias Tuist.Projects
   alias Tuist.Storage
   alias TuistWeb.API.Schemas.Error
@@ -253,6 +254,117 @@ defmodule TuistWeb.API.CASController do
           |> put_status(:ok)
           |> json(%{id: key})
         end
+    end
+  end
+
+  operation(:put_value,
+    summary: "Store CAS key-value entries.",
+    operation_id: "putCASValue",
+    parameters: [
+      account_handle: [
+        in: :query,
+        type: :string,
+        required: true,
+        description: "The handle of the project's account."
+      ],
+      project_handle: [
+        in: :query,
+        type: :string,
+        required: true,
+        description: "The handle of the project."
+      ]
+    ],
+    request_body: {
+      "CAS key-value data",
+      "application/json",
+      %Schema{
+        type: :object,
+        properties: %{
+          cas_id: %Schema{type: :string, description: "The CAS identifier"},
+          entries: %Schema{
+            type: :object,
+            description: "Map of entry keys to encoded values",
+            additionalProperties: %Schema{type: :string}
+          }
+        },
+        required: [:cas_id, :entries]
+      },
+      required: true
+    },
+    responses: %{
+      ok: {
+        "Entries stored successfully",
+        "application/json",
+        %Schema{type: :object, properties: %{count: %Schema{type: :integer}}}
+      },
+      unauthorized: {
+        "You need to be authenticated to access this resource",
+        "application/json",
+        Error
+      },
+      forbidden: {
+        "The authenticated subject is not authorized to perform this action",
+        "application/json",
+        Error
+      },
+      not_found: {"The project was not found", "application/json", Error}
+    }
+  )
+
+  def put_value(conn, _params) do
+    dbg("Putting value...")
+    %{account_handle: account_handle, project_handle: project_handle} =
+      conn.private.open_api_spex.params
+
+    %{"cas_id" => cas_id, "entries" => entries} = conn.private.open_api_spex.body
+    authenticated_subject = Authentication.authenticated_subject(conn)
+    account = Accounts.get_account_by_handle(account_handle)
+
+    project =
+      if is_nil(account),
+        do: nil,
+        else:
+          Projects.get_project_by_account_and_project_handles(account.name, project_handle,
+            preload: [:account]
+          )
+
+    cond do
+      is_nil(account) ->
+        conn
+        |> put_status(:not_found)
+        |> json(%Error{message: "Account #{account_handle} not found."})
+
+      is_nil(project) ->
+        conn
+        |> put_status(:not_found)
+        |> json(%Error{message: "Project #{account_handle}/#{project_handle} not found."})
+
+      Authorization.authorize(:cas_create, authenticated_subject, project) != :ok ->
+        conn
+        |> put_status(:forbidden)
+        |> json(%Error{
+          message: "You don't have permission to write to the #{project.name} project."
+        })
+
+      true ->
+        # Store each entry in ClickHouse
+        inserted_entries =
+          Enum.map(entries, fn {key, value} ->
+            entry_attrs = %{
+              cas_id: cas_id,
+              key: key,
+              value: value,
+              project_id: project.id,
+              inserted_at: NaiveDateTime.utc_now()
+            }
+
+            {:ok, entry} = CAS.create_entry(entry_attrs)
+            entry
+          end)
+
+        conn
+        |> put_status(:ok)
+        |> json(%{count: length(inserted_entries)})
     end
   end
 
