@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.84.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* Improve remote cache error handling by [@pepicrft](https://github.com/pepicrft) in [#8413](https://github.com/tuist/tuist/pull/8413)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.83.0...4.84.0
+
 ## What's Changed in 4.83.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
