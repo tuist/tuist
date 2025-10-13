@@ -5,7 +5,7 @@
   "description": "This page documents how to migrate the Tuist CLI from the version 3 to version 4."
 }
 ---
-# Examples
+# Przykłady
 
 W tej sekcji znajdziesz przykłady
 <LocalizedLink to="/guides/features/projects">wygenerowanych
