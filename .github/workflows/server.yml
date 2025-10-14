@@ -34,7 +34,7 @@ defaults:
 
 jobs:
   gettext:
-    name: Gettext
+    name: Gettext (Marketing)
     runs-on: namespace-profile-default
     timeout-minutes: 15
     steps:
