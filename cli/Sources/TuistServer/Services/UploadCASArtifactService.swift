@@ -4,7 +4,7 @@ import OpenAPIURLSession
 import OpenAPIRuntime
 
 @Mockable
-public protocol UploadCASArtifactServicing {
+public protocol UploadCASArtifactServicing: Sendable {
     func uploadCASArtifact(
         _ data: Data,
         casId: String,
@@ -13,14 +13,14 @@ public protocol UploadCASArtifactServicing {
     ) async throws
 }
 
-enum UploadCASArtifactServiceError: LocalizedError {
+public enum UploadCASArtifactServiceError: LocalizedError {
     case unknownError(Int)
     case unauthorized(String)
     case forbidden(String)
     case notFound(String)
     case uploadFailed
 
-    var errorDescription: String? {
+    public var errorDescription: String? {
         switch self {
         case let .unknownError(statusCode):
             return "The CAS artifact could not be uploaded due to an unknown Tuist response of \(statusCode)."

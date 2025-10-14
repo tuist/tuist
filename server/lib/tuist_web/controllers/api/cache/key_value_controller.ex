@@ -5,12 +5,13 @@ defmodule TuistWeb.API.Cache.KeyValueController do
   alias OpenApiSpex.Schema
   alias Tuist.Accounts
   alias Tuist.Authorization
-  alias Tuist.CAS
+  alias Tuist.Cache
   alias Tuist.Projects
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.Authentication
 
   plug(TuistWeb.API.Authorization.AuthorizationPlug, :cache)
+
   plug(OpenApiSpex.Plug.CastAndValidate,
     json_render_error_v2: true,
     render_error: TuistWeb.RenderAPIErrorPlug
@@ -39,7 +40,7 @@ defmodule TuistWeb.API.Cache.KeyValueController do
         type: :string,
         required: true,
         description: "The handle of the project."
-      ],
+      ]
     ],
     responses: %{
       ok: {
@@ -77,7 +78,7 @@ defmodule TuistWeb.API.Cache.KeyValueController do
   )
 
   def get_value(conn, %{cas_id: cas_id} = _params) do
-    entries = CAS.get_entries_by_cas_id(cas_id)
+    entries = Cache.get_entries_by_cas_id(cas_id)
 
     case entries do
       [] ->
@@ -139,7 +140,22 @@ defmodule TuistWeb.API.Cache.KeyValueController do
       ok: {
         "Value stored successfully",
         "application/json",
-        %Schema{type: :object, properties: %{count: %Schema{type: :integer}}}
+        %Schema{
+          type: :object,
+          properties: %{
+            entries: %Schema{
+              type: :array,
+              items: %Schema{
+                type: :object,
+                properties: %{
+                  id: %Schema{type: :integer, description: "The ID of the entry"}
+                },
+                required: [:id]
+              }
+            }
+          },
+          required: [:entries]
+        }
       },
       unauthorized: {
         "You need to be authenticated to access this resource",
@@ -156,30 +172,24 @@ defmodule TuistWeb.API.Cache.KeyValueController do
   )
 
   def put_value(
-        %{
-          body_params: %{
-            entries: entries,
-            cas_id: cas_id
-          }
-        } = conn,
-        %{account_handle: account_handle, project_handle: project_handle} = _params
+        %{assigns: %{selected_project: project}, body_params: %{entries: entries, cas_id: cas_id}} = conn,
+        _params
       ) do
-        inserted_entries =
-          entries
-          |> Enum.map(fn entry ->
-            entry_attrs = %{
-              cas_id: cas_id,
-              value: entry.value,
-              project_id: project.id,
-              inserted_at: NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
-            }
+    inserted_entries =
+      Enum.map(entries, fn entry ->
+        entry_attrs = %{
+          cas_id: cas_id,
+          value: entry.value,
+          project_id: project.id,
+          inserted_at: NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
+        }
 
-            {:ok, entry} = CAS.create_entry(entry_attrs)
-            entry
-          end)
+        {:ok, entry} = Cache.create_entry(entry_attrs)
+        entry
+      end)
 
-        conn
-        |> put_status(:ok)
-        |> json(%{count: length(inserted_entries)})
+    conn
+    |> put_status(:ok)
+    |> json(%{entries: Enum.map(inserted_entries, fn entry -> %{id: entry.id} end)})
   end
 end

@@ -1,4 +1,4 @@
-defmodule Tuist.CAS.Entry do
+defmodule Tuist.Cache.Entry do
   @moduledoc false
   use Ecto.Schema
 

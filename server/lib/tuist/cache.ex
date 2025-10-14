@@ -1,13 +1,13 @@
-defmodule Tuist.CAS do
+defmodule Tuist.Cache do
   @moduledoc """
-  The CAS context.
+  The cache context.
   """
 
-  alias Tuist.CAS.Entry
+  alias Tuist.Cache.Entry
   alias Tuist.IngestRepo
 
   @doc """
-  Creates a CAS entry.
+  Creates a cache entry.
 
   ## Examples
 
@@ -36,7 +36,7 @@ defmodule Tuist.CAS do
   end
 
   @doc """
-  Gets all CAS entries by cas_id.
+  Gets all cache entries by cas_id.
 
   ## Examples
 
@@ -47,7 +47,6 @@ defmodule Tuist.CAS do
   def get_entries_by_cas_id(cas_id) do
     import Ecto.Query
 
-    from(e in Entry, where: e.cas_id == ^cas_id)
-    |> IngestRepo.all()
+    IngestRepo.all(from(e in Entry, where: e.cas_id == ^cas_id))
   end
 end

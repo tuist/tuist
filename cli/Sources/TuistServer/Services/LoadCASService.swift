@@ -4,7 +4,7 @@ import OpenAPIURLSession
 import OpenAPIRuntime
 
 @Mockable
-public protocol LoadCASServicing {
+public protocol LoadCASServicing: Sendable {
     func loadCAS(
         casId: String,
         fullHandle: String,
@@ -12,7 +12,7 @@ public protocol LoadCASServicing {
     ) async throws -> Data
 }
 
-enum LoadCASServiceError: LocalizedError {
+public enum LoadCASServiceError: LocalizedError {
     case unknownError(Int)
     case unauthorized(String)
     case forbidden(String)
@@ -20,7 +20,7 @@ enum LoadCASServiceError: LocalizedError {
     case loadFailed
     case invalidResponse
 
-    var errorDescription: String? {
+    public var errorDescription: String? {
         switch self {
         case let .unknownError(statusCode):
             return "The CAS artifact could not be loaded due to an unknown Tuist response of \(statusCode)."

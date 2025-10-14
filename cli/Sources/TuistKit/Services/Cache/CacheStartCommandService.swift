@@ -56,7 +56,10 @@ struct CacheStartCommandService {
                     fullHandle: fullHandle,
                     serverURL: serverURL
                 ),
-                CASDBServiceImpl(config: config),
+                CASService(
+                    fullHandle: fullHandle,
+                    serverURL: serverURL
+                ),
             ]
         )
         
