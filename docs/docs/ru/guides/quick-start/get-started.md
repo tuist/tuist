@@ -33,13 +33,13 @@ Xcode. Это поможет вам подключить вашу среду к 
 просмотры</LocalizedLink>, и
 <LocalizedLink href="/guides/features/registry">реестр</LocalizedLink>.
 
-::: info MIGRATE AN EXISTING PROJECT
+::: info МИГРАЦИЯ СУЩЕСТВУЮЩЕГО ПРОЕКТА
 <!-- -->
-If you want to migrate an existing project to generated projects to improve the
-developer experience and take advantage of our
-<LocalizedLink href="/guides/features/cache">cache</LocalizedLink>, check out
-our
-<LocalizedLink href="/guides/features/projects/adoption/migrate/xcode-project">migration
-guide</LocalizedLink>.
+Если вы хотите перенести существующий проект в сгенерированные проекты, чтобы
+улучшить процесс разработки и воспользоваться преимуществами нашего
+<LocalizedLink href="/guides/features/cache">кэша</LocalizedLink>, ознакомьтесь
+с
+<LocalizedLink href="/guides/features/projects/adoption/migrate/xcode-project">руководством
+по миграции</LocalizedLink>.
 <!-- -->
 :::
