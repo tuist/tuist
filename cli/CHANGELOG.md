@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.84.3<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* don't report clean action by [@fortmarek](https://github.com/fortmarek) in [#8439](https://github.com/tuist/tuist/pull/8439)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.84.2...4.84.3
+
 ## What's Changed in 4.84.2<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
