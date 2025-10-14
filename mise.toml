@@ -5,6 +5,7 @@
     git-cliff = "2.6.0"
     sops = "3.9.3"
     age = "1.2.1"
+    protoc = "32.1"
 
 [hooks]
     postinstall = "{{config_root}}/mise/tasks/install.sh"

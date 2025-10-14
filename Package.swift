@@ -41,7 +41,6 @@ let targets: [Target] = [
         dependencies: [
             .product(name: "GRPCCore", package: "grpc-swift-2"),
             .product(name: "GRPCNIOTransportHTTP2", package: "grpc-swift-nio-transport"),
-            .product(name: "GRPCReflectionService", package: "grpc-swift-extras"),
             argumentParserDependency,
             "TuistServer",
             "TuistLoader",
@@ -663,7 +662,6 @@ let package = Package(
         .package(url: "https://github.com/grpc/grpc-swift-2.git", from: "2.0.0"),
         .package(url: "https://github.com/grpc/grpc-swift-protobuf.git", from: "2.0.0"),
         .package(url: "https://github.com/grpc/grpc-swift-nio-transport.git", from: "2.0.0"),
-        .package(url: "https://github.com/grpc/grpc-swift-extras.git", from: "2.0.0"),
     ],
     targets: targets
 )
