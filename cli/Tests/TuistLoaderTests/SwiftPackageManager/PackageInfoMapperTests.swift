@@ -1106,7 +1106,7 @@ struct PackageInfoMapperTests {
         try await fileSystem.makeDirectory(at: resourcesPath.appending(component: "Base.lproj"))
         try await fileSystem.touch(resourcesPath.appending(components: "Base.lproj", "Localizable.strings"))
 
-        // Setup an opaque directory that should NOT be traversed (.xcdatamodel)
+        // Setup an opaque directory that should NOT be traversed (.xcdatamodel).
         try await fileSystem.makeDirectory(at: resourcesPath.appending(component: "Model.xcdatamodel"))
         try await fileSystem.touch(resourcesPath.appending(components: "Model.xcdatamodel", "elements"))
         try await fileSystem.touch(resourcesPath.appending(components: "Model.xcdatamodel", "layout"))
