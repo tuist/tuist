@@ -1,11 +1,11 @@
 import Foundation
 import Mockable
-import OpenAPIURLSession
 import OpenAPIRuntime
+import OpenAPIURLSession
 
 @Mockable
-public protocol UploadCASArtifactServicing: Sendable {
-    func uploadCASArtifact(
+public protocol SaveCacheCASServicing: Sendable {
+    func saveCacheCAS(
         _ data: Data,
         casId: String,
         fullHandle: String,
@@ -13,12 +13,12 @@ public protocol UploadCASArtifactServicing: Sendable {
     ) async throws
 }
 
-public enum UploadCASArtifactServiceError: LocalizedError {
+public enum SaveCacheCASServiceError: LocalizedError {
     case unknownError(Int)
     case unauthorized(String)
     case forbidden(String)
     case notFound(String)
-    case uploadFailed
+    case saveFailed
 
     public var errorDescription: String? {
         switch self {
@@ -26,13 +26,13 @@ public enum UploadCASArtifactServiceError: LocalizedError {
             return "The CAS artifact could not be uploaded due to an unknown Tuist response of \(statusCode)."
         case let .unauthorized(message), let .forbidden(message), let .notFound(message):
             return message
-        case .uploadFailed:
-            return "The CAS artifact upload failed due to an unknown error."
+        case .saveFailed:
+            return "The CAS artifact save failed due to an unknown error."
         }
     }
 }
 
-public final class UploadCASArtifactService: UploadCASArtifactServicing {
+public final class SaveCacheCASService: SaveCacheCASServicing {
     private let fullHandleService: FullHandleServicing
 
     public convenience init() {
@@ -47,7 +47,7 @@ public final class UploadCASArtifactService: UploadCASArtifactServicing {
         self.fullHandleService = fullHandleService
     }
 
-    public func uploadCASArtifact(
+    public func saveCacheCAS(
         _ data: Data,
         casId: String,
         fullHandle: String,
@@ -55,7 +55,7 @@ public final class UploadCASArtifactService: UploadCASArtifactServicing {
     ) async throws {
         let client = Client.authenticated(serverURL: serverURL)
         let handles = try fullHandleService.parse(fullHandle)
-        let response = try! await client.uploadCASArtifact(
+        let response = try! await client.saveCacheCAS(
             .init(
                 path: .init(id: casId),
                 query: .init(
@@ -71,15 +71,15 @@ public final class UploadCASArtifactService: UploadCASArtifactServicing {
         case let .forbidden(forbidden):
             switch forbidden.body {
             case let .json(error):
-                throw UploadCASArtifactServiceError.forbidden(error.message)
+                throw SaveCacheCASServiceError.forbidden(error.message)
             }
         case let .unauthorized(unauthorized):
             switch unauthorized.body {
             case let .json(error):
-                throw UploadCASArtifactServiceError.unauthorized(error.message)
+                throw SaveCacheCASServiceError.unauthorized(error.message)
             }
         case let .undocumented(statusCode: statusCode, _payload):
-            throw UploadCASArtifactServiceError.unknownError(statusCode)
+            throw SaveCacheCASServiceError.unknownError(statusCode)
         }
     }
 }

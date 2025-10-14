@@ -1,18 +1,18 @@
 import Foundation
 import Mockable
-import OpenAPIURLSession
 import OpenAPIRuntime
+import OpenAPIURLSession
 
 @Mockable
-public protocol GetKeyValueServicing: Sendable {
-    func getKeyValue(
+public protocol GetCacheValueServicing: Sendable {
+    func getCacheValue(
         casId: String,
         fullHandle: String,
         serverURL: URL
-    ) async throws -> Operations.getKeyValue.Output.Ok.Body.jsonPayload?
+    ) async throws -> Operations.getCacheValue.Output.Ok.Body.jsonPayload?
 }
 
-public enum GetKeyValueServiceError: LocalizedError {
+public enum GetCacheValueServiceError: LocalizedError {
     case unknownError(Int)
     case unauthorized(String)
     case forbidden(String)
@@ -30,7 +30,7 @@ public enum GetKeyValueServiceError: LocalizedError {
     }
 }
 
-public final class GetKeyValueService: GetKeyValueServicing {
+public final class GetCacheValueService: GetCacheValueServicing {
     private let fullHandleService: FullHandleServicing
 
     public convenience init() {
@@ -45,16 +45,16 @@ public final class GetKeyValueService: GetKeyValueServicing {
         self.fullHandleService = fullHandleService
     }
 
-    public func getKeyValue(
+    public func getCacheValue(
         casId: String,
         fullHandle: String,
         serverURL: URL
-    ) async throws -> Operations.getKeyValue.Output.Ok.Body.jsonPayload? {
+    ) async throws -> Operations.getCacheValue.Output.Ok.Body.jsonPayload? {
         let client = Client.authenticated(serverURL: serverURL)
         let handles = try fullHandleService.parse(fullHandle)
-        
-        let response = try await client.getKeyValue(
-            Operations.getKeyValue.Input(
+
+        let response = try await client.getCacheValue(
+            Operations.getCacheValue.Input(
                 path: .init(
                     cas_id: casId
                 ),
@@ -64,19 +64,28 @@ public final class GetKeyValueService: GetKeyValueServicing {
                 )
             )
         )
-        
+
         switch response {
         case let .ok(success):
             guard case let .json(json) = success.body else {
-                throw GetKeyValueServiceError.getValueFailed
+                throw GetCacheValueServiceError.getValueFailed
             }
-            
+
             return json
-            
+        case let .forbidden(forbidden):
+            switch forbidden.body {
+            case let .json(error):
+                throw GetCacheValueServiceError.forbidden(error.message)
+            }
+        case let .unauthorized(unauthorized):
+            switch unauthorized.body {
+            case let .json(error):
+                throw GetCacheValueServiceError.unauthorized(error.message)
+            }
         case .notFound:
             return nil
         case let .undocumented(statusCode: statusCode, _):
-            throw GetKeyValueServiceError.unknownError(statusCode)
+            throw GetCacheValueServiceError.unknownError(statusCode)
         }
     }
 }

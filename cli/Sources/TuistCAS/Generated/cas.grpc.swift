@@ -1,10 +1,10 @@
-//===--- compilation_caching_cas.proto - CAS service definition -----------===//
+// ===--- compilation_caching_cas.proto - CAS service definition -----------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===----------------------------------------------------------------------===//
+// ===----------------------------------------------------------------------===//
 
 // DO NOT EDIT.
 // swift-format-ignore-file
@@ -25,7 +25,8 @@ import GRPCProtobuf
 @available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
 public enum CompilationCacheService_Cas_V1_CASDBService {
     /// Service descriptor for the "compilation_cache_service.cas.v1.CASDBService" service.
-    public static let descriptor = GRPCCore.ServiceDescriptor(fullyQualifiedService: "compilation_cache_service.cas.v1.CASDBService")
+    public static let descriptor = GRPCCore
+        .ServiceDescriptor(fullyQualifiedService: "compilation_cache_service.cas.v1.CASDBService")
     /// Namespace for method metadata.
     public enum Method {
         /// Namespace for "Get" metadata.
@@ -40,6 +41,7 @@ public enum CompilationCacheService_Cas_V1_CASDBService {
                 method: "Get"
             )
         }
+
         /// Namespace for "Put" metadata.
         public enum Put {
             /// Request type for "Put".
@@ -52,6 +54,7 @@ public enum CompilationCacheService_Cas_V1_CASDBService {
                 method: "Put"
             )
         }
+
         /// Namespace for "Load" metadata.
         public enum Load {
             /// Request type for "Load".
@@ -64,6 +67,7 @@ public enum CompilationCacheService_Cas_V1_CASDBService {
                 method: "Load"
             )
         }
+
         /// Namespace for "Save" metadata.
         public enum Save {
             /// Request type for "Save".
@@ -76,12 +80,13 @@ public enum CompilationCacheService_Cas_V1_CASDBService {
                 method: "Save"
             )
         }
+
         /// Descriptors for all methods in the "compilation_cache_service.cas.v1.CASDBService" service.
         public static let descriptors: [GRPCCore.MethodDescriptor] = [
             Get.descriptor,
             Put.descriptor,
             Load.descriptor,
-            Save.descriptor
+            Save.descriptor,
         ]
     }
 }
@@ -89,7 +94,8 @@ public enum CompilationCacheService_Cas_V1_CASDBService {
 @available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
 extension GRPCCore.ServiceDescriptor {
     /// Service descriptor for the "compilation_cache_service.cas.v1.CASDBService" service.
-    public static let compilationCacheService_cas_v1_CASDBService = GRPCCore.ServiceDescriptor(fullyQualifiedService: "compilation_cache_service.cas.v1.CASDBService")
+    public static let compilationCacheService_cas_v1_CASDBService = GRPCCore
+        .ServiceDescriptor(fullyQualifiedService: "compilation_cache_service.cas.v1.CASDBService")
 }
 
 // MARK: compilation_cache_service.cas.v1.CASDBService (server)
@@ -305,10 +311,10 @@ extension CompilationCacheService_Cas_V1_CASDBService {
     }
 }
 
-// Default implementation of 'registerMethods(with:)'.
+/// Default implementation of 'registerMethods(with:)'.
 @available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
 extension CompilationCacheService_Cas_V1_CASDBService.StreamingServiceProtocol {
-    public func registerMethods<Transport>(with router: inout GRPCCore.RPCRouter<Transport>) where Transport: GRPCCore.ServerTransport {
+    public func registerMethods(with router: inout GRPCCore.RPCRouter<some GRPCCore.ServerTransport>) {
         router.registerHandler(
             forMethod: CompilationCacheService_Cas_V1_CASDBService.Method.Get.descriptor,
             deserializer: GRPCProtobuf.ProtobufDeserializer<CompilationCacheService_Cas_V1_CASGetRequest>(),
@@ -356,14 +362,14 @@ extension CompilationCacheService_Cas_V1_CASDBService.StreamingServiceProtocol {
     }
 }
 
-// Default implementation of streaming methods from 'StreamingServiceProtocol'.
+/// Default implementation of streaming methods from 'StreamingServiceProtocol'.
 @available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
 extension CompilationCacheService_Cas_V1_CASDBService.ServiceProtocol {
     public func get(
         request: GRPCCore.StreamingServerRequest<CompilationCacheService_Cas_V1_CASGetRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.StreamingServerResponse<CompilationCacheService_Cas_V1_CASGetResponse> {
-        let response = try await self.get(
+        let response = try await get(
             request: GRPCCore.ServerRequest(stream: request),
             context: context
         )
@@ -374,7 +380,7 @@ extension CompilationCacheService_Cas_V1_CASDBService.ServiceProtocol {
         request: GRPCCore.StreamingServerRequest<CompilationCacheService_Cas_V1_CASPutRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.StreamingServerResponse<CompilationCacheService_Cas_V1_CASPutResponse> {
-        let response = try await self.put(
+        let response = try await put(
             request: GRPCCore.ServerRequest(stream: request),
             context: context
         )
@@ -385,7 +391,7 @@ extension CompilationCacheService_Cas_V1_CASDBService.ServiceProtocol {
         request: GRPCCore.StreamingServerRequest<CompilationCacheService_Cas_V1_CASLoadRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.StreamingServerResponse<CompilationCacheService_Cas_V1_CASLoadResponse> {
-        let response = try await self.load(
+        let response = try await load(
             request: GRPCCore.ServerRequest(stream: request),
             context: context
         )
@@ -396,7 +402,7 @@ extension CompilationCacheService_Cas_V1_CASDBService.ServiceProtocol {
         request: GRPCCore.StreamingServerRequest<CompilationCacheService_Cas_V1_CASSaveRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.StreamingServerResponse<CompilationCacheService_Cas_V1_CASSaveResponse> {
-        let response = try await self.save(
+        let response = try await save(
             request: GRPCCore.ServerRequest(stream: request),
             context: context
         )
@@ -404,7 +410,7 @@ extension CompilationCacheService_Cas_V1_CASDBService.ServiceProtocol {
     }
 }
 
-// Default implementation of methods from 'ServiceProtocol'.
+/// Default implementation of methods from 'ServiceProtocol'.
 @available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
 extension CompilationCacheService_Cas_V1_CASDBService.SimpleServiceProtocol {
     public func get(
@@ -412,7 +418,7 @@ extension CompilationCacheService_Cas_V1_CASDBService.SimpleServiceProtocol {
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.ServerResponse<CompilationCacheService_Cas_V1_CASGetResponse> {
         return GRPCCore.ServerResponse<CompilationCacheService_Cas_V1_CASGetResponse>(
-            message: try await self.get(
+            message: try await get(
                 request: request.message,
                 context: context
             ),
@@ -425,7 +431,7 @@ extension CompilationCacheService_Cas_V1_CASDBService.SimpleServiceProtocol {
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.ServerResponse<CompilationCacheService_Cas_V1_CASPutResponse> {
         return GRPCCore.ServerResponse<CompilationCacheService_Cas_V1_CASPutResponse>(
-            message: try await self.put(
+            message: try await put(
                 request: request.message,
                 context: context
             ),
@@ -438,7 +444,7 @@ extension CompilationCacheService_Cas_V1_CASDBService.SimpleServiceProtocol {
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.ServerResponse<CompilationCacheService_Cas_V1_CASLoadResponse> {
         return GRPCCore.ServerResponse<CompilationCacheService_Cas_V1_CASLoadResponse>(
-            message: try await self.load(
+            message: try await load(
                 request: request.message,
                 context: context
             ),
@@ -451,7 +457,7 @@ extension CompilationCacheService_Cas_V1_CASDBService.SimpleServiceProtocol {
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.ServerResponse<CompilationCacheService_Cas_V1_CASSaveResponse> {
         return GRPCCore.ServerResponse<CompilationCacheService_Cas_V1_CASSaveResponse>(
-            message: try await self.save(
+            message: try await save(
                 request: request.message,
                 context: context
             ),
@@ -489,7 +495,9 @@ extension CompilationCacheService_Cas_V1_CASDBService {
             serializer: some GRPCCore.MessageSerializer<CompilationCacheService_Cas_V1_CASGetRequest>,
             deserializer: some GRPCCore.MessageDeserializer<CompilationCacheService_Cas_V1_CASGetResponse>,
             options: GRPCCore.CallOptions,
-            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<CompilationCacheService_Cas_V1_CASGetResponse>) async throws -> Result
+            onResponse handleResponse: @Sendable @escaping (GRPCCore
+                .ClientResponse<CompilationCacheService_Cas_V1_CASGetResponse>
+            ) async throws -> Result
         ) async throws -> Result where Result: Sendable
 
         /// Call the "Put" method.
@@ -508,7 +516,9 @@ extension CompilationCacheService_Cas_V1_CASDBService {
             serializer: some GRPCCore.MessageSerializer<CompilationCacheService_Cas_V1_CASPutRequest>,
             deserializer: some GRPCCore.MessageDeserializer<CompilationCacheService_Cas_V1_CASPutResponse>,
             options: GRPCCore.CallOptions,
-            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<CompilationCacheService_Cas_V1_CASPutResponse>) async throws -> Result
+            onResponse handleResponse: @Sendable @escaping (GRPCCore
+                .ClientResponse<CompilationCacheService_Cas_V1_CASPutResponse>
+            ) async throws -> Result
         ) async throws -> Result where Result: Sendable
 
         /// Call the "Load" method.
@@ -527,7 +537,9 @@ extension CompilationCacheService_Cas_V1_CASDBService {
             serializer: some GRPCCore.MessageSerializer<CompilationCacheService_Cas_V1_CASLoadRequest>,
             deserializer: some GRPCCore.MessageDeserializer<CompilationCacheService_Cas_V1_CASLoadResponse>,
             options: GRPCCore.CallOptions,
-            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<CompilationCacheService_Cas_V1_CASLoadResponse>) async throws -> Result
+            onResponse handleResponse: @Sendable @escaping (GRPCCore
+                .ClientResponse<CompilationCacheService_Cas_V1_CASLoadResponse>
+            ) async throws -> Result
         ) async throws -> Result where Result: Sendable
 
         /// Call the "Save" method.
@@ -546,7 +558,9 @@ extension CompilationCacheService_Cas_V1_CASDBService {
             serializer: some GRPCCore.MessageSerializer<CompilationCacheService_Cas_V1_CASSaveRequest>,
             deserializer: some GRPCCore.MessageDeserializer<CompilationCacheService_Cas_V1_CASSaveResponse>,
             options: GRPCCore.CallOptions,
-            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<CompilationCacheService_Cas_V1_CASSaveResponse>) async throws -> Result
+            onResponse handleResponse: @Sendable @escaping (GRPCCore
+                .ClientResponse<CompilationCacheService_Cas_V1_CASSaveResponse>
+            ) async throws -> Result
         ) async throws -> Result where Result: Sendable
     }
 
@@ -586,11 +600,13 @@ extension CompilationCacheService_Cas_V1_CASDBService {
             serializer: some GRPCCore.MessageSerializer<CompilationCacheService_Cas_V1_CASGetRequest>,
             deserializer: some GRPCCore.MessageDeserializer<CompilationCacheService_Cas_V1_CASGetResponse>,
             options: GRPCCore.CallOptions = .defaults,
-            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<CompilationCacheService_Cas_V1_CASGetResponse>) async throws -> Result = { response in
+            onResponse handleResponse: @Sendable @escaping (GRPCCore
+                .ClientResponse<CompilationCacheService_Cas_V1_CASGetResponse>
+            ) async throws -> Result = { response in
                 try response.message
             }
         ) async throws -> Result where Result: Sendable {
-            try await self.client.unary(
+            try await client.unary(
                 request: request,
                 descriptor: CompilationCacheService_Cas_V1_CASDBService.Method.Get.descriptor,
                 serializer: serializer,
@@ -616,11 +632,13 @@ extension CompilationCacheService_Cas_V1_CASDBService {
             serializer: some GRPCCore.MessageSerializer<CompilationCacheService_Cas_V1_CASPutRequest>,
             deserializer: some GRPCCore.MessageDeserializer<CompilationCacheService_Cas_V1_CASPutResponse>,
             options: GRPCCore.CallOptions = .defaults,
-            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<CompilationCacheService_Cas_V1_CASPutResponse>) async throws -> Result = { response in
+            onResponse handleResponse: @Sendable @escaping (GRPCCore
+                .ClientResponse<CompilationCacheService_Cas_V1_CASPutResponse>
+            ) async throws -> Result = { response in
                 try response.message
             }
         ) async throws -> Result where Result: Sendable {
-            try await self.client.unary(
+            try await client.unary(
                 request: request,
                 descriptor: CompilationCacheService_Cas_V1_CASDBService.Method.Put.descriptor,
                 serializer: serializer,
@@ -646,11 +664,13 @@ extension CompilationCacheService_Cas_V1_CASDBService {
             serializer: some GRPCCore.MessageSerializer<CompilationCacheService_Cas_V1_CASLoadRequest>,
             deserializer: some GRPCCore.MessageDeserializer<CompilationCacheService_Cas_V1_CASLoadResponse>,
             options: GRPCCore.CallOptions = .defaults,
-            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<CompilationCacheService_Cas_V1_CASLoadResponse>) async throws -> Result = { response in
+            onResponse handleResponse: @Sendable @escaping (GRPCCore
+                .ClientResponse<CompilationCacheService_Cas_V1_CASLoadResponse>
+            ) async throws -> Result = { response in
                 try response.message
             }
         ) async throws -> Result where Result: Sendable {
-            try await self.client.unary(
+            try await client.unary(
                 request: request,
                 descriptor: CompilationCacheService_Cas_V1_CASDBService.Method.Load.descriptor,
                 serializer: serializer,
@@ -676,11 +696,13 @@ extension CompilationCacheService_Cas_V1_CASDBService {
             serializer: some GRPCCore.MessageSerializer<CompilationCacheService_Cas_V1_CASSaveRequest>,
             deserializer: some GRPCCore.MessageDeserializer<CompilationCacheService_Cas_V1_CASSaveResponse>,
             options: GRPCCore.CallOptions = .defaults,
-            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<CompilationCacheService_Cas_V1_CASSaveResponse>) async throws -> Result = { response in
+            onResponse handleResponse: @Sendable @escaping (GRPCCore
+                .ClientResponse<CompilationCacheService_Cas_V1_CASSaveResponse>
+            ) async throws -> Result = { response in
                 try response.message
             }
         ) async throws -> Result where Result: Sendable {
-            try await self.client.unary(
+            try await client.unary(
                 request: request,
                 descriptor: CompilationCacheService_Cas_V1_CASDBService.Method.Save.descriptor,
                 serializer: serializer,
@@ -692,7 +714,7 @@ extension CompilationCacheService_Cas_V1_CASDBService {
     }
 }
 
-// Helpers providing default arguments to 'ClientProtocol' methods.
+/// Helpers providing default arguments to 'ClientProtocol' methods.
 @available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
 extension CompilationCacheService_Cas_V1_CASDBService.ClientProtocol {
     /// Call the "Get" method.
@@ -707,11 +729,13 @@ extension CompilationCacheService_Cas_V1_CASDBService.ClientProtocol {
     public func get<Result>(
         request: GRPCCore.ClientRequest<CompilationCacheService_Cas_V1_CASGetRequest>,
         options: GRPCCore.CallOptions = .defaults,
-        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<CompilationCacheService_Cas_V1_CASGetResponse>) async throws -> Result = { response in
+        onResponse handleResponse: @Sendable @escaping (GRPCCore
+            .ClientResponse<CompilationCacheService_Cas_V1_CASGetResponse>
+        ) async throws -> Result = { response in
             try response.message
         }
     ) async throws -> Result where Result: Sendable {
-        try await self.get(
+        try await get(
             request: request,
             serializer: GRPCProtobuf.ProtobufSerializer<CompilationCacheService_Cas_V1_CASGetRequest>(),
             deserializer: GRPCProtobuf.ProtobufDeserializer<CompilationCacheService_Cas_V1_CASGetResponse>(),
@@ -732,11 +756,13 @@ extension CompilationCacheService_Cas_V1_CASDBService.ClientProtocol {
     public func put<Result>(
         request: GRPCCore.ClientRequest<CompilationCacheService_Cas_V1_CASPutRequest>,
         options: GRPCCore.CallOptions = .defaults,
-        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<CompilationCacheService_Cas_V1_CASPutResponse>) async throws -> Result = { response in
+        onResponse handleResponse: @Sendable @escaping (GRPCCore
+            .ClientResponse<CompilationCacheService_Cas_V1_CASPutResponse>
+        ) async throws -> Result = { response in
             try response.message
         }
     ) async throws -> Result where Result: Sendable {
-        try await self.put(
+        try await put(
             request: request,
             serializer: GRPCProtobuf.ProtobufSerializer<CompilationCacheService_Cas_V1_CASPutRequest>(),
             deserializer: GRPCProtobuf.ProtobufDeserializer<CompilationCacheService_Cas_V1_CASPutResponse>(),
@@ -757,11 +783,13 @@ extension CompilationCacheService_Cas_V1_CASDBService.ClientProtocol {
     public func load<Result>(
         request: GRPCCore.ClientRequest<CompilationCacheService_Cas_V1_CASLoadRequest>,
         options: GRPCCore.CallOptions = .defaults,
-        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<CompilationCacheService_Cas_V1_CASLoadResponse>) async throws -> Result = { response in
+        onResponse handleResponse: @Sendable @escaping (GRPCCore
+            .ClientResponse<CompilationCacheService_Cas_V1_CASLoadResponse>
+        ) async throws -> Result = { response in
             try response.message
         }
     ) async throws -> Result where Result: Sendable {
-        try await self.load(
+        try await load(
             request: request,
             serializer: GRPCProtobuf.ProtobufSerializer<CompilationCacheService_Cas_V1_CASLoadRequest>(),
             deserializer: GRPCProtobuf.ProtobufDeserializer<CompilationCacheService_Cas_V1_CASLoadResponse>(),
@@ -782,11 +810,13 @@ extension CompilationCacheService_Cas_V1_CASDBService.ClientProtocol {
     public func save<Result>(
         request: GRPCCore.ClientRequest<CompilationCacheService_Cas_V1_CASSaveRequest>,
         options: GRPCCore.CallOptions = .defaults,
-        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<CompilationCacheService_Cas_V1_CASSaveResponse>) async throws -> Result = { response in
+        onResponse handleResponse: @Sendable @escaping (GRPCCore
+            .ClientResponse<CompilationCacheService_Cas_V1_CASSaveResponse>
+        ) async throws -> Result = { response in
             try response.message
         }
     ) async throws -> Result where Result: Sendable {
-        try await self.save(
+        try await save(
             request: request,
             serializer: GRPCProtobuf.ProtobufSerializer<CompilationCacheService_Cas_V1_CASSaveRequest>(),
             deserializer: GRPCProtobuf.ProtobufDeserializer<CompilationCacheService_Cas_V1_CASSaveResponse>(),
@@ -796,7 +826,7 @@ extension CompilationCacheService_Cas_V1_CASDBService.ClientProtocol {
     }
 }
 
-// Helpers providing sugared APIs for 'ClientProtocol' methods.
+/// Helpers providing sugared APIs for 'ClientProtocol' methods.
 @available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
 extension CompilationCacheService_Cas_V1_CASDBService.ClientProtocol {
     /// Call the "Get" method.
@@ -813,7 +843,9 @@ extension CompilationCacheService_Cas_V1_CASDBService.ClientProtocol {
         _ message: CompilationCacheService_Cas_V1_CASGetRequest,
         metadata: GRPCCore.Metadata = [:],
         options: GRPCCore.CallOptions = .defaults,
-        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<CompilationCacheService_Cas_V1_CASGetResponse>) async throws -> Result = { response in
+        onResponse handleResponse: @Sendable @escaping (GRPCCore
+            .ClientResponse<CompilationCacheService_Cas_V1_CASGetResponse>
+        ) async throws -> Result = { response in
             try response.message
         }
     ) async throws -> Result where Result: Sendable {
@@ -821,7 +853,7 @@ extension CompilationCacheService_Cas_V1_CASDBService.ClientProtocol {
             message: message,
             metadata: metadata
         )
-        return try await self.get(
+        return try await get(
             request: request,
             options: options,
             onResponse: handleResponse
@@ -842,7 +874,9 @@ extension CompilationCacheService_Cas_V1_CASDBService.ClientProtocol {
         _ message: CompilationCacheService_Cas_V1_CASPutRequest,
         metadata: GRPCCore.Metadata = [:],
         options: GRPCCore.CallOptions = .defaults,
-        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<CompilationCacheService_Cas_V1_CASPutResponse>) async throws -> Result = { response in
+        onResponse handleResponse: @Sendable @escaping (GRPCCore
+            .ClientResponse<CompilationCacheService_Cas_V1_CASPutResponse>
+        ) async throws -> Result = { response in
             try response.message
         }
     ) async throws -> Result where Result: Sendable {
@@ -850,7 +884,7 @@ extension CompilationCacheService_Cas_V1_CASDBService.ClientProtocol {
             message: message,
             metadata: metadata
         )
-        return try await self.put(
+        return try await put(
             request: request,
             options: options,
             onResponse: handleResponse
@@ -871,7 +905,9 @@ extension CompilationCacheService_Cas_V1_CASDBService.ClientProtocol {
         _ message: CompilationCacheService_Cas_V1_CASLoadRequest,
         metadata: GRPCCore.Metadata = [:],
         options: GRPCCore.CallOptions = .defaults,
-        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<CompilationCacheService_Cas_V1_CASLoadResponse>) async throws -> Result = { response in
+        onResponse handleResponse: @Sendable @escaping (GRPCCore
+            .ClientResponse<CompilationCacheService_Cas_V1_CASLoadResponse>
+        ) async throws -> Result = { response in
             try response.message
         }
     ) async throws -> Result where Result: Sendable {
@@ -879,7 +915,7 @@ extension CompilationCacheService_Cas_V1_CASDBService.ClientProtocol {
             message: message,
             metadata: metadata
         )
-        return try await self.load(
+        return try await load(
             request: request,
             options: options,
             onResponse: handleResponse
@@ -900,7 +936,9 @@ extension CompilationCacheService_Cas_V1_CASDBService.ClientProtocol {
         _ message: CompilationCacheService_Cas_V1_CASSaveRequest,
         metadata: GRPCCore.Metadata = [:],
         options: GRPCCore.CallOptions = .defaults,
-        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<CompilationCacheService_Cas_V1_CASSaveResponse>) async throws -> Result = { response in
+        onResponse handleResponse: @Sendable @escaping (GRPCCore
+            .ClientResponse<CompilationCacheService_Cas_V1_CASSaveResponse>
+        ) async throws -> Result = { response in
             try response.message
         }
     ) async throws -> Result where Result: Sendable {
@@ -908,7 +946,7 @@ extension CompilationCacheService_Cas_V1_CASDBService.ClientProtocol {
             message: message,
             metadata: metadata
         )
-        return try await self.save(
+        return try await save(
             request: request,
             options: options,
             onResponse: handleResponse

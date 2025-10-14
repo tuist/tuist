@@ -1147,11 +1147,11 @@ public struct Client: APIProtocol {
     /// Store cache key value entries.
     ///
     /// - Remark: HTTP `PUT /api/cache/keyvalue`.
-    /// - Remark: Generated from `#/paths//api/cache/keyvalue/put(putKeyValue)`.
-    public func putKeyValue(_ input: Operations.putKeyValue.Input) async throws -> Operations.putKeyValue.Output {
+    /// - Remark: Generated from `#/paths//api/cache/keyvalue/put(putCacheValue)`.
+    public func putCacheValue(_ input: Operations.putCacheValue.Input) async throws -> Operations.putCacheValue.Output {
         try await client.send(
             input: input,
-            forOperation: Operations.putKeyValue.id,
+            forOperation: Operations.putCacheValue.id,
             serializer: { input in
                 let path = try converter.renderedPath(
                     template: "/api/cache/keyvalue",
@@ -1195,7 +1195,7 @@ public struct Client: APIProtocol {
                 switch response.status.code {
                 case 200:
                     let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
-                    let body: Operations.putKeyValue.Output.Ok.Body
+                    let body: Operations.putCacheValue.Output.Ok.Body
                     let chosenContentType = try converter.bestContentType(
                         received: contentType,
                         options: [
@@ -1205,7 +1205,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Operations.putKeyValue.Output.Ok.Body.jsonPayload.self,
+                            Operations.putCacheValue.Output.Ok.Body.jsonPayload.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -1217,7 +1217,7 @@ public struct Client: APIProtocol {
                     return .ok(.init(body: body))
                 case 401:
                     let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
-                    let body: Operations.putKeyValue.Output.Unauthorized.Body
+                    let body: Operations.putCacheValue.Output.Unauthorized.Body
                     let chosenContentType = try converter.bestContentType(
                         received: contentType,
                         options: [
@@ -1239,7 +1239,7 @@ public struct Client: APIProtocol {
                     return .unauthorized(.init(body: body))
                 case 403:
                     let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
-                    let body: Operations.putKeyValue.Output.Forbidden.Body
+                    let body: Operations.putCacheValue.Output.Forbidden.Body
                     let chosenContentType = try converter.bestContentType(
                         received: contentType,
                         options: [
@@ -1261,7 +1261,7 @@ public struct Client: APIProtocol {
                     return .forbidden(.init(body: body))
                 case 404:
                     let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
-                    let body: Operations.putKeyValue.Output.NotFound.Body
+                    let body: Operations.putCacheValue.Output.NotFound.Body
                     let chosenContentType = try converter.bestContentType(
                         received: contentType,
                         options: [
@@ -4959,11 +4959,11 @@ public struct Client: APIProtocol {
     /// Download a CAS artifact.
     ///
     /// - Remark: HTTP `GET /api/cache/cas/{id}`.
-    /// - Remark: Generated from `#/paths//api/cache/cas/{id}/get(getCASArtifact)`.
-    public func getCASArtifact(_ input: Operations.getCASArtifact.Input) async throws -> Operations.getCASArtifact.Output {
+    /// - Remark: Generated from `#/paths//api/cache/cas/{id}/get(loadCacheCAS)`.
+    public func loadCacheCAS(_ input: Operations.loadCacheCAS.Input) async throws -> Operations.loadCacheCAS.Output {
         try await client.send(
             input: input,
-            forOperation: Operations.getCASArtifact.id,
+            forOperation: Operations.loadCacheCAS.id,
             serializer: { input in
                 let path = try converter.renderedPath(
                     template: "/api/cache/cas/{}",
@@ -5000,7 +5000,7 @@ public struct Client: APIProtocol {
                 switch response.status.code {
                 case 200:
                     let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
-                    let body: Operations.getCASArtifact.Output.Ok.Body
+                    let body: Operations.loadCacheCAS.Output.Ok.Body
                     let chosenContentType = try converter.bestContentType(
                         received: contentType,
                         options: [
@@ -5022,7 +5022,7 @@ public struct Client: APIProtocol {
                     return .ok(.init(body: body))
                 case 401:
                     let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
-                    let body: Operations.getCASArtifact.Output.Unauthorized.Body
+                    let body: Operations.loadCacheCAS.Output.Unauthorized.Body
                     let chosenContentType = try converter.bestContentType(
                         received: contentType,
                         options: [
@@ -5044,7 +5044,7 @@ public struct Client: APIProtocol {
                     return .unauthorized(.init(body: body))
                 case 403:
                     let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
-                    let body: Operations.getCASArtifact.Output.Forbidden.Body
+                    let body: Operations.loadCacheCAS.Output.Forbidden.Body
                     let chosenContentType = try converter.bestContentType(
                         received: contentType,
                         options: [
@@ -5066,7 +5066,7 @@ public struct Client: APIProtocol {
                     return .forbidden(.init(body: body))
                 case 404:
                     let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
-                    let body: Operations.getCASArtifact.Output.NotFound.Body
+                    let body: Operations.loadCacheCAS.Output.NotFound.Body
                     let chosenContentType = try converter.bestContentType(
                         received: contentType,
                         options: [
@@ -5098,14 +5098,14 @@ public struct Client: APIProtocol {
             }
         )
     }
-    /// Upload a CAS artifact (or verify it already exists).
+    /// Save a CAS artifact
     ///
-    /// - Remark: HTTP `PUT /api/cache/cas/{id}`.
-    /// - Remark: Generated from `#/paths//api/cache/cas/{id}/put(uploadCASArtifact)`.
-    public func uploadCASArtifact(_ input: Operations.uploadCASArtifact.Input) async throws -> Operations.uploadCASArtifact.Output {
+    /// - Remark: HTTP `POST /api/cache/cas/{id}`.
+    /// - Remark: Generated from `#/paths//api/cache/cas/{id}/post(saveCacheCAS)`.
+    public func saveCacheCAS(_ input: Operations.saveCacheCAS.Input) async throws -> Operations.saveCacheCAS.Output {
         try await client.send(
             input: input,
-            forOperation: Operations.uploadCASArtifact.id,
+            forOperation: Operations.saveCacheCAS.id,
             serializer: { input in
                 let path = try converter.renderedPath(
                     template: "/api/cache/cas/{}",
@@ -5115,7 +5115,7 @@ public struct Client: APIProtocol {
                 )
                 var request: HTTPTypes.HTTPRequest = .init(
                     soar_path: path,
-                    method: .put
+                    method: .post
                 )
                 suppressMutabilityWarning(&request)
                 try converter.setQueryItemAsURI(
@@ -5151,7 +5151,7 @@ public struct Client: APIProtocol {
                 switch response.status.code {
                 case 200:
                     let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
-                    let body: Operations.uploadCASArtifact.Output.Ok.Body
+                    let body: Operations.saveCacheCAS.Output.Ok.Body
                     let chosenContentType = try converter.bestContentType(
                         received: contentType,
                         options: [
@@ -5161,7 +5161,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Operations.uploadCASArtifact.Output.Ok.Body.jsonPayload.self,
+                            Operations.saveCacheCAS.Output.Ok.Body.jsonPayload.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -5173,7 +5173,7 @@ public struct Client: APIProtocol {
                     return .ok(.init(body: body))
                 case 401:
                     let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
-                    let body: Operations.uploadCASArtifact.Output.Unauthorized.Body
+                    let body: Operations.saveCacheCAS.Output.Unauthorized.Body
                     let chosenContentType = try converter.bestContentType(
                         received: contentType,
                         options: [
@@ -5195,7 +5195,7 @@ public struct Client: APIProtocol {
                     return .unauthorized(.init(body: body))
                 case 403:
                     let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
-                    let body: Operations.uploadCASArtifact.Output.Forbidden.Body
+                    let body: Operations.saveCacheCAS.Output.Forbidden.Body
                     let chosenContentType = try converter.bestContentType(
                         received: contentType,
                         options: [
@@ -5556,14 +5556,14 @@ public struct Client: APIProtocol {
             }
         )
     }
-    /// Get cache key value entries.
+    /// Get cache value.
     ///
     /// - Remark: HTTP `PUT /api/cache/keyvalue/{cas_id}`.
-    /// - Remark: Generated from `#/paths//api/cache/keyvalue/{cas_id}/put(getKeyValue)`.
-    public func getKeyValue(_ input: Operations.getKeyValue.Input) async throws -> Operations.getKeyValue.Output {
+    /// - Remark: Generated from `#/paths//api/cache/keyvalue/{cas_id}/put(getCacheValue)`.
+    public func getCacheValue(_ input: Operations.getCacheValue.Input) async throws -> Operations.getCacheValue.Output {
         try await client.send(
             input: input,
-            forOperation: Operations.getKeyValue.id,
+            forOperation: Operations.getCacheValue.id,
             serializer: { input in
                 let path = try converter.renderedPath(
                     template: "/api/cache/keyvalue/{}",
@@ -5600,7 +5600,7 @@ public struct Client: APIProtocol {
                 switch response.status.code {
                 case 200:
                     let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
-                    let body: Operations.getKeyValue.Output.Ok.Body
+                    let body: Operations.getCacheValue.Output.Ok.Body
                     let chosenContentType = try converter.bestContentType(
                         received: contentType,
                         options: [
@@ -5610,103 +5610,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Operations.getKeyValue.Output.Ok.Body.jsonPayload.self,
-                            from: responseBody,
-                            transforming: { value in
-                                .json(value)
-                            }
-                        )
-                    default:
-                        preconditionFailure("bestContentType chose an invalid content type.")
-                    }
-                    return .ok(.init(body: body))
-                case 404:
-                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
-                    let body: Operations.getKeyValue.Output.NotFound.Body
-                    let chosenContentType = try converter.bestContentType(
-                        received: contentType,
-                        options: [
-                            "application/json"
-                        ]
-                    )
-                    switch chosenContentType {
-                    case "application/json":
-                        body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
-                            from: responseBody,
-                            transforming: { value in
-                                .json(value)
-                            }
-                        )
-                    default:
-                        preconditionFailure("bestContentType chose an invalid content type.")
-                    }
-                    return .notFound(.init(body: body))
-                default:
-                    return .undocumented(
-                        statusCode: response.status.code,
-                        .init(
-                            headerFields: response.headerFields,
-                            body: responseBody
-                        )
-                    )
-                }
-            }
-        )
-    }
-    /// Get the S3 object key prefix for a project's CAS storage.
-    ///
-    /// - Remark: HTTP `GET /api/cache/cas/prefix`.
-    /// - Remark: Generated from `#/paths//api/cache/cas/prefix/get(getCASPrefix)`.
-    public func getCASPrefix(_ input: Operations.getCASPrefix.Input) async throws -> Operations.getCASPrefix.Output {
-        try await client.send(
-            input: input,
-            forOperation: Operations.getCASPrefix.id,
-            serializer: { input in
-                let path = try converter.renderedPath(
-                    template: "/api/cache/cas/prefix",
-                    parameters: []
-                )
-                var request: HTTPTypes.HTTPRequest = .init(
-                    soar_path: path,
-                    method: .get
-                )
-                suppressMutabilityWarning(&request)
-                try converter.setQueryItemAsURI(
-                    in: &request,
-                    style: .form,
-                    explode: true,
-                    name: "account_handle",
-                    value: input.query.account_handle
-                )
-                try converter.setQueryItemAsURI(
-                    in: &request,
-                    style: .form,
-                    explode: true,
-                    name: "project_handle",
-                    value: input.query.project_handle
-                )
-                converter.setAcceptHeader(
-                    in: &request.headerFields,
-                    contentTypes: input.headers.accept
-                )
-                return (request, nil)
-            },
-            deserializer: { response, responseBody in
-                switch response.status.code {
-                case 200:
-                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
-                    let body: Operations.getCASPrefix.Output.Ok.Body
-                    let chosenContentType = try converter.bestContentType(
-                        received: contentType,
-                        options: [
-                            "application/json"
-                        ]
-                    )
-                    switch chosenContentType {
-                    case "application/json":
-                        body = try await converter.getResponseBodyAsJSON(
-                            Operations.getCASPrefix.Output.Ok.Body.jsonPayload.self,
+                            Operations.getCacheValue.Output.Ok.Body.jsonPayload.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -5718,7 +5622,7 @@ public struct Client: APIProtocol {
                     return .ok(.init(body: body))
                 case 401:
                     let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
-                    let body: Operations.getCASPrefix.Output.Unauthorized.Body
+                    let body: Operations.getCacheValue.Output.Unauthorized.Body
                     let chosenContentType = try converter.bestContentType(
                         received: contentType,
                         options: [
@@ -5740,7 +5644,7 @@ public struct Client: APIProtocol {
                     return .unauthorized(.init(body: body))
                 case 403:
                     let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
-                    let body: Operations.getCASPrefix.Output.Forbidden.Body
+                    let body: Operations.getCacheValue.Output.Forbidden.Body
                     let chosenContentType = try converter.bestContentType(
                         received: contentType,
                         options: [
@@ -5762,7 +5666,7 @@ public struct Client: APIProtocol {
                     return .forbidden(.init(body: body))
                 case 404:
                     let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
-                    let body: Operations.getCASPrefix.Output.NotFound.Body
+                    let body: Operations.getCacheValue.Output.NotFound.Body
                     let chosenContentType = try converter.bestContentType(
                         received: contentType,
                         options: [

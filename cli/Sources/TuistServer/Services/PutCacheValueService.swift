@@ -1,40 +1,38 @@
 import Foundation
 import Mockable
-import OpenAPIURLSession
 import OpenAPIRuntime
+import OpenAPIURLSession
 
 @Mockable
-public protocol LoadCASServicing: Sendable {
-    func loadCAS(
+public protocol PutCacheValueServicing: Sendable {
+    func putCacheValue(
         casId: String,
+        entries: [String: String],
         fullHandle: String,
         serverURL: URL
-    ) async throws -> Data
+    ) async throws
 }
 
-public enum LoadCASServiceError: LocalizedError {
+public enum PutCacheValueServiceError: LocalizedError {
     case unknownError(Int)
     case unauthorized(String)
     case forbidden(String)
     case notFound(String)
-    case loadFailed
-    case invalidResponse
+    case putValueFailed
 
     public var errorDescription: String? {
         switch self {
         case let .unknownError(statusCode):
-            return "The CAS artifact could not be loaded due to an unknown Tuist response of \(statusCode)."
+            return "The CAS value could not be stored due to an unknown Tuist response of \(statusCode)."
         case let .unauthorized(message), let .forbidden(message), let .notFound(message):
             return message
-        case .loadFailed:
-            return "The CAS artifact load failed due to an unknown error."
-        case .invalidResponse:
-            return "The server returned an invalid response format."
+        case .putValueFailed:
+            return "The CAS value storage failed due to an unknown error."
         }
     }
 }
 
-public final class LoadCASService: LoadCASServicing {
+public final class PutCacheValueService: PutCacheValueServicing {
     private let fullHandleService: FullHandleServicing
 
     public convenience init() {
@@ -49,51 +47,58 @@ public final class LoadCASService: LoadCASServicing {
         self.fullHandleService = fullHandleService
     }
 
-    public func loadCAS(
+    public func putCacheValue(
         casId: String,
+        entries: [String: String],
         fullHandle: String,
         serverURL: URL
-    ) async throws -> Data {
+    ) async throws {
         let client = Client.authenticated(serverURL: serverURL)
         let handles = try fullHandleService.parse(fullHandle)
-        
-        let response = try await client.getCASArtifact(
+
+        let entriesPayload = Operations.putCacheValue.Input.Body.jsonPayload.entriesPayload(
+            entries
+                .filter { $0.key == "value" }
+                .map {
+                    Operations.putCacheValue.Input.Body.jsonPayload.entriesPayloadPayload(value: $0.value)
+                }
+        )
+
+        let requestBody = Operations.putCacheValue.Input.Body.jsonPayload(
+            cas_id: casId,
+            entries: entriesPayload
+        )
+
+        let response = try await client.putCacheValue(
             .init(
-                path: .init(id: casId),
                 query: .init(
                     account_handle: handles.accountHandle,
                     project_handle: handles.projectHandle
-                )
+                ),
+                body: .json(requestBody)
             )
         )
-        
+
         switch response {
-        case let .ok(success):
-            guard case let .binary(httpBody) = success.body else {
-                throw LoadCASServiceError.invalidResponse
-            }
-            
-            // Convert HTTPBody to Data
-            let data = try await Data(collecting: httpBody, upTo: .max)
-            return data
-            
+        case .ok:
+            return
         case let .forbidden(forbidden):
             switch forbidden.body {
             case let .json(error):
-                throw LoadCASServiceError.forbidden(error.message)
+                throw PutCacheValueServiceError.forbidden(error.message)
             }
         case let .unauthorized(unauthorized):
             switch unauthorized.body {
             case let .json(error):
-                throw LoadCASServiceError.unauthorized(error.message)
+                throw PutCacheValueServiceError.unauthorized(error.message)
             }
         case let .notFound(notFound):
             switch notFound.body {
             case let .json(error):
-                throw LoadCASServiceError.notFound("Not found")
+                throw PutCacheValueServiceError.notFound(error.message)
             }
         case let .undocumented(statusCode: statusCode, _):
-            throw LoadCASServiceError.unknownError(statusCode)
+            throw PutCacheValueServiceError.unknownError(statusCode)
         }
     }
 }

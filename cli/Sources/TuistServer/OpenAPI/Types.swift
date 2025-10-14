@@ -64,8 +64,8 @@ public protocol APIProtocol: Sendable {
     /// Store cache key value entries.
     ///
     /// - Remark: HTTP `PUT /api/cache/keyvalue`.
-    /// - Remark: Generated from `#/paths//api/cache/keyvalue/put(putKeyValue)`.
-    func putKeyValue(_ input: Operations.putKeyValue.Input) async throws -> Operations.putKeyValue.Output
+    /// - Remark: Generated from `#/paths//api/cache/keyvalue/put(putCacheValue)`.
+    func putCacheValue(_ input: Operations.putCacheValue.Input) async throws -> Operations.putCacheValue.Output
     /// Get a specific device code.
     ///
     /// This endpoint returns a token for a given device code if the device code is authenticated.
@@ -246,13 +246,13 @@ public protocol APIProtocol: Sendable {
     /// Download a CAS artifact.
     ///
     /// - Remark: HTTP `GET /api/cache/cas/{id}`.
-    /// - Remark: Generated from `#/paths//api/cache/cas/{id}/get(getCASArtifact)`.
-    func getCASArtifact(_ input: Operations.getCASArtifact.Input) async throws -> Operations.getCASArtifact.Output
-    /// Upload a CAS artifact (or verify it already exists).
+    /// - Remark: Generated from `#/paths//api/cache/cas/{id}/get(loadCacheCAS)`.
+    func loadCacheCAS(_ input: Operations.loadCacheCAS.Input) async throws -> Operations.loadCacheCAS.Output
+    /// Save a CAS artifact
     ///
-    /// - Remark: HTTP `PUT /api/cache/cas/{id}`.
-    /// - Remark: Generated from `#/paths//api/cache/cas/{id}/put(uploadCASArtifact)`.
-    func uploadCASArtifact(_ input: Operations.uploadCASArtifact.Input) async throws -> Operations.uploadCASArtifact.Output
+    /// - Remark: HTTP `POST /api/cache/cas/{id}`.
+    /// - Remark: Generated from `#/paths//api/cache/cas/{id}/post(saveCacheCAS)`.
+    func saveCacheCAS(_ input: Operations.saveCacheCAS.Input) async throws -> Operations.saveCacheCAS.Output
     /// List previews.
     ///
     /// This endpoint returns a list of previews for a given project.
@@ -267,16 +267,11 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /api/cache`.
     /// - Remark: Generated from `#/paths//api/cache/get(downloadCacheArtifact)`.
     func downloadCacheArtifact(_ input: Operations.downloadCacheArtifact.Input) async throws -> Operations.downloadCacheArtifact.Output
-    /// Get cache key value entries.
+    /// Get cache value.
     ///
     /// - Remark: HTTP `PUT /api/cache/keyvalue/{cas_id}`.
-    /// - Remark: Generated from `#/paths//api/cache/keyvalue/{cas_id}/put(getKeyValue)`.
-    func getKeyValue(_ input: Operations.getKeyValue.Input) async throws -> Operations.getKeyValue.Output
-    /// Get the S3 object key prefix for a project's CAS storage.
-    ///
-    /// - Remark: HTTP `GET /api/cache/cas/prefix`.
-    /// - Remark: Generated from `#/paths//api/cache/cas/prefix/get(getCASPrefix)`.
-    func getCASPrefix(_ input: Operations.getCASPrefix.Input) async throws -> Operations.getCASPrefix.Output
+    /// - Remark: Generated from `#/paths//api/cache/keyvalue/{cas_id}/put(getCacheValue)`.
+    func getCacheValue(_ input: Operations.getCacheValue.Input) async throws -> Operations.getCacheValue.Output
     /// It completes a multi-part upload.
     ///
     /// Given the upload ID and all the parts with their ETags, this endpoint completes the multipart upload.
@@ -536,13 +531,13 @@ extension APIProtocol {
     /// Store cache key value entries.
     ///
     /// - Remark: HTTP `PUT /api/cache/keyvalue`.
-    /// - Remark: Generated from `#/paths//api/cache/keyvalue/put(putKeyValue)`.
-    public func putKeyValue(
-        query: Operations.putKeyValue.Input.Query,
-        headers: Operations.putKeyValue.Input.Headers = .init(),
-        body: Operations.putKeyValue.Input.Body
-    ) async throws -> Operations.putKeyValue.Output {
-        try await putKeyValue(Operations.putKeyValue.Input(
+    /// - Remark: Generated from `#/paths//api/cache/keyvalue/put(putCacheValue)`.
+    public func putCacheValue(
+        query: Operations.putCacheValue.Input.Query,
+        headers: Operations.putCacheValue.Input.Headers = .init(),
+        body: Operations.putCacheValue.Input.Body
+    ) async throws -> Operations.putCacheValue.Output {
+        try await putCacheValue(Operations.putCacheValue.Input(
             query: query,
             headers: headers,
             body: body
@@ -954,29 +949,29 @@ extension APIProtocol {
     /// Download a CAS artifact.
     ///
     /// - Remark: HTTP `GET /api/cache/cas/{id}`.
-    /// - Remark: Generated from `#/paths//api/cache/cas/{id}/get(getCASArtifact)`.
-    public func getCASArtifact(
-        path: Operations.getCASArtifact.Input.Path,
-        query: Operations.getCASArtifact.Input.Query,
-        headers: Operations.getCASArtifact.Input.Headers = .init()
-    ) async throws -> Operations.getCASArtifact.Output {
-        try await getCASArtifact(Operations.getCASArtifact.Input(
+    /// - Remark: Generated from `#/paths//api/cache/cas/{id}/get(loadCacheCAS)`.
+    public func loadCacheCAS(
+        path: Operations.loadCacheCAS.Input.Path,
+        query: Operations.loadCacheCAS.Input.Query,
+        headers: Operations.loadCacheCAS.Input.Headers = .init()
+    ) async throws -> Operations.loadCacheCAS.Output {
+        try await loadCacheCAS(Operations.loadCacheCAS.Input(
             path: path,
             query: query,
             headers: headers
         ))
     }
-    /// Upload a CAS artifact (or verify it already exists).
+    /// Save a CAS artifact
     ///
-    /// - Remark: HTTP `PUT /api/cache/cas/{id}`.
-    /// - Remark: Generated from `#/paths//api/cache/cas/{id}/put(uploadCASArtifact)`.
-    public func uploadCASArtifact(
-        path: Operations.uploadCASArtifact.Input.Path,
-        query: Operations.uploadCASArtifact.Input.Query,
-        headers: Operations.uploadCASArtifact.Input.Headers = .init(),
-        body: Operations.uploadCASArtifact.Input.Body
-    ) async throws -> Operations.uploadCASArtifact.Output {
-        try await uploadCASArtifact(Operations.uploadCASArtifact.Input(
+    /// - Remark: HTTP `POST /api/cache/cas/{id}`.
+    /// - Remark: Generated from `#/paths//api/cache/cas/{id}/post(saveCacheCAS)`.
+    public func saveCacheCAS(
+        path: Operations.saveCacheCAS.Input.Path,
+        query: Operations.saveCacheCAS.Input.Query,
+        headers: Operations.saveCacheCAS.Input.Headers = .init(),
+        body: Operations.saveCacheCAS.Input.Body
+    ) async throws -> Operations.saveCacheCAS.Output {
+        try await saveCacheCAS(Operations.saveCacheCAS.Input(
             path: path,
             query: query,
             headers: headers,
@@ -1015,30 +1010,17 @@ extension APIProtocol {
             headers: headers
         ))
     }
-    /// Get cache key value entries.
+    /// Get cache value.
     ///
     /// - Remark: HTTP `PUT /api/cache/keyvalue/{cas_id}`.
-    /// - Remark: Generated from `#/paths//api/cache/keyvalue/{cas_id}/put(getKeyValue)`.
-    public func getKeyValue(
-        path: Operations.getKeyValue.Input.Path,
-        query: Operations.getKeyValue.Input.Query,
-        headers: Operations.getKeyValue.Input.Headers = .init()
-    ) async throws -> Operations.getKeyValue.Output {
-        try await getKeyValue(Operations.getKeyValue.Input(
+    /// - Remark: Generated from `#/paths//api/cache/keyvalue/{cas_id}/put(getCacheValue)`.
+    public func getCacheValue(
+        path: Operations.getCacheValue.Input.Path,
+        query: Operations.getCacheValue.Input.Query,
+        headers: Operations.getCacheValue.Input.Headers = .init()
+    ) async throws -> Operations.getCacheValue.Output {
+        try await getCacheValue(Operations.getCacheValue.Input(
             path: path,
-            query: query,
-            headers: headers
-        ))
-    }
-    /// Get the S3 object key prefix for a project's CAS storage.
-    ///
-    /// - Remark: HTTP `GET /api/cache/cas/prefix`.
-    /// - Remark: Generated from `#/paths//api/cache/cas/prefix/get(getCASPrefix)`.
-    public func getCASPrefix(
-        query: Operations.getCASPrefix.Input.Query,
-        headers: Operations.getCASPrefix.Input.Headers = .init()
-    ) async throws -> Operations.getCASPrefix.Output {
-        try await getCASPrefix(Operations.getCASPrefix.Input(
             query: query,
             headers: headers
         ))
@@ -7665,9 +7647,9 @@ public enum Operations {
     /// Store cache key value entries.
     ///
     /// - Remark: HTTP `PUT /api/cache/keyvalue`.
-    /// - Remark: Generated from `#/paths//api/cache/keyvalue/put(putKeyValue)`.
-    public enum putKeyValue {
-        public static let id: Swift.String = "putKeyValue"
+    /// - Remark: Generated from `#/paths//api/cache/keyvalue/put(putCacheValue)`.
+    public enum putCacheValue {
+        public static let id: Swift.String = "putCacheValue"
         public struct Input: Sendable, Hashable {
             /// - Remark: Generated from `#/paths/api/cache/keyvalue/PUT/query`.
             public struct Query: Sendable, Hashable {
@@ -7692,19 +7674,19 @@ public enum Operations {
                     self.project_handle = project_handle
                 }
             }
-            public var query: Operations.putKeyValue.Input.Query
+            public var query: Operations.putCacheValue.Input.Query
             /// - Remark: Generated from `#/paths/api/cache/keyvalue/PUT/header`.
             public struct Headers: Sendable, Hashable {
-                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.putKeyValue.AcceptableContentType>]
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.putCacheValue.AcceptableContentType>]
                 /// Creates a new `Headers`.
                 ///
                 /// - Parameters:
                 ///   - accept:
-                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.putKeyValue.AcceptableContentType>] = .defaultValues()) {
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.putCacheValue.AcceptableContentType>] = .defaultValues()) {
                     self.accept = accept
                 }
             }
-            public var headers: Operations.putKeyValue.Input.Headers
+            public var headers: Operations.putCacheValue.Input.Headers
             /// - Remark: Generated from `#/paths/api/cache/keyvalue/PUT/requestBody`.
             @frozen public enum Body: Sendable, Hashable {
                 /// - Remark: Generated from `#/paths/api/cache/keyvalue/PUT/requestBody/json`.
@@ -7733,11 +7715,11 @@ public enum Operations {
                     /// Map of entry keys to encoded values
                     ///
                     /// - Remark: Generated from `#/paths/api/cache/keyvalue/PUT/requestBody/json/entries`.
-                    public typealias entriesPayload = [Operations.putKeyValue.Input.Body.jsonPayload.entriesPayloadPayload]
+                    public typealias entriesPayload = [Operations.putCacheValue.Input.Body.jsonPayload.entriesPayloadPayload]
                     /// Map of entry keys to encoded values
                     ///
                     /// - Remark: Generated from `#/paths/api/cache/keyvalue/PUT/requestBody/json/entries`.
-                    public var entries: Operations.putKeyValue.Input.Body.jsonPayload.entriesPayload
+                    public var entries: Operations.putCacheValue.Input.Body.jsonPayload.entriesPayload
                     /// Creates a new `jsonPayload`.
                     ///
                     /// - Parameters:
@@ -7745,7 +7727,7 @@ public enum Operations {
                     ///   - entries: Map of entry keys to encoded values
                     public init(
                         cas_id: Swift.String,
-                        entries: Operations.putKeyValue.Input.Body.jsonPayload.entriesPayload
+                        entries: Operations.putCacheValue.Input.Body.jsonPayload.entriesPayload
                     ) {
                         self.cas_id = cas_id
                         self.entries = entries
@@ -7756,9 +7738,9 @@ public enum Operations {
                     }
                 }
                 /// - Remark: Generated from `#/paths/api/cache/keyvalue/PUT/requestBody/content/application\/json`.
-                case json(Operations.putKeyValue.Input.Body.jsonPayload)
+                case json(Operations.putCacheValue.Input.Body.jsonPayload)
             }
-            public var body: Operations.putKeyValue.Input.Body
+            public var body: Operations.putCacheValue.Input.Body
             /// Creates a new `Input`.
             ///
             /// - Parameters:
@@ -7766,9 +7748,9 @@ public enum Operations {
             ///   - headers:
             ///   - body:
             public init(
-                query: Operations.putKeyValue.Input.Query,
-                headers: Operations.putKeyValue.Input.Headers = .init(),
-                body: Operations.putKeyValue.Input.Body
+                query: Operations.putCacheValue.Input.Query,
+                headers: Operations.putCacheValue.Input.Headers = .init(),
+                body: Operations.putCacheValue.Input.Body
             ) {
                 self.query = query
                 self.headers = headers
@@ -7781,26 +7763,45 @@ public enum Operations {
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/cache/keyvalue/PUT/responses/200/content/json`.
                     public struct jsonPayload: Codable, Hashable, Sendable {
-                        /// - Remark: Generated from `#/paths/api/cache/keyvalue/PUT/responses/200/content/json/count`.
-                        public var count: Swift.Int?
+                        /// - Remark: Generated from `#/paths/api/cache/keyvalue/PUT/responses/200/content/json/entriesPayload`.
+                        public struct entriesPayloadPayload: Codable, Hashable, Sendable {
+                            /// The ID of the entry
+                            ///
+                            /// - Remark: Generated from `#/paths/api/cache/keyvalue/PUT/responses/200/content/json/entriesPayload/id`.
+                            public var id: Swift.Int
+                            /// Creates a new `entriesPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - id: The ID of the entry
+                            public init(id: Swift.Int) {
+                                self.id = id
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case id
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/cache/keyvalue/PUT/responses/200/content/json/entries`.
+                        public typealias entriesPayload = [Operations.putCacheValue.Output.Ok.Body.jsonPayload.entriesPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/cache/keyvalue/PUT/responses/200/content/json/entries`.
+                        public var entries: Operations.putCacheValue.Output.Ok.Body.jsonPayload.entriesPayload
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
-                        ///   - count:
-                        public init(count: Swift.Int? = nil) {
-                            self.count = count
+                        ///   - entries:
+                        public init(entries: Operations.putCacheValue.Output.Ok.Body.jsonPayload.entriesPayload) {
+                            self.entries = entries
                         }
                         public enum CodingKeys: String, CodingKey {
-                            case count
+                            case entries
                         }
                     }
                     /// - Remark: Generated from `#/paths/api/cache/keyvalue/PUT/responses/200/content/application\/json`.
-                    case json(Operations.putKeyValue.Output.Ok.Body.jsonPayload)
+                    case json(Operations.putCacheValue.Output.Ok.Body.jsonPayload)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Operations.putKeyValue.Output.Ok.Body.jsonPayload {
+                    public var json: Operations.putCacheValue.Output.Ok.Body.jsonPayload {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -7810,26 +7811,26 @@ public enum Operations {
                     }
                 }
                 /// Received HTTP response body
-                public var body: Operations.putKeyValue.Output.Ok.Body
+                public var body: Operations.putCacheValue.Output.Ok.Body
                 /// Creates a new `Ok`.
                 ///
                 /// - Parameters:
                 ///   - body: Received HTTP response body
-                public init(body: Operations.putKeyValue.Output.Ok.Body) {
+                public init(body: Operations.putCacheValue.Output.Ok.Body) {
                     self.body = body
                 }
             }
-            /// Entries stored successfully
+            /// Value stored successfully
             ///
-            /// - Remark: Generated from `#/paths//api/cache/keyvalue/put(putKeyValue)/responses/200`.
+            /// - Remark: Generated from `#/paths//api/cache/keyvalue/put(putCacheValue)/responses/200`.
             ///
             /// HTTP response code: `200 ok`.
-            case ok(Operations.putKeyValue.Output.Ok)
+            case ok(Operations.putCacheValue.Output.Ok)
             /// The associated value of the enum case if `self` is `.ok`.
             ///
             /// - Throws: An error if `self` is not `.ok`.
             /// - SeeAlso: `.ok`.
-            public var ok: Operations.putKeyValue.Output.Ok {
+            public var ok: Operations.putCacheValue.Output.Ok {
                 get throws {
                     switch self {
                     case let .ok(response):
@@ -7861,26 +7862,26 @@ public enum Operations {
                     }
                 }
                 /// Received HTTP response body
-                public var body: Operations.putKeyValue.Output.Unauthorized.Body
+                public var body: Operations.putCacheValue.Output.Unauthorized.Body
                 /// Creates a new `Unauthorized`.
                 ///
                 /// - Parameters:
                 ///   - body: Received HTTP response body
-                public init(body: Operations.putKeyValue.Output.Unauthorized.Body) {
+                public init(body: Operations.putCacheValue.Output.Unauthorized.Body) {
                     self.body = body
                 }
             }
             /// You need to be authenticated to access this resource
             ///
-            /// - Remark: Generated from `#/paths//api/cache/keyvalue/put(putKeyValue)/responses/401`.
+            /// - Remark: Generated from `#/paths//api/cache/keyvalue/put(putCacheValue)/responses/401`.
             ///
             /// HTTP response code: `401 unauthorized`.
-            case unauthorized(Operations.putKeyValue.Output.Unauthorized)
+            case unauthorized(Operations.putCacheValue.Output.Unauthorized)
             /// The associated value of the enum case if `self` is `.unauthorized`.
             ///
             /// - Throws: An error if `self` is not `.unauthorized`.
             /// - SeeAlso: `.unauthorized`.
-            public var unauthorized: Operations.putKeyValue.Output.Unauthorized {
+            public var unauthorized: Operations.putCacheValue.Output.Unauthorized {
                 get throws {
                     switch self {
                     case let .unauthorized(response):
@@ -7912,26 +7913,26 @@ public enum Operations {
                     }
                 }
                 /// Received HTTP response body
-                public var body: Operations.putKeyValue.Output.Forbidden.Body
+                public var body: Operations.putCacheValue.Output.Forbidden.Body
                 /// Creates a new `Forbidden`.
                 ///
                 /// - Parameters:
                 ///   - body: Received HTTP response body
-                public init(body: Operations.putKeyValue.Output.Forbidden.Body) {
+                public init(body: Operations.putCacheValue.Output.Forbidden.Body) {
                     self.body = body
                 }
             }
             /// The authenticated subject is not authorized to perform this action
             ///
-            /// - Remark: Generated from `#/paths//api/cache/keyvalue/put(putKeyValue)/responses/403`.
+            /// - Remark: Generated from `#/paths//api/cache/keyvalue/put(putCacheValue)/responses/403`.
             ///
             /// HTTP response code: `403 forbidden`.
-            case forbidden(Operations.putKeyValue.Output.Forbidden)
+            case forbidden(Operations.putCacheValue.Output.Forbidden)
             /// The associated value of the enum case if `self` is `.forbidden`.
             ///
             /// - Throws: An error if `self` is not `.forbidden`.
             /// - SeeAlso: `.forbidden`.
-            public var forbidden: Operations.putKeyValue.Output.Forbidden {
+            public var forbidden: Operations.putCacheValue.Output.Forbidden {
                 get throws {
                     switch self {
                     case let .forbidden(response):
@@ -7963,26 +7964,26 @@ public enum Operations {
                     }
                 }
                 /// Received HTTP response body
-                public var body: Operations.putKeyValue.Output.NotFound.Body
+                public var body: Operations.putCacheValue.Output.NotFound.Body
                 /// Creates a new `NotFound`.
                 ///
                 /// - Parameters:
                 ///   - body: Received HTTP response body
-                public init(body: Operations.putKeyValue.Output.NotFound.Body) {
+                public init(body: Operations.putCacheValue.Output.NotFound.Body) {
                     self.body = body
                 }
             }
             /// The project was not found
             ///
-            /// - Remark: Generated from `#/paths//api/cache/keyvalue/put(putKeyValue)/responses/404`.
+            /// - Remark: Generated from `#/paths//api/cache/keyvalue/put(putCacheValue)/responses/404`.
             ///
             /// HTTP response code: `404 notFound`.
-            case notFound(Operations.putKeyValue.Output.NotFound)
+            case notFound(Operations.putCacheValue.Output.NotFound)
             /// The associated value of the enum case if `self` is `.notFound`.
             ///
             /// - Throws: An error if `self` is not `.notFound`.
             /// - SeeAlso: `.notFound`.
-            public var notFound: Operations.putKeyValue.Output.NotFound {
+            public var notFound: Operations.putCacheValue.Output.NotFound {
                 get throws {
                     switch self {
                     case let .notFound(response):
@@ -16337,9 +16338,9 @@ public enum Operations {
     /// Download a CAS artifact.
     ///
     /// - Remark: HTTP `GET /api/cache/cas/{id}`.
-    /// - Remark: Generated from `#/paths//api/cache/cas/{id}/get(getCASArtifact)`.
-    public enum getCASArtifact {
-        public static let id: Swift.String = "getCASArtifact"
+    /// - Remark: Generated from `#/paths//api/cache/cas/{id}/get(loadCacheCAS)`.
+    public enum loadCacheCAS {
+        public static let id: Swift.String = "loadCacheCAS"
         public struct Input: Sendable, Hashable {
             /// - Remark: Generated from `#/paths/api/cache/cas/{id}/GET/path`.
             public struct Path: Sendable, Hashable {
@@ -16355,7 +16356,7 @@ public enum Operations {
                     self.id = id
                 }
             }
-            public var path: Operations.getCASArtifact.Input.Path
+            public var path: Operations.loadCacheCAS.Input.Path
             /// - Remark: Generated from `#/paths/api/cache/cas/{id}/GET/query`.
             public struct Query: Sendable, Hashable {
                 /// The handle of the project's account.
@@ -16379,19 +16380,19 @@ public enum Operations {
                     self.project_handle = project_handle
                 }
             }
-            public var query: Operations.getCASArtifact.Input.Query
+            public var query: Operations.loadCacheCAS.Input.Query
             /// - Remark: Generated from `#/paths/api/cache/cas/{id}/GET/header`.
             public struct Headers: Sendable, Hashable {
-                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getCASArtifact.AcceptableContentType>]
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.loadCacheCAS.AcceptableContentType>]
                 /// Creates a new `Headers`.
                 ///
                 /// - Parameters:
                 ///   - accept:
-                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getCASArtifact.AcceptableContentType>] = .defaultValues()) {
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.loadCacheCAS.AcceptableContentType>] = .defaultValues()) {
                     self.accept = accept
                 }
             }
-            public var headers: Operations.getCASArtifact.Input.Headers
+            public var headers: Operations.loadCacheCAS.Input.Headers
             /// Creates a new `Input`.
             ///
             /// - Parameters:
@@ -16399,9 +16400,9 @@ public enum Operations {
             ///   - query:
             ///   - headers:
             public init(
-                path: Operations.getCASArtifact.Input.Path,
-                query: Operations.getCASArtifact.Input.Query,
-                headers: Operations.getCASArtifact.Input.Headers = .init()
+                path: Operations.loadCacheCAS.Input.Path,
+                query: Operations.loadCacheCAS.Input.Query,
+                headers: Operations.loadCacheCAS.Input.Headers = .init()
             ) {
                 self.path = path
                 self.query = query
@@ -16428,26 +16429,26 @@ public enum Operations {
                     }
                 }
                 /// Received HTTP response body
-                public var body: Operations.getCASArtifact.Output.Ok.Body
+                public var body: Operations.loadCacheCAS.Output.Ok.Body
                 /// Creates a new `Ok`.
                 ///
                 /// - Parameters:
                 ///   - body: Received HTTP response body
-                public init(body: Operations.getCASArtifact.Output.Ok.Body) {
+                public init(body: Operations.loadCacheCAS.Output.Ok.Body) {
                     self.body = body
                 }
             }
             /// Artifact content stream
             ///
-            /// - Remark: Generated from `#/paths//api/cache/cas/{id}/get(getCASArtifact)/responses/200`.
+            /// - Remark: Generated from `#/paths//api/cache/cas/{id}/get(loadCacheCAS)/responses/200`.
             ///
             /// HTTP response code: `200 ok`.
-            case ok(Operations.getCASArtifact.Output.Ok)
+            case ok(Operations.loadCacheCAS.Output.Ok)
             /// The associated value of the enum case if `self` is `.ok`.
             ///
             /// - Throws: An error if `self` is not `.ok`.
             /// - SeeAlso: `.ok`.
-            public var ok: Operations.getCASArtifact.Output.Ok {
+            public var ok: Operations.loadCacheCAS.Output.Ok {
                 get throws {
                     switch self {
                     case let .ok(response):
@@ -16479,26 +16480,26 @@ public enum Operations {
                     }
                 }
                 /// Received HTTP response body
-                public var body: Operations.getCASArtifact.Output.Unauthorized.Body
+                public var body: Operations.loadCacheCAS.Output.Unauthorized.Body
                 /// Creates a new `Unauthorized`.
                 ///
                 /// - Parameters:
                 ///   - body: Received HTTP response body
-                public init(body: Operations.getCASArtifact.Output.Unauthorized.Body) {
+                public init(body: Operations.loadCacheCAS.Output.Unauthorized.Body) {
                     self.body = body
                 }
             }
             /// You need to be authenticated to access this resource
             ///
-            /// - Remark: Generated from `#/paths//api/cache/cas/{id}/get(getCASArtifact)/responses/401`.
+            /// - Remark: Generated from `#/paths//api/cache/cas/{id}/get(loadCacheCAS)/responses/401`.
             ///
             /// HTTP response code: `401 unauthorized`.
-            case unauthorized(Operations.getCASArtifact.Output.Unauthorized)
+            case unauthorized(Operations.loadCacheCAS.Output.Unauthorized)
             /// The associated value of the enum case if `self` is `.unauthorized`.
             ///
             /// - Throws: An error if `self` is not `.unauthorized`.
             /// - SeeAlso: `.unauthorized`.
-            public var unauthorized: Operations.getCASArtifact.Output.Unauthorized {
+            public var unauthorized: Operations.loadCacheCAS.Output.Unauthorized {
                 get throws {
                     switch self {
                     case let .unauthorized(response):
@@ -16530,26 +16531,26 @@ public enum Operations {
                     }
                 }
                 /// Received HTTP response body
-                public var body: Operations.getCASArtifact.Output.Forbidden.Body
+                public var body: Operations.loadCacheCAS.Output.Forbidden.Body
                 /// Creates a new `Forbidden`.
                 ///
                 /// - Parameters:
                 ///   - body: Received HTTP response body
-                public init(body: Operations.getCASArtifact.Output.Forbidden.Body) {
+                public init(body: Operations.loadCacheCAS.Output.Forbidden.Body) {
                     self.body = body
                 }
             }
             /// The authenticated subject is not authorized to perform this action
             ///
-            /// - Remark: Generated from `#/paths//api/cache/cas/{id}/get(getCASArtifact)/responses/403`.
+            /// - Remark: Generated from `#/paths//api/cache/cas/{id}/get(loadCacheCAS)/responses/403`.
             ///
             /// HTTP response code: `403 forbidden`.
-            case forbidden(Operations.getCASArtifact.Output.Forbidden)
+            case forbidden(Operations.loadCacheCAS.Output.Forbidden)
             /// The associated value of the enum case if `self` is `.forbidden`.
             ///
             /// - Throws: An error if `self` is not `.forbidden`.
             /// - SeeAlso: `.forbidden`.
-            public var forbidden: Operations.getCASArtifact.Output.Forbidden {
+            public var forbidden: Operations.loadCacheCAS.Output.Forbidden {
                 get throws {
                     switch self {
                     case let .forbidden(response):
@@ -16581,26 +16582,26 @@ public enum Operations {
                     }
                 }
                 /// Received HTTP response body
-                public var body: Operations.getCASArtifact.Output.NotFound.Body
+                public var body: Operations.loadCacheCAS.Output.NotFound.Body
                 /// Creates a new `NotFound`.
                 ///
                 /// - Parameters:
                 ///   - body: Received HTTP response body
-                public init(body: Operations.getCASArtifact.Output.NotFound.Body) {
+                public init(body: Operations.loadCacheCAS.Output.NotFound.Body) {
                     self.body = body
                 }
             }
             /// Artifact does not exist
             ///
-            /// - Remark: Generated from `#/paths//api/cache/cas/{id}/get(getCASArtifact)/responses/404`.
+            /// - Remark: Generated from `#/paths//api/cache/cas/{id}/get(loadCacheCAS)/responses/404`.
             ///
             /// HTTP response code: `404 notFound`.
-            case notFound(Operations.getCASArtifact.Output.NotFound)
+            case notFound(Operations.loadCacheCAS.Output.NotFound)
             /// The associated value of the enum case if `self` is `.notFound`.
             ///
             /// - Throws: An error if `self` is not `.notFound`.
             /// - SeeAlso: `.notFound`.
-            public var notFound: Operations.getCASArtifact.Output.NotFound {
+            public var notFound: Operations.loadCacheCAS.Output.NotFound {
                 get throws {
                     switch self {
                     case let .notFound(response):
@@ -16650,18 +16651,18 @@ public enum Operations {
             }
         }
     }
-    /// Upload a CAS artifact (or verify it already exists).
+    /// Save a CAS artifact
     ///
-    /// - Remark: HTTP `PUT /api/cache/cas/{id}`.
-    /// - Remark: Generated from `#/paths//api/cache/cas/{id}/put(uploadCASArtifact)`.
-    public enum uploadCASArtifact {
-        public static let id: Swift.String = "uploadCASArtifact"
+    /// - Remark: HTTP `POST /api/cache/cas/{id}`.
+    /// - Remark: Generated from `#/paths//api/cache/cas/{id}/post(saveCacheCAS)`.
+    public enum saveCacheCAS {
+        public static let id: Swift.String = "saveCacheCAS"
         public struct Input: Sendable, Hashable {
-            /// - Remark: Generated from `#/paths/api/cache/cas/{id}/PUT/path`.
+            /// - Remark: Generated from `#/paths/api/cache/cas/{id}/POST/path`.
             public struct Path: Sendable, Hashable {
                 /// The artifact identifier.
                 ///
-                /// - Remark: Generated from `#/paths/api/cache/cas/{id}/PUT/path/id`.
+                /// - Remark: Generated from `#/paths/api/cache/cas/{id}/POST/path/id`.
                 public var id: Swift.String
                 /// Creates a new `Path`.
                 ///
@@ -16671,16 +16672,16 @@ public enum Operations {
                     self.id = id
                 }
             }
-            public var path: Operations.uploadCASArtifact.Input.Path
-            /// - Remark: Generated from `#/paths/api/cache/cas/{id}/PUT/query`.
+            public var path: Operations.saveCacheCAS.Input.Path
+            /// - Remark: Generated from `#/paths/api/cache/cas/{id}/POST/query`.
             public struct Query: Sendable, Hashable {
                 /// The handle of the project's account.
                 ///
-                /// - Remark: Generated from `#/paths/api/cache/cas/{id}/PUT/query/account_handle`.
+                /// - Remark: Generated from `#/paths/api/cache/cas/{id}/POST/query/account_handle`.
                 public var account_handle: Swift.String
                 /// The handle of the project.
                 ///
-                /// - Remark: Generated from `#/paths/api/cache/cas/{id}/PUT/query/project_handle`.
+                /// - Remark: Generated from `#/paths/api/cache/cas/{id}/POST/query/project_handle`.
                 public var project_handle: Swift.String
                 /// Creates a new `Query`.
                 ///
@@ -16695,25 +16696,25 @@ public enum Operations {
                     self.project_handle = project_handle
                 }
             }
-            public var query: Operations.uploadCASArtifact.Input.Query
-            /// - Remark: Generated from `#/paths/api/cache/cas/{id}/PUT/header`.
+            public var query: Operations.saveCacheCAS.Input.Query
+            /// - Remark: Generated from `#/paths/api/cache/cas/{id}/POST/header`.
             public struct Headers: Sendable, Hashable {
-                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.uploadCASArtifact.AcceptableContentType>]
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.saveCacheCAS.AcceptableContentType>]
                 /// Creates a new `Headers`.
                 ///
                 /// - Parameters:
                 ///   - accept:
-                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.uploadCASArtifact.AcceptableContentType>] = .defaultValues()) {
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.saveCacheCAS.AcceptableContentType>] = .defaultValues()) {
                     self.accept = accept
                 }
             }
-            public var headers: Operations.uploadCASArtifact.Input.Headers
-            /// - Remark: Generated from `#/paths/api/cache/cas/{id}/PUT/requestBody`.
+            public var headers: Operations.saveCacheCAS.Input.Headers
+            /// - Remark: Generated from `#/paths/api/cache/cas/{id}/POST/requestBody`.
             @frozen public enum Body: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/cache/cas/{id}/PUT/requestBody/content/application\/octet-stream`.
+                /// - Remark: Generated from `#/paths/api/cache/cas/{id}/POST/requestBody/content/application\/octet-stream`.
                 case binary(OpenAPIRuntime.HTTPBody)
             }
-            public var body: Operations.uploadCASArtifact.Input.Body
+            public var body: Operations.saveCacheCAS.Input.Body
             /// Creates a new `Input`.
             ///
             /// - Parameters:
@@ -16722,10 +16723,10 @@ public enum Operations {
             ///   - headers:
             ///   - body:
             public init(
-                path: Operations.uploadCASArtifact.Input.Path,
-                query: Operations.uploadCASArtifact.Input.Query,
-                headers: Operations.uploadCASArtifact.Input.Headers = .init(),
-                body: Operations.uploadCASArtifact.Input.Body
+                path: Operations.saveCacheCAS.Input.Path,
+                query: Operations.saveCacheCAS.Input.Query,
+                headers: Operations.saveCacheCAS.Input.Headers = .init(),
+                body: Operations.saveCacheCAS.Input.Body
             ) {
                 self.path = path
                 self.query = query
@@ -16735,11 +16736,11 @@ public enum Operations {
         }
         @frozen public enum Output: Sendable, Hashable {
             public struct Ok: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/cache/cas/{id}/PUT/responses/200/content`.
+                /// - Remark: Generated from `#/paths/api/cache/cas/{id}/POST/responses/200/content`.
                 @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/cache/cas/{id}/PUT/responses/200/content/json`.
+                    /// - Remark: Generated from `#/paths/api/cache/cas/{id}/POST/responses/200/content/json`.
                     public struct jsonPayload: Codable, Hashable, Sendable {
-                        /// - Remark: Generated from `#/paths/api/cache/cas/{id}/PUT/responses/200/content/json/id`.
+                        /// - Remark: Generated from `#/paths/api/cache/cas/{id}/POST/responses/200/content/json/id`.
                         public var id: Swift.String?
                         /// Creates a new `jsonPayload`.
                         ///
@@ -16752,13 +16753,13 @@ public enum Operations {
                             case id
                         }
                     }
-                    /// - Remark: Generated from `#/paths/api/cache/cas/{id}/PUT/responses/200/content/application\/json`.
-                    case json(Operations.uploadCASArtifact.Output.Ok.Body.jsonPayload)
+                    /// - Remark: Generated from `#/paths/api/cache/cas/{id}/POST/responses/200/content/application\/json`.
+                    case json(Operations.saveCacheCAS.Output.Ok.Body.jsonPayload)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Operations.uploadCASArtifact.Output.Ok.Body.jsonPayload {
+                    public var json: Operations.saveCacheCAS.Output.Ok.Body.jsonPayload {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -16768,26 +16769,26 @@ public enum Operations {
                     }
                 }
                 /// Received HTTP response body
-                public var body: Operations.uploadCASArtifact.Output.Ok.Body
+                public var body: Operations.saveCacheCAS.Output.Ok.Body
                 /// Creates a new `Ok`.
                 ///
                 /// - Parameters:
                 ///   - body: Received HTTP response body
-                public init(body: Operations.uploadCASArtifact.Output.Ok.Body) {
+                public init(body: Operations.saveCacheCAS.Output.Ok.Body) {
                     self.body = body
                 }
             }
             /// Upload successful
             ///
-            /// - Remark: Generated from `#/paths//api/cache/cas/{id}/put(uploadCASArtifact)/responses/200`.
+            /// - Remark: Generated from `#/paths//api/cache/cas/{id}/post(saveCacheCAS)/responses/200`.
             ///
             /// HTTP response code: `200 ok`.
-            case ok(Operations.uploadCASArtifact.Output.Ok)
+            case ok(Operations.saveCacheCAS.Output.Ok)
             /// The associated value of the enum case if `self` is `.ok`.
             ///
             /// - Throws: An error if `self` is not `.ok`.
             /// - SeeAlso: `.ok`.
-            public var ok: Operations.uploadCASArtifact.Output.Ok {
+            public var ok: Operations.saveCacheCAS.Output.Ok {
                 get throws {
                     switch self {
                     case let .ok(response):
@@ -16801,9 +16802,9 @@ public enum Operations {
                 }
             }
             public struct Unauthorized: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/cache/cas/{id}/PUT/responses/401/content`.
+                /// - Remark: Generated from `#/paths/api/cache/cas/{id}/POST/responses/401/content`.
                 @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/cache/cas/{id}/PUT/responses/401/content/application\/json`.
+                    /// - Remark: Generated from `#/paths/api/cache/cas/{id}/POST/responses/401/content/application\/json`.
                     case json(Components.Schemas._Error)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
@@ -16819,26 +16820,26 @@ public enum Operations {
                     }
                 }
                 /// Received HTTP response body
-                public var body: Operations.uploadCASArtifact.Output.Unauthorized.Body
+                public var body: Operations.saveCacheCAS.Output.Unauthorized.Body
                 /// Creates a new `Unauthorized`.
                 ///
                 /// - Parameters:
                 ///   - body: Received HTTP response body
-                public init(body: Operations.uploadCASArtifact.Output.Unauthorized.Body) {
+                public init(body: Operations.saveCacheCAS.Output.Unauthorized.Body) {
                     self.body = body
                 }
             }
             /// You need to be authenticated to access this resource
             ///
-            /// - Remark: Generated from `#/paths//api/cache/cas/{id}/put(uploadCASArtifact)/responses/401`.
+            /// - Remark: Generated from `#/paths//api/cache/cas/{id}/post(saveCacheCAS)/responses/401`.
             ///
             /// HTTP response code: `401 unauthorized`.
-            case unauthorized(Operations.uploadCASArtifact.Output.Unauthorized)
+            case unauthorized(Operations.saveCacheCAS.Output.Unauthorized)
             /// The associated value of the enum case if `self` is `.unauthorized`.
             ///
             /// - Throws: An error if `self` is not `.unauthorized`.
             /// - SeeAlso: `.unauthorized`.
-            public var unauthorized: Operations.uploadCASArtifact.Output.Unauthorized {
+            public var unauthorized: Operations.saveCacheCAS.Output.Unauthorized {
                 get throws {
                     switch self {
                     case let .unauthorized(response):
@@ -16852,9 +16853,9 @@ public enum Operations {
                 }
             }
             public struct Forbidden: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/cache/cas/{id}/PUT/responses/403/content`.
+                /// - Remark: Generated from `#/paths/api/cache/cas/{id}/POST/responses/403/content`.
                 @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/cache/cas/{id}/PUT/responses/403/content/application\/json`.
+                    /// - Remark: Generated from `#/paths/api/cache/cas/{id}/POST/responses/403/content/application\/json`.
                     case json(Components.Schemas._Error)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
@@ -16870,26 +16871,26 @@ public enum Operations {
                     }
                 }
                 /// Received HTTP response body
-                public var body: Operations.uploadCASArtifact.Output.Forbidden.Body
+                public var body: Operations.saveCacheCAS.Output.Forbidden.Body
                 /// Creates a new `Forbidden`.
                 ///
                 /// - Parameters:
                 ///   - body: Received HTTP response body
-                public init(body: Operations.uploadCASArtifact.Output.Forbidden.Body) {
+                public init(body: Operations.saveCacheCAS.Output.Forbidden.Body) {
                     self.body = body
                 }
             }
             /// The authenticated subject is not authorized to perform this action
             ///
-            /// - Remark: Generated from `#/paths//api/cache/cas/{id}/put(uploadCASArtifact)/responses/403`.
+            /// - Remark: Generated from `#/paths//api/cache/cas/{id}/post(saveCacheCAS)/responses/403`.
             ///
             /// HTTP response code: `403 forbidden`.
-            case forbidden(Operations.uploadCASArtifact.Output.Forbidden)
+            case forbidden(Operations.saveCacheCAS.Output.Forbidden)
             /// The associated value of the enum case if `self` is `.forbidden`.
             ///
             /// - Throws: An error if `self` is not `.forbidden`.
             /// - SeeAlso: `.forbidden`.
-            public var forbidden: Operations.uploadCASArtifact.Output.Forbidden {
+            public var forbidden: Operations.saveCacheCAS.Output.Forbidden {
                 get throws {
                     switch self {
                     case let .forbidden(response):
@@ -17619,12 +17620,12 @@ public enum Operations {
             }
         }
     }
-    /// Get cache key value entries.
+    /// Get cache value.
     ///
     /// - Remark: HTTP `PUT /api/cache/keyvalue/{cas_id}`.
-    /// - Remark: Generated from `#/paths//api/cache/keyvalue/{cas_id}/put(getKeyValue)`.
-    public enum getKeyValue {
-        public static let id: Swift.String = "getKeyValue"
+    /// - Remark: Generated from `#/paths//api/cache/keyvalue/{cas_id}/put(getCacheValue)`.
+    public enum getCacheValue {
+        public static let id: Swift.String = "getCacheValue"
         public struct Input: Sendable, Hashable {
             /// - Remark: Generated from `#/paths/api/cache/keyvalue/{cas_id}/PUT/path`.
             public struct Path: Sendable, Hashable {
@@ -17640,7 +17641,7 @@ public enum Operations {
                     self.cas_id = cas_id
                 }
             }
-            public var path: Operations.getKeyValue.Input.Path
+            public var path: Operations.getCacheValue.Input.Path
             /// - Remark: Generated from `#/paths/api/cache/keyvalue/{cas_id}/PUT/query`.
             public struct Query: Sendable, Hashable {
                 /// The handle of the project's account.
@@ -17664,19 +17665,19 @@ public enum Operations {
                     self.project_handle = project_handle
                 }
             }
-            public var query: Operations.getKeyValue.Input.Query
+            public var query: Operations.getCacheValue.Input.Query
             /// - Remark: Generated from `#/paths/api/cache/keyvalue/{cas_id}/PUT/header`.
             public struct Headers: Sendable, Hashable {
-                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getKeyValue.AcceptableContentType>]
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getCacheValue.AcceptableContentType>]
                 /// Creates a new `Headers`.
                 ///
                 /// - Parameters:
                 ///   - accept:
-                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getKeyValue.AcceptableContentType>] = .defaultValues()) {
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getCacheValue.AcceptableContentType>] = .defaultValues()) {
                     self.accept = accept
                 }
             }
-            public var headers: Operations.getKeyValue.Input.Headers
+            public var headers: Operations.getCacheValue.Input.Headers
             /// Creates a new `Input`.
             ///
             /// - Parameters:
@@ -17684,9 +17685,9 @@ public enum Operations {
             ///   - query:
             ///   - headers:
             public init(
-                path: Operations.getKeyValue.Input.Path,
-                query: Operations.getKeyValue.Input.Query,
-                headers: Operations.getKeyValue.Input.Headers = .init()
+                path: Operations.getCacheValue.Input.Path,
+                query: Operations.getCacheValue.Input.Query,
+                headers: Operations.getCacheValue.Input.Headers = .init()
             ) {
                 self.path = path
                 self.query = query
@@ -17717,14 +17718,14 @@ public enum Operations {
                             }
                         }
                         /// - Remark: Generated from `#/paths/api/cache/keyvalue/{cas_id}/PUT/responses/200/content/json/entries`.
-                        public typealias entriesPayload = [Operations.getKeyValue.Output.Ok.Body.jsonPayload.entriesPayloadPayload]
+                        public typealias entriesPayload = [Operations.getCacheValue.Output.Ok.Body.jsonPayload.entriesPayloadPayload]
                         /// - Remark: Generated from `#/paths/api/cache/keyvalue/{cas_id}/PUT/responses/200/content/json/entries`.
-                        public var entries: Operations.getKeyValue.Output.Ok.Body.jsonPayload.entriesPayload
+                        public var entries: Operations.getCacheValue.Output.Ok.Body.jsonPayload.entriesPayload
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
                         ///   - entries:
-                        public init(entries: Operations.getKeyValue.Output.Ok.Body.jsonPayload.entriesPayload) {
+                        public init(entries: Operations.getCacheValue.Output.Ok.Body.jsonPayload.entriesPayload) {
                             self.entries = entries
                         }
                         public enum CodingKeys: String, CodingKey {
@@ -17732,12 +17733,12 @@ public enum Operations {
                         }
                     }
                     /// - Remark: Generated from `#/paths/api/cache/keyvalue/{cas_id}/PUT/responses/200/content/application\/json`.
-                    case json(Operations.getKeyValue.Output.Ok.Body.jsonPayload)
+                    case json(Operations.getCacheValue.Output.Ok.Body.jsonPayload)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Operations.getKeyValue.Output.Ok.Body.jsonPayload {
+                    public var json: Operations.getCacheValue.Output.Ok.Body.jsonPayload {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -17747,26 +17748,26 @@ public enum Operations {
                     }
                 }
                 /// Received HTTP response body
-                public var body: Operations.getKeyValue.Output.Ok.Body
+                public var body: Operations.getCacheValue.Output.Ok.Body
                 /// Creates a new `Ok`.
                 ///
                 /// - Parameters:
                 ///   - body: Received HTTP response body
-                public init(body: Operations.getKeyValue.Output.Ok.Body) {
+                public init(body: Operations.getCacheValue.Output.Ok.Body) {
                     self.body = body
                 }
             }
-            /// Entries retrieved successfully
+            /// Cache value retrieved successfully
             ///
-            /// - Remark: Generated from `#/paths//api/cache/keyvalue/{cas_id}/put(getKeyValue)/responses/200`.
+            /// - Remark: Generated from `#/paths//api/cache/keyvalue/{cas_id}/put(getCacheValue)/responses/200`.
             ///
             /// HTTP response code: `200 ok`.
-            case ok(Operations.getKeyValue.Output.Ok)
+            case ok(Operations.getCacheValue.Output.Ok)
             /// The associated value of the enum case if `self` is `.ok`.
             ///
             /// - Throws: An error if `self` is not `.ok`.
             /// - SeeAlso: `.ok`.
-            public var ok: Operations.getKeyValue.Output.Ok {
+            public var ok: Operations.getCacheValue.Output.Ok {
                 get throws {
                     switch self {
                     case let .ok(response):
@@ -17774,6 +17775,108 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/cache/keyvalue/{cas_id}/PUT/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/cache/keyvalue/{cas_id}/PUT/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getCacheValue.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getCacheValue.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/cache/keyvalue/{cas_id}/put(getCacheValue)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.getCacheValue.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.getCacheValue.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/cache/keyvalue/{cas_id}/PUT/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/cache/keyvalue/{cas_id}/PUT/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getCacheValue.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getCacheValue.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// The authenticated subject is not authorized to perform this action
+            ///
+            /// - Remark: Generated from `#/paths//api/cache/keyvalue/{cas_id}/put(getCacheValue)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.getCacheValue.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.getCacheValue.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
                             response: self
                         )
                     }
@@ -17798,335 +17901,26 @@ public enum Operations {
                     }
                 }
                 /// Received HTTP response body
-                public var body: Operations.getKeyValue.Output.NotFound.Body
+                public var body: Operations.getCacheValue.Output.NotFound.Body
                 /// Creates a new `NotFound`.
                 ///
                 /// - Parameters:
                 ///   - body: Received HTTP response body
-                public init(body: Operations.getKeyValue.Output.NotFound.Body) {
+                public init(body: Operations.getCacheValue.Output.NotFound.Body) {
                     self.body = body
                 }
             }
             /// No entries found for the given CAS ID
             ///
-            /// - Remark: Generated from `#/paths//api/cache/keyvalue/{cas_id}/put(getKeyValue)/responses/404`.
+            /// - Remark: Generated from `#/paths//api/cache/keyvalue/{cas_id}/put(getCacheValue)/responses/404`.
             ///
             /// HTTP response code: `404 notFound`.
-            case notFound(Operations.getKeyValue.Output.NotFound)
+            case notFound(Operations.getCacheValue.Output.NotFound)
             /// The associated value of the enum case if `self` is `.notFound`.
             ///
             /// - Throws: An error if `self` is not `.notFound`.
             /// - SeeAlso: `.notFound`.
-            public var notFound: Operations.getKeyValue.Output.NotFound {
-                get throws {
-                    switch self {
-                    case let .notFound(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "notFound",
-                            response: self
-                        )
-                    }
-                }
-            }
-            /// Undocumented response.
-            ///
-            /// A response with a code that is not documented in the OpenAPI document.
-            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
-        }
-        @frozen public enum AcceptableContentType: AcceptableProtocol {
-            case json
-            case other(Swift.String)
-            public init?(rawValue: Swift.String) {
-                switch rawValue.lowercased() {
-                case "application/json":
-                    self = .json
-                default:
-                    self = .other(rawValue)
-                }
-            }
-            public var rawValue: Swift.String {
-                switch self {
-                case let .other(string):
-                    return string
-                case .json:
-                    return "application/json"
-                }
-            }
-            public static var allCases: [Self] {
-                [
-                    .json
-                ]
-            }
-        }
-    }
-    /// Get the S3 object key prefix for a project's CAS storage.
-    ///
-    /// - Remark: HTTP `GET /api/cache/cas/prefix`.
-    /// - Remark: Generated from `#/paths//api/cache/cas/prefix/get(getCASPrefix)`.
-    public enum getCASPrefix {
-        public static let id: Swift.String = "getCASPrefix"
-        public struct Input: Sendable, Hashable {
-            /// - Remark: Generated from `#/paths/api/cache/cas/prefix/GET/query`.
-            public struct Query: Sendable, Hashable {
-                /// The handle of the project's account.
-                ///
-                /// - Remark: Generated from `#/paths/api/cache/cas/prefix/GET/query/account_handle`.
-                public var account_handle: Swift.String
-                /// The handle of the project.
-                ///
-                /// - Remark: Generated from `#/paths/api/cache/cas/prefix/GET/query/project_handle`.
-                public var project_handle: Swift.String
-                /// Creates a new `Query`.
-                ///
-                /// - Parameters:
-                ///   - account_handle: The handle of the project's account.
-                ///   - project_handle: The handle of the project.
-                public init(
-                    account_handle: Swift.String,
-                    project_handle: Swift.String
-                ) {
-                    self.account_handle = account_handle
-                    self.project_handle = project_handle
-                }
-            }
-            public var query: Operations.getCASPrefix.Input.Query
-            /// - Remark: Generated from `#/paths/api/cache/cas/prefix/GET/header`.
-            public struct Headers: Sendable, Hashable {
-                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getCASPrefix.AcceptableContentType>]
-                /// Creates a new `Headers`.
-                ///
-                /// - Parameters:
-                ///   - accept:
-                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getCASPrefix.AcceptableContentType>] = .defaultValues()) {
-                    self.accept = accept
-                }
-            }
-            public var headers: Operations.getCASPrefix.Input.Headers
-            /// Creates a new `Input`.
-            ///
-            /// - Parameters:
-            ///   - query:
-            ///   - headers:
-            public init(
-                query: Operations.getCASPrefix.Input.Query,
-                headers: Operations.getCASPrefix.Input.Headers = .init()
-            ) {
-                self.query = query
-                self.headers = headers
-            }
-        }
-        @frozen public enum Output: Sendable, Hashable {
-            public struct Ok: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/cache/cas/prefix/GET/responses/200/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/cache/cas/prefix/GET/responses/200/content/json`.
-                    public struct jsonPayload: Codable, Hashable, Sendable {
-                        /// The S3 object key prefix where CAS objects should be stored.
-                        ///
-                        /// - Remark: Generated from `#/paths/api/cache/cas/prefix/GET/responses/200/content/json/prefix`.
-                        public var prefix: Swift.String
-                        /// Creates a new `jsonPayload`.
-                        ///
-                        /// - Parameters:
-                        ///   - prefix: The S3 object key prefix where CAS objects should be stored.
-                        public init(prefix: Swift.String) {
-                            self.prefix = prefix
-                        }
-                        public enum CodingKeys: String, CodingKey {
-                            case prefix
-                        }
-                    }
-                    /// - Remark: Generated from `#/paths/api/cache/cas/prefix/GET/responses/200/content/application\/json`.
-                    case json(Operations.getCASPrefix.Output.Ok.Body.jsonPayload)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    public var json: Operations.getCASPrefix.Output.Ok.Body.jsonPayload {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                public var body: Operations.getCASPrefix.Output.Ok.Body
-                /// Creates a new `Ok`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                public init(body: Operations.getCASPrefix.Output.Ok.Body) {
-                    self.body = body
-                }
-            }
-            /// The CAS storage prefix
-            ///
-            /// - Remark: Generated from `#/paths//api/cache/cas/prefix/get(getCASPrefix)/responses/200`.
-            ///
-            /// HTTP response code: `200 ok`.
-            case ok(Operations.getCASPrefix.Output.Ok)
-            /// The associated value of the enum case if `self` is `.ok`.
-            ///
-            /// - Throws: An error if `self` is not `.ok`.
-            /// - SeeAlso: `.ok`.
-            public var ok: Operations.getCASPrefix.Output.Ok {
-                get throws {
-                    switch self {
-                    case let .ok(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "ok",
-                            response: self
-                        )
-                    }
-                }
-            }
-            public struct Unauthorized: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/cache/cas/prefix/GET/responses/401/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/cache/cas/prefix/GET/responses/401/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                public var body: Operations.getCASPrefix.Output.Unauthorized.Body
-                /// Creates a new `Unauthorized`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                public init(body: Operations.getCASPrefix.Output.Unauthorized.Body) {
-                    self.body = body
-                }
-            }
-            /// You need to be authenticated to access this resource
-            ///
-            /// - Remark: Generated from `#/paths//api/cache/cas/prefix/get(getCASPrefix)/responses/401`.
-            ///
-            /// HTTP response code: `401 unauthorized`.
-            case unauthorized(Operations.getCASPrefix.Output.Unauthorized)
-            /// The associated value of the enum case if `self` is `.unauthorized`.
-            ///
-            /// - Throws: An error if `self` is not `.unauthorized`.
-            /// - SeeAlso: `.unauthorized`.
-            public var unauthorized: Operations.getCASPrefix.Output.Unauthorized {
-                get throws {
-                    switch self {
-                    case let .unauthorized(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "unauthorized",
-                            response: self
-                        )
-                    }
-                }
-            }
-            public struct Forbidden: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/cache/cas/prefix/GET/responses/403/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/cache/cas/prefix/GET/responses/403/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                public var body: Operations.getCASPrefix.Output.Forbidden.Body
-                /// Creates a new `Forbidden`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                public init(body: Operations.getCASPrefix.Output.Forbidden.Body) {
-                    self.body = body
-                }
-            }
-            /// The authenticated subject is not authorized to perform this action
-            ///
-            /// - Remark: Generated from `#/paths//api/cache/cas/prefix/get(getCASPrefix)/responses/403`.
-            ///
-            /// HTTP response code: `403 forbidden`.
-            case forbidden(Operations.getCASPrefix.Output.Forbidden)
-            /// The associated value of the enum case if `self` is `.forbidden`.
-            ///
-            /// - Throws: An error if `self` is not `.forbidden`.
-            /// - SeeAlso: `.forbidden`.
-            public var forbidden: Operations.getCASPrefix.Output.Forbidden {
-                get throws {
-                    switch self {
-                    case let .forbidden(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "forbidden",
-                            response: self
-                        )
-                    }
-                }
-            }
-            public struct NotFound: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/cache/cas/prefix/GET/responses/404/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/cache/cas/prefix/GET/responses/404/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                public var body: Operations.getCASPrefix.Output.NotFound.Body
-                /// Creates a new `NotFound`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                public init(body: Operations.getCASPrefix.Output.NotFound.Body) {
-                    self.body = body
-                }
-            }
-            /// The project was not found
-            ///
-            /// - Remark: Generated from `#/paths//api/cache/cas/prefix/get(getCASPrefix)/responses/404`.
-            ///
-            /// HTTP response code: `404 notFound`.
-            case notFound(Operations.getCASPrefix.Output.NotFound)
-            /// The associated value of the enum case if `self` is `.notFound`.
-            ///
-            /// - Throws: An error if `self` is not `.notFound`.
-            /// - SeeAlso: `.notFound`.
-            public var notFound: Operations.getCASPrefix.Output.NotFound {
+            public var notFound: Operations.getCacheValue.Output.NotFound {
                 get throws {
                     switch self {
                     case let .notFound(response):
