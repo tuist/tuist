@@ -36,17 +36,17 @@ defmodule Tuist.Cache do
   end
 
   @doc """
-  Gets all cache entries by cas_id.
+  Gets all cache entries by cas_id and project_id.
 
   ## Examples
 
-      iex> get_entries_by_cas_id("some_cas_id")
+      iex> get_entries_by_cas_id_and_project_id("some_cas_id", 123)
       [%Entry{}, ...]
 
   """
-  def get_entries_by_cas_id(cas_id) do
+  def get_entries_by_cas_id_and_project_id(cas_id, project_id) do
     import Ecto.Query
 
-    IngestRepo.all(from(e in Entry, where: e.cas_id == ^cas_id))
+    IngestRepo.all(from(e in Entry, where: e.cas_id == ^cas_id and e.project_id == ^project_id))
   end
 end

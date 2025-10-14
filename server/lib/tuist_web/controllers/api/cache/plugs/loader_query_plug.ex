@@ -1,25 +1,22 @@
 defmodule TuistWeb.API.Cache.Plugs.LoaderQueryPlug do
   @moduledoc """
   A plug that loads project and account from query parameters for cache endpoints.
-  
+
   This plug expects `account_handle` and `project_handle` query parameters and will:
   - Load the project using the combined slug "account_handle/project_handle"
   - Assign `:selected_project` and `:selected_account` to the connection
   - Raise appropriate errors if the project is not found or invalid
   """
-  
+
   use TuistWeb, :controller
-  
+
   alias Tuist.Projects
   alias TuistWeb.Errors.BadRequestError
   alias TuistWeb.Errors.NotFoundError
 
   def init(opts), do: opts
 
-  def call(
-        %{query_params: %{"account_handle" => account_handle, "project_handle" => project_handle}} = conn,
-        _opts
-      ) do
+  def call(%{query_params: %{"account_handle" => account_handle, "project_handle" => project_handle}} = conn, _opts) do
     project_slug = "#{account_handle}/#{project_handle}"
 
     project = Projects.get_project_by_slug(project_slug, preload: [:account])

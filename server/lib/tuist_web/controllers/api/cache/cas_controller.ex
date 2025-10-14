@@ -8,9 +8,9 @@ defmodule TuistWeb.API.CASController do
   alias Tuist.Cache
   alias Tuist.Projects
   alias Tuist.Storage
+  alias TuistWeb.API.Cache.Plugs.LoaderQueryPlug
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.Authentication
-  alias TuistWeb.API.Cache.Plugs.LoaderQueryPlug
 
   plug(LoaderQueryPlug)
   plug(TuistWeb.API.Authorization.AuthorizationPlug, :cache)
@@ -131,5 +131,4 @@ defmodule TuistWeb.API.CASController do
       |> json(%{id: key})
     end
   end
-
 end

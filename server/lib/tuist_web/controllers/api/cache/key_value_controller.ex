@@ -3,13 +3,9 @@ defmodule TuistWeb.API.Cache.KeyValueController do
   use TuistWeb, :controller
 
   alias OpenApiSpex.Schema
-  alias Tuist.Accounts
-  alias Tuist.Authorization
   alias Tuist.Cache
-  alias Tuist.Projects
-  alias TuistWeb.API.Schemas.Error
-  alias TuistWeb.Authentication
   alias TuistWeb.API.Cache.Plugs.LoaderQueryPlug
+  alias TuistWeb.API.Schemas.Error
 
   plug(LoaderQueryPlug)
   plug(TuistWeb.API.Authorization.AuthorizationPlug, :cache)
@@ -79,8 +75,8 @@ defmodule TuistWeb.API.Cache.KeyValueController do
     }
   )
 
-  def get_value(conn, %{cas_id: cas_id} = _params) do
-    entries = Cache.get_entries_by_cas_id(cas_id)
+  def get_value(%{assigns: %{selected_project: project}} = conn, %{cas_id: cas_id} = _params) do
+    entries = Cache.get_entries_by_cas_id_and_project_id(cas_id, project.id)
 
     case entries do
       [] ->
@@ -122,7 +118,6 @@ defmodule TuistWeb.API.Cache.KeyValueController do
         properties: %{
           cas_id: %Schema{type: :string, description: "The CAS identifier"},
           entries: %Schema{
-            type: :object,
             description: "Map of entry keys to encoded values",
             type: :array,
             items: %Schema{
@@ -150,7 +145,7 @@ defmodule TuistWeb.API.Cache.KeyValueController do
               items: %Schema{
                 type: :object,
                 properties: %{
-                  id: %Schema{type: :integer, description: "The ID of the entry"}
+                  id: %Schema{type: :string, description: "The ID of the entry"}
                 },
                 required: [:id]
               }

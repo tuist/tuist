@@ -12,18 +12,15 @@ import TuistSupport
 
 struct CacheStartCommandService {
     private let configLoader: ConfigLoading
-    private let rootDirectoryLocator: RootDirectoryLocating
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let fileSystem: FileSysteming
 
     init(
         configLoader: ConfigLoading = ConfigLoader(),
-        rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator(),
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         fileSystem: FileSysteming = FileSystem()
     ) {
         self.configLoader = configLoader
-        self.rootDirectoryLocator = rootDirectoryLocator
         self.serverEnvironmentService = serverEnvironmentService
         self.fileSystem = fileSystem
     }
@@ -33,21 +30,21 @@ struct CacheStartCommandService {
     ) async throws {
         let config = try await configLoader.loadConfig(path: path)
 
-        guard let rootDirectory = try await rootDirectoryLocator.locate(from: path) else { return }
-        let socketPath = rootDirectory
-            .appending(component: Constants.tuistDirectoryName)
-            .appending(component: "cas.sock")
+        guard let fullHandle = config.fullHandle
+        else { fatalError() }
+        let socketPath = Environment.current.stateDirectory
+            .appending(component: "\(fullHandle.replacingOccurrences(of: "/", with: "_")).sock")
         if try await !fileSystem.exists(socketPath.parentDirectory, isDirectory: true) {
             try await fileSystem.makeDirectory(at: socketPath.parentDirectory)
         }
+        print(socketPath.pathString)
 
-        guard let fullHandle = config.fullHandle
-        else { fatalError() }
         let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
-
+        print(serverURL)
+        
         let server = GRPCServer(
             transport: .http2NIOPosix(
-                address: .unixDomainSocket(path: socketPath.relative(to: rootDirectory).pathString),
+                address: .unixDomainSocket(path: socketPath.pathString),
                 transportSecurity: .plaintext
             ),
             services: [

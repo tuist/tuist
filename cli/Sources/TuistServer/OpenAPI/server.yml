@@ -3197,7 +3197,7 @@ paths:
                       properties:
                         id:
                           description: The ID of the entry
-                          type: integer
+                          type: string
                           x-struct:
                           x-validate:
                       required:

@@ -7,13 +7,13 @@
 	objects = {
 
 /* Begin PBXFileReference section */
-		6CC224E52E9686300069B16B /* CAS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CAS.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		6CC224E52E9686300069B16B /* App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = App.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		6CC224E72E9686300069B16B /* CAS */ = {
+		6CC224E72E9686300069B16B /* App */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = CAS;
+			path = App;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -32,7 +32,7 @@
 		6CC224DC2E9686300069B16B = {
 			isa = PBXGroup;
 			children = (
-				6CC224E72E9686300069B16B /* CAS */,
+				6CC224E72E9686300069B16B /* App */,
 				6CC224E62E9686300069B16B /* Products */,
 			);
 			sourceTree = "<group>";
@@ -40,7 +40,7 @@
 		6CC224E62E9686300069B16B /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				6CC224E52E9686300069B16B /* CAS.app */,
+				6CC224E52E9686300069B16B /* App.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -48,9 +48,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		6CC224E42E9686300069B16B /* CAS */ = {
+		6CC224E42E9686300069B16B /* App */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 6CC224F02E9686310069B16B /* Build configuration list for PBXNativeTarget "CAS" */;
+			buildConfigurationList = 6CC224F02E9686310069B16B /* Build configuration list for PBXNativeTarget "App" */;
 			buildPhases = (
 				6CC224E12E9686300069B16B /* Sources */,
 				6CC224E22E9686300069B16B /* Frameworks */,
@@ -61,13 +61,13 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				6CC224E72E9686300069B16B /* CAS */,
+				6CC224E72E9686300069B16B /* App */,
 			);
-			name = CAS;
+			name = App;
 			packageProductDependencies = (
 			);
 			productName = CAS;
-			productReference = 6CC224E52E9686300069B16B /* CAS.app */;
+			productReference = 6CC224E52E9686300069B16B /* App.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -85,7 +85,7 @@
 					};
 				};
 			};
-			buildConfigurationList = 6CC224E02E9686300069B16B /* Build configuration list for PBXProject "CAS" */;
+			buildConfigurationList = 6CC224E02E9686300069B16B /* Build configuration list for PBXProject "App" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -99,7 +99,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				6CC224E42E9686300069B16B /* CAS */,
+				6CC224E42E9686300069B16B /* App */,
 			);
 		};
 /* End PBXProject section */
@@ -250,6 +250,9 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
+				COMPILATION_CACHE_ENABLE_CACHING = YES;
+				COMPILATION_CACHE_ENABLE_PLUGIN = YES;
+				COMPILATION_CACHE_REMOTE_SERVICE_PATH = "$(SRCROOT)/Tuist/cas.sock";
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -277,6 +280,9 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
+				COMPILATION_CACHE_ENABLE_CACHING = YES;
+				COMPILATION_CACHE_ENABLE_PLUGIN = YES;
+				COMPILATION_CACHE_REMOTE_SERVICE_PATH = "$(SRCROOT)/Tuist/cas.sock";
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -301,7 +307,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		6CC224E02E9686300069B16B /* Build configuration list for PBXProject "CAS" */ = {
+		6CC224E02E9686300069B16B /* Build configuration list for PBXProject "App" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				6CC224EE2E9686310069B16B /* Debug */,
@@ -310,7 +316,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		6CC224F02E9686310069B16B /* Build configuration list for PBXNativeTarget "CAS" */ = {
+		6CC224F02E9686310069B16B /* Build configuration list for PBXNativeTarget "App" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				6CC224F12E9686310069B16B /* Debug */,

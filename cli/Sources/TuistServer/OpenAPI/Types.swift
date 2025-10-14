@@ -7768,12 +7768,12 @@ public enum Operations {
                             /// The ID of the entry
                             ///
                             /// - Remark: Generated from `#/paths/api/cache/keyvalue/PUT/responses/200/content/json/entriesPayload/id`.
-                            public var id: Swift.Int
+                            public var id: Swift.String
                             /// Creates a new `entriesPayloadPayload`.
                             ///
                             /// - Parameters:
                             ///   - id: The ID of the entry
-                            public init(id: Swift.Int) {
+                            public init(id: Swift.String) {
                                 self.id = id
                             }
                             public enum CodingKeys: String, CodingKey {
