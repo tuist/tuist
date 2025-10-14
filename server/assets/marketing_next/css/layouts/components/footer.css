@@ -63,9 +63,6 @@
       width: 58px;
       height: 58px;
     }
-
-    & > [data-part="status"] {
-    }
   }
 
   & > [data-part="content"] > [data-part="columns"] {

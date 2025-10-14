@@ -38,6 +38,7 @@
   & > [data-part="actions"] {
     display: flex;
     flex-direction: row;
+    align-items: stretch;
     gap: var(--noora-spacing-4);
   }
 }
