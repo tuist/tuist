@@ -7,29 +7,28 @@ import GRPCNIOTransportHTTP2
 import GRPCProtobuf
 import Path
 import SwiftProtobuf
-import TuistCore
 import TuistServer
 
-@available(macOS 15.0, *)
 public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.SimpleServiceProtocol {
-    private let config: TuistCore.Tuist
+    private let fullHandle: String
+    private let serverURL: URL
     private let putKeyValueService: PutKeyValueServicing
     private let getKeyValueService: GetKeyValueServicing
     
-    public init(config: TuistCore.Tuist, putKeyValueService: PutKeyValueServicing = PutKeyValueService(), getKeyValueService: GetKeyValueServicing = GetKeyValueService()) {
-        self.config = config
+    public init(
+        fullHandle: String,
+        serverURL: URL,
+        putKeyValueService: PutKeyValueServicing = PutKeyValueService(),
+        getKeyValueService: GetKeyValueServicing = GetKeyValueService()
+    ) {
+        self.fullHandle = fullHandle
+        self.serverURL = serverURL
         self.putKeyValueService = putKeyValueService
         self.getKeyValueService = getKeyValueService
     }
     
     public func putValue(request: CompilationCacheService_Keyvalue_V1_PutValueRequest, context: ServerContext) async throws -> CompilationCacheService_Keyvalue_V1_PutValueResponse {
-        let binaryKey = request.key.dropFirst()
-        let casID = "0~" + binaryKey.base64EncodedString().replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: "+", with: "-")
-        
-        let serverURL = config.url
-        guard let fullHandle = config.fullHandle else {
-            return CompilationCacheService_Keyvalue_V1_PutValueResponse()
-        }
+        let casID = converKeyToCasID(request.key)
         
         // Convert protobuf entries to [String: String] format
         var entries: [String: String] = [:]
@@ -48,7 +47,7 @@ public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.Si
             return response
         } catch let error {
             var responseError = CompilationCacheService_Keyvalue_V1_ResponseError()
-            responseError.description_p = error.localizedDescription
+            responseError.description_p = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
             response.error = responseError
             return response
         }
@@ -58,16 +57,7 @@ public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.Si
         request: CompilationCacheService_Keyvalue_V1_GetValueRequest,
         context: GRPCCore.ServerContext
     ) async throws -> CompilationCacheService_Keyvalue_V1_GetValueResponse {
-        let casID = "0~" + request.key.dropFirst().base64EncodedString()
-            .replacingOccurrences(of: "/", with: "_")
-            .replacingOccurrences(of: "+", with: "-")
-        
-        let serverURL = config.url
-        guard let fullHandle = config.fullHandle else {
-            var response = CompilationCacheService_Keyvalue_V1_GetValueResponse()
-            response.outcome = .keyNotFound
-            return response
-        }
+        let casID = converKeyToCasID(request.key)
         
         var response = CompilationCacheService_Keyvalue_V1_GetValueResponse()
         
@@ -90,10 +80,17 @@ public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.Si
             }
         } catch let error {
             var responseError = CompilationCacheService_Keyvalue_V1_ResponseError()
-            responseError.description_p = error.localizedDescription
+            responseError.description_p = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            response.error = responseError
             response.outcome = .keyNotFound
         }
         
         return response
+    }
+    
+    private func converKeyToCasID(_ key: Data) -> String {
+        "0~" + key.dropFirst().base64EncodedString()
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "+", with: "-")
     }
 }

@@ -13,14 +13,14 @@ public protocol PutKeyValueServicing: Sendable {
     ) async throws
 }
 
-enum PutKeyValueServiceError: LocalizedError {
+public enum PutKeyValueServiceError: LocalizedError {
     case unknownError(Int)
     case unauthorized(String)
     case forbidden(String)
     case notFound(String)
     case putValueFailed
 
-    var errorDescription: String? {
+    public var errorDescription: String? {
         switch self {
         case let .unknownError(statusCode):
             return "The CAS value could not be stored due to an unknown Tuist response of \(statusCode)."

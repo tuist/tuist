@@ -6,21 +6,25 @@ import Path
 import TuistCAS
 import TuistCore
 import TuistLoader
+import TuistServer
 import TuistSupport
 import TuistRootDirectoryLocator
 
 struct CacheStartCommandService {
     private let configLoader: ConfigLoading
     private let rootDirectoryLocator: RootDirectoryLocating
+    private let serverEnvironmentService: ServerEnvironmentServicing
     private let fileSystem: FileSysteming
     
     init(
         configLoader: ConfigLoading = ConfigLoader(),
         rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator(),
+        serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         fileSystem: FileSysteming = FileSystem()
     ) {
         self.configLoader = configLoader
         self.rootDirectoryLocator = rootDirectoryLocator
+        self.serverEnvironmentService = serverEnvironmentService
         self.fileSystem = fileSystem
     }
      
@@ -37,13 +41,21 @@ struct CacheStartCommandService {
             try await fileSystem.makeDirectory(at: socketPath.parentDirectory)
         }
         
+        guard
+            let fullHandle = config.fullHandle
+        else { fatalError() }
+        let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
+        
         let server = GRPCServer(
             transport: .http2NIOPosix(
                 address: .unixDomainSocket(path: socketPath.relative(to: rootDirectory).pathString),
                 transportSecurity: .plaintext
             ),
             services: [
-                KeyValueService(config: config),
+                KeyValueService(
+                    fullHandle: fullHandle,
+                    serverURL: serverURL
+                ),
                 CASDBServiceImpl(config: config),
             ]
         )

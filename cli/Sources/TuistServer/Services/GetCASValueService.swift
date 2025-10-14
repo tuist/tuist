@@ -12,13 +12,13 @@ public protocol GetKeyValueServicing: Sendable {
     ) async throws -> Operations.getKeyValue.Output.Ok.Body.jsonPayload?
 }
 
-enum GetKeyValueServiceError: LocalizedError {
+public enum GetKeyValueServiceError: LocalizedError {
     case unknownError(Int)
     case unauthorized(String)
     case forbidden(String)
     case getValueFailed
 
-    var errorDescription: String? {
+    public var errorDescription: String? {
         switch self {
         case let .unknownError(statusCode):
             return "The CAS value could not be retrieved due to an unknown Tuist response of \(statusCode)."

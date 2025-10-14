@@ -10,6 +10,7 @@ defmodule TuistWeb.API.Cache.KeyValueController do
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.Authentication
 
+  plug(TuistWeb.API.Authorization.AuthorizationPlug, :cache)
   plug(OpenApiSpex.Plug.CastAndValidate,
     json_render_error_v2: true,
     render_error: TuistWeb.RenderAPIErrorPlug
@@ -18,8 +19,8 @@ defmodule TuistWeb.API.Cache.KeyValueController do
   tags ["KeyValue"]
 
   operation(:get_value,
-    summary: "Get cache key value entries.",
-    operation_id: "getKeyValue",
+    summary: "Get cache value.",
+    operation_id: "getCacheValue",
     parameters: [
       cas_id: [
         in: :path,
@@ -42,7 +43,7 @@ defmodule TuistWeb.API.Cache.KeyValueController do
     ],
     responses: %{
       ok: {
-        "Entries retrieved successfully",
+        "Cache value retrieved successfully",
         "application/json",
         %Schema{
           type: :object,
@@ -60,6 +61,16 @@ defmodule TuistWeb.API.Cache.KeyValueController do
           },
           required: [:entries]
         }
+      },
+      unauthorized: {
+        "You need to be authenticated to access this resource",
+        "application/json",
+        Error
+      },
+      forbidden: {
+        "The authenticated subject is not authorized to perform this action",
+        "application/json",
+        Error
       },
       not_found: {"No entries found for the given CAS ID", "application/json", Error}
     }
@@ -85,7 +96,7 @@ defmodule TuistWeb.API.Cache.KeyValueController do
 
   operation(:put_value,
     summary: "Store cache key value entries.",
-    operation_id: "putKeyValue",
+    operation_id: "putCacheValue",
     parameters: [
       account_handle: [
         in: :query,
@@ -101,7 +112,7 @@ defmodule TuistWeb.API.Cache.KeyValueController do
       ]
     ],
     request_body: {
-      "CAS key-value data",
+      "CAS entries with CAS ID",
       "application/json",
       %Schema{
         type: :object,
@@ -126,7 +137,7 @@ defmodule TuistWeb.API.Cache.KeyValueController do
     },
     responses: %{
       ok: {
-        "Entries stored successfully",
+        "Value stored successfully",
         "application/json",
         %Schema{type: :object, properties: %{count: %Schema{type: :integer}}}
       },
@@ -153,37 +164,6 @@ defmodule TuistWeb.API.Cache.KeyValueController do
         } = conn,
         %{account_handle: account_handle, project_handle: project_handle} = _params
       ) do
-    authenticated_subject = Authentication.authenticated_subject(conn)
-    account = Accounts.get_account_by_handle(account_handle)
-
-    project =
-      if is_nil(account),
-        do: nil,
-        else:
-          Projects.get_project_by_account_and_project_handles(account.name, project_handle,
-            preload: [:account]
-          )
-
-    cond do
-      is_nil(account) ->
-        conn
-        |> put_status(:not_found)
-        |> json(%Error{message: "Account #{account_handle} not found."})
-
-      is_nil(project) ->
-        conn
-        |> put_status(:not_found)
-        |> json(%Error{message: "Project #{account_handle}/#{project_handle} not found."})
-
-      Authorization.authorize(:cas_create, authenticated_subject, project) != :ok ->
-        conn
-        |> put_status(:forbidden)
-        |> json(%Error{
-          message: "You don't have permission to write to the #{project.name} project."
-        })
-
-      true ->
-        # Store each entry in ClickHouse
         inserted_entries =
           entries
           |> Enum.map(fn entry ->
@@ -201,6 +181,5 @@ defmodule TuistWeb.API.Cache.KeyValueController do
         conn
         |> put_status(:ok)
         |> json(%{count: length(inserted_entries)})
-    end
   end
 end

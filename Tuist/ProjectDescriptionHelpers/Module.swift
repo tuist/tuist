@@ -55,7 +55,7 @@ public enum Module: String, CaseIterable {
                 destinations: [.mac],
                 product: .staticFramework,
                 bundleId: "dev.tuist.TuistCacheEE",
-                deploymentTargets: .macOS("14.0"),
+                deploymentTargets: .macOS("15.0"),
                 infoPlist: .default,
                 buildableFolders: ["cli/TuistCacheEE/Sources/"],
                 dependencies: [
@@ -90,7 +90,7 @@ public enum Module: String, CaseIterable {
                 destinations: [.mac],
                 product: .unitTests,
                 bundleId: "dev.tuist.TuistCacheEETests",
-                deploymentTargets: .macOS("14.0"),
+                deploymentTargets: .macOS("15.0"),
                 infoPlist: .default,
                 buildableFolders: [.folder("cli/Tests/TuistCacheEETests")],
                 dependencies: [
@@ -111,7 +111,7 @@ public enum Module: String, CaseIterable {
                 destinations: [.mac],
                 product: .unitTests,
                 bundleId: "dev.tuist.TuistCacheEEAcceptanceTests",
-                deploymentTargets: .macOS("14.0"),
+                deploymentTargets: .macOS("15.0"),
                 infoPlist: .default,
                 buildableFolders: ["cli/Tests/TuistCacheEEAcceptanceTests"],
                 dependencies: [
@@ -868,7 +868,7 @@ public enum Module: String, CaseIterable {
         let deploymentTargets: DeploymentTargets =
             switch product {
             case .framework, .staticFramework: deploymentTargets
-            default: .macOS("14.0")
+            default: .macOS("15.0")
             }
 
         return .target(
