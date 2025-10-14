@@ -53,12 +53,7 @@ if Enum.member?([:prod, :stag, :can], env) do
     password: password,
     hostname: parsed_url.host,
     port: parsed_url.port || 5432,
-    socket_options: socket_opts,
-    parameters: [
-      tcp_keepalives_idle: "60",
-      tcp_keepalives_interval: "30",
-      tcp_keepalives_count: "3"
-    ]
+    socket_options: socket_opts
   ]
 
   database_options =
