@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.85.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* Generated projects with binaries not replacing some targets with macros as transitive dependencies by [@pepicrft](https://github.com/pepicrft) in [#8444](https://github.com/tuist/tuist/pull/8444)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.85.0...4.85.1
+
 ## What's Changed in 4.85.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
