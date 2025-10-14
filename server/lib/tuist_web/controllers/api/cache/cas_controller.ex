@@ -10,6 +10,8 @@ defmodule TuistWeb.API.CASController do
   alias Tuist.Storage
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.Authentication
+  alias TuistWeb.Errors.BadRequestError
+  alias TuistWeb.Errors.NotFoundError
 
   plug(:load_project_from_query_params)
   plug(TuistWeb.API.Authorization.AuthorizationPlug, :cache)
@@ -52,7 +54,8 @@ defmodule TuistWeb.API.CASController do
     }
   )
 
-  def load(%{assigns: %{selected_project: project, selected_account: account, current_subject: current_subject}} = conn, %{id: id} = _params) do
+  def load(%{assigns: %{selected_project: project, selected_account: account}} = conn, %{id: id} = _params) do
+    current_subject = Authentication.authenticated_subject(conn)
     prefix = "#{account.name}/#{project.name}/cas/"
     key = "#{prefix}#{id}"
 
@@ -110,7 +113,8 @@ defmodule TuistWeb.API.CASController do
     }
   )
 
-  def save(%{assigns: %{selected_project: project, selected_account: account, current_subject: current_subject}} = conn, %{id: id} = _params) do
+  def save(%{assigns: %{selected_project: project, selected_account: account}} = conn, %{id: id} = _params) do
+    current_subject = Authentication.authenticated_subject(conn)
     {:ok, body, conn} = Plug.Conn.read_body(conn, length: 100_000_000)
     prefix = "#{account.name}/#{project.name}/cas/"
     key = "#{prefix}#{id}"
@@ -127,5 +131,36 @@ defmodule TuistWeb.API.CASController do
       |> put_status(:ok)
       |> json(%{id: key})
     end
+  end
+
+  defp load_project_from_query_params(
+         %{query_params: %{"account_handle" => account_handle, "project_handle" => project_handle}} = conn,
+         _opts
+       ) do
+    project_slug = "#{account_handle}/#{project_handle}"
+
+    project = Projects.get_project_by_slug(project_slug, preload: [:account])
+
+    case project do
+      {:ok, project} ->
+        conn
+        |> assign(:selected_project, project)
+        |> assign(:selected_account, project.account)
+
+      {:error, :not_found} ->
+        raise NotFoundError,
+              gettext("The project %{project_slug} was not found.", %{project_slug: project_slug})
+
+      {:error, :invalid} ->
+        raise BadRequestError,
+              gettext(
+                "The project full handle %{project_slug} is invalid. It should follow the convention 'account_handle/project_handle'.",
+                %{project_slug: project_slug}
+              )
+    end
+  end
+
+  defp load_project_from_query_params(_conn, _opts) do
+    raise BadRequestError, "account_handle and project_handle query parameters are required"
   end
 end

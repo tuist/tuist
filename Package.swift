@@ -36,21 +36,6 @@ let targets: [Target] = [
         ],
         path: "cli/Sources/tuistfixturegenerator"
     ),
-    .executableTarget(
-        name: "tuist-cas-proxy",
-        dependencies: [
-            .product(name: "GRPCCore", package: "grpc-swift-2"),
-            .product(name: "GRPCNIOTransportHTTP2", package: "grpc-swift-nio-transport"),
-            argumentParserDependency,
-            "TuistServer",
-            "TuistLoader",
-            "TuistCore",
-            "TuistAutomation",
-            "FileSystem",
-            pathDependency,
-        ],
-        path: "cli/Sources/tuist-cas-proxy"
-    ),
     .target(
         name: "TuistCore",
         dependencies: [

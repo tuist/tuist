@@ -7,6 +7,7 @@ defmodule TuistWeb.API.CASControllerTest do
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistWeb.Authentication
+  alias TuistWeb.Errors.NotFoundError
 
   setup do
     user = AccountsFixtures.user_fixture(email: "tuist@tuist.io", preload: [:account])
@@ -30,13 +31,7 @@ defmodule TuistWeb.API.CASControllerTest do
     } do
       # Given
       conn =
-        conn
-        |> assign(:current_subject, %AuthenticatedAccount{
-          account: user.account,
-          scopes: [:cas_read]
-        })
-        |> assign(:selected_account, user.account)
-        |> assign(:selected_project, project)
+        Authentication.put_current_project(conn, project)
 
       cas_id = "0~YWoYNXX123"
       expected_key = "#{account_handle}/#{project_handle}/cas/#{cas_id}"
@@ -57,7 +52,7 @@ defmodule TuistWeb.API.CASControllerTest do
 
       # Then
       assert conn.status == 200
-      assert get_resp_header(conn, "content-type") == ["application/octet-stream"]
+      assert get_resp_header(conn, "content-type") == ["application/octet-stream; charset=utf-8"]
     end
 
     test "returns not found when artifact doesn't exist", %{
@@ -69,13 +64,7 @@ defmodule TuistWeb.API.CASControllerTest do
     } do
       # Given
       conn =
-        conn
-        |> assign(:current_subject, %AuthenticatedAccount{
-          account: user.account,
-          scopes: [:cas_read]
-        })
-        |> assign(:selected_account, user.account)
-        |> assign(:selected_project, project)
+        Authentication.put_current_project(conn, project)
 
       cas_id = "0~nonexistent123"
       expected_key = "#{account_handle}/#{project_handle}/cas/#{cas_id}"
@@ -99,18 +88,14 @@ defmodule TuistWeb.API.CASControllerTest do
     } do
       # Given
       conn =
-        assign(conn, :current_subject, %AuthenticatedAccount{
-          account: user.account,
-          scopes: [:cas_read]
-        })
+        Authentication.put_current_user(conn, user)
 
       cas_id = "0~YWoYNXX123"
 
-      # When
-      conn = get(conn, ~p"/api/cache/cas/#{cas_id}?account_handle=nonexistent-account&project_handle=#{project_handle}")
-
-      # Then
-      assert conn.status == 404
+      # When/Then
+      assert_raise NotFoundError, fn ->
+        get(conn, ~p"/api/cache/cas/#{cas_id}?account_handle=nonexistent-account&project_handle=#{project_handle}")
+      end
     end
 
     test "returns not found when project doesn't exist", %{
@@ -120,18 +105,14 @@ defmodule TuistWeb.API.CASControllerTest do
     } do
       # Given
       conn =
-        assign(conn, :current_subject, %AuthenticatedAccount{
-          account: user.account,
-          scopes: [:cas_read]
-        })
+        Authentication.put_current_user(conn, user)
 
       cas_id = "0~YWoYNXX123"
 
-      # When
-      conn = get(conn, ~p"/api/cache/cas/#{cas_id}?account_handle=#{account_handle}&project_handle=nonexistent-project")
-
-      # Then
-      assert conn.status == 404
+      # When/Then
+      assert_raise NotFoundError, fn ->
+        get(conn, ~p"/api/cache/cas/#{cas_id}?account_handle=#{account_handle}&project_handle=nonexistent-project")
+      end
     end
 
     test "returns forbidden when user doesn't have permission", %{
@@ -148,11 +129,14 @@ defmodule TuistWeb.API.CASControllerTest do
 
       # When
       conn =
-        get(conn, ~p"/api/cache/cas/#{cas_id}?account_handle=#{other_project.account.name}&project_handle=#{other_project.name}")
+        get(
+          conn,
+          ~p"/api/cache/cas/#{cas_id}?account_handle=#{other_project.account.name}&project_handle=#{other_project.name}"
+        )
 
       # Then
       response = json_response(conn, :forbidden)
-      assert String.contains?(response["message"], "don't have permission")
+      assert String.contains?(response["message"], "not authorized")
     end
   end
 
@@ -166,13 +150,7 @@ defmodule TuistWeb.API.CASControllerTest do
     } do
       # Given
       conn =
-        conn
-        |> assign(:current_subject, %AuthenticatedAccount{
-          account: user.account,
-          scopes: [:cas_create]
-        })
-        |> assign(:selected_account, user.account)
-        |> assign(:selected_project, project)
+        Authentication.put_current_project(conn, project)
 
       cas_id = "0~YWoYNXX123"
       expected_key = "#{project.account.name}/#{project.name}/cas/#{cas_id}"
@@ -193,7 +171,10 @@ defmodule TuistWeb.API.CASControllerTest do
       conn =
         conn
         |> put_req_header("content-type", "application/octet-stream")
-        |> post(~p"/api/cache/cas/#{cas_id}?account_handle=#{account_handle}&project_handle=#{project_handle}", artifact_content)
+        |> post(
+          ~p"/api/cache/cas/#{cas_id}?account_handle=#{account_handle}&project_handle=#{project_handle}",
+          artifact_content
+        )
 
       # Then
       response = json_response(conn, :ok)
@@ -209,13 +190,7 @@ defmodule TuistWeb.API.CASControllerTest do
     } do
       # Given
       conn =
-        conn
-        |> assign(:current_subject, %AuthenticatedAccount{
-          account: user.account,
-          scopes: [:cas_create]
-        })
-        |> assign(:selected_account, user.account)
-        |> assign(:selected_project, project)
+        Authentication.put_current_project(conn, project)
 
       cas_id = "0~YWoYNXX123"
       expected_key = "#{project.account.name}/#{project.name}/cas/#{cas_id}"
@@ -230,7 +205,10 @@ defmodule TuistWeb.API.CASControllerTest do
       conn =
         conn
         |> put_req_header("content-type", "application/octet-stream")
-        |> post(~p"/api/cache/cas/#{cas_id}?account_handle=#{account_handle}&project_handle=#{project_handle}", artifact_content)
+        |> post(
+          ~p"/api/cache/cas/#{cas_id}?account_handle=#{account_handle}&project_handle=#{project_handle}",
+          artifact_content
+        )
 
       # Then
       response = json_response(conn, :ok)
@@ -244,22 +222,20 @@ defmodule TuistWeb.API.CASControllerTest do
     } do
       # Given
       conn =
-        assign(conn, :current_subject, %AuthenticatedAccount{
-          account: user.account,
-          scopes: [:cas_create]
-        })
+        Authentication.put_current_user(conn, user)
 
       cas_id = "0~YWoYNXX123"
       artifact_content = "artifact content"
 
-      # When
-      conn =
+      # When/Then
+      assert_raise NotFoundError, fn ->
         conn
         |> put_req_header("content-type", "application/octet-stream")
-        |> post(~p"/api/cache/cas/#{cas_id}?account_handle=nonexistent-account&project_handle=#{project_handle}", artifact_content)
-
-      # Then
-      assert conn.status == 404
+        |> post(
+          ~p"/api/cache/cas/#{cas_id}?account_handle=nonexistent-account&project_handle=#{project_handle}",
+          artifact_content
+        )
+      end
     end
 
     test "returns not found when project doesn't exist", %{
@@ -269,22 +245,20 @@ defmodule TuistWeb.API.CASControllerTest do
     } do
       # Given
       conn =
-        assign(conn, :current_subject, %AuthenticatedAccount{
-          account: user.account,
-          scopes: [:cas_create]
-        })
+        Authentication.put_current_user(conn, user)
 
       cas_id = "0~YWoYNXX123"
       artifact_content = "artifact content"
 
-      # When
-      conn =
+      # When/Then
+      assert_raise NotFoundError, fn ->
         conn
         |> put_req_header("content-type", "application/octet-stream")
-        |> post(~p"/api/cache/cas/#{cas_id}?account_handle=#{account_handle}&project_handle=nonexistent-project", artifact_content)
-
-      # Then
-      assert conn.status == 404
+        |> post(
+          ~p"/api/cache/cas/#{cas_id}?account_handle=#{account_handle}&project_handle=nonexistent-project",
+          artifact_content
+        )
+      end
     end
 
     test "returns forbidden when user doesn't have permission", %{
@@ -304,11 +278,14 @@ defmodule TuistWeb.API.CASControllerTest do
       conn =
         conn
         |> put_req_header("content-type", "application/octet-stream")
-        |> post(~p"/api/cache/cas/#{cas_id}?account_handle=#{other_project.account.name}&project_handle=#{other_project.name}", artifact_content)
+        |> post(
+          ~p"/api/cache/cas/#{cas_id}?account_handle=#{other_project.account.name}&project_handle=#{other_project.name}",
+          artifact_content
+        )
 
       # Then
       response = json_response(conn, :forbidden)
-      assert String.contains?(response["message"], "don't have permission")
+      assert String.contains?(response["message"], "not authorized")
     end
   end
 end
