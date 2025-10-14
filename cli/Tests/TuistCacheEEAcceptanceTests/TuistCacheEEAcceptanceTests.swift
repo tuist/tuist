@@ -36,12 +36,14 @@ struct TuistCacheEEAcceptanceTests {
         let xcodeProj =
             try XcodeProj(path: .init(fixtureDirectory.appending(component: "FrameworkWithSwiftMacro.xcodeproj").pathString))
 
+        // We check that OTHER_SWIFT_FLAGS references the build directory as a proof
+        // of the target linking pre-compiled Swift macros.
         let frameworkTarget = try #require(xcodeProj.pbxproj.targets(named: "Framework").first)
         let configurationList = try #require(frameworkTarget.buildConfigurationList)
         #expect(configurationList.buildConfigurations.isEmpty == false)
         for buildConfiguration in configurationList.buildConfigurations {
-            let otherSwiftFlags = try #require(buildConfiguration.buildSettings["OTHER_SWIFT_FLAGS"]?.stringValue)
-            #expect(otherSwiftFlags.contains(mockedEnvironment.cacheDirectory.pathString))
+            let otherSwiftFlags = try #require(buildConfiguration.buildSettings["OTHER_SWIFT_FLAGS"]?.arrayValue)
+            #expect(otherSwiftFlags.contains(where: { $0.contains(mockedEnvironment.cacheDirectory.pathString) }) == true)
         }
     }
 
