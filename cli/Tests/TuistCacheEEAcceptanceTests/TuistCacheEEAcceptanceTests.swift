@@ -17,6 +17,39 @@ struct TuistCacheEEAcceptanceTests {
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
         .withMockedNoora,
         .withMockedLogger(forwardLogs: true),
+        .withFixture("framework_with_native_swift_macro")
+    ) func framework_with_native_swift_macro() async throws {
+        // Given
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let mockedEnvironment = try #require(Environment.mocked)
+        try await TuistTest.run(InstallCommand.self, ["--path", fixtureDirectory.pathString])
+
+        // When: Cache the binaries
+        try await TuistTest.run(
+            CacheCommand.self,
+            ["--path", fixtureDirectory.pathString]
+        )
+
+        // When: Generate with a focuson the App
+        try await TuistTest.run(GenerateCommand.self, ["--no-open", "--path", fixtureDirectory.pathString, "Framework"])
+
+        let xcodeProj =
+            try XcodeProj(path: .init(fixtureDirectory.appending(component: "FrameworkWithSwiftMacro.xcodeproj").pathString))
+
+        let frameworkTarget = try #require(xcodeProj.pbxproj.targets(named: "Framework").first)
+        let configurationList = try #require(frameworkTarget.buildConfigurationList)
+        #expect(configurationList.buildConfigurations.isEmpty == false)
+        for buildConfiguration in configurationList.buildConfigurations {
+            let otherSwiftFlags = try #require(buildConfiguration.buildSettings["OTHER_SWIFT_FLAGS"]?.stringValue)
+            #expect(otherSwiftFlags.contains(mockedEnvironment.cacheDirectory.pathString))
+        }
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(inheritingVariables: ["PATH"]),
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true),
         .withFixture("generated_ios_app_with_external_dependencies_filtered_out")
     ) func generated_ios_app_with_external_dependencies_filtered_out() async throws {
         // Given
