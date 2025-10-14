@@ -85,7 +85,7 @@ command</LocalizedLink>. Эта команда применяется редко
 выполнить команду `tuist generate`, можно задать аргументы `generate --no-open`,
 чтобы проект не открывался после генерации.
 
-![An example of a scheme configuration to run the generate command with
+![Пример настройки схемы для запуска команды generate с помощью
 Tuist](/images/contributors/scheme-arguments.png)
 
 Вам также нужно будет указать в качестве рабочей директории корень создаваемого
@@ -94,10 +94,10 @@ Tuist](/images/contributors/scheme-arguments.png)
 ниже:
 
 
-![An example of how to set the working directory to run
+![Пример настройки рабочей директории для запуска
 Tuist](/images/contributors/scheme-working-directory.png)
 
-::: warning PROJECTDESCRIPTION COMPILATION
+::: warning КОМПИЛЯЦИЯ ОПИСАНИЯ ПРОЕКТА
 <!-- -->
 CLI `tuist` зависит от наличия фреймворка `ProjectDescription` в директории
 собранных продуктов. Если `tuist` не запускается из-за того, что не может найти
