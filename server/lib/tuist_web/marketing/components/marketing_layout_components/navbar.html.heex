@@ -19,6 +19,7 @@
             )
           }
           target="_blank"
+          rel="noopener noreferrer"
           data-part="feature"
         >
           <div data-part="logo">
@@ -40,6 +41,7 @@
             )
           }
           target="_blank"
+          rel="noopener noreferrer"
           data-part="feature"
         >
           <div data-part="logo">
@@ -61,6 +63,7 @@
             )
           }
           target="_blank"
+          rel="noopener noreferrer"
           data-part="feature"
         >
           <div data-part="logo">
@@ -82,6 +85,7 @@
             )
           }
           target="_blank"
+          rel="noopener noreferrer"
           data-part="feature"
         >
           <div data-part="logo">
@@ -103,6 +107,7 @@
             )
           }
           target="_blank"
+          rel="noopener noreferrer"
           data-part="feature"
         >
           <div data-part="logo">
@@ -124,6 +129,7 @@
             )
           }
           target="_blank"
+          rel="noopener noreferrer"
           data-part="feature"
         >
           <div data-part="logo">
@@ -145,6 +151,7 @@
             )
           }
           target="_blank"
+          rel="noopener noreferrer"
           data-part="feature"
         >
           <div data-part="logo">
@@ -180,6 +187,7 @@
           <.link
             href={TuistWeb.Marketing.MarketingHTML.localized_href("https://docs.tuist.dev/")}
             target="_blank"
+            rel="noopener noreferrer"
             data-part="link"
           >
             <div data-part="logo">
@@ -197,6 +205,7 @@
           <.link
             href={TuistWeb.Marketing.MarketingHTML.localized_href("/api/docs")}
             target="_blank"
+            rel="noopener noreferrer"
             data-part="link"
           >
             <div data-part="logo">
@@ -211,7 +220,12 @@
               </p>
             </div>
           </.link>
-          <.link href="https://github.com/tuist/tuist" target="_blank" data-part="link">
+          <.link
+            href="https://github.com/tuist/tuist"
+            target="_blank"
+            rel="noopener noreferrer"
+            data-part="link"
+          >
             <div data-part="logo">
               <.brand_github />
             </div>
@@ -289,7 +303,12 @@
             </p>
           </div>
         </.link>
-        <.link href="https://slack.tuist.dev" target="_blank" data-part="resource">
+        <.link
+          href="https://slack.tuist.dev"
+          target="_blank"
+          rel="noopener noreferrer"
+          data-part="resource"
+        >
           <div data-part="logo">
             <.brand_slack />
           </div>
@@ -302,7 +321,12 @@
             </p>
           </div>
         </.link>
-        <.link href="https://community.tuist.dev" target="_blank" data-part="resource">
+        <.link
+          href="https://community.tuist.dev"
+          target="_blank"
+          rel="noopener noreferrer"
+          data-part="resource"
+        >
           <div data-part="logo">
             <.message_circle />
           </div>
@@ -315,7 +339,12 @@
             </p>
           </div>
         </.link>
-        <.link href="https://github.com/tuist" target="_blank" data-part="resource">
+        <.link
+          href="https://github.com/tuist"
+          target="_blank"
+          rel="noopener noreferrer"
+          data-part="resource"
+        >
           <div data-part="logo">
             <.brand_github />
           </div>
@@ -331,6 +360,7 @@
         <.link
           href={TuistWeb.Marketing.MarketingHTML.localized_href("/newsletter")}
           target="_blank"
+          rel="noopener noreferrer"
           data-part="resource"
         >
           <div data-part="logo">
@@ -449,14 +479,26 @@
       </div>
     </div>
     <.button
-      href={TuistWeb.Marketing.MarketingHTML.localized_href("https://docs.tuist.dev/")}
-      label="Get started"
+      href={
+        if(is_nil(TuistWeb.Authentication.current_user(assigns)),
+          do: ~p"/users/log_in",
+          else:
+            TuistWeb.Authentication.signed_in_path(TuistWeb.Authentication.current_user(assigns))
+        )
+      }
+      label={
+        if(is_nil(TuistWeb.Authentication.current_user(assigns)),
+          do: gettext("Log in"),
+          else: gettext("Dashboard")
+        )
+      }
     >
     </.button>
     <.button
-      href="https://cal.tuist.dev/team/tuist/tuist?overlayCalendar=true"
+      :if={is_nil(TuistWeb.Authentication.current_user(assigns))}
+      href={~p"/users/register"}
       variant="secondary"
-      label="Talk to us"
+      label={gettext("Sign up")}
     >
     </.button>
   </nav>

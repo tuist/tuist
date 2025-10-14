@@ -27,8 +27,16 @@
       </div>
 
       <nav data-part="actions" aria-label="Primary actions">
-        <.button href={localized_href("https://docs.tuist.dev/")} label="Get started"></.button>
         <.button
+          href={localized_href("https://docs.tuist.dev/")}
+          target="_blank"
+          rel="noopener noreferrer"
+          label="Get started"
+        >
+        </.button>
+        <.button
+          target="_blank"
+          rel="noopener noreferrer"
           href="https://cal.tuist.dev/team/tuist/tuist?overlayCalendar=true"
           variant="secondary"
           label="Talk to us"
@@ -75,6 +83,7 @@
           data-part="org-logo"
           href="https://www.trendyol.com"
           target="_blank"
+          rel="noopener noreferrer"
           aria-label="Trendyol"
         >
           <.trendyol_org_logo />
@@ -83,6 +92,7 @@
           data-part="org-logo"
           href="https://www.adidas.com"
           target="_blank"
+          rel="noopener noreferrer"
           aria-label="Adidas"
         >
           <.adidas_org_logo />
@@ -91,6 +101,7 @@
           data-part="org-logo"
           href="https://www.americanexpress.com"
           target="_blank"
+          rel="noopener noreferrer"
           aria-label="American Express"
         >
           <.amex_org_logo />
@@ -99,6 +110,7 @@
           data-part="org-logo"
           href="https://www.chegg.com"
           target="_blank"
+          rel="noopener noreferrer"
           aria-label="Chegg"
         >
           <.chegg_org_logo />
@@ -109,6 +121,7 @@
           data-part="org-logo"
           href="https://www.bumble.com"
           target="_blank"
+          rel="noopener noreferrer"
           aria-label="Bumble"
         >
           <.bumble_org_logo />
@@ -117,6 +130,7 @@
           data-part="org-logo"
           href="https://www.asana.com"
           target="_blank"
+          rel="noopener noreferrer"
           aria-label="Asana"
         >
           <.asana_org_logo />
@@ -125,6 +139,7 @@
           data-part="org-logo"
           href="https://www.bendingspoons.com"
           target="_blank"
+          rel="noopener noreferrer"
           aria-label="Bending Spoons"
         >
           <.bending_spoons_org_logo />
@@ -133,6 +148,7 @@
           data-part="org-logo"
           href="https://www.etsy.com"
           target="_blank"
+          rel="noopener noreferrer"
           aria-label="Etsy"
         >
           <.etsy_org_logo />
@@ -451,6 +467,7 @@
             variant="secondary"
             href="https://slack.tuist.dev"
             target="_blank"
+            rel="noopener noreferrer"
           >
             <:icon_left><.brand_slack /></:icon_left>
           </.button>
@@ -459,6 +476,7 @@
             variant="secondary"
             href="https://community.tuist.dev"
             target="_blank"
+            rel="noopener noreferrer"
           >
             <:icon_left><.message_circle /></:icon_left>
           </.button>
