@@ -137,11 +137,14 @@ struct InspectBuildCommandService {
         ) {
             while true {
                 if let mostRecentActivityLogFile = try await xcActivityLogController.mostRecentActivityLogFile(
-                    projectDerivedDataDirectory: projectDerivedDataDirectory
-                ), Environment.current.workspacePath == nil || (
-                    referenceDate.timeIntervalSinceReferenceDate - 10 ..< referenceDate.timeIntervalSinceReferenceDate
-                        + 10
-                ) ~= mostRecentActivityLogFile.timeStoppedRecording.timeIntervalSinceReferenceDate {
+                    projectDerivedDataDirectory: projectDerivedDataDirectory,
+                    filter: { !$0.signature.hasPrefix("Clean") }
+                ),
+                    Environment.current.workspacePath == nil || (
+                        referenceDate.timeIntervalSinceReferenceDate - 10 ..< referenceDate.timeIntervalSinceReferenceDate
+                            + 10
+                    ) ~= mostRecentActivityLogFile.timeStoppedRecording.timeIntervalSinceReferenceDate
+                {
                     mostRecentActivityLogPath = mostRecentActivityLogFile.path
                 }
                 if mostRecentActivityLogPath != nil {
