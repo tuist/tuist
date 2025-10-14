@@ -76,7 +76,8 @@ final class TargetScriptManifestMapperTests: TuistUnitTestCase {
         )
 
         // Then
-        let relativeSources = try model.inputPaths.map { try AbsolutePath(validating: $0).relative(to: temporaryPath).pathString }
+        let relativeSources = model.inputPaths
+            .map { (try? AbsolutePath(validating: $0).relative(to: temporaryPath).pathString) ?? $0 }
 
         XCTAssertEqual(Set(relativeSources), Set([
             "${DWARF_DSYM_FOLDER_PATH}/${DWARF_DSYM_FILE_NAME}/Contents/Resources/DWARF/${TARGET_NAME}",
