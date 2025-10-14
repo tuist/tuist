@@ -35,6 +35,7 @@ extension XCActivityLogControlling {
     }
 }
 
+// swiftlint:disable:next type_body_length
 public struct XCActivityLogController: XCActivityLogControlling {
     private let fileSystem: FileSystem
     private let environment: Environmenting
