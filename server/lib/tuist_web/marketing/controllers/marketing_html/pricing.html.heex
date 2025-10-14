@@ -4,10 +4,10 @@
 
     <header class="marketing__pricing__header">
       <h1 class="marketing__pricing__header__title">
-        {gettext("Start for free, pay as you benefit")}
+        {dgettext("marketing", "Start for free, pay as you benefit")}
       </h1>
       <p class="marketing__pricing__header__subtitle">
-        {gettext(
+        {dgettext("marketing",
           "Get started with Tuist at no cost, and only invest more when you’re ready for higher limits or personalized support."
         )}
       </p>
@@ -27,65 +27,65 @@
       />
     </section>
 
-    <% feature_title = gettext("Feature")
-    metric_title = gettext("Usage unit")
-    included_title = gettext("Included for free (monthly)")
-    price_above_free = gettext("Price per unit above free tier")
+    <% feature_title = dgettext("marketing", "Feature")
+    metric_title = dgettext("marketing", "Usage unit")
+    included_title = dgettext("marketing", "Included for free (monthly)")
+    price_above_free = dgettext("marketing", "Price per unit above free tier")
 
     items = [
       %{
         features: [
           %{
-            name: gettext("Generated Projects"),
+            name: dgettext("marketing", "Generated Projects"),
             link: "https://docs.tuist.dev/en/guides/develop/projects",
             description:
-              gettext(
+              dgettext("marketing",
                 "Turn projects defined with a Swift-DSL into Xcode workspaces and projects."
               )
           }
         ],
-        metric: gettext("None"),
-        included: gettext("Unlimited"),
-        price: gettext("$0")
+        metric: dgettext("marketing", "None"),
+        included: dgettext("marketing", "Unlimited"),
+        price: dgettext("marketing", "$0")
       },
       %{
         features: [
           %{
-            name: gettext("Tuist Cache"),
+            name: dgettext("marketing", "Tuist Cache"),
             link: "https://docs.tuist.dev/en/guides/develop/build/cache",
             description:
-              gettext(
+              dgettext("marketing",
                 "Speed up clean compilations by using binaries for graph targets (including external dependencies)."
               )
           },
           %{
-            name: gettext("Tuist Tests"),
+            name: dgettext("marketing", "Tuist Tests"),
             link: "https://docs.tuist.dev/en/guides/develop/test/smart-runner",
             description:
-              gettext(
+              dgettext("marketing",
                 "Speed up test runs by skipping test suites (test targets) whose tests are not impacted by the changes."
               )
           }
         ],
         metric:
-          gettext(
+          dgettext("marketing",
             "Each Tuist CLI command (e.g., generate, build, test) that pulls binaries or selective test results to optimize builds or tests counts as one invocation."
           ),
-        included: gettext("200"),
-        price: gettext("$0.5")
+        included: dgettext("marketing", "200"),
+        price: dgettext("marketing", "$0.5")
       },
       %{
         features: [
           %{
-            name: gettext("Tuist Previews"),
+            name: dgettext("marketing", "Tuist Previews"),
             link: "https://docs.tuist.dev/en/guides/share/previews",
             description:
-              gettext("Preview your project apps in simulator or devices with one click/command.")
+              dgettext("marketing", "Preview your project apps in simulator or devices with one click/command.")
           }
         ],
-        metric: gettext("None"),
-        included: gettext("Unlimited"),
-        price: gettext("$0")
+        metric: dgettext("marketing", "None"),
+        included: dgettext("marketing", "Unlimited"),
+        price: dgettext("marketing", "$0")
       }
     ] %>
 
@@ -118,10 +118,10 @@
 
     <div class="marketing__pricing__features__header">
       <h2 class="marketing__pricing__features__header__title" id="features-section">
-        {gettext("Features")}
+        {dgettext("marketing", "Features")}
       </h2>
       <p class="marketing__pricing__features__header__subtitle">
-        {gettext(
+        {dgettext("marketing",
           "You’re only charged for the features you use, based on your usage, and only after you exceed a free threshold. Have feedback on our model? Reach out at contact@tuist.dev—we’d love to hear from you!"
         )}
       </p>
@@ -163,7 +163,7 @@
     </table>
 
     <section class="marketing__pricing__faq" id="faq" aria-label="Frequently Asked Questions">
-      <h2 class="marketing__pricing__faq__title">{gettext("FAQ")}</h2>
+      <h2 class="marketing__pricing__faq__title">{dgettext("marketing", "FAQ")}</h2>
       <div class="marketing__pricing__faq__questions">
         <%= for {{question, answer}, index} <- Enum.with_index(@faqs) do %>
           <div class="marketing__pricing__faq__item" id={"faq-#{index}"}>

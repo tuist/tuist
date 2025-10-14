@@ -60,14 +60,34 @@ jobs:
           cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
           working_directory: server
       - run: mise run install
-      - name: Check gettext template is up-to-date
+      - name: Check marketing gettext template is up-to-date
         run: |
           if ! mix gettext.extract --check-up-to-date; then
-            echo "::error title=Gettext template out of sync::The gettext template file (default.pot) is not up-to-date. Please run 'mix gettext.extract' in the server directory and commit the changes."
+            echo "::error title=Gettext template out of sync::The gettext template file (marketing.pot) is not up-to-date. Please run 'mix gettext.extract' in the server directory and commit the changes."
             exit 1
           else
-            echo "✅ Gettext template file is up-to-date"
+            echo "✅ Gettext template files are up-to-date"
           fi
+      - name: Check marketing translations exist
+        run: |
+          # Check if marketing.pot exists
+          if [ ! -f priv/gettext/marketing.pot ]; then
+            echo "::error title=Missing marketing translations::marketing.pot file is missing. Please run 'mix gettext.extract' in the server directory."
+            exit 1
+          fi
+
+          # Check if all languages have marketing.po files
+          for lang_dir in priv/gettext/*/LC_MESSAGES; do
+            lang=$(basename $(dirname "$lang_dir"))
+            marketing_po="$lang_dir/marketing.po"
+
+            if [ ! -f "$marketing_po" ]; then
+              echo "::error title=Missing marketing translation::Missing $marketing_po for language '$lang'. Marketing domain translations are required for all languages."
+              exit 1
+            fi
+          done
+
+          echo "✅ All marketing translations present"
   test:
     name: Test
     runs-on: namespace-profile-default

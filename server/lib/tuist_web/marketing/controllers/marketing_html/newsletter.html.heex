@@ -48,15 +48,15 @@
 
   <main
     class="marketing__newsletter"
-    aria-label={gettext("Tuist Digest newsletter's subscription form")}
+    aria-label={dgettext("marketing", "Tuist Digest newsletter's subscription form")}
   >
-    <h1 class="marketing__newsletter__title">{gettext("Tuist Digest")}</h1>
+    <h1 class="marketing__newsletter__title">{dgettext("marketing", "Tuist Digest")}</h1>
 
     <p class="marketing__newsletter__description">
       {Tuist.Marketing.Newsletter.description()}
     </p>
 
-    <h2 class="marketing__newsletter__subscribe__title">{gettext("Subscribe")}</h2>
+    <h2 class="marketing__newsletter__subscribe__title">{dgettext("marketing", "Subscribe")}</h2>
 
     <div>
       <form
@@ -68,7 +68,7 @@
         <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
 
         <span class="marketing__newsletter__subscribe__title__form__description">
-          {gettext(
+          {dgettext("marketing",
             "Newsletter issues are sent every 6 weeks and you can unsubscribe at any time."
           )}
         </span>

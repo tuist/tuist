@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <feed xmlns="http://www.w3.org/2005/Atom">
-  <title><%= gettext("Tuist's changelog") %></title>
-  <subtitle><%= gettext("Updates to Tuist's features and improvements.") %></subtitle>
+  <title><%= dgettext("marketing", "Tuist's changelog") %></title>
+  <subtitle><%= dgettext("marketing", "Updates to Tuist's features and improvements.") %></subtitle>
   <link href="<%= Tuist.Environment.app_url(path: ~p"/changelog") %>"/>
   <link href="<%= Tuist.Environment.app_url(path: ~p"/changelog/atom.xml") %>" rel="self"/>
   <id><%= Tuist.Environment.app_url(path: ~p"/changelog") %></id>
