@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.85.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* Optimize resource interface synthesis through parallelization by [@pepicrft](https://github.com/pepicrft) in [#8436](https://github.com/tuist/tuist/pull/8436)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.84.3...4.85.0
+
 ## What's Changed in 4.84.3<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
