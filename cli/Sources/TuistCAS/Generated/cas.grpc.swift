@@ -23,61 +23,61 @@ import GRPCProtobuf
 
 /// Namespace containing generated types for the "compilation_cache_service.cas.v1.CASDBService" service.
 @available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
-internal enum CompilationCacheService_Cas_V1_CASDBService {
+public enum CompilationCacheService_Cas_V1_CASDBService {
     /// Service descriptor for the "compilation_cache_service.cas.v1.CASDBService" service.
-    internal static let descriptor = GRPCCore.ServiceDescriptor(fullyQualifiedService: "compilation_cache_service.cas.v1.CASDBService")
+    public static let descriptor = GRPCCore.ServiceDescriptor(fullyQualifiedService: "compilation_cache_service.cas.v1.CASDBService")
     /// Namespace for method metadata.
-    internal enum Method {
+    public enum Method {
         /// Namespace for "Get" metadata.
-        internal enum Get {
+        public enum Get {
             /// Request type for "Get".
-            internal typealias Input = CompilationCacheService_Cas_V1_CASGetRequest
+            public typealias Input = CompilationCacheService_Cas_V1_CASGetRequest
             /// Response type for "Get".
-            internal typealias Output = CompilationCacheService_Cas_V1_CASGetResponse
+            public typealias Output = CompilationCacheService_Cas_V1_CASGetResponse
             /// Descriptor for "Get".
-            internal static let descriptor = GRPCCore.MethodDescriptor(
+            public static let descriptor = GRPCCore.MethodDescriptor(
                 service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "compilation_cache_service.cas.v1.CASDBService"),
                 method: "Get"
             )
         }
         /// Namespace for "Put" metadata.
-        internal enum Put {
+        public enum Put {
             /// Request type for "Put".
-            internal typealias Input = CompilationCacheService_Cas_V1_CASPutRequest
+            public typealias Input = CompilationCacheService_Cas_V1_CASPutRequest
             /// Response type for "Put".
-            internal typealias Output = CompilationCacheService_Cas_V1_CASPutResponse
+            public typealias Output = CompilationCacheService_Cas_V1_CASPutResponse
             /// Descriptor for "Put".
-            internal static let descriptor = GRPCCore.MethodDescriptor(
+            public static let descriptor = GRPCCore.MethodDescriptor(
                 service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "compilation_cache_service.cas.v1.CASDBService"),
                 method: "Put"
             )
         }
         /// Namespace for "Load" metadata.
-        internal enum Load {
+        public enum Load {
             /// Request type for "Load".
-            internal typealias Input = CompilationCacheService_Cas_V1_CASLoadRequest
+            public typealias Input = CompilationCacheService_Cas_V1_CASLoadRequest
             /// Response type for "Load".
-            internal typealias Output = CompilationCacheService_Cas_V1_CASLoadResponse
+            public typealias Output = CompilationCacheService_Cas_V1_CASLoadResponse
             /// Descriptor for "Load".
-            internal static let descriptor = GRPCCore.MethodDescriptor(
+            public static let descriptor = GRPCCore.MethodDescriptor(
                 service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "compilation_cache_service.cas.v1.CASDBService"),
                 method: "Load"
             )
         }
         /// Namespace for "Save" metadata.
-        internal enum Save {
+        public enum Save {
             /// Request type for "Save".
-            internal typealias Input = CompilationCacheService_Cas_V1_CASSaveRequest
+            public typealias Input = CompilationCacheService_Cas_V1_CASSaveRequest
             /// Response type for "Save".
-            internal typealias Output = CompilationCacheService_Cas_V1_CASSaveResponse
+            public typealias Output = CompilationCacheService_Cas_V1_CASSaveResponse
             /// Descriptor for "Save".
-            internal static let descriptor = GRPCCore.MethodDescriptor(
+            public static let descriptor = GRPCCore.MethodDescriptor(
                 service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "compilation_cache_service.cas.v1.CASDBService"),
                 method: "Save"
             )
         }
         /// Descriptors for all methods in the "compilation_cache_service.cas.v1.CASDBService" service.
-        internal static let descriptors: [GRPCCore.MethodDescriptor] = [
+        public static let descriptors: [GRPCCore.MethodDescriptor] = [
             Get.descriptor,
             Put.descriptor,
             Load.descriptor,
@@ -89,7 +89,7 @@ internal enum CompilationCacheService_Cas_V1_CASDBService {
 @available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
 extension GRPCCore.ServiceDescriptor {
     /// Service descriptor for the "compilation_cache_service.cas.v1.CASDBService" service.
-    internal static let compilationCacheService_cas_v1_CASDBService = GRPCCore.ServiceDescriptor(fullyQualifiedService: "compilation_cache_service.cas.v1.CASDBService")
+    public static let compilationCacheService_cas_v1_CASDBService = GRPCCore.ServiceDescriptor(fullyQualifiedService: "compilation_cache_service.cas.v1.CASDBService")
 }
 
 // MARK: compilation_cache_service.cas.v1.CASDBService (server)
@@ -110,7 +110,7 @@ extension CompilationCacheService_Cas_V1_CASDBService {
     /// > Source IDL Documentation:
     /// >
     /// > Interface exported by the service.
-    internal protocol StreamingServiceProtocol: GRPCCore.RegistrableRPCService {
+    public protocol StreamingServiceProtocol: GRPCCore.RegistrableRPCService {
         /// Handle the "Get" method.
         ///
         /// - Parameters:
@@ -179,7 +179,7 @@ extension CompilationCacheService_Cas_V1_CASDBService {
     /// > Source IDL Documentation:
     /// >
     /// > Interface exported by the service.
-    internal protocol ServiceProtocol: CompilationCacheService_Cas_V1_CASDBService.StreamingServiceProtocol {
+    public protocol ServiceProtocol: CompilationCacheService_Cas_V1_CASDBService.StreamingServiceProtocol {
         /// Handle the "Get" method.
         ///
         /// - Parameters:
@@ -246,7 +246,7 @@ extension CompilationCacheService_Cas_V1_CASDBService {
     /// > Source IDL Documentation:
     /// >
     /// > Interface exported by the service.
-    internal protocol SimpleServiceProtocol: CompilationCacheService_Cas_V1_CASDBService.ServiceProtocol {
+    public protocol SimpleServiceProtocol: CompilationCacheService_Cas_V1_CASDBService.ServiceProtocol {
         /// Handle the "Get" method.
         ///
         /// - Parameters:
@@ -308,7 +308,7 @@ extension CompilationCacheService_Cas_V1_CASDBService {
 // Default implementation of 'registerMethods(with:)'.
 @available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
 extension CompilationCacheService_Cas_V1_CASDBService.StreamingServiceProtocol {
-    internal func registerMethods<Transport>(with router: inout GRPCCore.RPCRouter<Transport>) where Transport: GRPCCore.ServerTransport {
+    public func registerMethods<Transport>(with router: inout GRPCCore.RPCRouter<Transport>) where Transport: GRPCCore.ServerTransport {
         router.registerHandler(
             forMethod: CompilationCacheService_Cas_V1_CASDBService.Method.Get.descriptor,
             deserializer: GRPCProtobuf.ProtobufDeserializer<CompilationCacheService_Cas_V1_CASGetRequest>(),
@@ -359,7 +359,7 @@ extension CompilationCacheService_Cas_V1_CASDBService.StreamingServiceProtocol {
 // Default implementation of streaming methods from 'StreamingServiceProtocol'.
 @available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
 extension CompilationCacheService_Cas_V1_CASDBService.ServiceProtocol {
-    internal func get(
+    public func get(
         request: GRPCCore.StreamingServerRequest<CompilationCacheService_Cas_V1_CASGetRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.StreamingServerResponse<CompilationCacheService_Cas_V1_CASGetResponse> {
@@ -370,7 +370,7 @@ extension CompilationCacheService_Cas_V1_CASDBService.ServiceProtocol {
         return GRPCCore.StreamingServerResponse(single: response)
     }
 
-    internal func put(
+    public func put(
         request: GRPCCore.StreamingServerRequest<CompilationCacheService_Cas_V1_CASPutRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.StreamingServerResponse<CompilationCacheService_Cas_V1_CASPutResponse> {
@@ -381,7 +381,7 @@ extension CompilationCacheService_Cas_V1_CASDBService.ServiceProtocol {
         return GRPCCore.StreamingServerResponse(single: response)
     }
 
-    internal func load(
+    public func load(
         request: GRPCCore.StreamingServerRequest<CompilationCacheService_Cas_V1_CASLoadRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.StreamingServerResponse<CompilationCacheService_Cas_V1_CASLoadResponse> {
@@ -392,7 +392,7 @@ extension CompilationCacheService_Cas_V1_CASDBService.ServiceProtocol {
         return GRPCCore.StreamingServerResponse(single: response)
     }
 
-    internal func save(
+    public func save(
         request: GRPCCore.StreamingServerRequest<CompilationCacheService_Cas_V1_CASSaveRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.StreamingServerResponse<CompilationCacheService_Cas_V1_CASSaveResponse> {
@@ -407,7 +407,7 @@ extension CompilationCacheService_Cas_V1_CASDBService.ServiceProtocol {
 // Default implementation of methods from 'ServiceProtocol'.
 @available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
 extension CompilationCacheService_Cas_V1_CASDBService.SimpleServiceProtocol {
-    internal func get(
+    public func get(
         request: GRPCCore.ServerRequest<CompilationCacheService_Cas_V1_CASGetRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.ServerResponse<CompilationCacheService_Cas_V1_CASGetResponse> {
@@ -420,7 +420,7 @@ extension CompilationCacheService_Cas_V1_CASDBService.SimpleServiceProtocol {
         )
     }
 
-    internal func put(
+    public func put(
         request: GRPCCore.ServerRequest<CompilationCacheService_Cas_V1_CASPutRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.ServerResponse<CompilationCacheService_Cas_V1_CASPutResponse> {
@@ -433,7 +433,7 @@ extension CompilationCacheService_Cas_V1_CASDBService.SimpleServiceProtocol {
         )
     }
 
-    internal func load(
+    public func load(
         request: GRPCCore.ServerRequest<CompilationCacheService_Cas_V1_CASLoadRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.ServerResponse<CompilationCacheService_Cas_V1_CASLoadResponse> {
@@ -446,7 +446,7 @@ extension CompilationCacheService_Cas_V1_CASDBService.SimpleServiceProtocol {
         )
     }
 
-    internal func save(
+    public func save(
         request: GRPCCore.ServerRequest<CompilationCacheService_Cas_V1_CASSaveRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.ServerResponse<CompilationCacheService_Cas_V1_CASSaveResponse> {
@@ -472,7 +472,7 @@ extension CompilationCacheService_Cas_V1_CASDBService {
     /// > Source IDL Documentation:
     /// >
     /// > Interface exported by the service.
-    internal protocol ClientProtocol: Sendable {
+    public protocol ClientProtocol: Sendable {
         /// Call the "Get" method.
         ///
         /// - Parameters:
@@ -559,14 +559,14 @@ extension CompilationCacheService_Cas_V1_CASDBService {
     /// > Source IDL Documentation:
     /// >
     /// > Interface exported by the service.
-    internal struct Client<Transport>: ClientProtocol where Transport: GRPCCore.ClientTransport {
+    public struct Client<Transport>: ClientProtocol where Transport: GRPCCore.ClientTransport {
         private let client: GRPCCore.GRPCClient<Transport>
 
         /// Creates a new client wrapping the provided `GRPCCore.GRPCClient`.
         ///
         /// - Parameters:
         ///   - client: A `GRPCCore.GRPCClient` providing a communication channel to the service.
-        internal init(wrapping client: GRPCCore.GRPCClient<Transport>) {
+        public init(wrapping client: GRPCCore.GRPCClient<Transport>) {
             self.client = client
         }
 
@@ -581,7 +581,7 @@ extension CompilationCacheService_Cas_V1_CASDBService {
         ///       returned to the caller. Returning from the closure will cancel the RPC if it
         ///       hasn't already finished.
         /// - Returns: The result of `handleResponse`.
-        internal func get<Result>(
+        public func get<Result>(
             request: GRPCCore.ClientRequest<CompilationCacheService_Cas_V1_CASGetRequest>,
             serializer: some GRPCCore.MessageSerializer<CompilationCacheService_Cas_V1_CASGetRequest>,
             deserializer: some GRPCCore.MessageDeserializer<CompilationCacheService_Cas_V1_CASGetResponse>,
@@ -611,7 +611,7 @@ extension CompilationCacheService_Cas_V1_CASDBService {
         ///       returned to the caller. Returning from the closure will cancel the RPC if it
         ///       hasn't already finished.
         /// - Returns: The result of `handleResponse`.
-        internal func put<Result>(
+        public func put<Result>(
             request: GRPCCore.ClientRequest<CompilationCacheService_Cas_V1_CASPutRequest>,
             serializer: some GRPCCore.MessageSerializer<CompilationCacheService_Cas_V1_CASPutRequest>,
             deserializer: some GRPCCore.MessageDeserializer<CompilationCacheService_Cas_V1_CASPutResponse>,
@@ -641,7 +641,7 @@ extension CompilationCacheService_Cas_V1_CASDBService {
         ///       returned to the caller. Returning from the closure will cancel the RPC if it
         ///       hasn't already finished.
         /// - Returns: The result of `handleResponse`.
-        internal func load<Result>(
+        public func load<Result>(
             request: GRPCCore.ClientRequest<CompilationCacheService_Cas_V1_CASLoadRequest>,
             serializer: some GRPCCore.MessageSerializer<CompilationCacheService_Cas_V1_CASLoadRequest>,
             deserializer: some GRPCCore.MessageDeserializer<CompilationCacheService_Cas_V1_CASLoadResponse>,
@@ -671,7 +671,7 @@ extension CompilationCacheService_Cas_V1_CASDBService {
         ///       returned to the caller. Returning from the closure will cancel the RPC if it
         ///       hasn't already finished.
         /// - Returns: The result of `handleResponse`.
-        internal func save<Result>(
+        public func save<Result>(
             request: GRPCCore.ClientRequest<CompilationCacheService_Cas_V1_CASSaveRequest>,
             serializer: some GRPCCore.MessageSerializer<CompilationCacheService_Cas_V1_CASSaveRequest>,
             deserializer: some GRPCCore.MessageDeserializer<CompilationCacheService_Cas_V1_CASSaveResponse>,
@@ -704,7 +704,7 @@ extension CompilationCacheService_Cas_V1_CASDBService.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func get<Result>(
+    public func get<Result>(
         request: GRPCCore.ClientRequest<CompilationCacheService_Cas_V1_CASGetRequest>,
         options: GRPCCore.CallOptions = .defaults,
         onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<CompilationCacheService_Cas_V1_CASGetResponse>) async throws -> Result = { response in
@@ -729,7 +729,7 @@ extension CompilationCacheService_Cas_V1_CASDBService.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func put<Result>(
+    public func put<Result>(
         request: GRPCCore.ClientRequest<CompilationCacheService_Cas_V1_CASPutRequest>,
         options: GRPCCore.CallOptions = .defaults,
         onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<CompilationCacheService_Cas_V1_CASPutResponse>) async throws -> Result = { response in
@@ -754,7 +754,7 @@ extension CompilationCacheService_Cas_V1_CASDBService.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func load<Result>(
+    public func load<Result>(
         request: GRPCCore.ClientRequest<CompilationCacheService_Cas_V1_CASLoadRequest>,
         options: GRPCCore.CallOptions = .defaults,
         onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<CompilationCacheService_Cas_V1_CASLoadResponse>) async throws -> Result = { response in
@@ -779,7 +779,7 @@ extension CompilationCacheService_Cas_V1_CASDBService.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func save<Result>(
+    public func save<Result>(
         request: GRPCCore.ClientRequest<CompilationCacheService_Cas_V1_CASSaveRequest>,
         options: GRPCCore.CallOptions = .defaults,
         onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<CompilationCacheService_Cas_V1_CASSaveResponse>) async throws -> Result = { response in
@@ -809,7 +809,7 @@ extension CompilationCacheService_Cas_V1_CASDBService.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func get<Result>(
+    public func get<Result>(
         _ message: CompilationCacheService_Cas_V1_CASGetRequest,
         metadata: GRPCCore.Metadata = [:],
         options: GRPCCore.CallOptions = .defaults,
@@ -838,7 +838,7 @@ extension CompilationCacheService_Cas_V1_CASDBService.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func put<Result>(
+    public func put<Result>(
         _ message: CompilationCacheService_Cas_V1_CASPutRequest,
         metadata: GRPCCore.Metadata = [:],
         options: GRPCCore.CallOptions = .defaults,
@@ -867,7 +867,7 @@ extension CompilationCacheService_Cas_V1_CASDBService.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func load<Result>(
+    public func load<Result>(
         _ message: CompilationCacheService_Cas_V1_CASLoadRequest,
         metadata: GRPCCore.Metadata = [:],
         options: GRPCCore.CallOptions = .defaults,
@@ -896,7 +896,7 @@ extension CompilationCacheService_Cas_V1_CASDBService.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func save<Result>(
+    public func save<Result>(
         _ message: CompilationCacheService_Cas_V1_CASSaveRequest,
         metadata: GRPCCore.Metadata = [:],
         options: GRPCCore.CallOptions = .defaults,

@@ -4,7 +4,7 @@ import OpenAPIURLSession
 import OpenAPIRuntime
 
 @Mockable
-public protocol PutKeyValueServicing {
+public protocol PutKeyValueServicing: Sendable {
     func putKeyValue(
         casId: String,
         entries: [String: String],

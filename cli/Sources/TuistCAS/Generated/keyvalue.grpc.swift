@@ -23,37 +23,37 @@ import GRPCProtobuf
 
 /// Namespace containing generated types for the "compilation_cache_service.keyvalue.v1.KeyValueDB" service.
 @available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
-internal enum CompilationCacheService_Keyvalue_V1_KeyValueDB {
+public enum CompilationCacheService_Keyvalue_V1_KeyValueDB {
     /// Service descriptor for the "compilation_cache_service.keyvalue.v1.KeyValueDB" service.
-    internal static let descriptor = GRPCCore.ServiceDescriptor(fullyQualifiedService: "compilation_cache_service.keyvalue.v1.KeyValueDB")
+    public static let descriptor = GRPCCore.ServiceDescriptor(fullyQualifiedService: "compilation_cache_service.keyvalue.v1.KeyValueDB")
     /// Namespace for method metadata.
-    internal enum Method {
+    public enum Method {
         /// Namespace for "GetValue" metadata.
-        internal enum GetValue {
+        public enum GetValue {
             /// Request type for "GetValue".
-            internal typealias Input = CompilationCacheService_Keyvalue_V1_GetValueRequest
+            public typealias Input = CompilationCacheService_Keyvalue_V1_GetValueRequest
             /// Response type for "GetValue".
-            internal typealias Output = CompilationCacheService_Keyvalue_V1_GetValueResponse
+            public typealias Output = CompilationCacheService_Keyvalue_V1_GetValueResponse
             /// Descriptor for "GetValue".
-            internal static let descriptor = GRPCCore.MethodDescriptor(
+            public static let descriptor = GRPCCore.MethodDescriptor(
                 service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "compilation_cache_service.keyvalue.v1.KeyValueDB"),
                 method: "GetValue"
             )
         }
         /// Namespace for "PutValue" metadata.
-        internal enum PutValue {
+        public enum PutValue {
             /// Request type for "PutValue".
-            internal typealias Input = CompilationCacheService_Keyvalue_V1_PutValueRequest
+            public typealias Input = CompilationCacheService_Keyvalue_V1_PutValueRequest
             /// Response type for "PutValue".
-            internal typealias Output = CompilationCacheService_Keyvalue_V1_PutValueResponse
+            public typealias Output = CompilationCacheService_Keyvalue_V1_PutValueResponse
             /// Descriptor for "PutValue".
-            internal static let descriptor = GRPCCore.MethodDescriptor(
+            public static let descriptor = GRPCCore.MethodDescriptor(
                 service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "compilation_cache_service.keyvalue.v1.KeyValueDB"),
                 method: "PutValue"
             )
         }
         /// Descriptors for all methods in the "compilation_cache_service.keyvalue.v1.KeyValueDB" service.
-        internal static let descriptors: [GRPCCore.MethodDescriptor] = [
+        public static let descriptors: [GRPCCore.MethodDescriptor] = [
             GetValue.descriptor,
             PutValue.descriptor
         ]
@@ -63,7 +63,7 @@ internal enum CompilationCacheService_Keyvalue_V1_KeyValueDB {
 @available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
 extension GRPCCore.ServiceDescriptor {
     /// Service descriptor for the "compilation_cache_service.keyvalue.v1.KeyValueDB" service.
-    internal static let compilationCacheService_keyvalue_v1_KeyValueDB = GRPCCore.ServiceDescriptor(fullyQualifiedService: "compilation_cache_service.keyvalue.v1.KeyValueDB")
+    public static let compilationCacheService_keyvalue_v1_KeyValueDB = GRPCCore.ServiceDescriptor(fullyQualifiedService: "compilation_cache_service.keyvalue.v1.KeyValueDB")
 }
 
 // MARK: compilation_cache_service.keyvalue.v1.KeyValueDB (server)
@@ -84,7 +84,7 @@ extension CompilationCacheService_Keyvalue_V1_KeyValueDB {
     /// > Source IDL Documentation:
     /// >
     /// > Interface exported by the service.
-    internal protocol StreamingServiceProtocol: GRPCCore.RegistrableRPCService {
+    public protocol StreamingServiceProtocol: GRPCCore.RegistrableRPCService {
         /// Handle the "GetValue" method.
         ///
         /// - Parameters:
@@ -125,7 +125,7 @@ extension CompilationCacheService_Keyvalue_V1_KeyValueDB {
     /// > Source IDL Documentation:
     /// >
     /// > Interface exported by the service.
-    internal protocol ServiceProtocol: CompilationCacheService_Keyvalue_V1_KeyValueDB.StreamingServiceProtocol {
+    public protocol ServiceProtocol: CompilationCacheService_Keyvalue_V1_KeyValueDB.StreamingServiceProtocol {
         /// Handle the "GetValue" method.
         ///
         /// - Parameters:
@@ -164,7 +164,7 @@ extension CompilationCacheService_Keyvalue_V1_KeyValueDB {
     /// > Source IDL Documentation:
     /// >
     /// > Interface exported by the service.
-    internal protocol SimpleServiceProtocol: CompilationCacheService_Keyvalue_V1_KeyValueDB.ServiceProtocol {
+    public protocol SimpleServiceProtocol: CompilationCacheService_Keyvalue_V1_KeyValueDB.ServiceProtocol {
         /// Handle the "GetValue" method.
         ///
         /// - Parameters:
@@ -198,7 +198,7 @@ extension CompilationCacheService_Keyvalue_V1_KeyValueDB {
 // Default implementation of 'registerMethods(with:)'.
 @available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
 extension CompilationCacheService_Keyvalue_V1_KeyValueDB.StreamingServiceProtocol {
-    internal func registerMethods<Transport>(with router: inout GRPCCore.RPCRouter<Transport>) where Transport: GRPCCore.ServerTransport {
+    public func registerMethods<Transport>(with router: inout GRPCCore.RPCRouter<Transport>) where Transport: GRPCCore.ServerTransport {
         router.registerHandler(
             forMethod: CompilationCacheService_Keyvalue_V1_KeyValueDB.Method.GetValue.descriptor,
             deserializer: GRPCProtobuf.ProtobufDeserializer<CompilationCacheService_Keyvalue_V1_GetValueRequest>(),
@@ -227,7 +227,7 @@ extension CompilationCacheService_Keyvalue_V1_KeyValueDB.StreamingServiceProtoco
 // Default implementation of streaming methods from 'StreamingServiceProtocol'.
 @available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
 extension CompilationCacheService_Keyvalue_V1_KeyValueDB.ServiceProtocol {
-    internal func getValue(
+    public func getValue(
         request: GRPCCore.StreamingServerRequest<CompilationCacheService_Keyvalue_V1_GetValueRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.StreamingServerResponse<CompilationCacheService_Keyvalue_V1_GetValueResponse> {
@@ -238,7 +238,7 @@ extension CompilationCacheService_Keyvalue_V1_KeyValueDB.ServiceProtocol {
         return GRPCCore.StreamingServerResponse(single: response)
     }
 
-    internal func putValue(
+    public func putValue(
         request: GRPCCore.StreamingServerRequest<CompilationCacheService_Keyvalue_V1_PutValueRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.StreamingServerResponse<CompilationCacheService_Keyvalue_V1_PutValueResponse> {
@@ -253,7 +253,7 @@ extension CompilationCacheService_Keyvalue_V1_KeyValueDB.ServiceProtocol {
 // Default implementation of methods from 'ServiceProtocol'.
 @available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
 extension CompilationCacheService_Keyvalue_V1_KeyValueDB.SimpleServiceProtocol {
-    internal func getValue(
+    public func getValue(
         request: GRPCCore.ServerRequest<CompilationCacheService_Keyvalue_V1_GetValueRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.ServerResponse<CompilationCacheService_Keyvalue_V1_GetValueResponse> {
@@ -266,7 +266,7 @@ extension CompilationCacheService_Keyvalue_V1_KeyValueDB.SimpleServiceProtocol {
         )
     }
 
-    internal func putValue(
+    public func putValue(
         request: GRPCCore.ServerRequest<CompilationCacheService_Keyvalue_V1_PutValueRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.ServerResponse<CompilationCacheService_Keyvalue_V1_PutValueResponse> {
@@ -292,7 +292,7 @@ extension CompilationCacheService_Keyvalue_V1_KeyValueDB {
     /// > Source IDL Documentation:
     /// >
     /// > Interface exported by the service.
-    internal protocol ClientProtocol: Sendable {
+    public protocol ClientProtocol: Sendable {
         /// Call the "GetValue" method.
         ///
         /// - Parameters:
@@ -341,14 +341,14 @@ extension CompilationCacheService_Keyvalue_V1_KeyValueDB {
     /// > Source IDL Documentation:
     /// >
     /// > Interface exported by the service.
-    internal struct Client<Transport>: ClientProtocol where Transport: GRPCCore.ClientTransport {
+    public struct Client<Transport>: ClientProtocol where Transport: GRPCCore.ClientTransport {
         private let client: GRPCCore.GRPCClient<Transport>
 
         /// Creates a new client wrapping the provided `GRPCCore.GRPCClient`.
         ///
         /// - Parameters:
         ///   - client: A `GRPCCore.GRPCClient` providing a communication channel to the service.
-        internal init(wrapping client: GRPCCore.GRPCClient<Transport>) {
+        public init(wrapping client: GRPCCore.GRPCClient<Transport>) {
             self.client = client
         }
 
@@ -363,7 +363,7 @@ extension CompilationCacheService_Keyvalue_V1_KeyValueDB {
         ///       returned to the caller. Returning from the closure will cancel the RPC if it
         ///       hasn't already finished.
         /// - Returns: The result of `handleResponse`.
-        internal func getValue<Result>(
+        public func getValue<Result>(
             request: GRPCCore.ClientRequest<CompilationCacheService_Keyvalue_V1_GetValueRequest>,
             serializer: some GRPCCore.MessageSerializer<CompilationCacheService_Keyvalue_V1_GetValueRequest>,
             deserializer: some GRPCCore.MessageDeserializer<CompilationCacheService_Keyvalue_V1_GetValueResponse>,
@@ -393,7 +393,7 @@ extension CompilationCacheService_Keyvalue_V1_KeyValueDB {
         ///       returned to the caller. Returning from the closure will cancel the RPC if it
         ///       hasn't already finished.
         /// - Returns: The result of `handleResponse`.
-        internal func putValue<Result>(
+        public func putValue<Result>(
             request: GRPCCore.ClientRequest<CompilationCacheService_Keyvalue_V1_PutValueRequest>,
             serializer: some GRPCCore.MessageSerializer<CompilationCacheService_Keyvalue_V1_PutValueRequest>,
             deserializer: some GRPCCore.MessageDeserializer<CompilationCacheService_Keyvalue_V1_PutValueResponse>,
@@ -426,7 +426,7 @@ extension CompilationCacheService_Keyvalue_V1_KeyValueDB.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func getValue<Result>(
+    public func getValue<Result>(
         request: GRPCCore.ClientRequest<CompilationCacheService_Keyvalue_V1_GetValueRequest>,
         options: GRPCCore.CallOptions = .defaults,
         onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<CompilationCacheService_Keyvalue_V1_GetValueResponse>) async throws -> Result = { response in
@@ -451,7 +451,7 @@ extension CompilationCacheService_Keyvalue_V1_KeyValueDB.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func putValue<Result>(
+    public func putValue<Result>(
         request: GRPCCore.ClientRequest<CompilationCacheService_Keyvalue_V1_PutValueRequest>,
         options: GRPCCore.CallOptions = .defaults,
         onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<CompilationCacheService_Keyvalue_V1_PutValueResponse>) async throws -> Result = { response in
@@ -481,7 +481,7 @@ extension CompilationCacheService_Keyvalue_V1_KeyValueDB.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func getValue<Result>(
+    public func getValue<Result>(
         _ message: CompilationCacheService_Keyvalue_V1_GetValueRequest,
         metadata: GRPCCore.Metadata = [:],
         options: GRPCCore.CallOptions = .defaults,
@@ -510,7 +510,7 @@ extension CompilationCacheService_Keyvalue_V1_KeyValueDB.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func putValue<Result>(
+    public func putValue<Result>(
         _ message: CompilationCacheService_Keyvalue_V1_PutValueRequest,
         metadata: GRPCCore.Metadata = [:],
         options: GRPCCore.CallOptions = .defaults,

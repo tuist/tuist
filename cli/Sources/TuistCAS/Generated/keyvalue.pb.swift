@@ -28,40 +28,40 @@ fileprivate struct _GeneratedWithProtocGenSwiftVersion: SwiftProtobuf.ProtobufAP
   typealias Version = _2
 }
 
-struct CompilationCacheService_Keyvalue_V1_Value {
+public struct CompilationCacheService_Keyvalue_V1_Value {
   // SwiftProtobuf.Message conformance is added in an extension below. See the
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
   // methods supported on all messages.
 
-  var entries: Dictionary<String,Data> = [:]
+  public var entries: Dictionary<String,Data> = [:]
 
-  var unknownFields = SwiftProtobuf.UnknownStorage()
+  public var unknownFields = SwiftProtobuf.UnknownStorage()
 
-  init() {}
+  public init() {}
 }
 
-struct CompilationCacheService_Keyvalue_V1_GetValueRequest {
+public struct CompilationCacheService_Keyvalue_V1_GetValueRequest {
   // SwiftProtobuf.Message conformance is added in an extension below. See the
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
   // methods supported on all messages.
 
-  var key: Data = Data()
+  public var key: Data = Data()
 
-  var unknownFields = SwiftProtobuf.UnknownStorage()
+  public var unknownFields = SwiftProtobuf.UnknownStorage()
 
-  init() {}
+  public init() {}
 }
 
-struct CompilationCacheService_Keyvalue_V1_GetValueResponse {
+public struct CompilationCacheService_Keyvalue_V1_GetValueResponse {
   // SwiftProtobuf.Message conformance is added in an extension below. See the
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
   // methods supported on all messages.
 
-  var outcome: CompilationCacheService_Keyvalue_V1_GetValueResponse.Outcome = .error
+  public var outcome: CompilationCacheService_Keyvalue_V1_GetValueResponse.Outcome = .error
 
-  var contents: CompilationCacheService_Keyvalue_V1_GetValueResponse.OneOf_Contents? = nil
+  public var contents: CompilationCacheService_Keyvalue_V1_GetValueResponse.OneOf_Contents? = nil
 
-  var error: CompilationCacheService_Keyvalue_V1_ResponseError {
+  public var error: CompilationCacheService_Keyvalue_V1_ResponseError {
     get {
       if case .error(let v)? = contents {return v}
       return CompilationCacheService_Keyvalue_V1_ResponseError()
@@ -69,7 +69,7 @@ struct CompilationCacheService_Keyvalue_V1_GetValueResponse {
     set {contents = .error(newValue)}
   }
 
-  var value: CompilationCacheService_Keyvalue_V1_Value {
+  public var value: CompilationCacheService_Keyvalue_V1_Value {
     get {
       if case .value(let v)? = contents {return v}
       return CompilationCacheService_Keyvalue_V1_Value()
@@ -77,14 +77,14 @@ struct CompilationCacheService_Keyvalue_V1_GetValueResponse {
     set {contents = .value(newValue)}
   }
 
-  var unknownFields = SwiftProtobuf.UnknownStorage()
+  public var unknownFields = SwiftProtobuf.UnknownStorage()
 
-  enum OneOf_Contents: Equatable {
+  public enum OneOf_Contents: Equatable {
     case error(CompilationCacheService_Keyvalue_V1_ResponseError)
     case value(CompilationCacheService_Keyvalue_V1_Value)
 
   #if !swift(>=4.1)
-    static func ==(lhs: CompilationCacheService_Keyvalue_V1_GetValueResponse.OneOf_Contents, rhs: CompilationCacheService_Keyvalue_V1_GetValueResponse.OneOf_Contents) -> Bool {
+    public static func ==(lhs: CompilationCacheService_Keyvalue_V1_GetValueResponse.OneOf_Contents, rhs: CompilationCacheService_Keyvalue_V1_GetValueResponse.OneOf_Contents) -> Bool {
       // The use of inline closures is to circumvent an issue where the compiler
       // allocates stack space for every case branch when no optimizations are
       // enabled. https://github.com/apple/swift-protobuf/issues/1034
@@ -103,8 +103,8 @@ struct CompilationCacheService_Keyvalue_V1_GetValueResponse {
   #endif
   }
 
-  enum Outcome: SwiftProtobuf.Enum {
-    typealias RawValue = Int
+  public enum Outcome: SwiftProtobuf.Enum {
+    public typealias RawValue = Int
 
     /// if unset, we'll get error
     case error // = 0
@@ -112,11 +112,11 @@ struct CompilationCacheService_Keyvalue_V1_GetValueResponse {
     case success // = 2
     case UNRECOGNIZED(Int)
 
-    init() {
+    public init() {
       self = .error
     }
 
-    init?(rawValue: Int) {
+    public init?(rawValue: Int) {
       switch rawValue {
       case 0: self = .error
       case 1: self = .keyNotFound
@@ -125,7 +125,7 @@ struct CompilationCacheService_Keyvalue_V1_GetValueResponse {
       }
     }
 
-    var rawValue: Int {
+    public var rawValue: Int {
       switch self {
       case .error: return 0
       case .keyNotFound: return 1
@@ -136,14 +136,14 @@ struct CompilationCacheService_Keyvalue_V1_GetValueResponse {
 
   }
 
-  init() {}
+  public init() {}
 }
 
 #if swift(>=4.2)
 
 extension CompilationCacheService_Keyvalue_V1_GetValueResponse.Outcome: CaseIterable {
   // The compiler won't synthesize support with the UNRECOGNIZED case.
-  static var allCases: [CompilationCacheService_Keyvalue_V1_GetValueResponse.Outcome] = [
+  public static var allCases: [CompilationCacheService_Keyvalue_V1_GetValueResponse.Outcome] = [
     .error,
     .keyNotFound,
     .success,
@@ -152,60 +152,60 @@ extension CompilationCacheService_Keyvalue_V1_GetValueResponse.Outcome: CaseIter
 
 #endif  // swift(>=4.2)
 
-struct CompilationCacheService_Keyvalue_V1_PutValueRequest {
+public struct CompilationCacheService_Keyvalue_V1_PutValueRequest {
   // SwiftProtobuf.Message conformance is added in an extension below. See the
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
   // methods supported on all messages.
 
-  var key: Data = Data()
+  public var key: Data = Data()
 
-  var value: CompilationCacheService_Keyvalue_V1_Value {
+  public var value: CompilationCacheService_Keyvalue_V1_Value {
     get {return _value ?? CompilationCacheService_Keyvalue_V1_Value()}
     set {_value = newValue}
   }
   /// Returns true if `value` has been explicitly set.
-  var hasValue: Bool {return self._value != nil}
+  public var hasValue: Bool {return self._value != nil}
   /// Clears the value of `value`. Subsequent reads from it will return its default value.
-  mutating func clearValue() {self._value = nil}
+  public mutating func clearValue() {self._value = nil}
 
-  var unknownFields = SwiftProtobuf.UnknownStorage()
+  public var unknownFields = SwiftProtobuf.UnknownStorage()
 
-  init() {}
+  public init() {}
 
   fileprivate var _value: CompilationCacheService_Keyvalue_V1_Value? = nil
 }
 
-struct CompilationCacheService_Keyvalue_V1_PutValueResponse {
+public struct CompilationCacheService_Keyvalue_V1_PutValueResponse {
   // SwiftProtobuf.Message conformance is added in an extension below. See the
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
   // methods supported on all messages.
 
-  var error: CompilationCacheService_Keyvalue_V1_ResponseError {
+  public var error: CompilationCacheService_Keyvalue_V1_ResponseError {
     get {return _error ?? CompilationCacheService_Keyvalue_V1_ResponseError()}
     set {_error = newValue}
   }
   /// Returns true if `error` has been explicitly set.
-  var hasError: Bool {return self._error != nil}
+  public var hasError: Bool {return self._error != nil}
   /// Clears the value of `error`. Subsequent reads from it will return its default value.
-  mutating func clearError() {self._error = nil}
+  public mutating func clearError() {self._error = nil}
 
-  var unknownFields = SwiftProtobuf.UnknownStorage()
+  public var unknownFields = SwiftProtobuf.UnknownStorage()
 
-  init() {}
+  public init() {}
 
   fileprivate var _error: CompilationCacheService_Keyvalue_V1_ResponseError? = nil
 }
 
-struct CompilationCacheService_Keyvalue_V1_ResponseError {
+public struct CompilationCacheService_Keyvalue_V1_ResponseError {
   // SwiftProtobuf.Message conformance is added in an extension below. See the
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
   // methods supported on all messages.
 
-  var description_p: String = String()
+  public var description_p: String = String()
 
-  var unknownFields = SwiftProtobuf.UnknownStorage()
+  public var unknownFields = SwiftProtobuf.UnknownStorage()
 
-  init() {}
+  public init() {}
 }
 
 // MARK: - Code below here is support for the SwiftProtobuf runtime.
@@ -213,12 +213,12 @@ struct CompilationCacheService_Keyvalue_V1_ResponseError {
 fileprivate let _protobuf_package = "compilation_cache_service.keyvalue.v1"
 
 extension CompilationCacheService_Keyvalue_V1_Value: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
-  static let protoMessageName: String = _protobuf_package + ".Value"
-  static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
+  public static let protoMessageName: String = _protobuf_package + ".Value"
+  public static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
     1: .same(proto: "entries"),
   ]
 
-  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+  public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
       // The use of inline closures is to circumvent an issue where the compiler
       // allocates stack space for every case branch when no optimizations are
@@ -230,14 +230,14 @@ extension CompilationCacheService_Keyvalue_V1_Value: SwiftProtobuf.Message, Swif
     }
   }
 
-  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+  public func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
     if !self.entries.isEmpty {
       try visitor.visitMapField(fieldType: SwiftProtobuf._ProtobufMap<SwiftProtobuf.ProtobufString,SwiftProtobuf.ProtobufBytes>.self, value: self.entries, fieldNumber: 1)
     }
     try unknownFields.traverse(visitor: &visitor)
   }
 
-  static func ==(lhs: CompilationCacheService_Keyvalue_V1_Value, rhs: CompilationCacheService_Keyvalue_V1_Value) -> Bool {
+  public static func ==(lhs: CompilationCacheService_Keyvalue_V1_Value, rhs: CompilationCacheService_Keyvalue_V1_Value) -> Bool {
     if lhs.entries != rhs.entries {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
@@ -245,12 +245,12 @@ extension CompilationCacheService_Keyvalue_V1_Value: SwiftProtobuf.Message, Swif
 }
 
 extension CompilationCacheService_Keyvalue_V1_GetValueRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
-  static let protoMessageName: String = _protobuf_package + ".GetValueRequest"
-  static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
+  public static let protoMessageName: String = _protobuf_package + ".GetValueRequest"
+  public static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
     1: .same(proto: "key"),
   ]
 
-  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+  public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
       // The use of inline closures is to circumvent an issue where the compiler
       // allocates stack space for every case branch when no optimizations are
@@ -262,14 +262,14 @@ extension CompilationCacheService_Keyvalue_V1_GetValueRequest: SwiftProtobuf.Mes
     }
   }
 
-  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+  public func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
     if !self.key.isEmpty {
       try visitor.visitSingularBytesField(value: self.key, fieldNumber: 1)
     }
     try unknownFields.traverse(visitor: &visitor)
   }
 
-  static func ==(lhs: CompilationCacheService_Keyvalue_V1_GetValueRequest, rhs: CompilationCacheService_Keyvalue_V1_GetValueRequest) -> Bool {
+  public static func ==(lhs: CompilationCacheService_Keyvalue_V1_GetValueRequest, rhs: CompilationCacheService_Keyvalue_V1_GetValueRequest) -> Bool {
     if lhs.key != rhs.key {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
@@ -277,14 +277,14 @@ extension CompilationCacheService_Keyvalue_V1_GetValueRequest: SwiftProtobuf.Mes
 }
 
 extension CompilationCacheService_Keyvalue_V1_GetValueResponse: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
-  static let protoMessageName: String = _protobuf_package + ".GetValueResponse"
-  static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
+  public static let protoMessageName: String = _protobuf_package + ".GetValueResponse"
+  public static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
     1: .same(proto: "outcome"),
     2: .same(proto: "error"),
     3: .same(proto: "value"),
   ]
 
-  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+  public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
       // The use of inline closures is to circumvent an issue where the compiler
       // allocates stack space for every case branch when no optimizations are
@@ -314,7 +314,7 @@ extension CompilationCacheService_Keyvalue_V1_GetValueResponse: SwiftProtobuf.Me
     }
   }
 
-  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+  public func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
     if self.outcome != .error {
       try visitor.visitSingularEnumField(value: self.outcome, fieldNumber: 1)
     }
@@ -335,7 +335,7 @@ extension CompilationCacheService_Keyvalue_V1_GetValueResponse: SwiftProtobuf.Me
     try unknownFields.traverse(visitor: &visitor)
   }
 
-  static func ==(lhs: CompilationCacheService_Keyvalue_V1_GetValueResponse, rhs: CompilationCacheService_Keyvalue_V1_GetValueResponse) -> Bool {
+  public static func ==(lhs: CompilationCacheService_Keyvalue_V1_GetValueResponse, rhs: CompilationCacheService_Keyvalue_V1_GetValueResponse) -> Bool {
     if lhs.outcome != rhs.outcome {return false}
     if lhs.contents != rhs.contents {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
@@ -344,7 +344,7 @@ extension CompilationCacheService_Keyvalue_V1_GetValueResponse: SwiftProtobuf.Me
 }
 
 extension CompilationCacheService_Keyvalue_V1_GetValueResponse.Outcome: SwiftProtobuf._ProtoNameProviding {
-  static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
+  public static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
     0: .same(proto: "ERROR"),
     1: .same(proto: "KEY_NOT_FOUND"),
     2: .same(proto: "SUCCESS"),
@@ -352,13 +352,13 @@ extension CompilationCacheService_Keyvalue_V1_GetValueResponse.Outcome: SwiftPro
 }
 
 extension CompilationCacheService_Keyvalue_V1_PutValueRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
-  static let protoMessageName: String = _protobuf_package + ".PutValueRequest"
-  static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
+  public static let protoMessageName: String = _protobuf_package + ".PutValueRequest"
+  public static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
     1: .same(proto: "key"),
     2: .same(proto: "value"),
   ]
 
-  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+  public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
       // The use of inline closures is to circumvent an issue where the compiler
       // allocates stack space for every case branch when no optimizations are
@@ -371,7 +371,7 @@ extension CompilationCacheService_Keyvalue_V1_PutValueRequest: SwiftProtobuf.Mes
     }
   }
 
-  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+  public func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
     if !self.key.isEmpty {
       try visitor.visitSingularBytesField(value: self.key, fieldNumber: 1)
     }
@@ -381,7 +381,7 @@ extension CompilationCacheService_Keyvalue_V1_PutValueRequest: SwiftProtobuf.Mes
     try unknownFields.traverse(visitor: &visitor)
   }
 
-  static func ==(lhs: CompilationCacheService_Keyvalue_V1_PutValueRequest, rhs: CompilationCacheService_Keyvalue_V1_PutValueRequest) -> Bool {
+  public static func ==(lhs: CompilationCacheService_Keyvalue_V1_PutValueRequest, rhs: CompilationCacheService_Keyvalue_V1_PutValueRequest) -> Bool {
     if lhs.key != rhs.key {return false}
     if lhs._value != rhs._value {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
@@ -390,12 +390,12 @@ extension CompilationCacheService_Keyvalue_V1_PutValueRequest: SwiftProtobuf.Mes
 }
 
 extension CompilationCacheService_Keyvalue_V1_PutValueResponse: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
-  static let protoMessageName: String = _protobuf_package + ".PutValueResponse"
-  static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
+  public static let protoMessageName: String = _protobuf_package + ".PutValueResponse"
+  public static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
     1: .same(proto: "error"),
   ]
 
-  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+  public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
       // The use of inline closures is to circumvent an issue where the compiler
       // allocates stack space for every case branch when no optimizations are
@@ -407,14 +407,14 @@ extension CompilationCacheService_Keyvalue_V1_PutValueResponse: SwiftProtobuf.Me
     }
   }
 
-  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+  public func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
     if let v = self._error {
       try visitor.visitSingularMessageField(value: v, fieldNumber: 1)
     }
     try unknownFields.traverse(visitor: &visitor)
   }
 
-  static func ==(lhs: CompilationCacheService_Keyvalue_V1_PutValueResponse, rhs: CompilationCacheService_Keyvalue_V1_PutValueResponse) -> Bool {
+  public static func ==(lhs: CompilationCacheService_Keyvalue_V1_PutValueResponse, rhs: CompilationCacheService_Keyvalue_V1_PutValueResponse) -> Bool {
     if lhs._error != rhs._error {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
@@ -422,12 +422,12 @@ extension CompilationCacheService_Keyvalue_V1_PutValueResponse: SwiftProtobuf.Me
 }
 
 extension CompilationCacheService_Keyvalue_V1_ResponseError: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
-  static let protoMessageName: String = _protobuf_package + ".ResponseError"
-  static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
+  public static let protoMessageName: String = _protobuf_package + ".ResponseError"
+  public static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
     1: .same(proto: "description"),
   ]
 
-  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+  public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
       // The use of inline closures is to circumvent an issue where the compiler
       // allocates stack space for every case branch when no optimizations are
@@ -439,14 +439,14 @@ extension CompilationCacheService_Keyvalue_V1_ResponseError: SwiftProtobuf.Messa
     }
   }
 
-  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+  public func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
     if !self.description_p.isEmpty {
       try visitor.visitSingularStringField(value: self.description_p, fieldNumber: 1)
     }
     try unknownFields.traverse(visitor: &visitor)
   }
 
-  static func ==(lhs: CompilationCacheService_Keyvalue_V1_ResponseError, rhs: CompilationCacheService_Keyvalue_V1_ResponseError) -> Bool {
+  public static func ==(lhs: CompilationCacheService_Keyvalue_V1_ResponseError, rhs: CompilationCacheService_Keyvalue_V1_ResponseError) -> Bool {
     if lhs.description_p != rhs.description_p {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true

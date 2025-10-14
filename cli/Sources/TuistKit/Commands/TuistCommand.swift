@@ -30,6 +30,7 @@ public struct TuistCommand: AsyncParsableCommand {
                         HashCommand.self,
                         BuildCommand.self,
                         CacheCommand.self,
+                        CacheStartCommand.self,
                         CleanCommand.self,
                         DumpCommand.self,
                         EditCommand.self,

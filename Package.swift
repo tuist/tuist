@@ -1,4 +1,4 @@
-// swift-tools-version: 5.10
+// swift-tools-version: 6.1
 
 @preconcurrency import PackageDescription
 
@@ -99,6 +99,7 @@ let targets: [Target] = [
             "TuistCache",
             "TuistRootDirectoryLocator",
             "TuistCI",
+            "TuistCAS",
             .product(name: "Noora", package: "Noora"),
             .product(name: "Command", package: "Command"),
             .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
@@ -483,6 +484,24 @@ let targets: [Target] = [
             .define("MOCKING", .when(configuration: .debug))
         ]
     ),
+    .target(
+        name: "TuistCAS",
+        dependencies: [
+            "TuistCore",
+            "TuistServer",
+            "TuistRootDirectoryLocator",
+            .product(name: "GRPCCore", package: "grpc-swift-2"),
+            .product(name: "GRPCNIOTransportHTTP2", package: "grpc-swift-nio-transport"),
+            .product(name: "GRPCProtobuf", package: "grpc-swift-protobuf"),
+            .product(name: "SwiftProtobuf", package: "grpc-swift-protobuf"),
+            "Mockable",
+            pathDependency,
+        ],
+        path: "cli/Sources/TuistCAS",
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug))
+        ]
+    ),
 ]
 
 #if TUIST
@@ -506,7 +525,7 @@ let targets: [Target] = [
 
 let package = Package(
     name: "tuist",
-    platforms: [.macOS(.v14)],
+    platforms: [.macOS(.v15)],
     products: [
         .executable(name: "tuistbenchmark", targets: ["tuistbenchmark"]),
         .executable(name: "tuistfixturegenerator", targets: ["tuistfixturegenerator"]),
@@ -592,6 +611,10 @@ let package = Package(
         .library(
             name: "TuistGenerator",
             targets: ["TuistGenerator"]
+        ),
+        .library(
+            name: "TuistCAS",
+            targets: ["TuistCAS"]
         ),
     ],
     dependencies: [
