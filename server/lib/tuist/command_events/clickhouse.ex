@@ -46,7 +46,7 @@ defmodule Tuist.CommandEvents.Clickhouse do
   def get_command_events_by_name_git_ref_and_project(%{name: name, git_ref: git_ref, project: %Project{id: project_id}}) do
     from(e in Event,
       where:
-        e.name == ^name and e.git_ref == ^git_ref and
+        e.name == ^name and like(e.git_ref, ^git_ref) and
           e.project_id == ^project_id,
       select: e
     )

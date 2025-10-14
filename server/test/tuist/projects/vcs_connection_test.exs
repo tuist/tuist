@@ -148,7 +148,7 @@ defmodule Tuist.Projects.VCSConnectionTest do
       {:error, changeset} = %VCSConnection{} |> VCSConnection.changeset(attrs) |> Repo.insert()
 
       # Then
-      assert "has already been taken" in errors_on(changeset).provider
+      assert "has already been taken" in errors_on(changeset).project_id
     end
 
     test "allows same provider for different projects" do

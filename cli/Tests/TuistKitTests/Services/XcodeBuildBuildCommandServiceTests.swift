@@ -65,7 +65,7 @@ struct XcodeBuildBuildCommandServiceTests {
             )
 
         given(xcActivityLogController)
-            .mostRecentActivityLogFile(projectDerivedDataDirectory: .value(derivedDataPath))
+            .mostRecentActivityLogFile(projectDerivedDataDirectory: .value(derivedDataPath), filter: .any)
             .willReturn(activityLogFile)
 
         given(xcodeBuildController)

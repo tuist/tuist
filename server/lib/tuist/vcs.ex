@@ -65,21 +65,6 @@ defmodule Tuist.VCS do
     })
   end
 
-  def get_repository_from_repository_url(repository_url) do
-    case get_provider_from_repository_url(repository_url) do
-      {:ok, provider} ->
-        client = get_client_for_provider(provider)
-
-        repository_url
-        |> get_repository_full_handle_from_url()
-        |> elem(1)
-        |> client.get_repository()
-
-      {:error, reason} ->
-        {:error, reason}
-    end
-  end
-
   def get_provider_from_repository_url(repository_url) do
     vcs_uri = URI.parse(repository_url)
     host = Map.get(vcs_uri, :host)
@@ -87,42 +72,6 @@ defmodule Tuist.VCS do
     case host do
       "github.com" -> {:ok, :github}
       _ -> {:error, :unsupported_vcs}
-    end
-  end
-
-  def get_user_permission(%{
-        user: user,
-        repository: %VCS.Repositories.Repository{provider: provider, full_handle: full_handle}
-      }) do
-    user = Repo.preload(user, :oauth2_identities)
-
-    github_identity = Enum.find(user.oauth2_identities, &(&1.provider == provider))
-
-    client = get_client_for_provider(provider)
-
-    if is_nil(github_identity) do
-      nil
-    else
-      with {:user, {:ok, %VCS.User{username: username}}} <-
-             {:user,
-              client.get_user_by_id(%{
-                id: github_identity.id_in_provider,
-                repository_full_handle: full_handle
-              })},
-           {:permission, {:ok, %VCS.Repositories.Permission{} = permission}} <-
-             {:permission,
-              client.get_user_permission(%{
-                username: username,
-                repository_full_handle: full_handle
-              })} do
-        {:ok, permission}
-      else
-        {:user, {:error, error_message}} ->
-          {:error, "Could not fetch user: #{error_message}"}
-
-        {:permission, {:error, error_message}} ->
-          {:error, "Could not fetch user permission: #{error_message}"}
-      end
     end
   end
 
@@ -147,16 +96,21 @@ defmodule Tuist.VCS do
     end
   end
 
-  @doc """
-  Returns `true` if the repository, identified by the `repository_full_handle`, is connected to the given project.
-  """
-  def connected?(%{repository_full_handle: repository_full_handle, project: project}) do
-    project = Repo.preload(project, :vcs_connection)
+  defp get_github_app_installation_id(%{repository_full_handle: repository_full_handle, project: project}) do
+    project = Repo.preload(project, vcs_connection: :github_app_installation)
 
-    Environment.github_app_configured?() and
-      not is_nil(project.vcs_connection) and
-      String.downcase(project.vcs_connection.repository_full_handle) ==
-        String.downcase(repository_full_handle)
+    with true <- Environment.github_app_configured?(),
+         %{
+           vcs_connection: %{
+             repository_full_handle: connected_handle,
+             github_app_installation: %{installation_id: installation_id}
+           }
+         } <- project,
+         true <- String.downcase(connected_handle) == String.downcase(repository_full_handle) do
+      {:ok, installation_id}
+    else
+      _ -> {:error, :not_found}
+    end
   end
 
   def enqueue_vcs_pull_request_comment(args) do
@@ -169,22 +123,21 @@ defmodule Tuist.VCS do
   Creates a comment on a VCS issue/pull request.
   """
   def create_comment(%{repository_full_handle: repository_full_handle, git_ref: git_ref, body: body, project: project}) do
-    cond do
-      not String.starts_with?(git_ref, "refs/pull/") ->
-        {:error, :not_pull_request}
+    with true <- String.starts_with?(git_ref, "refs/pull/"),
+         {:ok, installation_id} <-
+           get_github_app_installation_id(%{repository_full_handle: repository_full_handle, project: project}) do
+      client = get_client_for_provider(:github)
+      issue_id = get_issue_id_from_git_ref(git_ref)
 
-      not connected?(%{repository_full_handle: repository_full_handle, project: project}) ->
-        {:error, :repository_not_connected}
-
-      true ->
-        client = get_client_for_provider(:github)
-        issue_id = get_issue_id_from_git_ref(git_ref)
-
-        client.create_comment(%{
-          repository_full_handle: repository_full_handle,
-          issue_id: issue_id,
-          body: body
-        })
+      client.create_comment(%{
+        repository_full_handle: repository_full_handle,
+        issue_id: issue_id,
+        body: body,
+        installation_id: installation_id
+      })
+    else
+      false -> {:error, :not_pull_request}
+      {:error, :not_found} -> {:error, :repository_not_connected}
     end
   end
 
@@ -197,16 +150,19 @@ defmodule Tuist.VCS do
         body: body,
         project: project
       }) do
-    if connected?(%{repository_full_handle: repository_full_handle, project: project}) do
-      client = get_client_for_provider(:github)
+    case get_github_app_installation_id(%{repository_full_handle: repository_full_handle, project: project}) do
+      {:ok, installation_id} ->
+        client = get_client_for_provider(:github)
 
-      client.update_comment(%{
-        repository_full_handle: repository_full_handle,
-        comment_id: comment_id,
-        body: body
-      })
-    else
-      {:error, :repository_not_connected}
+        client.update_comment(%{
+          repository_full_handle: repository_full_handle,
+          comment_id: comment_id,
+          body: body,
+          installation_id: installation_id
+        })
+
+      {:error, :not_found} ->
+        {:error, :repository_not_connected}
     end
   end
 
@@ -228,19 +184,13 @@ defmodule Tuist.VCS do
         git_remote_url_origin |> get_repository_full_handle_from_url() |> elem(1)
       end
 
-    should_post_report =
-      not is_nil(git_commit_sha) and
-        not is_nil(git_ref) and
-        not is_nil(repository_full_handle) and
-        connected?(%{
-          repository_full_handle: repository_full_handle,
-          project: project
-        }) and
-        String.starts_with?(git_ref, "refs/pull/")
-
-    if should_post_report do
+    with true <- not is_nil(git_commit_sha),
+         true <- not is_nil(git_ref),
+         true <- not is_nil(repository_full_handle),
+         true <- String.starts_with?(git_ref, "refs/pull/"),
+         {:ok, installation_id} <-
+           get_github_app_installation_id(%{repository_full_handle: repository_full_handle, project: project}) do
       client = get_client_for_provider(:github)
-
       issue_id = get_issue_id_from_git_ref(git_ref)
 
       vcs_comment_body =
@@ -259,7 +209,8 @@ defmodule Tuist.VCS do
         get_existing_vcs_comment_id(%{
           client: client,
           repository: repository_full_handle,
-          issue_id: issue_id
+          issue_id: issue_id,
+          installation_id: installation_id
         })
 
       update_or_create_vcs_comment(%{
@@ -267,13 +218,22 @@ defmodule Tuist.VCS do
         repository: repository_full_handle,
         issue_id: issue_id,
         existing_comment: existing_comment,
-        client: client
+        client: client,
+        installation_id: installation_id
       })
+    else
+      # No GitHub app installation, skip posting comment
+      _ -> :ok
     end
   end
 
-  defp get_existing_vcs_comment_id(%{client: client, repository: repository, issue_id: issue_id}) do
-    case client.get_comments(%{repository_full_handle: repository, issue_id: issue_id}) do
+  defp get_existing_vcs_comment_id(%{
+         client: client,
+         repository: repository,
+         issue_id: issue_id,
+         installation_id: installation_id
+       }) do
+    case client.get_comments(%{repository_full_handle: repository, issue_id: issue_id, installation_id: installation_id}) do
       {:ok, comments} ->
         Enum.find(comments, fn comment ->
           comment.client_id == Environment.github_app_client_id() and
@@ -290,7 +250,8 @@ defmodule Tuist.VCS do
          repository: repository,
          issue_id: issue_id,
          existing_comment: existing_comment,
-         client: client
+         client: client,
+         installation_id: installation_id
        }) do
     cond do
       is_nil(vcs_comment_body) ->
@@ -300,14 +261,16 @@ defmodule Tuist.VCS do
         client.create_comment(%{
           repository_full_handle: repository,
           issue_id: issue_id,
-          body: vcs_comment_body
+          body: vcs_comment_body,
+          installation_id: installation_id
         })
 
       true ->
         client.update_comment(%{
           repository_full_handle: repository,
           comment_id: existing_comment.id,
-          body: vcs_comment_body
+          body: vcs_comment_body,
+          installation_id: installation_id
         })
     end
   end
@@ -392,9 +355,11 @@ defmodule Tuist.VCS do
          git_remote_url_origin: git_remote_url_origin,
          bundle_url: bundle_url
        }) do
+    git_ref_pattern = get_git_ref_pattern(git_ref)
+
     bundles =
       from(b in Bundle)
-      |> where([b], b.project_id == ^project.id and b.git_ref == ^git_ref)
+      |> where([b], b.project_id == ^project.id and like(b.git_ref, ^git_ref_pattern))
       |> order_by([b], desc: b.inserted_at)
       |> distinct([b], b.name)
       |> Repo.all()
@@ -462,15 +427,23 @@ defmodule Tuist.VCS do
     issue_id
   end
 
+  defp get_git_ref_pattern(git_ref) do
+    case String.split(git_ref, "/") do
+      ["refs", "pull", pr_number, _suffix] -> "refs/pull/#{pr_number}/%"
+      _ -> git_ref
+    end
+  end
+
   defp get_latest_command_events(
          %{get_identifier: get_identifier, name: name, git_ref: git_ref, project: project},
          opts \\ []
        ) do
     filter = Keyword.get(opts, :filter, fn _ -> true end)
+    git_ref_pattern = get_git_ref_pattern(git_ref)
 
     %{
       name: name,
-      git_ref: git_ref,
+      git_ref: git_ref_pattern,
       project: project
     }
     |> CommandEvents.get_command_events_by_name_git_ref_and_project(preload: [:preview])
@@ -493,8 +466,10 @@ defmodule Tuist.VCS do
   end
 
   defp latest_previews(%{git_ref: git_ref, project: project}) do
+    git_ref_pattern = get_git_ref_pattern(git_ref)
+
     from(p in Preview)
-    |> where([p], p.project_id == ^project.id and p.git_ref == ^git_ref)
+    |> where([p], p.project_id == ^project.id and like(p.git_ref, ^git_ref_pattern))
     |> order_by([p], desc: p.inserted_at)
     |> distinct([p], p.display_name)
     |> Repo.all()
@@ -602,8 +577,10 @@ defmodule Tuist.VCS do
   end
 
   defp get_latest_builds(%{git_ref: git_ref, project: project}) do
+    git_ref_pattern = get_git_ref_pattern(git_ref)
+
     from(b in Runs.Build)
-    |> where([b], b.project_id == ^project.id and b.git_ref == ^git_ref)
+    |> where([b], b.project_id == ^project.id and like(b.git_ref, ^git_ref_pattern))
     |> order_by([b], desc: b.inserted_at)
     |> Repo.all()
     |> Enum.filter(&(not is_nil(&1.scheme)))

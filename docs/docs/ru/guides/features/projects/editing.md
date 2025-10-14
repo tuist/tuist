@@ -18,7 +18,7 @@ project that contains all manifest files and allows you to edit and compile
 them. Thanks to using Xcode, you get all the benefits of **code completion,
 syntax highlighting, and error checking**.
 
-## Edit the project {#edit-the-project}
+## Редактирование проекта {#edit-the-project}
 
 To edit your project, you can run the following command in a Tuist project
 directory or a sub-directory:

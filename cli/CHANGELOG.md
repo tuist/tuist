@@ -1,6 +1,54 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.85.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* Generated projects with binaries not replacing some targets with macros as transitive dependencies by [@pepicrft](https://github.com/pepicrft) in [#8444](https://github.com/tuist/tuist/pull/8444)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.85.0...4.85.1
+
+## What's Changed in 4.85.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* Optimize resource interface synthesis through parallelization by [@pepicrft](https://github.com/pepicrft) in [#8436](https://github.com/tuist/tuist/pull/8436)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.84.3...4.85.0
+
+## What's Changed in 4.84.3<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* don't report clean action by [@fortmarek](https://github.com/fortmarek) in [#8439](https://github.com/tuist/tuist/pull/8439)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.84.2...4.84.3
+
+## What's Changed in 4.84.2<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* Handle target action input and output file paths that contain variables by [@pepicrft](https://github.com/pepicrft) in [#8432](https://github.com/tuist/tuist/pull/8432)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.84.1...4.84.2
+
+## What's Changed in 4.84.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* align 'tuist hash cache' to use same generator as cache warming by [@pepicrft](https://github.com/pepicrft) in [#8427](https://github.com/tuist/tuist/pull/8427)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.84.0...4.84.1
+
+## What's Changed in 4.84.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* Improve remote cache error handling by [@pepicrft](https://github.com/pepicrft) in [#8413](https://github.com/tuist/tuist/pull/8413)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.83.0...4.84.0
+
 ## What's Changed in 4.83.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features

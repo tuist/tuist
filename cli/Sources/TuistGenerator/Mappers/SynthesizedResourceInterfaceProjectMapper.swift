@@ -52,8 +52,10 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
         }
         Logger.current.debug("Transforming project \(project.name): Synthesizing resource accessors")
 
-        let mappings = try project.targets.values
-            .map { try mapTarget($0, project: project) }
+        let targetsArray = Array(project.targets.values)
+        let mappings = try targetsArray.map(context: .concurrent) { target in
+            try mapTarget(target, project: project)
+        }
 
         let targets: [Target] = mappings.map(\.0)
         let sideEffects: [SideEffectDescriptor] = mappings.map(\.1).flatMap { $0 }
@@ -74,9 +76,7 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
         let resourcesForSynthesizersPaths = resourcePaths(target, project: project)
         guard !resourcesForSynthesizersPaths.isEmpty, target.supportsSources else { return (target, []) }
 
-        var target = target
-
-        let sideEffects: [SideEffectDescriptor] = try project.resourceSynthesizers
+        let synthesizersWithTemplates = try project.resourceSynthesizers
             .map { resourceSynthesizer throws -> (ResourceSynthesizer, String) in
                 switch resourceSynthesizer.template {
                 case let .file(path):
@@ -86,29 +86,31 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
                     return (resourceSynthesizer, try templateString(for: resourceSynthesizer.parser))
                 }
             }
-            .reduce([]) { acc, current in
-                let (parser, templateString) = current
-                let interfaceTypeEffects: [SideEffectDescriptor]
-                (target, interfaceTypeEffects) = try renderAndMapTarget(
-                    parser,
-                    templateString: templateString,
-                    target: target,
-                    project: project
-                )
-                return acc + interfaceTypeEffects
-            }
+
+        let results = try synthesizersWithTemplates.map(context: .concurrent) { resourceSynthesizer, templateString in
+            try renderResourceInterface(
+                resourceSynthesizer,
+                templateString: templateString,
+                target: target,
+                project: project
+            )
+        }
+
+        var target = target
+        target.sources += results.flatMap(\.sources)
+        let sideEffects = results.flatMap(\.sideEffects)
 
         return (target, sideEffects)
     }
 
-    /// - Returns: Modified `Target`, side effects, input paths and output paths which can then be later used in generate script
-    private func renderAndMapTarget(
+    /// - Returns: Source files and side effects for a given resource synthesizer
+    private func renderResourceInterface(
         _ resourceSynthesizer: ResourceSynthesizer,
         templateString: String,
         target: Target,
         project: Project
     ) throws -> (
-        target: Target,
+        sources: [SourceFile],
         sideEffects: [SideEffectDescriptor]
     ) {
         let derivedPath = project.path
@@ -131,20 +133,17 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
             }
         )
 
-        var target = target
-
-        target.sources += try renderedResources
-            .map { resource in
-                let hash = try resource.contents.map(contentHasher.hash)
-                return SourceFile(path: resource.path, contentHash: hash)
-            }
+        let sources = try Array(renderedResources).map(context: .concurrent) { resource in
+            let hash = try resource.contents.map(contentHasher.hash)
+            return SourceFile(path: resource.path, contentHash: hash)
+        }
 
         let sideEffects = renderedResources
             .map { FileDescriptor(path: $0.path, contents: $0.contents) }
             .map(SideEffectDescriptor.file)
 
         return (
-            target: target,
+            sources: sources,
             sideEffects: sideEffects
         )
     }
@@ -183,19 +182,21 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
             }()
         case .plists:
             // Exclude binary plists from synthesized interface generation
-            paths = paths.filter { path in
+            let plistChecks = paths.map(context: .concurrent) { path -> (AbsolutePath, Bool) in
                 do {
                     let fileHandle = try FileHandle(forReadingFrom: path.url)
                     defer { try? fileHandle.close() }
 
                     let bplistSignature = "bplist00"
                     let signature = try fileHandle.read(upToCount: bplistSignature.count)
-                    return signature != Data(bplistSignature.utf8)
+                    let isNotBinary = signature != Data(bplistSignature.utf8)
+                    return (path, isNotBinary)
                 } catch {
                     AlertController.current.warning(.alert("\(path.basename) is not a valid plist or unreadable."))
-                    return false
+                    return (path, false)
                 }
             }
+            paths = plistChecks.filter(\.1).map(\.0)
         case .assets, .coreData, .fonts, .interfaceBuilder, .json, .yaml, .files, .stringsCatalog:
             break
         }

@@ -11,313 +11,69 @@ import XcodeGraph
 
 @testable import TuistKit
 
-struct HashCacheCommandServiceTests {
-    private var subject: HashCacheCommandService!
-    private var generator: MockGenerating!
-    private var generatorFactory: MockGeneratorFactorying!
-    private var cacheGraphContentHasher: MockCacheGraphContentHashing!
-    private var clock: Clock!
-    private var path: String!
-    private var configLoader: MockConfigLoading!
-    private var manifestLoader: MockManifestLoading!
-    private var manifestGraphLoader: MockManifestGraphLoading!
-    private var xcodeGraphMapper: MockXcodeGraphMapping!
+#if canImport(TuistCacheEE)
+    struct HashCacheCommandServiceTests {
+        private let generatorFactory = MockCacheGeneratorFactorying()
+        private let cacheGraphContentHasher = MockCacheGraphContentHashing()
+        private let configLoader = MockConfigLoading()
+        private let manifestloader = MockManifestLoading()
+        private let subject: HashCacheCommandService!
 
-    init() {
-        path = "/Test"
-        generatorFactory = MockGeneratorFactorying()
-        generator = .init()
-        given(generatorFactory)
-            .defaultGenerator(config: .any, includedTargets: .any)
-            .willReturn(generator)
-
-        cacheGraphContentHasher = MockCacheGraphContentHashing()
-        clock = StubClock()
-
-        configLoader = .init()
-        given(configLoader)
-            .loadConfig(path: .any)
-            .willReturn(.default)
-        manifestLoader = MockManifestLoading()
-        manifestGraphLoader = MockManifestGraphLoading()
-        xcodeGraphMapper = MockXcodeGraphMapping()
-
-        subject = HashCacheCommandService(
-            generatorFactory: generatorFactory,
-            cacheGraphContentHasher: cacheGraphContentHasher,
-            clock: clock,
-            configLoader: configLoader,
-            manifestLoader: manifestLoader,
-            manifestGraphLoader: manifestGraphLoader
-        )
-    }
-
-    @Test func errors_when_notGeneratedProject() async throws {
-        // Given
-        let subject = HashCacheCommandService(
-            generatorFactory: generatorFactory,
-            cacheGraphContentHasher: cacheGraphContentHasher,
-            clock: clock,
-            configLoader: configLoader,
-            manifestLoader: manifestLoader,
-            manifestGraphLoader: manifestGraphLoader
-        )
-        let fullPath = FileHandler.shared.currentPath.pathString + "/full/path"
-        let graph = Graph.test()
-        given(cacheGraphContentHasher)
-            .contentHashes(
-                for: .any,
-                configuration: .any,
-                defaultConfiguration: .any,
-                excludedTargets: .any,
-                destination: .any
-            )
-            .willReturn([:])
-        given(xcodeGraphMapper).map(at: .value(try AbsolutePath(validating: fullPath))).willReturn(
-            graph
-        )
-
-        given(manifestLoader).hasRootManifest(at: .value(try AbsolutePath(validating: fullPath)))
-            .willReturn(false)
-
-        // When
-        await #expect(
-            throws: HashCacheCommandServiceError.generatedProjectNotFound(
-                try AbsolutePath(validating: fullPath)
-            ),
-            performing: {
-                try await subject.run(path: fullPath, configuration: nil)
-            }
-        )
-    }
-
-    @Test func run_withFullPath_loads_the_graph() async throws {
-        // Given
-        let subject = HashCacheCommandService(
-            generatorFactory: generatorFactory,
-            cacheGraphContentHasher: cacheGraphContentHasher,
-            clock: clock,
-            configLoader: configLoader,
-            manifestLoader: manifestLoader,
-            manifestGraphLoader: manifestGraphLoader
-        )
-        let fullPath = FileHandler.shared.currentPath.pathString + "/full/path"
-        given(cacheGraphContentHasher)
-            .contentHashes(
-                for: .any,
-                configuration: .any,
-                defaultConfiguration: .any,
-                excludedTargets: .any,
-                destination: .any
-            )
-            .willReturn([:])
-        given(generator)
-            .load(path: .any, options: .any)
-            .willReturn(.test())
-        given(manifestLoader).hasRootManifest(at: .value(try AbsolutePath(validating: fullPath)))
-            .willReturn(true)
-
-        // When
-        _ = try await subject.run(path: fullPath, configuration: nil)
-
-        // Then
-        verify(generator)
-            .load(path: .value(try AbsolutePath(validating: fullPath)), options: .any)
-            .called(1)
-    }
-
-    @Test func run_withoutPath_loads_the_graph() async throws {
-        // Given
-        let subject = HashCacheCommandService(
-            generatorFactory: generatorFactory,
-            cacheGraphContentHasher: cacheGraphContentHasher,
-            clock: clock,
-            configLoader: configLoader,
-            manifestLoader: manifestLoader,
-            manifestGraphLoader: manifestGraphLoader
-        )
-        given(cacheGraphContentHasher)
-            .contentHashes(
-                for: .any,
-                configuration: .any,
-                defaultConfiguration: .any,
-                excludedTargets: .any,
-                destination: .any
-            )
-            .willReturn([:])
-        given(generator)
-            .load(path: .any, options: .any)
-            .willReturn(.test())
-        given(manifestLoader).hasRootManifest(at: .any).willReturn(true)
-
-        // When
-        _ = try await subject.run(path: nil, configuration: nil)
-
-        // Then
-        verify(generator)
-            .load(path: .value(FileHandler.shared.currentPath), options: .any)
-            .called(1)
-    }
-
-    @Test func run_withRelativePath__loads_the_graph() async throws {
-        // Given
-        let subject = HashCacheCommandService(
-            generatorFactory: generatorFactory,
-            cacheGraphContentHasher: cacheGraphContentHasher,
-            clock: clock,
-            configLoader: configLoader,
-            manifestLoader: manifestLoader,
-            manifestGraphLoader: manifestGraphLoader
-        )
-        given(cacheGraphContentHasher)
-            .contentHashes(
-                for: .any,
-                configuration: .any,
-                defaultConfiguration: .any,
-                excludedTargets: .any,
-                destination: .any
-            )
-            .willReturn([:])
-        given(generator)
-            .load(path: .any, options: .any)
-            .willReturn(.test())
-        given(manifestLoader).hasRootManifest(at: .any).willReturn(true)
-
-        // When
-        _ = try await subject.run(path: "RelativePath", configuration: nil)
-
-        // Then
-        verify(generator)
-            .load(
-                path: .value(
-                    try AbsolutePath(
-                        validating: "RelativePath", relativeTo: FileHandler.shared.currentPath
-                    )
-                ),
-                options: .any
-            )
-            .called(1)
-    }
-
-    @Test func run_loads_the_graph() async throws {
-        // Given
-        let subject = HashCacheCommandService(
-            generatorFactory: generatorFactory,
-            cacheGraphContentHasher: cacheGraphContentHasher,
-            clock: clock,
-            configLoader: configLoader,
-            manifestLoader: manifestLoader,
-            manifestGraphLoader: manifestGraphLoader
-        )
-        given(cacheGraphContentHasher)
-            .contentHashes(
-                for: .any,
-                configuration: .any,
-                defaultConfiguration: .any,
-                excludedTargets: .any,
-                destination: .any
-            )
-            .willReturn([:])
-        given(generator)
-            .load(path: .any, options: .any)
-            .willReturn(.test())
-        given(manifestLoader).hasRootManifest(at: .any).willReturn(true)
-
-        // When
-        _ = try await subject.run(path: path, configuration: nil)
-
-        // Then
-        verify(generator)
-            .load(path: .value(try AbsolutePath(validating: "/Test")), options: .any)
-            .called(1)
-    }
-
-    @Test func run_content_hasher_gets_correct_graph() async throws {
-        // Given
-        let subject = HashCacheCommandService(
-            generatorFactory: generatorFactory,
-            cacheGraphContentHasher: cacheGraphContentHasher,
-            clock: clock,
-            configLoader: configLoader,
-            manifestLoader: manifestLoader,
-            manifestGraphLoader: manifestGraphLoader
-        )
-        let graph = Graph.test()
-        given(generator)
-            .load(path: .any, options: .any)
-            .willReturn(graph)
-
-        given(cacheGraphContentHasher)
-            .contentHashes(
-                for: .value(graph),
-                configuration: .any,
-                defaultConfiguration: .any,
-                excludedTargets: .any,
-                destination: .any
-            )
-            .willReturn([:])
-        given(manifestLoader).hasRootManifest(at: .any).willReturn(true)
-
-        // When / Then
-        _ = try await subject.run(path: path, configuration: nil)
-    }
-
-    @Test func run_outputs_correct_hashes() async throws {
-        try await withMockedDependencies {
-            // Given
-            let target1 = GraphTarget.test(target: .test(name: "ShakiOne"))
-            let target2 = GraphTarget.test(target: .test(name: "ShakiTwo"))
-            given(cacheGraphContentHasher)
-                .contentHashes(
-                    for: .any,
-                    configuration: .any,
-                    defaultConfiguration: .any,
-                    excludedTargets: .any,
-                    destination: .any
-                )
-                .willReturn([target1: "hash1", target2: "hash2"])
-
-            given(generator)
-                .load(path: .any, options: .any)
-                .willReturn(.test())
-            given(manifestLoader).hasRootManifest(at: .any).willReturn(true)
-
-            let subject = HashCacheCommandService(
+        init() {
+            subject = HashCacheCommandService(
                 generatorFactory: generatorFactory,
                 cacheGraphContentHasher: cacheGraphContentHasher,
-                clock: clock,
                 configLoader: configLoader,
-                manifestLoader: manifestLoader,
-                manifestGraphLoader: manifestGraphLoader
+                manifestLoader: manifestloader
             )
+        }
 
+        @Test func run_when_noRootManifest() async throws {
+            // Given
+            let path = try AbsolutePath(validating: "/project")
+            given(manifestloader).hasRootManifest(at: .value(path)).willReturn(false)
+
+            // When/Then
+            await #expect(throws: HashCacheCommandServiceError.generatedProjectNotFound(path)) {
+                try await subject.run(
+                    path: path.pathString,
+                    configuration: nil
+                )
+            }
+        }
+
+        @Test(.withMockedLogger()) func run_when_rootManifest() async throws {
+            // Given
+            let path = try AbsolutePath(validating: "/project")
+            let config = Tuist.test()
+            let generator = MockGenerating()
+            let graph = Graph.test()
+            let graphTarget = GraphTarget.test()
+            let hash = UUID().uuidString
+            given(configLoader).loadConfig(path: .value(path)).willReturn(config)
+            given(generatorFactory).binaryCacheWarmingPreload(
+                config: .value(config),
+                targetsToBinaryCache: .value([])
+            ).willReturn(generator)
+            given(generator).load(path: .value(path), options: .value(config.project.generatedProject?.generationOptions))
+                .willReturn(graph)
+            given(manifestloader).hasRootManifest(at: .value(path)).willReturn(true)
+            given(cacheGraphContentHasher).contentHashes(
+                for: .value(graph),
+                configuration: .value("Debug"),
+                defaultConfiguration: .value(config.project.generatedProject?
+                    .generationOptions.defaultConfiguration
+                ),
+                excludedTargets: .value([]),
+                destination: .value(nil)
+            ).willReturn([
+                graphTarget: hash,
+            ])
             // When
-            _ = try await subject.run(path: path, configuration: nil)
+            try await subject.run(path: path.pathString, configuration: "Debug")
 
             // Then
-            try TuistTest.expectLogs("ShakiOne - hash1")
-            try TuistTest.expectLogs("ShakiTwo - hash2")
+            #expect(Logger.testingLogHandler.collected[.info, ==].contains(hash) == true)
         }
     }
-
-    func test_run_gives_correct_configuration_type_to_hasher() async throws {
-        // Given
-        given(cacheGraphContentHasher)
-            .contentHashes(
-                for: .any,
-                configuration: .value("Debug"),
-                defaultConfiguration: .any,
-                excludedTargets: .any,
-                destination: .any
-            )
-            .willReturn([:])
-        given(manifestLoader).hasRootManifest(at: .any).willReturn(true)
-
-        given(generator)
-            .load(path: .any, options: .any)
-            .willReturn(.test())
-
-        // When / Then
-        _ = try await subject.run(path: path, configuration: "Debug")
-    }
-}
+#endif

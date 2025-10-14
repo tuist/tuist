@@ -32,6 +32,9 @@ defmodule Tuist.Authorization do
       desc("Allows the authenticated project to read the run if it matches the project whose run is being read.")
 
       allow([:authenticated_as_project, :projects_match])
+
+      desc("Allows users with ops access to read any run.")
+      allow([:authenticated_as_user, :ops_access])
     end
 
     action :update do
@@ -76,6 +79,9 @@ defmodule Tuist.Authorization do
       desc("Allows the authenticated project to read the bundle if it matches the project whose bundle is being read.")
 
       allow([:authenticated_as_project, :projects_match])
+
+      desc("Allows users with ops access to read any bundle.")
+      allow([:authenticated_as_user, :ops_access])
     end
   end
 
@@ -105,6 +111,9 @@ defmodule Tuist.Authorization do
       desc("Allows the authenticated project to read the cache if it matches the project whose cache is being read.")
 
       allow([:authenticated_as_project, :projects_match])
+
+      desc("Allows users with ops access to read any cache.")
+      allow([:authenticated_as_user, :ops_access])
     end
 
     action :update do
@@ -181,6 +190,9 @@ defmodule Tuist.Authorization do
       desc("Allows the authenticated project to read the cache if it matches the project whose cache is being read.")
 
       allow([:authenticated_as_project, :accounts_match])
+
+      desc("Allows users with ops access to read any registry.")
+      allow([:authenticated_as_user, :ops_access])
     end
   end
 
@@ -211,6 +223,9 @@ defmodule Tuist.Authorization do
 
       desc("Allows the admin of an account to read account tokens.")
       allow([:authenticated_as_user, user_role: :admin])
+
+      desc("Allows users with ops access to read any account tokens.")
+      allow([:authenticated_as_user, :ops_access])
     end
 
     action :delete do
@@ -275,6 +290,9 @@ defmodule Tuist.Authorization do
       desc("Allows the authenticated project to read the preview if it matches the project whose preview is being read.")
 
       allow([:authenticated_as_project, :projects_match])
+
+      desc("Allows users with ops access to read any preview.")
+      allow([:authenticated_as_user, :ops_access])
     end
 
     action :delete do
@@ -307,20 +325,14 @@ defmodule Tuist.Authorization do
 
       desc("Allows the admin of an account to read projects.")
       allow([:authenticated_as_user, user_role: :admin])
+
+      desc("Allows users with ops access to read any projects.")
+      allow([:authenticated_as_user, :ops_access])
     end
 
     action :update do
       desc("Allows the admin of an account to update a project.")
       allow([:authenticated_as_user, user_role: :admin])
-    end
-
-    action :update_repository do
-      desc("Allows the admin of an account to update a project with repository changes.")
-      allow([:authenticated_as_user, user_role: :admin])
-
-      desc("Allows users with repository write/admin permissions to update a project with repository changes.")
-
-      allow([:authenticated_as_user, :repository_permission_check])
     end
 
     action :delete do
@@ -339,6 +351,9 @@ defmodule Tuist.Authorization do
 
       desc("Allows the admin of an account to read private project dashboards.")
       allow([:authenticated_as_user, user_role: :admin])
+
+      desc("Allows users with ops access to read any dashboard.")
+      allow([:authenticated_as_user, :ops_access])
     end
   end
 
@@ -346,6 +361,9 @@ defmodule Tuist.Authorization do
     action :read do
       desc("Allows admins to read billing information for Tuist hosted accounts.")
       allow([:authenticated_as_user, :billing_access])
+
+      desc("Allows users with ops access to read any billing information.")
+      allow([:authenticated_as_user, :ops_access])
     end
 
     action :update do
@@ -359,6 +377,9 @@ defmodule Tuist.Authorization do
 
       desc("Allows the admin of an account to read organization token usage.")
       allow([:authenticated_as_user, user_role: :admin])
+
+      desc("Allows users with ops access to read any organization token usage.")
+      allow([:authenticated_as_user, :ops_access])
     end
   end
 
@@ -369,6 +390,9 @@ defmodule Tuist.Authorization do
 
       desc("Allows the admin of an account to read projects.")
       allow([:authenticated_as_user, user_role: :admin])
+
+      desc("Allows users with ops access to read any projects.")
+      allow([:authenticated_as_user, :ops_access])
     end
   end
 
@@ -379,6 +403,9 @@ defmodule Tuist.Authorization do
 
       desc("Allows the admin of an account to read organization info.")
       allow([:authenticated_as_user, user_role: :admin])
+
+      desc("Allows users with ops access to read any organization info.")
+      allow([:authenticated_as_user, :ops_access])
     end
 
     action :update do
@@ -401,6 +428,9 @@ defmodule Tuist.Authorization do
     action :read do
       desc("Allows the admin of an account to read invitations.")
       allow([:authenticated_as_user, user_role: :admin])
+
+      desc("Allows users with ops access to read any invitations.")
+      allow([:authenticated_as_user, :ops_access])
     end
 
     action :delete do
@@ -439,6 +469,9 @@ defmodule Tuist.Authorization do
       desc("Allows reading command events if the user can read the associated project or if the project is public.")
 
       allow(:command_event_project_access)
+
+      desc("Allows users with ops access to read any command events.")
+      allow([:authenticated_as_user, :ops_access])
     end
   end
 

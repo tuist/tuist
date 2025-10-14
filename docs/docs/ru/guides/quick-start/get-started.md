@@ -5,7 +5,7 @@
   "description": "Learn how to install Tuist in your environment."
 }
 ---
-# Get started {#get-started}
+# Начало работы {#get-started}
 
 The easiest way to get started with Tuist in any directory or in the directory
 of your Xcode project or workspace:
