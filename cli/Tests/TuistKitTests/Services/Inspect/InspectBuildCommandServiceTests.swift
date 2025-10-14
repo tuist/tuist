@@ -157,7 +157,8 @@ struct InspectBuildCommandServiceTests {
                 )
             )
         given(xcActivityLogController).mostRecentActivityLogFile(
-            projectDerivedDataDirectory: .value(derivedDataPath)
+            projectDerivedDataDirectory: .value(derivedDataPath),
+            filter: .any
         ).willReturn(
             .test(
                 path: activityLogPath,
@@ -246,8 +247,9 @@ struct InspectBuildCommandServiceTests {
             )
         var numberOfAttempts = 0
         given(xcActivityLogController).mostRecentActivityLogFile(
-            projectDerivedDataDirectory: .value(derivedDataPath)
-        ).willProduce { _ in
+            projectDerivedDataDirectory: .value(derivedDataPath),
+            filter: .any
+        ).willProduce { _, _ in
             numberOfAttempts = numberOfAttempts + 1
             if numberOfAttempts > 2 {
                 return .test(path: activityLogPath, timeStoppedRecording: Date(timeIntervalSinceReferenceDate: 20))
@@ -348,14 +350,16 @@ struct InspectBuildCommandServiceTests {
                     "id": XCLogStoreManifestPlist.ActivityLog(
                         fileName: "id.xcactivitylog",
                         timeStartedRecording: 10,
-                        timeStoppedRecording: 20
+                        timeStoppedRecording: 20,
+                        signature: "Build Tuist"
                     ),
                 ]
             ),
             at: buildLogsPath.appending(component: "LogStoreManifest.plist")
         )
         given(xcActivityLogController).mostRecentActivityLogFile(
-            projectDerivedDataDirectory: .value(derivedDataPath)
+            projectDerivedDataDirectory: .value(derivedDataPath),
+            filter: .any
         ).willReturn(.test(path: activityLogPath))
         given(xcActivityLogController)
             .parse(.value(activityLogPath))
@@ -396,7 +400,8 @@ struct InspectBuildCommandServiceTests {
                         "id": XCLogStoreManifestPlist.ActivityLog(
                             fileName: "id.xcactivitylog",
                             timeStartedRecording: 10,
-                            timeStoppedRecording: 20
+                            timeStoppedRecording: 20,
+                            signature: "Build Tuist"
                         ),
                     ]
                 ),
@@ -406,7 +411,8 @@ struct InspectBuildCommandServiceTests {
                 .parse(.value(activityLogPath))
                 .willReturn(.test())
             given(xcActivityLogController).mostRecentActivityLogFile(
-                projectDerivedDataDirectory: .value(derivedDataPath)
+                projectDerivedDataDirectory: .value(derivedDataPath),
+                filter: .any
             ).willReturn(.test(path: activityLogPath))
 
             given(gitController)
@@ -453,7 +459,8 @@ struct InspectBuildCommandServiceTests {
             .locate(for: .any)
             .willReturn(derivedDataPath)
         given(xcActivityLogController).mostRecentActivityLogFile(
-            projectDerivedDataDirectory: .value(derivedDataPath)
+            projectDerivedDataDirectory: .value(derivedDataPath),
+            filter: .any
         ).willReturn(nil)
 
         given(gitController)
@@ -492,7 +499,8 @@ struct InspectBuildCommandServiceTests {
                     "id": XCLogStoreManifestPlist.ActivityLog(
                         fileName: "id.xcactivitylog",
                         timeStartedRecording: 10,
-                        timeStoppedRecording: 20
+                        timeStoppedRecording: 20,
+                        signature: "Build Tuist"
                     ),
                 ]
             ),
@@ -502,7 +510,8 @@ struct InspectBuildCommandServiceTests {
             .parse(.value(activityLogPath))
             .willReturn(.test())
         given(xcActivityLogController).mostRecentActivityLogFile(
-            projectDerivedDataDirectory: .value(derivedDataPath)
+            projectDerivedDataDirectory: .value(derivedDataPath),
+            filter: .any
         ).willReturn(.test(path: activityLogPath))
         configLoader.reset()
         given(configLoader)
