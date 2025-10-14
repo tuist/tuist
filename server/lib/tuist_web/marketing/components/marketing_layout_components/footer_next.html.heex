@@ -15,7 +15,7 @@
         src={~p"/marketing/images/components/footer/soc2.webp"}
         alt="SOC 2 Type II Certified"
       />
-      <.link href="https://status.tuist.dev" target="_blank">
+      <.link href="https://status.tuist.dev" target="_blank" rel="noopener noreferrer">
         <% any_ongoing_incident? = Tuist.Incidents.any_ongoing_incident?() %>
         <.status_badge
           :if={not any_ongoing_incident?}
@@ -38,6 +38,7 @@
           <.link
             data-part="link"
             target="_blank"
+            rel="noopener noreferrer"
             href={
               TuistWeb.Marketing.MarketingHTML.localized_href(
                 "https://docs.tuist.dev/guides/features/projects"
@@ -49,6 +50,7 @@
           <.link
             data-part="link"
             target="_blank"
+            rel="noopener noreferrer"
             href={
               TuistWeb.Marketing.MarketingHTML.localized_href(
                 "https://docs.tuist.dev/guides/features/cache"
@@ -60,6 +62,7 @@
           <.link
             data-part="link"
             target="_blank"
+            rel="noopener noreferrer"
             href={
               TuistWeb.Marketing.MarketingHTML.localized_href(
                 "https://docs.tuist.dev/guides/features/selective-testing"
@@ -71,6 +74,7 @@
           <.link
             data-part="link"
             target="_blank"
+            rel="noopener noreferrer"
             href={
               TuistWeb.Marketing.MarketingHTML.localized_href(
                 "https://docs.tuist.dev/guides/features/registry"
@@ -82,6 +86,7 @@
           <.link
             data-part="link"
             target="_blank"
+            rel="noopener noreferrer"
             href={
               TuistWeb.Marketing.MarketingHTML.localized_href(
                 "https://docs.tuist.dev/guides/features/insights"
@@ -93,6 +98,7 @@
           <.link
             data-part="link"
             target="_blank"
+            rel="noopener noreferrer"
             href={
               TuistWeb.Marketing.MarketingHTML.localized_href(
                 "https://docs.tuist.dev/guides/features/bundle-size"
@@ -104,6 +110,7 @@
           <.link
             data-part="link"
             target="_blank"
+            rel="noopener noreferrer"
             href={
               TuistWeb.Marketing.MarketingHTML.localized_href(
                 "https://docs.tuist.dev/guides/features/qa"
@@ -115,6 +122,7 @@
           <.link
             data-part="link"
             target="_blank"
+            rel="noopener noreferrer"
             href={
               TuistWeb.Marketing.MarketingHTML.localized_href(
                 "https://docs.tuist.dev/guides/features/previews"
@@ -157,10 +165,10 @@
       <section data-part="column">
         <h3 data-part="title">{gettext("Community")}</h3>
         <ul data-part="links">
-          <.link data-part="link" target="_blank" href="https://slack.tuist.dev">
+          <.link data-part="link" target="_blank" rel="noopener noreferrer" href="https://slack.tuist.dev">
             {gettext("Slack")}
           </.link>
-          <.link data-part="link" target="_blank" href="https://community.tuist.dev">
+          <.link data-part="link" target="_blank" rel="noopener noreferrer" href="https://community.tuist.dev">
             {gettext("Community forum")}
           </.link>
           <.link
@@ -169,7 +177,7 @@
           >
             {gettext("Newsletter")}
           </.link>
-          <.link data-part="link" target="_blank" href="https://github.com/tuist/tuist/issues">
+          <.link data-part="link" target="_blank" rel="noopener noreferrer" href="https://github.com/tuist/tuist/issues">
             {gettext("Issues")}
           </.link>
         </ul>
@@ -189,19 +197,19 @@
       <section data-part="column">
         <h3 data-part="title">{gettext("Socials")}</h3>
         <ul data-part="links">
-          <.link data-part="link" href="https://fosstodon.org/@tuist" target="_blank">
+          <.link data-part="link" href="https://fosstodon.org/@tuist" target="_blank" rel="noopener noreferrer">
             {gettext("Mastodon")}
           </.link>
-          <.link data-part="link" href="http://github.com/tuist" target="_blank">
+          <.link data-part="link" href="http://github.com/tuist" target="_blank" rel="noopener noreferrer">
             {gettext("GitHub")}
           </.link>
-          <.link data-part="link" href="https://bsky.app/profile/tuist.dev" target="_blank">
+          <.link data-part="link" href="https://bsky.app/profile/tuist.dev" target="_blank" rel="noopener noreferrer">
             {gettext("Bluesky")}
           </.link>
-          <.link data-part="link" href="https://www.linkedin.com/company/tuistio/" target="_blank">
+          <.link data-part="link" href="https://www.linkedin.com/company/tuistio/" target="_blank" rel="noopener noreferrer">
             {gettext("LinkedIn")}
           </.link>
-          <.link data-part="link" href="https://videos.tuist.dev" target="_blank">
+          <.link data-part="link" href="https://videos.tuist.dev" target="_blank" rel="noopener noreferrer">
             {gettext("Videos")}
           </.link>
         </ul>
