@@ -57,6 +57,7 @@
         justify-content: center;
         align-items: center;
         gap: var(--noora-spacing-5);
+        text-align: center;
 
         & > [data-part="swift-logo"] img {
           width: auto;
@@ -70,6 +71,7 @@
         font: var(--noora-font-weight-medium) var(--noora-font-display-xlarge);
         letter-spacing: -0.045rem;
         text-shadow: 0px 1px 1px rgba(0, 0, 0, 0.25);
+        text-align: center;
       }
     }
 
@@ -95,59 +97,22 @@
   }
 
   & > [data-part="graphic"] {
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    gap: var(--noora-spacing-3);
-    padding: var(--noora-spacing-5);
+    position: relative;
+    width: 100%;
 
-    & > [data-part="rows"] {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      gap: var(--noora-spacing-3);
+    & > [data-part="background"] {
+      width: 100%;
+      height: auto;
+      object-fit: contain;
+    }
 
-      & > [data-part="runs"] {
-        box-shadow: var(--noora-border-light-default);
-        border-radius: var(--noora-radius-medium);
-        width: 564px;
-        height: auto;
-        object-fit: cover;
-      }
-
-      & > [data-part="runs"] {
-        box-shadow: var(--noora-border-light-default);
-        border-radius: var(--noora-radius-medium);
-        width: 564px;
-        height: auto;
-        object-fit: cover;
-      }
-
-      & > [data-part="builds-time"] {
-        box-shadow: var(--noora-border-light-default);
-        border-radius: var(--noora-radius-medium);
-        width: 547px;
-        height: auto;
-        object-fit: cover;
-      }
-
-      & > [data-part="time-saved"],
-      [data-part="binary-cache"] {
-        box-shadow: var(--noora-border-light-default);
-        border-radius: var(--noora-radius-medium);
-        width: 435px;
-        height: auto;
-        object-fit: cover;
-      }
-
-      & > [data-part="sunburst"] {
-        box-shadow: var(--noora-border-light-default);
-        border-radius: var(--noora-radius-medium);
-        width: 235px;
-        height: auto;
-        object-fit: cover;
-      }
+    & > [data-part="build-times-card"] {
+      position: absolute;
+      top: var(--noora-spacing-5);
+      left: 0;
+      width: 331px;
+      height: auto;
+      object-fit: contain;
     }
   }
 
