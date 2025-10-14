@@ -10,10 +10,9 @@ defmodule TuistWeb.API.CASController do
   alias Tuist.Storage
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.Authentication
-  alias TuistWeb.Errors.BadRequestError
-  alias TuistWeb.Errors.NotFoundError
+  alias TuistWeb.API.Cache.Plugs.LoaderQueryPlug
 
-  plug(:load_project_from_query_params)
+  plug(LoaderQueryPlug)
   plug(TuistWeb.API.Authorization.AuthorizationPlug, :cache)
 
   plug(OpenApiSpex.Plug.CastAndValidate,
@@ -133,34 +132,4 @@ defmodule TuistWeb.API.CASController do
     end
   end
 
-  defp load_project_from_query_params(
-         %{query_params: %{"account_handle" => account_handle, "project_handle" => project_handle}} = conn,
-         _opts
-       ) do
-    project_slug = "#{account_handle}/#{project_handle}"
-
-    project = Projects.get_project_by_slug(project_slug, preload: [:account])
-
-    case project do
-      {:ok, project} ->
-        conn
-        |> assign(:selected_project, project)
-        |> assign(:selected_account, project.account)
-
-      {:error, :not_found} ->
-        raise NotFoundError,
-              gettext("The project %{project_slug} was not found.", %{project_slug: project_slug})
-
-      {:error, :invalid} ->
-        raise BadRequestError,
-              gettext(
-                "The project full handle %{project_slug} is invalid. It should follow the convention 'account_handle/project_handle'.",
-                %{project_slug: project_slug}
-              )
-    end
-  end
-
-  defp load_project_from_query_params(_conn, _opts) do
-    raise BadRequestError, "account_handle and project_handle query parameters are required"
-  end
 end

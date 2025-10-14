@@ -472,13 +472,11 @@ let targets: [Target] = [
     .target(
         name: "TuistCAS",
         dependencies: [
-            "TuistCore",
             "TuistServer",
             "TuistRootDirectoryLocator",
             .product(name: "GRPCCore", package: "grpc-swift-2"),
-            .product(name: "GRPCNIOTransportHTTP2", package: "grpc-swift-nio-transport"),
             .product(name: "GRPCProtobuf", package: "grpc-swift-protobuf"),
-            .product(name: "SwiftProtobuf", package: "grpc-swift-protobuf"),
+            .product(name: "SwiftProtobuf", package: "swift-protobuf"),
             "Mockable",
             pathDependency,
         ],
@@ -515,7 +513,6 @@ let package = Package(
         .executable(name: "tuistbenchmark", targets: ["tuistbenchmark"]),
         .executable(name: "tuistfixturegenerator", targets: ["tuistfixturegenerator"]),
         .executable(name: "tuist", targets: ["tuist"]),
-        .executable(name: "tuist-cas-proxy", targets: ["tuist-cas-proxy"]),
         .library(
             name: "ProjectDescription",
             type: .dynamic,
@@ -597,10 +594,6 @@ let package = Package(
             name: "TuistGenerator",
             targets: ["TuistGenerator"]
         ),
-        .library(
-            name: "TuistCAS",
-            targets: ["TuistCAS"]
-        ),
     ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-argument-parser", from: "1.5.0"),
@@ -668,6 +661,10 @@ let package = Package(
         .package(
             url: "https://github.com/lfroms/fluid-menu-bar-extra", .upToNextMajor(from: "1.1.0")),
         .package(url: "https://github.com/grpc/grpc-swift-2.git", from: "2.0.0"),
+        .package(
+            url: "https://github.com/apple/swift-protobuf.git",
+            from: "1.32.0"
+          ),
         .package(url: "https://github.com/grpc/grpc-swift-protobuf.git", from: "2.0.0"),
         .package(url: "https://github.com/grpc/grpc-swift-nio-transport.git", from: "2.0.0"),
     ],

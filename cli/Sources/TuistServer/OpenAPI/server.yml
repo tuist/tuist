@@ -3133,7 +3133,7 @@ paths:
   /api/cache/keyvalue:
     put:
       callbacks: {}
-      operationId: putKeyValue
+      operationId: putCacheValue
       parameters:
         - description: The handle of the project's account.
           in: query
@@ -3184,7 +3184,7 @@ paths:
               type: object
               x-struct:
               x-validate:
-        description: CAS key-value data
+        description: CAS entries with CAS ID
         required: true
       responses:
         '200':
@@ -3192,14 +3192,28 @@ paths:
             application/json:
               schema:
                 properties:
-                  count:
-                    type: integer
+                  entries:
+                    items:
+                      properties:
+                        id:
+                          description: The ID of the entry
+                          type: integer
+                          x-struct:
+                          x-validate:
+                      required:
+                        - id
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
                     x-struct:
                     x-validate:
+                required:
+                  - entries
                 type: object
                 x-struct:
                 x-validate:
-          description: Entries stored successfully
+          description: Value stored successfully
         '401':
           content:
             application/json:
@@ -4826,7 +4840,7 @@ paths:
   /api/cache/cas/{id}:
     get:
       callbacks: {}
-      operationId: getCASArtifact
+      operationId: loadCacheCAS
       parameters:
         - description: The handle of the project's account.
           in: query
@@ -4876,9 +4890,9 @@ paths:
       summary: Download a CAS artifact.
       tags:
         - CAS
-    put:
+    post:
       callbacks: {}
-      operationId: uploadCASArtifact
+      operationId: saveCacheCAS
       parameters:
         - description: The handle of the project's account.
           in: query
@@ -4936,7 +4950,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The authenticated subject is not authorized to perform this action
-      summary: Upload a CAS artifact (or verify it already exists).
+      summary: Save a CAS artifact
       tags:
         - CAS
   /api/projects/{account_handle}/{project_handle}/previews:
@@ -5134,7 +5148,7 @@ paths:
   /api/cache/keyvalue/{cas_id}:
     put:
       callbacks: {}
-      operationId: getKeyValue
+      operationId: getCacheValue
       parameters:
         - description: The CAS identifier.
           in: path
@@ -5187,55 +5201,7 @@ paths:
                 type: object
                 x-struct:
                 x-validate:
-          description: Entries retrieved successfully
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: No entries found for the given CAS ID
-      summary: Get cache key value entries.
-      tags:
-        - KeyValue
-  /api/cache/cas/prefix:
-    get:
-      callbacks: {}
-      operationId: getCASPrefix
-      parameters:
-        - description: The handle of the project's account.
-          in: query
-          name: account_handle
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-        - description: The handle of the project.
-          in: query
-          name: project_handle
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                properties:
-                  prefix:
-                    description: The S3 object key prefix where CAS objects should be stored.
-                    example: account-123/project-456/xcode/cas/
-                    type: string
-                    x-struct:
-                    x-validate:
-                required:
-                  - prefix
-                type: object
-                x-struct:
-                x-validate:
-          description: The CAS storage prefix
+          description: Cache value retrieved successfully
         '401':
           content:
             application/json:
@@ -5253,10 +5219,10 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: The project was not found
-      summary: Get the S3 object key prefix for a project's CAS storage.
+          description: No entries found for the given CAS ID
+      summary: Get cache value.
       tags:
-        - CAS
+        - KeyValue
   /api/runs/{run_id}/complete:
     post:
       callbacks: {}

@@ -9,7 +9,9 @@ defmodule TuistWeb.API.Cache.KeyValueController do
   alias Tuist.Projects
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.Authentication
+  alias TuistWeb.API.Cache.Plugs.LoaderQueryPlug
 
+  plug(LoaderQueryPlug)
   plug(TuistWeb.API.Authorization.AuthorizationPlug, :cache)
 
   plug(OpenApiSpex.Plug.CastAndValidate,
