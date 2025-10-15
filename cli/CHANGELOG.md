@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.85.2<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* extend inspect build to 5 seconds by [@fortmarek](https://github.com/fortmarek) in [#8446](https://github.com/tuist/tuist/pull/8446)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.85.1...4.85.2
+
 ## What's Changed in 4.85.1<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
