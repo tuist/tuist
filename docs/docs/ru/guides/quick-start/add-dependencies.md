@@ -5,18 +5,18 @@
   "description": "Learn how to add dependencies to your first Swift project"
 }
 ---
-# Add dependencies {#add-dependencies}
+# Добавление зависимостей {#add-dependencies}
 
-It's common for projects to depend on third-party libraries to provide
-additional functionality. To do so, run the following command to have the best
-experience editing your project:
+Обычно проекты зависят от сторонних библиотек, которые предоставляют
+дополнительную функциональность. Чтобы добавить их и получить наилучший опыт при
+редактировании проекта, выполните следующую команду:
 
 ```bash
 tuist edit
 ```
 
-An Xcode project will open containing your project files. Edit the
-`Package.swift` and add the
+Откроется проект Xcode, содержащий файлы вашего проекта. Отредактируйте файл
+`Package.swift` и добавьте
 
 ```swift
 // swift-tools-version: 5.9
@@ -44,8 +44,8 @@ let package = Package(
 )
 ```
 
-Then edit the application target in your project to declare `Kingfisher` as a
-dependency:
+Затем отредактируйте цель приложения в проекте, указав `Kingfisher` в качестве
+зависимости:
 
 ```swift
 import ProjectDescription
@@ -85,26 +85,27 @@ let project = Project(
 )
 ```
 
-Then run `tuist install` to resolve and pull the dependencies using the [Swift
-Package Manager](https://www.swift.org/documentation/package-manager/).
+Затем выполните команду `tuist install`, чтобы разрешить и извлечь зависимости с
+помощью [Swift Package
+Manager](https://www.swift.org/documentation/package-manager/).
 
-::: info SPM AS A DEPENDENCY RESOLVER
+::: info SPM КАК СРЕДСТВО РАЗРЕШЕНИЯ ЗАВИСИМОСТЕЙ
 <!-- -->
-Tuist recommended approach to dependencies uses the Swift Package Manager (SPM)
-only to resolve dependencies. Tuist then converts them into Xcode projects and
-targets for maximum configurability and control.
+Рекомендуемый Tuist подход к управлению зависимостями использует Swift Package
+Manager (SPM) только для их разрешения. Затем Tuist преобразует их в проекты и
+цели Xcode для обеспечения максимальной гибкости настройки и контроля.
 <!-- -->
 :::
 
-## Visualize the project {#visualize-the-project}
+## Визуализация проекта {#visualize-the-project}
 
-You can visualize the project structure by running:
+Вы можете визуализировать структуру проекта, выполнив:
 
 ```bash
 tuist graph
 ```
 
-The command will output and open a `graph.png` file in the project's directory:
+Команда создаст и откроет файл `graph.png` в директории проекта:
 
 ![Project graph](/images/guides/quick-start/graph.png)
 
