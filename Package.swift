@@ -94,6 +94,7 @@ let targets: [Target] = [
             .product(name: "MCP", package: "swift-sdk"),
             .product(name: "SwiftyJSON", package: "SwiftyJSON"),
             .product(name: "Rosalind", package: "Rosalind"),
+            .product(name: "GRPCNIOTransportHTTP2", package: "grpc-swift-nio-transport"),
         ],
         path: "cli/Sources/TuistKit",
         swiftSettings: [
@@ -481,6 +482,7 @@ let targets: [Target] = [
             pathDependency,
         ],
         path: "cli/Sources/TuistCAS",
+        exclude: ["cas.proto", "keyvalue.proto", "grpc-swift-proto-generator-config.json"],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug))
         ]
@@ -668,5 +670,6 @@ let package = Package(
         .package(url: "https://github.com/grpc/grpc-swift-protobuf.git", from: "2.0.0"),
         .package(url: "https://github.com/grpc/grpc-swift-nio-transport.git", from: "2.0.0"),
     ],
-    targets: targets
+    targets: targets,
+    swiftLanguageModes: [.v5]
 )

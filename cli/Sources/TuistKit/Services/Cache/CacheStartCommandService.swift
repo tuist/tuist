@@ -37,10 +37,8 @@ struct CacheStartCommandService {
         if try await !fileSystem.exists(socketPath.parentDirectory, isDirectory: true) {
             try await fileSystem.makeDirectory(at: socketPath.parentDirectory)
         }
-        print(socketPath.pathString)
 
         let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
-        print(serverURL)
         
         let server = GRPCServer(
             transport: .http2NIOPosix(

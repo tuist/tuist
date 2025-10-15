@@ -89,17 +89,18 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
             data = request.data.blob.data
         }
 
-        let digest = SHA512.hash(data: data)
+        let hash = SHA256.hash(data: data)
+        let fingerprint = hash.compactMap { String(format: "%02X", $0) }.joined()
 
         var response = CompilationCacheService_Cas_V1_CASSaveResponse()
 
         var message = CompilationCacheService_Cas_V1_CASDataID()
-        message.id = digest.description.data(using: .utf8)!
+        message.id = fingerprint.data(using: .utf8)!
 
         do {
             try await saveCacheCASService.saveCacheCAS(
                 data,
-                casId: digest.description,
+                casId: fingerprint,
                 fullHandle: fullHandle,
                 serverURL: serverURL
             )
