@@ -9,28 +9,22 @@ struct CacheStartCommand: AsyncParsableCommand {
         shouldDisplay: false
     )
 
+    @Argument(
+        help: "The full handle of the project (account-handle/project-handle)."
+    )
+    var fullHandle: String
+
     @Option(
         name: .shortAndLong,
-        help: "The path to the directory or a subdirectory of the project.",
-        completion: .directory,
-        envKey: .cacheStartPath
+        help: "The server URL. Defaults to production URL if not specified."
     )
-    var path: String?
+    var url: String?
 
     func run() async throws {
         try await CacheStartCommandService().run(
-            path: path(path)
+            fullHandle: fullHandle,
+            url: url
         )
     }
 
-    private func path(_ path: String?) async throws -> AbsolutePath {
-        let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
-        if let path {
-            return try AbsolutePath(
-                validating: path, relativeTo: currentWorkingDirectory
-            )
-        } else {
-            return currentWorkingDirectory
-        }
-    }
 }
