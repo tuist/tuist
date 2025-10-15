@@ -71,18 +71,18 @@ let project = Project(
 
 ## Создание проекта вручную {#manually-creating-a-project}
 
-Alternatively, you can create the project manually. We recommend doing this only
-if you're already familiar with Tuist and its concepts. The first thing that
-you'll need to do is to create additional directories for the project structure:
+Кроме того, вы можете создать проект вручную. Мы рекомендуем делать это только в
+том случае, если вы уже знакомы с Tuist и его концепциями. Первое, что нужно
+сделать, – создать дополнительные папки для структуры проекта:
 
 ```bash
 mkdir MyFramework
 cd MyFramework
 ```
 
-Then create a `Tuist.swift` file, which will configure Tuist and is used by
-Tuist to determine the root directory of the project, and a `Project.swift`,
-where your project will be declared:
+Затем создайте файл `Tuist.swift`, который будет настраивать Tuist и
+использоваться для определения корневой папки проекта, а также файл
+`Project.swift`, где будет объявлен ваш проект:
 
 ::: code-group
 ```swift [Project.swift]
@@ -112,9 +112,8 @@ let tuist = Tuist()
 
 ::: warning
 <!-- -->
-Tuist uses the `Tuist/` directory to determine the root of your project, and
-from there it looks for other manifest files globbing the directories. We
-recommend creating those files with your editor of choice, and from that point
-on, you can use `tuist edit` to edit the project with Xcode.
+Tuist использует папку `Tuist/` для определения корня вашего проекта, а затем
+ищет другие файлы манифеста в папках. Мы рекомендуем создать эти файлы в вашем
+редакторе, и потом использовать `tuist edit` для редактирования проекта в Xcode.
 <!-- -->
 :::
