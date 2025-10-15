@@ -155,7 +155,7 @@ The following are some examples of common workflows:
    project with them.
 3. It will then build or test the project incrementally.
 
-## Troubleshooting {#troubleshooting}
+## Устранение неполадок {#troubleshooting}
 
 ### It doesn't use binaries for my targets {#it-doesnt-use-binaries-for-my-targets}
 
