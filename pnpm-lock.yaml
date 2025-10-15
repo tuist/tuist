@@ -61,7 +61,7 @@ importers:
         version: 3.5.22
       wrangler:
         specifier: ^3.114.14
-        version: 3.114.14(@cloudflare/workers-types@4.20251008.0)
+        version: 3.114.14
 
   handbook:
     devDependencies:
@@ -76,7 +76,7 @@ importers:
         version: 0.4.2(vitepress@1.6.4(@algolia/client-search@5.39.0)(@types/node@22.16.0)(fuse.js@7.1.0)(postcss@8.5.6)(search-insights@2.17.3))
       wrangler:
         specifier: ^4.40.3
-        version: 4.40.3(@cloudflare/workers-types@4.20251008.0)
+        version: 4.40.3
 
 packages:
 
@@ -258,9 +258,6 @@ packages:
     engines: {node: '>=16'}
     cpu: [x64]
     os: [win32]
-
-  '@cloudflare/workers-types@4.20251008.0':
-    resolution: {integrity: sha512-dZLkO4PbCL0qcCSKzuW7KE4GYe49lI12LCfQ5y9XeSwgYBoAUbwH4gmJ6A0qUIURiTJTkGkRkhVPqpq2XNgYRA==}
 
   '@cspotcode/source-map-support@0.8.1':
     resolution: {integrity: sha512-IchNf6dN4tHoMFIn/7OE8LWZ19Y6q/67Bmf6vnGREv8RSbBVb9LPJxEcnwrcwX6ixSvaiGoomAUvu4YSxXrVgw==}
@@ -2263,9 +2260,6 @@ snapshots:
   '@cloudflare/workerd-windows-64@1.20250927.0':
     optional: true
 
-  '@cloudflare/workers-types@4.20251008.0':
-    optional: true
-
   '@cspotcode/source-map-support@0.8.1':
     dependencies:
       '@jridgewell/trace-mapping': 0.3.9
@@ -3819,7 +3813,7 @@ snapshots:
       '@cloudflare/workerd-linux-arm64': 1.20250927.0
       '@cloudflare/workerd-windows-64': 1.20250927.0
 
-  wrangler@3.114.14(@cloudflare/workers-types@4.20251008.0):
+  wrangler@3.114.14:
     dependencies:
       '@cloudflare/kv-asset-handler': 0.3.4
       '@cloudflare/unenv-preset': 2.0.2(unenv@2.0.0-rc.14)(workerd@1.20250718.0)
@@ -3832,14 +3826,13 @@ snapshots:
       unenv: 2.0.0-rc.14
       workerd: 1.20250718.0
     optionalDependencies:
-      '@cloudflare/workers-types': 4.20251008.0
       fsevents: 2.3.3
       sharp: 0.33.5
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
 
-  wrangler@4.40.3(@cloudflare/workers-types@4.20251008.0):
+  wrangler@4.40.3:
     dependencies:
       '@cloudflare/kv-asset-handler': 0.4.0
       '@cloudflare/unenv-preset': 2.7.5(unenv@2.0.0-rc.21)(workerd@1.20250927.0)
@@ -3850,7 +3843,6 @@ snapshots:
       unenv: 2.0.0-rc.21
       workerd: 1.20250927.0
     optionalDependencies:
-      '@cloudflare/workers-types': 4.20251008.0
       fsevents: 2.3.3
     transitivePeerDependencies:
       - bufferutil
