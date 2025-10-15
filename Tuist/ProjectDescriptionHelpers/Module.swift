@@ -587,7 +587,6 @@ public enum Module: String, CaseIterable {
                 ]
             case .launchctl:
                 [
-                    .target(name: Module.support.targetName),
                     .external(name: "Command"),
                 ]
             }
@@ -795,7 +794,6 @@ public enum Module: String, CaseIterable {
             case .launchctl:
                 [
                     .target(name: Module.testing.targetName),
-                    .target(name: Module.support.targetName),
                     .external(name: "Command"),
                 ]
             }

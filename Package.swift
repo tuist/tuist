@@ -491,7 +491,6 @@ let targets: [Target] = [
     .target(
         name: "TuistLaunchctl",
         dependencies: [
-            "TuistSupport",
             "Command",
             "Mockable",
             pathDependency,
