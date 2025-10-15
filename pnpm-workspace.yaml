@@ -1,7 +1,6 @@
 packages:
   - docs/
   - handbook/
-  - server/worker/
   - "!server/"
 
 onlyBuiltDependencies:

@@ -3,10 +3,6 @@ defmodule TuistWeb.API.CASController do
   use TuistWeb, :controller
 
   alias OpenApiSpex.Schema
-  alias Tuist.Accounts
-  alias Tuist.Authorization
-  alias Tuist.Cache
-  alias Tuist.Projects
   alias Tuist.Storage
   alias TuistWeb.API.Cache.Plugs.LoaderQueryPlug
   alias TuistWeb.API.Schemas.Error

@@ -57,12 +57,6 @@ config :tuist, TuistWeb.Endpoint,
     esbuild_app: {Esbuild, :install_and_run, [:app, ~w(--sourcemap=inline --watch)]},
     esbuild_marketing: {Esbuild, :install_and_run, [:marketing, ~w(--sourcemap=inline --watch)]},
     esbuild_apidocs: {Esbuild, :install_and_run, [:apidocs, ~w(--sourcemap=inline --watch)]}
-  ],
-  max_request_line_length: 30_000_000,
-  protocol_options: [
-    # max_header_value_length: 4096,
-    # max_headers: 100,
-    max_request_line_length: 30_000_000
   ]
 
 # ## SSL Support

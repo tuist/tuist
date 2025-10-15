@@ -24,6 +24,7 @@ defmodule Tuist do
       # among them. They must only depend on core and utility modules.
       Bundles,
       Bundles.Bundle,
+      Cache,
       CacheActionItems,
       CommandEvents,
       Registry.Swift.Packages,

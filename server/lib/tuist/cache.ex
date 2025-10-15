@@ -3,10 +3,10 @@ defmodule Tuist.Cache do
   The cache context.
   """
 
+  import Ecto.Query
+
   alias Tuist.Cache.Entry
   alias Tuist.IngestRepo
-
-  import Ecto.Query
 
   @doc """
   Creates a cache entry.
@@ -23,10 +23,10 @@ defmodule Tuist.Cache do
   def create_entry(attrs \\ %{}) do
     entry_attrs = %{
       id: Ecto.UUID.generate(),
-      cas_id: attrs.cas_id,
-      value: attrs.value,
-      project_id: attrs.project_id,
-      inserted_at: attrs[:inserted_at] || NaiveDateTime.utc_now()
+      cas_id: attrs[:cas_id],
+      value: attrs[:value],
+      project_id: attrs[:project_id],
+      inserted_at: attrs[:inserted_at] || NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
     }
 
     entry = struct(Entry, entry_attrs)

@@ -8,7 +8,6 @@ defmodule Tuist.Cache.Entry do
     field :cas_id, Ch, type: "String"
     field :value, Ch, type: "String"
     field :project_id, Ch, type: "Int64"
-
     field :inserted_at, Ch, type: "DateTime"
   end
 end
