@@ -62,7 +62,7 @@ final class SwiftPackageManagerInteractorTests: TuistTestCase {
         try await subject.install(graphTraverser: graphTraverser, workspaceName: workspacePath.basename)
 
         // Then
-        let exists = try await fileSystem.exists(temporaryPath.appending(component: ".package.resolved"))
+        let exists = try await fileSystem.exists(temporaryPath.appending(component: packageResolvedFilename()))
         XCTAssertTrue(exists)
     }
 
@@ -95,7 +95,7 @@ final class SwiftPackageManagerInteractorTests: TuistTestCase {
         try await subject.install(graphTraverser: graphTraverser, workspaceName: workspacePath.basename)
 
         // Then
-        let exists = try await fileSystem.exists(temporaryPath.appending(component: ".package.resolved"))
+        let exists = try await fileSystem.exists(temporaryPath.appending(component: packageResolvedFilename()))
         XCTAssertTrue(exists)
     }
 
@@ -145,7 +145,7 @@ final class SwiftPackageManagerInteractorTests: TuistTestCase {
         )
 
         // Then
-        let exists = try await fileSystem.exists(temporaryPath.appending(component: ".package.resolved"))
+        let exists = try await fileSystem.exists(temporaryPath.appending(component: packageResolvedFilename()))
         XCTAssertTrue(exists)
     }
 
@@ -176,7 +176,7 @@ final class SwiftPackageManagerInteractorTests: TuistTestCase {
             name: project.name,
             projects: [project.path]
         )
-        let rootPackageResolvedPath = temporaryPath.appending(component: ".package.resolved")
+        let rootPackageResolvedPath = temporaryPath.appending(component: packageResolvedFilename())
         try FileHandler.shared.write("package", path: rootPackageResolvedPath, atomically: false)
 
         let workspacePath = temporaryPath.appending(component: workspace.name + ".xcworkspace")
@@ -219,7 +219,7 @@ final class SwiftPackageManagerInteractorTests: TuistTestCase {
         try await subject.install(graphTraverser: graphTraverser, workspaceName: workspacePath.basename)
 
         // Then
-        let exists = try await fileSystem.exists(temporaryPath.appending(component: ".package.resolved"))
+        let exists = try await fileSystem.exists(temporaryPath.appending(component: packageResolvedFilename()))
         XCTAssertFalse(exists)
     }
 
@@ -268,7 +268,7 @@ final class SwiftPackageManagerInteractorTests: TuistTestCase {
         )
 
         // Then
-        let exists = try await fileSystem.exists(temporaryPath.appending(component: ".package.resolved"))
+        let exists = try await fileSystem.exists(temporaryPath.appending(component: packageResolvedFilename()))
         XCTAssertTrue(exists)
     }
 
