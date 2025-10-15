@@ -4,7 +4,7 @@ alias Tuist.AppBuilds.Preview
 alias Tuist.Billing
 alias Tuist.Billing.Subscription
 alias Tuist.CommandEvents
-alias Tuist.CommandEvents.Clickhouse.Event
+alias Tuist.CommandEvents.Event
 alias Tuist.IngestRepo
 alias Tuist.Projects
 alias Tuist.Projects.Project
@@ -19,7 +19,6 @@ alias Tuist.Xcode
 email = "tuistrocks@tuist.dev"
 password = "tuistrocks"
 
-FunWithFlags.enable(:clickhouse_events)
 FunWithFlags.enable(:qa)
 
 _account =

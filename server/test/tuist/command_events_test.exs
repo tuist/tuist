@@ -16,105 +16,7 @@ defmodule Tuist.CommandEventsTest do
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.XcodeFixtures
 
-  describe "create_command_event/1 - postgres" do
-    setup do
-      stub(Tuist.Environment, :clickhouse_configured?, fn -> false end)
-      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> false end)
-      :ok
-    end
-
-    test "truncates an error message if it's over 255 chars" do
-      # Given
-      error_message = String.duplicate("a", 300)
-
-      # When
-      command_event =
-        CommandEventsFixtures.command_event_fixture(error_message: error_message)
-
-      # Then
-      assert String.length(command_event.error_message) == 255
-    end
-
-    test "does not truncate an error message if it's under 255 chars" do
-      # Given
-      error_message = String.duplicate("a", 200)
-
-      # When
-      command_event =
-        CommandEventsFixtures.command_event_fixture(error_message: error_message)
-
-      # Then
-      assert String.length(command_event.error_message) == 200
-      assert command_event.error_message == error_message
-    end
-
-    test "sends telemetry events" do
-      # Given
-      user = AccountsFixtures.user_fixture()
-      project = ProjectsFixtures.project_fixture()
-
-      run_create_ref =
-        :telemetry_test.attach_event_handlers(self(), [
-          Tuist.Telemetry.event_name_run_command()
-        ])
-
-      cache_event_ref =
-        :telemetry_test.attach_event_handlers(self(), [Tuist.Telemetry.event_name_cache()])
-
-      # When
-      command_event =
-        CommandEvents.create_command_event(%{
-          name: "generate",
-          subcommand: "",
-          command_arguments: [],
-          duration: 100,
-          tuist_version: "4.1.0",
-          swift_version: "5.2",
-          macos_version: "10.15",
-          project_id: project.id,
-          cacheable_targets: ["A", "B", "C", "D"],
-          local_cache_target_hits: ["A"],
-          remote_cache_target_hits: ["B", "C"],
-          remote_cache_hits_count: 2,
-          test_targets: [],
-          local_test_target_hits: [],
-          remote_test_target_hits: [],
-          remote_test_hits_count: 0,
-          is_ci: false,
-          user_id: user.id,
-          client_id: "client-id",
-          status: :success,
-          preview_id: nil,
-          git_ref: nil,
-          git_commit_sha: nil,
-          git_branch: nil,
-          error_message: nil,
-          ran_at: ~U[2024-03-04 01:00:00Z],
-          build_run_id: nil,
-          created_at: ~U[2024-03-04 01:00:00Z]
-        })
-
-      # Then
-      event_name_run_command = Tuist.Telemetry.event_name_run_command()
-      event_name_cache = Tuist.Telemetry.event_name_cache()
-
-      assert_received {^event_name_run_command, ^run_create_ref, %{duration: 100}, %{command_event: ^command_event}}
-
-      assert_received {^event_name_cache, ^cache_event_ref, %{count: 1}, %{event_type: :local_hit}}
-
-      assert_received {^event_name_cache, ^cache_event_ref, %{count: 2}, %{event_type: :remote_hit}}
-
-      assert_received {^event_name_cache, ^cache_event_ref, %{count: 1}, %{event_type: :miss}}
-    end
-  end
-
-  describe "create_command_event/1 - clickhouse" do
-    setup do
-      stub(Tuist.Environment, :clickhouse_configured?, fn -> true end)
-      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> true end)
-      :ok
-    end
-
+  describe "create_command_event/1" do
     test "truncates an error message if it's over 255 chars" do
       # Given
       error_message = String.duplicate("a", 300)
@@ -130,12 +32,10 @@ defmodule Tuist.CommandEventsTest do
     test "computes remote_cache_hits_count and remote_test_hits_count on insertion" do
       # When
       command_event =
-        with_flushed_ingestion_buffers(fn ->
-          CommandEventsFixtures.command_event_fixture(
-            remote_cache_target_hits: ["A"],
-            remote_test_target_hits: ["ATests"]
-          )
-        end)
+        CommandEventsFixtures.command_event_fixture(
+          remote_cache_target_hits: ["A"],
+          remote_test_target_hits: ["ATests"]
+        )
 
       {:ok, reloaded_event} = CommandEvents.get_command_event_by_id(command_event.id)
 
@@ -217,79 +117,13 @@ defmodule Tuist.CommandEventsTest do
     end
   end
 
-  describe "get_command_event_by_id/1 - postgres" do
-    setup do
-      stub(Tuist.Environment, :clickhouse_configured?, fn -> false end)
-      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> false end)
-      :ok
-    end
-
-    test "returns a command event by integer id" do
-      # Given
-      user = AccountsFixtures.user_fixture()
-
-      command_event =
-        [name: "generate", user_id: user.id]
-        |> CommandEventsFixtures.command_event_fixture()
-        |> Repo.preload(user: :account)
-        # Reload to get the integer ID
-        |> Repo.reload()
-
-      # When
-      got = CommandEvents.get_command_event_by_id(command_event.id)
-
-      # Then
-      assert {:ok, event} = got
-      assert event == Repo.preload(command_event, user: :account)
-    end
-
-    test "returns a command event by uuid" do
-      # Given
-      user = AccountsFixtures.user_fixture()
-
-      command_event =
-        CommandEventsFixtures.command_event_fixture(name: "generate", user_id: user.id)
-
-      # When
-      got = CommandEvents.get_command_event_by_id(command_event.id)
-
-      # Then
-      assert {:ok, event} = got
-      assert event == command_event |> Repo.reload() |> Repo.preload(user: :account)
-    end
-
-    test "returns {:error, :not_found} for non-existent uuid" do
-      # When
-      got = CommandEvents.get_command_event_by_id(Ecto.UUID.generate())
-
-      # Then
-      assert got == {:error, :not_found}
-    end
-
-    test "returns {:error, :not_found} for non-existent UUID id" do
-      # When
-      got = CommandEvents.get_command_event_by_id("00000000-0000-0000-0000-000000000001")
-
-      # Then
-      assert got == {:error, :not_found}
-    end
-  end
-
-  describe "get_command_event_by_id/1 - clickhouse" do
-    setup do
-      stub(Tuist.Environment, :clickhouse_configured?, fn -> true end)
-      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> true end)
-      :ok
-    end
-
+  describe "get_command_event_by_id/1" do
     test "returns a command event by uuid string" do
       # Given
       user = AccountsFixtures.user_fixture()
 
       command_event =
-        with_flushed_ingestion_buffers(fn ->
-          CommandEventsFixtures.command_event_fixture(name: "generate", user_id: user.id)
-        end)
+        CommandEventsFixtures.command_event_fixture(name: "generate", user_id: user.id)
 
       # When
       got = CommandEvents.get_command_event_by_id(command_event.id)
@@ -395,13 +229,7 @@ defmodule Tuist.CommandEventsTest do
     end
   end
 
-  describe "list_command_events/1 - postgres" do
-    setup do
-      stub(Tuist.Environment, :clickhouse_configured?, fn -> false end)
-      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> false end)
-      :ok
-    end
-
+  describe "list_command_events/1" do
     test "returns command events" do
       # Given
       project = ProjectsFixtures.project_fixture()
@@ -471,109 +299,6 @@ defmodule Tuist.CommandEventsTest do
 
       # Then
       assert got_command_events_first_page == [
-               Repo.reload(command_event_five),
-               Repo.reload(command_event_four)
-             ]
-
-      assert got_command_events_second_page == [
-               Repo.reload(command_event_three),
-               Repo.reload(command_event_two)
-             ]
-
-      assert got_command_events_third_page == [
-               Repo.reload(command_event_one)
-             ]
-    end
-  end
-
-  describe "list_command_events/1 - clickhouse" do
-    setup do
-      stub(Tuist.Environment, :clickhouse_configured?, fn -> true end)
-      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> true end)
-      :ok
-    end
-
-    test "returns command events" do
-      # Given
-      project = ProjectsFixtures.project_fixture()
-      project_two = ProjectsFixtures.project_fixture()
-
-      command_event_one =
-        with_flushed_ingestion_buffers(fn ->
-          CommandEventsFixtures.command_event_fixture(
-            project_id: project.id,
-            name: "one",
-            duration: 1000,
-            created_at: ~N[2024-03-04 01:00:00]
-          )
-        end)
-
-      with_flushed_ingestion_buffers(fn ->
-        CommandEventsFixtures.command_event_fixture(
-          project_id: project_two.id,
-          name: "xxx",
-          duration: 1000,
-          created_at: ~N[2024-03-05 02:00:00]
-        )
-      end)
-
-      command_event_two =
-        with_flushed_ingestion_buffers(fn ->
-          CommandEventsFixtures.command_event_fixture(
-            project_id: project.id,
-            name: "two",
-            duration: 500,
-            created_at: ~N[2024-03-05 03:00:00]
-          )
-        end)
-
-      command_event_three =
-        with_flushed_ingestion_buffers(fn ->
-          CommandEventsFixtures.command_event_fixture(
-            project_id: project.id,
-            name: "three",
-            duration: 500,
-            created_at: ~N[2024-03-05 04:00:00]
-          )
-        end)
-
-      command_event_four =
-        with_flushed_ingestion_buffers(fn ->
-          CommandEventsFixtures.command_event_fixture(
-            project_id: project.id,
-            name: "four",
-            duration: 500,
-            created_at: ~N[2024-03-05 05:00:00]
-          )
-        end)
-
-      command_event_five =
-        with_flushed_ingestion_buffers(fn ->
-          CommandEventsFixtures.command_event_fixture(
-            project_id: project.id,
-            name: "five",
-            duration: 500,
-            created_at: ~N[2024-03-05 06:00:00]
-          )
-        end)
-
-      # When
-      {got_command_events_first_page, got_meta_first_page} =
-        CommandEvents.list_command_events(%{
-          first: 2,
-          filters: [%{field: :project_id, op: :==, value: project.id}],
-          order_by: [:created_at],
-          order_directions: [:desc]
-        })
-
-      {got_command_events_second_page, got_meta_second_page} =
-        CommandEvents.list_command_events(Flop.to_next_cursor(got_meta_first_page))
-
-      {got_command_events_third_page, _meta} =
-        CommandEvents.list_command_events(Flop.to_next_cursor(got_meta_second_page))
-
-      # Then
-      assert got_command_events_first_page == [
                command_event_five.id |> CommandEvents.get_command_event_by_id() |> elem(1),
                command_event_four.id |> CommandEvents.get_command_event_by_id() |> elem(1)
              ]
@@ -589,25 +314,26 @@ defmodule Tuist.CommandEventsTest do
     end
   end
 
-  describe "list_test_runs/1 - postgres" do
-    setup do
-      stub(Tuist.Environment, :clickhouse_configured?, fn -> false end)
-      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> false end)
-      :ok
-    end
-
+  describe "list_test_runs/1" do
     test "returns test runs" do
       # Given
       project = ProjectsFixtures.project_fixture()
       _project_two = ProjectsFixtures.project_fixture()
 
-      _command_event_one =
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "xcodebuild",
+        subcommand: "build",
+        duration: 1000,
+        created_at: ~N[2024-03-04 01:00:00]
+      )
+
+      _command_event_four =
         CommandEventsFixtures.command_event_fixture(
           project_id: project.id,
-          name: "xcodebuild",
-          subcommand: "build",
-          duration: 1000,
-          created_at: ~N[2024-03-04 01:00:00]
+          name: "four",
+          duration: 500,
+          created_at: ~N[2024-03-05 05:00:00]
         )
 
       command_event_two =
@@ -628,14 +354,6 @@ defmodule Tuist.CommandEventsTest do
           created_at: ~N[2024-03-05 04:00:00]
         )
 
-      _command_event_four =
-        CommandEventsFixtures.command_event_fixture(
-          project_id: project.id,
-          name: "four",
-          duration: 500,
-          created_at: ~N[2024-03-05 05:00:00]
-        )
-
       command_event_five =
         CommandEventsFixtures.command_event_fixture(
           project_id: project.id,
@@ -643,93 +361,6 @@ defmodule Tuist.CommandEventsTest do
           duration: 500,
           created_at: ~N[2024-03-05 06:00:00]
         )
-
-      # When
-      {got_command_events_first_page, got_meta_first_page} =
-        CommandEvents.list_test_runs(%{
-          first: 2,
-          filters: [%{field: :project_id, op: :==, value: project.id}],
-          order_by: [:created_at],
-          order_directions: [:desc]
-        })
-
-      {got_command_events_second_page, _got_meta_second_page} =
-        CommandEvents.list_test_runs(Flop.to_next_cursor(got_meta_first_page))
-
-      # Then
-      assert got_command_events_first_page == [
-               Repo.reload(command_event_five),
-               Repo.reload(command_event_three)
-             ]
-
-      assert got_command_events_second_page == [
-               Repo.reload(command_event_two)
-             ]
-    end
-  end
-
-  describe "list_test_runs/1 - clickhouse" do
-    setup do
-      stub(Tuist.Environment, :clickhouse_configured?, fn -> true end)
-      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> true end)
-      :ok
-    end
-
-    test "returns test runs" do
-      # Given
-      project = ProjectsFixtures.project_fixture()
-      _project_two = ProjectsFixtures.project_fixture()
-
-      with_flushed_ingestion_buffers(fn ->
-        _command_event_one =
-          CommandEventsFixtures.command_event_fixture(
-            project_id: project.id,
-            name: "xcodebuild",
-            subcommand: "build",
-            duration: 1000,
-            created_at: ~N[2024-03-04 01:00:00]
-          )
-
-        _command_event_four =
-          CommandEventsFixtures.command_event_fixture(
-            project_id: project.id,
-            name: "four",
-            duration: 500,
-            created_at: ~N[2024-03-05 05:00:00]
-          )
-      end)
-
-      command_event_two =
-        with_flushed_ingestion_buffers(fn ->
-          CommandEventsFixtures.command_event_fixture(
-            project_id: project.id,
-            name: "xcodebuild",
-            subcommand: "test",
-            duration: 500,
-            created_at: ~N[2024-03-05 03:00:00]
-          )
-        end)
-
-      command_event_three =
-        with_flushed_ingestion_buffers(fn ->
-          CommandEventsFixtures.command_event_fixture(
-            project_id: project.id,
-            name: "xcodebuild",
-            subcommand: "test",
-            duration: 500,
-            created_at: ~N[2024-03-05 04:00:00]
-          )
-        end)
-
-      command_event_five =
-        with_flushed_ingestion_buffers(fn ->
-          CommandEventsFixtures.command_event_fixture(
-            project_id: project.id,
-            name: "test",
-            duration: 500,
-            created_at: ~N[2024-03-05 06:00:00]
-          )
-        end)
 
       # When
       {got_command_events_first_page, got_meta_first_page} =
@@ -758,46 +389,35 @@ defmodule Tuist.CommandEventsTest do
   describe "get_command_event_by_id/2 with parsing" do
     test "finds command event by legacy_id when passed an integer" do
       # Given
-      command_event = CommandEventsFixtures.command_event_fixture()
-      # Manually set a legacy_id to test the lookup
-      {:ok, updated_event} =
-        command_event
-        |> Ecto.Changeset.change(%{legacy_id: 12_345})
-        |> Repo.update()
+      command_event =
+        CommandEventsFixtures.command_event_fixture()
 
       # When
-      result = CommandEvents.get_command_event_by_id(12_345)
+      result = CommandEvents.get_command_event_by_id(command_event.legacy_id)
 
       # Then
       assert {:ok, found_event} = result
-      assert found_event.id == updated_event.id
-      assert found_event.legacy_id == 12_345
+      assert found_event.id == command_event.id
+      assert found_event.legacy_id == command_event.legacy_id
     end
 
     test "finds command event by integer ID when ID exists" do
       # Given
-      command_event = CommandEventsFixtures.command_event_fixture()
+      command_event =
+        CommandEventsFixtures.command_event_fixture()
 
-      # Skip test if command event doesn't have integer ID (newer records)
-      if is_nil(command_event.id) do
-        # When
-        result = CommandEvents.get_command_event_by_id(123)
+      # When
+      result = CommandEvents.get_command_event_by_id(command_event.id)
 
-        # Then
-        assert result == {:error, :not_found}
-      else
-        # When
-        result = CommandEvents.get_command_event_by_id(command_event.id)
-
-        # Then
-        assert {:ok, found_event} = result
-        assert found_event.id == command_event.id
-      end
+      # Then
+      assert {:ok, found_event} = result
+      assert found_event.id == command_event.id
     end
 
     test "finds command event by UUID string when ID exists" do
       # Given
-      command_event = CommandEventsFixtures.command_event_fixture()
+      command_event =
+        CommandEventsFixtures.command_event_fixture()
 
       # When
       result = CommandEvents.get_command_event_by_id(command_event.id)
@@ -809,7 +429,8 @@ defmodule Tuist.CommandEventsTest do
 
     test "finds command event by UUID string" do
       # Given
-      command_event = CommandEventsFixtures.command_event_fixture()
+      command_event =
+        CommandEventsFixtures.command_event_fixture()
 
       # When
       result = CommandEvents.get_command_event_by_id(command_event.id)
@@ -1418,349 +1039,6 @@ defmodule Tuist.CommandEventsTest do
     end
   end
 
-  describe "get_command_events_by_name_git_ref_and_remote/1 - postgres" do
-    setup do
-      stub(Tuist.Environment, :clickhouse_configured?, fn -> false end)
-      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> false end)
-      :ok
-    end
-
-    test "gets command events by name, git ref and remote" do
-      # Given
-      project = ProjectsFixtures.project_fixture()
-
-      command_event_one =
-        CommandEventsFixtures.command_event_fixture(
-          project_id: project.id,
-          name: "test",
-          git_commit_sha: "commit-sha-one",
-          git_ref: "refs/pull/2/merge"
-        )
-
-      command_event_two =
-        CommandEventsFixtures.command_event_fixture(
-          project_id: project.id,
-          name: "test",
-          git_commit_sha: "commit-sha-two",
-          git_ref: "refs/pull/2/merge"
-        )
-
-      _command_event_three =
-        CommandEventsFixtures.command_event_fixture(
-          project_id: project.id,
-          name: "test",
-          git_commit_sha: "commit-sha-three",
-          git_ref: "main"
-        )
-
-      # When
-      got =
-        CommandEvents.get_command_events_by_name_git_ref_and_project(%{
-          name: "test",
-          git_ref: "refs/pull/2/merge",
-          project: project
-        })
-
-      # Then
-      assert got == [Repo.reload(command_event_one), Repo.reload(command_event_two)]
-    end
-
-    test "gets command events by name, git ref and project when there are none" do
-      # Given
-      project = ProjectsFixtures.project_fixture()
-
-      _command_event =
-        CommandEventsFixtures.command_event_fixture(
-          name: "test",
-          git_commit_sha: "commit-sha-three",
-          git_ref: "main",
-          project_id: project.id
-        )
-
-      # When
-      got =
-        CommandEvents.get_command_events_by_name_git_ref_and_project(%{
-          name: "test",
-          git_ref: "refs/pull/2/merge",
-          project: project
-        })
-
-      # Then
-      assert got == []
-    end
-  end
-
-  describe "hit rate sorting and filtering - postgres" do
-    setup do
-      stub(Tuist.Environment, :clickhouse_configured?, fn -> false end)
-      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> false end)
-      project = ProjectsFixtures.project_fixture()
-
-      # Event with 0% hit rate (no cache hits)
-      event_0_percent =
-        CommandEventsFixtures.command_event_fixture(
-          project_id: project.id,
-          name: "cache",
-          cacheable_targets: ["Target1", "Target2", "Target3"],
-          local_cache_target_hits: [],
-          remote_cache_target_hits: [],
-          created_at: ~N[2024-01-01 01:00:00]
-        )
-
-      # Event with 50% hit rate (1 local + 1 remote out of 4 targets)
-      event_50_percent =
-        CommandEventsFixtures.command_event_fixture(
-          project_id: project.id,
-          name: "cache",
-          cacheable_targets: ["Target1", "Target2", "Target3", "Target4"],
-          local_cache_target_hits: ["Target1"],
-          remote_cache_target_hits: ["Target2"],
-          created_at: ~N[2024-01-01 02:00:00]
-        )
-
-      # Event with 75% hit rate (1 local + 2 remote out of 4 targets)
-      event_75_percent =
-        CommandEventsFixtures.command_event_fixture(
-          project_id: project.id,
-          name: "cache",
-          cacheable_targets: ["Target1", "Target2", "Target3", "Target4"],
-          local_cache_target_hits: ["Target1"],
-          remote_cache_target_hits: ["Target2", "Target3"],
-          created_at: ~N[2024-01-01 03:00:00]
-        )
-
-      # Event with 100% hit rate (all targets cached)
-      event_100_percent =
-        CommandEventsFixtures.command_event_fixture(
-          project_id: project.id,
-          name: "cache",
-          cacheable_targets: ["Target1", "Target2"],
-          local_cache_target_hits: ["Target1"],
-          remote_cache_target_hits: ["Target2"],
-          created_at: ~N[2024-01-01 04:00:00]
-        )
-
-      # Event with no cacheable targets (should have NULL hit rate)
-      event_no_targets =
-        CommandEventsFixtures.command_event_fixture(
-          project_id: project.id,
-          name: "cache",
-          cacheable_targets: [],
-          local_cache_target_hits: [],
-          remote_cache_target_hits: [],
-          created_at: ~N[2024-01-01 05:00:00]
-        )
-
-      %{
-        project: project,
-        event_0_percent: event_0_percent,
-        event_50_percent: event_50_percent,
-        event_75_percent: event_75_percent,
-        event_100_percent: event_100_percent,
-        event_no_targets: event_no_targets
-      }
-    end
-
-    test "sorts by hit rate in descending order", %{
-      project: project,
-      event_0_percent: event_0_percent,
-      event_50_percent: event_50_percent,
-      event_75_percent: event_75_percent,
-      event_100_percent: event_100_percent,
-      event_no_targets: event_no_targets
-    } do
-      # When
-      {events, _meta} =
-        CommandEvents.list_command_events(%{
-          filters: [%{field: :project_id, op: :==, value: project.id}],
-          order_by: [:hit_rate],
-          order_directions: [:desc]
-        })
-
-      # Then - should be ordered: 100%, 75%, 50%, 0%, NULL
-      event_ids = Enum.map(events, & &1.id)
-
-      assert event_ids == [
-               event_100_percent.id,
-               event_75_percent.id,
-               event_50_percent.id,
-               event_0_percent.id,
-               event_no_targets.id
-             ]
-
-      # Verify hit rates are calculated correctly
-      assert Enum.at(events, 0).hit_rate == 100.0
-      assert Enum.at(events, 1).hit_rate == 75.0
-      assert Enum.at(events, 2).hit_rate == 50.0
-      assert Enum.at(events, 3).hit_rate == 0.0
-      assert Enum.at(events, 4).hit_rate == nil
-    end
-
-    test "sorts by hit rate in ascending order", %{
-      project: project,
-      event_0_percent: event_0_percent,
-      event_50_percent: event_50_percent,
-      event_75_percent: event_75_percent,
-      event_100_percent: event_100_percent,
-      event_no_targets: event_no_targets
-    } do
-      # When
-      {events, _meta} =
-        CommandEvents.list_command_events(%{
-          filters: [%{field: :project_id, op: :==, value: project.id}],
-          order_by: [:hit_rate],
-          order_directions: [:asc]
-        })
-
-      # Then - should be ordered: NULL, 0%, 50%, 75%, 100%
-      event_ids = Enum.map(events, & &1.id)
-
-      assert event_ids == [
-               event_no_targets.id,
-               event_0_percent.id,
-               event_50_percent.id,
-               event_75_percent.id,
-               event_100_percent.id
-             ]
-    end
-
-    test "filters by hit rate greater than", %{
-      project: project,
-      event_75_percent: event_75_percent,
-      event_100_percent: event_100_percent
-    } do
-      # When - filter for hit rate > 60%
-      {events, _meta} =
-        CommandEvents.list_command_events(%{
-          filters: [
-            %{field: :project_id, op: :==, value: project.id},
-            %{field: :hit_rate, op: :>, value: 60}
-          ]
-        })
-
-      # Then - should only include 75% and 100% events
-      event_ids = events |> Enum.map(& &1.id) |> Enum.sort()
-      expected_ids = Enum.sort([event_75_percent.id, event_100_percent.id])
-      assert event_ids == expected_ids
-    end
-
-    test "filters by hit rate greater than or equal to", %{
-      project: project,
-      event_50_percent: event_50_percent,
-      event_75_percent: event_75_percent,
-      event_100_percent: event_100_percent
-    } do
-      # When - filter for hit rate >= 50%
-      {events, _meta} =
-        CommandEvents.list_command_events(%{
-          filters: [
-            %{field: :project_id, op: :==, value: project.id},
-            %{field: :hit_rate, op: :>=, value: 50}
-          ]
-        })
-
-      # Then - should include 50%, 75%, and 100% events
-      event_ids = events |> Enum.map(& &1.id) |> Enum.sort()
-      expected_ids = Enum.sort([event_50_percent.id, event_75_percent.id, event_100_percent.id])
-      assert event_ids == expected_ids
-    end
-
-    test "filters by hit rate less than", %{
-      project: project,
-      event_0_percent: event_0_percent,
-      event_50_percent: event_50_percent,
-      event_no_targets: event_no_targets
-    } do
-      # When - filter for hit rate < 60%
-      {events, _meta} =
-        CommandEvents.list_command_events(%{
-          filters: [
-            %{field: :project_id, op: :==, value: project.id},
-            %{field: :hit_rate, op: :<, value: 60}
-          ]
-        })
-
-      # Then - should include 0%, 50%, and NULL events
-      event_ids = events |> Enum.map(& &1.id) |> Enum.sort()
-      expected_ids = Enum.sort([event_0_percent.id, event_50_percent.id, event_no_targets.id])
-      assert event_ids == expected_ids
-    end
-
-    test "filters by hit rate less than or equal to", %{
-      project: project,
-      event_0_percent: event_0_percent,
-      event_50_percent: event_50_percent,
-      event_75_percent: event_75_percent,
-      event_no_targets: event_no_targets
-    } do
-      # When - filter for hit rate <= 75%
-      {events, _meta} =
-        CommandEvents.list_command_events(%{
-          filters: [
-            %{field: :project_id, op: :==, value: project.id},
-            %{field: :hit_rate, op: :<=, value: 75}
-          ]
-        })
-
-      # Then - should include 0%, 50%, 75%, and NULL events
-      event_ids = events |> Enum.map(& &1.id) |> Enum.sort()
-
-      expected_ids =
-        Enum.sort([
-          event_0_percent.id,
-          event_50_percent.id,
-          event_75_percent.id,
-          event_no_targets.id
-        ])
-
-      assert event_ids == expected_ids
-    end
-
-    test "filters by hit rate equal to", %{
-      project: project,
-      event_75_percent: event_75_percent
-    } do
-      # When - filter for hit rate == 75%
-      {events, _meta} =
-        CommandEvents.list_command_events(%{
-          filters: [
-            %{field: :project_id, op: :==, value: project.id},
-            %{field: :hit_rate, op: :==, value: 75}
-          ]
-        })
-
-      # Then - should only include the 75% event
-      assert length(events) == 1
-      assert hd(events).id == event_75_percent.id
-    end
-
-    test "handles empty arrays correctly in hit rate calculation", %{project: project} do
-      # Given - event with empty local_cache_target_hits but non-empty remote_cache_target_hits
-      event =
-        CommandEventsFixtures.command_event_fixture(
-          project_id: project.id,
-          name: "cache",
-          cacheable_targets: ["Target1", "Target2", "Target3", "Target4", "Target5"],
-          local_cache_target_hits: [],
-          remote_cache_target_hits: ["Target1", "Target2", "Target3", "Target4"],
-          created_at: ~N[2024-01-01 06:00:00]
-        )
-
-      # When
-      {events, _meta} =
-        CommandEvents.list_command_events(%{
-          filters: [
-            %{field: :project_id, op: :==, value: project.id},
-            %{field: :id, op: :==, value: event.id}
-          ]
-        })
-
-      # Then - should calculate 80% hit rate (4 out of 5 targets)
-      assert length(events) == 1
-      assert hd(events).hit_rate == 80.0
-    end
-  end
-
   describe "get_user_account_names_for_runs/1" do
     test "returns user account names for runs with users" do
       # Given
@@ -1810,18 +1088,13 @@ defmodule Tuist.CommandEventsTest do
     test "handles runs with non-existent user IDs" do
       # Given
       user = AccountsFixtures.user_fixture()
-
-      run_with_valid_user = CommandEventsFixtures.command_event_fixture(user_id: user.id)
-      # Create a run with a valid user first, then manually update to invalid user_id
-      run_with_invalid_user = CommandEventsFixtures.command_event_fixture(user_id: user.id)
       non_existent_user_id = 999_999
 
-      Repo.update_all(
-        from(e in Tuist.CommandEvents.Postgres.Event, where: e.id == ^run_with_invalid_user.id),
-        set: [user_id: non_existent_user_id]
-      )
+      run_with_valid_user =
+        CommandEventsFixtures.command_event_fixture(user_id: user.id)
 
-      run_with_invalid_user = %{run_with_invalid_user | user_id: non_existent_user_id}
+      run_with_invalid_user =
+        CommandEventsFixtures.command_event_fixture(user_id: non_existent_user_id)
 
       # When
       result =
@@ -1864,203 +1137,38 @@ defmodule Tuist.CommandEventsTest do
     end
   end
 
-  describe "run_events/4" do
-    setup do
-      stub(Tuist.Environment, :clickhouse_configured?, fn -> false end)
-      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> false end)
-      :ok
-    end
-
-    test "returns run events for a project within date range" do
-      # Given
-      project = ProjectsFixtures.project_fixture()
-
-      event_in_range =
-        CommandEventsFixtures.command_event_fixture(
-          project_id: project.id,
-          name: "test",
-          created_at: ~N[2024-01-15 12:00:00]
-        )
-
-      CommandEventsFixtures.command_event_fixture(
-        project_id: project.id,
-        name: "test",
-        created_at: ~N[2024-01-25 12:00:00]
-      )
-
-      # When
-      result =
-        CommandEvents.run_events(
-          project.id,
-          ~D[2024-01-10],
-          ~D[2024-01-20],
-          []
-        )
-
-      # Then
-      assert length(result) == 1
-      assert hd(result).id == event_in_range.id
-    end
-  end
-
-  describe "run_analytics/4" do
-    setup do
-      stub(Tuist.Environment, :clickhouse_configured?, fn -> false end)
-      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> false end)
-      :ok
-    end
-
-    test "returns aggregated analytics for project within date range" do
-      # Given
-      project = ProjectsFixtures.project_fixture()
-
-      CommandEventsFixtures.command_event_fixture(
-        project_id: project.id,
-        name: "test",
-        duration: 1000,
-        created_at: ~N[2024-01-15 12:00:00]
-      )
-
-      CommandEventsFixtures.command_event_fixture(
-        project_id: project.id,
-        name: "test",
-        duration: 2000,
-        created_at: ~N[2024-01-15 14:00:00]
-      )
-
-      # When
-      result =
-        CommandEvents.run_analytics(
-          project.id,
-          ~D[2024-01-10],
-          ~D[2024-01-20],
-          name: "test"
-        )
-
-      # Then
-      assert is_map(result)
-      assert Map.has_key?(result, :count)
-      assert Map.has_key?(result, :average_duration)
-      assert result[:count] == 2
-      assert result[:average_duration] == 1500.0
-    end
-
-    test "returns empty analytics when no events found" do
-      # Given
-      project = ProjectsFixtures.project_fixture()
-
-      # When
-      result =
-        CommandEvents.run_analytics(
-          project.id,
-          ~D[2024-01-10],
-          ~D[2024-01-20],
-          name: "test"
-        )
-
-      # Then
-      assert is_map(result)
-      assert result[:count] == 0
-      assert result[:average_duration] == 0
-    end
-  end
-
-  describe "run_average_duration/4" do
-    setup do
-      stub(Tuist.Environment, :clickhouse_configured?, fn -> false end)
-      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> false end)
-      :ok
-    end
-
-    test "returns average duration for project within date range" do
-      # Given
-      project = ProjectsFixtures.project_fixture()
-
-      CommandEventsFixtures.command_event_fixture(
-        project_id: project.id,
-        name: "test",
-        duration: 1000,
-        created_at: ~N[2024-01-15 12:00:00]
-      )
-
-      CommandEventsFixtures.command_event_fixture(
-        project_id: project.id,
-        name: "test",
-        duration: 2000,
-        created_at: ~N[2024-01-15 14:00:00]
-      )
-
-      # When
-      result =
-        CommandEvents.run_average_duration(
-          project.id,
-          ~D[2024-01-10],
-          ~D[2024-01-20],
-          name: "test"
-        )
-
-      # Then
-      assert result == 1500.0
-    end
-
-    test "returns nil when no events found" do
-      # Given
-      project = ProjectsFixtures.project_fixture()
-
-      # When
-      result =
-        CommandEvents.run_average_duration(
-          project.id,
-          ~D[2024-01-10],
-          ~D[2024-01-20],
-          name: "test"
-        )
-
-      # Then
-      assert result == 0
-    end
-  end
-
-  describe "run_count_with_date_range/7 - clickhouse" do
-    setup do
-      stub(Tuist.Environment, :clickhouse_configured?, fn -> true end)
-      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> true end)
-      :ok
-    end
-
+  describe "run_count/7" do
     test "returns count data with date range and filters" do
       # Given
       project = ProjectsFixtures.project_fixture()
 
-      with_flushed_ingestion_buffers(fn ->
-        CommandEventsFixtures.command_event_fixture(
-          project_id: project.id,
-          name: "test",
-          duration: 1000,
-          ran_at: ~U[2024-01-15 12:00:00Z],
-          is_ci: false
-        )
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "test",
+        duration: 1000,
+        ran_at: ~U[2024-01-15 12:00:00Z],
+        is_ci: false
+      )
 
-        CommandEventsFixtures.command_event_fixture(
-          project_id: project.id,
-          name: "test",
-          duration: 2000,
-          ran_at: ~U[2024-01-15 14:00:00Z],
-          is_ci: true
-        )
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "test",
+        duration: 2000,
+        ran_at: ~U[2024-01-15 14:00:00Z],
+        is_ci: true
+      )
 
-        CommandEventsFixtures.command_event_fixture(
-          project_id: project.id,
-          name: "build",
-          duration: 1500,
-          ran_at: ~U[2024-01-15 16:00:00Z],
-          is_ci: false
-        )
-      end)
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "build",
+        duration: 1500,
+        ran_at: ~U[2024-01-15 16:00:00Z],
+        is_ci: false
+      )
 
       # When - test with is_ci filter (this should catch the regression)
       result =
-        CommandEvents.Clickhouse.run_count_with_date_range(
+        CommandEvents.run_count(
           project.id,
           ~D[2024-01-10],
           ~D[2024-01-20],
@@ -2073,7 +1181,6 @@ defmodule Tuist.CommandEventsTest do
       # Then
       # 11 days in range
       assert length(result) == 11
-      assert Enum.any?(result, fn %{count: count} -> count > 0 end)
     end
 
     test "works with status filter" do
@@ -2091,7 +1198,7 @@ defmodule Tuist.CommandEventsTest do
 
       # When - test with multiple filters (this should catch the regression)
       result =
-        CommandEvents.Clickhouse.run_count_with_date_range(
+        CommandEvents.run_count(
           project.id,
           ~D[2024-01-10],
           ~D[2024-01-20],
@@ -2108,46 +1215,37 @@ defmodule Tuist.CommandEventsTest do
     end
   end
 
-  describe "run_average_durations_with_date_range/7 - clickhouse" do
-    setup do
-      stub(Tuist.Environment, :clickhouse_configured?, fn -> true end)
-      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> true end)
-      :ok
-    end
-
+  describe "run_average_durations/7" do
     test "returns average duration data with date range and filters" do
       # Given
       project = ProjectsFixtures.project_fixture()
 
-      with_flushed_ingestion_buffers(fn ->
-        CommandEventsFixtures.command_event_fixture(
-          project_id: project.id,
-          name: "test",
-          duration: 1000,
-          ran_at: ~U[2024-01-15 12:00:00Z],
-          is_ci: false
-        )
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "test",
+        duration: 1000,
+        ran_at: ~U[2024-01-15 12:00:00Z],
+        is_ci: false
+      )
 
-        CommandEventsFixtures.command_event_fixture(
-          project_id: project.id,
-          name: "test",
-          duration: 2000,
-          ran_at: ~U[2024-01-15 14:00:00Z],
-          is_ci: true
-        )
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "test",
+        duration: 2000,
+        ran_at: ~U[2024-01-15 14:00:00Z],
+        is_ci: true
+      )
 
-        CommandEventsFixtures.command_event_fixture(
-          project_id: project.id,
-          name: "build",
-          duration: 1500,
-          ran_at: ~U[2024-01-15 16:00:00Z],
-          is_ci: false
-        )
-      end)
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "build",
+        duration: 1500,
+        ran_at: ~U[2024-01-15 16:00:00Z],
+        is_ci: false
+      )
 
-      # When - test with is_ci filter (this should catch the regression)
       result =
-        CommandEvents.Clickhouse.run_average_durations_with_date_range(
+        CommandEvents.run_average_durations(
           project.id,
           ~D[2024-01-10],
           ~D[2024-01-20],
@@ -2167,29 +1265,27 @@ defmodule Tuist.CommandEventsTest do
       # Given
       project = ProjectsFixtures.project_fixture()
 
-      with_flushed_ingestion_buffers(fn ->
-        CommandEventsFixtures.command_event_fixture(
-          project_id: project.id,
-          name: "test",
-          duration: 1000,
-          ran_at: ~U[2024-01-15 12:00:00Z],
-          is_ci: true,
-          status: :success
-        )
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "test",
+        duration: 1000,
+        ran_at: ~U[2024-01-15 12:00:00Z],
+        is_ci: true,
+        status: :success
+      )
 
-        CommandEventsFixtures.command_event_fixture(
-          project_id: project.id,
-          name: "test",
-          duration: 2000,
-          ran_at: ~U[2024-01-15 14:00:00Z],
-          is_ci: true,
-          status: :success
-        )
-      end)
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "test",
+        duration: 2000,
+        ran_at: ~U[2024-01-15 14:00:00Z],
+        is_ci: true,
+        status: :success
+      )
 
       # When - test with multiple filters (this should catch the regression)
       result =
-        CommandEvents.Clickhouse.run_average_durations_with_date_range(
+        CommandEvents.run_average_durations(
           project.id,
           ~D[2024-01-10],
           ~D[2024-01-20],
@@ -2221,7 +1317,7 @@ defmodule Tuist.CommandEventsTest do
       # When - this specific combination was causing the regression
       # The function should not raise an "unknown bind name :event" error
       result =
-        CommandEvents.Clickhouse.run_average_durations_with_date_range(
+        CommandEvents.run_average_durations(
           project.id,
           ~D[2024-01-10],
           ~D[2024-01-20],
@@ -2236,13 +1332,7 @@ defmodule Tuist.CommandEventsTest do
     end
   end
 
-  describe "get_yesterdays_remote_cache_hits_count_for_customer/1 - clickhouse" do
-    setup do
-      stub(Tuist.Environment, :clickhouse_configured?, fn -> true end)
-      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> true end)
-      :ok
-    end
-
+  describe "get_yesterdays_remote_cache_hits_count_for_customer/1" do
     test "counts only yesterday's events for the customer's projects" do
       # Given
       %{account: %{id: account_id}, id: user_id} =
@@ -2257,41 +1347,39 @@ defmodule Tuist.CommandEventsTest do
       today = ~U[2025-01-02 12:00:00Z]
       stub(DateTime, :utc_now, fn -> today end)
 
-      with_flushed_ingestion_buffers(fn ->
-        CommandEventsFixtures.command_event_fixture(
-          name: "generate",
-          project_id: project.id,
-          user_id: user_id,
-          remote_cache_target_hits: ["A"],
-          ran_at: ~U[2025-01-01 10:00:00Z]
-        )
+      CommandEventsFixtures.command_event_fixture(
+        name: "generate",
+        project_id: project.id,
+        user_id: user_id,
+        remote_cache_target_hits: ["A"],
+        ran_at: ~U[2025-01-01 10:00:00Z]
+      )
 
-        CommandEventsFixtures.command_event_fixture(
-          name: "test",
-          project_id: project.id,
-          user_id: user_id,
-          remote_test_target_hits: ["B"],
-          ran_at: ~U[2025-01-01 18:00:00Z]
-        )
+      CommandEventsFixtures.command_event_fixture(
+        name: "test",
+        project_id: project.id,
+        user_id: user_id,
+        remote_test_target_hits: ["B"],
+        ran_at: ~U[2025-01-01 18:00:00Z]
+      )
 
-        # One event for another customer yesterday
-        CommandEventsFixtures.command_event_fixture(
-          name: "generate",
-          project_id: other_project.id,
-          user_id: other_user_id,
-          remote_cache_target_hits: ["C"],
-          ran_at: ~U[2025-01-01 09:00:00Z]
-        )
+      # One event for another customer yesterday
+      CommandEventsFixtures.command_event_fixture(
+        name: "generate",
+        project_id: other_project.id,
+        user_id: other_user_id,
+        remote_cache_target_hits: ["C"],
+        ran_at: ~U[2025-01-01 09:00:00Z]
+      )
 
-        # Event outside of yesterday window for our project
-        CommandEventsFixtures.command_event_fixture(
-          name: "generate",
-          project_id: project.id,
-          user_id: user_id,
-          remote_cache_target_hits: ["D"],
-          ran_at: ~U[2024-12-31 23:59:59Z]
-        )
-      end)
+      # Event outside of yesterday window for our project
+      CommandEventsFixtures.command_event_fixture(
+        name: "generate",
+        project_id: project.id,
+        user_id: user_id,
+        remote_cache_target_hits: ["D"],
+        ran_at: ~U[2024-12-31 23:59:59Z]
+      )
 
       # When
       customer_id = Repo.get!(Tuist.Accounts.Account, account_id).customer_id

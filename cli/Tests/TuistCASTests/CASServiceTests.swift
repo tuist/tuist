@@ -121,10 +121,8 @@ struct CASServiceTests {
         let response = try await subject.save(request: request, context: context)
 
         // Then
-        let expectedDigest = SHA512.hash(data: testData).description
-        let expectedCASIDData = expectedDigest.data(using: .utf8)!
-
-        #expect(response.casID.id == expectedCASIDData)
+        let fingerprint = "E32E670195BD1ED06BA6A20D7B560BED8F9F91596EEC7B050BB783FD05045D0F"
+        #expect(response.casID.id == fingerprint.data(using: .utf8)!)
         switch response.contents {
         case .casID:
             break
@@ -137,7 +135,7 @@ struct CASServiceTests {
         verify(saveCacheCASService)
             .saveCacheCAS(
                 .value(testData),
-                casId: .value(expectedDigest),
+                casId: .value(fingerprint),
                 fullHandle: .value(fullHandle),
                 serverURL: .value(serverURL)
             )
