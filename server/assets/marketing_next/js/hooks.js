@@ -9,33 +9,30 @@ const Hooks = {
 
       if (!dropdown) return;
 
+      const setOpenState = (state) => {
+        menu.dataset.open = state ? "true" : "false";
+        dropdown.dataset.open = state ? "true" : "false";
+        if (action) action.dataset.open = state ? "true" : "false";
+        isOpen = state;
+      };
+
+      setOpenState(false);
+
       const showDropdown = () => {
         clearTimeout(hoverTimeout);
-        dropdown.classList.add("show");
-        if (action) action.classList.add("open");
-        isOpen = true;
+        setOpenState(true);
       };
 
       const hideDropdown = () => {
         clearTimeout(hoverTimeout);
         hoverTimeout = setTimeout(() => {
-          dropdown.classList.remove("show");
-          if (action) action.classList.remove("open");
-          isOpen = false;
+          setOpenState(false);
         }, 100); // Small delay to allow cursor to move to dropdown
       };
 
       const toggleDropdown = (e) => {
         e.stopPropagation();
-        if (isOpen) {
-          dropdown.classList.remove("show");
-          if (action) action.classList.remove("open");
-          isOpen = false;
-        } else {
-          dropdown.classList.add("show");
-          if (action) action.classList.add("open");
-          isOpen = true;
-        }
+        setOpenState(!isOpen);
       };
 
       // Click to toggle
@@ -54,9 +51,7 @@ const Hooks = {
       // Close when clicking outside
       document.addEventListener("click", (e) => {
         if (!menu.contains(e.target) && isOpen) {
-          dropdown.classList.remove("show");
-          if (action) action.classList.remove("open");
-          isOpen = false;
+          setOpenState(false);
         }
       });
     },

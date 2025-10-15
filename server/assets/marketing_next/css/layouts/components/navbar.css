@@ -5,7 +5,7 @@
   justify-content: space-between;
   align-items: center;
   align-self: stretch;
-  z-index: 100;
+  z-index: var(--noora-z-index-1);
   backdrop-filter: blur(4px);
   margin-top: var(--noora-spacing-12);
   margin-right: var(--noora-spacing-14);
@@ -80,7 +80,7 @@
           transition: transform 0.2s ease;
         }
 
-        &.open > [data-part="chevron"] {
+        &[data-open="true"] > [data-part="chevron"] {
           transform: rotate(180deg);
         }
       }
@@ -92,7 +92,7 @@
         transform: translateX(-50%) translateY(-10px);
         visibility: hidden; /* Hidden by default, controlled by JS */
         opacity: 0;
-        z-index: 200;
+        z-index: var(--noora-z-index-4);
         transition:
           opacity 0.2s ease,
           transform 0.2s ease,
@@ -105,7 +105,7 @@
         border-radius: var(--noora-radius-xlarge);
         background: #fff;
 
-        &.show {
+        &[data-open="true"] {
           transform: translateX(-50%) translateY(0);
           visibility: visible;
           opacity: 1;
@@ -184,7 +184,7 @@
 
         & > [data-part="background"] {
           position: absolute;
-          z-index: 0;
+          z-index: var(--noora-z-index-1);
           inset: 0;
           border-radius: inherit;
           background: linear-gradient(112deg, rgba(255, 251, 245, 0.7) 0%, rgba(250, 239, 247, 0.7) 100.86%);
@@ -204,7 +204,7 @@
           position: relative;
           flex-direction: column;
           gap: var(--noora-spacing-6);
-          z-index: 1;
+          z-index: var(--noora-z-index-2);
           box-shadow:
             0 0 0 1px rgba(46, 51, 56, 0.08) inset,
             0 -1px 0 0 rgba(46, 51, 56, 0.16) inset,
@@ -282,7 +282,7 @@
           display: flex;
           flex-direction: column;
           gap: var(--noora-spacing-7);
-          z-index: 1;
+          z-index: var(--noora-z-index-2);
           padding: var(--noora-spacing-5);
 
           & > [data-part="header"] {
@@ -459,7 +459,7 @@
         transform: translateX(-50%) translateY(-10px);
         visibility: hidden; /* Hidden by default, controlled by JS */
         opacity: 0;
-        z-index: 200;
+        z-index: var(--noora-z-index-2);
         transition:
           opacity 0.2s ease,
           transform 0.2s ease,

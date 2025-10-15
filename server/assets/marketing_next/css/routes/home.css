@@ -1,4 +1,5 @@
 #marketing-home {
+  position: relative;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -8,6 +9,8 @@
   & > section,
   & > header {
     align-self: center;
+    position: relative;
+    z-index: var(--noora-z-index-2);
     width: 100%;
     max-width: 1296px;
   }
@@ -16,15 +19,23 @@
     display: flex;
     justify-content: center;
     align-items: center;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 1000px;
     overflow: hidden;
+    pointer-events: none;
+    z-index: var(--noora-z-index-0);
 
     & > [data-part="background"] {
       position: absolute;
       top: 0;
       left: 0;
-      z-index: -1;
+      z-index: var(--noora-z-index-1);
       mask-image: linear-gradient(to bottom, black 80%, transparent 100%);
       background: linear-gradient(180deg, #f4f5fe 0%, #efe8ff 100%);
+      pointer-events: none;
       width: 100%;
       height: 1000px;
 
@@ -209,6 +220,30 @@
       align-items: center;
       gap: var(--noora-spacing-5);
 
+      & > article[data-part] {
+        position: relative;
+
+        & > [data-part="overlay-link"] {
+          position: absolute;
+          inset: 0;
+          z-index: var(--noora-z-index-3);
+          border-radius: inherit;
+          display: block;
+          text-decoration: none;
+        }
+
+        & > [data-part="overlay-link"]:focus-visible {
+          outline: 3px solid var(--noora-purple-60, #6f2cff);
+          outline-offset: 6px;
+        }
+
+        & > [data-part="content"],
+        & > [data-part="graphic"] {
+          position: relative;
+          z-index: var(--noora-z-index-2);
+        }
+      }
+
       & > [data-part="generated-projects"],
       [data-part="selective-testing"] {
         display: flex;
@@ -224,9 +259,10 @@
         & > [data-part="background"] {
           position: absolute;
           top: 0;
-          z-index: -1;
+          z-index: var(--noora-z-index-1);
           width: 100%;
           height: 100%;
+          pointer-events: none;
 
           & > img {
             position: absolute;
@@ -239,6 +275,8 @@
         }
 
         & > [data-part="graphic"] {
+          position: relative;
+          z-index: var(--noora-z-index-2);
           width: 100%;
           height: 222px;
           text-align: center;
@@ -258,6 +296,8 @@
           align-items: flex-start;
           gap: var(--noora-spacing-3);
           padding: var(--noora-spacing-8);
+          position: relative;
+          z-index: var(--noora-z-index-2);
 
           & > [data-part="title"] {
             color: var(--noora-surface-label-primary);
@@ -288,9 +328,10 @@
         & > [data-part="background"] {
           position: absolute;
           top: 0;
-          z-index: -1;
+          z-index: var(--noora-z-index-1);
           width: 100%;
           height: 100%;
+          pointer-events: none;
 
           & > img {
             position: absolute;
@@ -303,6 +344,8 @@
         }
 
         & > [data-part="graphic"] {
+          position: relative;
+          z-index: var(--noora-z-index-2);
           width: 100%;
           height: 222px;
           text-align: center;
@@ -322,6 +365,8 @@
           align-items: flex-start;
           gap: var(--noora-spacing-3);
           padding: var(--noora-spacing-8);
+          position: relative;
+          z-index: var(--noora-z-index-2);
 
           & > [data-part="title"] {
             color: var(--noora-surface-label-primary);
@@ -353,9 +398,10 @@
         & > [data-part="background"] {
           position: absolute;
           top: 0;
-          z-index: -1;
+          z-index: var(--noora-z-index-1);
           width: 100%;
           height: 100%;
+          pointer-events: none;
 
           & > img {
             position: absolute;
@@ -368,6 +414,8 @@
         }
 
         & > [data-part="graphic"] {
+          position: relative;
+          z-index: var(--noora-z-index-2);
           width: 100%;
           height: 222px;
           text-align: center;
@@ -387,6 +435,8 @@
           align-items: flex-start;
           gap: var(--noora-spacing-3);
           padding: var(--noora-spacing-8);
+          position: relative;
+          z-index: var(--noora-z-index-2);
 
           & > [data-part="title"] {
             color: var(--noora-surface-label-primary);
@@ -470,13 +520,27 @@
       border-radius: var(--noora-radius-xlarge);
       width: 642px;
 
+      & > [data-part="overlay-link"] {
+        position: absolute;
+        inset: 0;
+        z-index: var(--noora-z-index-2);
+        border-radius: inherit;
+        display: block;
+        text-decoration: none;
+      }
+
+      & > [data-part="overlay-link"]:focus-visible {
+        outline: 3px solid var(--noora-purple-60, #6f2cff);
+        outline-offset: 6px;
+      }
 
       & > [data-part="background"] {
         position: absolute;
         top: 0;
-        z-index: -1;
+        z-index: var(--noora-z-index-1);
         width: 100%;
         height: 100%;
+        pointer-events: none;
 
         & > img {
           position: absolute;
@@ -497,6 +561,13 @@
         gap: var(--noora-spacing-7);
         padding: var(--noora-spacing-10);
         padding-bottom: 0;
+        position: relative;
+        z-index: var(--noora-z-index-3);
+        pointer-events: none;
+
+        & * {
+          pointer-events: none;
+        }
 
         & > [data-part="name"] {
           display: flex;
@@ -510,12 +581,25 @@
           font-family: var(--noora-font-heading);
           font: var(--noora-font-weight-medium) var(--noora-font-heading-xlarge);
         }
+
+        & .noora-button {
+          pointer-events: auto;
+          position: relative;
+          z-index: var(--noora-z-index-4);
+        }
       }
 
       & > [data-part="graphic"] {
         width: 100%;
         height: 185px;
         text-align: center;
+        position: relative;
+        z-index: var(--noora-z-index-3);
+        pointer-events: none;
+
+        & * {
+          pointer-events: none;
+        }
 
         & > img {
           width: 100%;
