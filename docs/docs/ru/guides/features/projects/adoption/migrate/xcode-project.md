@@ -144,9 +144,9 @@ let project = Project(
 tuist migration check-empty-settings -p Project.xcodeproj
 ```
 
-## Extract package dependencies {#extract-package-dependencies}
+## Вынос зависимостей пакетов {#extract-package-dependencies}
 
-Extract all your project's dependencies into the `Tuist/Package.swift` file:
+Вынесите все зависимости вашего проекта в файл `Tuist/Package.swift`:
 
 ```swift
 // swift-tools-version: 5.9
@@ -174,48 +174,50 @@ let package = Package(
 )
 ```
 
-::: tip PRODUCT TYPES
+::: tip ТИПЫ ПРОДУКТОВ
 <!-- -->
-You can override the product type for a specific package by adding it to the
-`productTypes` dictionary in the `PackageSettings` struct. By default, Tuist
-assumes that all packages are static frameworks.
+Вы можете переопределить тип продукта для конкретного пакета, добавив его в
+словарь `productTypes` внутри структуры `PackageSettings`. По умолчанию Tuist
+предполагает, что все пакеты являются статическими фреймворками.
 <!-- -->
 :::
 
 
-## Determine the migration order {#determine-the-migration-order}
+## Определение порядка миграции {#determine-the-migration-order}
 
-We recommend migrating the targets from the one that is the most dependent upon
-to the least. You can use the following command to list the targets of a
-project, sorted by the number of dependencies:
+Мы рекомендуем выполнять миграцию целей (targets), начиная с тех, от которых
+зависят другие, и заканчивая теми, которые зависят меньше всего. Вы можете
+использовать следующую команду, чтобы вывести список целей проекта,
+отсортированный по количеству зависимостей:
 
 ```bash
 tuist migration list-targets -p Project.xcodeproj
 ```
 
-Start migrating the targets from the top of the list, as they are the ones that
-are the most depended upon.
+Начните миграцию целей с верхней части списка, так как именно от них зависит
+наибольшее количество других целей.
 
 
-## Migrate targets {#migrate-targets}
+## Миграция целей {#migrate-targets}
 
-Migrate the targets one by one. We recommend doing a pull request for each
-target to ensure that the changes are reviewed and tested before merging them.
+Мигрируйте цели по одной. Мы рекомендуем создавать отдельный pull request для
+каждой цели, чтобы убедиться, что изменения были проверены и протестированы
+перед их слиянием.
 
-### Extract the target build settings into `.xcconfig` files {#extract-the-target-build-settings-into-xcconfig-files}
+### Вынос настроек сборки целей в файлы `.xcconfig` {#extract-the-target-build-settings-into-xcconfig-files}
 
-Like you did with the project build settings, extract the target build settings
-into an `.xcconfig` file to make the target leaner and easier to migrate. You
-can use the following command to extract the build settings from the target into
-an `.xcconfig` file:
+Так же, как и с настройками сборки проекта, вынесите настройки сборки цели в
+файл `.xcconfig`, чтобы сделать цель проще и облегчить её миграцию. Вы можете
+использовать следующую команду, чтобы извлечь настройки сборки цели в файл
+`.xcconfig`:
 
 ```bash
 tuist migration settings-to-xcconfig -p MyApp.xcodeproj -t TargetX -x xcconfigs/TargetX.xcconfig
 ```
 
-### Define the target in the `Project.swift` file {#define-the-target-in-the-projectswift-file}
+### Определение цели в файле `Project.swift` {#define-the-target-in-the-projectswift-file}
 
-Define the target in `Project.targets`:
+Определите цель в `Project.targets`:
 
 ```swift
 import ProjectDescription
@@ -247,14 +249,14 @@ let project = Project(
 )
 ```
 
-::: info TEST TARGETS
+::: info ТЕСТОВЫЕ ЦЕЛИ
 <!-- -->
-If the target has an associated test target, you should define it in the
-`Project.swift` file as well repeating the same steps.
+Если у цели есть связанная тестовая цель, её также следует определить в файле
+`Project.swift`, повторив те же шаги.
 <!-- -->
 :::
 
-### Validate the target migration {#validate-the-target-migration}
+### Проверка миграции цели {#validate-the-target-migration}
 
 Run `tuist build` and `tuist test` to ensure the project builds and tests pass.
 Additionally, you can use [xcdiff](https://github.com/bloomberg/xcdiff) to
