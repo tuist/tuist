@@ -27,8 +27,7 @@ struct CacheStartCommandService {
         fullHandle: String,
         url: String?
     ) async throws {
-        let socketPath = Environment.current.stateDirectory
-            .appending(component: "\(fullHandle.replacingOccurrences(of: "/", with: "_")).sock")
+        let socketPath = Environment.current.socketPath(for: fullHandle)
         if try await !fileSystem.exists(socketPath.parentDirectory, isDirectory: true) {
             try await fileSystem.makeDirectory(at: socketPath.parentDirectory)
         }

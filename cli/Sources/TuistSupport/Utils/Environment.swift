@@ -71,6 +71,10 @@ public protocol Environmenting: Sendable {
 
     /// Returns path to the Tuist executable
     func currentExecutablePath() -> AbsolutePath?
+    
+    /// Returns the socket path for a given full handle (e.g., "tuist-org/tuist")
+    /// This path is used for cache server communication
+    func socketPath(for fullHandle: String) -> AbsolutePath
 }
 
 private let truthyValues = ["1", "true", "TRUE", "yes", "YES"]
@@ -325,5 +329,9 @@ public struct Environment: Environmenting {
             rawValue: try CommandRunner()
                 .run(arguments: ["/usr/bin/uname", "-m"], environment: variables).concatenatedString().chomp()
         )!
+    }
+    
+    public func socketPath(for fullHandle: String) -> AbsolutePath {
+        stateDirectory.appending(component: "\(fullHandle.replacingOccurrences(of: "/", with: "_")).sock")
     }
 }

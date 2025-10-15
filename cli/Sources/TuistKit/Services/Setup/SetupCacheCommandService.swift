@@ -171,8 +171,7 @@ struct SetupCacheCommandService {
         tuistBinaryPath: AbsolutePath
     ) async throws {
         // Print the socket path that will be created
-        let socketPath = Environment.current.stateDirectory
-            .appending(component: "\(fullHandle.replacingOccurrences(of: "/", with: "_")).sock")
+        let socketPath = Environment.current.socketPath(for: fullHandle)
 
         // Replace home directory prefix with $HOME for portability
         let homeDir = Environment.current.homeDirectory.pathString
