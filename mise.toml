@@ -11,7 +11,7 @@
     postinstall = "{{config_root}}/mise/tasks/install.sh"
 
 [env]
-    _.file = { path = ".env.json", redact = true }
+    _.file = { path = ".env.json" }
     TUIST_CACHE_CONCURRENCY_LIMIT="none"
 
 [tasks.cla-sign]
