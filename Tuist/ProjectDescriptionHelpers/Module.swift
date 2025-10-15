@@ -30,6 +30,7 @@ public enum Module: String, CaseIterable {
     case rootDirectoryLocator = "TuistRootDirectoryLocator"
     case process = "TuistProcess"
     case ci = "TuistCI"
+    case cas = "TuistCAS"
 
     func forceStaticLinking() -> Bool {
         return Environment.forceStaticLinking.getBoolean(default: false)
@@ -54,7 +55,7 @@ public enum Module: String, CaseIterable {
                 destinations: [.mac],
                 product: .staticFramework,
                 bundleId: "dev.tuist.TuistCacheEE",
-                deploymentTargets: .macOS("14.0"),
+                deploymentTargets: .macOS("15.0"),
                 infoPlist: .default,
                 buildableFolders: ["cli/TuistCacheEE/Sources/"],
                 dependencies: [
@@ -89,7 +90,7 @@ public enum Module: String, CaseIterable {
                 destinations: [.mac],
                 product: .unitTests,
                 bundleId: "dev.tuist.TuistCacheEETests",
-                deploymentTargets: .macOS("14.0"),
+                deploymentTargets: .macOS("15.0"),
                 infoPlist: .default,
                 buildableFolders: [.folder("cli/Tests/TuistCacheEETests")],
                 dependencies: [
@@ -110,7 +111,7 @@ public enum Module: String, CaseIterable {
                 destinations: [.mac],
                 product: .unitTests,
                 bundleId: "dev.tuist.TuistCacheEEAcceptanceTests",
-                deploymentTargets: .macOS("14.0"),
+                deploymentTargets: .macOS("15.0"),
                 infoPlist: .default,
                 buildableFolders: ["cli/Tests/TuistCacheEEAcceptanceTests"],
                 dependencies: [
@@ -387,6 +388,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.rootDirectoryLocator.targetName),
                     .target(name: Module.ci.targetName, condition: .when([.macos])),
                     .target(name: Module.process.targetName, condition: .when([.macos])),
+                    .target(name: Module.cas.targetName),
                     .external(name: "MCP"),
                     .external(name: "FileSystem"),
                     .external(name: "SwiftToolsSupport"),
@@ -572,6 +574,15 @@ public enum Module: String, CaseIterable {
                 [
                     .target(name: Module.support.targetName),
                 ]
+            case .cas:
+                [
+                    .target(name: Module.core.targetName),
+                    .target(name: Module.server.targetName),
+                    .external(name: "GRPCCore"),
+                    .external(name: "GRPCNIOTransportHTTP2"),
+                    .external(name: "GRPCProtobuf"),
+                    .external(name: "SwiftProtobuf"),
+                ]
             }
         if self != .projectDescription, self != .projectAutomation {
             dependencies.append(contentsOf: sharedDependencies)
@@ -633,6 +644,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "XcodeGraph"),
                     .external(name: "SwiftToolsSupport"),
                     .external(name: "FileSystemTesting"),
+                    .external(name: "GRPCNIOTransportHTTP2"),
                 ]
             case .core:
                 [
@@ -763,6 +775,15 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.testing.targetName),
                     .target(name: Module.support.targetName),
                 ]
+            case .cas:
+                [
+                    .target(name: Module.testing.targetName),
+                    .target(name: Module.core.targetName),
+                    .target(name: Module.server.targetName),
+                    .external(name: "GRPCCore"),
+                    .external(name: "GRPCProtobuf"),
+                    .external(name: "SwiftProtobuf"),
+                ]
             }
         dependencies =
             dependencies + sharedDependencies + [
@@ -784,8 +805,8 @@ public enum Module: String, CaseIterable {
 
     private var deploymentTargets: DeploymentTargets {
         switch self {
-        case .simulator, .server: .multiplatform(iOS: "18.0", macOS: "14.0")
-        default: .macOS("14.0")
+        case .simulator, .server: .multiplatform(iOS: "18.0", macOS: "15.0")
+        default: .macOS("15.0")
         }
     }
 
@@ -819,7 +840,7 @@ public enum Module: String, CaseIterable {
         }
 
         var baseSettings = settings.base
-        baseSettings["MACOSX_DEPLOYMENT_TARGET"] = "14.0"
+        baseSettings["MACOSX_DEPLOYMENT_TARGET"] = "15.0"
 
         let settings = Settings.settings(
             base: baseSettings,
@@ -846,7 +867,7 @@ public enum Module: String, CaseIterable {
         let deploymentTargets: DeploymentTargets =
             switch product {
             case .framework, .staticFramework: deploymentTargets
-            default: .macOS("14.0")
+            default: .macOS("15.0")
             }
 
         return .target(

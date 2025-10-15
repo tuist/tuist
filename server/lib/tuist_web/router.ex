@@ -114,7 +114,7 @@ defmodule TuistWeb.Router do
   end
 
   pipeline :authenticated_api do
-    plug :accepts, ["json"]
+    plug :accepts, ["json", "application/octet-stream"]
 
     plug TuistWeb.WarningsHeaderPlug
     plug TuistWeb.AuthenticationPlug, :load_authenticated_subject
@@ -359,6 +359,18 @@ defmodule TuistWeb.Router do
             get "/:hash", CacheController, :get_cache_action_item
           end
         end
+      end
+    end
+
+    scope "/cache" do
+      scope "/keyvalue" do
+        put "/", Cache.KeyValueController, :put_value
+        put "/:cas_id", Cache.KeyValueController, :get_value
+      end
+
+      scope "/cas" do
+        get "/:id", CASController, :load
+        post "/:id", CASController, :save
       end
     end
 
