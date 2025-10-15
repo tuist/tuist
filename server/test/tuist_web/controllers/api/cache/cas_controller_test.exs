@@ -2,7 +2,6 @@ defmodule TuistWeb.API.CASControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: true
   use Mimic
 
-  alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Storage
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
@@ -24,7 +23,6 @@ defmodule TuistWeb.API.CASControllerTest do
   describe "GET /api/cache/cas/:id" do
     test "loads CAS artifact successfully", %{
       conn: conn,
-      user: user,
       project: project,
       account_handle: account_handle,
       project_handle: project_handle
@@ -57,7 +55,6 @@ defmodule TuistWeb.API.CASControllerTest do
 
     test "returns not found when artifact doesn't exist", %{
       conn: conn,
-      user: user,
       project: project,
       account_handle: account_handle,
       project_handle: project_handle
@@ -143,7 +140,6 @@ defmodule TuistWeb.API.CASControllerTest do
   describe "POST /api/cache/cas/:id" do
     test "uploads CAS artifact successfully", %{
       conn: conn,
-      user: user,
       project: project,
       account_handle: account_handle,
       project_handle: project_handle
@@ -183,7 +179,6 @@ defmodule TuistWeb.API.CASControllerTest do
 
     test "returns ok when artifact already exists", %{
       conn: conn,
-      user: user,
       project: project,
       account_handle: account_handle,
       project_handle: project_handle
