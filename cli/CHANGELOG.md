@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.86.2<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* don't throw file not found when hashing generated source files by [@fortmarek](https://github.com/fortmarek) in [#8449](https://github.com/tuist/tuist/pull/8449)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.86.1...4.86.2
+
 ## What's Changed in 4.86.1<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes

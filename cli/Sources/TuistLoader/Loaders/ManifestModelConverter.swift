@@ -27,11 +27,13 @@ public final class ManifestModelConverter: ManifestModelConverting {
     private let resourceSynthesizerPathLocator: ResourceSynthesizerPathLocating
     private let rootDirectoryLocator: RootDirectoryLocating
     private let fileSystem: FileSysteming
+    private let contentHasher: ContentHashing
 
     public convenience init() {
         self.init(
             manifestLoader: ManifestLoader(),
-            rootDirectoryLocator: RootDirectoryLocator()
+            rootDirectoryLocator: RootDirectoryLocator(),
+            contentHasher: ContentHasher()
         )
     }
 
@@ -41,7 +43,8 @@ public final class ManifestModelConverter: ManifestModelConverting {
         self.init(
             manifestLoader: manifestLoader,
             resourceSynthesizerPathLocator: ResourceSynthesizerPathLocator(),
-            rootDirectoryLocator: RootDirectoryLocator()
+            rootDirectoryLocator: RootDirectoryLocator(),
+            contentHasher: ContentHasher()
         )
     }
 
@@ -49,12 +52,14 @@ public final class ManifestModelConverter: ManifestModelConverting {
         manifestLoader: ManifestLoading,
         resourceSynthesizerPathLocator: ResourceSynthesizerPathLocating = ResourceSynthesizerPathLocator(),
         rootDirectoryLocator: RootDirectoryLocating,
-        fileSystem: FileSysteming = FileSystem()
+        fileSystem: FileSysteming = FileSystem(),
+        contentHasher: ContentHashing
     ) {
         self.manifestLoader = manifestLoader
         self.resourceSynthesizerPathLocator = resourceSynthesizerPathLocator
         self.rootDirectoryLocator = rootDirectoryLocator
         self.fileSystem = fileSystem
+        self.contentHasher = contentHasher
     }
 
     public func convert(
@@ -76,7 +81,8 @@ public final class ManifestModelConverter: ManifestModelConverting {
             externalDependencies: externalDependencies,
             resourceSynthesizerPathLocator: resourceSynthesizerPathLocator,
             type: type,
-            fileSystem: fileSystem
+            fileSystem: fileSystem,
+            contentHasher: contentHasher
         )
     }
 
