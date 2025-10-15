@@ -644,6 +644,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "XcodeGraph"),
                     .external(name: "SwiftToolsSupport"),
                     .external(name: "FileSystemTesting"),
+                    .external(name: "GRPCNIOTransportHTTP2"),
                 ]
             case .core:
                 [
@@ -779,9 +780,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.testing.targetName),
                     .target(name: Module.core.targetName),
                     .target(name: Module.server.targetName),
-                    .target(name: Module.rootDirectoryLocator.targetName),
                     .external(name: "GRPCCore"),
-                    .external(name: "GRPCNIOTransportHTTP2"),
                     .external(name: "GRPCProtobuf"),
                     .external(name: "SwiftProtobuf"),
                 ]

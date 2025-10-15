@@ -9,8 +9,8 @@ import TuistSupport
 import TuistTesting
 import XcodeProj
 
-@testable import TuistKit
 @testable import TuistCacheEE
+@testable import TuistKit
 
 struct TuistCacheEEAcceptanceTests {
     @Test(
@@ -197,7 +197,7 @@ struct TuistCacheEEAcceptanceTests {
         try await TuistTest.run(XcodeBuildTestCommand.self, arguments)
         TuistTest.expectLogs("There are no tests to run, exiting early..")
     }
-    
+
 //    TODO: Uncomment this once CAS is on canary
 //    @Test(
 //        .inTemporaryDirectory,
@@ -215,21 +215,21 @@ struct TuistCacheEEAcceptanceTests {
 //        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
 //        let environment = try #require(Environment.mocked)
 //        environment.stateDirectory = try await fileSystem.currentWorkingDirectory()
-//        
+//
 //        let backgroundTask = Task {
 //            while !Task.isCancelled {
 //                try await TuistTest.run(CacheStartCommand.self, ["--path", fixtureDirectory.pathString])
 //            }
 //        }
-//        
+//
 //        defer {
 //            backgroundTask.cancel()
 //        }
-//        
+//
 //        let fixtureFullHandle = try #require(TuistTest.fixtureFullHandle)
 //        let remoteCacheServicePath = environment.stateDirectory
 //            .appending(component: "\(fixtureFullHandle.replacingOccurrences(of: "/", with: "_")).sock")
-//        
+//
 //        let arguments = [
 //            "-scheme", "App",
 //            "-destination", simulator.description,
@@ -243,9 +243,9 @@ struct TuistCacheEEAcceptanceTests {
 //        try await TuistTest.run(XcodeBuildBuildCommand.self, arguments)
 //        TuistTest.expectLogs("note: 0 hits / 60 cacheable tasks (0%)")
 //        resetUI()
-//        
+//
 //        try await fileSystem.remove(temporaryDirectory)
-//        
+//
 //        try await TuistTest.run(XcodeBuildBuildCommand.self, arguments)
 //        TuistTest.expectLogs("note: 60 hits / 60 cacheable tasks (100%)")
 //    }

@@ -39,7 +39,7 @@ struct CacheStartCommandService {
         }
 
         let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
-        
+
         let server = GRPCServer(
             transport: .http2NIOPosix(
                 address: .unixDomainSocket(path: socketPath.pathString),

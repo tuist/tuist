@@ -55,7 +55,7 @@ public final class SaveCacheCASService: SaveCacheCASServicing {
     ) async throws {
         let client = Client.authenticated(serverURL: serverURL)
         let handles = try fullHandleService.parse(fullHandle)
-        let response = try! await client.saveCacheCAS(
+        let response = try await client.saveCacheCAS(
             .init(
                 path: .init(id: casId),
                 query: .init(
@@ -78,7 +78,7 @@ public final class SaveCacheCASService: SaveCacheCASServicing {
             case let .json(error):
                 throw SaveCacheCASServiceError.unauthorized(error.message)
             }
-        case let .undocumented(statusCode: statusCode, _payload):
+        case let .undocumented(statusCode: statusCode, _):
             throw SaveCacheCASServiceError.unknownError(statusCode)
         }
     }
