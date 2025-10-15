@@ -59,7 +59,7 @@ async function getS3Prefix(request, env, accountHandle, projectHandle) {
   try {
     const response = await serverFetch(
       env,
-      `/api/cas/prefix?account_handle=${accountHandle}&project_handle=${projectHandle}`,
+      `/api/cache/cas/prefix?account_handle=${accountHandle}&project_handle=${projectHandle}`,
       { method: 'GET', headers }
     );
 
