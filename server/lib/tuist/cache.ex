@@ -6,6 +6,8 @@ defmodule Tuist.Cache do
   alias Tuist.Cache.Entry
   alias Tuist.IngestRepo
 
+  import Ecto.Query
+
   @doc """
   Creates a cache entry.
 
@@ -29,10 +31,7 @@ defmodule Tuist.Cache do
 
     entry = struct(Entry, entry_attrs)
 
-    case IngestRepo.insert(entry) do
-      {:ok, entry} -> {:ok, entry}
-      {:error, changeset} -> {:error, changeset}
-    end
+    IngestRepo.insert(entry)
   end
 
   @doc """
@@ -45,8 +44,6 @@ defmodule Tuist.Cache do
 
   """
   def get_entries_by_cas_id_and_project_id(cas_id, project_id) do
-    import Ecto.Query
-
     IngestRepo.all(from(e in Entry, where: e.cas_id == ^cas_id and e.project_id == ^project_id))
   end
 end
