@@ -324,7 +324,7 @@ defmodule Tuist.Environment do
 
   def s3_region(secrets \\ secrets()) do
     System.get_env("AWS_REGION") || get([:aws, :region], secrets) || get([:s3, :region], secrets) ||
-      "auto"
+      if(dev_use_remote_storage?(), do: "auto", else: "us-east-1")
   end
 
   def s3_bucket_name(secrets \\ secrets()) do
