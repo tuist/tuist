@@ -1,4 +1,4 @@
-defmodule Tuist.Xcode.Clickhouse.XcodeGraph do
+defmodule Tuist.Xcode.XcodeGraph do
   @moduledoc false
   use Ecto.Schema
   use Tuist.Ingestion.Bufferable
@@ -10,7 +10,7 @@ defmodule Tuist.Xcode.Clickhouse.XcodeGraph do
     field :command_event_id, Ch, type: "UUID"
     field :binary_build_duration, Ch, type: "Nullable(UInt32)"
 
-    has_many :xcode_projects, Tuist.Xcode.Clickhouse.XcodeProject,
+    has_many :xcode_projects, Tuist.Xcode.XcodeProject,
       foreign_key: :xcode_graph_id,
       references: :id
 

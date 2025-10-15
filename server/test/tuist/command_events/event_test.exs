@@ -1,7 +1,7 @@
-defmodule Tuist.CommandEvents.Clickhouse.EventTest do
+defmodule Tuist.CommandEvents.EventTest do
   use TuistTestSupport.Cases.DataCase
 
-  alias Tuist.CommandEvents.Clickhouse.Event
+  alias Tuist.CommandEvents.Event
 
   describe "changeset/1" do
     test "generates ID when not provided" do

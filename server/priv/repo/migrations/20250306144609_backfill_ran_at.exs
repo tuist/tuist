@@ -1,5 +1,4 @@
 defmodule MyApp.Repo.DataMigrations.BackfillRanAt do
-  alias Tuist.Repo
   use Ecto.Migration
   import Ecto.Query
 
