@@ -5,19 +5,19 @@
   "description": "Learn how to create a new project with Tuist."
 }
 ---
-# Create a new project {#create-a-new-project}
+# Создание нового проекта {#create-a-new-project}
 
-The most straightforward way to start a new project with Tuist is to use the
-`tuist init` command. This command launches an interactive CLI that guides you
-through setting up your project. When prompted, make sure to select the option
-to create a "generated project".
+Самый простой способ начать работу с Tuist — использовать команду `tuist init`.
+Эта команда запускает интерактивный интерфейс командной строки (CLI), который
+проведёт вас через процесс настройки проекта. Когда появится соответствующий
+запрос, обязательно выберите опцию создания «сгенерированного проекта».
 
-You can then <LocalizedLink href="/guides/features/projects/editing">edit the
-project</LocalizedLink> running `tuist edit`, and Xcode will open a project
-where you can edit the project. One of the files that are generated is the
-`Project.swift`, which contains the definition of your project. If you are
-familiar with the Swift Package Manager, think of it as the `Package.swift` but
-with the lingo of Xcode projects.
+Вы можете [редактировать
+проект]<LocalizedLink href="/guides/features/projects/editing">, запустив `tuist
+edit`, и Xcode откроет проект, в котором можно вносить изменения. Одним из
+созданных файлов будет `Project.swift`, который содержит описание вашего
+проекта.Если вы знакомы с Swift Package Manager, подумайте о нём как о
+`Package.swift`, но с терминологией, принятой для проектов Xcode.
 
 ::: code-group
 ```swift [Project.swift]
@@ -61,14 +61,15 @@ let project = Project(
 
 ::: info
 <!-- -->
-We intentionally keep the list of available templates short to minimize
-maintenance overhead. If you want to create a project that doesn't represent an
-application, for example a framework, you can use `tuist init` as a starting
-point and then modify the generated project to suit your needs.
+Мы намеренно поддерживаем короткий список доступных шаблонов, чтобы
+минимизировать затраты на их сопровождение. Если вы хотите создать проект,
+который не является приложением, например фреймворк, вы можете использовать
+`tuist init` в качестве отправной точки, а затем изменить сгенерированный проект
+под свои нужды.
 <!-- -->
 :::
 
-## Manually creating a project {#manually-creating-a-project}
+## Создание проекта вручную {#manually-creating-a-project}
 
 Alternatively, you can create the project manually. We recommend doing this only
 if you're already familiar with Tuist and its concepts. The first thing that
