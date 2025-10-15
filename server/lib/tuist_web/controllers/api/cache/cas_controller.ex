@@ -18,6 +18,49 @@ defmodule TuistWeb.API.CASController do
 
   tags ["CAS"]
 
+  operation(:prefix,
+    summary: "Get the S3 object key prefix for a project's CAS storage.",
+    operation_id: "getCacheCASPrefix",
+    parameters: [
+      account_handle: [
+        in: :query,
+        type: :string,
+        required: true,
+        description: "The handle of the project's account."
+      ],
+      project_handle: [
+        in: :query,
+        type: :string,
+        required: true,
+        description: "The handle of the project."
+      ]
+    ],
+    responses: %{
+      ok:
+        {"The CAS storage prefix", "application/json",
+         %Schema{
+           type: :object,
+           properties: %{
+             prefix: %Schema{
+               type: :string,
+               description: "The S3 object key prefix where CAS objects should be stored.",
+               example: "account-handle/project-handle/cas/"
+             }
+           },
+           required: [:prefix]
+         }},
+      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
+      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      not_found: {"The project was not found", "application/json", Error}
+    }
+  )
+
+  def prefix(%{assigns: %{selected_project: project, selected_account: account}} = conn, _params) do
+    conn
+    |> put_status(:ok)
+    |> json(%{prefix: "#{account.name}/#{project.name}/cas/"})
+  end
+
   operation(:load,
     summary: "Download a CAS artifact.",
     operation_id: "loadCacheCAS",
