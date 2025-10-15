@@ -51,8 +51,7 @@ defmodule TuistWeb.API.CASController do
 
   def load(%{assigns: %{selected_project: project, selected_account: account}} = conn, %{id: id} = _params) do
     current_subject = Authentication.authenticated_subject(conn)
-    prefix = "#{account.name}/#{project.name}/cas/"
-    key = "#{prefix}#{id}"
+    key = cas_key(account, project, id)
 
     if Storage.object_exists?(key, current_subject) do
       stream = Storage.stream_object(key, current_subject)
@@ -66,6 +65,10 @@ defmodule TuistWeb.API.CASController do
       |> put_status(:not_found)
       |> json(%{message: "Artifact does not exist"})
     end
+  end
+
+  defp cas_key(account, project, id) do
+    "#{account.name}/#{project.name}/cas/#{id}"
   end
 
   defp stream_data(conn, stream) do
@@ -113,8 +116,7 @@ defmodule TuistWeb.API.CASController do
   def save(%{assigns: %{selected_project: project, selected_account: account}} = conn, %{id: id} = _params) do
     current_subject = Authentication.authenticated_subject(conn)
     {:ok, body, conn} = Plug.Conn.read_body(conn, length: 100_000_000)
-    prefix = "#{account.name}/#{project.name}/cas/"
-    key = "#{prefix}#{id}"
+    key = cas_key(account, project, id)
 
     if Storage.object_exists?(key, current_subject) do
       conn
