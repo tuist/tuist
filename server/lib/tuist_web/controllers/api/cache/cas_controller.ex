@@ -3,13 +3,18 @@ defmodule TuistWeb.API.CASController do
   use TuistWeb, :controller
 
   alias OpenApiSpex.Schema
+  alias Tuist.Accounts
+  alias Tuist.Authorization
+  alias Tuist.Projects
   alias Tuist.Storage
   alias TuistWeb.API.Cache.Plugs.LoaderQueryPlug
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.Authentication
 
-  plug(LoaderQueryPlug)
-  plug(TuistWeb.API.Authorization.AuthorizationPlug, :cache)
+
+  plug LoaderQueryPlug
+  plug TuistWeb.API.Authorization.AuthorizationPlug, :cache
+
 
   plug(OpenApiSpex.Plug.CastAndValidate,
     json_render_error_v2: true,
@@ -20,7 +25,7 @@ defmodule TuistWeb.API.CASController do
 
   operation(:prefix,
     summary: "Get the S3 object key prefix for a project's CAS storage.",
-    operation_id: "getCacheCASPrefix",
+    operation_id: "getCASPrefix",
     parameters: [
       account_handle: [
         in: :query,
@@ -44,7 +49,7 @@ defmodule TuistWeb.API.CASController do
              prefix: %Schema{
                type: :string,
                description: "The S3 object key prefix where CAS objects should be stored.",
-               example: "account-handle/project-handle/cas/"
+               example: "account-123/project-456/xcode/cas/"
              }
            },
            required: [:prefix]
@@ -55,10 +60,41 @@ defmodule TuistWeb.API.CASController do
     }
   )
 
-  def prefix(%{assigns: %{selected_project: project, selected_account: account}} = conn, _params) do
-    conn
-    |> put_status(:ok)
-    |> json(%{prefix: "#{account.name}/#{project.name}/cas/"})
+  def prefix(conn, _params) do
+    %{account_handle: account_handle, project_handle: project_handle} = conn.private.open_api_spex.params
+    authenticated_subject = Authentication.authenticated_subject(conn)
+    account = Accounts.get_account_by_handle(account_handle)
+
+    project =
+      if is_nil(account),
+        do: nil,
+        else: Projects.get_project_by_account_and_project_handles(account.name, project_handle, preload: [:account])
+
+    cond do
+      is_nil(account) ->
+        conn
+        |> put_status(:not_found)
+        |> json(%Error{message: "Account #{account_handle} not found."})
+
+      is_nil(project) ->
+        conn
+        |> put_status(:not_found)
+        |> json(%Error{message: "Project #{account_handle}/#{project_handle} not found."})
+
+      Authorization.authorize(:cas_read, authenticated_subject, project) != :ok ->
+        conn
+        |> put_status(:forbidden)
+        |> json(%Error{
+          message: "You don't have permission to access the #{project.name} project."
+        })
+
+      true ->
+        prefix = "#{project.account.name}/#{project.name}/cas/"
+
+        conn
+        |> put_status(:ok)
+        |> json(%{prefix: prefix})
+    end
   end
 
   operation(:load,

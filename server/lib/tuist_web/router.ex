@@ -373,9 +373,7 @@ defmodule TuistWeb.Router do
         get "/:id", CASController, :load
         post "/:id", CASController, :save
       end
-    end
 
-    scope "/cache" do
       get "/", CacheController, :download
       get "/exists", CacheController, :exists
 
