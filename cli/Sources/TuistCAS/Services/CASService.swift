@@ -5,20 +5,6 @@ import GRPCCore
 import Path
 import TuistServer
 
-public enum CASServiceError: LocalizedError {
-    case invalidCASID
-    case methodNotImplemented(String)
-
-    public var errorDescription: String? {
-        switch self {
-        case .invalidCASID:
-            return "Invalid CAS ID: Unable to decode CAS ID as UTF-8 string"
-        case let .methodNotImplemented(method):
-            return "Method '\(method)' is not implemented"
-        }
-    }
-}
-
 public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServiceProtocol {
     private let fullHandle: String
     private let serverURL: URL
@@ -44,11 +30,16 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
         request: CompilationCacheService_Cas_V1_CASLoadRequest,
         context _: GRPCCore.ServerContext
     ) async throws -> CompilationCacheService_Cas_V1_CASLoadResponse {
-        guard let casID = String(data: request.casID.id, encoding: .utf8) else {
-            throw CASServiceError.invalidCASID
-        }
-
         var response = CompilationCacheService_Cas_V1_CASLoadResponse()
+
+        guard let casID = String(data: request.casID.id, encoding: .utf8) else {
+            response.outcome = .error
+            var responseError = CompilationCacheService_Cas_V1_ResponseError()
+            responseError.description_p = "Invalid CAS ID: Unable to decode CAS ID as UTF-8 string"
+            response.error = responseError
+            response.contents = .error(responseError)
+            return response
+        }
 
         do {
             let data = try await loadCacheCASService.loadCacheCAS(
@@ -80,19 +71,26 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
         request: CompilationCacheService_Cas_V1_CASSaveRequest,
         context _: GRPCCore.ServerContext
     ) async throws -> CompilationCacheService_Cas_V1_CASSaveResponse {
+        var response = CompilationCacheService_Cas_V1_CASSaveResponse()
+
         let data: Data
         if !request.data.blob.filePath.isEmpty {
-            data = try await fileSystem.readFile(
-                at: try AbsolutePath(validating: request.data.blob.filePath)
-            )
+            do {
+                let absolutePath = try AbsolutePath(validating: request.data.blob.filePath)
+                data = try await fileSystem.readFile(at: absolutePath)
+            } catch {
+                var responseError = CompilationCacheService_Cas_V1_ResponseError()
+                responseError.description_p = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+                response.error = responseError
+                response.contents = .error(responseError)
+                return response
+            }
         } else {
             data = request.data.blob.data
         }
 
         let hash = SHA256.hash(data: data)
         let fingerprint = hash.compactMap { String(format: "%02X", $0) }.joined()
-
-        var response = CompilationCacheService_Cas_V1_CASSaveResponse()
 
         var message = CompilationCacheService_Cas_V1_CASDataID()
         message.id = fingerprint.data(using: .utf8)!
@@ -120,13 +118,23 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
         request _: CompilationCacheService_Cas_V1_CASPutRequest,
         context _: GRPCCore.ServerContext
     ) async throws -> CompilationCacheService_Cas_V1_CASPutResponse {
-        throw CASServiceError.methodNotImplemented("put")
+        var response = CompilationCacheService_Cas_V1_CASPutResponse()
+        var responseError = CompilationCacheService_Cas_V1_ResponseError()
+        responseError.description_p = "Method 'put' is not implemented"
+        response.error = responseError
+        response.contents = .error(responseError)
+        return response
     }
 
     public func get(
         request _: CompilationCacheService_Cas_V1_CASGetRequest,
         context _: GRPCCore.ServerContext
     ) async throws -> CompilationCacheService_Cas_V1_CASGetResponse {
-        throw CASServiceError.methodNotImplemented("get")
+        var response = CompilationCacheService_Cas_V1_CASGetResponse()
+        var responseError = CompilationCacheService_Cas_V1_ResponseError()
+        responseError.description_p = "Method 'get' is not implemented"
+        response.error = responseError
+        response.contents = .error(responseError)
+        return response
     }
 }
