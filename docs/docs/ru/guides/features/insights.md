@@ -101,7 +101,7 @@ To quickly access the dashboard, run `tuist project show --web` from the CLI.
 ![Dashboard with build
 insights](/images/guides/features/insights/builds-dashboard.png)
 
-## Generated projects {#generated-projects}
+## Сгенерированные проекты {#generated-projects}
 
 ::: info
 <!-- -->
