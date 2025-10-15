@@ -109,10 +109,10 @@ tuist graph
 
 ![Project graph](/images/guides/quick-start/graph.png)
 
-## Use the dependency {#use-the-dependency}
+## Использование зависимости {#use-the-dependency}
 
-Run `tuist generate` to open the project in Xcode, and make the following
-changes to the `ContentView.swift` file:
+Запустите `tuist generate`, чтобы открыть проект в Xcode, и внесите следующие
+изменения в файл `contentView.swift`:
 
 ```swift
 import SwiftUI
@@ -136,4 +136,5 @@ struct ContentView_Previews: PreviewProvider {
 }
 ```
 
-Run the app from Xcode, and you should see the image loaded from the URL.
+Запустите приложение из Xcode, и вы должны увидеть изображение, загруженное с
+URL-адреса.
