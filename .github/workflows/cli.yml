@@ -118,7 +118,7 @@ jobs:
 
   cli-unit-tests:
     name: Unit Tests
-    runs-on: macos-26
+    runs-on: namespace-profile-default-macos
     steps:
       - uses: actions/checkout@v4
       - name: Select Xcode
