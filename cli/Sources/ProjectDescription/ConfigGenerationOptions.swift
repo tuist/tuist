@@ -75,6 +75,9 @@ extension Tuist {
         /// When true, it includes a scheme to run "tuist generate"
         public var includeGenerateScheme: Bool
 
+        /// When enabled, adds Xcode cache compilation settings to the project
+        public var enableCaching: Bool
+
         public static func options(
             disablePackageVersionLocking: Bool = false,
             staticSideEffectsWarningTargets: StaticSideEffectsWarningTargets = .all,
@@ -83,6 +86,7 @@ extension Tuist {
             buildInsightsDisabled: Bool = false,
             disableSandbox: Bool = true,
             includeGenerateScheme: Bool = true,
+            enableCaching: Bool = false,
             additionalPackageResolutionArguments: [String] = []
         ) -> Self {
             self.init(
@@ -96,7 +100,8 @@ extension Tuist {
                 optionalAuthentication: optionalAuthentication,
                 buildInsightsDisabled: buildInsightsDisabled,
                 disableSandbox: disableSandbox,
-                includeGenerateScheme: includeGenerateScheme
+                includeGenerateScheme: includeGenerateScheme,
+                enableCaching: enableCaching
             )
         }
 
@@ -114,7 +119,8 @@ extension Tuist {
             optionalAuthentication: Bool = false,
             buildInsightsDisabled: Bool = false,
             disableSandbox: Bool = true,
-            includeGenerateScheme: Bool = true
+            includeGenerateScheme: Bool = true,
+            enableCaching: Bool = false,
         ) -> Self {
             self.init(
                 resolveDependenciesWithSystemScm: resolveDependenciesWithSystemScm,
@@ -127,7 +133,8 @@ extension Tuist {
                 optionalAuthentication: optionalAuthentication,
                 buildInsightsDisabled: buildInsightsDisabled,
                 disableSandbox: disableSandbox,
-                includeGenerateScheme: includeGenerateScheme
+                includeGenerateScheme: includeGenerateScheme,
+                enableCaching: enableCaching
             )
         }
 
@@ -156,7 +163,8 @@ extension Tuist {
                 optionalAuthentication: optionalAuthentication,
                 buildInsightsDisabled: false,
                 disableSandbox: true,
-                includeGenerateScheme: false
+                includeGenerateScheme: false,
+                enableCaching: false
             )
         }
     }

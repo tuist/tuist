@@ -8,10 +8,10 @@ import Path
 public protocol LaunchctlControlling {
     /// Loads a LaunchAgent or LaunchDaemon from the given plist path.
     func load(plistPath: AbsolutePath) async throws
-    
+
     /// Unloads a LaunchAgent or LaunchDaemon from the given plist path.
     func unload(plistPath: AbsolutePath) async throws
-    
+
     /// Lists loaded services, optionally filtering by a pattern.
     func list(pattern: String?) async throws -> String
 }
@@ -47,10 +47,10 @@ public struct LaunchctlController: LaunchctlControlling {
 
     public func list(pattern: String? = nil) async throws -> String {
         var arguments = ["/bin/launchctl", "list"]
-        if let pattern = pattern {
+        if let pattern {
             arguments.append(pattern)
         }
-        
+
         return try await commandRunner.run(arguments: arguments)
             .concatenatedString()
             .trimmingCharacters(in: .whitespaces)

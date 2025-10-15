@@ -26,5 +26,4 @@ struct CacheStartCommand: AsyncParsableCommand {
             url: url
         )
     }
-
 }

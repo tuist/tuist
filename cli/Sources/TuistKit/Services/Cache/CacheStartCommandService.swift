@@ -10,7 +10,6 @@ import TuistRootDirectoryLocator
 import TuistServer
 import TuistSupport
 
-
 struct CacheStartCommandService {
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let fileSystem: FileSysteming
@@ -33,7 +32,8 @@ struct CacheStartCommandService {
         }
 
         let configURL = url.flatMap { URL(string: $0) }
-        let serverURL = try configURL.map { try serverEnvironmentService.url(configServerURL: $0) } ?? serverEnvironmentService.url()
+        let serverURL = try configURL.map { try serverEnvironmentService.url(configServerURL: $0) } ?? serverEnvironmentService
+            .url()
 
         let server = GRPCServer(
             transport: .http2NIOPosix(
