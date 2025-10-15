@@ -396,7 +396,7 @@
     </div>
   </nav>
   <nav data-part="actions" aria-label="Call to action">
-    <div data-part="menu" phx-hook="NavbarDropdown" id="marketing-navbar-languages-menu">
+    <%!-- <div data-part="menu" phx-hook="NavbarDropdown" id="marketing-navbar-languages-menu">
       <div data-part="action">
         <span data-part="title">
           <.language />
@@ -477,7 +477,7 @@
           Polski <span>(Polish)</span>
         </.link>
       </div>
-    </div>
+    </div> --%>
     <.button
       href={
         if(is_nil(TuistWeb.Authentication.current_user(assigns)),
