@@ -47,12 +47,13 @@ Package Manager:
 tuist install
 ```
 
-Under the hood `tuist install` uses the Swift Package Manager to resolve and
-pull the dependencies of the package. After the resolution completes, you can
-then generate the project:
+Под капотом `tuist install`использует Swift Package Manager для скачивания
+зависимостей. После того, как установка пакетов будет выполнена, вы сможете
+сгенерировать проект:
 
 ```bash
 tuist generate
 ```
 
-Voilà! You have a native Xcode project that you can open and start working on.
+Вуаля! Теперь у вас есть собственный проект Xcode, который вы можете открыть и
+начать работать над ним.
