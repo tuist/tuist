@@ -1,6 +1,22 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.86.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* mysteriously vanished binaries by [@fortmarek](https://github.com/fortmarek) in [#8447](https://github.com/tuist/tuist/pull/8447)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.86.0...4.86.1
+
+## What's Changed in 4.86.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* Xcode cache server by [@fortmarek](https://github.com/fortmarek) in [#8420](https://github.com/tuist/tuist/pull/8420)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.85.2...4.86.0
+
 ## What's Changed in 4.85.2<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
