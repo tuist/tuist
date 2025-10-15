@@ -35,10 +35,10 @@ defmodule TuistWeb.Marketing.MarketingController do
   def home(conn, _params) do
     conn =
       conn
-      |> assign(:head_title, "Tuist · Make mobile your competitive advantage")
+      |> assign(:head_title, "Tuist")
       |> assign(
         :head_description,
-        "The same iOS tooling that powers billion-user apps, delivered as a service for your team"
+        gettext("The same iOS tooling that powers billion-user apps, delivered as a service for your team")
       )
       |> assign(
         :head_image,
