@@ -258,24 +258,26 @@ let project = Project(
 
 ### Проверка миграции цели {#validate-the-target-migration}
 
-Run `tuist build` and `tuist test` to ensure the project builds and tests pass.
-Additionally, you can use [xcdiff](https://github.com/bloomberg/xcdiff) to
-compare the generated Xcode project with the existing one to ensure that the
-changes are correct.
+Выполните команды `tuist build` и `tuist test`, чтобы убедиться, что проект
+успешно собирается и все тесты проходят. Кроме того, вы можете использовать
+[xcdiff](https://github.com/bloomberg/xcdiff) для сравнения сгенерированного
+Xcode-проекта с существующим, чтобы проверить корректность изменений.
 
-### Repeat {#repeat}
+### Повторение {#repeat}
 
-Repeat until all the targets are fully migrated. Once you are done, we recommend
-updating your CI and CD pipelines to build and test the project using `tuist
-build` and `tuist test` commands to benefit from the speed and reliability that
-Tuist provides.
+Повторяйте процесс, пока все цели не будут полностью мигрированы. После
+завершения мы рекомендуем обновить пайплайны CI и CD, чтобы сборка и
+тестирование проекта выполнялись с помощью команд `tuist build` и `tuist test` –
+это позволит воспользоваться скоростью и надёжностью, которые предоставляет
+Tuist.
 
-## Troubleshooting {#troubleshooting}
+## Устранение неполадок {#troubleshooting}
 
-### Compilation errors due to missing files. {#compilation-errors-due-to-missing-files}
+### Ошибки компиляции из-за отсутствующих файлов. {#compilation-errors-due-to-missing-files}
 
-If the files associated to your Xcode project targets were not all contained in
-a file-system directory representing the target, you might end up with a project
-that doesn't compile. Make sure the list of files after generating the project
-with Tuist matches the list of files in the Xcode project, and take the
-opportunity to align the file structure with the target structure.
+Если файлы, связанные с целями вашего Xcode-проекта, не находятся в отдельной
+директории файловой системы, соответствующей каждой цели, проект может не
+скомпилироваться. Убедитесь, что список файлов после генерации проекта с помощью
+Tuist совпадает со списком файлов в Xcode-проекте, и воспользуйтесь этой
+возможностью, чтобы привести структуру файлов в соответствие со структурой
+целей.
