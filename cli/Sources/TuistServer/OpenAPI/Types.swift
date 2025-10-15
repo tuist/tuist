@@ -16567,12 +16567,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/cache/cas/{id}/GET/responses/404/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/cache/cas/{id}/GET/responses/404/content/application\/json`.
-                    case json(OpenAPIRuntime.OpenAPIValueContainer)
+                    case json(Components.Schemas._Error)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: OpenAPIRuntime.OpenAPIValueContainer {
+                    public var json: Components.Schemas._Error {
                         get throws {
                             switch self {
                             case let .json(body):

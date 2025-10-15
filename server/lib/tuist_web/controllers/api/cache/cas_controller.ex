@@ -47,7 +47,7 @@ defmodule TuistWeb.API.CASController do
     ],
     responses: %{
       ok: {"Artifact content stream", "application/octet-stream", nil},
-      not_found: {"Artifact does not exist", "application/json", nil},
+      not_found: {"Artifact does not exist", "application/json", Error},
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error}
     }
@@ -66,7 +66,9 @@ defmodule TuistWeb.API.CASController do
       |> send_chunked(200)
       |> stream_data(stream)
     else
-      send_resp(conn, :not_found, "")
+      conn
+      |> put_status(:not_found)
+      |> json(%{message: "Artifact does not exist"})
     end
   end
 

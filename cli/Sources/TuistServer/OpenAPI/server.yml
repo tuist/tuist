@@ -4885,7 +4885,9 @@ paths:
           description: The authenticated subject is not authorized to perform this action
         '404':
           content:
-            application/json: {}
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
           description: Artifact does not exist
       summary: Download a CAS artifact.
       tags:

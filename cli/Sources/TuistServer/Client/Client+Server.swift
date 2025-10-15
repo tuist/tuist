@@ -14,7 +14,7 @@ extension Client {
                 ServerClientRequestIdMiddleware(),
                 ServerClientCLIMetadataHeadersMiddleware(),
                 ServerClientAuthenticationMiddleware(),
-                // ServerClientVerboseLoggingMiddleware(), // Temporarily disabled - may corrupt binary uploads
+                ServerClientVerboseLoggingMiddleware(),
                 ServerClientOutputWarningsMiddleware(),
             ] + additionalMiddlewares
         )

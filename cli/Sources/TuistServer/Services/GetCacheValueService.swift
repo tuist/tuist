@@ -16,7 +16,6 @@ public enum GetCacheValueServiceError: LocalizedError {
     case unknownError(Int)
     case unauthorized(String)
     case forbidden(String)
-    case getValueFailed
 
     public var errorDescription: String? {
         switch self {
@@ -24,8 +23,6 @@ public enum GetCacheValueServiceError: LocalizedError {
             return "The CAS value could not be retrieved due to an unknown Tuist response of \(statusCode)."
         case let .unauthorized(message), let .forbidden(message):
             return message
-        case .getValueFailed:
-            return "The CAS value retrieval failed due to an unknown error."
         }
     }
 }
@@ -67,11 +64,10 @@ public final class GetCacheValueService: GetCacheValueServicing {
 
         switch response {
         case let .ok(success):
-            guard case let .json(json) = success.body else {
-                throw GetCacheValueServiceError.getValueFailed
+            switch success.body {
+            case let .json(jsonPayload):
+                return jsonPayload
             }
-
-            return json
         case let .forbidden(forbidden):
             switch forbidden.body {
             case let .json(error):

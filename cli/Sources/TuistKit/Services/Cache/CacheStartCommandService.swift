@@ -12,7 +12,7 @@ import TuistSupport
 
 enum CacheStartCommandServiceError: Equatable, LocalizedError {
     case missingFullHandle
-    
+
     var errorDescription: String? {
         switch self {
         case .missingFullHandle:
@@ -74,7 +74,7 @@ struct CacheStartCommandService {
                 try await server.serve()
             }
 
-            Logger.current.info("The CAS Proxy is now running.")
+            Logger.current.info("The cache server is now running.")
         }
     }
 }
