@@ -237,7 +237,7 @@ struct TuistCacheEEAcceptanceTests {
             "CODE_SIGN_IDENTITY=",
             "CODE_SIGNING_REQUIRED=NO",
             "CODE_SIGNING_ALLOWED=NO",
-            "COMPILATION_CACHE_REMOTE_SERVICE_PATH=\(remoteCacheServicePath.pathString)"
+            "COMPILATION_CACHE_REMOTE_SERVICE_PATH=\(remoteCacheServicePath.pathString)",
         ]
         try await TuistTest.run(XcodeBuildBuildCommand.self, arguments)
         TuistTest.expectLogs("note: 0 hits / 60 cacheable tasks (0%)")
