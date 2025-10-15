@@ -85,11 +85,9 @@ defmodule TuistWeb.API.Cache.KeyValueController do
         |> json(%Error{message: "No entries found for CAS ID #{cas_id}."})
 
       _ ->
-        formatted_entries = Enum.map(entries, fn entry -> %{"value" => entry.value} end)
-
         conn
         |> put_status(:ok)
-        |> json(%{"entries" => formatted_entries})
+        |> json(%{"entries" => Enum.map(entries, fn entry -> %{"value" => entry.value} end)})
     end
   end
 

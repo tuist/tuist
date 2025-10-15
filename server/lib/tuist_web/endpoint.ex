@@ -62,7 +62,10 @@ defmodule TuistWeb.Endpoint do
     handler: GitHubController,
     secret: {Tuist.Environment, :github_app_webhook_secret, []}
 
-  plug TuistWeb.Plugs.ConditionalParser
+  plug Plug.Parsers,
+    parsers: [:urlencoded, :multipart, :json],
+    pass: ["*/*"],
+    json_decoder: Phoenix.json_library()
 
   plug Plug.MethodOverride
   plug Plug.Head
