@@ -8,9 +8,9 @@ import TuistSupport
 @testable import TuistCAS
 
 struct KeyValueServiceTests {
-    private var subject: KeyValueService!
-    private var putCacheValueService: MockPutCacheValueServicing!
-    private var getCacheValueService: MockGetCacheValueServicing!
+    private let subject: KeyValueService
+    private let putCacheValueService: MockPutCacheValueServicing
+    private let getCacheValueService: MockGetCacheValueServicing
     private let fullHandle = "tuist/tuist"
     private let serverURL = URL(string: "https://example.com")!
 

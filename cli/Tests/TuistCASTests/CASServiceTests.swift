@@ -9,9 +9,9 @@ import TuistSupport
 @testable import TuistCAS
 
 struct CASServiceTests {
-    private var subject: CASService!
-    private var saveCacheCASService: MockSaveCacheCASServicing!
-    private var loadCacheCASService: MockLoadCacheCASServicing!
+    private let subject: CASService
+    private let saveCacheCASService: MockSaveCacheCASServicing
+    private let loadCacheCASService: MockLoadCacheCASServicing
     private let fullHandle = "account-handle/project-handle"
     private let serverURL = URL(string: "https://example.com")!
 
