@@ -5,10 +5,10 @@
   "description": "Learn how to use Tuist with a Swift Package."
 }
 ---
-# Using Tuist with a Swift Package <Badge type="warning" text="beta" /> {#using-tuist-with-a-swift-package-badge-typewarning-textbeta-}
+# Swift Package와 함께 Tuist 사용 <Badge type="warning" text="beta" /> {#using-tuist-with-a-swift-package-badge-typewarning-textbeta-}
 
-Tuist supports using `Package.swift` as a DSL for your projects and it converts
-your package targets into a native Xcode project and targets.
+Tuist는 프로젝트를 위한 DSL로 `Package.swift` 사용을 지원하며 패키지 타겟을 네이티브 Xcode 프로젝트와 타겟으로
+변환합니다.
 
 ::: warning
 <!-- -->
