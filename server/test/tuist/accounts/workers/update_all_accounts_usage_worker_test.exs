@@ -67,7 +67,7 @@ defmodule Tuist.Accounts.Workers.UpdateAllAccountsUsageWorkerTest do
                ~N[2025-04-18 16:00:00]
     end
 
-    test "paginates through all the accounts updating their current_month_remote_cache_hits_count_updated_at and current_month_remote_cache_hits_count columns",
+    test "paginates through all the accounts updating their current_month_remote_cache_hits_count_updated_at and current_month_remote_cache_hits_count_columns",
          %{project: project, account: account} do
       # Given
       now = ~U[2025-04-18 16:00:00Z]

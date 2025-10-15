@@ -24,6 +24,7 @@ public final class MockEnvironment: Environmenting {
         } else {
             directory = .owned(try TemporaryDirectory(removeTreeOnDeinit: true))
         }
+        stateDirectory = directory.path.appending(component: "state")
     }
 
     public var processId: String = UUID().uuidString
@@ -61,9 +62,7 @@ public final class MockEnvironment: Environmenting {
         directory.path.appending(components: ".cache")
     }
 
-    public var stateDirectory: AbsolutePath {
-        directory.path.appending(component: "state")
-    }
+    public var stateDirectory: AbsolutePath
 
     public var configDirectory: AbsolutePath {
         directory.path.appending(component: "config")

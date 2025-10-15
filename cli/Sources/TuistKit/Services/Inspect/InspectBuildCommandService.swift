@@ -130,7 +130,7 @@ struct InspectBuildCommandService {
     ) async throws -> AbsolutePath {
         var mostRecentActivityLogPath: AbsolutePath!
         try await withTimeout(
-            .seconds(1),
+            .seconds(5),
             onTimeout: {
                 throw InspectBuildCommandServiceError.mostRecentActivityLogNotFound(projectPath)
             }
