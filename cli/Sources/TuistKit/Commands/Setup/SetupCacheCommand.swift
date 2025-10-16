@@ -1,7 +1,7 @@
 import ArgumentParser
 import Foundation
 
-struct CacheSetupCommand: AsyncParsableCommand {
+struct SetupCacheCommand: AsyncParsableCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "cache",
@@ -18,7 +18,7 @@ struct CacheSetupCommand: AsyncParsableCommand {
     var path: String?
 
     func run() async throws {
-        try await CacheSetupCommandService().run(
+        try await SetupCacheCommandService().run(
             path: path
         )
     }

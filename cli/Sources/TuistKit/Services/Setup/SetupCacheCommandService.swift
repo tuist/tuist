@@ -7,7 +7,7 @@ import TuistLoader
 import TuistServer
 import TuistSupport
 
-enum CacheSetupCommandServiceError: Equatable, LocalizedError {
+enum SetupCacheCommandServiceError: Equatable, LocalizedError {
     case failedToCreateLaunchDaemon(String)
     case failedToLoadLaunchDaemon(String)
     case missingFullHandle
@@ -25,7 +25,7 @@ enum CacheSetupCommandServiceError: Equatable, LocalizedError {
     }
 }
 
-struct CacheSetupCommandService {
+struct SetupCacheCommandService {
     private let fileSystem: FileSysteming
     private let launchctlController: LaunchctlControlling
     private let configLoader: ConfigLoading
@@ -54,7 +54,7 @@ struct CacheSetupCommandService {
         let config = try await configLoader.loadConfig(path: path)
 
         guard let fullHandle = config.fullHandle else {
-            throw CacheSetupCommandServiceError.missingFullHandle
+            throw SetupCacheCommandServiceError.missingFullHandle
         }
 
         let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
@@ -168,7 +168,7 @@ struct CacheSetupCommandService {
             try await launchctlController.load(plistPath: plistPath)
             Logger.current.info("Loaded LaunchAgent")
         } catch {
-            throw CacheSetupCommandServiceError.failedToLoadLaunchDaemon(error.localizedDescription)
+            throw SetupCacheCommandServiceError.failedToLoadLaunchDaemon(error.localizedDescription)
         }
     }
 
