@@ -193,6 +193,7 @@ defmodule TuistWeb.API.CASController do
   )
 
   def save(%{assigns: %{selected_project: project, selected_account: account}} = conn, %{id: id} = _params) do
+    IO.puts("saving artifact")
     current_subject = Authentication.authenticated_subject(conn)
     {:ok, body, conn} = Plug.Conn.read_body(conn, length: 100_000_000)
     key = cas_key(account, project, id)

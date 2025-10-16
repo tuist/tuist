@@ -36,16 +36,14 @@ async function getS3Prefix(request, env, accountHandle, projectHandle) {
   if (env.CAS_CACHE) {
     const cached = await env.CAS_CACHE.get(cacheKey);
     if (cached) {
-      try {
-        const parsed = JSON.parse(cached);
-        // Cached value can be either { prefix: "..." } or { error: "...", status: 403 }
-        return parsed;
-      } catch {
-        // Legacy cache format: just the prefix string
-        return { prefix: cached };
-      }
+      console.log('Prefix cache hit', cacheKey);
+      const parsed = JSON.parse(cached);
+      // Cached value can be either { prefix: "..." } or { error: "...", status: 403 }
+      return parsed;
     }
   }
+
+  console.log('Cache miss', cacheKey);
 
   // Query server for prefix
   const headers = {
@@ -100,6 +98,7 @@ async function getS3Prefix(request, env, accountHandle, projectHandle) {
  * Handles GET request - check if artifact exists and return download URL
  */
 export async function handleGetValue(request, env, ctx) {
+  console.log('Handling get request');
   const { params, query } = request;
   const { id } = params;
   const accountHandle = query?.account_handle;
@@ -125,6 +124,8 @@ export async function handleGetValue(request, env, ctx) {
     // 404 or other errors: empty body
     return new Response(null, { status: prefixResult.status });
   }
+
+  console.log('Prefix', prefixResult.prefix);
 
   const s3Client = createS3Client(env);
   const bucket = env.TUIST_S3_BUCKET_NAME;
@@ -144,6 +145,7 @@ export async function handleGetValue(request, env, ctx) {
   if (env.CAS_CACHE_BLOBS) {
     const cachedBlob = await env.CAS_CACHE_BLOBS.get(key, 'arrayBuffer');
     if (cachedBlob) {
+      console.log('Got blob from KV cache', key);
       return new Response(cachedBlob, {
         status: 200,
         headers: { 'Content-Type': 'application/octet-stream' },
@@ -160,20 +162,25 @@ export async function handleGetValue(request, env, ctx) {
 
   const url = getS3Url(endpoint, bucket, key, virtualHost);
 
-  // Stream the GET request from S3 with proper AWS signature
-  const s3Response = await s3Client.fetch(url, { method: 'GET' });
+   // Stream the GET request from S3 with proper AWS signature
+  console.log('Fetching blob from S3', url);
+   const s3Response = await s3Client.fetch(url, { method: 'GET' });
 
-  // Return the response with streaming body
-  return new Response(s3Response.body, {
-    status: s3Response.status,
-    headers: s3Response.headers,
-  });
+   // Return the response with streaming body, ensuring correct content type
+   const responseHeaders = new Headers(s3Response.headers);
+   responseHeaders.set('Content-Type', 'application/octet-stream');
+
+   return new Response(s3Response.body, {
+     status: s3Response.status,
+     headers: responseHeaders,
+   });
 }
 
 /**
  * Handles POST request - check if artifact exists, return upload URL if needed
  */
 export async function handleSave(request, env, ctx) {
+  console.log('Handling save request');
   const { params, query } = request;
   const { id } = params;
   const accountHandle = query?.account_handle;
@@ -212,47 +219,64 @@ export async function handleSave(request, env, ctx) {
     );
   }
 
-  const key = `${prefixResult.prefix}${getS3Key(id)}`;
+   const key = `${prefixResult.prefix}${getS3Key(id)}`;
 
-  // Check KV cache first
-  if (env.CAS_CACHE_BLOBS) {
-    const cachedBlob = await env.CAS_CACHE_BLOBS.get(key);
-    if (cachedBlob) {
-      return new Response(null, { status: 304 });
+    // Check KV cache first
+    if (env.CAS_CACHE_BLOBS) {
+      const cachedBlob = await env.CAS_CACHE_BLOBS.get(key);
+      if (cachedBlob) {
+        return new Response(
+          JSON.stringify({ id: key }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
     }
-  }
 
-  // Check S3
-  const exists = await checkS3ObjectExists(s3Client, endpoint, bucket, key, virtualHost);
+    // Check S3
+    const exists = await checkS3ObjectExists(s3Client, endpoint, bucket, key, virtualHost);
 
-  if (exists) {
-    return new Response(null, { status: 304 });
-  }
+    if (exists) {
+      return new Response(
+        JSON.stringify({ id: key }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
 
-  // Read the body to determine size and store appropriately
-  const bodyBuffer = await request.arrayBuffer();
-  const KV_SIZE_LIMIT = 25 * 1024 * 1024; // 25 MB KV limit
+   // Read the body to determine size and store appropriately
+   const bodyBuffer = await request.arrayBuffer();
+   const KV_SIZE_LIMIT = 25 * 1024 * 1024; // 25 MB KV limit
 
-  // Store in KV if small enough (and KV is available)
-  if (env.CAS_CACHE_BLOBS && bodyBuffer.byteLength < KV_SIZE_LIMIT) {
-    await env.CAS_CACHE_BLOBS.put(key, bodyBuffer);
-    return new Response(null, { status: 200 });
-  }
+   // Store in KV if small enough (and KV is available)
+   if (env.CAS_CACHE_BLOBS && bodyBuffer.byteLength < KV_SIZE_LIMIT) {
+     await env.CAS_CACHE_BLOBS.put(key, bodyBuffer);
+     return new Response(
+       JSON.stringify({ id: key }),
+       { status: 200, headers: { 'Content-Type': 'application/json' } }
+     );
+   }
 
-  // Store in S3 for larger files or if KV not available
-  const url = getS3Url(endpoint, bucket, key, virtualHost);
+   // Store in S3 for larger files or if KV not available
+   const url = getS3Url(endpoint, bucket, key, virtualHost);
 
-  const s3Response = await s3Client.fetch(url, {
-    method: 'PUT',
-    body: bodyBuffer,
-    headers: {
-      'Content-Type': request.headers.get('Content-Type') || 'application/octet-stream',
-    },
-  });
+   const s3Response = await s3Client.fetch(url, {
+     method: 'PUT',
+     body: bodyBuffer,
+     headers: {
+       'Content-Type': request.headers.get('Content-Type') || 'application/octet-stream',
+     },
+   });
 
-  // Return the S3 response
-  return new Response(s3Response.body, {
-    status: s3Response.status,
-    headers: s3Response.headers,
-  });
+   // Return success response matching server behavior
+   if (s3Response.ok) {
+     return new Response(
+       JSON.stringify({ id: key }),
+       { status: 200, headers: { 'Content-Type': 'application/json' } }
+     );
+   }
+
+   // Return error response from S3
+   return new Response(s3Response.body, {
+     status: s3Response.status,
+     headers: s3Response.headers,
+   });
 }
