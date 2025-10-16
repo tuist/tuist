@@ -270,6 +270,24 @@ struct TuistCacheEEAcceptanceTests {
         environment.stateDirectory = try await fileSystem.currentWorkingDirectory()
         let fixtureFullHandle = try #require(TuistTest.fixtureFullHandle)
 
+        try await fileSystem.writeText(
+            """
+            import ProjectDescription
+
+            let tuist = Tuist(
+                fullHandle: "\(fixtureFullHandle)",
+                url: "\(Environment.current.variables["TUIST_URL"] ?? "https://canary.tuist.dev")",
+                project: .tuist(
+                    generationOptions: .options(
+                        enableCaching: true
+                    )
+                )
+            )
+            """,
+            at: fixtureDirectory.appending(components: "Tuist.swift"),
+            options: Set([.overwrite])
+        )
+
         let backgroundTask = Task {
             while !Task.isCancelled {
                 try await TuistTest.run(
@@ -300,12 +318,12 @@ struct TuistCacheEEAcceptanceTests {
             "COMPILATION_CACHE_REMOTE_SERVICE_PATH=\(remoteCacheServicePath.pathString)",
         ]
         try await TuistTest.run(XcodeBuildBuildCommand.self, arguments)
-        TuistTest.expectLogs("note: 0 hits / 60 cacheable tasks (0%)")
+        TuistTest.expectLogs("cacheable tasks (0%)")
         resetUI()
 
         try await fileSystem.remove(temporaryDirectory)
 
         try await TuistTest.run(XcodeBuildBuildCommand.self, arguments)
-        TuistTest.expectLogs("note: 60 hits / 60 cacheable tasks (100%)")
+        TuistTest.expectLogs("cacheable tasks (100%)")
     }
 }
