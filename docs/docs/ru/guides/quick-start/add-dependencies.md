@@ -44,8 +44,8 @@ let package = Package(
 )
 ```
 
-Затем отредактируйте цель приложения в проекте, указав `Kingfisher` в качестве
-зависимости:
+Затем отредактируйте application target в проекте, указав `Kingfisher` в
+качестве зависимости:
 
 ```swift
 import ProjectDescription
