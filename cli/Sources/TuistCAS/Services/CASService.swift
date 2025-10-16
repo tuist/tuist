@@ -8,6 +8,7 @@ import TuistServer
 public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServiceProtocol {
     private let fullHandle: String
     private let serverURL: URL
+    private let casWorkerURL: URL
     private let saveCacheCASService: SaveCacheCASServicing
     private let loadCacheCASService: LoadCacheCASServicing
     private let fileSystem: FileSysteming
@@ -15,12 +16,14 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
     public init(
         fullHandle: String,
         serverURL: URL,
+        casWorkerURL: URL? = nil,
         saveCacheCASService: SaveCacheCASServicing = SaveCacheCASService(),
         loadCacheCASService: LoadCacheCASServicing = LoadCacheCASService(),
         fileSystem: FileSysteming = FileSystem()
     ) {
         self.fullHandle = fullHandle
         self.serverURL = serverURL
+        self.casWorkerURL = casWorkerURL ?? serverURL
         self.saveCacheCASService = saveCacheCASService
         self.loadCacheCASService = loadCacheCASService
         self.fileSystem = fileSystem
@@ -45,7 +48,7 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
             let data = try await loadCacheCASService.loadCacheCAS(
                 casId: casID,
                 fullHandle: fullHandle,
-                serverURL: serverURL
+                casWorkerURL: casWorkerURL
             )
 
             var bytes = CompilationCacheService_Cas_V1_CASBytes()
@@ -100,7 +103,7 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
                 data,
                 casId: fingerprint,
                 fullHandle: fullHandle,
-                serverURL: serverURL
+                casWorkerURL: casWorkerURL
             )
             response.casID = message
             response.contents = .casID(message)

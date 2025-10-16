@@ -29,13 +29,17 @@ public struct Tuist: Equatable, Hashable, Sendable {
     /// The base `URL` that points to the Tuist server.
     public let url: URL
 
+    /// The base `URL` that points to the Tuist CAS worker server.
+    public let casURL: URL?
+
     /// Returns the default Tuist configuration.
     public static var `default`: Tuist {
         return Tuist(
             project: .defaultGeneratedProject(),
             fullHandle: nil,
             inspectOptions: .init(redundantDependencies: .init(ignoreTagsMatching: [])),
-            url: Constants.URLs.production
+            url: Constants.URLs.production,
+            casURL: nil
         )
     }
 
@@ -46,16 +50,19 @@ public struct Tuist: Equatable, Hashable, Sendable {
     ///   - fullHandle: An optional string representing the full handle of the project, such as "tuist-org/tuist".
     ///   - inspectOptions: The options to use when running `tuist inspect`.
     ///   - url: The base `URL` pointing to the Tuist server.
+    ///   - casURL: An optional base `URL` pointing to the Tuist CAS worker server.
     public init(
         project: TuistProject,
         fullHandle: String?,
         inspectOptions: InspectOptions,
-        url: URL
+        url: URL,
+        casURL: URL? = nil
     ) {
         self.project = project
         self.fullHandle = fullHandle
         self.inspectOptions = inspectOptions
         self.url = url
+        self.casURL = casURL
     }
 
     // MARK: - Hashable
@@ -64,6 +71,7 @@ public struct Tuist: Equatable, Hashable, Sendable {
         hasher.combine(project)
         hasher.combine(fullHandle)
         hasher.combine(url)
+        hasher.combine(casURL)
     }
 
     public func assertingIsGeneratedProjectOrSwiftPackage(errorMessageOverride: String?) throws -> Self {
@@ -100,9 +108,10 @@ public struct InspectOptions: Codable, Equatable, Hashable, Sendable {
             project: TuistProject = .testGeneratedProject(),
             fullHandle: String? = nil,
             inspectOptions: InspectOptions = .init(redundantDependencies: .init(ignoreTagsMatching: [])),
-            url: URL = Constants.URLs.production
+            url: URL = Constants.URLs.production,
+            casURL: URL? = nil
         ) -> Self {
-            return Tuist(project: project, fullHandle: fullHandle, inspectOptions: inspectOptions, url: url)
+            return Tuist(project: project, fullHandle: fullHandle, inspectOptions: inspectOptions, url: url, casURL: casURL)
         }
     }
 

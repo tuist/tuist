@@ -102,14 +102,16 @@ public final class ConfigLoader: ConfigLoading {
                 project: .swiftPackage(TuistSwiftPackageOptions()),
                 fullHandle: nil,
                 inspectOptions: .init(redundantDependencies: .init(ignoreTagsMatching: [])),
-                url: Constants.URLs.production
+                url: Constants.URLs.production,
+                casURL: nil
             )
         } else if anyXcodeProjectOrWorkspace, !anyWorkspaceOrProjectManifest {
             return Tuist(
                 project: .xcode(TuistXcodeProjectOptions()),
                 fullHandle: nil,
                 inspectOptions: .init(redundantDependencies: .init(ignoreTagsMatching: [])),
-                url: Constants.URLs.production
+                url: Constants.URLs.production,
+                casURL: nil
             )
         } else {
             return TuistCore.Tuist.default

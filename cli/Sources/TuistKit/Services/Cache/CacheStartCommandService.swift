@@ -51,6 +51,7 @@ struct CacheStartCommandService {
         }
 
         let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
+        let casWorkerURL = try serverEnvironmentService.casURL(configServerURL: config.casURL ?? serverURL)
 
         let server = GRPCServer(
             transport: .http2NIOPosix(
@@ -64,7 +65,8 @@ struct CacheStartCommandService {
                 ),
                 CASService(
                     fullHandle: fullHandle,
-                    serverURL: serverURL
+                    serverURL: serverURL,
+                    casWorkerURL: casWorkerURL
                 ),
             ]
         )

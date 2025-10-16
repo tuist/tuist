@@ -8,11 +8,13 @@ import TuistSupport
 enum ConfigManifestMapperError: FatalError {
     /// Thrown when the server URL is invalid.
     case invalidServerURL(String)
+    /// Thrown when the CAS server URL is invalid.
+    case invalidCASURL(String)
 
     /// Error type.
     var type: ErrorType {
         switch self {
-        case .invalidServerURL: return .abort
+        case .invalidServerURL, .invalidCASURL: return .abort
         }
     }
 
@@ -21,6 +23,8 @@ enum ConfigManifestMapperError: FatalError {
         switch self {
         case let .invalidServerURL(url):
             return "The server URL '\(url)' is not a valid URL"
+        case let .invalidCASURL(url):
+            return "The CAS URL '\(url)' is not a valid URL"
         }
     }
 }
@@ -38,9 +42,20 @@ extension TuistCore.Tuist {
         let fullHandle = manifest.fullHandle
         let inspectOptions = InspectOptions.from(manifest: manifest.inspectOptions)
         let urlString = manifest.url
+        let casURLString = manifest.casURL
 
         guard let url = URL(string: urlString.dropSuffix("/")) else {
             throw ConfigManifestMapperError.invalidServerURL(manifest.url)
+        }
+
+        let casURL: URL?
+        if let casURLString {
+            guard let normalizedCASURL = URL(string: casURLString.dropSuffix("/")) else {
+                throw ConfigManifestMapperError.invalidCASURL(casURLString)
+            }
+            casURL = normalizedCASURL
+        } else {
+            casURL = nil
         }
 
         switch manifest.project {
@@ -86,14 +101,16 @@ extension TuistCore.Tuist {
                 ),
                 fullHandle: fullHandle,
                 inspectOptions: inspectOptions,
-                url: url
+                url: url,
+                casURL: casURL
             )
         case .xcode:
             return TuistCore.Tuist(
                 project: .xcode(TuistXcodeProjectOptions()),
                 fullHandle: fullHandle,
                 inspectOptions: inspectOptions,
-                url: url
+                url: url,
+                casURL: casURL
             )
         }
     }
