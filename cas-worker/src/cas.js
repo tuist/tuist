@@ -154,26 +154,62 @@ export async function handleGetValue(request, env, ctx) {
   }
 
   // Fallback to S3
+  console.log('Checking S3 for key:', key);
   const exists = await checkS3ObjectExists(s3Client, endpoint, bucket, key, virtualHost);
+  console.log('S3 exists check returned:', exists);
 
   if (!exists) {
-    return new Response(null, { status: 404 });
+    return new Response(
+      JSON.stringify({ message: 'Artifact does not exist' }),
+      { status: 404, headers: { 'Content-Type': 'application/json' } }
+    );
   }
 
   const url = getS3Url(endpoint, bucket, key, virtualHost);
 
-   // Stream the GET request from S3 with proper AWS signature
+  // Stream the GET request from S3 with proper AWS signature
   console.log('Fetching blob from S3', url);
-   const s3Response = await s3Client.fetch(url, { method: 'GET' });
+  let s3Response;
+  try {
+    s3Response = await s3Client.fetch(url, { method: 'GET' });
+    console.log('S3 response status:', s3Response.status);
+  } catch (e) {
+    console.error('S3 fetch threw error:', e.message);
+    return new Response(
+      JSON.stringify({ message: 'S3 error' }),
+      { status: 500, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
 
-   // Return the response with streaming body, ensuring correct content type
-   const responseHeaders = new Headers(s3Response.headers);
-   responseHeaders.set('Content-Type', 'application/octet-stream');
+  if (!s3Response.ok) {
+    console.error(`S3 fetch failed with status ${s3Response.status}`);
+    return new Response(
+      JSON.stringify({ message: 'Artifact does not exist' }),
+      { status: 404, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
 
-   return new Response(s3Response.body, {
-     status: s3Response.status,
-     headers: responseHeaders,
-   });
+  // Buffer the entire response to validate it before returning
+  let arrayBuffer;
+  try {
+    arrayBuffer = await s3Response.arrayBuffer();
+    console.log(`S3 fetch succeeded, got ${arrayBuffer.byteLength} bytes`);
+  } catch (e) {
+    console.error('Failed to read S3 response body:', e.message);
+    return new Response(
+      JSON.stringify({ message: 'Failed to read S3 response' }),
+      { status: 500, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
+
+  // Return the response with buffered body, ensuring correct content type
+  const responseHeaders = new Headers(s3Response.headers);
+  responseHeaders.set('Content-Type', 'application/octet-stream');
+
+  return new Response(arrayBuffer, {
+    status: 200,
+    headers: responseHeaders,
+  });
 }
 
 /**
@@ -219,64 +255,77 @@ export async function handleSave(request, env, ctx) {
     );
   }
 
-   const key = `${prefixResult.prefix}${getS3Key(id)}`;
+  const key = `${prefixResult.prefix}${getS3Key(id)}`;
 
-    // Check KV cache first
-    if (env.CAS_CACHE_BLOBS) {
-      const cachedBlob = await env.CAS_CACHE_BLOBS.get(key);
-      if (cachedBlob) {
-        return new Response(
-          JSON.stringify({ id: key }),
-          { status: 200, headers: { 'Content-Type': 'application/json' } }
-        );
-      }
-    }
-
-    // Check S3
-    const exists = await checkS3ObjectExists(s3Client, endpoint, bucket, key, virtualHost);
-
-    if (exists) {
+  // Check KV cache first
+  if (env.CAS_CACHE_BLOBS) {
+    const cachedBlob = await env.CAS_CACHE_BLOBS.get(key);
+    if (cachedBlob) {
       return new Response(
         JSON.stringify({ id: key }),
         { status: 200, headers: { 'Content-Type': 'application/json' } }
       );
     }
+  }
 
-   // Read the body to determine size and store appropriately
-   const bodyBuffer = await request.arrayBuffer();
-   const KV_SIZE_LIMIT = 25 * 1024 * 1024; // 25 MB KV limit
+  // Check S3
+  console.log('Checking if S3 object exists for key:', key);
+  const exists = await checkS3ObjectExists(s3Client, endpoint, bucket, key, virtualHost);
+  console.log('S3 exists check returned:', exists);
 
-   // Store in KV if small enough (and KV is available)
-   if (env.CAS_CACHE_BLOBS && bodyBuffer.byteLength < KV_SIZE_LIMIT) {
-     await env.CAS_CACHE_BLOBS.put(key, bodyBuffer);
-     return new Response(
-       JSON.stringify({ id: key }),
-       { status: 200, headers: { 'Content-Type': 'application/json' } }
-     );
-   }
+  if (exists) {
+    console.log('S3 object already exists, returning 200');
+    return new Response(
+      JSON.stringify({ id: key }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
 
-   // Store in S3 for larger files or if KV not available
-   const url = getS3Url(endpoint, bucket, key, virtualHost);
+  // Read the body to determine size and store appropriately
+  const bodyBuffer = await request.arrayBuffer();
+  const url = getS3Url(endpoint, bucket, key, virtualHost);
 
-   const s3Response = await s3Client.fetch(url, {
-     method: 'PUT',
-     body: bodyBuffer,
-     headers: {
-       'Content-Type': request.headers.get('Content-Type') || 'application/octet-stream',
-     },
-   });
+  // Always store in S3 as the primary storage
+  console.log(`Storing ${bodyBuffer.byteLength} bytes in S3 at ${url}`);
 
-   // Return success response matching server behavior
-   if (s3Response.ok) {
-     return new Response(
-       JSON.stringify({ id: key }),
-       { status: 200, headers: { 'Content-Type': 'application/json' } }
-     );
-   }
+  let s3Response;
+  try {
+    s3Response = await s3Client.fetch(url, {
+      method: 'PUT',
+      body: bodyBuffer,
+      headers: {
+        'Content-Type': request.headers.get('Content-Type') || 'application/octet-stream',
+      },
+    });
+    console.log(`S3 PUT returned ${s3Response.status}`);
+  } catch (e) {
+    console.error('S3 PUT threw error:', e.message);
+    return new Response(
+      JSON.stringify({ message: `S3 error: ${e.message}` }),
+      { status: 500, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
 
-   // Return error response from S3
-   return new Response(s3Response.body, {
-     status: s3Response.status,
-     headers: s3Response.headers,
-   });
+  if (!s3Response.ok) {
+    console.error(`S3 PUT failed with ${s3Response.status}`);
+    return new Response(s3Response.body, {
+      status: s3Response.status,
+      headers: s3Response.headers,
+    });
+  }
+
+  // Also cache small files in KV for faster retrieval
+  const KV_SIZE_LIMIT = 25 * 1024 * 1024; // 25 MB KV limit
+  if (env.CAS_CACHE_BLOBS && bodyBuffer.byteLength < KV_SIZE_LIMIT) {
+    console.log(`Also caching ${bodyBuffer.byteLength} bytes in KV for ${key}`);
+    await env.CAS_CACHE_BLOBS.put(key, bodyBuffer).catch(e => {
+      console.error('Failed to cache in KV:', e.message);
+    });
+  }
+
+  // Return success response matching server behavior
+  return new Response(
+    JSON.stringify({ id: key }),
+    { status: 200, headers: { 'Content-Type': 'application/json' } }
+  );
 }
