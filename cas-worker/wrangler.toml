@@ -23,10 +23,10 @@ port = 8787
 name = "tuist-worker-development"
 [[env.development.kv_namespaces]]
 binding = "CAS_CACHE"
-id = "2f1058911a144cab9c8816478e03f4e2"
+id = "2f1058911a144cab9c8816478e03f4e3"
 [[env.development.kv_namespaces]]
 binding = "CAS_CACHE_BLOBS"
-id = "a1fee20723214cc5829176721e14f00d"
+id = "a1fee20723214cc5829176721e14f00e"
 
 # Staging environment
 [env.staging]

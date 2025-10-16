@@ -48,7 +48,7 @@ extension TuistCore.Tuist {
             throw ConfigManifestMapperError.invalidServerURL(manifest.url)
         }
 
-        let casURL: URL?
+        let casURL: Foundation.URL?
         if let casURLString {
             guard let normalizedCASURL = URL(string: casURLString.dropSuffix("/")) else {
                 throw ConfigManifestMapperError.invalidCASURL(casURLString)

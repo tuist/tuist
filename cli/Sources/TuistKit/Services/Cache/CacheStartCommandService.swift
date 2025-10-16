@@ -50,6 +50,8 @@ struct CacheStartCommandService {
             try await fileSystem.makeDirectory(at: socketPath.parentDirectory)
         }
 
+        Logger.current.info("Starting cache server at \(socketPath.pathString)")
+
         let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
         let casWorkerURL = try serverEnvironmentService.casURL(configServerURL: config.casURL ?? serverURL)
 
