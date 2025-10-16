@@ -32,7 +32,7 @@ id = "a1fee20723214cc5829176721e14f00e"
 [env.staging]
 name = "tuist-worker-staging"
 routes = [
-  "https://staging.tuist.dev/api/cas/*"
+  "https://staging.tuist.dev/api/cache/cas/*"
 ]
 [[env.staging.kv_namespaces]]
 binding = "CAS_CACHE"
