@@ -4,6 +4,7 @@ import Foundation
 import GRPCCore
 import Path
 import TuistServer
+import TuistSupport
 
 public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServiceProtocol {
     private let fullHandle: String
@@ -29,6 +30,14 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
         self.fileSystem = fileSystem
     }
 
+    private func cacheDirectory() throws -> AbsolutePath {
+        let cacheDir = Environment.shared.stateDirectory.appending(component: "cache")
+        if !fileSystem.exists(cacheDir) {
+            try fileSystem.makeDirectory(at: cacheDir)
+        }
+        return cacheDir
+    }
+
     public func load(
         request: CompilationCacheService_Cas_V1_CASLoadRequest,
         context _: GRPCCore.ServerContext
@@ -45,11 +54,23 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
         }
 
         do {
-            let data = try await loadCacheCASService.loadCacheCAS(
-                casId: casID,
-                fullHandle: fullHandle,
-                casWorkerURL: casWorkerURL
-            )
+            // First check if the file exists in local cache
+            let cacheDir = try cacheDirectory()
+            let localPath = cacheDir.appending(component: casID)
+            
+            let data: Data
+            if fileSystem.exists(localPath) {
+                // Load from local cache
+                data = try await fileSystem.readFile(at: localPath)
+            } else {
+                // File not found locally, this shouldn't happen after get() extracts the zip
+                response.outcome = .error
+                var responseError = CompilationCacheService_Cas_V1_ResponseError()
+                responseError.description_p = "CAS object not found in local cache: \(casID)"
+                response.error = responseError
+                response.contents = .error(responseError)
+                return response
+            }
 
             var bytes = CompilationCacheService_Cas_V1_CASBytes()
             bytes.data = data
@@ -99,12 +120,14 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
         message.id = fingerprint.data(using: .utf8)!
 
         do {
-            try await saveCacheCASService.saveCacheCAS(
-                data,
-                casId: fingerprint,
-                fullHandle: fullHandle,
-                casWorkerURL: casWorkerURL
-            )
+            // Store the file locally in the cache directory
+            let cacheDir = try cacheDirectory()
+            let localPath = cacheDir.appending(component: fingerprint)
+            
+            if !fileSystem.exists(localPath) {
+                try await fileSystem.write(localPath, contents: data)
+            }
+            
             response.casID = message
             response.contents = .casID(message)
         } catch {

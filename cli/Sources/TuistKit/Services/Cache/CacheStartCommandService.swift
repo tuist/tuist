@@ -63,7 +63,8 @@ struct CacheStartCommandService {
             services: [
                 KeyValueService(
                     fullHandle: fullHandle,
-                    serverURL: serverURL
+                    serverURL: serverURL,
+                    casWorkerURL: casWorkerURL
                 ),
                 CASService(
                     fullHandle: fullHandle,

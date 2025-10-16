@@ -1,2 +1,4 @@
 [tools]
 "npm:wrangler" = "latest"
+"elixir" = "1.18.4-otp-27"
+"erlang" = "27.3.2"
