@@ -7,7 +7,7 @@ struct SetupCommand: ParsableCommand {
             commandName: "setup",
             abstract: "Commands to set up and configure Tuist services",
             subcommands: [
-                SetupCacheCommand.self,
+                CacheSetupCommand.self,
             ]
         )
     }
