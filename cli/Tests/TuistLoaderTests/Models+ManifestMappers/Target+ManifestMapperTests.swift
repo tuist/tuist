@@ -1,4 +1,5 @@
 import Foundation
+import Mockable
 import Path
 import ProjectDescription
 import TuistCore
@@ -55,6 +56,11 @@ final class TargetManifestMapperTests: TuistUnitTestCase {
         )
 
         // When
+        let mockContentHasher = MockContentHashing()
+        given(mockContentHasher)
+            .hash(Parameter<String>.any)
+            .willReturn("mock-hash")
+
         let got = try await XcodeGraph.Target.from(
             manifest: .test(
                 sources: .sourceFilesList(
@@ -85,17 +91,16 @@ final class TargetManifestMapperTests: TuistUnitTestCase {
             generatorPaths: generatorPaths,
             externalDependencies: [:],
             fileSystem: fileSystem,
+            contentHasher: mockContentHasher,
             type: .local
         )
 
         // Then
-        XCTAssertEqual(
-            got.sources,
-            [
-                SourceFile(path: secondSourceFile),
-                SourceFile(path: scriptOutputFile),
-            ]
-        )
+        XCTAssertEqual(got.sources.count, 2)
+        XCTAssertEqual(got.sources[0].path, secondSourceFile)
+        XCTAssertNil(got.sources[0].contentHash) // Regular files don't have contentHash
+        XCTAssertEqual(got.sources[1].path, scriptOutputFile)
+        XCTAssertEqual(got.sources[1].contentHash, "mock-hash") // Generated files should have contentHash from mock
         XCTAssertEqual(
             got.buildableFolders,
             [
@@ -127,6 +132,8 @@ final class TargetManifestMapperTests: TuistUnitTestCase {
         let sourcePath = rootDirectory.appending(component: "Scripts").appending(component: "**")
 
         // When
+        let mockContentHasher = MockContentHashing()
+
         await XCTAssertThrowsSpecific(
             try await XcodeGraph.Target.from(
                 manifest: .test(
@@ -148,9 +155,58 @@ final class TargetManifestMapperTests: TuistUnitTestCase {
                 ),
                 externalDependencies: [:],
                 fileSystem: fileSystem,
+                contentHasher: mockContentHasher,
                 type: .local
             ),
             TargetManifestMapperError.nonSpecificGeneratedResource(targetName: "Target", generatedSource: sourcePath)
         )
+    }
+
+    func test_generatedSourceFiles_haveContentHash() async throws {
+        // Given
+        let rootDirectory = try temporaryPath()
+        let generatedFilePath = "Scripts/GeneratedFile.swift"
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: try temporaryPath(),
+            rootDirectory: rootDirectory
+        )
+
+        // When
+        let mockContentHasher = MockContentHashing()
+        let expectedHash = "mock-generated-hash"
+        let resolvedPath = try generatorPaths.resolve(path: .relativeToRoot(generatedFilePath))
+
+        given(mockContentHasher)
+            .hash(Parameter<String>.any)
+            .willReturn(expectedHash)
+
+        let target = try await XcodeGraph.Target.from(
+            manifest: .test(
+                name: "TestTarget",
+                sources: .sourceFilesList(
+                    globs: [
+                        .generated(.relativeToRoot(generatedFilePath)),
+                    ]
+                ),
+                resources: .resources([]),
+                scripts: [.test(
+                    order: .pre,
+                    outputPaths: [.relativeToRoot(generatedFilePath)]
+                )]
+            ),
+            generatorPaths: generatorPaths,
+            externalDependencies: [:],
+            fileSystem: fileSystem,
+            contentHasher: mockContentHasher,
+            type: .local
+        )
+
+        // Then
+        XCTAssertEqual(target.sources.map(\.path), [resolvedPath])
+        XCTAssertEqual(target.sources.map(\.contentHash), [expectedHash])
+
+        verify(mockContentHasher)
+            .hash(Parameter<String>.value("generated-file-Scripts/GeneratedFile.swift"))
+            .called(1)
     }
 }
