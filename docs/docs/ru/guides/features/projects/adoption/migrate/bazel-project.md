@@ -111,7 +111,7 @@ tuist install # Fetch dependencies defined in Tuist/Package.swift
 tuist generate # Generate an Xcode project
 ```
 
-## Project generation {#project-generation}
+## Генерация проекта {#project-generation}
 
 The community provides a set of rules,
 [rules_xcodeproj](https://github.com/MobileNativeFoundation/rules_xcodeproj), to
