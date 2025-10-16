@@ -28,12 +28,13 @@ final class GraphImportsLinter: GraphImportsLinting {
         ignoreTagsMatching: Set<String>
     ) async throws -> [LintingIssue] {
         return try await targetImportsMap(graphTraverser: graphTraverser, inspectType: inspectType)
+            .sorted { $0.key.productName < $1.key.productName }
             .compactMap { target, implicitDependencies in
                 guard target.metadata.tags.intersection(ignoreTagsMatching).isEmpty else {
                     return nil
                 }
                 return LintingIssue(
-                    reason: " - \(target.productName) \(inspectType == .implicit ? "implicitly" : "redundantly") depends on: \(implicitDependencies.joined(separator: ", "))",
+                    reason: " - \(target.productName) \(inspectType == .implicit ? "implicitly" : "redundantly") depends on: \(implicitDependencies.sorted().joined(separator: ", "))",
                     severity: .error
                 )
             }

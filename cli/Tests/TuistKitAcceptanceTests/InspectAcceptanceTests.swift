@@ -104,6 +104,7 @@ final class LintAcceptanceTests: TuistAcceptanceTestCase {
             try await setUpFixture(.iosAppWithImplicitDependencies)
             await XCTAssertThrowsSpecific(try await run(InspectImplicitImportsCommand.self), LintingError())
             XCTAssertStandardOutput(pattern: """
+             - App implicitly depends on: ClassModule, EnumModule, FuncModule, LetModule, ProtocolModule, StructModule, TypeAliasModule, VarModule
              - FrameworkA implicitly depends on: FrameworkB
             """)
         }
