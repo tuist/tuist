@@ -43,7 +43,7 @@ async function getS3Prefix(request, env, accountHandle, projectHandle) {
     }
   }
 
-  console.log('Cache miss', cacheKey);
+  console.log('Prefix cache miss', cacheKey);
 
   // Query server for prefix
   const headers = {
@@ -62,6 +62,8 @@ async function getS3Prefix(request, env, accountHandle, projectHandle) {
     );
 
     if (!response.ok) {
+      const body = await response.json();
+      console.log("Error getting prefix from Tuist", body);
       const result = { error: 'Unauthorized or not found', status: response.status };
 
       // Cache authorization failures (401/403) with shorter TTL
@@ -79,6 +81,8 @@ async function getS3Prefix(request, env, accountHandle, projectHandle) {
     const data = await response.json();
     const prefix = data.prefix;
 
+    console.log('Successfully got prefix', prefix);
+
     // Cache the successful prefix in KV
     if (env.CAS_CACHE && prefix) {
       await env.CAS_CACHE.put(
@@ -90,6 +94,7 @@ async function getS3Prefix(request, env, accountHandle, projectHandle) {
 
     return { prefix };
   } catch (error) {
+    console.log("Error getting prefix from Tuist", error);
     return { error: error.message, status: 500 };
   }
 }
