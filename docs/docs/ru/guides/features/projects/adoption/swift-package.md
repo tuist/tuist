@@ -8,7 +8,7 @@
 # Использование Tuist с Swift Package <Badge type="warning" text="beta" /> {#using-tuist-with-a-swift-package-badge-typewarning-textbeta-}
 
 Tuist поддерживает использование `Package.swift` в качестве DSL для проектов и
-преобразует ваши пакетные модули в Xcode проект и модули Xcode.
+преобразует ваши пакетные модули в Xcode-проект и модули Xcode.
 
 ::: warning
 <!-- -->
@@ -32,7 +32,7 @@ helpers</LocalizedLink>.
 ## Использование Tuist с Swift Package {#using-tuist-with-a-swift-package}
 
 Мы собираемся использовать Tuist с [TootSDK
-пакетом](https://github.com/TootSDK/TootSDK), который содержит Swift пакет.
+пакетом](https://github.com/TootSDK/TootSDK), который содержит Swift-пакет.
 Первое, что нам нужно сделать, это скопировать репозиторий:
 
 ```bash
@@ -55,5 +55,5 @@ tuist install
 tuist generate
 ```
 
-Вуаля! Теперь у вас есть собственный проект Xcode, который вы можете открыть и
+Вуаля! Теперь у вас есть собственный Xcode-проект, который вы можете открыть и
 начать работать над ним.
