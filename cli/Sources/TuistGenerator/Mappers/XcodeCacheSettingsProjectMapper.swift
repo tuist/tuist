@@ -31,7 +31,7 @@ public final class XcodeCacheSettingsProjectMapper: ProjectMapping {
         baseSettings["COMPILATION_CACHE_ENABLE_CACHING"] = .string("YES")
 
         baseSettings["COMPILATION_CACHE_REMOTE_SERVICE_PATH"] = .string(
-            Environment.current.socketPathString(for: fullHandle)
+            Environment.current.cacheSocketPathString(for: fullHandle)
         )
 
         baseSettings["COMPILATION_CACHE_ENABLE_PLUGIN"] = .string("YES")

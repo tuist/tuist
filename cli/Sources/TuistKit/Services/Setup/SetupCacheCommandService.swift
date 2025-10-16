@@ -99,7 +99,7 @@ struct SetupCacheCommandService {
 
                 To finish the setup, set the following build settings in Xcode projects that you want to use caching for:
                 COMPILATION_CACHE_ENABLE_CACHING=YES
-                COMPILATION_CACHE_REMOTE_SERVICE_PATH=\(Environment.current.socketPathString(for: fullHandle))
+                COMPILATION_CACHE_REMOTE_SERVICE_PATH=\(Environment.current.cacheSocketPathString(for: fullHandle))
                 COMPILATION_CACHE_ENABLE_PLUGIN=YES
 
                 Note that `COMPILATION_CACHE_REMOTE_SERVICE_PATH` and `COMPILATION_CACHE_ENABLE_PLUGIN` are currently not directly exposed by Xcode and you need to manually add these as user-defined build settings.

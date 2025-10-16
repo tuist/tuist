@@ -72,12 +72,12 @@ public protocol Environmenting: Sendable {
     /// Returns path to the Tuist executable
     func currentExecutablePath() -> AbsolutePath?
 
-    /// Returns the socket path for a given full handle (e.g., "tuist-org/tuist")
+    /// Returns the cache socket path for a given full handle (e.g., "tuist-org/tuist")
     /// This path is used for cache server communication
-    func socketPath(for fullHandle: String) -> AbsolutePath
+    func cacheSocketPath(for fullHandle: String) -> AbsolutePath
 
-    /// A socket path string for a given full handle with $HOME prefix to be environment-independent
-    func socketPathString(for fullHandle: String) -> String
+    /// A cache socket path string for a given full handle with $HOME prefix to be environment-independent
+    func cacheSocketPathString(for fullHandle: String) -> String
 }
 
 private let truthyValues = ["1", "true", "TRUE", "yes", "YES"]
@@ -334,12 +334,12 @@ public struct Environment: Environmenting {
         )!
     }
 
-    public func socketPath(for fullHandle: String) -> AbsolutePath {
+    public func cacheSocketPath(for fullHandle: String) -> AbsolutePath {
         stateDirectory.appending(component: "\(fullHandle.replacingOccurrences(of: "/", with: "_")).sock")
     }
 
-    public func socketPathString(for fullHandle: String) -> String {
-        let socketPathString = socketPath(for: fullHandle).pathString
+    public func cacheSocketPathString(for fullHandle: String) -> String {
+        let socketPathString = cacheSocketPath(for: fullHandle).pathString
         let homeDirectoryPathString = homeDirectory.pathString
         if socketPathString.hasPrefix(homeDirectoryPathString) {
             return "$HOME" + socketPathString.dropFirst(homeDirectoryPathString.count)

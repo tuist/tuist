@@ -73,11 +73,11 @@ public final class MockEnvironment: Environmenting {
         queueDirectoryStub ?? directory.path.appending(component: "Queue")
     }
 
-    public func socketPath(for fullHandle: String) -> AbsolutePath {
+    public func cacheSocketPath(for fullHandle: String) -> AbsolutePath {
         stateDirectory.appending(component: "\(fullHandle.replacingOccurrences(of: "/", with: "_")).sock")
     }
 
-    public func socketPathString(for fullHandle: String) -> String {
+    public func cacheSocketPathString(for fullHandle: String) -> String {
         "$HOME/\(fullHandle).sock"
     }
 }
