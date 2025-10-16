@@ -57,7 +57,7 @@ public struct TuistAcceptanceTestFixtureTestingTrait: TestTrait, SuiteTrait, Tes
                                     """
                                     import ProjectDescription
 
-                                    let config = Config(
+                                    let tuist = Tuist(
                                         fullHandle: "\(fullHandle)",
                                         url: "\(Environment.current.variables["TUIST_URL"] ?? "https://canary.tuist.dev")"
                                     )
