@@ -14,7 +14,10 @@ public final class XcodeCacheSettingsProjectMapper: ProjectMapping {
     }
 
     public func map(project: Project) throws -> (Project, [SideEffectDescriptor]) {
-        guard tuist.project.generatedProject?.generationOptions.enableCaching == true else {
+        guard
+            tuist.project.generatedProject?.generationOptions.enableCaching == true,
+            let fullHandle = tuist.fullHandle
+        else {
             return (project, [])
         }
 
@@ -25,32 +28,15 @@ public final class XcodeCacheSettingsProjectMapper: ProjectMapping {
 
         var project = project
 
-        // Get existing base settings
         var baseSettings = project.settings.base
-
-        // Add the cache settings
         baseSettings["COMPILATION_CACHE_ENABLE_CACHING"] = .string("YES")
 
-        // Get the socket path for this project's fullHandle
-        if let fullHandle = tuist.fullHandle {
-            let socketPath = Environment.current.socketPath(for: fullHandle)
-
-            // Replace home directory with $HOME for portability
-            let homeDir = Environment.current.homeDirectory.pathString
-            let socketPathString = socketPath.pathString
-            let portableSocketPath: String
-            if socketPathString.hasPrefix(homeDir) {
-                portableSocketPath = "$HOME" + socketPathString.dropFirst(homeDir.count)
-            } else {
-                portableSocketPath = socketPathString
-            }
-
-            baseSettings["COMPILATION_CACHE_REMOTE_SERVICE_PATH"] = .string(portableSocketPath)
-        }
+        baseSettings["COMPILATION_CACHE_REMOTE_SERVICE_PATH"] = .string(
+            Environment.current.socketPathString(for: fullHandle)
+        )
 
         baseSettings["COMPILATION_CACHE_ENABLE_PLUGIN"] = .string("YES")
 
-        // Update project settings with new base settings
         project.settings = Settings(
             base: baseSettings,
             configurations: project.settings.configurations,

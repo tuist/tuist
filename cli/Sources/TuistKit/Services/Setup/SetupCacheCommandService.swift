@@ -179,21 +179,7 @@ struct SetupCacheCommandService {
         path: AbsolutePath,
         config: TuistCore.Tuist
     ) async throws {
-        // Print the socket path that will be created
-        let socketPath = Environment.current.socketPath(for: fullHandle)
-
-        // Replace home directory prefix with $HOME for portability
-        let homeDir = Environment.current.homeDirectory.pathString
-        let socketPathString = socketPath.pathString
-        let portableSocketPath: String
-        if socketPathString.hasPrefix(homeDir) {
-            portableSocketPath = "$HOME" + socketPathString.dropFirst(homeDir.count)
-        } else {
-            portableSocketPath = socketPathString
-        }
-
         Logger.current.info("LaunchAgent configured and loaded successfully")
-        Logger.current.info("Socket path: \(socketPath.pathString)")
 
         // Check if this is a Tuist project with root manifest
         if try await manifestLoader.hasRootManifest(at: path) {
@@ -223,7 +209,7 @@ struct SetupCacheCommandService {
                 """
                 Set the following build settings in Xcode projects that you want to use caching for:
                 COMPILATION_CACHE_ENABLE_CACHING=YES
-                COMPILATION_CACHE_REMOTE_SERVICE_PATH=\(portableSocketPath)
+                COMPILATION_CACHE_REMOTE_SERVICE_PATH=\(Environment.current.socketPathString(for: fullHandle))
                 COMPILATION_CACHE_ENABLE_PLUGIN=YES
 
                 Note that `COMPILATION_CACHE_REMOTE_SERVICE_PATH` and `COMPILATION_CACHE_ENABLE_PLUGIN` are currently not directly exposed by Xcode and you need to manually add these as user-defined build settings.

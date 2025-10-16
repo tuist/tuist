@@ -75,6 +75,10 @@ public final class MockEnvironment: Environmenting {
     public func socketPath(for fullHandle: String) -> AbsolutePath {
         stateDirectory.appending(component: "\(fullHandle.replacingOccurrences(of: "/", with: "_")).sock")
     }
+    
+    public func socketPathString(for fullHandle: String) -> String {
+        "$HOME/\(fullHandle).sock"
+    }
 }
 
 extension Environment {
