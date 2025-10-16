@@ -23,7 +23,7 @@ final class ImportSourceCodeScanner {
     private func extract(from code: String, language: ProgrammingLanguage) throws -> Set<String> {
         let pattern = switch language {
         case .swift:
-            #"import\s+(?:struct\s+|enum\s+|class\s+)?([\w]+)"#
+            #"import\s+(?:struct\s+|enum\s+|class\s+|protocol\s+|func\s+|var\s+|let\s+|typealias\s+)?([\w]+)"#
         case .objc:
             "@import\\s+([A-Za-z_0-9]+)|#(?:import|include)\\s+<([A-Za-z_0-9-]+)/"
         }
