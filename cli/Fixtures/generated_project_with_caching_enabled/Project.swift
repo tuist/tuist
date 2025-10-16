@@ -1,37 +1,37 @@
 import ProjectDescription
 
 let project = Project(
-    name: "generated_project_with_caching_enabled",
+    name: "App",
     targets: [
         .target(
-            name: "generated_project_with_caching_enabled",
+            name: "App",
             destinations: .iOS,
             product: .app,
-            bundleId: "dev.tuist.generated-project-with-caching-enabled",
+            bundleId: "dev.tuist.app",
             infoPlist: .extendingDefault(
                 with: [
                     "UILaunchScreen": [
                         "UIColorName": "",
                         "UIImageName": "",
-                    ],
+                    ]
                 ]
             ),
             buildableFolders: [
-                "generated_project_with_caching_enabled/Sources",
-                "generated_project_with_caching_enabled/Resources",
+                "App/Sources",
+                "App/Resources",
             ],
             dependencies: []
         ),
         .target(
-            name: "generated_project_with_caching_enabledTests",
+            name: "AppTests",
             destinations: .iOS,
             product: .unitTests,
-            bundleId: "dev.tuist.generated-project-with-caching-enabledTests",
+            bundleId: "dev.tuist.appTests",
             infoPlist: .default,
             buildableFolders: [
-                "generated_project_with_caching_enabled/Tests",
+                "App/Tests"
             ],
-            dependencies: [.target(name: "generated_project_with_caching_enabled")]
+            dependencies: [.target(name: "App")]
         ),
     ]
 )
