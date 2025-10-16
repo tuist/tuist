@@ -75,7 +75,7 @@ public protocol Environmenting: Sendable {
     /// Returns the socket path for a given full handle (e.g., "tuist-org/tuist")
     /// This path is used for cache server communication
     func socketPath(for fullHandle: String) -> AbsolutePath
-    
+
     /// A socket path string for a given full handle with $HOME prefix to be environment-independent
     func socketPathString(for fullHandle: String) -> String
 }
@@ -337,7 +337,7 @@ public struct Environment: Environmenting {
     public func socketPath(for fullHandle: String) -> AbsolutePath {
         stateDirectory.appending(component: "\(fullHandle.replacingOccurrences(of: "/", with: "_")).sock")
     }
-    
+
     public func socketPathString(for fullHandle: String) -> String {
         let socketPathString = socketPath(for: fullHandle).pathString
         let homeDirectoryPathString = homeDirectory.pathString

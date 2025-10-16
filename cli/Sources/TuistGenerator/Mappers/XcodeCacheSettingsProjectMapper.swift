@@ -14,9 +14,8 @@ public final class XcodeCacheSettingsProjectMapper: ProjectMapping {
     }
 
     public func map(project: Project) throws -> (Project, [SideEffectDescriptor]) {
-        guard
-            tuist.project.generatedProject?.generationOptions.enableCaching == true,
-            let fullHandle = tuist.fullHandle
+        guard tuist.project.generatedProject?.generationOptions.enableCaching == true,
+              let fullHandle = tuist.fullHandle
         else {
             return (project, [])
         }

@@ -218,7 +218,10 @@ struct TuistCacheEEAcceptanceTests {
 
         let backgroundTask = Task {
             while !Task.isCancelled {
-                try await TuistTest.run(CacheStartCommand.self, [fixtureFullHandle, "--url", Environment.current.variables["TUIST_URL"] ?? "https://canary.tuist.dev"])
+                try await TuistTest.run(
+                    CacheStartCommand.self,
+                    [fixtureFullHandle, "--url", Environment.current.variables["TUIST_URL"] ?? "https://canary.tuist.dev"]
+                )
             }
         }
 
@@ -269,7 +272,10 @@ struct TuistCacheEEAcceptanceTests {
 
         let backgroundTask = Task {
             while !Task.isCancelled {
-                try await TuistTest.run(CacheStartCommand.self, [fixtureFullHandle, "--url", Environment.current.variables["TUIST_URL"] ?? "https://canary.tuist.dev"])
+                try await TuistTest.run(
+                    CacheStartCommand.self,
+                    [fixtureFullHandle, "--url", Environment.current.variables["TUIST_URL"] ?? "https://canary.tuist.dev"]
+                )
             }
         }
 
