@@ -50,17 +50,17 @@ tuist generate
 :::
 
 Разница заключается в опыте редактирования. В Tuist вы можете выполнить команду
-`tuist edit`, которая на лету генерирует проект Xcode, который можно открыть и
+`tuist edit`, которая на лету генерирует Xcode-проект, который можно открыть и
 сразу начать с ним работу. Это особенно удобно, когда нужно быстро внести
 изменения в проект.
 
 ## `project.yaml` {#projectyaml}
 
-XcodeGen's `project.yaml` description file becomes `Project.swift`. Moreover,
-you can have `Workspace.swift` as a way to customize how projects are grouped in
-workspaces. You can also have a project `Project.swift` with targets that
-reference targets from other projects. In those cases, Tuist will generate an
-Xcode Workspace including all the projects.
+Файл описания `project.yaml` из XcodeGen превращается в `Project.swift`. Кроме
+того, вы можете использовать `Workspace.swift`, чтобы настраивать, как проекты
+объединяются в рабочие пространства. Также можно создать проект `Project.swift`
+с целями, которые ссылаются на цели из других проектов. В таких случаях Tuist
+сгенерирует рабочее пространство Xcode, включающее все проекты.
 
 ::: code-group
 
@@ -78,24 +78,25 @@ Xcode Workspace including all the projects.
 <!-- -->
 :::
 
-::: tip XCODE'S LANGUAGE
+::: tip ЯЗЫК XCODE
 <!-- -->
-Both XcodeGen and Tuist embrace Xcode's language and concepts. However, Tuist's
-Swift-based configuration provides you with the convenience of using Xcode's
-autocompletion, type-checking, and validation features.
+И XcodeGen, и Tuist используют язык и концепции Xcode. Однако конфигурация Tuist
+на основе Swift обеспечивает удобство работы с такими функциями Xcode, как
+автодополнение, проверка типов и валидация.
 <!-- -->
 :::
 
-## Spec templates {#spec-templates}
+## Шаблоны спецификаций {#spec-templates}
 
-One of the disadvantages of YAML as a language for project configuration is that
-it doesn't support reusability across YAML files out of the box. This is a
-common need when describing projects, which XcodeGen had to solve with their own
-propietary solution named *"templates"*. With Tuist's re-usability is built into
-the language itself, Swift, and through a Swift module named
+Одним из недостатков YAML как языка для конфигурации проектов является
+отсутствие встроенной поддержки повторного использования кода между
+YAML-файлами. Это распространённая потребность при описании проектов, которую
+XcodeGen решает с помощью собственного решения под названием *"шаблоны"*. В
+Tuist же повторное использование реализовано на уровне самого языка Swift –
+через модуль
 <LocalizedLink href="/guides/features/projects/code-sharing">project description
-helpers</LocalizedLink>, which allow reusing code across all your manifest
-files.
+helpers</LocalizedLink>, который позволяет использовать общий код во всех
+манифест-файлах проекта.
 
 ::: code-group
 ```swift [Tuist/ProjectDescriptionHelpers/Target+Features.swift]
