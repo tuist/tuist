@@ -22,8 +22,10 @@ defmodule Tuist.Projects.Workers.CleanProjectWorkerTest do
         :ok
       end)
 
+      cas_objects = "#{project_slug}/cas"
       binaries_objects = "#{project_slug}/builds"
       tests_objects = "#{project_slug}/tests"
+      expect(Storage, :delete_all_objects, fn ^cas_objects, _actor -> :ok end)
       expect(Storage, :delete_all_objects, fn ^binaries_objects, _actor -> :ok end)
       expect(Storage, :delete_all_objects, fn ^tests_objects, _actor -> :ok end)
 
