@@ -8,19 +8,19 @@ import TuistServer
 import TuistSupport
 
 enum SetupCacheCommandServiceError: Equatable, LocalizedError {
-    case failedToCreateLaunchDaemon(String)
     case failedToLoadLaunchDaemon(String)
     case missingFullHandle
+    case missingExecutablePath
 
     var errorDescription: String? {
         switch self {
-        case let .failedToCreateLaunchDaemon(error):
-            return "Failed to create LaunchDaemon: \(error)"
         case let .failedToLoadLaunchDaemon(error):
             return "Failed to load LaunchDaemon: \(error)"
         case .missingFullHandle:
             return
                 "The 'Tuist.swift' file is missing a fullHandle. See how to set up a Tuist project at: https://docs.tuist.dev/en/server/introduction/accounts-and-projects#projects"
+        case .missingExecutablePath:
+            return "Failed to determine the current tuist executable path"
         }
     }
 }
@@ -49,7 +49,6 @@ struct SetupCacheCommandService {
     func run(
         path: String?
     ) async throws {
-        // Load the config to get fullHandle and URL
         let path = try await Environment.current.pathRelativeToWorkingDirectory(path)
         let config = try await configLoader.loadConfig(path: path)
 
@@ -59,24 +58,54 @@ struct SetupCacheCommandService {
 
         let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
 
-        let currentBinaryPath = Environment.current.currentExecutablePath()!
-        let tuistBinaryPath = determineTuistBinaryPath(currentPath: currentBinaryPath)
+        let tuistBinaryPath = try determineTuistBinaryPath()
         let launchDaemonPlistPath = try await createLaunchDaemonPlist(
             fullHandle: fullHandle,
             url: serverURL.absoluteString,
             tuistBinaryPath: tuistBinaryPath
         )
 
-        try await loadLaunchDaemon(plistPath: launchDaemonPlistPath)
+        try await launchDaemon(plistPath: launchDaemonPlistPath)
 
-        // Start the daemon immediately
-        try await startCacheServer(
-            fullHandle: fullHandle,
-            url: serverURL.absoluteString,
-            tuistBinaryPath: tuistBinaryPath,
-            path: path,
-            config: config
-        )
+        Logger.current.debug("LaunchAgent configured and loaded successfully")
+
+        if try await manifestLoader.hasRootManifest(at: path) {
+            if let generationOptions = config.project.generatedProject?.generationOptions,
+               generationOptions.enableCaching == true
+            {
+                Logger.current.info("Tuist Cache has been enabled 🎉", metadata: .success)
+            } else {
+                Logger.current.info(
+                    """
+                    Tuist Cache setup is almost complete!
+
+                    To enable caching for this project, set the enableCaching property in your Tuist.swift file to true:
+
+                    let tuist = Tuist(
+                        fullHandle: "\(fullHandle)",
+                        project: .tuist(
+                            generationOptions: .options(
+                                enableCaching: true
+                            )
+                        )
+                    )
+                    """
+                )
+            }
+        } else {
+            Logger.current.info(
+                """
+                Tuist Cache setup is almost complete!
+
+                To finish the setup, set the following build settings in Xcode projects that you want to use caching for:
+                COMPILATION_CACHE_ENABLE_CACHING=YES
+                COMPILATION_CACHE_REMOTE_SERVICE_PATH=\(Environment.current.socketPathString(for: fullHandle))
+                COMPILATION_CACHE_ENABLE_PLUGIN=YES
+
+                Note that `COMPILATION_CACHE_REMOTE_SERVICE_PATH` and `COMPILATION_CACHE_ENABLE_PLUGIN` are currently not directly exposed by Xcode and you need to manually add these as user-defined build settings.
+                """
+            )
+        }
     }
 
     private func createLaunchDaemonPlist(
@@ -97,7 +126,7 @@ struct SetupCacheCommandService {
 
         // If plist already exists, unload it first
         if try await fileSystem.exists(plistPath) {
-            Logger.current.info("Existing LaunchAgent found. Unloading...")
+            Logger.current.debug("Existing LaunchAgent found. Unloading...")
             do {
                 try await launchctlController.unload(plistPath: plistPath)
             } catch {
@@ -119,7 +148,7 @@ struct SetupCacheCommandService {
             programArguments.append(contentsOf: ["--url", url])
         }
 
-        let plistContent = createPlistContent(
+        let plistContent = launchAgentPlist(
             programPath: tuistBinaryPath.pathString,
             programArguments: programArguments,
             label: "tuist.cache.\(fullHandle.replacingOccurrences(of: "/", with: "_"))"
@@ -127,19 +156,20 @@ struct SetupCacheCommandService {
 
         try await fileSystem.writeText(plistContent, at: plistPath)
 
-        Logger.current.info("Created LaunchDaemon plist at: \(plistPath.pathString)")
+        Logger.current.debug("Created LaunchDaemon plist at: \(plistPath.pathString)")
 
         return plistPath
     }
 
-    private func createPlistContent(
+    private func launchAgentPlist(
         programPath: String,
         programArguments: [String],
         label: String
     ) -> String {
-        let programArgumentsXML = programArguments.map { "<string>\($0)</string>" }.joined(
-            separator: "\n        "
-        )
+        let programArgumentsXML =
+            programArguments
+                .map { "<string>\($0)</string>" }
+                .joined(separator: "\n\t\t")
 
         return """
         <?xml version="1.0" encoding="UTF-8"?>
@@ -163,63 +193,20 @@ struct SetupCacheCommandService {
         """
     }
 
-    private func loadLaunchDaemon(plistPath: AbsolutePath) async throws {
+    private func launchDaemon(plistPath: AbsolutePath) async throws {
         do {
             try await launchctlController.load(plistPath: plistPath)
-            Logger.current.info("Loaded LaunchAgent")
+            Logger.current.debug("Loaded LaunchAgent")
         } catch {
             throw SetupCacheCommandServiceError.failedToLoadLaunchDaemon(error.localizedDescription)
         }
     }
 
-    private func startCacheServer(
-        fullHandle: String,
-        url _: String?,
-        tuistBinaryPath _: AbsolutePath,
-        path: AbsolutePath,
-        config: TuistCore.Tuist
-    ) async throws {
-        Logger.current.info("LaunchAgent configured and loaded successfully")
-
-        // Check if this is a Tuist project with root manifest
-        if try await manifestLoader.hasRootManifest(at: path) {
-            // Check if enableCaching is already true
-            if let generationOptions = config.project.generatedProject?.generationOptions,
-               generationOptions.enableCaching == true
-            {
-                Logger.current.info("Caching is already set up for this project - no additional steps needed.")
-            } else {
-                Logger.current.info(
-                    """
-                    To enable caching for this project, add or update the following in your Tuist.swift file:
-
-                    let tuist = Tuist(
-                        fullHandle: "\(fullHandle)",
-                        project: .tuist(
-                            generationOptions: .options(
-                                enableCaching: true
-                            )
-                        )
-                    )
-                    """
-                )
-            }
-        } else {
-            Logger.current.info(
-                """
-                Set the following build settings in Xcode projects that you want to use caching for:
-                COMPILATION_CACHE_ENABLE_CACHING=YES
-                COMPILATION_CACHE_REMOTE_SERVICE_PATH=\(Environment.current.socketPathString(for: fullHandle))
-                COMPILATION_CACHE_ENABLE_PLUGIN=YES
-
-                Note that `COMPILATION_CACHE_REMOTE_SERVICE_PATH` and `COMPILATION_CACHE_ENABLE_PLUGIN` are currently not directly exposed by Xcode and you need to manually add these as user-defined build settings.
-                """
-            )
+    private func determineTuistBinaryPath() throws -> AbsolutePath {
+        guard let currentPath = Environment.current.currentExecutablePath() else {
+            throw SetupCacheCommandServiceError.missingExecutablePath
         }
-        Logger.current.info("The cache server will start automatically on boot and is now running")
-    }
 
-    private func determineTuistBinaryPath(currentPath: AbsolutePath) -> AbsolutePath {
         // Check if the current executable is mise-managed
         if currentPath.pathString.contains("/.local/share/mise/installs/tuist/") {
             // Use the latest symlink for mise-managed installations
@@ -229,7 +216,6 @@ struct SetupCacheCommandService {
             )
         }
 
-        // Fall back to the current executable path
         return currentPath
     }
 }
