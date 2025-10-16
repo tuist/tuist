@@ -6,7 +6,7 @@ struct SetupCacheCommand: AsyncParsableCommand {
         CommandConfiguration(
             commandName: "cache",
             _superCommandName: "setup",
-            abstract: "Set up a LaunchDaemon for the Tuist cache server"
+            abstract: "Set up the Tuist Xcode cache"
         )
     }
 
