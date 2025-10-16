@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.87.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* tuist setup cache command by [@fortmarek](https://github.com/fortmarek) in [#8450](https://github.com/tuist/tuist/pull/8450)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.86.4...4.87.0
+
 ## What's Changed in 4.86.4<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
