@@ -1,7 +1,3 @@
-const CACHE_TTL = 300; // 5 minutes cache TTL for HTTP responses
-// KV storage persistence: entries are persisted indefinitely unless manually deleted
-// Cloudflare KV has no built-in expiration unless explicitly set with expirationTtl
-
 import {
   jsonResponse,
   errorResponse,
@@ -26,7 +22,6 @@ function generateEntryId() {
 
 function normalizeStoredEntries(entries) {
   if (!Array.isArray(entries)) return [];
-  
   return entries
     .filter(entry => entry && typeof entry.value === 'string' && typeof entry.id === 'string')
     .map(entry => ({
