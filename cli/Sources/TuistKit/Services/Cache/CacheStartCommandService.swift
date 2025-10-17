@@ -32,8 +32,13 @@ struct CacheStartCommandService {
         }
 
         let configURL = url.flatMap { URL(string: $0) }
+
+Logger.current.info("Config URL: \(configURL?.absoluteString ?? "nil")")
+
         let serverURL = try configURL.map { try serverEnvironmentService.url(configServerURL: $0) } ?? serverEnvironmentService
             .url()
+
+        Logger.current.info("Using url: \(serverURL)")
 
         let server = GRPCServer(
             transport: .http2NIOPosix(
@@ -43,11 +48,11 @@ struct CacheStartCommandService {
             services: [
                 KeyValueService(
                     fullHandle: fullHandle,
-                    serverURL: serverURL
+                    serverURL: configURL!
                 ),
                 CASService(
                     fullHandle: fullHandle,
-                    serverURL: serverURL
+                    serverURL: configURL!
                 ),
             ]
         )
