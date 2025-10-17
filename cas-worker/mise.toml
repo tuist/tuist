@@ -1,2 +1,4 @@
 [tools]
+node = "latest"
+pnpm = "latest"
 "npm:wrangler" = "latest"
