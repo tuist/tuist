@@ -5,7 +5,7 @@
   "description": "Learn how to migrate an Xcode project to a Tuist project."
 }
 ---
-# Migrate an Xcode project {#migrate-an-xcode-project}
+# Xcode 프로젝트 마이그레이션 {#migrate-an-xcode-project}
 
 Unless you
 <LocalizedLink href="/guides/features/projects/adoption/new-project">create a
