@@ -388,4 +388,32 @@ final class LintRedundantImportsServiceTests: TuistUnitTestCase {
 
         try await subject.run(path: path.pathString)
     }
+
+    func test_run_doesntThrowAnyErrorsWithMacroDependency() async throws {
+        // Given
+        let path = try AbsolutePath(validating: "/project")
+        let config = Tuist.test()
+
+        let macro = Target.test(name: "MyMacro", product: .macro)
+        let framework = Target.test(
+            name: "Framework",
+            product: .framework,
+            dependencies: [TargetDependency.target(name: "MyMacro")]
+        )
+        let project = Project.test(path: path, targets: [framework, macro])
+        let graph = Graph.test(path: path, projects: [path: project], dependencies: [
+            .target(name: framework.name, path: project.path): [
+                .target(name: macro.name, path: project.path),
+            ],
+        ])
+
+        given(configLoader).loadConfig(path: .value(path)).willReturn(config)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generator).load(path: .value(path), options: .any).willReturn(graph)
+        given(targetScanner).imports(for: .value(framework)).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(macro)).willReturn(Set([]))
+
+        // When / Then
+        try await subject.run(path: path.pathString)
+    }
 }
