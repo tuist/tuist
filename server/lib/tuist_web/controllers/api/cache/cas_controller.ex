@@ -11,10 +11,8 @@ defmodule TuistWeb.API.CASController do
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.Authentication
 
-
   plug LoaderQueryPlug
   plug TuistWeb.API.Authorization.AuthorizationPlug, :cache
-
 
   plug(OpenApiSpex.Plug.CastAndValidate,
     json_render_error_v2: true,
@@ -81,7 +79,7 @@ defmodule TuistWeb.API.CASController do
         |> put_status(:not_found)
         |> json(%Error{message: "Project #{account_handle}/#{project_handle} not found."})
 
-      Authorization.authorize(:cas_read, authenticated_subject, project) != :ok ->
+      Authorization.authorize(:cache_read, authenticated_subject, project) != :ok ->
         conn
         |> put_status(:forbidden)
         |> json(%Error{
@@ -193,7 +191,6 @@ defmodule TuistWeb.API.CASController do
   )
 
   def save(%{assigns: %{selected_project: project, selected_account: account}} = conn, %{id: id} = _params) do
-    IO.puts("saving artifact")
     current_subject = Authentication.authenticated_subject(conn)
     {:ok, body, conn} = Plug.Conn.read_body(conn, length: 100_000_000)
     key = cas_key(account, project, id)

@@ -17,12 +17,12 @@ config :phoenix, :stacktrace_depth, 20
 config :phoenix_live_view, :debug_heex_annotations, true
 
 config :tuist, Tuist.ClickHouseRepo,
-  hostname: "tahani",
+  hostname: "localhost",
   port: 8123,
   database: "tuist_development"
 
 config :tuist, Tuist.IngestRepo,
-  hostname: "tahani",
+  hostname: "localhost",
   port: 8123,
   database: "tuist_development",
   flush_interval_ms: 5000,
@@ -34,7 +34,7 @@ config :tuist, Tuist.Mailer, adapter: Bamboo.LocalAdapter
 
 # Configure your database
 config :tuist, Tuist.Repo,
-  hostname: "tahani",
+  hostname: "localhost",
   database: "tuist_development",
   stacktrace: true,
   show_sensitive_data_on_connection_error: true,

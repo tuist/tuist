@@ -35,20 +35,29 @@ env_output="$(
     MIX_ENV=dev MIX_QUIET=1 mix run --no-start -e "$ELIXIR_SCRIPT"
 )"
 
-declare -A env_map=()
+# Parse environment variables without using associative arrays
+server_url=""
+s3_region=""
+s3_endpoint=""
+s3_bucket_name=""
+s3_access_key_id=""
+s3_secret_access_key=""
+s3_virtual_host=""
+s3_bucket_as_host=""
+
 while IFS='=' read -r key value; do
   [[ -z "${key:-}" ]] && continue
-  env_map["$key"]="$value"
+  case "$key" in
+    SERVER_URL) server_url="$value" ;;
+    TUIST_S3_REGION) s3_region="$value" ;;
+    TUIST_S3_ENDPOINT) s3_endpoint="$value" ;;
+    TUIST_S3_BUCKET_NAME) s3_bucket_name="$value" ;;
+    TUIST_S3_ACCESS_KEY_ID) s3_access_key_id="$value" ;;
+    TUIST_S3_SECRET_ACCESS_KEY) s3_secret_access_key="$value" ;;
+    TUIST_S3_VIRTUAL_HOST) s3_virtual_host="$value" ;;
+    TUIST_S3_BUCKET_AS_HOST) s3_bucket_as_host="$value" ;;
+  esac
 done <<< "$env_output"
-
-server_url="${env_map[SERVER_URL]-}"
-s3_region="${env_map[TUIST_S3_REGION]-}"
-s3_endpoint="${env_map[TUIST_S3_ENDPOINT]-}"
-s3_bucket_name="${env_map[TUIST_S3_BUCKET_NAME]-}"
-s3_access_key_id="${env_map[TUIST_S3_ACCESS_KEY_ID]-}"
-s3_secret_access_key="${env_map[TUIST_S3_SECRET_ACCESS_KEY]-}"
-s3_virtual_host="${env_map[TUIST_S3_VIRTUAL_HOST]-}"
-s3_bucket_as_host="${env_map[TUIST_S3_BUCKET_AS_HOST]-}"
 
 if [[ -z "$server_url" ]]; then
   echo "Unable to determine SERVER_URL" >&2

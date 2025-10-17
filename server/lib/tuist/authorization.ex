@@ -447,32 +447,6 @@ defmodule Tuist.Authorization do
       allow([:authenticated_as_user, :ops_access])
     end
   end
-   object :cas do
-    action :create do
-      desc("Allows users of a project's account to create entries in the project CAS.")
-      allow([:authenticated_as_user, user_role: :user])
-
-      desc("Allows the admin of a project's account to create entries in the project CAS.")
-      allow([:authenticated_as_user, user_role: :admin])
-
-      desc("Allows the authenticated project to create CAS entries if it matches the project.")
-      allow([:authenticated_as_project, :projects_match])
-    end
-
-    action :read do
-      desc("Allows the authenticated subject to read a project's CAS if the project is public.")
-      allow(:public_project)
-
-      desc("Allows users of a project's account to read the project CAS.")
-      allow([:authenticated_as_user, user_role: :user])
-
-      desc("Allows the admin of a project's account to read the project CAS.")
-      allow([:authenticated_as_user, user_role: :admin])
-
-      desc("Allows the authenticated project to read the CAS if it matches the project.")
-      allow([:authenticated_as_project, :projects_match])
-    end
-  end
 
   object :ops do
     action :read do
