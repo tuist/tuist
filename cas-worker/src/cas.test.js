@@ -45,10 +45,6 @@ describe('CAS Module', () => {
         get: vi.fn(),
         put: vi.fn(),
       },
-      CAS_CACHE_BLOBS: {
-        get: vi.fn(),
-        put: vi.fn().mockResolvedValue(undefined),
-      },
     };
 
     mockRequest = {
@@ -88,52 +84,7 @@ describe('CAS Module', () => {
       expect(data.message).toContain('Missing Authorization header');
     });
 
-    it('should return blob from KV cache if available', async () => {
-      mockRequest.headers.get.mockReturnValue('Bearer token123');
-      env.CAS_CACHE.get.mockResolvedValue(JSON.stringify({ prefix: 'acme/myapp/cas/' }));
 
-      const blobContent = new Uint8Array([1, 2, 3, 4]);
-      env.CAS_CACHE_BLOBS.get.mockResolvedValue(blobContent.buffer);
-
-      const response = await handleGetValue(mockRequest, env, {});
-
-      expect(response.status).toBe(200);
-      expect(env.CAS_CACHE_BLOBS.get).toHaveBeenCalledWith('acme/myapp/cas/0/abc123', 'arrayBuffer');
-      expect(checkS3ObjectExists).not.toHaveBeenCalled();
-      expect(mockS3Client.fetch).not.toHaveBeenCalled();
-    });
-
-    it('should stream download from S3 when not in KV cache', async () => {
-      mockRequest.headers.get.mockReturnValue('Bearer token123');
-      env.CAS_CACHE.get.mockResolvedValue(JSON.stringify({ prefix: 'acme/myapp/cas/' }));
-      env.CAS_CACHE_BLOBS.get.mockResolvedValue(null);
-      checkS3ObjectExists.mockResolvedValue(true);
-      getS3Url.mockReturnValue('https://s3.amazonaws.com/test-bucket/acme/myapp/cas/0/abc123');
-
-      const mockS3Response = new Response('file content', {
-        status: 200,
-        headers: { 'Content-Type': 'application/octet-stream' }
-      });
-      mockS3Client.fetch.mockResolvedValue(mockS3Response);
-
-      const response = await handleGetValue(mockRequest, env, {});
-
-      expect(response.status).toBe(200);
-      expect(env.CAS_CACHE_BLOBS.get).toHaveBeenCalledWith('acme/myapp/cas/0/abc123', 'arrayBuffer');
-      expect(env.CAS_CACHE.get).toHaveBeenCalled();
-      expect(serverFetch).not.toHaveBeenCalled();
-      expect(checkS3ObjectExists).toHaveBeenCalledWith(
-        expect.anything(),
-        'https://s3.amazonaws.com',
-        'test-bucket',
-        'acme/myapp/cas/0/abc123',
-        false
-      );
-      expect(mockS3Client.fetch).toHaveBeenCalledWith(
-        'https://s3.amazonaws.com/test-bucket/acme/myapp/cas/0/abc123',
-        { method: 'GET' }
-      );
-    });
 
     it('should fetch prefix from server when not cached', async () => {
       mockRequest.headers.get.mockReturnValue('Bearer token123');
@@ -328,117 +279,9 @@ describe('CAS Module', () => {
       expect(data.message).toContain('Missing Authorization header');
     });
 
-    it('should store small blob in KV when artifact does not exist', async () => {
-      mockRequest.headers.get.mockImplementation((header) => {
-        if (header === 'Authorization') return 'Bearer token123';
-        if (header === 'Content-Type') return null;
-        return null;
-      });
 
-      const smallContent = 'small file content';
-      mockRequest.arrayBuffer = vi.fn().mockResolvedValue(new TextEncoder().encode(smallContent).buffer);
 
-      env.CAS_CACHE.get.mockResolvedValue(JSON.stringify({ prefix: 'acme/myapp/cas/' }));
-      env.CAS_CACHE_BLOBS.get.mockResolvedValue(null);
-      checkS3ObjectExists.mockResolvedValue(false);
-      getS3Url.mockReturnValue('https://s3.amazonaws.com/test-bucket/acme/myapp/cas/0/abc123');
 
-      const mockS3Response = new Response(null, { status: 200 });
-      mockS3Client.fetch.mockResolvedValue(mockS3Response);
-
-      const response = await handleSave(mockRequest, env, {});
-
-      expect(response.status).toBe(200);
-      expect(env.CAS_CACHE_BLOBS.put).toHaveBeenCalledWith(
-        'acme/myapp/cas/0/abc123',
-        expect.any(ArrayBuffer)
-      );
-      expect(mockS3Client.fetch).toHaveBeenCalled();
-    });
-
-    it('should store large blob in S3 when exceeds KV limit', async () => {
-      mockRequest.headers.get.mockImplementation((header) => {
-        if (header === 'Authorization') return 'Bearer token123';
-        if (header === 'Content-Type') return null;
-        return null;
-      });
-
-      // Create a buffer larger than 25 MB
-      const largeBuffer = new ArrayBuffer(26 * 1024 * 1024);
-      mockRequest.arrayBuffer = vi.fn().mockResolvedValue(largeBuffer);
-
-      env.CAS_CACHE.get.mockResolvedValue(JSON.stringify({ prefix: 'acme/myapp/cas/' }));
-      env.CAS_CACHE_BLOBS.get.mockResolvedValue(null);
-      checkS3ObjectExists.mockResolvedValue(false);
-      getS3Url.mockReturnValue('https://s3.amazonaws.com/test-bucket/acme/myapp/cas/0/abc123');
-
-      const mockS3Response = new Response(null, {
-        status: 200,
-        headers: { 'ETag': '"abc123"' }
-      });
-      mockS3Client.fetch.mockResolvedValue(mockS3Response);
-
-      const response = await handleSave(mockRequest, env, {});
-
-      expect(response.status).toBe(200);
-      expect(env.CAS_CACHE_BLOBS.put).not.toHaveBeenCalled();
-      expect(mockS3Client.fetch).toHaveBeenCalledWith(
-        'https://s3.amazonaws.com/test-bucket/acme/myapp/cas/0/abc123',
-        expect.objectContaining({
-          method: 'PUT',
-          body: largeBuffer,
-          headers: {
-            'Content-Type': 'application/octet-stream',
-          },
-        })
-      );
-    });
-
-    it('should return 200 when blob already exists in KV', async () => {
-      mockRequest.headers.get.mockReturnValue('Bearer token123');
-      env.CAS_CACHE.get.mockResolvedValue(JSON.stringify({ prefix: 'prefix/' }));
-      env.CAS_CACHE_BLOBS.get.mockResolvedValue(new ArrayBuffer(100));
-
-      const response = await handleSave(mockRequest, env, {});
-
-      expect(response.status).toBe(200);
-      expect(checkS3ObjectExists).not.toHaveBeenCalled();
-    });
-
-    it('should return 200 when artifact already exists in S3', async () => {
-      mockRequest.headers.get.mockReturnValue('Bearer token123');
-      env.CAS_CACHE.get.mockResolvedValue(JSON.stringify({ prefix: 'prefix/' }));
-      env.CAS_CACHE_BLOBS.get.mockResolvedValue(null);
-      checkS3ObjectExists.mockResolvedValue(true);
-
-      const response = await handleSave(mockRequest, env, {});
-
-      expect(response.status).toBe(200);
-    });
-
-    it('should use virtual host style when enabled', async () => {
-      mockRequest.headers.get.mockReturnValue('Bearer token123');
-      const largeBuffer = new ArrayBuffer(26 * 1024 * 1024);
-      mockRequest.arrayBuffer = vi.fn().mockResolvedValue(largeBuffer);
-      env.CAS_CACHE.get.mockResolvedValue(JSON.stringify({ prefix: 'prefix/' }));
-      env.CAS_CACHE_BLOBS.get.mockResolvedValue(null);
-      env.TUIST_S3_VIRTUAL_HOST = 'true';
-      checkS3ObjectExists.mockResolvedValue(false);
-      getS3Url.mockReturnValue('https://bucket.s3.amazonaws.com/prefix/0/abc123');
-
-      mockS3Client.fetch.mockResolvedValue(new Response(null, { status: 200 }));
-
-      const response = await handleSave(mockRequest, env, {});
-
-      expect(response.status).toBe(200);
-      expect(checkS3ObjectExists).toHaveBeenCalledWith(
-        expect.anything(),
-        'https://s3.amazonaws.com',
-        'test-bucket',
-        'prefix/0/abc123',
-        true
-      );
-    });
 
     it('should return 403 with JSON when server returns forbidden', async () => {
       mockRequest.headers.get.mockReturnValue('Bearer token123');
@@ -454,32 +297,7 @@ describe('CAS Module', () => {
       expect(data.message).toBe('Unauthorized or not found');
     });
 
-    it('should cache prefix with SHA-256 hash key', async () => {
-      mockRequest.headers.get.mockReturnValue('Bearer token123');
-      const smallContent = 'content';
-      mockRequest.arrayBuffer = vi.fn().mockResolvedValue(new TextEncoder().encode(smallContent).buffer);
-      env.CAS_CACHE.get.mockResolvedValue(null);
-      env.CAS_CACHE_BLOBS.get.mockResolvedValue(null);
-      serverFetch.mockResolvedValue(
-        new Response(JSON.stringify({ prefix: 'new-prefix/' }), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        })
-      );
-      checkS3ObjectExists.mockResolvedValue(false);
-      getS3Url.mockReturnValue('https://bucket.s3.amazonaws.com/prefix/0/abc123');
 
-      const mockS3Response = new Response(null, { status: 200 });
-      mockS3Client.fetch.mockResolvedValue(mockS3Response);
-
-      await handleSave(mockRequest, env, {});
-
-      expect(env.CAS_CACHE.put).toHaveBeenCalledWith(
-        expect.stringMatching(/^[0-9a-f]{64}$/), // SHA-256 hash
-        JSON.stringify({ prefix: 'new-prefix/' }),
-        { expirationTtl: 3600 }
-      );
-    });
 
     it('should cache 401 authorization failures', async () => {
       mockRequest.headers.get.mockReturnValue('Bearer bad-token');
