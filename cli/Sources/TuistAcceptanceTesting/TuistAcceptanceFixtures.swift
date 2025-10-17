@@ -36,7 +36,6 @@ public enum TuistAcceptanceFixtures {
     case commandLineToolWithStaticLibrary
     case frameworkWithEnvironmentVariables
     case frameworkWithMacroAndPluginPackages
-    case frameworkWithMacrosAndTests
     case frameworkWithNativeSwiftMacro
     case frameworkWithSwiftMacro
     case frameworkWithSPMBundle
@@ -190,8 +189,6 @@ public enum TuistAcceptanceFixtures {
             return "framework_with_environment_variables"
         case .frameworkWithMacroAndPluginPackages:
             return "framework_with_macro_and_plugin_packages"
-        case .frameworkWithMacrosAndTests:
-            return "framework_with_macros_and_tests"
         case .frameworkWithNativeSwiftMacro:
             return "framework_with_native_swift_macro"
         case .frameworkWithSwiftMacro:
