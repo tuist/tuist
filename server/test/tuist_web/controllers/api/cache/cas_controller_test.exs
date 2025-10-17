@@ -20,7 +20,7 @@ defmodule TuistWeb.API.CASControllerTest do
     }
   end
 
-  describe "GET /api/cache/cas/prefix" do
+  describe "GET /api/cache/prefix" do
     test "returns CAS prefix successfully", %{
       conn: conn,
       project: project,
@@ -32,7 +32,7 @@ defmodule TuistWeb.API.CASControllerTest do
       conn =
         get(
           conn,
-          ~p"/api/cache/cas/prefix?account_handle=#{account_handle}&project_handle=#{project_handle}"
+          ~p"/api/cache/prefix?account_handle=#{account_handle}&project_handle=#{project_handle}"
         )
 
       response = json_response(conn, :ok)
@@ -47,7 +47,7 @@ defmodule TuistWeb.API.CASControllerTest do
       conn = Authentication.put_current_user(conn, user)
 
       assert_raise NotFoundError, fn ->
-        get(conn, ~p"/api/cache/cas/prefix?account_handle=unknown&project_handle=#{project_handle}")
+        get(conn, ~p"/api/cache/prefix?account_handle=unknown&project_handle=#{project_handle}")
       end
     end
 
@@ -59,7 +59,7 @@ defmodule TuistWeb.API.CASControllerTest do
       conn = Authentication.put_current_user(conn, user)
 
       assert_raise NotFoundError, fn ->
-        get(conn, ~p"/api/cache/cas/prefix?account_handle=#{account_handle}&project_handle=unknown")
+        get(conn, ~p"/api/cache/prefix?account_handle=#{account_handle}&project_handle=unknown")
       end
     end
 
@@ -75,7 +75,7 @@ defmodule TuistWeb.API.CASControllerTest do
       conn =
         get(
           conn,
-          ~p"/api/cache/cas/prefix?account_handle=#{other_project.account.name}&project_handle=#{other_project.name}"
+          ~p"/api/cache/prefix?account_handle=#{other_project.account.name}&project_handle=#{other_project.name}"
         )
 
       response = json_response(conn, :forbidden)

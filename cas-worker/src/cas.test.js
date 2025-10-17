@@ -105,7 +105,7 @@ describe('CAS Module', () => {
       expect(response.status).toBe(200);
       expect(serverFetch).toHaveBeenCalledWith(
         env,
-        '/api/cache/cas/prefix?account_handle=acme&project_handle=myapp',
+        '/api/cache/prefix?account_handle=acme&project_handle=myapp',
         expect.objectContaining({
           method: 'GET',
           headers: expect.objectContaining({
@@ -191,7 +191,7 @@ describe('CAS Module', () => {
 
       expect(serverFetch).toHaveBeenCalledWith(
         env,
-        '/api/cache/cas/prefix?account_handle=acme&project_handle=myapp',
+        '/api/cache/prefix?account_handle=acme&project_handle=myapp',
         expect.objectContaining({
           headers: expect.objectContaining({
             Authorization: 'Bearer token123',
