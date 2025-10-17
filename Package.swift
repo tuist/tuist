@@ -475,11 +475,13 @@ let targets: [Target] = [
         name: "TuistCAS",
         dependencies: [
             "TuistServer",
+            "TuistSupport",
             "TuistRootDirectoryLocator",
             .product(name: "GRPCCore", package: "grpc-swift-2"),
             .product(name: "GRPCProtobuf", package: "grpc-swift-protobuf"),
             .product(name: "SwiftProtobuf", package: "swift-protobuf"),
             "Mockable",
+            "FileSystem",
             pathDependency,
         ],
         path: "cli/Sources/TuistCAS",
