@@ -60,39 +60,13 @@ defmodule TuistWeb.API.CASController do
 
   def prefix(conn, _params) do
     %{account_handle: account_handle, project_handle: project_handle} = conn.private.open_api_spex.params
-    authenticated_subject = Authentication.authenticated_subject(conn)
-    account = Accounts.get_account_by_handle(account_handle)
+    %{selected_account: account, selected_project: project} = conn.assigns
 
-    project =
-      if is_nil(account),
-        do: nil,
-        else: Projects.get_project_by_account_and_project_handles(account.name, project_handle, preload: [:account])
+    prefix = "#{account.name}/#{project.name}/cas/"
 
-    cond do
-      is_nil(account) ->
-        conn
-        |> put_status(:not_found)
-        |> json(%Error{message: "Account #{account_handle} not found."})
-
-      is_nil(project) ->
-        conn
-        |> put_status(:not_found)
-        |> json(%Error{message: "Project #{account_handle}/#{project_handle} not found."})
-
-      Authorization.authorize(:cache_read, authenticated_subject, project) != :ok ->
-        conn
-        |> put_status(:forbidden)
-        |> json(%Error{
-          message: "You don't have permission to access the #{project.name} project."
-        })
-
-      true ->
-        prefix = "#{project.account.name}/#{project.name}/cas/"
-
-        conn
-        |> put_status(:ok)
-        |> json(%{prefix: prefix})
-    end
+    conn
+    |> put_status(:ok)
+    |> json(%{prefix: prefix})
   end
 
   operation(:load,

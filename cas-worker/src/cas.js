@@ -5,6 +5,7 @@ import {
   getS3Url
 } from './s3.js';
 import { serverFetch } from './server-fetch.js';
+import { jsonResponse, errorResponse } from './shared.js';
 
 const FAILURE_CACHE_TTL = 300;
 const SUCCESS_CACHE_TTL = 3600;
@@ -75,15 +76,39 @@ async function getS3Prefix(request, env, accountHandle, projectHandle) {
   }
 }
 
-function jsonResponse(body, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' }
-  });
-}
 
-function errorResponse(message, status) {
-  return jsonResponse({ message }, status);
+
+async function validateAndSetupRequest(request, env, accountHandle, projectHandle, id) {
+  if (!accountHandle || !projectHandle) {
+    return { error: 'Missing account_handle or project_handle query parameter', status: 400 };
+  }
+
+  const prefixResult = await getS3Prefix(request, env, accountHandle, projectHandle);
+  if (prefixResult.error) {
+    if (prefixResult.status === 401 || prefixResult.status === 403) {
+      return { error: prefixResult.error, status: prefixResult.status };
+    }
+    return { error: null, status: prefixResult.status, shouldReturnEmpty: true };
+  }
+
+  const s3Client = createS3Client(env);
+  const { TUIST_S3_BUCKET_NAME: bucket, TUIST_S3_ENDPOINT: endpoint, TUIST_S3_VIRTUAL_HOST: virtualHostStr } = env;
+  
+  if (!bucket) {
+    return { error: 'Missing TUIST_S3_BUCKET_NAME', status: 500 };
+  }
+
+  const virtualHost = virtualHostStr === 'true';
+  const key = `${prefixResult.prefix}${getS3Key(id)}`;
+
+  return {
+    s3Client,
+    bucket,
+    endpoint,
+    virtualHost,
+    key,
+    prefix: prefixResult.prefix
+  };
 }
 
 export async function handleGetValue(request, env) {
@@ -91,33 +116,15 @@ export async function handleGetValue(request, env) {
   const { id } = params;
   const { account_handle: accountHandle, project_handle: projectHandle } = query || {};
 
-  if (!accountHandle || !projectHandle) {
-    return errorResponse('Missing account_handle or project_handle query parameter', 400);
+  const setupResult = await validateAndSetupRequest(request, env, accountHandle, projectHandle, id);
+  if (setupResult.error) {
+    return errorResponse(setupResult.error, setupResult.status);
+  }
+  if (setupResult.shouldReturnEmpty) {
+    return new Response(null, { status: setupResult.status });
   }
 
-  const prefixResult = await getS3Prefix(request, env, accountHandle, projectHandle);
-  if (prefixResult.error) {
-    if (prefixResult.status === 401 || prefixResult.status === 403) {
-      return errorResponse(prefixResult.error, prefixResult.status);
-    }
-    return new Response(null, { status: prefixResult.status });
-  }
-
-  const s3Client = createS3Client(env);
-  const { TUIST_S3_BUCKET_NAME: bucket, TUIST_S3_ENDPOINT: endpoint, TUIST_S3_VIRTUAL_HOST: virtualHostStr } = env;
-  
-  if (!bucket) {
-    return errorResponse('Missing TUIST_S3_BUCKET_NAME', 500);
-  }
-
-  const virtualHost = virtualHostStr === 'true';
-  const key = `${prefixResult.prefix}${getS3Key(id)}`;
-
-  const exists = await checkS3ObjectExists(s3Client, endpoint, bucket, key, virtualHost);
-  if (!exists) {
-    return errorResponse('Artifact does not exist', 404);
-  }
-
+  const { s3Client, bucket, endpoint, virtualHost, key } = setupResult;
   const url = getS3Url(endpoint, bucket, key, virtualHost);
 
   let s3Response;
@@ -149,27 +156,15 @@ export async function handleSave(request, env) {
   const { id } = params;
   const { account_handle: accountHandle, project_handle: projectHandle } = query || {};
 
-  if (!accountHandle || !projectHandle) {
-    return errorResponse('Missing account_handle or project_handle query parameter', 400);
+  const setupResult = await validateAndSetupRequest(request, env, accountHandle, projectHandle, id);
+  if (setupResult.error) {
+    return errorResponse(setupResult.error, setupResult.status);
+  }
+  if (setupResult.shouldReturnEmpty) {
+    return new Response(null, { status: setupResult.status });
   }
 
-  const prefixResult = await getS3Prefix(request, env, accountHandle, projectHandle);
-  if (prefixResult.error) {
-    if (prefixResult.status === 401 || prefixResult.status === 403) {
-      return errorResponse(prefixResult.error, prefixResult.status);
-    }
-    return new Response(null, { status: prefixResult.status });
-  }
-
-  const s3Client = createS3Client(env);
-  const { TUIST_S3_BUCKET_NAME: bucket, TUIST_S3_ENDPOINT: endpoint, TUIST_S3_VIRTUAL_HOST: virtualHostStr } = env;
-
-  if (!bucket) {
-    return errorResponse('Missing TUIST_S3_BUCKET_NAME', 500);
-  }
-
-  const virtualHost = virtualHostStr === 'true';
-  const key = `${prefixResult.prefix}${getS3Key(id)}`;
+  const { s3Client, bucket, endpoint, virtualHost, key } = setupResult;
 
   const exists = await checkS3ObjectExists(s3Client, endpoint, bucket, key, virtualHost);
   if (exists) {

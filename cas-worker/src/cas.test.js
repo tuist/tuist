@@ -132,12 +132,9 @@ describe('CAS Module', () => {
 
       expect(response.status).toBe(200);
       expect(serverFetch).not.toHaveBeenCalled();
-      expect(checkS3ObjectExists).toHaveBeenCalledWith(
-        expect.anything(),
-        'https://s3.amazonaws.com',
-        'test-bucket',
-        'cached-prefix/0/abc123',
-        false
+      expect(mockS3Client.fetch).toHaveBeenCalledWith(
+        'https://s3.amazonaws.com/test-bucket/cached-prefix/0/abc123',
+        { method: 'GET' }
       );
     });
 
@@ -207,7 +204,11 @@ describe('CAS Module', () => {
     it('should return 404 with JSON when artifact does not exist', async () => {
       mockRequest.headers.get.mockReturnValue('Bearer token123');
       env.CAS_CACHE.get.mockResolvedValue(JSON.stringify({ prefix: 'prefix/' }));
-      checkS3ObjectExists.mockResolvedValue(false);
+      
+      // Mock S3 client to return 404
+      mockS3Client.fetch.mockResolvedValue(
+        new Response(null, { status: 404 })
+      );
 
       const response = await handleGetValue(mockRequest, env, {});
 

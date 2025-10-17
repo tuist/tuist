@@ -1,4 +1,16 @@
-const CACHE_TTL = 300;
+const CACHE_TTL = 300; // 5 minutes cache TTL for HTTP responses
+// KV storage persistence: entries are persisted indefinitely unless manually deleted
+// Cloudflare KV has no built-in expiration unless explicitly set with expirationTtl
+
+import {
+  jsonResponse,
+  errorResponse,
+  readCache,
+  writeCache,
+  validateQuery,
+  validateAuth,
+  decodeCasId
+} from './shared.js';
 
 function buildCacheKey(accountHandle, projectHandle, casId) {
   return `https://cache.tuist.dev/api/cache/keyvalue/${encodeURIComponent(accountHandle)}/${encodeURIComponent(projectHandle)}/${encodeURIComponent(casId)}`;
@@ -16,59 +28,11 @@ function normalizeStoredEntries(entries) {
   if (!Array.isArray(entries)) return [];
   
   return entries
-    .filter(entry => entry && typeof entry.value === 'string')
+    .filter(entry => entry && typeof entry.value === 'string' && typeof entry.id === 'string')
     .map(entry => ({
-      id: typeof entry.id === 'string' ? entry.id : generateEntryId(),
+      id: entry.id,
       value: entry.value
     }));
-}
-
-function jsonResponse(body, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: {
-      'Content-Type': 'application/json',
-      'Cache-Control': `max-age=${CACHE_TTL}`,
-    },
-  });
-}
-
-function errorResponse(message, status) {
-  return jsonResponse({ message }, status);
-}
-
-async function readCache(cacheKey) {
-  if (!globalThis.caches?.default) return null;
-
-  const cacheRequest = new Request(cacheKey, { method: 'GET' });
-  const cached = await caches.default.match(cacheRequest);
-  return cached?.clone() ?? null;
-}
-
-async function writeCache(cacheKey, response) {
-  if (!globalThis.caches?.default) return;
-
-  const cacheRequest = new Request(cacheKey, { method: 'GET' });
-  await caches.default.put(cacheRequest, response.clone());
-}
-
-function validateQuery(request) {
-  const query = request.query || {};
-  const { account_handle: accountHandle, project_handle: projectHandle } = query;
-  
-  if (!accountHandle || !projectHandle) {
-    return { error: 'Missing account_handle or project_handle query parameter', status: 400 };
-  }
-  
-  return { accountHandle, projectHandle };
-}
-
-function validateAuth(request) {
-  const authorization = request.headers?.get?.('Authorization');
-  if (!authorization) {
-    return { error: 'Missing Authorization header', status: 401 };
-  }
-  return { authorization };
 }
 
 function validateKvStore(env) {
@@ -77,16 +41,6 @@ function validateKvStore(env) {
     return { error: 'KEY_VALUE_STORE binding is not configured', status: 500 };
   }
   return { store };
-}
-
-function decodeCasId(rawCasId) {
-  if (typeof rawCasId !== 'string') return null;
-  
-  try {
-    return decodeURIComponent(rawCasId);
-  } catch {
-    return null;
-  }
 }
 
 export async function handleKeyValueGet(request, env) {
@@ -176,11 +130,11 @@ export async function handleKeyValuePut(request, env) {
   }
 
   const sanitizedEntries = entries
-    .filter(entry => entry && typeof entry.value === 'string')
-    .map(entry => ({ value: entry.value }));
+    .filter(entry => entry && typeof entry.value === 'string' && typeof entry.id === 'string')
+    .map(entry => ({ id: entry.id, value: entry.value }));
 
   if (sanitizedEntries.length === 0) {
-    return errorResponse('Entries array must include at least one value', 400);
+    return errorResponse('Entries array must include at least one entry with id and value', 400);
   }
 
   const { accountHandle, projectHandle } = queryValidation;
@@ -195,26 +149,23 @@ export async function handleKeyValuePut(request, env) {
     return errorResponse('Failed to read entries from KV', 500);
   }
 
-  const existingEntries = normalizeStoredEntries(existingEntriesRaw);
-
-  const newEntries = sanitizedEntries.map(entry => ({
-    id: generateEntryId(),
+  // Last put should win - replace existing entries entirely
+  const newEntriesWithIds = sanitizedEntries.map(entry => ({
+    id: entry.id,
     value: entry.value,
   }));
 
-  const mergedEntries = existingEntries.concat(newEntries);
-
   try {
-    await store.put(storageKey, JSON.stringify(mergedEntries));
+    await store.put(storageKey, JSON.stringify(newEntriesWithIds));
   } catch (error) {
     return errorResponse(error.message || 'Failed to store entries in KV', 500);
   }
 
   const cacheKey = buildCacheKey(accountHandle, projectHandle, casId);
   const cacheResponse = jsonResponse({
-    entries: mergedEntries.map(entry => ({ value: entry.value })),
+    entries: newEntriesWithIds.map(entry => ({ value: entry.value })),
   });
   await writeCache(cacheKey, cacheResponse);
 
-  return jsonResponse({ entries: newEntries.map(entry => ({ id: entry.id })) });
+  return jsonResponse({ entries: newEntriesWithIds.map(entry => ({ id: entry.id })) });
 }

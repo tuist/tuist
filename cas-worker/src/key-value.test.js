@@ -227,15 +227,12 @@ describe('KeyValue handlers', () => {
     it('stores entries in KV and cache', async () => {
       const response = await handleKeyValuePut(request, env);
 
-      expect(env.KEY_VALUE_STORE.get).toHaveBeenCalledWith(
-        'keyvalue:my-account:my-project:cas123',
-        'json',
-      );
+      // With "last put wins" behavior, we don't read existing entries first
       expect(env.KEY_VALUE_STORE.put).toHaveBeenCalledWith(
         'keyvalue:my-account:my-project:cas123',
         JSON.stringify([
-          { id: 'uuid-1', value: 'value-1' },
-          { id: 'uuid-2', value: 'value-2' },
+          { id: 'entry-1', value: 'value-1' },
+          { id: 'entry-2', value: 'value-2' },
         ]),
       );
       expect(cache.put).toHaveBeenCalled();
@@ -244,11 +241,23 @@ describe('KeyValue handlers', () => {
       expect(body.entries).toEqual([{ id: 'uuid-1' }, { id: 'uuid-2' }]);
     });
 
-    it('filters out entries without string values', async () => {
-      request.json = vi.fn().mockResolvedValue({
+it('filters out entries without string values', async () => {
+      request.json.mockResolvedValue({
         cas_id: 'cas123',
-        entries: [{ value: 'ok' }, { value: 123 }, null],
+        entries: [{ id: 'entry-1', value: 'ok' }, { value: 123 }, null],
       });
+
+      const response = await handleKeyValuePut(request, env);
+
+      expect(env.KEY_VALUE_STORE.put).toHaveBeenCalledWith(
+        'keyvalue:my-account:my-project:cas123',
+        JSON.stringify([{ id: 'entry-1', value: 'ok' }]),
+      );
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toEqual({
+        entries: [{ id: 'entry-1' }],
+      });
+    });
 
       const response = await handleKeyValuePut(request, env);
 
@@ -266,11 +275,8 @@ describe('KeyValue handlers', () => {
       });
     });
 
-    it('appends entries to existing values', async () => {
-      env.KEY_VALUE_STORE.get.mockResolvedValue([
-        { id: 'existing-id', value: 'old-value' },
-      ]);
-
+    it('replaces entries (last put wins)', async () => {
+      // With "last put wins", we don't read or append to existing values
       const response = await handleKeyValuePut(request, env);
 
       expect(env.KEY_VALUE_STORE.put).toHaveBeenCalledWith(
@@ -285,7 +291,6 @@ describe('KeyValue handlers', () => {
       const [, cachedResponse] = cache.put.mock.calls[0];
       await expect(cachedResponse.json()).resolves.toEqual({
         entries: [
-          { value: 'old-value' },
           { value: 'value-1' },
           { value: 'value-2' },
         ],
@@ -293,7 +298,7 @@ describe('KeyValue handlers', () => {
 
       expect(response.status).toBe(200);
       await expect(response.json()).resolves.toEqual({
-        entries: [{ id: 'uuid-1' }, { id: 'uuid-2' }],
+        entries: [{ id: 'entry-1' }, { id: 'entry-2' }],
       });
     });
 
@@ -307,8 +312,9 @@ describe('KeyValue handlers', () => {
 
       expect(response.status).toBe(400);
       await expect(response.json()).resolves.toEqual({
-        message: 'Entries array must include at least one value',
+        message: 'Entries array must include at least one entry with id and value',
       });
     });
   });
-});
+  });
+}
