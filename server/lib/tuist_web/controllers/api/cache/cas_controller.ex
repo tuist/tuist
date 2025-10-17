@@ -3,9 +3,7 @@ defmodule TuistWeb.API.CASController do
   use TuistWeb, :controller
 
   alias OpenApiSpex.Schema
-  alias Tuist.Accounts
-  alias Tuist.Authorization
-  alias Tuist.Projects
+  
   alias Tuist.Storage
   alias TuistWeb.API.Cache.Plugs.LoaderQueryPlug
   alias TuistWeb.API.Schemas.Error
@@ -59,7 +57,6 @@ defmodule TuistWeb.API.CASController do
   )
 
   def prefix(conn, _params) do
-    %{account_handle: account_handle, project_handle: project_handle} = conn.private.open_api_spex.params
     %{selected_account: account, selected_project: project} = conn.assigns
 
     prefix = "#{account.name}/#{project.name}/cas/"
