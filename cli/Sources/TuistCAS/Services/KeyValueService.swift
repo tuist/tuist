@@ -11,7 +11,7 @@ import ZIPFoundation
 struct CASCacheValue: Codable {
     let cas_id: String
     let entries: [Entry]
-    
+
     struct Entry: Codable {
         let key: String
         let value: String // checksum
@@ -48,10 +48,10 @@ public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.Si
         self.loadCacheCASService = loadCacheCASService
     }
 
-    private func cacheDirectory() throws -> AbsolutePath {
-        let cacheDir = Environment.shared.stateDirectory.appending(component: "cache")
-        if !fileSystem.exists(cacheDir) {
-            try fileSystem.makeDirectory(at: cacheDir)
+    private func cacheDirectory() async throws -> AbsolutePath {
+        let cacheDir = Environment.current.stateDirectory.appending(component: "cache")
+        if try await !fileSystem.exists(cacheDir) {
+            try await fileSystem.makeDirectory(at: cacheDir)
         }
         return cacheDir
     }
@@ -65,41 +65,46 @@ public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.Si
         var response = CompilationCacheService_Keyvalue_V1_PutValueResponse()
         do {
             // Create temporary directory for zip contents
-            let tempDir = try TemporaryDirectory()
-            let tempPath = try AbsolutePath(validating: tempDir.path.path)
-            
+            let tempPath = try await fileSystem.makeTemporaryDirectory(prefix: "cas-put")
+
             // Convert entries to proper format and collect checksums
             var entriesForJSON: [String: String] = [:]
-            
+            print(try request.jsonString())
+
             // Copy all files from cache directory to temp directory based on entries
-            let cacheDir = try cacheDirectory()
+            let cacheDir = try await cacheDirectory()
             for (key, data) in request.value.entries {
-                if let checksum = String(data: data, encoding: .utf8) {
+                for checksum in extractHexStringsFromProtobuf(data) {
+//                    let checksum = extractHexFromProtobuf(data)!
                     entriesForJSON[key] = checksum
+                    // instead of loading the actual full file here, we can try to return just the entry???? so we don't have to pick specific bytes
                     
                     // Copy file from cache to temp directory
                     let sourcePath = cacheDir.appending(component: checksum)
                     let destPath = tempPath.appending(component: checksum)
                     
-                    if fileSystem.exists(sourcePath) {
-                        try await fileSystem.copy(from: sourcePath, to: destPath)
+                    if try! await fileSystem.exists(sourcePath), !(try! await fileSystem.exists(destPath)) {
+                        try! await fileSystem.copy(sourcePath, to: destPath)
                     }
                 }
             }
-            
+
             // Create cas.json
-            let casJSON = CASCacheValue(cas_id: casID, entries: entriesForJSON.map { CASCacheValue.Entry(key: $0.key, value: $0.value) })
+            let casJSON = CASCacheValue(
+                cas_id: casID,
+                entries: entriesForJSON.map { CASCacheValue.Entry(key: $0.key, value: $0.value) }
+            )
             let jsonData = try JSONEncoder().encode(casJSON)
             let jsonPath = tempPath.appending(component: "cas.json")
-            try await fileSystem.write(jsonPath, contents: jsonData)
-            
+            try jsonData.write(to: jsonPath.url)
+
             // Create zip file
             let zipPath = tempPath.appending(component: "\(casID).zip")
             let zipURL = zipPath.url
             let tempURL = tempPath.url
-            
+
             try FileManager.default.zipItem(at: tempURL, to: zipURL, shouldKeepParent: false)
-            
+
             // Upload the zip file
             let zipData = try Data(contentsOf: zipURL)
             try await saveCacheCASService.saveCacheCAS(
@@ -108,7 +113,7 @@ public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.Si
                 fullHandle: fullHandle,
                 casWorkerURL: casWorkerURL
             )
-            
+
             return response
         } catch {
             var responseError = CompilationCacheService_Keyvalue_V1_ResponseError()
@@ -116,6 +121,33 @@ public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.Si
             response.error = responseError
             return response
         }
+    }
+
+    func extractHexStringsFromProtobuf(_ data: Data) -> [String] {
+        var hexStrings: [String] = []
+        var currentHex = ""
+        
+        for byte in data {
+            // Check if byte is ASCII hex character (0-9: 48-57, A-F: 65-70)
+            let isHexChar = (byte >= 48 && byte <= 57) || (byte >= 65 && byte <= 70)
+            
+            if isHexChar {
+                currentHex.append(Character(UnicodeScalar(byte)))
+            } else {
+                // If we accumulated exactly 64 hex chars, it's a SHA-256 hash
+                if currentHex.count == 64 {
+                    hexStrings.append(currentHex)
+                }
+                currentHex = ""
+            }
+        }
+        
+        // Check final accumulated string
+        if currentHex.count == 64 {
+            hexStrings.append(currentHex)
+        }
+        
+        return hexStrings
     }
 
     public func getValue(
@@ -133,42 +165,43 @@ public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.Si
                 fullHandle: fullHandle,
                 casWorkerURL: casWorkerURL
             )
-            
+
             // Create temporary directory for extraction
-            let tempDir = try TemporaryDirectory()
-            let tempPath = try AbsolutePath(validating: tempDir.path.path)
-            
+            let tempPath = try await fileSystem.makeTemporaryDirectory(prefix: "cas-get")
+
             // Write zip to temp file
             let zipPath = tempPath.appending(component: "\(casID).zip")
-            try await fileSystem.write(zipPath, contents: zipData)
-            
+            try zipData.write(to: zipPath.url)
+
             // Extract zip
             try FileManager.default.unzipItem(at: zipPath.url, to: tempPath.url)
-            
+
             // Read cas.json
             let jsonPath = tempPath.appending(component: "cas.json")
             let jsonData = try await fileSystem.readFile(at: jsonPath)
             let casValue = try JSONDecoder().decode(CASCacheValue.self, from: jsonData)
-            
+
             // Move extracted files to cache directory
-            let cacheDir = try cacheDirectory()
+            let cacheDir = try await cacheDirectory()
             for entry in casValue.entries {
                 let sourcePath = tempPath.appending(component: entry.value)
                 let destPath = cacheDir.appending(component: entry.value)
-                
-                if fileSystem.exists(sourcePath) && !fileSystem.exists(destPath) {
-                    try await fileSystem.copy(from: sourcePath, to: destPath)
+
+                let sourceExists = try await fileSystem.exists(sourcePath)
+                let destExists = try await fileSystem.exists(destPath)
+                if sourceExists, !destExists {
+                    try await fileSystem.copy(sourcePath, to: destPath)
                 }
             }
-            
+
             // Create response with the entries
             var value = CompilationCacheService_Keyvalue_V1_Value()
             for entry in casValue.entries {
-                value.entries[entry.key] = entry.value.data(using: .utf8) ?? Data()
+                value.entries[entry.key] = entry.value.data(using: String.Encoding.utf8) ?? Data()
             }
             response.contents = .value(value)
             response.outcome = .success
-            
+
         } catch {
             // Check if it's a not found error
             if (error as? LoadCacheCASServiceError) != nil {

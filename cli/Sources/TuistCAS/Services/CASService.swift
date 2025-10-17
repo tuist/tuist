@@ -30,10 +30,10 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
         self.fileSystem = fileSystem
     }
 
-    private func cacheDirectory() throws -> AbsolutePath {
-        let cacheDir = Environment.shared.stateDirectory.appending(component: "cache")
-        if !fileSystem.exists(cacheDir) {
-            try fileSystem.makeDirectory(at: cacheDir)
+    private func cacheDirectory() async throws -> AbsolutePath {
+        let cacheDir = Environment.current.stateDirectory.appending(component: "cache")
+        if try await !fileSystem.exists(cacheDir) {
+            try await fileSystem.makeDirectory(at: cacheDir)
         }
         return cacheDir
     }
@@ -55,11 +55,11 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
 
         do {
             // First check if the file exists in local cache
-            let cacheDir = try cacheDirectory()
+            let cacheDir = try await cacheDirectory()
             let localPath = cacheDir.appending(component: casID)
-            
+
             let data: Data
-            if fileSystem.exists(localPath) {
+            if try await fileSystem.exists(localPath) {
                 // Load from local cache
                 data = try await fileSystem.readFile(at: localPath)
             } else {
@@ -118,16 +118,17 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
 
         var message = CompilationCacheService_Cas_V1_CASDataID()
         message.id = fingerprint.data(using: .utf8)!
+        print(message.id.base64EncodedString())
 
         do {
             // Store the file locally in the cache directory
-            let cacheDir = try cacheDirectory()
+            let cacheDir = try await cacheDirectory()
             let localPath = cacheDir.appending(component: fingerprint)
-            
-            if !fileSystem.exists(localPath) {
-                try await fileSystem.write(localPath, contents: data)
+
+            if try await !fileSystem.exists(localPath) {
+                try Data(data).write(to: localPath.url)
             }
-            
+
             response.casID = message
             response.contents = .casID(message)
         } catch {
