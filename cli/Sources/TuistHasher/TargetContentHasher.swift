@@ -128,16 +128,30 @@ public final class TargetContentHasher: TargetContentHashing {
         )
 
         if let projectHash {
+            let hash = try contentHasher.hash(
+                [
+                    projectHash,
+                    graphTarget.target.product.rawValue,
+                    projectSettingsHash,
+                    settingsHash,
+                    dependenciesHash.hash,
+                ].compactMap { $0 } + destinations + additionalStrings
+            )
+
+            Logger.current.debug("""
+            Target content hash for \(graphTarget.target.name) (external project): \(hash)
+              Components:
+                project: \(projectHash)
+                product: \(graphTarget.target.product.rawValue)
+                projectSettings: \(projectSettingsHash)
+                targetSettings: \(settingsHash ?? "nil")
+                dependencies: \(dependenciesHash.hash)
+                destinations: \(destinations.joined(separator: ", "))
+                additionalStrings: \(additionalStrings.joined(separator: ", "))
+            """)
+
             return TargetContentHash(
-                hash: try contentHasher.hash(
-                    [
-                        projectHash,
-                        graphTarget.target.product.rawValue,
-                        projectSettingsHash,
-                        settingsHash,
-                        dependenciesHash.hash,
-                    ].compactMap { $0 } + destinations + additionalStrings
-                ),
+                hash: hash,
                 hashedPaths: [:]
             )
         }
@@ -216,9 +230,12 @@ public final class TargetContentHasher: TargetContentHashing {
 
         stringsToHash.append(contentsOf: graphTarget.target.destinations.map(\.rawValue).sorted())
 
+        let headersHash: String?
         if let headers = graphTarget.target.headers {
-            let headersHash = try await headersContentHasher.hash(headers: headers)
-            stringsToHash.append(headersHash)
+            headersHash = try await headersContentHasher.hash(headers: headers)
+            stringsToHash.append(headersHash!)
+        } else {
+            headersHash = nil
         }
 
         let deploymentTargetHash = try deploymentTargetContentHasher.hash(
@@ -226,15 +243,22 @@ public final class TargetContentHasher: TargetContentHashing {
         )
         stringsToHash.append(deploymentTargetHash)
 
+        let infoPlistHash: String?
         if let infoPlist = graphTarget.target.infoPlist {
-            let infoPlistHash = try await plistContentHasher.hash(plist: .infoPlist(infoPlist))
-            stringsToHash.append(infoPlistHash)
+            infoPlistHash = try await plistContentHasher.hash(plist: .infoPlist(infoPlist))
+            stringsToHash.append(infoPlistHash!)
+        } else {
+            infoPlistHash = nil
         }
+
+        let entitlementsHash: String?
         if let entitlements = graphTarget.target.entitlements {
-            let entitlementsHash = try await plistContentHasher.hash(
+            entitlementsHash = try await plistContentHasher.hash(
                 plist: .entitlements(entitlements)
             )
-            stringsToHash.append(entitlementsHash)
+            stringsToHash.append(entitlementsHash!)
+        } else {
+            entitlementsHash = nil
         }
 
         stringsToHash.append(projectSettingsHash)
@@ -243,8 +267,36 @@ public final class TargetContentHasher: TargetContentHashing {
             stringsToHash.append(settingsHash)
         }
 
+        let hash = try contentHasher.hash(stringsToHash)
+
+        Logger.current.debug("""
+        Target content hash for \(graphTarget.target.name): \(hash)
+          Individual sub-hashes:
+            name: \(graphTarget.target.name)
+            product: \(graphTarget.target.product.rawValue)
+            bundleId: \(graphTarget.target.bundleId)
+            productName: \(graphTarget.target.productName)
+            projectSettings: \(projectSettingsHash)
+            targetSettings: \(settingsHash ?? "nil")
+            dependencies: \(dependenciesHash.hash)
+            sources: \(sourcesHash)
+            resources: \(resourcesHash)
+            copyFiles: \(copyFilesHash)
+            coreDataModels: \(coreDataModelHash)
+            targetScripts: \(targetScriptsHash)
+            environment: \(environmentHash)
+            destinations: \(destinations.joined(separator: ", "))
+            destinationHashes: \(destinationHashes.joined(separator: ", "))
+            additionalStrings: \(additionalStrings.joined(separator: ", "))
+            buildableFolders: \(buildableFolderHashes.joined(separator: ","))
+            headers: \(headersHash ?? "nil")
+            deploymentTarget: \(deploymentTargetHash)
+            infoPlist: \(infoPlistHash ?? "nil")
+            entitlements: \(entitlementsHash ?? "nil")
+        """)
+
         return TargetContentHash(
-            hash: try contentHasher.hash(stringsToHash),
+            hash: hash,
             hashedPaths: hashedPaths
         )
     }

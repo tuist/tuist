@@ -31,6 +31,7 @@ public enum Module: String, CaseIterable {
     case process = "TuistProcess"
     case ci = "TuistCI"
     case cas = "TuistCAS"
+    case launchctl = "TuistLaunchctl"
 
     func forceStaticLinking() -> Bool {
         return Environment.forceStaticLinking.getBoolean(default: false)
@@ -389,6 +390,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.ci.targetName, condition: .when([.macos])),
                     .target(name: Module.process.targetName, condition: .when([.macos])),
                     .target(name: Module.cas.targetName),
+                    .target(name: Module.launchctl.targetName),
                     .external(name: "MCP"),
                     .external(name: "FileSystem"),
                     .external(name: "SwiftToolsSupport"),
@@ -583,6 +585,10 @@ public enum Module: String, CaseIterable {
                     .external(name: "GRPCProtobuf"),
                     .external(name: "SwiftProtobuf"),
                 ]
+            case .launchctl:
+                [
+                    .external(name: "Command"),
+                ]
             }
         if self != .projectDescription, self != .projectAutomation {
             dependencies.append(contentsOf: sharedDependencies)
@@ -635,6 +641,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.git.targetName),
                     .target(name: Module.ci.targetName, condition: .when([.macos])),
                     .target(name: Module.process.targetName, condition: .when([.macos])),
+                    .target(name: Module.launchctl.targetName),
                     .external(name: "ArgumentParser"),
                     .external(name: "GraphViz"),
                     .external(name: "AnyCodable"),
@@ -783,6 +790,11 @@ public enum Module: String, CaseIterable {
                     .external(name: "GRPCCore"),
                     .external(name: "GRPCProtobuf"),
                     .external(name: "SwiftProtobuf"),
+                ]
+            case .launchctl:
+                [
+                    .target(name: Module.testing.targetName),
+                    .external(name: "Command"),
                 ]
             }
         dependencies =

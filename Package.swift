@@ -85,6 +85,7 @@ let targets: [Target] = [
             "TuistRootDirectoryLocator",
             "TuistCI",
             "TuistCAS",
+            "TuistLaunchctl",
             .product(name: "Noora", package: "Noora"),
             .product(name: "Command", package: "Command"),
             .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
@@ -483,6 +484,18 @@ let targets: [Target] = [
         ],
         path: "cli/Sources/TuistCAS",
         exclude: ["cas.proto", "keyvalue.proto", "grpc-swift-proto-generator-config.json"],
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug))
+        ]
+    ),
+    .target(
+        name: "TuistLaunchctl",
+        dependencies: [
+            "Command",
+            "Mockable",
+            pathDependency,
+        ],
+        path: "cli/Sources/TuistLaunchctl",
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug))
         ]

@@ -1,6 +1,41 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.87.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* tuist setup cache command by [@fortmarek](https://github.com/fortmarek) in [#8450](https://github.com/tuist/tuist/pull/8450)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.86.4...4.87.0
+
+## What's Changed in 4.86.4<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* add individual target sub-hashes for debugging by [@fortmarek](https://github.com/fortmarek) in [#8460](https://github.com/tuist/tuist/pull/8460)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.86.3...4.86.4
+
+## What's Changed in 4.86.3<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* Add support for `.xcdatamodel` opaque directories by [@MouadBenjrinija](https://github.com/MouadBenjrinija) in [#8445](https://github.com/tuist/tuist/pull/8445)
+
+## New Contributors
+* [@MouadBenjrinija](https://github.com/MouadBenjrinija) made their first contribution in [#8445](https://github.com/tuist/tuist/pull/8445)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.86.2...4.86.3
+
+## What's Changed in 4.86.2<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* don't throw file not found when hashing generated source files by [@fortmarek](https://github.com/fortmarek) in [#8449](https://github.com/tuist/tuist/pull/8449)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.86.1...4.86.2
+
 ## What's Changed in 4.86.1<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
