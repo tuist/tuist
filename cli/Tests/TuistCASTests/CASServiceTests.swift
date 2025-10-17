@@ -14,7 +14,6 @@ struct CASServiceTests {
     private let loadCacheCASService: MockLoadCacheCASServicing
     private let fullHandle = "account-handle/project-handle"
     private let serverURL = URL(string: "https://example.com")!
-    private let casWorkerURL = URL(string: "https://cas.example.com")!
 
     init() {
         saveCacheCASService = .init()
@@ -23,7 +22,6 @@ struct CASServiceTests {
         subject = CASService(
             fullHandle: fullHandle,
             serverURL: serverURL,
-            casWorkerURL: casWorkerURL,
             saveCacheCASService: saveCacheCASService,
             loadCacheCASService: loadCacheCASService
         )
@@ -44,7 +42,7 @@ struct CASServiceTests {
             .loadCacheCAS(
                 casId: .any,
                 fullHandle: .any,
-                casWorkerURL: .any
+                serverURL: .any
             )
             .willReturn(expectedData)
 
@@ -65,7 +63,7 @@ struct CASServiceTests {
             .loadCacheCAS(
                 casId: .value(casID),
                 fullHandle: .value(fullHandle),
-                casWorkerURL: .value(casWorkerURL)
+                serverURL: .value(serverURL)
             )
             .called(1)
     }
@@ -82,7 +80,7 @@ struct CASServiceTests {
         let context = ServerContext.test()
 
         given(loadCacheCASService)
-            .loadCacheCAS(casId: .any, fullHandle: .any, casWorkerURL: .any)
+            .loadCacheCAS(casId: .any, fullHandle: .any, serverURL: .any)
             .willThrow(expectedError)
 
         // When
@@ -115,7 +113,7 @@ struct CASServiceTests {
                 .any,
                 casId: .any,
                 fullHandle: .any,
-                casWorkerURL: .any
+                serverURL: .any
             )
             .willReturn()
 
@@ -139,7 +137,7 @@ struct CASServiceTests {
                 .value(testData),
                 casId: .value(fingerprint),
                 fullHandle: .value(fullHandle),
-                casWorkerURL: .value(casWorkerURL)
+                serverURL: .value(serverURL)
             )
             .called(1)
     }
@@ -156,7 +154,7 @@ struct CASServiceTests {
         let context = ServerContext.test()
 
         given(saveCacheCASService)
-            .saveCacheCAS(.any, casId: .any, fullHandle: .any, casWorkerURL: .any)
+            .saveCacheCAS(.any, casId: .any, fullHandle: .any, serverURL: .any)
             .willThrow(expectedError)
 
         // When

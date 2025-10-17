@@ -207,44 +207,6 @@ final class ConfigLoaderTests: TuistUnitTestCase {
         ))
     }
 
-    func test_loadConfig_with_cas_url() async throws {
-        // Given
-        let projectPath = try temporaryPath().appending(component: "project")
-        let configPath = projectPath.appending(components: Constants.tuistManifestFileName)
-        try await fileSystem.makeDirectory(at: configPath.parentDirectory)
-        try await fileSystem.touch(configPath)
-        stub(rootDirectory: projectPath)
-        stub(
-            config: .test(
-                fullHandle: "tuist/tuist",
-                url: "https://test.tuist.io",
-                casURL: "http://localhost:8787"
-            ),
-            at: configPath.parentDirectory
-        )
-
-        // When
-        let result = try await subject.loadConfig(path: projectPath)
-
-        // Then
-        XCTAssertBetterEqual(result, TuistCore.Tuist(
-            project: .generated(TuistGeneratedProjectOptions(
-                compatibleXcodeVersions: .all,
-                swiftVersion: nil,
-                plugins: [],
-                generationOptions: .test(
-                    buildInsightsDisabled: false
-                ),
-                installOptions: .test(),
-                cacheOptions: .test()
-            )),
-            fullHandle: "tuist/tuist",
-            inspectOptions: .test(),
-            url: try XCTUnwrap(URL(string: "https://test.tuist.io")),
-            casURL: try XCTUnwrap(URL(string: "http://localhost:8787"))
-        ))
-    }
-
     func test_loadConfig_with_deprecated_cloud() async throws {
         // Given
         let projectPath = try temporaryPath().appending(component: "project")

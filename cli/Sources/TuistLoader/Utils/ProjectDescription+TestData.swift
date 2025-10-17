@@ -8,14 +8,12 @@ import TuistSupport
         public static func test(
             fullHandle: String? = nil,
             url: String = Constants.URLs.production.absoluteString,
-            casURL: String? = nil,
             generationOptions: Config.GenerationOptions = .options(),
             plugins: [PluginLocation] = []
         ) -> Config {
             Config(
                 fullHandle: fullHandle,
                 url: url,
-                casURL: casURL,
                 plugins: plugins,
                 generationOptions: generationOptions
             )

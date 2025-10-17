@@ -9,7 +9,7 @@ public protocol SaveCacheCASServicing: Sendable {
         _ data: Data,
         casId: String,
         fullHandle: String,
-        casWorkerURL: URL
+        serverURL: URL
     ) async throws
 }
 
@@ -51,9 +51,9 @@ public final class SaveCacheCASService: SaveCacheCASServicing {
         _ data: Data,
         casId: String,
         fullHandle: String,
-        casWorkerURL: URL
+        serverURL: URL
     ) async throws {
-        let client = Client.authenticated(serverURL: casWorkerURL)
+        let client = Client.authenticated(serverURL: serverURL)
         let handles = try fullHandleService.parse(fullHandle)
         let response = try await client.saveCacheCAS(
             .init(

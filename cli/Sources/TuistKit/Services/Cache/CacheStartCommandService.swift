@@ -47,8 +47,7 @@ struct CacheStartCommandService {
                 ),
                 CASService(
                     fullHandle: fullHandle,
-                    serverURL: serverURL,
-                    casWorkerURL: casWorkerURL
+                    serverURL: serverURL
                 ),
             ]
         )

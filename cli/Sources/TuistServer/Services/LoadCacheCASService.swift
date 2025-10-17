@@ -8,7 +8,7 @@ public protocol LoadCacheCASServicing: Sendable {
     func loadCacheCAS(
         casId: String,
         fullHandle: String,
-        casWorkerURL: URL
+        serverURL: URL
     ) async throws -> Data
 }
 
@@ -49,9 +49,9 @@ public final class LoadCacheCASService: LoadCacheCASServicing {
     public func loadCacheCAS(
         casId: String,
         fullHandle: String,
-        casWorkerURL: URL
+        serverURL: URL
     ) async throws -> Data {
-        let client = Client.authenticated(serverURL: casWorkerURL)
+        let client = Client.authenticated(serverURL: serverURL)
         let handles = try fullHandleService.parse(fullHandle)
 
         let response = try await client.loadCacheCAS(

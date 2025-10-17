@@ -41,9 +41,6 @@ public struct Tuist: Codable, Equatable, Sendable {
     /// The base URL that points to the Tuist server.
     public let url: String
 
-    /// The base URL that points to the Tuist CAS worker server.
-    public let casURL: String?
-
     /// Creates a tuist configuration.
     ///
     /// - Parameters:
@@ -63,7 +60,6 @@ public struct Tuist: Codable, Equatable, Sendable {
         cloud: Cloud? = nil,
         fullHandle: String? = nil,
         url: String = "https://tuist.dev",
-        casURL: String? = nil,
         swiftVersion: Version? = nil,
         plugins: [PluginLocation] = [],
         generationOptions: GenerationOptions = .options(),
@@ -72,7 +68,6 @@ public struct Tuist: Codable, Equatable, Sendable {
     ) {
         let fullHandle = cloud?.projectId ?? fullHandle
         let url = cloud?.url ?? url
-        let resolvedCASURL = cloud?.url ?? casURL
         var generationOptions = generationOptions
         if let cloud {
             generationOptions.optionalAuthentication = cloud.options.contains(.optional)
@@ -88,7 +83,6 @@ public struct Tuist: Codable, Equatable, Sendable {
         self.fullHandle = fullHandle
         self.inspectOptions = inspectOptions
         self.url = url
-        self.casURL = resolvedCASURL
         dumpIfNeeded(self)
     }
 
@@ -96,14 +90,12 @@ public struct Tuist: Codable, Equatable, Sendable {
         fullHandle: String? = nil,
         inspectOptions: InspectOptions = .options(),
         url: String = "https://tuist.dev",
-        casURL: String? = nil,
         project: TuistProject
     ) {
         self.project = project
         self.fullHandle = fullHandle
         self.inspectOptions = inspectOptions
         self.url = url
-        self.casURL = casURL
         dumpIfNeeded(self)
     }
 }

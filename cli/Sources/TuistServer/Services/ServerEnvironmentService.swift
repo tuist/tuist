@@ -20,7 +20,6 @@ public protocol ServerEnvironmentServicing: Sendable {
     func url() -> URL
     func oauthClientId() -> String
     func url(configServerURL: URL) throws -> URL
-    func casURL(configServerURL: URL) throws -> URL
 }
 
 public final class ServerEnvironmentService: ServerEnvironmentServicing {
@@ -44,12 +43,6 @@ public final class ServerEnvironmentService: ServerEnvironmentServicing {
             let variables = ProcessInfo.processInfo.environment
         #endif
         return variables["TUIST_OAUTH_CLIENT_ID"] ?? "b3298a92-3deb-4f5e-a526-b7ad324979b5"
-    }
-
-    public func casURL(configServerURL: URL) throws -> URL {
-        return try (
-            envVariableURL("TUIST_CAS_URL") ?? configServerURL
-        )
     }
 
     private func envVariableURL(_ envVariable: String) throws -> URL? {
