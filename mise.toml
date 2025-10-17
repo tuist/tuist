@@ -6,6 +6,11 @@
     sops = "3.9.3"
     age = "1.2.1"
     protoc = "32.1"
+node = "latest"
+pnpm = "latest"
+    elixir = "1.18"
+    erlang = "27"
+    "npm:wrangler" = "latest"
 
 
 [hooks]
