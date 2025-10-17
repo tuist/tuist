@@ -165,7 +165,7 @@ describe('KeyValue handlers', () => {
     beforeEach(() => {
       request.json = vi.fn().mockResolvedValue({
         cas_id: 'cas123',
-        entries: [{ value: 'value-1' }, { value: 'value-2' }],
+        entries: [{ id: 'id-1', value: 'value-1' }, { id: 'id-2', value: 'value-2' }],
       });
     });
 
@@ -227,37 +227,28 @@ describe('KeyValue handlers', () => {
     it('stores entries in KV and cache', async () => {
       const response = await handleKeyValuePut(request, env);
 
-      // With "last put wins" behavior, we don't read existing entries first
+      expect(env.KEY_VALUE_STORE.get).toHaveBeenCalledWith(
+        'keyvalue:my-account:my-project:cas123',
+        'json',
+      );
       expect(env.KEY_VALUE_STORE.put).toHaveBeenCalledWith(
         'keyvalue:my-account:my-project:cas123',
         JSON.stringify([
-          { id: 'entry-1', value: 'value-1' },
-          { id: 'entry-2', value: 'value-2' },
+          { id: 'id-1', value: 'value-1' },
+          { id: 'id-2', value: 'value-2' },
         ]),
       );
       expect(cache.put).toHaveBeenCalled();
       expect(response.status).toBe(200);
       const body = await response.json();
-      expect(body.entries).toEqual([{ id: 'uuid-1' }, { id: 'uuid-2' }]);
+      expect(body.entries).toEqual([{ id: 'id-1' }, { id: 'id-2' }]);
     });
 
-it('filters out entries without string values', async () => {
-      request.json.mockResolvedValue({
+    it('filters out entries without string values', async () => {
+      request.json = vi.fn().mockResolvedValue({
         cas_id: 'cas123',
-        entries: [{ id: 'entry-1', value: 'ok' }, { value: 123 }, null],
+        entries: [{ id: 'id-1', value: 'ok' }, { id: 'id-2', value: 123 }, null],
       });
-
-      const response = await handleKeyValuePut(request, env);
-
-      expect(env.KEY_VALUE_STORE.put).toHaveBeenCalledWith(
-        'keyvalue:my-account:my-project:cas123',
-        JSON.stringify([{ id: 'entry-1', value: 'ok' }]),
-      );
-      expect(response.status).toBe(200);
-      await expect(response.json()).resolves.toEqual({
-        entries: [{ id: 'entry-1' }],
-      });
-    });
 
       const response = await handleKeyValuePut(request, env);
 
@@ -267,24 +258,26 @@ it('filters out entries without string values', async () => {
       );
       expect(env.KEY_VALUE_STORE.put).toHaveBeenCalledWith(
         'keyvalue:my-account:my-project:cas123',
-        JSON.stringify([{ id: 'uuid-1', value: 'ok' }]),
+        JSON.stringify([{ id: 'id-1', value: 'ok' }]),
       );
       expect(response.status).toBe(200);
       await expect(response.json()).resolves.toEqual({
-        entries: [{ id: 'uuid-1' }],
+        entries: [{ id: 'id-1' }],
       });
     });
 
-    it('replaces entries (last put wins)', async () => {
-      // With "last put wins", we don't read or append to existing values
+    it('replaces existing entries entirely', async () => {
+      env.KEY_VALUE_STORE.get.mockResolvedValue([
+        { id: 'existing-id', value: 'old-value' },
+      ]);
+
       const response = await handleKeyValuePut(request, env);
 
       expect(env.KEY_VALUE_STORE.put).toHaveBeenCalledWith(
         'keyvalue:my-account:my-project:cas123',
         JSON.stringify([
-          { id: 'existing-id', value: 'old-value' },
-          { id: 'uuid-1', value: 'value-1' },
-          { id: 'uuid-2', value: 'value-2' },
+          { id: 'id-1', value: 'value-1' },
+          { id: 'id-2', value: 'value-2' },
         ]),
       );
 
@@ -298,14 +291,14 @@ it('filters out entries without string values', async () => {
 
       expect(response.status).toBe(200);
       await expect(response.json()).resolves.toEqual({
-        entries: [{ id: 'entry-1' }, { id: 'entry-2' }],
+        entries: [{ id: 'id-1' }, { id: 'id-2' }],
       });
     });
 
     it('returns 400 when filtered entries array is empty', async () => {
       request.json = vi.fn().mockResolvedValue({
         cas_id: 'cas123',
-        entries: [{ value: 123 }],
+        entries: [{ id: 'id-1', value: 123 }],
       });
 
       const response = await handleKeyValuePut(request, env);
@@ -316,5 +309,4 @@ it('filters out entries without string values', async () => {
       });
     });
   });
-  });
-}
+});
