@@ -46,4 +46,17 @@ defmodule Tuist.Cache do
   def get_entries_by_cas_id_and_project_id(cas_id, project_id) do
     IngestRepo.all(from(e in Entry, where: e.cas_id == ^cas_id and e.project_id == ^project_id))
   end
+
+  @doc """
+  Deletes all cache entries for a given project.
+
+  ## Examples
+
+      iex> delete_entries_by_project_id(123)
+      {:ok, 5}
+
+  """
+  def delete_entries_by_project_id(project_id) do
+    IngestRepo.delete_all(from(e in Entry, where: e.project_id == ^project_id))
+  end
 end

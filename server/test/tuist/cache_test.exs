@@ -83,4 +83,59 @@ defmodule Tuist.CacheTest do
       assert result == []
     end
   end
+
+  describe "delete_entries_by_project_id/1" do
+    test "deletes all entries for a given project", %{project: project} do
+      # Given
+      project_id = project.id
+      other_project = ProjectsFixtures.project_fixture()
+      other_project_id = other_project.id
+
+      # Create entries for the target project
+      {:ok, _entry1} =
+        Cache.create_entry(%{
+          cas_id: "cas_id_1",
+          value: "value1",
+          project_id: project_id
+        })
+
+      {:ok, _entry2} =
+        Cache.create_entry(%{
+          cas_id: "cas_id_2",
+          value: "value2",
+          project_id: project_id
+        })
+
+      # Create entries for another project (should not be deleted)
+      {:ok, _entry3} =
+        Cache.create_entry(%{
+          cas_id: "cas_id_3",
+          value: "value3",
+          project_id: other_project_id
+        })
+
+      assert length(Cache.get_entries_by_cas_id_and_project_id("cas_id_1", project_id)) == 1
+      assert length(Cache.get_entries_by_cas_id_and_project_id("cas_id_2", project_id)) == 1
+      assert length(Cache.get_entries_by_cas_id_and_project_id("cas_id_3", other_project_id)) == 1
+
+      # When
+      Cache.delete_entries_by_project_id(project_id)
+
+      # Then
+      assert Cache.get_entries_by_cas_id_and_project_id("cas_id_1", project_id) == []
+      assert Cache.get_entries_by_cas_id_and_project_id("cas_id_2", project_id) == []
+      assert length(Cache.get_entries_by_cas_id_and_project_id("cas_id_3", other_project_id)) == 1
+    end
+
+    test "returns 0 when no entries exist for the project", %{project: project} do
+      # Given
+      project_id = project.id
+
+      # When
+      result = Cache.delete_entries_by_project_id(project_id)
+
+      # Then
+      assert result == {0, nil}
+    end
+  end
 end

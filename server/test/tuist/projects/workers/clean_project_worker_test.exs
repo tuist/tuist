@@ -2,6 +2,7 @@ defmodule Tuist.Projects.Workers.CleanProjectWorkerTest do
   use TuistTestSupport.Cases.DataCase
   use Mimic
 
+  alias Tuist.Cache
   alias Tuist.CacheActionItems
   alias Tuist.Projects
   alias Tuist.Projects.Workers.CleanProjectWorker
@@ -13,7 +14,7 @@ defmodule Tuist.Projects.Workers.CleanProjectWorkerTest do
   end
 
   describe "perform" do
-    test "deletes binaries, selective testing, and cache action items", %{project: project} do
+    test "deletes binaries, selective testing, cache action items, and cache entries", %{project: project} do
       # Given
       project_id = project.id
       project_slug = "#{project.account.name}/#{project.name}"
@@ -28,6 +29,10 @@ defmodule Tuist.Projects.Workers.CleanProjectWorkerTest do
       expect(Storage, :delete_all_objects, fn ^cas_objects, _actor -> :ok end)
       expect(Storage, :delete_all_objects, fn ^binaries_objects, _actor -> :ok end)
       expect(Storage, :delete_all_objects, fn ^tests_objects, _actor -> :ok end)
+
+      expect(Cache, :delete_entries_by_project_id, 1, fn ^project_id ->
+        {5, nil}
+      end)
 
       # When
       result = CleanProjectWorker.perform(%Oban.Job{args: %{"project_id" => project.id}})
