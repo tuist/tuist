@@ -146,18 +146,6 @@ export async function handleGetValue(request, env, ctx) {
 
   const key = `${prefixResult.prefix}${getS3Key(id)}`;
 
-  // Try KV cache first for small blobs
-  if (env.CAS_CACHE_BLOBS) {
-    const cachedBlob = await env.CAS_CACHE_BLOBS.get(key, 'arrayBuffer');
-    if (cachedBlob) {
-      console.log('Got blob from KV cache', key);
-      return new Response(cachedBlob, {
-        status: 200,
-        headers: { 'Content-Type': 'application/octet-stream' },
-      });
-    }
-  }
-
   // Fallback to S3
   console.log('Checking S3 for key:', key);
   const exists = await checkS3ObjectExists(s3Client, endpoint, bucket, key, virtualHost);
@@ -262,17 +250,6 @@ export async function handleSave(request, env, ctx) {
 
   const key = `${prefixResult.prefix}${getS3Key(id)}`;
 
-  // Check KV cache first
-  if (env.CAS_CACHE_BLOBS) {
-    const cachedBlob = await env.CAS_CACHE_BLOBS.get(key);
-    if (cachedBlob) {
-      return new Response(
-        JSON.stringify({ id: key }),
-        { status: 200, headers: { 'Content-Type': 'application/json' } }
-      );
-    }
-  }
-
   // Check S3
   console.log('Checking if S3 object exists for key:', key);
   const exists = await checkS3ObjectExists(s3Client, endpoint, bucket, key, virtualHost);
@@ -316,15 +293,6 @@ export async function handleSave(request, env, ctx) {
     return new Response(s3Response.body, {
       status: s3Response.status,
       headers: s3Response.headers,
-    });
-  }
-
-  // Also cache small files in KV for faster retrieval
-  const KV_SIZE_LIMIT = 25 * 1024 * 1024; // 25 MB KV limit
-  if (env.CAS_CACHE_BLOBS && bodyBuffer.byteLength < KV_SIZE_LIMIT) {
-    console.log(`Also caching ${bodyBuffer.byteLength} bytes in KV for ${key}`);
-    await env.CAS_CACHE_BLOBS.put(key, bodyBuffer).catch(e => {
-      console.error('Failed to cache in KV:', e.message);
     });
   }
 

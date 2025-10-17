@@ -6,21 +6,16 @@ routes = [
   "https://tuist.dev/api/cache/keyvalue*"
 ]
 
-[[kv_namespaces]]
-binding = "CAS_CACHE"
-id = "2adf75e070fd43cabee0be83cb4a562d"
-preview_id = "2f1058911a144cab9c8816478e03f4e2"
+[dev]
+port = 8787
+
 [[kv_namespaces]]
 binding = "KEY_VALUE_STORE"
 id = "770c83e891f646729e2bacfbf42364f8"
 [[kv_namespaces]]
-binding = "CAS_CACHE_BLOBS"
-id = "TODO: Add production KV namespace ID for blobs"
-preview_id = "a1fee20723214cc5829176721e14f00d"
-
-
-[dev]
-port = 8787
+binding = "CAS_CACHE"
+id = "2adf75e070fd43cabee0be83cb4a562d"
+preview_id = "2f1058911a144cab9c8816478e03f4e2"
 
 # Development environment
 [env.development]
@@ -31,9 +26,6 @@ id = "6394478b175e4a1388908c5715cf5556"
 [[env.development.kv_namespaces]]
 binding = "CAS_CACHE"
 id = "2f1058911a144cab9c8816478e03f4e3"
-[[env.development.kv_namespaces]]
-binding = "CAS_CACHE_BLOBS"
-id = "a1fee20723214cc5829176721e14f00e"
 
 # Staging environment
 [env.staging]
@@ -48,9 +40,6 @@ id = "7a441525d06f41a3a63b2f1117d7e23f"
 [[env.staging.kv_namespaces]]
 binding = "CAS_CACHE"
 id = "4eecec1f40f84dc1bd8233944b835934"
-[[env.staging.kv_namespaces]]
-binding = "CAS_CACHE_BLOBS"
-id = "273a93203b8c469e8f193cdd24ffd64f"
 
 # Canary environment
 [env.canary]
@@ -65,6 +54,4 @@ id = "c95cdd9d54fa49b89465b3993c298186"
 [[env.canary.kv_namespaces]]
 binding = "CAS_CACHE_BLOBS"
 id = "cb953df9fb6d42fa8fdca17f06287ba7"
-[[env.canary.kv_namespaces]]
-binding = "KEY_VALUE_STORE"
-id = "TODO: Add canary KV namespace ID for key value entries"
+
