@@ -57,8 +57,8 @@ defmodule TuistWeb.Marketing.MarketingController do
     |> assign_structured_data(get_organization_structured_data())
     |> assign_structured_data(
       get_breadcrumbs_structured_data([
-        {gettext("Tuist"), Tuist.Environment.app_url(path: ~p"/")},
-        {gettext("About"), Tuist.Environment.app_url(path: ~p"/about")}
+        {dgettext("marketing", "Tuist"), Tuist.Environment.app_url(path: ~p"/")},
+        {dgettext("marketing", "About"), Tuist.Environment.app_url(path: ~p"/about")}
       ])
     )
     |> assign(
@@ -79,8 +79,8 @@ defmodule TuistWeb.Marketing.MarketingController do
     |> assign_structured_data(get_organization_structured_data())
     |> assign_structured_data(
       get_breadcrumbs_structured_data([
-        {gettext("Tuist"), Tuist.Environment.app_url(path: ~p"/")},
-        {gettext("Support"), Tuist.Environment.app_url(path: ~p"/support")}
+        {dgettext("marketing", "Tuist"), Tuist.Environment.app_url(path: ~p"/")},
+        {dgettext("marketing", "Support"), Tuist.Environment.app_url(path: ~p"/support")}
       ])
     )
     |> assign(
@@ -101,8 +101,8 @@ defmodule TuistWeb.Marketing.MarketingController do
     |> assign_structured_data(get_organization_structured_data())
     |> assign_structured_data(
       get_breadcrumbs_structured_data([
-        {gettext("Tuist"), Tuist.Environment.app_url(path: ~p"/")},
-        {gettext("Swift Stories Newsletter"), Tuist.Environment.app_url(path: ~p"/newsletter")}
+        {dgettext("marketing", "Tuist"), Tuist.Environment.app_url(path: ~p"/")},
+        {dgettext("marketing", "Swift Stories Newsletter"), Tuist.Environment.app_url(path: ~p"/newsletter")}
       ])
     )
     |> assign(
@@ -110,7 +110,7 @@ defmodule TuistWeb.Marketing.MarketingController do
       Tuist.Environment.app_url(path: "/marketing/images/og/generated/tuist-digest.jpg")
     )
     |> assign(:head_twitter_card, "summary_large_image")
-    |> assign(:head_title, gettext("Tuist Digest Newsletter"))
+    |> assign(:head_title, dgettext("marketing", "Tuist Digest Newsletter"))
     |> assign(
       :head_description,
       Newsletter.description()
@@ -129,14 +129,14 @@ defmodule TuistWeb.Marketing.MarketingController do
         |> put_resp_content_type("application/json")
         |> json(%{
           success: true,
-          message: gettext("Please check your email to confirm your subscription.")
+          message: dgettext("marketing", "Please check your email to confirm your subscription.")
         })
 
       {:error, _reason} ->
         conn
         |> put_resp_content_type("application/json")
         |> put_status(400)
-        |> json(%{success: false, message: gettext("Something went wrong. Please try again.")})
+        |> json(%{success: false, message: dgettext("marketing", "Something went wrong. Please try again.")})
     end
   end
 
@@ -146,7 +146,7 @@ defmodule TuistWeb.Marketing.MarketingController do
         case Tuist.Loops.add_to_newsletter_list(email) do
           :ok ->
             conn
-            |> assign(:head_title, gettext("Successfully Subscribed!"))
+            |> assign(:head_title, dgettext("marketing", "Successfully Subscribed!"))
             |> assign(
               :head_image,
               Tuist.Environment.app_url(path: "/marketing/images/og/generated/tuist-digest.jpg")
@@ -166,7 +166,7 @@ defmodule TuistWeb.Marketing.MarketingController do
             |> assign(:head_twitter_card, "summary_large_image")
             |> assign(
               :error_message,
-              gettext("Verification failed. Please try signing up again.")
+              dgettext("marketing", "Verification failed. Please try signing up again.")
             )
             |> assign(:email, nil)
             |> render(:newsletter_verify, layout: false)
@@ -174,7 +174,7 @@ defmodule TuistWeb.Marketing.MarketingController do
 
       :error ->
         conn
-        |> assign(:head_title, gettext("Newsletter Verification Failed"))
+        |> assign(:head_title, dgettext("marketing", "Newsletter Verification Failed"))
         |> assign(
           :head_image,
           Tuist.Environment.app_url(path: "/marketing/images/og/generated/tuist-digest.jpg")
@@ -182,7 +182,7 @@ defmodule TuistWeb.Marketing.MarketingController do
         |> assign(:head_twitter_card, "summary_large_image")
         |> assign(
           :error_message,
-          gettext("Invalid verification link. Please try signing up again.")
+          dgettext("marketing", "Invalid verification link. Please try signing up again.")
         )
         |> assign(:email, nil)
         |> render(:newsletter_verify, layout: false)
@@ -191,7 +191,7 @@ defmodule TuistWeb.Marketing.MarketingController do
 
   def newsletter_verify(conn, _params) do
     conn
-    |> assign(:head_title, gettext("Newsletter Verification Failed"))
+    |> assign(:head_title, dgettext("marketing", "Newsletter Verification Failed"))
     |> assign(
       :head_image,
       Tuist.Environment.app_url(path: "/marketing/images/og/generated/tuist-digest.jpg")
@@ -199,7 +199,7 @@ defmodule TuistWeb.Marketing.MarketingController do
     |> assign(:head_twitter_card, "summary_large_image")
     |> assign(
       :error_message,
-      gettext("Verification link expired or invalid. Please try signing up again.")
+      dgettext("marketing", "Verification link expired or invalid. Please try signing up again.")
     )
     |> assign(:email, nil)
     |> render(:newsletter_verify, layout: false)
@@ -216,13 +216,13 @@ defmodule TuistWeb.Marketing.MarketingController do
       else
         :error ->
           raise NotFoundError,
-                gettext("The newsletter issue number %{issue_number} is not a valid number.",
+                dgettext("marketing", "The newsletter issue number %{issue_number} is not a valid number.",
                   issue_number: issue_number
                 )
 
         nil ->
           raise NotFoundError,
-                gettext("The newsletter issue %{issue_number} was not found.",
+                dgettext("marketing", "The newsletter issue %{issue_number} was not found.",
                   issue_number: issue_number
                 )
       end
@@ -342,8 +342,8 @@ defmodule TuistWeb.Marketing.MarketingController do
       |> assign_structured_data(get_blog_post_structured_markup_data(post))
       |> assign_structured_data(
         get_breadcrumbs_structured_data([
-          {gettext("Tuist"), Tuist.Environment.app_url(path: ~p"/")},
-          {gettext("Blog"), Tuist.Environment.app_url(path: ~p"/blog")},
+          {dgettext("marketing", "Tuist"), Tuist.Environment.app_url(path: ~p"/")},
+          {dgettext("marketing", "Blog"), Tuist.Environment.app_url(path: ~p"/blog")},
           {post.title, Tuist.Environment.app_url(path: post.slug)}
         ])
       )
@@ -356,22 +356,22 @@ defmodule TuistWeb.Marketing.MarketingController do
 
   def pricing(conn, _params) do
     faqs = [
-      {gettext("Why is your pricing model more accessible compared to traditional enterprise models?"),
-       gettext(
+      {dgettext("marketing", "Why is your pricing model more accessible compared to traditional enterprise models?"),
+       dgettext("marketing",
          ~S"""
          <p>Our commitment to open-source and our core values shape our unique approach to pricing. Unlike many models that try to extract every dollar from you with "contact sales" calls, limited demos, and other sales tactics, we believe in fairness and transparency. We treat everyone equally and set prices that are fair for all. By choosing our services, you are not only getting a great product but also supporting the development of more open-source projects. We see building a thriving business as a long-term journey, not a short-term sprint filled with shady practices. You can %{read_more}  about our philosophy.</p>
          <p>By supporting Tuist, you are also supporting the development of more open-source software for the Swift ecosystem.</p>
          """,
-         read_more: "<a href=\"#{~p"/blog/2024/11/05/our-pricing-philosophy"}\">#{gettext("read more")}</a>"
+         read_more: "<a href=\"#{~p"/blog/2024/11/05/our-pricing-philosophy"}\">#{dgettext("marketing", "read more")}</a>"
        )},
-      {gettext("How can I estimate the cost of my project?"),
-       gettext(
+      {dgettext("marketing", "How can I estimate the cost of my project?"),
+       dgettext("marketing",
          "You can set up the Air plan, and use the features for a few days to get a usage estimate. If you need a higher limit, let us know and we can help you set up a custom plan."
        )},
-      {gettext("Is there a free trial on paid plans?"),
-       gettext("We have a generous free tier on every paid plan so you can try out the features before paying any money.")},
-      {gettext("Do you offer discounts for non-profits and open-source?"),
-       gettext("Yes, we do. Please reach out to oss@tuist.io for more information.")}
+      {dgettext("marketing", "Is there a free trial on paid plans?"),
+       dgettext("marketing", "We have a generous free tier on every paid plan so you can try out the features before paying any money.")},
+      {dgettext("marketing", "Do you offer discounts for non-profits and open-source?"),
+       dgettext("marketing", "Yes, we do. Please reach out to oss@tuist.io for more information.")}
     ]
 
     plans = Tuist.Billing.get_plans()
@@ -389,13 +389,13 @@ defmodule TuistWeb.Marketing.MarketingController do
     |> assign_structured_data(get_pricing_plans_structured_data(plans))
     |> assign_structured_data(
       get_breadcrumbs_structured_data([
-        {gettext("Tuist"), Tuist.Environment.app_url(path: ~p"/")},
-        {gettext("Pricing"), Tuist.Environment.app_url(path: ~p"/pricing")}
+        {dgettext("marketing", "Tuist"), Tuist.Environment.app_url(path: ~p"/")},
+        {dgettext("marketing", "Pricing"), Tuist.Environment.app_url(path: ~p"/pricing")}
       ])
     )
     |> assign(
       :head_description,
-      gettext(
+      dgettext("marketing",
         "Discover our flexible pricing plans at Tuist. Enjoy a free tier with no time limits, and pay only for what you use. Plus, it's free forever for open source projects."
       )
     )
@@ -419,7 +419,7 @@ defmodule TuistWeb.Marketing.MarketingController do
     |> assign(:head_twitter_card, "summary_large_image")
     |> assign_structured_data(
       get_breadcrumbs_structured_data([
-        {gettext("Tuist"), Tuist.Environment.app_url(path: ~p"/")},
+        {dgettext("marketing", "Tuist"), Tuist.Environment.app_url(path: ~p"/")},
         {page.title, Tuist.Environment.app_url(path: page.slug)}
       ])
     )
@@ -470,7 +470,7 @@ defmodule TuistWeb.Marketing.MarketingController do
           author_link: "https://github.com/CedricGatay",
           avatar_src: "/marketing/images/testimonials/cedric.jpeg",
           body:
-            gettext(
+            dgettext("marketing",
               "Tuist has allowed us to migrate our existing monolythic codebase to a modular one. We extracted our different domains into specific modules. It allowed us to remove extra dependencies, ease testability and made our development cycles faster than ever. It even allowed us to bring up “Test Apps” for speeding up our development on each module. Tuist is a game changer in iOS project life."
             )
         },
@@ -480,7 +480,7 @@ defmodule TuistWeb.Marketing.MarketingController do
           author_link: "https://www.linkedin.com/in/joeoct91/",
           avatar_src: "/marketing/images/testimonials/yousef.jpeg",
           body:
-            gettext(
+            dgettext("marketing",
               "Using Tuist in our current project has been a game-changer. It has significantly de-stressed our build times and reduced conflicts within the team, allowing us to focus more on development and less on configuration issues. Tuist has seamlessly integrated into our workflow and has proven to be an essential tool in our pipeline. We’re confident that it will continue to enhance our productivity and collaboration in future projects."
             )
         }
@@ -492,7 +492,7 @@ defmodule TuistWeb.Marketing.MarketingController do
           author_link: "https://www.linkedin.com/in/albsala",
           avatar_src: "/marketing/images/testimonials/alberto.jpeg",
           body:
-            gettext(
+            dgettext("marketing",
               "Since adopting Tuist in our iOS project, we’ve seen major improvements in scalability and productivity. It simplifies module management, allowing us to apply consistent rules and configurations across the project, strengthening our modularization strategy. Its flexibility lets us easily customize the project to fit our needs. For instance, we can use dynamic frameworks during development and static frameworks in other environments, giving us better control. Tuist has also improved build times, boosted Xcode performance, and eliminated merge conflicts by not tracking Xcode project files in Git. Overall, it has made our development process faster and more efficient, allowing the team to focus on building features without being slowed down by tool limitations."
             )
         },

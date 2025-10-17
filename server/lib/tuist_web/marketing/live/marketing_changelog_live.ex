@@ -48,7 +48,7 @@ defmodule TuistWeb.Marketing.MarketingChangelogLive do
      |> assign_structured_data(get_changelog_structured_data(entries))
      |> assign(
        :head_description,
-       gettext(
+       dgettext("marketing",
          "Stay updated with the latest changes and improvements in Tuist. Read our changelog for detailed information about new features, bug fixes, and enhancements."
        )
      )}

@@ -2,24 +2,24 @@
   <!-- Hero section -->
   <div class="marketing__home__section__hero">
     <h1 class="font-xxxl-strong marketing__home__section__hero__title">
-      {gettext("Make mobile your competitive advantage")}
+      {dgettext("marketing", "Make mobile your competitive advantage")}
     </h1>
     <p class="marketing__home__section__hero__subtitle">
-      {gettext(
+      {dgettext("marketing",
         "The same iOS tooling that powers apps with millions of users, delivered as a service for your team"
       )}
     </p>
 
     <div class="marketing__home__section__hero__ctas">
       <.primary_button size="big" href="https://cal.tuist.dev/team/tuist/tuist" target="_blank">
-        {gettext("Talk to us")}
+        {dgettext("marketing", "Talk to us")}
       </.primary_button>
       <.marketing_link
         class="marketing__component__link font-l-strong"
         data-flavor="primary"
         href="https://docs.tuist.dev/en/guides/quick-start/get-started"
       >
-        {gettext("Get started")}
+        {dgettext("marketing", "Get started")}
       </.marketing_link>
     </div>
 
@@ -28,37 +28,37 @@
         <span data-ty="input" data-ty-prompt=">">tuist test</span>
         <span data-ty>
           <span class="marketing__home__section__hero__terminal__main__prompt__info">
-            {gettext("INFO:")}
+            {dgettext("marketing", "INFO:")}
           </span>
-          {gettext("Pulling cache binaries...")}
+          {dgettext("marketing", "Pulling cache binaries...")}
         </span>
         <span data-ty>
           <span class="marketing__home__section__hero__terminal__main__prompt__info">
-            {gettext("INFO:")}
+            {dgettext("marketing", "INFO:")}
           </span>
-          {gettext("You'll save 60% of compilation time")}
+          {dgettext("marketing", "You'll save 60% of compilation time")}
         </span>
         <span data-ty>
           <span class="marketing__home__section__hero__terminal__main__prompt__info">
-            {gettext("INFO:")}
+            {dgettext("marketing", "INFO:")}
           </span>
-          {gettext("Running tests - 4.200 tests skipped (already run)")}
+          {dgettext("marketing", "Running tests - 4.200 tests skipped (already run)")}
         </span>
         <span data-ty="progress"></span>
         <span data-ty>
           <span class="marketing__home__section__hero__terminal__main__prompt__success">
-            {gettext("SUCCESS:")}
+            {dgettext("marketing", "SUCCESS:")}
           </span>
-          {gettext("1250 tests ran successfully")}
+          {dgettext("marketing", "1250 tests ran successfully")}
         </span>
-        <span data-ty>📝 {gettext("Report: https://tuist.dev/tuist/tuist/runs/589318")}</span>
+        <span data-ty>📝 {dgettext("marketing", "Report: https://tuist.dev/tuist/tuist/runs/589318")}</span>
       </TuistWeb.Marketing.MarketingHomeComponents.terminal>
     </div>
   </div>
   <!-- Companies section -->
   <div class="marketing__home__section__companies">
     <h2 class="marketing__home__section__companies__title">
-      {gettext("Trusted by the following organizations")}
+      {dgettext("marketing", "Trusted by the following organizations")}
     </h2>
     <div class="marketing__home__section__companies__logos">
       <a
@@ -233,20 +233,20 @@
   <!-- Features section -->
   <div class="marketing__home__section__features">
     <h2 class="marketing__home__section__features__title">
-      {gettext("The secret ingredients")}
+      {dgettext("marketing", "The secret ingredients")}
     </h2>
     <TuistWeb.Marketing.MarketingHomeComponents.feature
-      name={gettext("Generated Projects")}
+      name={dgettext("marketing", "Generated Projects")}
       id="features-projects"
       description={
-        gettext(
+        dgettext("marketing",
           "Conceptually compress the complexities of modular Xcode projects and make them more accessible to maintain and scale."
         )
       }
       traits={[
-        gettext("Swift DSL"),
-        gettext("Simple dependency definition"),
-        gettext("Xcode-native language")
+        dgettext("marketing", "Swift DSL"),
+        dgettext("marketing", "Simple dependency definition"),
+        dgettext("marketing", "Xcode-native language")
       ]}
     >
       <:logo :let={%{class: class}}>
@@ -267,14 +267,14 @@
     </TuistWeb.Marketing.MarketingHomeComponents.feature>
 
     <TuistWeb.Marketing.MarketingHomeComponents.feature
-      name={gettext("Tuist Cache")}
+      name={dgettext("marketing", "Tuist Cache")}
       requires_projects={true}
       id="features-cache"
-      description={gettext("Speed up clean builds by reusing binaries across environments.")}
+      description={dgettext("marketing", "Speed up clean builds by reusing binaries across environments.")}
       traits={[
-        gettext("Local targets and dependencies"),
-        gettext("CI and local environments"),
-        gettext("Xcode-native")
+        dgettext("marketing", "Local targets and dependencies"),
+        dgettext("marketing", "CI and local environments"),
+        dgettext("marketing", "Xcode-native")
       ]}
     >
       <:logo :let={%{class: class}}>
@@ -294,14 +294,14 @@
       </div>
     </TuistWeb.Marketing.MarketingHomeComponents.feature>
     <TuistWeb.Marketing.MarketingHomeComponents.feature
-      name={gettext("Tuist Selective Testing")}
+      name={dgettext("marketing", "Tuist Selective Testing")}
       id="features-selective-tests"
       description={
-        gettext("Speed up test runs by running only the test targets impacted by the changes.")
+        dgettext("marketing", "Speed up test runs by running only the test targets impacted by the changes.")
       }
       traits={[
-        gettext("XCTest and Swift Testing"),
-        gettext("Target-level selection")
+        dgettext("marketing", "XCTest and Swift Testing"),
+        dgettext("marketing", "Target-level selection")
       ]}
     >
       <:logo :let={%{class: class}}>
@@ -321,17 +321,17 @@
       </div>
     </TuistWeb.Marketing.MarketingHomeComponents.feature>
     <TuistWeb.Marketing.MarketingHomeComponents.feature
-      name={gettext("Tuist Previews")}
+      name={dgettext("marketing", "Tuist Previews")}
       id="features-previews"
       description={
-        gettext(
+        dgettext("marketing",
           "Instantly share your app using a URL. Tuist lets you create and share previews of your apps with ease."
         )
       }
       traits={[
-        gettext("One-click launch"),
-        gettext("Shareable"),
-        gettext("Shortcuts to latest previews")
+        dgettext("marketing", "One-click launch"),
+        dgettext("marketing", "Shareable"),
+        dgettext("marketing", "Shortcuts to latest previews")
       ]}
     >
       <:logo :let={%{class: class}}>
@@ -343,7 +343,7 @@
           <TuistWeb.Marketing.MarketingHomeComponents.terminal terminal_id="preview-terminal">
             <span data-ty="input" data-ty-prompt=">">tuist share</span>
             <span data-ty>
-              📱 {gettext("Share: https://tuist.dev/tuist/app/previews/12")}
+              📱 {dgettext("marketing", "Share: https://tuist.dev/tuist/app/previews/12")}
             </span>
           </TuistWeb.Marketing.MarketingHomeComponents.terminal>
 
@@ -356,21 +356,21 @@
           class="marketing__home__section__features__feature__previews__video"
         >
           <source src="/marketing/videos/simulator-with-preview.mp4" type="video/mp4" />
-          {gettext("Your browser doesn't support videos")}
+          {dgettext("marketing", "Your browser doesn't support videos")}
         </video>
       </div>
     </TuistWeb.Marketing.MarketingHomeComponents.feature>
     <TuistWeb.Marketing.MarketingHomeComponents.feature
-      name={gettext("Tuist Registry")}
+      name={dgettext("marketing", "Tuist Registry")}
       id="features-registry"
       description={
-        gettext(
+        dgettext("marketing",
           "Optimizes the resolution of Swift packages in your projects. Download only source archives of the package versions you need – saving both time and disk space, locally or on the CI."
         )
       }
       traits={[
-        gettext("SwiftPM standard"),
-        gettext("All open source Swift packages")
+        dgettext("marketing", "SwiftPM standard"),
+        dgettext("marketing", "All open source Swift packages")
       ]}
     >
       <:logo :let={%{class: class}}>
@@ -393,7 +393,7 @@
   <!-- Testimonials section -->
   <div class="marketing__home__section__testimonials">
     <h2 class="font-xxl marketing__home__section__testimonials__title">
-      {gettext("Users 💜 Tuist")}
+      {dgettext("marketing", "Users 💜 Tuist")}
     </h2>
     <div class="marketing__home__section__testimonials__main">
       <div
@@ -434,7 +434,7 @@
   <div class="marketing__home__section__time_saved">
     <.marketing_shell class="marketing__home__section__time_saved__logo" />
     <h2 class="font-xxl marketing__home__section__time_saved__title">
-      <span class="font-xxl-strong">{gettext("Millions")}</span>{gettext(" of minutes saved")}
+      <span class="font-xxl-strong">{dgettext("marketing", "Millions")}</span>{dgettext("marketing", " of minutes saved")}
     </h2>
     <.marketing_shell class="marketing__home__section__time_saved__logo" />
   </div>
@@ -442,23 +442,23 @@
   <% highlights = [
     %{
       title: "70%",
-      subtitle: gettext("Faster builds"),
+      subtitle: dgettext("marketing", "Faster builds"),
       cta_href: "/blog/2024/12/16/trendyol",
-      cta_text: gettext("Read Trendyol's story"),
+      cta_text: dgettext("marketing", "Read Trendyol's story"),
       cta_variant: "dark",
       cta_target: ""
     },
     %{
-      title: gettext("Happier devs"),
-      subtitle: gettext("We aim to empower developers to create great products."),
+      title: dgettext("marketing", "Happier devs"),
+      subtitle: dgettext("marketing", "We aim to empower developers to create great products."),
       cta_href: "https://medium.com/bumble-tech/scaling-ios-at-bumble-6f0602682903",
-      cta_text: gettext("Read Bumble's story"),
+      cta_text: dgettext("marketing", "Read Bumble's story"),
       cta_variant: "light",
       cta_target: "_blank"
     },
-    %{title: "7+", subtitle: gettext("Years building an OSS foundation")},
-    %{title: "10K", subtitle: gettext("Teams using Tuist")},
-    %{title: "300+", subtitle: gettext("Contributors")}
+    %{title: "7+", subtitle: dgettext("marketing", "Years building an OSS foundation")},
+    %{title: "10K", subtitle: dgettext("marketing", "Teams using Tuist")},
+    %{title: "300+", subtitle: dgettext("marketing", "Contributors")}
   ] %>
 
   <div class="marketing__home__section__highlights">
@@ -476,10 +476,10 @@
   <div class="marketing__home__section__learn_more">
     <div class="marketing__home__section__learn_more__header">
       <h2 class="marketing__home__section__learn_more__header__title font-xxxl-strong">
-        {gettext("Learn more")}
+        {dgettext("marketing", "Learn more")}
       </h2>
       <.home_more_link class="marketing__home__section__learn_more__header__link" href={~p"/blog"}>
-        {gettext("View all")}
+        {dgettext("marketing", "View all")}
       </.home_more_link>
     </div>
     <div class="marketing__home__section__learn_more__body">
@@ -496,7 +496,7 @@
     </div>
     <div class="marketing__home__section__learn_more__footer">
       <.home_more_link class="marketing__home__section__learn_more__footer__link" href={~p"/blog"}>
-        {gettext("View all")}
+        {dgettext("marketing", "View all")}
       </.home_more_link>
     </div>
   </div>
