@@ -388,4 +388,36 @@ final class LintRedundantImportsServiceTests: TuistUnitTestCase {
 
         try await subject.run(path: path.pathString)
     }
+
+    func test_run_doesntThrowAnyErrorsWithUnitTestsTarget_when_testTargetDependsOnApp() async throws {
+        // Given
+        let path = try AbsolutePath(validating: "/project")
+        let config = Tuist.test()
+
+        let app = Target.test(
+            name: "App",
+            product: .app
+        )
+
+        let unitTests = Target.test(
+            name: "AppTests",
+            product: .unitTests,
+            dependencies: [TargetDependency.target(name: "App")]
+        )
+
+        let project = Project.test(path: path, targets: [app, unitTests])
+        let graph = Graph.test(path: path, projects: [path: project], dependencies: [
+            .target(name: unitTests.name, path: project.path): [
+                .target(name: app.name, path: project.path),
+            ],
+        ])
+
+        given(configLoader).loadConfig(path: .value(path)).willReturn(config)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generator).load(path: .value(path), options: .any).willReturn(graph)
+        given(targetScanner).imports(for: .value(unitTests)).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(app)).willReturn(Set([]))
+
+        try await subject.run(path: path.pathString)
+    }
 }
