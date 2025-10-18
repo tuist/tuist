@@ -13,7 +13,7 @@ func inspectBuildPostAction(target: TargetReference) -> ExecutionAction {
     .executionAction(
         title: "Inspect build",
         scriptText: """
-        $HOME/.local/share/mise/bin/mise x -C $SRCROOT -- tuist inspect build
+        # $HOME/.local/share/mise/bin/mise x -C $SRCROOT -- tuist inspect build
         """,
         target: target
     )
