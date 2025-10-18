@@ -26,39 +26,43 @@ struct CacheStartCommandService {
         fullHandle: String,
         url: String?
     ) async throws {
-        let socketPath = Environment.current.cacheSocketPath(for: fullHandle)
-        if try await !fileSystem.exists(socketPath.parentDirectory, isDirectory: true) {
-            try await fileSystem.makeDirectory(at: socketPath.parentDirectory)
-        }
+        // Create a cache-specific logger that only outputs to os_log with debug level
+        let cacheLogger = Logger(label: "dev.tuist.cache", factory: OSLogHandler.verbose)
 
-        let configURL = url.flatMap { URL(string: $0) }
-        let serverURL = try configURL.map { try serverEnvironmentService.url(configServerURL: $0) } ?? serverEnvironmentService
-            .url()
-
-        let server = GRPCServer(
-            transport: .http2NIOPosix(
-                address: .unixDomainSocket(path: socketPath.pathString),
-                transportSecurity: .plaintext
-            ),
-            services: [
-                KeyValueService(
-                    fullHandle: fullHandle,
-                    serverURL: serverURL
-                ),
-                CASService(
-                    fullHandle: fullHandle,
-                    serverURL: serverURL
-                ),
-            ]
-        )
-
-        try await withThrowingDiscardingTaskGroup { group in
-            group.addTask {
-                try await server.serve()
+        // Run the cache server with the cache-specific logger
+        try await Logger.$current.withValue(cacheLogger) {
+            let socketPath = Environment.current.cacheSocketPath(for: fullHandle)
+            if try await !fileSystem.exists(socketPath.parentDirectory, isDirectory: true) {
+                try await fileSystem.makeDirectory(at: socketPath.parentDirectory)
             }
 
-            Logger.current.info("The cache server is now running.")
-            Logger.current.info("Socket path: \(socketPath.pathString)")
+            let configURL = url.flatMap { URL(string: $0) }
+            let serverURL = try configURL
+                .map { try serverEnvironmentService.url(configServerURL: $0) } ?? serverEnvironmentService
+                .url()
+
+            let server = GRPCServer(
+                transport: .http2NIOPosix(
+                    address: .unixDomainSocket(path: socketPath.pathString),
+                    transportSecurity: .plaintext
+                ),
+                services: [
+                    KeyValueService(
+                        fullHandle: fullHandle,
+                        serverURL: serverURL
+                    ),
+                    CASService(
+                        fullHandle: fullHandle,
+                        serverURL: serverURL
+                    ),
+                ]
+            )
+
+            try await withThrowingDiscardingTaskGroup { group in
+                group.addTask {
+                    try await server.serve()
+                }
+            }
         }
     }
 }
