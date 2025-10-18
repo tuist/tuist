@@ -7,13 +7,14 @@
     margin-top: var(--noora-spacing-6);
   }
 
-  & b, strong {
+  & b,
+  strong {
     font: var(--noora-font-weight-semibold) var(--noora-font-body-large);
   }
 
   & a {
-    text-decoration: underline;
     color: var(--noora-button-primary-background);
+    text-decoration: underline;
   }
 
   & h1 {
@@ -28,5 +29,10 @@
   & h3 {
     padding-top: var(--noora-spacing-4);
     font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
+  }
+
+  & h4 {
+    padding-top: var(--noora-spacing-4);
+    font: var(--noora-font-weight-medium) var(--noora-font-heading-small);
   }
 }
