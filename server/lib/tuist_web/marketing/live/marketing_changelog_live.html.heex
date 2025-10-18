@@ -1,4 +1,26 @@
-<TuistWeb.Marketing.Layouts.marketing {assigns}>
+<TuistWeb.Marketing.Layouts.marketing_next {assigns} :if={@next?}>
+  <main id="marketing-changelog">
+    <TuistWeb.Marketing.MarketingComponents.navbar {assigns} />
+    <header data-part="header">
+
+    </header>
+    <div data-part="timeline">
+      <%= for entry <- @entries do %>
+        <time data-part="date">
+          {Timex.format!(entry.date, "{Mfull} {D}, {YYYY}")}
+        </time>
+        <article data-part="entry">
+          <div data-part="category">{entry.category}</div>
+          <h2 data-part="title">{entry.title}</h2>
+          <div data-part="body" data-content>
+            {raw(entry.body)}
+          </div>
+        </article>
+      <% end %>
+    </div>
+  </main>
+</TuistWeb.Marketing.Layouts.marketing_next>
+<TuistWeb.Marketing.Layouts.marketing {assigns} :if={not @next?}>
   <main class="marketing__changelog" aria-label={dgettext("marketing", "Changelog")} role="main">
     <div class="marketing__changelog__header" role="banner">
       <h1 class="marketing__changelog__header__title">{dgettext("marketing", "Changelog")}</h1>
