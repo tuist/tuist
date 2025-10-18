@@ -16,11 +16,10 @@
 
   & > [data-part="timeline"] {
     display: grid;
-    grid-template-columns: max-content 1fr;
+    grid-template-columns: max-content 1px 1fr;
     column-gap: var(--noora-spacing-6);
     row-gap: var(--noora-spacing-10);
     align-items: start;
-    position: relative;
 
     padding-right: var(--noora-spacing-6);
     padding-left: var(--noora-spacing-6);
@@ -50,29 +49,25 @@
     & > [data-part="date"] {
       grid-column: 1;
       padding-top: var(--noora-spacing-1);
-      padding-right: var(--noora-spacing-6);
-      position: relative;
       color: var(--noora-surface-label-secondary);
       font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
       white-space: nowrap;
+    }
 
-      &::after {
-        content: "";
-        position: absolute;
-        right: calc(var(--noora-spacing-6) / 2 - 0.5px);
-        top: 0;
-        bottom: calc(-1 * var(--noora-spacing-10));
-        width: 1px;
-        background: var(--noora-surface-border-primary);
-      }
+    & > [data-part="line"] {
+      grid-column: 2;
+      width: 1px;
+      align-self: stretch;
+      margin-bottom: calc(-1 * var(--noora-spacing-10));
+      background: var(--noora-surface-border-primary);
+    }
 
-      &:last-of-type::after {
-        bottom: 0;
-      }
+    & > [data-part="line"]:last-of-type {
+      margin-bottom: 0;
     }
 
     & > [data-part="entry"] {
-      grid-column: 2;
+      grid-column: 3;
       display: flex;
       flex-direction: column;
       gap: var(--noora-spacing-4);
