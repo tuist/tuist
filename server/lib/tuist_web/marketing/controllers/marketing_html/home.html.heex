@@ -5,7 +5,8 @@
       {dgettext("marketing", "Make mobile your competitive advantage")}
     </h1>
     <p class="marketing__home__section__hero__subtitle">
-      {dgettext("marketing",
+      {dgettext(
+        "marketing",
         "The same iOS tooling that powers apps with millions of users, delivered as a service for your team"
       )}
     </p>
@@ -51,7 +52,9 @@
           </span>
           {dgettext("marketing", "1250 tests ran successfully")}
         </span>
-        <span data-ty>📝 {dgettext("marketing", "Report: https://tuist.dev/tuist/tuist/runs/589318")}</span>
+        <span data-ty>
+          📝 {dgettext("marketing", "Report: https://tuist.dev/tuist/tuist/runs/589318")}
+        </span>
       </TuistWeb.Marketing.MarketingHomeComponents.terminal>
     </div>
   </div>
@@ -239,7 +242,8 @@
       name={dgettext("marketing", "Generated Projects")}
       id="features-projects"
       description={
-        dgettext("marketing",
+        dgettext(
+          "marketing",
           "Conceptually compress the complexities of modular Xcode projects and make them more accessible to maintain and scale."
         )
       }
@@ -270,7 +274,9 @@
       name={dgettext("marketing", "Tuist Cache")}
       requires_projects={true}
       id="features-cache"
-      description={dgettext("marketing", "Speed up clean builds by reusing binaries across environments.")}
+      description={
+        dgettext("marketing", "Speed up clean builds by reusing binaries across environments.")
+      }
       traits={[
         dgettext("marketing", "Local targets and dependencies"),
         dgettext("marketing", "CI and local environments"),
@@ -297,7 +303,10 @@
       name={dgettext("marketing", "Tuist Selective Testing")}
       id="features-selective-tests"
       description={
-        dgettext("marketing", "Speed up test runs by running only the test targets impacted by the changes.")
+        dgettext(
+          "marketing",
+          "Speed up test runs by running only the test targets impacted by the changes."
+        )
       }
       traits={[
         dgettext("marketing", "XCTest and Swift Testing"),
@@ -324,7 +333,8 @@
       name={dgettext("marketing", "Tuist Previews")}
       id="features-previews"
       description={
-        dgettext("marketing",
+        dgettext(
+          "marketing",
           "Instantly share your app using a URL. Tuist lets you create and share previews of your apps with ease."
         )
       }
@@ -364,7 +374,8 @@
       name={dgettext("marketing", "Tuist Registry")}
       id="features-registry"
       description={
-        dgettext("marketing",
+        dgettext(
+          "marketing",
           "Optimizes the resolution of Swift packages in your projects. Download only source archives of the package versions you need – saving both time and disk space, locally or on the CI."
         )
       }
@@ -434,7 +445,10 @@
   <div class="marketing__home__section__time_saved">
     <.marketing_shell class="marketing__home__section__time_saved__logo" />
     <h2 class="font-xxl marketing__home__section__time_saved__title">
-      <span class="font-xxl-strong">{dgettext("marketing", "Millions")}</span>{dgettext("marketing", " of minutes saved")}
+      <span class="font-xxl-strong">{dgettext("marketing", "Millions")}</span>{dgettext(
+        "marketing",
+        " of minutes saved"
+      )}
     </h2>
     <.marketing_shell class="marketing__home__section__time_saved__logo" />
   </div>
