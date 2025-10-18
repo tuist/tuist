@@ -1,1 +1,46 @@
 /*This file contains tokens that are specific to the marketing site*/
+
+/*
+ * Register custom properties for container queries
+ *
+ * These @property rules enable container style queries based on viewport size.
+ * They allow you to apply styles when the container reaches specific breakpoints.
+ *
+ * Usage example:
+ *
+ * @container style(--inline-size-lg: var(--marketing-breakpoint-lg)) {
+ *   .my-element {
+ *     background-color: oklch(0.87 0.21 95.82);
+ *   }
+ * }
+ *
+ * This applies styles when the viewport is at or above the lg breakpoint (1440px).
+ */
+@property --inline-size-lg {
+  syntax: "<length-percentage>";
+  inherits: true;
+  initial-value: 100vi;
+}
+
+@property --inline-size-md {
+  syntax: "<length-percentage>";
+  inherits: true;
+  initial-value: 100vi;
+}
+
+@property --inline-size-sm {
+  syntax: "<length-percentage>";
+  inherits: true;
+  initial-value: 100vi;
+}
+
+:root {
+  --marketing-breakpoint-lg: 1440px;
+  --marketing-breakpoint-md: 1024px;
+  --marketing-breakpoint-sm: 370px;
+
+  /* Inline sizes for container queries */
+  --inline-size-lg: min(var(--marketing-breakpoint-lg), 100vi);
+  --inline-size-md: min(var(--marketing-breakpoint-md), 100vi);
+  --inline-size-sm: min(var(--marketing-breakpoint-sm), 100vi);
+}
