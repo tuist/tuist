@@ -1,10 +1,20 @@
-[data-content] {
+[data-prose] {
   color: var(--noora-surface-label-primary);
   font: var(--noora-font-weight-regular) var(--noora-font-body-large);
 
   /* Add spacing between child elements using margin instead of gap */
   & > * + * {
     margin-top: var(--noora-spacing-6);
+  }
+
+  & img {
+    box-shadow:
+      0 102px 28px 0 rgba(0, 0, 0, 0),
+      0 65px 26px 0 rgba(0, 0, 0, 0.01),
+      0 37px 22px 0 rgba(0, 0, 0, 0.02),
+      0 16px 16px 0 rgba(0, 0, 0, 0.04),
+      0 4px 9px 0 rgba(0, 0, 0, 0.04);
+    border-radius: var(--noora-radius-2xlarge);
   }
 
   & b,

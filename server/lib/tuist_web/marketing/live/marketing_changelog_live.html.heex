@@ -1,87 +1,81 @@
-<TuistWeb.Marketing.Layouts.marketing_next {assigns} :if={@next?}>
+<TuistWeb.Marketing.Layouts.marketing_next :if={@next?} {assigns}>
   <main id="marketing-changelog">
     <TuistWeb.Marketing.MarketingComponents.navbar {assigns} />
     <header data-part="header">
-
+      <h1 data-part="title">{dgettext("marketing", "Changelog")}</h1>
+      <nav data-part="nav">
+        <div data-part="categories">
+          <.link
+            patch={~p"/changelog"}
+            data-part="category"
+            data-selected={if(@current_path == ~p"/changelog", do: "true", else: "false")}
+            aria-current={if(@current_path == ~p"/changelog", do: "page", else: "false")}
+          >
+            {dgettext("marketing", "All")}
+          </.link>
+          <%= for category <- @categories do %>
+            <% params = %{category: category} %>
+            <.link
+              data-part="category"
+              patch={~p"/changelog?#{params}"}
+              data-selected={
+                if(@current_path == ~p"/changelog?#{params}", do: "true", else: "false")
+              }
+              aria-current={
+                if(@current_path == ~p"/changelog?#{params}", do: "page", else: "false")
+              }
+            >
+              <span>{category}</span>
+            </.link>
+          <% end %>
+        </div>
+        <div data-part="subscribe">
+          <.button
+            variant="secondary"
+            icon_only={true}
+            size="large"
+            href={~p"/changelog/rss.xml"}
+            target="_blank"
+          >
+            <.rss />
+          </.button>
+          <.button
+            variant="secondary"
+            icon_only={true}
+            size="large"
+            href={~p"/changelog/atom.xml"}
+            target="_blank"
+          >
+            <.atom />
+          </.button>
+        </div>
+      </nav>
     </header>
     <div data-part="timeline" id="changelog-timeline">
-      <div data-part="scroll-indicator"></div>
       <%= for entry <- @entries do %>
         <time data-part="date">
           {Timex.format!(entry.date, "{Mfull} {D}, {YYYY}")}
         </time>
         <div data-part="line"></div>
-        <article data-part="entry">
-          <div data-part="category">{entry.category}</div>
-          <h2 data-part="title">{entry.title}</h2>
-          <div data-part="body" data-content>
+        <article data-part="entry" id={entry.id}>
+          <header data-part="header">
+            <.tag label={entry.category} data-part="category" />
+            <h2 data-part="title">
+              <a href={"##{entry.id}"}>{entry.title}</a>
+            </h2>
+          </header>
+          <div data-part="body" data-prose>
             {raw(entry.body)}
           </div>
         </article>
       <% end %>
     </div>
-    <script nonce={get_csp_nonce()}>
-      (function() {
-        const timeline = document.getElementById('changelog-timeline');
-        const indicator = timeline.querySelector('[data-part="scroll-indicator"]');
-        const lines = timeline.querySelectorAll('[data-part="line"]');
-
-        if (!lines.length) return;
-
-        const firstLine = lines[0];
-        const lastLine = lines[lines.length - 1];
-
-        function updateIndicator() {
-          // Calculate horizontal position
-          const timelineRect = timeline.getBoundingClientRect();
-          const firstLineRect = firstLine.getBoundingClientRect();
-          const lineLeft = firstLineRect.left - timelineRect.left;
-          timeline.style.setProperty('--indicator-left', `${lineLeft}px`);
-
-          const scrollTop = window.scrollY || window.pageYOffset;
-          const viewportCenter = scrollTop + (window.innerHeight * 0.2); // 20% from top
-
-          // Get current positions
-          const timelineTop = timeline.offsetTop;
-          const firstLineTop = firstLine.offsetTop + timelineTop;
-          const lastLineBottom = lastLine.offsetTop + lastLine.offsetHeight + timelineTop;
-          const totalLineHeight = lastLineBottom - firstLineTop;
-
-          // Calculate progress based on viewport center
-          let progress = Math.max(0, Math.min(1, (viewportCenter - firstLineTop) / totalLineHeight));
-
-          // Position relative to timeline container
-          const lineStartInContainer = firstLine.offsetTop;
-          const lineEndInContainer = lastLine.offsetTop + lastLine.offsetHeight;
-          const lineHeightInContainer = lineEndInContainer - lineStartInContainer;
-
-          const indicatorPosition = lineStartInContainer + (progress * lineHeightInContainer);
-
-          timeline.style.setProperty('--indicator-top', `${indicatorPosition}px`);
-
-          // Show indicator after first calculation
-          if (!indicator.hasAttribute('data-ready')) {
-            indicator.setAttribute('data-ready', 'true');
-          }
-        }
-
-        let ticking = false;
-        window.addEventListener('scroll', function() {
-          if (!ticking) {
-            window.requestAnimationFrame(function() {
-              updateIndicator();
-              ticking = false;
-            });
-            ticking = true;
-          }
-        });
-        window.addEventListener('resize', updateIndicator);
-        updateIndicator();
-      })();
-    </script>
+    <div data-part="more">
+      <.button variant="primary" size="large" label={dgettext("marketing", "Load more")} />
+    </div>
   </main>
 </TuistWeb.Marketing.Layouts.marketing_next>
-<TuistWeb.Marketing.Layouts.marketing {assigns} :if={not @next?}>
+<TuistWeb.Marketing.Layouts.marketing :if={not @next?} {assigns}>
   <main class="marketing__changelog" aria-label={dgettext("marketing", "Changelog")} role="main">
     <div class="marketing__changelog__header" role="banner">
       <h1 class="marketing__changelog__header__title">{dgettext("marketing", "Changelog")}</h1>

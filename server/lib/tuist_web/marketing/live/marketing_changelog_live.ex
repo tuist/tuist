@@ -1,9 +1,11 @@
 defmodule TuistWeb.Marketing.MarketingChangelogLive do
   @moduledoc false
   use TuistWeb, :live_view
+  use Noora
 
-  import TuistWeb.Marketing.StructuredMarkup
   import TuistWeb.CSP, only: [get_csp_nonce: 0]
+  import TuistWeb.Marketing.StructuredMarkup
+
   alias Tuist.Marketing.Changelog
 
   def mount(params, _session, socket) do
