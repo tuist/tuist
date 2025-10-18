@@ -363,6 +363,8 @@ defmodule TuistWeb.Router do
     end
 
     scope "/cache" do
+      get "/prefix", CASController, :prefix
+
       scope "/keyvalue" do
         put "/", Cache.KeyValueController, :put_value
         put "/:cas_id", Cache.KeyValueController, :get_value
@@ -372,9 +374,7 @@ defmodule TuistWeb.Router do
         get "/:id", CASController, :load
         post "/:id", CASController, :save
       end
-    end
 
-    scope "/cache" do
       get "/", CacheController, :download
       get "/exists", CacheController, :exists
 

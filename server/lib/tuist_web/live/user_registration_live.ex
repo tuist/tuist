@@ -127,40 +127,40 @@ defmodule TuistWeb.UserRegistrationLive do
                 size="small"
                 title={Flash.get(@flash, :error)}
               />
-               <.text_input
-                 field={@form[:email]}
-                 name="user[email]"
-                 id="email"
-                 label={gettext("Email address")}
-                 type="email"
-                 placeholder="hello@tuist.dev"
-                 show_prefix={false}
-                 required
-                 tabindex={1}
-               />
-               <.text_input
-                 field={@form[:password]}
-                 name="user[password]"
-                 label={gettext("Password")}
-                 id="password"
-                 input_type="password"
-                 error={format_password_error(@errors)}
-                 show_prefix={false}
-                 required
-                 tabindex={2}
-               />
-               <.text_input
-                 field={@form[:username]}
-                 name="user[username]"
-                 label={gettext("Username")}
-                 id="Username"
-                 type="basic"
-                 hint={gettext("Username may only contain alphanumeric characters")}
-                 error={Map.get(@errors, :name)}
-                 show_prefix={false}
-                 required
-                 tabindex={3}
-               />
+              <.text_input
+                field={@form[:email]}
+                name="user[email]"
+                id="email"
+                label={gettext("Email address")}
+                type="email"
+                placeholder="hello@tuist.dev"
+                show_prefix={false}
+                required
+                tabindex={1}
+              />
+              <.text_input
+                field={@form[:password]}
+                name="user[password]"
+                label={gettext("Password")}
+                id="password"
+                input_type="password"
+                error={format_password_error(@errors)}
+                show_prefix={false}
+                required
+                tabindex={2}
+              />
+              <.text_input
+                field={@form[:username]}
+                name="user[username]"
+                label={gettext("Username")}
+                id="Username"
+                type="basic"
+                hint={gettext("Username may only contain alphanumeric characters")}
+                error={Map.get(@errors, :name)}
+                show_prefix={false}
+                required
+                tabindex={3}
+              />
               <.button variant="primary" size="large" label={gettext("Sign up")} tabindex={4} />
             </.form>
           </div>
@@ -223,9 +223,7 @@ defmodule TuistWeb.UserRegistrationLive do
         String.trim_trailing(errors, ".")
 
       errors when is_list(errors) ->
-        (errors
-         |> Enum.map(&String.trim_trailing(&1, "."))
-         |> Enum.join(". ")) <> "."
+        Enum.map_join(errors, ". ", &String.trim_trailing(&1, ".")) <> "."
     end
   end
 

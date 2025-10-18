@@ -71,7 +71,8 @@ defmodule TuistWeb.API.Cache.KeyValueController do
         "application/json",
         Error
       },
-      not_found: {"No entries found for the given CAS ID", "application/json", Error}
+      not_found: {"No entries found for the given CAS ID", "application/json", Error},
+      bad_request: {"The request is invalid", "application/json", Error}
     }
   )
 
@@ -143,9 +144,9 @@ defmodule TuistWeb.API.Cache.KeyValueController do
               items: %Schema{
                 type: :object,
                 properties: %{
-                  id: %Schema{type: :string, description: "The ID of the entry"}
+                  value: %Schema{type: :string, description: "The value of the entry"}
                 },
-                required: [:id]
+                required: [:value]
               }
             }
           },
@@ -162,7 +163,8 @@ defmodule TuistWeb.API.Cache.KeyValueController do
         "application/json",
         Error
       },
-      not_found: {"The project was not found", "application/json", Error}
+      not_found: {"The project was not found", "application/json", Error},
+      bad_request: {"The request is invalid", "application/json", Error}
     }
   )
 
@@ -185,6 +187,6 @@ defmodule TuistWeb.API.Cache.KeyValueController do
 
     conn
     |> put_status(:ok)
-    |> json(%{entries: Enum.map(inserted_entries, fn entry -> %{id: entry.id} end)})
+    |> json(%{entries: Enum.map(inserted_entries, fn entry -> %{value: entry.value} end)})
   end
 end
