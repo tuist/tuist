@@ -11,16 +11,17 @@
     <section data-part="hero">
       <header data-part="title">
         <div data-part="title">
-          <h1>{gettext("Make mobile")}</h1>
+          <h1>{dgettext("marketing", "Make mobile")}</h1>
         </div>
         <div data-part="title">
-          <h1>{gettext("your competitive advantage")}</h1>
+          <h1>{dgettext("marketing", "your competitive advantage")}</h1>
         </div>
       </header>
 
       <div data-part="subtitle">
         <p>
-          {gettext(
+          {dgettext(
+            "marketing",
             "The same iOS tooling that powers apps with millions of users, delivered as a service for your team"
           )}
         </p>
@@ -31,7 +32,7 @@
           href={localized_href("https://docs.tuist.dev/")}
           target="_blank"
           rel="noopener noreferrer"
-          label={gettext("Get started")}
+          label={dgettext("marketing", "Get started")}
         >
         </.button>
         <.button
@@ -39,7 +40,7 @@
           rel="noopener noreferrer"
           href="https://cal.tuist.dev/team/tuist/tuist?overlayCalendar=true"
           variant="secondary"
-          label={gettext("Talk to us")}
+          label={dgettext("marketing", "Talk to us")}
         >
         </.button>
       </nav>
@@ -50,7 +51,7 @@
     </section>
 
     <section data-part="supporters">
-      <h3>{gettext("Trusted by the world's best developer teams")}</h3>
+      <h3>{dgettext("marketing", "Trusted by the world's best developer teams")}</h3>
     </section>
 
     <section data-part="orgs-list" aria-label="Organizations using Tuist">
@@ -133,8 +134,8 @@
     </section>
 
     <section data-part="features-title">
-      <h2>{gettext("All the features you need,")}
-        <span data-part="box">{gettext("in one platform")}</span></h2>
+      <h2>{dgettext("marketing", "All the features you need,")}
+        <span data-part="box">{dgettext("marketing", "in one platform")}</span></h2>
     </section>
 
     <section data-part="features" aria-label="Product features">
@@ -146,8 +147,8 @@
             target="_blank"
             rel="noopener noreferrer"
             aria-label={
-              gettext("Open the %{feature} feature documentation",
-                feature: gettext("Generated projects")
+              dgettext("marketing", "Open the %{feature} feature documentation",
+                feature: dgettext("marketing", "Generated projects")
               )
             }
           >
@@ -165,9 +166,10 @@
             />
           </div>
           <div data-part="content">
-            <p data-part="title">{gettext("Generated projects")}</p>
+            <p data-part="title">{dgettext("marketing", "Generated projects")}</p>
             <p data-part="description">
-              {gettext(
+              {dgettext(
+                "marketing",
                 "Conceptually compress the complexities of modular Xcode projects and make them more accessible to maintain and scale."
               )}
             </p>
@@ -181,7 +183,7 @@
             target="_blank"
             rel="noopener noreferrer"
             aria-label={
-              gettext("Open the %{feature} feature documentation", feature: gettext("Cache"))
+              dgettext("marketing", "Open the %{feature} feature documentation", feature: dgettext("marketing", "Cache"))
             }
           >
           </a>
@@ -195,9 +197,10 @@
             <img src="/marketing/images/features/cache/graphic.webp" alt="" />
           </div>
           <div data-part="content">
-            <p data-part="title">{gettext("Cache")}</p>
+            <p data-part="title">{dgettext("marketing", "Cache")}</p>
             <p data-part="description">
-              {gettext(
+              {dgettext(
+                "marketing",
                 "Speeds up builds by reusing compiled binaries, cutting down build times in both local development and CI."
               )}
             </p>
@@ -213,7 +216,7 @@
             target="_blank"
             rel="noopener noreferrer"
             aria-label={
-              gettext("Open the %{feature} feature documentation", feature: gettext("Previews"))
+              dgettext("marketing", "Open the %{feature} feature documentation", feature: dgettext("marketing", "Previews"))
             }
           >
           </a>
@@ -227,9 +230,10 @@
             <img src="/marketing/images/features/previews/graphic.webp" alt="" />
           </div>
           <div data-part="content">
-            <p data-part="title">{gettext("Previews")}</p>
+            <p data-part="title">{dgettext("marketing", "Previews")}</p>
             <p data-part="description">
-              {gettext(
+              {dgettext(
+                "marketing",
                 "Instantly share your app using a URL. Tuist lets you create and share previews of your apps with ease."
               )}
             </p>
@@ -243,8 +247,8 @@
             target="_blank"
             rel="noopener noreferrer"
             aria-label={
-              gettext("Open the %{feature} feature documentation",
-                feature: gettext("Selective testing")
+              dgettext("marketing", "Open the %{feature} feature documentation",
+                feature: dgettext("marketing", "Selective testing")
               )
             }
           >
@@ -256,9 +260,10 @@
             />
           </div>
           <div data-part="content">
-            <p data-part="title">{gettext("Selective testing")}</p>
+            <p data-part="title">{dgettext("marketing", "Selective testing")}</p>
             <p data-part="description">
-              {gettext(
+              {dgettext(
+                "marketing",
                 "Speed up CI test runs with selective testing — runs only the tests affected by recent changes."
               )}
             </p>
@@ -274,7 +279,7 @@
             target="_blank"
             rel="noopener noreferrer"
             aria-label={
-              gettext("Open the %{feature} feature documentation", feature: gettext("Builds"))
+              dgettext("marketing", "Open the %{feature} feature documentation", feature: dgettext("marketing", "Builds"))
             }
           >
           </a>
@@ -288,9 +293,10 @@
             <img src="/marketing/images/features/builds/graphic.webp" alt="" />
           </div>
           <div data-part="content">
-            <p data-part="title">{gettext("Builds")}</p>
+            <p data-part="title">{dgettext("marketing", "Builds")}</p>
             <p data-part="description">
-              {gettext(
+              {dgettext(
+                "marketing",
                 "Skip the manual steps — auto-generate projects, speeds up builds, and explore insights with built-in analytics."
               )}
             </p>
@@ -304,8 +310,8 @@
             target="_blank"
             rel="noopener noreferrer"
             aria-label={
-              gettext("Open the %{feature} feature documentation",
-                feature: gettext("Bundle analysis")
+              dgettext("marketing", "Open the %{feature} feature documentation",
+                feature: dgettext("marketing", "Bundle analysis")
               )
             }
           >
@@ -323,9 +329,10 @@
             />
           </div>
           <div data-part="content">
-            <p data-part="title">{gettext("Bundle analysis")}</p>
+            <p data-part="title">{dgettext("marketing", "Bundle analysis")}</p>
             <p data-part="description">
-              {gettext(
+              {dgettext(
+                "marketing",
                 "Track and reduce app size by spotting duplicate assets, unused symbols, and legacy code."
               )}
             </p>
@@ -339,7 +346,7 @@
             target="_blank"
             rel="noopener noreferrer"
             aria-label={
-              gettext("Open the %{feature} feature documentation", feature: gettext("Registry"))
+              dgettext("marketing", "Open the %{feature} feature documentation", feature: dgettext("marketing", "Registry"))
             }
           >
           </a>
@@ -353,9 +360,9 @@
             <img src="/marketing/images/features/registry/graphic.webp" alt="" />
           </div>
           <div data-part="content">
-            <p data-part="title">{gettext("Registry")}</p>
+            <p data-part="title">{dgettext("marketing", "Registry")}</p>
             <p data-part="description">
-              {gettext("Download only what you need — faster, lighter builds locally and on CI.")}
+              {dgettext("marketing", "Download only what you need — faster, lighter builds locally and on CI.")}
             </p>
           </div>
         </article>
@@ -365,11 +372,12 @@
     <section data-part="testimonial">
       <blockquote data-part="quote">
         <h3 data-part="line-one">
-          {gettext(
-            "“We could solve our immediate problems and do so while maintaining a familiar"
+          {dgettext(
+            "marketing",
+            "\"We could solve our immediate problems and do so while maintaining a familiar\""
           )}
         </h3>
-        <h3 data-part="line-two">{gettext("core development experience”")}</h3>
+        <h3 data-part="line-two">{dgettext("marketing", "core development experience\"")}</h3>
       </blockquote>
       <footer data-part="name">
         <.avatar
@@ -378,7 +386,7 @@
           image_href="https://www.gravatar.com/avatar/292c129cf17a552c08b4d9dcf2c6c1f8"
           size="small"
         />
-        <p>{gettext("Jonathan Crooke, Bumble")}</p>
+        <p>{dgettext("marketing", "Jonathan Crooke, Bumble")}</p>
       </footer>
     </section>
 
@@ -387,7 +395,7 @@
         <a
           data-part="overlay-link"
           href="/blog/2023/09/08/trendyol-and-tuist"
-          aria-label={gettext("Read the Trendyol customer story")}
+          aria-label={dgettext("marketing", "Read the Trendyol customer story")}
         >
         </a>
         <div data-part="background" aria-hidden="true">
@@ -407,7 +415,7 @@
               <:icon_right><.chevron_right /></:icon_right>
             </.button>
           </div>
-          <h3>{gettext("Trendyol reduced build times by 65% with Tuist")}</h3>
+          <h3>{dgettext("marketing", "Trendyol reduced build times by 65% with Tuist")}</h3>
         </header>
         <div data-part="graphic">
           <img src="/marketing/images/testimonials/trendyol/graphic.webp" alt="Trendyol graph" />
@@ -418,7 +426,7 @@
         <a
           data-part="overlay-link"
           href="https://medium.com/bumble-tech/scaling-ios-at-bumble-76754fa874f7"
-          aria-label={gettext("Read the Bumble customer story")}
+          aria-label={dgettext("marketing", "Read the Bumble customer story")}
         >
         </a>
         <div data-part="background" aria-hidden="true">
@@ -438,7 +446,7 @@
               <:icon_right><.chevron_right /></:icon_right>
             </.button>
           </div>
-          <h3>{gettext("Bumble solved key issues without changing the core dev experience")}</h3>
+          <h3>{dgettext("marketing", "Bumble solved key issues without changing the core dev experience")}</h3>
         </header>
         <div data-part="graphic">
           <img src="/marketing/images/testimonials/bumble/graphic.webp" alt="Bumble graphic" />
@@ -447,8 +455,8 @@
     </section>
 
     <section data-part="features-title">
-      <h2>{gettext("Powered by")}
-        <span data-part="box">{gettext("open source")}</span></h2>
+      <h2>{dgettext("marketing", "Powered by")}
+        <span data-part="box">{dgettext("marketing", "open source")}</span></h2>
     </section>
 
     <section data-part="stats" aria-label="Platform statistics">
@@ -458,8 +466,8 @@
             <img src="/marketing/images/stats/github.webp" alt="" />
           </div>
           <div data-part="content">
-            <h1>{gettext("5K+")}</h1>
-            <p>{gettext("Stars on GitHub")}</p>
+            <h1>{dgettext("marketing", "5K+")}</h1>
+            <p>{dgettext("marketing", "Stars on GitHub")}</p>
           </div>
         </article>
 
@@ -468,8 +476,8 @@
             <img src="/marketing/images/stats/oss.webp" alt="" />
           </div>
           <div data-part="content">
-            <h1>{gettext("9+")}</h1>
-            <p>{gettext("Years of building OSS Foundation")}</p>
+            <h1>{dgettext("marketing", "9+")}</h1>
+            <p>{dgettext("marketing", "Years of building OSS Foundation")}</p>
           </div>
         </article>
       </div>
@@ -480,8 +488,8 @@
             <img src="/marketing/images/stats/minutes.webp" alt="" />
           </div>
           <div data-part="content">
-            <h1>{gettext("8300+")}</h1>
-            <p>{gettext("Pull requests merged")}</p>
+            <h1>{dgettext("marketing", "8300+")}</h1>
+            <p>{dgettext("marketing", "Pull requests merged")}</p>
           </div>
         </article>
 
@@ -490,8 +498,8 @@
             <img src="/marketing/images/stats/slack.webp" alt="" />
           </div>
           <div data-part="content">
-            <h1>{gettext("1400+")}</h1>
-            <p>{gettext("Active community members and counting")}</p>
+            <h1>{dgettext("marketing", "1400+")}</h1>
+            <p>{dgettext("marketing", "Active community members and counting")}</p>
           </div>
         </article>
       </div>
@@ -502,8 +510,8 @@
             <img src="/marketing/images/stats/teams.webp" alt="" />
           </div>
           <div data-part="content">
-            <h1>{gettext("10K+")}</h1>
-            <p>{gettext("Teams using Tuist")}</p>
+            <h1>{dgettext("marketing", "10K+")}</h1>
+            <p>{dgettext("marketing", "Teams using Tuist")}</p>
           </div>
         </article>
 
@@ -512,8 +520,8 @@
             <img src="/marketing/images/stats/contributors.webp" alt="" />
           </div>
           <div data-part="content">
-            <h1>{gettext("300+")}</h1>
-            <p>{gettext("Contributors")}</p>
+            <h1>{dgettext("marketing", "300+")}</h1>
+            <p>{dgettext("marketing", "Contributors")}</p>
           </div>
         </article>
       </div>
@@ -521,9 +529,9 @@
 
     <section data-part="testimonials" aria-labelledby="testimonials-title">
       <header data-part="header">
-        <h2 id="testimonials-title" data-part="title">{gettext("Beyond expectations")}</h2>
+        <h2 id="testimonials-title" data-part="title">{dgettext("marketing", "Beyond expectations")}</h2>
         <p data-part="subtitle">
-          {gettext("Hear from our community about their experience with Tuist")}
+          {dgettext("marketing", "Hear from our community about their experience with Tuist")}
         </p>
         <nav data-part="actions" aria-label="Community links">
           <.button
@@ -550,7 +558,8 @@
         <li data-part="column">
           <.home_testimonial_card
             quote={
-              gettext(
+              dgettext(
+                "marketing",
                 "Tuist has been a game-changer for our large codebase, where multiple engineers collaborate simultaneously. It helps us avoid conflicts in project organization and provides full control over project configuration, allowing us to customize everything to our needs. For a modularized app, Tuist is the perfect ally—its ability to effortlessly reuse configurations across modules has significantly streamlined our development process.
 
                 Additionally, the way Tuist manages package dependencies is outstanding. As soon as you open Xcode, you're ready to jump right into coding without waiting for 30+ packages to resolve every time. It's truly a productivity booster.
@@ -586,8 +595,9 @@
           </.home_testimonial_card>
           <.home_testimonial_card
             quote={
-              gettext(
-                "With macros, external SDKs, and many SPM modules (fully modularized app) Xcode was constantly slow or stuck on my M1 device. SPM kept resolving, code completion didn’t work, and swift-syntax compiled forever. All this changed with Tuist. It’s not just for big teams with big apps. Tuist gave me back my productivity as indie developer for my side projects."
+              dgettext(
+                "marketing",
+                "With macros, external SDKs, and many SPM modules (fully modularized app) Xcode was constantly slow or stuck on my M1 device. SPM kept resolving, code completion didn't work, and swift-syntax compiled forever. All this changed with Tuist. It's not just for big teams with big apps. Tuist gave me back my productivity as indie developer for my side projects."
               )
             }
             name="Kai Oelfke"
@@ -598,7 +608,8 @@
         <li data-part="column">
           <.home_testimonial_card
             quote={
-              gettext(
+              dgettext(
+                "marketing",
                 "Tuist has revolutionized our iOS development workflow at DraftKings. Its automation capabilities have streamlined project generation, build settings, and dependency management. With modularization, we maximize code sharing across apps, reducing duplication. Code generation allows us to quickly bootstrap new products that seamlessly integrate with existing ones through centralized dependency management. The build caching feature can significantly improve build times, both locally and in CI/CD environment. Tuist is an indispensable set of developer tools, greatly enhancing productivity and efficiency. Highly recommended for iOS teams seeking workflow optimization."
               )
             }
@@ -608,8 +619,9 @@
           />
           <.home_testimonial_card
             quote={
-              gettext(
-                "Tuist has allowed us to migrate our existing monolythic codebase to a modular one. We extracted our different domains into specific modules. It allowed us to remove extra dependencies, ease testability and made our development cycles faster than ever. It even allowed us to bring up “Test Apps” for speeding up our development on each module. Tuist is a game changer in iOS project life."
+              dgettext(
+                "marketing",
+                "Tuist has allowed us to migrate our existing monolythic codebase to a modular one. We extracted our different domains into specific modules. It allowed us to remove extra dependencies, ease testability and made our development cycles faster than ever. It even allowed us to bring up \"Test Apps\" for speeding up our development on each module. Tuist is a game changer in iOS project life."
               )
             }
             name="Cedric Gatay"
@@ -618,8 +630,9 @@
           />
           <.home_testimonial_card
             quote={
-              gettext(
-                "Using Tuist in our current project has been a game-changer. It has significantly de-stressed our build times and reduced conflicts within the team, allowing us to focus more on development and less on configuration issues. Tuist has seamlessly integrated into our workflow and has proven to be an essential tool in our pipeline. We’re confident that it will continue to enhance our productivity and collaboration in future projects."
+              dgettext(
+                "marketing",
+                "Using Tuist in our current project has been a game-changer. It has significantly de-stressed our build times and reduced conflicts within the team, allowing us to focus more on development and less on configuration issues. Tuist has seamlessly integrated into our workflow and has proven to be an essential tool in our pipeline. We're confident that it will continue to enhance our productivity and collaboration in future projects."
               )
             }
             name="Yousef Moahmed"
@@ -630,8 +643,9 @@
         <li data-part="column">
           <.home_testimonial_card
             quote={
-              gettext(
-                "Since adopting Tuist in our iOS project, we’ve seen major improvements in scalability and productivity. It simplifies module management, allowing us to apply consistent rules and configurations across the project, strengthening our modularization strategy. Its flexibility lets us easily customize the project to fit our needs. For instance, we can use dynamic frameworks during development and static frameworks in other environments, giving us better control. Tuist has also improved build times, boosted Xcode performance, and eliminated merge conflicts by not tracking Xcode project files in Git. Overall, it has made our development process faster and more efficient, allowing the team to focus on building features without being slowed down by tool limitations."
+              dgettext(
+                "marketing",
+                "Since adopting Tuist in our iOS project, we've seen major improvements in scalability and productivity. It simplifies module management, allowing us to apply consistent rules and configurations across the project, strengthening our modularization strategy. Its flexibility lets us easily customize the project to fit our needs. For instance, we can use dynamic frameworks during development and static frameworks in other environments, giving us better control. Tuist has also improved build times, boosted Xcode performance, and eliminated merge conflicts by not tracking Xcode project files in Git. Overall, it has made our development process faster and more efficient, allowing the team to focus on building features without being slowed down by tool limitations."
               )
             }
             name="Alberto Salas"
@@ -640,7 +654,8 @@
           />
           <.home_testimonial_card
             quote={
-              gettext(
+              dgettext(
+                "marketing",
                 "It made a the transition to SPM and the migration of our private pods to our monorepo super easy. We were able to create a framework template, making option to build a modular project very simple. After integrating Tuist, we reduced our build time by 30%! We have no more project file conflicts and honestly - once you try it, you'll never go back."
               )
             }
@@ -675,7 +690,7 @@
     </section>
 
     <section data-part="cta">
-      <.marketing_banner title={gettext("Supercharge your app development")} />
+      <.marketing_banner title={dgettext("marketing", "Supercharge your app development")} />
     </section>
   </main>
 </TuistWeb.Marketing.Layouts.marketing_next>
