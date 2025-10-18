@@ -434,9 +434,12 @@ defmodule TuistWeb.Marketing.MarketingController do
 
     page = Enum.find(Pages.get_pages(), &(&1.slug == String.trim_trailing(request_path, "/")))
 
+    head_title = page.head_title || "#{page.title} · Tuist"
+    head_description = page.head_description || page.excerpt
+
     conn
-    |> assign(:head_title, "#{page.title}")
-    |> assign(:head_description, page.excerpt)
+    |> assign(:head_title, head_title)
+    |> assign(:head_description, head_description)
     |> assign(
       :head_image,
       Tuist.Environment.app_url(
