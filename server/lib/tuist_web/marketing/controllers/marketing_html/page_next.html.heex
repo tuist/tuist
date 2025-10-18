@@ -3,6 +3,7 @@
     <TuistWeb.Marketing.MarketingComponents.navbar {assigns} />
 
     <header data-part="header">
+      <img :if={@page.logo} src={@page.logo} alt="" data-part="logo" />
       <h1 data-part="title">{@page.title}</h1>
       <p :if={@page.last_updated} data-part="last-updated">
         {dgettext("marketing", "Last updated %{date}",

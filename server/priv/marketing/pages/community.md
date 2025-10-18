@@ -1,9 +1,8 @@
 ---
 title: Community
 description: Tuist wouldn't be where it is today without the help of our amazing community.
+last_updated: 2023-10-23
 ---
-
-# Community
 
 **Tuist is an open-core company built on the foundation of open source and shared values.**
 Collaboration is at the heart of what we do—we believe that by working together, we can create the ultimate productivity platform for app developers.

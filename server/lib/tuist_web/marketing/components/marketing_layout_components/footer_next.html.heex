@@ -12,7 +12,7 @@
       </div>
       <img
         data-part="soc2"
-        src={~p"/marketing/images/components/footer/soc2.webp"}
+        src={~p"/marketing/images/shared/soc2.webp"}
         alt="SOC 2 Type II Certified"
       />
       <.link href="https://status.tuist.dev" target="_blank" rel="noopener noreferrer">
@@ -195,6 +195,13 @@
           >
             {dgettext("marketing", "Issues")}
           </.link>
+          <.link
+            data-part="link"
+            rel="noopener noreferrer"
+            href={~p"/community"}
+          >
+            {dgettext("marketing", "People")}
+          </.link>
         </ul>
       </section>
       <section data-part="column">
@@ -208,6 +215,18 @@
           </.link>
           <.link data-part="link" href="mailto:contact@tuist.dev">
             {dgettext("marketing", "Contact")}
+          </.link>
+          <.link
+            data-part="link"
+            href={TuistWeb.Marketing.MarketingHTML.localized_href("/openness")}
+          >
+            {dgettext("marketing", "Openness")}
+          </.link>
+          <.link
+            data-part="link"
+            href={TuistWeb.Marketing.MarketingHTML.localized_href("/longevity")}
+          >
+            {dgettext("marketing", "Longevity")}
           </.link>
         </ul>
       </section>
@@ -273,6 +292,12 @@
             href={TuistWeb.Marketing.MarketingHTML.localized_href("/cookies")}
           >
             {dgettext("marketing", "Cookie policy")}
+          </.link>
+          <.link
+            data-part="link"
+            href={TuistWeb.Marketing.MarketingHTML.localized_href("/imprint")}
+          >
+            {dgettext("marketing", "Imprint")}
           </.link>
         </ul>
       </section>

@@ -9,7 +9,10 @@ defmodule Tuist.Marketing.Pages.Page do
     :slug,
     :title,
     :body,
-    :last_updated
+    :last_updated,
+    :logo,
+    :head_title,
+    :head_description
   ]
 
   def build(_filename, attrs, body) do
@@ -18,7 +21,10 @@ defmodule Tuist.Marketing.Pages.Page do
       slug: attrs["slug"],
       title: attrs["title"],
       body: body,
-      last_updated: parse_date(attrs["last_updated"])
+      last_updated: parse_date(attrs["last_updated"]),
+      logo: attrs["logo"],
+      head_title: attrs["head_title"],
+      head_description: attrs["head_description"]
     )
   end
 
