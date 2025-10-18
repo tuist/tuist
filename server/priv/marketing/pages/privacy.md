@@ -1,11 +1,10 @@
 ---
 title: Privacy policy
 description: This privacy policy governs your use of the application located at https://tuist.dev and any related services provided by Tuist.
+last_updated: 2023-10-23
 ---
 
 # Privacy Policy
-
-_Last updated October 23, 2023_
 
 Your privacy is important to us. It is Tuist’s policy to respect your privacy and comply with any applicable law and regulation regarding any personal information we may collect about you, including across our application, [https://tuist.dev](https://tuist.dev), and other sites we own and operate.
 

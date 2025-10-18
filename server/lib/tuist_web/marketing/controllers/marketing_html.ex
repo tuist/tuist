@@ -25,9 +25,9 @@ defmodule TuistWeb.Marketing.MarketingHTML do
 
     assigns =
       assigns
-      |> assign(:primary_action_title, Map.get(assigns, :primary_action_title, dgettext("marketing","Get started")))
+      |> assign(:primary_action_title, Map.get(assigns, :primary_action_title, dgettext("marketing", "Get started")))
       |> assign(:primary_action_href, Map.get(assigns, :primary_action_href, default_primary_href))
-      |> assign(:secondary_action_title, Map.get(assigns, :secondary_action_title, dgettext("marketing","Talk to us")))
+      |> assign(:secondary_action_title, Map.get(assigns, :secondary_action_title, dgettext("marketing", "Talk to us")))
       |> assign(
         :secondary_action_href,
         Map.get(assigns, :secondary_action_href, "https://cal.tuist.dev/team/tuist/tuist?overlayCalendar=true")

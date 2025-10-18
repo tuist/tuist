@@ -8,7 +8,8 @@ defmodule Tuist.Marketing.Pages.Page do
     :excerpt,
     :slug,
     :title,
-    :body
+    :body,
+    :last_updated
   ]
 
   def build(_filename, attrs, body) do
@@ -16,7 +17,19 @@ defmodule Tuist.Marketing.Pages.Page do
       excerpt: attrs["description"],
       slug: attrs["slug"],
       title: attrs["title"],
-      body: body
+      body: body,
+      last_updated: parse_date(attrs["last_updated"])
     )
   end
+
+  defp parse_date(nil), do: nil
+
+  defp parse_date(date_string) when is_binary(date_string) do
+    case Date.from_iso8601(date_string) do
+      {:ok, date} -> date
+      {:error, _} -> nil
+    end
+  end
+
+  defp parse_date(_), do: nil
 end

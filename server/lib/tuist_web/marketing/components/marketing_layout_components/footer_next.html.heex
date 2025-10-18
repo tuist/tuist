@@ -19,13 +19,13 @@
         <% any_ongoing_incident? = Tuist.Incidents.any_ongoing_incident?() %>
         <.status_badge
           :if={not any_ongoing_incident?}
-          label={dgettext("marketing","All systems normal")}
+          label={dgettext("marketing", "All systems normal")}
           status="success"
           type="dot"
         />
         <.status_badge
           :if={any_ongoing_incident?}
-          label={dgettext("marketing","Ongoing incident")}
+          label={dgettext("marketing", "Ongoing incident")}
           status="warning"
           type="dot"
         />
@@ -33,7 +33,7 @@
     </header>
     <nav data-part="columns" aria-label="Footer navigation">
       <section data-part="column">
-        <h3 data-part="title">{dgettext("marketing","Features")}</h3>
+        <h3 data-part="title">{dgettext("marketing", "Features")}</h3>
         <ul data-part="links">
           <.link
             data-part="link"
@@ -45,7 +45,7 @@
               )
             }
           >
-            {dgettext("marketing","Generated projects")}
+            {dgettext("marketing", "Generated projects")}
           </.link>
           <.link
             data-part="link"
@@ -57,7 +57,7 @@
               )
             }
           >
-            {dgettext("marketing","Cache")}
+            {dgettext("marketing", "Cache")}
           </.link>
           <.link
             data-part="link"
@@ -69,7 +69,7 @@
               )
             }
           >
-            {dgettext("marketing","Selective testing")}
+            {dgettext("marketing", "Selective testing")}
           </.link>
           <.link
             data-part="link"
@@ -81,7 +81,7 @@
               )
             }
           >
-            {dgettext("marketing","Registry")}
+            {dgettext("marketing", "Registry")}
           </.link>
           <.link
             data-part="link"
@@ -93,7 +93,7 @@
               )
             }
           >
-            {dgettext("marketing","Insights")}
+            {dgettext("marketing", "Insights")}
           </.link>
           <.link
             data-part="link"
@@ -105,7 +105,7 @@
               )
             }
           >
-            {dgettext("marketing","Bundle analysis")}
+            {dgettext("marketing", "Bundle analysis")}
           </.link>
           <.link
             data-part="link"
@@ -117,7 +117,7 @@
               )
             }
           >
-            {dgettext("marketing","QA")}
+            {dgettext("marketing", "QA")}
           </.link>
           <.link
             data-part="link"
@@ -129,41 +129,41 @@
               )
             }
           >
-            {dgettext("marketing","Previews")}
+            {dgettext("marketing", "Previews")}
           </.link>
         </ul>
       </section>
       <section data-part="column">
-        <h3 data-part="title">{dgettext("marketing","Product")}</h3>
+        <h3 data-part="title">{dgettext("marketing", "Product")}</h3>
         <ul data-part="links">
           <.link
             data-part="link"
             href={TuistWeb.Marketing.MarketingHTML.localized_href("/pricing")}
           >
-            {dgettext("marketing","Pricing")}
+            {dgettext("marketing", "Pricing")}
           </.link>
           <.link
             data-part="link"
             href={TuistWeb.Marketing.MarketingHTML.localized_href("/changelog")}
           >
-            {dgettext("marketing","Changelog")}
+            {dgettext("marketing", "Changelog")}
           </.link>
           <.link
             data-part="link"
             href={TuistWeb.Marketing.MarketingHTML.localized_href("https://docs.tuist.dev/")}
           >
-            {dgettext("marketing","Documentation")}
+            {dgettext("marketing", "Documentation")}
           </.link>
           <.link
             data-part="link"
             href={TuistWeb.Marketing.MarketingHTML.localized_href("/download")}
           >
-            {dgettext("marketing","Download")}
+            {dgettext("marketing", "Download")}
           </.link>
         </ul>
       </section>
       <section data-part="column">
-        <h3 data-part="title">{dgettext("marketing","Community")}</h3>
+        <h3 data-part="title">{dgettext("marketing", "Community")}</h3>
         <ul data-part="links">
           <.link
             data-part="link"
@@ -171,7 +171,7 @@
             rel="noopener noreferrer"
             href="https://slack.tuist.dev"
           >
-            {dgettext("marketing","Slack")}
+            {dgettext("marketing", "Slack")}
           </.link>
           <.link
             data-part="link"
@@ -179,13 +179,13 @@
             rel="noopener noreferrer"
             href="https://community.tuist.dev"
           >
-            {dgettext("marketing","Community forum")}
+            {dgettext("marketing", "Community forum")}
           </.link>
           <.link
             data-part="link"
             href={TuistWeb.Marketing.MarketingHTML.localized_href("/newsletter")}
           >
-            {dgettext("marketing","Newsletter")}
+            {dgettext("marketing", "Newsletter")}
           </.link>
           <.link
             data-part="link"
@@ -193,24 +193,26 @@
             rel="noopener noreferrer"
             href="https://github.com/tuist/tuist/issues"
           >
-            {dgettext("marketing","Issues")}
+            {dgettext("marketing", "Issues")}
           </.link>
         </ul>
       </section>
       <section data-part="column">
-        <h3 data-part="title">{dgettext("marketing","Company")}</h3>
+        <h3 data-part="title">{dgettext("marketing", "Company")}</h3>
         <ul data-part="links">
           <.link data-part="link" href={TuistWeb.Marketing.MarketingHTML.localized_href("/about")}>
-            {dgettext("marketing","About")}
+            {dgettext("marketing", "About")}
           </.link>
           <.link data-part="link" href={TuistWeb.Marketing.MarketingHTML.localized_href("/blog")}>
-            {dgettext("marketing","Blog")}
+            {dgettext("marketing", "Blog")}
           </.link>
-          <.link data-part="link" href="mailto:contact@tuist.dev">{dgettext("marketing","Contact")}</.link>
+          <.link data-part="link" href="mailto:contact@tuist.dev">
+            {dgettext("marketing", "Contact")}
+          </.link>
         </ul>
       </section>
       <section data-part="column">
-        <h3 data-part="title">{dgettext("marketing","Socials")}</h3>
+        <h3 data-part="title">{dgettext("marketing", "Socials")}</h3>
         <ul data-part="links">
           <.link
             data-part="link"
@@ -218,7 +220,7 @@
             target="_blank"
             rel="noopener noreferrer"
           >
-            {dgettext("marketing","Mastodon")}
+            {dgettext("marketing", "Mastodon")}
           </.link>
           <.link
             data-part="link"
@@ -226,7 +228,7 @@
             target="_blank"
             rel="noopener noreferrer"
           >
-            {dgettext("marketing","GitHub")}
+            {dgettext("marketing", "GitHub")}
           </.link>
           <.link
             data-part="link"
@@ -234,7 +236,7 @@
             target="_blank"
             rel="noopener noreferrer"
           >
-            {dgettext("marketing","Bluesky")}
+            {dgettext("marketing", "Bluesky")}
           </.link>
           <.link
             data-part="link"
@@ -242,7 +244,7 @@
             target="_blank"
             rel="noopener noreferrer"
           >
-            {dgettext("marketing","LinkedIn")}
+            {dgettext("marketing", "LinkedIn")}
           </.link>
           <.link
             data-part="link"
@@ -250,27 +252,27 @@
             target="_blank"
             rel="noopener noreferrer"
           >
-            {dgettext("marketing","Videos")}
+            {dgettext("marketing", "Videos")}
           </.link>
         </ul>
       </section>
       <section data-part="column">
-        <h3 data-part="title">{dgettext("marketing","Legal")}</h3>
+        <h3 data-part="title">{dgettext("marketing", "Legal")}</h3>
         <ul data-part="links">
           <.link data-part="link" href={TuistWeb.Marketing.MarketingHTML.localized_href("/terms")}>
-            {dgettext("marketing","Terms of service")}
+            {dgettext("marketing", "Terms of service")}
           </.link>
           <.link
             data-part="link"
             href={TuistWeb.Marketing.MarketingHTML.localized_href("/privacy")}
           >
-            {dgettext("marketing","Privacy policy")}
+            {dgettext("marketing", "Privacy policy")}
           </.link>
           <.link
             data-part="link"
             href={TuistWeb.Marketing.MarketingHTML.localized_href("/cookies")}
           >
-            {dgettext("marketing","Cookie policy")}
+            {dgettext("marketing", "Cookie policy")}
           </.link>
         </ul>
       </section>

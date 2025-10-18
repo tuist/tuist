@@ -4,6 +4,11 @@
 
     <header data-part="header">
       <h1 data-part="title">{@page.title}</h1>
+      <p :if={@page.last_updated} data-part="last-updated">
+        {dgettext("marketing", "Last updated %{date}",
+          date: Timex.format!(@page.last_updated, "{Mfull} {D}, {YYYY}")
+        )}
+      </p>
     </header>
 
     <div data-part="body" data-content>
