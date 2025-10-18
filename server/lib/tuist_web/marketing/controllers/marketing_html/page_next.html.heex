@@ -1,0 +1,13 @@
+<TuistWeb.Marketing.Layouts.marketing_next {assigns}>
+  <main id="marketing-page">
+    <TuistWeb.Marketing.MarketingComponents.navbar {assigns} />
+
+    <header data-part="header">
+      <h1 data-part="title">{@page.title}</h1>
+    </header>
+
+    <div data-part="body" data-content>
+      {raw(@page.body)}
+    </div>
+  </main>
+</TuistWeb.Marketing.Layouts.marketing_next>
