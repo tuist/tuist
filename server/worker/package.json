@@ -1,0 +1,16 @@
+{
+  "name": "@tuist/worker",
+  "private": true,
+  "description": "A sub-component of the server that runs closer to the users leveraging Cloudflare workers",
+  "license": "MIT",
+  "packageManager": "pnpm@10.17.1",
+  "type": "module",
+  "dependencies": {
+    "aws4fetch": "^1.0.20",
+    "itty-router": "^5.0.22"
+  },
+  "devDependencies": {
+    "vitest": "^2.1.8",
+    "wrangler": "^4.0"
+  }
+}
