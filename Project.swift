@@ -13,9 +13,7 @@ func inspectBuildPostAction(target: TargetReference) -> ExecutionAction {
     .executionAction(
         title: "Inspect build",
         scriptText: """
-        eval "$($HOME/.local/share/mise/bin/mise activate -C $SRCROOT bash --shims)"
-
-        tuist inspect build
+        $HOME/.local/share/mise/bin/mise x -C $SRCROOT -- tuist inspect build
         """,
         target: target
     )
