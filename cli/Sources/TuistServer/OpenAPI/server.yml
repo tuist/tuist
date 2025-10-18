@@ -3195,13 +3195,13 @@ paths:
                   entries:
                     items:
                       properties:
-                        id:
-                          description: The ID of the entry
+                        value:
+                          description: The value of the entry
                           type: string
                           x-struct:
                           x-validate:
                       required:
-                        - id
+                        - value
                       type: object
                       x-struct:
                       x-validate:

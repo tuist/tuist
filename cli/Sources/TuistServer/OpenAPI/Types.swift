@@ -7783,19 +7783,19 @@ public enum Operations {
                     public struct jsonPayload: Codable, Hashable, Sendable {
                         /// - Remark: Generated from `#/paths/api/cache/keyvalue/PUT/responses/200/content/json/entriesPayload`.
                         public struct entriesPayloadPayload: Codable, Hashable, Sendable {
-                            /// The ID of the entry
+                            /// The value of the entry
                             ///
-                            /// - Remark: Generated from `#/paths/api/cache/keyvalue/PUT/responses/200/content/json/entriesPayload/id`.
-                            public var id: Swift.String
+                            /// - Remark: Generated from `#/paths/api/cache/keyvalue/PUT/responses/200/content/json/entriesPayload/value`.
+                            public var value: Swift.String
                             /// Creates a new `entriesPayloadPayload`.
                             ///
                             /// - Parameters:
-                            ///   - id: The ID of the entry
-                            public init(id: Swift.String) {
-                                self.id = id
+                            ///   - value: The value of the entry
+                            public init(value: Swift.String) {
+                                self.value = value
                             }
                             public enum CodingKeys: String, CodingKey {
-                                case id
+                                case value
                             }
                         }
                         /// - Remark: Generated from `#/paths/api/cache/keyvalue/PUT/responses/200/content/json/entries`.

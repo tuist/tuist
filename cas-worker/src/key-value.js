@@ -125,8 +125,8 @@ export async function handleKeyValuePut(request, env) {
   }
 
   const sanitizedEntries = entries
-    .filter(entry => entry && typeof entry.value === 'string' && typeof entry.id === 'string')
-    .map(entry => ({ id: entry.id, value: entry.value }));
+    .filter(entry => entry && typeof entry.value === 'string')
+    .map(entry => ({ value: entry.value }));
 
   if (sanitizedEntries.length === 0) {
     return errorResponse('Entries array must include at least one entry with id and value', 400);
@@ -144,23 +144,17 @@ export async function handleKeyValuePut(request, env) {
     return errorResponse('Failed to read entries from KV', 500);
   }
 
-  // Last put should win - replace existing entries entirely
-  const newEntriesWithIds = sanitizedEntries.map(entry => ({
-    id: entry.id,
-    value: entry.value,
-  }));
-
   try {
-    await store.put(storageKey, JSON.stringify(newEntriesWithIds));
+    await store.put(storageKey, JSON.stringify(sanitizedEntries));
   } catch (error) {
     return errorResponse(error.message || 'Failed to store entries in KV', 500);
   }
 
   const cacheKey = buildCacheKey(accountHandle, projectHandle, casId);
   const cacheResponse = jsonResponse({
-    entries: newEntriesWithIds.map(entry => ({ value: entry.value })),
+    entries: sanitizedEntries,
   });
   await writeCache(cacheKey, cacheResponse);
 
-  return jsonResponse({ entries: newEntriesWithIds.map(entry => ({ id: entry.id })) });
+  return jsonResponse({ entries: sanitizedEntries });
 }

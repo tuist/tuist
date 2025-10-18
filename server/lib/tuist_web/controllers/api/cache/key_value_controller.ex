@@ -144,9 +144,9 @@ defmodule TuistWeb.API.Cache.KeyValueController do
               items: %Schema{
                 type: :object,
                 properties: %{
-                  id: %Schema{type: :string, description: "The ID of the entry"}
+                  value: %Schema{type: :string, description: "The value of the entry"}
                 },
-                required: [:id]
+                required: [:value]
               }
             }
           },
@@ -187,6 +187,6 @@ defmodule TuistWeb.API.Cache.KeyValueController do
 
     conn
     |> put_status(:ok)
-    |> json(%{entries: Enum.map(inserted_entries, fn entry -> %{id: entry.id} end)})
+    |> json(%{entries: Enum.map(inserted_entries, fn entry -> %{value: entry.value} end)})
   end
 end

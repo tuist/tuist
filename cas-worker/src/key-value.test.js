@@ -234,20 +234,20 @@ describe('KeyValue handlers', () => {
       expect(env.KEY_VALUE_STORE.put).toHaveBeenCalledWith(
         'keyvalue:my-account:my-project:cas123',
         JSON.stringify([
-          { id: 'id-1', value: 'value-1' },
-          { id: 'id-2', value: 'value-2' },
+          { value: 'value-1' },
+          { value: 'value-2' },
         ]),
       );
       expect(cache.put).toHaveBeenCalled();
       expect(response.status).toBe(200);
       const body = await response.json();
-      expect(body.entries).toEqual([{ id: 'id-1' }, { id: 'id-2' }]);
+      expect(body.entries).toEqual([{ value: 'value-1' }, { value: 'value-2' }]);
     });
 
     it('filters out entries without string values', async () => {
       request.json = vi.fn().mockResolvedValue({
         cas_id: 'cas123',
-        entries: [{ id: 'id-1', value: 'ok' }, { id: 'id-2', value: 123 }, null],
+        entries: [{ value: 'value-1' }, { value: 123 }, null],
       });
 
       const response = await handleKeyValuePut(request, env);
@@ -258,17 +258,17 @@ describe('KeyValue handlers', () => {
       );
       expect(env.KEY_VALUE_STORE.put).toHaveBeenCalledWith(
         'keyvalue:my-account:my-project:cas123',
-        JSON.stringify([{ id: 'id-1', value: 'ok' }]),
+        JSON.stringify([{ value: 'value-1' }]),
       );
       expect(response.status).toBe(200);
       await expect(response.json()).resolves.toEqual({
-        entries: [{ id: 'id-1' }],
+        entries: [{ value: 'value-1' }],
       });
     });
 
     it('replaces existing entries entirely', async () => {
       env.KEY_VALUE_STORE.get.mockResolvedValue([
-        { id: 'existing-id', value: 'old-value' },
+        { value: 'old-value' },
       ]);
 
       const response = await handleKeyValuePut(request, env);
@@ -276,8 +276,8 @@ describe('KeyValue handlers', () => {
       expect(env.KEY_VALUE_STORE.put).toHaveBeenCalledWith(
         'keyvalue:my-account:my-project:cas123',
         JSON.stringify([
-          { id: 'id-1', value: 'value-1' },
-          { id: 'id-2', value: 'value-2' },
+          { value: 'value-1' },
+          { value: 'value-2' },
         ]),
       );
 
@@ -291,14 +291,14 @@ describe('KeyValue handlers', () => {
 
       expect(response.status).toBe(200);
       await expect(response.json()).resolves.toEqual({
-        entries: [{ id: 'id-1' }, { id: 'id-2' }],
+        entries: [{ value: 'value-1' }, { value: 'value-2' }],
       });
     });
 
     it('returns 400 when filtered entries array is empty', async () => {
       request.json = vi.fn().mockResolvedValue({
         cas_id: 'cas123',
-        entries: [{ id: 'id-1', value: 123 }],
+        entries: [{  value: 123 }],
       });
 
       const response = await handleKeyValuePut(request, env);
