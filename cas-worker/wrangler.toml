@@ -2,7 +2,7 @@ name = "tuist-worker-production"
 main = "src/index.js"
 compatibility_date = "2025-01-08"
 routes = [
-  "https://tuist.dev/api/cas/*",
+  "https://tuist.dev/api/cache/cas/*",
   "https://tuist.dev/api/cache/keyvalue*"
 ]
 
@@ -45,7 +45,7 @@ id = "4eecec1f40f84dc1bd8233944b835934"
 [env.canary]
 name = "tuist-worker-canary"
 routes = [
-  "https://canary.tuist.dev/api/cas/*",
+  "https://canary.tuist.dev/api/cache/cas/*",
   "https://canary.tuist.dev/api/cache/keyvalue*"
 ]
 [[env.canary.kv_namespaces]]
@@ -54,4 +54,3 @@ id = "c95cdd9d54fa49b89465b3993c298186"
 [[env.canary.kv_namespaces]]
 binding = "CAS_CACHE_BLOBS"
 id = "cb953df9fb6d42fa8fdca17f06287ba7"
-
