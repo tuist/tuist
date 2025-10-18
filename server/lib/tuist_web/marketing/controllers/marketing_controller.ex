@@ -38,7 +38,7 @@ defmodule TuistWeb.Marketing.MarketingController do
       |> assign(:head_title, "Tuist")
       |> assign(
         :head_description,
-        gettext("The same iOS tooling that powers billion-user apps, delivered as a service for your team")
+        dgettext("marketing", "The same iOS tooling that powers billion-user apps, delivered as a service for your team")
       )
       |> assign(
         :head_image,
@@ -450,7 +450,7 @@ defmodule TuistWeb.Marketing.MarketingController do
           author_link: "https://www.linkedin.com/in/garnikh/",
           avatar_src: "/marketing/images/testimonials/garnik.jpeg",
           body:
-            gettext(~s"""
+            dgettext("marketing", ~s"""
             <p>Tuist has been a game-changer for our large codebase, where multiple engineers collaborate simultaneously. It helps us avoid conflicts in project organization and provides full control over project configuration, allowing us to customize everything to our needs. For a modularized app, Tuist is the perfect ally—its ability to effortlessly reuse configurations across modules has significantly streamlined our development process.</p>
             <p>Additionally, the way Tuist manages package dependencies is outstanding. As soon as you open Xcode, you're ready to jump right into coding without waiting for 30+ packages to resolve every time. It's truly a productivity booster.</p>
             <p>I've been using it since version 1, and it's been incredible to see how the product has evolved and expanded with new features over time. Their effort in resolving underlying issues and evolving the product has made Tuist a mature, reliable tool that we can depend on.</p>
@@ -462,8 +462,8 @@ defmodule TuistWeb.Marketing.MarketingController do
           author_link: "https://www.kaioelfke.de",
           avatar_src: "/marketing/images/testimonials/kai.jpeg",
           body:
-            gettext(~S"""
-            <p>With macros, external SDKs, and many SPM modules (fully modularized app) Xcode was constantly slow or stuck on my M1 device. SPM kept resolving, code completion didn’t work, and <a href="https://github.com/swiftlang/swift-syntax" target="_blank">swift-syntax</a> compiled forever. All this changed with Tuist. It’s not just for big teams with big apps. Tuist gave me back my productivity as indie developer for my side projects.</p>
+            dgettext("marketing", ~S"""
+            <p>With macros, external SDKs, and many SPM modules (fully modularized app) Xcode was constantly slow or stuck on my M1 device. SPM kept resolving, code completion didn't work, and <a href="https://github.com/swiftlang/swift-syntax" target="_blank">swift-syntax</a> compiled forever. All this changed with Tuist. It's not just for big teams with big apps. Tuist gave me back my productivity as indie developer for my side projects.</p>
             """)
         }
       ],
@@ -474,7 +474,7 @@ defmodule TuistWeb.Marketing.MarketingController do
           author_link: "https://www.linkedin.com/in/shahzadmajeed",
           avatar_src: "/marketing/images/testimonials/shahzad.jpeg",
           body:
-            gettext(~S"""
+            dgettext("marketing", ~S"""
             <p>Tuist has revolutionized our iOS development workflow at DraftKings. Its automation capabilities have streamlined project generation, build settings, and dependency management. With modularization, we maximize code sharing across apps, reducing duplication. Code generation allows us to quickly bootstrap new products that seamlessly integrate with existing ones through centralized dependency management. The build caching feature can significantly improve build times, both locally and in CI/CD environment. Tuist is an indispensable set of developer tools, greatly enhancing productivity and efficiency. Highly recommended for iOS teams seeking workflow optimization.</p>
             """)
         },
