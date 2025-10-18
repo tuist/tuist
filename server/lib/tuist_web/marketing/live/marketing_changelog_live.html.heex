@@ -2,7 +2,10 @@
   <main class="marketing__changelog" aria-label={dgettext("marketing", "Changelog")} role="main">
     <div class="marketing__changelog__header" role="banner">
       <h1 class="marketing__changelog__header__title">{dgettext("marketing", "Changelog")}</h1>
-      <nav class="marketing__changelog__header__categories" aria-label={dgettext("marketing", "Categories")}>
+      <nav
+        class="marketing__changelog__header__categories"
+        aria-label={dgettext("marketing", "Categories")}
+      >
         <.link
           patch={~p"/changelog"}
           data-selected={if(@current_path == ~p"/changelog", do: "true", else: "false")}

@@ -349,7 +349,9 @@ defmodule TuistWeb.Marketing.MarketingComponents do
   def pricing_plan_plan_card(assigns) do
     ~H"""
     <div class="marketing__pricing__plans__plan" data-popular={@popular}>
-      <div class="marketing__pricing__plans__plan__badge">{dgettext("marketing", "Most popular")}</div>
+      <div class="marketing__pricing__plans__plan__badge">
+        {dgettext("marketing", "Most popular")}
+      </div>
       <h2 class="marketing__pricing__plans__plan__name">
         {@name}
       </h2>

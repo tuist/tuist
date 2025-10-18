@@ -232,9 +232,7 @@ defmodule TuistWeb.Marketing.MarketingController do
 
         nil ->
           raise NotFoundError,
-                dgettext("marketing", "The newsletter issue %{issue_number} was not found.",
-                  issue_number: issue_number
-                )
+                dgettext("marketing", "The newsletter issue %{issue_number} was not found.", issue_number: issue_number)
       end
 
     conn =
@@ -367,7 +365,8 @@ defmodule TuistWeb.Marketing.MarketingController do
   def pricing(conn, _params) do
     faqs = [
       {dgettext("marketing", "Why is your pricing model more accessible compared to traditional enterprise models?"),
-       dgettext("marketing",
+       dgettext(
+         "marketing",
          ~S"""
          <p>Our commitment to open-source and our core values shape our unique approach to pricing. Unlike many models that try to extract every dollar from you with "contact sales" calls, limited demos, and other sales tactics, we believe in fairness and transparency. We treat everyone equally and set prices that are fair for all. By choosing our services, you are not only getting a great product but also supporting the development of more open-source projects. We see building a thriving business as a long-term journey, not a short-term sprint filled with shady practices. You can %{read_more}  about our philosophy.</p>
          <p>By supporting Tuist, you are also supporting the development of more open-source software for the Swift ecosystem.</p>
@@ -375,11 +374,15 @@ defmodule TuistWeb.Marketing.MarketingController do
          read_more: "<a href=\"#{~p"/blog/2024/11/05/our-pricing-philosophy"}\">#{dgettext("marketing", "read more")}</a>"
        )},
       {dgettext("marketing", "How can I estimate the cost of my project?"),
-       dgettext("marketing",
+       dgettext(
+         "marketing",
          "You can set up the Air plan, and use the features for a few days to get a usage estimate. If you need a higher limit, let us know and we can help you set up a custom plan."
        )},
       {dgettext("marketing", "Is there a free trial on paid plans?"),
-       dgettext("marketing", "We have a generous free tier on every paid plan so you can try out the features before paying any money.")},
+       dgettext(
+         "marketing",
+         "We have a generous free tier on every paid plan so you can try out the features before paying any money."
+       )},
       {dgettext("marketing", "Do you offer discounts for non-profits and open-source?"),
        dgettext("marketing", "Yes, we do. Please reach out to oss@tuist.io for more information.")}
     ]
@@ -405,7 +408,8 @@ defmodule TuistWeb.Marketing.MarketingController do
     )
     |> assign(
       :head_description,
-      dgettext("marketing",
+      dgettext(
+        "marketing",
         "Discover our flexible pricing plans at Tuist. Enjoy a free tier with no time limits, and pay only for what you use. Plus, it's free forever for open source projects."
       )
     )
@@ -480,7 +484,8 @@ defmodule TuistWeb.Marketing.MarketingController do
           author_link: "https://github.com/CedricGatay",
           avatar_src: "/marketing/images/testimonials/cedric.jpeg",
           body:
-            dgettext("marketing",
+            dgettext(
+              "marketing",
               "Tuist has allowed us to migrate our existing monolythic codebase to a modular one. We extracted our different domains into specific modules. It allowed us to remove extra dependencies, ease testability and made our development cycles faster than ever. It even allowed us to bring up “Test Apps” for speeding up our development on each module. Tuist is a game changer in iOS project life."
             )
         },
@@ -490,7 +495,8 @@ defmodule TuistWeb.Marketing.MarketingController do
           author_link: "https://www.linkedin.com/in/joeoct91/",
           avatar_src: "/marketing/images/testimonials/yousef.jpeg",
           body:
-            dgettext("marketing",
+            dgettext(
+              "marketing",
               "Using Tuist in our current project has been a game-changer. It has significantly de-stressed our build times and reduced conflicts within the team, allowing us to focus more on development and less on configuration issues. Tuist has seamlessly integrated into our workflow and has proven to be an essential tool in our pipeline. We’re confident that it will continue to enhance our productivity and collaboration in future projects."
             )
         }
@@ -502,7 +508,8 @@ defmodule TuistWeb.Marketing.MarketingController do
           author_link: "https://www.linkedin.com/in/albsala",
           avatar_src: "/marketing/images/testimonials/alberto.jpeg",
           body:
-            dgettext("marketing",
+            dgettext(
+              "marketing",
               "Since adopting Tuist in our iOS project, we’ve seen major improvements in scalability and productivity. It simplifies module management, allowing us to apply consistent rules and configurations across the project, strengthening our modularization strategy. Its flexibility lets us easily customize the project to fit our needs. For instance, we can use dynamic frameworks during development and static frameworks in other environments, giving us better control. Tuist has also improved build times, boosted Xcode performance, and eliminated merge conflicts by not tracking Xcode project files in Git. Overall, it has made our development process faster and more efficient, allowing the team to focus on building features without being slowed down by tool limitations."
             )
         },

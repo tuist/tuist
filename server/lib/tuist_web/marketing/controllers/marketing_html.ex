@@ -163,7 +163,7 @@ defmodule TuistWeb.Marketing.MarketingHTML do
     <div data-part="testimonial">
       <%= if @logo != [] do %>
         <div data-part="logo">
-          <%= render_slot(@logo) %>
+          {render_slot(@logo)}
         </div>
       <% end %>
       <div data-part="main">
