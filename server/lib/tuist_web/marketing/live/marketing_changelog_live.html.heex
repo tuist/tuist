@@ -4,7 +4,8 @@
     <header data-part="header">
 
     </header>
-    <div data-part="timeline">
+    <div data-part="timeline" id="changelog-timeline">
+      <div data-part="scroll-indicator"></div>
       <%= for entry <- @entries do %>
         <time data-part="date">
           {Timex.format!(entry.date, "{Mfull} {D}, {YYYY}")}
@@ -19,6 +20,65 @@
         </article>
       <% end %>
     </div>
+    <script nonce={get_csp_nonce()}>
+      (function() {
+        const timeline = document.getElementById('changelog-timeline');
+        const indicator = timeline.querySelector('[data-part="scroll-indicator"]');
+        const lines = timeline.querySelectorAll('[data-part="line"]');
+
+        if (!lines.length) return;
+
+        const firstLine = lines[0];
+        const lastLine = lines[lines.length - 1];
+
+        function updateIndicator() {
+          // Calculate horizontal position
+          const timelineRect = timeline.getBoundingClientRect();
+          const firstLineRect = firstLine.getBoundingClientRect();
+          const lineLeft = firstLineRect.left - timelineRect.left;
+          timeline.style.setProperty('--indicator-left', `${lineLeft}px`);
+
+          const scrollTop = window.scrollY || window.pageYOffset;
+          const viewportCenter = scrollTop + (window.innerHeight * 0.2); // 20% from top
+
+          // Get current positions
+          const timelineTop = timeline.offsetTop;
+          const firstLineTop = firstLine.offsetTop + timelineTop;
+          const lastLineBottom = lastLine.offsetTop + lastLine.offsetHeight + timelineTop;
+          const totalLineHeight = lastLineBottom - firstLineTop;
+
+          // Calculate progress based on viewport center
+          let progress = Math.max(0, Math.min(1, (viewportCenter - firstLineTop) / totalLineHeight));
+
+          // Position relative to timeline container
+          const lineStartInContainer = firstLine.offsetTop;
+          const lineEndInContainer = lastLine.offsetTop + lastLine.offsetHeight;
+          const lineHeightInContainer = lineEndInContainer - lineStartInContainer;
+
+          const indicatorPosition = lineStartInContainer + (progress * lineHeightInContainer);
+
+          timeline.style.setProperty('--indicator-top', `${indicatorPosition}px`);
+
+          // Show indicator after first calculation
+          if (!indicator.hasAttribute('data-ready')) {
+            indicator.setAttribute('data-ready', 'true');
+          }
+        }
+
+        let ticking = false;
+        window.addEventListener('scroll', function() {
+          if (!ticking) {
+            window.requestAnimationFrame(function() {
+              updateIndicator();
+              ticking = false;
+            });
+            ticking = true;
+          }
+        });
+        window.addEventListener('resize', updateIndicator);
+        updateIndicator();
+      })();
+    </script>
   </main>
 </TuistWeb.Marketing.Layouts.marketing_next>
 <TuistWeb.Marketing.Layouts.marketing {assigns} :if={not @next?}>

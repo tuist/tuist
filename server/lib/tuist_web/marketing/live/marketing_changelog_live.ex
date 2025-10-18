@@ -3,7 +3,7 @@ defmodule TuistWeb.Marketing.MarketingChangelogLive do
   use TuistWeb, :live_view
 
   import TuistWeb.Marketing.StructuredMarkup
-
+  import TuistWeb.CSP, only: [get_csp_nonce: 0]
   alias Tuist.Marketing.Changelog
 
   def mount(params, _session, socket) do

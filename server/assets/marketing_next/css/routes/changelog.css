@@ -20,6 +20,7 @@
     column-gap: var(--noora-spacing-6);
     row-gap: var(--noora-spacing-10);
     align-items: start;
+    position: relative;
 
     padding-right: var(--noora-spacing-6);
     padding-left: var(--noora-spacing-6);
@@ -64,6 +65,25 @@
 
     & > [data-part="line"]:last-of-type {
       margin-bottom: 0;
+    }
+
+    & > [data-part="scroll-indicator"] {
+      position: absolute;
+      width: 10px;
+      height: 10px;
+      left: var(--indicator-left, 0);
+      top: var(--indicator-top, 0);
+      transform: translate(-50%, -50%);
+      border-radius: 50%;
+      background: var(--noora-surface-label-primary);
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+      z-index: var(--noora-z-index-2);
+      pointer-events: none;
+      opacity: 0;
+    }
+
+    & > [data-part="scroll-indicator"][data-ready="true"] {
+      opacity: 1;
     }
 
     & > [data-part="entry"] {
