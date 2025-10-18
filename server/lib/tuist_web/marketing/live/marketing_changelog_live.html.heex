@@ -70,8 +70,13 @@
         </article>
       <% end %>
     </div>
-    <div data-part="more">
-      <.button variant="primary" size="large" label={dgettext("marketing", "Load more")} />
+    <div :if={@has_more?} data-part="more">
+      <.button
+        variant="primary"
+        size="large"
+        label={dgettext("marketing", "Load more")}
+        phx-click="load_more"
+      />
     </div>
   </main>
 </TuistWeb.Marketing.Layouts.marketing_next>
