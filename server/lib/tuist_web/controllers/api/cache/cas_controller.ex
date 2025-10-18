@@ -3,7 +3,6 @@ defmodule TuistWeb.API.CASController do
   use TuistWeb, :controller
 
   alias OpenApiSpex.Schema
-  
   alias Tuist.Storage
   alias TuistWeb.API.Cache.Plugs.LoaderQueryPlug
   alias TuistWeb.API.Schemas.Error
@@ -93,7 +92,8 @@ defmodule TuistWeb.API.CASController do
       ok: {"Artifact content stream", "application/octet-stream", nil},
       not_found: {"Artifact does not exist", "application/json", Error},
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
-      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error}
+      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      bad_request: {"The request is invalid", "application/json", Error}
     }
   )
 
@@ -157,7 +157,8 @@ defmodule TuistWeb.API.CASController do
         {"Upload successful", "application/json",
          %Schema{type: :object, title: "CASArtifact", properties: %{id: %Schema{type: :string}}}},
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
-      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error}
+      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      bad_request: {"The request is invalid", "application/json", Error}
     }
   )
 

@@ -71,7 +71,8 @@ defmodule TuistWeb.API.Cache.KeyValueController do
         "application/json",
         Error
       },
-      not_found: {"No entries found for the given CAS ID", "application/json", Error}
+      not_found: {"No entries found for the given CAS ID", "application/json", Error},
+      bad_request: {"The request is invalid", "application/json", Error}
     }
   )
 
@@ -162,7 +163,8 @@ defmodule TuistWeb.API.Cache.KeyValueController do
         "application/json",
         Error
       },
-      not_found: {"The project was not found", "application/json", Error}
+      not_found: {"The project was not found", "application/json", Error},
+      bad_request: {"The request is invalid", "application/json", Error}
     }
   )
 

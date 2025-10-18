@@ -3214,6 +3214,12 @@ paths:
                 x-struct:
                 x-validate:
           description: Value stored successfully
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The request is invalid
         '401':
           content:
             application/json:
@@ -4871,6 +4877,12 @@ paths:
           content:
             application/octet-stream: {}
           description: Artifact content stream
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The request is invalid
         '401':
           content:
             application/json:
@@ -4940,6 +4952,12 @@ paths:
                 x-struct:
                 x-validate:
           description: Upload successful
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The request is invalid
         '401':
           content:
             application/json:
@@ -5204,6 +5222,12 @@ paths:
                 x-struct:
                 x-validate:
           description: Cache value retrieved successfully
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The request is invalid
         '401':
           content:
             application/json:
@@ -5658,6 +5682,66 @@ paths:
       summary: Revokes a project token.
       tags:
         - Project tokens
+  /api/cache/prefix:
+    get:
+      callbacks: {}
+      operationId: getCASPrefix
+      parameters:
+        - description: The handle of the project's account.
+          in: query
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: query
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  prefix:
+                    description: The S3 object key prefix where CAS objects should be stored.
+                    example: account-123/project-456/xcode/cas/
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - prefix
+                type: object
+                x-struct:
+                x-validate:
+          description: The CAS storage prefix
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The project was not found
+      summary: Get the S3 object key prefix for a project's CAS storage.
+      tags:
+        - CAS
   /api/projects/{account_handle}/{project_handle}:
     get:
       callbacks: {}
