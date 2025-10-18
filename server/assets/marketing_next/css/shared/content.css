@@ -1,0 +1,32 @@
+[data-content] {
+  color: var(--noora-surface-label-primary);
+  font: var(--noora-font-weight-regular) var(--noora-font-body-large);
+
+  /* Add spacing between child elements using margin instead of gap */
+  & > * + * {
+    margin-top: var(--noora-spacing-6);
+  }
+
+  & b, strong {
+    font: var(--noora-font-weight-semibold) var(--noora-font-body-large);
+  }
+
+  & a {
+    text-decoration: underline;
+    color: var(--noora-button-primary-background);
+  }
+
+  & h1 {
+    font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
+  }
+
+  & h2 {
+    padding-top: var(--noora-spacing-5);
+    font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
+  }
+
+  & h3 {
+    padding-top: var(--noora-spacing-4);
+    font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
+  }
+}

@@ -38,7 +38,10 @@ defmodule TuistWeb.Marketing.MarketingController do
       |> assign(:head_title, "Tuist")
       |> assign(
         :head_description,
-        dgettext("marketing", "The same iOS tooling that powers billion-user apps, delivered as a service for your team")
+        dgettext(
+          "marketing",
+          "The same iOS tooling that powers billion-user apps, delivered as a service for your team"
+        )
       )
       |> assign(
         :head_image,
@@ -112,7 +115,8 @@ defmodule TuistWeb.Marketing.MarketingController do
     |> assign_structured_data(
       get_breadcrumbs_structured_data([
         {dgettext("marketing", "Tuist"), Tuist.Environment.app_url(path: ~p"/")},
-        {dgettext("marketing", "Swift Stories Newsletter"), Tuist.Environment.app_url(path: ~p"/newsletter")}
+        {dgettext("marketing", "Swift Stories Newsletter"),
+         Tuist.Environment.app_url(path: ~p"/newsletter")}
       ])
     )
     |> assign(
@@ -146,7 +150,10 @@ defmodule TuistWeb.Marketing.MarketingController do
         conn
         |> put_resp_content_type("application/json")
         |> put_status(400)
-        |> json(%{success: false, message: dgettext("marketing", "Something went wrong. Please try again.")})
+        |> json(%{
+          success: false,
+          message: dgettext("marketing", "Something went wrong. Please try again.")
+        })
     end
   end
 
@@ -226,13 +233,17 @@ defmodule TuistWeb.Marketing.MarketingController do
       else
         :error ->
           raise NotFoundError,
-                dgettext("marketing", "The newsletter issue number %{issue_number} is not a valid number.",
+                dgettext(
+                  "marketing",
+                  "The newsletter issue number %{issue_number} is not a valid number.",
                   issue_number: issue_number
                 )
 
         nil ->
           raise NotFoundError,
-                dgettext("marketing", "The newsletter issue %{issue_number} was not found.", issue_number: issue_number)
+                dgettext("marketing", "The newsletter issue %{issue_number} was not found.",
+                  issue_number: issue_number
+                )
       end
 
     conn =
@@ -364,14 +375,18 @@ defmodule TuistWeb.Marketing.MarketingController do
 
   def pricing(conn, _params) do
     faqs = [
-      {dgettext("marketing", "Why is your pricing model more accessible compared to traditional enterprise models?"),
+      {dgettext(
+         "marketing",
+         "Why is your pricing model more accessible compared to traditional enterprise models?"
+       ),
        dgettext(
          "marketing",
          ~S"""
          <p>Our commitment to open-source and our core values shape our unique approach to pricing. Unlike many models that try to extract every dollar from you with "contact sales" calls, limited demos, and other sales tactics, we believe in fairness and transparency. We treat everyone equally and set prices that are fair for all. By choosing our services, you are not only getting a great product but also supporting the development of more open-source projects. We see building a thriving business as a long-term journey, not a short-term sprint filled with shady practices. You can %{read_more}  about our philosophy.</p>
          <p>By supporting Tuist, you are also supporting the development of more open-source software for the Swift ecosystem.</p>
          """,
-         read_more: "<a href=\"#{~p"/blog/2024/11/05/our-pricing-philosophy"}\">#{dgettext("marketing", "read more")}</a>"
+         read_more:
+           "<a href=\"#{~p"/blog/2024/11/05/our-pricing-philosophy"}\">#{dgettext("marketing", "read more")}</a>"
        )},
       {dgettext("marketing", "How can I estimate the cost of my project?"),
        dgettext(
@@ -417,6 +432,8 @@ defmodule TuistWeb.Marketing.MarketingController do
   end
 
   def page(conn, _params) do
+    template = if(FunWithFlags.enabled?(:marketing_next), do: :page_next, else: :page)
+
     request_path = Localization.path_without_locale(conn.request_path)
 
     page = Enum.find(Pages.get_pages(), &(&1.slug == String.trim_trailing(request_path, "/")))
@@ -427,7 +444,8 @@ defmodule TuistWeb.Marketing.MarketingController do
     |> assign(
       :head_image,
       Tuist.Environment.app_url(
-        path: "/marketing/images/og/generated/#{page.slug |> String.split("/") |> List.last()}.jpg"
+        path:
+          "/marketing/images/og/generated/#{page.slug |> String.split("/") |> List.last()}.jpg"
       )
     )
     |> assign(:head_twitter_card, "summary_large_image")
@@ -438,7 +456,7 @@ defmodule TuistWeb.Marketing.MarketingController do
       ])
     )
     |> assign(:page, page)
-    |> render(:page, layout: false)
+    |> render(template, layout: false)
   end
 
   defp home_testimonials do
