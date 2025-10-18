@@ -16,4 +16,6 @@
   TUIST_S3_VIRTUAL_HOST = "1"
   TUIST_S3_BUCKET_AS_HOST = "1"
   TUIST_S3_REGION = "auto"
+  TUIST_S3_TIGRIS_BUCKET_AS_HOST = "0"
+	TUIST_S3_TIGRIS_VIRTUAL_HOST = "0"
   ERL_AFLAGS = "-kernel shell_history enabled -kernel shell_history_file_bytes 1024000"

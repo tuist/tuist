@@ -2,7 +2,10 @@
   <main class="marketing__blog_post" aria-label={dgettext("marketing", "Blog post main content")}>
     <div class="marketing__blog_post__gradient" />
 
-    <header class="marketing__blog_post__header" aria-label={dgettext("marketing", "Blog post header")}>
+    <header
+      class="marketing__blog_post__header"
+      aria-label={dgettext("marketing", "Blog post header")}
+    >
       <div class="marketing__blog_post__header__category font-m-strong">
         {@post.category}
       </div>
@@ -44,7 +47,12 @@
           class="marketing__blog_post__body__side__reading_time font-xs"
           aria-label={dgettext("marketing", "Reading time")}
         >
-          {dngettext("marketing", "%{count} minute", "%{count} minutes", ReadingTime.time(@post.body))}
+          {dngettext(
+            "marketing",
+            "%{count} minute",
+            "%{count} minutes",
+            ReadingTime.time(@post.body)
+          )}
         </div>
         <div class="marketing__blog_post__body__side__written_by font-xs">
           <%= cond do %>

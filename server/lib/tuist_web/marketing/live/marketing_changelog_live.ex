@@ -16,6 +16,7 @@ defmodule TuistWeb.Marketing.MarketingChangelogLive do
 
     socket =
       socket
+      |> assign(:next?, FunWithFlags.enabled?(:marketing_next))
       |> assign(:entries, entries)
       |> assign(:categories, categories)
       |> attach_hook(:assign_current_path, :handle_params, fn _params, url, socket ->
@@ -48,7 +49,8 @@ defmodule TuistWeb.Marketing.MarketingChangelogLive do
      |> assign_structured_data(get_changelog_structured_data(entries))
      |> assign(
        :head_description,
-       dgettext("marketing",
+       dgettext(
+         "marketing",
          "Stay updated with the latest changes and improvements in Tuist. Read our changelog for detailed information about new features, bug fixes, and enhancements."
        )
      )}

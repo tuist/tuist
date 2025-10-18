@@ -1,6 +1,11 @@
 <TuistWeb.Marketing.Layouts.marketing {assigns}>
   <main class="marketing__page">
     <div class="marketing_content">
+      <p :if={@page.last_updated} style="font-style: italic; margin-bottom: 1.5rem;">
+        {dgettext("marketing", "Last updated %{date}",
+          date: Timex.format!(@page.last_updated, "{Mfull} {D}, {YYYY}")
+        )}
+      </p>
       {raw(@page.body)}
     </div>
   </main>

@@ -3,6 +3,7 @@ defmodule TuistWeb.Marketing.MarketingComponents do
   A collection of components that are used from the layouts.
   """
   use TuistWeb, :live_component
+  use Noora
 
   import TuistWeb.CSP, only: [get_csp_nonce: 0]
   import TuistWeb.Marketing.MarketingIcons
@@ -348,7 +349,9 @@ defmodule TuistWeb.Marketing.MarketingComponents do
   def pricing_plan_plan_card(assigns) do
     ~H"""
     <div class="marketing__pricing__plans__plan" data-popular={@popular}>
-      <div class="marketing__pricing__plans__plan__badge">{dgettext("marketing", "Most popular")}</div>
+      <div class="marketing__pricing__plans__plan__badge">
+        {dgettext("marketing", "Most popular")}
+      </div>
       <h2 class="marketing__pricing__plans__plan__name">
         {@name}
       </h2>
