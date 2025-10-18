@@ -16,6 +16,7 @@ defmodule TuistWeb.Marketing.MarketingChangelogLive do
 
     socket =
       socket
+      |> assign(:next?, FunWithFlags.enabled?(:marketing_next))
       |> assign(:entries, entries)
       |> assign(:categories, categories)
       |> attach_hook(:assign_current_path, :handle_params, fn _params, url, socket ->
