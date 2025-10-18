@@ -157,14 +157,13 @@ let package = Package(
 
 ::: tip PRODUCT TYPES
 <!-- -->
-You can override the product type for a specific package by adding it to the
-`productTypes` dictionary in the `PackageSettings` struct. By default, Tuist
-assumes that all packages are static frameworks.
+특정 패키지의 타입을 재정의하려면 `PackageSettings` 구조체의 `productTypes` 딕셔너리에 해당 패키지를 추가합니다.
+기본적으로 Tuist는 모든 패키지가 정적 프레임워크라고 가정합니다.
 <!-- -->
 :::
 
 
-## Determine the migration order {#determine-the-migration-order}
+## 마이그레이션 순서 결정 {#determine-the-migration-order}
 
 We recommend migrating the targets from the one that is the most dependent upon
 to the least. You can use the following command to list the targets of a
