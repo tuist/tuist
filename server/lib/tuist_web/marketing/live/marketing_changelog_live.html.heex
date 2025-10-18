@@ -51,7 +51,7 @@
         </div>
       </nav>
     </header>
-    <div data-part="timeline" id="changelog-timeline">
+    <section data-part="timeline" id="changelog-timeline">
       <%= for entry <- @entries do %>
         <time data-part="date">
           {Timex.format!(entry.date, "{Mfull} {D}, {YYYY}")}
@@ -69,15 +69,15 @@
           </div>
         </article>
       <% end %>
-    </div>
-    <div :if={@has_more?} data-part="more">
+    </section>
+    <section :if={@has_more?} data-part="more">
       <.button
         variant="primary"
         size="large"
         label={dgettext("marketing", "Load more")}
         phx-click="load_more"
       />
-    </div>
+    </section>
   </main>
 </TuistWeb.Marketing.Layouts.marketing_next>
 <TuistWeb.Marketing.Layouts.marketing :if={not @next?} {assigns}>

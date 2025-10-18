@@ -279,11 +279,15 @@
               :for={entry <- Tuist.Marketing.Changelog.get_entries() |> Enum.take(3)}
               data-part="entry"
             >
-              <div data-part="content">
-                <time data-part="date">{Timex.format!(entry.date, "{Mfull} {D}, {YYYY}")}</time>
-                <p data-part="title">{entry.title}</p>
-              </div>
-              <.tag label={entry.category} />
+              <.link href={
+                TuistWeb.Marketing.MarketingHTML.localized_href("/changelog##{entry.id}")
+              }>
+                <div data-part="content">
+                  <time data-part="date">{Timex.format!(entry.date, "{Mfull} {D}, {YYYY}")}</time>
+                  <p data-part="title">{entry.title}</p>
+                </div>
+                <.tag label={entry.category} />
+              </.link>
             </li>
           </ul>
         </aside>

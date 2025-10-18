@@ -11,21 +11,20 @@
 
   & > #marketing-navbar {
     position: relative;
-    align-self: center;
+    align-self: stretch;
     z-index: var(--noora-z-index-2);
-    width: 100%;
-    max-width: 1296px;
+
+    @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+      align-self: center;
+      width: 100%;
+      max-width: 1296px;
+    }
   }
 
   & > [data-part="body"],
   & > [data-part="header"] {
     padding-right: var(--noora-spacing-6);
     padding-left: var(--noora-spacing-6);
-
-    @container style(--inline-size-sm: var(--marketing-breakpoint-sm)) {
-      padding-right: var(--noora-spacing-6);
-      padding-left: var(--noora-spacing-6);
-    }
 
     @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
       margin-right: auto;
@@ -34,14 +33,6 @@
       padding-left: var(--noora-spacing-6);
       width: 650px;
       max-width: 650px;
-    }
-
-    @container style(--inline-size-lg: var(--marketing-breakpoint-lg)) {
-      margin-right: auto;
-      margin-left: auto;
-      padding-right: var(--noora-spacing-6);
-      padding-left: var(--noora-spacing-6);
-      width: 650px;
     }
   }
 

@@ -3,7 +3,11 @@
   position: relative;
   flex-direction: row;
   justify-content: center;
-  padding: var(--noora-spacing-14);
+  padding: calc(var(--noora-spacing-7) + var(--noora-spacing-6));
+
+  @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+    padding: var(--noora-spacing-14);
+  }
 
   &::before {
     position: absolute;
@@ -33,17 +37,26 @@
   & > [data-part="content"] {
     display: flex;
     position: relative;
-    flex-direction: row;
+    flex-direction: column;
     justify-content: space-between;
+    gap: var(--noora-spacing-9);
     z-index: var(--noora-z-index-2);
     width: 100%;
     max-width: 1296px;
+
+    @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+      flex-direction: row;
+    }
   }
 
   & > [data-part="content"] > [data-part="header"] {
     display: flex;
     flex-direction: column;
-    gap: var(--noora-spacing-9);
+    gap: var(--noora-spacing-8);
+
+    @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+      gap: var(--noora-spacing-9);
+    }
 
     & > [data-part="tuist"] {
       display: flex;
@@ -69,9 +82,16 @@
   }
 
   & > [data-part="content"] > [data-part="columns"] {
-    display: flex;
-    flex-direction: row;
-    gap: var(--noora-spacing-9);
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    column-gap: var(--noora-spacing-9);
+    row-gap: var(--noora-spacing-7);
+
+    @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+      display: flex;
+      flex-direction: row;
+      gap: var(--noora-spacing-9);
+    }
 
     & > [data-part="column"] {
       display: flex;
