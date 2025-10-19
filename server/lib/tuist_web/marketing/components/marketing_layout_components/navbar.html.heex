@@ -457,6 +457,40 @@ resources_items = [
             </p>
           </div>
         </.link>
+        <aside data-part="changelog">
+          <div data-part="background">
+            <img
+              src={~p"/marketing/images/components/navbar/developers-background.webp"}
+              alt=""
+            />
+          </div>
+          <header data-part="header">
+            <h4 data-part="title">{dgettext("marketing", "Changelog")}</h4>
+            <.link_button
+              label={dgettext("marketing", "View all")}
+              href={TuistWeb.Marketing.MarketingHTML.localized_href("/changelog")}
+              variant="secondary"
+            />
+          </header>
+          <ul data-part="list">
+            <li
+              :for={entry <- Tuist.Marketing.Changelog.get_entries() |> Enum.take(3)}
+              data-part="entry"
+            >
+              <.link href={
+                TuistWeb.Marketing.MarketingHTML.localized_href("/changelog##{entry.id}")
+              }>
+                <div data-part="content">
+                  <time data-part="date">
+                    {Timex.format!(entry.date, "{Mfull} {D}, {YYYY}")}
+                  </time>
+                  <p data-part="title">{entry.title}</p>
+                </div>
+                <.tag label={entry.category} />
+              </.link>
+            </li>
+          </ul>
+        </aside>
       </div>
     </div>
     <div data-part="menu" phx-hook="MobileMenuDropdown" id="mobile-menu-resources">
