@@ -1,0 +1,86 @@
+#marketing-pricing {
+  display: flex;
+  position: relative;
+  flex-direction: column;
+  gap: var(--noora-spacing-9);
+
+  @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+    gap: var(--noora-spacing-11);
+  }
+
+  & > section,
+  & > header {
+    position: relative;
+    z-index: var(--noora-z-index-2);
+    padding-right: var(--noora-spacing-6);
+    padding-left: var(--noora-spacing-6);
+
+    @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+      padding-right: var(--noora-spacing-14);
+      padding-left: var(--noora-spacing-14);
+    }
+  }
+
+  & > [data-part="faq"] {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--noora-spacing-11);
+
+    & > [data-part="title"] {
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-medium) var(--noora-font-heading-2xlarge);
+      text-align: center;
+    }
+
+    & > [data-part="questions"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-7);
+
+      @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+        padding-right: var(--noora-spacing-10);
+        padding-left: var(--noora-spacing-10);
+      }
+
+      & > [data-part="question"] {
+        display: flex;
+        flex-direction: column;
+        gap: var(--noora-spacing-6);
+        box-shadow:
+          0 1px 1px 0 rgba(22, 24, 28, 0.05),
+          0 0 0 1px rgba(46, 51, 56, 0.08),
+          0 1px 1px 0 rgba(46, 51, 56, 0.1);
+        border-radius: var(--noora-radius-xlarge);
+        border-radius: spacing/0;
+        background: var(--noora-surface-background-primary);
+        padding: var(--noora-spacing-7);
+
+        & > [data-part="header"] {
+          display: flex;
+          flex-direction: row;
+          justify-content: space-between;
+          & > [data-part="question"] {
+            color: var(--noora-surface-label-primary);
+            font: var(--noora-font-weight-medium) var(--noora-font-body-large);
+          }
+        }
+        & > [data-part="response"] {
+          display: flex;
+          flex-direction: row;
+          justify-content: space-between;
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-medium) var(--noora-font-body-large);
+        }
+      }
+    }
+  }
+
+  & > [data-part="cta"] {
+
+    @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+      padding-right: var(--noora-spacing-14);
+      padding-left: var(--noora-spacing-14);
+    }
+  }
+}

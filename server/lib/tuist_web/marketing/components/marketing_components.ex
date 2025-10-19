@@ -337,6 +337,15 @@ defmodule TuistWeb.Marketing.MarketingComponents do
     """
   end
 
+  def header_background(assigns) do
+    ~H"""
+    <picture data-part="header-background">
+      <source media="(max-width: 1024px)" srcset={~p"/images/hero-background-sm.webp"} />
+      <img src={~p"/images/hero-background.webp"} alt="" />
+    </picture>
+    """
+  end
+
   attr :popular, :boolean, default: false
   attr :name, :string, required: true
   attr :description, :string, required: true
