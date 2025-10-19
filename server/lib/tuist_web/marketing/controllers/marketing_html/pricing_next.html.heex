@@ -13,6 +13,237 @@
       </h1>
     </header>
 
+    <section data-part="pricing">
+      <table data-part="table">
+        <thead data-part="head">
+          <tr data-part="row">
+            <th data-part="cell-header" scope="col">
+              <h2 data-part="title">{dgettext("marketing", "Compare our plans")}</h2>
+            </th>
+            <th data-part="cell-header" scope="col">
+              <div data-part="plan-name">{dgettext("marketing", "Air")}</div>
+              <.button
+                variant="secondary"
+                size="medium"
+                label={dgettext("marketing", "Get started")}
+              />
+            </th>
+            <th data-part="cell-header" data-popular="true" scope="col">
+              <div data-part="plan-name">{dgettext("marketing", "Pro")}</div>
+              <.button
+                variant="primary"
+                size="medium"
+                label={dgettext("marketing", "Get started")}
+              />
+            </th>
+            <th data-part="cell-header" scope="col">
+              <div data-part="plan-name">{dgettext("marketing", "Enterprise")}</div>
+              <.button
+                variant="secondary"
+                size="medium"
+                label={dgettext("marketing", "Contact us")}
+              />
+            </th>
+          </tr>
+        </thead>
+        <tbody data-part="body">
+          <tr data-part="row">
+            <th data-part="cell-feature" scope="row">
+              <div data-part="feature-name">{dgettext("marketing", "Base price")}</div>
+            </th>
+            <td data-part="cell-value">{dgettext("marketing", "Free")}</td>
+            <td data-part="cell-value">
+              <div data-part="price">{dgettext("marketing", "0€ and up")}</div>
+              <div data-part="description">
+                {dgettext("marketing", "Price per unit above free tier")}
+              </div>
+            </td>
+            <td data-part="cell-value">
+              <div data-part="price">{dgettext("marketing", "Custom")}</div>
+              <div data-part="description">
+                {dgettext("marketing", "Usage/seat based pricing")}
+              </div>
+            </td>
+          </tr>
+          <tr data-part="row">
+            <th data-part="cell-feature" scope="row">
+              <div data-part="feature-name">{dgettext("marketing", "Cache")}</div>
+              <div data-part="feature-description">
+                {dgettext(
+                  "marketing",
+                  "Speed up clean compilations by using binaries for graph targets (including external dependencies)."
+                )}
+              </div>
+              <button
+                data-part="feature-info"
+                type="button"
+                aria-label={dgettext("marketing", "How do we calculate units?")}
+              >
+                {dgettext("marketing", "How do we calculate units?")}
+              </button>
+            </th>
+            <td data-part="cell-value">200</td>
+            <td data-part="cell-value">
+              <div data-part="value">200</div>
+              <div data-part="description">
+                {dgettext("marketing", "+ 0.5€ per additional unit")}
+              </div>
+            </td>
+            <td data-part="cell-value">{dgettext("marketing", "Custom")}</td>
+          </tr>
+          <tr data-part="row">
+            <th data-part="cell-feature" scope="row">
+              <div data-part="feature-name">{dgettext("marketing", "Tests")}</div>
+              <div data-part="feature-description">
+                {dgettext(
+                  "marketing",
+                  "Speed up test runs by skipping test suites (test targets) whose tests are not impacted by the changes."
+                )}
+              </div>
+              <button
+                data-part="feature-info"
+                type="button"
+                aria-label={dgettext("marketing", "How do we calculate units?")}
+              >
+                {dgettext("marketing", "How do we calculate units?")}
+              </button>
+            </th>
+            <td data-part="cell-value">200</td>
+            <td data-part="cell-value">
+              <div data-part="value">200</div>
+              <div data-part="description">
+                {dgettext("marketing", "+ 0.5€ per additional unit")}
+              </div>
+            </td>
+            <td data-part="cell-value">{dgettext("marketing", "Custom")}</td>
+          </tr>
+          <tr data-part="row">
+            <th data-part="cell-feature" scope="row">
+              <div data-part="feature-name">{dgettext("marketing", "Generated Projects")}</div>
+              <div data-part="feature-description">
+                {dgettext(
+                  "marketing",
+                  "Turn projects defined with a Swift-DSL into Xcode workspaces and projects."
+                )}
+              </div>
+            </th>
+            <td data-part="cell-value">{dgettext("marketing", "Unlimited")}</td>
+            <td data-part="cell-value">{dgettext("marketing", "Unlimited")}</td>
+            <td data-part="cell-value">{dgettext("marketing", "Unlimited")}</td>
+          </tr>
+          <tr data-part="row">
+            <th data-part="cell-feature" scope="row">
+              <div data-part="feature-name">{dgettext("marketing", "Previews")}</div>
+              <div data-part="feature-description">
+                {dgettext(
+                  "marketing",
+                  "Preview your project apps in simulator or devices with one click/command."
+                )}
+              </div>
+            </th>
+            <td data-part="cell-value">{dgettext("marketing", "Unlimited")}</td>
+            <td data-part="cell-value">{dgettext("marketing", "Unlimited")}</td>
+            <td data-part="cell-value">{dgettext("marketing", "Unlimited")}</td>
+          </tr>
+          <tr data-part="row">
+            <th data-part="cell-feature" scope="row">
+              <div data-part="feature-name">{dgettext("marketing", "Registry")}</div>
+              <div data-part="feature-description">
+                {dgettext(
+                  "marketing",
+                  "Download only what you need — faster, lighter builds locally and on CI."
+                )}
+              </div>
+            </th>
+            <td data-part="cell-value">{dgettext("marketing", "Unlimited")}</td>
+            <td data-part="cell-value">{dgettext("marketing", "Unlimited")}</td>
+            <td data-part="cell-value">{dgettext("marketing", "Unlimited")}</td>
+          </tr>
+          <tr data-part="row">
+            <th data-part="cell-feature" scope="row">
+              <div data-part="feature-name">{dgettext("marketing", "Build Insights")}</div>
+              <div data-part="feature-description">
+                {dgettext(
+                  "marketing",
+                  "Explore what is making your builds slow and speed up your builds."
+                )}
+              </div>
+            </th>
+            <td data-part="cell-value">{dgettext("marketing", "Unlimited")}</td>
+            <td data-part="cell-value">{dgettext("marketing", "Unlimited")}</td>
+            <td data-part="cell-value">{dgettext("marketing", "Unlimited")}</td>
+          </tr>
+          <tr data-part="row">
+            <th data-part="cell-feature" scope="row">
+              <div data-part="feature-name">{dgettext("marketing", "Bundle Insights")}</div>
+              <div data-part="feature-description">
+                {dgettext(
+                  "marketing",
+                  "Track and reduce app size by spotting duplicate assets, unused symbols, and legacy code."
+                )}
+              </div>
+            </th>
+            <td data-part="cell-value">{dgettext("marketing", "Unlimited")}</td>
+            <td data-part="cell-value">{dgettext("marketing", "Unlimited")}</td>
+            <td data-part="cell-value">{dgettext("marketing", "Unlimited")}</td>
+          </tr>
+          <tr data-part="row">
+            <th data-part="cell-feature" scope="row">
+              <div data-part="feature-name">
+                {dgettext("marketing", "Self-hosting Tuist instance")}
+              </div>
+            </th>
+            <td data-part="cell-value" data-available="false">
+              <.close_icon />
+            </td>
+            <td data-part="cell-value" data-available="false">
+              <.close_icon />
+            </td>
+            <td data-part="cell-value" data-available="true">
+              <.check_circle_icon />
+            </td>
+          </tr>
+          <tr data-part="row">
+            <th data-part="cell-feature" scope="row">
+              <div data-part="feature-name">{dgettext("marketing", "Tailored legal terms")}</div>
+            </th>
+            <td data-part="cell-value" data-available="false">
+              <.close_icon />
+            </td>
+            <td data-part="cell-value" data-available="false">
+              <.close_icon />
+            </td>
+            <td data-part="cell-value" data-available="true">
+              <.check_circle_icon />
+            </td>
+          </tr>
+          <tr data-part="row">
+            <th data-part="cell-feature" scope="row">
+              <div data-part="feature-name">{dgettext("marketing", "Support")}</div>
+            </th>
+            <td data-part="cell-value">
+              <div data-part="support-level">{dgettext("marketing", "Community support")}</div>
+              <div data-part="support-description">
+                {dgettext("marketing", "via Discourse forum")}
+              </div>
+            </td>
+            <td data-part="cell-value">
+              <div data-part="support-level">{dgettext("marketing", "Standard support")}</div>
+              <div data-part="support-description">
+                {dgettext("marketing", "via Slack and email")}
+              </div>
+            </td>
+            <td data-part="cell-value">
+              <div data-part="support-level">{dgettext("marketing", "Priority support")}</div>
+              <div data-part="support-description">
+                {dgettext("marketing", "via Slack and email")}
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
     <section data-part="faq">
       <h2 data-part="title" id="qa">{dgettext("marketing", "Frequently Asked Questions")}</h2>
       <div data-part="questions">
@@ -26,10 +257,7 @@
             aria-controls="faq-answer-1"
           >
             <h3 data-part="question">
-              {dgettext(
-                "marketing",
-                "Why is your pricing more accessible compared to traditional enterprise models?"
-              )}
+              {dgettext("marketing", "Do you support a seat-based pricing model?")}
             </h3>
             <.chevron_down />
           </button>
@@ -42,35 +270,7 @@
             <p>
               {dgettext(
                 "marketing",
-                "Our commitment to open-source and our core values shape our unique approach to pricing. Unlike many models that try to extract every dollar from you with \"contact sales\" calls, limited demos, and other sales tactics, we believe in fairness and transparency. We treat everyone equally and set prices that are fair for all. By choosing our services, you are not only getting a great product but also supporting the development of more open-source projects. We see building a thriving business as a long-term journey, not a short-term sprint filled with shady practices. You can read more about our philosophy. By supporting Tuist, you are also supporting the development of more open-source software for the Swift ecosystem."
-              )}
-            </p>
-          </div>
-        </div>
-        <div data-part="question" data-expanded="false">
-          <button
-            data-part="header"
-            phx-hook="FaqAccordion"
-            id="faq-question-2"
-            type="button"
-            aria-expanded="false"
-            aria-controls="faq-answer-2"
-          >
-            <h3 data-part="question">
-              {dgettext("marketing", "How can I estimate the cost for my project?")}
-            </h3>
-            <.chevron_down />
-          </button>
-          <div
-            data-part="response"
-            id="faq-answer-2"
-            role="region"
-            aria-labelledby="faq-question-2"
-          >
-            <p>
-              {dgettext(
-                "marketing",
-                "You can set up the Air plan, and use the features for a few days to get a usage estimate. If you need a higher limit, let us know and we can help you set up a custom plan."
+                "Yes, we do. Please contact us at contact@tuist.dev to discuss your team's needs and we'll set up a custom plan that works for you."
               )}
             </p>
           </div>
@@ -85,7 +285,7 @@
             aria-controls="faq-answer-3"
           >
             <h3 data-part="question">
-              {dgettext("marketing", "Is there a free trial for paid plans?")}
+              {dgettext("marketing", "What payment methods do you accept?")}
             </h3>
             <.chevron_down />
           </button>
@@ -96,10 +296,7 @@
             aria-labelledby="faq-question-3"
           >
             <p>
-              {dgettext(
-                "marketing",
-                "We have a generous free tier on every paid plan so you can try out the features before paying any money."
-              )}
+              {dgettext("marketing", "We accept credit card payments and wire transfers.")}
             </p>
           </div>
         </div>
@@ -113,7 +310,7 @@
             aria-controls="faq-answer-4"
           >
             <h3 data-part="question">
-              {dgettext("marketing", "Do you offer disccounts for non-profits and open-source?")}
+              {dgettext("marketing", "Can I change or cancel my plan at any time?")}
             </h3>
             <.chevron_down />
           </button>
@@ -126,7 +323,203 @@
             <p>
               {dgettext(
                 "marketing",
-                "Yes, we do. Please reach out to oss@tuist.dev for more information."
+                "Yes, you can manage your plan at any time through our management interface."
+              )}
+            </p>
+          </div>
+        </div>
+        <div data-part="question" data-expanded="false">
+          <button
+            data-part="header"
+            phx-hook="FaqAccordion"
+            id="faq-question-5"
+            type="button"
+            aria-expanded="false"
+            aria-controls="faq-answer-5"
+          >
+            <h3 data-part="question">
+              {dgettext("marketing", "What happens if I exceed my plan limits?")}
+            </h3>
+            <.chevron_down />
+          </button>
+          <div
+            data-part="response"
+            id="faq-answer-5"
+            role="region"
+            aria-labelledby="faq-question-5"
+          >
+            <p>
+              {dgettext(
+                "marketing",
+                "You'll be warned before reaching your plan limits. Once reached, the plan will cap interactions to prevent unexpected charges."
+              )}
+            </p>
+          </div>
+        </div>
+        <div data-part="question" data-expanded="false">
+          <button
+            data-part="header"
+            phx-hook="FaqAccordion"
+            id="faq-question-6"
+            type="button"
+            aria-expanded="false"
+            aria-controls="faq-answer-6"
+          >
+            <h3 data-part="question">
+              {dgettext("marketing", "Do you offer annual billing discounts?")}
+            </h3>
+            <.chevron_down />
+          </button>
+          <div
+            data-part="response"
+            id="faq-answer-6"
+            role="region"
+            aria-labelledby="faq-question-6"
+          >
+            <p>
+              {dgettext(
+                "marketing",
+                "Yes, we offer discounts for yearly subscriptions. Please contact us at contact@tuist.dev to learn more."
+              )}
+            </p>
+          </div>
+        </div>
+        <div data-part="question" data-expanded="false">
+          <button
+            data-part="header"
+            phx-hook="FaqAccordion"
+            id="faq-question-7"
+            type="button"
+            aria-expanded="false"
+            aria-controls="faq-answer-7"
+          >
+            <h3 data-part="question">
+              {dgettext("marketing", "Is there a minimum contract length?")}
+            </h3>
+            <.chevron_down />
+          </button>
+          <div
+            data-part="response"
+            id="faq-answer-7"
+            role="region"
+            aria-labelledby="faq-question-7"
+          >
+            <p>
+              {dgettext(
+                "marketing",
+                "No, there's no minimum contract length. You're free to cancel at any time."
+              )}
+            </p>
+          </div>
+        </div>
+        <div data-part="question" data-expanded="false">
+          <button
+            data-part="header"
+            phx-hook="FaqAccordion"
+            id="faq-question-8"
+            type="button"
+            aria-expanded="false"
+            aria-controls="faq-answer-8"
+          >
+            <h3 data-part="question">
+              {dgettext("marketing", "What support is included with each plan?")}
+            </h3>
+            <.chevron_down />
+          </button>
+          <div
+            data-part="response"
+            id="faq-answer-8"
+            role="region"
+            aria-labelledby="faq-question-8"
+          >
+            <p>
+              {dgettext(
+                "marketing",
+                "Tuist Pro includes support through our community forum and GitHub issues. Enterprise plans include dedicated support via Slack channels with high priority response times."
+              )}
+            </p>
+          </div>
+        </div>
+        <div data-part="question" data-expanded="false">
+          <button
+            data-part="header"
+            phx-hook="FaqAccordion"
+            id="faq-question-9"
+            type="button"
+            aria-expanded="false"
+            aria-controls="faq-answer-9"
+          >
+            <h3 data-part="question">
+              {dgettext("marketing", "How can I estimate the cost for my project?")}
+            </h3>
+            <.chevron_down />
+          </button>
+          <div
+            data-part="response"
+            id="faq-answer-9"
+            role="region"
+            aria-labelledby="faq-question-9"
+          >
+            <p>
+              {dgettext(
+                "marketing",
+                "You can set up the Air plan and use the features for a few days to get a usage estimate. If you need a higher limit, let us know and we can help you set up a custom plan."
+              )}
+            </p>
+          </div>
+        </div>
+        <div data-part="question" data-expanded="false">
+          <button
+            data-part="header"
+            phx-hook="FaqAccordion"
+            id="faq-question-10"
+            type="button"
+            aria-expanded="false"
+            aria-controls="faq-answer-10"
+          >
+            <h3 data-part="question">
+              {dgettext("marketing", "Is there a free trial for paid plans?")}
+            </h3>
+            <.chevron_down />
+          </button>
+          <div
+            data-part="response"
+            id="faq-answer-10"
+            role="region"
+            aria-labelledby="faq-question-10"
+          >
+            <p>
+              {dgettext(
+                "marketing",
+                "We have a generous free tier on every paid plan so you can try out the features before paying any money."
+              )}
+            </p>
+          </div>
+        </div>
+        <div data-part="question" data-expanded="false">
+          <button
+            data-part="header"
+            phx-hook="FaqAccordion"
+            id="faq-question-11"
+            type="button"
+            aria-expanded="false"
+            aria-controls="faq-answer-11"
+          >
+            <h3 data-part="question">
+              {dgettext("marketing", "Do you offer discounts for non-profits and open-source?")}
+            </h3>
+            <.chevron_down />
+          </button>
+          <div
+            data-part="response"
+            id="faq-answer-11"
+            role="region"
+            aria-labelledby="faq-question-11"
+          >
+            <p>
+              {dgettext(
+                "marketing",
+                "Yes, we do. Please reach out to contact@tuist.dev for more information."
               )}
             </p>
           </div>

@@ -3,7 +3,6 @@ defmodule TuistWeb.Marketing.MarketingChangelogLive do
   use TuistWeb, :live_view
   use Noora
 
-  import TuistWeb.CSP, only: [get_csp_nonce: 0]
   import TuistWeb.Marketing.StructuredMarkup
 
   alias Tuist.Marketing.Changelog
