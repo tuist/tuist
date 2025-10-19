@@ -1,4 +1,17 @@
 #marketing-navbar {
+  @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+    margin-top: var(--noora-spacing-7);
+    margin-right: var(--noora-spacing-6);
+    margin-left: var(--noora-spacing-6);
+  }
+
+  @container style(--inline-size-lg: var(--marketing-breakpoint-lg)) {
+    align-self: center;
+    width: 100%;
+    max-width: 1296px;
+  }
+
+
   & > [data-part="bar"] {
     display: flex;
     position: relative;
@@ -20,18 +33,6 @@
     border-radius: var(--noora-radius-xlarge);
     background: rgba(253, 253, 253, 0.5);
     padding: var(--noora-spacing-3) var(--noora-spacing-6);
-
-    @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
-      margin-top: var(--noora-spacing-7);
-      margin-right: var(--noora-spacing-6);
-      margin-left: var(--noora-spacing-6);
-    }
-
-    @container style(--inline-size-lg: var(--marketing-breakpoint-lg)) {
-      align-self: center;
-      width: 100%;
-      max-width: 1296px;
-    }
 
     & > [data-part="tuist"] {
       display: flex;
@@ -539,6 +540,7 @@
 
   &[data-mobile-menu-open="true"] {
     display: flex;
+    align-items: stretch;
     position: fixed;
     flex-direction: column;
     gap: var(--noora-spacing-6);
@@ -556,7 +558,26 @@
     & > [data-part="mobile-menus"] {
       display: flex;
       flex-direction: column;
+      align-items: stretch;
       padding: 0 var(--noora-spacing-6) var(--noora-spacing-7) var(--noora-spacing-6);
+
+      & > [data-part="menu"] {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+
+        & > [data-part="action"] {
+          display: flex;
+          flex-direction: row;
+          justify-content: space-between;
+          padding: var(--noora-spacing-5) var(--noora-spacing-6);
+
+          & > [data-part="title"] {
+            color: var(--noora-surface-label-primary);
+            font: var(--noora-font-weight-medium) var(--noora-font-body-large);
+          }
+        }
+      }
     }
   }
 }
