@@ -67,7 +67,7 @@ public final class SaveCacheCASService: SaveCacheCASServicing {
             )
         )
         switch response {
-        case .ok:
+        case .noContent:
             return
         case let .forbidden(forbidden):
             switch forbidden.body {

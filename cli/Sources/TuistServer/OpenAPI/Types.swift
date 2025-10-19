@@ -2402,21 +2402,6 @@ public enum Components {
                 case message
             }
         }
-        /// - Remark: Generated from `#/components/schemas/CASArtifact`.
-        public struct CASArtifact: Codable, Hashable, Sendable {
-            /// - Remark: Generated from `#/components/schemas/CASArtifact/id`.
-            public var id: Swift.String?
-            /// Creates a new `CASArtifact`.
-            ///
-            /// - Parameters:
-            ///   - id:
-            public init(id: Swift.String? = nil) {
-                self.id = id
-            }
-            public enum CodingKeys: String, CodingKey {
-                case id
-            }
-        }
         /// Parameters to create a single run.
         ///
         /// - Remark: Generated from `#/components/schemas/RunParams`.
@@ -16805,67 +16790,36 @@ public enum Operations {
             }
         }
         @frozen public enum Output: Sendable, Hashable {
-            public struct Ok: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/cache/cas/{id}/POST/responses/200/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/cache/cas/{id}/POST/responses/200/content/json`.
-                    public struct jsonPayload: Codable, Hashable, Sendable {
-                        /// - Remark: Generated from `#/paths/api/cache/cas/{id}/POST/responses/200/content/json/id`.
-                        public var id: Swift.String?
-                        /// Creates a new `jsonPayload`.
-                        ///
-                        /// - Parameters:
-                        ///   - id:
-                        public init(id: Swift.String? = nil) {
-                            self.id = id
-                        }
-                        public enum CodingKeys: String, CodingKey {
-                            case id
-                        }
-                    }
-                    /// - Remark: Generated from `#/paths/api/cache/cas/{id}/POST/responses/200/content/application\/json`.
-                    case json(Operations.saveCacheCAS.Output.Ok.Body.jsonPayload)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    public var json: Operations.saveCacheCAS.Output.Ok.Body.jsonPayload {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                public var body: Operations.saveCacheCAS.Output.Ok.Body
-                /// Creates a new `Ok`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                public init(body: Operations.saveCacheCAS.Output.Ok.Body) {
-                    self.body = body
-                }
+            public struct NoContent: Sendable, Hashable {
+                /// Creates a new `NoContent`.
+                public init() {}
             }
             /// Upload successful
             ///
-            /// - Remark: Generated from `#/paths//api/cache/cas/{id}/post(saveCacheCAS)/responses/200`.
+            /// - Remark: Generated from `#/paths//api/cache/cas/{id}/post(saveCacheCAS)/responses/204`.
             ///
-            /// HTTP response code: `200 ok`.
-            case ok(Operations.saveCacheCAS.Output.Ok)
-            /// The associated value of the enum case if `self` is `.ok`.
+            /// HTTP response code: `204 noContent`.
+            case noContent(Operations.saveCacheCAS.Output.NoContent)
+            /// Upload successful
             ///
-            /// - Throws: An error if `self` is not `.ok`.
-            /// - SeeAlso: `.ok`.
-            public var ok: Operations.saveCacheCAS.Output.Ok {
+            /// - Remark: Generated from `#/paths//api/cache/cas/{id}/post(saveCacheCAS)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            public static var noContent: Self {
+                .noContent(.init())
+            }
+            /// The associated value of the enum case if `self` is `.noContent`.
+            ///
+            /// - Throws: An error if `self` is not `.noContent`.
+            /// - SeeAlso: `.noContent`.
+            public var noContent: Operations.saveCacheCAS.Output.NoContent {
                 get throws {
                     switch self {
-                    case let .ok(response):
+                    case let .noContent(response):
                         return response
                     default:
                         try throwUnexpectedResponseStatus(
-                            expectedStatus: "ok",
+                            expectedStatus: "noContent",
                             response: self
                         )
                     }

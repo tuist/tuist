@@ -59,6 +59,7 @@ describe('CAS Module', () => {
         get: vi.fn(),
       },
       body: null,
+      arrayBuffer: vi.fn(),
     };
   });
 
@@ -314,6 +315,53 @@ describe('CAS Module', () => {
         expect.any(String),
         JSON.stringify({ error: 'Unauthorized or not found', status: 401 }),
         { expirationTtl: 300 }
+      );
+    });
+
+    it('should return 204 when artifact already exists', async () => {
+      mockRequest.headers.get.mockReturnValue('Bearer token123');
+      env.CAS_CACHE.get.mockResolvedValue(null);
+      serverFetch.mockResolvedValue(
+        new Response(JSON.stringify({ prefix: 'test-account/test-project/cas/' }), { status: 200 })
+      );
+      checkS3ObjectExists.mockResolvedValue(true);
+      getS3Url.mockReturnValue('https://s3.amazonaws.com/test-bucket/test-key');
+
+      const response = await handleSave(mockRequest, env, {});
+
+      expect(response.status).toBe(204);
+      expect(response.body).toBeNull();
+      expect(mockS3Client.fetch).not.toHaveBeenCalled(); // Should not upload if exists
+    });
+
+    it('should upload file to S3 and return 204 on success', async () => {
+      mockRequest.headers.get.mockImplementation((header) => {
+        if (header === 'Authorization') return 'Bearer token123';
+        if (header === 'Content-Type') return 'application/octet-stream';
+        return null;
+      });
+      mockRequest.arrayBuffer.mockResolvedValue(new ArrayBuffer(100));
+      env.CAS_CACHE.get.mockResolvedValue(null);
+      serverFetch.mockResolvedValue(
+        new Response(JSON.stringify({ prefix: 'test-account/test-project/cas/' }), { status: 200 })
+      );
+      checkS3ObjectExists.mockResolvedValue(false);
+      getS3Url.mockReturnValue('https://s3.amazonaws.com/test-bucket/test-key');
+      mockS3Client.fetch.mockResolvedValue(new Response(null, { status: 200 }));
+
+      const response = await handleSave(mockRequest, env, {});
+
+      expect(response.status).toBe(204);
+      expect(response.body).toBeNull();
+      expect(mockS3Client.fetch).toHaveBeenCalledWith(
+        'https://s3.amazonaws.com/test-bucket/test-key',
+        expect.objectContaining({
+          method: 'PUT',
+          body: expect.any(ArrayBuffer),
+          headers: expect.objectContaining({
+            'Content-Type': 'application/octet-stream'
+          })
+        })
       );
     });
   });

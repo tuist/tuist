@@ -168,7 +168,7 @@ export async function handleSave(request, env) {
 
   const exists = await checkS3ObjectExists(s3Client, endpoint, bucket, key, virtualHost);
   if (exists) {
-    return jsonResponse({ id: key });
+    return new Response(null, { status: 204 });
   }
 
   const bodyBuffer = await request.arrayBuffer();
@@ -190,7 +190,7 @@ export async function handleSave(request, env) {
       });
     }
 
-    return jsonResponse({ id: key });
+    return new Response(null, { status: 204 });
   } catch (e) {
     return errorResponse('S3 error', 500);
   }

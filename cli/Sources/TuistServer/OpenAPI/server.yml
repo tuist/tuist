@@ -735,16 +735,6 @@ components:
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.ValidationError
       x-validate:
-    CASArtifact:
-      properties:
-        id:
-          type: string
-          x-struct:
-          x-validate:
-      title: CASArtifact
-      type: object
-      x-struct:
-      x-validate:
     RunParams:
       description: Parameters to create a single run.
       oneOf:
@@ -4913,19 +4903,7 @@ paths:
         description: The CAS artifact data
         required: true
       responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                properties:
-                  id:
-                    type: string
-                    x-struct:
-                    x-validate:
-                title: CASArtifact
-                type: object
-                x-struct:
-                x-validate:
+        '204':
           description: Upload successful
         '400':
           content:

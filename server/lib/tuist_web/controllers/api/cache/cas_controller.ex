@@ -153,9 +153,7 @@ defmodule TuistWeb.API.CASController do
     ],
     request_body: {"The CAS artifact data", "application/octet-stream", nil, required: true},
     responses: %{
-      ok:
-        {"Upload successful", "application/json",
-         %Schema{type: :object, title: "CASArtifact", properties: %{id: %Schema{type: :string}}}},
+      no_content: {"Upload successful", nil, nil},
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
       bad_request: {"The request is invalid", "application/json", Error}
@@ -168,16 +166,12 @@ defmodule TuistWeb.API.CASController do
     key = cas_key(account, project, id)
 
     if Storage.object_exists?(key, current_subject) do
-      conn
-      |> put_status(:ok)
-      |> json(%{id: "key"})
+      send_resp(conn, :no_content, "")
     else
       # Stream the upload from the request body to S3
       Storage.put_object(key, body, current_subject)
 
-      conn
-      |> put_status(:ok)
-      |> json(%{id: key})
+      send_resp(conn, :no_content, "")
     end
   end
 end
