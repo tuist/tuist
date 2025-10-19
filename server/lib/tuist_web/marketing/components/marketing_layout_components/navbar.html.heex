@@ -533,10 +533,10 @@
     </nav>
   </div>
   <div data-part="mobile-menus">
-    <div data-part="menu">
+    <div data-part="menu" phx-hook="MobileMenuDropdown" id="mobile-menu-features">
       <div data-part="action">
         <h3 data-part="title">{dgettext("marketing", "Features")}</h3>
-        <.chevron_down/>
+        <span data-part="chevron"><.chevron_down /></span>
       </div>
       <div data-part="dropdown">
         Feature 1
