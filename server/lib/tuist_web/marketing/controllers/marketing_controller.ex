@@ -115,7 +115,8 @@ defmodule TuistWeb.Marketing.MarketingController do
     |> assign_structured_data(
       get_breadcrumbs_structured_data([
         {dgettext("marketing", "Tuist"), Tuist.Environment.app_url(path: ~p"/")},
-        {dgettext("marketing", "Swift Stories Newsletter"), Tuist.Environment.app_url(path: ~p"/newsletter")}
+        {dgettext("marketing", "Swift Stories Newsletter"),
+         Tuist.Environment.app_url(path: ~p"/newsletter")}
       ])
     )
     |> assign(
@@ -240,7 +241,9 @@ defmodule TuistWeb.Marketing.MarketingController do
 
         nil ->
           raise NotFoundError,
-                dgettext("marketing", "The newsletter issue %{issue_number} was not found.", issue_number: issue_number)
+                dgettext("marketing", "The newsletter issue %{issue_number} was not found.",
+                  issue_number: issue_number
+                )
       end
 
     conn =
@@ -371,6 +374,8 @@ defmodule TuistWeb.Marketing.MarketingController do
   end
 
   def pricing(conn, _params) do
+    template = if(FunWithFlags.enabled?(:marketing_next), do: :pricing_next, else: :pricing)
+
     faqs = [
       {dgettext(
          "marketing",
@@ -382,7 +387,8 @@ defmodule TuistWeb.Marketing.MarketingController do
          <p>Our commitment to open-source and our core values shape our unique approach to pricing. Unlike many models that try to extract every dollar from you with "contact sales" calls, limited demos, and other sales tactics, we believe in fairness and transparency. We treat everyone equally and set prices that are fair for all. By choosing our services, you are not only getting a great product but also supporting the development of more open-source projects. We see building a thriving business as a long-term journey, not a short-term sprint filled with shady practices. You can %{read_more}  about our philosophy.</p>
          <p>By supporting Tuist, you are also supporting the development of more open-source software for the Swift ecosystem.</p>
          """,
-         read_more: "<a href=\"#{~p"/blog/2024/11/05/our-pricing-philosophy"}\">#{dgettext("marketing", "read more")}</a>"
+         read_more:
+           "<a href=\"#{~p"/blog/2024/11/05/our-pricing-philosophy"}\">#{dgettext("marketing", "read more")}</a>"
        )},
       {dgettext("marketing", "How can I estimate the cost of my project?"),
        dgettext(
@@ -424,7 +430,7 @@ defmodule TuistWeb.Marketing.MarketingController do
         "Discover our flexible pricing plans at Tuist. Enjoy a free tier with no time limits, and pay only for what you use. Plus, it's free forever for open source projects."
       )
     )
-    |> render(:pricing, layout: false)
+    |> render(template, layout: false)
   end
 
   def page(conn, _params) do
@@ -443,7 +449,8 @@ defmodule TuistWeb.Marketing.MarketingController do
     |> assign(
       :head_image,
       Tuist.Environment.app_url(
-        path: "/marketing/images/og/generated/#{page.slug |> String.split("/") |> List.last()}.jpg"
+        path:
+          "/marketing/images/og/generated/#{page.slug |> String.split("/") |> List.last()}.jpg"
       )
     )
     |> assign(:head_twitter_card, "summary_large_image")
