@@ -2,7 +2,13 @@
   <main id="marketing-about">
     <TuistWeb.Marketing.MarketingComponents.navbar {assigns} />
 
-    <img data-part="background" src={~p"/marketing/images/about/background.webp"} alt="" />
+    <picture data-part="background">
+      <source
+        media="(max-width: 1024px)"
+        srcset={~p"/marketing/images/about/background-sm.webp"}
+      />
+      <img src={~p"/marketing/images/about/background.webp"} alt="" />
+    </picture>
     <header data-part="header">
       <img data-part="logo" src={~p"/marketing/images/about/logo.webp"} alt="Tuist" />
       <h1 data-part="title">
