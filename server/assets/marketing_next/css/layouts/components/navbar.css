@@ -549,6 +549,8 @@
     border-radius: 0;
     background: var(--noora-surface-background-primary);
     max-width: none;
+    height: 100vh;
+    overflow-y: auto;
 
     & > [data-part="bar"] {
       box-shadow: none;
@@ -596,7 +598,6 @@
           display: none;
           flex-direction: column;
           gap: var(--noora-spacing-4);
-          padding-bottom: var(--noora-spacing-4);
 
           &[data-open="true"] {
             display: flex;
