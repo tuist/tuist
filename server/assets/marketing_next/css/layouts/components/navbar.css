@@ -564,6 +564,10 @@
         display: flex;
         flex-direction: column;
         align-items: stretch;
+        border-top: 1px solid var(--noora-content-divider-line);
+        &:first-child {
+          border-top: none;
+        }
 
         & > [data-part="action"] {
           display: flex;
@@ -659,7 +663,7 @@
       }
 
       & > [data-part="menu-simple"] {
-        border-top: 1px solid var(--noora-surface-border-secondary);
+        border-top: 1px solid var(--noora-content-divider-line);
         padding: var(--noora-spacing-5) var(--noora-spacing-6);
 
         & > [data-part="link"] {
