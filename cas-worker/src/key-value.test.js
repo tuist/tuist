@@ -239,9 +239,8 @@ describe('KeyValue handlers', () => {
         ]),
       );
       expect(cache.put).toHaveBeenCalled();
-      expect(response.status).toBe(200);
-      const body = await response.json();
-      expect(body.entries).toEqual([{ value: 'value-1' }, { value: 'value-2' }]);
+      expect(response.status).toBe(204);
+      expect(response.body).toBeNull();
     });
 
     it('filters out entries without string values', async () => {
@@ -260,10 +259,8 @@ describe('KeyValue handlers', () => {
         'keyvalue:my-account:my-project:cas123',
         JSON.stringify([{ value: 'value-1' }]),
       );
-      expect(response.status).toBe(200);
-      await expect(response.json()).resolves.toEqual({
-        entries: [{ value: 'value-1' }],
-      });
+      expect(response.status).toBe(204);
+      expect(response.body).toBeNull();
     });
 
     it('replaces existing entries entirely', async () => {
@@ -289,10 +286,8 @@ describe('KeyValue handlers', () => {
         ],
       });
 
-      expect(response.status).toBe(200);
-      await expect(response.json()).resolves.toEqual({
-        entries: [{ value: 'value-1' }, { value: 'value-2' }],
-      });
+      expect(response.status).toBe(204);
+      expect(response.body).toBeNull();
     });
 
     it('returns 400 when filtered entries array is empty', async () => {

@@ -81,7 +81,7 @@ public final class PutCacheValueService: PutCacheValueServicing {
         )
 
         switch response {
-        case .ok:
+        case .noContent:
             return
         case let .forbidden(forbidden):
             switch forbidden.body {

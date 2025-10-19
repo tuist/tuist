@@ -7776,86 +7776,36 @@ public enum Operations {
             }
         }
         @frozen public enum Output: Sendable, Hashable {
-            public struct Ok: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/cache/keyvalue/PUT/responses/200/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/cache/keyvalue/PUT/responses/200/content/json`.
-                    public struct jsonPayload: Codable, Hashable, Sendable {
-                        /// - Remark: Generated from `#/paths/api/cache/keyvalue/PUT/responses/200/content/json/entriesPayload`.
-                        public struct entriesPayloadPayload: Codable, Hashable, Sendable {
-                            /// The value of the entry
-                            ///
-                            /// - Remark: Generated from `#/paths/api/cache/keyvalue/PUT/responses/200/content/json/entriesPayload/value`.
-                            public var value: Swift.String
-                            /// Creates a new `entriesPayloadPayload`.
-                            ///
-                            /// - Parameters:
-                            ///   - value: The value of the entry
-                            public init(value: Swift.String) {
-                                self.value = value
-                            }
-                            public enum CodingKeys: String, CodingKey {
-                                case value
-                            }
-                        }
-                        /// - Remark: Generated from `#/paths/api/cache/keyvalue/PUT/responses/200/content/json/entries`.
-                        public typealias entriesPayload = [Operations.putCacheValue.Output.Ok.Body.jsonPayload.entriesPayloadPayload]
-                        /// - Remark: Generated from `#/paths/api/cache/keyvalue/PUT/responses/200/content/json/entries`.
-                        public var entries: Operations.putCacheValue.Output.Ok.Body.jsonPayload.entriesPayload
-                        /// Creates a new `jsonPayload`.
-                        ///
-                        /// - Parameters:
-                        ///   - entries:
-                        public init(entries: Operations.putCacheValue.Output.Ok.Body.jsonPayload.entriesPayload) {
-                            self.entries = entries
-                        }
-                        public enum CodingKeys: String, CodingKey {
-                            case entries
-                        }
-                    }
-                    /// - Remark: Generated from `#/paths/api/cache/keyvalue/PUT/responses/200/content/application\/json`.
-                    case json(Operations.putCacheValue.Output.Ok.Body.jsonPayload)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    public var json: Operations.putCacheValue.Output.Ok.Body.jsonPayload {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                public var body: Operations.putCacheValue.Output.Ok.Body
-                /// Creates a new `Ok`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                public init(body: Operations.putCacheValue.Output.Ok.Body) {
-                    self.body = body
-                }
+            public struct NoContent: Sendable, Hashable {
+                /// Creates a new `NoContent`.
+                public init() {}
             }
             /// Value stored successfully
             ///
-            /// - Remark: Generated from `#/paths//api/cache/keyvalue/put(putCacheValue)/responses/200`.
+            /// - Remark: Generated from `#/paths//api/cache/keyvalue/put(putCacheValue)/responses/204`.
             ///
-            /// HTTP response code: `200 ok`.
-            case ok(Operations.putCacheValue.Output.Ok)
-            /// The associated value of the enum case if `self` is `.ok`.
+            /// HTTP response code: `204 noContent`.
+            case noContent(Operations.putCacheValue.Output.NoContent)
+            /// Value stored successfully
             ///
-            /// - Throws: An error if `self` is not `.ok`.
-            /// - SeeAlso: `.ok`.
-            public var ok: Operations.putCacheValue.Output.Ok {
+            /// - Remark: Generated from `#/paths//api/cache/keyvalue/put(putCacheValue)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            public static var noContent: Self {
+                .noContent(.init())
+            }
+            /// The associated value of the enum case if `self` is `.noContent`.
+            ///
+            /// - Throws: An error if `self` is not `.noContent`.
+            /// - SeeAlso: `.noContent`.
+            public var noContent: Operations.putCacheValue.Output.NoContent {
                 get throws {
                     switch self {
-                    case let .ok(response):
+                    case let .noContent(response):
                         return response
                     default:
                         try throwUnexpectedResponseStatus(
-                            expectedStatus: "ok",
+                            expectedStatus: "noContent",
                             response: self
                         )
                     }

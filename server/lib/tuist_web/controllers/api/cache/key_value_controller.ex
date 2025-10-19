@@ -133,26 +133,7 @@ defmodule TuistWeb.API.Cache.KeyValueController do
       required: true
     },
     responses: %{
-      ok: {
-        "Value stored successfully",
-        "application/json",
-        %Schema{
-          type: :object,
-          properties: %{
-            entries: %Schema{
-              type: :array,
-              items: %Schema{
-                type: :object,
-                properties: %{
-                  value: %Schema{type: :string, description: "The value of the entry"}
-                },
-                required: [:value]
-              }
-            }
-          },
-          required: [:entries]
-        }
-      },
+      no_content: {"Value stored successfully", nil, nil},
       unauthorized: {
         "You need to be authenticated to access this resource",
         "application/json",
@@ -172,21 +153,17 @@ defmodule TuistWeb.API.Cache.KeyValueController do
         %{assigns: %{selected_project: project}, body_params: %{entries: entries, cas_id: cas_id}} = conn,
         _params
       ) do
-    inserted_entries =
-      Enum.map(entries, fn entry ->
-        entry_attrs = %{
-          cas_id: cas_id,
-          value: entry.value,
-          project_id: project.id,
-          inserted_at: NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
-        }
+    Enum.each(entries, fn entry ->
+      entry_attrs = %{
+        cas_id: cas_id,
+        value: entry.value,
+        project_id: project.id,
+        inserted_at: NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
+      }
 
-        {:ok, entry} = Cache.create_entry(entry_attrs)
-        entry
-      end)
+      {:ok, _entry} = Cache.create_entry(entry_attrs)
+    end)
 
-    conn
-    |> put_status(:ok)
-    |> json(%{entries: Enum.map(inserted_entries, fn entry -> %{value: entry.value} end)})
+    send_resp(conn, :no_content, "")
   end
 end

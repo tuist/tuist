@@ -156,5 +156,5 @@ export async function handleKeyValuePut(request, env) {
   });
   await writeCache(cacheKey, cacheResponse);
 
-  return jsonResponse({ entries: sanitizedEntries });
+  return new Response(null, { status: 204 });
 }

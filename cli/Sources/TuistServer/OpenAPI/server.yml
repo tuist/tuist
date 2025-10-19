@@ -3187,32 +3187,7 @@ paths:
         description: CAS entries with CAS ID
         required: true
       responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                properties:
-                  entries:
-                    items:
-                      properties:
-                        value:
-                          description: The value of the entry
-                          type: string
-                          x-struct:
-                          x-validate:
-                      required:
-                        - value
-                      type: object
-                      x-struct:
-                      x-validate:
-                    type: array
-                    x-struct:
-                    x-validate:
-                required:
-                  - entries
-                type: object
-                x-struct:
-                x-validate:
+        '204':
           description: Value stored successfully
         '400':
           content:
