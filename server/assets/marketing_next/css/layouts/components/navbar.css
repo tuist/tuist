@@ -596,6 +596,7 @@
           display: none;
           flex-direction: column;
           gap: var(--noora-spacing-4);
+          padding-bottom: var(--noora-spacing-4);
 
           &[data-open="true"] {
             display: flex;
@@ -664,16 +665,20 @@
             display: flex;
             position: relative;
             flex-direction: column;
-            gap: var(--noora-spacing-6);
+            gap: var(--noora-spacing-7);
             margin-top: var(--noora-spacing-4);
+            border-top: 1px solid var(--noora-content-divider-line);
             border-radius: var(--noora-radius-medium);
-            padding: var(--noora-spacing-5) var(--noora-spacing-6);
+            padding: var(--noora-spacing-5) var(--noora-spacing-5);
 
             & > [data-part="background"] {
               position: absolute;
+              top: 0;
+              right: calc(-1 * var(--noora-spacing-5));
+              bottom: 0;
+              left: calc(-1 * var(--noora-spacing-5));
               z-index: var(--noora-z-index-1);
-              inset: 0;
-              border-radius: inherit;
+              border-radius: var(--noora-radius-medium);
               background: linear-gradient(112deg, rgba(255, 251, 245, 0.7) 0%, rgba(250, 239, 247, 0.7) 100.86%);
               pointer-events: none;
 
@@ -694,6 +699,7 @@
               justify-content: space-between;
               align-items: center;
               z-index: var(--noora-z-index-2);
+              padding: 0 var(--noora-spacing-3);
 
               & > [data-part="title"] {
                 margin: 0;
