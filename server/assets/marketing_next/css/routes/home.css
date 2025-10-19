@@ -6,17 +6,25 @@
   align-items: stretch;
   gap: var(--noora-spacing-11);
 
-  & > nav#marketing-navbar {
-    z-index: var(--noora-z-index-12);
+  & > [data-part="body"],
+  & > [data-part="header"] {
+    padding-right: var(--noora-spacing-6);
+    padding-left: var(--noora-spacing-6);
+
+    @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+      margin-right: auto;
+      margin-left: auto;
+      padding-right: var(--noora-spacing-6);
+      padding-left: var(--noora-spacing-6);
+      width: 650px;
+      max-width: 650px;
+    }
   }
 
   & > section,
   & > header {
     position: relative;
-    align-self: center;
     z-index: var(--noora-z-index-2);
-    width: 100%;
-    max-width: 1296px;
   }
 
   & > [data-part="container"] {

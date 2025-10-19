@@ -9,18 +9,6 @@
     gap: var(--noora-spacing-9);
   }
 
-  & > #marketing-navbar {
-    position: relative;
-    align-self: stretch;
-    z-index: var(--noora-z-index-2);
-
-    @container style(--inline-size-lg: var(--marketing-breakpoint-lg)) {
-      align-self: center;
-      width: 100%;
-      max-width: 1296px;
-    }
-  }
-
   & > [data-part="body"],
   & > [data-part="header"] {
     padding-right: var(--noora-spacing-6);
