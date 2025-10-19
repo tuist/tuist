@@ -14,7 +14,7 @@
     align-self: stretch;
     z-index: var(--noora-z-index-2);
 
-    @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+    @container style(--inline-size-lg: var(--marketing-breakpoint-lg)) {
       align-self: center;
       width: 100%;
       max-width: 1296px;

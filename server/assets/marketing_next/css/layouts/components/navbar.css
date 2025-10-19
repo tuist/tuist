@@ -517,5 +517,11 @@
         }
       }
     }
+
+    & > [data-part="mobile-menu-button"] {
+      @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+        display: none;
+      }
+    }
   }
 }
