@@ -16,8 +16,15 @@
     <section data-part="faq">
       <h2 data-part="title" id="qa">{dgettext("marketing", "Frequently Asked Questions")}</h2>
       <div data-part="questions">
-        <div data-part="question">
-          <div data-part="header">
+        <div data-part="question" data-expanded="false">
+          <button
+            data-part="header"
+            phx-hook="FaqAccordion"
+            id="faq-question-1"
+            type="button"
+            aria-expanded="false"
+            aria-controls="faq-answer-1"
+          >
             <h3 data-part="question">
               {dgettext(
                 "marketing",
@@ -25,56 +32,104 @@
               )}
             </h3>
             <.chevron_down />
+          </button>
+          <div
+            data-part="response"
+            id="faq-answer-1"
+            role="region"
+            aria-labelledby="faq-question-1"
+          >
+            <p>
+              {dgettext(
+                "marketing",
+                "Our commitment to open-source and our core values shape our unique approach to pricing. Unlike many models that try to extract every dollar from you with \"contact sales\" calls, limited demos, and other sales tactics, we believe in fairness and transparency. We treat everyone equally and set prices that are fair for all. By choosing our services, you are not only getting a great product but also supporting the development of more open-source projects. We see building a thriving business as a long-term journey, not a short-term sprint filled with shady practices. You can read more about our philosophy. By supporting Tuist, you are also supporting the development of more open-source software for the Swift ecosystem."
+              )}
+            </p>
           </div>
-          <p data-part="response">
-            {dgettext(
-              "marketing",
-              "Our commitment to open-source and our core values shape our unique approach to pricing. Unlike many models that try to extract every dollar from you with \"contact sales\" calls, limited demos, and other sales tactics, we believe in fairness and transparency. We treat everyone equally and set prices that are fair for all. By choosing our services, you are not only getting a great product but also supporting the development of more open-source projects. We see building a thriving business as a long-term journey, not a short-term sprint filled with shady practices. You can read more about our philosophy. By supporting Tuist, you are also supporting the development of more open-source software for the Swift ecosystem."
-            )}
-          </p>
         </div>
-        <div data-part="question">
-          <div data-part="header">
+        <div data-part="question" data-expanded="false">
+          <button
+            data-part="header"
+            phx-hook="FaqAccordion"
+            id="faq-question-2"
+            type="button"
+            aria-expanded="false"
+            aria-controls="faq-answer-2"
+          >
             <h3 data-part="question">
               {dgettext("marketing", "How can I estimate the cost for my project?")}
             </h3>
             <.chevron_down />
+          </button>
+          <div
+            data-part="response"
+            id="faq-answer-2"
+            role="region"
+            aria-labelledby="faq-question-2"
+          >
+            <p>
+              {dgettext(
+                "marketing",
+                "You can set up the Air plan, and use the features for a few days to get a usage estimate. If you need a higher limit, let us know and we can help you set up a custom plan."
+              )}
+            </p>
           </div>
-          
-          <p data-part="response">
-            {dgettext(
-              "marketing",
-              "You can set up the Air plan, and use the features for a few days to get a usage estimate. If you need a higher limit, let us know and we can help you set up a custom plan."
-            )}
-          </p>
         </div>
-        <div data-part="question">
-          <div data-part="header">
+        <div data-part="question" data-expanded="false">
+          <button
+            data-part="header"
+            phx-hook="FaqAccordion"
+            id="faq-question-3"
+            type="button"
+            aria-expanded="false"
+            aria-controls="faq-answer-3"
+          >
             <h3 data-part="question">
               {dgettext("marketing", "Is there a free trial for paid plans?")}
             </h3>
             <.chevron_down />
+          </button>
+          <div
+            data-part="response"
+            id="faq-answer-3"
+            role="region"
+            aria-labelledby="faq-question-3"
+          >
+            <p>
+              {dgettext(
+                "marketing",
+                "We have a generous free tier on every paid plan so you can try out the features before paying any money."
+              )}
+            </p>
           </div>
-          <p data-part="response">
-            {dgettext(
-              "marketing",
-              "We have a generous free tier on every paid plan so you can try out the features before paying any money."
-            )}
-          </p>
         </div>
-        <div data-part="question">
-          <div data-part="header">
+        <div data-part="question" data-expanded="false">
+          <button
+            data-part="header"
+            phx-hook="FaqAccordion"
+            id="faq-question-4"
+            type="button"
+            aria-expanded="false"
+            aria-controls="faq-answer-4"
+          >
             <h3 data-part="question">
               {dgettext("marketing", "Do you offer disccounts for non-profits and open-source?")}
             </h3>
             <.chevron_down />
+          </button>
+          <div
+            data-part="response"
+            id="faq-answer-4"
+            role="region"
+            aria-labelledby="faq-question-4"
+          >
+            <p>
+              {dgettext(
+                "marketing",
+                "Yes, we do. Please reach out to oss@tuist.dev for more information."
+              )}
+            </p>
           </div>
-          <p data-part="response">
-            {dgettext(
-              "marketing",
-              "Yes, we do. Please reach out to oss@tuist.dev for more information."
-            )}
-          </p>
         </div>
       </div>
     </section>
