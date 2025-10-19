@@ -2,7 +2,11 @@
   display: flex;
   position: relative;
   flex-direction: column;
-  gap: var(--noora-spacing-11);
+  gap: var(--noora-spacing-0);
+
+  @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+    gap: var(--noora-spacing-11);
+  }
 
   & > [data-part="body"],
   & > [data-part="header"] {
@@ -43,9 +47,14 @@
     align-items: center;
     align-self: center;
     gap: var(--noora-spacing-9);
-    padding-right: var(--noora-spacing-14);
-    padding-left: var(--noora-spacing-14);
+    padding-right: var(--noora-spacing-6);
+    padding-left: var(--noora-spacing-6);
     width: 70vi;
+
+    @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+      padding-right: var(--noora-spacing-14);
+      padding-left: var(--noora-spacing-14);
+    }
 
     & > [data-part="logo"] {
       width: 348px;
@@ -70,11 +79,17 @@
 
   & > [data-part="content"] {
     display: flex;
-    flex-direction: row;
+    flex-direction: column;
     gap: var(--noora-spacing-9);
-    margin-right: var(--noora-spacing-14);
-    margin-left: var(--noora-spacing-14);
+    margin-right: var(--noora-spacing-6);
+    margin-left: var(--noora-spacing-6);
     padding: var(--noora-spacing-10);
+
+    @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+      flex-direction: row;
+      margin-right: var(--noora-spacing-14);
+      margin-left: var(--noora-spacing-14);
+    }
 
     & > * {
       flex: 1;
@@ -95,10 +110,20 @@
 
   & > [data-part="photos"] {
     display: flex;
-    flex-direction: row;
-    gap: var(--noora-spacing-5);
-    padding-right: var(--noora-spacing-14);
-    padding-left: var(--noora-spacing-14);
+    flex-direction: column;
+    gap: var(--noora-spacing-7);
+    padding-right: var(--noora-spacing-6);
+    padding-left: var(--noora-spacing-6);
+
+    @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+      padding-right: var(--noora-spacing-14);
+      padding-left: var(--noora-spacing-14);
+    }
+
+    @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+      flex-direction: row;
+      gap: var(--noora-spacing-5);
+    }
 
     & > [data-part="photo"] {
       flex: 1 1 0;
@@ -124,8 +149,13 @@
     display: flex;
     flex-direction: column;
     gap: var(--noora-spacing-12);
-    padding-right: var(--noora-spacing-14);
-    padding-left: var(--noora-spacing-14);
+    padding-right: var(--noora-spacing-6);
+    padding-left: var(--noora-spacing-6);
+
+    @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+      padding-right: var(--noora-spacing-14);
+      padding-left: var(--noora-spacing-14);
+    }
 
     & > [data-part="header"] {
       display: flex;
@@ -141,9 +171,15 @@
 
     & > [data-part="main"] {
       display: flex;
-      flex-direction: row;
+      flex-direction: column;
       justify-content: center;
+      align-items: center;
       gap: var(--noora-spacing-5);
+      padding-left: 0;
+
+      @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+        flex-direction: row;
+      }
 
       & > [data-part="card"] {
         display: flex;
@@ -155,8 +191,13 @@
           0 1px 1px 0 rgba(46, 51, 56, 0.1);
         border-radius: var(--noora-radius-xlarge);
         background: var(--noora-surface-background-primary);
-        width: 424px;
+        width: 100%;
+        max-width: 424px;
         overflow: hidden;
+
+        @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+          max-width: 424px;
+        }
 
         & > [data-part="background"] {
           position: absolute;
@@ -197,8 +238,13 @@
     display: flex;
     flex-direction: column;
     gap: var(--noora-spacing-12);
-    padding-right: var(--noora-spacing-14);
-    padding-left: var(--noora-spacing-14);
+    padding-right: var(--noora-spacing-6);
+    padding-left: var(--noora-spacing-6);
+
+    @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+      margin-right: var(--noora-spacing-14);
+      margin-left: var(--noora-spacing-14);
+    }
 
     & > [data-part="header"] {
       display: flex;
@@ -220,9 +266,15 @@
 
     & > [data-part="main"] {
       display: flex;
-      flex-direction: row;
+      flex-direction: column;
       justify-content: center;
-      gap: 48px;
+      align-items: center;
+      gap: var(--noora-spacing-7);
+
+      @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+        flex-direction: row;
+        gap: var(--noora-spacing-7);
+      }
 
       & > [data-part="member"] {
         display: flex;
@@ -289,8 +341,14 @@
   }
 
   & > [data-part="cta"] {
-    margin-right: var(--noora-spacing-14);
-    margin-left: var(--noora-spacing-14);
-    padding-top: var(--noora-spacing-14);
+    margin-right: var(--noora-spacing-6);
+    margin-left: var(--noora-spacing-6);
+    padding-top: var(--noora-spacing-9);
+
+    @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+      margin-right: var(--noora-spacing-14);
+      margin-left: var(--noora-spacing-14);
+      padding-top: var(--noora-spacing-14);
+    }
   }
 }
