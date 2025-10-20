@@ -9,6 +9,8 @@ import { jsonResponse, errorResponse } from "./shared.js";
 
 const FAILURE_CACHE_TTL = 300;
 const SUCCESS_CACHE_TTL = 3600;
+const ACCESSIBLE_PROJECTS_SUCCESS_TTL = 600;
+const ACCESSIBLE_PROJECTS_CACHE_PREFIX = "accessible-projects";
 
 async function sha256Hash(data) {
   const encoded = new TextEncoder().encode(data);
@@ -22,10 +24,97 @@ async function generateCacheKey(accountHandle, projectHandle, authToken) {
   return sha256Hash(`${accountHandle}:${projectHandle}:${authToken}`);
 }
 
+async function generateAccessibleProjectsCacheKey(authToken) {
+  return sha256Hash(`${ACCESSIBLE_PROJECTS_CACHE_PREFIX}:${authToken}`);
+}
+
+function buildForwardHeaders(request, authHeader) {
+  const headers = { Authorization: authHeader };
+  const requestIdHeader = request.headers.get("x-request-id");
+  if (requestIdHeader) {
+    headers["x-request-id"] = requestIdHeader;
+  }
+  return headers;
+}
+
+async function getAccessibleProjects(request, env, authHeader) {
+  const cacheKey = await generateAccessibleProjectsCacheKey(authHeader);
+
+  if (env.CAS_CACHE) {
+    const cached = await env.CAS_CACHE.get(cacheKey);
+    if (cached) {
+      return JSON.parse(cached);
+    }
+  }
+
+  const headers = buildForwardHeaders(request, authHeader);
+
+  try {
+    const response = await serverFetch(
+      env,
+      "/api/accessible-projects",
+      { method: "GET", headers },
+    );
+
+    if (!response.ok) {
+      const result = {
+        error: "Unauthorized or not found",
+        status: response.status,
+      };
+
+      if (
+        env.CAS_CACHE &&
+        (response.status === 401 || response.status === 403)
+      ) {
+        await env.CAS_CACHE.put(cacheKey, JSON.stringify(result), {
+          expirationTtl: FAILURE_CACHE_TTL,
+        });
+      }
+
+      return result;
+    }
+
+    const projects = await response.json();
+
+    if (!Array.isArray(projects)) {
+      return { error: "Unexpected response from authorization endpoint", status: 500 };
+    }
+
+    if (env.CAS_CACHE) {
+      await env.CAS_CACHE.put(cacheKey, JSON.stringify({ projects }), {
+        expirationTtl: ACCESSIBLE_PROJECTS_SUCCESS_TTL,
+      });
+    }
+
+    return { projects };
+  } catch (error) {
+    return { error: error.message, status: 500 };
+  }
+}
+
 async function getS3Prefix(request, env, accountHandle, projectHandle) {
   const authHeader = request.headers.get("Authorization");
   if (!authHeader) {
     return { error: "Missing Authorization header", status: 401 };
+  }
+
+  const accessibleProjectsResult = await getAccessibleProjects(
+    request,
+    env,
+    authHeader,
+  );
+
+  if (accessibleProjectsResult.error) {
+    return accessibleProjectsResult;
+  }
+
+  const requestedHandle = `${accountHandle}/${projectHandle}`;
+  if (
+    !accessibleProjectsResult.projects.some(
+      (handle) => handle.toLowerCase() === requestedHandle.toLowerCase(),
+    )
+  ) {
+    return { error: "Unauthorized or not found", status: 403 };
   }
 
   const cacheKey = await generateCacheKey(
@@ -41,11 +130,7 @@ async function getS3Prefix(request, env, accountHandle, projectHandle) {
     }
   }
 
-  const headers = { Authorization: authHeader };
-  const requestIdHeader = request.headers.get("x-request-id");
-  if (requestIdHeader) {
-    headers["x-request-id"] = requestIdHeader;
-  }
+  const headers = buildForwardHeaders(request, authHeader);
 
   try {
     const response = await serverFetch(

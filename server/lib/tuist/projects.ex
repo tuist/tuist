@@ -6,6 +6,7 @@ defmodule Tuist.Projects do
 
   alias Tuist.Accounts
   alias Tuist.Accounts.Account
+  alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Accounts.ProjectAccount
   alias Tuist.Accounts.User
   alias Tuist.AppBuilds.Preview
@@ -160,6 +161,29 @@ defmodule Tuist.Projects do
       }
     end)
   end
+
+  def list_accessible_project_full_handles(%User{} = user) do
+    user
+    |> get_all_project_accounts()
+    |> Enum.map(& &1.handle)
+    |> Enum.uniq()
+    |> Enum.sort()
+  end
+
+  def list_accessible_project_full_handles(%AuthenticatedAccount{account: account}) do
+    account
+    |> get_all_project_accounts()
+    |> Enum.map(& &1.handle)
+    |> Enum.uniq()
+    |> Enum.sort()
+  end
+
+  def list_accessible_project_full_handles(%Project{} = project) do
+    project = Repo.preload(project, :account)
+    ["#{project.account.name}/#{project.name}"]
+  end
+
+  def list_accessible_project_full_handles(_), do: []
 
   def create_project(%{name: name, account: %{id: account_id}}, opts \\ []) do
     token = Keyword.get(opts, :token, Tuist.Tokens.generate_token())

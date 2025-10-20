@@ -266,6 +266,8 @@ defmodule TuistWeb.Router do
         assigns: %{caching: not Tuist.Environment.test?(), cache_ttl: to_timeout(minute: 1)} do
     pipe_through [:open_api, :authenticated_api, :on_premise_api]
 
+    get "/accessible-projects", AccessibleProjectsController, :index
+
     scope "/accounts/:account_handle" do
       patch "/", AccountController, :update_account
       delete "/", AccountController, :delete_account
