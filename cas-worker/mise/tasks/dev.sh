@@ -3,10 +3,6 @@
 
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${0}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
-WORKER_DIR="$REPO_ROOT/cas-worker"
-
 ELIXIR_SCRIPT=$(cat <<'ELIXIR'
 alias Tuist.Environment
 
@@ -31,7 +27,7 @@ ELIXIR
 )
 
 env_output="$(
-  cd "$REPO_ROOT/server" &&
+  cd "$MISE_PROJECT_ROOT/../server" &&
     MIX_ENV=dev MIX_QUIET=1 mix run --no-start -e "$ELIXIR_SCRIPT"
 )"
 
@@ -71,8 +67,8 @@ fi
 
 echo $s3_region
 
-wrangler dev \
-  --config "$WORKER_DIR/wrangler.toml" \
+pnpm --dir "$MISE_PROJECT_ROOT" exec wrangler dev \
+  --config "$MISE_PROJECT_ROOT/wrangler.toml" \
   --var "SERVER_URL:${server_url}" \
   --var "TUIST_S3_REGION:${s3_region}" \
   --var "TUIST_S3_ENDPOINT:${s3_endpoint}" \
