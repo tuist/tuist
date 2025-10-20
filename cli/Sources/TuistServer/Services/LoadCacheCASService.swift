@@ -16,6 +16,7 @@ public enum LoadCacheCASServiceError: LocalizedError {
     case unknownError(Int)
     case unauthorized(String)
     case forbidden(String)
+    case badRequest(String)
     case notFound(String)
     case invalidResponse
 
@@ -23,7 +24,7 @@ public enum LoadCacheCASServiceError: LocalizedError {
         switch self {
         case let .unknownError(statusCode):
             return "The CAS artifact could not be loaded due to an unknown Tuist response of \(statusCode)."
-        case let .unauthorized(message), let .forbidden(message), let .notFound(message):
+        case let .unauthorized(message), let .forbidden(message), let .notFound(message), let .badRequest(message):
             return message
         case .invalidResponse:
             return "The server returned an invalid response format."
@@ -80,6 +81,11 @@ public final class LoadCacheCASService: LoadCacheCASServicing {
             switch unauthorized.body {
             case let .json(error):
                 throw LoadCacheCASServiceError.unauthorized(error.message)
+            }
+        case let .badRequest(badRequest):
+            switch badRequest.body {
+            case let .json(error):
+                throw LoadCacheCASServiceError.badRequest(error.message)
             }
         case let .notFound(notFound):
             switch notFound.body {

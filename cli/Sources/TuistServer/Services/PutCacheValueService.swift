@@ -18,13 +18,14 @@ public enum PutCacheValueServiceError: LocalizedError {
     case unauthorized(String)
     case forbidden(String)
     case notFound(String)
+    case badRequest(String)
     case putValueFailed
 
     public var errorDescription: String? {
         switch self {
         case let .unknownError(statusCode):
             return "The CAS value could not be stored due to an unknown Tuist response of \(statusCode)."
-        case let .unauthorized(message), let .forbidden(message), let .notFound(message):
+        case let .unauthorized(message), let .forbidden(message), let .notFound(message), let .badRequest(message):
             return message
         case .putValueFailed:
             return "The CAS value storage failed due to an unknown error."
@@ -80,7 +81,7 @@ public final class PutCacheValueService: PutCacheValueServicing {
         )
 
         switch response {
-        case .ok:
+        case .noContent:
             return
         case let .forbidden(forbidden):
             switch forbidden.body {
@@ -96,6 +97,11 @@ public final class PutCacheValueService: PutCacheValueServicing {
             switch notFound.body {
             case let .json(error):
                 throw PutCacheValueServiceError.notFound(error.message)
+            }
+        case let .badRequest(badRequest):
+            switch badRequest.body {
+            case let .json(error):
+                throw PutCacheValueServiceError.badRequest(error.message)
             }
         case let .undocumented(statusCode: statusCode, _):
             throw PutCacheValueServiceError.unknownError(statusCode)
