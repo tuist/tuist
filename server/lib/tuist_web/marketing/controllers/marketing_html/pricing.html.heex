@@ -233,6 +233,80 @@ features = [
           </ul>
         </div>
       </div>
+      <div data-part="plan" data-popular="true">
+        <header data-part="header">
+          <h3 data-part="title">{dgettext("marketing", "Pro")}</h3>
+          <p data-part="description">
+            {dgettext(
+              "marketing",
+              "Usage-based pricing after free tier. Best for teams and growing startups."
+            )}
+          </p>
+        </header>
+        <div data-part="main">
+          <div data-part="price">
+            <div data-part="value">{dgettext("marketing", "$0")}</div>
+            <div data-part="extra">{dgettext("marketing", "and up")}</div>
+          </div>
+          <.button
+            variant="primary"
+            size="large"
+            label={dgettext("marketing", "Get started")}
+            href={~p"/users/register"}
+          />
+          <ul data-part="traits">
+            <li data-part="trait">
+              <.system_check />
+              <span>{dgettext("marketing", "Pay nothing if below free tier limits")}</span>
+            </li>
+            <li data-part="trait">
+              <.system_check />
+              <span>{dgettext("marketing", "Pay only for what you use per feature")}</span>
+            </li>
+            <li data-part="trait">
+              <.system_check />
+              <span>{dgettext("marketing", "Standard support via Slack and email")}</span>
+            </li>
+          </ul>
+        </div>
+      </div>
+      <div data-part="plan">
+        <header data-part="header">
+          <h3 data-part="title">{dgettext("marketing", "Enterprise")}</h3>
+          <p data-part="description">
+            {dgettext(
+              "marketing",
+              "Create your plan or self-host your instance. Designed for large scale organizations."
+            )}
+          </p>
+        </header>
+        <div data-part="main">
+          <div data-part="price">
+            <div data-part="value">{dgettext("marketing", "Custom")}</div>
+            <div data-part="extra"></div>
+          </div>
+          <.button
+            variant="secondary"
+            size="large"
+            label={dgettext("marketing", "Contact us")}
+            href="https://cal.tuist.dev/team/tuist/tuist"
+          />
+          <ul data-part="traits">
+            <li data-part="trait">
+              <.system_check />
+              <span>{dgettext("marketing", "Tailored agreement for specific needs")}</span>
+            </li>
+            <li data-part="trait">
+              <.system_check />
+              <span>{dgettext("marketing", "Self-host your instance of Tuist")}</span>
+            </li>
+            <li data-part="trait">
+              <.system_check />
+              <span>{dgettext("marketing", "Priority support via Slack channel")}</span>
+            </li>
+          </ul>
+        </div>
+      </div>
     </section>
 
     <section data-part="pricing">
