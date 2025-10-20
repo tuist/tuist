@@ -1,6 +1,7 @@
 #marketing-pricing {
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: var(--noora-spacing-9);
 
   @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
@@ -60,6 +61,11 @@
       border-radius: var(--noora-radius-2xlarge);
       background: var(--noora-surface-background-primary);
       padding: var(--noora-spacing-8);
+
+      &[data-popular="true"] {
+        background: linear-gradient(217deg, rgba(255, 255, 255, 0) 1.35%, rgba(111, 44, 255, 0.04) 100%),
+          var(--noora-surface-background-primary, #fdfdfd);
+      }
 
       & > [data-part="header"] {
         display: flex;
