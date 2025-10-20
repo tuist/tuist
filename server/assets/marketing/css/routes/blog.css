@@ -3,15 +3,23 @@
   flex-direction: column;
   justify-content: center;
   align-items: stretch;
-  gap: var(--noora-spacing-11);
+  gap: var(--noora-spacing-8);
   padding-bottom: var(--noora-spacing-11);
+
+  @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+    gap: var(--noora-spacing-11);
+  }
 
   & > [data-part="header"] {
     display: flex;
     display: flex;
     flex-direction: column;
-    gap: var(--noora-spacing-11);
+    gap: var(--noora-spacing-8);
     padding-bottom: var(--noora-spacing-8);
+
+    @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+      gap: var(--noora-spacing-11);
+    }
 
     & > [data-part="title"] {
       padding-bottom: var(--noora-spacing-8);
@@ -94,9 +102,14 @@
 
   & > [data-part="filters-bar"] {
     display: flex;
-    flex-direction: row;
+    flex-direction: column-reverse;
     justify-content: space-between;
     align-self: stretch;
+    gap: var(--noora-spacing-5);
+
+    @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+      flex-direction: row;
+    }
 
     & > [data-part="categories"] {
       display: flex;
