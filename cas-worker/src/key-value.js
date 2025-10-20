@@ -1,4 +1,4 @@
-import { jsonResponse, errorResponse, validateQuery, decodeCasId } from "./shared.js";
+import { jsonResponse, jsonResponse, validateQuery, decodeCasId } from "./shared.js";
 import { ensureProjectAccessible } from "./auth.js";
 
 function buildCacheKey(accountHandle, projectHandle, casId) {
@@ -8,7 +8,7 @@ function buildCacheKey(accountHandle, projectHandle, casId) {
 export async function handleKeyValueGet(request, env) {
   const queryValidation = validateQuery(request);
   if (queryValidation.error) {
-    return errorResponse(queryValidation.error, queryValidation.status);
+    return jsonResponse(queryValidation.error, queryValidation.status);
   }
 
   const { accountHandle, projectHandle } = queryValidation;
@@ -20,12 +20,12 @@ export async function handleKeyValueGet(request, env) {
     projectHandle,
   );
   if (accessResult.error) {
-    return errorResponse(accessResult.error, accessResult.status);
+    return jsonResponse(accessResult.error, accessResult.status);
   }
 
   const casId = decodeCasId(request.params?.cas_id);
   if (!casId) {
-    return errorResponse("Missing cas_id path parameter", 400);
+    return jsonResponse("Missing cas_id path parameter", 400);
   }
 
   const store = env.CAS_CACHE;
@@ -36,11 +36,11 @@ export async function handleKeyValueGet(request, env) {
   try {
     storedEntries = await store.get(storageKey, "json");
   } catch {
-    return errorResponse("Failed to read entries from KV", 500);
+    return jsonResponse("Failed to read entries from KV", 500);
   }
 
   if (!Array.isArray(storedEntries) || storedEntries.length === 0) {
-    return errorResponse(`No entries found for CAS ID ${casId}.`, 404);
+    return jsonResponse(`No entries found for CAS ID ${casId}.`, 404);
   }
 
   const sanitizedEntries = storedEntries
@@ -48,7 +48,7 @@ export async function handleKeyValueGet(request, env) {
     .map((entry) => ({ value: entry.value }));
 
   if (sanitizedEntries.length === 0) {
-    return errorResponse(`No entries found for CAS ID ${casId}.`, 404);
+    return jsonResponse(`No entries found for CAS ID ${casId}.`, 404);
   }
 
   return jsonResponse({ entries: sanitizedEntries });
@@ -57,7 +57,7 @@ export async function handleKeyValueGet(request, env) {
 export async function handleKeyValuePut(request, env) {
   const queryValidation = validateQuery(request);
   if (queryValidation.error) {
-    return errorResponse(queryValidation.error, queryValidation.status);
+    return jsonResponse(queryValidation.error, queryValidation.status);
   }
 
   const { accountHandle, projectHandle } = queryValidation;
@@ -69,20 +69,20 @@ export async function handleKeyValuePut(request, env) {
     projectHandle,
   );
   if (accessResult.error) {
-    return errorResponse(accessResult.error, accessResult.status);
+    return jsonResponse(accessResult.error, accessResult.status);
   }
 
   let body;
   try {
     body = await request.json();
   } catch {
-    return errorResponse("Invalid JSON body", 400);
+    return jsonResponse("Invalid JSON body", 400);
   }
 
   const { cas_id: casId, entries } = body || {};
 
   if (!casId || !Array.isArray(entries)) {
-    return errorResponse(
+    return jsonResponse(
       "Request body must include cas_id and entries array",
       400,
     );
@@ -93,7 +93,7 @@ export async function handleKeyValuePut(request, env) {
     .map((entry) => ({ value: entry.value }));
 
   if (sanitizedEntries.length === 0) {
-    return errorResponse(
+    return jsonResponse(
       "Entries array must include at least one entry with id and value",
       400,
     );
@@ -105,13 +105,13 @@ export async function handleKeyValuePut(request, env) {
   try {
     await store.get(storageKey, "json");
   } catch {
-    return errorResponse("Failed to read entries from KV", 500);
+    return jsonResponse("Failed to read entries from KV", 500);
   }
 
   try {
     await store.put(storageKey, JSON.stringify(sanitizedEntries));
   } catch (error) {
-    return errorResponse(error.message || "Failed to store entries in KV", 500);
+    return jsonResponse(error.message || "Failed to store entries in KV", 500);
   }
 
   return new Response(null, { status: 204 });

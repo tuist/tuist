@@ -5,10 +5,6 @@ function jsonResponse(body, status = 200) {
   });
 }
 
-function errorResponse(message, status) {
-  return jsonResponse({ message }, status);
-}
-
 async function readCache(cacheKey) {
   if (!globalThis.caches?.default) return null;
 
@@ -59,7 +55,7 @@ function decodeCasId(rawCasId) {
 
 export {
   jsonResponse,
-  errorResponse,
+  jsonResponse,
   readCache,
   writeCache,
   validateQuery,

@@ -5,7 +5,7 @@ import {
   getS3Url,
 } from "./s3.js";
 import { serverFetch } from "./server-fetch.js";
-import { errorResponse } from "./shared.js";
+import { jsonResponse } from "./shared.js";
 import {
   FAILURE_CACHE_TTL,
   ensureProjectAccessible,
@@ -13,7 +13,7 @@ import {
 
 const SUCCESS_CACHE_TTL = 3600;
 
-async function sha256Hash(data) {
+async function sha256(data) {
   const encoded = new TextEncoder().encode(data);
   const hashBuffer = await crypto.subtle.digest("SHA-256", encoded);
   return Array.from(new Uint8Array(hashBuffer))
@@ -22,7 +22,7 @@ async function sha256Hash(data) {
 }
 
 async function buildCacheKey(accountHandle, projectHandle, authToken) {
-  const hash = await sha256Hash(`${accountHandle}:${projectHandle}:${authToken}`);
+  const hash = await sha256(`${accountHandle}:${projectHandle}:${authToken}`);
   return `cas:${hash}`;
 }
 
@@ -177,7 +177,7 @@ export async function handleGetValue(request, env) {
     id,
   );
   if (setupResult.error) {
-    return errorResponse(setupResult.error, setupResult.status);
+    return jsonResponse(setupResult.error, setupResult.status);
   }
   if (setupResult.shouldReturnEmpty) {
     return new Response(null, { status: setupResult.status });
@@ -190,18 +190,18 @@ export async function handleGetValue(request, env) {
   try {
     s3Response = await s3Client.fetch(url, { method: "GET" });
   } catch (e) {
-    return errorResponse("S3 error", 500);
+    return jsonResponse("S3 error", 500);
   }
 
   if (!s3Response.ok) {
-    return errorResponse("Artifact does not exist", 404);
+    return jsonResponse("Artifact does not exist", 404);
   }
 
   let arrayBuffer;
   try {
     arrayBuffer = await s3Response.arrayBuffer();
   } catch (e) {
-    return errorResponse("Failed to read S3 response", 500);
+    return jsonResponse("Failed to read S3 response", 500);
   }
 
   const responseHeaders = new Headers(s3Response.headers);
@@ -224,7 +224,7 @@ export async function handleSave(request, env) {
     id,
   );
   if (setupResult.error) {
-    return errorResponse(setupResult.error, setupResult.status);
+    return jsonResponse(setupResult.error, setupResult.status);
   }
   if (setupResult.shouldReturnEmpty) {
     return new Response(null, { status: setupResult.status });
@@ -265,6 +265,6 @@ export async function handleSave(request, env) {
 
     return new Response(null, { status: 204 });
   } catch (e) {
-    return errorResponse("S3 error", 500);
+    return jsonResponse("S3 error", 500);
   }
 }
