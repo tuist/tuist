@@ -292,23 +292,23 @@ features = [
             "You're only charged for the features you use, based on your usage, and only after you exceed a free threshold."
           )}
         </p>
-
-        <div data-part="plan-selector">
-          <div data-part="title">{dgettext("marketing", "Compare our plans")}</div>
-          <.button_group size="large">
-            <.button_group_item
-              :for={{plan, index} <- Enum.with_index(plans)}
-              label={plan.name}
-              phx-click={
-                JS.add_class("active", to: "[data-plan-index='#{index}']")
-                |> JS.remove_class("active",
-                  to: "[data-plan-index]:not([data-plan-index='#{index}'])"
-                )
-              }
-            />
-          </.button_group>
-        </div>
       </header>
+
+      <div data-part="plan-selector">
+        <div data-part="title">{dgettext("marketing", "Compare our plans")}</div>
+        <.button_group size="large">
+          <.button_group_item
+            :for={{plan, index} <- Enum.with_index(plans)}
+            label={plan.name}
+            phx-click={
+              JS.add_class("active", to: "[data-plan-index='#{index}']")
+              |> JS.remove_class("active",
+                to: "[data-plan-index]:not([data-plan-index='#{index}'])"
+              )
+            }
+          />
+        </.button_group>
+      </div>
 
       <table data-part="table">
         <thead data-part="head">
