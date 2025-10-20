@@ -181,12 +181,10 @@ defmodule Tuist.MixProject do
       "assets.build": [
         "esbuild app",
         "esbuild marketing",
-        "esbuild marketing_next",
         "esbuild apidocs"
       ],
       "assets.deploy": [
         "esbuild marketing --minify",
-        "esbuild marketing_next --minify",
         "esbuild app --minify",
         "esbuild apidocs --minify",
         "phx.digest"

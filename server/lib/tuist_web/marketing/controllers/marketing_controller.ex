@@ -48,24 +48,10 @@ defmodule TuistWeb.Marketing.MarketingController do
         Tuist.Environment.app_url(path: "/marketing/images/og/home.jpg")
       )
       |> assign(:head_twitter_card, "summary_large_image")
-
-    if FunWithFlags.enabled?(:marketing_next) do
-      render(conn, :home_next, layout: false)
-    else
-      read_more_posts = Enum.take(Blog.get_posts(), 3)
-      testimonials = home_testimonials()
-
-      conn
-      |> assign_structured_data(get_testimonials_structured_data(testimonials))
-      |> assign(:testimonials, testimonials)
-      |> assign(:read_more_posts, read_more_posts)
       |> render(:home, layout: false)
-    end
   end
 
   def about(conn, _params) do
-    template = if(FunWithFlags.enabled?(:marketing_next), do: :about_next, else: :about)
-
     conn
     |> assign_structured_data(get_organization_structured_data())
     |> assign_structured_data(
@@ -84,7 +70,7 @@ defmodule TuistWeb.Marketing.MarketingController do
       "Learn more about Tuist, the open-source project that helps you scale your Swift development."
     )
     |> assign(:head_title, "About Tuist")
-    |> render(template, layout: false)
+    |> render(:about, layout: false)
   end
 
   def support(conn, _params) do
@@ -371,8 +357,6 @@ defmodule TuistWeb.Marketing.MarketingController do
   end
 
   def pricing(conn, _params) do
-    template = if(FunWithFlags.enabled?(:marketing_next), do: :pricing_next, else: :pricing)
-
     faqs = [
       {dgettext(
          "marketing",
@@ -426,12 +410,10 @@ defmodule TuistWeb.Marketing.MarketingController do
         "Discover our flexible pricing plans at Tuist. Enjoy a free tier with no time limits, and pay only for what you use. Plus, it's free forever for open source projects."
       )
     )
-    |> render(template, layout: false)
+    |> render(:pricing, layout: false)
   end
 
   def page(conn, _params) do
-    template = if(FunWithFlags.enabled?(:marketing_next), do: :page_next, else: :page)
-
     request_path = Localization.path_without_locale(conn.request_path)
 
     page = Enum.find(Pages.get_pages(), &(&1.slug == String.trim_trailing(request_path, "/")))
@@ -456,7 +438,7 @@ defmodule TuistWeb.Marketing.MarketingController do
       ])
     )
     |> assign(:page, page)
-    |> render(template, layout: false)
+    |> render(:page, layout: false)
   end
 
   defp home_testimonials do

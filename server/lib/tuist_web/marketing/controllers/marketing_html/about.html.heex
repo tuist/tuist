@@ -1,293 +1,167 @@
 <TuistWeb.Marketing.Layouts.marketing {assigns}>
-  <main class="marketing__about" aria-label={dgettext("marketing", "About Tuist")}>
-    <div class="marketing__about__intro">
-      <div class="marketing__about__intro__left">
-        <h2 class="marketing__about__intro__left__title font-xxxl-strong">
-          {dgettext("marketing", "About us")}
-        </h2>
-        <p class="marketing__about__intro__subtitle font-l">
-          {dgettext(
-            "marketing",
-            "We are a small group of indie crafters that are passionate about open source, Swift development, and developer tools. We built Tuist to support teams in their efforts to scale their development of apps. We are based in Germany and collaborating with open-source contributors from all over the world 🌍."
-          )}
-        </p>
-      </div>
+  <main id="marketing-about">
+    <TuistWeb.Marketing.MarketingComponents.navbar {assigns} />
 
-      <img
-        class="marketing__about__intro__right"
-        src="/marketing/images/about/selfie.jpeg"
-        alt={dgettext("marketing", "A selfie of Marek and Pedro in Seoul, South Korea")}
-      />
-    </div>
-
-    <div class="marketing__about__company">
-      <h2 class="marketing__about__company__title font-xxxl-strong">
-        {dgettext("marketing", "The company")}
-      </h2>
-      <p class="marketing__about__company__subtitle font-l-strong">
+    <TuistWeb.Marketing.MarketingComponents.header_background />
+    <header data-part="header">
+      <img data-part="logo" src={~p"/marketing/images/about/logo.webp"} alt="Tuist" />
+      <h1 data-part="title">
+        {dgettext("marketing", "Building the future of scalable app development")}
+      </h1>
+      <p data-part="subtitle">
         {dgettext(
           "marketing",
-          "We believe the best tools are shaped openly, and Tuist GmbH exists to fund and support this vision. Guided by the same principles, we're committed to creating a tool that stands out in the Apple developer space. Our approach to openness is one of curiosity, not caution—driving a shift in perspectives."
+          "Tuist bridges the gaps in Apple's tooling that prevent teams from moving fast. We solve the build complexity, workflow friction, and collaboration challenges—so you can deliver exceptional apps at speed."
         )}
       </p>
-      <p class="marketing__about__company__description font-m">
-        {dgettext(
-          "marketing",
-          "Our goal is to enhance Apple’s native tooling, bringing innovative ideas from other ecosystems to help developers build exceptional apps for Apple platforms with ease and productivity. We openly share our journey, contribute foundational tools as open source, and cultivate vibrant communities where we all learn and grow together."
-        )}
-      </p>
-      <p class="marketing__about__company__quote font-xl-strong">
-        {dgettext("marketing", "\"We approach openness with curiosity, not fear.\"")}
-      </p>
-      <div class="marketing__about__company__photos">
-        <img
-          class="marketing__about__company__photos__photo"
-          src="/marketing/images/about/photos/1.jpeg"
-          alt="A photo of the team with attendees in the Kakao Bank offices in Seoul, South Korea"
-        />
-        <img
-          class="marketing__about__company__photos__photo"
-          src="/marketing/images/about/photos/2.jpeg"
-          alt="A photo of Marek giving a talk at a local meetup at the Apple Academy in Seoul, South Korea"
-        />
-        <img
-          class="marketing__about__company__photos__photo"
-          src="/marketing/images/about/photos/3.jpeg"
-          alt="A photo of Marek trying out the Vision Pros."
-        />
-        <img
-          class="marketing__about__company__photos__photo"
-          src="/marketing/images/about/photos/4.jpeg"
-          alt="A photo of Pedro giving a talk at the Swift Heroes conference in 2024."
-        />
-      </div>
-    </div>
-
-    <div class="marketing__about__principles">
-      <h2 class="marketing__about__principles__title font-xxxl-strong">
-        {dgettext("marketing", "Our principles")}
-      </h2>
-      <div class="marketing__about__principles__items">
-        <div class="marketing__about__principles__items__value">
-          <div
-            class="marketing__about__principles__items__value__icon"
-            role="img"
-            aria-label="Git merge icon"
-          >
-            <TuistWeb.Marketing.MarketingIcons.git_merge_icon size={40} />
-          </div>
-          <div class="marketing__about__principles__items__value__content">
-            <h3 class="marketing__about__principles__items__value__content__title font-xl-strong">
-              {dgettext("marketing", "Openness")}
-            </h3>
-            <p class="marketing__about__principles__items__value__content__description font-m">
-              {dgettext(
-                "marketing",
-                "We believe openness builds better tools. We only keep the bare minimum closed to protect the sustained development of our open-source projects."
-              )}
-            </p>
-          </div>
-        </div>
-
-        <div class="marketing__about__principles__items__value">
-          <div
-            class="marketing__about__principles__items__value__icon"
-            role="img"
-            aria-label={dgettext("marketing", "Smiling face icon")}
-          >
-            <TuistWeb.Marketing.MarketingIcons.face_smiles_icon size={40} />
-          </div>
-          <div class="marketing__about__principles__items__value__content">
-            <h3 class="marketing__about__principles__items__value__content__title font-xl-strong">
-              {dgettext("marketing", "Happiness")}
-            </h3>
-            <p class="marketing__about__principles__items__value__content__description font-m">
-              {dgettext(
-                "marketing",
-                "We prioritize developer happiness because we know it's closely tied to creating better apps."
-              )}
-            </p>
-          </div>
-        </div>
-
-        <div class="marketing__about__principles__items__value">
-          <div
-            class="marketing__about__principles__items__value__icon"
-            role="img"
-            aria-label={dgettext("marketing", "Cube outline icon")}
-          >
-            <TuistWeb.Marketing.MarketingIcons.cube_outline_icon size={40} />
-          </div>
-          <div class="marketing__about__principles__items__value__content">
-            <h3 class="marketing__about__principles__items__value__content__title font-xl-strong">
-              {dgettext("marketing", "Standards")}
-            </h3>
-            <p class="marketing__about__principles__items__value__content__description font-m">
-              {dgettext(
-                "marketing",
-                "We embrace standards to ensure long-term success while respecting everyone's freedom to choose their own paths and tools."
-              )}
-            </p>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="marketing__about__leadership">
-      <div class="marketing__about__leadership__left">
-        <h2 class="marketing__about__leadership__left__title font-xxxl-strong">
-          {dgettext("marketing", "Our leadership")}
-        </h2>
-        <p class="marketing__about__leadership__left__description font-m">
+    </header>
+    <section data-part="content">
+      <h2 data-part="title">{dgettext("marketing", "Scale with joy")}</h2>
+      <article data-part="body">
+        <p>
           {dgettext(
             "marketing",
-            "We planted the first seeds of Tuist in 2017, and in 2023 we embarked on a journey to turn it into a full-time job."
+            "We're a group of builders who believe scaling your app shouldn't kill your creativity. We've experienced the frustration of watching exciting Swift projects turn into build-time nightmares and tooling headaches as they grow, so we decided to build something better."
           )}
         </p>
-      </div>
-      <div class="marketing__about__leadership__right">
-        <div class="marketing__about__leadership__right__lead">
+        <p>
+          {dgettext(
+            "marketing",
+            "That's why Tuist exists—to restore the joy of development at any scale. We enhance Apple's native tooling by bringing innovative ideas from across the development ecosystem, so teams can focus on creating exceptional apps instead of fighting their build system."
+          )}
+        </p>
+        <p>
+          {dgettext(
+            "marketing",
+            "Our approach is rooted in curiosity and open collaboration. We share our journey, contribute tools as open source, and cultivate communities where developers learn and grow together. When we solve problems in the open, everyone wins."
+          )}
+        </p>
+      </article>
+    </section>
+    <figure data-part="photos">
+      <img data-part="photo" src={~p"/marketing/images/about/photos/1.webp"} alt="Team photo 1" />
+      <img data-part="photo" src={~p"/marketing/images/about/photos/2.webp"} alt="Team photo 2" />
+      <img data-part="photo" src={~p"/marketing/images/about/photos/3.webp"} alt="Team photo 3" />
+    </figure>
+    <section data-part="values">
+      <header data-part="header">
+        <h2 data-part="title">{dgettext("marketing", "What we believe in")}</h2>
+      </header>
+      <ul data-part="main">
+        <li data-part="card">
           <img
-            class="marketing__about__leadership__right__lead__image"
-            src="/marketing/images/about/pedro.jpeg"
-            alt="Pedro Piñera"
+            data-part="background"
+            src={~p"/marketing/images/about/values/openness/background.webp"}
+            alt=""
           />
-          <h3 class="marketing__about__leadership__right__lead__name font-l-strong">
-            {dgettext("marketing", "Pedro Piñera")}
-          </h3>
-          <p class="marketing__about__leadership__right__lead__role font-m">
-            {dgettext("marketing", "Founder & CEO")}
-          </p>
-          <div class="marketing__about__leadership__right__lead__socials">
-            <.link
-              href="https://mastodon.pepicrft.me/@pedro"
-              target="_blank"
-              aria-label="Pedro Piñera on Mastodon"
-            >
-              <TuistWeb.Marketing.MarketingIcons.icon_mastodon class="marketing__about__leadership__right__lead__socials_item" />
-            </.link>
-            <.link
-              href="https://bsky.app/profile/pepicrft.bsky.social"
-              target="_blank"
-              aria-label="Pedro Piñera on Bluesky"
-            >
-              <TuistWeb.Marketing.MarketingIcons.icon_bluesky class="marketing__about__leadership__right__lead__socials_item" />
-            </.link>
-            <.link
-              href="https://github.com/pepicrft"
-              target="_blank"
-              aria-label="Pedro Piñera on GitHub"
-            >
-              <TuistWeb.Marketing.MarketingIcons.icon_github class="marketing__about__leadership__right__lead__socials_item" />
-            </.link>
-            <.link
-              href="https://www.linkedin.com/in/pedro-piñera-buendia-9765a9125/"
-              target="_blank"
-              aria-label="Pedro Piñera on LinkedIn"
-            >
-              <TuistWeb.Marketing.MarketingIcons.icon_linkedin class="marketing__about__leadership__right__lead__socials_item" />
-            </.link>
-          </div>
-        </div>
-        <div class="marketing__about__leadership__right__lead">
           <img
-            class="marketing__about__leadership__right__lead__image"
-            src="/marketing/images/about/marek.jpeg"
-            alt="Marek Fořt"
+            data-part="graphic"
+            src={~p"/marketing/images/about/values/openness/graphic.webp"}
+            alt=""
           />
-          <h3 class="marketing__about__leadership__right__lead__name font-l-strong">
-            {dgettext("marketing", "Marek Fořt")}
-          </h3>
-          <p class="marketing__about__leadership__right__lead__role font-m">
-            {dgettext("marketing", "Founder & CTO")}
-          </p>
-          <div class="marketing__about__leadership__right__lead__socials">
-            <.link
-              href="https://mastodon.online/@marekfort"
-              target="_blank"
-              aria-label="Marek Fořt on Mastodon"
-            >
-              <TuistWeb.Marketing.MarketingIcons.icon_mastodon class="marketing__about__leadership__right__lead__socials_item" />
-            </.link>
-            <.link
-              href="https://bsky.app/profile/marekfort.bsky.social"
-              target="_blank"
-              aria-label="Marek Fořt on Bluesky"
-            >
-              <TuistWeb.Marketing.MarketingIcons.icon_bluesky class="marketing__about__leadership__right__lead__socials_item" />
-            </.link>
-            <.link
-              href="https://github.com/fortmarek"
-              target="_blank"
-              aria-label="Marek Fořt on GitHub"
-            >
-              <TuistWeb.Marketing.MarketingIcons.icon_github class="marketing__about__leadership__right__lead__socials_item" />
-            </.link>
-            <.link
-              href="https://www.linkedin.com/in/marek-f-71853b89/"
-              target="_blank"
-              aria-label="Marek Fořt on LinkedIn"
-            >
-              <TuistWeb.Marketing.MarketingIcons.icon_linkedin class="marketing__about__leadership__right__lead__socials_item" />
-            </.link>
-          </div>
-        </div>
+          <footer data-part="footer">
+            <h3 data-part="title">{dgettext("marketing", "Openness")}</h3>
+            <p data-part="subtitle">
+              {dgettext(
+                "marketing",
+                "We believe openness builds better tools, keeping only what’s needed closed for sustainable development."
+              )}
+            </p>
+          </footer>
+        </li>
+        <li data-part="card">
+          <img
+            data-part="background"
+            src={~p"/marketing/images/about/values/happiness/background.webp"}
+            alt=""
+          />
+          <img
+            data-part="graphic"
+            src={~p"/marketing/images/about/values/happiness/graphic.webp"}
+            alt=""
+          />
+          <footer data-part="footer">
+            <h3 data-part="title">{dgettext("marketing", "Happiness")}</h3>
+            <p data-part="subtitle">
+              {dgettext(
+                "marketing",
+                "We prioritize developer happiness because it's closely tied to creating better apps."
+              )}
+            </p>
+          </footer>
+        </li>
+        <li data-part="card">
+          <img
+            data-part="background"
+            src={~p"/marketing/images/about/values/standards/background.webp"}
+            alt=""
+          />
+          <img
+            data-part="graphic"
+            src={~p"/marketing/images/about/values/standards/graphic.webp"}
+            alt=""
+          />
+          <footer data-part="footer">
+            <h3 data-part="title">{dgettext("marketing", "Standards")}</h3>
+            <p data-part="subtitle">
+              {dgettext(
+                "marketing",
+                "We embrace standards for long-term success while respecting freedom of choice."
+              )}
+            </p>
+          </footer>
+        </li>
+      </ul>
+    </section>
+    <section data-part="team">
+      <header data-part="header">
+        <h2 data-part="title">{dgettext("marketing", "The team")}</h2>
+        <p data-part="subtitle">
+          {dgettext(
+            "marketing",
+            "We’re a small, passionate team that cares deeply about developer experience and takes pride in crafting tools with care and attention to detail."
+          )}
+        </p>
+      </header>
+      <div data-part="main">
+        <.about_team_member
+          name="Pedro Piñera"
+          role="Founder & CEO"
+          photo_src={~p"/marketing/images/about/team/pedro.webp"}
+          github_handle="pepicrft"
+          mastodon_url="https://mastodon.pepicrft.me/@pedro"
+          bluesky_url="https://bsky.app/profile/pepicrft.bsky.social"
+          linkedin_url="https://www.linkedin.com/in/pedro-piñera-buendia-9765a9125/"
+        />
+        <.about_team_member
+          name="Marek Fořt"
+          role="Founder & CTO"
+          photo_src={~p"/marketing/images/about/team/marek.webp"}
+          github_handle="fortmarek"
+          mastodon_url="https://mastodon.online/@marekfort"
+          bluesky_url="https://bsky.app/profile/marekfort.bsky.social"
+          linkedin_url="https://www.linkedin.com/in/marek-f-71853b89/"
+        />
+        <.about_team_member
+          name="Asmit Malakannawar"
+          role="Product Designer"
+          photo_src={~p"/marketing/images/about/team/asmit.webp"}
+          github_handle="asmitbm"
+          mastodon_url="https://mastodon.social/@asmitbm"
+          bluesky_url="https://bsky.app/profile/asmitbm.bsky.social"
+          linkedin_url="https://www.linkedin.com/in/asmitbm/"
+        />
+        <.about_team_member
+          name="Christoph Schmatzler"
+          role="Sr. Software Engineer"
+          photo_src={~p"/marketing/images/about/team/chris.webp"}
+          github_handle="cschmatzler"
+          mastodon_url="https://mastodon.social/@christoph@medium.place"
+        />
       </div>
-    </div>
-
-    <div class="marketing__about__resources">
-      <h2 class="marketing__about__resources__title font-xxxl-strong">
-        {dgettext("marketing", "Useful resources")}
-      </h2>
-      <div class="marketing__about__resources__items">
-        <div class="marketing__about__resources__items__item">
-          <h3 class="marketing__about__resources__items__item__title">
-            {dgettext("marketing", "Tax certificates")}
-          </h3>
-          <p class="marketing__about__resources__items__item__description">
-            {dgettext("marketing", "The following certificates are available for download:")}
-          </p>
-          <ul class="marketing__about__resources__items__item__list">
-            <li class="marketing__about__resources__items__item__list__item">
-              <TuistWeb.Marketing.MarketingIcons.file_download_02_icon class="marketing__about__resources__items__item__list__item__icon" />
-              <.link
-                class="marketing__about__resources__items__item__list__item__link"
-                href="/marketing/pdfs/W-8BEN-E.pdf"
-                target="_blank"
-                aria-label={dgettext("marketing", "Download W-8BEN-E certificate")}
-              >
-                <span class="font-m-strong">{dgettext("marketing", "W-8BEN-E certificate")}</span><span> (PDF)</span>
-              </.link>
-            </li>
-          </ul>
-        </div>
-
-        <div class="marketing__about__resources__items__item">
-          <h3 class="marketing__about__resources__items__item__title">
-            {dgettext("marketing", "Design systems")}
-          </h3>
-          <p class="marketing__about__resources__items__item__description">
-            {dgettext(
-              "marketing",
-              "The following design systems are available licensed under CC BY-SA 4.0:"
-            )}
-          </p>
-          <ul class="marketing__about__resources__items__item__list">
-            <li class="marketing__about__resources__items__item__list__item">
-              <TuistWeb.Marketing.MarketingIcons.file_download_02_icon class="marketing__about__resources__items__item__list__item__icon" />
-              <.link
-                class="marketing__about__resources__items__item__list__item__link"
-                href="https://www.figma.com/community/file/1436003642379974190/tuist-website-design-system"
-                target="_blank"
-                aria-label="Download W-8BEN-E certificate"
-              >
-                <span class="font-m-strong">{dgettext("marketing", "Marketing website")}</span>
-              </.link>
-            </li>
-          </ul>
-        </div>
-      </div>
-    </div>
-    <.cta />
+    </section>
+    <section data-part="cta">
+      <.marketing_banner title={dgettext("marketing", "Your platform team, as a service")} />
+    </section>
   </main>
 </TuistWeb.Marketing.Layouts.marketing>

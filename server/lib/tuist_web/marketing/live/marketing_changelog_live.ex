@@ -23,7 +23,6 @@ defmodule TuistWeb.Marketing.MarketingChangelogLive do
 
     socket =
       socket
-      |> assign(:next?, FunWithFlags.enabled?(:marketing_next))
       |> assign(:entries, paginated_entries)
       |> assign(:all_entries, filtered_entries)
       |> assign(:categories, categories)

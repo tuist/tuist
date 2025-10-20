@@ -29,7 +29,6 @@ hello-*.tar
 /priv/static/assets/
 /priv/static/app/assets/
 /priv/static/marketing/assets/
-/priv/static/marketing_next/assets/
 /priv/static/apidocs/assets/
 /priv/static/storybook/assets/
 

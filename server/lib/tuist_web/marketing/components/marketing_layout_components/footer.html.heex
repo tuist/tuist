@@ -1,198 +1,306 @@
-<footer class="marketing__footer">
-  <div class="marketing__footer__header">
-    <div class="marketing__footer__header__title">
-      <img
-        class="marketing__footer__header__title__logo"
-        src="/images/tuist_logo_32x32@2x.png"
-        alt={dgettext("marketing", "Tuist Icon")}
-      />
-      <h2 class="marketing__footer__header__title__text font-m-strong">
-        {dgettext("marketing", "Tuist")}
-      </h2>
-    </div>
-
-    <% any_ongoing_incident? = Tuist.Incidents.any_ongoing_incident?() %>
-
-    <%= if any_ongoing_incident? do %>
-      <.link
-        href={Tuist.Environment.get_url(:status)}
-        target="__blank"
-        class="marketing__footer__header__status"
-        role="status"
-        aria-live="assertive"
-      >
-        <div
-          class="marketing__footer__header__status__indicator"
-          data-status="incident"
-          aria-hidden="true"
-        >
-        </div>
-
-        <div class="marketing__footer__header__status__text font-xxs">
-          {dgettext("marketing", "Ongoing incident")}
-        </div>
-      </.link>
-    <% else %>
-      <.link
-        href={Tuist.Environment.get_url(:status)}
-        target="__blank"
-        class="marketing__footer__header__status"
-        role="status"
-        aria-live="polite"
-      >
-        <div
-          class="marketing__footer__header__status__indicator"
-          data-status="operational"
-          aria-hidden="true"
-        >
-        </div>
-
-        <div class="marketing__footer__header__status__text font-xxs">
-          {dgettext("marketing", "All systems are normal")}
-        </div>
-      </.link>
-    <% end %>
-  </div>
-
-  <div class="marketing__footer__main">
-    <div class="marketing__footer__main__menus">
-      <.footer_section
-        title={dgettext("marketing", "App lifecycle")}
-        items={[
-          %{
-            text: dgettext("marketing", "Generated Projects"),
-            href: Tuist.Environment.get_url(:feature_generated_projects)
-          },
-          %{
-            text: dgettext("marketing", "Cache"),
-            href: Tuist.Environment.get_url(:feature_cache)
-          },
-          %{
-            text: dgettext("marketing", "Previews"),
-            href: Tuist.Environment.get_url(:feature_previews)
-          },
-          %{
-            text: dgettext("marketing", "Insights"),
-            href: Tuist.Environment.get_url(:feature_insights)
-          }
-        ]}
-      />
-      <.footer_section
-        title={dgettext("marketing", "Support")}
-        items={[
-          %{
-            text: dgettext("marketing", "Docs"),
-            href: Tuist.Environment.get_url(:documentation)
-          },
-          %{text: dgettext("marketing", "Changelog"), href: ~p"/changelog"},
-          %{
-            text: dgettext("marketing", "Forum"),
-            href: Tuist.Environment.get_url(:forum)
-          },
-          %{
-            text: dgettext("marketing", "Issues"),
-            href: Tuist.Environment.get_url(:github_issues)
-          },
-          %{
-            text: dgettext("marketing", "Contact"),
-            href: Tuist.Environment.get_url(:contact)
-          }
-        ]}
-      />
-      <.footer_section
-        title={dgettext("marketing", "Company")}
-        items={[
-          %{text: dgettext("marketing", "Pricing"), href: ~p"/pricing"},
-          %{text: dgettext("marketing", "Blog"), href: ~p"/blog"},
-          %{text: dgettext("marketing", "About"), href: ~p"/about"},
-          %{text: dgettext("marketing", "Imprint"), href: ~p"/imprint"},
-          %{
-            text: dgettext("marketing", "Grafana dashboard"),
-            href: Tuist.Environment.get_url(:grafana_dashboard),
-            target: "__blank"
-          },
-          %{
-            text: dgettext("marketing", "Shop"),
-            href: Tuist.Environment.get_url(:shop),
-            target: "__blank"
-          },
-          %{text: dgettext("marketing", "We ❤️ openness"), href: ~p"/openness"},
-          %{text: dgettext("marketing", "Longevity manifesto"), href: ~p"/longevity"},
-          %{text: dgettext("marketing", "Trademark guidelines"), href: ~p"/trademark-guidelines"},
-          %{text: dgettext("marketing", "Security"), href: ~p"/security"},
-          %{text: dgettext("marketing", "Community"), href: ~p"/community"}
-        ]}
-      />
-      <.footer_section
-        title={dgettext("marketing", "Subscribe")}
-        items={[
-          %{
-            text: dgettext("marketing", "Blog Atom"),
-            href: ~p"/blog/atom.xml",
-            target: "__blank"
-          },
-          %{text: dgettext("marketing", "Blog RSS"), href: ~p"/blog/rss.xml", target: "__blank"},
-          %{
-            text: dgettext("marketing", "Changelog Atom"),
-            href: ~p"/changelog/atom.xml",
-            target: "__blank"
-          },
-          %{
-            text: dgettext("marketing", "Changelog RSS"),
-            href: ~p"/changelog/rss.xml",
-            target: "__blank"
-          },
-          %{text: dgettext("marketing", "Newsletter"), href: ~p"/newsletter"}
-        ]}
-      />
-    </div>
-
-    <div class="marketing__footer__main__links">
-      <div class="marketing__footer__main__links__social">
-        <h3 class="marketing__footer__main__links__social__title font-xxs-strong">
-          {dgettext("marketing", "Stay in touch")}
-        </h3>
-        <div class="marketing__footer__main__links__social__items">
-          <.link href={Tuist.Environment.get_url(:slack)} target="_blank">
-            <.icon_slack class="marketing__footer__main__links__social__items__logo" />
-          </.link>
-          <.link href={Tuist.Environment.get_url(:github)} target="_blank">
-            <.icon_github class="marketing__footer__main__links__social__items__logo" />
-          </.link>
-          <.link href={Tuist.Environment.get_url(:mastodon)} target="_blank">
-            <.icon_mastodon class="marketing__footer__main__links__social__items__logo" />
-          </.link>
-          <.link href={Tuist.Environment.get_url(:bluesky)} target="_blank">
-            <.icon_bluesky class="marketing__footer__main__links__social__items__logo" />
-          </.link>
-          <.link href={Tuist.Environment.get_url(:linkedin)} target="_blank">
-            <.icon_linkedin class="marketing__footer__main__links__social__items__logo" />
-          </.link>
-          <.link href={Tuist.Environment.get_url(:peertube)} target="_blank">
-            <.icon_peertube class="marketing__footer__main__links__social__items__logo" />
-          </.link>
-        </div>
-        <.link href="/security">
-          <img
-            src="/marketing/images/shared/soc2-badge.png"
-            class="marketing__footer__main__links__soc2"
-          />
-        </.link>
+<footer id="marketing-footer">
+  <img
+    data-part="background"
+    src={~p"/marketing/images/components/footer/background.webp"}
+    alt=""
+  />
+  <div data-part="content">
+    <header data-part="header">
+      <div data-part="tuist">
+        <img data-part="logo" src={~p"/marketing/images/components/footer/logo.webp"} alt="Tuist" />
+        <h3 data-part="title">Tuist</h3>
       </div>
-    </div>
-  </div>
-
-  <div class="marketing__footer__footer">
-    <.link href={~p"/terms"} class="marketing__footer__footer__link font-xxs">
-      {dgettext("marketing", "Terms of service")}
-    </.link>
-    <span>|</span>
-    <.link href={~p"/privacy"} class="marketing__footer__footer__link font-xxs">
-      {dgettext("marketing", "Privacy policy")}
-    </.link>
-    <span>|</span>
-    <.link href={~p"/cookies"} class="marketing__footer__footer__link font-xxs">
-      {dgettext("marketing", "Cookie policy")}
-    </.link>
+      <img
+        data-part="soc2"
+        src={~p"/marketing/images/shared/soc2.webp"}
+        alt="SOC 2 Type II Certified"
+      />
+      <.link href="https://status.tuist.dev" target="_blank" rel="noopener noreferrer">
+        <% any_ongoing_incident? = Tuist.Incidents.any_ongoing_incident?() %>
+        <.status_badge
+          :if={not any_ongoing_incident?}
+          label={dgettext("marketing", "All systems normal")}
+          status="success"
+          type="dot"
+        />
+        <.status_badge
+          :if={any_ongoing_incident?}
+          label={dgettext("marketing", "Ongoing incident")}
+          status="warning"
+          type="dot"
+        />
+      </.link>
+    </header>
+    <nav data-part="columns" aria-label="Footer navigation">
+      <section data-part="column">
+        <h3 data-part="title">{dgettext("marketing", "Features")}</h3>
+        <ul data-part="links">
+          <.link
+            data-part="link"
+            target="_blank"
+            rel="noopener noreferrer"
+            href={
+              TuistWeb.Marketing.MarketingHTML.localized_href(
+                "https://docs.tuist.dev/guides/features/projects"
+              )
+            }
+          >
+            {dgettext("marketing", "Generated projects")}
+          </.link>
+          <.link
+            data-part="link"
+            target="_blank"
+            rel="noopener noreferrer"
+            href={
+              TuistWeb.Marketing.MarketingHTML.localized_href(
+                "https://docs.tuist.dev/guides/features/cache"
+              )
+            }
+          >
+            {dgettext("marketing", "Cache")}
+          </.link>
+          <.link
+            data-part="link"
+            target="_blank"
+            rel="noopener noreferrer"
+            href={
+              TuistWeb.Marketing.MarketingHTML.localized_href(
+                "https://docs.tuist.dev/guides/features/selective-testing"
+              )
+            }
+          >
+            {dgettext("marketing", "Selective testing")}
+          </.link>
+          <.link
+            data-part="link"
+            target="_blank"
+            rel="noopener noreferrer"
+            href={
+              TuistWeb.Marketing.MarketingHTML.localized_href(
+                "https://docs.tuist.dev/guides/features/registry"
+              )
+            }
+          >
+            {dgettext("marketing", "Registry")}
+          </.link>
+          <.link
+            data-part="link"
+            target="_blank"
+            rel="noopener noreferrer"
+            href={
+              TuistWeb.Marketing.MarketingHTML.localized_href(
+                "https://docs.tuist.dev/guides/features/insights"
+              )
+            }
+          >
+            {dgettext("marketing", "Insights")}
+          </.link>
+          <.link
+            data-part="link"
+            target="_blank"
+            rel="noopener noreferrer"
+            href={
+              TuistWeb.Marketing.MarketingHTML.localized_href(
+                "https://docs.tuist.dev/guides/features/bundle-size"
+              )
+            }
+          >
+            {dgettext("marketing", "Bundle analysis")}
+          </.link>
+          <.link
+            data-part="link"
+            target="_blank"
+            rel="noopener noreferrer"
+            href={
+              TuistWeb.Marketing.MarketingHTML.localized_href(
+                "https://docs.tuist.dev/guides/features/qa"
+              )
+            }
+          >
+            {dgettext("marketing", "QA")}
+          </.link>
+          <.link
+            data-part="link"
+            target="_blank"
+            rel="noopener noreferrer"
+            href={
+              TuistWeb.Marketing.MarketingHTML.localized_href(
+                "https://docs.tuist.dev/guides/features/previews"
+              )
+            }
+          >
+            {dgettext("marketing", "Previews")}
+          </.link>
+        </ul>
+      </section>
+      <section data-part="column">
+        <h3 data-part="title">{dgettext("marketing", "Product")}</h3>
+        <ul data-part="links">
+          <.link
+            data-part="link"
+            href={TuistWeb.Marketing.MarketingHTML.localized_href("/pricing")}
+          >
+            {dgettext("marketing", "Pricing")}
+          </.link>
+          <.link
+            data-part="link"
+            href={TuistWeb.Marketing.MarketingHTML.localized_href("/changelog")}
+          >
+            {dgettext("marketing", "Changelog")}
+          </.link>
+          <.link
+            data-part="link"
+            href={TuistWeb.Marketing.MarketingHTML.localized_href("https://docs.tuist.dev/")}
+          >
+            {dgettext("marketing", "Documentation")}
+          </.link>
+          <.link
+            data-part="link"
+            href={TuistWeb.Marketing.MarketingHTML.localized_href("/download")}
+          >
+            {dgettext("marketing", "Download")}
+          </.link>
+        </ul>
+      </section>
+      <section data-part="column">
+        <h3 data-part="title">{dgettext("marketing", "Community")}</h3>
+        <ul data-part="links">
+          <.link
+            data-part="link"
+            target="_blank"
+            rel="noopener noreferrer"
+            href="https://slack.tuist.dev"
+          >
+            {dgettext("marketing", "Slack")}
+          </.link>
+          <.link
+            data-part="link"
+            target="_blank"
+            rel="noopener noreferrer"
+            href="https://community.tuist.dev"
+          >
+            {dgettext("marketing", "Community forum")}
+          </.link>
+          <.link
+            data-part="link"
+            href={TuistWeb.Marketing.MarketingHTML.localized_href("/newsletter")}
+          >
+            {dgettext("marketing", "Newsletter")}
+          </.link>
+          <.link
+            data-part="link"
+            target="_blank"
+            rel="noopener noreferrer"
+            href="https://github.com/tuist/tuist/issues"
+          >
+            {dgettext("marketing", "Issues")}
+          </.link>
+          <.link
+            data-part="link"
+            rel="noopener noreferrer"
+            href={~p"/community"}
+          >
+            {dgettext("marketing", "People")}
+          </.link>
+        </ul>
+      </section>
+      <section data-part="column">
+        <h3 data-part="title">{dgettext("marketing", "Company")}</h3>
+        <ul data-part="links">
+          <.link data-part="link" href={TuistWeb.Marketing.MarketingHTML.localized_href("/about")}>
+            {dgettext("marketing", "About")}
+          </.link>
+          <.link data-part="link" href={TuistWeb.Marketing.MarketingHTML.localized_href("/blog")}>
+            {dgettext("marketing", "Blog")}
+          </.link>
+          <.link data-part="link" href="mailto:contact@tuist.dev">
+            {dgettext("marketing", "Contact")}
+          </.link>
+          <.link
+            data-part="link"
+            href={TuistWeb.Marketing.MarketingHTML.localized_href("/openness")}
+          >
+            {dgettext("marketing", "Openness")}
+          </.link>
+          <.link
+            data-part="link"
+            href={TuistWeb.Marketing.MarketingHTML.localized_href("/longevity")}
+          >
+            {dgettext("marketing", "Longevity")}
+          </.link>
+        </ul>
+      </section>
+      <section data-part="column">
+        <h3 data-part="title">{dgettext("marketing", "Socials")}</h3>
+        <ul data-part="links">
+          <.link
+            data-part="link"
+            href="https://fosstodon.org/@tuist"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            {dgettext("marketing", "Mastodon")}
+          </.link>
+          <.link
+            data-part="link"
+            href="http://github.com/tuist"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            {dgettext("marketing", "GitHub")}
+          </.link>
+          <.link
+            data-part="link"
+            href="https://bsky.app/profile/tuist.dev"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            {dgettext("marketing", "Bluesky")}
+          </.link>
+          <.link
+            data-part="link"
+            href="https://www.linkedin.com/company/tuistio/"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            {dgettext("marketing", "LinkedIn")}
+          </.link>
+          <.link
+            data-part="link"
+            href="https://videos.tuist.dev"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            {dgettext("marketing", "Videos")}
+          </.link>
+        </ul>
+      </section>
+      <section data-part="column">
+        <h3 data-part="title">{dgettext("marketing", "Legal")}</h3>
+        <ul data-part="links">
+          <.link data-part="link" href={TuistWeb.Marketing.MarketingHTML.localized_href("/terms")}>
+            {dgettext("marketing", "Terms of service")}
+          </.link>
+          <.link
+            data-part="link"
+            href={TuistWeb.Marketing.MarketingHTML.localized_href("/privacy")}
+          >
+            {dgettext("marketing", "Privacy policy")}
+          </.link>
+          <.link
+            data-part="link"
+            href={TuistWeb.Marketing.MarketingHTML.localized_href("/cookies")}
+          >
+            {dgettext("marketing", "Cookie policy")}
+          </.link>
+          <.link
+            data-part="link"
+            href={TuistWeb.Marketing.MarketingHTML.localized_href("/imprint")}
+          >
+            {dgettext("marketing", "Imprint")}
+          </.link>
+        </ul>
+      </section>
+    </nav>
   </div>
 </footer>
