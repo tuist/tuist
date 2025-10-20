@@ -1,0 +1,17 @@
+[id^="marketing-"] {
+  & > section,
+  & > header,
+  & > figure {
+    position: relative;
+    z-index: var(--noora-z-index-1);
+    padding-right: var(--noora-spacing-6);
+    padding-left: var(--noora-spacing-6);
+
+    @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+      align-self: center;
+      padding-right: var(--noora-spacing-14);
+      padding-left: var(--noora-spacing-14);
+      max-width: 1296px;
+    }
+  }
+}

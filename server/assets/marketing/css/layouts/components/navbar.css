@@ -25,8 +25,8 @@
     z-index: var(--noora-z-index-12);
     backdrop-filter: blur(4px);
     margin-top: var(--noora-spacing-7);
-    margin-right: var(--noora-spacing-6);
-    margin-left: var(--noora-spacing-6);
+    /*margin-right: var(--noora-spacing-6);
+    margin-left: var(--noora-spacing-6);*/
     box-shadow:
       0 114px 32px 0 rgba(0, 0, 0, 0),
       0 73px 29px 0 rgba(0, 0, 0, 0.01),

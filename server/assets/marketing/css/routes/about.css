@@ -9,21 +9,6 @@
   }
 
   & > section,
-  & > [data-part="header"],
-  & > figure {
-    box-sizing: border-box;
-    padding-right: var(--noora-spacing-6);
-    padding-left: var(--noora-spacing-6);
-
-    @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
-      align-self: center;
-      padding-right: var(--noora-spacing-14);
-      padding-left: var(--noora-spacing-14);
-      max-width: 1296px;
-    }
-  }
-
-  & > section,
   & > header {
     position: relative;
     z-index: var(--noora-z-index-2);

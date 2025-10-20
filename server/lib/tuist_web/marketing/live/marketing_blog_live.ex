@@ -1,6 +1,7 @@
 defmodule TuistWeb.Marketing.MarketingBlogLive do
   @moduledoc false
   use TuistWeb, :live_view
+  use Noora
 
   import TuistWeb.Marketing.StructuredMarkup
 
@@ -12,10 +13,14 @@ defmodule TuistWeb.Marketing.MarketingBlogLive do
     highlighted_posts = posts |> Enum.filter(& &1.highlighted) |> Enum.take(5)
     category = Map.get(params, "category")
     posts = if is_nil(category), do: posts, else: Enum.filter(posts, &(&1.category == category))
+    highlighted_post = List.first(posts)
+    filtered_posts = posts
 
     socket =
       socket
       |> assign(:posts, posts)
+      |> assign(:filtered_posts, filtered_posts)
+      |> assign(:highlighted_post, highlighted_post)
       |> assign(:highlighted_posts, highlighted_posts)
       |> assign(:categories, categories)
       |> attach_hook(:assign_current_path, :handle_params, fn _params, url, socket ->
@@ -47,6 +52,9 @@ defmodule TuistWeb.Marketing.MarketingBlogLive do
      |> assign(:head_include_changelog_rss_and_atom, false)
      |> assign(:head_twitter_card, "summary_large_image")
      |> assign_structured_data(get_blog_structured_markup_data(posts))
-     |> assign(:head_description, dgettext("marketing", "Read engaging stories and expert insights."))}
+     |> assign(
+       :head_description,
+       dgettext("marketing", "Read engaging stories and expert insights.")
+     )}
   end
 end

@@ -9,8 +9,8 @@
 
   & > img {
     width: 100%;
-    height: auto;
-    object-fit: contain;
+    height: 635px;
+    object-fit: fill;
     object-position: top;
   }
 

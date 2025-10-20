@@ -1,99 +1,109 @@
 <TuistWeb.Marketing.Layouts.marketing {assigns}>
-  <main class="marketing__blog" aria-label={dgettext("marketing", "Blog posts")}>
-    <section class="marketing__blog__hero">
-      <div class="marketing__blog__hero__left">
-        <h1 class="marketing__blog__hero__left__title">
-          {dgettext("marketing", "Engaging stories and expert insights")}
+  <main id="marketing-blog">
+    <TuistWeb.Marketing.MarketingComponents.navbar {assigns} />
+
+    <TuistWeb.Marketing.MarketingComponents.header_background />
+
+    <section data-part="header">
+      <div data-part="title">
+        <div data-part="subtitle">{gettext("Blog")}</div>
+        <h1 data-part="title">
+          {gettext("Engaging stories and expert insights")}
         </h1>
-        <p class="marketing__blog__hero__left__subtitle">
-          {dgettext("marketing", "Stay in touch")}
-        </p>
-        <div class="marketing__blog__hero__social">
-          <.link href={Tuist.Environment.get_url(:slack)} target="_blank">
-            <TuistWeb.Marketing.MarketingIcons.icon_slack class="marketing__blog__hero__social__item" />
-          </.link>
-          <.link href={Tuist.Environment.get_url(:github)} target="_blank">
-            <TuistWeb.Marketing.MarketingIcons.icon_github class="marketing__blog__hero__social__item" />
-          </.link>
-          <.link href={Tuist.Environment.get_url(:mastodon)} target="_blank">
-            <TuistWeb.Marketing.MarketingIcons.icon_mastodon class="marketing__blog__hero__social__item" />
-          </.link>
-          <.link href={Tuist.Environment.get_url(:bluesky)} target="_blank">
-            <TuistWeb.Marketing.MarketingIcons.icon_bluesky class="marketing__blog__hero__social__item" />
-          </.link>
-          <.link href={Tuist.Environment.get_url(:linkedin)} target="_blank">
-            <TuistWeb.Marketing.MarketingIcons.icon_linkedin class="marketing__blog__hero__social__item" />
-          </.link>
-          <.link href={Tuist.Environment.get_url(:peertube)} target="_blank">
-            <TuistWeb.Marketing.MarketingIcons.icon_peertube class="marketing__blog__hero__social__item" />
-          </.link>
-        </div>
       </div>
-      <div class="marketing__blog__hero__right">
-        <TuistWeb.Marketing.MarketingComponents.more_card
-          category={@hero_post.category}
-          title={@hero_post.title}
-          description={@hero_post.excerpt}
-          href={@hero_post.slug}
-          class="marketing__blog__hero__right__card"
-        />
+      <div data-part="main">
+        <% highlighted_post_img_src =
+          if @highlighted_post.og_image_path do
+            Tuist.Environment.app_url(
+              path: @highlighted_post.og_image_path,
+              marketing: true
+            )
+          else
+            Tuist.Environment.app_url(
+              path: "/marketing/images/og/generated#{@highlighted_post.slug}.jpg",
+              marketing: true
+            )
+          end %>
+        <% highlighted_post_author = Blog.get_authors()[@highlighted_post.author] %>
+        <img data-part="image" src={highlighted_post_img_src} />
+        <div data-part="content">
+          <h2 data-part="title">
+            <.link href={TuistWeb.Marketing.MarketingHTML.localized_href(@highlighted_post.slug)}>
+              {@highlighted_post.title}
+            </.link>
+          </h2>
+          <p data-part="excerpt">{@highlighted_post.excerpt}</p>
+          <div data-part="footer">
+            <div data-part="author">{highlighted_post_author["name"]}</div>
+            <div>•</div>
+            <div data-part="date">
+              {Timex.format!(@highlighted_post.date, "{Mfull} {D}, {YYYY}")}
+            </div>
+          </div>
+        </div>
       </div>
     </section>
 
-    <section class="marketing__blog__essential">
-      <h2 class="marketing__blog__essential__title">
-        {dgettext("marketing", "Essential reading")}
-      </h2>
-      <div class="marketing__blog__essential__posts">
-        <%= for {post, index} <- Enum.with_index(@highlighted_posts) do %>
-          <h3 class="marketing__blog__essential__posts__post">
-            <.link href={post.slug} class="marketing__blog__essential__posts__post__link">
-              <span class="marketing__blog__essential__posts__post__link__index">
-                {"0#{index + 1}."}
-              </span>
-              <span class="marketing__blog__essential__posts__post__link__title">
-                {post.title}
-              </span>
-            </.link>
-          </h3>
-        <% end %>
+    <section data-part="bar">
+      <.tab_menu_horizontal label="Categories">
+        <.tab_menu_horizontal_item
+          :for={category <- @categories}
+          label={category |> to_string() |> String.capitalize()}
+        />
+      </.tab_menu_horizontal>
+      <div data-part="actions">
+        <.text_input
+          id="text-input-types-search"
+          name="search"
+          type="search"
+          placeholder="Search..."
+          show_suffix={false}
+        />
+        <.button variant="secondary" icon_only={true} size="large">
+          <.rss />
+        </.button>
+        <.button variant="secondary" icon_only={true} size="large">
+          <.atom />
+        </.button>
       </div>
     </section>
-    <section class="marketing__blog__posts">
-      <div class="marketing__blog__posts__heading">
-        <h2 class="marketing__blog__posts__heading__title">
-          {dgettext("marketing", "Posts")}
-        </h2>
-        <div class="marketing__blog__posts__heading__categories">
-          <.link
-            patch={~p"/blog"}
-            data-selected={if(@current_path == ~p"/blog", do: "true", else: "false")}
-            class="marketing__blog__posts__heading__categories__category"
-          >
-            {dgettext("marketing", "All")}
-          </.link>
-          <%= for category <- @categories do %>
-            <% params = %{category: category} %>
-            <.link
-              patch={~p"/blog?#{params}"}
-              data-selected={if(@current_path == ~p"/blog?#{params}", do: "true", else: "false")}
-              class="marketing__blog__posts__heading__categories__category"
-            >
-              <span>{category}</span>
-            </.link>
-          <% end %>
+
+    <section data-part="posts">
+      <div :for={post <- @filtered_posts} data-part="post">
+        <% post_img_src =
+          if post.og_image_path do
+            Tuist.Environment.app_url(
+              path: post.og_image_path,
+              marketing: true
+            )
+          else
+            Tuist.Environment.app_url(
+              path: "/marketing/images/og/generated#{post.slug}.jpg",
+              marketing: true
+            )
+          end %>
+        <% post_author = Blog.get_authors()[post.author] %>
+        <img data-part="image" src={post_img_src} />
+        <div data-part="content">
+          <header data-part="header">
+            <div data-part="author">{post_author["name"]}</div>
+            <div>•</div>
+            <div data-part="date">
+              {Timex.format!(post.date, "{Mfull} {D}, {YYYY}")}
+            </div>
+          </header>
+          <h3 data-part="title">{post.title}</h3>
+          <p data-part="excerpt">{post.excerpt}</p>
         </div>
       </div>
-      <div class="marketing__blog__posts__main">
-        <TuistWeb.Marketing.MarketingComponents.more_card
-          :for={post <- @posts}
-          category={post.category}
-          title={post.title}
-          description={post.excerpt}
-          href={post.slug}
-          class=""
-        />
-      </div>
+    </section>
+
+    <section data-part="pagination-control">
+      <.pagination_group
+        page_patch={fn page -> "?page=#{page}" end}
+        current_page={1}
+        number_of_pages={12}
+      />
     </section>
   </main>
 </TuistWeb.Marketing.Layouts.marketing>
