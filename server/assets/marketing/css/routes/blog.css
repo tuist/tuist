@@ -126,6 +126,7 @@
       margin-left: 0;
       padding-right: 0;
       padding-left: 0;
+      width: 100%;
     }
 
     & > [data-part="categories-mobile"] {
