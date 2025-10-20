@@ -25,9 +25,7 @@ defmodule TuistWeb.API.AccessibleProjectsController do
            items: %Schema{type: :string, description: "Project full handle, e.g. account/project"},
            example: ["tuist/tuist"]
          }},
-      unauthorized:
-        {"Authentication required", "application/json",
-         TuistWeb.API.Schemas.Error}
+      unauthorized: {"Authentication required", "application/json", TuistWeb.API.Schemas.Error}
     }
   )
 
