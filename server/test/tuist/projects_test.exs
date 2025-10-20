@@ -1164,4 +1164,109 @@ defmodule Tuist.ProjectsTest do
       assert got == {:error, :not_found}
     end
   end
+
+  describe "list_accessible_project_full_handles/1" do
+    test "returns sorted handles for user with personal and organization projects" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      user_account = Accounts.get_account_from_user(user)
+
+      organization = AccountsFixtures.organization_fixture()
+      organization_account = Accounts.get_account_from_organization(organization)
+      Accounts.add_user_to_organization(user, organization, role: :user)
+
+      # Create projects for both accounts
+      project1 = ProjectsFixtures.project_fixture(account_id: user_account.id, name: "project-a")
+      project2 = ProjectsFixtures.project_fixture(account_id: organization_account.id, name: "project-b")
+      project3 = ProjectsFixtures.project_fixture(account_id: user_account.id, name: "project-c")
+
+      # When
+      handles = Projects.list_accessible_project_full_handles(user)
+
+      # Then
+      expected_handles =
+        Enum.sort([
+          "#{organization_account.name}/#{project2.name}",
+          "#{user_account.name}/#{project1.name}",
+          "#{user_account.name}/#{project3.name}"
+        ])
+
+      assert handles == expected_handles
+    end
+
+    test "returns sorted handles for authenticated account" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      project1 = ProjectsFixtures.project_fixture(account_id: account.id, name: "project-x")
+      project2 = ProjectsFixtures.project_fixture(account_id: account.id, name: "project-y")
+
+      # When
+      handles =
+        Projects.list_accessible_project_full_handles(%Tuist.Accounts.AuthenticatedAccount{account: account, scopes: []})
+
+      # Then
+      expected_handles = Enum.sort(["#{account.name}/#{project1.name}", "#{account.name}/#{project2.name}"])
+
+      assert handles == expected_handles
+    end
+
+    test "returns single handle for project" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      project = ProjectsFixtures.project_fixture(account_id: account.id, name: "my-project")
+
+      # When
+      handles = Projects.list_accessible_project_full_handles(project)
+
+      # Then
+      assert handles == ["#{account.name}/my-project"]
+    end
+
+    test "returns empty list for unsupported input type" do
+      # Given
+      unsupported_input = %{some: "data"}
+
+      # When
+      handles = Projects.list_accessible_project_full_handles(unsupported_input)
+
+      # Then
+      assert handles == []
+    end
+
+    test "returns empty list for nil input" do
+      # When
+      handles = Projects.list_accessible_project_full_handles(nil)
+
+      # Then
+      assert handles == []
+    end
+
+    test "removes duplicates when user has access to same project through multiple paths" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      user_account = Accounts.get_account_from_user(user)
+
+      # Create project with same name in both accounts to test duplicate removal
+      _project1 = ProjectsFixtures.project_fixture(account_id: user_account.id, name: "same-name")
+
+      organization = AccountsFixtures.organization_fixture()
+      organization_account = Accounts.get_account_from_organization(organization)
+      Accounts.add_user_to_organization(user, organization, role: :user)
+
+      _project2 = ProjectsFixtures.project_fixture(account_id: organization_account.id, name: "same-name")
+
+      # When
+      handles = Projects.list_accessible_project_full_handles(user)
+
+      # Then
+      # Should have both handles since they're from different accounts
+      expected_handles = Enum.sort(["#{organization_account.name}/same-name", "#{user_account.name}/same-name"])
+
+      assert handles == expected_handles
+      assert length(handles) == 2
+    end
+  end
 end
