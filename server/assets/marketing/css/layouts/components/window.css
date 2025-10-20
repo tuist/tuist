@@ -21,6 +21,16 @@
 
     & > [data-part="copy"] {
       color: var(--noora-button-neutral-label);
+      cursor: pointer;
+      transition: opacity 0.2s ease;
+
+      &:hover {
+        opacity: 0.7;
+      }
+
+      &:active {
+        opacity: 0.5;
+      }
     }
   }
 
