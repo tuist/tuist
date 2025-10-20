@@ -10,7 +10,6 @@
     display: flex;
     display: flex;
     flex-direction: column;
-    flex-direction: column;
     gap: var(--noora-spacing-11);
     padding-bottom: var(--noora-spacing-8);
 
@@ -32,8 +31,12 @@
     }
     & > [data-part="main"] {
       display: flex;
-      flex-direction: row;
+      flex-direction: column;
       gap: 48px;
+
+      @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+        flex-direction: row;
+      }
 
       & > [data-part="image"] {
         box-shadow:
@@ -44,8 +47,13 @@
           0 4px 9px 0 rgba(0, 0, 0, 0.04);
         border-radius: var(--noora-radius-2xlarge);
         aspect-ratio: 300/169;
-        width: 600px;
-        height: 338px;
+        width: 100%;
+        height: auto;
+
+        @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+          width: 600px;
+          height: 338px;
+        }
       }
 
       & > [data-part="content"] {
@@ -96,12 +104,35 @@
       flex-direction: row;
       align-items: center;
       gap: var(--noora-spacing-7);
+      overflow-x: auto;
+      overflow-y: hidden;
+      scrollbar-width: thin;
+      -webkit-overflow-scrolling: touch;
+
+      &::-webkit-scrollbar {
+        height: 6px;
+      }
+
+      &::-webkit-scrollbar-track {
+        background: transparent;
+      }
+
+      &::-webkit-scrollbar-thumb {
+        border-radius: var(--noora-radius-small);
+        background: var(--noora-surface-border-primary);
+      }
+
+      &::-webkit-scrollbar-thumb:hover {
+        background: var(--noora-surface-label-tertiary);
+      }
 
       & > [data-part="category"] {
+        flex-shrink: 0;
         border-radius: var(--noora-radius-2xlarge);
         padding: var(--noora-spacing-1) var(--noora-spacing-6);
         font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
         text-decoration: none;
+        white-space: nowrap;
 
         &[data-selected] {
           background: var(--noora-surface-background-secondary);
@@ -124,8 +155,12 @@
 
   & > [data-part="posts"] {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: 1fr;
     gap: var(--noora-spacing-11);
+
+    @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+      grid-template-columns: repeat(3, 1fr);
+    }
 
     & > [data-part="post"] {
       display: flex;
