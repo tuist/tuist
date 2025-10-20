@@ -33,6 +33,67 @@ defaults:
     working-directory: server
 
 jobs:
+  gettext:
+    name: Gettext (Marketing)
+    runs-on: namespace-profile-default
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore Mix Cache
+        uses: actions/cache@v4
+        id: mix-cache
+        with:
+          path: |
+            deps
+            _build
+            _site
+          key: mix-${{ hashFiles('mix.lock') }}
+      - name: Restore PNPM Cache
+        uses: actions/cache@v4
+        id: pnpm-cache
+        with:
+          path: |
+            ~/.pnpm/store
+          key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
+          working_directory: server
+      - run: mise run install
+      - name: Check marketing gettext template is up-to-date
+        run: |
+          # Extract only to check if marketing.pot changes
+          cp priv/gettext/marketing.pot priv/gettext/marketing.pot.backup
+          mix gettext.extract --merge > /dev/null 2>&1 || true
+
+          if ! diff -q priv/gettext/marketing.pot.backup priv/gettext/marketing.pot > /dev/null; then
+            echo "::error title=Marketing gettext template out of sync::The marketing.pot file is not up-to-date. Please run 'mix gettext.extract' in the server directory and commit the changes."
+            rm priv/gettext/marketing.pot.backup
+            exit 1
+          else
+            echo "✅ Marketing gettext template is up-to-date"
+            rm priv/gettext/marketing.pot.backup
+          fi
+      - name: Check marketing translations exist
+        run: |
+          # Check if marketing.pot exists
+          if [ ! -f priv/gettext/marketing.pot ]; then
+            echo "::error title=Missing marketing translations::marketing.pot file is missing. Please run 'mix gettext.extract' in the server directory."
+            exit 1
+          fi
+
+          # Check if all languages have marketing.po files
+          for lang_dir in priv/gettext/*/LC_MESSAGES; do
+            lang=$(basename $(dirname "$lang_dir"))
+            marketing_po="$lang_dir/marketing.po"
+
+            if [ ! -f "$marketing_po" ]; then
+              echo "::error title=Missing marketing translation::Missing $marketing_po for language '$lang'. Marketing domain translations are required for all languages."
+              exit 1
+            fi
+          done
+
+          echo "✅ All marketing translations present"
   test:
     name: Test
     runs-on: namespace-profile-default

@@ -20,7 +20,7 @@ defmodule TuistWeb.Marketing.MarketingQALive do
   def handle_params(_params, _url, socket) do
     {:noreply,
      socket
-     |> assign(:head_title, gettext("Tuist QA"))
+     |> assign(:head_title, dgettext("marketing", "Tuist QA"))
      |> assign(:head_include_blog_rss_and_atom, false)
      |> assign(:head_include_changelog_rss_and_atom, false)
      |> assign(:head_twitter_card, "summary_large_image")
@@ -28,7 +28,7 @@ defmodule TuistWeb.Marketing.MarketingQALive do
        :head_image,
        Tuist.Environment.app_url(path: "/marketing/images/qa/og.png")
      )
-     |> assign(:head_description, gettext("Automate testing your apps for Apple platforms using agents."))}
+     |> assign(:head_description, dgettext("marketing", "Automate testing your apps for Apple platforms using agents."))}
   end
 
   def handle_event("add-to-waiting-list", %{"email" => email}, socket) do

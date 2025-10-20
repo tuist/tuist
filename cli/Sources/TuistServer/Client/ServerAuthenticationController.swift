@@ -221,8 +221,8 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
         async throws -> AuthenticationToken?
     {
         #if canImport(TuistSupport)
-            if Environment.current.isCI {
-                return try await ciAuthenticationToken()
+            if let environmentToken = try await environmentToken() {
+                return environmentToken
             } else {
                 return try await authenticationTokenRefreshingIfNeeded(
                     serverURL: serverURL,
@@ -552,7 +552,7 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
         }
     }
 
-    private func ciAuthenticationToken() async throws -> AuthenticationToken? {
+    private func environmentToken() async throws -> AuthenticationToken? {
         #if canImport(TuistSupport)
             if let configToken = Environment.current.tuistVariables[
                 Constants.EnvironmentVariables.token

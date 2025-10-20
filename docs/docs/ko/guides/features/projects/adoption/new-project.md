@@ -104,9 +104,7 @@ let tuist = Tuist()
 
 ::: warning
 <!-- -->
-Tuist uses the `Tuist/` directory to determine the root of your project, and
-from there it looks for other manifest files globbing the directories. We
-recommend creating those files with your editor of choice, and from that point
-on, you can use `tuist edit` to edit the project with Xcode.
+Tuist는 `Tuist/` 디렉토리를 사용하여 프로젝트의 루트를 식별하고 그 위치를 기준으로 다른 매니페스트 파일을 탐색합니다. 이러한 파일
+생성은 선호하는 편집기를 사용하는 것을 권장하며, 이후에는 `tuist edit` 명령어를 사용해 Xcode에서 프로젝트를 수정할 수 있습니다.
 <!-- -->
 :::

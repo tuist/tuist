@@ -8,8 +8,8 @@ defmodule TuistWeb.API.CASController do
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.Authentication
 
-  plug(LoaderQueryPlug)
-  plug(TuistWeb.API.Authorization.AuthorizationPlug, :cache)
+  plug LoaderQueryPlug
+  plug TuistWeb.API.Authorization.AuthorizationPlug, :cache
 
   plug(OpenApiSpex.Plug.CastAndValidate,
     json_render_error_v2: true,
@@ -17,6 +17,53 @@ defmodule TuistWeb.API.CASController do
   )
 
   tags ["CAS"]
+
+  operation(:prefix,
+    summary: "Get the S3 object key prefix for a project's CAS storage.",
+    operation_id: "getCASPrefix",
+    parameters: [
+      account_handle: [
+        in: :query,
+        type: :string,
+        required: true,
+        description: "The handle of the project's account."
+      ],
+      project_handle: [
+        in: :query,
+        type: :string,
+        required: true,
+        description: "The handle of the project."
+      ]
+    ],
+    responses: %{
+      ok:
+        {"The CAS storage prefix", "application/json",
+         %Schema{
+           type: :object,
+           properties: %{
+             prefix: %Schema{
+               type: :string,
+               description: "The S3 object key prefix where CAS objects should be stored.",
+               example: "account-123/project-456/xcode/cas/"
+             }
+           },
+           required: [:prefix]
+         }},
+      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
+      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      not_found: {"The project was not found", "application/json", Error}
+    }
+  )
+
+  def prefix(conn, _params) do
+    %{selected_account: account, selected_project: project} = conn.assigns
+
+    prefix = "#{account.name}/#{project.name}/cas/"
+
+    conn
+    |> put_status(:ok)
+    |> json(%{prefix: prefix})
+  end
 
   operation(:load,
     summary: "Download a CAS artifact.",
@@ -45,7 +92,8 @@ defmodule TuistWeb.API.CASController do
       ok: {"Artifact content stream", "application/octet-stream", nil},
       not_found: {"Artifact does not exist", "application/json", Error},
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
-      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error}
+      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      bad_request: {"The request is invalid", "application/json", Error}
     }
   )
 
@@ -105,11 +153,10 @@ defmodule TuistWeb.API.CASController do
     ],
     request_body: {"The CAS artifact data", "application/octet-stream", nil, required: true},
     responses: %{
-      ok:
-        {"Upload successful", "application/json",
-         %Schema{type: :object, title: "CASArtifact", properties: %{id: %Schema{type: :string}}}},
+      no_content: {"Upload successful", nil, nil},
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
-      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error}
+      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      bad_request: {"The request is invalid", "application/json", Error}
     }
   )
 
@@ -119,16 +166,12 @@ defmodule TuistWeb.API.CASController do
     key = cas_key(account, project, id)
 
     if Storage.object_exists?(key, current_subject) do
-      conn
-      |> put_status(:ok)
-      |> json(%{id: "key"})
+      send_resp(conn, :no_content, "")
     else
       # Stream the upload from the request body to S3
       Storage.put_object(key, body, current_subject)
 
-      conn
-      |> put_status(:ok)
-      |> json(%{id: key})
+      send_resp(conn, :no_content, "")
     end
   end
 end

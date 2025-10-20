@@ -1,0 +1,74 @@
+name: CAS Worker
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - cas-worker/**
+      - .github/workflows/cas-worker.yml
+      - pnpm-lock.yaml
+  pull_request:
+    paths:
+      - cas-worker/**
+      - .github/workflows/cas-worker.yml
+      - pnpm-lock.yaml
+  merge_group: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tuist-cas-worker-${{ github.head_ref }}
+  cancel-in-progress: true
+
+env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  PNPM_HOME: ~/.pnpm
+  MISE_SOPS_AGE_KEY: ${{ secrets.MISE_SOPS_AGE_KEY }}
+
+defaults:
+  run:
+    working-directory: cas-worker
+
+jobs:
+  test:
+    name: Test
+    runs-on: namespace-profile-default
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore PNPM Cache
+        uses: actions/cache@v4
+        id: pnpm-cache
+        with:
+          path: |
+            ~/.pnpm/store
+          key: pnpm-cas-worker-${{ hashFiles('pnpm-lock.yaml') }}
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
+          working_directory: cas-worker
+      - run: mise run install
+      - name: Run tests
+        run: mise run test
+  format:
+    name: Format
+    runs-on: namespace-profile-default
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore PNPM Cache
+        uses: actions/cache@v4
+        id: pnpm-cache
+        with:
+          path: |
+            ~/.pnpm/store
+          key: pnpm-cas-worker-${{ hashFiles('pnpm-lock.yaml') }}
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
+          working_directory: cas-worker
+      - run: mise run install
+      - name: Check format
+        run: mise run format --check

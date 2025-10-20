@@ -1,6 +1,22 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.88.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* ignore unit test host app in inspect redundant dependencies by [@hiltonc](https://github.com/hiltonc) in [#8456](https://github.com/tuist/tuist/pull/8456)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.88.0...4.88.1
+
+## What's Changed in 4.88.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* don't restrict which kind of token is used based on the environment by [@fortmarek](https://github.com/fortmarek) in [#8464](https://github.com/tuist/tuist/pull/8464)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.87.0...4.88.0
+
 ## What's Changed in 4.87.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features

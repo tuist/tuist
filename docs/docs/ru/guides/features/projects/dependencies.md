@@ -447,7 +447,7 @@ issues that might arise from linking a target statically that depends
 transitively on a static target through dynamic targets. These side effects
 often manifest as increased binary size or, in the worst cases, runtime crashes.
 
-## Troubleshooting {#troubleshooting}
+## Устранение неполадок {#troubleshooting}
 
 ### Objective-C Dependencies {#objectivec-dependencies}
 

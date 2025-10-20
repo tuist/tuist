@@ -186,12 +186,8 @@ defmodule TuistWeb.API.Cache.KeyValueControllerTest do
         )
 
       # Then
-      response = json_response(conn, :ok)
-
-      assert response["entries"] == [
-               %{"id" => 1},
-               %{"id" => 2}
-             ]
+      assert conn.status == 204
+      assert conn.resp_body == ""
     end
 
     test "returns not found when account doesn't exist", %{
