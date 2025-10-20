@@ -3,8 +3,8 @@ import {
   createS3Client,
   getS3Key,
   checkS3ObjectExists,
-  getS3Url
 } from './s3.js';
+import { AwsClient } from 'aws4fetch';
 
 // Mock aws4fetch
 vi.mock('aws4fetch', () => {
@@ -13,8 +13,6 @@ vi.mock('aws4fetch', () => {
     AwsClient,
   };
 });
-
-import { AwsClient } from 'aws4fetch';
 
 describe('S3 Module', () => {
   describe('createS3Client', () => {

@@ -1,5 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { handleGetValue, handleSave } from './cas.js';
+import {
+  checkS3ObjectExists,
+  getS3Url,
+} from './s3.js';
+import { serverFetch } from './server-fetch.js';
 
 // Create mock S3 client
 const mockS3Client = {
@@ -17,14 +22,6 @@ vi.mock('./s3.js', () => ({
 vi.mock('./server-fetch.js', () => ({
   serverFetch: vi.fn(),
 }));
-
-import {
-  createS3Client,
-  getS3Key,
-  checkS3ObjectExists,
-  getS3Url,
-} from './s3.js';
-import { serverFetch } from './server-fetch.js';
 
 describe('CAS Module', () => {
   let env;
