@@ -97,8 +97,7 @@ features = [
   },
   %{
     name: dgettext("marketing", "Registry"),
-    description:
-      dgettext("marketing", "Faster & more lightweight OSS packages resolution"),
+    description: dgettext("marketing", "Faster & more lightweight OSS packages resolution"),
     hint: nil,
     values: [
       dgettext("marketing", "Unlimited"),
@@ -182,13 +181,59 @@ features = [
     <TuistWeb.Marketing.MarketingComponents.header_background />
 
     <header data-part="header">
-      <img src="" data-part="logo" />
+      <img data-part="logo" src={~p"/marketing/images/pricing/logo.webp"} data-part="logo" />
       <h1 data-part="title">
         {dgettext("marketing", "Start free,")}
         <br />
         {dgettext("marketing", "pay as you go")}
       </h1>
+      <p data-part="description">
+        {dgettext(
+          "marketing",
+          "Get started with Tuist at no cost, and only invest more when you’re ready for higher limits or personalized support."
+        )}
+      </p>
     </header>
+
+    <section data-part="plans">
+      <div data-part="plan">
+        <header data-part="header">
+          <h3 data-part="title">{dgettext("marketing", "Air")}</h3>
+          <p data-part="description">
+            {dgettext(
+              "marketing",
+              "Get started with no credit card required. Ideal for individual developers."
+            )}
+          </p>
+        </header>
+        <div data-part="main">
+          <div data-part="price">
+            <div data-part="value">{dgettext("marketing", "Free")}</div>
+            <div data-part="extra"></div>
+          </div>
+          <.button
+            variant="secondary"
+            size="large"
+            label={dgettext("marketing", "Get started")}
+            href={~p"/users/register"}
+          />
+          <ul data-part="traits">
+            <li data-part="trait">
+              <.system_check />
+              <span>{dgettext("marketing", "Free under tier limits")}</span>
+            </li>
+            <li data-part="trait">
+              <.system_check />
+              <span>{dgettext("marketing", "All features, no credit card required")}</span>
+            </li>
+            <li data-part="trait">
+              <.system_check />
+              <span>{dgettext("marketing", "Community support via forum")}</span>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </section>
 
     <section data-part="pricing">
       <header data-part="header">
