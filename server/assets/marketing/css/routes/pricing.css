@@ -169,6 +169,14 @@
 
       & > [data-part="head"] {
         & > [data-part="row"] {
+          position: sticky;
+          top: 0;
+          z-index: var(--noora-z-index-2);
+
+          & > th {
+            background: var(--noora-surface-background-primary);
+          }
+
           & > th:first-child {
             & > [data-part="title"] {
               color: var(--noora-surface-label-primary);
