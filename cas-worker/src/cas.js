@@ -4,105 +4,8 @@ import {
   checkS3ObjectExists,
   getS3Url,
 } from "./s3.js";
-import { serverFetch } from "./server-fetch.js";
 import { jsonResponse } from "./shared.js";
-import {
-  FAILURE_CACHE_TTL,
-  ensureProjectAccessible,
-} from "./auth.js";
-
-const SUCCESS_CACHE_TTL = 3600;
-
-async function sha256(data) {
-  const encoded = new TextEncoder().encode(data);
-  const hashBuffer = await crypto.subtle.digest("SHA-256", encoded);
-  return Array.from(new Uint8Array(hashBuffer))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-}
-
-async function buildCacheKey(accountHandle, projectHandle, authToken) {
-  const hash = await sha256(`${accountHandle}:${projectHandle}:${authToken}`);
-  return `cas:${hash}`;
-}
-
-async function getS3Prefix(request, env, accountHandle, projectHandle) {
-  const accessResult = await ensureProjectAccessible(
-    request,
-    env,
-    accountHandle,
-    projectHandle,
-  );
-
-  if (accessResult.error) {
-    return accessResult;
-  }
-
-  const { authHeader } = accessResult;
-
-  const cacheKey = await buildCacheKey(
-    accountHandle,
-    projectHandle,
-    authHeader,
-  );
-
-  const cache = env.CAS_CACHE;
-  if (cache) {
-    const cached = await cache.get(cacheKey);
-    if (cached) {
-      return JSON.parse(cached);
-    }
-  }
-
-  const headers = { Authorization: authHeader };
-  const requestIdHeader = request.headers.get("x-request-id");
-  if (requestIdHeader) {
-    headers["x-request-id"] = requestIdHeader;
-  }
-
-  try {
-    const prefixUrl =
-      `/api/cache/prefix?account_handle=${accountHandle}&project_handle=${projectHandle}`;
-    const response = await serverFetch(
-      env,
-      prefixUrl,
-      { method: "GET", headers },
-    );
-
-    if (!response.ok) {
-      const isServerNotFound = response.status === 404;
-      const normalizedStatus = response.status === 403 ? 404 : response.status;
-      const result = {
-        error: "Unauthorized or not found",
-        status: normalizedStatus,
-        shouldReturnJson: !isServerNotFound,
-      };
-
-      if (
-        cache &&
-        (response.status === 401 || response.status === 403)
-      ) {
-        await cache.put(cacheKey, JSON.stringify(result), {
-          expirationTtl: FAILURE_CACHE_TTL,
-        });
-      }
-
-      return result;
-    }
-
-    const { prefix } = await response.json();
-
-    if (cache && prefix) {
-      await cache.put(cacheKey, JSON.stringify({ prefix }), {
-        expirationTtl: SUCCESS_CACHE_TTL,
-      });
-    }
-
-    return { prefix };
-  } catch (error) {
-    return { error: error.message, status: 500 };
-  }
-}
+import { ensureProjectAccessible } from "./auth.js";
 
 async function validateAndSetupRequest(
   request,
@@ -118,25 +21,21 @@ async function validateAndSetupRequest(
     };
   }
 
-  const prefixResult = await getS3Prefix(
+  const accessResult = await ensureProjectAccessible(
     request,
     env,
     accountHandle,
     projectHandle,
   );
-  if (prefixResult.error) {
-    if (
-      prefixResult.shouldReturnJson ||
-      prefixResult.status === 401 ||
-      prefixResult.status === 403
-    ) {
-      return { error: prefixResult.error, status: prefixResult.status };
+  if (accessResult.error) {
+    if (accessResult.status === 404 && accessResult.shouldReturnJson !== true) {
+      return {
+        error: null,
+        status: accessResult.status,
+        shouldReturnEmpty: true,
+      };
     }
-    return {
-      error: null,
-      status: prefixResult.status,
-      shouldReturnEmpty: true,
-    };
+    return { error: accessResult.error, status: accessResult.status };
   }
 
   const s3Client = createS3Client(env);
@@ -151,7 +50,8 @@ async function validateAndSetupRequest(
   }
 
   const virtualHost = virtualHostStr === "true";
-  const key = `${prefixResult.prefix}${getS3Key(id)}`;
+  const prefix = `${accountHandle}/${projectHandle}/cas/`;
+  const key = `${prefix}${getS3Key(id)}`;
 
   return {
     s3Client,
@@ -159,7 +59,7 @@ async function validateAndSetupRequest(
     endpoint,
     virtualHost,
     key,
-    prefix: prefixResult.prefix,
+    prefix,
   };
 }
 

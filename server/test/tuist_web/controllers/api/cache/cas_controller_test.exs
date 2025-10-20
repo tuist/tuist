@@ -20,69 +20,6 @@ defmodule TuistWeb.API.CASControllerTest do
     }
   end
 
-  describe "GET /api/cache/prefix" do
-    test "returns CAS prefix successfully", %{
-      conn: conn,
-      project: project,
-      account_handle: account_handle,
-      project_handle: project_handle
-    } do
-      conn = Authentication.put_current_project(conn, project)
-
-      conn =
-        get(
-          conn,
-          ~p"/api/cache/prefix?account_handle=#{account_handle}&project_handle=#{project_handle}"
-        )
-
-      response = json_response(conn, :ok)
-      assert response["prefix"] == "#{account_handle}/#{project_handle}/cas/"
-    end
-
-    test "returns not found when account doesn't exist", %{
-      conn: conn,
-      user: user,
-      project_handle: project_handle
-    } do
-      conn = Authentication.put_current_user(conn, user)
-
-      assert_raise NotFoundError, fn ->
-        get(conn, ~p"/api/cache/prefix?account_handle=unknown&project_handle=#{project_handle}")
-      end
-    end
-
-    test "returns not found when project doesn't exist", %{
-      conn: conn,
-      user: user,
-      account_handle: account_handle
-    } do
-      conn = Authentication.put_current_user(conn, user)
-
-      assert_raise NotFoundError, fn ->
-        get(conn, ~p"/api/cache/prefix?account_handle=#{account_handle}&project_handle=unknown")
-      end
-    end
-
-    test "returns forbidden when user doesn't have permission", %{
-      conn: conn
-    } do
-      other_user = AccountsFixtures.user_fixture(email: "prefix-other@tuist.io", preload: [:account])
-      other_project = ProjectsFixtures.project_fixture(account_id: other_user.account.id)
-
-      unauthorized_user = AccountsFixtures.user_fixture(email: "prefix-unauthorized@tuist.io")
-      conn = Authentication.put_current_user(conn, unauthorized_user)
-
-      conn =
-        get(
-          conn,
-          ~p"/api/cache/prefix?account_handle=#{other_project.account.name}&project_handle=#{other_project.name}"
-        )
-
-      response = json_response(conn, :forbidden)
-      assert String.contains?(response["message"], "not authorized")
-    end
-  end
-
   describe "GET /api/cache/cas/:id" do
     test "loads CAS artifact successfully", %{
       conn: conn,

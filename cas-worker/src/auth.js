@@ -4,7 +4,7 @@ const FAILURE_CACHE_TTL = 300;
 const ACCESSIBLE_PROJECTS_SUCCESS_TTL = 600;
 const ACCESSIBLE_PROJECTS_CACHE_PREFIX = "accessible-projects";
 
-async function sha256Hash(data) {
+async function sha256(data) {
   const encoded = new TextEncoder().encode(data);
   const hashBuffer = await crypto.subtle.digest("SHA-256", encoded);
   return Array.from(new Uint8Array(hashBuffer))
@@ -13,7 +13,7 @@ async function sha256Hash(data) {
 }
 
 async function generateAccessibleProjectsCacheKey(authHeader) {
-  const hash = await sha256Hash(
+  const hash = await sha256(
     `${ACCESSIBLE_PROJECTS_CACHE_PREFIX}:${authHeader}`,
   );
   return `${ACCESSIBLE_PROJECTS_CACHE_PREFIX}:${hash}`;
@@ -119,7 +119,7 @@ async function ensureProjectAccessible(
     return {
       error: "Unauthorized or not found",
       status: 404,
-      shouldReturnJson: true,
+      shouldReturnJson: false,
     };
   }
 
