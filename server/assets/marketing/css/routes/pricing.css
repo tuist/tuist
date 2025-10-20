@@ -18,6 +18,8 @@
     @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
       padding-right: var(--noora-spacing-14);
       padding-left: var(--noora-spacing-14);
+      width: 1296px;
+      max-width: 1296px;
     }
   }
 
@@ -48,6 +50,7 @@
   & > [data-part="plans"] {
     display: flex;
     flex-direction: row;
+    justify-content: center;
     gap: var(--noora-spacing-10);
 
     & > [data-part="plan"] {
@@ -163,8 +166,6 @@
     & table[data-part="table"] {
       margin: 0 auto;
       border-collapse: collapse;
-      width: 1296px;
-      max-width: 1296px;
       table-layout: fixed;
 
       & > [data-part="head"] {
@@ -175,6 +176,7 @@
 
           & > th {
             background: var(--noora-surface-background-primary);
+            border-bottom: 1px dashed var(--noora-surface-border-primary);
           }
 
           & > th:first-child {
