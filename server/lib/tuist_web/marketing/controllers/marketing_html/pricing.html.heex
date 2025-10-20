@@ -1,3 +1,183 @@
+<% plans = [
+  %{
+    name: dgettext("marketing", "Air"),
+    cta_label: dgettext("marketing", "Get started"),
+    cta_href: ~p"/users/log_in",
+    cta_variant: "secondary",
+    popular: false
+  },
+  %{
+    name: dgettext("marketing", "Pro"),
+    cta_label: dgettext("marketing", "Get started"),
+    cta_href: ~p"/users/log_in",
+    cta_variant: "primary",
+    popular: true
+  },
+  %{
+    name: dgettext("marketing", "Enterprise"),
+    cta_label: dgettext("marketing", "Talk to us"),
+    cta_href: "https://cal.tuist.dev/team/tuist/tuist",
+    cta_variant: "secondary",
+    popular: false
+  }
+]
+
+features = [
+  %{
+    name: dgettext("marketing", "Base price"),
+    description: nil,
+    hint: nil,
+    values: [
+      dgettext("marketing", "Free"),
+      %{
+        price: dgettext("marketing", "0€ and up"),
+        description: dgettext("marketing", "Price per unit above free tier")
+      },
+      %{
+        price: dgettext("marketing", "Custom"),
+        description: dgettext("marketing", "Usage/seat based pricing")
+      }
+    ]
+  },
+  %{
+    name: dgettext("marketing", "Cache"),
+    description:
+      dgettext(
+        "marketing",
+        "Speed up clean builds by caching binaries for cacheable targets and Swift tasks."
+      ),
+    hint: dgettext("marketing", "How do we calculate units?"),
+    values: [
+      "200",
+      %{value: "200", description: dgettext("marketing", "+ 0.5€ per additional unit")},
+      dgettext("marketing", "Custom")
+    ]
+  },
+  %{
+    name: dgettext("marketing", "Selective testing"),
+    description:
+      dgettext(
+        "marketing",
+        "Speed up test runs by skipping test suites whose tests are not impacted by the changes."
+      ),
+    hint: dgettext("marketing", "How do we calculate units?"),
+    values: [
+      "200",
+      %{value: "200", description: dgettext("marketing", "+ 0.5€ per additional unit")},
+      dgettext("marketing", "Custom")
+    ]
+  },
+  %{
+    name: dgettext("marketing", "Generated Projects"),
+    description:
+      dgettext(
+        "marketing",
+        "Turn projects defined with a Swift-DSL into Xcode workspaces and projects."
+      ),
+    hint: nil,
+    values: [
+      dgettext("marketing", "Unlimited"),
+      dgettext("marketing", "Unlimited"),
+      dgettext("marketing", "Unlimited")
+    ]
+  },
+  %{
+    name: dgettext("marketing", "Previews"),
+    description:
+      dgettext(
+        "marketing",
+        "Share your app builds with others via URL for testing on simulators or devices."
+      ),
+    hint: nil,
+    values: [
+      dgettext("marketing", "Unlimited"),
+      dgettext("marketing", "Unlimited"),
+      dgettext("marketing", "Unlimited")
+    ]
+  },
+  %{
+    name: dgettext("marketing", "Registry"),
+    description:
+      dgettext(
+        "marketing",
+        "Swift package registry with shallow and immutable clones for faster, lighter builds."
+      ),
+    hint: nil,
+    values: [
+      dgettext("marketing", "Unlimited"),
+      dgettext("marketing", "Unlimited"),
+      dgettext("marketing", "Unlimited")
+    ]
+  },
+  %{
+    name: dgettext("marketing", "Build Insights"),
+    description:
+      dgettext(
+        "marketing",
+        "Analyze build times per target and file with metadata like environment, Xcode version, and commit."
+      ),
+    hint: nil,
+    values: [
+      dgettext("marketing", "Unlimited"),
+      dgettext("marketing", "Unlimited"),
+      dgettext("marketing", "Unlimited")
+    ]
+  },
+  %{
+    name: dgettext("marketing", "Bundle Insights"),
+    description:
+      dgettext(
+        "marketing",
+        "Track and reduce app size by spotting duplicate assets and bloated resources."
+      ),
+    hint: nil,
+    values: [
+      dgettext("marketing", "Unlimited"),
+      dgettext("marketing", "Unlimited"),
+      dgettext("marketing", "Unlimited")
+    ]
+  },
+  %{
+    name: dgettext("marketing", "Self-hosting Tuist instance"),
+    description:
+      dgettext(
+        "marketing",
+        "Host Tuist server on your own infrastructure for complete control and data sovereignty."
+      ),
+    hint: nil,
+    values: [:unavailable, :unavailable, :available]
+  },
+  %{
+    name: dgettext("marketing", "Tailored legal terms"),
+    description:
+      dgettext(
+        "marketing",
+        "Custom legal agreements and terms of service tailored to your organization's needs."
+      ),
+    hint: nil,
+    values: [:unavailable, :unavailable, :available]
+  },
+  %{
+    name: dgettext("marketing", "Support"),
+    description:
+      dgettext("marketing", "Get help when you need it through various support channels."),
+    hint: nil,
+    values: [
+      %{
+        level: dgettext("marketing", "Community support"),
+        description: dgettext("marketing", "via Community Forum")
+      },
+      %{
+        level: dgettext("marketing", "Standard support"),
+        description: dgettext("marketing", "via Community Forum")
+      },
+      %{
+        level: dgettext("marketing", "Priority support"),
+        description: dgettext("marketing", "via dedicated Slack")
+      }
+    ]
+  }
+] %>
 <TuistWeb.Marketing.Layouts.marketing {assigns}>
   <main id="marketing-pricing">
     <TuistWeb.Marketing.MarketingComponents.navbar {assigns} />
@@ -19,7 +199,7 @@
         <p data-part="description">
           {dgettext(
             "marketing",
-            "You’re only charged for the features you use, based on your usage, and only after you exceed a free threshold."
+            "You're only charged for the features you use, based on your usage, and only after you exceed a free threshold."
           )}
         </p>
       </header>
@@ -29,221 +209,59 @@
             <th data-part="cell-header" scope="col">
               <h2 data-part="title">{dgettext("marketing", "Compare our plans")}</h2>
             </th>
-            <th data-part="cell-header" scope="col">
-              <div data-part="plan-name">{dgettext("marketing", "Air")}</div>
+            <th
+              :for={plan <- plans}
+              data-part="cell-header"
+              data-popular={plan.popular}
+              scope="col"
+            >
+              <div data-part="plan-name">{plan.name}</div>
               <.button
-                variant="secondary"
+                variant={plan.cta_variant}
                 size="medium"
-                label={dgettext("marketing", "Get started")}
-                href={~p"/users/log_in"}
-              />
-            </th>
-            <th data-part="cell-header" data-popular="true" scope="col">
-              <div data-part="plan-name">{dgettext("marketing", "Pro")}</div>
-              <.button
-                variant="primary"
-                size="medium"
-                label={dgettext("marketing", "Get started")}
-                href={~p"/users/log_in"}
-              />
-            </th>
-            <th data-part="cell-header" scope="col">
-              <div data-part="plan-name">{dgettext("marketing", "Enterprise")}</div>
-              <.button
-                variant="secondary"
-                size="medium"
-                label={dgettext("marketing", "Talk to us")}
-                href="https://cal.tuist.dev/team/tuist/tuist"
+                label={plan.cta_label}
+                href={plan.cta_href}
               />
             </th>
           </tr>
         </thead>
         <tbody data-part="body">
-          <tr data-part="row">
+          <tr :for={feature <- features} data-part="row">
             <th data-part="cell-feature" scope="row">
-              <div data-part="feature-name">{dgettext("marketing", "Base price")}</div>
+              <div data-part="feature-name">{feature.name}</div>
+              <div :if={feature.description} data-part="feature-description">
+                {feature.description}
+              </div>
+              <.hint_text :if={feature.hint} data-class="feature-info" label={feature.hint} />
             </th>
-            <td data-part="cell-value">{dgettext("marketing", "Free")}</td>
-            <td data-part="cell-value">
-              <div data-part="price">{dgettext("marketing", "0€ and up")}</div>
-              <div data-part="description">
-                {dgettext("marketing", "Price per unit above free tier")}
-              </div>
-            </td>
-            <td data-part="cell-value">
-              <div data-part="price">{dgettext("marketing", "Custom")}</div>
-              <div data-part="description">
-                {dgettext("marketing", "Usage/seat based pricing")}
-              </div>
-            </td>
-          </tr>
-          <tr data-part="row">
-            <th data-part="cell-feature" scope="row">
-              <div data-part="feature-name">{dgettext("marketing", "Cache")}</div>
-              <div data-part="feature-description">
-                {dgettext(
-                  "marketing",
-                  "Speed up clean compilations by using binaries for graph targets (including external dependencies)."
-                )}
-              </div>
-              <.hint_text
-                data-class="feature-info"
-                label={dgettext("marketing", "How do we calculate units?")}
-              />
-            </th>
-            <td data-part="cell-value">200</td>
-            <td data-part="cell-value">
-              <div data-part="value">200</div>
-              <div data-part="description">
-                {dgettext("marketing", "+ 0.5€ per additional unit")}
-              </div>
-            </td>
-            <td data-part="cell-value">{dgettext("marketing", "Custom")}</td>
-          </tr>
-          <tr data-part="row">
-            <th data-part="cell-feature" scope="row">
-              <div data-part="feature-name">{dgettext("marketing", "Tests")}</div>
-              <div data-part="feature-description">
-                {dgettext(
-                  "marketing",
-                  "Speed up test runs by skipping test suites (test targets) whose tests are not impacted by the changes."
-                )}
-              </div>
-              <.hint_text
-                data-class="feature-info"
-                label={dgettext("marketing", "How do we calculate units?")}
-              />
-            </th>
-            <td data-part="cell-value">200</td>
-            <td data-part="cell-value">
-              <div data-part="value">200</div>
-              <div data-part="description">
-                {dgettext("marketing", "+ 0.5€ per additional unit")}
-              </div>
-            </td>
-            <td data-part="cell-value">{dgettext("marketing", "Custom")}</td>
-          </tr>
-          <tr data-part="row">
-            <th data-part="cell-feature" scope="row">
-              <div data-part="feature-name">{dgettext("marketing", "Generated Projects")}</div>
-              <div data-part="feature-description">
-                {dgettext(
-                  "marketing",
-                  "Turn projects defined with a Swift-DSL into Xcode workspaces and projects."
-                )}
-              </div>
-            </th>
-            <td data-part="cell-value">{dgettext("marketing", "Unlimited")}</td>
-            <td data-part="cell-value">{dgettext("marketing", "Unlimited")}</td>
-            <td data-part="cell-value">{dgettext("marketing", "Unlimited")}</td>
-          </tr>
-          <tr data-part="row">
-            <th data-part="cell-feature" scope="row">
-              <div data-part="feature-name">{dgettext("marketing", "Previews")}</div>
-              <div data-part="feature-description">
-                {dgettext(
-                  "marketing",
-                  "Preview your project apps in simulator or devices with one click/command."
-                )}
-              </div>
-            </th>
-            <td data-part="cell-value">{dgettext("marketing", "Unlimited")}</td>
-            <td data-part="cell-value">{dgettext("marketing", "Unlimited")}</td>
-            <td data-part="cell-value">{dgettext("marketing", "Unlimited")}</td>
-          </tr>
-          <tr data-part="row">
-            <th data-part="cell-feature" scope="row">
-              <div data-part="feature-name">{dgettext("marketing", "Registry")}</div>
-              <div data-part="feature-description">
-                {dgettext(
-                  "marketing",
-                  "Download only what you need — faster, lighter builds locally and on CI."
-                )}
-              </div>
-            </th>
-            <td data-part="cell-value">{dgettext("marketing", "Unlimited")}</td>
-            <td data-part="cell-value">{dgettext("marketing", "Unlimited")}</td>
-            <td data-part="cell-value">{dgettext("marketing", "Unlimited")}</td>
-          </tr>
-          <tr data-part="row">
-            <th data-part="cell-feature" scope="row">
-              <div data-part="feature-name">{dgettext("marketing", "Build Insights")}</div>
-              <div data-part="feature-description">
-                {dgettext(
-                  "marketing",
-                  "Explore what is making your builds slow and speed up your builds."
-                )}
-              </div>
-            </th>
-            <td data-part="cell-value">{dgettext("marketing", "Unlimited")}</td>
-            <td data-part="cell-value">{dgettext("marketing", "Unlimited")}</td>
-            <td data-part="cell-value">{dgettext("marketing", "Unlimited")}</td>
-          </tr>
-          <tr data-part="row">
-            <th data-part="cell-feature" scope="row">
-              <div data-part="feature-name">{dgettext("marketing", "Bundle Insights")}</div>
-              <div data-part="feature-description">
-                {dgettext(
-                  "marketing",
-                  "Track and reduce app size by spotting duplicate assets, unused symbols, and legacy code."
-                )}
-              </div>
-            </th>
-            <td data-part="cell-value">{dgettext("marketing", "Unlimited")}</td>
-            <td data-part="cell-value">{dgettext("marketing", "Unlimited")}</td>
-            <td data-part="cell-value">{dgettext("marketing", "Unlimited")}</td>
-          </tr>
-          <tr data-part="row">
-            <th data-part="cell-feature" scope="row">
-              <div data-part="feature-name">
-                {dgettext("marketing", "Self-hosting Tuist instance")}
-              </div>
-            </th>
-            <td data-part="cell-value" data-available="false">
-              <.math_x />
-            </td>
-            <td data-part="cell-value" data-available="false">
-              <.math_x />
-            </td>
-            <td data-part="cell-value" data-available="true">
-              <.system_check />
-            </td>
-          </tr>
-          <tr data-part="row">
-            <th data-part="cell-feature" scope="row">
-              <div data-part="feature-name">{dgettext("marketing", "Tailored legal terms")}</div>
-            </th>
-            <td data-part="cell-value" data-available="false">
-              <.math_x />
-            </td>
-            <td data-part="cell-value" data-available="false">
-              <.math_x />
-            </td>
-            <td data-part="cell-value" data-available="true">
-              <.system_check />
-            </td>
-          </tr>
-          <tr data-part="row">
-            <th data-part="cell-feature" scope="row">
-              <div data-part="feature-name">{dgettext("marketing", "Support")}</div>
-            </th>
-            <td data-part="cell-value">
-              <div data-part="support-level">{dgettext("marketing", "Community support")}</div>
-              <div data-part="description">
-                {dgettext("marketing", "via Community Forum")}
-              </div>
-            </td>
-            <td data-part="cell-value">
-              <div data-part="support-level">{dgettext("marketing", "Standard support")}</div>
-              <div data-part="description">
-                {dgettext("marketing", "via Community Forum")}
-              </div>
-            </td>
-            <td data-part="cell-value">
-              <div data-part="support-level">{dgettext("marketing", "Priority support")}</div>
-              <div data-part="description">
-                {dgettext("marketing", "via dedicated Slack")}
-              </div>
+            <td
+              :for={value <- feature.values}
+              data-part="cell-value"
+              data-available={
+                cond do
+                  value == :available -> true
+                  value == :unavailable -> false
+                  true -> nil
+                end
+              }
+            >
+              <%= cond do %>
+                <% value == :available -> %>
+                  <.system_check />
+                <% value == :unavailable -> %>
+                  <.math_x />
+                <% is_map(value) and Map.has_key?(value, :price) -> %>
+                  <div data-part="price">{value.price}</div>
+                  <div data-part="description">{value.description}</div>
+                <% is_map(value) and Map.has_key?(value, :value) -> %>
+                  <div data-part="value">{value.value}</div>
+                  <div data-part="description">{value.description}</div>
+                <% is_map(value) and Map.has_key?(value, :level) -> %>
+                  <div data-part="support-level">{value.level}</div>
+                  <div data-part="description">{value.description}</div>
+                <% true -> %>
+                  {value}
+              <% end %>
             </td>
           </tr>
         </tbody>
