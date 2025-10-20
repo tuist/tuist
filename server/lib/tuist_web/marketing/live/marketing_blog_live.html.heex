@@ -96,7 +96,11 @@
     </section>
 
     <section data-part="posts">
-      <div :for={post <- @filtered_posts} data-part="post">
+      <.link
+        :for={post <- @filtered_posts}
+        data-part="post"
+        href={TuistWeb.Marketing.MarketingHTML.localized_href(post.slug)}
+      >
         <% post_img_src =
           if post.og_image_path do
             Tuist.Environment.app_url(
@@ -122,7 +126,7 @@
           <h3 data-part="title">{post.title}</h3>
           <p data-part="excerpt">{post.excerpt}</p>
         </div>
-      </div>
+      </.link>
     </section>
 
     <section data-part="pagination-control">

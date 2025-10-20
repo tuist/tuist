@@ -238,12 +238,25 @@
     & > [data-part="post"] {
       display: flex;
       flex-direction: column;
+      transition:
+        transform 0.2s ease,
+        box-shadow 0.2s ease;
+      cursor: pointer;
       box-shadow:
         0 1px 1px 0 rgba(22, 24, 28, 0.05),
         0 0 0 1px rgba(46, 51, 56, 0.08),
         0 1px 1px 0 rgba(46, 51, 56, 0.1);
       border-radius: var(--noora-radius-xlarge);
       background: var(--noora-surface-background-primary);
+      text-decoration: none;
+
+      &:hover {
+        transform: translateY(-2px);
+        box-shadow:
+          0 4px 6px 0 rgba(22, 24, 28, 0.08),
+          0 0 0 1px rgba(46, 51, 56, 0.1),
+          0 2px 4px 0 rgba(46, 51, 56, 0.15);
+      }
 
       & > [data-part="image"] {
         border-top-right-radius: var(--noora-radius-xlarge);
