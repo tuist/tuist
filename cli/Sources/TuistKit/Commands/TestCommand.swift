@@ -11,7 +11,7 @@ enum TuistTestFlagError: FatalError, Equatable {
     var description: String {
         switch self {
         case let .invalidCombination(arguments):
-            "The arguments \(arguments.joined(separator: ", ")) cannot be combined in this way. Please select compatible flags."
+            "The arguments \(arguments.joined(separator: ", ")) are mutually exclusive, only of them can be used."
         }
     }
 

@@ -2,7 +2,7 @@ import Logging
 import TuistCore
 import XcodeGraph
 
-public final class SkipUnitTestsProjectMapper: ProjectMapping {
+public struct SkipUnitTestsProjectMapper: ProjectMapping {
     public init() {}
 
     public func map(project: Project) throws -> (Project, [SideEffectDescriptor]) {
