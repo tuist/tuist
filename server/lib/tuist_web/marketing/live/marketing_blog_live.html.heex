@@ -1,5 +1,5 @@
 <TuistWeb.Marketing.Layouts.marketing {assigns}>
-  <main id="marketing-blog">
+  <main id="marketing-blog" phx-hook="ScrollToTop" data-scroll-target='[data-part="filters-bar"]'>
     <TuistWeb.Marketing.MarketingComponents.navbar {assigns} />
 
     <TuistWeb.Marketing.MarketingComponents.header_background />
@@ -44,21 +44,35 @@
       </div>
     </section>
 
-    <section data-part="bar">
-      <.tab_menu_horizontal label="Categories">
-        <.tab_menu_horizontal_item
-          :for={category <- @categories}
-          label={category |> to_string() |> String.capitalize()}
-        />
-      </.tab_menu_horizontal>
+    <section data-part="filters-bar">
+      <div data-part="categories">
+        <.link
+          patch={~p"/blog"}
+          data-selected={is_nil(@selected_category)}
+          data-part="category"
+        >
+          {dgettext("marketing", "All")}
+        </.link>
+        <.link
+          :for={category <- Enum.reject(@categories, &is_nil/1)}
+          patch={~p"/blog?category=#{to_string(category)}"}
+          data-selected={@selected_category == to_string(category)}
+          data-part="category"
+        >
+          {category |> to_string() |> String.capitalize()}
+        </.link>
+      </div>
       <div data-part="actions">
-        <.text_input
-          id="text-input-types-search"
-          name="search"
-          type="search"
-          placeholder="Search..."
-          show_suffix={false}
-        />
+        <form phx-submit="search" phx-change="search">
+          <.text_input
+            id="text-input-types-search"
+            name="search"
+            type="search"
+            placeholder="Search..."
+            value={@search_query}
+            show_suffix={false}
+          />
+        </form>
         <.button variant="secondary" icon_only={true} size="large">
           <.rss />
         </.button>
@@ -100,9 +114,24 @@
 
     <section data-part="pagination-control">
       <.pagination_group
-        page_patch={fn page -> "?page=#{page}" end}
-        current_page={1}
-        number_of_pages={12}
+        page_patch={
+          fn page ->
+            params = []
+
+            params =
+              if @search_query != "",
+                do: ["search=#{URI.encode_www_form(@search_query)}" | params],
+                else: params
+
+            params =
+              if @selected_category, do: ["category=#{@selected_category}" | params], else: params
+
+            params = ["page=#{page}" | params]
+            "?#{Enum.join(params, "&")}"
+          end
+        }
+        current_page={@current_page}
+        number_of_pages={@total_pages}
       />
     </section>
   </main>

@@ -3,14 +3,9 @@
   align-self: stretch;
   z-index: var(--noora-z-index-12);
 
-  @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
-    margin-top: var(--noora-spacing-7);
-    margin-right: var(--noora-spacing-6);
-    margin-left: var(--noora-spacing-6);
-  }
-
   @container style(--inline-size-lg: var(--marketing-breakpoint-lg)) {
     align-self: center;
+    margin-top: var(--noora-spacing-7);
     width: 100%;
     max-width: 1296px;
   }

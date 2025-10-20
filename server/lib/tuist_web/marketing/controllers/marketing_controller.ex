@@ -62,7 +62,7 @@ defmodule TuistWeb.Marketing.MarketingController do
     )
     |> assign(
       :head_image,
-      Tuist.Environment.app_url(path: "/marketing/images/og/generated/about.jpg")
+      Tuist.Environment.app_url(path: "/marketing/images/og/about.jpg")
     )
     |> assign(:head_twitter_card, "summary_large_image")
     |> assign(
@@ -426,9 +426,7 @@ defmodule TuistWeb.Marketing.MarketingController do
     |> assign(:head_description, head_description)
     |> assign(
       :head_image,
-      Tuist.Environment.app_url(
-        path: "/marketing/images/og/generated/#{page.slug |> String.split("/") |> List.last()}.jpg"
-      )
+      Tuist.Environment.app_url(path: "/marketing/images/og/#{page.slug |> String.split("/") |> List.last()}.jpg")
     )
     |> assign(:head_twitter_card, "summary_large_image")
     |> assign_structured_data(

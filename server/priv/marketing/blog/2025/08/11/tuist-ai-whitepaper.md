@@ -4,6 +4,7 @@ category: "product"
 tags: ["vision", "ai", "agents", "automation", "swift"] 
 excerpt: "AI is revolutionizing how we build Apple apps. We're pioneering agentic coding experiences, automated QA testing, instant previews, and data accessibility to make Swift development dramatically faster and more accessible."
 author: pepicrft
+og_image_path: /marketing/images/blog/2025/08/11/tuist-ai-whitepaper.jpg
 ---
 
 AI is reshaping software development at an unprecedented pace, breaking through limitations that once seemed insurmountable. For Apple developers, this transformation presents unique opportunities and challenges within a platform known for its sophisticated but often opaque tooling.
