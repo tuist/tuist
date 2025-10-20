@@ -220,7 +220,28 @@
     & table[data-part="table"] {
       margin: 0 auto;
       border-collapse: collapse;
+      width: 100%;
+      max-width: 100%;
       table-layout: fixed;
+
+      /* Mobile: hide all plan columns except the active one */
+      & th[data-plan-index],
+      & td[data-plan-index] {
+        display: none;
+      }
+
+      & th[data-plan-index].active,
+      & td[data-plan-index].active {
+        display: table-cell;
+      }
+
+      /* Desktop: show all columns */
+      @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+        & th[data-plan-index],
+        & td[data-plan-index] {
+          display: table-cell;
+        }
+      }
 
       & > thead {
         display: none;
@@ -288,7 +309,11 @@
 
       & th:first-child,
       & td:first-child {
-        width: 40%;
+        width: 60%;
+
+        @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+          width: 40%;
+        }
       }
 
       & td:first-child,
@@ -301,19 +326,21 @@
         text-align: left;
       }
 
-      & th:nth-child(2),
-      & td:nth-child(2),
-      & th:nth-child(3),
-      & td:nth-child(3),
-      & th:nth-child(4),
-      & td:nth-child(4) {
-        width: 20%;
+      & th[data-plan-index],
+      & td[data-plan-index] {
+        width: 40%;
         text-align: center;
+
+        @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+          width: 20%;
+        }
       }
 
       & th:nth-child(3),
       & td:nth-child(3) {
-        background: var(--noora-purple-50);
+        @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+          background: var(--noora-purple-50);
+        }
       }
 
       & th,
@@ -325,6 +352,21 @@
 
       & th:last-child,
       & td:last-child {
+        border-right: none;
+      }
+
+      /* Mobile: remove right border from plan columns since they're the last visible */
+      & th[data-plan-index],
+      & td[data-plan-index] {
+        border-right: none;
+
+        @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+          border-right: 1px dashed var(--noora-surface-border-primary);
+        }
+      }
+
+      & th[data-plan-index]:last-child,
+      & td[data-plan-index]:last-child {
         border-right: none;
       }
 

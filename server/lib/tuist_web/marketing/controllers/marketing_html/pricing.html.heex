@@ -296,9 +296,16 @@ features = [
         <div data-part="plan-selector">
           <div data-part="title">{dgettext("marketing", "Compare our plans")}</div>
           <.button_group size="large">
-            <.button_group_item label={dgettext("marketing", "Air")} />
-            <.button_group_item label={dgettext("marketing", "Pro")} />
-            <.button_group_item label={dgettext("marketing", "Enterprise")} />
+            <.button_group_item
+              :for={{plan, index} <- Enum.with_index(plans)}
+              label={plan.name}
+              phx-click={
+                JS.add_class("active", to: "[data-plan-index='#{index}']")
+                |> JS.remove_class("active",
+                  to: "[data-plan-index]:not([data-plan-index='#{index}'])"
+                )
+              }
+            />
           </.button_group>
         </div>
       </header>
@@ -310,9 +317,11 @@ features = [
               <h2 data-part="title">{dgettext("marketing", "Compare our plans")}</h2>
             </th>
             <th
-              :for={plan <- plans}
+              :for={{plan, index} <- Enum.with_index(plans)}
               data-part="cell-header"
               data-popular={plan.popular}
+              data-plan-index={index}
+              class={if index == 0, do: "active", else: ""}
               scope="col"
             >
               <div data-part="plan-name">{plan.name}</div>
@@ -335,8 +344,10 @@ features = [
               <.hint_text :if={feature.hint} data-class="feature-info" label={feature.hint} />
             </th>
             <td
-              :for={value <- feature.values}
+              :for={{value, index} <- Enum.with_index(feature.values)}
               data-part="cell-value"
+              data-plan-index={index}
+              class={if index == 0, do: "active", else: ""}
               data-available={
                 cond do
                   value == :available -> true
