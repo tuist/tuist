@@ -184,12 +184,18 @@ describe("CAS Module", () => {
 
       const response = await handleGetValue(mockRequest, env, {});
 
-      expect(response.status).toBe(403);
+      expect(response.status).toBe(404);
       expect(env.CAS_CACHE.put).toHaveBeenCalledWith(
         expect.any(String),
-        JSON.stringify({ error: "Unauthorized or not found", status: 403 }),
+        expect.any(String),
         { expirationTtl: 300 },
       );
+      const [, cachedValue] = env.CAS_CACHE.put.mock.calls[0];
+      expect(JSON.parse(cachedValue)).toEqual({
+        error: "Unauthorized or not found",
+        status: 404,
+        shouldReturnJson: true,
+      });
     });
 
     it("should use cached authorization failure", async () => {
@@ -199,13 +205,17 @@ describe("CAS Module", () => {
       });
       env.CAS_CACHE.get
         .mockResolvedValueOnce(
-          JSON.stringify({ error: "Unauthorized or not found", status: 403 }),
+          JSON.stringify({
+            error: "Unauthorized or not found",
+            status: 404,
+            shouldReturnJson: true,
+          }),
         )
         .mockResolvedValue(null);
 
       const response = await handleGetValue(mockRequest, env, {});
 
-      expect(response.status).toBe(403);
+      expect(response.status).toBe(404);
       expect(serverFetch).not.toHaveBeenCalled();
       const data = await response.json();
       expect(data.message).toBe("Unauthorized or not found");
@@ -285,7 +295,7 @@ describe("CAS Module", () => {
       expect(data.message).toBe("Artifact does not exist");
     });
 
-    it("should return 403 with JSON when server returns forbidden", async () => {
+    it("should return 404 with JSON when server returns forbidden", async () => {
       mockRequest.headers.get.mockImplementation((header) => {
         if (header === "Authorization") return "Bearer token123";
         return null;
@@ -304,7 +314,7 @@ describe("CAS Module", () => {
 
       const response = await handleGetValue(mockRequest, env, {});
 
-      expect(response.status).toBe(403);
+      expect(response.status).toBe(404);
       const data = await response.json();
       expect(data.message).toBe("Unauthorized or not found");
     });
@@ -375,7 +385,7 @@ describe("CAS Module", () => {
       expect(data.message).toContain("Missing Authorization header");
     });
 
-    it("should return 403 with JSON when server returns forbidden", async () => {
+    it("should return 404 with JSON when server returns forbidden", async () => {
       mockRequest.headers.get.mockReturnValue("Bearer token123");
       env.CAS_CACHE.get.mockResolvedValue(null);
       serverFetch
@@ -391,7 +401,7 @@ describe("CAS Module", () => {
 
       const response = await handleSave(mockRequest, env, {});
 
-      expect(response.status).toBe(403);
+      expect(response.status).toBe(404);
       const data = await response.json();
       expect(data.message).toBe("Unauthorized or not found");
     });
@@ -410,9 +420,15 @@ describe("CAS Module", () => {
       expect(response.status).toBe(401);
       expect(env.CAS_CACHE.put).toHaveBeenCalledWith(
         expect.any(String),
-        JSON.stringify({ error: "Unauthorized or not found", status: 401 }),
+        expect.any(String),
         { expirationTtl: 300 },
       );
+      const [, cachedValue] = env.CAS_CACHE.put.mock.calls[0];
+      expect(JSON.parse(cachedValue)).toEqual({
+        error: "Unauthorized or not found",
+        status: 401,
+        shouldReturnJson: true,
+      });
     });
 
     it("should return 204 when artifact already exists", async () => {

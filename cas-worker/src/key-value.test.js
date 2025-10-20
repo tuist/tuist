@@ -1,4 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+
+vi.mock("./auth.js", () => ({
+  ensureProjectAccessible: vi.fn(),
+}));
+
+import { ensureProjectAccessible } from "./auth.js";
 import { handleKeyValueGet, handleKeyValuePut } from "./key-value.js";
 
 const originalCaches = globalThis.caches;
@@ -11,8 +17,12 @@ describe("KeyValue handlers", () => {
   let uuidSpy;
 
   beforeEach(() => {
+    vi.clearAllMocks();
+    ensureProjectAccessible.mockReset();
+    ensureProjectAccessible.mockResolvedValue({ authHeader: "Bearer token" });
+
     env = {
-      KEY_VALUE_STORE: {
+      CAS_CACHE: {
         get: vi.fn().mockResolvedValue([]),
         put: vi.fn(),
       },
@@ -75,10 +85,15 @@ describe("KeyValue handlers", () => {
       await expect(response.json()).resolves.toEqual({
         message: "Missing account_handle or project_handle query parameter",
       });
+      expect(ensureProjectAccessible).not.toHaveBeenCalled();
     });
 
     it("returns 401 when Authorization header is missing", async () => {
       request.headers.get = vi.fn(() => null);
+      ensureProjectAccessible.mockResolvedValueOnce({
+        error: "Missing Authorization header",
+        status: 401,
+      });
 
       const response = await handleKeyValueGet(request, env);
 
@@ -88,14 +103,28 @@ describe("KeyValue handlers", () => {
       });
     });
 
-    it("returns 500 when KEY_VALUE_STORE binding missing", async () => {
-      env.KEY_VALUE_STORE = null;
+    it("returns 404 when project access is denied", async () => {
+      ensureProjectAccessible.mockResolvedValueOnce({
+        error: "Unauthorized or not found",
+        status: 404,
+      });
+
+      const response = await handleKeyValueGet(request, env);
+
+      expect(response.status).toBe(404);
+      await expect(response.json()).resolves.toEqual({
+        message: "Unauthorized or not found",
+      });
+    });
+
+    it("returns 500 when CAS_CACHE binding missing", async () => {
+      env.CAS_CACHE = null;
 
       const response = await handleKeyValueGet(request, env);
 
       expect(response.status).toBe(500);
       await expect(response.json()).resolves.toEqual({
-        message: "KEY_VALUE_STORE binding is not configured",
+        message: "CAS_CACHE binding is not configured",
       });
     });
 
@@ -109,7 +138,7 @@ describe("KeyValue handlers", () => {
       const response = await handleKeyValueGet(request, env);
 
       expect(cache.match).toHaveBeenCalled();
-      expect(env.KEY_VALUE_STORE.get).not.toHaveBeenCalled();
+      expect(env.CAS_CACHE.get).not.toHaveBeenCalled();
       expect(response.status).toBe(200);
       await expect(response.json()).resolves.toEqual({
         entries: [{ value: "cached" }],
@@ -118,12 +147,12 @@ describe("KeyValue handlers", () => {
 
     it("reads from KV and populates cache when not cached", async () => {
       cache.match.mockResolvedValue(null);
-      env.KEY_VALUE_STORE.get.mockResolvedValue([{ value: "stored" }]);
+      env.CAS_CACHE.get.mockResolvedValue([{ value: "stored" }]);
 
       const response = await handleKeyValueGet(request, env);
 
-      expect(env.KEY_VALUE_STORE.get).toHaveBeenCalledWith(
-        "keyvalue:my-account:my-project:cas123",
+      expect(env.CAS_CACHE.get).toHaveBeenCalledWith(
+        "keyvalue:entries:my-account:my-project:cas123",
         "json",
       );
       expect(cache.put).toHaveBeenCalled();
@@ -135,7 +164,7 @@ describe("KeyValue handlers", () => {
 
     it("returns 404 when KV has no entries", async () => {
       cache.match.mockResolvedValue(null);
-      env.KEY_VALUE_STORE.get.mockResolvedValue(null);
+      env.CAS_CACHE.get.mockResolvedValue(null);
 
       const response = await handleKeyValueGet(request, env);
 
@@ -148,12 +177,12 @@ describe("KeyValue handlers", () => {
     it("decodes cas_id path parameter before lookup", async () => {
       cache.match.mockResolvedValue(null);
       request.params.cas_id = encodeURIComponent("cas123==");
-      env.KEY_VALUE_STORE.get.mockResolvedValue([{ value: "stored" }]);
+      env.CAS_CACHE.get.mockResolvedValue([{ value: "stored" }]);
 
       const response = await handleKeyValueGet(request, env);
 
-      expect(env.KEY_VALUE_STORE.get).toHaveBeenCalledWith(
-        "keyvalue:my-account:my-project:cas123==",
+      expect(env.CAS_CACHE.get).toHaveBeenCalledWith(
+        "keyvalue:entries:my-account:my-project:cas123==",
         "json",
       );
       expect(response.status).toBe(200);
@@ -183,16 +212,35 @@ describe("KeyValue handlers", () => {
       await expect(response.json()).resolves.toEqual({
         message: "Missing account_handle or project_handle query parameter",
       });
+      expect(ensureProjectAccessible).not.toHaveBeenCalled();
     });
 
     it("returns 401 when Authorization header is missing", async () => {
       request.headers.get = vi.fn(() => null);
+      ensureProjectAccessible.mockResolvedValueOnce({
+        error: "Missing Authorization header",
+        status: 401,
+      });
 
       const response = await handleKeyValuePut(request, env);
 
       expect(response.status).toBe(401);
       await expect(response.json()).resolves.toEqual({
         message: "Missing Authorization header",
+      });
+    });
+
+    it("returns 404 when project access is denied", async () => {
+      ensureProjectAccessible.mockResolvedValueOnce({
+        error: "Unauthorized or not found",
+        status: 404,
+      });
+
+      const response = await handleKeyValuePut(request, env);
+
+      expect(response.status).toBe(404);
+      await expect(response.json()).resolves.toEqual({
+        message: "Unauthorized or not found",
       });
     });
 

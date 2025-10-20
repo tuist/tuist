@@ -4,16 +4,16 @@ import {
   readCache,
   writeCache,
   validateQuery,
-  validateAuth,
   decodeCasId,
 } from "./shared.js";
+import { ensureProjectAccessible } from "./auth.js";
 
 function buildCacheKey(accountHandle, projectHandle, casId) {
   return `https://cache.tuist.dev/api/cache/keyvalue/${encodeURIComponent(accountHandle)}/${encodeURIComponent(projectHandle)}/${encodeURIComponent(casId)}`;
 }
 
 function buildStorageKey(accountHandle, projectHandle, casId) {
-  return `keyvalue:${accountHandle}:${projectHandle}:${casId}`;
+  return `keyvalue:entries:${accountHandle}:${projectHandle}:${casId}`;
 }
 
 function generateEntryId() {
@@ -38,13 +38,13 @@ function normalizeStoredEntries(entries) {
 }
 
 function validateKvStore(env) {
-  const store = env.KEY_VALUE_STORE;
+  const store = env.CAS_CACHE;
   if (
     !store ||
     typeof store.put !== "function" ||
     typeof store.get !== "function"
   ) {
-    return { error: "KEY_VALUE_STORE binding is not configured", status: 500 };
+    return { error: "CAS_CACHE binding is not configured", status: 500 };
   }
   return { store };
 }
@@ -55,9 +55,16 @@ export async function handleKeyValueGet(request, env) {
     return errorResponse(queryValidation.error, queryValidation.status);
   }
 
-  const authValidation = validateAuth(request);
-  if (authValidation.error) {
-    return errorResponse(authValidation.error, authValidation.status);
+  const { accountHandle, projectHandle } = queryValidation;
+
+  const accessResult = await ensureProjectAccessible(
+    request,
+    env,
+    accountHandle,
+    projectHandle,
+  );
+  if (accessResult.error) {
+    return errorResponse(accessResult.error, accessResult.status);
   }
 
   const kvValidation = validateKvStore(env);
@@ -70,7 +77,6 @@ export async function handleKeyValueGet(request, env) {
     return errorResponse("Missing cas_id path parameter", 400);
   }
 
-  const { accountHandle, projectHandle } = queryValidation;
   const { store } = kvValidation;
 
   const cacheKey = buildCacheKey(accountHandle, projectHandle, casId);
@@ -112,9 +118,16 @@ export async function handleKeyValuePut(request, env) {
     return errorResponse(queryValidation.error, queryValidation.status);
   }
 
-  const authValidation = validateAuth(request);
-  if (authValidation.error) {
-    return errorResponse(authValidation.error, authValidation.status);
+  const { accountHandle, projectHandle } = queryValidation;
+
+  const accessResult = await ensureProjectAccessible(
+    request,
+    env,
+    accountHandle,
+    projectHandle,
+  );
+  if (accessResult.error) {
+    return errorResponse(accessResult.error, accessResult.status);
   }
 
   const kvValidation = validateKvStore(env);
@@ -149,7 +162,6 @@ export async function handleKeyValuePut(request, env) {
     );
   }
 
-  const { accountHandle, projectHandle } = queryValidation;
   const { store } = kvValidation;
 
   const storageKey = buildStorageKey(accountHandle, projectHandle, casId);

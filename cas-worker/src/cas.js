@@ -5,12 +5,14 @@ import {
   getS3Url,
 } from "./s3.js";
 import { serverFetch } from "./server-fetch.js";
-import { jsonResponse, errorResponse } from "./shared.js";
+import { errorResponse } from "./shared.js";
+import {
+  FAILURE_CACHE_TTL,
+  ensureProjectAccessible,
+} from "./auth.js";
 
-const FAILURE_CACHE_TTL = 300;
 const SUCCESS_CACHE_TTL = 3600;
-const ACCESSIBLE_PROJECTS_SUCCESS_TTL = 600;
-const ACCESSIBLE_PROJECTS_CACHE_PREFIX = "accessible-projects";
+const PREFIX_CACHE_PREFIX = "cas-prefix";
 
 async function sha256Hash(data) {
   const encoded = new TextEncoder().encode(data);
@@ -21,101 +23,23 @@ async function sha256Hash(data) {
 }
 
 async function generateCacheKey(accountHandle, projectHandle, authToken) {
-  return sha256Hash(`${accountHandle}:${projectHandle}:${authToken}`);
-}
-
-async function generateAccessibleProjectsCacheKey(authToken) {
-  return sha256Hash(`${ACCESSIBLE_PROJECTS_CACHE_PREFIX}:${authToken}`);
-}
-
-function buildForwardHeaders(request, authHeader) {
-  const headers = { Authorization: authHeader };
-  const requestIdHeader = request.headers.get("x-request-id");
-  if (requestIdHeader) {
-    headers["x-request-id"] = requestIdHeader;
-  }
-  return headers;
-}
-
-async function getAccessibleProjects(request, env, authHeader) {
-  const cacheKey = await generateAccessibleProjectsCacheKey(authHeader);
-
-  if (env.CAS_CACHE) {
-    const cached = await env.CAS_CACHE.get(cacheKey);
-    if (cached) {
-      return JSON.parse(cached);
-    }
-  }
-
-  const headers = buildForwardHeaders(request, authHeader);
-
-  try {
-    const response = await serverFetch(
-      env,
-      "/api/accessible-projects",
-      { method: "GET", headers },
-    );
-
-    if (!response.ok) {
-      const result = {
-        error: "Unauthorized or not found",
-        status: response.status,
-      };
-
-      if (
-        env.CAS_CACHE &&
-        (response.status === 401 || response.status === 403)
-      ) {
-        await env.CAS_CACHE.put(cacheKey, JSON.stringify(result), {
-          expirationTtl: FAILURE_CACHE_TTL,
-        });
-      }
-
-      return result;
-    }
-
-    const projects = await response.json();
-
-    if (!Array.isArray(projects)) {
-      return { error: "Unexpected response from authorization endpoint", status: 500 };
-    }
-
-    if (env.CAS_CACHE) {
-      await env.CAS_CACHE.put(cacheKey, JSON.stringify({ projects }), {
-        expirationTtl: ACCESSIBLE_PROJECTS_SUCCESS_TTL,
-      });
-    }
-
-    return { projects };
-  } catch (error) {
-    return { error: error.message, status: 500 };
-  }
+  const hash = await sha256Hash(`${accountHandle}:${projectHandle}:${authToken}`);
+  return `${PREFIX_CACHE_PREFIX}:${hash}`;
 }
 
 async function getS3Prefix(request, env, accountHandle, projectHandle) {
-  const authHeader = request.headers.get("Authorization");
-  if (!authHeader) {
-    return { error: "Missing Authorization header", status: 401 };
-  }
-
-  const accessibleProjectsResult = await getAccessibleProjects(
+  const accessResult = await ensureProjectAccessible(
     request,
     env,
-    authHeader,
+    accountHandle,
+    projectHandle,
   );
 
-  if (accessibleProjectsResult.error) {
-    return accessibleProjectsResult;
+  if (accessResult.error) {
+    return accessResult;
   }
 
-  const requestedHandle = `${accountHandle}/${projectHandle}`;
-  if (
-    !accessibleProjectsResult.projects.some(
-      (handle) => handle.toLowerCase() === requestedHandle.toLowerCase(),
-    )
-  ) {
-    return { error: "Unauthorized or not found", status: 403 };
-  }
+  const { authHeader } = accessResult;
 
   const cacheKey = await generateCacheKey(
     accountHandle,
@@ -123,33 +47,43 @@ async function getS3Prefix(request, env, accountHandle, projectHandle) {
     authHeader,
   );
 
-  if (env.CAS_CACHE) {
-    const cached = await env.CAS_CACHE.get(cacheKey);
+  const cache = env.CAS_CACHE;
+  if (cache) {
+    const cached = await cache.get(cacheKey);
     if (cached) {
       return JSON.parse(cached);
     }
   }
 
-  const headers = buildForwardHeaders(request, authHeader);
+  const headers = { Authorization: authHeader };
+  const requestIdHeader = request.headers.get("x-request-id");
+  if (requestIdHeader) {
+    headers["x-request-id"] = requestIdHeader;
+  }
 
   try {
+    const prefixUrl =
+      `/api/cache/prefix?account_handle=${accountHandle}&project_handle=${projectHandle}`;
     const response = await serverFetch(
       env,
-      `/api/cache/prefix?account_handle=${accountHandle}&project_handle=${projectHandle}`,
+      prefixUrl,
       { method: "GET", headers },
     );
 
     if (!response.ok) {
+      const isServerNotFound = response.status === 404;
+      const normalizedStatus = response.status === 403 ? 404 : response.status;
       const result = {
         error: "Unauthorized or not found",
-        status: response.status,
+        status: normalizedStatus,
+        shouldReturnJson: !isServerNotFound,
       };
 
       if (
-        env.CAS_CACHE &&
+        cache &&
         (response.status === 401 || response.status === 403)
       ) {
-        await env.CAS_CACHE.put(cacheKey, JSON.stringify(result), {
+        await cache.put(cacheKey, JSON.stringify(result), {
           expirationTtl: FAILURE_CACHE_TTL,
         });
       }
@@ -159,8 +93,8 @@ async function getS3Prefix(request, env, accountHandle, projectHandle) {
 
     const { prefix } = await response.json();
 
-    if (env.CAS_CACHE && prefix) {
-      await env.CAS_CACHE.put(cacheKey, JSON.stringify({ prefix }), {
+    if (cache && prefix) {
+      await cache.put(cacheKey, JSON.stringify({ prefix }), {
         expirationTtl: SUCCESS_CACHE_TTL,
       });
     }
@@ -192,7 +126,11 @@ async function validateAndSetupRequest(
     projectHandle,
   );
   if (prefixResult.error) {
-    if (prefixResult.status === 401 || prefixResult.status === 403) {
+    if (
+      prefixResult.shouldReturnJson ||
+      prefixResult.status === 401 ||
+      prefixResult.status === 403
+    ) {
       return { error: prefixResult.error, status: prefixResult.status };
     }
     return {
