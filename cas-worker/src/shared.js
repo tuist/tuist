@@ -5,21 +5,6 @@ function jsonResponse(body, status = 200) {
   });
 }
 
-async function readCache(cacheKey) {
-  if (!globalThis.caches?.default) return null;
-
-  const cacheRequest = new Request(cacheKey, { method: "GET" });
-  const cached = await caches.default.match(cacheRequest);
-  return cached?.clone() ?? null;
-}
-
-async function writeCache(cacheKey, response) {
-  if (!globalThis.caches?.default) return;
-
-  const cacheRequest = new Request(cacheKey, { method: "GET" });
-  await caches.default.put(cacheRequest, response.clone());
-}
-
 function validateQuery(request) {
   const query = request.query || {};
   const { account_handle: accountHandle, project_handle: projectHandle } =
@@ -35,14 +20,6 @@ function validateQuery(request) {
   return { accountHandle, projectHandle };
 }
 
-function validateAuth(request) {
-  const authorization = request.headers?.get?.("Authorization");
-  if (!authorization) {
-    return { error: "Missing Authorization header", status: 401 };
-  }
-  return { authorization };
-}
-
 function decodeCasId(rawCasId) {
   if (typeof rawCasId !== "string") return null;
 
@@ -55,10 +32,6 @@ function decodeCasId(rawCasId) {
 
 export {
   jsonResponse,
-  jsonResponse,
-  readCache,
-  writeCache,
   validateQuery,
-  validateAuth,
   decodeCasId,
 };

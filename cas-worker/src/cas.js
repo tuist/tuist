@@ -177,7 +177,10 @@ export async function handleGetValue(request, env) {
     id,
   );
   if (setupResult.error) {
-    return jsonResponse(setupResult.error, setupResult.status);
+    return jsonResponse(
+      { message: setupResult.error },
+      setupResult.status,
+    );
   }
   if (setupResult.shouldReturnEmpty) {
     return new Response(null, { status: setupResult.status });
@@ -190,18 +193,18 @@ export async function handleGetValue(request, env) {
   try {
     s3Response = await s3Client.fetch(url, { method: "GET" });
   } catch (e) {
-    return jsonResponse("S3 error", 500);
+    return jsonResponse({ message: "S3 error" }, 500);
   }
 
   if (!s3Response.ok) {
-    return jsonResponse("Artifact does not exist", 404);
+    return jsonResponse({ message: "Artifact does not exist" }, 404);
   }
 
   let arrayBuffer;
   try {
     arrayBuffer = await s3Response.arrayBuffer();
   } catch (e) {
-    return jsonResponse("Failed to read S3 response", 500);
+    return jsonResponse({ message: "Failed to read S3 response" }, 500);
   }
 
   const responseHeaders = new Headers(s3Response.headers);
@@ -224,7 +227,10 @@ export async function handleSave(request, env) {
     id,
   );
   if (setupResult.error) {
-    return jsonResponse(setupResult.error, setupResult.status);
+    return jsonResponse(
+      { message: setupResult.error },
+      setupResult.status,
+    );
   }
   if (setupResult.shouldReturnEmpty) {
     return new Response(null, { status: setupResult.status });
@@ -265,6 +271,6 @@ export async function handleSave(request, env) {
 
     return new Response(null, { status: 204 });
   } catch (e) {
-    return jsonResponse("S3 error", 500);
+    return jsonResponse({ message: "S3 error" }, 500);
   }
 }
