@@ -26,6 +26,7 @@
                 variant="secondary"
                 size="medium"
                 label={dgettext("marketing", "Get started")}
+                href={~p"/users/log_in"}
               />
             </th>
             <th data-part="cell-header" data-popular="true" scope="col">
@@ -34,6 +35,7 @@
                 variant="primary"
                 size="medium"
                 label={dgettext("marketing", "Get started")}
+                href={~p"/users/log_in"}
               />
             </th>
             <th data-part="cell-header" scope="col">
@@ -41,7 +43,8 @@
               <.button
                 variant="secondary"
                 size="medium"
-                label={dgettext("marketing", "Contact us")}
+                label={dgettext("marketing", "Talk to us")}
+                href="https://cal.tuist.dev/team/tuist/tuist"
               />
             </th>
           </tr>
@@ -74,13 +77,10 @@
                   "Speed up clean compilations by using binaries for graph targets (including external dependencies)."
                 )}
               </div>
-              <button
-                data-part="feature-info"
-                type="button"
-                aria-label={dgettext("marketing", "How do we calculate units?")}
-              >
-                {dgettext("marketing", "How do we calculate units?")}
-              </button>
+              <.hint_text
+                data-class="feature-info"
+                label={dgettext("marketing", "How do we calculate units?")}
+              />
             </th>
             <td data-part="cell-value">200</td>
             <td data-part="cell-value">
@@ -100,13 +100,10 @@
                   "Speed up test runs by skipping test suites (test targets) whose tests are not impacted by the changes."
                 )}
               </div>
-              <button
-                data-part="feature-info"
-                type="button"
-                aria-label={dgettext("marketing", "How do we calculate units?")}
-              >
-                {dgettext("marketing", "How do we calculate units?")}
-              </button>
+              <.hint_text
+                data-class="feature-info"
+                label={dgettext("marketing", "How do we calculate units?")}
+              />
             </th>
             <td data-part="cell-value">200</td>
             <td data-part="cell-value">
