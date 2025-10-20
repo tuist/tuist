@@ -28,13 +28,6 @@ async function validateAndSetupRequest(
     projectHandle,
   );
   if (accessResult.error) {
-    if (accessResult.status === 404 && accessResult.shouldReturnJson !== true) {
-      return {
-        error: null,
-        status: accessResult.status,
-        shouldReturnEmpty: true,
-      };
-    }
     return { error: accessResult.error, status: accessResult.status };
   }
 
@@ -77,13 +70,7 @@ export async function handleGetValue(request, env) {
     id,
   );
   if (setupResult.error) {
-    return jsonResponse(
-      { message: setupResult.error },
-      setupResult.status,
-    );
-  }
-  if (setupResult.shouldReturnEmpty) {
-    return new Response(null, { status: setupResult.status });
+    return jsonResponse({ message: setupResult.error }, setupResult.status);
   }
 
   const { s3Client, bucket, endpoint, virtualHost, key } = setupResult;
@@ -127,13 +114,7 @@ export async function handleSave(request, env) {
     id,
   );
   if (setupResult.error) {
-    return jsonResponse(
-      { message: setupResult.error },
-      setupResult.status,
-    );
-  }
-  if (setupResult.shouldReturnEmpty) {
-    return new Response(null, { status: setupResult.status });
+    return jsonResponse({ message: setupResult.error }, setupResult.status);
   }
 
   const { s3Client, bucket, endpoint, virtualHost, key } = setupResult;

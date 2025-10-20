@@ -30,8 +30,4 @@ function decodeCasId(rawCasId) {
   }
 }
 
-export {
-  jsonResponse,
-  validateQuery,
-  decodeCasId,
-};
+export { jsonResponse, validateQuery, decodeCasId };

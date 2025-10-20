@@ -107,7 +107,8 @@ export async function handleKeyValuePut(request, env) {
   if (sanitizedEntries.length === 0) {
     return jsonResponse(
       {
-        message: "Entries array must include at least one entry with id and value",
+        message:
+          "Entries array must include at least one entry with id and value",
       },
       400,
     );

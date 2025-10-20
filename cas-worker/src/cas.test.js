@@ -176,7 +176,6 @@ describe("CAS Module", () => {
       expect(JSON.parse(cachedValue)).toEqual({
         error: "Unauthorized or not found",
         status: 404,
-        shouldReturnJson: true,
       });
     });
 
@@ -190,7 +189,6 @@ describe("CAS Module", () => {
           JSON.stringify({
             error: "Unauthorized or not found",
             status: 404,
-            shouldReturnJson: true,
           }),
         )
         .mockResolvedValue(null);
@@ -291,8 +289,8 @@ describe("CAS Module", () => {
       const response = await handleGetValue(mockRequest, env, {});
 
       expect(response.status).toBe(404);
-      const body = await response.text();
-      expect(body).toBe("");
+      const data = await response.json();
+      expect(data.message).toBe("Unauthorized or not found");
     });
 
     it("should return 500 when S3 bucket is not configured", async () => {
@@ -372,7 +370,6 @@ describe("CAS Module", () => {
       expect(JSON.parse(cachedValue)).toEqual({
         error: "Unauthorized or not found",
         status: 401,
-        shouldReturnJson: true,
       });
     });
 

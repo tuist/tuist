@@ -18,14 +18,14 @@ async function generateAccessibleProjectsCacheKey(authHeader) {
 }
 
 async function getAccessibleProjects(request, env, authHeader) {
-  console.log("Getting projects...")
+  console.log("Getting projects...");
   const cache = env.CAS_CACHE;
   const cacheKey = await generateAccessibleProjectsCacheKey(authHeader);
 
   if (cache) {
     const cached = await cache.get(cacheKey);
     if (cached) {
-      console.log("Found projects in cache", cached)
+      console.log("Found projects in cache", cached);
       return JSON.parse(cached);
     }
   }
@@ -37,25 +37,20 @@ async function getAccessibleProjects(request, env, authHeader) {
   }
 
   try {
-    console.log("Fetching projects from server...")
-    const response = await serverFetch(
-      env,
-      "/api/accessible-projects",
-      { method: "GET", headers },
-    );
+    console.log("Fetching projects from server...");
+    const response = await serverFetch(env, "/api/accessible-projects", {
+      method: "GET",
+      headers,
+    });
 
     if (!response.ok) {
       const normalizedStatus = response.status === 403 ? 404 : response.status;
       const result = {
         error: "Unauthorized or not found",
         status: normalizedStatus,
-        shouldReturnJson: true,
       };
 
-      if (
-        cache &&
-        (response.status === 401 || response.status === 403)
-      ) {
+      if (cache && (response.status === 401 || response.status === 403)) {
         await cache.put(cacheKey, JSON.stringify(result), {
           expirationTtl: FAILURE_CACHE_TTL,
         });
@@ -66,13 +61,12 @@ async function getAccessibleProjects(request, env, authHeader) {
 
     const projects = await response.json();
 
-    console.log("Got projects from server", projects)
+    console.log("Got projects from server", projects);
 
     if (!Array.isArray(projects)) {
       return {
         error: "Unexpected response from authorization endpoint",
         status: 500,
-        shouldReturnJson: true,
       };
     }
 
@@ -84,7 +78,7 @@ async function getAccessibleProjects(request, env, authHeader) {
 
     return { projects };
   } catch (error) {
-    return { error: error.message, status: 500, shouldReturnJson: true };
+    return { error: error.message, status: 500 };
   }
 }
 
@@ -99,7 +93,6 @@ async function ensureProjectAccessible(
     return {
       error: "Missing Authorization header",
       status: 401,
-      shouldReturnJson: true,
     };
   }
 
@@ -122,15 +115,10 @@ async function ensureProjectAccessible(
     return {
       error: "Unauthorized or not found",
       status: 404,
-      shouldReturnJson: false,
     };
   }
 
   return { authHeader };
 }
 
-export {
-  FAILURE_CACHE_TTL,
-  ensureProjectAccessible,
-  getAccessibleProjects,
-};
+export { FAILURE_CACHE_TTL, ensureProjectAccessible, getAccessibleProjects };
