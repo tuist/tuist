@@ -6,12 +6,14 @@
 @import "css/routes/home.css";
 @import "css/routes/about.css";
 @import "css/routes/blog.css";
+@import "css/routes/blog-post.css";
 @import "css/routes/changelog.css";
 @import "css/routes/pricing.css";
 @import "css/components/header-background.css";
 @import "css/layouts/components/navbar.css";
 @import "css/layouts/components/footer.css";
 @import "css/layouts/components/banner.css";
+@import "css/layouts/components/window.css";
 
 :root {
   color-scheme: light;

@@ -12,20 +12,8 @@
         </h1>
       </div>
       <div data-part="main">
-        <% highlighted_post_img_src =
-          if @highlighted_post.og_image_path do
-            Tuist.Environment.app_url(
-              path: @highlighted_post.og_image_path,
-              marketing: true
-            )
-          else
-            Tuist.Environment.app_url(
-              path: "/marketing/images/og/generated#{@highlighted_post.slug}.jpg",
-              marketing: true
-            )
-          end %>
         <% highlighted_post_author = Blog.get_authors()[@highlighted_post.author] %>
-        <img data-part="image" src={highlighted_post_img_src} />
+        <img data-part="image" src={Blog.get_post_image_url(@highlighted_post)} />
         <div data-part="content">
           <h2 data-part="title">
             <.link href={TuistWeb.Marketing.MarketingHTML.localized_href(@highlighted_post.slug)}>
@@ -101,20 +89,8 @@
         data-part="post"
         href={TuistWeb.Marketing.MarketingHTML.localized_href(post.slug)}
       >
-        <% post_img_src =
-          if post.og_image_path do
-            Tuist.Environment.app_url(
-              path: post.og_image_path,
-              marketing: true
-            )
-          else
-            Tuist.Environment.app_url(
-              path: "/marketing/images/og/generated#{post.slug}.jpg",
-              marketing: true
-            )
-          end %>
         <% post_author = Blog.get_authors()[post.author] %>
-        <img data-part="image" src={post_img_src} />
+        <img data-part="image" src={Blog.get_post_image_url(post)} />
         <div data-part="content">
           <header data-part="header">
             <div data-part="author">{post_author["name"]}</div>

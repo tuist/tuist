@@ -7,6 +7,8 @@ defmodule TuistWeb.Marketing.MarketingHTML do
   import TuistWeb.Marketing.MarketingOrgLogos
   import TuistWeb.Marketing.TestimonialOrgLogos
 
+  alias Tuist.Marketing.Blog
+
   embed_templates "marketing_html/*"
 
   # Delegate to Localization module
