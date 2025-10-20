@@ -139,12 +139,12 @@
         border-right: none;
       }
 
-      & tr:last-child th:first-child,
-      & tr:last-child td:first-child {
+      & tbody tr:last-child th:first-child,
+      & tbody tr:last-child td:first-child {
         border-bottom: none;
       }
 
-      & tr:last-child td:not(:first-child) {
+      & tbody tr:last-child td:not(:first-child) {
         border-bottom: none;
       }
     }
