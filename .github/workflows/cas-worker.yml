@@ -49,6 +49,7 @@ jobs:
         with:
           cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
           working_directory: cas-worker
+      - run: mise run install
       - name: Run tests
         run: mise run test
   format:
@@ -68,5 +69,6 @@ jobs:
         with:
           cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
           working_directory: cas-worker
+      - run: mise run install
       - name: Check format
         run: mise run format --check
