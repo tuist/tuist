@@ -60,8 +60,7 @@ We offer a selective testing solution that works seamlessly across different env
 Supporting Tuist is a cost-effective investment, as it will likely save your team more than it costs. Your contributions support Tuist's development and other vital open-source projects in need of sustainability. We're committed to fostering a sustainable open-source ecosystem where developers can earn a living from their work.
 If you want to get rough estimates of the potential savings, you can use our calculator below.
 
-<section
-class="flex flex-col p-[0.060rem] shadow-2xl rounded-3xl bg-gradient-to-b from-indigo-500 to-cyan-500 col-span-5">
+<section class="flex flex-col p-[0.060rem] shadow-2xl rounded-3xl bg-gradient-to-b from-indigo-500 to-cyan-500 col-span-5">
     <div class="bg-vulcan-900 px-6 sm:px-8 pt-8 pb-10 rounded-3xl h-full">
         <Calculator showTitle={false} showDescription={false} client:visible/>
     </div>

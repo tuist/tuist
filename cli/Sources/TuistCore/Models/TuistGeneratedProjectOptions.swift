@@ -45,7 +45,8 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
                 staticSideEffectsWarningTargets: .all,
                 buildInsightsDisabled: true,
                 disableSandbox: true,
-                includeGenerateScheme: false
+                includeGenerateScheme: false,
+                enableCaching: false
             ),
             installOptions: .init(passthroughSwiftPackageManagerArguments: []),
             cacheOptions: CacheOptions(keepSourceTargets: false)
@@ -74,6 +75,7 @@ extension TuistGeneratedProjectOptions {
         public let buildInsightsDisabled: Bool
         public let disableSandbox: Bool
         public let includeGenerateScheme: Bool
+        public let enableCaching: Bool
 
         public init(
             resolveDependenciesWithSystemScm: Bool,
@@ -86,7 +88,8 @@ extension TuistGeneratedProjectOptions {
             optionalAuthentication: Bool = false,
             buildInsightsDisabled: Bool,
             disableSandbox: Bool,
-            includeGenerateScheme: Bool
+            includeGenerateScheme: Bool,
+            enableCaching: Bool = false
         ) {
             self.resolveDependenciesWithSystemScm = resolveDependenciesWithSystemScm
             self.disablePackageVersionLocking = disablePackageVersionLocking
@@ -99,6 +102,7 @@ extension TuistGeneratedProjectOptions {
             self.buildInsightsDisabled = buildInsightsDisabled
             self.disableSandbox = disableSandbox
             self.includeGenerateScheme = includeGenerateScheme
+            self.enableCaching = enableCaching
         }
     }
 
@@ -179,7 +183,8 @@ extension TuistGeneratedProjectOptions {
             optionalAuthentication: Bool = false,
             buildInsightsDisabled: Bool = true,
             disableSandbox: Bool = true,
-            includeGenerateScheme: Bool = true
+            includeGenerateScheme: Bool = true,
+            enableCaching: Bool = false
         ) -> Self {
             .init(
                 resolveDependenciesWithSystemScm: resolveDependenciesWithSystemScm,
@@ -192,7 +197,8 @@ extension TuistGeneratedProjectOptions {
                 optionalAuthentication: optionalAuthentication,
                 buildInsightsDisabled: buildInsightsDisabled,
                 disableSandbox: disableSandbox,
-                includeGenerateScheme: includeGenerateScheme
+                includeGenerateScheme: includeGenerateScheme,
+                enableCaching: enableCaching
             )
         }
     }

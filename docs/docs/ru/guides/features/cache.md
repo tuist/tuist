@@ -155,7 +155,7 @@ The following are some examples of common workflows:
    project with them.
 3. It will then build or test the project incrementally.
 
-## Troubleshooting {#troubleshooting}
+## Устранение неполадок {#troubleshooting}
 
 ### It doesn't use binaries for my targets {#it-doesnt-use-binaries-for-my-targets}
 
@@ -169,3 +169,14 @@ consecutive invocations of `tuist generate` or across environments or runs.
 Also make sure that the target doesn't depend either directly or indirectly on a
 <LocalizedLink href="/guides/features/cache#supported-products">non-cacheable
 target</LocalizedLink>.
+
+### Missing symbols {#missing-symbols}
+
+When using sources, Xcode's build system, through Derived Data, can resolve
+dependencies that are not declared explicitly. However, when you rely on the
+binary cache, dependencies must be declared explicitly; otherwise you'll likely
+see compilation errors when symbols can't be found. To debug this, we recommend
+using the
+<LocalizedLink href="/guides/features/projects/inspect/implicit-dependencies">`tuist
+inspect implicit-imports`</LocalizedLink> command and setting it up in CI to
+prevent regressions in implicit linking.

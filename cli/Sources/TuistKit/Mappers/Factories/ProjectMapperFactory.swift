@@ -88,6 +88,9 @@ public final class ProjectMapperFactory: ProjectMapperFactorying {
         // Template macros
         mappers.append(IDETemplateMacrosMapper())
 
+        // Xcode cache settings
+        mappers.append(XcodeCacheSettingsProjectMapper(tuist: tuist))
+
         return mappers
     }
 }

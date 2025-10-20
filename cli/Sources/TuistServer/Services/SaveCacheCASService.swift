@@ -18,13 +18,14 @@ public enum SaveCacheCASServiceError: LocalizedError {
     case unauthorized(String)
     case forbidden(String)
     case notFound(String)
+    case badRequest(String)
     case saveFailed
 
     public var errorDescription: String? {
         switch self {
         case let .unknownError(statusCode):
             return "The CAS artifact could not be uploaded due to an unknown Tuist response of \(statusCode)."
-        case let .unauthorized(message), let .forbidden(message), let .notFound(message):
+        case let .unauthorized(message), let .forbidden(message), let .notFound(message), let .badRequest(message):
             return message
         case .saveFailed:
             return "The CAS artifact save failed due to an unknown error."
@@ -66,7 +67,7 @@ public final class SaveCacheCASService: SaveCacheCASServicing {
             )
         )
         switch response {
-        case .ok:
+        case .noContent:
             return
         case let .forbidden(forbidden):
             switch forbidden.body {
@@ -77,6 +78,11 @@ public final class SaveCacheCASService: SaveCacheCASServicing {
             switch unauthorized.body {
             case let .json(error):
                 throw SaveCacheCASServiceError.unauthorized(error.message)
+            }
+        case let .badRequest(badRequest):
+            switch badRequest.body {
+            case let .json(error):
+                throw SaveCacheCASServiceError.badRequest(error.message)
             }
         case let .undocumented(statusCode: statusCode, _):
             throw SaveCacheCASServiceError.unknownError(statusCode)
