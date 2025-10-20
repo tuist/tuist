@@ -7,12 +7,10 @@ vi.mock("./auth.js", () => ({
 import { ensureProjectAccessible } from "./auth.js";
 import { handleKeyValueGet, handleKeyValuePut } from "./key-value.js";
 
-const originalCaches = globalThis.caches;
 const hasNativeCrypto = !!globalThis.crypto;
 
 describe("KeyValue handlers", () => {
   let env;
-  let cache;
   let request;
   let uuidSpy;
 
@@ -27,13 +25,6 @@ describe("KeyValue handlers", () => {
         put: vi.fn(),
       },
     };
-
-    cache = {
-      match: vi.fn(),
-      put: vi.fn().mockResolvedValue(undefined),
-    };
-
-    globalThis.caches = { default: cache };
 
     let counter = 0;
     if (hasNativeCrypto && globalThis.crypto?.randomUUID) {
@@ -64,12 +55,6 @@ describe("KeyValue handlers", () => {
       uuidSpy = undefined;
     } else if (!hasNativeCrypto) {
       delete globalThis.crypto;
-    }
-
-    if (originalCaches) {
-      globalThis.caches = originalCaches;
-    } else {
-      delete globalThis.caches;
     }
 
     vi.restoreAllMocks();
@@ -117,45 +102,15 @@ describe("KeyValue handlers", () => {
       });
     });
 
-    it("returns 500 when CAS_CACHE binding missing", async () => {
-      env.CAS_CACHE = null;
-
-      const response = await handleKeyValueGet(request, env);
-
-      expect(response.status).toBe(500);
-      await expect(response.json()).resolves.toEqual({
-        message: "CAS_CACHE binding is not configured",
-      });
-    });
-
-    it("returns cached response when available", async () => {
-      const cached = new Response(
-        JSON.stringify({ entries: [{ value: "cached" }] }),
-        { status: 200, headers: { "Content-Type": "application/json" } },
-      );
-      cache.match.mockResolvedValue(cached);
-
-      const response = await handleKeyValueGet(request, env);
-
-      expect(cache.match).toHaveBeenCalled();
-      expect(env.CAS_CACHE.get).not.toHaveBeenCalled();
-      expect(response.status).toBe(200);
-      await expect(response.json()).resolves.toEqual({
-        entries: [{ value: "cached" }],
-      });
-    });
-
-    it("reads from KV and populates cache when not cached", async () => {
-      cache.match.mockResolvedValue(null);
+    it("reads from KV and returns entries", async () => {
       env.CAS_CACHE.get.mockResolvedValue([{ value: "stored" }]);
 
       const response = await handleKeyValueGet(request, env);
 
       expect(env.CAS_CACHE.get).toHaveBeenCalledWith(
-        "keyvalue:entries:my-account:my-project:cas123",
+        "keyvalue:my-account:my-project:cas123",
         "json",
       );
-      expect(cache.put).toHaveBeenCalled();
       expect(response.status).toBe(200);
       await expect(response.json()).resolves.toEqual({
         entries: [{ value: "stored" }],
@@ -163,7 +118,6 @@ describe("KeyValue handlers", () => {
     });
 
     it("returns 404 when KV has no entries", async () => {
-      cache.match.mockResolvedValue(null);
       env.CAS_CACHE.get.mockResolvedValue(null);
 
       const response = await handleKeyValueGet(request, env);
@@ -175,14 +129,13 @@ describe("KeyValue handlers", () => {
     });
 
     it("decodes cas_id path parameter before lookup", async () => {
-      cache.match.mockResolvedValue(null);
       request.params.cas_id = encodeURIComponent("cas123==");
       env.CAS_CACHE.get.mockResolvedValue([{ value: "stored" }]);
 
       const response = await handleKeyValueGet(request, env);
 
       expect(env.CAS_CACHE.get).toHaveBeenCalledWith(
-        "keyvalue:entries:my-account:my-project:cas123==",
+        "keyvalue:my-account:my-project:cas123==",
         "json",
       );
       expect(response.status).toBe(200);
@@ -244,17 +197,6 @@ describe("KeyValue handlers", () => {
       });
     });
 
-    it("returns 500 when KEY_VALUE_STORE binding missing", async () => {
-      env.KEY_VALUE_STORE = null;
-
-      const response = await handleKeyValuePut(request, env);
-
-      expect(response.status).toBe(500);
-      await expect(response.json()).resolves.toEqual({
-        message: "KEY_VALUE_STORE binding is not configured",
-      });
-    });
-
     it("returns 400 when request body cannot be parsed", async () => {
       request.json = vi.fn().mockRejectedValue(new Error("bad json"));
 
@@ -280,15 +222,14 @@ describe("KeyValue handlers", () => {
     it("stores entries in KV and cache", async () => {
       const response = await handleKeyValuePut(request, env);
 
-      expect(env.KEY_VALUE_STORE.get).toHaveBeenCalledWith(
+      expect(env.CAS_CACHE.get).toHaveBeenCalledWith(
         "keyvalue:my-account:my-project:cas123",
         "json",
       );
-      expect(env.KEY_VALUE_STORE.put).toHaveBeenCalledWith(
+      expect(env.CAS_CACHE.put).toHaveBeenCalledWith(
         "keyvalue:my-account:my-project:cas123",
         JSON.stringify([{ value: "value-1" }, { value: "value-2" }]),
       );
-      expect(cache.put).toHaveBeenCalled();
       expect(response.status).toBe(204);
       expect(response.body).toBeNull();
     });
@@ -301,11 +242,11 @@ describe("KeyValue handlers", () => {
 
       const response = await handleKeyValuePut(request, env);
 
-      expect(env.KEY_VALUE_STORE.get).toHaveBeenCalledWith(
+      expect(env.CAS_CACHE.get).toHaveBeenCalledWith(
         "keyvalue:my-account:my-project:cas123",
         "json",
       );
-      expect(env.KEY_VALUE_STORE.put).toHaveBeenCalledWith(
+      expect(env.CAS_CACHE.put).toHaveBeenCalledWith(
         "keyvalue:my-account:my-project:cas123",
         JSON.stringify([{ value: "value-1" }]),
       );
@@ -314,19 +255,14 @@ describe("KeyValue handlers", () => {
     });
 
     it("replaces existing entries entirely", async () => {
-      env.KEY_VALUE_STORE.get.mockResolvedValue([{ value: "old-value" }]);
+      env.CAS_CACHE.get.mockResolvedValue([{ value: "old-value" }]);
 
       const response = await handleKeyValuePut(request, env);
 
-      expect(env.KEY_VALUE_STORE.put).toHaveBeenCalledWith(
+      expect(env.CAS_CACHE.put).toHaveBeenCalledWith(
         "keyvalue:my-account:my-project:cas123",
         JSON.stringify([{ value: "value-1" }, { value: "value-2" }]),
       );
-
-      const [, cachedResponse] = cache.put.mock.calls[0];
-      await expect(cachedResponse.json()).resolves.toEqual({
-        entries: [{ value: "value-1" }, { value: "value-2" }],
-      });
 
       expect(response.status).toBe(204);
       expect(response.body).toBeNull();

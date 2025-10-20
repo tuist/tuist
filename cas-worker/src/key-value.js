@@ -1,52 +1,8 @@
-import {
-  jsonResponse,
-  errorResponse,
-  readCache,
-  writeCache,
-  validateQuery,
-  decodeCasId,
-} from "./shared.js";
+import { jsonResponse, errorResponse, validateQuery, decodeCasId } from "./shared.js";
 import { ensureProjectAccessible } from "./auth.js";
 
 function buildCacheKey(accountHandle, projectHandle, casId) {
-  return `https://cache.tuist.dev/api/cache/keyvalue/${encodeURIComponent(accountHandle)}/${encodeURIComponent(projectHandle)}/${encodeURIComponent(casId)}`;
-}
-
-function buildStorageKey(accountHandle, projectHandle, casId) {
-  return `keyvalue:entries:${accountHandle}:${projectHandle}:${casId}`;
-}
-
-function generateEntryId() {
-  return (
-    globalThis.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2)
-  );
-}
-
-function normalizeStoredEntries(entries) {
-  if (!Array.isArray(entries)) return [];
-  return entries
-    .filter(
-      (entry) =>
-        entry &&
-        typeof entry.value === "string" &&
-        typeof entry.id === "string",
-    )
-    .map((entry) => ({
-      id: entry.id,
-      value: entry.value,
-    }));
-}
-
-function validateKvStore(env) {
-  const store = env.CAS_CACHE;
-  if (
-    !store ||
-    typeof store.put !== "function" ||
-    typeof store.get !== "function"
-  ) {
-    return { error: "CAS_CACHE binding is not configured", status: 500 };
-  }
-  return { store };
+  return `keyvalue:${accountHandle}:${projectHandle}:${casId}`;
 }
 
 export async function handleKeyValueGet(request, env) {
@@ -67,25 +23,14 @@ export async function handleKeyValueGet(request, env) {
     return errorResponse(accessResult.error, accessResult.status);
   }
 
-  const kvValidation = validateKvStore(env);
-  if (kvValidation.error) {
-    return errorResponse(kvValidation.error, kvValidation.status);
-  }
-
   const casId = decodeCasId(request.params?.cas_id);
   if (!casId) {
     return errorResponse("Missing cas_id path parameter", 400);
   }
 
-  const { store } = kvValidation;
+  const store = env.CAS_CACHE;
 
-  const cacheKey = buildCacheKey(accountHandle, projectHandle, casId);
-  const cachedResponse = await readCache(cacheKey);
-  if (cachedResponse) {
-    return cachedResponse;
-  }
-
-  const storageKey = buildStorageKey(accountHandle, projectHandle, casId);
+  const storageKey = buildCacheKey(accountHandle, projectHandle, casId);
   let storedEntries;
 
   try {
@@ -106,10 +51,7 @@ export async function handleKeyValueGet(request, env) {
     return errorResponse(`No entries found for CAS ID ${casId}.`, 404);
   }
 
-  const response = jsonResponse({ entries: sanitizedEntries });
-  await writeCache(cacheKey, response);
-
-  return response;
+  return jsonResponse({ entries: sanitizedEntries });
 }
 
 export async function handleKeyValuePut(request, env) {
@@ -128,11 +70,6 @@ export async function handleKeyValuePut(request, env) {
   );
   if (accessResult.error) {
     return errorResponse(accessResult.error, accessResult.status);
-  }
-
-  const kvValidation = validateKvStore(env);
-  if (kvValidation.error) {
-    return errorResponse(kvValidation.error, kvValidation.status);
   }
 
   let body;
@@ -162,13 +99,11 @@ export async function handleKeyValuePut(request, env) {
     );
   }
 
-  const { store } = kvValidation;
+  const store = env.CAS_CACHE;
 
-  const storageKey = buildStorageKey(accountHandle, projectHandle, casId);
-  let existingEntriesRaw;
-
+  const storageKey = buildCacheKey(accountHandle, projectHandle, casId);
   try {
-    existingEntriesRaw = await store.get(storageKey, "json");
+    await store.get(storageKey, "json");
   } catch {
     return errorResponse("Failed to read entries from KV", 500);
   }
@@ -178,12 +113,6 @@ export async function handleKeyValuePut(request, env) {
   } catch (error) {
     return errorResponse(error.message || "Failed to store entries in KV", 500);
   }
-
-  const cacheKey = buildCacheKey(accountHandle, projectHandle, casId);
-  const cacheResponse = jsonResponse({
-    entries: sanitizedEntries,
-  });
-  await writeCache(cacheKey, cacheResponse);
 
   return new Response(null, { status: 204 });
 }

@@ -10,9 +10,6 @@ routes = [
 port = 8787
 
 [[kv_namespaces]]
-binding = "KEY_VALUE_STORE"
-id = "770c83e891f646729e2bacfbf42364f8"
-[[kv_namespaces]]
 binding = "CAS_CACHE"
 id = "2adf75e070fd43cabee0be83cb4a562d"
 preview_id = "2f1058911a144cab9c8816478e03f4e2"
@@ -20,9 +17,6 @@ preview_id = "2f1058911a144cab9c8816478e03f4e2"
 # Development environment
 [env.development]
 name = "tuist-worker-development"
-[[env.development.kv_namespaces]]
-binding = "KEY_VALUE_STORE"
-id = "6394478b175e4a1388908c5715cf5556"
 [[env.development.kv_namespaces]]
 binding = "CAS_CACHE"
 id = "2f1058911a144cab9c8816478e03f4e3"
@@ -34,9 +28,6 @@ routes = [
   "https://staging.tuist.dev/api/cache/cas*",
   "https://staging.tuist.dev/api/cache/keyvalue*"
 ]
-[[env.staging.kv_namespaces]]
-binding = "KEY_VALUE_STORE"
-id = "7a441525d06f41a3a63b2f1117d7e23f"
 [[env.staging.kv_namespaces]]
 binding = "CAS_CACHE"
 id = "4eecec1f40f84dc1bd8233944b835934"

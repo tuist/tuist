@@ -12,7 +12,6 @@ import {
 } from "./auth.js";
 
 const SUCCESS_CACHE_TTL = 3600;
-const PREFIX_CACHE_PREFIX = "cas-prefix";
 
 async function sha256Hash(data) {
   const encoded = new TextEncoder().encode(data);
@@ -22,9 +21,9 @@ async function sha256Hash(data) {
     .join("");
 }
 
-async function generateCacheKey(accountHandle, projectHandle, authToken) {
+async function buildCacheKey(accountHandle, projectHandle, authToken) {
   const hash = await sha256Hash(`${accountHandle}:${projectHandle}:${authToken}`);
-  return `${PREFIX_CACHE_PREFIX}:${hash}`;
+  return `cas:${hash}`;
 }
 
 async function getS3Prefix(request, env, accountHandle, projectHandle) {
@@ -41,7 +40,7 @@ async function getS3Prefix(request, env, accountHandle, projectHandle) {
 
   const { authHeader } = accessResult;
 
-  const cacheKey = await generateCacheKey(
+  const cacheKey = await buildCacheKey(
     accountHandle,
     projectHandle,
     authHeader,
