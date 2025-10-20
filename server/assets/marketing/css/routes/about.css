@@ -1,25 +1,25 @@
 #marketing-about {
   display: flex;
-  position: relative;
   flex-direction: column;
+  align-items: center;
   gap: var(--noora-spacing-0);
 
   @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
     gap: var(--noora-spacing-11);
   }
 
-  & > [data-part="body"],
-  & > [data-part="header"] {
+  & > section,
+  & > [data-part="header"],
+  & > figure {
+    box-sizing: border-box;
     padding-right: var(--noora-spacing-6);
     padding-left: var(--noora-spacing-6);
 
     @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
-      margin-right: auto;
-      margin-left: auto;
-      padding-right: var(--noora-spacing-6);
-      padding-left: var(--noora-spacing-6);
-      width: 650px;
-      max-width: 650px;
+      align-self: center;
+      padding-right: var(--noora-spacing-14);
+      padding-left: var(--noora-spacing-14);
+      max-width: 1296px;
     }
   }
 
@@ -45,10 +45,9 @@
     }
 
     & > [data-part="logo"] {
-      width: 348px;
-      max-width: 348px;
-      height: 348px;
-      max-height: 348px;
+      aspect-ratio: 1;
+      width: min(348px, 40vw);
+      height: min(348px, 40vw);
     }
 
     & > [data-part="title"] {
@@ -69,14 +68,11 @@
     display: flex;
     flex-direction: column;
     gap: var(--noora-spacing-9);
-    margin-right: var(--noora-spacing-6);
-    margin-left: var(--noora-spacing-6);
-    padding: var(--noora-spacing-10);
+    padding-top: var(--noora-spacing-10);
+    padding-bottom: var(--noora-spacing-10);
 
     @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
       flex-direction: row;
-      margin-right: var(--noora-spacing-14);
-      margin-left: var(--noora-spacing-14);
     }
 
     & > * {
@@ -98,21 +94,16 @@
 
   & > [data-part="photos"] {
     display: flex;
-    position: relative;
     flex-direction: column;
     gap: var(--noora-spacing-7);
-    z-index: var(--noora-z-index-2);
     padding-right: var(--noora-spacing-6);
     padding-left: var(--noora-spacing-6);
 
     @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
-      padding-right: var(--noora-spacing-14);
-      padding-left: var(--noora-spacing-14);
-    }
-
-    @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
       flex-direction: row;
       gap: var(--noora-spacing-5);
+      padding-right: var(--noora-spacing-14);
+      padding-left: var(--noora-spacing-14);
     }
 
     & > [data-part="photo"] {
@@ -125,6 +116,7 @@
         0 6px 12px 0 rgba(0, 0, 0, 0.05);
       border-radius: var(--noora-radius-2xlarge);
       background: #f5f5f5;
+      width: 100%;
       min-width: 0;
 
       & > img {
@@ -186,7 +178,7 @@
         overflow: hidden;
 
         @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
-          max-width: 424px;
+          max-width: min(424px, 30vw);
         }
 
         & > [data-part="background"] {

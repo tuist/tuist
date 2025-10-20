@@ -9,7 +9,7 @@
   }
 
   & > section,
-  & > header:not(#marketing-navbar) {
+  & > [data-part="header"] {
     position: relative;
     z-index: var(--noora-z-index-1);
     padding-right: var(--noora-spacing-6);
