@@ -34,7 +34,7 @@ Once you have a `Tuist.swift` file referencing your `fullHandle`, you can set up
 tuist setup cache
 ```
 
-This command creates a LaunchAgent to run a local cache service on startup that the Swift build system uses to share compilation artifacts. This command needs to be run once in both your local and CI environments.
+This command creates a [LaunchAgent](https://developer.apple.com/library/archive/documentation/MacOSX/Conceptual/BPSystemStartup/Chapters/CreatingLaunchdJobs.html) to run a local cache service on startup that the Swift [build system](https://github.com/swiftlang/swift-build) uses to share compilation artifacts. This command needs to be run once in both your local and CI environments.
 
 To set up the cache on the CI, make sure you are <LocalizedLink href="/guides/integrations/continuous-integration#authentication">authenticated</LocalizedLink>.
 
