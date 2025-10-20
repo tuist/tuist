@@ -2,6 +2,11 @@
   color: var(--noora-surface-label-primary);
   font: var(--noora-font-weight-regular) var(--noora-font-body-large);
 
+  & code.inline {
+    color: var(--surface-label-primary);
+    font: var(--noora-font-weight-regular) var(--noora-font-code-large);
+  }
+
   & blockquote {
     box-shadow:
       0 1px 1px 0 rgba(22, 24, 28, 0.05),

@@ -35,7 +35,7 @@
       <img data-part="image" src={Blog.get_post_image_url(@post)} />
     </header>
 
-    <section data-part="content" data-prose>
+    <section id="blog-post-content" data-part="content" data-prose phx-hook="ShikiHighlight">
       {raw(@post.body)}
     </section>
   </main>

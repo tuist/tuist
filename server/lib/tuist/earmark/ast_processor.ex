@@ -78,6 +78,75 @@ defmodule Tuist.Earmark.ASTProcessor do
       ], %{}}}
   end
 
+  def process({"prose_banner", attrs, [], %{}}) do
+    title = Enum.find_value(attrs, "", fn {key, val} -> if key == "title", do: val end)
+
+    description =
+      Enum.find_value(attrs, "", fn {key, val} -> if key == "description", do: val end)
+
+    cta_title = Enum.find_value(attrs, nil, fn {key, val} -> if key == "cta_title", do: val end)
+    cta_href = Enum.find_value(attrs, nil, fn {key, val} -> if key == "cta_href", do: val end)
+
+    button_content =
+      if cta_title && cta_href do
+        [
+          {"a",
+           [
+             {"href", cta_href},
+             {"data-part", "button"}
+           ], [cta_title], %{}}
+        ]
+      else
+        []
+      end
+
+    {:replace,
+     {"div", [{"id", "marketing-prose-banner"}],
+      [
+        {"div", [{"data-part", "content"}],
+         [
+           {"svg",
+            [
+              {"width", "24"},
+              {"height", "24"},
+              {"viewBox", "0 0 24 24"},
+              {"fill", "none"},
+              {"xmlns", "http://www.w3.org/2000/svg"},
+              {"data-part", "icon"}
+            ],
+            [
+              {"circle",
+               [
+                 {"cx", "12"},
+                 {"cy", "12"},
+                 {"r", "10"},
+                 {"stroke", "currentColor"},
+                 {"stroke-width", "2"}
+               ], [], %{}},
+              {"path",
+               [
+                 {"d", "M12 16V12"},
+                 {"stroke", "currentColor"},
+                 {"stroke-width", "2"},
+                 {"stroke-linecap", "round"}
+               ], [], %{}},
+              {"circle",
+               [
+                 {"cx", "12"},
+                 {"cy", "8"},
+                 {"r", "1"},
+                 {"fill", "currentColor"}
+               ], [], %{}}
+            ], %{}},
+           {"div", [{"data-part", "text"}],
+            [
+              {"div", [{"data-part", "title"}], [title], %{}},
+              {"div", [{"data-part", "description"}], [description], %{}}
+            ], %{}}
+         ], %{}}
+      ] ++ button_content, %{}}}
+  end
+
   def process(node) do
     node
   end

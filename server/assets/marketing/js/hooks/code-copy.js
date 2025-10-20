@@ -1,9 +1,7 @@
 const CodeCopy = {
   mounted() {
     // Find all copy buttons in marketing windows
-    const copyButtons = this.el.querySelectorAll(
-      '#marketing-window [data-part="copy"]'
-    );
+    const copyButtons = this.el.querySelectorAll('#marketing-window [data-part="copy"]');
 
     copyButtons.forEach((button) => {
       button.style.cursor = "pointer";

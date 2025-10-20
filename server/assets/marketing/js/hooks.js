@@ -4,6 +4,7 @@ import { MobileMenuDropdown } from "./hooks/mobile-menu-dropdown.js";
 import { FaqAccordion } from "./hooks/faq-accordion.js";
 import { ScrollToTop } from "./hooks/scroll-to-top.js";
 import { CodeCopy } from "./hooks/code-copy.js";
+import { ShikiHighlight } from "./hooks/shiki-highlight.js";
 
 const Hooks = {
   NavbarDropdown,
@@ -12,6 +13,7 @@ const Hooks = {
   FaqAccordion,
   ScrollToTop,
   CodeCopy,
+  ShikiHighlight,
 };
 
 export { Hooks };
