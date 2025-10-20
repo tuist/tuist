@@ -87,14 +87,18 @@ defmodule Tuist.Earmark.ASTProcessor do
     cta_title = Enum.find_value(attrs, nil, fn {key, val} -> if key == "cta_title", do: val end)
     cta_href = Enum.find_value(attrs, nil, fn {key, val} -> if key == "cta_href", do: val end)
 
-    button_content =
+    # Create a unique marker that will be replaced with the component
+    marker_id = 8 |> :crypto.strong_rand_bytes() |> Base.encode16()
+
+    button_placeholder =
       if cta_title && cta_href do
         [
-          {"a",
+          {"prose-banner-button-marker",
            [
-             {"href", cta_href},
-             {"data-part", "button"}
-           ], [cta_title], %{}}
+             {"data-marker-id", marker_id},
+             {"data-cta-title", cta_title},
+             {"data-cta-href", cta_href}
+           ], [], %{}}
         ]
       else
         []
@@ -103,48 +107,45 @@ defmodule Tuist.Earmark.ASTProcessor do
     {:replace,
      {"div", [{"id", "marketing-prose-banner"}],
       [
+        {"svg",
+         [
+           {"width", "24"},
+           {"height", "24"},
+           {"viewBox", "0 0 24 24"},
+           {"fill", "none"},
+           {"xmlns", "http://www.w3.org/2000/svg"},
+           {"data-part", "icon"}
+         ],
+         [
+           {"circle",
+            [
+              {"cx", "12"},
+              {"cy", "12"},
+              {"r", "10"},
+              {"stroke", "currentColor"},
+              {"stroke-width", "2"}
+            ], [], %{}},
+           {"path",
+            [
+              {"d", "M12 16V12"},
+              {"stroke", "currentColor"},
+              {"stroke-width", "2"},
+              {"stroke-linecap", "round"}
+            ], [], %{}},
+           {"circle",
+            [
+              {"cx", "12"},
+              {"cy", "8"},
+              {"r", "1"},
+              {"fill", "currentColor"}
+            ], [], %{}}
+         ], %{}},
         {"div", [{"data-part", "content"}],
          [
-           {"svg",
-            [
-              {"width", "24"},
-              {"height", "24"},
-              {"viewBox", "0 0 24 24"},
-              {"fill", "none"},
-              {"xmlns", "http://www.w3.org/2000/svg"},
-              {"data-part", "icon"}
-            ],
-            [
-              {"circle",
-               [
-                 {"cx", "12"},
-                 {"cy", "12"},
-                 {"r", "10"},
-                 {"stroke", "currentColor"},
-                 {"stroke-width", "2"}
-               ], [], %{}},
-              {"path",
-               [
-                 {"d", "M12 16V12"},
-                 {"stroke", "currentColor"},
-                 {"stroke-width", "2"},
-                 {"stroke-linecap", "round"}
-               ], [], %{}},
-              {"circle",
-               [
-                 {"cx", "12"},
-                 {"cy", "8"},
-                 {"r", "1"},
-                 {"fill", "currentColor"}
-               ], [], %{}}
-            ], %{}},
-           {"div", [{"data-part", "text"}],
-            [
-              {"div", [{"data-part", "title"}], [title], %{}},
-              {"div", [{"data-part", "description"}], [description], %{}}
-            ], %{}}
+           {"div", [{"data-part", "title"}], [title], %{}},
+           {"div", [{"data-part", "description"}], [description], %{}}
          ], %{}}
-      ] ++ button_content, %{}}}
+      ] ++ button_placeholder, %{}}}
   end
 
   def process(node) do

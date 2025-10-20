@@ -36,7 +36,17 @@
     </header>
 
     <section id="blog-post-content" data-part="content" data-prose phx-hook="ShikiHighlight">
-      {raw(@post.body)}
+      <%= for chunk <- Tuist.Marketing.BlogContentProcessor.process_content(@post.body) do %>
+        <%= case chunk do %>
+          <% {:html, html} -> %>
+            {raw(html)}
+          <% {:component, :button, data} -> %>
+            <.button href={data.href} label={data.title} variant="secondary" icon_position="both">
+              <:icon_left><.chevron_left /></:icon_left>
+              <:icon_right><.chevron_right /></:icon_right>
+            </.button>
+        <% end %>
+      <% end %>
     </section>
   </main>
 </TuistWeb.Marketing.Layouts.marketing>

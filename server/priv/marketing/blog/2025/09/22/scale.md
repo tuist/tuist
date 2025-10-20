@@ -7,12 +7,12 @@ author: pepicrft
 og_image_path: /marketing/images/blog/2025/09/22/scale.jpg
 ---
 
-<prose_banner title="Insert your text here" description="Insert your description here. Description in this case is usually two lines" cta_title="Button" cta_href="/some-link" />
-
-
 It's 2025, and developing Swift apps at a certain scale continues to be a challenge. If you are just getting started, or your project is just growing in code volume, number of modules, or number of developers contributing to it, you might not feel the need to make any changes to your setup. But if your codebase has a decent size, you are likely running into issues here and there that degrade your productivity and your motivation to contribute new features to an app. At Tuist, we see that every day.
 
 We see many large organizations showing up seeking support, and many developers who, having experienced the support that Tuist gives them, don't think twice when they start new projects and bet on Tuist from the get-go.
+
+<prose_banner title="Insert your text here" description="Insert your description here. Description in this case is usually two lines" cta_title="Buy" cta_href="/some-link" />
+
 
 In this post, I'd like to discuss the common challenges that we continue to see and how Tuist helps you overcome them. I'll also acknowledge some of the work that [Apple](https://apple.com) has done and is doing to improve the state of things, and hopefully leave you informed about the many things you likely suffer from but can't pinpoint to the root cause. But before we dive into the details, let's first talk about what I like to call the wake-up leadership crisis.
 
