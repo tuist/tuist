@@ -20,12 +20,14 @@ async function generateAccessibleProjectsCacheKey(authHeader) {
 }
 
 async function getAccessibleProjects(request, env, authHeader) {
+  console.log("Getting projects...")
   const cache = env.CAS_CACHE;
   const cacheKey = await generateAccessibleProjectsCacheKey(authHeader);
 
   if (cache) {
     const cached = await cache.get(cacheKey);
     if (cached) {
+      console.log("Found projects in cache", cached)
       return JSON.parse(cached);
     }
   }
@@ -37,6 +39,7 @@ async function getAccessibleProjects(request, env, authHeader) {
   }
 
   try {
+    console.log("Fetching projects from server...")
     const response = await serverFetch(
       env,
       "/api/accessible-projects",
@@ -64,6 +67,8 @@ async function getAccessibleProjects(request, env, authHeader) {
     }
 
     const projects = await response.json();
+
+    console.log("Got projects from server", projects)
 
     if (!Array.isArray(projects)) {
       return {
