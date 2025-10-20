@@ -140,12 +140,15 @@ defmodule Tuist.Earmark.ASTProcessor do
               {"fill", "currentColor"}
             ], [], %{}}
          ], %{}},
-        {"div", [{"data-part", "content"}],
+        {"div", [{"data-part", "wrapper"}],
          [
-           {"div", [{"data-part", "title"}], [title], %{}},
-           {"div", [{"data-part", "description"}], [description], %{}}
-         ], %{}}
-      ] ++ button_placeholder, %{}}}
+           {"div", [{"data-part", "content"}],
+            [
+              {"div", [{"data-part", "title"}], [title], %{}},
+              {"div", [{"data-part", "description"}], [description], %{}}
+            ], %{}}
+         ] ++ button_placeholder, %{}}
+      ], %{}}}
   end
 
   def process(node) do
