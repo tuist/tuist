@@ -13,9 +13,7 @@ async function sha256(data) {
 }
 
 async function generateAccessibleProjectsCacheKey(authHeader) {
-  const hash = await sha256(
-    `${ACCESSIBLE_PROJECTS_CACHE_PREFIX}:${authHeader}`,
-  );
+  const hash = await sha256(authHeader);
   return `${ACCESSIBLE_PROJECTS_CACHE_PREFIX}:${hash}`;
 }
 
