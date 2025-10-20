@@ -14,6 +14,15 @@
     </header>
 
     <section data-part="pricing">
+      <header data-part="header">
+        <h2 data-part="title">{dgettext("marketing", "Features")}</h2>
+        <p data-part="description">
+          {dgettext(
+            "marketing",
+            "You’re only charged for the features you use, based on your usage, and only after you exceed a free threshold."
+          )}
+        </p>
+      </header>
       <table data-part="table">
         <thead data-part="head">
           <tr data-part="row">
@@ -191,13 +200,13 @@
               </div>
             </th>
             <td data-part="cell-value" data-available="false">
-              <.close_icon />
+              <.math_x />
             </td>
             <td data-part="cell-value" data-available="false">
-              <.close_icon />
+              <.math_x />
             </td>
             <td data-part="cell-value" data-available="true">
-              <.check_circle_icon />
+              <.system_check />
             </td>
           </tr>
           <tr data-part="row">
@@ -205,13 +214,13 @@
               <div data-part="feature-name">{dgettext("marketing", "Tailored legal terms")}</div>
             </th>
             <td data-part="cell-value" data-available="false">
-              <.close_icon />
+              <.math_x />
             </td>
             <td data-part="cell-value" data-available="false">
-              <.close_icon />
+              <.math_x />
             </td>
             <td data-part="cell-value" data-available="true">
-              <.check_circle_icon />
+              <.system_check />
             </td>
           </tr>
           <tr data-part="row">
@@ -220,20 +229,20 @@
             </th>
             <td data-part="cell-value">
               <div data-part="support-level">{dgettext("marketing", "Community support")}</div>
-              <div data-part="support-description">
-                {dgettext("marketing", "via Discourse forum")}
+              <div data-part="description">
+                {dgettext("marketing", "via Community Forum")}
               </div>
             </td>
             <td data-part="cell-value">
               <div data-part="support-level">{dgettext("marketing", "Standard support")}</div>
-              <div data-part="support-description">
-                {dgettext("marketing", "via Slack and email")}
+              <div data-part="description">
+                {dgettext("marketing", "via Community Forum")}
               </div>
             </td>
             <td data-part="cell-value">
               <div data-part="support-level">{dgettext("marketing", "Priority support")}</div>
-              <div data-part="support-description">
-                {dgettext("marketing", "via Slack and email")}
+              <div data-part="description">
+                {dgettext("marketing", "via dedicated Slack")}
               </div>
             </td>
           </tr>

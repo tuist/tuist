@@ -1,6 +1,5 @@
 #marketing-pricing {
   display: flex;
-  position: relative;
   flex-direction: column;
   gap: var(--noora-spacing-9);
 
@@ -9,9 +8,9 @@
   }
 
   & > section,
-  & > header {
+  & > header:not(#marketing-navbar) {
     position: relative;
-    z-index: var(--noora-z-index-2);
+    z-index: var(--noora-z-index-1);
     padding-right: var(--noora-spacing-6);
     padding-left: var(--noora-spacing-6);
 
@@ -22,6 +21,27 @@
   }
 
   & > [data-part="pricing"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-11);
+
+    & > [data-part="header"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-6);
+      padding-top: var(--noora-spacing-12);
+
+      & > [data-part="title"] {
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-medium) var(--noora-font-heading-2xlarge);
+        text-align: center;
+      }
+      & > [data-part="description"] {
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+        text-align: center;
+      }
+    }
     & table[data-part="table"] {
       margin: 0 auto;
       border-collapse: collapse;
