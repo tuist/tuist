@@ -1,24 +1,57 @@
 <% plans = [
   %{
     name: dgettext("marketing", "Air"),
+    description: [
+      dgettext("marketing", "Get started with no credit card required."),
+      dgettext("marketing", "Ideal for individual developers.")
+    ],
+    price: dgettext("marketing", "Free"),
+    price_extra: nil,
     cta_label: dgettext("marketing", "Get started"),
     cta_href: ~p"/users/register",
     cta_variant: "secondary",
-    popular: false
+    popular: false,
+    traits: [
+      dgettext("marketing", "Free under tier limits"),
+      dgettext("marketing", "All features, no credit card required"),
+      dgettext("marketing", "Community support via forum")
+    ]
   },
   %{
     name: dgettext("marketing", "Pro"),
+    description: [
+      dgettext("marketing", "Usage-based pricing after free tier."),
+      dgettext("marketing", "Best for teams and growing startups.")
+    ],
+    price: dgettext("marketing", "$0"),
+    price_extra: dgettext("marketing", "and up"),
     cta_label: dgettext("marketing", "Get started"),
     cta_href: ~p"/users/register",
     cta_variant: "primary",
-    popular: true
+    popular: true,
+    traits: [
+      dgettext("marketing", "Pay nothing if below free tier limits"),
+      dgettext("marketing", "Pay only for what you use per feature"),
+      dgettext("marketing", "Standard support via Slack and email")
+    ]
   },
   %{
     name: dgettext("marketing", "Enterprise"),
-    cta_label: dgettext("marketing", "Talk to us"),
+    description: [
+      dgettext("marketing", "Create your plan or self-host your instance."),
+      dgettext("marketing", "Designed for large scale organizations.")
+    ],
+    price: dgettext("marketing", "Custom"),
+    price_extra: nil,
+    cta_label: dgettext("marketing", "Contact us"),
     cta_href: "https://cal.tuist.dev/team/tuist/tuist",
     cta_variant: "secondary",
-    popular: false
+    popular: false,
+    traits: [
+      dgettext("marketing", "Tailored agreement for specific needs"),
+      dgettext("marketing", "Self-host your instance of Tuist"),
+      dgettext("marketing", "Priority support via Slack channel")
+    ]
   }
 ]
 
@@ -40,7 +73,7 @@ features = [
     ]
   },
   %{
-    name: dgettext("marketing", "Cache"),
+    name: dgettext("marketing", "Module cache"),
     description:
       dgettext(
         "marketing",
@@ -51,6 +84,20 @@ features = [
       "200",
       %{value: "200", description: dgettext("marketing", "+ 0.5€ per additional unit")},
       dgettext("marketing", "Custom")
+    ]
+  },
+  %{
+    name: dgettext("marketing", "Xcode Cache"),
+    description:
+      dgettext(
+        "marketing",
+        "Our cache solution integrates with Xcode 26's build system cache capabilities."
+      ),
+    hint: nil,
+    values: [
+      dgettext("marketing", "Unlimited"),
+      dgettext("marketing", "Unlimited"),
+      dgettext("marketing", "Unlimited")
     ]
   },
   %{
@@ -196,118 +243,40 @@ features = [
     </header>
 
     <section data-part="plans">
-      <div data-part="plan">
+      <div :for={plan <- plans} data-part="plan" data-popular={plan.popular}>
+        <%= if plan.popular do %>
+          <div data-part="notch">
+            <img
+              data-part="image"
+              src={~p"/marketing/images/pricing/popular-plan-notch.webp"}
+              alt=""
+            />
+            <span data-part="text">{dgettext("marketing", "Most popular")}</span>
+          </div>
+        <% end %>
         <header data-part="header">
-          <h3 data-part="title">{dgettext("marketing", "Air")}</h3>
+          <h3 data-part="title">{plan.name}</h3>
           <p data-part="description">
-            {dgettext("marketing", "Get started with no credit card required.")}
+            {Enum.at(plan.description, 0)}
             <br />
-            {dgettext("marketing", "Ideal for individual developers.")}
+            {Enum.at(plan.description, 1)}
           </p>
         </header>
         <div data-part="main">
           <div data-part="price">
-            <div data-part="value">{dgettext("marketing", "Free")}</div>
-            <div data-part="extra"></div>
+            <div data-part="value">{plan.price}</div>
+            <div data-part="extra">{plan.price_extra}</div>
           </div>
           <.button
-            variant="secondary"
+            variant={plan.cta_variant}
             size="large"
-            label={dgettext("marketing", "Get started")}
-            href={~p"/users/register"}
+            label={plan.cta_label}
+            href={plan.cta_href}
           />
           <ul data-part="traits">
-            <li data-part="trait">
+            <li :for={trait <- plan.traits} data-part="trait">
               <.system_check />
-              <span>{dgettext("marketing", "Free under tier limits")}</span>
-            </li>
-            <li data-part="trait">
-              <.system_check />
-              <span>{dgettext("marketing", "All features, no credit card required")}</span>
-            </li>
-            <li data-part="trait">
-              <.system_check />
-              <span>{dgettext("marketing", "Community support via forum")}</span>
-            </li>
-          </ul>
-        </div>
-      </div>
-      <div data-part="plan" data-popular="true">
-        <div data-part="notch">
-          <img
-            data-part="image"
-            src={~p"/marketing/images/pricing/popular-plan-notch.webp"}
-            alt=""
-          />
-          <span data-part="text">{dgettext("marketing", "Most popular")}</span>
-        </div>
-        <header data-part="header">
-          <h3 data-part="title">{dgettext("marketing", "Pro")}</h3>
-          <p data-part="description">
-            {dgettext("marketing", "Usage-based pricing after free tier.")}
-            <br />
-            {dgettext("marketing", "Best for teams and growing startups.")}
-          </p>
-        </header>
-        <div data-part="main">
-          <div data-part="price">
-            <div data-part="value">{dgettext("marketing", "$0")}</div>
-            <div data-part="extra">{dgettext("marketing", "and up")}</div>
-          </div>
-          <.button
-            variant="primary"
-            size="large"
-            label={dgettext("marketing", "Get started")}
-            href={~p"/users/register"}
-          />
-          <ul data-part="traits">
-            <li data-part="trait">
-              <.system_check />
-              <span>{dgettext("marketing", "Pay nothing if below free tier limits")}</span>
-            </li>
-            <li data-part="trait">
-              <.system_check />
-              <span>{dgettext("marketing", "Pay only for what you use per feature")}</span>
-            </li>
-            <li data-part="trait">
-              <.system_check />
-              <span>{dgettext("marketing", "Standard support via Slack and email")}</span>
-            </li>
-          </ul>
-        </div>
-      </div>
-      <div data-part="plan">
-        <header data-part="header">
-          <h3 data-part="title">{dgettext("marketing", "Enterprise")}</h3>
-          <p data-part="description">
-            {dgettext("marketing", "Create your plan or self-host your instance.")}
-            <br />
-            {dgettext("marketing", "Designed for large scale organizations.")}
-          </p>
-        </header>
-        <div data-part="main">
-          <div data-part="price">
-            <div data-part="value">{dgettext("marketing", "Custom")}</div>
-            <div data-part="extra"></div>
-          </div>
-          <.button
-            variant="secondary"
-            size="large"
-            label={dgettext("marketing", "Contact us")}
-            href="https://cal.tuist.dev/team/tuist/tuist"
-          />
-          <ul data-part="traits">
-            <li data-part="trait">
-              <.system_check />
-              <span>{dgettext("marketing", "Tailored agreement for specific needs")}</span>
-            </li>
-            <li data-part="trait">
-              <.system_check />
-              <span>{dgettext("marketing", "Self-host your instance of Tuist")}</span>
-            </li>
-            <li data-part="trait">
-              <.system_check />
-              <span>{dgettext("marketing", "Priority support via Slack channel")}</span>
+              <span>{trait}</span>
             </li>
           </ul>
         </div>
@@ -323,7 +292,17 @@ features = [
             "You're only charged for the features you use, based on your usage, and only after you exceed a free threshold."
           )}
         </p>
+
+        <div data-part="plan-selector">
+          <div data-part="title">{dgettext("marketing", "Compare our plans")}</div>
+          <.button_group size="large">
+            <.button_group_item label={dgettext("marketing", "Air")} />
+            <.button_group_item label={dgettext("marketing", "Pro")} />
+            <.button_group_item label={dgettext("marketing", "Enterprise")} />
+          </.button_group>
+        </div>
       </header>
+
       <table data-part="table">
         <thead data-part="head">
           <tr data-part="row">
