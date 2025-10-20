@@ -1,5 +1,6 @@
 #marketing-navbar {
   position: relative;
+  align-self: stretch;
   z-index: var(--noora-z-index-12);
 
   @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
