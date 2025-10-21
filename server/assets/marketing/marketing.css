@@ -21,6 +21,7 @@
 :root {
   color-scheme: light;
 }
+
 body {
   display: flex;
   flex-direction: column;
@@ -33,6 +34,7 @@ body {
   background: var(--noora-surface-background-primary);
   padding: 0px;
   font-family: var(--noora-font-body);
+  overflow-x: hidden;
 }
 
 h1,
