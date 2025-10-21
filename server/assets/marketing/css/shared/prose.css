@@ -31,6 +31,7 @@
 
   & img,
   & video {
+    display: block;
     box-shadow:
       0 102px 28px 0 rgba(0, 0, 0, 0),
       0 65px 26px 0 rgba(0, 0, 0, 0.01),
@@ -40,6 +41,18 @@
     border-radius: var(--noora-radius-2xlarge);
     max-width: 100%;
     height: auto;
+  }
+
+  & iframe {
+    display: block;
+    box-shadow:
+      0 102px 28px 0 rgba(0, 0, 0, 0),
+      0 65px 26px 0 rgba(0, 0, 0, 0.01),
+      0 37px 22px 0 rgba(0, 0, 0, 0.02),
+      0 16px 16px 0 rgba(0, 0, 0, 0.04),
+      0 4px 9px 0 rgba(0, 0, 0, 0.04);
+    border-radius: var(--noora-radius-2xlarge);
+    max-width: 100%;
   }
 
   & b,
