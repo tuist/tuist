@@ -103,7 +103,7 @@ describe("KeyValue handlers", () => {
     });
 
     it("reads from KV and returns entries", async () => {
-      env.CAS_CACHE.get.mockResolvedValue([{ value: "stored" }]);
+      env.CAS_CACHE.get.mockResolvedValue(["stored"]);
 
       const response = await handleKeyValueGet(request, env);
 
@@ -130,7 +130,7 @@ describe("KeyValue handlers", () => {
 
     it("decodes cas_id path parameter before lookup", async () => {
       request.params.cas_id = encodeURIComponent("cas123==");
-      env.CAS_CACHE.get.mockResolvedValue([{ value: "stored" }]);
+      env.CAS_CACHE.get.mockResolvedValue(["stored"]);
 
       const response = await handleKeyValueGet(request, env);
 
@@ -228,7 +228,7 @@ describe("KeyValue handlers", () => {
       );
       expect(env.CAS_CACHE.put).toHaveBeenCalledWith(
         "keyvalue:my-account:my-project:cas123",
-        JSON.stringify([{ value: "value-1" }, { value: "value-2" }]),
+        JSON.stringify(["value-1", "value-2"]),
       );
       expect(response.status).toBe(204);
       expect(response.body).toBeNull();
@@ -248,7 +248,7 @@ describe("KeyValue handlers", () => {
       );
       expect(env.CAS_CACHE.put).toHaveBeenCalledWith(
         "keyvalue:my-account:my-project:cas123",
-        JSON.stringify([{ value: "value-1" }]),
+        JSON.stringify(["value-1"]),
       );
       expect(response.status).toBe(204);
       expect(response.body).toBeNull();
@@ -261,7 +261,7 @@ describe("KeyValue handlers", () => {
 
       expect(env.CAS_CACHE.put).toHaveBeenCalledWith(
         "keyvalue:my-account:my-project:cas123",
-        JSON.stringify([{ value: "value-1" }, { value: "value-2" }]),
+        JSON.stringify(["value-1", "value-2"]),
       );
 
       expect(response.status).toBe(204);
@@ -279,7 +279,7 @@ describe("KeyValue handlers", () => {
       expect(response.status).toBe(400);
       await expect(response.json()).resolves.toEqual({
         message:
-          "Entries array must include at least one entry with id and value",
+          "Entries array must include at least one entry with a string value",
       });
     });
   });

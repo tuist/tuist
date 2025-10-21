@@ -174,7 +174,7 @@ export function withRouteTiming(routeLabel, handler, opts) {
     const instrumentedEnv = tracker ? tracker.wrapEnv(env) : env;
     const helpers = tracker ? tracker.buildHandlerHelpers() : undefined;
 
-    const res = await handler(req, instrumentedEnv, ctx, helpers);
+    const res = await handler(req, instrumentedEnv, helpers);
 
     if (tracker) {
       tracker.flush(env, ctx, res);

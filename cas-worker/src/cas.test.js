@@ -115,7 +115,6 @@ describe("CAS Module", () => {
             Authorization: "Bearer token123",
           }),
         }),
-        undefined,
       );
       expect(serverFetch).toHaveBeenCalledTimes(1);
       expect(env.CAS_CACHE.put).toHaveBeenCalledWith(
@@ -241,7 +240,6 @@ describe("CAS Module", () => {
             "x-request-id": "req-123",
           }),
         }),
-        undefined,
       );
     });
 
