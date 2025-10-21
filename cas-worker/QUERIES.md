@@ -1,6 +1,6 @@
 # Cloudflare Analytics Engine Queries
 
-The `metrics` dataset contains one row per sampled request. Useful columns:
+The `cas_worker_metrics` dataset contains one row per sampled request. Useful columns:
 - `timestamp` – capture time
 - `blob1` – route label
 - `blob2` – HTTP method
@@ -38,7 +38,7 @@ SELECT
   quantileWeighted(0.90, double2, _sample_interval) AS p90_origin_latency_ms,
   quantileWeighted(0.90, double3, _sample_interval) AS p90_compute_latency_ms,
   SUM(_sample_interval) AS est_request_count
-FROM metrics
+FROM cas_worker_metrics
 WHERE timestamp >= NOW() - INTERVAL '7' DAY
 GROUP BY route, method
 ORDER BY p99_total_latency_ms DESC;
@@ -103,7 +103,7 @@ SELECT
   ) AS p90_server_fetch_latency_per_request_ms,
   SUM(double12 * _sample_interval) AS est_s3_fetch_call_count,
   SUM(double13 * _sample_interval) AS est_server_fetch_call_count
-FROM metrics
+FROM cas_worker_metrics
 WHERE timestamp >= NOW() - INTERVAL '7' DAY
 GROUP BY route, method
 ORDER BY p90_kv_read_latency_per_request_ms DESC;
@@ -126,7 +126,7 @@ SELECT
     0.0,
     SUM(double9 * _sample_interval) / SUM(double10 * _sample_interval)
   ) AS kv_hit_rate
-FROM metrics
+FROM cas_worker_metrics
 WHERE timestamp >= NOW() - INTERVAL '7' DAY
 GROUP BY route, method
 ORDER BY kv_hit_rate ASC;
@@ -148,7 +148,7 @@ SELECT
     _sample_interval
   ) AS p90_server_fetch_latency_ms,
   SUM(double13 * _sample_interval) AS est_server_fetch_call_count
-FROM metrics
+FROM cas_worker_metrics
 WHERE timestamp >= NOW() - INTERVAL '7' DAY
   AND double13 > 0
 GROUP BY route, method
@@ -169,7 +169,7 @@ SELECT
     IF(double10 > 0, (double10 - double9) / double10, 0.0),
     _sample_interval
   ) AS p90_kv_miss_ratio
-FROM metrics
+FROM cas_worker_metrics
 WHERE timestamp >= NOW() - INTERVAL '7' DAY
 GROUP BY route, method
 ORDER BY p90_total_latency_ms DESC;
@@ -200,7 +200,7 @@ SELECT
   SUM(double11 * _sample_interval) AS est_kv_write_call_count,
   SUM(double12 * _sample_interval) AS est_s3_fetch_call_count,
   SUM(double13 * _sample_interval) AS est_server_fetch_call_count
-FROM metrics
+FROM cas_worker_metrics
 WHERE timestamp >= NOW() - INTERVAL '7' DAY
 GROUP BY route, method
 ORDER BY p90_total_latency_ms DESC;
