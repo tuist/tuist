@@ -998,7 +998,6 @@
 
         & > [data-part="testimonial"] {
           display: flex;
-          flex: 1;
           flex-shrink: 0;
           flex-direction: column;
           justify-content: space-between;
@@ -1014,6 +1013,7 @@
           max-width: 400px;
 
           @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+            flex: 1;
             box-shadow: none;
             border-radius: 0;
             width: auto;
@@ -1047,7 +1047,9 @@
           }
 
           &:has([data-part="logo"]) {
-            flex: 2;
+            @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+              flex: 2;
+            }
           }
 
           & > [data-part="logo"] {
