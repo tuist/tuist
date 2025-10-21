@@ -17,7 +17,7 @@ public enum TuistProject: Equatable, Hashable, Sendable {
         switch self {
         case let .generated(options): return options.generationOptions.disableSandbox
         case .xcode: return true
-        case let .swiftPackage(options): return options.disableSandbox
+        case .swiftPackage: return true
         }
     }
 
