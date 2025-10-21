@@ -14,7 +14,8 @@ class RouteMetricsTracker {
     this.kvReadCount = 0;
     this.kvWriteCount = 0;
     this.kvHitCount = 0;
-    this.kvMissCount = 0;
+    this.s3FetchMs = 0;
+    this.s3FetchCount = 0;
     this.serverFetchMs = 0;
     this.serverFetchCount = 0;
     this.helpers = null;
@@ -83,31 +84,37 @@ class RouteMetricsTracker {
   recordKvRead(duration, result, failed) {
     this.kvReadMs += duration;
     this.kvReadCount += 1;
+    this.originMs += duration;
 
     if (failed) {
-      this.kvMissCount += 1;
       return;
     }
 
     if (isKvHit(result)) {
       this.kvHitCount += 1;
-    } else {
-      this.kvMissCount += 1;
     }
   }
 
   recordKvWrite(duration) {
     this.kvWriteMs += duration;
     this.kvWriteCount += 1;
+    this.originMs += duration;
   }
 
-  async measureServerFetch(fn) {
+  async measureServerFetch(fn, category = "server") {
     const start = performance.now();
     try {
       return await fn();
     } finally {
-      this.serverFetchMs += performance.now() - start;
-      this.serverFetchCount += 1;
+      const duration = performance.now() - start;
+      this.originMs += duration;
+      if (category === "s3") {
+        this.s3FetchMs += duration;
+        this.s3FetchCount += 1;
+      } else {
+        this.serverFetchMs += duration;
+        this.serverFetchCount += 1;
+      }
     }
   }
 
@@ -115,7 +122,8 @@ class RouteMetricsTracker {
     if (!this.helpers) {
       this.helpers = {
         fetch: this.wrapFetch(fetch),
-        measureServerFetch: (fn) => this.measureServerFetch(fn),
+        measureServerFetch: (fn, category) =>
+          this.measureServerFetch(fn, category),
       };
     }
 
@@ -141,11 +149,12 @@ class RouteMetricsTracker {
           this.sampleRate,
           this.kvReadMs,
           this.kvWriteMs,
+          this.s3FetchMs,
           this.serverFetchMs,
           this.kvHitCount,
-          this.kvMissCount,
           this.kvReadCount,
           this.kvWriteCount,
+          this.s3FetchCount,
           this.serverFetchCount,
         ],
       }),

@@ -85,8 +85,11 @@ export async function handleGetValue(
   const url = getS3Url(endpoint, bucket, key, virtualHost);
 
   let s3Response;
+  const performFetch = () => s3Client.fetch(url, { method: "GET" });
   try {
-    s3Response = await s3Client.fetch(url, { method: "GET" });
+    s3Response = instrumentation?.measureServerFetch
+      ? await instrumentation.measureServerFetch(performFetch, "s3")
+      : await performFetch();
   } catch (e) {
     return jsonResponse({ message: "S3 error" }, 500);
   }
@@ -139,6 +142,7 @@ export async function handleSave(
     bucket,
     key,
     virtualHost,
+    instrumentation,
   );
   if (exists) {
     return new Response(null, { status: 204 });
@@ -147,8 +151,8 @@ export async function handleSave(
   const bodyBuffer = await request.arrayBuffer();
   const url = getS3Url(endpoint, bucket, key, virtualHost);
 
-  try {
-    const s3Response = await s3Client.fetch(url, {
+  const performPut = () =>
+    s3Client.fetch(url, {
       method: "PUT",
       body: bodyBuffer,
       headers: {
@@ -157,6 +161,10 @@ export async function handleSave(
       },
     });
 
+  try {
+    const s3Response = instrumentation?.measureServerFetch
+      ? await instrumentation.measureServerFetch(performPut, "s3")
+      : await performPut();
     if (!s3Response.ok) {
       return new Response(s3Response.body, {
         status: s3Response.status,
