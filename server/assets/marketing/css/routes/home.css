@@ -11,7 +11,7 @@
     padding-right: var(--noora-spacing-6);
     padding-left: var(--noora-spacing-6);
 
-    @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+    @media (min-width: 1024px) {
       margin-right: auto;
       margin-left: auto;
       padding-right: var(--noora-spacing-6);
@@ -126,7 +126,7 @@
     align-items: stretch;
     padding: 0;
 
-    @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+    @media (min-width: 1024px) {
       margin: 0;
     }
 
@@ -165,7 +165,7 @@
     width: 100%;
     overflow: hidden;
 
-    @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+    @media (min-width: 1024px) {
       flex-direction: column;
       justify-content: center;
       overflow: visible;
@@ -188,7 +188,7 @@
       gap: var(--noora-spacing-9);
       will-change: transform;
 
-      @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+      @media (min-width: 1024px) {
         flex-direction: column;
         gap: var(--noora-spacing-11);
       }
@@ -227,7 +227,7 @@
       font-family: var(--noora-font-heading);
       font: var(--noora-font-weight-medium) var(--noora-font-heading-xlarge);
 
-      @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+      @media (min-width: 1024px) {
         flex-direction: row;
         justify-content: center;
         gap: var(--noora-spacing-4);
@@ -271,7 +271,7 @@
       align-items: stretch;
       gap: var(--noora-spacing-5);
 
-      @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+      @media (min-width: 1024px) {
         flex-direction: row;
       }
 
@@ -282,7 +282,7 @@
         align-items: flex-start;
         padding: 0 var(--noora-spacing-8);
 
-        @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+        @media (min-width: 1024px) {
           display: block;
           padding: 0;
         }
@@ -311,7 +311,7 @@
         & > [data-part="graphic"] {
           display: none;
 
-          @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+          @media (min-width: 1024px) {
             display: block;
           }
         }
@@ -328,7 +328,7 @@
         box-shadow: var(--noora-light-border-default);
         border-radius: var(--noora-radius-xlarge);
 
-        @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+        @media (min-width: 1024px) {
           width: 580px;
         }
 
@@ -375,7 +375,7 @@
           z-index: var(--noora-z-index-2);
           padding: var(--noora-spacing-8) 0;
 
-          @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+          @media (min-width: 1024px) {
             padding: var(--noora-spacing-8);
           }
 
@@ -404,7 +404,7 @@
         box-shadow: var(--noora-light-border-default);
         border-radius: var(--noora-radius-xlarge);
 
-        @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+        @media (min-width: 1024px) {
           width: 704px;
         }
 
@@ -451,7 +451,7 @@
           z-index: var(--noora-z-index-2);
           padding: var(--noora-spacing-8) 0;
 
-          @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+          @media (min-width: 1024px) {
             padding: var(--noora-spacing-8);
           }
 
@@ -481,7 +481,7 @@
         box-shadow: var(--noora-light-border-default);
         border-radius: var(--noora-radius-xlarge);
 
-        @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+        @media (min-width: 1024px) {
           width: 424px;
         }
 
@@ -528,7 +528,7 @@
           z-index: var(--noora-z-index-2);
           padding: var(--noora-spacing-8) 0;
 
-          @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+          @media (min-width: 1024px) {
             padding: var(--noora-spacing-8);
           }
 
@@ -571,7 +571,7 @@
         & > span[data-part="line-one"] {
           display: inline;
 
-          @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+          @media (min-width: 1024px) {
             display: block;
           }
         }
@@ -584,7 +584,7 @@
           text-shadow: 0px 1px 1px rgba(126, 125, 125, 0.25);
           -webkit-text-fill-color: transparent;
 
-          @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+          @media (min-width: 1024px) {
             display: block;
           }
         }
@@ -612,7 +612,7 @@
     align-items: stretch;
     gap: var(--noora-spacing-5);
 
-    @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+    @media (min-width: 1024px) {
       flex-direction: row;
       align-items: center;
     }
@@ -628,7 +628,7 @@
       box-shadow: var(--noora-light-border-default);
       border-radius: var(--noora-radius-xlarge);
 
-      @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+      @media (min-width: 1024px) {
         width: 642px;
       }
 
@@ -704,7 +704,7 @@
           & > span:not([data-part]) {
             display: none;
 
-            @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+            @media (min-width: 1024px) {
               display: inline;
             }
           }
@@ -737,7 +737,7 @@
     align-items: stretch;
     gap: var(--noora-spacing-5);
 
-    @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+    @media (min-width: 1024px) {
       flex-direction: row;
       align-items: center;
     }
@@ -749,7 +749,7 @@
       align-items: stretch;
       gap: var(--noora-spacing-5);
 
-      @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+      @media (min-width: 1024px) {
         align-items: center;
       }
 
@@ -814,7 +814,7 @@
         gap: var(--noora-spacing-4);
         background: linear-gradient(279deg, #f0e8ff 0%, #fff 108.26%);
 
-        @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+        @media (min-width: 1024px) {
           width: 399.5px;
           min-height: 174px;
         }
@@ -824,7 +824,7 @@
         gap: var(--noora-spacing-4);
         background: linear-gradient(79deg, #fff 0%, #f4f0fd 100.11%);
 
-        @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+        @media (min-width: 1024px) {
           width: 399.5px;
           min-height: 174px;
         }
@@ -834,7 +834,7 @@
         gap: var(--noora-spacing-8);
         background: linear-gradient(112deg, #f8f5ff 0%, #f2effa 100.86%);
 
-        @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+        @media (min-width: 1024px) {
           width: 473px;
           min-height: 190px;
         }
@@ -843,7 +843,7 @@
       & > [data-part="slack-card"] {
         gap: var(--noora-spacing-4);
         background: linear-gradient(0deg, #fff 0%, #f4f0fd 100%);
-        @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+        @media (min-width: 1024px) {
           width: 473px;
           height: 158px;
         }
@@ -852,7 +852,7 @@
       & > [data-part="teams-card"] {
         gap: var(--noora-spacing-4);
         background: linear-gradient(279deg, #fff 0%, #f4f0fd 98.92%);
-        @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+        @media (min-width: 1024px) {
           width: 399.5px;
           min-height: 174px;
         }
@@ -861,7 +861,7 @@
       & > [data-part="contributors-card"] {
         gap: var(--noora-spacing-4);
         background: linear-gradient(79deg, #f4f0fd 0%, #fff 100.11%);
-        @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+        @media (min-width: 1024px) {
           width: 399.5px;
           min-height: 174px;
         }
@@ -878,7 +878,7 @@
     padding-right: var(--noora-spacing-6);
     padding-left: var(--noora-spacing-6);
 
-    @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+    @media (min-width: 1024px) {
       padding-right: var(--noora-spacing-14);
       padding-left: var(--noora-spacing-14);
     }
@@ -892,7 +892,7 @@
       height: 100%;
       pointer-events: none;
 
-      @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+      @media (min-width: 1024px) {
         display: none;
       }
 
@@ -963,7 +963,7 @@
         display: none;
       }
 
-      @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+      @media (min-width: 1024px) {
         gap: 0;
         margin: 0;
         padding: 0;
@@ -976,7 +976,7 @@
         flex-direction: row;
         gap: var(--noora-spacing-5);
 
-        @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+        @media (min-width: 1024px) {
           flex: 1;
           flex-direction: column;
           gap: 0;
@@ -985,7 +985,7 @@
         &:first-child {
           padding-left: var(--noora-spacing-6);
 
-          @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+          @media (min-width: 1024px) {
             padding-left: 0;
           }
         }
@@ -993,7 +993,7 @@
         &:last-child {
           padding-right: var(--noora-spacing-6);
 
-          @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+          @media (min-width: 1024px) {
             padding-right: 0;
           }
         }
@@ -1001,7 +1001,7 @@
         &:not(:first-child) {
           padding-left: 0;
 
-          @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+          @media (min-width: 1024px) {
             border-left: 1px solid rgba(183, 183, 183, 0.4);
             padding-left: var(--noora-spacing-5);
           }
@@ -1010,7 +1010,7 @@
         &:not(:last-child) {
           padding-right: 0;
 
-          @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+          @media (min-width: 1024px) {
             padding-right: var(--noora-spacing-5);
           }
         }
@@ -1031,7 +1031,7 @@
           width: calc(90vw - var(--noora-spacing-12));
           max-width: 400px;
 
-          @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+          @media (min-width: 1024px) {
             flex: 1;
             box-shadow: none;
             border-radius: 0;
@@ -1056,7 +1056,7 @@
             padding-right: var(--noora-spacing-8);
             padding-left: var(--noora-spacing-8);
 
-            @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+            @media (min-width: 1024px) {
               margin-top: var(--noora-spacing-5);
               margin-right: calc(-1 * var(--noora-spacing-5));
               margin-left: calc(-1 * var(--noora-spacing-5));
@@ -1066,7 +1066,7 @@
           }
 
           &:has([data-part="logo"]) {
-            @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+            @media (min-width: 1024px) {
               flex: 2;
             }
           }
