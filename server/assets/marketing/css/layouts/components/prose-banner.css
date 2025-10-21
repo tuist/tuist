@@ -24,7 +24,7 @@
     align-items: flex-start;
     gap: var(--noora-spacing-6);
 
-    @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+    @media (min-width: 1024px) {
       flex-direction: row;
     }
 
@@ -48,7 +48,7 @@
       align-self: flex-end;
       text-decoration: none;
 
-      @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+      @media (min-width: 1024px) {
         align-self: flex-start;
       }
     }

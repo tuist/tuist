@@ -5,7 +5,7 @@
   justify-content: center;
   padding: calc(var(--noora-spacing-7) + var(--noora-spacing-6));
 
-  @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+  @media (min-width: 1024px) {
     padding: var(--noora-spacing-14);
   }
 
@@ -44,7 +44,7 @@
     width: 100%;
     max-width: 1296px;
 
-    @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+    @media (min-width: 1024px) {
       flex-direction: row;
     }
   }
@@ -54,7 +54,7 @@
     flex-direction: column;
     gap: var(--noora-spacing-8);
 
-    @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+    @media (min-width: 1024px) {
       gap: var(--noora-spacing-9);
     }
 
@@ -87,7 +87,7 @@
     column-gap: var(--noora-spacing-9);
     row-gap: var(--noora-spacing-7);
 
-    @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+    @media (min-width: 1024px) {
       display: flex;
       flex-direction: row;
       gap: var(--noora-spacing-9);

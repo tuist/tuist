@@ -5,7 +5,7 @@
   gap: var(--noora-spacing-11);
   z-index: var(--noora-z-index-1);
 
-  @container style(--inline-size-sm: var(--marketing-breakpoint-sm)) {
+  @media (min-width: 370px) {
     gap: var(--noora-spacing-9);
   }
 
@@ -13,7 +13,7 @@
     padding-right: var(--noora-spacing-6);
     padding-left: var(--noora-spacing-6);
 
-    @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+    @media (min-width: 1024px) {
       margin-right: auto;
       margin-left: auto;
       padding-right: var(--noora-spacing-6);
@@ -30,7 +30,7 @@
     gap: var(--noora-spacing-6);
     padding-top: var(--noora-spacing-12);
 
-    @container style(--inline-size-sm: var(--marketing-breakpoint-sm)) {
+    @media (min-width: 370px) {
       padding-top: var(--noora-spacing-10);
     }
 
