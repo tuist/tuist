@@ -4,6 +4,14 @@
   align-items: center;
   gap: var(--noora-spacing-11);
 
+  padding-right: var(--noora-spacing-6);
+  padding-left: var(--noora-spacing-6);
+
+  @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+    padding-right: 0;
+    padding-left: 0;
+  }
+
   & > [data-part="header"] {
     display: flex;
     flex-direction: column;
@@ -48,12 +56,21 @@
         0 4px 9px 0 rgba(0, 0, 0, 0.04);
       border-radius: var(--noora-radius-2xlarge);
       background: #fff;
-      width: 780px;
-      height: 439px;
+      width: 100%;
+      max-width: 780px;
+      height: auto;
     }
   }
 
   & > [data-part="content"] {
-    width: 650px;
+    padding-right: var(--noora-spacing-6);
+    padding-left: var(--noora-spacing-6);
+    width: 100%;
+    max-width: 650px;
+
+    @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+      padding-right: var(--noora-spacing-14);
+      padding-left: var(--noora-spacing-14);
+    }
   }
 }
