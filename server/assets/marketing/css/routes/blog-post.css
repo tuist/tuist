@@ -4,14 +4,6 @@
   align-items: center;
   gap: var(--noora-spacing-11);
 
-  padding-right: var(--noora-spacing-6);
-  padding-left: var(--noora-spacing-6);
-
-  @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
-    padding-right: 0;
-    padding-left: 0;
-  }
-
   & > [data-part="header"] {
     display: flex;
     flex-direction: column;
@@ -65,8 +57,10 @@
   & > [data-part="content"] {
     padding-right: var(--noora-spacing-6);
     padding-left: var(--noora-spacing-6);
-    width: 100%;
-    max-width: 650px;
+    @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+      width: 100%;
+      max-width: 650px;
+    }
 
     @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
       padding-right: var(--noora-spacing-14);

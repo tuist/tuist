@@ -119,9 +119,9 @@
   }
 
   & > [data-part="graphic"] {
-    padding: 0;
     position: relative;
     margin: 0 calc(-1 * var(--noora-spacing-6));
+    padding: 0;
     width: calc(100% + 2 * var(--noora-spacing-6));
 
     @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
@@ -870,11 +870,11 @@
       top: 0;
       left: 0;
       z-index: var(--noora-z-index-0);
+      filter: blur(50px);
+      background: linear-gradient(306deg, rgba(255, 255, 255, 0.9) -8.24%, rgba(248, 245, 254, 0.9) 163.85%);
       width: 100%;
       height: 100%;
       pointer-events: none;
-      background: linear-gradient(306deg, rgba(255, 255, 255, 0.90) -8.24%, rgba(248, 245, 254, 0.90) 163.85%);
-      filter: blur(50px);
 
       @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
         display: none;
@@ -893,10 +893,10 @@
     & > [data-part="header"] {
       display: flex;
       position: relative;
-      z-index: var(--noora-z-index-1);
       flex-direction: column;
       align-items: center;
       gap: var(--noora-spacing-6);
+      z-index: var(--noora-z-index-1);
       margin-bottom: var(--noora-spacing-11);
 
       & > [data-part="title"] {
@@ -919,33 +919,33 @@
     & > [data-part="main"] {
       display: flex;
       position: relative;
-      z-index: var(--noora-z-index-1);
       flex-direction: row;
+      z-index: var(--noora-z-index-1);
       margin: 0 calc(-1 * var(--noora-spacing-6));
       padding: var(--noora-spacing-2) 0;
-      list-style: none;
       overflow-x: auto;
+      list-style: none;
       -webkit-overflow-scrolling: touch;
-      scrollbar-width: none;
-      width: calc(100% + 2 * var(--noora-spacing-6));
       gap: var(--noora-spacing-5);
+      width: calc(100% + 2 * var(--noora-spacing-6));
+      scrollbar-width: none;
 
       &::-webkit-scrollbar {
         display: none;
       }
 
       @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
-        overflow-x: visible;
-        padding: 0;
-        margin: 0;
-        width: 100%;
         gap: 0;
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        overflow-x: visible;
       }
 
       & > [data-part="column"] {
         display: flex;
-        flex-direction: row;
         flex-shrink: 0;
+        flex-direction: row;
         gap: var(--noora-spacing-5);
 
         @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
@@ -990,22 +990,25 @@
         & > [data-part="testimonial"] {
           display: flex;
           flex: 1;
+          flex-shrink: 0;
           flex-direction: column;
           justify-content: space-between;
           align-items: stretch;
           gap: var(--noora-spacing-13);
+          box-shadow:
+            0 1px 1px 0 rgba(22, 24, 28, 0.05),
+            0 0 0 1px rgba(46, 51, 56, 0.08),
+            0 1px 1px 0 rgba(46, 51, 56, 0.1);
+          border-radius: var(--noora-radius-large);
           padding: var(--noora-spacing-8);
-          flex-shrink: 0;
           width: 50%;
           max-width: 400px;
-          border-radius: var(--noora-radius-large);
-          box-shadow: 0 1px 1px 0 rgba(22, 24, 28, 0.05), 0 0 0 1px rgba(46, 51, 56, 0.08), 0 1px 1px 0 rgba(46, 51, 56, 0.10);
 
           @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
-            width: auto;
-            max-width: none;
             box-shadow: none;
             border-radius: 0;
+            width: auto;
+            max-width: none;
           }
 
           &:not(:first-child) {

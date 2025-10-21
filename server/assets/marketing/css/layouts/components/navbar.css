@@ -1,5 +1,8 @@
 #marketing-navbar {
+  display: flex;
   position: relative;
+  flex-direction: column;
+  align-items: stretch;
   align-self: stretch;
   z-index: var(--noora-z-index-12);
 
@@ -8,6 +11,15 @@
     margin-top: var(--noora-spacing-7);
     width: 100%;
     max-width: 1296px;
+  }
+
+  &[data-mobile-menu-open="true"] {
+    & > [data-part="bar"] {
+      @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+        margin-right: 0px;
+        margin-left: 0px;
+      }
+    }
   }
 
   & > [data-part="bar"] {
@@ -20,8 +32,8 @@
     z-index: var(--noora-z-index-12);
     backdrop-filter: blur(4px);
     margin-top: var(--noora-spacing-7);
-    /*margin-right: var(--noora-spacing-6);
-    margin-left: var(--noora-spacing-6);*/
+    margin-right: var(--noora-spacing-6);
+    margin-left: var(--noora-spacing-6);
     box-shadow:
       0 114px 32px 0 rgba(0, 0, 0, 0),
       0 73px 29px 0 rgba(0, 0, 0, 0.01),
@@ -31,6 +43,10 @@
     border-radius: var(--noora-radius-xlarge);
     background: rgba(253, 253, 253, 0.5);
     padding: var(--noora-spacing-3) var(--noora-spacing-6);
+
+    @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+      padding: var(--noora-spacing-3) var(--noora-spacing-6);
+    }
 
     & > [data-part="tuist"] {
       display: flex;

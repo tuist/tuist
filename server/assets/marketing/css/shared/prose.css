@@ -5,6 +5,8 @@
   & code.inline {
     color: var(--surface-label-primary);
     font: var(--noora-font-weight-regular) var(--noora-font-code-large);
+    word-break: break-word;
+    overflow-wrap: break-word;
   }
 
   & blockquote {
@@ -27,7 +29,8 @@
     margin-top: var(--noora-spacing-6);
   }
 
-  & img {
+  & img,
+  & video {
     box-shadow:
       0 102px 28px 0 rgba(0, 0, 0, 0),
       0 65px 26px 0 rgba(0, 0, 0, 0.01),

@@ -1,6 +1,6 @@
 [id^="marketing-"] {
   & > section,
-  & > header,
+  & > header:not(#marketing-navbar),
   & > figure {
     position: relative;
     z-index: var(--noora-z-index-1);
