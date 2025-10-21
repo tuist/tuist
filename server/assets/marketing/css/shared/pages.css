@@ -7,7 +7,7 @@
     padding-right: var(--noora-spacing-6);
     padding-left: var(--noora-spacing-6);
 
-    @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+    @media (min-width: 1024px) {
       align-self: stretch;
       padding-right: var(--noora-spacing-14);
       padding-left: var(--noora-spacing-14);

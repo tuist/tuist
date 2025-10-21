@@ -10,7 +10,7 @@
     padding-right: var(--noora-spacing-6);
     padding-left: var(--noora-spacing-6);
 
-    @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+    @media (min-width: 1024px) {
       margin-right: auto;
       margin-left: auto;
       padding-right: var(--noora-spacing-6);
@@ -37,7 +37,7 @@
     padding-top: var(--noora-spacing-12);
     padding-bottom: var(--noora-spacing-8);
 
-    @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+    @media (min-width: 1024px) {
       flex-direction: row;
       align-items: flex-end;
     }
@@ -51,7 +51,7 @@
       align-items: flex-start;
       gap: var(--noora-spacing-8);
 
-      @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+      @media (min-width: 1024px) {
         flex-direction: row;
         align-items: center;
         gap: var(--noora-spacing-9);
@@ -107,7 +107,7 @@
     padding-right: var(--noora-spacing-6);
     padding-left: var(--noora-spacing-6);
 
-    @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+    @media (min-width: 1024px) {
       display: grid;
       grid-template-columns: max-content 1px 1fr;
       column-gap: var(--noora-spacing-6);
@@ -125,7 +125,7 @@
       color: var(--noora-surface-label-secondary);
       font: var(--noora-font-weight-regular) var(--noora-font-body-large);
 
-      @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+      @media (min-width: 1024px) {
         position: sticky;
         top: var(--noora-spacing-6);
         grid-column: 1;
@@ -141,7 +141,7 @@
     & > [data-part="line"] {
       display: none;
 
-      @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+      @media (min-width: 1024px) {
         display: block;
         grid-column: 2;
         align-self: stretch;
@@ -152,7 +152,7 @@
     }
 
     & > [data-part="line"]:last-of-type {
-      @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+      @media (min-width: 1024px) {
         margin-bottom: 0;
       }
     }
@@ -165,7 +165,7 @@
       margin-bottom: var(--noora-spacing-10);
       min-width: 0;
 
-      @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+      @media (min-width: 1024px) {
         grid-column: 3;
         margin-bottom: 0;
         padding-bottom: var(--noora-spacing-11);
@@ -214,7 +214,7 @@
     padding-right: var(--noora-spacing-6);
     padding-left: var(--noora-spacing-6);
 
-    @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+    @media (min-width: 1024px) {
       justify-content: flex-start;
       margin-right: auto;
       margin-left: auto;

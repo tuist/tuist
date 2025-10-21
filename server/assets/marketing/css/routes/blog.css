@@ -7,7 +7,7 @@
   padding-bottom: var(--noora-spacing-11);
   overflow-x: hidden;
 
-  @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+  @media (min-width: 1024px) {
     gap: var(--noora-spacing-11);
     overflow-x: visible;
   }
@@ -19,12 +19,12 @@
     padding-top: var(--noora-spacing-10);
     padding-bottom: var(--noora-spacing-8);
 
-    @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+    @media (min-width: 1024px) {
       display: flex;
       padding-top: 0;
     }
 
-    @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+    @media (min-width: 1024px) {
       gap: var(--noora-spacing-11);
     }
 
@@ -48,7 +48,7 @@
       flex-direction: column;
       gap: 48px;
 
-      @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+      @media (min-width: 1024px) {
         flex-direction: row;
       }
 
@@ -64,7 +64,7 @@
         width: 100%;
         height: auto;
 
-        @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+        @media (min-width: 1024px) {
           width: 600px;
           height: 338px;
         }
@@ -117,7 +117,7 @@
     padding-right: var(--noora-spacing-6);
     padding-left: var(--noora-spacing-6);
 
-    @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+    @media (min-width: 1024px) {
       flex-direction: row;
       align-items: center;
       margin-right: 0;
@@ -137,7 +137,7 @@
       min-width: 0;
       max-width: 100%;
 
-      @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+      @media (min-width: 1024px) {
         display: none;
       }
 
@@ -175,7 +175,7 @@
       scrollbar-width: thin;
       -webkit-overflow-scrolling: touch;
 
-      @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+      @media (min-width: 1024px) {
         display: flex;
       }
 
@@ -229,7 +229,7 @@
     grid-template-columns: 1fr;
     gap: var(--noora-spacing-11);
 
-    @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+    @media (min-width: 1024px) {
       grid-template-columns: repeat(3, 1fr);
     }
 
