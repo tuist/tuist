@@ -113,7 +113,7 @@
         <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
         <.text_input id="email" label="Email" name="email" type="email" required />
 
-        <.button label="Primary" variant="primary" type="submit" />
+        <.button label={dgettext("marketing", "Subscribe")} variant="primary" type="submit" />
       </form>
     </section>
   </main>
