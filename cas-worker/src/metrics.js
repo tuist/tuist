@@ -163,8 +163,7 @@ class RouteMetricsTracker {
 }
 
 export function withRouteTiming(routeLabel, handler, opts) {
-  const sampleRate =
-    opts && opts.sampleRate != null ? opts.sampleRate : 1.0; // 1.0 = 100%
+  const sampleRate = opts && opts.sampleRate != null ? opts.sampleRate : 1.0; // 1.0 = 100%
 
   return async (req, env, ctx) => {
     const doSample = Math.random() < sampleRate;

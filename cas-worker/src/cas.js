@@ -58,11 +58,7 @@ async function validateAndSetupRequest(
   };
 }
 
-export async function handleGetValue(
-  request,
-  env,
-  instrumentation = {},
-) {
+export async function handleGetValue(request, env, instrumentation = {}) {
   const { params, query } = request;
   const { id } = params;
   const { account_handle: accountHandle, project_handle: projectHandle } =
@@ -110,11 +106,7 @@ export async function handleGetValue(
   return new Response(arrayBuffer, { status: 200, headers: responseHeaders });
 }
 
-export async function handleSave(
-  request,
-  env,
-  instrumentation = {},
-) {
+export async function handleSave(request, env, instrumentation = {}) {
   const { params, query } = request;
   const { id } = params;
   const { account_handle: accountHandle, project_handle: projectHandle } =

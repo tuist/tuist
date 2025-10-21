@@ -5,11 +5,7 @@ function buildCacheKey(accountHandle, projectHandle, casId) {
   return `keyvalue:${accountHandle}:${projectHandle}:${casId}`;
 }
 
-export async function handleKeyValueGet(
-  request,
-  env,
-  instrumentation = {},
-) {
+export async function handleKeyValueGet(request, env, instrumentation = {}) {
   const queryValidation = validateQuery(request);
   if (queryValidation.error) {
     return jsonResponse(
@@ -70,11 +66,7 @@ export async function handleKeyValueGet(
   });
 }
 
-export async function handleKeyValuePut(
-  request,
-  env,
-  instrumentation = {},
-) {
+export async function handleKeyValuePut(request, env, instrumentation = {}) {
   const queryValidation = validateQuery(request);
   if (queryValidation.error) {
     return jsonResponse(
@@ -113,7 +105,9 @@ export async function handleKeyValuePut(
   }
 
   const sanitizedValues = entries
-    .map((entry) => (entry && typeof entry.value === "string" ? entry.value : null))
+    .map((entry) =>
+      entry && typeof entry.value === "string" ? entry.value : null,
+    )
     .filter((value) => typeof value === "string");
 
   if (sanitizedValues.length === 0) {

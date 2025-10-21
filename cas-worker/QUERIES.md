@@ -1,6 +1,7 @@
 # Cloudflare Analytics Engine Queries
 
 The `cas_worker_metrics` dataset contains one row per sampled request. Useful columns:
+
 - `timestamp` – capture time
 - `blob1` – route label
 - `blob2` – HTTP method
@@ -23,6 +24,7 @@ The `cas_worker_metrics` dataset contains one row per sampled request. Useful co
 Always use `_sample_interval` as the weight when aggregating.
 
 ## 1. Route Latency Quantiles (Total vs Origin)
+
 ```sql
 SELECT
   blob1 AS route,
@@ -45,6 +47,7 @@ ORDER BY p99_total_latency_ms DESC;
 ```
 
 ## 2. KV & External Latency Per Operation
+
 ```sql
 SELECT
   blob1 AS route,
@@ -110,6 +113,7 @@ ORDER BY p90_kv_read_latency_per_request_ms DESC;
 ```
 
 ## 3. KV Hit/Miss Rate by Route
+
 ```sql
 SELECT
   blob1 AS route,
@@ -133,6 +137,7 @@ ORDER BY kv_hit_rate ASC;
 ```
 
 ## 4. Tuist Server Latency on KV Misses
+
 ```sql
 SELECT
   blob1 AS route,
@@ -156,6 +161,7 @@ ORDER BY p90_server_fetch_latency_ms DESC;
 ```
 
 ## 5. KV Miss Rate Impact on Latency
+
 ```sql
 SELECT
   blob1 AS route,
@@ -176,6 +182,7 @@ ORDER BY p90_total_latency_ms DESC;
 ```
 
 ## 6. Origin Component Breakdown
+
 ```sql
 SELECT
   blob1 AS route,
