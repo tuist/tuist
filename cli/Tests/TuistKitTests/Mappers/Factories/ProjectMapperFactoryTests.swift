@@ -99,7 +99,7 @@ final class ProjectMapperFactoryTests: TuistUnitTestCase {
         // Then
         XCTAssertDoesntContainElementOfType(got, SkipUITestsProjectMapper.self)
     }
-    
+
     func test_automation_contains_the_skip_unit_tests_mapper_when_skip_unit_tests_is_true() {
         // When
         let got = subject.automation(

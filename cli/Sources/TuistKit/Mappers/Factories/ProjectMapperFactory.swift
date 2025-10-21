@@ -46,7 +46,7 @@ public final class ProjectMapperFactory: ProjectMapperFactorying {
                 SkipUITestsProjectMapper()
             )
         }
-        
+
         if skipUnitTests {
             mappers.append(
                 SkipUnitTestsProjectMapper()
