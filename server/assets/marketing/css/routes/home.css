@@ -514,10 +514,10 @@
 
   & > [data-part="case-study"] {
     display: flex;
+    flex-direction: column;
     justify-content: center;
     align-items: stretch;
     gap: var(--noora-spacing-5);
-    flex-direction: column;
 
     @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
       flex-direction: row;
@@ -725,8 +725,8 @@
         background: linear-gradient(79deg, #fff 0%, #f4f0fd 100.11%);
 
         @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
-        width: 399.5px;
-        min-height: 174px;
+          width: 399.5px;
+          min-height: 174px;
         }
       }
 
@@ -735,8 +735,8 @@
         background: linear-gradient(112deg, #f8f5ff 0%, #f2effa 100.86%);
 
         @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
-        width: 473px;
-        min-height: 190px;
+          width: 473px;
+          min-height: 190px;
         }
       }
 
@@ -744,8 +744,8 @@
         gap: var(--noora-spacing-4);
         background: linear-gradient(0deg, #fff 0%, #f4f0fd 100%);
         @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
-        width: 473px;
-        height: 158px;
+          width: 473px;
+          height: 158px;
         }
       }
 
@@ -753,8 +753,8 @@
         gap: var(--noora-spacing-4);
         background: linear-gradient(279deg, #fff 0%, #f4f0fd 98.92%);
         @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
-        width: 399.5px;
-        min-height: 174px;
+          width: 399.5px;
+          min-height: 174px;
         }
       }
 
@@ -762,8 +762,8 @@
         gap: var(--noora-spacing-4);
         background: linear-gradient(79deg, #f4f0fd 0%, #fff 100.11%);
         @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
-        width: 399.5px;
-        min-height: 174px;
+          width: 399.5px;
+          min-height: 174px;
         }
       }
     }
