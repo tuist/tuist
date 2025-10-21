@@ -110,7 +110,7 @@ public struct TestCommand: AsyncParsableCommand, LogConfigurableCommand,
         envKey: .testSkipUITests
     )
     var skipUITests: Bool = false
-    
+
     @Flag(
         name: .long,
         help: "When passed, it skips testing Unit Tests targets.",
@@ -254,8 +254,8 @@ public struct TestCommand: AsyncParsableCommand, LogConfigurableCommand,
                 throw XcodeBuildPassthroughArgumentError.alreadyHandled($0)
             }
         }
-        
-        if skipUITests && skipUnitTests {
+
+        if skipUITests, skipUnitTests {
             throw TuistTestFlagError.invalidCombination(
                 ["--skip-ui-tests", "--skip-unit-tests"]
             )
