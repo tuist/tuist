@@ -221,9 +221,7 @@ defmodule Tuist.ProjectsTest do
       project_one = ProjectsFixtures.project_fixture(account_id: account.id, preload: [])
       project_two = ProjectsFixtures.project_fixture(account_id: account.id, preload: [])
 
-      got =
-        %AuthenticatedAccount{account: account, scopes: []}
-        |> Projects.get_all_project_accounts()
+      got = Projects.get_all_project_accounts(%AuthenticatedAccount{account: account, scopes: []})
 
       assert Enum.sort_by(got, & &1.handle) ==
                Enum.sort_by(
@@ -248,7 +246,8 @@ defmodule Tuist.ProjectsTest do
 
       got = Projects.get_all_project_accounts(project)
 
-      assert [%ProjectAccount{handle: "#{project.account.name}/#{project.name}"}] = got
+      expected_handle = "#{project.account.name}/#{project.name}"
+      assert [%ProjectAccount{handle: ^expected_handle}] = got
     end
 
     test "returns empty list for unsupported subjects" do
@@ -1205,5 +1204,4 @@ defmodule Tuist.ProjectsTest do
       assert got == {:error, :not_found}
     end
   end
-
 end

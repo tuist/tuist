@@ -367,8 +367,8 @@ defmodule TuistWeb.API.ProjectsControllerTest do
 
     test "lists all projects for an authenticated account subject", %{conn: conn} do
       account = AccountsFixtures.account_fixture()
-      project_one = ProjectsFixtures.project_fixture(account_id: account.id, name: "alpha")
-      project_two = ProjectsFixtures.project_fixture(account_id: account.id, name: "beta")
+      project_one = ProjectsFixtures.project_fixture(account_id: account.id)
+      project_two = ProjectsFixtures.project_fixture(account_id: account.id)
 
       conn =
         conn

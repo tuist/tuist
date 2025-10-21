@@ -23,6 +23,7 @@ async function getAccessibleProjects(request, env, authHeader) {
 
   if (cache) {
     const cached = await cache.get(cacheKey);
+    console.log("Cache hit for accessible projects", cached);
     if (cached) {
       return JSON.parse(cached);
     }
@@ -35,6 +36,7 @@ async function getAccessibleProjects(request, env, authHeader) {
   }
 
   try {
+    console.log("Fetching projects from /api/projects");
     const response = await serverFetch(env, "/api/projects", {
       method: "GET",
       headers,
@@ -57,7 +59,9 @@ async function getAccessibleProjects(request, env, authHeader) {
     }
 
     const { projects } = await response.json();
+    console.log("Got projects", projects);
     const projectHandles = projects.map((project) => project.full_name);
+    console.log("Project handles", projectHandles);
 
     if (cache) {
       await cache.put(cacheKey, JSON.stringify({ projects: projectHandles }), {
