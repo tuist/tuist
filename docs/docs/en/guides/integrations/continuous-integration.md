@@ -138,7 +138,7 @@ jobs:
 <!-- -->
 :::
 
-For cases where you're not using Mise, we recommend using the [official Tuist GitHub Action](https://github.com/tuist/action), which provides a simple way to install a specific version of Tuist. When using Mise, the [mise-action](https://github.com/jdx/mise-action) abstracts the installation of both Mise and Tuist.
+If you are already using Homebrew or Mise to install tools from your CI pipelines, we recommend staying consistent with your existing approach. Otherwise, you can use the [official Tuist GitHub Action](https://github.com/tuist/action), which provides a simple way to install a specific version of Tuist.
 
 ::: tip
 <!-- -->
