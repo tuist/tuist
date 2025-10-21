@@ -6,7 +6,7 @@
   align-self: stretch;
   z-index: var(--noora-z-index-12);
 
-  @container style(--inline-size-lg: var(--marketing-breakpoint-lg)) {
+  @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
     align-self: center;
     margin-top: var(--noora-spacing-7);
     width: 100%;

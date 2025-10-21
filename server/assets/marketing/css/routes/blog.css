@@ -122,9 +122,8 @@
       align-items: center;
       margin-right: 0;
       margin-left: 0;
-      padding-right: 0;
-      padding-left: 0;
-      width: 100%;
+      padding-right: var(--noora-spacing-14);
+      padding-left: var(--noora-spacing-14);
     }
 
     & > [data-part="categories-mobile"] {
@@ -221,7 +220,7 @@
       flex-direction: row;
       align-items: center;
       gap: var(--noora-spacing-4);
-      padding: 0 var(--noora-spacing-8);
+      padding: 0 0 0 var(--noora-spacing-8);
     }
   }
 

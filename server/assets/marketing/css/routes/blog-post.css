@@ -62,7 +62,7 @@
     padding-right: var(--noora-spacing-6);
     padding-left: var(--noora-spacing-6);
     @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
-      margin: 0 auto;
+      align-self: center;
       width: 100%;
       max-width: 650px;
     }

@@ -7,6 +7,8 @@ defmodule TuistWeb.Marketing.MarketingBlogLive do
 
   alias Tuist.Marketing.Blog
 
+  on_mount {TuistWeb.Authentication, :mount_current_user}
+
   @posts_per_page 9
 
   def mount(_params, _session, socket) do
