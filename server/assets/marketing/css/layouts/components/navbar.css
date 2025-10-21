@@ -203,7 +203,6 @@
             z-index: var(--noora-z-index-1);
             inset: 0;
             border-radius: inherit;
-            background: linear-gradient(112deg, rgba(255, 251, 245, 0.7) 0%, rgba(250, 239, 247, 0.7) 100.86%);
             pointer-events: none;
 
             & > img {

@@ -46,7 +46,7 @@
       mask-image: linear-gradient(to bottom, black 80%, transparent 100%);
       background: linear-gradient(180deg, #f4f5fe 0%, #efe8ff 100%);
       width: 100%;
-      height: 1000px;
+      height: 800px;
       pointer-events: none;
 
       & > img {
@@ -119,8 +119,15 @@
   }
 
   & > [data-part="graphic"] {
+    padding: 0;
     position: relative;
-    width: 100%;
+    margin: 0 calc(-1 * var(--noora-spacing-6));
+    width: calc(100% + 2 * var(--noora-spacing-6));
+
+    @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+      margin: 0;
+      width: 100%;
+    }
 
     & > [data-part="background"] {
       width: 100%;
@@ -846,14 +853,47 @@
 
   & > [data-part="testimonials"] {
     display: flex;
+    position: relative;
     flex-direction: column;
     align-items: center;
     padding-top: var(--noora-spacing-12);
-    padding-right: var(--noora-spacing-14);
-    padding-left: var(--noora-spacing-14);
+    padding-right: var(--noora-spacing-6);
+    padding-left: var(--noora-spacing-6);
+
+    @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+      padding-right: var(--noora-spacing-14);
+      padding-left: var(--noora-spacing-14);
+    }
+
+    & > [data-part="background"] {
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: var(--noora-z-index-0);
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      background: linear-gradient(306deg, rgba(255, 255, 255, 0.90) -8.24%, rgba(248, 245, 254, 0.90) 163.85%);
+      filter: blur(50px);
+
+      @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+        display: none;
+      }
+
+      & > img {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+    }
 
     & > [data-part="header"] {
       display: flex;
+      position: relative;
+      z-index: var(--noora-z-index-1);
       flex-direction: column;
       align-items: center;
       gap: var(--noora-spacing-6);
@@ -878,23 +918,73 @@
 
     & > [data-part="main"] {
       display: flex;
+      position: relative;
+      z-index: var(--noora-z-index-1);
       flex-direction: row;
-      margin: 0;
-      padding: 0;
+      margin: 0 calc(-1 * var(--noora-spacing-6));
+      padding: var(--noora-spacing-2) 0;
       list-style: none;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+      width: calc(100% + 2 * var(--noora-spacing-6));
+      gap: var(--noora-spacing-5);
+
+      &::-webkit-scrollbar {
+        display: none;
+      }
+
+      @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+        overflow-x: visible;
+        padding: 0;
+        margin: 0;
+        width: 100%;
+        gap: 0;
+      }
 
       & > [data-part="column"] {
         display: flex;
-        flex: 1;
-        flex-direction: column;
+        flex-direction: row;
+        flex-shrink: 0;
+        gap: var(--noora-spacing-5);
+
+        @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+          flex: 1;
+          flex-direction: column;
+          gap: 0;
+        }
+
+        &:first-child {
+          padding-left: var(--noora-spacing-6);
+
+          @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+            padding-left: 0;
+          }
+        }
+
+        &:last-child {
+          padding-right: var(--noora-spacing-6);
+
+          @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+            padding-right: 0;
+          }
+        }
 
         &:not(:first-child) {
-          border-left: 1px solid rgba(183, 183, 183, 0.4);
-          padding-left: var(--noora-spacing-5);
+          padding-left: 0;
+
+          @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+            border-left: 1px solid rgba(183, 183, 183, 0.4);
+            padding-left: var(--noora-spacing-5);
+          }
         }
 
         &:not(:last-child) {
-          padding-right: var(--noora-spacing-5);
+          padding-right: 0;
+
+          @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+            padding-right: var(--noora-spacing-5);
+          }
         }
 
         & > [data-part="testimonial"] {
@@ -905,15 +995,35 @@
           align-items: stretch;
           gap: var(--noora-spacing-13);
           padding: var(--noora-spacing-8);
+          flex-shrink: 0;
+          width: 50%;
+          max-width: 400px;
+          border-radius: var(--noora-radius-large);
+          box-shadow: 0 1px 1px 0 rgba(22, 24, 28, 0.05), 0 0 0 1px rgba(46, 51, 56, 0.08), 0 1px 1px 0 rgba(46, 51, 56, 0.10);
+
+          @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+            width: auto;
+            max-width: none;
+            box-shadow: none;
+            border-radius: 0;
+          }
 
           &:not(:first-child) {
-            margin-top: var(--noora-spacing-5);
-            margin-right: calc(-1 * var(--noora-spacing-5));
-            margin-left: calc(-1 * var(--noora-spacing-5));
-            border-top: 1px solid rgba(183, 183, 183, 0.4);
-            padding-top: calc(var(--noora-spacing-8) + var(--noora-spacing-5));
+            margin-top: 0;
+            margin-right: 0;
+            margin-left: 0;
+            border-top: none;
+            padding-top: var(--noora-spacing-8);
             padding-right: var(--noora-spacing-8);
             padding-left: var(--noora-spacing-8);
+
+            @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+              margin-top: var(--noora-spacing-5);
+              margin-right: calc(-1 * var(--noora-spacing-5));
+              margin-left: calc(-1 * var(--noora-spacing-5));
+              border-top: 1px solid rgba(183, 183, 183, 0.4);
+              padding-top: calc(var(--noora-spacing-8) + var(--noora-spacing-5));
+            }
           }
 
           &:has([data-part="logo"]) {
@@ -975,7 +1085,5 @@
 
   & > [data-part="cta"] {
     padding-top: var(--noora-spacing-14);
-    padding-right: var(--noora-spacing-14);
-    padding-left: var(--noora-spacing-14);
   }
 }
