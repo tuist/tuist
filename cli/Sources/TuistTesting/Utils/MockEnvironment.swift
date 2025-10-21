@@ -24,6 +24,8 @@ public final class MockEnvironment: Environmenting {
         } else {
             directory = .owned(try TemporaryDirectory(removeTreeOnDeinit: true))
         }
+        stateDirectory = directory.path.appending(component: "state")
+        homeDirectory = directory.path.appending(components: "home")
     }
 
     public var processId: String = UUID().uuidString
@@ -42,7 +44,7 @@ public final class MockEnvironment: Environmenting {
     public var currentExecutablePathStub: AbsolutePath?
     public func currentExecutablePath() -> AbsolutePath? { currentExecutablePathStub ?? Environment.currentExecutablePath() }
 
-    public var homeDirectory: Path.AbsolutePath { directory.path.appending(components: "home") }
+    public var homeDirectory: AbsolutePath
 
     public func derivedDataDirectory() async throws -> Path.AbsolutePath {
         directory.path.appending(components: "DerivedData")
@@ -61,9 +63,7 @@ public final class MockEnvironment: Environmenting {
         directory.path.appending(components: ".cache")
     }
 
-    public var stateDirectory: AbsolutePath {
-        directory.path.appending(component: "state")
-    }
+    public var stateDirectory: AbsolutePath
 
     public var configDirectory: AbsolutePath {
         directory.path.appending(component: "config")
@@ -71,6 +71,14 @@ public final class MockEnvironment: Environmenting {
 
     public var queueDirectory: AbsolutePath {
         queueDirectoryStub ?? directory.path.appending(component: "Queue")
+    }
+
+    public func cacheSocketPath(for fullHandle: String) -> AbsolutePath {
+        stateDirectory.appending(component: "\(fullHandle.replacingOccurrences(of: "/", with: "_")).sock")
+    }
+
+    public func cacheSocketPathString(for fullHandle: String) -> String {
+        "$HOME/\(fullHandle).sock"
     }
 }
 

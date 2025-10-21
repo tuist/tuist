@@ -122,10 +122,15 @@ func schemes() -> [Scheme] {
         .scheme(
             name: "ProjectDescription",
             buildAction: .buildAction(
-                targets: [.target(Module.projectDescription.targetName)]
+                targets: [.target(Module.projectDescription.targetName)],
+                postActions: [
+                    inspectBuildPostAction(target: "tuist"),
+                ],
+                runPostActionsOnFailure: true
             ),
-            testAction: .targets([])
-        ),
+            testAction: nil,
+            runAction: nil
+        )
     ]
     if Module.includeEE() {
         schemes.append(.scheme(

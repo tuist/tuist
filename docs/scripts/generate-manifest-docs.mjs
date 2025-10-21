@@ -13,7 +13,7 @@ await execa("tuist", ["install"], {
   stdio: "inherit",
 });
 
-await execa("tuist", ["generate", "--no-open", "--no-binary-cache"], {
+await execa("tuist", ["generate", "ProjectDescription", "--no-open"], {
   cwd: rootDirectory,
   stdio: "inherit",
 });
@@ -34,7 +34,7 @@ await execa(
     "ProjectDescription",
     "--",
     "-scheme",
-    "Tuist-Workspace",
+    "ProjectDescription",
     "-workspace",
     path.join(rootDirectory, "Tuist.xcworkspace"),
   ],

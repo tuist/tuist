@@ -238,16 +238,22 @@ defmodule Tuist.Bundles do
       end
 
     git_branch = Keyword.get(opts, :git_branch)
+    type = Keyword.get(opts, :type)
 
     last_bundle =
       query
       |> then(&if(is_nil(git_branch), do: &1, else: where(&1, [b], b.git_branch == ^git_branch)))
+      |> then(&if(is_nil(type), do: &1, else: where(&1, [b], b.type == ^type)))
       |> order_by([b], desc: b.inserted_at)
       |> limit(1)
       |> Repo.one()
 
     if is_nil(last_bundle) do
-      query |> order_by([b], desc: b.inserted_at) |> limit(1) |> Repo.one()
+      query
+      |> then(&if(is_nil(type), do: &1, else: where(&1, [b], b.type == ^type)))
+      |> order_by([b], desc: b.inserted_at)
+      |> limit(1)
+      |> Repo.one()
     else
       last_bundle
     end
@@ -358,6 +364,7 @@ defmodule Tuist.Bundles do
     start_date = Keyword.get(opts, :start_date, Date.add(DateTime.utc_now(), -30))
     end_date = Keyword.get(opts, :end_date, DateTime.to_date(DateTime.utc_now()))
     git_branch = Keyword.get(opts, :git_branch)
+    type = Keyword.get(opts, :type)
     date_period = date_period(start_date: start_date, end_date: end_date)
 
     # Get all bundles for the project with date truncated to day
@@ -365,6 +372,7 @@ defmodule Tuist.Bundles do
       from(b in Bundle)
       |> where([b], b.project_id == ^project.id)
       |> then(&if(is_nil(git_branch), do: &1, else: where(&1, [b], b.git_branch == ^git_branch)))
+      |> then(&if(is_nil(type), do: &1, else: where(&1, [b], b.type == ^type)))
       |> select([b], %{
         id: b.id,
         date: fragment("DATE(?) as date", b.inserted_at),

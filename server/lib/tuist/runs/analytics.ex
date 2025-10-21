@@ -5,12 +5,13 @@ defmodule Tuist.Runs.Analytics do
   import Ecto.Query
   import Timescale.Hyperfunctions
 
+  alias Postgrex.Interval
   alias Tuist.CommandEvents
-  alias Tuist.CommandEvents.Clickhouse.Event
+  alias Tuist.CommandEvents.Event
   alias Tuist.Repo
   alias Tuist.Runs.Build
   alias Tuist.Tasks
-  alias Tuist.Xcode.Clickhouse.XcodeGraph
+  alias Tuist.Xcode.XcodeGraph
 
   def build_duration_analytics_by_category(project_id, category, opts \\ []) do
     start_date = Keyword.get(opts, :start_date, Date.add(DateTime.utc_now(), -30))
@@ -259,6 +260,7 @@ defmodule Tuist.Runs.Analytics do
     days_delta = Date.diff(end_date, start_date)
     date_period = date_period(start_date: start_date, end_date: end_date)
     time_bucket = time_bucket_for_date_period(date_period)
+    clickhouse_time_bucket = time_bucket_to_clickhouse_interval(time_bucket)
 
     previous_period_runs_aggregated_analytics =
       CommandEvents.run_analytics(
@@ -287,7 +289,7 @@ defmodule Tuist.Runs.Analytics do
         start_date,
         end_date,
         date_period,
-        time_bucket,
+        clickhouse_time_bucket,
         name,
         opts
       )
@@ -342,6 +344,7 @@ defmodule Tuist.Runs.Analytics do
     days_delta = Date.diff(end_date, start_date)
     date_period = date_period(start_date: start_date, end_date: end_date)
     time_bucket = time_bucket_for_date_period(date_period)
+    clickhouse_time_bucket = time_bucket_to_clickhouse_interval(time_bucket)
 
     current_runs_data =
       CommandEvents.run_count(
@@ -349,7 +352,7 @@ defmodule Tuist.Runs.Analytics do
         start_date,
         end_date,
         date_period,
-        time_bucket,
+        clickhouse_time_bucket,
         name,
         opts
       )
@@ -603,10 +606,17 @@ defmodule Tuist.Runs.Analytics do
     date_period = Keyword.get(opts, :date_period)
 
     time_bucket = time_bucket_for_date_period(date_period)
+    clickhouse_time_bucket = time_bucket_to_clickhouse_interval(time_bucket)
 
     cache_hit_rate_metadata_map =
       project_id
-      |> CommandEvents.cache_hit_rates(start_date, end_date, date_period, time_bucket, opts)
+      |> CommandEvents.cache_hit_rates(
+        start_date,
+        end_date,
+        date_period,
+        clickhouse_time_bucket,
+        opts
+      )
       |> Map.new(
         &{normalise_date(&1.date, date_period),
          %{
@@ -717,6 +727,7 @@ defmodule Tuist.Runs.Analytics do
     date_period = Keyword.get(opts, :date_period)
 
     time_bucket = time_bucket_for_date_period(date_period)
+    clickhouse_time_bucket = time_bucket_to_clickhouse_interval(time_bucket)
 
     selective_testing_hit_rate_metadata_map =
       project_id
@@ -724,7 +735,7 @@ defmodule Tuist.Runs.Analytics do
         start_date,
         end_date,
         date_period,
-        time_bucket,
+        clickhouse_time_bucket,
         opts
       )
       |> Map.new(
@@ -809,10 +820,13 @@ defmodule Tuist.Runs.Analytics do
 
   defp time_bucket_for_date_period(date_period) do
     case date_period do
-      :day -> %Postgrex.Interval{days: 1}
-      :month -> %Postgrex.Interval{months: 1}
+      :day -> %Interval{days: 1}
+      :month -> %Interval{months: 1}
     end
   end
+
+  defp time_bucket_to_clickhouse_interval(%Interval{days: 1}), do: "1 day"
+  defp time_bucket_to_clickhouse_interval(%Interval{months: 1}), do: "1 month"
 
   defp add_filters(query, opts) do
     query = query_with_is_ci_filter(query, opts)
@@ -900,10 +914,20 @@ defmodule Tuist.Runs.Analytics do
   defp normalise_date(date_input, date_period) do
     date =
       case date_input do
-        %DateTime{} = dt -> DateTime.to_date(dt)
-        %NaiveDateTime{} = dt -> NaiveDateTime.to_date(dt)
-        date_string when is_binary(date_string) -> Date.from_iso8601!(date_string)
-        %Date{} = d -> d
+        %DateTime{} = dt ->
+          DateTime.to_date(dt)
+
+        %NaiveDateTime{} = dt ->
+          NaiveDateTime.to_date(dt)
+
+        date_string when is_binary(date_string) ->
+          case Date.from_iso8601(date_string) do
+            {:ok, date} -> date
+            {:error, :invalid_format} -> Date.from_iso8601!(date_string <> "-01")
+          end
+
+        %Date{} = d ->
+          d
       end
 
     case date_period do
@@ -913,14 +937,6 @@ defmodule Tuist.Runs.Analytics do
   end
 
   def build_time_analytics(opts \\ []) do
-    if Tuist.Environment.clickhouse_configured?() do
-      build_time_analytics_with_clickhouse(opts)
-    else
-      build_time_analytics_fallback()
-    end
-  end
-
-  defp build_time_analytics_with_clickhouse(opts) do
     project_id = Keyword.get(opts, :project_id)
     start_date = Keyword.get(opts, :start_date, Date.add(Date.utc_today(), -30))
     end_date = Keyword.get(opts, :end_date, Date.utc_today())
@@ -964,14 +980,6 @@ defmodule Tuist.Runs.Analytics do
       actual_build_time: actual,
       total_time_saved: saved,
       total_build_time: total
-    }
-  end
-
-  defp build_time_analytics_fallback do
-    %{
-      actual_build_time: 0,
-      total_time_saved: 0,
-      total_build_time: 0
     }
   end
 

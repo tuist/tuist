@@ -1,5 +1,5 @@
 defmodule Tuist.Ops.DailySlackReportWorkerTest do
-  use TuistTestSupport.Cases.DataCase, async: true
+  use TuistTestSupport.Cases.DataCase, async: false
   use Mimic
 
   alias TuistTestSupport.Fixtures.AccountsFixtures

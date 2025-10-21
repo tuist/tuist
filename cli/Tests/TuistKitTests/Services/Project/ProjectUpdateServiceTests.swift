@@ -37,7 +37,6 @@ final class ProjectUpdateServiceTests: TuistUnitTestCase {
                 fullHandle: .any,
                 serverURL: .any,
                 defaultBranch: .any,
-                repositoryURL: .any,
                 visibility: .any
             )
             .willReturn(.test())
@@ -67,7 +66,6 @@ final class ProjectUpdateServiceTests: TuistUnitTestCase {
             try await subject.run(
                 fullHandle: nil,
                 defaultBranch: "new-default-branch",
-                repositoryURL: "https://github.com/tuist/tuist",
                 visibility: .public,
                 path: nil
             )
@@ -78,7 +76,6 @@ final class ProjectUpdateServiceTests: TuistUnitTestCase {
                     fullHandle: .value("tuist/tuist"),
                     serverURL: .any,
                     defaultBranch: .value("new-default-branch"),
-                    repositoryURL: .value("https://github.com/tuist/tuist"),
                     visibility: .value(.public)
                 )
                 .called(1)
@@ -100,7 +97,6 @@ final class ProjectUpdateServiceTests: TuistUnitTestCase {
             try await subject.run(
                 fullHandle: nil,
                 defaultBranch: "new-default-branch",
-                repositoryURL: nil,
                 visibility: nil,
                 path: nil
             ),
@@ -119,7 +115,6 @@ final class ProjectUpdateServiceTests: TuistUnitTestCase {
             try await subject.run(
                 fullHandle: "tuist/tuist",
                 defaultBranch: "new-default-branch",
-                repositoryURL: nil,
                 visibility: nil,
                 path: nil
             )
@@ -130,7 +125,6 @@ final class ProjectUpdateServiceTests: TuistUnitTestCase {
                     fullHandle: .value("tuist/tuist"),
                     serverURL: .any,
                     defaultBranch: .value("new-default-branch"),
-                    repositoryURL: .value(nil),
                     visibility: .value(nil)
                 )
                 .called(1)

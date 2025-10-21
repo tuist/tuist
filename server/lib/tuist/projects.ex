@@ -6,6 +6,7 @@ defmodule Tuist.Projects do
 
   alias Tuist.Accounts
   alias Tuist.Accounts.Account
+  alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Accounts.ProjectAccount
   alias Tuist.Accounts.User
   alias Tuist.AppBuilds.Preview
@@ -13,6 +14,7 @@ defmodule Tuist.Projects do
   alias Tuist.CommandEvents
   alias Tuist.Projects.Project
   alias Tuist.Projects.ProjectToken
+  alias Tuist.Projects.VCSConnection
   alias Tuist.Repo
 
   def get_projects_count do
@@ -160,6 +162,24 @@ defmodule Tuist.Projects do
     end)
   end
 
+  def get_all_project_accounts(%AuthenticatedAccount{account: account}) do
+    get_all_project_accounts(account)
+  end
+
+  def get_all_project_accounts(%Project{} = project) do
+    project = Repo.preload(project, :account)
+
+    [
+      %ProjectAccount{
+        handle: "#{project.account.name}/#{project.name}",
+        project: project,
+        account: project.account
+      }
+    ]
+  end
+
+  def get_all_project_accounts(_), do: []
+
   def create_project(%{name: name, account: %{id: account_id}}, opts \\ []) do
     token = Keyword.get(opts, :token, Tuist.Tokens.generate_token())
     created_at = Keyword.get(opts, :created_at, DateTime.utc_now())
@@ -170,9 +190,7 @@ defmodule Tuist.Projects do
       name: name,
       account_id: account_id,
       created_at: created_at,
-      visibility: visibility,
-      vcs_repository_full_handle: Keyword.get(opts, :vcs_repository_full_handle),
-      vcs_provider: Keyword.get(opts, :vcs_provider)
+      visibility: visibility
     }
     |> Project.create_changeset()
     |> Repo.insert()
@@ -191,8 +209,6 @@ defmodule Tuist.Projects do
       account_id: account_id,
       created_at: created_at,
       visibility: visibility,
-      vcs_repository_full_handle: Keyword.get(opts, :vcs_repository_full_handle),
-      vcs_provider: Keyword.get(opts, :vcs_provider),
       default_previews_visibility: Keyword.get(opts, :default_previews_visibility, :private)
     })
     |> Repo.insert!()
@@ -277,10 +293,12 @@ defmodule Tuist.Projects do
     |> Repo.update()
   end
 
-  def get_repository_url(%Project{vcs_provider: vcs_provider, vcs_repository_full_handle: vcs_repository_full_handle}) do
-    case vcs_provider do
-      :github ->
-        "https://github.com/#{vcs_repository_full_handle}"
+  def get_repository_url(%Project{} = project) do
+    project = Repo.preload(project, :vcs_connection)
+
+    case project.vcs_connection do
+      %VCSConnection{provider: :github, repository_full_handle: repository_full_handle} ->
+        "https://github.com/#{repository_full_handle}"
 
       nil ->
         nil
@@ -395,19 +413,65 @@ defmodule Tuist.Projects do
     |> Enum.take(limit)
   end
 
-  def project_by_vcs_repository_full_handle(vcs_repository_full_handle, opts \\ []) do
+  @doc """
+  Get all projects connected to a VCS repository.
+  """
+  def projects_by_vcs_repository_full_handle(vcs_repository_full_handle, opts \\ []) do
+    preload = Keyword.get(opts, :preload, [:account])
+
+    Repo.all(
+      from p in Project,
+        join: pc in VCSConnection,
+        on: pc.project_id == p.id,
+        where: pc.repository_full_handle == ^vcs_repository_full_handle,
+        preload: ^preload
+    )
+  end
+
+  @doc """
+  Get a specific project by name and VCS repository handle.
+  """
+  def project_by_name_and_vcs_repository_full_handle(project_name, vcs_repository_full_handle, opts \\ []) do
     preload = Keyword.get(opts, :preload, [:account])
 
     project =
       Repo.one(
         from p in Project,
-          where: p.vcs_repository_full_handle == ^vcs_repository_full_handle,
+          join: pc in VCSConnection,
+          on: pc.project_id == p.id,
+          where: pc.repository_full_handle == ^vcs_repository_full_handle and p.name == ^project_name,
           preload: ^preload
       )
 
     case project do
       nil -> {:error, :not_found}
       _ -> {:ok, project}
+    end
+  end
+
+  @doc """
+  Create a new VCS connection to a repository.
+  """
+  def create_vcs_connection(attrs) do
+    %VCSConnection{}
+    |> VCSConnection.changeset(attrs)
+    |> Repo.insert()
+  end
+
+  @doc """
+  Delete a VCS connection.
+  """
+  def delete_vcs_connection(%VCSConnection{} = vcs_connection) do
+    Repo.delete(vcs_connection)
+  end
+
+  @doc """
+  Get a VCS connection by ID.
+  """
+  def get_vcs_connection(id) do
+    case Repo.get(VCSConnection, id) do
+      nil -> {:error, :not_found}
+      connection -> {:ok, connection}
     end
   end
 end

@@ -130,18 +130,21 @@ struct InspectBuildCommandService {
     ) async throws -> AbsolutePath {
         var mostRecentActivityLogPath: AbsolutePath!
         try await withTimeout(
-            .seconds(1),
+            .seconds(5),
             onTimeout: {
                 throw InspectBuildCommandServiceError.mostRecentActivityLogNotFound(projectPath)
             }
         ) {
             while true {
                 if let mostRecentActivityLogFile = try await xcActivityLogController.mostRecentActivityLogFile(
-                    projectDerivedDataDirectory: projectDerivedDataDirectory
-                ), Environment.current.workspacePath == nil || (
-                    referenceDate.timeIntervalSinceReferenceDate - 10 ..< referenceDate.timeIntervalSinceReferenceDate
-                        + 10
-                ) ~= mostRecentActivityLogFile.timeStoppedRecording.timeIntervalSinceReferenceDate {
+                    projectDerivedDataDirectory: projectDerivedDataDirectory,
+                    filter: { !$0.signature.hasPrefix("Clean") }
+                ),
+                    Environment.current.workspacePath == nil || (
+                        referenceDate.timeIntervalSinceReferenceDate - 10 ..< referenceDate.timeIntervalSinceReferenceDate
+                            + 10
+                    ) ~= mostRecentActivityLogFile.timeStoppedRecording.timeIntervalSinceReferenceDate
+                {
                     mostRecentActivityLogPath = mostRecentActivityLogFile.path
                 }
                 if mostRecentActivityLogPath != nil {

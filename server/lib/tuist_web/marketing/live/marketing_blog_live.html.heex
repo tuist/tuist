@@ -1,11 +1,11 @@
 <TuistWeb.Marketing.Layouts.marketing {assigns}>
-  <main class="marketing__blog" aria-label={gettext("Blog posts")}>
+  <main class="marketing__blog" aria-label={dgettext("marketing", "Blog posts")}>
     <section class="marketing__blog__hero">
       <div class="marketing__blog__hero__left">
         <h1 class="marketing__blog__hero__left__title">
-          {gettext("Engaging stories and expert insights")}
+          {dgettext("marketing", "Engaging stories and expert insights")}
         </h1>
-        <p class="marketing__blog__hero__left__subtitle">{gettext("Stay in touch")}</p>
+        <p class="marketing__blog__hero__left__subtitle">{dgettext("marketing", "Stay in touch")}</p>
         <div class="marketing__blog__hero__social">
           <.link href={Tuist.Environment.get_url(:slack)} target="_blank">
             <TuistWeb.Marketing.MarketingIcons.icon_slack class="marketing__blog__hero__social__item" />
@@ -40,7 +40,7 @@
 
     <section class="marketing__blog__essential">
       <h2 class="marketing__blog__essential__title">
-        {gettext("Essential reading")}
+        {dgettext("marketing", "Essential reading")}
       </h2>
       <div class="marketing__blog__essential__posts">
         <%= for {post, index} <- Enum.with_index(@highlighted_posts) do %>
@@ -60,7 +60,7 @@
     <section class="marketing__blog__posts">
       <div class="marketing__blog__posts__heading">
         <h2 class="marketing__blog__posts__heading__title">
-          {gettext("Posts")}
+          {dgettext("marketing", "Posts")}
         </h2>
         <div class="marketing__blog__posts__heading__categories">
           <.link
@@ -68,7 +68,7 @@
             data-selected={if(@current_path == ~p"/blog", do: "true", else: "false")}
             class="marketing__blog__posts__heading__categories__category"
           >
-            {gettext("All")}
+            {dgettext("marketing", "All")}
           </.link>
           <%= for category <- @categories do %>
             <% params = %{category: category} %>

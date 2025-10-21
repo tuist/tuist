@@ -11,7 +11,10 @@ import struct TSCBasic.RegEx
 
 @Mockable
 public protocol XCActivityLogControlling {
-    func mostRecentActivityLogFile(projectDerivedDataDirectory: AbsolutePath)
+    func mostRecentActivityLogFile(
+        projectDerivedDataDirectory: AbsolutePath,
+        filter: @escaping (XCActivityLogFile) -> Bool
+    )
         async throws -> XCActivityLogFile?
     func buildTimesByTarget(projectDerivedDataDirectory: AbsolutePath) async throws -> [
         String: Double
@@ -21,6 +24,18 @@ public protocol XCActivityLogControlling {
     func parse(_ path: AbsolutePath) async throws -> XCActivityLog
 }
 
+extension XCActivityLogControlling {
+    public func mostRecentActivityLogFile(
+        projectDerivedDataDirectory: AbsolutePath
+    ) async throws -> XCActivityLogFile? {
+        return try await mostRecentActivityLogFile(
+            projectDerivedDataDirectory: projectDerivedDataDirectory,
+            filter: { _ in true }
+        )
+    }
+}
+
+// swiftlint:disable:next type_body_length
 public struct XCActivityLogController: XCActivityLogControlling {
     private let fileSystem: FileSystem
     private let environment: Environmenting
@@ -105,9 +120,10 @@ public struct XCActivityLogController: XCActivityLogControlling {
         }
     }
 
-    public func mostRecentActivityLogFile(projectDerivedDataDirectory: AbsolutePath)
-        async throws -> XCActivityLogFile?
-    {
+    public func mostRecentActivityLogFile(
+        projectDerivedDataDirectory: AbsolutePath,
+        filter: @escaping (XCActivityLogFile) -> Bool
+    ) async throws -> XCActivityLogFile? {
         let logsBuildDirectoryPath = projectDerivedDataDirectory.appending(
             components: "Logs", "Build"
         )
@@ -119,16 +135,18 @@ public struct XCActivityLogController: XCActivityLogControlling {
             at: logManifestPlistPath
         )
 
-        guard let latestLog = plist.logs.values.sorted(by: {
-            $0.timeStoppedRecording > $1.timeStoppedRecording
-        }).first
-        else {
-            return nil
+        let logFiles = plist.logs.values.map {
+            XCActivityLogFile(
+                path: logsBuildDirectoryPath.appending(component: $0.fileName),
+                timeStoppedRecording: Date(timeIntervalSinceReferenceDate: $0.timeStoppedRecording),
+                signature: $0.signature
+            )
         }
-        return XCActivityLogFile(
-            path: logsBuildDirectoryPath.appending(component: latestLog.fileName),
-            timeStoppedRecording: Date(timeIntervalSinceReferenceDate: latestLog.timeStoppedRecording)
-        )
+        return logFiles.sorted(by: {
+            $0.timeStoppedRecording > $1.timeStoppedRecording
+        })
+        .filter(filter)
+        .first
     }
 
     public func parse(_ path: AbsolutePath) async throws -> XCActivityLog {

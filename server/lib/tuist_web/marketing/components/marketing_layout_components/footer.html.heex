@@ -4,10 +4,10 @@
       <img
         class="marketing__footer__header__title__logo"
         src="/images/tuist_logo_32x32@2x.png"
-        alt={gettext("Tuist Icon")}
+        alt={dgettext("marketing", "Tuist Icon")}
       />
       <h2 class="marketing__footer__header__title__text font-m-strong">
-        {gettext("Tuist")}
+        {dgettext("marketing", "Tuist")}
       </h2>
     </div>
 
@@ -29,7 +29,7 @@
         </div>
 
         <div class="marketing__footer__header__status__text font-xxs">
-          {gettext("Ongoing incident")}
+          {dgettext("marketing", "Ongoing incident")}
         </div>
       </.link>
     <% else %>
@@ -48,7 +48,7 @@
         </div>
 
         <div class="marketing__footer__header__status__text font-xxs">
-          {gettext("All systems are normal")}
+          {dgettext("marketing", "All systems are normal")}
         </div>
       </.link>
     <% end %>
@@ -57,80 +57,80 @@
   <div class="marketing__footer__main">
     <div class="marketing__footer__main__menus">
       <.footer_section
-        title={gettext("App lifecycle")}
+        title={dgettext("marketing", "App lifecycle")}
         items={[
           %{
-            text: gettext("Generated Projects"),
+            text: dgettext("marketing", "Generated Projects"),
             href: Tuist.Environment.get_url(:feature_generated_projects)
           },
           %{
-            text: gettext("Cache"),
+            text: dgettext("marketing", "Cache"),
             href: Tuist.Environment.get_url(:feature_cache)
           },
           %{
-            text: gettext("Previews"),
+            text: dgettext("marketing", "Previews"),
             href: Tuist.Environment.get_url(:feature_previews)
           },
           %{
-            text: gettext("Insights"),
+            text: dgettext("marketing", "Insights"),
             href: Tuist.Environment.get_url(:feature_insights)
           }
         ]}
       />
       <.footer_section
-        title={gettext("Support")}
+        title={dgettext("marketing", "Support")}
         items={[
           %{
-            text: gettext("Docs"),
+            text: dgettext("marketing", "Docs"),
             href: Tuist.Environment.get_url(:documentation)
           },
-          %{text: gettext("Changelog"), href: ~p"/changelog"},
+          %{text: dgettext("marketing", "Changelog"), href: ~p"/changelog"},
           %{
-            text: gettext("Forum"),
+            text: dgettext("marketing", "Forum"),
             href: Tuist.Environment.get_url(:forum)
           },
           %{
-            text: gettext("Issues"),
+            text: dgettext("marketing", "Issues"),
             href: Tuist.Environment.get_url(:github_issues)
           },
           %{
-            text: gettext("Contact"),
+            text: dgettext("marketing", "Contact"),
             href: Tuist.Environment.get_url(:contact)
           }
         ]}
       />
       <.footer_section
-        title={gettext("Company")}
+        title={dgettext("marketing", "Company")}
         items={[
-          %{text: gettext("Pricing"), href: ~p"/pricing"},
-          %{text: gettext("Blog"), href: ~p"/blog"},
-          %{text: gettext("About"), href: ~p"/about"},
-          %{text: gettext("Imprint"), href: ~p"/imprint"},
+          %{text: dgettext("marketing", "Pricing"), href: ~p"/pricing"},
+          %{text: dgettext("marketing", "Blog"), href: ~p"/blog"},
+          %{text: dgettext("marketing", "About"), href: ~p"/about"},
+          %{text: dgettext("marketing", "Imprint"), href: ~p"/imprint"},
           %{
-            text: gettext("Grafana dashboard"),
+            text: dgettext("marketing", "Grafana dashboard"),
             href: Tuist.Environment.get_url(:grafana_dashboard),
             target: "__blank"
           },
           %{
-            text: gettext("Shop"),
+            text: dgettext("marketing", "Shop"),
             href: Tuist.Environment.get_url(:shop),
             target: "__blank"
           },
-          %{text: gettext("We ❤️ openness"), href: ~p"/openness"},
-          %{text: gettext("Longevity manifesto"), href: ~p"/longevity"},
-          %{text: gettext("Trademark guidelines"), href: ~p"/trademark-guidelines"},
-          %{text: gettext("Security"), href: ~p"/security"},
-          %{text: gettext("Community"), href: ~p"/community"}
+          %{text: dgettext("marketing", "We ❤️ openness"), href: ~p"/openness"},
+          %{text: dgettext("marketing", "Longevity manifesto"), href: ~p"/longevity"},
+          %{text: dgettext("marketing", "Trademark guidelines"), href: ~p"/trademark-guidelines"},
+          %{text: dgettext("marketing", "Security"), href: ~p"/security"},
+          %{text: dgettext("marketing", "Community"), href: ~p"/community"}
         ]}
       />
       <.footer_section
-        title={gettext("Subscribe")}
+        title={dgettext("marketing", "Subscribe")}
         items={[
-          %{text: gettext("Blog Atom"), href: ~p"/blog/atom.xml", target: "__blank"},
-          %{text: gettext("Blog RSS"), href: ~p"/blog/rss.xml", target: "__blank"},
-          %{text: gettext("Changelog Atom"), href: ~p"/changelog/atom.xml", target: "__blank"},
-          %{text: gettext("Changelog RSS"), href: ~p"/changelog/rss.xml", target: "__blank"},
-          %{text: gettext("Newsletter"), href: ~p"/newsletter"}
+          %{text: dgettext("marketing", "Blog Atom"), href: ~p"/blog/atom.xml", target: "__blank"},
+          %{text: dgettext("marketing", "Blog RSS"), href: ~p"/blog/rss.xml", target: "__blank"},
+          %{text: dgettext("marketing", "Changelog Atom"), href: ~p"/changelog/atom.xml", target: "__blank"},
+          %{text: dgettext("marketing", "Changelog RSS"), href: ~p"/changelog/rss.xml", target: "__blank"},
+          %{text: dgettext("marketing", "Newsletter"), href: ~p"/newsletter"}
         ]}
       />
     </div>
@@ -138,7 +138,7 @@
     <div class="marketing__footer__main__links">
       <div class="marketing__footer__main__links__social">
         <h3 class="marketing__footer__main__links__social__title font-xxs-strong">
-          {gettext("Stay in touch")}
+          {dgettext("marketing", "Stay in touch")}
         </h3>
         <div class="marketing__footer__main__links__social__items">
           <.link href={Tuist.Environment.get_url(:slack)} target="_blank">
@@ -169,15 +169,15 @@
 
   <div class="marketing__footer__footer">
     <.link href={~p"/terms"} class="marketing__footer__footer__link font-xxs">
-      {gettext("Terms of service")}
+      {dgettext("marketing", "Terms of service")}
     </.link>
     <span>|</span>
     <.link href={~p"/privacy"} class="marketing__footer__footer__link font-xxs">
-      {gettext("Privacy policy")}
+      {dgettext("marketing", "Privacy policy")}
     </.link>
     <span>|</span>
     <.link href={~p"/cookies"} class="marketing__footer__footer__link font-xxs">
-      {gettext("Cookie policy")}
+      {dgettext("marketing", "Cookie policy")}
     </.link>
   </div>
 </footer>

@@ -30,4 +30,5 @@ tuist build MyScheme -- -configuration Debug
 ```bash [Build all schemes without binary cache]
 tuist build --no-binary-cache
 ```
+<!-- -->
 :::

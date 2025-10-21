@@ -24,7 +24,7 @@ defmodule TuistWeb.QARunLive do
            preload: [
              run_steps: :screenshot,
              recording: [],
-             app_build: [preview: [project: :account]]
+             app_build: [preview: [project: [:account, :vcs_connection]]]
            ]
          ) do
       {:error, :not_found} ->
@@ -102,14 +102,13 @@ defmodule TuistWeb.QARunLive do
   end
 
   defp build_pr_comment_url(%{issue_comment_id: nil}), do: nil
-  defp build_pr_comment_url(%{vcs_repository_full_handle: nil}), do: nil
   defp build_pr_comment_url(%{git_ref: nil}), do: nil
+  defp build_pr_comment_url(%{app_build: %{preview: %{project: %{vcs_connection: nil}}}}), do: nil
 
   defp build_pr_comment_url(%{
          issue_comment_id: comment_id,
-         vcs_repository_full_handle: repo_handle,
-         vcs_provider: :github,
-         git_ref: git_ref
+         git_ref: git_ref,
+         app_build: %{preview: %{project: %{vcs_connection: %{provider: :github, repository_full_handle: repo_handle}}}}
        })
        when is_integer(comment_id) do
     case extract_pr_number_from_git_ref(git_ref) do

@@ -98,7 +98,7 @@ struct CacheRemoteStorageTests {
             name: .value("target"),
             cacheCategory: .value(.binaries)
         ).willReturn(serverCacheArtifact)
-        given(downloader).download(url: .value(serverCacheArtifact.url)).willReturn(zipPath)
+        given(downloader).download(item: .any, url: .value(serverCacheArtifact.url)).willReturn(zipPath)
 
         // When
         let got = try await subject.fetch(
@@ -131,7 +131,7 @@ struct CacheRemoteStorageTests {
             name: .value("target"),
             cacheCategory: .value(.binaries)
         ).willReturn(serverCacheArtifact)
-        given(downloader).download(url: .value(serverCacheArtifact.url)).willReturn(zipPath)
+        given(downloader).download(item: .any, url: .value(serverCacheArtifact.url)).willReturn(zipPath)
 
         // When
         let got = try await subject.fetch(
@@ -146,6 +146,10 @@ struct CacheRemoteStorageTests {
         let exists = try await fileSystem.exists(path)
         #expect(exists == true)
         #expect(try artifactSigner.isValid(path) == true)
+
+        // Verify that the downloaded zip file was removed after extraction
+        let zipExists = try await fileSystem.exists(zipPath)
+        #expect(zipExists == false, "Downloaded zip file should be removed after extraction")
     }
 
     @Test(.inTemporaryDirectory) func fetch_when_get_cache_returns_internal_server_error()
@@ -193,6 +197,28 @@ struct CacheRemoteStorageTests {
         #expect(got == [:])
     }
 
+    @Test(.inTemporaryDirectory, .withScopedAlertController())
+    func fetch_cache_action_items_when_not_found() async throws {
+        // Given
+        given(getCacheActionItemService)
+            .getCacheActionItem(
+                serverURL: .any,
+                fullHandle: .any,
+                hash: .any
+            )
+            .willThrow(GetCacheActionItemServiceError.notFound("Cache action item not found"))
+
+        // When
+        let got = try await subject.fetch(
+            Set([.init(name: "target", hash: "hash")]),
+            cacheCategory: .selectiveTests
+        )
+
+        // Then
+        #expect(got == [:])
+        #expect(AlertController.current.warnings().isEmpty == true)
+    }
+
     @Test(.withMockedLogger(), .inTemporaryDirectory)
     func fetch_when_framework_artifacts_with_same_hash() async throws {
         // Given
@@ -225,8 +251,8 @@ struct CacheRemoteStorageTests {
             name: .value("frameworkTwo"),
             cacheCategory: .value(.binaries)
         ).willReturn(serverCacheArtifactTwo)
-        given(downloader).download(url: .value(serverCacheArtifactOne.url)).willReturn(zipPathOne)
-        given(downloader).download(url: .value(serverCacheArtifactTwo.url)).willReturn(zipPathTwo)
+        given(downloader).download(item: .any, url: .value(serverCacheArtifactOne.url)).willReturn(zipPathOne)
+        given(downloader).download(item: .any, url: .value(serverCacheArtifactTwo.url)).willReturn(zipPathTwo)
 
         // When
         let got = try await subject.fetch(
@@ -275,7 +301,7 @@ struct CacheRemoteStorageTests {
             name: .value("target"),
             cacheCategory: .value(.binaries)
         ).willReturn(serverCacheArtifact)
-        given(downloader).download(url: .value(serverCacheArtifact.url)).willReturn(zipPath)
+        given(downloader).download(item: .any, url: .value(serverCacheArtifact.url)).willReturn(zipPath)
 
         // When
         let got = try await subject.fetch(
@@ -308,7 +334,7 @@ struct CacheRemoteStorageTests {
             name: .value("target"),
             cacheCategory: .value(.binaries)
         ).willReturn(serverCacheArtifact)
-        given(downloader).download(url: .value(serverCacheArtifact.url)).willReturn(zipPath)
+        given(downloader).download(item: .any, url: .value(serverCacheArtifact.url)).willReturn(zipPath)
 
         // When
         let got = try await subject.fetch(
@@ -342,20 +368,17 @@ struct CacheRemoteStorageTests {
             name: .value("target"),
             cacheCategory: .value(.binaries)
         ).willReturn(serverCacheArtifact)
-        given(downloader).download(url: .value(serverCacheArtifact.url)).willReturn(zipPath)
+        given(downloader).download(item: .any, url: .value(serverCacheArtifact.url)).willReturn(zipPath)
 
-        // When
+        // When/Then
         let got = try await subject.fetch(
             Set([.init(name: "target", hash: "hash")]), cacheCategory: .binaries
         )
+        #expect(got == [:])
 
-        // Then
-        #expect(got.isEmpty == true)
         #expect(AlertController.current.warnings().map(\.message)
             .map { $0.plain() } ==
-            [
-                "Skipping fetching binaries due to an unexpected error: The downloaded artifact with hash \'hash\' has an incorrect format and doesn\'t contain xcframework, framework, bundle, or macro",
-            ]
+            ["The following artifacts do not exist in the remote cache: target"]
         )
     }
 
@@ -383,7 +406,8 @@ struct CacheRemoteStorageTests {
         // Then
         #expect(got.isEmpty == true)
         #expect(AlertController.current.warnings().map(\.message)
-            .map { $0.plain() } == ["Skipping fetching binaries due to an unexpected error: \(error.localizedDescription)"]
+            .map { $0.plain() } ==
+            ["The remote cache server is currently unavailable. These artifacts could not be fetched: target"]
         )
     }
 
@@ -415,7 +439,7 @@ struct CacheRemoteStorageTests {
         // Then
         #expect(got.isEmpty == true)
         #expect(AlertController.current.warnings().map(\.message)
-            .map { $0.plain() } == ["You seem to be offline, skipping fetching remote binaries..."]
+            .map { $0.plain() } == ["The network is unreachable. The following cached artifacts remain out of grasp: target"]
         )
     }
 
@@ -447,7 +471,8 @@ struct CacheRemoteStorageTests {
         // Then
         #expect(got.isEmpty == true)
         #expect(AlertController.current.warnings().map(\.message)
-            .map { $0.plain() } == ["The Tuist server is unreachable, skipping fetching remote binaries"]
+            .map { $0.plain() } ==
+            ["The remote cache server is currently unavailable. These artifacts could not be fetched: target"]
         )
     }
 
@@ -483,7 +508,8 @@ struct CacheRemoteStorageTests {
         // Then
         #expect(got.isEmpty == true)
         #expect(AlertController.current.warnings().map(\.message)
-            .map { $0.plain() } == [serverErrorMessage]
+            .map { $0.plain() } ==
+            ["Your subscription limits have been reached. Unable to retrieve the following cached artifacts: target"]
         )
     }
 
@@ -518,7 +544,8 @@ struct CacheRemoteStorageTests {
         // Then
         #expect(got.isEmpty == true)
         #expect(AlertController.current.warnings().map(\.message)
-            .map { $0.plain() } == ["We skipped fetching remote binaries because the account subscription is not active."]
+            .map { $0.plain() } ==
+            ["Your subscription limits have been reached. Unable to retrieve the following cached artifacts: target"]
         )
     }
 
@@ -552,7 +579,7 @@ struct CacheRemoteStorageTests {
         #expect(got.isEmpty == true)
         #expect(AlertController.current.warnings().map(\.message)
             .map { $0.plain() } ==
-            ["Skipping fetching binaries due to an unexpected error: \(error.underlyingError.localizedDescription)"]
+            ["The remote cache server is currently unavailable. These artifacts could not be fetched: target"]
         )
     }
 
@@ -572,7 +599,7 @@ struct CacheRemoteStorageTests {
             name: .value("target"),
             cacheCategory: .value(.binaries)
         ).willReturn(serverCacheArtifact)
-        given(downloader).download(url: .value(serverCacheArtifact.url)).willThrow(error)
+        given(downloader).download(item: .any, url: .value(serverCacheArtifact.url)).willThrow(error)
 
         // When
         let got = try await subject.fetch(
@@ -582,8 +609,33 @@ struct CacheRemoteStorageTests {
         // Then
         #expect(got.isEmpty == true)
         #expect(AlertController.current.warnings().map(\.message)
-            .map { $0.plain() } == ["Skipping fetching binaries due to an unexpected error: \(error.localizedDescription)"]
+            .map { $0.plain() } ==
+            ["The remote cache server is currently unavailable. These artifacts could not be fetched: target"]
         )
+    }
+
+    @Test(.inTemporaryDirectory, .withScopedAlertController())
+    func fetch_when_downloader_returns_nil_for_not_found() async throws {
+        // Given
+        let serverCacheArtifact = ServerCacheArtifact.test()
+
+        given(getCacheService).getCache(
+            serverURL: .value(Constants.URLs.production),
+            projectId: .value(fullHandle),
+            hash: .value("hash"),
+            name: .value("target"),
+            cacheCategory: .value(.binaries)
+        ).willReturn(serverCacheArtifact)
+        given(downloader).download(item: .any, url: .value(serverCacheArtifact.url)).willReturn(nil)
+
+        // When
+        let got = try await subject.fetch(
+            Set([.init(name: "target", hash: "hash")]), cacheCategory: .binaries
+        )
+
+        // Then
+        #expect(got.isEmpty == true)
+        #expect(AlertController.current.warnings().isEmpty == true)
     }
 
     @Test(.inTemporaryDirectory) func test_store() async throws {
@@ -610,14 +662,10 @@ struct CacheRemoteStorageTests {
                 contentLength: .value(20)
             )
             .willReturn("https://tuist.dev/upload")
-        var generateUploadURLCallback: ((MultipartUploadArtifactPart) async throws -> String)!
         given(multipartUploadArtifactService)
             .multipartUploadArtifact(
                 artifactPath: .any,
-                generateUploadURL: .matching {
-                    generateUploadURLCallback = $0
-                    return true
-                },
+                generateUploadURL: .any,
                 updateProgress: .any
             )
             .willReturn([(etag: "etag", partNumber: 1)])

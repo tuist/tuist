@@ -114,7 +114,7 @@ defmodule TuistWeb.Router do
   end
 
   pipeline :authenticated_api do
-    plug :accepts, ["json"]
+    plug :accepts, ["json", "application/octet-stream"]
 
     plug TuistWeb.WarningsHeaderPlug
     plug TuistWeb.AuthenticationPlug, :load_authenticated_subject
@@ -247,6 +247,12 @@ defmodule TuistWeb.Router do
     get "/api/docs", APIController, :docs
   end
 
+  scope "/integrations", TuistWeb do
+    pipe_through [:open_api, :browser_app]
+
+    get "/github/setup", GitHubAppSetupController, :setup
+  end
+
   scope "/.well-known", TuistWeb do
     pipe_through [:open_api, :non_authenticated_api]
 
@@ -357,6 +363,16 @@ defmodule TuistWeb.Router do
     end
 
     scope "/cache" do
+      scope "/keyvalue" do
+        put "/", Cache.KeyValueController, :put_value
+        put "/:cas_id", Cache.KeyValueController, :get_value
+      end
+
+      scope "/cas" do
+        get "/:id", CASController, :load
+        post "/:id", CASController, :save
+      end
+
       get "/", CacheController, :download
       get "/exists", CacheController, :exists
 
@@ -646,6 +662,7 @@ defmodule TuistWeb.Router do
       live "/projects", ProjectsLive
       live "/members", MembersLive
       live "/billing", BillingLive
+      live "/integrations", IntegrationsLive
       live "/settings", AccountSettingsLive
     end
   end

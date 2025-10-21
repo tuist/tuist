@@ -5,6 +5,24 @@ import TuistCore
 import TuistServer
 import TuistSupport
 
+enum TuistTestFlagError: FatalError, Equatable {
+    case invalidCombination([String])
+
+    var description: String {
+        switch self {
+        case let .invalidCombination(arguments):
+            "The arguments \(arguments.joined(separator: ", ")) are mutually exclusive, only of them can be used."
+        }
+    }
+
+    var type: ErrorType {
+        switch self {
+        case .invalidCombination:
+            .abort
+        }
+    }
+}
+
 /// Command that tests a target from the project in the current directory.
 public struct TestCommand: AsyncParsableCommand, LogConfigurableCommand,
     RecentPathRememberableCommand
@@ -92,6 +110,13 @@ public struct TestCommand: AsyncParsableCommand, LogConfigurableCommand,
         envKey: .testSkipUITests
     )
     var skipUITests: Bool = false
+
+    @Flag(
+        name: .long,
+        help: "When passed, it skips testing Unit Tests targets.",
+        envKey: .testSkipUnitTests
+    )
+    var skipUnitTests: Bool = false
 
     @Option(
         name: [.long, .customShort("T")],
@@ -230,6 +255,12 @@ public struct TestCommand: AsyncParsableCommand, LogConfigurableCommand,
             }
         }
 
+        if skipUITests, skipUnitTests {
+            throw TuistTestFlagError.invalidCombination(
+                ["--skip-ui-tests", "--skip-unit-tests"]
+            )
+        }
+
         // Suggest the user to use passthrough arguments if already supported by xcodebuild
         if let derivedDataPath {
             Logger.current
@@ -276,6 +307,7 @@ public struct TestCommand: AsyncParsableCommand, LogConfigurableCommand,
             action: action,
             rosetta: rosetta,
             skipUITests: skipUITests,
+            skipUnitTests: skipUnitTests,
             resultBundlePath: resultBundlePath.map {
                 try AbsolutePath(
                     validating: $0,

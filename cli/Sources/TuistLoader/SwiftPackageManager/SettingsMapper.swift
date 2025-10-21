@@ -67,6 +67,16 @@ struct SettingsMapper {
         var settingsDictionary = XcodeGraph.SettingsDictionary()
         for setting in settings {
             switch (setting.tool, setting.name) {
+            case (.swift, .defaultIsolation):
+                // Map SPM defaultIsolation to SWIFT_DEFAULT_ACTOR_ISOLATION
+                // nil -> "nonisolated", MainActor.self -> "main-actor"
+                if setting.value == ["nonisolated"] || setting.value == ["nil"] {
+                    settingsDictionary["SWIFT_DEFAULT_ACTOR_ISOLATION"] = "nonisolated"
+                } else if setting.value.contains("MainActor") || setting.value == ["main-actor"] {
+                    settingsDictionary["SWIFT_DEFAULT_ACTOR_ISOLATION"] = "main-actor"
+                }
+            case (_, .defaultIsolation):
+                break
             case (.swift, .interoperabilityMode):
                 if setting.value == ["Cxx"] {
                     settingsDictionary["SWIFT_OBJC_INTEROP_MODE"] = "objcxx"
