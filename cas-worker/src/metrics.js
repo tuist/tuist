@@ -1,32 +1,174 @@
+function isKvHit(result) {
+  return result !== null && result !== undefined;
+}
+
+class RouteMetricsTracker {
+  constructor(routeLabel, request, sampleRate) {
+    this.routeLabel = routeLabel;
+    this.method = request.method;
+    this.sampleRate = sampleRate;
+    this.start = performance.now();
+    this.originMs = 0;
+    this.kvReadMs = 0;
+    this.kvWriteMs = 0;
+    this.kvReadCount = 0;
+    this.kvWriteCount = 0;
+    this.kvHitCount = 0;
+    this.kvMissCount = 0;
+    this.serverFetchMs = 0;
+    this.serverFetchCount = 0;
+    this.helpers = null;
+  }
+
+  wrapFetch(fetchFn = fetch) {
+    return async (...args) => {
+      const start = performance.now();
+      try {
+        return await fetchFn(...args);
+      } finally {
+        this.originMs += performance.now() - start;
+      }
+    };
+  }
+
+  wrapEnv(env) {
+    if (!env || typeof env !== "object") return env;
+
+    const instrumentedEnv = Object.create(env);
+
+    if (env.CAS_CACHE && typeof env.CAS_CACHE === "object") {
+      instrumentedEnv.CAS_CACHE = this.wrapKvNamespace(env.CAS_CACHE);
+    }
+
+    return instrumentedEnv;
+  }
+
+  wrapKvNamespace(namespace) {
+    const tracker = this;
+
+    return new Proxy(namespace, {
+      get(target, prop, receiver) {
+        const value = Reflect.get(target, prop, receiver);
+
+        if (prop === "get" && typeof value === "function") {
+          return async function wrappedGet(...args) {
+            const start = performance.now();
+            try {
+              const result = await value.apply(target, args);
+              tracker.recordKvRead(performance.now() - start, result, false);
+              return result;
+            } catch (error) {
+              tracker.recordKvRead(performance.now() - start, null, true);
+              throw error;
+            }
+          };
+        }
+
+        if (prop === "put" && typeof value === "function") {
+          return async function wrappedPut(...args) {
+            const start = performance.now();
+            try {
+              return await value.apply(target, args);
+            } finally {
+              tracker.recordKvWrite(performance.now() - start);
+            }
+          };
+        }
+
+        return value;
+      },
+    });
+  }
+
+  recordKvRead(duration, result, failed) {
+    this.kvReadMs += duration;
+    this.kvReadCount += 1;
+
+    if (failed) {
+      this.kvMissCount += 1;
+      return;
+    }
+
+    if (isKvHit(result)) {
+      this.kvHitCount += 1;
+    } else {
+      this.kvMissCount += 1;
+    }
+  }
+
+  recordKvWrite(duration) {
+    this.kvWriteMs += duration;
+    this.kvWriteCount += 1;
+  }
+
+  async measureServerFetch(fn) {
+    const start = performance.now();
+    try {
+      return await fn();
+    } finally {
+      this.serverFetchMs += performance.now() - start;
+      this.serverFetchCount += 1;
+    }
+  }
+
+  buildHandlerHelpers() {
+    if (!this.helpers) {
+      this.helpers = {
+        fetch: this.wrapFetch(fetch),
+        measureServerFetch: (fn) => this.measureServerFetch(fn),
+      };
+    }
+
+    return this.helpers;
+  }
+
+  flush(env, ctx, response) {
+    const totalMs = performance.now() - this.start;
+    const computeMs = Math.max(0, totalMs - this.originMs);
+
+    if (!env?.METRICS) {
+      return;
+    }
+
+    ctx.waitUntil(
+      env.METRICS.writeDataPoint({
+        indexes: [new Date()],
+        blobs: [this.routeLabel, this.method, String(response.status)],
+        doubles: [
+          totalMs,
+          this.originMs,
+          computeMs,
+          this.sampleRate,
+          this.kvReadMs,
+          this.kvWriteMs,
+          this.serverFetchMs,
+          this.kvHitCount,
+          this.kvMissCount,
+          this.kvReadCount,
+          this.kvWriteCount,
+          this.serverFetchCount,
+        ],
+      }),
+    );
+  }
+}
+
 export function withRouteTiming(routeLabel, handler, opts) {
-  const sampleRate = opts && opts.sampleRate != null ? opts.sampleRate : 1.0; // 1.0 = 100%
+  const sampleRate =
+    opts && opts.sampleRate != null ? opts.sampleRate : 1.0; // 1.0 = 100%
 
   return async (req, env, ctx) => {
     const doSample = Math.random() < sampleRate;
+    const tracker = doSample
+      ? new RouteMetricsTracker(routeLabel, req, sampleRate)
+      : null;
+    const instrumentedEnv = tracker ? tracker.wrapEnv(env) : env;
+    const helpers = tracker ? tracker.buildHandlerHelpers() : undefined;
 
-    const t0 = performance.now();
-    let originMs = 0;
+    const res = await handler(req, instrumentedEnv, ctx, helpers);
 
-    const timedFetch = async (...args) => {
-      const f0 = performance.now();
-      const res = await fetch(...args);
-      originMs += performance.now() - f0;
-      return res;
-    };
-
-    const res = await handler(req, env, ctx, { fetch: timedFetch });
-
-    if (doSample) {
-      const totalMs = performance.now() - t0;
-      const computeMs = Math.max(0, totalMs - originMs);
-
-      ctx.waitUntil(
-        env.METRICS.writeDataPoint({
-          indexes: [new Date()],
-          blobs: [routeLabel, req.method, String(res.status)],
-          doubles: [totalMs, originMs, computeMs, sampleRate],
-        }),
-      );
+    if (tracker) {
+      tracker.flush(env, ctx, res);
     }
 
     return res;

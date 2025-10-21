@@ -17,7 +17,12 @@ async function generateAccessibleProjectsCacheKey(authHeader) {
   return `${ACCESSIBLE_PROJECTS_CACHE_PREFIX}:${hash}`;
 }
 
-async function getAccessibleProjects(request, env, authHeader) {
+async function getAccessibleProjects(
+  request,
+  env,
+  authHeader,
+  instrumentation = {},
+) {
   const cache = env.CAS_CACHE;
   const cacheKey = await generateAccessibleProjectsCacheKey(authHeader);
 
@@ -37,10 +42,20 @@ async function getAccessibleProjects(request, env, authHeader) {
 
   try {
     console.log("Fetching projects from /api/projects");
-    const response = await serverFetch(env, "/api/projects", {
-      method: "GET",
-      headers,
-    });
+    const performFetch = () =>
+      serverFetch(
+        env,
+        "/api/projects",
+        {
+          method: "GET",
+          headers,
+        },
+        instrumentation?.fetch,
+      );
+
+    const response = instrumentation?.measureServerFetch
+      ? await instrumentation.measureServerFetch(performFetch)
+      : await performFetch();
 
     if (!response.ok) {
       const normalizedStatus = response.status === 403 ? 404 : response.status;
@@ -80,6 +95,7 @@ async function ensureProjectAccessible(
   env,
   accountHandle,
   projectHandle,
+  instrumentation = {},
 ) {
   const authHeader = request.headers.get("Authorization");
   if (!authHeader) {
@@ -93,6 +109,7 @@ async function ensureProjectAccessible(
     request,
     env,
     authHeader,
+    instrumentation,
   );
 
   if (accessibleProjectsResult.error) {

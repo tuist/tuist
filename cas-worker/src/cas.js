@@ -13,6 +13,7 @@ async function validateAndSetupRequest(
   accountHandle,
   projectHandle,
   id,
+  instrumentation = {},
 ) {
   if (!accountHandle || !projectHandle) {
     return {
@@ -26,6 +27,7 @@ async function validateAndSetupRequest(
     env,
     accountHandle,
     projectHandle,
+    instrumentation,
   );
   if (accessResult.error) {
     return { error: accessResult.error, status: accessResult.status };
@@ -56,7 +58,12 @@ async function validateAndSetupRequest(
   };
 }
 
-export async function handleGetValue(request, env) {
+export async function handleGetValue(
+  request,
+  env,
+  ctx,
+  instrumentation = {},
+) {
   const { params, query } = request;
   const { id } = params;
   const { account_handle: accountHandle, project_handle: projectHandle } =
@@ -68,6 +75,7 @@ export async function handleGetValue(request, env) {
     accountHandle,
     projectHandle,
     id,
+    instrumentation,
   );
   if (setupResult.error) {
     return jsonResponse({ message: setupResult.error }, setupResult.status);
@@ -100,7 +108,12 @@ export async function handleGetValue(request, env) {
   return new Response(arrayBuffer, { status: 200, headers: responseHeaders });
 }
 
-export async function handleSave(request, env) {
+export async function handleSave(
+  request,
+  env,
+  ctx,
+  instrumentation = {},
+) {
   const { params, query } = request;
   const { id } = params;
   const { account_handle: accountHandle, project_handle: projectHandle } =
@@ -112,6 +125,7 @@ export async function handleSave(request, env) {
     accountHandle,
     projectHandle,
     id,
+    instrumentation,
   );
   if (setupResult.error) {
     return jsonResponse({ message: setupResult.error }, setupResult.status);
