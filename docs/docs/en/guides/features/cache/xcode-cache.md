@@ -2,12 +2,12 @@
 {
   "title": "Xcode cache",
   "titleTemplate": ":title · Cache · Features · Guides · Tuist",
-  "description": "Enable Apple's Compilation Artifact System (CAS) for your existing Xcode projects to share compilation artifacts across your team."
+  "description": "Enable Xcode compilation cache for your existing Xcode projects to improve build times both locally and on the CI."
 }
 ---
 # Xcode cache {#xcode-cache}
 
-Tuist provides support for the new Xcode caching capability, which allows teams to share compilation artifacts by leveraging the build system's caching capabilities.
+Tuist provides support for the Xcode compilation cache, which allows teams to share compilation artifacts by leveraging the build system's caching capabilities.
 
 ## Setup {#setup}
 
