@@ -14,12 +14,20 @@ binding = "CAS_CACHE"
 id = "2adf75e070fd43cabee0be83cb4a562d"
 preview_id = "2f1058911a144cab9c8816478e03f4e2"
 
-# Development environment
+[[analytics_engine_datasets]]
+binding = "METRICS"
+dataset = "route_latency"
+
+# Development
+
 [env.development]
 name = "tuist-worker-development"
 [[env.development.kv_namespaces]]
 binding = "CAS_CACHE"
 id = "2f1058911a144cab9c8816478e03f4e3"
+[[env.development.analytics_engine_datasets]]
+binding = "METRICS"
+dataset = "route_latency"
 
 # Staging environment
 [env.staging]
@@ -31,6 +39,9 @@ routes = [
 [[env.staging.kv_namespaces]]
 binding = "CAS_CACHE"
 id = "4eecec1f40f84dc1bd8233944b835934"
+[[env.staging.analytics_engine_datasets]]
+binding = "METRICS"
+dataset = "route_latency"
 
 # Canary environment
 [env.canary]
@@ -42,6 +53,6 @@ routes = [
 [[env.canary.kv_namespaces]]
 binding = "CAS_CACHE"
 id = "c95cdd9d54fa49b89465b3993c298186"
-[[env.canary.kv_namespaces]]
-binding = "CAS_CACHE_BLOBS"
-id = "cb953df9fb6d42fa8fdca17f06287ba7"
+[[env.canary.analytics_engine_datasets]]
+binding = "METRICS"
+dataset = "route_latency"
