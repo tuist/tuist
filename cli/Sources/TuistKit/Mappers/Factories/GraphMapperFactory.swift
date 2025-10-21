@@ -227,7 +227,7 @@ public final class GraphMapperFactory: GraphMapperFactorying {
                 mappers.append(FocusTargetsGraphMappers(includedTargets: cacheSources))
                 mappers.append(TreeShakePrunedTargetsGraphMapper())
             }
-            
+
             let decider: TargetReplacementDeciding = if cacheSources.isEmpty {
                 ExternalOnlyTargetReplacementDecider()
             } else {

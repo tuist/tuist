@@ -218,6 +218,7 @@ public class GeneratorFactory: GeneratorFactorying {
             includedTargets: Set<String>,
             excludedTargets: Set<String>,
             skipUITests: Bool,
+            skipUnitTests: Bool,
             configuration: String?,
             ignoreBinaryCache: Bool,
             ignoreSelectiveTesting: Bool,
@@ -321,6 +322,7 @@ public class GeneratorFactory: GeneratorFactorying {
             includedTargets: Set<String>,
             excludedTargets: Set<String>,
             skipUITests: Bool,
+            skipUnitTests: Bool,
             configuration: String?,
             ignoreBinaryCache: Bool,
             ignoreSelectiveTesting: Bool,
@@ -329,7 +331,11 @@ public class GeneratorFactory: GeneratorFactorying {
         ) -> Generating {
             let contentHasher = ContentHasher()
             let projectMapperFactory = ProjectMapperFactory(contentHasher: contentHasher)
-            let projectMappers = projectMapperFactory.automation(skipUITests: skipUITests, tuist: config)
+            let projectMappers = projectMapperFactory.automation(
+                skipUITests: skipUITests,
+                skipUnitTests: skipUnitTests,
+                tuist: config
+            )
             let workspaceMapperFactory = WorkspaceMapperFactory(projectMapper: SequentialProjectMapper(mappers: projectMappers))
             let graphMapperFactory = CacheGraphMapperFactory(contentHasher: contentHasher)
 
@@ -364,7 +370,7 @@ public class GeneratorFactory: GeneratorFactorying {
         ) -> Generating {
             let contentHasher = ContentHasher()
             let projectMapperFactory = ProjectMapperFactory(contentHasher: contentHasher)
-            let projectMappers = projectMapperFactory.automation(skipUITests: false, tuist: config)
+            let projectMappers = projectMapperFactory.automation(skipUITests: false, skipUnitTests: false, tuist: config)
             let workspaceMapperFactory = WorkspaceMapperFactory(projectMapper: SequentialProjectMapper(mappers: projectMappers))
             let graphMapperFactory = CacheGraphMapperFactory(contentHasher: contentHasher)
 
