@@ -85,10 +85,13 @@ describe("CAS Module", () => {
       mockRequest.headers.get.mockReturnValue("Bearer token123");
       env.CAS_CACHE.get.mockResolvedValue(null);
       serverFetch.mockResolvedValueOnce(
-        new Response(JSON.stringify(["acme/myapp"]), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        }),
+        new Response(
+          JSON.stringify({ projects: [{ full_name: "acme/myapp" }] }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          },
+        ),
       );
       checkS3ObjectExists.mockResolvedValue(true);
       getS3Url.mockReturnValue(
@@ -105,7 +108,7 @@ describe("CAS Module", () => {
       expect(serverFetch).toHaveBeenNthCalledWith(
         1,
         env,
-        "/api/accessible-projects",
+        "/api/projects",
         expect.objectContaining({
           method: "GET",
           headers: expect.objectContaining({
@@ -209,10 +212,13 @@ describe("CAS Module", () => {
       });
       env.CAS_CACHE.get.mockResolvedValue(null);
       serverFetch.mockResolvedValueOnce(
-        new Response(JSON.stringify(["acme/myapp"]), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        }),
+        new Response(
+          JSON.stringify({ projects: [{ full_name: "acme/myapp" }] }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          },
+        ),
       );
       checkS3ObjectExists.mockResolvedValue(true);
       getS3Url.mockReturnValue(
@@ -227,7 +233,7 @@ describe("CAS Module", () => {
 
       expect(serverFetch).toHaveBeenCalledWith(
         env,
-        "/api/accessible-projects",
+        "/api/projects",
         expect.objectContaining({
           headers: expect.objectContaining({
             Authorization: "Bearer token123",

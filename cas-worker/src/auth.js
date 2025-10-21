@@ -35,7 +35,7 @@ async function getAccessibleProjects(request, env, authHeader) {
   }
 
   try {
-    const response = await serverFetch(env, "/api/accessible-projects", {
+    const response = await serverFetch(env, "/api/projects", {
       method: "GET",
       headers,
     });
@@ -56,22 +56,16 @@ async function getAccessibleProjects(request, env, authHeader) {
       return result;
     }
 
-    const projects = await response.json();
-
-    if (!Array.isArray(projects)) {
-      return {
-        error: "Unexpected response from authorization endpoint",
-        status: 500,
-      };
-    }
+    const { projects } = await response.json();
+    const projectHandles = projects.map((project) => project.full_name);
 
     if (cache) {
-      await cache.put(cacheKey, JSON.stringify({ projects }), {
+      await cache.put(cacheKey, JSON.stringify({ projects: projectHandles }), {
         expirationTtl: ACCESSIBLE_PROJECTS_SUCCESS_TTL,
       });
     }
 
-    return { projects };
+    return { projects: projectHandles };
   } catch (error) {
     return { error: error.message, status: 500 };
   }
