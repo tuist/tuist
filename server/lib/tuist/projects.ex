@@ -6,6 +6,7 @@ defmodule Tuist.Projects do
 
   alias Tuist.Accounts
   alias Tuist.Accounts.Account
+  alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Accounts.ProjectAccount
   alias Tuist.Accounts.User
   alias Tuist.AppBuilds.Preview
@@ -160,6 +161,24 @@ defmodule Tuist.Projects do
       }
     end)
   end
+
+  def get_all_project_accounts(%AuthenticatedAccount{account: account}) do
+    get_all_project_accounts(account)
+  end
+
+  def get_all_project_accounts(%Project{} = project) do
+    project = Repo.preload(project, :account)
+
+    [
+      %ProjectAccount{
+        handle: "#{project.account.name}/#{project.name}",
+        project: project,
+        account: project.account
+      }
+    ]
+  end
+
+  def get_all_project_accounts(_), do: []
 
   def create_project(%{name: name, account: %{id: account_id}}, opts \\ []) do
     token = Keyword.get(opts, :token, Tuist.Tokens.generate_token())
