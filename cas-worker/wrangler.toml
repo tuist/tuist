@@ -41,7 +41,7 @@ binding = "CAS_CACHE"
 id = "4eecec1f40f84dc1bd8233944b835934"
 [[env.staging.analytics_engine_datasets]]
 binding = "METRICS"
-dataset = "metrics2"
+dataset = "metrics"
 
 # Canary environment
 [env.canary]

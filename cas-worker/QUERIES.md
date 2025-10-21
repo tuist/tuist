@@ -27,7 +27,11 @@ Always use `_sample_interval` as the weight when aggregating.
 SELECT
   blob1 AS route,
   blob2 AS method,
-  AVG(double1) AS avg_total_latency_ms,
+  IF(
+    SUM(_sample_interval) = 0,
+    0.0,
+    SUM(double1 * _sample_interval) / SUM(_sample_interval)
+  ) AS avg_total_latency_ms,
   quantileWeighted(0.50, double1, _sample_interval) AS p50_total_latency_ms,
   quantileWeighted(0.90, double1, _sample_interval) AS p90_total_latency_ms,
   quantileWeighted(0.99, double1, _sample_interval) AS p99_total_latency_ms,
@@ -53,7 +57,7 @@ SELECT
   quantileWeighted(
     0.90,
     IF(double10 > 0, double5 / double10, 0.0),
-    IF(double10 > 0, _sample_interval, 0.0)
+    IF(double10 > 0, _sample_interval, 0)
   ) AS p90_kv_read_latency_per_request_ms,
   IF(
     SUM(double11 * _sample_interval) = 0,
@@ -63,7 +67,7 @@ SELECT
   quantileWeighted(
     0.90,
     IF(double11 > 0, double6 / double11, 0.0),
-    IF(double11 > 0, _sample_interval, 0.0)
+    IF(double11 > 0, _sample_interval, 0)
   ) AS p90_kv_write_latency_per_request_ms,
   SUM(double10 * _sample_interval) AS est_kv_read_call_count,
   SUM(double11 * _sample_interval) AS est_kv_write_call_count,
@@ -75,7 +79,7 @@ SELECT
   quantileWeighted(
     0.90,
     IF(double12 > 0, double7 / double12, 0.0),
-    IF(double12 > 0, _sample_interval, 0.0)
+    IF(double12 > 0, _sample_interval, 0)
   ) AS p90_s3_fetch_latency_per_request_ms,
   IF(
     SUM(double13 * _sample_interval) = 0,
@@ -95,7 +99,7 @@ SELECT
       IF(double8 < 0, 0.0, double8) / double13,
       0.0
     ),
-    IF(double13 > 0, _sample_interval, 0.0)
+    IF(double13 > 0, _sample_interval, 0)
   ) AS p90_server_fetch_latency_per_request_ms,
   SUM(double12 * _sample_interval) AS est_s3_fetch_call_count,
   SUM(double13 * _sample_interval) AS est_server_fetch_call_count
@@ -162,7 +166,7 @@ SELECT
   quantileWeighted(0.90, double10, _sample_interval) AS p90_kv_reads_per_request,
   quantileWeighted(
     0.90,
-    IF(double10 > 0, (double10 - double8) / double10, 0.0),
+    IF(double10 > 0, (double10 - double9) / double10, 0.0),
     _sample_interval
   ) AS p90_kv_miss_ratio
 FROM metrics

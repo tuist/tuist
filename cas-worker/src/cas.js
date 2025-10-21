@@ -61,7 +61,7 @@ async function validateAndSetupRequest(
 export async function handleGetValue(
   request,
   env,
-  ctx,
+  _ctx,
   instrumentation = {},
 ) {
   const { params, query } = request;

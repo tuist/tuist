@@ -41,15 +41,10 @@ async function getAccessibleProjects(
 
   try {
     const performFetch = () =>
-      serverFetch(
-        env,
-        "/api/projects",
-        {
-          method: "GET",
-          headers,
-        },
-        instrumentation?.fetch,
-      );
+      serverFetch(env, "/api/projects", {
+        method: "GET",
+        headers,
+      });
 
     const response = instrumentation?.measureServerFetch
       ? await instrumentation.measureServerFetch(performFetch)
