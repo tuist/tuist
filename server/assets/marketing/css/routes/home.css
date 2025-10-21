@@ -515,12 +515,13 @@
   & > [data-part="case-study"] {
     display: flex;
     justify-content: center;
-    align-items: center;
+    align-items: stretch;
     gap: var(--noora-spacing-5);
     flex-direction: column;
 
     @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
       flex-direction: row;
+      align-items: center;
     }
 
     & > [data-part="customer-one"],
@@ -533,7 +534,10 @@
       gap: var(--noora-spacing-7);
       box-shadow: var(--noora-light-border-default);
       border-radius: var(--noora-radius-xlarge);
-      width: 642px;
+
+      @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+        width: 642px;
+      }
 
       & > [data-part="overlay-link"] {
         display: block;
@@ -627,17 +631,27 @@
 
   & > [data-part="stats"] {
     display: flex;
+    flex-direction: column;
     justify-content: center;
-    align-items: center;
+    align-items: stretch;
     gap: var(--noora-spacing-5);
-    width: 100%;
+
+    @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+      flex-direction: row;
+      align-items: center;
+      width: 100%;
+    }
 
     & > [data-part="column"] {
       display: flex;
       flex-direction: column;
       justify-content: center;
-      align-items: center;
+      align-items: stretch;
       gap: var(--noora-spacing-5);
+
+      @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+        align-items: center;
+      }
 
       & > [data-part="github-card"],
       & > [data-part="oss-card"],
@@ -699,43 +713,58 @@
       & > [data-part="github-card"] {
         gap: var(--noora-spacing-4);
         background: linear-gradient(279deg, #f0e8ff 0%, #fff 108.26%);
-        width: 399.5px;
-        min-height: 174px;
+
+        @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+          width: 399.5px;
+          min-height: 174px;
+        }
       }
 
       & > [data-part="oss-card"] {
         gap: var(--noora-spacing-4);
         background: linear-gradient(79deg, #fff 0%, #f4f0fd 100.11%);
+
+        @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
         width: 399.5px;
         min-height: 174px;
+        }
       }
 
       & > [data-part="minutes-card"] {
         gap: var(--noora-spacing-8);
         background: linear-gradient(112deg, #f8f5ff 0%, #f2effa 100.86%);
+
+        @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
         width: 473px;
         min-height: 190px;
+        }
       }
 
       & > [data-part="slack-card"] {
         gap: var(--noora-spacing-4);
         background: linear-gradient(0deg, #fff 0%, #f4f0fd 100%);
+        @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
         width: 473px;
         height: 158px;
+        }
       }
 
       & > [data-part="teams-card"] {
         gap: var(--noora-spacing-4);
         background: linear-gradient(279deg, #fff 0%, #f4f0fd 98.92%);
+        @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
         width: 399.5px;
         min-height: 174px;
+        }
       }
 
       & > [data-part="contributors-card"] {
         gap: var(--noora-spacing-4);
         background: linear-gradient(79deg, #f4f0fd 0%, #fff 100.11%);
+        @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
         width: 399.5px;
         min-height: 174px;
+        }
       }
     }
   }
