@@ -121,17 +121,16 @@
 
   & > [data-part="graphic"] {
     position: relative;
-    margin: 0 calc(-1 * var(--noora-spacing-6));
     padding: 0;
-    width: calc(100% + 2 * var(--noora-spacing-6));
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
 
     @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
       margin: 0;
     }
 
     & > [data-part="background"] {
-      width: 100%;
-      height: auto;
       object-fit: contain;
     }
 
@@ -151,6 +150,7 @@
     align-items: center;
 
     & > h3 {
+      text-align: center;
       color: var(--noora-surface-label-primary);
       font-family: var(--noora-font-heading);
       font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
