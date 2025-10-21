@@ -3,6 +3,7 @@
   top: calc(-1 * env(safe-area-inset-top, 0px));
   left: 0;
   z-index: var(--noora-z-index-0);
+  padding-top: env(safe-area-inset-top, 0px);
   width: 100%;
   height: auto;
   pointer-events: none;

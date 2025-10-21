@@ -1,5 +1,7 @@
 export default {
   mounted() {
+    // Store original HTML content
+    this.originalHTML = this.el.innerHTML;
     this.init();
     window.addEventListener("resize", () => this.init());
   },
@@ -14,7 +16,17 @@ export default {
         cancelAnimationFrame(this.animationFrame);
         this.animationFrame = null;
       }
-      container.scrollLeft = 0;
+
+      // Restore original HTML if it was modified
+      if (!container.querySelector('[data-part="rows"]')) {
+        container.innerHTML = this.originalHTML;
+      }
+
+      return;
+    }
+
+    // Only rebuild if not already in scroll mode
+    if (container.querySelector('[data-part="track"]')) {
       return;
     }
 
