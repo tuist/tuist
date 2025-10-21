@@ -26,8 +26,13 @@
         flex-direction: row;
         align-items: center;
         gap: var(--noora-spacing-2);
-        color: var(--noora-breadcrum-label);
+        color: var(--noora-neutral-light-1100);
         font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+
+        & > svg {
+          margin: var(--noora-spacing-3);
+          color: var(--noora-neutral-light-700);
+        }
       }
 
       & > [data-part="title"] {
