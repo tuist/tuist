@@ -31,12 +31,12 @@ defmodule Tuist.Marketing.BlogContentProcessor do
   end
 
   defp find_marker(html) do
-    # Look for <prose-banner-button-marker> tags (both self-closing and with closing tag)
-    case Regex.run(
-           ~r/<prose-banner-button-marker([^>]*)>\s*<\/prose-banner-button-marker>/,
-           html,
-           return: :index
-         ) do
+    # Look for <prose-banner-button-marker> tags with attributes
+    # The tag might span multiple lines with whitespace and newlines
+    # Match everything between opening tag and closing tag (or self-closing)
+    regex = ~r/<prose-banner-button-marker\s+([^>]*?)>\s*<\/prose-banner-button-marker>/s
+
+    case Regex.run(regex, html, return: :index) do
       [{start, length} | _] ->
         before = String.slice(html, 0, start)
         marker_html = String.slice(html, start, length)

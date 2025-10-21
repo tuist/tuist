@@ -102,6 +102,8 @@ While Apple continues to invest into the build caching, we've already iterated o
 
 And the combination of both approaches can achieve even greater improvements. Xcode compilation cache provides a more granular level caching that works seamlessly with Xcode, while module-based caching delivers the coarse-grained reuse that dramatically cuts build times in modular architectures.
 
+<prose_banner title="Ready to speed up your builds?" description="Learn how to set up and configure the Tuist cache for your project in our comprehensive documentation." cta_title="View cache documentation" cta_href="https://docs.tuist.dev/en/guides/features/cache" />
+
 ### Looking ahead
 
 If you've been intrigued, head over to our [documentation](https://docs.tuist.dev/en/guides/features/cache) to get started with the Tuist cache. We're currently offering the remote Xcode cache **for free** while we iterate on the integration of this feature with pricing being announced later in the year. In the meantime, we will continue to improve the latency and introduce detailed analytics to help you understand the impact of the cache on your build times. You can already leverage our [build insights](https://docs.tuist.dev/en/guides/features/insights#builds) to track the build performance in both local and CI environments.
