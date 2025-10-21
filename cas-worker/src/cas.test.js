@@ -286,10 +286,15 @@ describe("CAS Module", () => {
       });
       env.CAS_CACHE.get.mockResolvedValue(null);
       serverFetch.mockResolvedValueOnce(
-        new Response(JSON.stringify(["acme/other"]), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        }),
+        new Response(
+          JSON.stringify({
+            projects: [{ full_name: "acme/other" }],
+          }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          },
+        ),
       );
 
       const response = await handleGetValue(mockRequest, env, {});
@@ -383,10 +388,15 @@ describe("CAS Module", () => {
       mockRequest.headers.get.mockReturnValue("Bearer token123");
       env.CAS_CACHE.get.mockResolvedValue(null);
       serverFetch.mockResolvedValueOnce(
-        new Response(JSON.stringify(["acme/myapp"]), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        }),
+        new Response(
+          JSON.stringify({
+            projects: [{ full_name: "acme/myapp" }],
+          }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          },
+        ),
       );
       checkS3ObjectExists.mockResolvedValue(true);
       getS3Url.mockReturnValue(
@@ -409,10 +419,15 @@ describe("CAS Module", () => {
       mockRequest.arrayBuffer.mockResolvedValue(new ArrayBuffer(100));
       env.CAS_CACHE.get.mockResolvedValue(null);
       serverFetch.mockResolvedValueOnce(
-        new Response(JSON.stringify(["acme/myapp"]), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        }),
+        new Response(
+          JSON.stringify({
+            projects: [{ full_name: "acme/myapp" }],
+          }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          },
+        ),
       );
       checkS3ObjectExists.mockResolvedValue(false);
       getS3Url.mockReturnValue(
