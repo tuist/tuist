@@ -517,7 +517,11 @@
     justify-content: center;
     align-items: center;
     gap: var(--noora-spacing-5);
-    width: 100%;
+    flex-direction: column;
+
+    @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+      flex-direction: row;
+    }
 
     & > [data-part="customer-one"],
     [data-part="customer-two"] {
