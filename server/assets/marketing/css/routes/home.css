@@ -120,11 +120,11 @@
   }
 
   & > [data-part="graphic"] {
-    position: relative;
-    padding: 0;
     display: flex;
+    position: relative;
     flex-direction: column;
     align-items: stretch;
+    padding: 0;
 
     @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
       margin: 0;
@@ -150,10 +150,10 @@
     align-items: center;
 
     & > h3 {
-      text-align: center;
       color: var(--noora-surface-label-primary);
       font-family: var(--noora-font-heading);
       font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
+      text-align: center;
     }
   }
 
@@ -162,23 +162,13 @@
     flex-direction: row;
     justify-content: flex-start;
     align-items: center;
-    gap: var(--noora-spacing-9);
-    padding-right: var(--noora-spacing-6);
-    padding-left: var(--noora-spacing-6);
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-
-    &::-webkit-scrollbar {
-      display: none;
-    }
+    width: 100%;
+    overflow: hidden;
 
     @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
       flex-direction: column;
       justify-content: center;
-      padding-right: 0;
-      padding-left: 0;
-      overflow-x: visible;
+      overflow: visible;
     }
 
     & [data-part="org-logo"] {
@@ -191,9 +181,22 @@
       }
     }
 
-    & > [data-part="rows"] a {
-      line-height: 0;
-      text-decoration: none;
+    & > [data-part="track"] {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: var(--noora-spacing-9);
+      will-change: transform;
+
+      @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+        flex-direction: column;
+        gap: var(--noora-spacing-11);
+      }
+
+      & > a {
+        line-height: 0;
+        text-decoration: none;
+      }
     }
 
     & > [data-part="rows"] {
@@ -202,6 +205,11 @@
       justify-content: center;
       align-items: center;
       gap: var(--noora-spacing-11);
+
+      & > a {
+        line-height: 0;
+        text-decoration: none;
+      }
     }
   }
 

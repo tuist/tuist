@@ -54,7 +54,12 @@
       <h3>{dgettext("marketing", "Trusted by the world's best developer teams")}</h3>
     </section>
 
-    <section data-part="orgs-list" aria-label="Organizations using Tuist">
+    <section
+      data-part="orgs-list"
+      aria-label="Organizations using Tuist"
+      phx-hook="InfiniteScrollLogos"
+      id="orgs-list-scroll"
+    >
       <div data-part="rows">
         <a
           data-part="org-logo"
@@ -391,7 +396,9 @@
               "\"We could solve our immediate problems and do so while maintaining a familiar"
             )}
           </span>
-          <span data-part="line-two">{dgettext("marketing", "core development experience\"")}</span>
+          <span data-part="line-two">
+            {dgettext("marketing", "core development experience\"")}
+          </span>
         </h3>
       </blockquote>
       <footer data-part="name">

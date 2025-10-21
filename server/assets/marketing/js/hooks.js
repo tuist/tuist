@@ -5,6 +5,7 @@ import { FaqAccordion } from "./hooks/faq-accordion.js";
 import { ScrollToTop } from "./hooks/scroll-to-top.js";
 import { CodeCopy } from "./hooks/code-copy.js";
 import { ShikiHighlight } from "./hooks/shiki-highlight.js";
+import InfiniteScrollLogos from "./hooks/infinite-scroll-logos.js";
 
 const Hooks = {
   NavbarDropdown,
@@ -14,6 +15,7 @@ const Hooks = {
   ScrollToTop,
   CodeCopy,
   ShikiHighlight,
+  InfiniteScrollLogos,
 };
 
 export { Hooks };
