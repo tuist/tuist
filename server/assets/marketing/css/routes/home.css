@@ -1019,6 +1019,14 @@
             max-width: none;
           }
 
+          &[data-highlighted="true"] {
+            & > [data-part="main"] {
+              & > [data-part="quote"] {
+                font: var(--noora-font-weight-semibold) var(--noora-font-heading-small);
+              }
+            }
+          }
+
           &:not(:first-child) {
             margin-top: 0;
             margin-right: 0;
@@ -1056,8 +1064,7 @@
             & > [data-part="quote"] {
               flex: 1;
               color: var(--noora-surface-label-primary);
-              font-family: var(--noora-font-heading);
-              font: var(--noora-font-weight-semibold) var(--noora-font-heading-small);
+              font: var(--noora-font-weight-medium) var(--noora-font-body-large);
             }
 
             & > [data-part="person"] {

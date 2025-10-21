@@ -157,11 +157,12 @@ defmodule TuistWeb.Marketing.MarketingHTML do
   attr :name, :string, required: true
   attr :role, :string, required: true
   attr :avatar_src, :string, required: true
+  attr :rest, :global
   slot :logo, required: false
 
   defp home_testimonial_card(assigns) do
     ~H"""
-    <div data-part="testimonial">
+    <div data-part="testimonial" {@rest}>
       <%= if @logo != [] do %>
         <div data-part="logo">
           {render_slot(@logo)}
