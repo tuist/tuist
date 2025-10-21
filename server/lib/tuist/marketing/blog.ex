@@ -39,6 +39,13 @@ defmodule Tuist.Marketing.Blog do
     end
   end
 
+  @doc """
+  Processes blog post content to extract components and HTML chunks.
+  """
+  def process_content(content) do
+    Tuist.Marketing.BlogContentProcessor.process_content(content)
+  end
+
   def get_authors do
     %{
       "silvia" => %{

@@ -36,7 +36,7 @@
     </header>
 
     <section id="blog-post-content" data-part="content" data-prose phx-hook="ShikiHighlight">
-      <%= for chunk <- Tuist.Marketing.BlogContentProcessor.process_content(@post.body) do %>
+      <%= for chunk <- @processed_content do %>
         <%= case chunk do %>
           <% {:html, html} -> %>
             {raw(html)}
