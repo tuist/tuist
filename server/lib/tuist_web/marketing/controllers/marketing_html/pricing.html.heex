@@ -348,7 +348,7 @@ features = [
               <div :if={feature.description} data-part="feature-description">
                 {feature.description}
               </div>
-              <.hint_text :if={feature.hint} data-class="feature-info" label={feature.hint} />
+              <.hint_text :if={feature.hint} label={feature.hint} />
             </th>
             <td
               :for={{value, index} <- Enum.with_index(feature.values)}

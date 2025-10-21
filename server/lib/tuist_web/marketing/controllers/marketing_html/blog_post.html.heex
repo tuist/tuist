@@ -41,7 +41,7 @@
           <% {:html, html} -> %>
             {raw(html)}
           <% {:component, :button, data} -> %>
-            <.button href={data.href} label={data.title} variant="secondary" icon_position="both">
+            <.button href={data.href} label={data.title} variant="secondary">
               <:icon_left><.chevron_left /></:icon_left>
               <:icon_right><.chevron_right /></:icon_right>
             </.button>

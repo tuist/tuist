@@ -33,22 +33,21 @@ defmodule TuistWeb.Marketing.MarketingController do
   end
 
   def home(conn, _params) do
-    conn =
-      conn
-      |> assign(:head_title, "Tuist")
-      |> assign(
-        :head_description,
-        dgettext(
-          "marketing",
-          "The same iOS tooling that powers billion-user apps, delivered as a service for your team"
-        )
+    conn
+    |> assign(:head_title, "Tuist")
+    |> assign(
+      :head_description,
+      dgettext(
+        "marketing",
+        "The same iOS tooling that powers billion-user apps, delivered as a service for your team"
       )
-      |> assign(
-        :head_image,
-        Tuist.Environment.app_url(path: "/marketing/images/og/home.jpg")
-      )
-      |> assign(:head_twitter_card, "summary_large_image")
-      |> render(:home, layout: false)
+    )
+    |> assign(
+      :head_image,
+      Tuist.Environment.app_url(path: "/marketing/images/og/home.jpg")
+    )
+    |> assign(:head_twitter_card, "summary_large_image")
+    |> render(:home, layout: false)
   end
 
   def about(conn, _params) do

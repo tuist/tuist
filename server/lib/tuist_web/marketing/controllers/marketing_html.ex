@@ -3,7 +3,6 @@ defmodule TuistWeb.Marketing.MarketingHTML do
   use Noora
 
   import TuistWeb.Marketing.MarketingComponents
-  import TuistWeb.Marketing.MarketingLogos
   import TuistWeb.Marketing.MarketingOrgLogos
   import TuistWeb.Marketing.TestimonialOrgLogos
 
