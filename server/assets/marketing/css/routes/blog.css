@@ -14,7 +14,6 @@
 
   & > [data-part="header"] {
     display: flex;
-    display: flex;
     flex-direction: column;
     gap: var(--noora-spacing-8);
     padding-top: var(--noora-spacing-10);
@@ -40,7 +39,6 @@
 
       & > [data-part="title"] {
         color: var(--noora-surface-label-primary);
-        font-family: var(--noora-font-display);
         font: var(--noora-font-weight-medium) var(--noora-font-display-xlarge);
         text-shadow: 0 1px 1px rgba(0, 0, 0, 0.25);
       }

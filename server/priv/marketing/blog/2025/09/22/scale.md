@@ -11,9 +11,6 @@ It's 2025, and developing Swift apps at a certain scale continues to be a challe
 
 We see many large organizations showing up seeking support, and many developers who, having experienced the support that Tuist gives them, don't think twice when they start new projects and bet on Tuist from the get-go.
 
-<prose_banner title="Insert your text here" description="Insert your description here. Description in this case is usually two lines" cta_title="Buy" cta_href="/some-link" />
-
-
 In this post, I'd like to discuss the common challenges that we continue to see and how Tuist helps you overcome them. I'll also acknowledge some of the work that [Apple](https://apple.com) has done and is doing to improve the state of things, and hopefully leave you informed about the many things you likely suffer from but can't pinpoint to the root cause. But before we dive into the details, let's first talk about what I like to call the wake-up leadership crisis.
 
 ## Wake-Up Leadership Crisis
