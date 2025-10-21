@@ -1,6 +1,6 @@
 [data-part="header-background"] {
   position: absolute;
-  top: 0;
+  top: calc(-1 * env(safe-area-inset-top, 0px));
   left: 0;
   z-index: var(--noora-z-index-0);
   width: 100%;
