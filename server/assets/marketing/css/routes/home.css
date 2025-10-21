@@ -693,9 +693,11 @@
         }
 
         & [data-part="customer-story-button"] {
-          @container style(--inline-size-sm: var(--marketing-breakpoint-sm)) {
-            & > span:not([data-part]) {
-              display: none;
+          & > span:not([data-part]) {
+            display: none;
+
+            @container style(--inline-size-md: var(--marketing-breakpoint-md)) {
+              display: inline;
             }
           }
         }
