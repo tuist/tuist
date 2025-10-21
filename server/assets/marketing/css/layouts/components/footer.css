@@ -12,8 +12,8 @@
   &::before {
     position: absolute;
     top: 0;
-    right: var(--noora-spacing-14);
-    left: var(--noora-spacing-14);
+    right: calc(var(--noora-spacing-7) + var(--noora-spacing-6));
+    left: calc(var(--noora-spacing-7) + var(--noora-spacing-6));
     background-color: var(--noora-content-divider-line);
     height: 1px;
     content: "";
