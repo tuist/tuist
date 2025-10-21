@@ -688,6 +688,14 @@
           z-index: var(--noora-z-index-4);
           pointer-events: auto;
         }
+
+        & [data-part="customer-story-button"] {
+          @container style(--inline-size-sm: var(--marketing-breakpoint-sm)) {
+            & > span:not([data-part]) {
+              display: none;
+            }
+          }
+        }
       }
 
       & > [data-part="graphic"] {
