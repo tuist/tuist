@@ -32,7 +32,7 @@ binding = "CAS_CACHE"
 id = "2f1058911a144cab9c8816478e03f4e3"
 [[env.development.analytics_engine_datasets]]
 binding = "METRICS"
-dataset = "cas_worker_metrics"
+dataset = "cas_worker_metrics_development"
 
 # Staging environment
 [env.staging]
@@ -49,7 +49,7 @@ binding = "CAS_CACHE"
 id = "4eecec1f40f84dc1bd8233944b835934"
 [[env.staging.analytics_engine_datasets]]
 binding = "METRICS"
-dataset = "cas_worker_metrics"
+dataset = "cas_worker_metrics_staging"
 
 # Canary environment
 [env.canary]
@@ -66,4 +66,4 @@ binding = "CAS_CACHE"
 id = "c95cdd9d54fa49b89465b3993c298186"
 [[env.canary.analytics_engine_datasets]]
 binding = "METRICS"
-dataset = "cas_worker_metrics"
+dataset = "cas_worker_metrics_canary"
