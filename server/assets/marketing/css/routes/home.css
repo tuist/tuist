@@ -1046,7 +1046,10 @@
           &[data-highlighted="true"] {
             & > [data-part="main"] {
               & > [data-part="quote"] {
-                font: var(--noora-font-weight-semibold) var(--noora-font-heading-small);
+                font-weight: 400;
+                font-size: 20px;
+                line-height: 26px;
+                font-family: var(--noora-font-body);
               }
             }
           }
