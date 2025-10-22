@@ -57,9 +57,8 @@
       padding: var(--noora-spacing-8);
       overflow: hidden;
 
-      &[data-popular="true"] {
-        background: linear-gradient(217deg, rgba(255, 255, 255, 0) 1.35%, rgba(111, 44, 255, 0.04) 100%),
-          var(--noora-surface-background-primary, #fdfdfd);
+      &[data-popular] {
+        background: linear-gradient(217deg, rgba(255, 255, 255, 0) 1.35%, rgba(111, 44, 255, 0.04) 100%), #fdfdfd;
       }
 
       & > [data-part="notch"] {
