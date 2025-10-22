@@ -13,6 +13,7 @@ async function validateAndSetupRequest(
   accountHandle,
   projectHandle,
   id,
+  instrumentation = {},
 ) {
   if (!accountHandle || !projectHandle) {
     return {
@@ -26,6 +27,7 @@ async function validateAndSetupRequest(
     env,
     accountHandle,
     projectHandle,
+    instrumentation,
   );
   if (accessResult.error) {
     return { error: accessResult.error, status: accessResult.status };
@@ -56,7 +58,7 @@ async function validateAndSetupRequest(
   };
 }
 
-export async function handleGetValue(request, env) {
+export async function handleGetValue(request, env, instrumentation = {}) {
   const { params, query } = request;
   const { id } = params;
   const { account_handle: accountHandle, project_handle: projectHandle } =
@@ -68,6 +70,7 @@ export async function handleGetValue(request, env) {
     accountHandle,
     projectHandle,
     id,
+    instrumentation,
   );
   if (setupResult.error) {
     return jsonResponse({ message: setupResult.error }, setupResult.status);
@@ -77,8 +80,11 @@ export async function handleGetValue(request, env) {
   const url = getS3Url(endpoint, bucket, key, virtualHost);
 
   let s3Response;
+  const performFetch = () => s3Client.fetch(url, { method: "GET" });
   try {
-    s3Response = await s3Client.fetch(url, { method: "GET" });
+    s3Response = instrumentation?.measureServerFetch
+      ? await instrumentation.measureServerFetch(performFetch, "s3")
+      : await performFetch();
   } catch (e) {
     return jsonResponse({ message: "S3 error" }, 500);
   }
@@ -100,7 +106,7 @@ export async function handleGetValue(request, env) {
   return new Response(arrayBuffer, { status: 200, headers: responseHeaders });
 }
 
-export async function handleSave(request, env) {
+export async function handleSave(request, env, instrumentation = {}) {
   const { params, query } = request;
   const { id } = params;
   const { account_handle: accountHandle, project_handle: projectHandle } =
@@ -112,6 +118,7 @@ export async function handleSave(request, env) {
     accountHandle,
     projectHandle,
     id,
+    instrumentation,
   );
   if (setupResult.error) {
     return jsonResponse({ message: setupResult.error }, setupResult.status);
@@ -125,6 +132,7 @@ export async function handleSave(request, env) {
     bucket,
     key,
     virtualHost,
+    instrumentation,
   );
   if (exists) {
     return new Response(null, { status: 204 });
@@ -133,8 +141,8 @@ export async function handleSave(request, env) {
   const bodyBuffer = await request.arrayBuffer();
   const url = getS3Url(endpoint, bucket, key, virtualHost);
 
-  try {
-    const s3Response = await s3Client.fetch(url, {
+  const performPut = () =>
+    s3Client.fetch(url, {
       method: "PUT",
       body: bodyBuffer,
       headers: {
@@ -143,6 +151,10 @@ export async function handleSave(request, env) {
       },
     });
 
+  try {
+    const s3Response = instrumentation?.measureServerFetch
+      ? await instrumentation.measureServerFetch(performPut, "s3")
+      : await performPut();
     if (!s3Response.ok) {
       return new Response(s3Response.body, {
         status: s3Response.status,

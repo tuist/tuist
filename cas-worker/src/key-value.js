@@ -5,7 +5,7 @@ function buildCacheKey(accountHandle, projectHandle, casId) {
   return `keyvalue:${accountHandle}:${projectHandle}:${casId}`;
 }
 
-export async function handleKeyValueGet(request, env) {
+export async function handleKeyValueGet(request, env, instrumentation = {}) {
   const queryValidation = validateQuery(request);
   if (queryValidation.error) {
     return jsonResponse(
@@ -21,6 +21,7 @@ export async function handleKeyValueGet(request, env) {
     env,
     accountHandle,
     projectHandle,
+    instrumentation,
   );
   if (accessResult.error) {
     return jsonResponse({ message: accessResult.error }, accessResult.status);
@@ -31,7 +32,7 @@ export async function handleKeyValueGet(request, env) {
     return jsonResponse({ message: "Missing cas_id path parameter" }, 400);
   }
 
-  const store = env.CAS_CACHE;
+  const store = env.KEY_VALUE_STORE;
 
   const storageKey = buildCacheKey(accountHandle, projectHandle, casId);
   let storedEntries;
@@ -49,21 +50,23 @@ export async function handleKeyValueGet(request, env) {
     );
   }
 
-  const sanitizedEntries = storedEntries
-    .filter((entry) => entry && typeof entry.value === "string")
-    .map((entry) => ({ value: entry.value }));
+  const entries = storedEntries
+    .map((value) => (typeof value === "string" ? value : null))
+    .filter((value) => typeof value === "string");
 
-  if (sanitizedEntries.length === 0) {
+  if (entries.length === 0) {
     return jsonResponse(
       { message: `No entries found for CAS ID ${casId}.` },
       404,
     );
   }
 
-  return jsonResponse({ entries: sanitizedEntries });
+  return jsonResponse({
+    entries: entries.map((value) => ({ value })),
+  });
 }
 
-export async function handleKeyValuePut(request, env) {
+export async function handleKeyValuePut(request, env, instrumentation = {}) {
   const queryValidation = validateQuery(request);
   if (queryValidation.error) {
     return jsonResponse(
@@ -79,6 +82,7 @@ export async function handleKeyValuePut(request, env) {
     env,
     accountHandle,
     projectHandle,
+    instrumentation,
   );
   if (accessResult.error) {
     return jsonResponse({ message: accessResult.error }, accessResult.status);
@@ -100,31 +104,27 @@ export async function handleKeyValuePut(request, env) {
     );
   }
 
-  const sanitizedEntries = entries
-    .filter((entry) => entry && typeof entry.value === "string")
-    .map((entry) => ({ value: entry.value }));
+  const sanitizedValues = entries
+    .map((entry) =>
+      entry && typeof entry.value === "string" ? entry.value : null,
+    )
+    .filter((value) => typeof value === "string");
 
-  if (sanitizedEntries.length === 0) {
+  if (sanitizedValues.length === 0) {
     return jsonResponse(
       {
         message:
-          "Entries array must include at least one entry with id and value",
+          "Entries array must include at least one entry with a string value",
       },
       400,
     );
   }
 
-  const store = env.CAS_CACHE;
-
+  const store = env.KEY_VALUE_STORE;
   const storageKey = buildCacheKey(accountHandle, projectHandle, casId);
-  try {
-    await store.get(storageKey, "json");
-  } catch {
-    return jsonResponse({ message: "Failed to read entries from KV" }, 500);
-  }
 
   try {
-    await store.put(storageKey, JSON.stringify(sanitizedEntries));
+    await store.put(storageKey, JSON.stringify(sanitizedValues));
   } catch (error) {
     return jsonResponse(
       { message: error.message || "Failed to store entries in KV" },
