@@ -44,8 +44,8 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    box-sizing: border-box;
     gap: var(--noora-spacing-9);
+    box-sizing: border-box;
 
     & > [data-part="alert"] {
       display: none;

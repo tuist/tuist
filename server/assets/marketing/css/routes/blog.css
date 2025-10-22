@@ -142,6 +142,7 @@
     margin-left: calc(-1 * var(--noora-spacing-6));
     padding-right: var(--noora-spacing-6);
     padding-left: var(--noora-spacing-6);
+    width: 100%;
 
     @media (min-width: 1024px) {
       flex-direction: row;
