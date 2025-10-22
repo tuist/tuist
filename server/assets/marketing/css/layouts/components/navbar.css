@@ -471,6 +471,7 @@
             display: block;
             color: var(--noora-surface-label-primary);
             text-decoration: inherit;
+            font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
           }
 
           & > [data-part="chevron"] {

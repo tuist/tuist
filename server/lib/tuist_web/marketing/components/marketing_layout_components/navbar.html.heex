@@ -367,7 +367,17 @@ resources_items = [
         </.link>
       </div>
     </div> --%>
-      <.button
+    <.button
+        :if={is_nil(TuistWeb.Authentication.current_user(assigns))}
+        href={~p"/users/register"}
+        variant="primary"
+        size="large"
+        label={dgettext("marketing", "Sign up")}
+      >
+      </.button>
+      <.link_button
+      variant="secondary"
+      size="large"
         href={
           if(is_nil(TuistWeb.Authentication.current_user(assigns)),
             do: ~p"/users/log_in",
@@ -384,14 +394,8 @@ resources_items = [
           )
         }
       >
-      </.button>
-      <.button
-        :if={is_nil(TuistWeb.Authentication.current_user(assigns))}
-        href={~p"/users/register"}
-        variant="secondary"
-        label={dgettext("marketing", "Sign up")}
-      >
-      </.button>
+      </.link_button>
+      
       <.button
         variant="secondary"
         icon_only={true}
