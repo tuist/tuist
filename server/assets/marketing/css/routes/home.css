@@ -266,6 +266,7 @@
         flex-shrink: 0;
         margin-top: 5px;
         padding-left: 8px;
+        max-width: 107px;
         height: 43.9px;
         @media (min-width: 1024px) {
           padding-left: 0px;
@@ -273,6 +274,7 @@
         }
 
         & > img {
+          object-fit: contain;
           position: relative;
           z-index: 1;
           width: 100%;
