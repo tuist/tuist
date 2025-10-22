@@ -99,7 +99,7 @@
 
         & > [data-part="title"] {
           color: var(--noora-surface-label-primary);
-          font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+          font: var(--noora-font-weight-medium) var(--noora-font-body-large);
         }
 
         & > [data-part="description"] {
@@ -153,7 +153,7 @@
 
             & > span {
               color: var(--noora-surface-label-primary);
-              font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+              font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
             }
           }
         }
