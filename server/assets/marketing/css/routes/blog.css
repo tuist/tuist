@@ -189,24 +189,16 @@
       gap: var(--noora-spacing-7);
       overflow-x: auto;
       overflow-y: hidden;
-      scrollbar-width: thin;
+      scrollbar-width: none;
       -webkit-overflow-scrolling: touch;
+      -ms-overflow-style: none;
 
       @media (min-width: 1024px) {
         display: flex;
       }
 
       &::-webkit-scrollbar {
-        height: 6px;
-      }
-
-      &::-webkit-scrollbar-track {
-        background: transparent;
-      }
-
-      &::-webkit-scrollbar-thumb {
-        border-radius: var(--noora-radius-small);
-        background: var(--noora-surface-border-primary);
+        display: none;
       }
 
       & > [data-part="category"] {
