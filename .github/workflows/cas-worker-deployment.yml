@@ -1,0 +1,63 @@
+name: CAS Worker Deployment
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - cas-worker/**
+      - .github/workflows/cas-worker-deployment.yml
+      - pnpm-lock.yaml
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: The commit SHA to deploy. When not passed, it deploys the latest commit available in `main`.
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cas-worker-deployment-${{ github.head_ref }}
+  cancel-in-progress: true
+
+env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  PNPM_HOME: ~/.pnpm
+  MISE_SOPS_AGE_KEY: ${{ secrets.MISE_SOPS_AGE_KEY }}
+
+jobs:
+  deploy:
+    name: Deploy
+    runs-on: namespace-profile-default
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: cas-worker
+    steps:
+      - uses: actions/checkout@v4
+        if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.commit_sha == '' }}
+        with:
+          fetch-depth: 0
+      - uses: actions/checkout@v4
+        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.commit_sha != '' }}
+        with:
+          ref: ${{ github.event.inputs.commit_sha }}
+          fetch-depth: 0
+      - name: Restore PNPM Cache
+        uses: actions/cache@v4
+        id: pnpm-cache
+        with:
+          path: |
+            ~/.pnpm/store
+          key: pnpm-cas-worker-${{ hashFiles('pnpm-lock.yaml') }}
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
+          working_directory: cas-worker
+      - name: Install dependencies
+        run: mise install
+      - name: Deploy canary
+        run: mise run deploy -- -e canary
+      - name: Deploy production
+        run: mise run deploy -- -e ''
