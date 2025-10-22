@@ -112,7 +112,7 @@
 
         & > [data-part="link"] {
           color: var(--noora-surface-label-primary);
-          font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+          font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
           text-decoration: none;
 
           &:hover {
