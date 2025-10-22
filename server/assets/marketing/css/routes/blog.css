@@ -15,6 +15,7 @@
   & > [data-part="header"] {
     display: flex;
     flex-direction: column;
+    align-self: center;
     gap: var(--noora-spacing-8);
     padding-top: var(--noora-spacing-10);
     padding-bottom: var(--noora-spacing-8);

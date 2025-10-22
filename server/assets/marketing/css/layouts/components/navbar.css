@@ -45,6 +45,8 @@
     padding: var(--noora-spacing-3) var(--noora-spacing-6);
 
     @media (min-width: 1024px) {
+      margin-right: 0;
+      margin-left: 0;
       padding: var(--noora-spacing-3) var(--noora-spacing-6);
     }
 
