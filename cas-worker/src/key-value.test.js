@@ -222,14 +222,9 @@ describe("KeyValue handlers", () => {
     it("stores entries in KV and cache", async () => {
       const response = await handleKeyValuePut(request, env);
 
-      expect(env.KEY_VALUE_STORE.get).toHaveBeenCalledWith(
-        "keyvalue:my-account:my-project:cas123",
-        "json",
-      );
       expect(env.KEY_VALUE_STORE.put).toHaveBeenCalledWith(
         "keyvalue:my-account:my-project:cas123",
-        ["value-1", "value-2"],
-        "json",
+        '["value-1","value-2"]',
       );
       expect(response.status).toBe(204);
       expect(response.body).toBeNull();
@@ -243,14 +238,9 @@ describe("KeyValue handlers", () => {
 
       const response = await handleKeyValuePut(request, env);
 
-      expect(env.KEY_VALUE_STORE.get).toHaveBeenCalledWith(
-        "keyvalue:my-account:my-project:cas123",
-        "json",
-      );
       expect(env.KEY_VALUE_STORE.put).toHaveBeenCalledWith(
         "keyvalue:my-account:my-project:cas123",
-        ["value-1"],
-        "json",
+        '["value-1"]',
       );
       expect(response.status).toBe(204);
       expect(response.body).toBeNull();
@@ -263,8 +253,7 @@ describe("KeyValue handlers", () => {
 
       expect(env.KEY_VALUE_STORE.put).toHaveBeenCalledWith(
         "keyvalue:my-account:my-project:cas123",
-        ["value-1", "value-2"],
-        "json",
+        '["value-1","value-2"]',
       );
 
       expect(response.status).toBe(204);

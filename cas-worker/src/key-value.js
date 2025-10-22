@@ -121,16 +121,10 @@ export async function handleKeyValuePut(request, env, instrumentation = {}) {
   }
 
   const store = env.KEY_VALUE_STORE;
-
   const storageKey = buildCacheKey(accountHandle, projectHandle, casId);
+
   try {
     await store.put(storageKey, JSON.stringify(sanitizedValues));
-  } catch {
-    return jsonResponse({ message: "Failed to read entries from KV" }, 500);
-  }
-
-  try {
-    await store.put(storageKey, sanitizedValues, "json");
   } catch (error) {
     return jsonResponse(
       { message: error.message || "Failed to store entries in KV" },
