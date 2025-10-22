@@ -4,6 +4,7 @@ category: "product"
 tags: ["product"] 
 excerpt: "We're thrilled to announce that the Tuist Server is now source available. After years of building open source tools for the mobile development community, we're taking a significant step toward greater transparency while ensuring sustainable development."
 author: pepicrft
+og_image_path: /marketing/images/blog/2025/07/08/server-fcl.jpg
 ---
 
 At Tuist, we are huge advocates of openness. We started Tuist as an open source Xcode project generator CLI and eventually built a business around the awesome foundation we’ve been developing for more than 7 years. As part of that effort, we’ve gifted the community open source solutions like [Noora](https://github.com/tuist/noora), which was featured on [Swift’s new website](https://www.swift.org/), [XcodeProj](https://github.com/tuist/xcodeproj), which many CLI tools depend on, and [XcodeGraph](https://github.com/tuist/xcodegraph), which we extracted from our project generation CLI and made available to everyone.

@@ -1,18 +1,46 @@
 @import "noora/noora.css";
-@import "./css/layout.css";
-@import "./css/tokens.css";
-@import "./css/utilities.css";
-@import "./css/components.css";
-@import "./css/pages.css";
-@import "./css/content.css";
+@import "css/shared/tokens.css";
+@import "css/shared/prose.css";
+@import "css/shared/pages.css";
+@import "css/routes/shared/page.css";
+@import "css/routes/home.css";
+@import "css/routes/about.css";
+@import "css/routes/blog.css";
+@import "css/routes/blog-post.css";
+@import "css/routes/changelog.css";
+@import "css/routes/pricing.css";
+@import "css/routes/newsletter.css";
+@import "css/routes/newsletter-verify.css";
+@import "css/components/header-background.css";
+@import "css/layouts/components/navbar.css";
+@import "css/layouts/components/footer.css";
+@import "css/layouts/components/banner.css";
+@import "css/layouts/components/window.css";
+@import "css/layouts/components/prose-banner.css";
 
 :root {
-  color-scheme: only light;
+  color-scheme: light;
 }
 
 body {
-  margin: 0px;
-  background: var(--white);
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-11);
+  box-sizing: border-box;
+  margin-top: 0;
+  margin-right: 0;
+  margin-bottom: 0;
+  margin-left: 0;
+  background: var(--noora-surface-background-primary);
   padding: 0px;
-  font-family: "Space Grotesk";
+  overflow-x: hidden;
+  font-family: var(--noora-font-body);
+}
+
+h1,
+h2,
+h3,
+p {
+  margin-block-start: 0;
+  margin-block-end: 0;
 }

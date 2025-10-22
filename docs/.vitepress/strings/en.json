@@ -350,10 +350,10 @@
               }
             },
             "insights": {
-              "text": "Insights"
+              "text": "Build insights"
             },
             "bundle-size": {
-              "text": "Bundle size"
+              "text": "Bundle insights"
             },
             "qa": {
               "text": "QA"

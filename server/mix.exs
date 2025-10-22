@@ -133,7 +133,7 @@ defmodule Tuist.MixProject do
       {:ecto_ch, "~> 0.7"},
       (System.get_env("NOORA_LOCAL") &&
          {:noora, path: "../../Noora/web"}) ||
-        {:noora, "== 0.29.2"},
+        {:noora, "== 0.36.0"},
       {:zstream, "~> 0.6"},
       {:cloak_ecto, "~> 1.3.0"},
       {:boruta, git: "https://github.com/malach-it/boruta_auth", branch: "master"},
@@ -178,7 +178,11 @@ defmodule Tuist.MixProject do
       ],
       test: ["ecto.create --quiet", "run priv/repo/timezone.exs", "ecto.migrate --quiet", "test"],
       "assets.setup": ["esbuild.install --if-missing"],
-      "assets.build": ["esbuild app", "esbuild marketing", "esbuild apidocs"],
+      "assets.build": [
+        "esbuild app",
+        "esbuild marketing",
+        "esbuild apidocs"
+      ],
       "assets.deploy": [
         "esbuild marketing --minify",
         "esbuild app --minify",

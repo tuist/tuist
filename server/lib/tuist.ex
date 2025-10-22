@@ -18,6 +18,7 @@ defmodule Tuist do
       Marketing.Changelog,
       Marketing.OpenGraph,
       Marketing.Newsletter,
+      Marketing.BlogContentProcessor,
       # App
       # -----
       # This module contains Tuist features that are not expected to have inter-dependencies
