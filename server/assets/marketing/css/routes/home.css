@@ -1298,7 +1298,7 @@
             & > [data-part="quote"] {
               flex: 1;
               color: var(--noora-surface-label-primary);
-              font: var(--noora-font-weight-medium) var(--noora-font-body-large);
+              font: var(--noora-font-weight-regular) var(--noora-font-body-large);
             }
 
             & > [data-part="person"] {
