@@ -141,10 +141,9 @@
 
     & > [data-part="background"] {
       display: none;
-      z-index: var(--noora-z-index-1);
       object-fit: contain;
 
-      @media (min-width: 1024px) {
+      @media (min-width: 480px) {
         display: block;
       }
     }
@@ -152,7 +151,7 @@
     & > [data-part="background-mobile"] {
       object-fit: contain;
 
-      @media (min-width: 1024px) {
+      @media (min-width: 480px) {
         display: none;
       }
     }
