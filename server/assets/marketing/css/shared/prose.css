@@ -34,7 +34,7 @@
   & img,
   & video {
     display: block;
-    align-self: center;
+    margin-inline: auto;
     box-shadow:
       0 102px 28px 0 rgba(0, 0, 0, 0),
       0 65px 26px 0 rgba(0, 0, 0, 0.01),
@@ -48,7 +48,7 @@
 
   & iframe {
     display: block;
-    align-self: center;
+    margin-inline: auto;
     box-shadow:
       0 102px 28px 0 rgba(0, 0, 0, 0),
       0 65px 26px 0 rgba(0, 0, 0, 0.01),
