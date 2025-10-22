@@ -30,7 +30,7 @@
     align-items: center;
     align-self: stretch;
     z-index: var(--noora-z-index-12);
-    backdrop-filter: blur(4px);
+    backdrop-filter: blur(18px);
     margin-top: var(--noora-spacing-7);
     margin-right: var(--noora-spacing-6);
     margin-left: var(--noora-spacing-6);
