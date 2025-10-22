@@ -74,8 +74,8 @@
         &:hover {
           & > [data-part="footer"] {
             & > svg {
-              opacity: 1;
               visibility: visible;
+              opacity: 1;
             }
           }
         }
@@ -121,9 +121,11 @@
           }
 
           & > svg {
-            opacity: 0;
             visibility: hidden;
-            transition: opacity 0.25s ease-out, visibility 0.25s ease-out;
+            opacity: 0;
+            transition:
+              opacity 0.25s ease-out,
+              visibility 0.25s ease-out;
           }
         }
       }
@@ -268,8 +270,8 @@
         & > [data-part="content"] {
           & > [data-part="header"] {
             & > svg {
-              opacity: 1;
               visibility: visible;
+              opacity: 1;
             }
           }
         }
@@ -306,9 +308,11 @@
           }
 
           & > svg {
-            opacity: 0;
             visibility: hidden;
-            transition: opacity 0.25s ease-out, visibility 0.25s ease-out;
+            opacity: 0;
+            transition:
+              opacity 0.25s ease-out,
+              visibility 0.25s ease-out;
             color: var(--noora-surface-label-primary);
           }
         }
