@@ -291,6 +291,19 @@
           padding: 0;
         }
 
+        &:hover {
+          & > [data-part="content"] {
+            & > [data-part="title"] {
+              display: flex;
+              flex-direction: row;
+              align-items: center;
+              & svg {
+                display: block;
+              }
+            }
+          }
+        }
+
         & > [data-part="overlay-link"] {
           display: block;
           position: absolute;
@@ -303,6 +316,19 @@
         & > [data-part="overlay-link"]:focus-visible {
           outline: 3px solid var(--noora-purple-60, #6f2cff);
           outline-offset: 6px;
+        }
+
+        & > [data-part="content"] {
+          & > [data-part="title"] {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            gap: 6px;
+
+            & svg {
+              display: none;
+            }
+          }
         }
 
         & > [data-part="content"],
