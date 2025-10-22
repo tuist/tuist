@@ -1,6 +1,7 @@
 #marketing-navbar {
   display: flex;
-  position: relative;
+  position: sticky;
+  top: 0;
   flex-direction: column;
   align-items: stretch;
   align-self: stretch;
@@ -8,7 +9,6 @@
 
   @media (min-width: 1440px) {
     align-self: center;
-    margin-top: var(--noora-spacing-7);
     width: 100%;
     max-width: 1296px;
   }
@@ -113,7 +113,6 @@
             display: inline-flex;
             transition: transform 0.2s ease;
           }
-         
         }
 
         & > [data-part="dropdown"] {

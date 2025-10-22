@@ -187,7 +187,7 @@
     & > [data-part="plan-selector"] {
       display: flex;
       position: sticky;
-      top: 0;
+      top: var(--sticky-top);
       flex-direction: column;
       align-items: center;
       gap: var(--noora-spacing-6);
@@ -242,7 +242,7 @@
       & > [data-part="head"] {
         & > [data-part="row"] {
           position: sticky;
-          top: 0;
+          top: var(--sticky-top);
           z-index: var(--noora-z-index-2);
 
           & > th {
