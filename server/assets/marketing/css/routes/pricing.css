@@ -478,7 +478,6 @@
     align-self: stretch;
 
     @media (min-width: 1024px) {
-      align-self: center;
       padding-right: var(--noora-spacing-14);
       padding-left: var(--noora-spacing-14);
     }
