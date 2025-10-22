@@ -112,6 +112,14 @@
           & > [data-part="chevron"] {
             display: inline-flex;
             transition: transform 0.2s ease;
+
+            width: 20px;
+            height: 20px;
+
+            & > svg {
+              width: 100%;
+              height: 100%;
+            }
           }
         }
 
