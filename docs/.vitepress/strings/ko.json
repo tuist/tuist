@@ -138,6 +138,9 @@
                             "text": "로깅"
                         }
                     }
+                },
+                "releases": {
+                    "text": ""
                 }
             }
         },
@@ -299,7 +302,15 @@
                             }
                         },
                         "cache": {
-                            "text": "Cache"
+                            "text": "Cache",
+                            "items": {
+                                "generated-project": {
+                                    "text": ""
+                                },
+                                "xcode-cache": {
+                                    "text": ""
+                                }
+                            }
                         },
                         "registry": {
                             "text": "Registry",
@@ -343,6 +354,9 @@
                         },
                         "bundle-size": {
                             "text": "Bundle size"
+                        },
+                        "qa": {
+                            "text": ""
                         }
                     }
                 },
