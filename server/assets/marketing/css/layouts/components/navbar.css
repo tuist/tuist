@@ -120,8 +120,7 @@
         }
 
         & > [data-part="dropdown"] {
-          position: absolute;
-          top: calc(100% + var(--noora-spacing-5)); /* 100% plus navbar padding */
+          position: fixed;
           left: 50%;
           transform: translateX(-50%) translateY(-10px);
           visibility: hidden; /* Hidden by default, controlled by JS */

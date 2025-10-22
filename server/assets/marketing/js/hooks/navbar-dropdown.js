@@ -44,6 +44,12 @@ export const NavbarDropdown = {
 
     const showDropdown = () => {
       clearTimeout(hoverTimeout);
+
+      // Calculate dropdown position relative to the menu action button
+      const actionRect = action.getBoundingClientRect();
+      const dropdownTop = actionRect.bottom - 26; // 20px spacing
+      dropdown.style.top = `${dropdownTop}px`;
+
       setOpenState(true);
     };
 
