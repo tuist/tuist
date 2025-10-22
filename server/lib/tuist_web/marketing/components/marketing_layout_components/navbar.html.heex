@@ -367,7 +367,7 @@ resources_items = [
         </.link>
       </div>
     </div> --%>
-    <.button
+      <.button
         :if={is_nil(TuistWeb.Authentication.current_user(assigns))}
         href={~p"/users/register"}
         variant="primary"
@@ -376,8 +376,8 @@ resources_items = [
       >
       </.button>
       <.link_button
-      variant="secondary"
-      size="large"
+        variant="secondary"
+        size="large"
         href={
           if(is_nil(TuistWeb.Authentication.current_user(assigns)),
             do: ~p"/users/log_in",
@@ -395,7 +395,7 @@ resources_items = [
         }
       >
       </.link_button>
-      
+
       <.button
         variant="secondary"
         icon_only={true}

@@ -274,11 +274,11 @@
         }
 
         & > img {
-          object-fit: contain;
           position: relative;
           z-index: 1;
           width: 100%;
           height: 100%;
+          object-fit: contain;
         }
 
         &::before {
