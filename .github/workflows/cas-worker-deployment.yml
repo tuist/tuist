@@ -57,6 +57,8 @@ jobs:
           working_directory: cas-worker
       - name: Install dependencies
         run: mise install
+      - name: Install pnpm dependencies
+        run: pnpm install --frozen-lockfile
       - name: Deploy canary
         run: mise run deploy -- -e canary
       - name: Deploy production
