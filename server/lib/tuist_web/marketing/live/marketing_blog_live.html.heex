@@ -96,11 +96,14 @@
         <img data-part="image" src={Blog.get_post_image_url(post)} />
         <div data-part="content">
           <header data-part="header">
-            <div data-part="author">{post_author["name"]}</div>
-            <div>•</div>
-            <div data-part="date">
-              {Timex.format!(post.date, "{Mfull} {D}, {YYYY}")}
+            <div data-part="metadata">
+              <div data-part="author">{post_author["name"]}</div>
+              <div>•</div>
+              <div data-part="date">
+                {Timex.format!(post.date, "{Mfull} {D}, {YYYY}")}
+              </div>
             </div>
+            <.arrow_right />
           </header>
           <h3 data-part="title">{post.title}</h3>
           <p data-part="excerpt">{post.excerpt}</p>
