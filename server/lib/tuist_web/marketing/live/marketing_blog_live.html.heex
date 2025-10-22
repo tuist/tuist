@@ -22,11 +22,14 @@
           </h2>
           <p data-part="excerpt">{@highlighted_post.excerpt}</p>
           <div data-part="footer">
-            <div data-part="author">{highlighted_post_author["name"]}</div>
-            <div>•</div>
-            <div data-part="date">
-              {Timex.format!(@highlighted_post.date, "{Mfull} {D}, {YYYY}")}
+            <div data-part="metadata">
+              <div data-part="author">{highlighted_post_author["name"]}</div>
+              <div>•</div>
+              <div data-part="date">
+                {Timex.format!(@highlighted_post.date, "{Mfull} {D}, {YYYY}")}
+              </div>
             </div>
+            <.arrow_right data-part="icon" />
           </div>
         </div>
       </div>

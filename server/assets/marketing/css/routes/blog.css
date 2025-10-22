@@ -71,6 +71,16 @@
       }
 
       & > [data-part="content"] {
+        &:hover {
+          & > [data-part="footer"] {
+            & > svg {
+              display: block;
+            }
+          }
+        }
+      }
+
+      & > [data-part="content"] {
         display: flex;
         flex-direction: column;
         gap: var(--noora-spacing-7);
@@ -96,11 +106,22 @@
         & > [data-part="footer"] {
           display: flex;
           flex-direction: row;
+          justify-content: space-between;
           align-items: center;
-          gap: var(--noora-spacing-5);
-          color: var(--noora-surface-label-primary);
-          font-family: var(--noora-font-body);
-          font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+
+          & > [data-part="metadata"] {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            gap: var(--noora-spacing-5);
+            color: var(--noora-surface-label-primary);
+            font-family: var(--noora-font-body);
+            font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+          }
+
+          & > svg {
+            display: none;
+          }
         }
       }
     }
