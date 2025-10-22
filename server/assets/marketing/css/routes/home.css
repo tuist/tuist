@@ -1135,8 +1135,11 @@
     flex-direction: column;
     align-items: center;
     padding-top: var(--noora-spacing-12);
-    padding-right: var(--noora-spacing-6);
-    padding-left: var(--noora-spacing-6);
+
+    @media (min-width: 1024px) {
+      padding-right: var(--noora-spacing-6);
+      padding-left: var(--noora-spacing-6);
+    }
 
     @media (min-width: 1024px) {
       padding-right: var(--noora-spacing-14);
@@ -1146,9 +1149,10 @@
     & > [data-part="background"] {
       position: absolute;
       top: 0;
-      left: 0;
+      left: 50%;
+      transform: translateX(-50%);
       z-index: var(--noora-z-index-0);
-      width: 100%;
+      width: 100vw;
       height: 100%;
       pointer-events: none;
 
@@ -1194,7 +1198,6 @@
       position: relative;
       flex-direction: row;
       z-index: var(--noora-z-index-1);
-      margin: 0 calc(-1 * var(--noora-spacing-6));
       padding: var(--noora-spacing-2) 0;
       overflow-x: auto;
       list-style: none;
@@ -1202,6 +1205,10 @@
       gap: var(--noora-spacing-5);
       width: calc(100% + 2 * var(--noora-spacing-6));
       scrollbar-width: none;
+
+      @media (min-width: 1024px) {
+        margin: 0 calc(-1 * var(--noora-spacing-6));
+      }
 
       &::-webkit-scrollbar {
         display: none;
