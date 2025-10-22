@@ -17,13 +17,17 @@ async function generateAccessibleProjectsCacheKey(authHeader) {
   return `${ACCESSIBLE_PROJECTS_CACHE_PREFIX}:${hash}`;
 }
 
-async function getAccessibleProjects(request, env, authHeader) {
+async function getAccessibleProjects(
+  request,
+  env,
+  authHeader,
+  instrumentation = {},
+) {
   const cache = env.CAS_CACHE;
   const cacheKey = await generateAccessibleProjectsCacheKey(authHeader);
 
   if (cache) {
     const cached = await cache.get(cacheKey);
-    console.log("Cache hit for accessible projects", cached);
     if (cached) {
       return JSON.parse(cached);
     }
@@ -36,11 +40,15 @@ async function getAccessibleProjects(request, env, authHeader) {
   }
 
   try {
-    console.log("Fetching projects from /api/projects");
-    const response = await serverFetch(env, "/api/projects", {
-      method: "GET",
-      headers,
-    });
+    const performFetch = () =>
+      serverFetch(env, "/api/projects", {
+        method: "GET",
+        headers,
+      });
+
+    const response = instrumentation?.measureServerFetch
+      ? await instrumentation.measureServerFetch(performFetch)
+      : await performFetch();
 
     if (!response.ok) {
       const normalizedStatus = response.status === 403 ? 404 : response.status;
@@ -59,9 +67,7 @@ async function getAccessibleProjects(request, env, authHeader) {
     }
 
     const { projects } = await response.json();
-    console.log("Got projects", projects);
     const projectHandles = projects.map((project) => project.full_name);
-    console.log("Project handles", projectHandles);
 
     if (cache) {
       await cache.put(cacheKey, JSON.stringify({ projects: projectHandles }), {
@@ -80,6 +86,7 @@ async function ensureProjectAccessible(
   env,
   accountHandle,
   projectHandle,
+  instrumentation = {},
 ) {
   const authHeader = request.headers.get("Authorization");
   if (!authHeader) {
@@ -93,6 +100,7 @@ async function ensureProjectAccessible(
     request,
     env,
     authHeader,
+    instrumentation,
   );
 
   if (accessibleProjectsResult.error) {
