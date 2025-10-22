@@ -262,14 +262,37 @@
       }
 
       & > [data-part="graphic"] {
+        position: relative;
+        flex-shrink: 0;
         margin-top: 5px;
         padding-left: 8px;
-        width: 77.9px;
         height: 43.9px;
         @media (min-width: 1024px) {
           padding-left: 0px;
-          width: 107px;
           height: 60px;
+        }
+
+        & > img {
+          position: relative;
+          z-index: 1;
+          width: 100%;
+          height: 100%;
+        }
+
+        &::before {
+          position: absolute;
+          top: -16.5px;
+          bottom: -11.5px;
+          left: 50%;
+          transform: translateX(-50%);
+          background-image: linear-gradient(180deg, #858181 0%, #fff 100%);
+          width: 1px;
+          content: "";
+
+          @media (max-width: 1024px) {
+            top: -14.5px;
+            bottom: -9px;
+          }
         }
       }
     }
