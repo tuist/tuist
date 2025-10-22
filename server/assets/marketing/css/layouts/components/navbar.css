@@ -113,10 +113,7 @@
             display: inline-flex;
             transition: transform 0.2s ease;
           }
-
-          &[data-open="true"] > [data-part="chevron"] {
-            transform: rotate(180deg);
-          }
+         
         }
 
         & > [data-part="dropdown"] {
