@@ -98,7 +98,7 @@
 
     @media (min-width: 1024px) {
       display: grid;
-      grid-template-columns: max-content 1px 1fr;
+      grid-template-columns: 1fr 1px 600px;
       column-gap: var(--noora-spacing-6);
       row-gap: var(--noora-spacing-10);
       align-items: start;
@@ -106,8 +106,8 @@
       margin-left: auto;
       padding-right: var(--noora-spacing-6);
       padding-left: var(--noora-spacing-6);
-      width: 650px;
-      max-width: 650px;
+      width: 869px;
+      max-width: 869px;
     }
 
     & > [data-part="date"] {
@@ -209,8 +209,8 @@
       margin-left: auto;
       padding-right: var(--noora-spacing-6);
       padding-left: var(--noora-spacing-6);
-      width: 650px;
-      max-width: 650px;
+      width: 869px;
+      max-width: 869px;
     }
   }
 }
