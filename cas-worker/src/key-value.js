@@ -32,7 +32,7 @@ export async function handleKeyValueGet(request, env, instrumentation = {}) {
     return jsonResponse({ message: "Missing cas_id path parameter" }, 400);
   }
 
-  const store = env.CAS_CACHE;
+  const store = env.KEY_VALUE_STORE;
 
   const storageKey = buildCacheKey(accountHandle, projectHandle, casId);
   let storedEntries;
@@ -120,7 +120,7 @@ export async function handleKeyValuePut(request, env, instrumentation = {}) {
     );
   }
 
-  const store = env.CAS_CACHE;
+  const store = env.KEY_VALUE_STORE;
 
   const storageKey = buildCacheKey(accountHandle, projectHandle, casId);
   try {
@@ -130,7 +130,7 @@ export async function handleKeyValuePut(request, env, instrumentation = {}) {
   }
 
   try {
-    await store.put(storageKey, JSON.stringify(sanitizedValues));
+    await store.put(storageKey, sanitizedValues, "json");
   } catch (error) {
     return jsonResponse(
       { message: error.message || "Failed to store entries in KV" },

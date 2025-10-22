@@ -20,7 +20,7 @@ describe("KeyValue handlers", () => {
     ensureProjectAccessible.mockResolvedValue({ authHeader: "Bearer token" });
 
     env = {
-      CAS_CACHE: {
+      KEY_VALUE_STORE: {
         get: vi.fn().mockResolvedValue([]),
         put: vi.fn(),
       },
@@ -103,11 +103,11 @@ describe("KeyValue handlers", () => {
     });
 
     it("reads from KV and returns entries", async () => {
-      env.CAS_CACHE.get.mockResolvedValue(["stored"]);
+      env.KEY_VALUE_STORE.get.mockResolvedValue(["stored"]);
 
       const response = await handleKeyValueGet(request, env);
 
-      expect(env.CAS_CACHE.get).toHaveBeenCalledWith(
+      expect(env.KEY_VALUE_STORE.get).toHaveBeenCalledWith(
         "keyvalue:my-account:my-project:cas123",
         "json",
       );
@@ -118,7 +118,7 @@ describe("KeyValue handlers", () => {
     });
 
     it("returns 404 when KV has no entries", async () => {
-      env.CAS_CACHE.get.mockResolvedValue(null);
+      env.KEY_VALUE_STORE.get.mockResolvedValue(null);
 
       const response = await handleKeyValueGet(request, env);
 
@@ -130,11 +130,11 @@ describe("KeyValue handlers", () => {
 
     it("decodes cas_id path parameter before lookup", async () => {
       request.params.cas_id = encodeURIComponent("cas123==");
-      env.CAS_CACHE.get.mockResolvedValue(["stored"]);
+      env.KEY_VALUE_STORE.get.mockResolvedValue(["stored"]);
 
       const response = await handleKeyValueGet(request, env);
 
-      expect(env.CAS_CACHE.get).toHaveBeenCalledWith(
+      expect(env.KEY_VALUE_STORE.get).toHaveBeenCalledWith(
         "keyvalue:my-account:my-project:cas123==",
         "json",
       );
@@ -222,13 +222,14 @@ describe("KeyValue handlers", () => {
     it("stores entries in KV and cache", async () => {
       const response = await handleKeyValuePut(request, env);
 
-      expect(env.CAS_CACHE.get).toHaveBeenCalledWith(
+      expect(env.KEY_VALUE_STORE.get).toHaveBeenCalledWith(
         "keyvalue:my-account:my-project:cas123",
         "json",
       );
-      expect(env.CAS_CACHE.put).toHaveBeenCalledWith(
+      expect(env.KEY_VALUE_STORE.put).toHaveBeenCalledWith(
         "keyvalue:my-account:my-project:cas123",
-        JSON.stringify(["value-1", "value-2"]),
+        ["value-1", "value-2"],
+        "json",
       );
       expect(response.status).toBe(204);
       expect(response.body).toBeNull();
@@ -242,26 +243,28 @@ describe("KeyValue handlers", () => {
 
       const response = await handleKeyValuePut(request, env);
 
-      expect(env.CAS_CACHE.get).toHaveBeenCalledWith(
+      expect(env.KEY_VALUE_STORE.get).toHaveBeenCalledWith(
         "keyvalue:my-account:my-project:cas123",
         "json",
       );
-      expect(env.CAS_CACHE.put).toHaveBeenCalledWith(
+      expect(env.KEY_VALUE_STORE.put).toHaveBeenCalledWith(
         "keyvalue:my-account:my-project:cas123",
-        JSON.stringify(["value-1"]),
+        ["value-1"],
+        "json",
       );
       expect(response.status).toBe(204);
       expect(response.body).toBeNull();
     });
 
     it("replaces existing entries entirely", async () => {
-      env.CAS_CACHE.get.mockResolvedValue([{ value: "old-value" }]);
+      env.KEY_VALUE_STORE.get.mockResolvedValue([{ value: "old-value" }]);
 
       const response = await handleKeyValuePut(request, env);
 
-      expect(env.CAS_CACHE.put).toHaveBeenCalledWith(
+      expect(env.KEY_VALUE_STORE.put).toHaveBeenCalledWith(
         "keyvalue:my-account:my-project:cas123",
-        JSON.stringify(["value-1", "value-2"]),
+        ["value-1", "value-2"],
+        "json",
       );
 
       expect(response.status).toBe(204);
