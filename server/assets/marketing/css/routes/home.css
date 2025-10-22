@@ -171,6 +171,7 @@
     @media (min-width: 1024px) {
       flex-direction: column;
       justify-content: center;
+      gap: var(--noora-spacing-9);
       overflow: visible;
     }
 
