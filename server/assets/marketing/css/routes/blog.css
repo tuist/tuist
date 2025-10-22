@@ -137,6 +137,7 @@
     flex-direction: column-reverse;
     justify-content: space-between;
     align-items: stretch;
+    align-self: stretch;
     gap: var(--noora-spacing-5);
     margin-right: calc(-1 * var(--noora-spacing-6));
     margin-left: calc(-1 * var(--noora-spacing-6));
@@ -147,6 +148,7 @@
     @media (min-width: 1024px) {
       flex-direction: row;
       align-items: center;
+      align-self: stretch;
       margin-right: 0;
       margin-left: 0;
       padding-right: var(--noora-spacing-14);
@@ -159,8 +161,9 @@
       flex-wrap: nowrap !important;
       overflow-x: auto;
       overflow-y: hidden;
-      scrollbar-width: thin;
+      scrollbar-width: none;
       -webkit-overflow-scrolling: touch;
+      -ms-overflow-style: none;
       min-width: 0;
       max-width: 100%;
 
@@ -169,16 +172,7 @@
       }
 
       &::-webkit-scrollbar {
-        height: 6px;
-      }
-
-      &::-webkit-scrollbar-track {
-        background: transparent;
-      }
-
-      &::-webkit-scrollbar-thumb {
-        border-radius: var(--noora-radius-small);
-        background: var(--noora-surface-border-primary);
+        display: none;
       }
 
       & .noora-tab-menu-horizontal-item {
