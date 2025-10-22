@@ -2,7 +2,6 @@
   display: flex;
   flex-direction: column;
   justify-content: center;
-  align-items: stretch;
   gap: var(--noora-spacing-8);
   padding-bottom: var(--noora-spacing-11);
   overflow-x: hidden;

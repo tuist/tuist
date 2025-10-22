@@ -1,7 +1,7 @@
 #marketing-blog-post {
   display: flex;
   flex-direction: column;
-  align-items: stretch;
+  align-items: center;
   gap: var(--noora-spacing-11);
 
   & > [data-part="header"] {
@@ -10,10 +10,6 @@
     align-items: center;
     gap: var(--noora-spacing-11);
     padding-top: var(--noora-spacing-12);
-
-    @media (min-width: 1024px) {
-      margin-left: var(--noora-spacing-12);
-    }
 
     & > [data-part="content"] {
       display: flex;
