@@ -432,6 +432,23 @@ export async function guidesSidebar(locale) {
             "sidebars.guides.items.develop.items.cache.text",
           )}</span>`,
           link: `/${locale}/guides/features/cache`,
+          collapsed: true,
+          items: [
+            {
+              text: localizedString(
+                locale,
+                "sidebars.guides.items.develop.items.cache.items.xcode-cache.text",
+              ),
+              link: `/${locale}/guides/features/cache/xcode-cache`,
+            },
+            {
+              text: localizedString(
+                locale,
+                "sidebars.guides.items.develop.items.cache.items.generated-project.text",
+              ),
+              link: `/${locale}/guides/features/cache/generated-project`,
+            },
+          ],
         },
         {
           text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${testIcon()} ${localizedString(
