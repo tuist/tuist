@@ -333,7 +333,7 @@
     }
 
     & [data-part="agentic-qa-card"] {
-      margin-left: 16px;
+      margin-left: 10px;
       width: 305px;
       overflow: hidden;
 
@@ -353,7 +353,7 @@
     }
 
     & [data-part="previews-card"] {
-      margin-right: 140px;
+      margin-right: 115px;
       width: 304px;
 
       & > [data-part="graphic"] {
@@ -363,7 +363,7 @@
     }
 
     & [data-part="remote-binaries-card"] {
-      margin-left: 35px;
+      margin-left: 20px;
       width: 304px;
 
       & > [data-part="graphic"] {
