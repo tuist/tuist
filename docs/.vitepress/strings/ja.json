@@ -138,6 +138,9 @@
                             "text": "ロギング"
                         }
                     }
+                },
+                "releases": {
+                    "text": ""
                 }
             }
         },
@@ -299,7 +302,15 @@
                             }
                         },
                         "cache": {
-                            "text": "キャッシュ"
+                            "text": "キャッシュ",
+                            "items": {
+                                "generated-project": {
+                                    "text": ""
+                                },
+                                "xcode-cache": {
+                                    "text": ""
+                                }
+                            }
                         },
                         "registry": {
                             "text": "レジストリ",
@@ -343,6 +354,9 @@
                         },
                         "bundle-size": {
                             "text": "Bundle size"
+                        },
+                        "qa": {
+                            "text": ""
                         }
                     }
                 },
