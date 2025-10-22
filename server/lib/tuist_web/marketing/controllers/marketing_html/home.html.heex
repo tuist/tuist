@@ -47,7 +47,51 @@
     </section>
 
     <section data-part="graphic" aria-labelledby="metrics-heading">
+      <div data-part="left-column">
+        <div data-part="build-card">
+          <img data-part="graphic" src={~p"/marketing/images/home/cards/line-chart.webp"} />
+          <span data-part="title">{dgettext("marketing", "Build times reduced by 80%")}</span>
+        </div>
+        <div data-part="selective-tests-card">
+          <img data-part="graphic" src={~p"/marketing/images/home/cards/selective-tests.webp"} />
+          <span data-part="title">{dgettext("marketing", "Skipped repetitive tests")}</span>
+        </div>
+        <div data-part="optimized-app-bundles-card">
+          <img
+            data-part="graphic"
+            src={~p"/marketing/images/home/cards/optimized-app-bundles.webp"}
+          />
+          <span data-part="title">{dgettext("marketing", "Optimized app bundles")}</span>
+        </div>
+      </div>
+      <div data-part="right-column">
+        <div data-part="agentic-qa-card">
+          <span data-part="title">
+            {dgettext("marketing", "Agentic testing of your app completed")}
+          </span>
+          <div data-part="graphic">
+            <img src={~p"/marketing/images/home/cards/agentic-qa.webp"} />
+          </div>
+        </div>
+        <div data-part="previews-card">
+          <span data-part="title">
+            {dgettext("marketing", "Shared app preview with the team")}
+          </span>
+          <img data-part="graphic" src={~p"/marketing/images/home/cards/qrcode.webp"} />
+        </div>
+        <div data-part="remote-binaries-card">
+          <span data-part="title">{dgettext("marketing", "105 remote binaries pulled")}</span>
+          <img
+            data-part="graphic"
+            src={~p"/marketing/images/home/cards/remote-binaries.webp"}
+          />
+        </div>
+      </div>
       <img data-part="background" src={~p"/marketing/images/home/hero/background.webp"} />
+      <img
+        data-part="background-mobile"
+        src={~p"/marketing/images/home/hero/background-mobile.webp"}
+      />
     </section>
 
     <section data-part="supporters">

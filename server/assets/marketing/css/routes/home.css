@@ -4,9 +4,10 @@
   flex-direction: column;
   justify-content: center;
   align-items: stretch;
-  gap: var(--noora-spacing-11);
+  gap: var(--noora-spacing-9);
   @media (min-width: 1024px) {
     align-items: center;
+    gap: var(--noora-spacing-11);
   }
 
   & > [data-part="body"],
@@ -128,22 +129,217 @@
     flex-direction: column;
     align-items: stretch;
     padding: 0;
+    max-width: 1315px;
+
+    @media (max-width: 1024px) {
+      height: 604px;
+    }
 
     @media (min-width: 1024px) {
       margin: 0;
     }
 
     & > [data-part="background"] {
+      display: none;
+      z-index: var(--noora-z-index-1);
       object-fit: contain;
+
+      @media (min-width: 1024px) {
+        display: block;
+      }
     }
 
-    & > [data-part="card"] {
+    & > [data-part="background-mobile"] {
+      object-fit: contain;
+
+      @media (min-width: 1024px) {
+        display: none;
+      }
+    }
+
+    & > [data-part="left-column"] {
+      display: flex;
+      position: absolute;
+      top: 316px;
+      flex-direction: column;
+      align-items: center;
+      gap: var(--noora-spacing-5);
+
+      @media (max-width: 1024px) {
+        width: 100%;
+      }
+
+      @media (min-width: 1024px) {
+        top: var(--noora-spacing-5);
+        left: 0;
+        gap: 29px;
+      }
+    }
+
+    & [data-part="build-card"],
+    & [data-part="selective-tests-card"],
+    & [data-part="optimized-app-bundles-card"],
+    & [data-part="agentic-qa-card"],
+    & [data-part="previews-card"],
+    & [data-part="remote-binaries-card"] {
+      display: flex;
+      position: relative;
+      align-items: center;
+      gap: 10px;
+      border-radius: var(--noora-radius-xlarge);
+      background: var(--noora-surface-background-primary);
+      padding: 10px 5.98px;
+      height: 47.6px;
+      color: var(--noora-neutral-light-1000);
+      font-style: normal;
+      font-weight: 400;
+      font-size: 17.631px;
+      line-height: 23.509px;
+      font-family: "InterVariable";
+
+      @media (min-width: 1024px) {
+        gap: var(--noora-spacing-5);
+        padding: var(--noora-spacing-5) var(--noora-spacing-6);
+        height: 64px;
+        font-size: 24px;
+        line-height: 32px;
+      }
+      /* We're applying the box-shadow as ::after, so the image in the agentic-qa-card is _under_ it */
+      &::after {
+        position: absolute;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        left: 0;
+        box-shadow:
+          0 -1.7px 3.401px 0 rgba(0, 0, 0, 0.25) inset,
+          0 102.878px 28.908px 0 rgba(0, 0, 0, 0),
+          0 65.468px 26.357px 0 rgba(0, 0, 0, 0.01),
+          0 36.56px 22.106px 0 rgba(0, 0, 0, 0.03),
+          0 16.154px 16.154px 0 rgba(0, 0, 0, 0.05),
+          0 4.251px 9.353px 0 rgba(0, 0, 0, 0.05);
+
+        @media (min-width: 1024px) {
+          box-shadow:
+            0 -2px 4px 0 rgba(0, 0, 0, 0.25) inset,
+            0 121px 34px 0 rgba(0, 0, 0, 0),
+            0 77px 31px 0 rgba(0, 0, 0, 0.01),
+            0 43px 26px 0 rgba(0, 0, 0, 0.03),
+            0 19px 19px 0 rgba(0, 0, 0, 0.05),
+            0 5px 11px 0 rgba(0, 0, 0, 0.05);
+        }
+        border-radius: var(--noora-radius-xlarge);
+        content: "";
+      }
+    }
+
+    & [data-part="build-card"] {
+      width: 238px;
+
+      @media (min-width: 1024px) {
+        margin-left: 65px;
+        width: 331px;
+      }
+
+      @media (max-width: 1200px) {
+        & > [data-part="graphic"] {
+          padding-left: 8px;
+          width: 74.933px;
+          height: 39.671px;
+        }
+      }
+    }
+
+    & [data-part="selective-tests-card"] {
+      width: 216px;
+      @media (min-width: 1024px) {
+        margin-left: 98px;
+        width: 315px;
+      }
+
+      & > [data-part="graphic"] {
+        margin-top: 5px;
+        padding-left: 8px;
+        width: 77.9px;
+        height: 43.9px;
+        @media (min-width: 1024px) {
+          padding-left: 0px;
+          width: 107px;
+          height: 60px;
+        }
+      }
+    }
+
+    & [data-part="optimized-app-bundles-card"] {
+      width: 189px;
+      @media (min-width: 1024px) {
+        margin-left: 102px;
+        width: 273px;
+      }
+
+      & > [data-part="graphic"] {
+        padding-left: 8px;
+        width: 42.493px;
+        height: 42.493px;
+
+        @media (min-width: 1024px) {
+          padding-left: 0px;
+          width: 64px;
+          height: 64px;
+        }
+      }
+    }
+
+    & > [data-part="right-column"] {
+      display: none;
       position: absolute;
       top: var(--noora-spacing-5);
-      left: 0;
-      width: 331px;
-      height: auto;
-      object-fit: contain;
+      right: 0;
+      flex-direction: column;
+      gap: 29px;
+
+      @media (min-width: 1024px) {
+        display: flex;
+      }
+    }
+
+    & [data-part="agentic-qa-card"] {
+      margin-left: 16px;
+      width: 305px;
+      overflow: hidden;
+
+      & > [data-part="graphic"] {
+        position: relative;
+        left: 0;
+        flex-shrink: 0;
+        width: 75.848px;
+        height: 100%;
+        & > img {
+          position: absolute;
+          top: calc(var(--noora-spacing-5) * -1);
+          width: 75.848px;
+          height: 125px;
+        }
+      }
+    }
+
+    & [data-part="previews-card"] {
+      margin-right: 140px;
+      width: 304px;
+
+      & > [data-part="graphic"] {
+        width: 63.307px;
+        height: 63.307px;
+      }
+    }
+
+    & [data-part="remote-binaries-card"] {
+      margin-left: 35px;
+      width: 304px;
+
+      & > [data-part="graphic"] {
+        width: 83.506px;
+      }
     }
   }
 
