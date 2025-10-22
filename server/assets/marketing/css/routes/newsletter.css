@@ -35,7 +35,7 @@
       text-align: center;
 
       @media (min-width: 1024px) {
-        width: 644px;
+        max-width: 644px;
       }
     }
   }
@@ -44,11 +44,8 @@
     display: flex;
     flex-direction: column;
     align-items: center;
+    box-sizing: border-box;
     gap: var(--noora-spacing-9);
-
-    @media (min-width: 1024px) {
-      width: 596px;
-    }
 
     & > [data-part="alert"] {
       display: none;
