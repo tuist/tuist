@@ -42,8 +42,9 @@
       0 16px 16px 0 rgba(0, 0, 0, 0.04),
       0 4px 9px 0 rgba(0, 0, 0, 0.04);
     border-radius: var(--noora-radius-2xlarge);
-    max-width: 100%;
+    width: 100%;
     height: auto;
+    object-fit: contain;
   }
 
   & iframe {
