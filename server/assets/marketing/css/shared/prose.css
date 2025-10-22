@@ -1,4 +1,6 @@
 [data-prose] {
+  display: flex;
+  flex-direction: column;
   color: var(--noora-surface-label-primary);
   font: var(--noora-font-weight-regular) var(--noora-font-body-large);
 
@@ -31,6 +33,7 @@
 
   & img,
   & video {
+    align-self: center;
     display: block;
     box-shadow:
       0 102px 28px 0 rgba(0, 0, 0, 0),
@@ -45,6 +48,7 @@
 
   & iframe {
     display: block;
+    align-self: center;
     box-shadow:
       0 102px 28px 0 rgba(0, 0, 0, 0),
       0 65px 26px 0 rgba(0, 0, 0, 0.01),
