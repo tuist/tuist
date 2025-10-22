@@ -521,7 +521,8 @@
               flex-direction: row;
               align-items: center;
               & svg {
-                display: block;
+                visibility: visible;
+                opacity: 1;
               }
             }
           }
@@ -549,7 +550,11 @@
             gap: 6px;
 
             & svg {
-              display: none;
+              visibility: hidden;
+              opacity: 0;
+              transition:
+                opacity 0.25s ease-out,
+                visibility 0.25s ease-out;
             }
           }
         }
