@@ -3,8 +3,11 @@
   position: relative;
   flex-direction: column;
   justify-content: center;
-  align-items: center;
+  align-items: stretch;
   gap: var(--noora-spacing-11);
+  @media (min-width: 1024px) {
+    align-items: center;
+  }
 
   & > [data-part="body"],
   & > [data-part="header"] {
