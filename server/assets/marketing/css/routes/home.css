@@ -143,15 +143,20 @@
       display: none;
       object-fit: contain;
 
-      @media (min-width: 480px) {
+      @media (min-width: 1024px) {
         display: block;
       }
     }
 
     & > [data-part="background-mobile"] {
+      max-width: 500px;
       object-fit: contain;
 
       @media (min-width: 480px) {
+        align-self: center;
+      }
+
+      @media (min-width: 1024px) {
         display: none;
       }
     }
