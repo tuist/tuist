@@ -2,8 +2,8 @@
   <script type="text/javascript" nonce={get_csp_nonce()}>
     document.addEventListener('DOMContentLoaded', function() {
       const form = document.getElementById('newsletter-form');
-      const errorAlert = document.getElementById('marketing-newsletter-error-alert');
-      const successAlert = document.getElementById('marketing-newsletter-success-alert');
+      const errorAlert = document.getElementById('newsletter-error-alert');
+      const successAlert = document.getElementById('newsletter-success-alert');
 
       function showAlert(alertElement, message) {
         const titleElement = alertElement.querySelector('[data-part="title"]');
@@ -80,7 +80,7 @@
 
       <.alert
         data-part="alert"
-        id="marketing-newsletter-success-alert"
+        id="newsletter-success-alert"
         status="information"
         type="secondary"
         title={
@@ -93,7 +93,7 @@
 
       <.alert
         data-part="alert"
-        id="marketing-newsletter-error-alert"
+        id="newsletter-error-alert"
         status="error"
         type="secondary"
         title={
