@@ -104,7 +104,7 @@
 
         & > [data-part="description"] {
           color: var(--noora-surface-label-secondary);
-          font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+          font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
         }
       }
 
