@@ -4,10 +4,6 @@
   align-items: center;
   gap: var(--noora-spacing-11);
 
-  @media (min-width: 1024px) {
-    padding: var(--noora-spacing-11) 0;
-  }
-
   & > [data-part="header"] {
     display: flex;
     flex-direction: column;
