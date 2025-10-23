@@ -8,6 +8,38 @@
  */
 export const MobileMenuDropdown = {
   mounted() {
+    this.initDropdown();
+  },
+
+  updated() {
+    this.cleanup();
+    this.initDropdown();
+  },
+
+  destroyed() {
+    this.cleanup();
+  },
+
+  cleanup() {
+    // Remove all event listeners
+    if (this.listeners) {
+      this.listeners.forEach(({ element, event, handler }) => {
+        element.removeEventListener(event, handler);
+      });
+      this.listeners = [];
+    }
+
+    // Clean up any pending transition listeners
+    if (this.dropdown && this.transitionEndHandler) {
+      this.dropdown.removeEventListener(
+        "transitionend",
+        this.transitionEndHandler
+      );
+      this.transitionEndHandler = null;
+    }
+  },
+
+  initDropdown() {
     const menu = this.el;
     const action = menu.querySelector('[data-part="action"]');
     const dropdown = menu.querySelector('[data-part="dropdown"]');
@@ -17,7 +49,15 @@ export const MobileMenuDropdown = {
       return;
     }
 
+    this.dropdown = dropdown;
+    this.listeners = [];
     let isOpen = false;
+
+    // Helper to add and track event listeners
+    const addListener = (element, event, handler) => {
+      element.addEventListener(event, handler);
+      this.listeners.push({ element, event, handler });
+    };
 
     // Set initial styles for animation
     dropdown.style.height = "0px";
@@ -49,14 +89,18 @@ export const MobileMenuDropdown = {
         });
 
         // After animation, set to auto for dynamic content
-        const transitionEnd = () => {
+        this.transitionEndHandler = () => {
           if (isOpen) {
             dropdown.style.height = "auto";
             dropdown.style.overflow = "visible";
           }
-          dropdown.removeEventListener("transitionend", transitionEnd);
+          dropdown.removeEventListener(
+            "transitionend",
+            this.transitionEndHandler
+          );
+          this.transitionEndHandler = null;
         };
-        dropdown.addEventListener("transitionend", transitionEnd, {
+        dropdown.addEventListener("transitionend", this.transitionEndHandler, {
           once: true,
         });
       } else {
@@ -74,13 +118,17 @@ export const MobileMenuDropdown = {
         });
 
         // After animation, hide completely
-        const transitionEnd = () => {
+        this.transitionEndHandler = () => {
           if (!isOpen) {
             dropdown.style.display = "none";
           }
-          dropdown.removeEventListener("transitionend", transitionEnd);
+          dropdown.removeEventListener(
+            "transitionend",
+            this.transitionEndHandler
+          );
+          this.transitionEndHandler = null;
         };
-        dropdown.addEventListener("transitionend", transitionEnd, {
+        dropdown.addEventListener("transitionend", this.transitionEndHandler, {
           once: true,
         });
       }
@@ -92,8 +140,15 @@ export const MobileMenuDropdown = {
       setOpenState(!isOpen);
     };
 
+    const keydownHandler = (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        toggleDropdown(e);
+      }
+    };
+
     // Make action clickable
-    action.addEventListener("click", toggleDropdown);
+    addListener(action, "click", toggleDropdown);
     action.style.cursor = "pointer";
 
     // Initialize ARIA attributes
@@ -106,12 +161,7 @@ export const MobileMenuDropdown = {
     action.setAttribute("tabindex", "0");
 
     // Handle keyboard interaction
-    action.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" || e.key === " ") {
-        e.preventDefault();
-        toggleDropdown(e);
-      }
-    });
+    addListener(action, "keydown", keydownHandler);
 
     // Initialize closed state
     setOpenState(false);
@@ -126,17 +176,53 @@ export const MobileMenuDropdown = {
  */
 export const MobileMenu = {
   mounted() {
+    this.initMenu();
+  },
+
+  updated() {
+    this.cleanup();
+    this.initMenu();
+  },
+
+  destroyed() {
+    this.cleanup();
+  },
+
+  cleanup() {
+    // Remove all event listeners
+    if (this.listeners) {
+      this.listeners.forEach(({ element, event, handler }) => {
+        element.removeEventListener(event, handler);
+      });
+      this.listeners = [];
+    }
+
+    // Restore body scroll if menu was open
+    if (this.isOpen) {
+      document.body.style.overflow = "";
+      this.isOpen = false;
+    }
+  },
+
+  initMenu() {
     const button = this.el;
     const navbar = document.getElementById("marketing-navbar");
-    let isOpen = false;
+    this.isOpen = false;
+    this.listeners = [];
 
     if (!navbar) {
       console.error("Marketing navbar not found");
       return;
     }
 
+    // Helper to add and track event listeners
+    const addListener = (element, event, handler) => {
+      element.addEventListener(event, handler);
+      this.listeners.push({ element, event, handler });
+    };
+
     const setOpenState = (state) => {
-      isOpen = state;
+      this.isOpen = state;
       navbar.dataset.mobileMenuOpen = state ? "true" : "false";
       button.setAttribute("aria-expanded", state ? "true" : "false");
 
@@ -151,7 +237,13 @@ export const MobileMenu = {
     const toggleMenu = (e) => {
       e.preventDefault();
       e.stopPropagation();
-      setOpenState(!isOpen);
+      setOpenState(!this.isOpen);
+    };
+
+    const handleEscape = (e) => {
+      if (e.key === "Escape" && this.isOpen) {
+        setOpenState(false);
+      }
     };
 
     // Initialize ARIA attributes
@@ -160,22 +252,7 @@ export const MobileMenu = {
     button.setAttribute("aria-label", "Toggle mobile menu");
 
     // Event listeners
-    button.addEventListener("click", toggleMenu);
-
-    // Close on escape key
-    const handleEscape = (e) => {
-      if (e.key === "Escape" && isOpen) {
-        setOpenState(false);
-      }
-    };
-    document.addEventListener("keydown", handleEscape);
-
-    // Cleanup on unmount
-    this.destroyed = () => {
-      document.removeEventListener("keydown", handleEscape);
-      if (isOpen) {
-        document.body.style.overflow = "";
-      }
-    };
+    addListener(button, "click", toggleMenu);
+    addListener(document, "keydown", handleEscape);
   },
 };

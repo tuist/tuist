@@ -7,11 +7,54 @@
  */
 export const NavbarDropdown = {
   mounted() {
+    this.initDropdown();
+  },
+
+  updated() {
+    // Reinitialize when the element updates due to LiveView patches
+    this.cleanup();
+    this.initDropdown();
+  },
+
+  destroyed() {
+    this.cleanup();
+  },
+
+  cleanup() {
+    // Clear any pending timeouts
+    if (this.hoverTimeout) {
+      clearTimeout(this.hoverTimeout);
+      this.hoverTimeout = null;
+    }
+
+    // Remove all event listeners to prevent memory leaks
+    if (this.listeners) {
+      this.listeners.forEach(({ element, event, handler }) => {
+        element.removeEventListener(event, handler);
+      });
+      this.listeners = [];
+    }
+
+    // Clear global reference if this was the active dropdown
+    if (window.activeNavbarDropdown === this.el) {
+      window.activeNavbarDropdown = null;
+    }
+
+    // Clean up menu references
+    if (this.el) {
+      delete this.el.setOpenState;
+      delete this.el.getMenuIndex;
+    }
+  },
+
+  initDropdown() {
     const menu = this.el;
     const dropdown = menu.querySelector('[data-part="dropdown"]');
     const action = menu.querySelector('[data-part="action"]');
-    let hoverTimeout;
     let isOpen = false;
+
+    // Initialize listeners array
+    this.listeners = [];
 
     if (!dropdown) return;
 
@@ -19,6 +62,12 @@ export const NavbarDropdown = {
     if (!window.activeNavbarDropdown) {
       window.activeNavbarDropdown = null;
     }
+
+    // Helper to add and track event listeners
+    const addListener = (element, event, handler) => {
+      element.addEventListener(event, handler);
+      this.listeners.push({ element, event, handler });
+    };
 
     // Get menu index for direction awareness
     const getMenuIndex = () => {
@@ -109,7 +158,7 @@ export const NavbarDropdown = {
     setOpenState(false);
 
     const showDropdown = () => {
-      clearTimeout(hoverTimeout);
+      clearTimeout(this.hoverTimeout);
 
       // Calculate dropdown position relative to the menu action button
       const actionRect = action.getBoundingClientRect();
@@ -120,8 +169,8 @@ export const NavbarDropdown = {
     };
 
     const hideDropdown = () => {
-      clearTimeout(hoverTimeout);
-      hoverTimeout = setTimeout(() => {
+      clearTimeout(this.hoverTimeout);
+      this.hoverTimeout = setTimeout(() => {
         setOpenState(false);
       }, 100);
     };
@@ -131,32 +180,35 @@ export const NavbarDropdown = {
       setOpenState(!isOpen, { fromMenu: window.activeNavbarDropdown });
     };
 
-    // Click to toggle
-    if (action) {
-      action.addEventListener("click", toggleDropdown);
+    const keydownHandler = (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        toggleDropdown(e);
+      }
+    };
 
-      // Keyboard support
-      action.addEventListener("keydown", (e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          toggleDropdown(e);
-        }
-      });
-    }
-
-    // Show on menu hover
-    menu.addEventListener("mouseenter", showDropdown);
-    menu.addEventListener("mouseleave", hideDropdown);
-
-    // Keep visible when hovering over dropdown
-    dropdown.addEventListener("mouseenter", showDropdown);
-    dropdown.addEventListener("mouseleave", hideDropdown);
-
-    // Close when clicking outside
-    document.addEventListener("click", (e) => {
+    const clickOutsideHandler = (e) => {
       if (!menu.contains(e.target) && isOpen) {
         setOpenState(false);
       }
-    });
+    };
+
+    // Click to toggle
+    if (action) {
+      addListener(action, "click", toggleDropdown);
+      // Keyboard support
+      addListener(action, "keydown", keydownHandler);
+    }
+
+    // Show on menu hover
+    addListener(menu, "mouseenter", showDropdown);
+    addListener(menu, "mouseleave", hideDropdown);
+
+    // Keep visible when hovering over dropdown
+    addListener(dropdown, "mouseenter", showDropdown);
+    addListener(dropdown, "mouseleave", hideDropdown);
+
+    // Close when clicking outside
+    addListener(document, "click", clickOutsideHandler);
   },
 };
