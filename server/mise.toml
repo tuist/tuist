@@ -6,12 +6,14 @@
   "ubi:aquasecurity/trivy" = "0.63.0"
   "clickhouse" = "25.5.1"
   "npm:prettier" = "3.4.2"
-  "elixir" = "1.18.4-otp-27"
-  "erlang" = "27.3.2"
+  "elixir" = "1.19.1"
+  "erlang" = "28.1"
   "asdf:aeons/asdf-minio" = "latest"
   "npm:appium" = "3.0.1"
 
 [env]
+  # Elixir recommends half of the number of cores: https://elixir-lang.org/blog/2025/10/16/elixir-v1-19-0-released/
+  MIX_OS_DEPS_COMPILE_PARTITION_COUNT=4
   TUIST_HOSTED = "1"
   TUIST_S3_VIRTUAL_HOST = "1"
   TUIST_S3_BUCKET_AS_HOST = "1"
