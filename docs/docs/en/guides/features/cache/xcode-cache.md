@@ -83,7 +83,7 @@ let tuist = Tuist(
 
 ### Continuous integration #{continuous-integration}
 
-To enable caching in your CI environment, you need to run the same command as in the local environments: `tuist setup cache`.
+To enable caching in your CI environment, you need to run the same command as in local environments: `tuist setup cache`.
 
 Additionally, you need to ensure the `TUIST_CONFIG_TOKEN` environment variable is set. You can create one by following the documentation <LocalizedLink href="/guides/features/automate/continuous-integration#authentication">here</LocalizedLink>. The `TUIST_CONFIG_TOKEN` environment variable _must_ be present for your build step, but we'd recommend setting it for the whole CI workflow.
 
@@ -99,8 +99,6 @@ jobs:
     steps:
       - # Your set up steps...
       - name: Set up Tuist Cache
-        env:
-          TUIST_CONFIG_TOKEN: ${{ secrets.TUIST_CONFIG_TOKEN }}
         run: tuist setup cache
       - # Your build steps
 ```
