@@ -59,7 +59,7 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
         } catch {
             response.outcome = .error
             var responseError = CompilationCacheService_Cas_V1_ResponseError()
-            responseError.description_p = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            responseError.description_p = error.userFriendlyDescription()
             response.error = responseError
             response.contents = .error(responseError)
         }
@@ -80,7 +80,7 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
                 data = try await fileSystem.readFile(at: absolutePath)
             } catch {
                 var responseError = CompilationCacheService_Cas_V1_ResponseError()
-                responseError.description_p = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+                responseError.description_p = error.userFriendlyDescription()
                 response.error = responseError
                 response.contents = .error(responseError)
                 return response
@@ -106,7 +106,7 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
             response.contents = .casID(message)
         } catch {
             var responseError = CompilationCacheService_Cas_V1_ResponseError()
-            responseError.description_p = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            responseError.description_p = error.userFriendlyDescription()
             response.error = responseError
             response.contents = .error(responseError)
         }
