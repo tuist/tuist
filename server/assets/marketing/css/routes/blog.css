@@ -137,22 +137,24 @@
     flex-direction: column-reverse;
     justify-content: space-between;
     align-items: stretch;
-    align-self: stretch;
     gap: var(--noora-spacing-5);
     margin-right: calc(-1 * var(--noora-spacing-6));
     margin-left: calc(-1 * var(--noora-spacing-6));
     padding-right: var(--noora-spacing-6);
     padding-left: var(--noora-spacing-6);
-    width: 100%;
+
+    @media (max-width: 1024px) {
+      align-self: stretch;
+    }
 
     @media (min-width: 1024px) {
       flex-direction: row;
       align-items: center;
-      align-self: stretch;
       margin-right: 0;
       margin-left: 0;
       padding-right: var(--noora-spacing-14);
       padding-left: var(--noora-spacing-14);
+      width: calc(100% - 2 * var(--noora-spacing-14));
     }
 
     & > [data-part="categories-mobile"] {
