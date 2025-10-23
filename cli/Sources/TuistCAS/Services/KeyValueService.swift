@@ -45,7 +45,7 @@ public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.Si
             return response
         } catch {
             var responseError = CompilationCacheService_Keyvalue_V1_ResponseError()
-            responseError.description_p = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            responseError.description_p = error.userFriendlyDescription()
             response.error = responseError
             return response
         }
@@ -78,7 +78,7 @@ public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.Si
             }
         } catch {
             var responseError = CompilationCacheService_Keyvalue_V1_ResponseError()
-            responseError.description_p = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            responseError.description_p = error.userFriendlyDescription()
             response.error = responseError
             response.outcome = .keyNotFound
         }
