@@ -144,6 +144,10 @@
       gap: var(--noora-spacing-5);
       padding-left: 0;
 
+      @media (max-width: 1024px) {
+        max-width: min(424px, calc(100vw - var(--noora-spacing-9)));
+      }
+
       @media (min-width: 1024px) {
         flex-direction: row;
       }
@@ -159,7 +163,6 @@
         border-radius: var(--noora-radius-xlarge);
         background: var(--noora-surface-background-primary);
         width: 100%;
-        max-width: 424px;
         overflow: hidden;
 
         @media (min-width: 1024px) {
