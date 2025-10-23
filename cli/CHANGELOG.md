@@ -1,6 +1,17 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.90.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add support for TUIST_-prefixed XDG environment variables by [@pepicrft](https://github.com/pepicrft) in [#8508](https://github.com/tuist/tuist/pull/8508)
+### 🐛 Bug Fixes
+
+* improve error messages of cache daemon by [@fortmarek](https://github.com/fortmarek) in [#8509](https://github.com/tuist/tuist/pull/8509)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.89.1...4.90.0
+
 ## What's Changed in 4.89.1<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
