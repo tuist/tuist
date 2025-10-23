@@ -43,17 +43,17 @@ public protocol Environmenting: Sendable {
 
     func currentWorkingDirectory() async throws -> AbsolutePath
 
-    /// Returns the path to the cache directory. Configurable via the `TUIST_XDG_CACHE_HOME` or `XDG_CACHE_HOME` environment variable
+    /// Returns the path to the cache directory. Configurable via the `TUIST_XDG_CACHE_HOME` or `XDG_CACHE_HOME` environment
+    /// variable
     var cacheDirectory: AbsolutePath { get }
 
-    /// Returns the path to the state directory. Configurable via the `TUIST_XDG_STATE_HOME` or `XDG_STATE_HOME` environment variable
+    /// Returns the path to the state directory. Configurable via the `TUIST_XDG_STATE_HOME` or `XDG_STATE_HOME` environment
+    /// variable
     var stateDirectory: AbsolutePath { get }
 
-    /// Returns the path to the config directory. Configurable via the `TUIST_XDG_CONFIG_HOME` or `XDG_CONFIG_HOME` environment variable
+    /// Returns the path to the config directory. Configurable via the `TUIST_XDG_CONFIG_HOME` or `XDG_CONFIG_HOME` environment
+    /// variable
     var configDirectory: AbsolutePath { get }
-
-    /// Returns the path to the data directory. Configurable via the `TUIST_XDG_DATA_HOME` or `XDG_DATA_HOME` environment variable
-    var dataDirectory: AbsolutePath { get }
 
     /// Returns the path to the directory where the async queue events are persisted.
     var queueDirectory: AbsolutePath { get }
@@ -128,10 +128,19 @@ extension Environmenting {
 public struct Environment: Environmenting {
     @TaskLocal public static var current: Environmenting = Environment()
 
-    public var processId = UUID().uuidString
+    public var processId: String
+    public var variables: [String: String]
+    public var arguments: [String]
 
-    public var variables: [String: String] { ProcessInfo.processInfo.environment }
-    public var arguments: [String] { ProcessInfo.processInfo.arguments }
+    public init(
+        processId: String = UUID().uuidString,
+        variables: [String: String] = ProcessInfo.processInfo.environment,
+        arguments: [String] = ProcessInfo.processInfo.arguments
+    ) {
+        self.processId = processId
+        self.variables = variables
+        self.arguments = arguments
+    }
 
     public var homeDirectory: AbsolutePath {
         // swiftlint:disable force_try
@@ -205,14 +214,14 @@ public struct Environment: Environmenting {
         return try await AbsolutePath(validating: _NIOFileSystem.FileSystem.shared.currentWorkingDirectory.string)
     }
 
+    private func variable(_ variableName: String) -> String? {
+        return variables["TUIST_\(variableName)"] ?? variables[variableName]
+    }
+
     public var cacheDirectory: AbsolutePath {
         let baseCacheDirectory: AbsolutePath
-        if let cacheDirectoryPathString = variables["TUIST_XDG_CACHE_HOME"],
+        if let cacheDirectoryPathString = variable("XDG_CACHE_HOME"),
            let cacheDirectory = try? AbsolutePath(validating: cacheDirectoryPathString)
-        {
-            baseCacheDirectory = cacheDirectory
-        } else if let cacheDirectoryPathString = variables["XDG_CACHE_HOME"],
-                  let cacheDirectory = try? AbsolutePath(validating: cacheDirectoryPathString)
         {
             baseCacheDirectory = cacheDirectory
         } else {
@@ -226,12 +235,8 @@ public struct Environment: Environmenting {
 
     public var stateDirectory: AbsolutePath {
         let baseStateDirectory: AbsolutePath
-        if let stateDirectoryPathString = variables["TUIST_XDG_STATE_HOME"],
+        if let stateDirectoryPathString = variable("XDG_STATE_HOME"),
            let stateDirectory = try? AbsolutePath(validating: stateDirectoryPathString)
-        {
-            baseStateDirectory = stateDirectory
-        } else if let stateDirectoryPathString = variables["XDG_STATE_HOME"],
-                  let stateDirectory = try? AbsolutePath(validating: stateDirectoryPathString)
         {
             baseStateDirectory = stateDirectory
         } else {
@@ -245,12 +250,8 @@ public struct Environment: Environmenting {
 
     public var configDirectory: AbsolutePath {
         let baseConfigDirectory: AbsolutePath
-        if let configDirectoryPathString = variables["TUIST_XDG_CONFIG_HOME"],
+        if let configDirectoryPathString = variable("XDG_CONFIG_HOME"),
            let configDirectory = try? AbsolutePath(validating: configDirectoryPathString)
-        {
-            baseConfigDirectory = configDirectory
-        } else if let configDirectoryPathString = variables["XDG_CONFIG_HOME"],
-                  let configDirectory = try? AbsolutePath(validating: configDirectoryPathString)
         {
             baseConfigDirectory = configDirectory
         } else {
@@ -260,25 +261,6 @@ public struct Environment: Environmenting {
         }
 
         return baseConfigDirectory.appending(component: "tuist")
-    }
-
-    public var dataDirectory: AbsolutePath {
-        let baseDataDirectory: AbsolutePath
-        if let dataDirectoryPathString = variables["TUIST_XDG_DATA_HOME"],
-           let dataDirectory = try? AbsolutePath(validating: dataDirectoryPathString)
-        {
-            baseDataDirectory = dataDirectory
-        } else if let dataDirectoryPathString = variables["XDG_DATA_HOME"],
-                  let dataDirectory = try? AbsolutePath(validating: dataDirectoryPathString)
-        {
-            baseDataDirectory = dataDirectory
-        } else {
-            // swiftlint:disable:next force_try
-            let homeDirectory = try! Path.AbsolutePath(validating: NSHomeDirectory())
-            baseDataDirectory = homeDirectory.appending(components: [".local", "share"])
-        }
-
-        return baseDataDirectory.appending(component: "tuist")
     }
 
     public var queueDirectory: AbsolutePath {

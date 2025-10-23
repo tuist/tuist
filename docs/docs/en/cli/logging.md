@@ -16,7 +16,9 @@ If a command invocation doesn't yield the intended results, you can diagnose the
 In every run, it creates a log file at `$XDG_STATE_HOME/tuist/logs/{uuid}.log` where `$XDG_STATE_HOME` takes the value `~/.local/state` if the environment variable is not set. You can also use `$TUIST_XDG_STATE_HOME` to set a Tuist-specific state directory, which takes precedence over `$XDG_STATE_HOME`.
 
 ::: tip
+<!-- -->
 Learn more about Tuist's directory organization and how to configure custom directories in the <LocalizedLink href="/cli/directories">Directories documentation</LocalizedLink>.
+<!-- -->
 :::
 
 By default, the CLI outputs the logs path when the execution exits unexpectedly. If it doesn't, you can find the logs in the path mentioned above (i.e., the most recent log file).
