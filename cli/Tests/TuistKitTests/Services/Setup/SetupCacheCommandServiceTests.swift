@@ -302,6 +302,71 @@ struct SetupCacheCommandServiceTests {
         #expect(try await fileSystem.exists(launchAgentsDir))
     }
 
+    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func setupCache_includesEnvironmentTokenInPlist() async throws {
+        // Given
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        let token = "test-auth-token-123"
+        environment.variables[Constants.EnvironmentVariables.token] = token
+
+        let config = Tuist.test(fullHandle: "organization/project")
+        configLoader.reset()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(config)
+
+        given(launchctlController)
+            .load(plistPath: .any)
+            .willReturn()
+
+        // When
+        try await subject.run(path: nil)
+
+        // Then
+        let homeDirectory = Environment.current.homeDirectory
+        let expectedPlistPath = homeDirectory.appending(
+            components: "Library", "LaunchAgents", "tuist.cache.organization_project.plist"
+        )
+
+        let plistContent = try await fileSystem.readTextFile(at: expectedPlistPath)
+        #expect(plistContent.contains("<key>EnvironmentVariables</key>"))
+        #expect(plistContent.contains("<key>TUIST_CONFIG_TOKEN</key>"))
+        #expect(plistContent.contains("<string>\(token)</string>"))
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment()
+    ) func setupCache_doesNotIncludeEnvironmentVariablesWhenNoToken() async throws {
+        // Given
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        environment.variables[Constants.EnvironmentVariables.token] = nil
+
+        let config = Tuist.test(fullHandle: "organization/project")
+        configLoader.reset()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(config)
+
+        given(launchctlController)
+            .load(plistPath: .any)
+            .willReturn()
+
+        // When
+        try await subject.run(path: nil)
+
+        // Then
+        let homeDirectory = Environment.current.homeDirectory
+        let expectedPlistPath = homeDirectory.appending(
+            components: "Library", "LaunchAgents", "tuist.cache.organization_project.plist"
+        )
+
+        let plistContent = try await fileSystem.readTextFile(at: expectedPlistPath)
+        #expect(!plistContent.contains("<key>EnvironmentVariables</key>"))
+        #expect(!plistContent.contains("<key>TUIST_CONFIG_TOKEN</key>"))
+    }
+
     @Test(
         .inTemporaryDirectory,
         .withMockedEnvironment(),
