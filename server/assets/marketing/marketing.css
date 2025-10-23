@@ -31,10 +31,14 @@ body {
   margin-right: 0;
   margin-bottom: 0;
   margin-left: 0;
-  background: var(--noora-surface-background-primary);
+  background: oklch(98.5% 0.004 264.5);
   padding: 0px;
   overflow-x: hidden;
   font-family: var(--noora-font-body);
+
+  & > div[data-part="content"] {
+    background: var(--noora-surface-background-primary);
+  }
 }
 
 h1,

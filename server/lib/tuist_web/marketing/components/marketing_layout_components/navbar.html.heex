@@ -396,16 +396,20 @@ resources_items = [
       >
       </.link_button>
 
-      <.button
-        variant="secondary"
+      <.neutral_button
         icon_only={true}
         size="large"
         data-part="mobile-menu-button"
         phx-hook="MobileMenu"
         id="mobile-menu-button"
       >
+      <div data-part="menu-icon">
         <.menu />
-      </.button>
+        </div>
+        <div data-part="close-icon">
+          <.close />
+        </div>
+      </.neutral_button>
     </nav>
   </div>
   <nav data-part="mobile-menus" aria-label="Mobile navigation">
