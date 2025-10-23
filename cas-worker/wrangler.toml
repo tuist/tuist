@@ -2,7 +2,7 @@ name = "tuist-worker-production"
 main = "src/index.js"
 compatibility_date = "2025-01-08"
 routes = [
-  "https://tuist.dev/api/cache/cas/*",
+  "https://tuist.dev/api/cache/cas*",
   "https://tuist.dev/api/cache/keyvalue*"
 ]
 
