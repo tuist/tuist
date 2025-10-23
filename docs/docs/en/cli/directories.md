@@ -32,7 +32,7 @@ tuist auth
 
 # Or use standard XDG variable
 export XDG_CONFIG_HOME=/custom/config
-tuist auth
+tuist auth login
 ```
 
 ### Cache directory {#cache-directory}
