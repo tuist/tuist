@@ -11,14 +11,15 @@
           {gettext("Engaging stories and expert insights")}
         </h1>
       </div>
-      <div data-part="main">
+      <.link
+        data-part="main"
+        href={TuistWeb.Marketing.MarketingHTML.localized_href(@highlighted_post.slug)}
+      >
         <% highlighted_post_author = Blog.get_authors()[@highlighted_post.author] %>
         <img data-part="image" src={Blog.get_post_image_url(@highlighted_post)} />
         <div data-part="content">
           <h2 data-part="title">
-            <.link href={TuistWeb.Marketing.MarketingHTML.localized_href(@highlighted_post.slug)}>
-              {@highlighted_post.title}
-            </.link>
+            {@highlighted_post.title}
           </h2>
           <p data-part="excerpt">{@highlighted_post.excerpt}</p>
           <div data-part="footer">
@@ -32,7 +33,7 @@
             <.arrow_right data-part="icon" />
           </div>
         </div>
-      </div>
+      </.link>
     </section>
 
     <section data-part="filters-bar">
