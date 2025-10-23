@@ -1,0 +1,91 @@
+[data-prose] {
+  display: flex;
+  flex-direction: column;
+  color: var(--noora-surface-label-primary);
+  font: var(--noora-font-weight-regular) var(--noora-font-body-large);
+
+  & code.inline {
+    color: var(--surface-label-primary);
+    font: var(--noora-font-weight-regular) var(--noora-font-code-large);
+    word-break: break-word;
+    overflow-wrap: break-word;
+  }
+
+  & blockquote {
+    box-shadow:
+      0 1px 1px 0 rgba(22, 24, 28, 0.05),
+      0 0 0 1px rgba(46, 51, 56, 0.08),
+      0 1px 1px 0 rgba(46, 51, 56, 0.1);
+    border-radius: var(--noora-radius-xlarge);
+    background: var(--noora-background-tertiary);
+    padding: var(--noora-spacing-7);
+
+    & > p {
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
+    }
+  }
+
+  /* Add spacing between child elements using margin instead of gap */
+  & > * + * {
+    margin-top: var(--noora-spacing-6);
+  }
+
+  & img,
+  & video {
+    display: block;
+    margin-inline: auto;
+    box-shadow:
+      0 102px 28px 0 rgba(0, 0, 0, 0),
+      0 65px 26px 0 rgba(0, 0, 0, 0.01),
+      0 37px 22px 0 rgba(0, 0, 0, 0.02),
+      0 16px 16px 0 rgba(0, 0, 0, 0.04),
+      0 4px 9px 0 rgba(0, 0, 0, 0.04);
+    border-radius: var(--noora-radius-2xlarge);
+    width: 100%;
+    height: auto;
+    object-fit: contain;
+  }
+
+  & iframe {
+    display: block;
+    margin-inline: auto;
+    box-shadow:
+      0 102px 28px 0 rgba(0, 0, 0, 0),
+      0 65px 26px 0 rgba(0, 0, 0, 0.01),
+      0 37px 22px 0 rgba(0, 0, 0, 0.02),
+      0 16px 16px 0 rgba(0, 0, 0, 0.04),
+      0 4px 9px 0 rgba(0, 0, 0, 0.04);
+    border-radius: var(--noora-radius-2xlarge);
+    max-width: 100%;
+  }
+
+  & b,
+  strong {
+    font: var(--noora-font-weight-semibold) var(--noora-font-body-large);
+  }
+
+  & a {
+    color: var(--noora-button-primary-background);
+    text-decoration: underline;
+  }
+
+  & h1 {
+    font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
+  }
+
+  & h2 {
+    padding-top: var(--noora-spacing-5);
+    font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
+  }
+
+  & h3 {
+    padding-top: var(--noora-spacing-4);
+    font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
+  }
+
+  & h4 {
+    padding-top: var(--noora-spacing-4);
+    font: var(--noora-font-weight-medium) var(--noora-font-heading-small);
+  }
+}

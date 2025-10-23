@@ -1,8 +1,64 @@
 <TuistWeb.Marketing.Layouts.marketing {assigns}>
+  <main id="marketing-blog-post" phx-hook="CodeCopy">
+    <TuistWeb.Marketing.MarketingComponents.navbar {assigns} />
+
+    <TuistWeb.Marketing.MarketingComponents.header_background />
+
+    <header data-part="header">
+      <div data-part="content">
+        <div data-part="category">
+          <span>{dgettext("marketing", "Blog")}</span>
+          <.math_slash />
+          <span>{@post.category |> to_string() |> String.capitalize()}</span>
+        </div>
+
+        <h1 data-part="title">
+          {@post.title}
+        </h1>
+
+        <div data-part="metadata">
+          <span>{@post.interviewee_name || @author["name"]}</span>
+          <span>•</span>
+          <span>{Timex.format!(@post.date, "{Mfull} {D}, {YYYY}")}</span>
+          <span>•</span>
+          <span>
+            {dngettext(
+              "marketing",
+              "%{count} minute",
+              "%{count} minutes",
+              ReadingTime.time(@post.body)
+            )}
+          </span>
+        </div>
+      </div>
+
+      <img data-part="image" src={Blog.get_post_image_url(@post)} />
+    </header>
+
+    <section id="blog-post-content" data-part="content" data-prose phx-hook="ShikiHighlight">
+      <%= for chunk <- @processed_content do %>
+        <%= case chunk do %>
+          <% {:html, html} -> %>
+            {raw(html)}
+          <% {:component, :button, data} -> %>
+            <.button href={data.href} label={data.title} variant="secondary">
+              <:icon_left><.chevron_left /></:icon_left>
+              <:icon_right><.chevron_right /></:icon_right>
+            </.button>
+        <% end %>
+      <% end %>
+    </section>
+  </main>
+</TuistWeb.Marketing.Layouts.marketing>
+
+<%!-- <TuistWeb.Marketing.Layouts.marketing {assigns}>
   <main class="marketing__blog_post" aria-label={dgettext("marketing", "Blog post main content")}>
     <div class="marketing__blog_post__gradient" />
 
-    <header class="marketing__blog_post__header" aria-label={dgettext("marketing", "Blog post header")}>
+    <header
+      class="marketing__blog_post__header"
+      aria-label={dgettext("marketing", "Blog post header")}
+    >
       <div class="marketing__blog_post__header__category font-m-strong">
         {@post.category}
       </div>
@@ -44,7 +100,12 @@
           class="marketing__blog_post__body__side__reading_time font-xs"
           aria-label={dgettext("marketing", "Reading time")}
         >
-          {dngettext("marketing", "%{count} minute", "%{count} minutes", ReadingTime.time(@post.body))}
+          {dngettext(
+            "marketing",
+            "%{count} minute",
+            "%{count} minutes",
+            ReadingTime.time(@post.body)
+          )}
         </div>
         <div class="marketing__blog_post__body__side__written_by font-xs">
           <%= cond do %>
@@ -124,4 +185,4 @@
       </div>
     </section>
   </main>
-</TuistWeb.Marketing.Layouts.marketing>
+</TuistWeb.Marketing.Layouts.marketing> --%>

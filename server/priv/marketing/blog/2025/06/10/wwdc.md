@@ -4,6 +4,7 @@ category: "learn"
 tags: ["wwdc", "developers", "devx"]
 excerpt: "Apple's WWDC25 brought exciting developer tooling updates: new UI testing capabilities, in-code playgrounds, explicit modules by default, and their own container CLI. Here's how we think about them at Tuist."
 author: pepicrft
+og_image_path: /marketing/images/blog/2025/06/10/wwdc/og.jpg
 ---
 
 Having slept on all the WWDC announcements and while drinking my first morning coffee, I think it's time to share a curated list of the announcements we're most excited about and how they relate to our plans for Tuist. Ready?

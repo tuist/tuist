@@ -56,7 +56,7 @@ defmodule Tuist.MixProject do
       {:jason, "~> 1.2"},
       {:libcluster, "~> 3.5"},
       {:bandit, "~> 1.2"},
-      {:credo, "~> 1.7.7", only: [:dev, :test], runtime: false},
+      {:credo, "~> 1.7.13", only: [:dev, :test], runtime: false},
       {:appsignal, "~> 2.15.0"},
       {:appsignal_phoenix, "~> 2.5"},
       {:castore, "~> 1.0.12"},
@@ -95,7 +95,9 @@ defmodule Tuist.MixProject do
       {:guardian_db, "~> 3.0"},
       {:uuidv7, "~> 1.0"},
       {:decorator, "~> 1.4"},
-      {:jose, "~> 1.11"},
+      # Temporarily using PR #180 branch for OTP 28 compatibility fix
+      # TODO: Switch back to hex version once jose 1.12.0 is released
+      {:jose, git: "https://github.com/jtdowney/erlang-jose.git", branch: "fix-otp28-compatibility", override: true},
       {:ecto_psql_extras, "~> 0.8.1"},
       {:cachex, "~> 4.0.4"},
       {:excellent_migrations, "~> 0.1.8"},
@@ -133,7 +135,7 @@ defmodule Tuist.MixProject do
       {:ecto_ch, "~> 0.7"},
       (System.get_env("NOORA_LOCAL") &&
          {:noora, path: "../../Noora/web"}) ||
-        {:noora, "== 0.29.2"},
+        {:noora, "== 0.36.0"},
       {:zstream, "~> 0.6"},
       {:cloak_ecto, "~> 1.3.0"},
       {:boruta, git: "https://github.com/malach-it/boruta_auth", branch: "master"},
@@ -178,7 +180,11 @@ defmodule Tuist.MixProject do
       ],
       test: ["ecto.create --quiet", "run priv/repo/timezone.exs", "ecto.migrate --quiet", "test"],
       "assets.setup": ["esbuild.install --if-missing"],
-      "assets.build": ["esbuild app", "esbuild marketing", "esbuild apidocs"],
+      "assets.build": [
+        "esbuild app",
+        "esbuild marketing",
+        "esbuild apidocs"
+      ],
       "assets.deploy": [
         "esbuild marketing --minify",
         "esbuild app --minify",

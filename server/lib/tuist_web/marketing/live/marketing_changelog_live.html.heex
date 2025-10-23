@@ -1,58 +1,82 @@
-<TuistWeb.Marketing.Layouts.marketing {assigns}>
-  <main class="marketing__changelog" aria-label={dgettext("marketing", "Changelog")} role="main">
-    <div class="marketing__changelog__header" role="banner">
-      <h1 class="marketing__changelog__header__title">{dgettext("marketing", "Changelog")}</h1>
-      <nav class="marketing__changelog__header__categories" aria-label={dgettext("marketing", "Categories")}>
-        <.link
-          patch={~p"/changelog"}
-          data-selected={if(@current_path == ~p"/changelog", do: "true", else: "false")}
-          class="marketing__changelog__header__categories__category"
-          aria-current={if(@current_path == ~p"/changelog", do: "page", else: "false")}
-        >
-          {dgettext("marketing", "All")}
-        </.link>
-        <%= for category <- @categories do %>
-          <% params = %{category: category} %>
+<TuistWeb.Marketing.Layouts.marketing>
+  <main id="marketing-changelog">
+    <TuistWeb.Marketing.MarketingComponents.navbar {assigns} />
+    <header data-part="header">
+      <h1 data-part="title">{dgettext("marketing", "Changelog")}</h1>
+      <nav data-part="nav">
+        <div data-part="categories">
           <.link
-            patch={~p"/changelog?#{params}"}
-            data-selected={
-              if(@current_path == ~p"/changelog?#{params}", do: "true", else: "false")
-            }
-            class="marketing__changelog__header__categories__category"
-            aria-current={
-              if(@current_path == ~p"/changelog?#{params}", do: "page", else: "false")
-            }
+            patch={~p"/changelog"}
+            data-part="category"
+            data-selected={if(@current_path == ~p"/changelog", do: "true", else: "false")}
+            aria-current={if(@current_path == ~p"/changelog", do: "page", else: "false")}
           >
-            <span>{category}</span>
+            {dgettext("marketing", "All")}
           </.link>
-        <% end %>
-      </nav>
-    </div>
-    <div class="marketing__changelog__body">
-      <%= for entry <- @entries do %>
-        <div class="marketing__changelog__body__entry__timeline" role="presentation">
-          <TuistWeb.Marketing.MarketingIcons.shell_icon
-            class="marketing__changelog__body__entry__timeline__icon"
-            aria-hidden="true"
-          />
-          <div class="marketing__changelog__body__entry__timeline__line" aria-hidden="true"></div>
+          <%= for category <- @categories do %>
+            <% params = %{category: category} %>
+            <.link
+              data-part="category"
+              patch={~p"/changelog?#{params}"}
+              data-selected={
+                if(@current_path == ~p"/changelog?#{params}", do: "true", else: "false")
+              }
+              aria-current={
+                if(@current_path == ~p"/changelog?#{params}", do: "page", else: "false")
+              }
+            >
+              <span>{category}</span>
+            </.link>
+          <% end %>
         </div>
-        <article class="marketing__changelog__body__entry__metadata">
-          <h3 class="marketing__changelog__body__entry__metadata__title" id={entry.id}>
-            <a href={"\##{entry.id}"}>{entry.title}</a>
-          </h3>
-          <p class="marketing__changelog__body__entry__metadata__date">
-            {Timex.format!(entry.date, "{Mfull} {D}, {YYYY}")}
-          </p>
-          <div class="marketing__changelog__body__entry__metadata__category">
-            {entry.category}
+        <div data-part="subscribe">
+          <.button
+            variant="secondary"
+            icon_only={true}
+            size="large"
+            href={~p"/changelog/rss.xml"}
+            target="_blank"
+          >
+            <.rss />
+          </.button>
+          <.button
+            variant="secondary"
+            icon_only={true}
+            size="large"
+            href={~p"/changelog/atom.xml"}
+            target="_blank"
+          >
+            <.atom />
+          </.button>
+        </div>
+      </nav>
+    </header>
+    <section data-part="timeline" id="changelog-timeline">
+      <%= for entry <- @entries do %>
+        <time data-part="date">
+          {Timex.format!(entry.date, "{Mfull} {D}, {YYYY}")}
+        </time>
+        <div data-part="line"></div>
+        <article data-part="entry" id={entry.id}>
+          <header data-part="header">
+            <.tag label={entry.category} data-part="category" />
+            <h2 data-part="title">
+              <a href={"##{entry.id}"}>{entry.title}</a>
+            </h2>
+          </header>
+          <div data-part="body" data-prose>
+            {raw(entry.body)}
           </div>
         </article>
-        <div class="marketing__changelog__body__entry__body marketing_content">
-          {raw(entry.body)}
-        </div>
       <% end %>
-    </div>
-    <TuistWeb.Marketing.MarketingComponents.cta />
+    </section>
+    <section :if={@has_more?} data-part="more">
+      <.button
+        variant="primary"
+        size="large"
+        label={dgettext("marketing", "Load more")}
+        phx-click="load_more"
+      />
+    </section>
   </main>
 </TuistWeb.Marketing.Layouts.marketing>

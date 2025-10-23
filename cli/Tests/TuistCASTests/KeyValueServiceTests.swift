@@ -1,6 +1,7 @@
 import Foundation
 import GRPCCore
 import Mockable
+import OpenAPIRuntime
 import Path
 import Testing
 import TuistServer
@@ -192,6 +193,58 @@ struct KeyValueServiceTests {
 
         // Then
         #expect(response.error.description_p == "Invalid token")
+        #expect(response.outcome == .keyNotFound)
+    }
+
+    @Test
+    func putValue_when_client_error_with_auth_error() async throws {
+        // Given
+        let key = Data("0test-key".utf8)
+        let authError = ServerClientAuthenticationError.notAuthenticated
+        let clientError = ClientError(
+            operationID: "putCacheValue",
+            operationInput: "",
+            causeDescription: "Authentication failed",
+            underlyingError: authError
+        )
+
+        var request = CompilationCacheService_Keyvalue_V1_PutValueRequest()
+        request.key = key
+
+        let context = ServerContext.test()
+
+        given(putCacheValueService)
+            .putCacheValue(casId: .any, entries: .any, fullHandle: .any, serverURL: .any)
+            .willThrow(clientError)
+
+        // When
+        let response = try await subject.putValue(request: request, context: context)
+
+        // Then
+        #expect(response.hasError == true)
+        #expect(response.error.description_p == "You must be logged in to do this.")
+    }
+
+    @Test
+    func getValue_when_generic_error() async throws {
+        // Given
+        let key = Data("0test-key".utf8)
+        let genericError = NSError(domain: "TestDomain", code: 123, userInfo: nil)
+
+        var request = CompilationCacheService_Keyvalue_V1_GetValueRequest()
+        request.key = key
+
+        let context = ServerContext.test()
+
+        given(getCacheValueService)
+            .getCacheValue(casId: .any, fullHandle: .any, serverURL: .any)
+            .willThrow(genericError)
+
+        // When
+        let response = try await subject.getValue(request: request, context: context)
+
+        // Then
+        #expect(response.error.description_p == genericError.localizedDescription)
         #expect(response.outcome == .keyNotFound)
     }
 }

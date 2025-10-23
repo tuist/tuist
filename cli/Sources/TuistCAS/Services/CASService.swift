@@ -70,7 +70,7 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
         } catch {
             response.outcome = .error
             var responseError = CompilationCacheService_Cas_V1_ResponseError()
-            responseError.description_p = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            responseError.description_p = error.userFriendlyDescription()
             response.error = responseError
             response.contents = .error(responseError)
 
@@ -98,7 +98,7 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
                 data = try await fileSystem.readFile(at: absolutePath)
             } catch {
                 var responseError = CompilationCacheService_Cas_V1_ResponseError()
-                responseError.description_p = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+                responseError.description_p = error.userFriendlyDescription()
                 response.error = responseError
                 response.contents = .error(responseError)
                 Logger.current.error("CAS.save failed to read file \(request.data.blob.filePath): \(error)")
@@ -142,7 +142,7 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
                 let duration = Date().timeIntervalSince(startTime)
                 logger
                     .error(
-                        "CAS.save background upload failed after \(String(format: "%.3f", duration))s for fingerprint: \(fingerprint): \(error)"
+                        "CAS.save background upload failed after \(String(format: "%.3f", duration))s for fingerprint: \(fingerprint): \(error.userFriendlyDescription())"
                     )
             }
         }

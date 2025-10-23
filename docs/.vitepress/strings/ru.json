@@ -129,7 +129,7 @@
                     "text": "Принципы"
                 },
                 "translate": {
-                    "text": "Translate"
+                    "text": "Перевод"
                 },
                 "cli": {
                     "text": "CLI",
@@ -138,6 +138,9 @@
                             "text": "Логирование"
                         }
                     }
+                },
+                "releases": {
+                    "text": "Релизы"
                 }
             }
         },
@@ -299,7 +302,15 @@
                             }
                         },
                         "cache": {
-                            "text": "Кэш"
+                            "text": "Кэш",
+                            "items": {
+                                "generated-project": {
+                                    "text": "Сгенерированный проект"
+                                },
+                                "xcode-cache": {
+                                    "text": "Кэш Xcode"
+                                }
+                            }
                         },
                         "registry": {
                             "text": "Реестр",
@@ -339,10 +350,13 @@
                             }
                         },
                         "insights": {
-                            "text": "Аналитика"
+                            "text": "Аналитика сборки"
                         },
                         "bundle-size": {
-                            "text": "Bundle size"
+                            "text": "Аналитика бандла"
+                        },
+                        "qa": {
+                            "text": "Тестирование"
                         }
                     }
                 },

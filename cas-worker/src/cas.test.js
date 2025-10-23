@@ -81,18 +81,21 @@ describe("CAS Module", () => {
       expect(data.message).toContain("Missing Authorization header");
     });
 
-    it("should fetch prefix from server when not cached", async () => {
+    it("should fetch accessible projects when not cached", async () => {
       mockRequest.headers.get.mockReturnValue("Bearer token123");
       env.CAS_CACHE.get.mockResolvedValue(null);
-      serverFetch.mockResolvedValue(
-        new Response(JSON.stringify({ prefix: "server-prefix/" }), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        }),
+      serverFetch.mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({ projects: [{ full_name: "acme/myapp" }] }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          },
+        ),
       );
       checkS3ObjectExists.mockResolvedValue(true);
       getS3Url.mockReturnValue(
-        "https://s3.amazonaws.com/test-bucket/server-prefix/0/abc123",
+        "https://s3.amazonaws.com/test-bucket/acme/myapp/cas/0/abc123",
       );
 
       mockS3Client.fetch.mockResolvedValue(
@@ -102,9 +105,10 @@ describe("CAS Module", () => {
       const response = await handleGetValue(mockRequest, env, {});
 
       expect(response.status).toBe(200);
-      expect(serverFetch).toHaveBeenCalledWith(
+      expect(serverFetch).toHaveBeenNthCalledWith(
+        1,
         env,
-        "/api/cache/prefix?account_handle=acme&project_handle=myapp",
+        "/api/projects",
         expect.objectContaining({
           method: "GET",
           headers: expect.objectContaining({
@@ -112,21 +116,31 @@ describe("CAS Module", () => {
           }),
         }),
       );
+      expect(serverFetch).toHaveBeenCalledTimes(1);
       expect(env.CAS_CACHE.put).toHaveBeenCalledWith(
         expect.any(String),
-        JSON.stringify({ prefix: "server-prefix/" }),
-        { expirationTtl: 3600 },
+        JSON.stringify({ projects: ["acme/myapp"] }),
+        { expirationTtl: 600 },
+      );
+      expect(getS3Url).toHaveBeenCalledWith(
+        "https://s3.amazonaws.com",
+        "test-bucket",
+        "acme/myapp/cas/0/abc123",
+        false,
       );
     });
 
     it("should use cached authorization success", async () => {
-      mockRequest.headers.get.mockReturnValue("Bearer token123");
-      env.CAS_CACHE.get.mockResolvedValue(
-        JSON.stringify({ prefix: "cached-prefix/" }),
+      mockRequest.headers.get.mockImplementation((header) => {
+        if (header === "Authorization") return "Bearer token123";
+        return null;
+      });
+      env.CAS_CACHE.get.mockResolvedValueOnce(
+        JSON.stringify({ projects: ["acme/myapp"] }),
       );
       checkS3ObjectExists.mockResolvedValue(true);
       getS3Url.mockReturnValue(
-        "https://s3.amazonaws.com/test-bucket/cached-prefix/0/abc123",
+        "https://s3.amazonaws.com/test-bucket/acme/myapp/cas/0/abc123",
       );
 
       mockS3Client.fetch.mockResolvedValue(
@@ -138,13 +152,16 @@ describe("CAS Module", () => {
       expect(response.status).toBe(200);
       expect(serverFetch).not.toHaveBeenCalled();
       expect(mockS3Client.fetch).toHaveBeenCalledWith(
-        "https://s3.amazonaws.com/test-bucket/cached-prefix/0/abc123",
+        "https://s3.amazonaws.com/test-bucket/acme/myapp/cas/0/abc123",
         { method: "GET" },
       );
     });
 
     it("should cache authorization failures with shorter TTL", async () => {
-      mockRequest.headers.get.mockReturnValue("Bearer invalid-token");
+      mockRequest.headers.get.mockImplementation((header) => {
+        if (header === "Authorization") return "Bearer invalid-token";
+        return null;
+      });
       env.CAS_CACHE.get.mockResolvedValue(null);
       serverFetch.mockResolvedValue(
         new Response(JSON.stringify({ error: "Forbidden" }), { status: 403 }),
@@ -152,23 +169,36 @@ describe("CAS Module", () => {
 
       const response = await handleGetValue(mockRequest, env, {});
 
-      expect(response.status).toBe(403);
+      expect(response.status).toBe(404);
       expect(env.CAS_CACHE.put).toHaveBeenCalledWith(
         expect.any(String),
-        JSON.stringify({ error: "Unauthorized or not found", status: 403 }),
+        expect.any(String),
         { expirationTtl: 300 },
       );
+      const [, cachedValue] = env.CAS_CACHE.put.mock.calls[0];
+      expect(JSON.parse(cachedValue)).toEqual({
+        error: "Unauthorized or not found",
+        status: 404,
+      });
     });
 
     it("should use cached authorization failure", async () => {
-      mockRequest.headers.get.mockReturnValue("Bearer invalid-token");
-      env.CAS_CACHE.get.mockResolvedValue(
-        JSON.stringify({ error: "Unauthorized or not found", status: 403 }),
-      );
+      mockRequest.headers.get.mockImplementation((header) => {
+        if (header === "Authorization") return "Bearer invalid-token";
+        return null;
+      });
+      env.CAS_CACHE.get
+        .mockResolvedValueOnce(
+          JSON.stringify({
+            error: "Unauthorized or not found",
+            status: 404,
+          }),
+        )
+        .mockResolvedValue(null);
 
       const response = await handleGetValue(mockRequest, env, {});
 
-      expect(response.status).toBe(403);
+      expect(response.status).toBe(404);
       expect(serverFetch).not.toHaveBeenCalled();
       const data = await response.json();
       expect(data.message).toBe("Unauthorized or not found");
@@ -181,15 +211,18 @@ describe("CAS Module", () => {
         return null;
       });
       env.CAS_CACHE.get.mockResolvedValue(null);
-      serverFetch.mockResolvedValue(
-        new Response(JSON.stringify({ prefix: "server-prefix/" }), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        }),
+      serverFetch.mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({ projects: [{ full_name: "acme/myapp" }] }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          },
+        ),
       );
       checkS3ObjectExists.mockResolvedValue(true);
       getS3Url.mockReturnValue(
-        "https://s3.amazonaws.com/test-bucket/server-prefix/0/abc123",
+        "https://s3.amazonaws.com/test-bucket/acme/myapp/cas/0/abc123",
       );
 
       mockS3Client.fetch.mockResolvedValue(
@@ -200,7 +233,7 @@ describe("CAS Module", () => {
 
       expect(serverFetch).toHaveBeenCalledWith(
         env,
-        "/api/cache/prefix?account_handle=acme&project_handle=myapp",
+        "/api/projects",
         expect.objectContaining({
           headers: expect.objectContaining({
             Authorization: "Bearer token123",
@@ -211,9 +244,12 @@ describe("CAS Module", () => {
     });
 
     it("should return 404 with JSON when artifact does not exist", async () => {
-      mockRequest.headers.get.mockReturnValue("Bearer token123");
-      env.CAS_CACHE.get.mockResolvedValue(
-        JSON.stringify({ prefix: "prefix/" }),
+      mockRequest.headers.get.mockImplementation((header) => {
+        if (header === "Authorization") return "Bearer token123";
+        return null;
+      });
+      env.CAS_CACHE.get.mockResolvedValueOnce(
+        JSON.stringify({ projects: ["acme/myapp"] }),
       );
 
       // Mock S3 client to return 404
@@ -226,38 +262,55 @@ describe("CAS Module", () => {
       expect(data.message).toBe("Artifact does not exist");
     });
 
-    it("should return 403 with JSON when server returns forbidden", async () => {
-      mockRequest.headers.get.mockReturnValue("Bearer token123");
+    it("should return 404 with JSON when server returns forbidden", async () => {
+      mockRequest.headers.get.mockImplementation((header) => {
+        if (header === "Authorization") return "Bearer token123";
+        return null;
+      });
       env.CAS_CACHE.get.mockResolvedValue(null);
-      serverFetch.mockResolvedValue(
+      serverFetch.mockResolvedValueOnce(
         new Response(JSON.stringify({ error: "Forbidden" }), { status: 403 }),
       );
 
       const response = await handleGetValue(mockRequest, env, {});
 
-      expect(response.status).toBe(403);
+      expect(response.status).toBe(404);
       const data = await response.json();
       expect(data.message).toBe("Unauthorized or not found");
     });
 
     it("should return 404 with empty body when server returns not found", async () => {
-      mockRequest.headers.get.mockReturnValue("Bearer token123");
+      mockRequest.headers.get.mockImplementation((header) => {
+        if (header === "Authorization") return "Bearer token123";
+        return null;
+      });
       env.CAS_CACHE.get.mockResolvedValue(null);
-      serverFetch.mockResolvedValue(
-        new Response(JSON.stringify({ error: "Not found" }), { status: 404 }),
+      serverFetch.mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            projects: [{ full_name: "acme/other" }],
+          }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          },
+        ),
       );
 
       const response = await handleGetValue(mockRequest, env, {});
 
       expect(response.status).toBe(404);
-      const body = await response.text();
-      expect(body).toBe("");
+      const data = await response.json();
+      expect(data.message).toBe("Unauthorized or not found");
     });
 
     it("should return 500 when S3 bucket is not configured", async () => {
-      mockRequest.headers.get.mockReturnValue("Bearer token123");
-      env.CAS_CACHE.get.mockResolvedValue(
-        JSON.stringify({ prefix: "prefix/" }),
+      mockRequest.headers.get.mockImplementation((header) => {
+        if (header === "Authorization") return "Bearer token123";
+        return null;
+      });
+      env.CAS_CACHE.get.mockResolvedValueOnce(
+        JSON.stringify({ projects: ["acme/myapp"] }),
       );
       env.TUIST_S3_BUCKET_NAME = undefined;
 
@@ -293,16 +346,16 @@ describe("CAS Module", () => {
       expect(data.message).toContain("Missing Authorization header");
     });
 
-    it("should return 403 with JSON when server returns forbidden", async () => {
+    it("should return 404 with JSON when server returns forbidden", async () => {
       mockRequest.headers.get.mockReturnValue("Bearer token123");
       env.CAS_CACHE.get.mockResolvedValue(null);
-      serverFetch.mockResolvedValue(
+      serverFetch.mockResolvedValueOnce(
         new Response(JSON.stringify({ error: "Forbidden" }), { status: 403 }),
       );
 
       const response = await handleSave(mockRequest, env, {});
 
-      expect(response.status).toBe(403);
+      expect(response.status).toBe(404);
       const data = await response.json();
       expect(data.message).toBe("Unauthorized or not found");
     });
@@ -321,22 +374,34 @@ describe("CAS Module", () => {
       expect(response.status).toBe(401);
       expect(env.CAS_CACHE.put).toHaveBeenCalledWith(
         expect.any(String),
-        JSON.stringify({ error: "Unauthorized or not found", status: 401 }),
+        expect.any(String),
         { expirationTtl: 300 },
       );
+      const [, cachedValue] = env.CAS_CACHE.put.mock.calls[0];
+      expect(JSON.parse(cachedValue)).toEqual({
+        error: "Unauthorized or not found",
+        status: 401,
+      });
     });
 
     it("should return 204 when artifact already exists", async () => {
       mockRequest.headers.get.mockReturnValue("Bearer token123");
       env.CAS_CACHE.get.mockResolvedValue(null);
-      serverFetch.mockResolvedValue(
+      serverFetch.mockResolvedValueOnce(
         new Response(
-          JSON.stringify({ prefix: "test-account/test-project/cas/" }),
-          { status: 200 },
+          JSON.stringify({
+            projects: [{ full_name: "acme/myapp" }],
+          }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          },
         ),
       );
       checkS3ObjectExists.mockResolvedValue(true);
-      getS3Url.mockReturnValue("https://s3.amazonaws.com/test-bucket/test-key");
+      getS3Url.mockReturnValue(
+        "https://s3.amazonaws.com/test-bucket/acme/myapp/cas/0/abc123",
+      );
 
       const response = await handleSave(mockRequest, env, {});
 
@@ -353,14 +418,21 @@ describe("CAS Module", () => {
       });
       mockRequest.arrayBuffer.mockResolvedValue(new ArrayBuffer(100));
       env.CAS_CACHE.get.mockResolvedValue(null);
-      serverFetch.mockResolvedValue(
+      serverFetch.mockResolvedValueOnce(
         new Response(
-          JSON.stringify({ prefix: "test-account/test-project/cas/" }),
-          { status: 200 },
+          JSON.stringify({
+            projects: [{ full_name: "acme/myapp" }],
+          }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          },
         ),
       );
       checkS3ObjectExists.mockResolvedValue(false);
-      getS3Url.mockReturnValue("https://s3.amazonaws.com/test-bucket/test-key");
+      getS3Url.mockReturnValue(
+        "https://s3.amazonaws.com/test-bucket/acme/myapp/cas/0/abc123",
+      );
       mockS3Client.fetch.mockResolvedValue(new Response(null, { status: 200 }));
 
       const response = await handleSave(mockRequest, env, {});
@@ -368,7 +440,7 @@ describe("CAS Module", () => {
       expect(response.status).toBe(204);
       expect(response.body).toBeNull();
       expect(mockS3Client.fetch).toHaveBeenCalledWith(
-        "https://s3.amazonaws.com/test-bucket/test-key",
+        "https://s3.amazonaws.com/test-bucket/acme/myapp/cas/0/abc123",
         expect.objectContaining({
           method: "PUT",
           body: expect.any(ArrayBuffer),

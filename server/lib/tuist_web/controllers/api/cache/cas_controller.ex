@@ -2,7 +2,6 @@ defmodule TuistWeb.API.CASController do
   use OpenApiSpex.ControllerSpecs
   use TuistWeb, :controller
 
-  alias OpenApiSpex.Schema
   alias Tuist.Storage
   alias TuistWeb.API.Cache.Plugs.LoaderQueryPlug
   alias TuistWeb.API.Schemas.Error
@@ -17,53 +16,6 @@ defmodule TuistWeb.API.CASController do
   )
 
   tags ["CAS"]
-
-  operation(:prefix,
-    summary: "Get the S3 object key prefix for a project's CAS storage.",
-    operation_id: "getCASPrefix",
-    parameters: [
-      account_handle: [
-        in: :query,
-        type: :string,
-        required: true,
-        description: "The handle of the project's account."
-      ],
-      project_handle: [
-        in: :query,
-        type: :string,
-        required: true,
-        description: "The handle of the project."
-      ]
-    ],
-    responses: %{
-      ok:
-        {"The CAS storage prefix", "application/json",
-         %Schema{
-           type: :object,
-           properties: %{
-             prefix: %Schema{
-               type: :string,
-               description: "The S3 object key prefix where CAS objects should be stored.",
-               example: "account-123/project-456/xcode/cas/"
-             }
-           },
-           required: [:prefix]
-         }},
-      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
-      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
-      not_found: {"The project was not found", "application/json", Error}
-    }
-  )
-
-  def prefix(conn, _params) do
-    %{selected_account: account, selected_project: project} = conn.assigns
-
-    prefix = "#{account.name}/#{project.name}/cas/"
-
-    conn
-    |> put_status(:ok)
-    |> json(%{prefix: prefix})
-  end
 
   operation(:load,
     summary: "Download a CAS artifact.",

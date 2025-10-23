@@ -4,6 +4,7 @@ defmodule Tuist.ProjectsTest do
   use Mimic
 
   alias Tuist.Accounts
+  alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Accounts.ProjectAccount
   alias Tuist.Base64
   alias Tuist.CommandEvents
@@ -213,6 +214,45 @@ defmodule Tuist.ProjectsTest do
                  project: project
                }
              ] == got
+    end
+
+    test "get all project accounts for an authenticated account subject" do
+      account = AccountsFixtures.account_fixture()
+      project_one = ProjectsFixtures.project_fixture(account_id: account.id, preload: [])
+      project_two = ProjectsFixtures.project_fixture(account_id: account.id, preload: [])
+
+      got = Projects.get_all_project_accounts(%AuthenticatedAccount{account: account, scopes: []})
+
+      assert Enum.sort_by(got, & &1.handle) ==
+               Enum.sort_by(
+                 [
+                   %ProjectAccount{
+                     handle: "#{account.name}/#{project_one.name}",
+                     account: account,
+                     project: project_one
+                   },
+                   %ProjectAccount{
+                     handle: "#{account.name}/#{project_two.name}",
+                     account: account,
+                     project: project_two
+                   }
+                 ],
+                 & &1.handle
+               )
+    end
+
+    test "get all project accounts for a project subject" do
+      project = ProjectsFixtures.project_fixture()
+
+      got = Projects.get_all_project_accounts(project)
+
+      expected_handle = "#{project.account.name}/#{project.name}"
+      assert [%ProjectAccount{handle: ^expected_handle}] = got
+    end
+
+    test "returns empty list for unsupported subjects" do
+      assert [] == Projects.get_all_project_accounts(%{unexpected: :subject})
+      assert [] == Projects.get_all_project_accounts(nil)
     end
 
     test "get all project accounts for a user" do

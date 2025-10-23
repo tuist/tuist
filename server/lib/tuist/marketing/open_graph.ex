@@ -17,18 +17,54 @@ defmodule Tuist.Marketing.OpenGraph do
       File.mkdir_p!(parent_directory)
     end
 
-    {image, _} =
-      %{
-        title_line_1: title_line_1,
-        title_line_2: title_line_2,
-        title_line_3: title_line_3
-      }
-      |> template()
-      |> Phoenix.HTML.html_escape()
-      |> Phoenix.HTML.safe_to_string()
-      |> Vix.Vips.Operation.svgload_buffer!()
+    # Load the background template image
+    template_path = Path.join([Application.app_dir(:tuist, "priv"), "static", "images", "og_template.png"])
+    {:ok, background} = Image.open(template_path)
 
-    Image.write!(image, path)
+    # Text configuration
+    # Color oklch(21.5% 0.006 236.9) - converted to RGB [46, 48, 57]
+    text_options = [
+      font: "Inter Variable",
+      font_weight: 500,
+      font_size: 100,
+      text_fill_color: [46, 48, 57]
+    ]
+
+    # Create and composite text overlays
+    # Line height: 100% (100px spacing = font size)
+    image = background
+    font_size = text_options[:font_size]
+    base_y = 450
+
+    image =
+      if title_line_1 == "" do
+        image
+      else
+        {:ok, text1} = Image.Text.text(title_line_1, text_options)
+        {:ok, composed} = Image.compose(image, text1, x: 85, y: base_y)
+        composed
+      end
+
+    image =
+      if title_line_2 == "" do
+        image
+      else
+        {:ok, text2} = Image.Text.text(title_line_2, text_options)
+        {:ok, composed} = Image.compose(image, text2, x: 85, y: base_y + font_size)
+        composed
+      end
+
+    image =
+      if title_line_3 == "" do
+        image
+      else
+        {:ok, text3} = Image.Text.text(title_line_3, text_options)
+        {:ok, composed} = Image.compose(image, text3, x: 85, y: base_y + font_size * 2)
+        composed
+      end
+
+    # Save as JPEG with high quality and proper color space
+    Image.write!(image, path, quality: 95, strip_metadata: false)
   end
 
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity

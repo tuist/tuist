@@ -4,6 +4,7 @@ category: "community"
 tags: ["ai", "devx", "previews", "automation", "future"]
 excerpt: "As AI transforms how we write code, we're reimagining how Tuist Previews can bridge the gap between automated development and human validation. Here's our vision for the future of mobile app development."
 author: pepicrft
+og_image_path: /marketing/images/blog/2025/06/19/previews.jpg
 ---
 
 There's no question at this point that AI will have an impact on the way we write code.

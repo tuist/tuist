@@ -96,7 +96,8 @@ defmodule TuistWeb.Marketing.StructuredMarkup do
       "@type" => "Product",
       "name" => "Tuist",
       "description" =>
-        dgettext("marketing",
+        dgettext(
+          "marketing",
           "Tuist is designed to grow with you. Only add a card if you need more than the free tier limits or dedicated support."
         ),
       "brand" => get_organization_structured_data(),

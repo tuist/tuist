@@ -1,11 +1,8 @@
 ---
 title: Terms of service
 description: These terms of service govern your use of the application located at https://tuist.dev and any related services provided by Tuist.
+last_updated: 2023-10-23
 ---
-
-# Tuist Server Terms of Service
-
-_Last updated October 23, 2023_
 
 These Terms of Service govern your use of the application located at [https://tuist.dev](https://tuist.dev) and any related services provided by Tuist.
 

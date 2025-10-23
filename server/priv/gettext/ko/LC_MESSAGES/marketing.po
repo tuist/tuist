@@ -8,8 +8,15 @@
 ### to merge POT files into PO files.
 msgid ""
 msgstr ""
+"PO-Revision-Date: 2025-10-23 10:33+0000\n"
+"Last-Translator: Anonymous <noreply@weblate.org>\n"
+"Language-Team: Korean <https://translate.tuist.dev/projects/tuist/marketing/"
+"ko/>\n"
 "Language: ko\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
+"X-Generator: Weblate 5.14\n"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:437
 #, elixir-autogen, elixir-format

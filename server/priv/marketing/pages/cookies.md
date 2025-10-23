@@ -1,11 +1,8 @@
 ---
 title: Cookie policy
 description: We use cookies to improve your experience of our application at https://tuist.dev. This cookie policy is part of Tuist's privacy policy and covers the use of cookies between your device and our site. It also provides information on third-party services that may use cookies as part of their service; however, this policy does not cover their cookies.
+last_updated: 2023-10-22
 ---
-
-# Cookie Policy
-
-_Last updated October 22, 2023_
 
 We use cookies to improve your experience of our application at [https://tuist.dev](https://tuist.dev). This cookie policy is part of Tuist's privacy policy and covers the use of cookies between your device and our site. It also provides information on third-party services that may use cookies as part of their service; however, this policy does not cover their cookies.
 

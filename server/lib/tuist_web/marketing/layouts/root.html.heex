@@ -2,7 +2,7 @@
 <html lang={Gettext.get_locale()} class="[scrollbar-gutter:stable]">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="csp-nonce" content={get_csp_nonce()} />
     <meta name="csrf-token" content={get_csrf_token()} />
     <.live_title>
@@ -73,6 +73,8 @@
     <link rel="canonical" href={Tuist.Environment.app_url(path: @current_path)} />
   </head>
   <body data-scrollable="true">
-    {@inner_content}
+    <div data-part="content">
+      {@inner_content}
+    </div>
   </body>
 </html>

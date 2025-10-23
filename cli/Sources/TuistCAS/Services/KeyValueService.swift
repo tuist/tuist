@@ -66,7 +66,7 @@ public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.Si
                 let duration = Date().timeIntervalSince(startTime)
                 logger
                     .error(
-                        "KeyValue.putValue background upload failed after \(String(format: "%.3f", duration))s for casID: \(casID): \(error)"
+                        "KeyValue.putValue background upload failed after \(String(format: "%.3f", duration))s for casID: \(casID): \(error.userFriendlyDescription())"
                     )
             }
         }
@@ -118,7 +118,7 @@ public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.Si
             }
         } catch {
             var responseError = CompilationCacheService_Keyvalue_V1_ResponseError()
-            responseError.description_p = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            responseError.description_p = error.userFriendlyDescription()
             response.error = responseError
             response.outcome = .keyNotFound
 

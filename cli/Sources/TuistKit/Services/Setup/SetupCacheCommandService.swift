@@ -148,10 +148,16 @@ struct SetupCacheCommandService {
             programArguments.append(contentsOf: ["--url", url])
         }
 
+        var environmentVariables: [String: String] = [:]
+        if let token = Environment.current.tuistVariables[Constants.EnvironmentVariables.token] {
+            environmentVariables["TUIST_CONFIG_TOKEN"] = token
+        }
+
         let plistContent = launchAgentPlist(
             programPath: tuistBinaryPath.pathString,
             programArguments: programArguments,
-            label: "tuist.cache.\(fullHandle.replacingOccurrences(of: "/", with: "_"))"
+            label: "tuist.cache.\(fullHandle.replacingOccurrences(of: "/", with: "_"))",
+            environmentVariables: environmentVariables
         )
 
         try await fileSystem.writeText(plistContent, at: plistPath)
@@ -164,12 +170,31 @@ struct SetupCacheCommandService {
     private func launchAgentPlist(
         programPath: String,
         programArguments: [String],
-        label: String
+        label: String,
+        environmentVariables: [String: String] = [:]
     ) -> String {
         let programArgumentsXML =
             programArguments
                 .map { "<string>\($0)</string>" }
                 .joined(separator: "\n\t\t")
+
+        let environmentVariablesXML: String
+        if environmentVariables.isEmpty {
+            environmentVariablesXML = ""
+        } else {
+            let envVarEntries = environmentVariables.map { key, value in
+                """
+                \t<key>\(key)</key>
+                \t<string>\(value)</string>
+                """
+            }.joined(separator: "\n\t")
+            environmentVariablesXML = """
+            <key>EnvironmentVariables</key>
+            <dict>
+            \(envVarEntries)
+            </dict>
+            """
+        }
 
         return """
         <?xml version="1.0" encoding="UTF-8"?>
@@ -184,6 +209,7 @@ struct SetupCacheCommandService {
             <array>
                 \(programArgumentsXML)
             </array>
+            \(environmentVariablesXML)
             <key>RunAtLoad</key>
             <true/>
             <key>KeepAlive</key>

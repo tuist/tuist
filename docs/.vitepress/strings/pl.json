@@ -302,7 +302,15 @@
                             }
                         },
                         "cache": {
-                            "text": ""
+                            "text": "",
+                            "items": {
+                                "generated-project": {
+                                    "text": ""
+                                },
+                                "xcode-cache": {
+                                    "text": ""
+                                }
+                            }
                         },
                         "registry": {
                             "text": "",

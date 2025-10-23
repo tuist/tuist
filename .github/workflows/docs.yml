@@ -66,6 +66,9 @@ jobs:
       - name: Generate manifest docs
         working-directory: docs
         run: mise run generate-manifests-docs
+      - name: Lint localization
+        working-directory: docs
+        run: mise run lint-localization
       - name: Free space
         # Our build process takes a lot of disk space, hitting limits on GitHub Actions runners.
         # This step ensures that we have enough space to build the documentation.

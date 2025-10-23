@@ -2,6 +2,7 @@ import CryptoKit
 import Foundation
 import GRPCCore
 import Mockable
+import OpenAPIRuntime
 import Path
 import Testing
 import TuistServer
@@ -196,6 +197,64 @@ struct CASServiceTests {
             "for fingerprint: \(fingerprint): forbidden(\"Upload denied\")",
             at: .error
         )
+    }
+
+    @Test
+    func load_when_client_error_with_auth_error() async throws {
+        // Given
+        let casID = "test-cas-id"
+        let authError = ServerClientAuthenticationError.notAuthenticated
+        let clientError = ClientError(
+            operationID: "loadCacheCAS",
+            operationInput: "",
+            causeDescription: "Authentication failed",
+            underlyingError: authError
+        )
+
+        var request = CompilationCacheService_Cas_V1_CASLoadRequest()
+        request.casID.id = casID.data(using: .utf8)!
+
+        let context = ServerContext.test()
+
+        given(loadCacheCASService)
+            .loadCacheCAS(casId: .any, fullHandle: .any, serverURL: .any)
+            .willThrow(clientError)
+
+        // When
+        let response = try await subject.load(request: request, context: context)
+
+        // Then
+        #expect(response.outcome == .error)
+        #expect(response.error.description_p == "You must be logged in to do this.")
+    }
+
+    @Test
+    func save_when_generic_error() async throws {
+        // Given
+        let testData = Data("test data".utf8)
+        let genericError = NSError(domain: "TestDomain", code: 500, userInfo: nil)
+
+        var request = CompilationCacheService_Cas_V1_CASSaveRequest()
+        request.data.blob.data = testData
+
+        let context = ServerContext.test()
+
+        given(saveCacheCASService)
+            .saveCacheCAS(.any, casId: .any, fullHandle: .any, serverURL: .any)
+            .willThrow(genericError)
+
+        // When
+        let response = try await subject.save(request: request, context: context)
+
+        // Then
+        switch response.contents {
+        case let .error(error):
+            #expect(error.description_p == genericError.localizedDescription)
+        case .casID:
+            #expect(Bool(false), "Expected error, but got casID")
+        case .none:
+            #expect(Bool(false), "Expected error, but contents is nil")
+        }
     }
 }
 

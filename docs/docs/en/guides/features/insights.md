@@ -1,11 +1,11 @@
 ---
 {
-  "title": "Insights",
+  "title": "Build insights",
   "titleTemplate": ":title · Features · Guides · Tuist",
   "description": "Get insights into your projects to maintain a product developer environment."
 }
 ---
-# Insights {#insights}
+# Build insights {#insights}
 
 ::: warning REQUIREMENTS
 <!-- -->
@@ -62,9 +62,11 @@ $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect build
 ```
 
 ::: tip MISE & PROJECT PATHS
+<!-- -->
 Your environment's `PATH` environment variable is not inherited by the scheme post action, and therefore you have to use Mise's absolute path,
 which will depend on how you installed Mise. Moreover, don't forget to inherit the build settings from a target in your project such that you
 can run Mise from the directory pointed to by $SRCROOT.
+<!-- -->
 :::
 
 

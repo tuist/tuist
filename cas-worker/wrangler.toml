@@ -2,7 +2,7 @@ name = "tuist-worker-production"
 main = "src/index.js"
 compatibility_date = "2025-01-08"
 routes = [
-  "https://tuist.dev/api/cache/cas/*",
+  "https://tuist.dev/api/cache/cas*",
   "https://tuist.dev/api/cache/keyvalue*"
 ]
 
@@ -11,21 +11,28 @@ port = 8787
 
 [[kv_namespaces]]
 binding = "KEY_VALUE_STORE"
-id = "770c83e891f646729e2bacfbf42364f8"
+id="770c83e891f646729e2bacfbf42364f8"
 [[kv_namespaces]]
 binding = "CAS_CACHE"
 id = "2adf75e070fd43cabee0be83cb4a562d"
 preview_id = "2f1058911a144cab9c8816478e03f4e2"
+[[analytics_engine_datasets]]
+binding = "METRICS"
+dataset = "cas_worker_metrics"
 
-# Development environment
+# Development
+
 [env.development]
 name = "tuist-worker-development"
 [[env.development.kv_namespaces]]
 binding = "KEY_VALUE_STORE"
-id = "6394478b175e4a1388908c5715cf5556"
+id="6394478b175e4a1388908c5715cf5556"
 [[env.development.kv_namespaces]]
 binding = "CAS_CACHE"
 id = "2f1058911a144cab9c8816478e03f4e3"
+[[env.development.analytics_engine_datasets]]
+binding = "METRICS"
+dataset = "cas_worker_metrics_development"
 
 # Staging environment
 [env.staging]
@@ -36,10 +43,13 @@ routes = [
 ]
 [[env.staging.kv_namespaces]]
 binding = "KEY_VALUE_STORE"
-id = "7a441525d06f41a3a63b2f1117d7e23f"
+id="7a441525d06f41a3a63b2f1117d7e23f"
 [[env.staging.kv_namespaces]]
 binding = "CAS_CACHE"
 id = "4eecec1f40f84dc1bd8233944b835934"
+[[env.staging.analytics_engine_datasets]]
+binding = "METRICS"
+dataset = "cas_worker_metrics_staging"
 
 # Canary environment
 [env.canary]
@@ -49,8 +59,11 @@ routes = [
   "https://canary.tuist.dev/api/cache/keyvalue*"
 ]
 [[env.canary.kv_namespaces]]
+binding = "KEY_VALUE_STORE"
+id="48fe1eb28a254363b79c4d481835823e"
+[[env.canary.kv_namespaces]]
 binding = "CAS_CACHE"
 id = "c95cdd9d54fa49b89465b3993c298186"
-[[env.canary.kv_namespaces]]
-binding = "CAS_CACHE_BLOBS"
-id = "cb953df9fb6d42fa8fdca17f06287ba7"
+[[env.canary.analytics_engine_datasets]]
+binding = "METRICS"
+dataset = "cas_worker_metrics_canary"

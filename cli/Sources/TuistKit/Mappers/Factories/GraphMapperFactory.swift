@@ -228,10 +228,16 @@ public final class GraphMapperFactory: GraphMapperFactorying {
                 mappers.append(TreeShakePrunedTargetsGraphMapper())
             }
 
+            let decider: TargetReplacementDeciding = if cacheSources.isEmpty {
+                ExternalOnlyTargetReplacementDecider()
+            } else {
+                AllPossibleTargetReplacementDecider(exceptions: cacheSources)
+            }
+
             if !ignoreBinaryCache {
                 let focusTargetsGraphMapper = TargetsToCacheBinariesGraphMapper(
                     config: config,
-                    decider: AllPossibleTargetReplacementDecider(exceptions: cacheSources),
+                    decider: decider,
                     configuration: configuration,
                     cacheStorage: cacheStorage
                 )

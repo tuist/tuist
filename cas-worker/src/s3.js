@@ -45,10 +45,14 @@ export async function checkS3ObjectExists(
   bucket,
   key,
   virtualHost = false,
+  instrumentation,
 ) {
   try {
     const url = getS3Url(endpoint, bucket, key, virtualHost);
-    const response = await s3Client.fetch(url, { method: "HEAD" });
+    const performFetch = () => s3Client.fetch(url, { method: "HEAD" });
+    const response = instrumentation?.measureServerFetch
+      ? await instrumentation.measureServerFetch(performFetch, "s3")
+      : await performFetch();
     return response.ok;
   } catch {
     return false;

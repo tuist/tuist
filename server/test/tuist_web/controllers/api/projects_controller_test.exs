@@ -4,6 +4,7 @@ defmodule TuistWeb.API.ProjectsControllerTest do
   use Mimic
 
   alias Tuist.Accounts
+  alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Projects
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
@@ -362,6 +363,54 @@ defmodule TuistWeb.API.ProjectsControllerTest do
              end)
 
       assert length(response["projects"]) == 2
+    end
+
+    test "lists all projects for an authenticated account subject", %{conn: conn} do
+      account = AccountsFixtures.account_fixture()
+      project_one = ProjectsFixtures.project_fixture(account_id: account.id)
+      project_two = ProjectsFixtures.project_fixture(account_id: account.id)
+
+      conn =
+        conn
+        |> assign(:current_subject, %AuthenticatedAccount{account: account, scopes: []})
+        |> get(~p"/api/projects")
+
+      response = json_response(conn, :ok)
+
+      handles = Enum.map(response["projects"], & &1["full_name"])
+
+      assert Enum.sort(handles) ==
+               Enum.sort([
+                 "#{account.name}/#{project_one.name}",
+                 "#{account.name}/#{project_two.name}"
+               ])
+    end
+
+    test "lists the current project for a project token subject", %{conn: conn} do
+      project = ProjectsFixtures.project_fixture()
+
+      conn =
+        conn
+        |> Authentication.put_current_project(project)
+        |> get(~p"/api/projects")
+
+      response = json_response(conn, :ok)
+
+      assert response["projects"] == [
+               %{
+                 "id" => project.id,
+                 "full_name" => "#{project.account.name}/#{project.name}",
+                 "token" => project.token,
+                 "default_branch" => project.default_branch,
+                 "visibility" => Atom.to_string(project.visibility)
+               }
+             ]
+    end
+
+    test "requires authentication", %{conn: conn} do
+      conn = get(conn, ~p"/api/projects")
+      response = json_response(conn, :unauthorized)
+      assert response["message"] == "You need to be authenticated to access this resource."
     end
   end
 
