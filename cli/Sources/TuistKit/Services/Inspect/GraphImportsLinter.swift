@@ -105,6 +105,10 @@ final class GraphImportsLinter: GraphImportsLinting {
                 !dependency.target.bundleId.hasSuffix(".generated.resources")
             }
             .filter { dependency in
+                // Macros are referenced by string name in #externalMacro, never via import statements.
+                dependency.target.product != .macro
+            }
+            .filter { dependency in
                 switch target.target.product {
                 case .app:
                     switch dependency.target.product {
