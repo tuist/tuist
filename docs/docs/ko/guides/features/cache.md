@@ -45,11 +45,14 @@ Module cache →</LocalizedLink>
 
 ## Xcode cache {#xcode-cache}
 
-::: warning STATE OF CACHE IN XCODE Xcode caching is currently optimized for
-local incremental builds and the whole spectrum of build tasks is not yet
-path-independent. Still you can experience benefits by plugging Tuist's remote
-cache, and we expect build times to improve over time as the build system's
-capability keeps improving. :::
+::: warning STATE OF CACHE IN XCODE
+<!-- -->
+Xcode caching is currently optimized for local incremental builds and the whole
+spectrum of build tasks is not yet path-independent. Still you can experience
+benefits by plugging Tuist's remote cache, and we expect build times to improve
+over time as the build system's capability keeps improving.
+<!-- -->
+:::
 
 Apple has been working on a new caching solution at the build level, similar to
 other build systems like Bazel and Buck. The new caching capability is available
