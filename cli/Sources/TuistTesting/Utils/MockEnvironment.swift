@@ -24,7 +24,6 @@ public final class MockEnvironment: Environmenting {
         } else {
             directory = .owned(try TemporaryDirectory(removeTreeOnDeinit: true))
         }
-        stateDirectory = directory.path.appending(component: "state")
         homeDirectory = directory.path.appending(components: "home")
     }
 
@@ -60,13 +59,67 @@ public final class MockEnvironment: Environmenting {
     }
 
     public var cacheDirectory: AbsolutePath {
-        directory.path.appending(components: ".cache")
+        let baseCacheDirectory: AbsolutePath
+        if let cacheDirectoryPathString = variables["TUIST_XDG_CACHE_HOME"],
+           let cacheDirectory = try? AbsolutePath(validating: cacheDirectoryPathString)
+        {
+            baseCacheDirectory = cacheDirectory
+        } else if let cacheDirectoryPathString = variables["XDG_CACHE_HOME"],
+                  let cacheDirectory = try? AbsolutePath(validating: cacheDirectoryPathString)
+        {
+            baseCacheDirectory = cacheDirectory
+        } else {
+            baseCacheDirectory = directory.path.appending(components: ".cache")
+        }
+        return baseCacheDirectory.appending(component: "tuist")
     }
 
-    public var stateDirectory: AbsolutePath
+    public var stateDirectory: AbsolutePath {
+        let baseStateDirectory: AbsolutePath
+        if let stateDirectoryPathString = variables["TUIST_XDG_STATE_HOME"],
+           let stateDirectory = try? AbsolutePath(validating: stateDirectoryPathString)
+        {
+            baseStateDirectory = stateDirectory
+        } else if let stateDirectoryPathString = variables["XDG_STATE_HOME"],
+                  let stateDirectory = try? AbsolutePath(validating: stateDirectoryPathString)
+        {
+            baseStateDirectory = stateDirectory
+        } else {
+            baseStateDirectory = directory.path.appending(components: ["state"])
+        }
+        return baseStateDirectory.appending(component: "tuist")
+    }
 
     public var configDirectory: AbsolutePath {
-        directory.path.appending(component: "config")
+        let baseConfigDirectory: AbsolutePath
+        if let configDirectoryPathString = variables["TUIST_XDG_CONFIG_HOME"],
+           let configDirectory = try? AbsolutePath(validating: configDirectoryPathString)
+        {
+            baseConfigDirectory = configDirectory
+        } else if let configDirectoryPathString = variables["XDG_CONFIG_HOME"],
+                  let configDirectory = try? AbsolutePath(validating: configDirectoryPathString)
+        {
+            baseConfigDirectory = configDirectory
+        } else {
+            baseConfigDirectory = directory.path.appending(component: "config")
+        }
+        return baseConfigDirectory.appending(component: "tuist")
+    }
+
+    public var dataDirectory: AbsolutePath {
+        let baseDataDirectory: AbsolutePath
+        if let dataDirectoryPathString = variables["TUIST_XDG_DATA_HOME"],
+           let dataDirectory = try? AbsolutePath(validating: dataDirectoryPathString)
+        {
+            baseDataDirectory = dataDirectory
+        } else if let dataDirectoryPathString = variables["XDG_DATA_HOME"],
+                  let dataDirectory = try? AbsolutePath(validating: dataDirectoryPathString)
+        {
+            baseDataDirectory = dataDirectory
+        } else {
+            baseDataDirectory = directory.path.appending(component: "data")
+        }
+        return baseDataDirectory.appending(component: "tuist")
     }
 
     public var queueDirectory: AbsolutePath {

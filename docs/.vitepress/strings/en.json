@@ -87,6 +87,9 @@
                         "logging": {
                             "text": "Logging"
                         },
+                        "directories": {
+                            "text": "Directories"
+                        },
                         "shell-completions": {
                             "text": "Shell completions"
                         }
