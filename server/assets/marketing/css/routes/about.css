@@ -8,12 +8,6 @@
     gap: var(--noora-spacing-11);
   }
 
-  & > section,
-  & > header {
-    position: relative;
-    z-index: var(--noora-z-index-2);
-  }
-
   & > [data-part="header"] {
     display: flex;
     flex-direction: column;
