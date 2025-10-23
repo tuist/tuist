@@ -60,6 +60,7 @@ export TUIST_XDG_CACHE_HOME=/tmp/tuist-cache
 
 # Or use standard XDG variable
 export XDG_CACHE_HOME=/tmp/cache
+tuist cache
 ```
 
 ### State directory {#state-directory}
