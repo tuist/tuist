@@ -1,6 +1,15 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.89.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* use TUIST_CONFIG_TOKEN when launching the cache daemon by [@fortmarek](https://github.com/fortmarek) in [#8506](https://github.com/tuist/tuist/pull/8506)
+* ignore macros in inspect redundant dependencies by [@hiltonc](https://github.com/hiltonc) in [#8457](https://github.com/tuist/tuist/pull/8457)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.89.0...4.89.1
+
 ## What's Changed in 4.89.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
