@@ -6,5 +6,6 @@ let config = Config(
     generationOptions: .options(
         optionalAuthentication: true,
         disableSandbox: true,
+        enableCaching: true
     )
 )
