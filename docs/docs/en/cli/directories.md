@@ -28,7 +28,7 @@ Tuist supports both standard XDG variables and Tuist-specific prefixed variants.
 ```bash
 # Set Tuist-specific config directory
 export TUIST_XDG_CONFIG_HOME=/custom/config
-tuist auth
+tuist auth login
 
 # Or use standard XDG variable
 export XDG_CONFIG_HOME=/custom/config
