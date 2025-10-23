@@ -44,13 +44,13 @@
       margin-top: var(--noora-spacing-7);
       margin-right: var(--noora-spacing-6);
       margin-left: var(--noora-spacing-6);
-      border-radius: var(--noora-radius-xlarge);
       box-shadow:
         0 114px 32px 0 rgba(0, 0, 0, 0),
         0 73px 29px 0 rgba(0, 0, 0, 0.01),
         0 41px 25px 0 rgba(0, 0, 0, 0.02),
         0 18px 18px 0 rgba(0, 0, 0, 0.03),
         0 5px 10px 0 rgba(0, 0, 0, 0.04);
+      border-radius: var(--noora-radius-xlarge);
     }
 
     @media (min-width: 1440px) {
@@ -571,9 +571,9 @@
         }
 
         & > [data-part="close-icon"] {
+          display: none;
           width: 16px;
           height: 16px;
-          display: none;
 
           & > svg {
             width: 100%;
