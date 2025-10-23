@@ -1,5 +1,4 @@
 #!/bin/bash
 set -euo pipefail
 
-cd "$MISE_PROJECT_ROOT"
-node scripts/lint-localization.mjs
+node -C $MISE_PROJECT_ROOT" scripts/lint-localization.mjs
