@@ -37,20 +37,7 @@
     </section>
 
     <section data-part="filters-bar">
-      <.tab_menu_horizontal data-part="categories-mobile">
-        <.tab_menu_horizontal_item
-          label={dgettext("marketing", "All")}
-          patch={~p"/blog"}
-          selected={is_nil(@selected_category)}
-        />
-        <.tab_menu_horizontal_item
-          :for={category <- Enum.reject(@categories, &is_nil/1)}
-          label={category |> to_string() |> String.capitalize()}
-          patch={~p"/blog?category=#{to_string(category)}"}
-          selected={@selected_category == to_string(category)}
-        />
-      </.tab_menu_horizontal>
-      <div data-part="categories-desktop">
+      <div data-part="categories">
         <.link
           patch={~p"/blog"}
           data-selected={is_nil(@selected_category)}
