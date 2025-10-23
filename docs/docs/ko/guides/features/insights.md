@@ -1,11 +1,11 @@
 ---
 {
-  "title": "Insights",
+  "title": "Build insights",
   "titleTemplate": ":title · Features · Guides · Tuist",
   "description": "Get insights into your projects to maintain a product developer environment."
 }
 ---
-# Insights {#insights}
+# Build insights {#insights}
 
 ::: warning REQUIREMENTS
 <!-- -->
