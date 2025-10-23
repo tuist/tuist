@@ -57,6 +57,7 @@ tuist auth login
 ```bash
 # Set Tuist-specific cache directory
 export TUIST_XDG_CACHE_HOME=/tmp/tuist-cache
+tuist cache
 
 # Or use standard XDG variable
 export XDG_CACHE_HOME=/tmp/cache
