@@ -16,28 +16,12 @@ msgstr ""
 msgid "\"We could solve our immediate problems and do so while maintaining a familiar"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:26
-#, elixir-autogen, elixir-format
-msgid "$0"
-msgstr ""
-
 #: lib/tuist_web/marketing/controllers/marketing_html/blog_post.html.heex:25
 #, elixir-autogen, elixir-format
 msgid "%{count} minute"
 msgid_plural "%{count} minutes"
 msgstr[0] ""
 msgstr[1] ""
-
-#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:85
-#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:113
-#, elixir-autogen, elixir-format
-msgid "+ 0.5€ per additional unit"
-msgstr ""
-
-#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:66
-#, elixir-autogen, elixir-format
-msgid "0€ and up"
-msgstr ""
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:85
 #, elixir-autogen, elixir-format
@@ -368,14 +352,6 @@ msgstr ""
 msgid "Create your plan or self-host your instance."
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:44
-#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:70
-#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:86
-#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:114
-#, elixir-autogen, elixir-format
-msgid "Custom"
-msgstr ""
-
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:196
 #, elixir-autogen, elixir-format
 msgid "Custom legal agreements and terms of service tailored to your organization's needs."
@@ -500,12 +476,6 @@ msgstr ""
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:171
 #, elixir-autogen, elixir-format
 msgid "Forum"
-msgstr ""
-
-#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:8
-#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:64
-#, elixir-autogen, elixir-format
-msgid "Free"
 msgstr ""
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:15
@@ -1560,11 +1530,6 @@ msgstr ""
 msgid "Your platform team, as a service"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:27
-#, elixir-autogen, elixir-format
-msgid "and up"
-msgstr ""
-
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:424
 #, elixir-autogen, elixir-format
 msgid "core development experience\""
@@ -1619,4 +1584,30 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:17
 #, elixir-autogen, elixir-format
 msgid "your competitive advantage"
+msgstr ""
+
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:44
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:70
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:86
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:114
+#, elixir-autogen, elixir-format
+msgid "Custom"
+msgstr ""
+
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:8
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:64
+#, elixir-autogen, elixir-format
+msgid "Free"
+msgstr ""
+
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:27
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:66
+#, elixir-autogen, elixir-format
+msgid "and up"
+msgstr ""
+
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:85
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:113
+#, elixir-autogen, elixir-format
+msgid "per additional unit"
 msgstr ""
