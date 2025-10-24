@@ -8,7 +8,7 @@ defmodule Tuist.Cache do
   @doc """
   Stores a list of values for a given key (cas_id and project_id).
   This overwrites any existing values.
-  
+
   ## Examples
 
       iex> put_key_value("some_cas_id", 123, ["value1", "value2"])

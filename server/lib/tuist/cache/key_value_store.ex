@@ -51,10 +51,7 @@ defmodule Tuist.Cache.KeyValueStore do
     end
   end
 
-  # Private functions
-
   defp build_key(cas_id, project_id) do
     "#{project_id}:#{cas_id}"
   end
-
 end

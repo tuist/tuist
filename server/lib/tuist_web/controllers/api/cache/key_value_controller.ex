@@ -153,10 +153,7 @@ defmodule TuistWeb.API.Cache.KeyValueController do
         %{assigns: %{selected_project: project}, body_params: %{entries: entries, cas_id: cas_id}} = conn,
         _params
       ) do
-    # Extract just the values from the entries
     values = Enum.map(entries, fn entry -> entry.value end)
-    
-    # Store all values at once
     :ok = Cache.put_key_value(cas_id, project.id, values)
 
     send_resp(conn, :no_content, "")

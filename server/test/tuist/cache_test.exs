@@ -30,7 +30,6 @@ defmodule Tuist.CacheTest do
       project_id = project.id
       values = ["value1", "value2"]
 
-      # Store values
       :ok = Cache.put_key_value(cas_id, project_id, values)
 
       # When
@@ -56,11 +55,8 @@ defmodule Tuist.CacheTest do
       # Given
       cas_id = "test_cas_id"
       project_id = project.id
-      
-      # Store initial values
+
       :ok = Cache.put_key_value(cas_id, project_id, ["old_value1", "old_value2"])
-      
-      # Store new values (should overwrite)
       :ok = Cache.put_key_value(cas_id, project_id, ["new_value1", "new_value2", "new_value3"])
 
       # When
@@ -76,7 +72,7 @@ defmodule Tuist.CacheTest do
       project_id = project.id
       other_project = ProjectsFixtures.project_fixture()
       other_project_id = other_project.id
-      
+
       # Store different values for the same cas_id but different projects
       :ok = Cache.put_key_value(cas_id, project_id, ["project1_value"])
       :ok = Cache.put_key_value(cas_id, other_project_id, ["project2_value"])
