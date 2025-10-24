@@ -4,6 +4,7 @@ import Foundation
 import GRPCCore
 import Path
 import TuistServer
+import TuistSupport
 
 public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServiceProtocol {
     private let fullHandle: String
@@ -30,6 +31,7 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
         request: CompilationCacheService_Cas_V1_CASLoadRequest,
         context _: GRPCCore.ServerContext
     ) async throws -> CompilationCacheService_Cas_V1_CASLoadResponse {
+        let startTime = Date()
         var response = CompilationCacheService_Cas_V1_CASLoadResponse()
 
         guard let casID = String(data: request.casID.id, encoding: .utf8) else {
@@ -38,8 +40,11 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
             responseError.description_p = "Invalid CAS ID: Unable to decode CAS ID as UTF-8 string"
             response.error = responseError
             response.contents = .error(responseError)
+            Logger.current.error("CAS.load failed - invalid CAS ID (unable to decode as UTF-8)")
             return response
         }
+
+        Logger.current.debug("CAS.load starting - casID: \(casID)")
 
         do {
             let data = try await loadCacheCASService.loadCacheCAS(
@@ -56,12 +61,21 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
 
             response.contents = .data(blob)
             response.outcome = .success
+
+            let duration = Date().timeIntervalSince(startTime)
+            Logger.current
+                .debug(
+                    "CAS.load completed successfully in \(String(format: "%.3f", duration))s - loaded \(data.count) bytes for casID: \(casID)"
+                )
         } catch {
             response.outcome = .error
             var responseError = CompilationCacheService_Cas_V1_ResponseError()
             responseError.description_p = error.userFriendlyDescription()
             response.error = responseError
             response.contents = .error(responseError)
+
+            let duration = Date().timeIntervalSince(startTime)
+            Logger.current.error("CAS.load failed after \(String(format: "%.3f", duration))s for casID: \(casID): \(error)")
         }
 
         return response
@@ -71,10 +85,14 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
         request: CompilationCacheService_Cas_V1_CASSaveRequest,
         context _: GRPCCore.ServerContext
     ) async throws -> CompilationCacheService_Cas_V1_CASSaveResponse {
+        let startTime = Date()
         var response = CompilationCacheService_Cas_V1_CASSaveResponse()
 
         let data: Data
-        if !request.data.blob.filePath.isEmpty {
+        let isFilePath = !request.data.blob.filePath.isEmpty
+
+        if isFilePath {
+            Logger.current.debug("CAS.save starting - reading from file: \(request.data.blob.filePath)")
             do {
                 let absolutePath = try AbsolutePath(validating: request.data.blob.filePath)
                 data = try await fileSystem.readFile(at: absolutePath)
@@ -83,10 +101,12 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
                 responseError.description_p = error.userFriendlyDescription()
                 response.error = responseError
                 response.contents = .error(responseError)
+                Logger.current.error("CAS.save failed to read file \(request.data.blob.filePath): \(error)")
                 return response
             }
         } else {
             data = request.data.blob.data
+            Logger.current.debug("CAS.save starting - data size: \(data.count) bytes")
         }
 
         let hash = SHA256.hash(data: data)
@@ -95,22 +115,39 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
         var message = CompilationCacheService_Cas_V1_CASDataID()
         message.id = fingerprint.data(using: .utf8)!
 
-        do {
-            try await saveCacheCASService.saveCacheCAS(
-                data,
-                casId: fingerprint,
-                fullHandle: fullHandle,
-                serverURL: serverURL
-            )
-            response.casID = message
-            response.contents = .casID(message)
-        } catch {
-            var responseError = CompilationCacheService_Cas_V1_ResponseError()
-            responseError.description_p = error.userFriendlyDescription()
-            response.error = responseError
-            response.contents = .error(responseError)
+        Logger.current.debug("CAS.save computed fingerprint: \(fingerprint), data size: \(data.count) bytes")
+
+        // Return the response immediately with success and fire the API call in the background
+        response.casID = message
+        response.contents = .casID(message)
+
+        // Capture the logger before creating the Task
+        let logger = Logger.current
+
+        // Call the API in the background without waiting
+        Task {
+            do {
+                try await saveCacheCASService.saveCacheCAS(
+                    data,
+                    casId: fingerprint,
+                    fullHandle: fullHandle,
+                    serverURL: serverURL
+                )
+                let duration = Date().timeIntervalSince(startTime)
+                logger
+                    .debug(
+                        "CAS.save background upload completed successfully in \(String(format: "%.3f", duration))s for fingerprint: \(fingerprint)"
+                    )
+            } catch {
+                let duration = Date().timeIntervalSince(startTime)
+                logger
+                    .error(
+                        "CAS.save background upload failed after \(String(format: "%.3f", duration))s for fingerprint: \(fingerprint): \(error.userFriendlyDescription())"
+                    )
+            }
         }
 
+        Logger.current.debug("CAS.save returning immediately with fingerprint: \(fingerprint)")
         return response
     }
 

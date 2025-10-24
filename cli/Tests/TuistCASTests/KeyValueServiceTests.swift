@@ -6,6 +6,7 @@ import Path
 import Testing
 import TuistServer
 import TuistSupport
+import TuistTesting
 @testable import TuistCAS
 
 struct KeyValueServiceTests {
@@ -54,6 +55,9 @@ struct KeyValueServiceTests {
         // Then
         #expect(response.hasError == false)
 
+        // Wait for background task to complete
+        try await Task.sleep(for: .milliseconds(100))
+
         verify(putCacheValueService)
             .putCacheValue(
                 casId: .value("0~SDVUUkZaeVZXcEdZVTVzY0VaVVdHaHFZa2hDV2xsWWIzZFFVVDA5"),
@@ -64,7 +68,7 @@ struct KeyValueServiceTests {
             .called(1)
     }
 
-    @Test
+    @Test(.withMockedLogger())
     func putValue_when_service_throws_error() async throws {
         // Given
         let key = Data("0test-key".utf8)
@@ -82,9 +86,29 @@ struct KeyValueServiceTests {
         // When
         let response = try await subject.putValue(request: request, context: context)
 
-        // Then
-        #expect(response.hasError == true)
-        #expect(response.error.description_p == "Access denied")
+        // Then - should return success immediately, error is handled in background
+        #expect(response.hasError == false)
+
+        // Wait for background task to complete
+        try await Task.sleep(for: .milliseconds(100))
+
+        verify(putCacheValueService)
+            .putCacheValue(
+                casId: .value("0~dGVzdC1rZXk="),
+                entries: .value([:]),
+                fullHandle: .value(fullHandle),
+                serverURL: .value(serverURL)
+            )
+            .called(1)
+
+        TuistTest.expectLogs(
+            "KeyValue.putValue background upload failed after",
+            at: .error
+        )
+        TuistTest.expectLogs(
+            "for casID: 0~dGVzdC1rZXk=: forbidden(\"Access denied\")",
+            at: .error
+        )
     }
 
     @Test
