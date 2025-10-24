@@ -26,6 +26,7 @@ defmodule Tuist do
       Bundles,
       Bundles.Bundle,
       Cache,
+      Cache.Authentication,
       Cache.Disk,
       CacheActionItems,
       CommandEvents,
