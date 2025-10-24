@@ -1305,11 +1305,23 @@ msgstr ""
 msgid "Turn projects defined with a Swift-DSL into Xcode workspaces and projects."
 msgstr ""
 
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:98
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:99
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:100
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:126
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:127
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:128
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:140
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:141
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:142
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:150
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:151
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:152
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:164
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:165
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:166
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:178
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:179
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:180
 #, elixir-autogen, elixir-format
 msgid "Unlimited"
@@ -1572,4 +1584,29 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:17
 #, elixir-autogen, elixir-format
 msgid "your competitive advantage"
+msgstr ""
+
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:85
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:113
+#, elixir-autogen, elixir-format
+msgid "+ 0.5€ per additional unit"
+msgstr ""
+
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:44
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:70
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:86
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:114
+#, elixir-autogen, elixir-format
+msgid "Custom"
+msgstr ""
+
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:8
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:64
+#, elixir-autogen, elixir-format
+msgid "Free"
+msgstr ""
+
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:27
+#, elixir-autogen, elixir-format
+msgid "and up"
 msgstr ""
