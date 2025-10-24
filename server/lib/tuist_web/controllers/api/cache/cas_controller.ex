@@ -2,10 +2,9 @@ defmodule TuistWeb.API.CASController do
   use OpenApiSpex.ControllerSpecs
   use TuistWeb, :controller
 
-  alias Tuist.Storage
+  alias Tuist.Cache.Disk
   alias TuistWeb.API.Cache.Plugs.LoaderQueryPlug
   alias TuistWeb.API.Schemas.Error
-  alias TuistWeb.Authentication
 
   plug LoaderQueryPlug
   plug TuistWeb.API.Authorization.AuthorizationPlug, :cache
@@ -50,11 +49,10 @@ defmodule TuistWeb.API.CASController do
   )
 
   def load(%{assigns: %{selected_project: project, selected_account: account}} = conn, %{id: id} = _params) do
-    current_subject = Authentication.authenticated_subject(conn)
     key = cas_key(account, project, id)
 
-    if Storage.object_exists?(key, current_subject) do
-      stream = Storage.stream_object(key, current_subject)
+    if Disk.exists?(key) do
+      stream = Disk.stream(key)
 
       conn
       |> put_resp_content_type("application/octet-stream")
@@ -113,16 +111,13 @@ defmodule TuistWeb.API.CASController do
   )
 
   def save(%{assigns: %{selected_project: project, selected_account: account}} = conn, %{id: id} = _params) do
-    current_subject = Authentication.authenticated_subject(conn)
     {:ok, body, conn} = Plug.Conn.read_body(conn, length: 100_000_000)
     key = cas_key(account, project, id)
 
-    if Storage.object_exists?(key, current_subject) do
+    if Disk.exists?(key) do
       send_resp(conn, :no_content, "")
     else
-      # Stream the upload from the request body to S3
-      Storage.put_object(key, body, current_subject)
-
+      Disk.put(key, body)
       send_resp(conn, :no_content, "")
     end
   end
