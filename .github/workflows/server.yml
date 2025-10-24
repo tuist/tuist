@@ -59,7 +59,6 @@ jobs:
       - uses: jdx/mise-action@v3.2.0
         with:
           cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
-          working_directory: server
       - run: mise run install
       - name: Check marketing gettext template is up-to-date
         run: |
