@@ -80,6 +80,10 @@ defmodule TuistTestSupport.Fixtures.AccountsFixtures do
     token
   end
 
+  def account_fixture do
+    user_fixture(preload: [:account]).account
+  end
+
   def account_token_fixture(opts \\ []) do
     account =
       Keyword.get_lazy(opts, :account, fn -> user_fixture(preload: [:account]).account end)

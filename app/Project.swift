@@ -64,7 +64,7 @@ let project = Project(
             product: .app,
             productName: "Tuist",
             bundleId: bundleId,
-            deploymentTargets: .macOS("14.0.0"),
+            deploymentTargets: .macOS("15.0.0"),
             infoPlist: .extendingDefault(
                 with: [
                     "CFBundleDisplayName": "Tuist",
@@ -198,7 +198,7 @@ let project = Project(
             destinations: [.mac, .iPhone],
             product: .staticFramework,
             bundleId: "io.tuist.app-storage",
-            deploymentTargets: .multiplatform(iOS: "18.0", macOS: "14.0.0"),
+            deploymentTargets: .multiplatform(iOS: "18.0", macOS: "15.0.0"),
             sources: ["Sources/TuistAppStorage/**"],
             dependencies: [
                 .external(name: "Mockable"),
@@ -209,7 +209,7 @@ let project = Project(
             destinations: [.mac, .iPhone],
             product: .staticFramework,
             bundleId: "io.tuist.authentication",
-            deploymentTargets: .multiplatform(iOS: "18.0", macOS: "14.0.0"),
+            deploymentTargets: .multiplatform(iOS: "18.0", macOS: "15.0.0"),
             sources: ["Sources/TuistAuthentication/**"],
             dependencies: [
                 .project(target: "TuistServer", path: "../"),
@@ -221,7 +221,7 @@ let project = Project(
             destinations: .macOS,
             product: .staticFramework,
             bundleId: "dev.tuist.menu-bar",
-            deploymentTargets: .macOS("14.0.0"),
+            deploymentTargets: .macOS("15.0.0"),
             sources: ["Sources/TuistMenuBar/**"],
             resources: ["Resources/TuistMenuBar/**"],
             dependencies: tuistMenuBarDependencies()
@@ -231,7 +231,7 @@ let project = Project(
             destinations: .macOS,
             product: .unitTests,
             bundleId: "dev.tuist.TuistAppTests",
-            deploymentTargets: .macOS("14.0.0"),
+            deploymentTargets: .macOS("15.0.0"),
             infoPlist: .default,
             sources: ["Tests/TuistMenuBarTests/**"],
             resources: [],

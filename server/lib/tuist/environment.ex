@@ -420,6 +420,10 @@ defmodule Tuist.Environment do
     get([:github, :token, :update_package_releases], secrets)
   end
 
+  def github_app_name(secrets \\ secrets()) do
+    get([:github, :app_name], secrets)
+  end
+
   def github_app_client_id(secrets \\ secrets()) do
     get([:github, :app_client_id], secrets) || get([:github, :oauth_id], secrets)
   end
@@ -447,7 +451,7 @@ defmodule Tuist.Environment do
   end
 
   def github_app_configured?(secrets \\ secrets()) do
-    github_oauth_configured?(secrets) and github_app_private_key(secrets) != nil
+    github_app_name(secrets) != nil and github_oauth_configured?(secrets) and github_app_private_key(secrets) != nil
   end
 
   def google_oauth_client_id(secrets \\ secrets()) do
@@ -511,10 +515,6 @@ defmodule Tuist.Environment do
   def mail_configured?(secrets \\ secrets()) do
     mailgun_api_key(secrets) != nil and smtp_domain(secrets) != nil and
       smtp_user_name(secrets) != nil
-  end
-
-  def clickhouse_configured?(secrets \\ secrets()) do
-    clickhouse_url(secrets) != nil
   end
 
   def clickhouse_url(secrets \\ secrets()) do

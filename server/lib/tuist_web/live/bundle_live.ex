@@ -877,4 +877,9 @@ defmodule TuistWeb.BundleLive do
     )
     |> Enum.sort_by(& &1.value, :desc)
   end
+
+  def format_bundle_type(:ipa), do: gettext("IPA")
+  def format_bundle_type(:app), do: gettext("App bundle")
+  def format_bundle_type(:xcarchive), do: gettext("XCArchive")
+  def format_bundle_type(_), do: gettext("Unknown")
 end

@@ -1,6 +1,6 @@
-ARG ELIXIR_VERSION=1.18.4
-ARG OTP_VERSION=27.3.4.2
-ARG DEBIAN_VERSION=bookworm-20250811-slim
+ARG ELIXIR_VERSION=1.19.1
+ARG OTP_VERSION=28.1
+ARG DEBIAN_VERSION=bookworm-20251020-slim
 ARG BUILDER_IMAGE="hexpm/elixir:${ELIXIR_VERSION}-erlang-${OTP_VERSION}-debian-${DEBIAN_VERSION}"
 ARG RUNNER_IMAGE="debian:${DEBIAN_VERSION}"
 
@@ -107,6 +107,9 @@ COPY rel rel
 
 COPY --from=npm-deps /app/node_modules /app/node_modules
 RUN mix assets.deploy
+
+# Generate OG images for marketing pages
+RUN mix marketing.gen.og_images
 
 RUN mix release
 

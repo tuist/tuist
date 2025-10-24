@@ -13,12 +13,21 @@ The CLI logs messages internally to help you diagnose issues.
 
 If a command invocation doesn't yield the intended results, you can diagnose the issue by inspecting the logs. The CLI forwards the logs to [OSLog](https://developer.apple.com/documentation/os/oslog) and the file-system.
 
-In every run, it creates a log file at `$XDG_STATE_HOME/tuist/logs/{uuid}.log` where `$XDG_STATE_HOME` takes the value `~/.local/state` if the environment variable is not set.
+In every run, it creates a log file at `$XDG_STATE_HOME/tuist/logs/{uuid}.log` where `$XDG_STATE_HOME` takes the value `~/.local/state` if the environment variable is not set. You can also use `$TUIST_XDG_STATE_HOME` to set a Tuist-specific state directory, which takes precedence over `$XDG_STATE_HOME`.
+
+::: tip
+<!-- -->
+Learn more about Tuist's directory organization and how to configure custom directories in the <LocalizedLink href="/cli/directories">Directories documentation</LocalizedLink>.
+<!-- -->
+:::
 
 By default, the CLI outputs the logs path when the execution exits unexpectedly. If it doesn't, you can find the logs in the path mentioned above (i.e., the most recent log file).
 
-> [!IMPORTANT]
-> Sensitive information is not redacted, so be cautious when sharing logs.
+::: warning
+<!-- -->
+Sensitive information is not redacted, so be cautious when sharing logs.
+<!-- -->
+:::
 
 ### Continuous integration {#diagnose-issues-using-logs-ci}
 
@@ -32,7 +41,7 @@ name: Node CI
 on: [push]
 
 env:
-  XDG_STATE_HOME: /tmp
+  TUIST_XDG_STATE_HOME: /tmp
 
 jobs:
   build:
@@ -44,6 +53,7 @@ jobs:
       - run: tuist generate
       # ... do something with the project
       - name: Export Tuist logs
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: tuist-logs

@@ -515,7 +515,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
                         .linker,
                         .define
                     ),
-                    (.linker, .unsafeFlags), (_, .enableExperimentalFeature), (_, .swiftLanguageMode):
+                    (.linker, .unsafeFlags), (_, .enableExperimentalFeature), (_, .swiftLanguageMode), (_, .defaultIsolation):
                         return nil
                     }
                 } catch {
@@ -980,7 +980,7 @@ extension ProjectDescription.TargetDependency {
                     .linker,
                     .define
                 ),
-                (.linker, .unsafeFlags), (_, .enableExperimentalFeature), (_, .swiftLanguageMode):
+                (.linker, .unsafeFlags), (_, .enableExperimentalFeature), (_, .swiftLanguageMode), (_, .defaultIsolation):
                     return nil
                 }
             } catch {

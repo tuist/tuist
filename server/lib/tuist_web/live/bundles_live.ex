@@ -32,6 +32,7 @@ defmodule TuistWeb.BundlesLive do
               "before",
               "bundles-sort-by",
               "bundles-sort-order",
+              "bundles-type",
               "bundle-size-app",
               "bundle-size-date-range",
               "bundle-size-selected-widget",
@@ -42,6 +43,7 @@ defmodule TuistWeb.BundlesLive do
 
     bundles_sort_order = params["bundles-sort-order"] || "desc"
     bundles_sort_by = params["bundles-sort-by"] || "created-at"
+    bundles_type = params["bundles-type"] || "any"
 
     bundle_size_apps = Bundles.distinct_project_app_bundles(project)
     bundle_size_selected_app = params["bundle-size-app"] || Bundles.default_app(project)
@@ -64,6 +66,7 @@ defmodule TuistWeb.BundlesLive do
       )
       |> assign(:bundles_sort_by, bundles_sort_by)
       |> assign(:bundles_sort_order, bundles_sort_order)
+      |> assign(:bundles_type, bundles_type)
       |> assign(:bundle_size_selected_app, bundle_size_selected_app)
       |> assign(:bundle_size_apps, Enum.map(bundle_size_apps, & &1.name))
       |> assign(
@@ -75,7 +78,8 @@ defmodule TuistWeb.BundlesLive do
         :bundle_size_last_bundle,
         Bundles.last_project_bundle(project,
           name: bundle_size_selected_app,
-          git_branch: bundle_size_git_branch(bundle_size_branch, project)
+          git_branch: bundle_size_git_branch(bundle_size_branch, project),
+          type: string_to_bundle_type(bundles_type)
         )
       )
       |> assign(
@@ -83,7 +87,8 @@ defmodule TuistWeb.BundlesLive do
         Bundles.last_project_bundle(project,
           name: bundle_size_selected_app,
           inserted_before: start_date(bundle_size_date_range),
-          git_branch: bundle_size_git_branch(bundle_size_branch, project)
+          git_branch: bundle_size_git_branch(bundle_size_branch, project),
+          type: string_to_bundle_type(bundles_type)
         )
       )
       |> assign(:bundle_size_selected_widget, bundle_size_selected_widget)
@@ -150,7 +155,8 @@ defmodule TuistWeb.BundlesLive do
              selected_project: project,
              bundle_size_date_range: bundle_size_date_range,
              bundle_size_selected_widget: bundle_size_selected_widget,
-             bundle_size_branch: bundle_size_branch
+             bundle_size_branch: bundle_size_branch,
+             bundles_type: bundles_type
            }
          } = socket
        ) do
@@ -161,6 +167,8 @@ defmodule TuistWeb.BundlesLive do
         true -> nil
       end
 
+    bundle_type = string_to_bundle_type(bundles_type)
+
     bundle_size_analytics =
       case bundle_size_selected_widget do
         "download-size" ->
@@ -168,7 +176,8 @@ defmodule TuistWeb.BundlesLive do
           |> Bundles.bundle_download_size_analytics(
             project_id: project.id,
             start_date: start_date(bundle_size_date_range),
-            git_branch: git_branch
+            git_branch: git_branch,
+            type: bundle_type
           )
           |> Enum.map(
             &[
@@ -182,7 +191,8 @@ defmodule TuistWeb.BundlesLive do
           |> Bundles.project_bundle_install_size_analytics(
             project_id: project.id,
             start_date: start_date(bundle_size_date_range),
-            git_branch: git_branch
+            git_branch: git_branch,
+            type: bundle_type
           )
           |> Enum.map(
             &[
@@ -285,6 +295,21 @@ defmodule TuistWeb.BundlesLive do
   defp format_bytes(bytes) when is_integer(bytes) do
     Bundles.format_bytes(bytes)
   end
+
+  def format_bundle_type(:ipa), do: gettext("IPA")
+  def format_bundle_type(:app), do: gettext("App bundle")
+  def format_bundle_type(:xcarchive), do: gettext("XCArchive")
+  def format_bundle_type(_), do: gettext("Unknown")
+
+  def bundles_type_label("ipa"), do: gettext("IPA")
+  def bundles_type_label("app"), do: gettext("App bundle")
+  def bundles_type_label("xcarchive"), do: gettext("XCArchive")
+  def bundles_type_label(_), do: gettext("Any")
+
+  defp string_to_bundle_type("ipa"), do: :ipa
+  defp string_to_bundle_type("app"), do: :app
+  defp string_to_bundle_type("xcarchive"), do: :xcarchive
+  defp string_to_bundle_type(_), do: nil
 
   def empty_state_light_background(assigns) do
     ~H"""

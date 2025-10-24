@@ -123,20 +123,8 @@ defmodule Tuist.Authorization.Checks do
     end
   end
 
-  def repository_permission_check(%User{} = user, %{project: %Project{} = project, repository: repository}) do
-    account = Accounts.get_account_by_id(project.account_id)
-
-    if Accounts.owns_account_or_is_admin_to_account_organization?(user, account) do
-      case Tuist.VCS.get_user_permission(%{user: user, repository: repository}) do
-        {:ok, %Tuist.VCS.Repositories.Permission{permission: permission}} ->
-          Enum.member?(["admin", "write"], permission)
-
-        _ ->
-          false
-      end
-    else
-      false
-    end
+  def ops_access(_, _) do
+    false
   end
 
   def project_command_event_access(%User{} = user, %{project: %Project{} = project}) do

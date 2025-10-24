@@ -31,8 +31,27 @@ tuist edit
 The command creates an Xcode project in a global directory and opens it in Xcode.
 The project includes a `Manifests` directory that you can build to ensure all your manifests are valid.
 
-> [!INFO] GLOB-RESOLVED MANIFESTS
-> `tuist edit` resolves the manifests to be included by using the glob `**/{Manifest}.swift` from the project's root directory (the one containing the `Tuist.swift` file). Make sure there's a valid `Tuist.swift` at the root of the project.
+::: info GLOB-RESOLVED MANIFESTS
+<!-- -->
+`tuist edit` resolves the manifests to be included by using the glob `**/{Manifest}.swift` from the project's root directory (the one containing the `Tuist.swift` file). Make sure there's a valid `Tuist.swift` at the root of the project.
+<!-- -->
+:::
+
+### Ignoring manifest files {#ignoring-manifest-files}
+
+If your project contains Swift files with the same name as manifest files (e.g., `Project.swift`) in subdirectories that are not actual Tuist manifests, you can create a `.tuistignore` file at the root of your project to exclude them from the editing project.
+
+The `.tuistignore` file uses glob patterns to specify which files should be ignored:
+
+```gitignore
+# Ignore all Project.swift files in the Sources directory
+Sources/**/Project.swift
+
+# Ignore specific subdirectories
+Tests/Fixtures/**/Workspace.swift
+```
+
+This is particularly useful when you have test fixtures or example code that happens to use the same naming convention as Tuist manifest files.
 
 ## Edit and generate workflow {#edit-and-generate-workflow}
 

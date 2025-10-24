@@ -21,7 +21,7 @@ defmodule Tuist.GitHub.ClientTest do
   ]
 
   setup do
-    stub(App, :get_app_installation_token_for_repository, fn _ ->
+    stub(App, :get_installation_token, fn _installation_id ->
       {:ok, %{token: "github_token", expires_at: ~U[2024-04-30 10:30:31Z]}}
     end)
 
@@ -50,7 +50,8 @@ defmodule Tuist.GitHub.ClientTest do
       end)
 
       # When
-      comments = Client.get_comments(%{repository_full_handle: "tuist/tuist", issue_id: 1})
+      comments =
+        Client.get_comments(%{repository_full_handle: "tuist/tuist", issue_id: 1, installation_id: "installation-id"})
 
       # Then
       assert comments ==
@@ -75,20 +76,19 @@ defmodule Tuist.GitHub.ClientTest do
         end
       end)
 
-      stub(App, :get_app_installation_token_for_repository, fn _ ->
-        stub(App, :get_app_installation_token_for_repository, fn _ ->
+      stub(App, :get_installation_token, fn _installation_id ->
+        stub(App, :get_installation_token, fn _installation_id ->
           {:ok, %{token: "new_token", expires_at: ~U[2024-04-30 10:30:31Z]}}
         end)
 
         {:ok, %{token: "old_token", expires_at: ~U[2024-04-30 10:20:29Z]}}
       end)
 
-      stub(App, :refresh_token, fn _ ->
-        {:ok, %{token: "new_token", expires_at: ~U[2024-04-30 10:30:31Z]}}
-      end)
+      stub(App, :clear_token, fn -> :ok end)
 
       # When
-      comments = Client.get_comments(%{repository_full_handle: "tuist/tuist", issue_id: 1})
+      comments =
+        Client.get_comments(%{repository_full_handle: "tuist/tuist", issue_id: 1, installation_id: "installation-id"})
 
       # Then
       assert comments == {:ok, [%Comment{id: "comment-id", client_id: nil}]}
@@ -101,7 +101,8 @@ defmodule Tuist.GitHub.ClientTest do
       end)
 
       # When
-      comments = Client.get_comments(%{repository_full_handle: "tuist/tuist", issue_id: 1})
+      comments =
+        Client.get_comments(%{repository_full_handle: "tuist/tuist", issue_id: 1, installation_id: "installation-id"})
 
       # Then
       assert comments == {:error, "Unexpected status code: 500. Body: \"\""}
@@ -114,7 +115,8 @@ defmodule Tuist.GitHub.ClientTest do
       end)
 
       # When
-      comments = Client.get_comments(%{repository_full_handle: "tuist/tuist", issue_id: 1})
+      comments =
+        Client.get_comments(%{repository_full_handle: "tuist/tuist", issue_id: 1, installation_id: "installation-id"})
 
       # Then
       assert comments == {:error, "Unexpected status code: 403. Body: \"\""}
@@ -122,12 +124,12 @@ defmodule Tuist.GitHub.ClientTest do
 
     test "returns error when getting token fails" do
       # Given
-      stub(App, :get_app_installation_token_for_repository, fn _ ->
+      stub(App, :get_installation_token, fn _installation_id ->
         {:error, "Failed to get token."}
       end)
 
       # When
-      got = Client.get_comments(%{repository_full_handle: "tuist/tuist", issue_id: 1})
+      got = Client.get_comments(%{repository_full_handle: "tuist/tuist", issue_id: 1, installation_id: "installation-id"})
 
       # Then
       assert got ==
@@ -152,7 +154,8 @@ defmodule Tuist.GitHub.ClientTest do
         Client.create_comment(%{
           repository_full_handle: "tuist/tuist",
           issue_id: 1,
-          body: "comment"
+          body: "comment",
+          installation_id: "installation-id"
         })
 
       # Then
@@ -177,7 +180,8 @@ defmodule Tuist.GitHub.ClientTest do
         Client.update_comment(%{
           repository_full_handle: "tuist/tuist",
           comment_id: 1,
-          body: "comment"
+          body: "comment",
+          installation_id: "installation-id"
         })
 
       # Then
@@ -197,7 +201,7 @@ defmodule Tuist.GitHub.ClientTest do
       end)
 
       # When
-      user = Client.get_user_by_id(%{id: "123", repository_full_handle: "tuist/tuist"})
+      user = Client.get_user_by_id(%{id: "123", installation_id: "installation-id"})
 
       # Then
       assert user == {:ok, %VCS.User{username: "tuist"}}
@@ -214,61 +218,10 @@ defmodule Tuist.GitHub.ClientTest do
       end)
 
       # When
-      user = Client.get_user_by_id(%{id: "123", repository_full_handle: "tuist/tuist"})
+      user = Client.get_user_by_id(%{id: "123", installation_id: "installation-id"})
 
       # Then
       assert user == {:error, "Unexpected status code: 404. Body: \"Not found\""}
-    end
-  end
-
-  describe "get_user_permission/1" do
-    test "returns user permission" do
-      # Given
-      stub(Req, :get, fn opts ->
-        case opts[:url] do
-          "https://api.github.com/user/123" ->
-            {:ok, %Req.Response{status: 200, body: %{"login" => "tuist"}}}
-
-          "https://api.github.com/repos/tuist/tuist/collaborators/tuist/permission" ->
-            {:ok, %Req.Response{status: 200, body: %{"permission" => "admin"}}}
-        end
-      end)
-
-      # When
-      permission =
-        Client.get_user_permission(%{username: "tuist", repository_full_handle: "tuist/tuist"})
-
-      # Then
-      assert permission == {:ok, %VCS.Repositories.Permission{permission: "admin"}}
-    end
-  end
-
-  describe "get_repository/1" do
-    test "returns repository" do
-      # Given
-      expect(Req, :get, fn opts ->
-        assert opts[:finch] == Tuist.Finch
-        assert opts[:headers] == @default_headers
-        assert opts[:url] == "https://api.github.com/repos/tuist/tuist"
-
-        {:ok,
-         %Req.Response{
-           status: 200,
-           body: %{"full_name" => "tuist/tuist", "default_branch" => "main"}
-         }}
-      end)
-
-      # When
-      repository = Client.get_repository("tuist/tuist")
-
-      # Then
-      assert repository ==
-               {:ok,
-                %VCS.Repositories.Repository{
-                  default_branch: "main",
-                  full_handle: "tuist/tuist",
-                  provider: :github
-                }}
     end
   end
 
@@ -412,6 +365,190 @@ defmodule Tuist.GitHub.ClientTest do
       assert got ==
                {:error,
                 "Unexpected status code 404 when downloading Alamofire/Alamofire repository's source archive for 5.10.0 tag."}
+    end
+  end
+
+  describe "list_installation_repositories/2" do
+    test "returns repositories for a given installation without pagination" do
+      # Given
+      stub(App, :get_installation_token, fn "123" ->
+        {:ok, %{token: "github_token"}}
+      end)
+
+      expect(Req, :get, fn opts ->
+        assert opts[:url] == "https://api.github.com/installation/repositories?per_page=100"
+        assert opts[:headers] == @default_api_headers
+        assert opts[:finch] == Tuist.Finch
+
+        {:ok,
+         %Req.Response{
+           status: 200,
+           headers: %{},
+           body: %{
+             "repositories" => [
+               %{
+                 "id" => 123,
+                 "name" => "tuist",
+                 "full_name" => "tuist/tuist",
+                 "private" => false,
+                 "default_branch" => "main"
+               },
+               %{
+                 "id" => 456,
+                 "name" => "private-repo",
+                 "full_name" => "tuist/private-repo",
+                 "private" => true,
+                 "default_branch" => "master"
+               }
+             ]
+           }
+         }}
+      end)
+
+      # When
+      result = Client.list_installation_repositories("123")
+
+      # Then
+      assert result ==
+               {:ok,
+                %{
+                  meta: %{next_url: nil},
+                  repositories: [
+                    %{
+                      id: 123,
+                      name: "tuist",
+                      full_name: "tuist/tuist",
+                      private: false,
+                      default_branch: "main"
+                    },
+                    %{
+                      id: 456,
+                      name: "private-repo",
+                      full_name: "tuist/private-repo",
+                      private: true,
+                      default_branch: "master"
+                    }
+                  ]
+                }}
+    end
+
+    test "returns repositories with pagination link" do
+      # Given
+      stub(App, :get_installation_token, fn "123" ->
+        {:ok, %{token: "github_token"}}
+      end)
+
+      expect(Req, :get, fn opts ->
+        assert opts[:url] == "https://api.github.com/installation/repositories?per_page=100"
+        assert opts[:headers] == @default_api_headers
+        assert opts[:finch] == Tuist.Finch
+
+        {:ok,
+         %Req.Response{
+           status: 200,
+           headers: %{
+             "link" => [
+               ~s(<https://api.github.com/installation/repositories?per_page=100&page=2>; rel="next", <https://api.github.com/installation/repositories?per_page=100&page=3>; rel="last")
+             ]
+           },
+           body: %{
+             "repositories" => [
+               %{
+                 "id" => 123,
+                 "name" => "tuist",
+                 "full_name" => "tuist/tuist",
+                 "private" => false,
+                 "default_branch" => "main"
+               }
+             ]
+           }
+         }}
+      end)
+
+      # When
+      result = Client.list_installation_repositories("123")
+
+      # Then
+      assert result ==
+               {:ok,
+                %{
+                  meta: %{next_url: "https://api.github.com/installation/repositories?per_page=100&page=2"},
+                  repositories: [
+                    %{
+                      id: 123,
+                      name: "tuist",
+                      full_name: "tuist/tuist",
+                      private: false,
+                      default_branch: "main"
+                    }
+                  ]
+                }}
+    end
+
+    test "returns error when API returns non-200 status" do
+      # Given
+      stub(App, :get_installation_token, fn "123" ->
+        {:ok, %{token: "github_token"}}
+      end)
+
+      expect(Req, :get, fn opts ->
+        assert opts[:url] == "https://api.github.com/installation/repositories?per_page=100"
+        assert opts[:headers] == @default_api_headers
+        assert opts[:finch] == Tuist.Finch
+
+        {:ok,
+         %Req.Response{
+           status: 404,
+           body: %{"message" => "Not Found"}
+         }}
+      end)
+
+      # When
+      result = Client.list_installation_repositories("123")
+
+      # Then
+      assert result == {:error, "Failed to fetch repositories"}
+    end
+
+    test "handles empty repositories list" do
+      # Given
+      stub(App, :get_installation_token, fn "123" ->
+        {:ok, %{token: "github_token"}}
+      end)
+
+      expect(Req, :get, fn opts ->
+        assert opts[:url] == "https://api.github.com/installation/repositories?per_page=100"
+        assert opts[:headers] == @default_api_headers
+        assert opts[:finch] == Tuist.Finch
+
+        {:ok,
+         %Req.Response{
+           status: 200,
+           headers: %{},
+           body: %{
+             "repositories" => []
+           }
+         }}
+      end)
+
+      # When
+      result = Client.list_installation_repositories("123")
+
+      # Then
+      assert result == {:ok, %{meta: %{next_url: nil}, repositories: []}}
+    end
+
+    test "returns error when getting installation token fails" do
+      # Given
+      stub(App, :get_installation_token, fn "123" ->
+        {:error, "Failed to get token"}
+      end)
+
+      # When
+      result = Client.list_installation_repositories("123")
+
+      # Then
+      assert result == {:error, "Failed to get token"}
     end
   end
 

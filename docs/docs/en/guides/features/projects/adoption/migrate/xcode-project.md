@@ -7,7 +7,7 @@
 ---
 # Migrate an Xcode project {#migrate-an-xcode-project}
 
-Unless you <LocalizedLink href="/guides/start/new-project">create a new project using Tuist</LocalizedLink>, in which case you get everything configured automatically, you'll have to define your Xcode projects using Tuist's primitives. How tedious this process is, depends on how complex your projects are.
+Unless you <LocalizedLink href="/guides/features/projects/adoption/new-project">create a new project using Tuist</LocalizedLink>, in which case you get everything configured automatically, you'll have to define your Xcode projects using Tuist's primitives. How tedious this process is, depends on how complex your projects are.
 
 As you probably know, Xcode projects can become messy and complex over time: groups that don't match the directory structure, files that are shared across targets, or file references that point to nonexisting files (to mention some). All that accumulated complexity makes it hard for us to provide a command that reliably migrates project.
 
@@ -62,12 +62,16 @@ let package = Package(
     ]
 )
 ```
+<!-- -->
 :::
 
 `Project.swift` is the manifest file where you'll define your project, and `Package.swift` is the manifest file where you'll define your dependencies. The `Tuist.swift` file is where you can define project-scoped Tuist settings for your project.
 
-> [!TIP] PROJECT NAME WITH -TUIST SUFFIX
-> To prevent conflicts with the existing Xcode project, we recommend adding the `-Tuist` suffix to the project name. You can drop it once you've fully migrated your project to Tuist.
+::: tip PROJECT NAME WITH -TUIST SUFFIX
+<!-- -->
+To prevent conflicts with the existing Xcode project, we recommend adding the `-Tuist` suffix to the project name. You can drop it once you've fully migrated your project to Tuist.
+<!-- -->
+:::
 
 ## Build and test the Tuist project in CI {#build-and-test-the-tuist-project-in-ci}
 
@@ -142,8 +146,11 @@ let package = Package(
 )
 ```
 
-> [!TIP] PRODUCT TYPES
-> You can override the product type for a specific package by adding it to the `productTypes` dictionary in the `PackageSettings` struct. By default, Tuist assumes that all packages are static frameworks.
+::: tip PRODUCT TYPES
+<!-- -->
+You can override the product type for a specific package by adding it to the `productTypes` dictionary in the `PackageSettings` struct. By default, Tuist assumes that all packages are static frameworks.
+<!-- -->
+:::
 
 
 ## Determine the migration order {#determine-the-migration-order}
@@ -203,8 +210,11 @@ let project = Project(
 )
 ```
 
-> [!NOTE] TEST TARGETS
-> If the target has an associated test target, you should define it in the `Project.swift` file as well repeating the same steps.
+::: info TEST TARGETS
+<!-- -->
+If the target has an associated test target, you should define it in the `Project.swift` file as well repeating the same steps.
+<!-- -->
+:::
 
 ### Validate the target migration {#validate-the-target-migration}
 

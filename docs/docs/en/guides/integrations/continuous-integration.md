@@ -17,7 +17,7 @@ To run Tuist commands in your CI workflows, you’ll need to install it in your 
 
 In [Xcode Cloud](https://developer.apple.com/xcode-cloud/), which uses Xcode projects as the source of truth, you'll need to add a [post-clone](https://developer.apple.com/documentation/xcode/writing-custom-build-scripts#Create-a-custom-build-script) script to install Tuist and run the commands you need, for example `tuist generate`:
 
-:::code-group
+::: code-group
 
 ```bash [Mise]
 #!/bin/sh
@@ -38,6 +38,7 @@ brew install --formula tuist@x.y.z
 
 tuist generate
 ```
+<!-- -->
 :::
 ### Codemagic {#codemagic}
 
@@ -73,11 +74,12 @@ workflows:
       - name: Build
         script: tuist build
 ```
+<!-- -->
 :::
 
 ### GitHub Actions {#github-actions}
 
-On [GitHub Actions](https://docs.github.com/en/actions) you can add an additional step to install Tuist, and in the case of managing the installation of Mise, you can use the [mise-action](https://github.com/jdx/mise-action), which abstracts the installation of Mise and Tuist:
+On [GitHub Actions](https://docs.github.com/en/actions) you can add an additional step to install Tuist. You have several options:
 
 ::: code-group
 ```yaml [Mise]
@@ -97,6 +99,25 @@ jobs:
       - uses: jdx/mise-action@v2
       - run: tuist build
 ```
+```yaml [Official Action]
+name: Build Application
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: tuist/action@v1
+        with:
+          version: 4.63.0
+      - run: tuist build
+```
 ```yaml [Homebrew]
 name: test
 on:
@@ -114,10 +135,15 @@ jobs:
       - run: brew install --formula tuist@x.y.z
       - run: tuist build
 ```
+<!-- -->
 :::
 
+If you are already using Homebrew or Mise to install tools from your CI pipelines, we recommend staying consistent with your existing approach. Otherwise, you can use the [official Tuist GitHub Action](https://github.com/tuist/action), which provides a simple way to install a specific version of Tuist.
+
 ::: tip
+<!-- -->
 We recommend using `mise use --pin` in your Tuist projects to pin the version of Tuist across environments. The command will create a `.tool-versions` file containing the version of Tuist.
+<!-- -->
 :::
 
 ## Authentication {#authentication}
@@ -131,5 +157,8 @@ tuist project tokens create my-handle/MyApp
 The command will generate a token for the project with full handle `my-account/my-project`. Set the value to the environment variable
 `TUIST_CONFIG_TOKEN` in your CI environment ensuring it's configured as a secret so it's not exposed.
 
-> [!IMPORTANT] CI ENVIRONMENT DETECTION
-> Tuist only uses the token when it detects it's running on a CI environment. If your CI environment is not detected, you can force the token usage by setting the environment variable `CI` to `1`.
+::: warning CI ENVIRONMENT DETECTION
+<!-- -->
+Tuist only uses the token when it detects it's running on a CI environment. If your CI environment is not detected, you can force the token usage by setting the environment variable `CI` to `1`.
+<!-- -->
+:::

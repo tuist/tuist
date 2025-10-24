@@ -4,18 +4,20 @@ defmodule Tuist.VCSTest do
   use TuistTestSupport.Cases.DataCase
   use Mimic
 
-  alias Tuist.Accounts
   alias Tuist.Environment
   alias Tuist.GitHub
+  alias Tuist.GitHub.Client
+  alias Tuist.KeyValueStore
   alias Tuist.VCS
   alias Tuist.VCS.Comment
-  alias Tuist.VCS.Repositories.Permission
-  alias Tuist.VCS.Repositories.Repository
+  alias Tuist.VCS.GitHubAppInstallation
+  alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.AppBuildsFixtures
   alias TuistTestSupport.Fixtures.BundlesFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
+  alias TuistTestSupport.Fixtures.VCSFixtures
 
   @default_headers [
     {"Accept", "application/vnd.github.v3+json"},
@@ -23,249 +25,13 @@ defmodule Tuist.VCSTest do
   ]
 
   setup do
-    stub(GitHub.App, :get_app_installation_token_for_repository, fn "tuist/tuist" ->
+    stub(GitHub.App, :get_installation_token, fn _installation_id ->
       {:ok, %{token: "github_token", expires_at: ~U[2024-04-30 10:30:31Z]}}
     end)
 
     stub(Environment, :github_app_client_id, fn -> "client_id" end)
 
     :ok
-  end
-
-  describe "get_user_permission/1" do
-    test "returns user permission when admin" do
-      # Given
-      user =
-        Accounts.find_or_create_user_from_oauth2(%{
-          provider: :github,
-          uid: 123,
-          info: %{
-            email: "tuist@tuist.dev"
-          }
-        })
-
-      expect(GitHub.Client, :get_user_by_id, fn %{
-                                                  id: "123",
-                                                  repository_full_handle: "tuist/tuist"
-                                                } ->
-        {:ok, %VCS.User{username: "tuist"}}
-      end)
-
-      expect(GitHub.Client, :get_user_permission, fn %{
-                                                       repository_full_handle: "tuist/tuist",
-                                                       username: "tuist"
-                                                     } ->
-        {:ok, %Permission{permission: "admin"}}
-      end)
-
-      # When
-      got =
-        VCS.get_user_permission(%{
-          user: user,
-          repository: %Repository{
-            provider: :github,
-            full_handle: "tuist/tuist",
-            default_branch: "main"
-          }
-        })
-
-      # Then
-      assert got == {:ok, %Permission{permission: "admin"}}
-    end
-  end
-
-  describe "connected/1" do
-    test "returns true when connected" do
-      # Given
-      stub(Environment, :github_app_configured?, fn -> true end)
-
-      project =
-        ProjectsFixtures.project_fixture(
-          vcs_repository_full_handle: "tuist/tuist",
-          vcs_provider: :github
-        )
-
-      # When
-      got = VCS.connected?(%{project: project, repository_full_handle: "tuist/tuist"})
-
-      # Then
-      assert got == true
-    end
-
-    test "returns true when connected but casing differs" do
-      # Given
-      stub(Environment, :github_app_configured?, fn -> true end)
-
-      project =
-        ProjectsFixtures.project_fixture(
-          vcs_repository_full_handle: "tuist/tuist",
-          vcs_provider: :github
-        )
-
-      # When
-      got = VCS.connected?(%{project: project, repository_full_handle: "tuist/Tuist"})
-
-      # Then
-      assert got == true
-    end
-
-    test "returns false when the GitHub app is not configured" do
-      # Given
-      stub(Environment, :github_app_configured?, fn -> false end)
-
-      project =
-        ProjectsFixtures.project_fixture(
-          vcs_repository_full_handle: "tuist/tuist",
-          vcs_provider: :github
-        )
-
-      # When
-      got = VCS.connected?(%{project: project, repository_full_handle: "tuist/tuist"})
-
-      # Then
-      assert got == false
-    end
-
-    test "returns false when the vcs_repository_full_handle is nil" do
-      # Given
-      stub(Environment, :github_app_configured?, fn -> false end)
-
-      project =
-        ProjectsFixtures.project_fixture(vcs_repository_full_handle: nil)
-
-      # When
-      got = VCS.connected?(%{project: project, repository_full_handle: "tuist/tuist"})
-
-      # Then
-      assert got == false
-    end
-
-    test "returns false when the connected repositor full handles' do not match" do
-      # Given
-      stub(Environment, :github_app_configured?, fn -> false end)
-
-      project =
-        ProjectsFixtures.project_fixture(
-          vcs_repository_full_handle: "tuist/tuist",
-          vcs_provider: :github
-        )
-
-      # When
-      got = VCS.connected?(%{project: project, repository_full_handle: "tuist/tuist-different"})
-
-      # Then
-      assert got == false
-    end
-  end
-
-  describe "get_repository_from_repository_url/1" do
-    test "returns repository when it exists" do
-      # Given
-      repository_url = "https://github.com/tuist/tuist"
-
-      expect(GitHub.Client, :get_repository, fn "tuist/tuist" ->
-        {:ok,
-         %Repository{
-           provider: :github,
-           full_handle: "tuist/tuist",
-           default_branch: "main"
-         }}
-      end)
-
-      # When
-      got =
-        VCS.get_repository_from_repository_url(repository_url)
-
-      # Then
-      assert got ==
-               {:ok,
-                %Repository{
-                  provider: :github,
-                  full_handle: "tuist/tuist",
-                  default_branch: "main"
-                }}
-    end
-
-    test "returns repository with username" do
-      # Given
-      repository_url = "https://tuist@github.com/tuist/tuist.git"
-
-      expect(GitHub.Client, :get_repository, fn "tuist/tuist" ->
-        {:ok,
-         %Repository{
-           provider: :github,
-           full_handle: "tuist/tuist",
-           default_branch: "main"
-         }}
-      end)
-
-      # When
-      got =
-        VCS.get_repository_from_repository_url(repository_url)
-
-      # Then
-      assert got ==
-               {:ok,
-                %Repository{
-                  provider: :github,
-                  full_handle: "tuist/tuist",
-                  default_branch: "main"
-                }}
-    end
-
-    test "returns repository with .git suffix" do
-      # Given
-      repository_url = "https://github.com/tuist/tuist.git"
-
-      expect(GitHub.Client, :get_repository, fn "tuist/tuist" ->
-        {:ok,
-         %Repository{
-           provider: :github,
-           full_handle: "tuist/tuist",
-           default_branch: "main"
-         }}
-      end)
-
-      # When
-      got =
-        VCS.get_repository_from_repository_url(repository_url)
-
-      # Then
-      assert got ==
-               {:ok,
-                %Repository{
-                  provider: :github,
-                  full_handle: "tuist/tuist",
-                  default_branch: "main"
-                }}
-    end
-
-    test "returns repository with trailing slash" do
-      # Given
-      repository_url = "https://github.com/tuist/tuist/"
-
-      expect(GitHub.Client, :get_repository, fn "tuist/tuist" ->
-        {:ok,
-         %Repository{
-           provider: :github,
-           full_handle: "tuist/tuist",
-           default_branch: "main"
-         }}
-      end)
-
-      # When
-      got =
-        VCS.get_repository_from_repository_url(repository_url)
-
-      # Then
-      assert got ==
-               {:ok,
-                %Repository{
-                  provider: :github,
-                  full_handle: "tuist/tuist",
-                  default_branch: "main"
-                }}
-    end
   end
 
   describe "post_vcs_pull_request_comment/1" do
@@ -283,8 +49,10 @@ defmodule Tuist.VCSTest do
       # Given
       project =
         ProjectsFixtures.project_fixture(
-          vcs_repository_full_handle: "tuist/tuist",
-          vcs_provider: :github
+          vcs_connection: [
+            repository_full_handle: "tuist/tuist",
+            provider: :github
+          ]
         )
 
       preview_one =
@@ -420,8 +188,10 @@ defmodule Tuist.VCSTest do
       # Given
       project =
         ProjectsFixtures.project_fixture(
-          vcs_repository_full_handle: "tuist/tuist",
-          vcs_provider: :github
+          vcs_connection: [
+            repository_full_handle: "tuist/tuist",
+            provider: :github
+          ]
         )
 
       preview_one =
@@ -508,8 +278,10 @@ defmodule Tuist.VCSTest do
       # Given
       project =
         ProjectsFixtures.project_fixture(
-          vcs_repository_full_handle: "tuist/tuist",
-          vcs_provider: :github
+          vcs_connection: [
+            repository_full_handle: "tuist/tuist",
+            provider: :github
+          ]
         )
 
       preview =
@@ -528,13 +300,13 @@ defmodule Tuist.VCSTest do
           display_name: "App"
         )
 
-      expect(GitHub.Client, :get_comments, fn _ -> {:ok, []} end)
+      expect(Client, :get_comments, fn _ -> {:ok, []} end)
 
-      expect(GitHub.Client, :create_comment, fn %{
-                                                  repository_full_handle: "tuist/tuist",
-                                                  issue_id: "1",
-                                                  body: _
-                                                } ->
+      expect(Client, :create_comment, fn %{
+                                           repository_full_handle: "tuist/tuist",
+                                           issue_id: "1",
+                                           body: _
+                                         } ->
         {:ok, %{}}
       end)
 
@@ -560,8 +332,10 @@ defmodule Tuist.VCSTest do
       # Given
       project =
         ProjectsFixtures.project_fixture(
-          vcs_repository_full_handle: "tuist/tuist",
-          vcs_provider: :github
+          vcs_connection: [
+            repository_full_handle: "tuist/tuist",
+            provider: :github
+          ]
         )
 
       preview =
@@ -580,13 +354,13 @@ defmodule Tuist.VCSTest do
           display_name: "App"
         )
 
-      expect(GitHub.Client, :get_comments, fn _ -> {:ok, []} end)
+      expect(Client, :get_comments, fn _ -> {:ok, []} end)
 
-      expect(GitHub.Client, :create_comment, fn %{
-                                                  repository_full_handle: "tuist/tuist",
-                                                  issue_id: "1",
-                                                  body: _
-                                                } ->
+      expect(Client, :create_comment, fn %{
+                                           repository_full_handle: "tuist/tuist",
+                                           issue_id: "1",
+                                           body: _
+                                         } ->
         {:ok, %{}}
       end)
 
@@ -612,8 +386,10 @@ defmodule Tuist.VCSTest do
       # Given
       project =
         ProjectsFixtures.project_fixture(
-          vcs_repository_full_handle: "tuist/tuist",
-          vcs_provider: :github
+          vcs_connection: [
+            repository_full_handle: "tuist/tuist",
+            provider: :github
+          ]
         )
 
       preview =
@@ -631,7 +407,7 @@ defmodule Tuist.VCSTest do
           display_name: "App"
         )
 
-      expect(GitHub.Client, :get_comments, fn _ ->
+      expect(Client, :get_comments, fn _ ->
         {:ok,
          [
            %Comment{
@@ -640,10 +416,6 @@ defmodule Tuist.VCSTest do
              body: "### 🛠️ Tuist Run Report 🛠️\n\nSome existing content"
            }
          ]}
-      end)
-
-      stub(GitHub.App, :get_app_installation_token_for_repository, fn "tuist/tuist" ->
-        {:ok, %{token: "github_token", expires_at: ~U[2024-04-30 10:30:31Z]}}
       end)
 
       stub(Req, :patch, fn opts ->
@@ -660,7 +432,7 @@ defmodule Tuist.VCSTest do
         {:ok, %Req.Response{status: 200, body: %{}}}
       end)
 
-      reject(GitHub.Client, :create_comment, 1)
+      reject(Client, :create_comment, 1)
 
       # When / Then
       VCS.post_vcs_pull_request_comment(%{
@@ -684,12 +456,14 @@ defmodule Tuist.VCSTest do
       # Given
       project =
         ProjectsFixtures.project_fixture(
-          vcs_repository_full_handle: "tuist/tuist",
-          vcs_provider: :github
+          vcs_connection: [
+            repository_full_handle: "tuist/tuist",
+            provider: :github
+          ]
         )
 
-      expect(GitHub.Client, :get_comments, fn _ -> {:ok, []} end)
-      reject(GitHub.Client, :create_comment, 1)
+      expect(Client, :get_comments, fn _ -> {:ok, []} end)
+      reject(Client, :create_comment, 1)
 
       # When / Then
       VCS.post_vcs_pull_request_comment(%{
@@ -713,8 +487,10 @@ defmodule Tuist.VCSTest do
       # Given
       project =
         ProjectsFixtures.project_fixture(
-          vcs_repository_full_handle: "tuist/tuist",
-          vcs_provider: :github
+          vcs_connection: [
+            repository_full_handle: "tuist/tuist",
+            provider: :github
+          ]
         )
 
       preview =
@@ -733,7 +509,7 @@ defmodule Tuist.VCSTest do
         )
 
       # Mock existing comment with same client_id but different content (not a Tuist Run Report)
-      expect(GitHub.Client, :get_comments, fn _ ->
+      expect(Client, :get_comments, fn _ ->
         {:ok,
          [
            %Comment{
@@ -744,16 +520,16 @@ defmodule Tuist.VCSTest do
          ]}
       end)
 
-      expect(GitHub.Client, :create_comment, fn %{
-                                                  repository_full_handle: "tuist/tuist",
-                                                  issue_id: "1",
-                                                  body: body
-                                                } ->
+      expect(Client, :create_comment, fn %{
+                                           repository_full_handle: "tuist/tuist",
+                                           issue_id: "1",
+                                           body: body
+                                         } ->
         assert String.starts_with?(body, "### 🛠️ Tuist Run Report 🛠️")
         {:ok, %{id: 2}}
       end)
 
-      reject(GitHub.Client, :update_comment, 1)
+      reject(Client, :update_comment, 1)
 
       # When / Then
       VCS.post_vcs_pull_request_comment(%{
@@ -777,13 +553,15 @@ defmodule Tuist.VCSTest do
       # Given
       project =
         ProjectsFixtures.project_fixture(
-          vcs_repository_full_handle: "tuist/tuist",
-          vcs_provider: :github
+          vcs_connection: [
+            repository_full_handle: "tuist/tuist",
+            provider: :github
+          ]
         )
 
       stub(Environment, :github_app_configured?, fn -> false end)
-      reject(GitHub.Client, :get_comments, 1)
-      reject(GitHub.Client, :create_comment, 1)
+      reject(Client, :get_comments, 1)
+      reject(Client, :create_comment, 1)
 
       # When / Then
       VCS.post_vcs_pull_request_comment(%{
@@ -807,8 +585,8 @@ defmodule Tuist.VCSTest do
       # Given
       project = ProjectsFixtures.project_fixture()
 
-      reject(GitHub.Client, :get_comments, 1)
-      reject(GitHub.Client, :create_comment, 1)
+      reject(Client, :get_comments, 1)
+      reject(Client, :create_comment, 1)
 
       # When / Then
       VCS.post_vcs_pull_request_comment(%{
@@ -832,12 +610,14 @@ defmodule Tuist.VCSTest do
       # Given
       project =
         ProjectsFixtures.project_fixture(
-          vcs_repository_full_handle: "tuist/tuist",
-          vcs_provider: :github
+          vcs_connection: [
+            repository_full_handle: "tuist/tuist",
+            provider: :github
+          ]
         )
 
-      reject(GitHub.Client, :get_comments, 1)
-      reject(GitHub.Client, :create_comment, 1)
+      reject(Client, :get_comments, 1)
+      reject(Client, :create_comment, 1)
 
       # When / Then
       VCS.post_vcs_pull_request_comment(%{
@@ -861,12 +641,14 @@ defmodule Tuist.VCSTest do
       # Given
       project =
         ProjectsFixtures.project_fixture(
-          vcs_repository_full_handle: "tuist/tuist",
-          vcs_provider: :github
+          vcs_connection: [
+            repository_full_handle: "tuist/tuist",
+            provider: :github
+          ]
         )
 
-      reject(GitHub.Client, :get_comments, 1)
-      reject(GitHub.Client, :create_comment, 1)
+      reject(Client, :get_comments, 1)
+      reject(Client, :create_comment, 1)
 
       # When / Then
       VCS.post_vcs_pull_request_comment(%{
@@ -890,12 +672,14 @@ defmodule Tuist.VCSTest do
       # Given
       project =
         ProjectsFixtures.project_fixture(
-          vcs_repository_full_handle: "tuist/different-handle",
-          vcs_provider: :github
+          vcs_connection: [
+            repository_full_handle: "tuist/different-handle",
+            provider: :github
+          ]
         )
 
-      reject(GitHub.Client, :get_comments, 1)
-      reject(GitHub.Client, :create_comment, 1)
+      reject(Client, :get_comments, 1)
+      reject(Client, :create_comment, 1)
 
       # When / Then
       VCS.post_vcs_pull_request_comment(%{
@@ -919,8 +703,10 @@ defmodule Tuist.VCSTest do
       # Given
       project =
         ProjectsFixtures.project_fixture(
-          vcs_repository_full_handle: "tuist/tuist",
-          vcs_provider: :github
+          vcs_connection: [
+            repository_full_handle: "tuist/tuist",
+            provider: :github
+          ]
         )
 
       BundlesFixtures.bundle_fixture(
@@ -995,8 +781,10 @@ defmodule Tuist.VCSTest do
       # Given
       project =
         ProjectsFixtures.project_fixture(
-          vcs_repository_full_handle: "tuist/tuist",
-          vcs_provider: :github
+          vcs_connection: [
+            repository_full_handle: "tuist/tuist",
+            provider: :github
+          ]
         )
 
       {:ok, build_run} =
@@ -1052,12 +840,133 @@ defmodule Tuist.VCSTest do
       })
     end
 
+    test "handles different git_ref suffixes (head/merge) connected with the same PR correctly" do
+      # Given
+      project =
+        ProjectsFixtures.project_fixture(
+          vcs_connection: [
+            repository_full_handle: "tuist/tuist",
+            provider: :github
+          ]
+        )
+
+      preview =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          display_name: "App",
+          git_ref: "refs/pull/1/head",
+          git_commit_sha: @git_commit_sha,
+          inserted_at: ~N[2024-04-30 03:00:00]
+        )
+
+      _app_build =
+        AppBuildsFixtures.app_build_fixture(
+          preview: preview,
+          project: project,
+          display_name: "App"
+        )
+
+      test_command_event =
+        CommandEventsFixtures.command_event_fixture(
+          name: "test",
+          git_ref: "refs/pull/1/merge",
+          project_id: project.id,
+          command_arguments: ["test"],
+          git_commit_sha: @git_commit_sha,
+          created_at: ~N[2024-04-30 04:00:00]
+        )
+
+      bundle =
+        BundlesFixtures.bundle_fixture(
+          project: project,
+          install_size: 1000,
+          download_size: 3000,
+          git_ref: "refs/pull/1/head",
+          git_commit_sha: @git_commit_sha,
+          inserted_at: ~U[2024-01-01 05:00:00Z]
+        )
+
+      {:ok, build_run} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          scheme: "MyApp",
+          status: :success,
+          duration: 45_000,
+          git_commit_sha: @git_commit_sha,
+          git_ref: "refs/pull/1/merge"
+        )
+
+      stub(Req, :get, fn _opts ->
+        {:ok, %Req.Response{status: 200, body: []}}
+      end)
+
+      commit_link = "[123456789](#{@git_remote_url_origin}/commit/#{@git_commit_sha})"
+
+      expected_body =
+        """
+        ### 🛠️ Tuist Run Report 🛠️
+
+        #### Previews 📦
+
+        | App | Commit |
+        | - | - |
+        | [App](https://tuist.dev/previews/#{preview.id}) | #{commit_link} |
+
+
+        #### Tests 🧪
+
+        | Command | Status | Cache hit rate | Tests | Skipped | Ran | Commit |
+        |:-:|:-:|:-:|:-:|:-:|:-:|:-:|
+        | [test](https://tuist.dev/runs/#{test_command_event.id}) | ✅ | 0 % | 0 | 0 | 0 | #{commit_link} |
+
+
+        #### Builds 🔨
+
+        | Scheme | Status | Duration | Commit |
+        |:-:|:-:|:-:|:-:|
+        | [MyApp](https://tuist.dev/build-runs/#{build_run.id}) | ✅ | 45.0s | #{commit_link} |
+
+
+        #### Bundles 🧰
+
+        | Bundle | Commit | Install size | Download size |
+        | - | - | - | - |
+        | [App](https://tuist.dev/bundles/#{bundle.id}) | #{commit_link} | <div align=\"center\">1.0 KB</div> | <div align=\"center\">3.0 KB</div> |
+
+        """
+
+      expect(Req, :post, fn opts ->
+        assert opts[:json] == %{body: expected_body}
+
+        {:ok, %Req.Response{status: 200, body: %{}}}
+      end)
+
+      # When / Then
+      VCS.post_vcs_pull_request_comment(%{
+        project: project,
+        git_commit_sha: @git_commit_sha,
+        git_ref: "refs/pull/1/merge",
+        git_remote_url_origin: @git_remote_url_origin,
+        preview_url: fn %{preview: preview} -> "https://tuist.dev/previews/#{preview.id}" end,
+        preview_qr_code_url: fn %{preview: preview} ->
+          "https://tuist.dev/previews/#{preview.id}/qr-code.svg"
+        end,
+        command_run_url: fn %{command_event: command_event} ->
+          "https://tuist.dev/runs/#{command_event.id}"
+        end,
+        bundle_url: fn %{bundle: bundle} -> "https://tuist.dev/bundles/#{bundle.id}" end,
+        build_url: fn %{build: build} -> "https://tuist.dev/build-runs/#{build.id}" end
+      })
+    end
+
     test "does not show size delta when there is no last bundle" do
       # Given
       project =
         ProjectsFixtures.project_fixture(
-          vcs_repository_full_handle: "tuist/tuist",
-          vcs_provider: :github
+          vcs_connection: [
+            repository_full_handle: "tuist/tuist",
+            provider: :github
+          ]
         )
 
       bundle_ios_app =
@@ -1115,8 +1024,10 @@ defmodule Tuist.VCSTest do
       # Given
       project =
         ProjectsFixtures.project_fixture(
-          vcs_repository_full_handle: "tuist/tuist",
-          vcs_provider: :github
+          vcs_connection: [
+            repository_full_handle: "tuist/tuist",
+            provider: :github
+          ]
         )
 
       bundle_ios_app =
@@ -1181,15 +1092,17 @@ defmodule Tuist.VCSTest do
       # Given
       project =
         ProjectsFixtures.project_fixture(
-          vcs_repository_full_handle: "tuist/tuist",
-          vcs_provider: :github
+          vcs_connection: [
+            repository_full_handle: "tuist/tuist",
+            provider: :github
+          ]
         )
 
-      expect(GitHub.Client, :create_comment, fn %{
-                                                  repository_full_handle: "tuist/tuist",
-                                                  issue_id: "123",
-                                                  body: "This is a test comment"
-                                                } ->
+      expect(Client, :create_comment, fn %{
+                                           repository_full_handle: "tuist/tuist",
+                                           issue_id: "123",
+                                           body: "This is a test comment"
+                                         } ->
         {:ok, %Comment{id: 1, client_id: "client_id"}}
       end)
 
@@ -1210,11 +1123,13 @@ defmodule Tuist.VCSTest do
       # Given
       project =
         ProjectsFixtures.project_fixture(
-          vcs_repository_full_handle: "tuist/tuist",
-          vcs_provider: :github
+          vcs_connection: [
+            repository_full_handle: "tuist/tuist",
+            provider: :github
+          ]
         )
 
-      reject(GitHub.Client, :create_comment, 1)
+      reject(Client, :create_comment, 1)
 
       # When
       result =
@@ -1233,11 +1148,13 @@ defmodule Tuist.VCSTest do
       # Given
       project =
         ProjectsFixtures.project_fixture(
-          vcs_repository_full_handle: "tuist/tuist",
-          vcs_provider: :github
+          vcs_connection: [
+            repository_full_handle: "tuist/tuist",
+            provider: :github
+          ]
         )
 
-      reject(GitHub.Client, :create_comment, 1)
+      reject(Client, :create_comment, 1)
 
       # When
       result =
@@ -1256,11 +1173,13 @@ defmodule Tuist.VCSTest do
       # Given
       project =
         ProjectsFixtures.project_fixture(
-          vcs_repository_full_handle: "different/repo",
-          vcs_provider: :github
+          vcs_connection: [
+            repository_full_handle: "different/repo",
+            provider: :github
+          ]
         )
 
-      reject(GitHub.Client, :create_comment, 1)
+      reject(Client, :create_comment, 1)
 
       # When
       result =
@@ -1281,11 +1200,13 @@ defmodule Tuist.VCSTest do
 
       project =
         ProjectsFixtures.project_fixture(
-          vcs_repository_full_handle: "tuist/tuist",
-          vcs_provider: :github
+          vcs_connection: [
+            repository_full_handle: "tuist/tuist",
+            provider: :github
+          ]
         )
 
-      reject(GitHub.Client, :create_comment, 1)
+      reject(Client, :create_comment, 1)
 
       # When
       result =
@@ -1304,15 +1225,17 @@ defmodule Tuist.VCSTest do
       # Given
       project =
         ProjectsFixtures.project_fixture(
-          vcs_repository_full_handle: "tuist/tuist",
-          vcs_provider: :github
+          vcs_connection: [
+            repository_full_handle: "tuist/tuist",
+            provider: :github
+          ]
         )
 
-      expect(GitHub.Client, :create_comment, fn %{
-                                                  repository_full_handle: "tuist/tuist",
-                                                  issue_id: "123",
-                                                  body: "This is a test comment"
-                                                } ->
+      expect(Client, :create_comment, fn %{
+                                           repository_full_handle: "tuist/tuist",
+                                           issue_id: "123",
+                                           body: "This is a test comment"
+                                         } ->
         {:error, :forbidden}
       end)
 
@@ -1340,8 +1263,10 @@ defmodule Tuist.VCSTest do
       # Given
       project =
         ProjectsFixtures.project_fixture(
-          vcs_repository_full_handle: "tuist/tuist",
-          vcs_provider: :github
+          vcs_connection: [
+            repository_full_handle: "tuist/tuist",
+            provider: :github
+          ]
         )
 
       comment_params = %{
@@ -1351,11 +1276,11 @@ defmodule Tuist.VCSTest do
         project: project
       }
 
-      expect(GitHub.Client, :update_comment, fn %{
-                                                  repository_full_handle: "tuist/tuist",
-                                                  comment_id: "123456",
-                                                  body: "Updated comment body"
-                                                } ->
+      expect(Client, :update_comment, fn %{
+                                           repository_full_handle: "tuist/tuist",
+                                           comment_id: "123456",
+                                           body: "Updated comment body"
+                                         } ->
         {:ok, %Comment{id: 123_456, client_id: "client_id"}}
       end)
 
@@ -1370,8 +1295,10 @@ defmodule Tuist.VCSTest do
       # Given
       project =
         ProjectsFixtures.project_fixture(
-          vcs_repository_full_handle: "different/repo",
-          vcs_provider: :github
+          vcs_connection: [
+            repository_full_handle: "different/repo",
+            provider: :github
+          ]
         )
 
       comment_params = %{
@@ -1381,7 +1308,7 @@ defmodule Tuist.VCSTest do
         project: project
       }
 
-      reject(GitHub.Client, :update_comment, 1)
+      reject(Client, :update_comment, 1)
 
       # When
       result = VCS.update_comment(comment_params)
@@ -1396,8 +1323,10 @@ defmodule Tuist.VCSTest do
 
       project =
         ProjectsFixtures.project_fixture(
-          vcs_repository_full_handle: "tuist/tuist",
-          vcs_provider: :github
+          vcs_connection: [
+            repository_full_handle: "tuist/tuist",
+            provider: :github
+          ]
         )
 
       comment_params = %{
@@ -1407,7 +1336,7 @@ defmodule Tuist.VCSTest do
         project: project
       }
 
-      reject(GitHub.Client, :update_comment, 1)
+      reject(Client, :update_comment, 1)
 
       # When
       result = VCS.update_comment(comment_params)
@@ -1420,8 +1349,10 @@ defmodule Tuist.VCSTest do
       # Given
       project =
         ProjectsFixtures.project_fixture(
-          vcs_repository_full_handle: "tuist/tuist",
-          vcs_provider: :github
+          vcs_connection: [
+            repository_full_handle: "tuist/tuist",
+            provider: :github
+          ]
         )
 
       comment_params = %{
@@ -1431,11 +1362,11 @@ defmodule Tuist.VCSTest do
         project: project
       }
 
-      expect(GitHub.Client, :update_comment, fn %{
-                                                  repository_full_handle: "tuist/tuist",
-                                                  comment_id: "123456",
-                                                  body: "Updated comment body"
-                                                } ->
+      expect(Client, :update_comment, fn %{
+                                           repository_full_handle: "tuist/tuist",
+                                           comment_id: "123456",
+                                           body: "Updated comment body"
+                                         } ->
         {:error, :not_found}
       end)
 
@@ -1450,8 +1381,10 @@ defmodule Tuist.VCSTest do
       # Given
       project =
         ProjectsFixtures.project_fixture(
-          vcs_repository_full_handle: "tuist/tuist",
-          vcs_provider: :github
+          vcs_connection: [
+            repository_full_handle: "tuist/tuist",
+            provider: :github
+          ]
         )
 
       comment_ids = ["123", "456789", "999"]
@@ -1464,11 +1397,11 @@ defmodule Tuist.VCSTest do
           project: project
         }
 
-        expect(GitHub.Client, :update_comment, fn %{
-                                                    repository_full_handle: "tuist/tuist",
-                                                    comment_id: ^comment_id,
-                                                    body: _
-                                                  } ->
+        expect(Client, :update_comment, fn %{
+                                             repository_full_handle: "tuist/tuist",
+                                             comment_id: ^comment_id,
+                                             body: _
+                                           } ->
           {:ok, %Comment{id: String.to_integer(comment_id), client_id: "client_id"}}
         end)
 
@@ -1515,6 +1448,550 @@ defmodule Tuist.VCSTest do
           }
         )
       end)
+    end
+  end
+
+  # GitHub App Installation tests
+
+  describe "get_github_app_installation_by_installation_id/1" do
+    test "returns the GitHub app installation when it exists" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = user.account
+      installation_id = "12345"
+
+      {:ok, github_app_installation} =
+        %GitHubAppInstallation{}
+        |> GitHubAppInstallation.changeset(%{
+          account_id: account.id,
+          installation_id: installation_id
+        })
+        |> Repo.insert()
+
+      # When
+      result = VCS.get_github_app_installation_by_installation_id(installation_id)
+
+      # Then
+      assert {:ok, fetched_installation} = result
+      assert fetched_installation.id == github_app_installation.id
+      assert fetched_installation.installation_id == installation_id
+      assert fetched_installation.account_id == account.id
+    end
+
+    test "returns error when GitHub app installation does not exist" do
+      # Given
+      non_existent_installation_id = "99999"
+
+      # When
+      result = VCS.get_github_app_installation_by_installation_id(non_existent_installation_id)
+
+      # Then
+      assert result == {:error, :not_found}
+    end
+  end
+
+  describe "delete_github_app_installation/1" do
+    test "successfully deletes a GitHub app installation" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = user.account
+      installation_id = "67890"
+
+      {:ok, github_app_installation} =
+        %GitHubAppInstallation{}
+        |> GitHubAppInstallation.changeset(%{
+          account_id: account.id,
+          installation_id: installation_id
+        })
+        |> Repo.insert()
+
+      # When
+      result = VCS.delete_github_app_installation(github_app_installation)
+
+      # Then
+      assert {:ok, deleted_installation} = result
+      assert deleted_installation.id == github_app_installation.id
+
+      # Verify it's actually deleted
+      assert VCS.get_github_app_installation_by_installation_id(installation_id) == {:error, :not_found}
+    end
+
+    test "returns error when trying to delete stale installation" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = user.account
+
+      {:ok, github_app_installation} =
+        %GitHubAppInstallation{}
+        |> GitHubAppInstallation.changeset(%{
+          account_id: account.id,
+          installation_id: "temp-id"
+        })
+        |> Repo.insert()
+
+      # Delete it first to make it stale
+      {:ok, _} = Repo.delete(github_app_installation)
+
+      # When
+      result = VCS.delete_github_app_installation(github_app_installation)
+
+      # Then
+      assert {:error, changeset} = result
+      assert changeset.errors[:id] == {"is stale", [stale: true]}
+    end
+  end
+
+  describe "update_github_app_installation/2" do
+    test "successfully updates a GitHub app installation with html_url" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = user.account
+      installation_id = "11111"
+      html_url = "https://github.com/organizations/tuist/settings/installations/11111"
+
+      {:ok, github_app_installation} =
+        %GitHubAppInstallation{}
+        |> GitHubAppInstallation.changeset(%{
+          account_id: account.id,
+          installation_id: installation_id
+        })
+        |> Repo.insert()
+
+      # When
+      result = VCS.update_github_app_installation(github_app_installation, %{html_url: html_url})
+
+      # Then
+      assert {:ok, updated_installation} = result
+      assert updated_installation.html_url == html_url
+      assert updated_installation.installation_id == installation_id
+      assert updated_installation.account_id == account.id
+    end
+
+    test "returns error with invalid data" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = user.account
+
+      {:ok, github_app_installation} =
+        %GitHubAppInstallation{}
+        |> GitHubAppInstallation.changeset(%{
+          account_id: account.id,
+          installation_id: "22222"
+        })
+        |> Repo.insert()
+
+      # When
+      result = VCS.update_github_app_installation(github_app_installation, %{html_url: 123})
+
+      # Then
+      assert {:error, changeset} = result
+      assert changeset.errors[:html_url] == {"is invalid", [type: :string, validation: :cast]}
+    end
+  end
+
+  describe "create_github_app_installation/1" do
+    test "successfully creates a GitHub app installation with valid attributes" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = user.account
+      installation_id = "54321"
+
+      attrs = %{
+        account_id: account.id,
+        installation_id: installation_id
+      }
+
+      # When
+      result = VCS.create_github_app_installation(attrs)
+
+      # Then
+      assert {:ok, github_app_installation} = result
+      assert github_app_installation.account_id == account.id
+      assert github_app_installation.installation_id == installation_id
+    end
+  end
+
+  describe "get_github_app_installation_repositories/1" do
+    test "returns all repositories from single page with caching" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = user.account
+      installation_id = "repo_test_123"
+
+      {:ok, github_app_installation} =
+        VCS.create_github_app_installation(%{
+          account_id: account.id,
+          installation_id: installation_id
+        })
+
+      expected_repositories = [
+        %{id: 1, name: "repo1", full_name: "tuist/repo1", private: false, default_branch: "main"},
+        %{id: 2, name: "repo2", full_name: "tuist/repo2", private: true, default_branch: "master"}
+      ]
+
+      expect(KeyValueStore, :get_or_update, fn key, opts, fun ->
+        assert key == [VCS, "repositories", installation_id]
+        assert Keyword.get(opts, :ttl) == to_timeout(minute: 15)
+        fun.()
+      end)
+
+      expect(Client, :list_installation_repositories, fn ^installation_id, [] ->
+        {:ok, %{meta: %{next_url: nil}, repositories: expected_repositories}}
+      end)
+
+      # When
+      result = VCS.get_github_app_installation_repositories(github_app_installation)
+
+      # Then
+      assert {:ok, repositories} = result
+      assert repositories == expected_repositories
+    end
+
+    test "returns all repositories from multiple pages with caching" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = user.account
+      installation_id = "pagination_test_456"
+
+      {:ok, github_app_installation} =
+        VCS.create_github_app_installation(%{
+          account_id: account.id,
+          installation_id: installation_id
+        })
+
+      page1_repos = [
+        %{id: 1, name: "repo1", full_name: "tuist/repo1", private: false, default_branch: "main"}
+      ]
+
+      page2_repos = [
+        %{id: 2, name: "repo2", full_name: "tuist/repo2", private: true, default_branch: "master"}
+      ]
+
+      expect(KeyValueStore, :get_or_update, fn key, opts, fun ->
+        assert key == [VCS, "repositories", installation_id]
+        assert Keyword.get(opts, :ttl) == to_timeout(minute: 15)
+        fun.()
+      end)
+
+      expect(Client, :list_installation_repositories, 2, fn
+        ^installation_id, [] ->
+          {:ok,
+           %{
+             meta: %{next_url: "https://api.github.com/installation/repositories?page=2"},
+             repositories: page1_repos
+           }}
+
+        ^installation_id, [next_url: "https://api.github.com/installation/repositories?page=2"] ->
+          {:ok, %{meta: %{next_url: nil}, repositories: page2_repos}}
+      end)
+
+      # When
+      result = VCS.get_github_app_installation_repositories(github_app_installation)
+
+      # Then
+      assert {:ok, repositories} = result
+      assert repositories == page1_repos ++ page2_repos
+    end
+
+    test "returns error when GitHub client fails on first page" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = user.account
+      installation_id = "error_test_789"
+
+      {:ok, github_app_installation} =
+        VCS.create_github_app_installation(%{
+          account_id: account.id,
+          installation_id: installation_id
+        })
+
+      error_message = "GitHub API error"
+
+      expect(KeyValueStore, :get_or_update, fn key, opts, fun ->
+        assert key == [VCS, "repositories", installation_id]
+        assert Keyword.get(opts, :ttl) == to_timeout(minute: 15)
+        fun.()
+      end)
+
+      expect(Client, :list_installation_repositories, fn ^installation_id, [] ->
+        {:error, error_message}
+      end)
+
+      # When
+      result = VCS.get_github_app_installation_repositories(github_app_installation)
+
+      # Then
+      assert {:error, ^error_message} = result
+    end
+  end
+
+  describe "get_github_app_installation_url/1" do
+    test "generates GitHub app installation URL with state token for account" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = user.account
+      app_name = "test-tuist-app"
+
+      expect(Environment, :github_app_name, fn -> app_name end)
+
+      # When
+      result = VCS.get_github_app_installation_url(account)
+
+      # Then
+      assert String.starts_with?(result, "https://github.com/apps/#{app_name}/installations/new?state=")
+
+      # Extract and verify the state token
+      state_token = result |> String.split("state=") |> List.last()
+      account_id = account.id
+      assert {:ok, ^account_id} = VCS.verify_github_state_token(state_token)
+    end
+  end
+
+  describe "account deletion cascades" do
+    test "deletes associated github_app_installation when account is deleted" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = user.account
+
+      # Create a GitHub app installation for the account
+      github_app_installation = VCSFixtures.github_app_installation_fixture(account_id: account.id)
+
+      # When
+      {:ok, _deleted_account} = Repo.delete(account)
+
+      # Then
+      # Verify the GitHub app installation was cascade deleted
+      assert Repo.get(GitHubAppInstallation, github_app_installation.id) == nil
+    end
+  end
+
+  # GitHub State Token tests
+
+  describe "generate_github_state_token/1" do
+    test "generates a token for a given account ID" do
+      # Given
+      account_id = 123
+
+      # When
+      token = VCS.generate_github_state_token(account_id)
+
+      # Then
+      assert is_binary(token)
+      assert String.length(token) > 0
+    end
+
+    test "generates different tokens for different account IDs" do
+      # Given
+      account_id_1 = 123
+      account_id_2 = 456
+
+      # When
+      token_1 = VCS.generate_github_state_token(account_id_1)
+      token_2 = VCS.generate_github_state_token(account_id_2)
+
+      # Then
+      assert token_1 != token_2
+    end
+  end
+
+  describe "verify_github_state_token/1" do
+    test "verifies a valid token and returns the account ID" do
+      # Given
+      account_id = 123
+      token = VCS.generate_github_state_token(account_id)
+
+      # When
+      result = VCS.verify_github_state_token(token)
+
+      # Then
+      assert {:ok, ^account_id} = result
+    end
+
+    test "returns error for invalid token format" do
+      # Given
+      invalid_token = "invalid_token_format"
+
+      # When
+      result = VCS.verify_github_state_token(invalid_token)
+
+      # Then
+      assert {:error, _reason} = result
+    end
+
+    test "returns error for empty token" do
+      # Given
+      empty_token = ""
+
+      # When
+      result = VCS.verify_github_state_token(empty_token)
+
+      # Then
+      assert {:error, _reason} = result
+    end
+
+    test "returns error for nil token" do
+      # When
+      result = VCS.verify_github_state_token(nil)
+
+      # Then
+      assert {:error, _reason} = result
+    end
+  end
+
+  # GitHub App Installation Schema tests
+
+  describe "GitHubAppInstallation changeset/2" do
+    test "is valid with valid attributes" do
+      # Given
+      account = AccountsFixtures.account_fixture()
+
+      # When
+      changeset =
+        GitHubAppInstallation.changeset(%GitHubAppInstallation{}, %{
+          account_id: account.id,
+          installation_id: "12345"
+        })
+
+      # Then
+      assert changeset.valid?
+    end
+
+    test "is invalid without account_id" do
+      # When
+      changeset =
+        GitHubAppInstallation.changeset(%GitHubAppInstallation{}, %{
+          installation_id: "12345"
+        })
+
+      # Then
+      assert changeset.valid? == false
+      assert "can't be blank" in errors_on(changeset).account_id
+    end
+
+    test "is invalid without installation_id" do
+      # Given
+      account = AccountsFixtures.account_fixture()
+
+      # When
+      changeset =
+        GitHubAppInstallation.changeset(%GitHubAppInstallation{}, %{
+          account_id: account.id
+        })
+
+      # Then
+      assert changeset.valid? == false
+      assert "can't be blank" in errors_on(changeset).installation_id
+    end
+
+    test "is invalid with non-existent account_id" do
+      # Given
+      non_existent_id = 99_999
+
+      # When
+      changeset =
+        GitHubAppInstallation.changeset(%GitHubAppInstallation{}, %{
+          account_id: non_existent_id,
+          installation_id: "12345"
+        })
+
+      # Then
+      assert changeset.valid?
+
+      # When
+      assert {:error, changeset_with_error} = Repo.insert(changeset)
+      assert "does not exist" in errors_on(changeset_with_error).account_id
+    end
+
+    test "enforces unique constraint on account_id" do
+      # Given
+      account = AccountsFixtures.account_fixture()
+
+      {:ok, _existing_installation} =
+        Repo.insert(
+          GitHubAppInstallation.changeset(%GitHubAppInstallation{}, %{
+            account_id: account.id,
+            installation_id: "12345"
+          })
+        )
+
+      # When
+      changeset =
+        GitHubAppInstallation.changeset(%GitHubAppInstallation{}, %{
+          account_id: account.id,
+          installation_id: "67890"
+        })
+
+      # Then
+      assert {:error, changeset_with_error} = Repo.insert(changeset)
+      assert "has already been taken" in errors_on(changeset_with_error).account_id
+    end
+
+    test "enforces unique constraint on installation_id" do
+      # Given
+      account1 = AccountsFixtures.account_fixture()
+      account2 = AccountsFixtures.account_fixture()
+
+      {:ok, _existing_installation} =
+        Repo.insert(
+          GitHubAppInstallation.changeset(%GitHubAppInstallation{}, %{
+            account_id: account1.id,
+            installation_id: "12345"
+          })
+        )
+
+      # When
+      changeset =
+        GitHubAppInstallation.changeset(%GitHubAppInstallation{}, %{
+          account_id: account2.id,
+          installation_id: "12345"
+        })
+
+      # Then
+      assert {:error, changeset_with_error} = Repo.insert(changeset)
+      assert "has already been taken" in errors_on(changeset_with_error).installation_id
+    end
+  end
+
+  describe "GitHubAppInstallation update_changeset/2" do
+    test "is valid with html_url" do
+      # Given
+      account = AccountsFixtures.account_fixture()
+
+      {:ok, installation} =
+        Repo.insert(
+          GitHubAppInstallation.changeset(%GitHubAppInstallation{}, %{
+            account_id: account.id,
+            installation_id: "12345"
+          })
+        )
+
+      # When
+      changeset =
+        GitHubAppInstallation.update_changeset(installation, %{
+          html_url: "https://github.com/settings/installations/12345"
+        })
+
+      # Then
+      assert changeset.valid?
+    end
+
+    test "is valid without any attributes" do
+      # Given
+      account = AccountsFixtures.account_fixture()
+
+      {:ok, installation} =
+        Repo.insert(
+          GitHubAppInstallation.changeset(%GitHubAppInstallation{}, %{
+            account_id: account.id,
+            installation_id: "12345"
+          })
+        )
+
+      # When
+      changeset = GitHubAppInstallation.update_changeset(installation, %{})
+
+      # Then
+      assert changeset.valid?
     end
   end
 end

@@ -138,6 +138,9 @@
                             "text": "日志记录"
                         }
                     }
+                },
+                "releases": {
+                    "text": ""
                 }
             }
         },
@@ -299,7 +302,15 @@
                             }
                         },
                         "cache": {
-                            "text": "缓存"
+                            "text": "缓存",
+                            "items": {
+                                "generated-project": {
+                                    "text": ""
+                                },
+                                "xcode-cache": {
+                                    "text": ""
+                                }
+                            }
                         },
                         "registry": {
                             "text": "注册表",
@@ -343,6 +354,9 @@
                         },
                         "bundle-size": {
                             "text": "包体积"
+                        },
+                        "qa": {
+                            "text": ""
                         }
                     }
                 },

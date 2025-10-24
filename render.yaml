@@ -8,7 +8,6 @@ services:
     runtime: docker
     repo: https://github.com/tuist/tuist
     rootDir: server/
-    dockerfilePath: ./Dockerfile
     dockerCommand: /app/bin/start
     autoDeployTrigger: "off"
     plan: pro plus
@@ -92,3 +91,17 @@ services:
 
   - <<: *redis-base
     name: redis-staging
+
+  - type: pserv
+    name: grafana-alloy
+    runtime: docker
+    region: frankfurt
+    repo: https://github.com/tuist/tuist
+    rootDir: infra/grafana-alloy/
+    plan: standard
+    autoDeployTrigger: commit
+    envVars:
+      - key: PROMETHEUS_TOKEN
+        sync: false
+      - key: PROMETHEUS_USERNAME
+        sync: false

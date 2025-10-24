@@ -15,6 +15,9 @@ defmodule TuistWeb.Webhooks.GitHubController do
       "issue_comment" ->
         handle_issue_comment(conn, params)
 
+      "installation" ->
+        handle_installation(conn, params)
+
       _ ->
         conn
         |> put_status(:ok)
@@ -31,10 +34,42 @@ defmodule TuistWeb.Webhooks.GitHubController do
            "issue" => %{"number" => issue_number, "pull_request" => _pull_request}
          } = _params
        ) do
-    qa_prompt = tuist_qa_prompt(comment_body)
+    qa_result = tuist_qa_prompt(comment_body)
 
-    if qa_prompt do
-      test_qa_prompt(repository["full_name"], issue_number, qa_prompt)
+    if qa_result do
+      repository_full_name = repository["full_name"]
+      git_ref = "refs/pull/#{issue_number}/merge"
+
+      case get_project_for_qa(qa_result, repository_full_name) do
+        {:ok, project} ->
+          {_, prompt} = qa_result
+          test_qa_prompt(project, prompt, git_ref, repository_full_name)
+
+        {:error, :not_found} ->
+          case qa_result do
+            {project_name, _} when not is_nil(project_name) ->
+              VCS.create_comment(%{
+                repository_full_handle: repository_full_name,
+                git_ref: git_ref,
+                body: "Project '#{project_name}' is not connected to this repository.",
+                project: nil
+              })
+
+            _ ->
+              :ok
+          end
+
+        {:error, {:multiple_projects, projects}} ->
+          project_handles = Enum.map_join(projects, ", ", & &1.name)
+
+          VCS.create_comment(%{
+            repository_full_handle: repository_full_name,
+            git_ref: git_ref,
+            body:
+              "Multiple Tuist projects are connected to this repository. Please specify the project handle: `/tuist <project-handle> qa <your-prompt>`\n\nAvailable projects: #{project_handles}",
+            project: List.first(projects)
+          })
+      end
     end
 
     conn
@@ -48,29 +83,64 @@ defmodule TuistWeb.Webhooks.GitHubController do
     |> json(%{status: "ok"})
   end
 
-  defp test_qa_prompt(repository_full_handle, issue_number, prompt) do
-    case Projects.project_by_vcs_repository_full_handle(repository_full_handle, preload: :account) do
-      {:error, :not_found} ->
-        :ok
+  defp handle_installation(conn, %{"action" => "deleted", "installation" => %{"id" => installation_id}}) do
+    {:ok, _} = delete_github_app_installation(installation_id)
 
-      {:ok, project} ->
-        git_ref = "refs/pull/#{issue_number}/merge"
+    conn
+    |> put_status(:ok)
+    |> json(%{status: "ok"})
+  end
 
-        if FunWithFlags.enabled?(:qa, for: project.account) do
-          start_or_enqueue_qa_run(project, prompt, git_ref)
-        else
-          VCS.create_comment(%{
-            repository_full_handle: repository_full_handle,
-            git_ref: git_ref,
-            body:
-              "Tuist QA is currently not generally available. Contact us at contact@tuist.dev if you'd like an early preview of the feature.",
-            project: project
-          })
+  defp handle_installation(conn, %{
+         "action" => "created",
+         "installation" => %{"id" => installation_id, "html_url" => html_url}
+       }) do
+    {:ok, _} = update_github_app_installation_html_url(installation_id, html_url)
+
+    conn
+    |> put_status(:ok)
+    |> json(%{status: "ok"})
+  end
+
+  defp handle_installation(conn, _params) do
+    conn
+    |> put_status(:ok)
+    |> json(%{status: "ok"})
+  end
+
+  defp get_project_for_qa(qa_result, repository_full_name) do
+    case qa_result do
+      {project_name, _prompt} when not is_nil(project_name) ->
+        Projects.project_by_name_and_vcs_repository_full_handle(project_name, repository_full_name, preload: :account)
+
+      {nil, _prompt} ->
+        projects = Projects.projects_by_vcs_repository_full_handle(repository_full_name, preload: :account)
+
+        case projects do
+          [] -> {:error, :not_found}
+          [project] -> {:ok, project}
+          multiple -> {:error, {:multiple_projects, multiple}}
         end
     end
   end
 
+  defp test_qa_prompt(project, prompt, git_ref, repository_full_handle) do
+    if FunWithFlags.enabled?(:qa, for: project.account) do
+      start_or_enqueue_qa_run(project, prompt, git_ref)
+    else
+      VCS.create_comment(%{
+        repository_full_handle: repository_full_handle,
+        git_ref: git_ref,
+        body:
+          "Tuist QA is currently not generally available. Contact us at contact@tuist.dev if you'd like an early preview of the feature.",
+        project: project
+      })
+    end
+  end
+
   defp start_or_enqueue_qa_run(project, prompt, git_ref) do
+    project = Repo.preload(project, :vcs_connection)
+
     simulator_app_build =
       AppBuilds.latest_app_build(git_ref, project, supported_platform: :ios_simulator)
 
@@ -79,8 +149,6 @@ defmodule TuistWeb.Webhooks.GitHubController do
         app_build_id: simulator_app_build && simulator_app_build.id,
         prompt: prompt,
         status: "pending",
-        vcs_provider: project.vcs_provider,
-        vcs_repository_full_handle: project.vcs_repository_full_handle,
         git_ref: git_ref,
         issue_comment_id: nil
       })
@@ -88,7 +156,7 @@ defmodule TuistWeb.Webhooks.GitHubController do
     {:ok, %{"id" => comment_id}} =
       post_initial_comment(
         simulator_app_build,
-        project.vcs_repository_full_handle,
+        project.vcs_connection && project.vcs_connection.repository_full_handle,
         git_ref,
         project,
         qa_run
@@ -127,22 +195,42 @@ defmodule TuistWeb.Webhooks.GitHubController do
   end
 
   defp tuist_qa_prompt(body) do
-    base_prompt =
+    base_command =
       cond do
-        Environment.stag?() -> "/tuist-staging qa"
-        Environment.dev?() -> "/tuist-development qa"
-        Environment.can?() -> "/tuist-canary qa"
-        true -> "/tuist qa"
+        Environment.stag?() -> "/tuist-staging"
+        Environment.dev?() -> "/tuist-development"
+        Environment.can?() -> "/tuist-canary"
+        true -> "/tuist"
       end
 
-    pattern = ~r/^\s*#{Regex.escape(base_prompt)}\s*(.*)$/im
+    # Pattern 1: /tuist <project-name> qa <prompt> (with project name)
+    pattern_with_project = ~r/^\s*#{Regex.escape(base_command)}\s+(\S+)\s+qa\s+(.*)$/im
 
-    case Regex.run(pattern, body) do
-      [_, prompt] ->
-        String.trim(prompt)
+    # Pattern 2: /tuist qa <prompt> (no project name, valid in case only a single Tuist project is connected to the GitHub repository)
+    pattern_without_project = ~r/^\s*#{Regex.escape(base_command)}\s+qa\s+(.*)$/im
+
+    case Regex.run(pattern_with_project, body) do
+      [_, project_name, prompt] ->
+        {String.trim(project_name), String.trim(prompt)}
 
       _ ->
-        nil
+        case Regex.run(pattern_without_project, body) do
+          [_, prompt] ->
+            {nil, String.trim(prompt)}
+
+          _ ->
+            nil
+        end
     end
+  end
+
+  defp delete_github_app_installation(installation_id) do
+    {:ok, github_app_installation} = VCS.get_github_app_installation_by_installation_id(installation_id)
+    VCS.delete_github_app_installation(github_app_installation)
+  end
+
+  defp update_github_app_installation_html_url(installation_id, html_url) do
+    {:ok, github_app_installation} = VCS.get_github_app_installation_by_installation_id(installation_id)
+    VCS.update_github_app_installation(github_app_installation, %{html_url: html_url})
   end
 end

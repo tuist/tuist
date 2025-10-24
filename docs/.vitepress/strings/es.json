@@ -21,10 +21,10 @@
             },
             "modal": {
                 "search-box": {
-                    "reset-button-title": "Limpiar término de búsqueda",
-                    "reset-button-aria-label": "Limpiar término de búsqueda",
-                    "cancel-button-text": "Cancelar",
-                    "cancel-button-aria-label": "Cancelar"
+                    "reset-button-title": "Limpia el término de búsqueda",
+                    "reset-button-aria-label": "Limpia el término de búsqueda",
+                    "cancel-button-text": "Cancela",
+                    "cancel-button-aria-label": "Cancela"
                 },
                 "start-screen": {
                     "recent-searches-title": "Historial de búsqueda",
@@ -140,7 +140,7 @@
                     }
                 },
                 "releases": {
-                    "text": "Versiones"
+                    "text": "Releases"
                 }
             }
         },
@@ -240,13 +240,13 @@
                                                     "text": "Un proyecto Xcode"
                                                 },
                                                 "swift-package": {
-                                                    "text": "A Swift package"
+                                                    "text": "Un paquete de Swift"
                                                 },
                                                 "xcodegen-project": {
-                                                    "text": "An XcodeGen project"
+                                                    "text": "Un proyecto de  XcodeGen"
                                                 },
                                                 "bazel-project": {
-                                                    "text": "A Bazel project"
+                                                    "text": "Un proyecto de Bazel"
                                                 }
                                             }
                                         }
@@ -283,10 +283,10 @@
                                     "text": "Hasheado"
                                 },
                                 "inspect": {
-                                    "text": "Inspect",
+                                    "text": "Inspeccionar",
                                     "items": {
                                         "implicit-imports": {
-                                            "text": "Implicit imports"
+                                            "text": "Imports implícitos"
                                         }
                                     }
                                 },
@@ -302,42 +302,50 @@
                             }
                         },
                         "cache": {
-                            "text": "Cache"
+                            "text": "Cache",
+                            "items": {
+                                "generated-project": {
+                                    "text": ""
+                                },
+                                "xcode-cache": {
+                                    "text": ""
+                                }
+                            }
                         },
                         "registry": {
-                            "text": "Registry",
+                            "text": "Registro",
                             "items": {
                                 "registry": {
-                                    "text": "Registry"
+                                    "text": "Registro"
                                 },
                                 "xcode-project": {
-                                    "text": "Xcode project"
+                                    "text": "Proyecto de Xcode"
                                 },
                                 "generated-project": {
-                                    "text": "Generated project"
+                                    "text": "Proyecto generado"
                                 },
                                 "xcodeproj-integration": {
-                                    "text": "XcodeProj-based integration"
+                                    "text": "Integración basada en XcodeProj"
                                 },
                                 "swift-package": {
-                                    "text": "Swift package"
+                                    "text": "Paquete de Swift"
                                 },
                                 "continuous-integration": {
-                                    "text": "Continuous integration"
+                                    "text": "Integración Continua"
                                 }
                             }
                         },
                         "selective-testing": {
-                            "text": "Selective testing",
+                            "text": "Testing selectivo",
                             "items": {
                                 "selective-testing": {
-                                    "text": "Selective testing"
+                                    "text": "Testing selectivo"
                                 },
                                 "xcode-project": {
-                                    "text": "Xcode project"
+                                    "text": "Proyecto de Xcode"
                                 },
                                 "generated-project": {
-                                    "text": "Generated project"
+                                    "text": "Proyecto generado"
                                 }
                             }
                         },
@@ -345,7 +353,7 @@
                             "text": "Insights"
                         },
                         "bundle-size": {
-                            "text": "Bundle size"
+                            "text": "Tamaño de bundle"
                         },
                         "qa": {
                             "text": "QA"

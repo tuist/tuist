@@ -9,6 +9,7 @@ on:
       - mise/tasks/cli/ee.sh
       - "cli/TuistCacheEE"
       - "cli/TuistCacheEE/**"
+      - "cli/Tests/TuistCacheEEAcceptanceTests/**"
       - "cli/Sources/**"
       - "cli/Tests/**"
       - "*.swift"
@@ -23,6 +24,7 @@ on:
       - mise/tasks/cli/ee.sh
       - "cli/TuistCacheEE"
       - "cli/TuistCacheEE/**"
+      - "cli/Tests/TuistCacheEEAcceptanceTests/**"
       - "cli/Sources/**"
       - "cli/Tests/**"
       - "*.swift"
@@ -134,7 +136,7 @@ jobs:
           key: ${{ steps.cache-restore.outputs.cache-primary-key }}
   acceptance-tests:
     name: Acceptance Tests
-    runs-on: macos-26
+    runs-on: namespace-profile-default-macos
     timeout-minutes: 15
     needs: [check-team-membership]
     if: |

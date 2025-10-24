@@ -10,8 +10,44 @@ import TuistTesting
 import XcodeProj
 
 @testable import TuistCacheEE
+@testable import TuistKit
 
 struct TuistCacheEEAcceptanceTests {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(inheritingVariables: ["PATH"]),
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true),
+        .withFixture("framework_with_native_swift_macro")
+    ) func framework_with_native_swift_macro() async throws {
+        // Given
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let mockedEnvironment = try #require(Environment.mocked)
+        try await TuistTest.run(InstallCommand.self, ["--path", fixtureDirectory.pathString])
+
+        // When: Cache the binaries
+        try await TuistTest.run(
+            CacheCommand.self,
+            ["--path", fixtureDirectory.pathString]
+        )
+
+        // When: Generate with a focuson the App
+        try await TuistTest.run(GenerateCommand.self, ["--no-open", "--path", fixtureDirectory.pathString, "Framework"])
+
+        let xcodeProj =
+            try XcodeProj(path: .init(fixtureDirectory.appending(component: "FrameworkWithSwiftMacro.xcodeproj").pathString))
+
+        // We check that OTHER_SWIFT_FLAGS references the build directory as a proof
+        // of the target linking pre-compiled Swift macros.
+        let frameworkTarget = try #require(xcodeProj.pbxproj.targets(named: "Framework").first)
+        let configurationList = try #require(frameworkTarget.buildConfigurationList)
+        #expect(configurationList.buildConfigurations.isEmpty == false)
+        for buildConfiguration in configurationList.buildConfigurations {
+            let otherSwiftFlags = try #require(buildConfiguration.buildSettings["OTHER_SWIFT_FLAGS"]?.arrayValue)
+            #expect(otherSwiftFlags.contains(where: { $0.contains(mockedEnvironment.cacheDirectory.pathString) }) == true)
+        }
+    }
+
     @Test(
         .inTemporaryDirectory,
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
@@ -160,5 +196,134 @@ struct TuistCacheEEAcceptanceTests {
         // When: Running tests selectively
         try await TuistTest.run(XcodeBuildTestCommand.self, arguments)
         TuistTest.expectLogs("There are no tests to run, exiting early..")
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(inheritingVariables: ["PATH"]),
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true),
+        .withFixtureConnectedToCanary("xcode_project_with_ios_app_and_cas"),
+        .withTestingSimulator("iPhone 17")
+    ) func xcode_project_with_ios_app_and_cas() async throws {
+        // Given
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let xcodeprojPath = fixtureDirectory.appending(component: "App.xcodeproj")
+        let simulator = try #require(Simulator.testing)
+        let fileSystem = FileSystem()
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let environment = try #require(Environment.mocked)
+        environment.stateDirectory = try await fileSystem.currentWorkingDirectory()
+        let fixtureFullHandle = try #require(TuistTest.fixtureFullHandle)
+
+        let backgroundTask = Task {
+            while !Task.isCancelled {
+                try await TuistTest.run(
+                    CacheStartCommand.self,
+                    [fixtureFullHandle, "--url", Environment.current.variables["TUIST_URL"] ?? "https://canary.tuist.dev"]
+                )
+            }
+        }
+
+        defer {
+            backgroundTask.cancel()
+        }
+
+        let remoteCacheServicePath = environment.stateDirectory
+            .appending(component: "\(fixtureFullHandle.replacingOccurrences(of: "/", with: "_")).sock")
+
+        let arguments = [
+            "-scheme", "App",
+            "-destination", simulator.description,
+            "-project", xcodeprojPath.pathString,
+            "-derivedDataPath", temporaryDirectory.pathString,
+            "CODE_SIGN_IDENTITY=",
+            "CODE_SIGNING_REQUIRED=NO",
+            "CODE_SIGNING_ALLOWED=NO",
+            "COMPILATION_CACHE_REMOTE_SERVICE_PATH=\(remoteCacheServicePath.pathString)",
+        ]
+        try await TuistTest.run(XcodeBuildBuildCommand.self, arguments)
+        TuistTest.expectLogs("note: 0 hits / 60 cacheable tasks (0%)")
+        resetUI()
+
+        try await fileSystem.remove(temporaryDirectory)
+
+        try await TuistTest.run(XcodeBuildBuildCommand.self, arguments)
+        TuistTest.expectLogs("note: 60 hits / 60 cacheable tasks (100%)")
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(inheritingVariables: ["PATH"]),
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true),
+        .withFixtureConnectedToCanary("generated_project_with_caching_enabled"),
+        .withTestingSimulator("iPhone 17")
+    ) func generated_project_with_caching_enabled() async throws {
+        // Given
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let xcodeprojPath = fixtureDirectory.appending(component: "App.xcodeproj")
+        let simulator = try #require(Simulator.testing)
+        let fileSystem = FileSystem()
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let environment = try #require(Environment.mocked)
+        environment.stateDirectory = try await fileSystem.currentWorkingDirectory()
+        let fixtureFullHandle = try #require(TuistTest.fixtureFullHandle)
+
+        try await fileSystem.writeText(
+            """
+            import ProjectDescription
+
+            let tuist = Tuist(
+                fullHandle: "\(fixtureFullHandle)",
+                url: "\(Environment.current.variables["TUIST_URL"] ?? "https://canary.tuist.dev")",
+                project: .tuist(
+                    generationOptions: .options(
+                        enableCaching: true
+                    )
+                )
+            )
+            """,
+            at: fixtureDirectory.appending(components: "Tuist.swift"),
+            options: Set([.overwrite])
+        )
+
+        let backgroundTask = Task {
+            while !Task.isCancelled {
+                try await TuistTest.run(
+                    CacheStartCommand.self,
+                    [fixtureFullHandle, "--url", Environment.current.variables["TUIST_URL"] ?? "https://canary.tuist.dev"]
+                )
+            }
+        }
+
+        defer {
+            backgroundTask.cancel()
+        }
+
+        let remoteCacheServicePath = environment.stateDirectory
+            .appending(component: "\(fixtureFullHandle.replacingOccurrences(of: "/", with: "_")).sock")
+
+        try await TuistTest.run(GenerateCommand.self, ["--path", fixtureDirectory.pathString, "--no-open"])
+        resetUI()
+
+        let arguments = [
+            "-scheme", "App",
+            "-destination", simulator.description,
+            "-project", xcodeprojPath.pathString,
+            "-derivedDataPath", temporaryDirectory.pathString,
+            "CODE_SIGN_IDENTITY=",
+            "CODE_SIGNING_REQUIRED=NO",
+            "CODE_SIGNING_ALLOWED=NO",
+            "COMPILATION_CACHE_REMOTE_SERVICE_PATH=\(remoteCacheServicePath.pathString)",
+        ]
+        try await TuistTest.run(XcodeBuildBuildCommand.self, arguments)
+        TuistTest.expectLogs("cacheable tasks (0%)")
+        resetUI()
+
+        try await fileSystem.remove(temporaryDirectory)
+
+        try await TuistTest.run(XcodeBuildBuildCommand.self, arguments)
+        TuistTest.expectLogs("cacheable tasks (100%)")
     }
 }

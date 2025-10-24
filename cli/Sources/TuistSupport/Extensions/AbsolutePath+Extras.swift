@@ -62,6 +62,7 @@ extension AbsolutePath {
         [
             "xcassets",
             "scnassets",
+            "xcdatamodel",
             "xcdatamodeld",
             "docc",
             "playground",

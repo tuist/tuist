@@ -28,6 +28,7 @@ defmodule TuistWeb.API.BundlesControllerTest do
           "download_size" => 2048,
           "supported_platforms" => ["ios", "ios_simulator"],
           "version" => "1.0.0",
+          "type" => "app",
           "artifacts" => [
             %{
               "artifact_type" => "file",
@@ -86,6 +87,7 @@ defmodule TuistWeb.API.BundlesControllerTest do
           "download_size" => 2048,
           "supported_platforms" => ["ios", "ios_simulator"],
           "version" => "1.0.0",
+          "type" => "app",
           "git_branch" => "feat/my-feature",
           "git_commit_sha" => "commit-sha",
           "git_ref" => "refs/pull/14/merge",
@@ -108,6 +110,87 @@ defmodule TuistWeb.API.BundlesControllerTest do
       assert bundle.git_branch == "feat/my-feature"
       assert bundle.git_commit_sha == "commit-sha"
       assert bundle.git_ref == "refs/pull/14/merge"
+    end
+
+    test "creates a bundle without type field", %{conn: conn, user: user, project: project} do
+      # Given
+      bundle_params = %{
+        "bundle" => %{
+          "app_bundle_id" => "com.example.app",
+          "name" => "Test Bundle No Type",
+          "install_size" => 1024,
+          "download_size" => 2048,
+          "supported_platforms" => ["ios", "ios_simulator"],
+          "version" => "1.0.0",
+          "artifacts" => [
+            %{
+              "artifact_type" => "file",
+              "path" => "app.ipa",
+              "size" => 1024,
+              "shasum" => "abc123"
+            }
+          ]
+        }
+      }
+
+      # When
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/projects/#{project.account.name}/#{project.name}/bundles", bundle_params)
+
+      # Then
+      assert %{
+               "id" => id,
+               "name" => "Test Bundle No Type",
+               "type" => "ipa"
+             } = json_response(conn, :ok)
+
+      {:ok, bundle} = Bundles.get_bundle(id)
+      assert bundle.type == :ipa
+    end
+
+    test "creates a bundle without type field and no download_size defaults to app", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      # Given
+      bundle_params = %{
+        "bundle" => %{
+          "app_bundle_id" => "com.example.app",
+          "name" => "Test Bundle No Type No Download Size",
+          "install_size" => 1024,
+          "supported_platforms" => ["ios", "ios_simulator"],
+          "version" => "1.0.0",
+          "artifacts" => [
+            %{
+              "artifact_type" => "file",
+              "path" => "app.ipa",
+              "size" => 1024,
+              "shasum" => "abc123"
+            }
+          ]
+        }
+      }
+
+      # When
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/projects/#{project.account.name}/#{project.name}/bundles", bundle_params)
+
+      # Then
+      assert %{
+               "id" => id,
+               "name" => "Test Bundle No Type No Download Size",
+               "type" => "app"
+             } = json_response(conn, :ok)
+
+      {:ok, bundle} = Bundles.get_bundle(id)
+      assert bundle.type == :app
     end
 
     test "returns error when params are invalid", %{conn: conn, project: project, user: user} do
@@ -213,6 +296,7 @@ defmodule TuistWeb.API.BundlesControllerTest do
                  "install_size" => bundle2.install_size,
                  "name" => bundle2.name,
                  "supported_platforms" => Enum.map(bundle2.supported_platforms, &Atom.to_string(&1)),
+                 "type" => Atom.to_string(bundle2.type),
                  "uploaded_by_account" => bundle2.uploaded_by_account.name,
                  "url" => url(~p"/#{bundle2.project.account.name}/#{bundle2.project.name}/bundles/#{bundle2.id}"),
                  "version" => bundle2.version
@@ -228,6 +312,7 @@ defmodule TuistWeb.API.BundlesControllerTest do
                  "install_size" => bundle1.install_size,
                  "name" => bundle1.name,
                  "supported_platforms" => Enum.map(bundle1.supported_platforms, &Atom.to_string(&1)),
+                 "type" => Atom.to_string(bundle1.type),
                  "uploaded_by_account" => bundle1.uploaded_by_account.name,
                  "url" => url(~p"/#{bundle1.project.account.name}/#{bundle1.project.name}/bundles/#{bundle1.id}"),
                  "version" => bundle1.version
@@ -283,6 +368,7 @@ defmodule TuistWeb.API.BundlesControllerTest do
                  "install_size" => bundle_feature.install_size,
                  "name" => bundle_feature.name,
                  "supported_platforms" => Enum.map(bundle_feature.supported_platforms, &Atom.to_string(&1)),
+                 "type" => Atom.to_string(bundle_feature.type),
                  "uploaded_by_account" => bundle_feature.uploaded_by_account.name,
                  "url" =>
                    url(
@@ -410,6 +496,7 @@ defmodule TuistWeb.API.BundlesControllerTest do
                "install_size" => bundle.install_size,
                "name" => bundle.name,
                "supported_platforms" => Enum.map(bundle.supported_platforms, &Atom.to_string(&1)),
+               "type" => Atom.to_string(bundle.type),
                "uploaded_by_account" => bundle.uploaded_by_account.name,
                "url" => url(~p"/#{bundle.project.account.name}/#{bundle.project.name}/bundles/#{bundle.id}"),
                "version" => bundle.version,
@@ -464,6 +551,7 @@ defmodule TuistWeb.API.BundlesControllerTest do
                "install_size" => bundle.install_size,
                "name" => bundle.name,
                "supported_platforms" => Enum.map(bundle.supported_platforms, &Atom.to_string(&1)),
+               "type" => Atom.to_string(bundle.type),
                "uploaded_by_account" => bundle.uploaded_by_account.name,
                "url" => url(~p"/#{bundle.project.account.name}/#{bundle.project.name}/bundles/#{bundle.id}"),
                "version" => bundle.version,

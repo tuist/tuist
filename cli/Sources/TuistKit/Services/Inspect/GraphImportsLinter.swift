@@ -69,7 +69,8 @@ final class GraphImportsLinter: GraphImportsLinting {
             let explicitTargetDependencies = explicitTargetDependencies(
                 graphTraverser: graphTraverser,
                 target: target,
-                includeExternalDependencies: inspectType == .implicit
+                includeExternalDependencies: inspectType == .implicit,
+                excludeAppDependenciesForUnitTests: inspectType == .redundant
             )
 
             let observedImports = switch inspectType {
@@ -89,7 +90,8 @@ final class GraphImportsLinter: GraphImportsLinting {
     private func explicitTargetDependencies(
         graphTraverser: GraphTraverser,
         target: GraphTarget,
-        includeExternalDependencies: Bool
+        includeExternalDependencies: Bool,
+        excludeAppDependenciesForUnitTests: Bool
     ) -> Set<String> {
         let targetDependencies = if includeExternalDependencies {
             graphTraverser
@@ -102,6 +104,10 @@ final class GraphImportsLinter: GraphImportsLinting {
         let explicitTargetDependencies = targetDependencies
             .filter { dependency in
                 !dependency.target.bundleId.hasSuffix(".generated.resources")
+            }
+            .filter { dependency in
+                // Macros are referenced by string name in #externalMacro, never via import statements.
+                dependency.target.product != .macro
             }
             .filter { dependency in
                 switch target.target.product {
@@ -122,6 +128,15 @@ final class GraphImportsLinter: GraphImportsLinting {
                          .stickerPackExtension, .messagesExtension, .extensionKitExtension, .watch2App:
                         return true
                     }
+                case .unitTests:
+                    switch dependency.target.product {
+                    case .app:
+                        return !excludeAppDependenciesForUnitTests
+                    case .staticLibrary, .dynamicLibrary, .framework, .staticFramework, .unitTests, .uiTests, .bundle,
+                         .commandLineTool, .tvTopShelfExtension, .appClip, .xpc, .systemExtension, .macro, .appExtension,
+                         .stickerPackExtension, .messagesExtension, .extensionKitExtension, .watch2App, .watch2Extension:
+                        return true
+                    }
                 case .uiTests:
                     switch dependency.target.product {
                     case .app:
@@ -131,7 +146,7 @@ final class GraphImportsLinter: GraphImportsLinting {
                          .stickerPackExtension, .messagesExtension, .extensionKitExtension, .watch2App, .watch2Extension:
                         return true
                     }
-                case .staticLibrary, .dynamicLibrary, .framework, .staticFramework, .unitTests, .bundle,
+                case .staticLibrary, .dynamicLibrary, .framework, .staticFramework, .bundle,
                      .commandLineTool, .tvTopShelfExtension, .appClip, .xpc, .systemExtension, .macro, .appExtension,
                      .stickerPackExtension, .messagesExtension, .extensionKitExtension, .watch2Extension:
                     return true

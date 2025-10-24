@@ -38,13 +38,71 @@ defmodule Tuist.GitHub.Client do
   end
 
   @doc """
-  `repository_full_handle` is necessary as to interact with the user endpoint,
-  we need to be authenticated with the GitHub app installation token associated with a specific repository.
+  Lists repositories for a GitHub app installation with pagination support.
+  Returns {:ok, %{meta: %{next_url: ...}, repositories: [...]}} format similar to Flop.
   """
-  def get_user_by_id(%{id: github_id, repository_full_handle: repository_full_handle}) do
+  def list_installation_repositories(installation_id, opts \\ []) do
+    url = Keyword.get(opts, :next_url, "https://api.github.com/installation/repositories?per_page=100")
+
+    case App.get_installation_token(installation_id) do
+      {:ok, %{token: token}} ->
+        case Req.get(
+               url: url,
+               headers: default_headers(token),
+               finch: Tuist.Finch,
+               retry: &retry/2
+             ) do
+          {:ok, %{status: 200, body: %{"repositories" => repositories}, headers: headers}} ->
+            formatted_repos =
+              Enum.map(repositories, fn repo ->
+                %{
+                  id: repo["id"],
+                  name: repo["name"],
+                  full_name: repo["full_name"],
+                  private: repo["private"],
+                  default_branch: repo["default_branch"]
+                }
+              end)
+
+            next_url = extract_next_url(headers)
+            meta = %{next_url: next_url}
+
+            {:ok, %{meta: meta, repositories: formatted_repos}}
+
+          {:ok, %{status: _status, body: _body}} ->
+            {:error, "Failed to fetch repositories"}
+
+          {:error, reason} ->
+            {:error, "Request failed: #{inspect(reason)}"}
+        end
+
+      response ->
+        response
+    end
+  end
+
+  defp extract_next_url(headers) do
+    Enum.find_value(headers, fn
+      {"link", [link_header | _]} ->
+        parse_link_header(link_header)
+
+      _ ->
+        nil
+    end)
+  end
+
+  defp parse_link_header(link_header) do
+    # Parse GitHub's Link header format: <url>; rel="next"
+    case Regex.run(~r/<([^>]+)>;\s*rel="next"/, link_header) do
+      [_, next_url] -> next_url
+      _ -> nil
+    end
+  end
+
+  def get_user_by_id(%{id: github_id, installation_id: installation_id}) do
     url = "https://api.github.com/user/#{github_id}"
 
-    case github_request(&Req.get/1, url: url, repository_full_handle: repository_full_handle) do
+    case github_request(&Req.get/1, url: url, installation_id: installation_id) do
       {:ok, user} ->
         {:ok, %VCS.User{username: user["login"]}}
 
@@ -53,40 +111,14 @@ defmodule Tuist.GitHub.Client do
     end
   end
 
-  def get_repository(repository_full_handle) do
-    url = "https://api.github.com/repos/#{repository_full_handle}"
-
-    case github_request(&Req.get/1, url: url, repository_full_handle: repository_full_handle) do
-      {:ok, repository} ->
-        {:ok,
-         %VCS.Repositories.Repository{
-           full_handle: repository["full_name"],
-           default_branch: repository["default_branch"],
-           provider: :github
-         }}
-
-      response ->
-        response
-    end
-  end
-
-  def get_user_permission(%{username: username, repository_full_handle: repository_full_handle}) do
-    url =
-      "https://api.github.com/repos/#{repository_full_handle}/collaborators/#{username}/permission"
-
-    case github_request(&Req.get/1, url: url, repository_full_handle: repository_full_handle) do
-      {:ok, permission} ->
-        {:ok, %VCS.Repositories.Permission{permission: permission["permission"]}}
-
-      response ->
-        response
-    end
-  end
-
-  def get_comments(%{repository_full_handle: repository_full_handle, issue_id: issue_id}) do
+  def get_comments(%{
+        repository_full_handle: repository_full_handle,
+        issue_id: issue_id,
+        installation_id: installation_id
+      }) do
     url = "https://api.github.com/repos/#{repository_full_handle}/issues/#{issue_id}/comments"
 
-    case github_request(&Req.get/1, url: url, repository_full_handle: repository_full_handle) do
+    case github_request(&Req.get/1, url: url, installation_id: installation_id) do
       {:ok, comments} ->
         {:ok,
          Enum.map(comments, fn comment ->
@@ -105,22 +137,32 @@ defmodule Tuist.GitHub.Client do
     end
   end
 
-  def create_comment(%{repository_full_handle: repository_full_handle, issue_id: issue_id, body: body}) do
+  def create_comment(%{
+        repository_full_handle: repository_full_handle,
+        issue_id: issue_id,
+        body: body,
+        installation_id: installation_id
+      }) do
     url = "https://api.github.com/repos/#{repository_full_handle}/issues/#{issue_id}/comments"
 
     github_request(&Req.post/1,
       url: url,
-      repository_full_handle: repository_full_handle,
+      installation_id: installation_id,
       json: %{body: body}
     )
   end
 
-  def update_comment(%{repository_full_handle: repository_full_handle, comment_id: comment_id, body: body}) do
+  def update_comment(%{
+        repository_full_handle: repository_full_handle,
+        comment_id: comment_id,
+        body: body,
+        installation_id: installation_id
+      }) do
     url = "https://api.github.com/repos/#{repository_full_handle}/issues/comments/#{comment_id}"
 
     github_request(&Req.patch/1,
       url: url,
-      repository_full_handle: repository_full_handle,
+      installation_id: installation_id,
       json: %{body: body}
     )
   end
@@ -190,9 +232,9 @@ defmodule Tuist.GitHub.Client do
   end
 
   defp github_request(method, attrs) do
-    repository_full_handle = Keyword.get(attrs, :repository_full_handle)
+    installation_id = Keyword.get(attrs, :installation_id)
 
-    case App.get_app_installation_token_for_repository(repository_full_handle) do
+    case App.get_installation_token(installation_id) do
       {:ok, %{token: token}} ->
         attrs_with_headers =
           attrs
@@ -202,7 +244,7 @@ defmodule Tuist.GitHub.Client do
           ])
           |> Keyword.put(:finch, Tuist.Finch)
           |> Keyword.put(:retry, &retry/2)
-          |> Keyword.delete(:repository_full_handle)
+          |> Keyword.delete(:installation_id)
 
         attrs_with_headers |> method.() |> handle_github_response(method, attrs)
 

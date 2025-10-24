@@ -2,21 +2,54 @@
 {
   "title": "GitHub",
   "titleTemplate": ":title | Git forges | Integrations | Guides | Tuist",
-  "description": "Tuist를 다른 툴과 서비스에 연결하는 방법을 배워봅니다."
+  "description": "Learn how to integrate Tuist with GitHub for enhanced workflows."
 }
 ---
-# Integrations {#integrations}
+# GitHub integration {#github}
 
-우리는 개발자들이 [GitHub](https://github.com)에서 Pull Request를 검토하거나 [Slack](https://slack.com)에서 팀과 소통하는 것과 같이 코딩 환경 밖에서도 시간을 보내기 때문에 개발자들이 있는 곳에서 그들을 만나야 한다고 생각합니다. 그래서 우리는 Tuist를 워크플로우에서 더 쉽게 사용할 수 있도록 인기있는 툴과 서비스와의 통합을 구축했습니다. 이 페이지에서는 현재 지원하고 있는 통합 목록을 나타냅니다.
+Git repositories are the centerpiece of the vast majority of software projects
+out there. We integrate with GitHub to provide Tuist insights right in your pull
+requests and to save you some configuration such as syncing your default branch.
 
-## Git 플랫폼 {#git-platforms}
+## Setup {#setup}
 
-Git 리포지토리는 대부분의 소프트웨어 프로젝트에서 핵심적인 역할을 하고 있습니다. 우리는 Git 플랫폼과 통합하여 Pull Request에서 바로 Tuist와 관련된 유용한 정보를 제공하거나 기본 브랜치 동기화와 같은 설정을 자동으로 처리합니다.
+You will need to install the Tuist GitHub app in the `Integrations` tab of your
+organization: ![An image that shows the integrations
+tab](/images/guides/integrations/gitforge/github/integrations.png)
 
-### GitHub {#github}
+After that, you can add a project connection between your GitHub repository and
+your Tuist project:
 
-[Tuist GitHub 앱](https://github.com/marketplace/tuist)을 설치합니다. 설치하면, Tuist에 리포지토리 URL을 알려줘야 합니다, 예를 들어:
+![An image that shows adding the project
+connection](/images/guides/integrations/gitforge/github/add-project-connection.png)
 
-```sh
-tuist project update tuist/tuist --repository-url https://github.com/tuist/tuist
-```
+## Pull/merge request comments {#pull-merge-request-comments}
+
+The GitHub app posts a Tuist run report, which includes a summary of the PR,
+including links to the latest
+<LocalizedLink href="/guides/features/previews#pullmerge-request-comments">previews</LocalizedLink>
+or
+<LocalizedLink href="/guides/features/selective-testing#pullmerge-request-comments">tests</LocalizedLink>:
+
+![An image that shows the pull request
+comment](/images/guides/integrations/gitforge/github/pull-request-comment.png)
+
+::: info REQUIREMENTS
+<!-- -->
+The comment is only posted when your CI runs are
+<LocalizedLink href="/guides/integrations/continuous-integration#authentication">authenticated</LocalizedLink>.
+<!-- -->
+:::
+
+::: info GITHUB_REF
+<!-- -->
+If you have a custom workflow that's not triggered on a PR commit, but for
+example, a GitHub comment, you might need to ensure that the `GITHUB_REF`
+variable is set to either `refs/pull/<PR_NUMBER>/merge` or
+`refs/pull/<PR_NUMBER>/head`.
+
+You can run the relevant command, like `tuist share`, with the prefixed
+`GITHUB_REF` environment variable: <code v-pre>GITHUB_REF="refs/pull/${{
+github.event.issue.number }}/head" tuist share</code>
+<!-- -->
+:::

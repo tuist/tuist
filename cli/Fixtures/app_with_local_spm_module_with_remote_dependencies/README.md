@@ -1,4 +1,4 @@
-# Application wih Local SPM Module with Remote Dependencies
+# Application with Local SPM Module with Remote Dependencies
 
 This example contains a project that depends upon a local SPM module (`LocalSwiftPackage`) colocated within this directory.
 

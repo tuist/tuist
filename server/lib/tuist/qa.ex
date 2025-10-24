@@ -477,17 +477,14 @@ defmodule Tuist.QA do
   and git_ref, and have no app_build_id assigned yet.
   """
   def find_pending_qa_runs_for_app_build(app_build) do
-    app_build = Repo.preload(app_build, preview: [project: :account])
-    project = app_build.preview.project
+    app_build = Repo.preload(app_build, preview: [project: [:account, :vcs_connection]])
     preview = app_build.preview
 
-    if project.vcs_repository_full_handle && project.vcs_provider && preview.git_ref do
+    if preview.git_ref do
       Repo.all(
         from(run in Run,
           where:
             is_nil(run.app_build_id) and run.status == "pending" and
-              run.vcs_repository_full_handle == ^project.vcs_repository_full_handle and
-              run.vcs_provider == ^project.vcs_provider and
               run.git_ref == ^preview.git_ref
         )
       )
@@ -502,7 +499,7 @@ defmodule Tuist.QA do
   def post_vcs_test_summary(qa_run) do
     qa_run =
       Repo.preload(qa_run,
-        app_build: [preview: [project: :account]],
+        app_build: [preview: [project: [:account, :vcs_connection]]],
         run_steps: :screenshot
       )
 
@@ -510,20 +507,22 @@ defmodule Tuist.QA do
     project = preview.project
     comment_body = render_qa_summary_comment_body(qa_run, project)
 
-    if qa_run.issue_comment_id do
-      VCS.update_comment(%{
-        repository_full_handle: project.vcs_repository_full_handle,
-        comment_id: qa_run.issue_comment_id,
-        body: comment_body,
-        project: project
-      })
-    else
-      VCS.create_comment(%{
-        repository_full_handle: project.vcs_repository_full_handle,
-        git_ref: preview.git_ref,
-        body: comment_body,
-        project: project
-      })
+    if project.vcs_connection do
+      if qa_run.issue_comment_id do
+        VCS.update_comment(%{
+          repository_full_handle: project.vcs_connection.repository_full_handle,
+          comment_id: qa_run.issue_comment_id,
+          body: comment_body,
+          project: project
+        })
+      else
+        VCS.create_comment(%{
+          repository_full_handle: project.vcs_connection.repository_full_handle,
+          git_ref: preview.git_ref,
+          body: comment_body,
+          project: project
+        })
+      end
     end
   end
 

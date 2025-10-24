@@ -44,20 +44,20 @@ final class TargetScriptsContentHasherTests: TuistUnitTestCase {
         order: TargetScript.Order = .pre,
         tool: String = "tool1",
         arguments: [String] = ["arg1", "arg2"],
-        inputPaths: [AbsolutePath] = [try! AbsolutePath(validating: "/inputPaths1")],
-        inputFileListPaths: [AbsolutePath] = [try! AbsolutePath(validating: "/inputFileListPaths1")],
-        outputPaths: [AbsolutePath] = [try! AbsolutePath(validating: "/outputPaths1")],
-        outputFileListPaths: [AbsolutePath] = [try! AbsolutePath(validating: "/outputFileListPaths1")],
+        inputPaths: [String] = ["/inputPaths1"],
+        inputFileListPaths: [String] = ["/inputFileListPaths1"],
+        outputPaths: [String] = ["/outputPaths1"],
+        outputFileListPaths: [String] = ["/outputFileListPaths1"],
         dependencyFile: AbsolutePath = try! AbsolutePath(validating: "/dependencyFile1")
     ) -> TargetScript {
         TargetScript(
             name: name,
             order: order,
             script: .tool(path: tool, args: arguments),
-            inputPaths: inputPaths.map(\.pathString),
-            inputFileListPaths: inputFileListPaths.map(\.pathString),
-            outputPaths: outputPaths.map(\.pathString),
-            outputFileListPaths: outputFileListPaths.map(\.pathString),
+            inputPaths: inputPaths,
+            inputFileListPaths: inputFileListPaths,
+            outputPaths: outputPaths,
+            outputFileListPaths: outputFileListPaths,
             dependencyFile: dependencyFile
         )
     }
@@ -70,11 +70,19 @@ final class TargetScriptsContentHasherTests: TuistUnitTestCase {
         given(contentHasher)
             .hash(path: .value(try AbsolutePath(validating: "/inputFileListPaths1")))
             .willReturn(inputFileListPaths1)
-        let targetScript = makeTargetScript(
-            inputPaths: [try AbsolutePath(validating: "/$(SRCROOT)/inputPaths1")],
-            inputFileListPaths: [try AbsolutePath(validating: "/inputFileListPaths1")],
-            outputPaths: [try AbsolutePath(validating: "/$(DERIVED_FILE_DIR)/outputPaths1")],
-            outputFileListPaths: [try AbsolutePath(validating: "/outputFileListPaths1")],
+
+        given(contentHasher)
+            .hash(path: .value(try AbsolutePath(validating: "/inputPaths1")))
+            .willReturn("inputPaths1-hash")
+
+        let targetScript = TargetScript(
+            name: "1",
+            order: .pre,
+            script: .tool(path: "tool1", args: ["arg1", "arg2"]),
+            inputPaths: ["/$(SRCROOT)/inputPaths1"],
+            inputFileListPaths: ["/inputFileListPaths1"],
+            outputPaths: ["/$(DERIVED_FILE_DIR)/outputPaths1"],
+            outputFileListPaths: ["/outputFileListPaths1"],
             dependencyFile: try AbsolutePath(validating: "/$(DERIVED_FILE_DIR)/file.d")
         )
 
@@ -83,9 +91,9 @@ final class TargetScriptsContentHasherTests: TuistUnitTestCase {
 
         // Then
         let expected = [
-            "$(SRCROOT)/inputPaths1",
             "$(DERIVED_FILE_DIR)/file.d",
-            inputFileListPaths1,
+            "inputFileListPaths1-hash",
+            "inputPaths1-hash",
             "$(DERIVED_FILE_DIR)/outputPaths1",
             "outputFileListPaths1",
             "1",
@@ -194,10 +202,10 @@ final class TargetScriptsContentHasherTests: TuistUnitTestCase {
             name: "2",
             order: .post,
             tool: "tool2",
-            inputPaths: [try AbsolutePath(validating: "/inputPaths2")],
-            inputFileListPaths: [try AbsolutePath(validating: "/inputFileListPaths2")],
-            outputPaths: [try AbsolutePath(validating: "/outputPaths2")],
-            outputFileListPaths: [try AbsolutePath(validating: "/outputFileListPaths2")],
+            inputPaths: ["/inputPaths2"],
+            inputFileListPaths: ["/inputFileListPaths2"],
+            outputPaths: ["/outputPaths2"],
+            outputFileListPaths: ["/outputFileListPaths2"],
             dependencyFile: try AbsolutePath(validating: "/dependencyFilePath4")
         )
 
@@ -241,7 +249,7 @@ final class TargetScriptsContentHasherTests: TuistUnitTestCase {
             name: "2",
             order: .post,
             tool: "tool2",
-            inputPaths: [try AbsolutePath(validating: "/inputPaths1"), try AbsolutePath(validating: "/inputPaths2")],
+            inputPaths: ["/inputPaths1", "/inputPaths2"],
             inputFileListPaths: [],
             outputPaths: [],
             outputFileListPaths: [],
@@ -252,7 +260,7 @@ final class TargetScriptsContentHasherTests: TuistUnitTestCase {
             name: "2",
             order: .post,
             tool: "tool2",
-            inputPaths: [try AbsolutePath(validating: "/inputPaths2"), try AbsolutePath(validating: "/inputPaths1")],
+            inputPaths: ["/inputPaths2", "/inputPaths1"],
             inputFileListPaths: [],
             outputPaths: [],
             outputFileListPaths: [],
@@ -277,5 +285,49 @@ final class TargetScriptsContentHasherTests: TuistUnitTestCase {
         verify(contentHasher)
             .hash(.value(expected))
             .called(2)
+    }
+
+    func test_hash_targetAction_withRelativePathsAndSRCROOTReplacement() async throws {
+        // Given
+        let sourceRootPath = try AbsolutePath(validating: "/project/root")
+        let relativeInputHash = "relativeInput-hash"
+        let absoluteInputHash = "absoluteInput-hash"
+
+        given(contentHasher)
+            .hash(path: .value(sourceRootPath.appending(try RelativePath(validating: "relative/input.txt"))))
+            .willReturn(relativeInputHash)
+        given(contentHasher)
+            .hash(path: .value(sourceRootPath.appending(try RelativePath(validating: "srcroot/replaced.txt"))))
+            .willReturn(absoluteInputHash)
+
+        let targetScript = TargetScript(
+            name: "TestScript",
+            order: .pre,
+            script: .tool(path: "tool", args: ["arg"]),
+            inputPaths: ["relative/input.txt"],
+            inputFileListPaths: ["$(SRCROOT)/srcroot/replaced.txt"],
+            outputPaths: ["relative/output.txt"],
+            outputFileListPaths: ["$(SRCROOT)/srcroot/output.txt"],
+            dependencyFile: nil
+        )
+
+        // When
+        _ = try await subject.hash(targetScripts: [targetScript], sourceRootPath: sourceRootPath)
+
+        // Then
+        let expected = [
+            relativeInputHash,
+            absoluteInputHash,
+            "relative/output.txt",
+            "srcroot/output.txt",
+            "TestScript",
+            "tool",
+            "pre",
+            "arg",
+        ]
+
+        verify(contentHasher)
+            .hash(.value(expected))
+            .called(1)
     }
 }

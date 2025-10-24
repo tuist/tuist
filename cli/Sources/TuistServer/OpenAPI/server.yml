@@ -85,6 +85,15 @@ components:
               type: array
               x-struct:
               x-validate:
+            type:
+              description: The type of the bundle
+              enum:
+                - ipa
+                - app
+                - xcarchive
+              type: string
+              x-struct:
+              x-validate:
             version:
               description: The version of the bundle
               type: string
@@ -3051,6 +3060,15 @@ paths:
                       type: array
                       x-struct:
                       x-validate:
+                    type:
+                      description: The type of the bundle
+                      enum:
+                        - ipa
+                        - app
+                        - xcarchive
+                      type: string
+                      x-struct:
+                      x-validate:
                     version:
                       description: The version of the bundle
                       type: string
@@ -3102,6 +3120,92 @@ paths:
       summary: Create a new bundle with artifacts
       tags:
         - Bundles
+  /api/cache/keyvalue:
+    put:
+      callbacks: {}
+      operationId: putCacheValue
+      parameters:
+        - description: The handle of the project's account.
+          in: query
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: query
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                cas_id:
+                  description: The CAS identifier
+                  type: string
+                  x-struct:
+                  x-validate:
+                entries:
+                  description: Map of entry keys to encoded values
+                  items:
+                    properties:
+                      value:
+                        description: The value of the entry
+                        type: string
+                        x-struct:
+                        x-validate:
+                    required:
+                      - value
+                    type: object
+                    x-struct:
+                    x-validate:
+                  type: array
+                  x-struct:
+                  x-validate:
+              required:
+                - cas_id
+                - entries
+              type: object
+              x-struct:
+              x-validate:
+        description: CAS entries with CAS ID
+        required: true
+      responses:
+        '204':
+          description: Value stored successfully
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The request is invalid
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The project was not found
+      summary: Store cache key value entries.
+      tags:
+        - KeyValue
   /api/auth/device_code/{device_code}:
     get:
       callbacks: {}
@@ -4704,6 +4808,124 @@ paths:
       summary: Creates an invitation
       tags:
         - Invitations
+  /api/cache/cas/{id}:
+    get:
+      callbacks: {}
+      operationId: loadCacheCAS
+      parameters:
+        - description: The handle of the project's account.
+          in: query
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: query
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The artifact identifier.
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/octet-stream: {}
+          description: Artifact content stream
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The request is invalid
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Artifact does not exist
+      summary: Download a CAS artifact.
+      tags:
+        - CAS
+    post:
+      callbacks: {}
+      operationId: saveCacheCAS
+      parameters:
+        - description: The handle of the project's account.
+          in: query
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: query
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The artifact identifier.
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/octet-stream: {}
+        description: The CAS artifact data
+        required: true
+      responses:
+        '204':
+          description: Upload successful
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The request is invalid
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+      summary: Save a CAS artifact
+      tags:
+        - CAS
   /api/projects/{account_handle}/{project_handle}/previews:
     get:
       callbacks: {}
@@ -4896,6 +5118,90 @@ paths:
       summary: Downloads an artifact from the cache.
       tags:
         - Cache
+  /api/cache/keyvalue/{cas_id}:
+    put:
+      callbacks: {}
+      operationId: getCacheValue
+      parameters:
+        - description: The CAS identifier.
+          in: path
+          name: cas_id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project's account.
+          in: query
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: query
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  entries:
+                    items:
+                      properties:
+                        value:
+                          description: The value of the entry
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - value
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - entries
+                type: object
+                x-struct:
+                x-validate:
+          description: Cache value retrieved successfully
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The request is invalid
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: No entries found for the given CAS ID
+      summary: Get cache value.
+      tags:
+        - KeyValue
   /api/runs/{run_id}/complete:
     post:
       callbacks: {}
@@ -5329,6 +5635,28 @@ paths:
       summary: Revokes a project token.
       tags:
         - Project tokens
+          description: The CAS storage prefix
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The project was not found
+      summary: Get the S3 object key prefix for a project's CAS storage.
+      tags:
+        - CAS
   /api/projects/{account_handle}/{project_handle}:
     get:
       callbacks: {}
@@ -5409,11 +5737,6 @@ paths:
                   type: string
                   x-struct:
                   x-validate:
-                repository_url:
-                  description: The repository URL for the project.
-                  type: string
-                  x-struct:
-                  x-validate:
                 visibility:
                   description: The visibility of the project. Public projects are visible to everyone, private projects are only visible to the project's members.
                   enum:
@@ -5439,7 +5762,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: The request is invalid, for example when attempting to link the project to a repository the authenticated user doesn't have access to.
+          description: The request is invalid
         '401':
           content:
             application/json:

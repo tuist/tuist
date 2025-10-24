@@ -26,7 +26,9 @@ Build configurations were designed to embody different build settings, and proje
 - **In Release builds:** In case of release, you can only include the configuration that the release build is bound to, and not include the runtime logic for switching configurations by using compiler directives.
 
 ::: info Non-standard configurations
+<!-- -->
 While Tuist supports non-standard configurations and makes them easier to manage compared to vanilla Xcode projects, you'll receive warnings if configurations are not consistent throughout the dependency graph. This helps ensure build reliability and prevents configuration-related issues.
+<!-- -->
 :::
 
 ## Generated projects
@@ -43,7 +45,7 @@ While Tuist's wildcard patterns (e.g., `Sources/**/*.swift`) already eliminate m
 
 We recommend adopting buildable folders instead of traditional `Target.sources` and `Target.resources` attributes for a more streamlined development experience.
 
-:::code-group
+::: code-group
 
 ```swift [With buildable folders]
 let target = Target(
@@ -59,4 +61,5 @@ let target = Target(
   resources: ["App/Resources/**"]
 )
 ```
+<!-- -->
 :::
