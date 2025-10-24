@@ -33,11 +33,6 @@ defmodule TuistWeb.API.Cache.KeyValueControllerTest do
 
       cas_id = "test_cas_id_123"
 
-      _entries = [
-        %{id: 1, value: "value1", cas_id: cas_id, project_id: project.id},
-        %{id: 2, value: "value2", cas_id: cas_id, project_id: project.id}
-      ]
-
       expect(Cache, :get_key_value, fn ^cas_id, project_id ->
         assert project_id == project.id
         ["value1", "value2"]
@@ -163,11 +158,6 @@ defmodule TuistWeb.API.Cache.KeyValueControllerTest do
         "cas_id" => cas_id,
         "entries" => entries
       }
-
-      _created_entries = [
-        %{id: 1, value: "test_value_1", cas_id: cas_id, project_id: project.id},
-        %{id: 2, value: "test_value_2", cas_id: cas_id, project_id: project.id}
-      ]
 
       expect(Cache, :put_key_value, fn ^cas_id, project_id, values ->
         assert project_id == project.id
