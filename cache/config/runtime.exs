@@ -46,15 +46,15 @@ tigris_endpoint = System.get_env("TUIST_S3_TIGRIS_ENDPOINT")
 
 if tigris_endpoint && tigris_endpoint != "" do
   %{host: tigris_host, scheme: tigris_scheme, port: tigris_port} = URI.parse(tigris_endpoint)
-  
+
   tigris_config = [
     scheme: "#{tigris_scheme}://",
     host: tigris_host,
     region: System.get_env("TUIST_S3_TIGRIS_REGION", "us-east-1")
   ]
-  
+
   tigris_config = if tigris_port, do: Keyword.put(tigris_config, :port, tigris_port), else: tigris_config
-  
+
   config :ex_aws, :s3, tigris_config
 end
 
@@ -62,7 +62,6 @@ config :ex_aws,
   access_key_id: System.get_env("TUIST_S3_TIGRIS_ACCESS_KEY_ID"),
   secret_access_key: System.get_env("TUIST_S3_TIGRIS_SECRET_ACCESS_KEY"),
   region: System.get_env("TUIST_S3_TIGRIS_REGION", "us-east-1")
-
 
 config :cache,
   s3_bucket: System.get_env("TUIST_S3_TIGRIS_BUCKET_NAME"),

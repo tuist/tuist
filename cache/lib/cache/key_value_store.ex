@@ -5,7 +5,8 @@ defmodule Cache.KeyValueStore do
   """
 
   @cache_name :cache_keyvalue_store
-  @ttl_ms :timer.hours(24 * 7) # 1 week
+  # 1 week
+  @ttl_ms :timer.hours(24 * 7)
 
   @doc """
   Starts the cache with the configured settings.

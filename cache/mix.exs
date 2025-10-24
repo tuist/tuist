@@ -39,7 +39,8 @@ defmodule Cache.MixProject do
       {:sweet_xml, "~> 0.7"},
       {:open_api_spex, "~> 3.19"},
       {:mimic, "~> 1.7", only: :test},
-      {:credo, "~> 1.7", only: [:dev, :test], runtime: false}
+      {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
+      {:req, "~> 0.1"}
     ]
   end
 

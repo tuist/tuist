@@ -7,14 +7,15 @@ defmodule CacheWeb.KeyValueControllerTest do
     test "gets cache value successfully", %{conn: conn} do
       # Given
       account_handle = "test-account"
-      project_handle = "test-project" 
+      project_handle = "test-project"
       cas_id = "test_cas_id_123"
-      
+
       # Store values directly
       :ok = KeyValueStore.put_key_value(cas_id, account_handle, project_handle, ["value1", "value2"])
 
       # When
-      conn = get(conn, "/api/cache/keyvalue/#{cas_id}?account_handle=#{account_handle}&project_handle=#{project_handle}")
+      conn =
+        get(conn, "/api/cache/keyvalue/#{cas_id}?account_handle=#{account_handle}&project_handle=#{project_handle}")
 
       # Then
       response = json_response(conn, :ok)
@@ -32,7 +33,8 @@ defmodule CacheWeb.KeyValueControllerTest do
       cas_id = "nonexistent_cas_id"
 
       # When
-      conn = get(conn, "/api/cache/keyvalue/#{cas_id}?account_handle=#{account_handle}&project_handle=#{project_handle}")
+      conn =
+        get(conn, "/api/cache/keyvalue/#{cas_id}?account_handle=#{account_handle}&project_handle=#{project_handle}")
 
       # Then
       response = json_response(conn, :not_found)
@@ -66,7 +68,7 @@ defmodule CacheWeb.KeyValueControllerTest do
       # Then
       assert conn.status == 204
       assert conn.resp_body == ""
-      
+
       # Verify values were stored
       stored_values = KeyValueStore.get_key_value(cas_id, account_handle, project_handle)
       assert stored_values == ["test_value_1", "test_value_2"]

@@ -9,9 +9,9 @@ defmodule CacheWeb.KeyValueController do
   plug OpenApiSpex.Plug.CastAndValidate,
     json_render_error_v2: true
 
-  tags ["KeyValue"]
+  tags(["KeyValue"])
 
-  operation :get_value,
+  operation(:get_value,
     summary: "Get cache key-value entries",
     operation_id: "getCacheKeyValue",
     parameters: [
@@ -35,24 +35,27 @@ defmodule CacheWeb.KeyValueController do
       ]
     ],
     responses: %{
-      200 => {"Cache values retrieved successfully", "application/json", %Schema{
-        type: :object,
-        properties: %{
-          entries: %Schema{
-            type: :array,
-            items: %Schema{
-              type: :object,
-              properties: %{
-                value: %Schema{type: :string, description: "The value of the entry"}
-              },
-              required: [:value]
-            }
-          }
-        },
-        required: [:entries]
-      }},
+      200 =>
+        {"Cache values retrieved successfully", "application/json",
+         %Schema{
+           type: :object,
+           properties: %{
+             entries: %Schema{
+               type: :array,
+               items: %Schema{
+                 type: :object,
+                 properties: %{
+                   value: %Schema{type: :string, description: "The value of the entry"}
+                 },
+                 required: [:value]
+               }
+             }
+           },
+           required: [:entries]
+         }},
       404 => {"No entries found for the given CAS ID", "application/json", Error}
     }
+  )
 
   def get_value(conn, _params) do
     # Query and path params are validated and available in conn.params
@@ -63,7 +66,6 @@ defmodule CacheWeb.KeyValueController do
     } = conn.params
 
     # TODO: Add authorization check here
-    
     values = KeyValueStore.get_key_value(cas_id, account_handle, project_handle)
 
     case values do
@@ -79,7 +81,7 @@ defmodule CacheWeb.KeyValueController do
     end
   end
 
-  operation :put_value,
+  operation(:put_value,
     summary: "Store cache key-value entries",
     operation_id: "putCacheKeyValue",
     parameters: [
@@ -124,6 +126,7 @@ defmodule CacheWeb.KeyValueController do
       204 => "Values stored successfully",
       400 => {"Invalid request", "application/json", Error}
     }
+  )
 
   def put_value(conn, _params) do
     %{
@@ -137,7 +140,7 @@ defmodule CacheWeb.KeyValueController do
 
     # Extract just the values from the entries
     values = Enum.map(entries, fn entry -> entry.value end)
-    
+
     :ok = KeyValueStore.put_key_value(cas_id, account_handle, project_handle, values)
 
     send_resp(conn, :no_content, "")

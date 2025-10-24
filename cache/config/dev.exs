@@ -3,7 +3,7 @@ import Config
 # For development, we disable any cache and enable
 # debugging and code reloading.
 config :cache, CacheWeb.Endpoint,
-  http: [ip: {127, 0, 0, 1}, port: 8087],
+  http: [ip: {0, 0, 0, 0}, port: 8087],
   check_origin: false,
   code_reloader: true,
   debug_errors: true,
@@ -19,3 +19,7 @@ config :phoenix, :stacktrace_depth, 20
 
 # Initialize plugs at runtime for faster development compilation
 config :phoenix, :plug_init_mode, :runtime
+
+config :cache, :cas,
+  server_url: "http://localhost:8080",
+  storage_dir: "tmp/cas"

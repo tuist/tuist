@@ -2,7 +2,7 @@ defmodule CacheWeb.Schemas.Error do
   @moduledoc """
   Error response schema
   """
-  
+
   require OpenApiSpex
   alias OpenApiSpex.Schema
 

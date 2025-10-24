@@ -15,7 +15,7 @@ defmodule CacheWeb.Router do
     put "/keyvalue", KeyValueController, :put_value
 
     # CAS endpoints
-    get "/cas/:id", CasController, :get_value
-    post "/cas/:id", CasController, :save
+    get "/cas/:id", CASController, :load
+    post "/cas/:id", CASController, :save
   end
 end
