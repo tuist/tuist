@@ -3,6 +3,7 @@ defmodule CacheWeb.KeyValueController do
   use OpenApiSpex.ControllerSpecs
 
   alias OpenApiSpex.Schema
+  alias Cache.Authentication
   alias Cache.KeyValueStore
   alias CacheWeb.Schemas.Error
 
@@ -58,26 +59,32 @@ defmodule CacheWeb.KeyValueController do
   )
 
   def get_value(conn, _params) do
-    # Query and path params are validated and available in conn.params
     %{
       account_handle: account_handle,
       project_handle: project_handle,
       cas_id: cas_id
     } = conn.params
 
-    # TODO: Add authorization check here
-    values = KeyValueStore.get_key_value(cas_id, account_handle, project_handle)
+    case Authentication.ensure_project_accessible(conn, account_handle, project_handle) do
+      {:ok, _auth_header} ->
+        values = KeyValueStore.get_key_value(cas_id, account_handle, project_handle)
 
-    case values do
-      [] ->
-        conn
-        |> put_status(:not_found)
-        |> json(%{message: "No entries found for CAS ID #{cas_id}."})
+        case values do
+          [] ->
+            conn
+            |> put_status(:not_found)
+            |> json(%{message: "No entries found for CAS ID #{cas_id}."})
 
-      _ ->
+          _ ->
+            conn
+            |> put_status(:ok)
+            |> json(%{entries: Enum.map(values, fn value -> %{value: value} end)})
+        end
+
+      {:error, status, message} ->
         conn
-        |> put_status(:ok)
-        |> json(%{entries: Enum.map(values, fn value -> %{value: value} end)})
+        |> put_status(status)
+        |> json(%{message: message})
     end
   end
 
@@ -136,13 +143,19 @@ defmodule CacheWeb.KeyValueController do
 
     %{cas_id: cas_id, entries: entries} = conn.body_params
 
-    # TODO: Add authorization check here
+    case Authentication.ensure_project_accessible(conn, account_handle, project_handle) do
+      {:ok, _auth_header} ->
+        # Extract just the values from the entries
+        values = Enum.map(entries, fn entry -> entry.value end)
 
-    # Extract just the values from the entries
-    values = Enum.map(entries, fn entry -> entry.value end)
+        :ok = KeyValueStore.put_key_value(cas_id, account_handle, project_handle, values)
 
-    :ok = KeyValueStore.put_key_value(cas_id, account_handle, project_handle, values)
+        send_resp(conn, :no_content, "")
 
-    send_resp(conn, :no_content, "")
+      {:error, status, message} ->
+        conn
+        |> put_status(status)
+        |> json(%{message: message})
+    end
   end
 end
