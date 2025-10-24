@@ -63,7 +63,7 @@ features = [
     values: [
       dgettext("marketing", "Free"),
       %{
-        price: "0€ and up",
+        price: "0€ " <> dgettext("marketing", "and up"),
         description: dgettext("marketing", "Price per unit above free tier")
       },
       %{
@@ -82,7 +82,7 @@ features = [
     hint: dgettext("marketing", "How do we calculate units?"),
     values: [
       "200",
-      %{value: "200", description: dgettext("marketing", "+ 0.5€ per additional unit")},
+      %{value: "200", description: "+ 0.5€ " <> dgettext("marketing", "per additional unit")},
       dgettext("marketing", "Custom")
     ]
   },
@@ -110,7 +110,7 @@ features = [
     hint: dgettext("marketing", "How do we calculate units?"),
     values: [
       "200",
-      %{value: "200", description: dgettext("marketing", "+ 0.5€ per additional unit")},
+      %{value: "200", description: "+ 0.5€ " <> dgettext("marketing", "per additional unit")},
       dgettext("marketing", "Custom")
     ]
   },

@@ -1586,12 +1586,6 @@ msgstr ""
 msgid "your competitive advantage"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:85
-#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:113
-#, elixir-autogen, elixir-format
-msgid "+ 0.5€ per additional unit"
-msgstr ""
-
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:44
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:70
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:86
@@ -1607,6 +1601,13 @@ msgid "Free"
 msgstr ""
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:27
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:66
 #, elixir-autogen, elixir-format
 msgid "and up"
+msgstr ""
+
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:85
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:113
+#, elixir-autogen, elixir-format
+msgid "per additional unit"
 msgstr ""
