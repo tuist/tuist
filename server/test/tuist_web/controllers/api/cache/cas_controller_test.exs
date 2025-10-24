@@ -2,7 +2,7 @@ defmodule TuistWeb.API.CASControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: true
   use Mimic
 
-  alias Tuist.Storage
+  alias Tuist.Cache.Disk
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistWeb.Authentication
@@ -35,12 +35,12 @@ defmodule TuistWeb.API.CASControllerTest do
       expected_key = "#{account_handle}/#{project_handle}/cas/#{cas_id}"
       artifact_content = "mock artifact content"
 
-      expect(Storage, :object_exists?, fn key, _current_subject ->
+      expect(Disk, :exists?, fn key ->
         assert key == expected_key
         true
       end)
 
-      expect(Storage, :stream_object, fn key, _current_subject ->
+      expect(Disk, :stream, fn key ->
         assert key == expected_key
         [artifact_content]
       end)
@@ -66,7 +66,7 @@ defmodule TuistWeb.API.CASControllerTest do
       cas_id = "0~nonexistent123"
       expected_key = "#{account_handle}/#{project_handle}/cas/#{cas_id}"
 
-      expect(Storage, :object_exists?, fn key, _current_subject ->
+      expect(Disk, :exists?, fn key ->
         assert key == expected_key
         false
       end)
@@ -152,12 +152,12 @@ defmodule TuistWeb.API.CASControllerTest do
       expected_key = "#{project.account.name}/#{project.name}/cas/#{cas_id}"
       artifact_content = "new artifact content"
 
-      expect(Storage, :object_exists?, fn key, _current_subject ->
+      expect(Disk, :exists?, fn key ->
         assert key == expected_key
         false
       end)
 
-      expect(Storage, :put_object, fn key, body, _current_subject ->
+      expect(Disk, :put, fn key, body ->
         assert key == expected_key
         assert body == artifact_content
         :ok
@@ -191,7 +191,7 @@ defmodule TuistWeb.API.CASControllerTest do
       expected_key = "#{project.account.name}/#{project.name}/cas/#{cas_id}"
       artifact_content = "existing artifact content"
 
-      expect(Storage, :object_exists?, fn key, _current_subject ->
+      expect(Disk, :exists?, fn key ->
         assert key == expected_key
         true
       end)
