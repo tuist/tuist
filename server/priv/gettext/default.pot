@@ -3118,7 +3118,7 @@ msgstr ""
 msgid "Tests"
 msgstr ""
 
-#: lib/tuist_web/plugs/loader_plug.ex:52
+#: lib/tuist_web/plugs/loader_plug.ex:51
 #, elixir-autogen, elixir-format
 msgid "The account %{account_handle} was not found."
 msgstr ""
@@ -3176,13 +3176,13 @@ msgid "The preview ipa doesn't exist or has expired."
 msgstr ""
 
 #: lib/tuist_web/controllers/api/cache/plugs/loader_query_plug.ex:32
-#: lib/tuist_web/plugs/loader_plug.ex:108
+#: lib/tuist_web/plugs/loader_plug.ex:107
 #, elixir-autogen, elixir-format
 msgid "The project %{project_slug} was not found."
 msgstr ""
 
 #: lib/tuist_web/controllers/api/cache/plugs/loader_query_plug.ex:36
-#: lib/tuist_web/plugs/loader_plug.ex:112
+#: lib/tuist_web/plugs/loader_plug.ex:111
 #, elixir-autogen, elixir-format
 msgid "The project full handle %{project_slug} is invalid. It should follow the convention 'account_handle/project_handle'."
 msgstr ""
@@ -3192,7 +3192,7 @@ msgstr ""
 msgid "The project you are looking for doesn't exist or has been moved."
 msgstr ""
 
-#: lib/tuist_web/plugs/loader_plug.ex:90
+#: lib/tuist_web/plugs/loader_plug.ex:89
 #, elixir-autogen, elixir-format
 msgid "The run with ID %{run_id} was not found."
 msgstr ""
@@ -3962,4 +3962,14 @@ msgstr ""
 #: lib/tuist_web/live/build_run_live.html.heex:554
 #, elixir-autogen, elixir-format
 msgid "•"
+msgstr ""
+
+#: lib/tuist_web/marketing/live/marketing_blog_live.html.heex:9
+#, elixir-autogen, elixir-format
+msgid "Blog"
+msgstr ""
+
+#: lib/tuist_web/marketing/live/marketing_blog_live.html.heex:11
+#, elixir-autogen, elixir-format
+msgid "Engaging stories and expert insights"
 msgstr ""
