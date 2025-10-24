@@ -94,6 +94,41 @@ jobs:
           done
 
           echo "✅ All marketing translations present"
+  translation_protection:
+    name: Translation Protection
+    runs-on: namespace-profile-default
+    timeout-minutes: 5
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check for .po file modifications by non-bot users
+        run: |
+          # Get the PR author
+          PR_AUTHOR="${{ github.event.pull_request.user.login }}"
+
+          # Get list of modified .po files in this PR
+          MODIFIED_PO_FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | grep '\.po$' || true)
+
+          if [ -z "$MODIFIED_PO_FILES" ]; then
+            echo "✅ No .po files modified in this PR"
+            exit 0
+          fi
+
+          # If any .po files are modified and author is not tuistit, fail
+          if [ "$PR_AUTHOR" != "tuistit" ]; then
+            echo "::error title=Translation files modified::Translation files (.po) were modified by $PR_AUTHOR. Only the tuistit bot should modify translation files. Translations should be managed through Weblate."
+            echo ""
+            echo "Modified translation files:"
+            echo "$MODIFIED_PO_FILES"
+            echo ""
+            echo "If you need to update translations, please use Weblate instead of editing .po files directly."
+            echo "You should only commit .pot (template) files, not .po (translation) files."
+            exit 1
+          else
+            echo "✅ Translation files modified by tuistit bot"
+          fi
   test:
     name: Test
     runs-on: namespace-profile-default
