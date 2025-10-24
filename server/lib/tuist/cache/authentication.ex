@@ -49,9 +49,11 @@ defmodule Tuist.Cache.Authentication do
 
     case Cachex.get(@cache_name, cache_key) do
       {:ok, nil} ->
+        IO.puts("Authentication Cache: miss for #{cache_key}")
         fetch_and_cache_projects(auth_header, cache_key, conn)
 
       {:ok, cached_result} ->
+        IO.puts("Authentication Cache: hit for #{cache_key}")
         cached_result
 
       _ ->
