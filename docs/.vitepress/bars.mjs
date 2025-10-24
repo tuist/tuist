@@ -444,9 +444,9 @@ export async function guidesSidebar(locale) {
             {
               text: localizedString(
                 locale,
-                "sidebars.guides.items.develop.items.cache.items.generated-project.text",
+                "sidebars.guides.items.develop.items.cache.items.module-cache.text",
               ),
-              link: `/${locale}/guides/features/cache/generated-project`,
+              link: `/${locale}/guides/features/cache/module-cache`,
             },
           ],
         },
