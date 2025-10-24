@@ -449,8 +449,8 @@ final class RecursiveManifestLoaderTests: TuistUnitTestCase {
             }
 
         given(manifestLoader)
-            .loadPackage(at: .any)
-            .willProduce { [unowned self] path in
+            .loadPackage(at: .any, disableSandbox: .value(false))
+            .willProduce { [unowned self] path, _ in
                 guard let manifest = packageManifests[path] else {
                     throw ManifestLoaderError.manifestNotFound(.workspace, path)
                 }

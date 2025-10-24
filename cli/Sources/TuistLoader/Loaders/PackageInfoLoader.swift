@@ -11,7 +11,8 @@ import XcodeGraph
 public protocol PackageInfoLoading {
     /// Loads the information from the package.
     /// - Parameter path: Directory where the `Package.swift` is defined.
-    func loadPackageInfo(at path: AbsolutePath) async throws -> PackageInfo
+    /// - Parameter disableSandbox: Whether it should disable the sandbox when dumping the package.
+    func loadPackageInfo(at path: AbsolutePath, disableSandbox: Bool) async throws -> PackageInfo
 }
 
 public final class PackageInfoLoader: PackageInfoLoading {
@@ -59,8 +60,12 @@ public final class PackageInfoLoader: PackageInfoLoading {
         return try Version(versionString: rawVersion)
     }
 
-    public func loadPackageInfo(at path: AbsolutePath) throws -> PackageInfo {
-        let command = buildSwiftPackageCommand(packagePath: path, extraArguments: ["dump-package"])
+    public func loadPackageInfo(at path: AbsolutePath, disableSandbox: Bool) throws -> PackageInfo {
+        var extraArguments = ["dump-package"]
+        if disableSandbox {
+            extraArguments.insert("--disable-sandbox", at: 0)
+        }
+        let command = buildSwiftPackageCommand(packagePath: path, extraArguments: extraArguments)
 
         let json = try system.capture(command)
 

@@ -30,7 +30,7 @@ final class PluginArchiveService {
     func run(path: String?) async throws {
         let path = try self.path(path)
 
-        let packageInfo = try await packageInfoLoader.loadPackageInfo(at: path)
+        let packageInfo = try await packageInfoLoader.loadPackageInfo(at: path, disableSandbox: true)
         let taskProducts = packageInfo.products
             .filter {
                 switch $0.type {

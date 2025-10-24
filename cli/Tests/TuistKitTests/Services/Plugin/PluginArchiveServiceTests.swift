@@ -41,7 +41,7 @@ final class PluginArchiveServiceTests: TuistUnitTestCase {
         try await withMockedDependencies {
             // Given
             given(packageInfoLoader)
-                .loadPackageInfo(at: .any)
+                .loadPackageInfo(at: .any, disableSandbox: .value(true))
                 .willReturn(
                     PackageInfo.test(
                         products: [
@@ -70,7 +70,7 @@ final class PluginArchiveServiceTests: TuistUnitTestCase {
         // Given
         let path = try temporaryPath()
         given(packageInfoLoader)
-            .loadPackageInfo(at: .any)
+            .loadPackageInfo(at: .any, disableSandbox: .value(true))
             .willReturn(
                 PackageInfo.test(
                     products: [
@@ -120,7 +120,7 @@ final class PluginArchiveServiceTests: TuistUnitTestCase {
 
         // Then
         verify(packageInfoLoader)
-            .loadPackageInfo(at: .value(path))
+            .loadPackageInfo(at: .value(path), disableSandbox: .value(true))
             .called(1)
         verify(swiftPackageManagerController)
             .buildFatReleaseBinary(
