@@ -34,7 +34,7 @@ defaults:
     working-directory: server
 
 jobs:
-  gettext:
+  gettext_marketing:
     name: Gettext (Marketing)
     runs-on: namespace-profile-default
     timeout-minutes: 15
