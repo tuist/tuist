@@ -99,7 +99,9 @@ config :tuist, TuistWeb.Endpoint,
 config :tuist, dev_routes: true
 
 config :tuist, :cas,
+  server_url: "http://localhost:8080",
   storage_dir: "tmp/cas"
+
 
 config :tuist,
   ecto_repos: [Tuist.Repo, Tuist.IngestRepo],

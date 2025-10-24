@@ -1,7 +1,7 @@
 defmodule Tuist.Cache.Authentication do
   @moduledoc """
   Authentication for CAS operations using the /api/projects endpoint.
-  
+
   This module validates that a request has proper authorization to access a project
   by calling the server's /api/projects endpoint and caching the results.
   """
@@ -19,7 +19,7 @@ defmodule Tuist.Cache.Authentication do
 
   @doc """
   Ensures the request has access to the specified project.
-  
+
   Returns `{:ok, auth_header}` if authorized, or `{:error, status, message}` otherwise.
   """
   def ensure_project_accessible(conn, account_handle, project_handle) do
@@ -69,10 +69,10 @@ defmodule Tuist.Cache.Authentication do
       end
 
     cas_config = Application.get_env(:tuist, :cas, [])
-    base_url = Keyword.get(cas_config, :server_url, "http://localhost:4000")
+    base_url = Keyword.get(cas_config, :server_url)
     url = "#{base_url}/api/projects"
 
-    case Req.get(url: url, headers: headers, finch: Tuist.Finch) do
+    case Req.get(url: url, headers: headers, finch: Tuist.Finch, retry: false) do
       {:ok, %{status: 200, body: %{"projects" => projects}}} ->
         project_handles = Enum.map(projects, & &1["full_name"])
         result = {:ok, project_handles}
