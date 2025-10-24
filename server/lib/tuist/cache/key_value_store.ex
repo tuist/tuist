@@ -5,7 +5,7 @@ defmodule Tuist.Cache.KeyValueStore do
   """
 
   @cache_name :tuist_keyvalue_cache
-  @ttl_ms :timer.hours(24) # Default TTL of 24 hours
+  @ttl_ms :timer.days(7)
 
   @doc """
   Starts the cache with the configured settings.
