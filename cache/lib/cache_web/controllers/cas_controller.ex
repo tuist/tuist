@@ -1,17 +1,17 @@
-defmodule TuistWeb.API.CASController do
+defmodule CacheWeb.CASController do
   use OpenApiSpex.ControllerSpecs
-  use TuistWeb, :controller
+  use CacheWeb, :controller
 
-  alias Tuist.Cache.Authentication
-  alias Tuist.Cache.Disk
-  alias TuistWeb.API.Schemas.Error
+  alias Cache.Authentication
+  alias Cache.Disk
+  alias CacheWeb.Schemas.Error
 
   plug(OpenApiSpex.Plug.CastAndValidate,
     json_render_error_v2: true,
     render_error: TuistWeb.RenderAPIErrorPlug
   )
 
-  tags ["CAS"]
+  tags(["CAS"])
 
   operation(:load,
     summary: "Download a CAS artifact.",
@@ -61,6 +61,7 @@ defmodule TuistWeb.API.CASController do
           |> stream_data(stream)
         else
           IO.puts("CAS Controller: not found #{id}")
+
           conn
           |> put_status(:not_found)
           |> json(%{message: "Artifact does not exist"})
@@ -68,6 +69,7 @@ defmodule TuistWeb.API.CASController do
 
       {:error, status, message} ->
         IO.puts("CAS Controller: unauthorized #{id}")
+
         conn
         |> put_status(status)
         |> json(%{message: message})
@@ -138,6 +140,7 @@ defmodule TuistWeb.API.CASController do
 
       {:error, status, message} ->
         IO.puts("CAS Controller: unauthorized #{id}")
+
         conn
         |> put_status(status)
         |> json(%{message: message})
