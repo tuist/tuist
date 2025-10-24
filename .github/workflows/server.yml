@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - translate-marketing
     paths:
       - server/**
       - .github/workflows/server.yml
