@@ -839,3 +839,312 @@
     }
   }
 }
+
+/*Animations*/
+
+/* Base dropdown transition */
+#marketing-navbar {
+  & > [data-part="bar"] {
+    & > [data-part="menus"] {
+      & > [data-part="menu"] {
+        & > [data-part="dropdown"] {
+          /* Enhanced transition properties */
+          transition:
+            opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+            transform 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+            visibility 0.25s;
+
+          &[data-open="true"] {
+            transform: translateX(-50%) translateY(0);
+            visibility: visible;
+            opacity: 1;
+          }
+
+          /* Direction-aware entry animations */
+          &[data-transition-from="left"] {
+            animation: slideInFromLeft 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          }
+
+          &[data-transition-from="right"] {
+            animation: slideInFromRight 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          }
+
+          /* Direction-aware exit animations */
+          &[data-transition-to="left"] {
+            animation: slideOutToLeft 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          }
+
+          &[data-transition-to="right"] {
+            animation: slideOutToRight 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          }
+        }
+
+        /* Animate dropdown content for smoother appearance */
+        & > [data-part="dropdown"][data-open="true"] {
+          & > [data-part="feature"],
+          & > [data-part="resource"],
+          & > [data-part="links"] > [data-part="link"],
+          & > [data-part="changelog"] {
+            animation: fadeInUp 0.3s cubic-bezier(0.4, 0, 0.2, 1) backwards;
+          }
+
+          /* Stagger animation for multiple items */
+          & > [data-part="feature"]:nth-child(1),
+          & > [data-part="resource"]:nth-child(1) {
+            animation-delay: 0.03s;
+          }
+
+          & > [data-part="feature"]:nth-child(2),
+          & > [data-part="resource"]:nth-child(2) {
+            animation-delay: 0.06s;
+          }
+
+          & > [data-part="feature"]:nth-child(3),
+          & > [data-part="resource"]:nth-child(3) {
+            animation-delay: 0.09s;
+          }
+
+          & > [data-part="feature"]:nth-child(4),
+          & > [data-part="resource"]:nth-child(4) {
+            animation-delay: 0.12s;
+          }
+
+          & > [data-part="feature"]:nth-child(5),
+          & > [data-part="resource"]:nth-child(5) {
+            animation-delay: 0.15s;
+          }
+
+          & > [data-part="feature"]:nth-child(6),
+          & > [data-part="resource"]:nth-child(6) {
+            animation-delay: 0.18s;
+          }
+
+          & > [data-part="feature"]:nth-child(7),
+          & > [data-part="resource"]:nth-child(7) {
+            animation-delay: 0.21s;
+          }
+        }
+
+        /* Special handling for developers dropdown with two columns */
+        & > [data-dropdown="developers"][data-open="true"] {
+          & > [data-part="links"] > [data-part="link"]:nth-child(1) {
+            animation-delay: 0.03s;
+          }
+
+          & > [data-part="links"] > [data-part="link"]:nth-child(2) {
+            animation-delay: 0.06s;
+          }
+
+          & > [data-part="links"] > [data-part="link"]:nth-child(3) {
+            animation-delay: 0.09s;
+          }
+
+          & > [data-part="links"] > [data-part="link"]:nth-child(4) {
+            animation-delay: 0.12s;
+          }
+
+          & > [data-part="changelog"] {
+            animation-delay: 0.15s;
+          }
+        }
+      }
+    }
+  }
+}
+
+/* Keyframe Animations */
+@keyframes slideInFromLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateX(-20px) translateY(0);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateX(0) translateY(0);
+  }
+}
+
+@keyframes slideInFromRight {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateX(20px) translateY(0);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateX(0) translateY(0);
+  }
+}
+
+@keyframes slideOutToLeft {
+  from {
+    opacity: 1;
+    transform: translateX(-50%) translateX(0) translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(-50%) translateX(-20px) translateY(0);
+  }
+}
+
+@keyframes slideOutToRight {
+  from {
+    opacity: 1;
+    transform: translateX(-50%) translateX(0) translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(-50%) translateX(20px) translateY(0);
+  }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Mobile menu container animation */
+#marketing-navbar {
+  &[data-mobile-menu-open="true"] {
+    & > [data-part="mobile-menus"] {
+      animation: mobileMenuContentFadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1) 0.1s backwards;
+    }
+  }
+}
+
+/* Mobile menu dropdown animations */
+#marketing-navbar > [data-part="mobile-menus"] {
+  & > [data-part="menu"] {
+    & > [data-part="action"] {
+      cursor: pointer;
+      user-select: none;
+      transition: background-color 0.2s ease;
+
+      &:active {
+        background: var(--noora-surface-background-primary);
+      }
+
+      & > [data-part="chevron"] {
+        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+
+      &[data-open="true"] > [data-part="chevron"] {
+        transform: rotate(180deg);
+      }
+    }
+
+    & > [data-part="dropdown"] {
+      transition: height 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+      will-change: height;
+
+      /* Fade in items when opening */
+      &[data-open="true"] {
+        & > [data-part="item"] {
+          animation: mobileItemFadeIn 0.3s cubic-bezier(0.4, 0, 0.2, 1) backwards;
+        }
+
+        & > [data-part="item"]:nth-child(1) {
+          animation-delay: 0.05s;
+        }
+
+        & > [data-part="item"]:nth-child(2) {
+          animation-delay: 0.08s;
+        }
+
+        & > [data-part="item"]:nth-child(3) {
+          animation-delay: 0.11s;
+        }
+
+        & > [data-part="item"]:nth-child(4) {
+          animation-delay: 0.14s;
+        }
+
+        & > [data-part="item"]:nth-child(5) {
+          animation-delay: 0.17s;
+        }
+
+        & > [data-part="item"]:nth-child(6) {
+          animation-delay: 0.20s;
+        }
+
+        & > [data-part="item"]:nth-child(7) {
+          animation-delay: 0.23s;
+        }
+
+        & > [data-part="changelog"] {
+          animation: mobileItemFadeIn 0.3s cubic-bezier(0.4, 0, 0.2, 1) 0.15s backwards;
+        }
+      }
+    }
+  }
+
+  /* Simple menu items slide in */
+  & > [data-part="menu-simple"] {
+    animation: mobileItemFadeIn 0.3s cubic-bezier(0.4, 0, 0.2, 1) backwards;
+  }
+
+  & > [data-part="menu-simple"]:nth-child(1) {
+    animation-delay: 0.2s;
+  }
+
+  & > [data-part="menu-simple"]:nth-child(2) {
+    animation-delay: 0.25s;
+  }
+
+  & > [data-part="menu-simple"]:nth-child(3) {
+    animation-delay: 0.3s;
+  }
+
+  & > [data-part="menu-simple"]:nth-child(4) {
+    animation-delay: 0.35s;
+  }
+
+  & > [data-part="menu-simple"]:nth-child(5) {
+    animation-delay: 0.4s;
+  }
+}
+
+/* Keyframe Animations */
+@keyframes mobileMenuSlideIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes mobileMenuContentFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes mobileItemFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Mobile menu bar smooth transitions */
+#marketing-navbar {
+  
+  &[data-mobile-menu-open="true"] > [data-part="bar"] {
+    transition: box-shadow 0.3s ease;
+  }
+}
