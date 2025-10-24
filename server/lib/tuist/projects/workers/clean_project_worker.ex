@@ -4,7 +4,6 @@ defmodule Tuist.Projects.Workers.CleanProjectWorker do
   # we don't schedule another one. Otherwise we might end up with a race condition.
   use Oban.Worker, unique: [keys: [:project_id], states: [:scheduled]]
 
-  alias Tuist.Cache
   alias Tuist.CacheActionItems
   alias Tuist.Storage
 
@@ -21,8 +20,7 @@ defmodule Tuist.Projects.Workers.CleanProjectWorker do
         Task.async(fn -> Storage.delete_all_objects("#{project_slug}/cas", project.account) end),
         Task.async(fn -> Storage.delete_all_objects("#{project_slug}/builds", project.account) end),
         Task.async(fn -> Storage.delete_all_objects("#{project_slug}/tests", project.account) end),
-        Task.async(fn -> CacheActionItems.delete_all_action_items(%{project: project}) end),
-        Task.async(fn -> Cache.delete_entries_by_project_id(project.id) end)
+        Task.async(fn -> CacheActionItems.delete_all_action_items(%{project: project}) end)
       ])
 
       :ok
