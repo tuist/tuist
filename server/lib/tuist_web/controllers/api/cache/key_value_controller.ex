@@ -77,9 +77,9 @@ defmodule TuistWeb.API.Cache.KeyValueController do
   )
 
   def get_value(%{assigns: %{selected_project: project}} = conn, %{cas_id: cas_id} = _params) do
-    entries = Cache.get_entries_by_cas_id_and_project_id(cas_id, project.id)
+    values = Cache.get_key_value(cas_id, project.id)
 
-    case entries do
+    case values do
       [] ->
         conn
         |> put_status(:not_found)
@@ -88,7 +88,7 @@ defmodule TuistWeb.API.Cache.KeyValueController do
       _ ->
         conn
         |> put_status(:ok)
-        |> json(%{"entries" => Enum.map(entries, fn entry -> %{"value" => entry.value} end)})
+        |> json(%{"entries" => Enum.map(values, fn value -> %{"value" => value} end)})
     end
   end
 
@@ -153,16 +153,11 @@ defmodule TuistWeb.API.Cache.KeyValueController do
         %{assigns: %{selected_project: project}, body_params: %{entries: entries, cas_id: cas_id}} = conn,
         _params
       ) do
-    Enum.each(entries, fn entry ->
-      entry_attrs = %{
-        cas_id: cas_id,
-        value: entry.value,
-        project_id: project.id,
-        inserted_at: NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
-      }
-
-      {:ok, _entry} = Cache.create_entry(entry_attrs)
-    end)
+    # Extract just the values from the entries
+    values = Enum.map(entries, fn entry -> entry.value end)
+    
+    # Store all values at once
+    :ok = Cache.put_key_value(cas_id, project.id, values)
 
     send_resp(conn, :no_content, "")
   end

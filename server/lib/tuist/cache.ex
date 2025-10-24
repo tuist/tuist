@@ -1,62 +1,34 @@
 defmodule Tuist.Cache do
   @moduledoc """
-  The cache context.
+  The cache context using in-memory storage via Cachex.
   """
 
-  import Ecto.Query
-
-  alias Tuist.Cache.Entry
-  alias Tuist.IngestRepo
+  alias Tuist.Cache.KeyValueStore
 
   @doc """
-  Creates a cache entry.
-
+  Stores a list of values for a given key (cas_id and project_id).
+  This overwrites any existing values.
+  
   ## Examples
 
-      iex> create_entry(%{cas_id: "some_id", key: "some_key", value: "some_value", project_id: 123})
-      {:ok, %Entry{}}
-
-      iex> create_entry(%{})
-      {:error, %Ecto.Changeset{}}
+      iex> put_key_value("some_cas_id", 123, ["value1", "value2"])
+      :ok
 
   """
-  def create_entry(attrs \\ %{}) do
-    entry_attrs = %{
-      id: Ecto.UUID.generate(),
-      cas_id: attrs[:cas_id],
-      value: attrs[:value],
-      project_id: attrs[:project_id],
-      inserted_at: attrs[:inserted_at] || NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
-    }
-
-    entry = struct(Entry, entry_attrs)
-
-    IngestRepo.insert(entry)
+  def put_key_value(cas_id, project_id, values) when is_list(values) do
+    KeyValueStore.put_key_value(cas_id, project_id, values)
   end
 
   @doc """
-  Gets all cache entries by cas_id and project_id.
+  Gets all values for a given key (cas_id and project_id).
 
   ## Examples
 
-      iex> get_entries_by_cas_id_and_project_id("some_cas_id", 123)
-      [%Entry{}, ...]
+      iex> get_key_value("some_cas_id", 123)
+      ["value1", "value2"]
 
   """
-  def get_entries_by_cas_id_and_project_id(cas_id, project_id) do
-    IngestRepo.all(from(e in Entry, where: e.cas_id == ^cas_id and e.project_id == ^project_id))
-  end
-
-  @doc """
-  Deletes all cache entries for a given project.
-
-  ## Examples
-
-      iex> delete_entries_by_project_id(123)
-      {:ok, 5}
-
-  """
-  def delete_entries_by_project_id(project_id) do
-    IngestRepo.delete_all(from(e in Entry, where: e.project_id == ^project_id))
+  def get_key_value(cas_id, project_id) do
+    KeyValueStore.get_key_value(cas_id, project_id)
   end
 end
