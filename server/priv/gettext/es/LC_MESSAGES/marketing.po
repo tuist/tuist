@@ -3,15 +3,16 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-10-24 08:40+0000\n"
-"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
-"Last-Translator: Automatically generated\n"
-"Language-Team: none\n"
+"PO-Revision-Date: 2025-10-24 13:54+0000\n"
+"Last-Translator: Weblate Admin <admin@cloudron.local>\n"
+"Language-Team: Spanish <https://translate.tuist.dev/projects/tuist/marketing/"
+"es/>\n"
 "Language: es\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=n != 1;\n"
-"X-Generator: Translate Toolkit 3.16.3\n"
+"X-Generator: Weblate 5.14\n"
 
 ## This file is a PO Template file.
 ##
@@ -23,7 +24,6 @@ msgstr ""
 ## date. Leave "msgstr"s empty as changing them here has no
 ## effect: edit them in PO (.po) files instead.
 #
-
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:418
 #, elixir-autogen, elixir-format
 msgid "\"We could solve our immediate problems and do so while maintaining a familiar"
@@ -32,55 +32,55 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:26
 #, elixir-autogen, elixir-format
 msgid "$0"
-msgstr ""
+msgstr "$0"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/blog_post.html.heex:25
 #, elixir-autogen, elixir-format
 msgid "%{count} minute"
 msgid_plural "%{count} minutes"
 msgstr[0] ""
-msgstr[1] ""
+msgstr[1] "%{count} minutos"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:85
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:113
 #, elixir-autogen, elixir-format
 msgid "+ 0.5€ per additional unit"
-msgstr ""
+msgstr "+ 0,5 euros por unidad adicional"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:66
 #, elixir-autogen, elixir-format
 msgid "0€ and up"
-msgstr ""
+msgstr "A partir de 0€"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:85
 #, elixir-autogen, elixir-format
 msgid "105 remote binaries pulled"
-msgstr ""
+msgstr "105 binarios remotos descargados"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:566
 #, elixir-autogen, elixir-format
 msgid "10K+"
-msgstr ""
+msgstr "10mil+"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:554
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "1400+"
-msgstr ""
+msgstr "1400+"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:576
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "300+"
-msgstr ""
+msgstr "300+"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:522
 #, elixir-autogen, elixir-format
 msgid "5K+"
-msgstr ""
+msgstr "5mil+"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:544
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "8300+"
-msgstr ""
+msgstr "8300+"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:532
 #, elixir-autogen, elixir-format
@@ -122,65 +122,69 @@ msgstr ""
 #: lib/tuist_web/marketing/live/marketing_qa_live.html.heex:22
 #, elixir-autogen, elixir-format
 msgid "Agentic QA"
-msgstr ""
+msgstr "QA basado en agentes"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:72
 #, elixir-autogen, elixir-format
 msgid "Agentic testing of your app completed"
-msgstr ""
+msgstr "El agente ha completado el sesteo de su aplicación"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:3
 #, elixir-autogen, elixir-format
 msgid "Air"
-msgstr ""
+msgstr "Air"
 
 #: lib/tuist_web/marketing/live/marketing_blog_live.html.heex:42
 #: lib/tuist_web/marketing/live/marketing_blog_live.html.heex:59
 #: lib/tuist_web/marketing/live/marketing_changelog_live.html.heex:14
 #, elixir-autogen, elixir-format
 msgid "All"
-msgstr ""
+msgstr "Todos"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:16
 #, elixir-autogen, elixir-format
 msgid "All features, no credit card required"
-msgstr ""
+msgstr "Todas las funcionalidades, sin tarjeta de crédito"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:22
 #, elixir-autogen, elixir-format
 msgid "All systems normal"
-msgstr ""
+msgstr "Sistemas operativos"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:165
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "All the features you need,"
-msgstr ""
+msgstr "Todas las funciones que necesitas,"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:335
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:158
 #, elixir-autogen, elixir-format
 msgid "Analyze build times per target and file with metadata like environment, Xcode version, and commit."
 msgstr ""
+"Analiza los tiempos de compilación por target y archivo con metadatos como "
+"entorno, versión de Xcode y commit."
 
 #: lib/tuist_web/marketing/live/marketing_qa_live.ex:31
 #, elixir-autogen, elixir-format
 msgid "Automate testing your apps for Apple platforms using agents."
 msgstr ""
+"Automatice el testeo de sus aplicaciones para plataformas Apple utilizando "
+"agentes de AI."
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:60
 #, elixir-autogen, elixir-format
 msgid "Base price"
-msgstr ""
+msgstr "Precio base"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:24
 #, elixir-autogen, elixir-format
 msgid "Best for teams and growing startups."
-msgstr ""
+msgstr "El mejor para equipos y startups en crecimiento."
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:589
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Beyond expectations"
-msgstr ""
+msgstr "Más allá de las expectativas"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:214
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:87
@@ -191,61 +195,63 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_html/blog_post.html.heex:10
 #, elixir-autogen, elixir-format
 msgid "Blog"
-msgstr ""
+msgstr "Blog"
 
 #: lib/tuist_web/marketing/controllers/marketing_xml/blog_atom.xml.eex:4
 #: lib/tuist_web/marketing/controllers/marketing_xml/blog_rss.xml.eex:5
 #, elixir-autogen, elixir-format
 msgid "Blog posts by the Tuist team."
-msgstr ""
+msgstr "Posts del equipo de Tuist."
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:264
 #, elixir-autogen, elixir-format
 msgid "Bluesky"
-msgstr ""
+msgstr "Bluesky"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:333
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:156
 #, elixir-autogen, elixir-format
 msgid "Build Insights"
-msgstr ""
+msgstr "Análisis de builds"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:40
 #, elixir-autogen, elixir-format
 msgid "Build insights"
-msgstr ""
+msgstr "Análisis de builds"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:53
 #, elixir-autogen, elixir-format
 msgid "Build times reduced by 80%"
-msgstr ""
+msgstr "Tiempos de compilación reducidos en un 80"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/about.html.heex:9
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Building the future of scalable app development"
-msgstr ""
+msgstr "Construyendo el futuro del desarrollo de aplicaciones escalables"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:318
 #, elixir-autogen, elixir-format
 msgid "Builds"
-msgstr ""
+msgstr "Compilaciones"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:498
 #, elixir-autogen, elixir-format
 msgid "Bumble solved key issues without changing the core dev experience"
 msgstr ""
+"Bumble resolvió problemas críticos sin comprometer la experiencia del "
+"desarrolador."
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:369
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:170
 #, elixir-autogen, elixir-format
 msgid "Bundle Insights"
-msgstr ""
+msgstr "Análisis de bundles"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:108
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:351
 #, elixir-autogen, elixir-format
 msgid "Bundle analysis"
-msgstr ""
+msgstr "Análisis de bundles"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:49
 #, elixir-autogen, elixir-format
