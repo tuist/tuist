@@ -1611,3 +1611,8 @@ msgstr ""
 #, elixir-autogen, elixir-format
 msgid "per additional unit"
 msgstr ""
+
+#: lib/tuist_web/marketing/controllers/marketing_html/blog_post.html.heex:53
+#, elixir-autogen, elixir-format
+msgid "AI writes faster. So should your builds."
+msgstr ""

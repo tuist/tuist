@@ -71,9 +71,7 @@ export const NavbarDropdown = {
 
     // Get menu index for direction awareness
     const getMenuIndex = () => {
-      const menus = Array.from(
-        document.querySelectorAll('#marketing-navbar-menus [data-part="menu"]')
-      );
+      const menus = Array.from(document.querySelectorAll('#marketing-navbar-menus [data-part="menu"]'));
       return menus.indexOf(menu);
     };
 
@@ -108,19 +106,12 @@ export const NavbarDropdown = {
 
       // Update global tracker
       if (state) {
-        if (
-          window.activeNavbarDropdown &&
-          window.activeNavbarDropdown !== menu
-        ) {
+        if (window.activeNavbarDropdown && window.activeNavbarDropdown !== menu) {
           // Close previously open dropdown with transition info
-          const previousDropdown = window.activeNavbarDropdown.querySelector(
-            '[data-part="dropdown"]'
-          );
+          const previousDropdown = window.activeNavbarDropdown.querySelector('[data-part="dropdown"]');
           if (previousDropdown) {
             previousDropdown.dataset.transitionTo =
-              getMenuIndex() > window.activeNavbarDropdown.getMenuIndex()
-                ? "left"
-                : "right";
+              getMenuIndex() > window.activeNavbarDropdown.getMenuIndex() ? "left" : "right";
             setTimeout(() => {
               previousDropdown.removeAttribute("data-transition-to");
             }, 300);
@@ -142,10 +133,7 @@ export const NavbarDropdown = {
       const dropdownId = dropdown.getAttribute("data-dropdown");
       action.setAttribute("role", "button");
       action.setAttribute("aria-haspopup", "true");
-      action.setAttribute(
-        "aria-controls",
-        `marketing-navbar-${dropdownId}-dropdown`
-      );
+      action.setAttribute("aria-controls", `marketing-navbar-${dropdownId}-dropdown`);
       action.setAttribute("tabindex", "0");
     }
 

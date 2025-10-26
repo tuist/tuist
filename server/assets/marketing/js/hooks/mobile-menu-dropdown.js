@@ -31,10 +31,7 @@ export const MobileMenuDropdown = {
 
     // Clean up any pending transition listeners
     if (this.dropdown && this.transitionEndHandler) {
-      this.dropdown.removeEventListener(
-        "transitionend",
-        this.transitionEndHandler
-      );
+      this.dropdown.removeEventListener("transitionend", this.transitionEndHandler);
       this.transitionEndHandler = null;
     }
   },
@@ -94,10 +91,7 @@ export const MobileMenuDropdown = {
             dropdown.style.height = "auto";
             dropdown.style.overflow = "visible";
           }
-          dropdown.removeEventListener(
-            "transitionend",
-            this.transitionEndHandler
-          );
+          dropdown.removeEventListener("transitionend", this.transitionEndHandler);
           this.transitionEndHandler = null;
         };
         dropdown.addEventListener("transitionend", this.transitionEndHandler, {
@@ -122,10 +116,7 @@ export const MobileMenuDropdown = {
           if (!isOpen) {
             dropdown.style.display = "none";
           }
-          dropdown.removeEventListener(
-            "transitionend",
-            this.transitionEndHandler
-          );
+          dropdown.removeEventListener("transitionend", this.transitionEndHandler);
           this.transitionEndHandler = null;
         };
         dropdown.addEventListener("transitionend", this.transitionEndHandler, {
@@ -152,9 +143,7 @@ export const MobileMenuDropdown = {
     action.style.cursor = "pointer";
 
     // Initialize ARIA attributes
-    const dropdownId = `mobile-dropdown-${Math.random()
-      .toString(36)
-      .substr(2, 9)}`;
+    const dropdownId = `mobile-dropdown-${Math.random().toString(36).substr(2, 9)}`;
     dropdown.setAttribute("id", dropdownId);
     action.setAttribute("aria-controls", dropdownId);
     action.setAttribute("role", "button");

@@ -955,56 +955,56 @@
 /* Keyframe Animations */
 @keyframes slideInFromLeft {
   from {
-    opacity: 0;
     transform: translateX(-50%) translateX(-20px) translateY(0);
+    opacity: 0;
   }
   to {
-    opacity: 1;
     transform: translateX(-50%) translateX(0) translateY(0);
+    opacity: 1;
   }
 }
 
 @keyframes slideInFromRight {
   from {
-    opacity: 0;
     transform: translateX(-50%) translateX(20px) translateY(0);
+    opacity: 0;
   }
   to {
-    opacity: 1;
     transform: translateX(-50%) translateX(0) translateY(0);
+    opacity: 1;
   }
 }
 
 @keyframes slideOutToLeft {
   from {
-    opacity: 1;
     transform: translateX(-50%) translateX(0) translateY(0);
+    opacity: 1;
   }
   to {
-    opacity: 0;
     transform: translateX(-50%) translateX(-20px) translateY(0);
+    opacity: 0;
   }
 }
 
 @keyframes slideOutToRight {
   from {
-    opacity: 1;
     transform: translateX(-50%) translateX(0) translateY(0);
+    opacity: 1;
   }
   to {
-    opacity: 0;
     transform: translateX(-50%) translateX(20px) translateY(0);
+    opacity: 0;
   }
 }
 
 @keyframes fadeInUp {
   from {
-    opacity: 0;
     transform: translateY(10px);
+    opacity: 0;
   }
   to {
-    opacity: 1;
     transform: translateY(0);
+    opacity: 1;
   }
 }
 
@@ -1021,9 +1021,9 @@
 #marketing-navbar > [data-part="mobile-menus"] {
   & > [data-part="menu"] {
     & > [data-part="action"] {
+      transition: background-color 0.2s ease;
       cursor: pointer;
       user-select: none;
-      transition: background-color 0.2s ease;
 
       &:active {
         background: var(--noora-surface-background-primary);
@@ -1069,7 +1069,7 @@
         }
 
         & > [data-part="item"]:nth-child(6) {
-          animation-delay: 0.20s;
+          animation-delay: 0.2s;
         }
 
         & > [data-part="item"]:nth-child(7) {
@@ -1121,29 +1121,28 @@
 
 @keyframes mobileMenuContentFadeIn {
   from {
-    opacity: 0;
     transform: translateY(-10px);
+    opacity: 0;
   }
   to {
-    opacity: 1;
     transform: translateY(0);
+    opacity: 1;
   }
 }
 
 @keyframes mobileItemFadeIn {
   from {
-    opacity: 0;
     transform: translateY(8px);
+    opacity: 0;
   }
   to {
-    opacity: 1;
     transform: translateY(0);
+    opacity: 1;
   }
 }
 
 /* Mobile menu bar smooth transitions */
 #marketing-navbar {
-  
   &[data-mobile-menu-open="true"] > [data-part="bar"] {
     transition: box-shadow 0.3s ease;
   }
