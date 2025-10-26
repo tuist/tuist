@@ -1,14 +1,14 @@
+import class ClassModule.SomeClass
+import enum EnumModule.SomeEnum
 import FrameworkA
 import FrameworkB
-import UIKit
+import func FuncModule.someFunction
+import let LetModule.someConstant
 import protocol ProtocolModule.SomeProtocol
 import struct StructModule.SomeStruct
-import enum EnumModule.SomeEnum
-import class ClassModule.SomeClass
-import func FuncModule.someFunction
-import var VarModule.someVariable
-import let LetModule.someConstant
 import typealias TypeAliasModule.SomeTypeAlias
+import UIKit
+import var VarModule.someVariable
 
 @main
 class AppDelegate: UIResponder, UIApplicationDelegate {
