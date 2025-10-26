@@ -63,3 +63,18 @@ let target = Target(
 ```
 <!-- -->
 :::
+
+::: warning Static libraries and resources
+When working with static libraries that include resources, **do not** use buildable folders to include resources. Instead, use the explicit `Target.resources` interface:
+
+```swift
+let target = Target(
+  name: "MyStaticLibrary",
+  product: .staticLibrary,
+  buildableFolders: ["MyStaticLibrary/Sources"], // OK for sources
+  resources: ["MyStaticLibrary/Resources/**"]    // Use explicit resources
+)
+```
+
+This ensures resources are properly bundled and accessible when the static library is linked into your application.
+:::
