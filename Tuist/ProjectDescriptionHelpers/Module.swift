@@ -579,7 +579,9 @@ public enum Module: String, CaseIterable {
             case .cas:
                 [
                     .target(name: Module.core.targetName),
+                    .target(name: Module.support.targetName),
                     .target(name: Module.server.targetName),
+                    .external(name: "FileSystem"),
                     .external(name: "GRPCCore"),
                     .external(name: "GRPCNIOTransportHTTP2"),
                     .external(name: "GRPCProtobuf"),

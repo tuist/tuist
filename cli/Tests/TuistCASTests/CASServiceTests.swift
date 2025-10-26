@@ -7,6 +7,7 @@ import Path
 import Testing
 import TuistServer
 import TuistSupport
+import TuistTesting
 @testable import TuistCAS
 
 struct CASServiceTests {
@@ -133,6 +134,9 @@ struct CASServiceTests {
             #expect(Bool(false), "Expected success, but contents is nil")
         }
 
+        // Wait for background task to complete
+        try await Task.sleep(for: .milliseconds(100))
+
         verify(saveCacheCASService)
             .saveCacheCAS(
                 .value(testData),
@@ -143,11 +147,12 @@ struct CASServiceTests {
             .called(1)
     }
 
-    @Test
+    @Test(.withMockedLogger())
     func save_when_upload_fails() async throws {
         // Given
         let testData = Data("test data".utf8)
         let expectedError = SaveCacheCASServiceError.forbidden("Upload denied")
+        let fingerprint = "916F0027A575074CE72A331777C3478D6513F786A591BD892DA1A577BF2335F9"
 
         var request = CompilationCacheService_Cas_V1_CASSaveRequest()
         request.data.blob.data = testData
@@ -161,15 +166,37 @@ struct CASServiceTests {
         // When
         let response = try await subject.save(request: request, context: context)
 
-        // Then
+        // Then - should return success immediately, error is handled in background
+        #expect(response.casID.id == fingerprint.data(using: .utf8)!)
         switch response.contents {
-        case let .error(error):
-            #expect(error.description_p == "Upload denied")
         case .casID:
-            #expect(Bool(false), "Expected error, but got casID")
+            break
+        case .error:
+            #expect(Bool(false), "Expected success, but got error")
         case .none:
-            #expect(Bool(false), "Expected error, but contents is nil")
+            #expect(Bool(false), "Expected success, but contents is nil")
         }
+
+        // Wait for background task to complete
+        try await Task.sleep(for: .milliseconds(100))
+
+        verify(saveCacheCASService)
+            .saveCacheCAS(
+                .value(testData),
+                casId: .value(fingerprint),
+                fullHandle: .value(fullHandle),
+                serverURL: .value(serverURL)
+            )
+            .called(1)
+
+        TuistTest.expectLogs(
+            "CAS.save background upload failed after",
+            at: .error
+        )
+        TuistTest.expectLogs(
+            "for fingerprint: \(fingerprint): forbidden(\"Upload denied\")",
+            at: .error
+        )
     }
 
     @Test
