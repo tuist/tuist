@@ -142,8 +142,8 @@ jobs:
 
   cli-automation-acceptance-tests:
     name: Automation Acceptance Tests
-    runs-on: macos-26
-    timeout-minutes: 60
+    runs-on: namespace-profile-default-macos
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - name: Select Xcode
@@ -173,8 +173,8 @@ jobs:
 
   cli-dependencies-acceptance-tests:
     name: Dependencies Acceptance Tests
-    runs-on: macos-26
-    timeout-minutes: 60
+    runs-on: namespace-profile-default-macos
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - name: Select Xcode
@@ -212,7 +212,7 @@ jobs:
   cli-generator-acceptance-tests:
     name: Generator Acceptance Tests
     runs-on: macos-26
-    timeout-minutes: 60
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - name: Select Xcode
