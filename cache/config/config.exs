@@ -6,7 +6,7 @@ config :cache,
 # Configures the endpoint
 config :cache, CacheWeb.Endpoint,
   url: [host: "localhost"],
-  adapter: Phoenix.Endpoint.Cowboy2Adapter,
+  adapter: Bandit.PhoenixAdapter,
   render_errors: [
     formats: [json: CacheWeb.ErrorJSON],
     layout: false

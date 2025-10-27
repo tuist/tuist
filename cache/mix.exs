@@ -31,13 +31,13 @@ defmodule Cache.MixProject do
       {:phoenix, "~> 1.7.12"},
       {:phoenix_pubsub, "~> 2.1"},
       {:jason, "~> 1.4"},
-      {:plug_cowboy, "~> 2.7"},
+      {:bandit, "~> 1.8"},
       {:cachex, "~> 3.6"},
       {:ex_aws, "~> 2.0"},
       {:ex_aws_s3, "~> 2.0"},
       {:hackney, "~> 1.20"},
       {:sweet_xml, "~> 0.7"},
-      {:open_api_spex, "~> 3.19"},
+      # OpenAPI removed
       {:mimic, "~> 1.7", only: :test},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:req, "~> 0.1"}

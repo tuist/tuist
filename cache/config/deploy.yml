@@ -1,0 +1,36 @@
+service: cache
+image: tuist/cache
+
+servers:
+  web:
+    - 5.161.218.106
+
+proxy:
+  host: staging.tuist.dev
+  app_port: 4000
+  buffering:
+    requests: false
+    responses: false
+  path_prefixes:
+    - /api/cache/cas
+    - /api/cache/keyvalue
+  strip_path_prefix: false
+
+registry:
+  server: ghcr.io
+  username: cschmatzler
+  password:
+    - KAMAL_REGISTRY_PASSWORD
+
+builder:
+  arch: amd64
+
+env:
+  clear:
+    PHX_HOST: staging-cache.tuist.dev
+    SERVER_URL: https://staging.tuist.dev
+  secret:
+    - SECRET_KEY_BASE
+
+volumes:
+  - /mnt/cas:/data:rw

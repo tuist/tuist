@@ -1,70 +1,9 @@
 defmodule CacheWeb.KeyValueController do
   use CacheWeb, :controller
-  use OpenApiSpex.ControllerSpecs
-
-  alias OpenApiSpex.Schema
   alias Cache.Authentication
   alias Cache.KeyValueStore
-  alias CacheWeb.Schemas.Error
 
-  plug OpenApiSpex.Plug.CastAndValidate,
-    json_render_error_v2: true
-
-  tags(["KeyValue"])
-
-  operation(:get_value,
-    summary: "Get cache key-value entries",
-    operation_id: "getCacheKeyValue",
-    parameters: [
-      account_handle: [
-        in: :query,
-        type: :string,
-        required: true,
-        description: "The handle of the project's account"
-      ],
-      project_handle: [
-        in: :query,
-        type: :string,
-        required: true,
-        description: "The handle of the project"
-      ],
-      cas_id: [
-        in: :path,
-        type: :string,
-        required: true,
-        description: "The CAS identifier"
-      ]
-    ],
-    responses: %{
-      200 =>
-        {"Cache values retrieved successfully", "application/json",
-         %Schema{
-           type: :object,
-           properties: %{
-             entries: %Schema{
-               type: :array,
-               items: %Schema{
-                 type: :object,
-                 properties: %{
-                   value: %Schema{type: :string, description: "The value of the entry"}
-                 },
-                 required: [:value]
-               }
-             }
-           },
-           required: [:entries]
-         }},
-      404 => {"No entries found for the given CAS ID", "application/json", Error}
-    }
-  )
-
-  def get_value(conn, _params) do
-    %{
-      account_handle: account_handle,
-      project_handle: project_handle,
-      cas_id: cas_id
-    } = conn.params
-
+  def get_value(conn, %{"account_handle" => account_handle, "project_handle" => project_handle, "cas_id" => cas_id}) do
     case Authentication.ensure_project_accessible(conn, account_handle, project_handle) do
       {:ok, _auth_header} ->
         values = KeyValueStore.get_key_value(cas_id, account_handle, project_handle)
@@ -88,69 +27,20 @@ defmodule CacheWeb.KeyValueController do
     end
   end
 
-  operation(:put_value,
-    summary: "Store cache key-value entries",
-    operation_id: "putCacheKeyValue",
-    parameters: [
-      account_handle: [
-        in: :query,
-        type: :string,
-        required: true,
-        description: "The handle of the project's account"
-      ],
-      project_handle: [
-        in: :query,
-        type: :string,
-        required: true,
-        description: "The handle of the project"
-      ]
-    ],
-    request_body: {
-      "Key-value entries",
-      "application/json",
-      %Schema{
-        type: :object,
-        properties: %{
-          cas_id: %Schema{type: :string, description: "The CAS identifier"},
-          entries: %Schema{
-            type: :array,
-            items: %Schema{
-              type: :object,
-              properties: %{
-                value: %Schema{type: :string, description: "The value of the entry"}
-              },
-              required: [:value]
-            },
-            description: "Array of entries to store",
-            minItems: 1
-          }
-        },
-        required: [:cas_id, :entries]
-      },
-      required: true
-    },
-    responses: %{
-      204 => "Values stored successfully",
-      400 => {"Invalid request", "application/json", Error}
-    }
-  )
-
-  def put_value(conn, _params) do
-    %{
-      account_handle: account_handle,
-      project_handle: project_handle
-    } = conn.params
-
-    %{cas_id: cas_id, entries: entries} = conn.body_params
-
+  def put_value(conn, %{"account_handle" => account_handle, "project_handle" => project_handle, "cas_id" => cas_id}) do
     case Authentication.ensure_project_accessible(conn, account_handle, project_handle) do
       {:ok, _auth_header} ->
-        # Extract just the values from the entries
-        values = Enum.map(entries, fn entry -> entry.value end)
+        values = Enum.map(entries, fn entry -> entry["value"] end)
 
-        :ok = KeyValueStore.put_key_value(cas_id, account_handle, project_handle, values)
+        case KeyValueStore.put_key_value(cas_id, account_handle, project_handle, values) do
+          :ok ->
+            send_resp(conn, :no_content, "")
 
-        send_resp(conn, :no_content, "")
+          {:error, _} ->
+            conn
+            |> put_status(:internal_server_error)
+            |> json(%{message: "Failed to store values"})
+        end
 
       {:error, status, message} ->
         conn
