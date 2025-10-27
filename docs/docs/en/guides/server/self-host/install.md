@@ -235,7 +235,9 @@ Tuist requires email functionality for user authentication and transactional not
 | `TUIST_MAILING_REPLY_TO_ADDRESS` | Optional reply-to address for user replies | No | | `support@tuist.dev` |
 
 ::: info SMTP SUPPORT
+<!-- -->
 Generic SMTP support is not currently available. If you need SMTP support for your on-premise deployment, please reach out to [contact@tuist.dev](mailto:contact@tuist.dev) to discuss your requirements.
+<!-- -->
 :::
 
 ### Git platform configuration {#git-platform-configuration}
