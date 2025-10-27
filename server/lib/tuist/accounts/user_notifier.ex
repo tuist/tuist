@@ -12,16 +12,9 @@ defmodule Tuist.Accounts.UserNotifier do
 
   # Delivers the email using the application mailer.
   defp deliver(recipient, subject, body) do
-    email =
-      new_email(to: recipient, from: {"Tuist", Environment.mailing_from_address()}, subject: subject, html_body: body)
-
-    email =
-      case Environment.mailing_reply_to_address() do
-        nil -> email
-        reply_to -> put_header(email, "Reply-To", reply_to)
-      end
-
-    Mailer.deliver_now!(email)
+    [to: recipient, from: {"Tuist", Environment.smtp_user_name()}, subject: subject, html_body: body]
+    |> new_email()
+    |> Mailer.deliver_now!()
   end
 
   defp html_email(body, icon_url) do

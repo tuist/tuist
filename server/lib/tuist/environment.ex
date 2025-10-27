@@ -504,18 +504,6 @@ defmodule Tuist.Environment do
     get([:mailgun, :api_key], secrets)
   end
 
-  def mailing_domain(secrets \\ secrets()) do
-    get([:mailing, :domain], secrets) || get([:smtp_settings, :domain], secrets)
-  end
-
-  def mailing_from_address(secrets \\ secrets()) do
-    get([:mailing, :from_address], secrets) || get([:smtp_settings, :user_name], secrets)
-  end
-
-  def mailing_reply_to_address(secrets \\ secrets()) do
-    get([:mailing, :reply_to_address], secrets)
-  end
-
   def smtp_domain(secrets \\ secrets()) do
     get([:smtp_settings, :domain], secrets)
   end
@@ -525,8 +513,8 @@ defmodule Tuist.Environment do
   end
 
   def mail_configured?(secrets \\ secrets()) do
-    mailgun_api_key(secrets) != nil and mailing_domain(secrets) != nil and
-      mailing_from_address(secrets) != nil
+    mailgun_api_key(secrets) != nil and smtp_domain(secrets) != nil and
+      smtp_user_name(secrets) != nil
   end
 
   def clickhouse_url(secrets \\ secrets()) do

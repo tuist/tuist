@@ -941,7 +941,7 @@ defmodule Tuist.AccountsTest do
 
   describe "invite_user_to_organization/2" do
     setup do
-      stub(Environment, :mailing_from_address, fn -> "noreply@tuist.dev" end)
+      stub(Environment, :smtp_user_name, fn -> "smtp_user_name" end)
       :ok
     end
 
@@ -1765,7 +1765,7 @@ defmodule Tuist.AccountsTest do
 
   describe "deliver_user_confirmation_instructions/2" do
     setup do
-      stub(Environment, :mailing_from_address, fn -> "noreply@tuist.dev" end)
+      stub(Environment, :smtp_user_name, fn -> "stmp_user_name" end)
       %{user: user_fixture(confirmed_at: nil)}
     end
 
@@ -1790,7 +1790,7 @@ defmodule Tuist.AccountsTest do
     setup do
       user = user_fixture(confirmed_at: nil)
 
-      stub(Environment, :mailing_from_address, fn -> "noreply@tuist.dev" end)
+      stub(Environment, :smtp_user_name, fn -> "stmp_user_name" end)
 
       token =
         extract_user_token(fn confirmation_url ->
@@ -1827,7 +1827,7 @@ defmodule Tuist.AccountsTest do
 
   describe "deliver_user_reset_password_instructions/2" do
     setup do
-      stub(Environment, :mailing_from_address, fn -> "noreply@tuist.dev" end)
+      stub(Environment, :smtp_user_name, fn -> "stmp_user_name" end)
       %{user: user_fixture()}
     end
 
@@ -1852,7 +1852,7 @@ defmodule Tuist.AccountsTest do
     setup do
       user = user_fixture()
 
-      stub(Environment, :mailing_from_address, fn -> "noreply@tuist.dev" end)
+      stub(Environment, :smtp_user_name, fn -> "stmp_user_name" end)
 
       token =
         extract_user_token(fn reset_password_url ->

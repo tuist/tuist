@@ -338,7 +338,7 @@ if Tuist.Environment.mail_configured?(secrets) and Tuist.Environment.env() in [:
   config :tuist, Tuist.Mailer,
     adapter: Bamboo.MailgunAdapter,
     api_key: Tuist.Environment.mailgun_api_key(secrets),
-    domain: Tuist.Environment.mailing_domain(secrets),
+    domain: Tuist.Environment.smtp_domain(secrets),
     base_uri: base_uri
 end
 
