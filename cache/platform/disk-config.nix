@@ -23,12 +23,14 @@
             root = {
               size = "100%";
               content = {
-                type = "btrfs";
-                extraArgs = ["-f"];
+                type = "filesystem";
+                format = "ext4";
+                extraArgs = ["-F"];
                 mountpoint = "/";
                 mountOptions = [
-                  "compress=zstd"
                   "noatime"
+                  "commit=30"
+                  "lazytime"
                 ];
               };
             };
