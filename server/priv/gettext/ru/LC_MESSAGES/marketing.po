@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-10-24 08:41+0000\n"
-"PO-Revision-Date: 2025-10-26 23:59+0000\n"
+"PO-Revision-Date: 2025-10-27 02:27+0000\n"
 "Last-Translator: Sofia Kalinina <sofya.kalinina@gmail.com>\n"
 "Language-Team: Russian <https://translate.tuist.dev/projects/tuist/marketing/"
 "ru/>\n"
@@ -134,7 +134,7 @@ msgstr "О Tuist"
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:555
 #, elixir-autogen, elixir-format
 msgid "Active community members and counting"
-msgstr "Активных участников сообщества - и число растёт"
+msgstr "Активных участников сообщества, и становится больше"
 
 #: lib/tuist_web/marketing/live/marketing_qa_live.html.heex:22
 #, elixir-autogen, elixir-format
@@ -236,9 +236,9 @@ msgid "Build insights"
 msgstr "Анализ сборок"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:53
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Build times reduced by 80%"
-msgstr "Время сборки сокращено на 80%"
+msgstr "Сборка быстрее на 80%"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/about.html.heex:9
 #, elixir-autogen, elixir-format
@@ -803,60 +803,63 @@ msgstr "Устойчивость"
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:5
 #, elixir-autogen, elixir-format
 msgid "Make Xcode projects easier to manage and scale"
-msgstr ""
+msgstr "Управляйте и масштабируйте проекты Xcode проще"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:14
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Make mobile"
-msgstr ""
+msgstr "Сделайте мобильное"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:258
 #, elixir-autogen, elixir-format
 msgid "Make modular Xcode projects more manageable"
-msgstr ""
+msgstr "Упростите работу с модульными проектами Xcode"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:248
 #, elixir-autogen, elixir-format
 msgid "Mastodon"
-msgstr ""
+msgstr "Mastodon"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:76
 #, elixir-autogen, elixir-format
 msgid "Module cache"
-msgstr ""
+msgstr "Кэш модулей"
 
 #: lib/tuist_web/marketing/components/marketing_components.ex:362
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:254
 #, elixir-autogen, elixir-format
 msgid "Most popular"
-msgstr ""
+msgstr "Популярный"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:188
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:121
 #, elixir-autogen, elixir-format
 msgid "Newsletter"
-msgstr ""
+msgstr "Рассылка"
 
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:175
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:192
 #, elixir-autogen, elixir-format
 msgid "Newsletter Verification Failed"
-msgstr ""
+msgstr "Не удалось подтвердить подписку на рассылку"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/newsletter.html.heex:75
 #, elixir-autogen, elixir-format
 msgid "Newsletter issues are sent every 6 weeks and you can unsubscribe at any time."
 msgstr ""
+"Мы рассылаем новости раз в 6 недель, и вы можете отписаться в любое время."
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:550
 #, elixir-autogen, elixir-format
 msgid "No, there's no minimum contract length. You're free to cancel at any time."
 msgstr ""
+"Нет, минимальный срок договора не установлен. Вы можете расторгнуть его в "
+"любое время."
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:28
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Ongoing incident"
-msgstr ""
+msgstr "Текущий инцидент"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:179
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:217
@@ -867,53 +870,59 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:386
 #, elixir-autogen, elixir-format
 msgid "Open the %{feature} feature documentation"
-msgstr ""
+msgstr "Откройте документацию функции %{feature}"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:223
 #: lib/tuist_web/marketing/controllers/marketing_html/about.html.heex:65
 #, elixir-autogen, elixir-format
 msgid "Openness"
-msgstr ""
+msgstr "Открытость"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:66
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Optimized app bundles"
-msgstr ""
+msgstr "Сборка быстрее"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/about.html.heex:36
 #, elixir-autogen, elixir-format
 msgid "Our approach is rooted in curiosity and open collaboration. We share our journey, contribute tools as open source, and cultivate communities where developers learn and grow together. When we solve problems in the open, everyone wins."
 msgstr ""
+"Наш подход основан на любознательности и открытом сотрудничестве. Мы делимся "
+"своим опытом, публикуем инструменты с открытым исходным кодом и развиваем "
+"сообщества, где разработчики учатся и растут вместе. Когда мы решаем задачи "
+"открыто, выигрывают все."
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:92
 #, elixir-autogen, elixir-format
 msgid "Our cache solution integrates with Xcode 26's build system cache capabilities."
 msgstr ""
+"Наше решение для кэша интегрируется с возможностями системы кэширования "
+"сборок Xcode 26."
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:33
 #, elixir-autogen, elixir-format
 msgid "Pay nothing if below free tier limits"
-msgstr ""
+msgstr "Бесплатно в пределах лимитов"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:34
 #, elixir-autogen, elixir-format
 msgid "Pay only for what you use per feature"
-msgstr ""
+msgstr "Платите только за то, чем пользуетесь"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:203
 #, elixir-autogen, elixir-format
 msgid "People"
-msgstr ""
+msgstr "Люди"
 
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:127
 #, elixir-autogen, elixir-format
 msgid "Please check your email to confirm your subscription."
-msgstr ""
+msgstr "Пожалуйста, проверьте почту, чтобы подтвердить подписку."
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:511
 #, elixir-autogen, elixir-format
 msgid "Powered by"
-msgstr ""
+msgstr "На базе"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:132
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:151
@@ -924,12 +933,12 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:132
 #, elixir-autogen, elixir-format
 msgid "Previews"
-msgstr ""
+msgstr "Превью"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:67
 #, elixir-autogen, elixir-format
 msgid "Price per unit above free tier"
-msgstr ""
+msgstr "Цена сверх бесплатного лимита"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:143
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:84
@@ -939,42 +948,42 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:402
 #, elixir-autogen, elixir-format
 msgid "Pricing"
-msgstr ""
+msgstr "Тарифы"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:218
 #, elixir-autogen, elixir-format
 msgid "Priority support"
-msgstr ""
+msgstr "Приоритетная поддержка"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:53
 #, elixir-autogen, elixir-format
 msgid "Priority support via Slack channel"
-msgstr ""
+msgstr "Приоритетная поддержка в Slack"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:294
 #, elixir-autogen, elixir-format
 msgid "Privacy policy"
-msgstr ""
+msgstr "Политика конфиденциальности"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:21
 #, elixir-autogen, elixir-format
 msgid "Pro"
-msgstr ""
+msgstr "Pro"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:137
 #, elixir-autogen, elixir-format
 msgid "Product"
-msgstr ""
+msgstr "Продукт"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:545
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Pull requests merged"
-msgstr ""
+msgstr "Слитых pull requests"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:120
 #, elixir-autogen, elixir-format
 msgid "QA"
-msgstr ""
+msgstr "QA"
 
 #: lib/tuist_web/marketing/live/marketing_blog_live.ex:96
 #: lib/tuist_web/marketing/structured_markup.ex:186
@@ -1084,9 +1093,9 @@ msgid "Since adopting Tuist in our iOS project, we've seen major improvements in
 msgstr ""
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:59
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "Skipped repetitive tests"
-msgstr ""
+msgstr "Без повторных тестов"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:174
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:175
@@ -1480,9 +1489,11 @@ msgid "We accept credit card payments and wire transfers."
 msgstr ""
 
 #: lib/tuist_web/marketing/controllers/marketing_html/about.html.heex:67
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "We believe openness builds better tools, keeping only what’s needed closed for sustainable development."
 msgstr ""
+"Мы верим, что открытость делает инструменты лучше, закрывая лишь необходимое "
+"для устойчивого развития."
 
 #: lib/tuist_web/marketing/controllers/marketing_html/about.html.heex:109
 #, elixir-autogen, elixir-format
@@ -1638,7 +1649,7 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:512
 #, elixir-autogen, elixir-format
 msgid "open source"
-msgstr ""
+msgstr "open source"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:235
 #, elixir-autogen, elixir-format
@@ -1677,6 +1688,6 @@ msgid "via dedicated Slack"
 msgstr ""
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:17
-#, elixir-autogen, elixir-format
+#, elixir-autogen, elixir-format, fuzzy
 msgid "your competitive advantage"
-msgstr ""
+msgstr "приложение своим конкурентным преимуществом"
