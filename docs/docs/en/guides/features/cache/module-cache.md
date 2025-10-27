@@ -104,24 +104,6 @@ The following are some examples of common workflows:
 2. The workflow will pull the most recent binaries from `main` and generate the project with them.
 3. It will then build or test the project incrementally.
 
-## Configuration {#configuration}
-
-### Cache concurrency limit {#cache-concurrency-limit}
-
-By default, Tuist downloads and uploads cache artifacts without any concurrency limit, maximizing throughput. You can control this behavior using the `TUIST_CACHE_CONCURRENCY_LIMIT` environment variable:
-
-```bash
-# Set a specific concurrency limit
-export TUIST_CACHE_CONCURRENCY_LIMIT=10
-tuist generate
-
-# Use "none" for no limit (default behavior)
-export TUIST_CACHE_CONCURRENCY_LIMIT=none
-tuist generate
-```
-
-This can be useful in environments with limited network bandwidth or to reduce system load during cache operations.
-
 ## Troubleshooting {#troubleshooting}
 
 ### It doesn't use binaries for my targets {#it-doesnt-use-binaries-for-my-targets}
