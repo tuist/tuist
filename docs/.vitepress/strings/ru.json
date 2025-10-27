@@ -309,6 +309,9 @@
                                 },
                                 "xcode-cache": {
                                     "text": "Кэш Xcode"
+                                },
+                                "module-cache": {
+                                    "text": "Кэш модулей"
                                 }
                             }
                         },
