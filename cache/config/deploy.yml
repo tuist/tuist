@@ -33,4 +33,4 @@ env:
     - SECRET_KEY_BASE
 
 volumes:
-  - /data/cas:/data:rw
+  - /mnt/cas:/data:rw
