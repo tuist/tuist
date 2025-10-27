@@ -31,10 +31,8 @@ defmodule Cache.Authentication do
       case get_accessible_projects(auth_header, conn) do
         {:ok, projects} ->
           requested_handle = "#{account_handle}/#{project_handle}"
-          IO.puts("Requested handle: #{requested_handle}")
 
           if project_accessible?(projects, requested_handle) do
-            IO.puts("Project accessible")
             {:ok, auth_header}
           else
             {:error, 404, "Unauthorized or not found"}
@@ -51,11 +49,9 @@ defmodule Cache.Authentication do
 
     case Cachex.get(@cache_name, cache_key) do
       {:ok, nil} ->
-        IO.puts("Authentication Cache: miss for #{cache_key}")
         fetch_and_cache_projects(auth_header, cache_key, conn)
 
       {:ok, cached_result} ->
-        IO.puts("Authentication Cache: hit for #{cache_key}")
         cached_result
 
       _ ->
@@ -72,18 +68,13 @@ defmodule Cache.Authentication do
         _ -> headers
       end
 
-    IO.puts("Authentication Cache: fetching projects for #{cache_key}")
-
     cas_config = Application.get_env(:cache, :cas, [])
     base_url = Keyword.get(cas_config, :server_url)
     url = "#{base_url}/api/projects"
 
-    IO.puts("Authentication Cache: fetching projects from #{url} with headers #{inspect(headers)}")
-
     case Req.get(url: url, headers: headers, finch: Cache.Finch, retry: false) do
       {:ok, %{status: 200, body: %{"projects" => projects}}} ->
         project_handles = Enum.map(projects, & &1["full_name"])
-        IO.puts("Auhtnetication Cache: got projects #{inspect(project_handles)}")
         result = {:ok, project_handles}
 
         Cachex.put(@cache_name, cache_key, result, ttl: :timer.seconds(@success_cache_ttl))
@@ -91,22 +82,18 @@ defmodule Cache.Authentication do
 
       {:ok, %{status: 403}} ->
         result = {:error, 404, "Unauthorized or not found"}
-        IO.puts("Authentication Cache: unauthorized 403")
         Cachex.put(@cache_name, cache_key, result, ttl: :timer.seconds(@failure_cache_ttl))
         result
 
       {:ok, %{status: 401}} ->
         result = {:error, 401, "Unauthorized"}
-        IO.puts("Authentication Cache: unauthorized 401")
         Cachex.put(@cache_name, cache_key, result, ttl: :timer.seconds(@failure_cache_ttl))
         result
 
       {:ok, %{status: status}} ->
-        IO.puts("Authentication Cache: got status #{status}")
         {:error, status, "Server responded with status #{status}"}
 
-      {:error, error} ->
-        IO.puts("Authentication Cache: error #{inspect(error)}")
+      {:error, _error} ->
         {:error, 500, "Failed to fetch accessible projects"}
     end
   end

@@ -57,7 +57,6 @@ defmodule Cache.Disk do
       :ok ->
         case File.write(path, data) do
           :ok ->
-            Logger.debug("Wrote CAS artifact to #{path}")
             :ok
 
           {:error, reason} = error ->
@@ -66,6 +65,23 @@ defmodule Cache.Disk do
         end
 
       error ->
+        error
+    end
+  end
+
+  @doc """
+  Moves a temporary file into place for the given key without reading it into memory.
+  """
+  @spec put_file(String.t(), Path.t()) :: :ok | {:error, term()}
+  def put_file(key, tmp_path) do
+    path = artifact_path(key)
+
+    case ensure_directory(path) do
+      :ok ->
+        do_move_file(tmp_path, path)
+
+      {:error, _} = error ->
+        File.rm(tmp_path)
         error
     end
   end
@@ -103,6 +119,35 @@ defmodule Cache.Disk do
       {:error, reason} = error ->
         Logger.error("Failed to create directory #{dir}: #{inspect(reason)}")
         error
+    end
+  end
+
+  defp do_move_file(tmp_path, target_path) do
+    if File.exists?(target_path) do
+      File.rm(tmp_path)
+      {:error, :exists}
+    else
+      case File.rename(tmp_path, target_path) do
+        :ok ->
+          :ok
+
+        {:error, :exdev} ->
+          case File.cp(tmp_path, target_path) do
+            :ok ->
+              File.rm(tmp_path)
+              :ok
+
+            {:error, reason} = error ->
+              File.rm(tmp_path)
+              Logger.error("Failed to copy CAS artifact to #{target_path}: #{inspect(reason)}")
+              error
+          end
+
+        {:error, reason} = error ->
+          File.rm(tmp_path)
+          Logger.error("Failed to move CAS artifact to #{target_path}: #{inspect(reason)}")
+          error
+      end
     end
   end
 end

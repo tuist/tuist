@@ -7,11 +7,9 @@ defmodule CacheWeb.CASController do
   def load(conn, %{"id" => id, "account_handle" => account_handle, "project_handle" => project_handle}) do
     case Authentication.ensure_project_accessible(conn, account_handle, project_handle) do
       {:ok, _auth_header} ->
-        IO.puts("CAS Controller: attempting to load #{id}")
         key = cas_key(account_handle, project_handle, id)
 
         if Disk.exists?(key) do
-          IO.puts("CAS Controller: found #{id}")
           stream = Disk.stream(key)
 
           conn
@@ -19,16 +17,12 @@ defmodule CacheWeb.CASController do
           |> send_chunked(200)
           |> stream_data(stream)
         else
-          IO.puts("CAS Controller: not found #{id}")
-
           conn
           |> put_status(:not_found)
           |> json(%{message: "Artifact does not exist"})
         end
 
       {:error, status, message} ->
-        IO.puts("CAS Controller: unauthorized #{id}")
-
         conn
         |> put_status(status)
         |> json(%{message: message})
@@ -39,7 +33,7 @@ defmodule CacheWeb.CASController do
     "#{account_handle}/#{project_handle}/cas/#{id}"
   end
 
-    defp stream_data(conn, stream) do
+  defp stream_data(conn, stream) do
     Enum.reduce_while(stream, conn, fn chunk, conn ->
       case chunk(conn, chunk) do
         {:ok, conn} -> {:cont, conn}
@@ -51,26 +45,56 @@ defmodule CacheWeb.CASController do
   def save(conn, %{"id" => id, "account_handle" => account_handle, "project_handle" => project_handle}) do
     case Authentication.ensure_project_accessible(conn, account_handle, project_handle) do
       {:ok, _auth_header} ->
-        IO.puts("CAS Controller: attempting to save #{id}")
-        {:ok, body, conn} = Plug.Conn.read_body(conn, length: 100_000_000)
         key = cas_key(account_handle, project_handle, id)
+        raw_body = Map.get(conn.private, :raw_body)
 
         if Disk.exists?(key) do
-          IO.puts("CAS Controller: already exists #{id}")
+          cleanup_tempfile(raw_body)
           send_resp(conn, :no_content, "")
         else
-          IO.puts("CAS Controller: saving #{id}")
-          Disk.put(key, body)
-          IO.puts("CAS Controller: saved #{id}")
-          send_resp(conn, :no_content, "")
+          case persist_body(key, raw_body, conn) do
+            {:ok, conn_after} ->
+              send_resp(conn_after, :no_content, "")
+
+            {:error, conn_after} ->
+              conn_after
+              |> put_status(:internal_server_error)
+              |> json(%{message: "Failed to persist artifact"})
+          end
         end
 
       {:error, status, message} ->
-        IO.puts("CAS Controller: unauthorized #{id}")
-
         conn
         |> put_status(status)
         |> json(%{message: message})
     end
   end
+
+  defp persist_body(key, {:tempfile, tmp_path}, conn) do
+    case Disk.put_file(key, tmp_path) do
+      :ok -> {:ok, conn}
+      {:error, :exists} -> {:ok, conn}
+      {:error, _reason} -> {:error, conn}
+    end
+  end
+
+  defp persist_body(key, _raw_body, conn) do
+    case Plug.Conn.read_body(conn, length: 100_000_000) do
+      {:ok, body, conn_after} ->
+        case Disk.put(key, body) do
+          :ok -> {:ok, conn_after}
+          {:error, _reason} -> {:error, conn_after}
+        end
+
+      {:error, _reason} ->
+        {:error, conn}
+    end
+  end
+
+  defp cleanup_tempfile({:tempfile, tmp_path}) do
+    File.rm(tmp_path)
+    :ok
+  end
+
+  defp cleanup_tempfile(_), do: :ok
 end
