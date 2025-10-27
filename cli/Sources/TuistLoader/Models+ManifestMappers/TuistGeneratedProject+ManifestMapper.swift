@@ -69,7 +69,7 @@ extension TuistCore.TuistGeneratedProjectOptions.CacheOptions {
 
 extension TuistCore.TuistGeneratedProjectOptions.CacheProfiles {
     static func from(
-        manifest: ProjectDescription.Tuist.CacheProfiles
+        manifest: ProjectDescription.CacheProfiles
     ) -> Self {
         .init(
             manifest.profileByName.mapValues { .from(manifest: $0) },
@@ -80,7 +80,7 @@ extension TuistCore.TuistGeneratedProjectOptions.CacheProfiles {
 
 extension TuistCore.TuistGeneratedProjectOptions.CacheProfile {
     static func from(
-        manifest: ProjectDescription.Tuist.CacheProfile
+        manifest: ProjectDescription.CacheProfile
     ) -> Self {
         .init(
             base: .from(manifest: manifest.base),
@@ -91,7 +91,7 @@ extension TuistCore.TuistGeneratedProjectOptions.CacheProfile {
 
 extension TuistCore.TuistGeneratedProjectOptions.BaseCacheProfile {
     static func from(
-        manifest: ProjectDescription.Tuist.BaseCacheProfile
+        manifest: ProjectDescription.BaseCacheProfile
     ) -> Self {
         switch manifest {
         case .onlyExternal: return .onlyExternal
@@ -103,7 +103,7 @@ extension TuistCore.TuistGeneratedProjectOptions.BaseCacheProfile {
 
 extension TuistCore.TuistGeneratedProjectOptions.CacheProfileType {
     static func from(
-        manifest: ProjectDescription.Tuist.CacheProfileType
+        manifest: ProjectDescription.CacheProfileType
     ) -> Self {
         switch manifest {
         case .onlyExternal: return .onlyExternal

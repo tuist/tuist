@@ -145,7 +145,7 @@ final class ConfigLoaderTests: TuistUnitTestCase {
         try await fileSystem.makeDirectory(at: configPath.parentDirectory)
         try await fileSystem.touch(configPath)
         stub(path: configPath, exists: true)
-        let invalidProfiles = Tuist.CacheProfiles.profiles(
+        let invalidProfiles = CacheProfiles.profiles(
             [
                 "development": .profile(base: .allPossible, targets: ["tag:cacheable"]),
             ],

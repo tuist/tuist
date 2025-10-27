@@ -303,7 +303,8 @@ public class GeneratorFactory: GeneratorFactorying {
             let projectMapperFactory = ProjectMapperFactory(contentHasher: contentHasher)
             let projectMappers = projectMapperFactory.default(tuist: config)
             let workspaceMapperFactory = WorkspaceMapperFactory(
-                projectMapper: SequentialProjectMapper(mappers: projectMappers))
+                projectMapper: SequentialProjectMapper(mappers: projectMappers)
+            )
             let graphMapperFactory = CacheGraphMapperFactory(contentHasher: contentHasher)
 
             let graphMappers = graphMapperFactory.generation(
@@ -346,7 +347,8 @@ public class GeneratorFactory: GeneratorFactorying {
                 tuist: config
             )
             let workspaceMapperFactory = WorkspaceMapperFactory(
-                projectMapper: SequentialProjectMapper(mappers: projectMappers))
+                projectMapper: SequentialProjectMapper(mappers: projectMappers)
+            )
             let graphMapperFactory = CacheGraphMapperFactory(contentHasher: contentHasher)
 
             let graphMappers = graphMapperFactory.automation(
@@ -381,9 +383,11 @@ public class GeneratorFactory: GeneratorFactorying {
             let contentHasher = ContentHasher()
             let projectMapperFactory = ProjectMapperFactory(contentHasher: contentHasher)
             let projectMappers = projectMapperFactory.automation(
-                skipUITests: false, skipUnitTests: false, tuist: config)
+                skipUITests: false, skipUnitTests: false, tuist: config
+            )
             let workspaceMapperFactory = WorkspaceMapperFactory(
-                projectMapper: SequentialProjectMapper(mappers: projectMappers))
+                projectMapper: SequentialProjectMapper(mappers: projectMappers)
+            )
             let graphMapperFactory = CacheGraphMapperFactory(contentHasher: contentHasher)
 
             let graphMappers = graphMapperFactory.build(
@@ -413,7 +417,8 @@ public class GeneratorFactory: GeneratorFactorying {
             let projectMappers = projectMapperFactory.default(tuist: config)
             let workspaceMapperFactory =
                 CacheWorkspaceMapperFactory(
-                    projectMapper: SequentialProjectMapper(mappers: projectMappers))
+                    projectMapper: SequentialProjectMapper(mappers: projectMappers)
+                )
             let graphMapperFactory = CacheGraphMapperFactory(contentHasher: contentHasher)
             var graphMappers: [GraphMapping]
             graphMappers = graphMapperFactory.binaryCacheWarmingPreload(
@@ -444,7 +449,8 @@ public class GeneratorFactory: GeneratorFactorying {
             let projectMappers = projectMapperFactory.default(tuist: config)
             let workspaceMapperFactory =
                 CacheWorkspaceMapperFactory(
-                    projectMapper: SequentialProjectMapper(mappers: projectMappers))
+                    projectMapper: SequentialProjectMapper(mappers: projectMappers)
+                )
             let graphMapperFactory = CacheGraphMapperFactory(contentHasher: contentHasher)
 
             var graphMappers: [GraphMapping] = graphMapperFactory.binaryCacheWarming(
@@ -456,7 +462,8 @@ public class GeneratorFactory: GeneratorFactorying {
             graphMappers = graphMappers.filter { !($0 is ExplicitDependencyGraphMapper) }
 
             let workspaceMappers = workspaceMapperFactory.binaryCacheWarming(
-                tuist: config, targets: targetsToBinaryCache)
+                tuist: config, targets: targetsToBinaryCache
+            )
             let manifestLoader = ManifestLoaderFactory().createManifestLoader()
             return Generator(
                 manifestLoader: manifestLoader,
@@ -470,7 +477,8 @@ public class GeneratorFactory: GeneratorFactorying {
 
         func defaultGenerator(config: Tuist, includedTargets: Set<TargetQuery>) -> Generating {
             TuistKit.GeneratorFactory().defaultGenerator(
-                config: config, includedTargets: includedTargets)
+                config: config, includedTargets: includedTargets
+            )
         }
     }
 
