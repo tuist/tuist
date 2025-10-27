@@ -18,6 +18,41 @@ struct TuistCacheEEAcceptanceTests {
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
         .withMockedNoora,
         .withMockedLogger(forwardLogs: true),
+        .withFixture("generated_ios_app_with_testing_dependencies")
+    ) func generated_ios_app_with_testing_dependencies() async throws {
+        // Given
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        try await TuistTest.run(InstallCommand.self, ["--path", fixtureDirectory.pathString])
+        let xcodeprojPath = fixtureDirectory.appending(component: "App.xcodeproj")
+
+        // When: Cache the binaries
+        try await TuistTest.run(
+            CacheCommand.self,
+            ["--path", fixtureDirectory.pathString]
+        )
+
+        // When: Generate with a focuson the App
+        try await TuistTest.run(GenerateCommand.self, ["--no-open", "--path", fixtureDirectory.pathString])
+
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+
+        let arguments = [
+            "-scheme", "App",
+            "-destination", "platform=macOS",
+            "-project", xcodeprojPath.pathString,
+            "-derivedDataPath", temporaryDirectory.pathString,
+            "CODE_SIGN_IDENTITY=",
+            "CODE_SIGNING_REQUIRED=NO",
+            "CODE_SIGNING_ALLOWED=NO",
+        ]
+        try await TuistTest.run(XcodeBuildTestCommand.self, arguments)
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(inheritingVariables: ["PATH"]),
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true),
         .withFixture("framework_with_native_swift_macro")
     ) func framework_with_native_swift_macro() async throws {
         // Given
