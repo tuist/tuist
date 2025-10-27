@@ -30,7 +30,7 @@ defmodule CacheWeb.KeyValueController do
   def put_value(conn, %{"account_handle" => account_handle, "project_handle" => project_handle}) do
     case Authentication.ensure_project_accessible(conn, account_handle, project_handle) do
       {:ok, _auth_header} ->
-        %{"cas_id" => cas_id, "values" => values} = conn.body_params
+        %{cas_id: cas_id, entries: entries} = conn.body_params
         values = Enum.map(entries, fn entry -> entry.value end)
         :ok = KeyValueStore.put_key_value(cas_id, account_handle, project_handle, values)
 
