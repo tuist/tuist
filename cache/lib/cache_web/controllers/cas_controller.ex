@@ -39,6 +39,15 @@ defmodule CacheWeb.CASController do
     "#{account_handle}/#{project_handle}/cas/#{id}"
   end
 
+    defp stream_data(conn, stream) do
+    Enum.reduce_while(stream, conn, fn chunk, conn ->
+      case chunk(conn, chunk) do
+        {:ok, conn} -> {:cont, conn}
+        {:error, :closed} -> {:halt, conn}
+      end
+    end)
+  end
+
   def save(conn, %{"id" => id, "account_handle" => account_handle, "project_handle" => project_handle}) do
     case Authentication.ensure_project_accessible(conn, account_handle, project_handle) do
       {:ok, _auth_header} ->

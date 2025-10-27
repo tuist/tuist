@@ -27,20 +27,14 @@ defmodule CacheWeb.KeyValueController do
     end
   end
 
-  def put_value(conn, %{"account_handle" => account_handle, "project_handle" => project_handle, "cas_id" => cas_id}) do
+  def put_value(conn, %{"account_handle" => account_handle, "project_handle" => project_handle}) do
     case Authentication.ensure_project_accessible(conn, account_handle, project_handle) do
       {:ok, _auth_header} ->
-        values = Enum.map(entries, fn entry -> entry["value"] end)
+        %{"cas_id" => cas_id, "values" => values} = conn.body_params
+        values = Enum.map(entries, fn entry -> entry.value end)
+        :ok = KeyValueStore.put_key_value(cas_id, account_handle, project_handle, values)
 
-        case KeyValueStore.put_key_value(cas_id, account_handle, project_handle, values) do
-          :ok ->
-            send_resp(conn, :no_content, "")
-
-          {:error, _} ->
-            conn
-            |> put_status(:internal_server_error)
-            |> json(%{message: "Failed to store values"})
-        end
+        send_resp(conn, :no_content, "")
 
       {:error, status, message} ->
         conn
