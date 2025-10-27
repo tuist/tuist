@@ -56,6 +56,7 @@ public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.Si
         context _: GRPCCore.ServerContext
     ) async throws -> CompilationCacheService_Keyvalue_V1_GetValueResponse {
         let casID = converKeyToCasID(request.key)
+        print(request.key)
 
         var response = CompilationCacheService_Keyvalue_V1_GetValueResponse()
 

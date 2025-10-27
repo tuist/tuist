@@ -105,6 +105,23 @@ struct XCActivityLogControllerTests {
         // Then
         #expect(result == nil)
     }
+    
+    @Test func parseBuildXCActivityLogWithRemoteHits() async throws {
+        // Given
+        let buildXCActivityLogWithRemoteHits = try AbsolutePath(validating: #file).parentDirectory
+            .appending(try RelativePath(validating: "../../Fixtures/build-with-remote-hits.xcactivitylog"))
+
+        // When
+        let got = try await subject.parse(buildXCActivityLogWithRemoteHits)
+        
+        // Then
+        let swiftCacheTasks = got.cacheableTasks.filter { $0.type == .swift }
+        let remoteHits = swiftCacheTasks.filter { $0.status == .remoteHit }
+        let misses = swiftCacheTasks.filter { $0.status == .miss }
+        
+        #expect(remoteHits.count == 56)
+        #expect(misses.count == 4)
+    }
 
     @Test(.inTemporaryDirectory)
     func mostRecentActivityLogFile_returnsMostRecentLog_whenMultipleLogsExist() async throws {

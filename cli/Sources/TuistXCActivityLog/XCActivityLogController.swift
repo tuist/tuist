@@ -114,6 +114,7 @@ public struct XCActivityLogController: XCActivityLogControlling {
         return buildSteps.flatMap { step in
             var flattened = [step]
             if !step.subSteps.isEmpty {
+                print("Set of steps for \(step.title): \(step.subSteps.map(\.title))")
                 flattened.append(contentsOf: flattenedXCLogParserBuildStep(step.subSteps))
             }
             return flattened
@@ -191,6 +192,11 @@ public struct XCActivityLogController: XCActivityLogControlling {
 
             return errors.filter { $0.severity == 2 }.count + acc
         }
+        
+        let cacheableTasks = try await analyzeCacheableTasks(
+            activityLog: activityLog,
+            projectDerivedDataDirectory: path.removingLastComponent()
+        )
 
         return XCActivityLog(
             version: activityLog.version,
@@ -215,7 +221,8 @@ public struct XCActivityLogController: XCActivityLogControlling {
                     status: targetSteps
                         .contains(where: { ($0.errors ?? []).contains(where: { $0.severity == 2 }) }) ? .failure : .success
                 )
-            }
+            },
+            cacheableTasks: cacheableTasks
         )
     }
 
@@ -238,7 +245,15 @@ public struct XCActivityLogController: XCActivityLogControlling {
         let derivedDataDirectory = try await Environment.current.derivedDataDirectory()
         return try await steps
             .filter { $0.type == .detail }
-            .concurrentCompactMap { step -> XCActivityBuildFile? in
+            .serialCompactMap { step -> XCActivityBuildFile? in
+                print("----")
+                print(step.title)
+                print(step.fetchedFromCache)
+                print(step.notes)
+                print(step.signature)
+                print(step.buildIdentifier)
+                print(step.domain)
+                print(step.detailStepType)
                 let type: XCActivityBuildFileType
                 switch step.detailStepType {
                 case .swiftCompilation:
@@ -444,6 +459,101 @@ public struct XCActivityLogController: XCActivityLogControlling {
         } else {
             return nil
         }
+    }
+    
+    private func analyzeCacheableTasks(
+        activityLog: XCLogParser.IDEActivityLog,
+        projectDerivedDataDirectory: AbsolutePath
+    ) async throws -> [CacheableTask] {
+        var cacheableTasks: [CacheableTask] = []
+        var keyStatuses: [String: (taskType: CacheableTask.TaskType, hasQuery: Bool, hasMaterialize: Bool, hasUpload: Bool)] = [:]
+        
+        // Parse the activity log into build steps
+        let buildStep = try XCLogParser.ParserBuildSteps(
+            omitWarningsDetails: true,
+            omitNotesDetails: true,
+            truncLargeIssues: false
+        )
+        .parse(activityLog: activityLog)
+        
+        // Get all flattened steps
+        let allSteps = flattenedXCLogParserBuildStep([buildStep])
+        
+        // Analyze each step for cache operations
+        for step in allSteps {
+            if step.title.contains("Swift caching") || step.title.contains("Clang caching") {
+                let isSwift = step.title.contains("Swift caching")
+                let taskType: CacheableTask.TaskType = isSwift ? .swift : .clang
+                
+                // Extract key from title
+                // For query/materialize: ["key"]
+                // For upload: just the key without brackets
+                var key: String? = nil
+                
+                if step.title.contains("query key") || step.title.contains("materialize key") {
+                    // Extract key from ["key"] format
+                    if let keyMatch = try? NSRegularExpression(pattern: "\\[\"([^\"]+)\"\\]")
+                        .firstMatch(in: step.title, range: NSRange(location: 0, length: step.title.count)) {
+                        let keyRange = Range(keyMatch.range(at: 1), in: step.title)!
+                        key = String(step.title[keyRange])
+                    }
+                } else if step.title.contains("upload key") {
+                    // Extract key after "upload key " (no brackets)
+                    let pattern = "upload key ([^\\s]+)"
+                    if let keyMatch = try? NSRegularExpression(pattern: pattern)
+                        .firstMatch(in: step.title, range: NSRange(location: 0, length: step.title.count)) {
+                        let keyRange = Range(keyMatch.range(at: 1), in: step.title)!
+                        key = String(step.title[keyRange])
+                    }
+                }
+                
+                if let key = key {
+                    var status = keyStatuses[key] ?? (taskType, false, false, false)
+                    status.taskType = taskType
+                    
+                    if step.title.contains("query key") {
+                        status.hasQuery = true
+                    } else if step.title.contains("materialize key") {
+                        status.hasMaterialize = true
+                    } else if step.title.contains("upload key") {
+                        status.hasUpload = true
+                    }
+                    
+                    keyStatuses[key] = status
+                }
+            }
+        }
+        
+        // Check if we need to verify local cache for ambiguous cases
+        let compilationCachePath = projectDerivedDataDirectory.appending(component: "CompilationCache.noindex")
+        
+        // Determine cache status for each key
+        for (key, status) in keyStatuses {
+            let cacheStatus: CacheableTask.CacheStatus
+            
+            if status.hasUpload {
+                // If there's an upload, it's definitely a miss
+                cacheStatus = .miss
+            } else if status.hasQuery && !status.hasMaterialize {
+                // Query without materialize is a local hit
+                cacheStatus = .localHit
+            } else if status.hasQuery && status.hasMaterialize {
+                // Query with materialize and no upload means it was a remote hit
+                // (if there was no remote hit, it would have been uploaded)
+                cacheStatus = .remoteHit
+            } else {
+                // Shouldn't happen, but default to miss
+                continue
+            }
+            
+            cacheableTasks.append(CacheableTask(
+                key: key,
+                status: cacheStatus,
+                type: status.taskType
+            ))
+        }
+        
+        return cacheableTasks
     }
 }
 
