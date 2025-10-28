@@ -58,11 +58,11 @@ Binary caching is a feature designed for development workflows such as running t
 
 Only the following target products are cacheable by Tuist:
 
-- Frameworks (static and dynamic) that don't depend on [XCTest](https://developer.apple.com/documentation/xctest)
+- Frameworks (static and dynamic)
 - Bundles
 - Swift Macros
 
-We are working on supporting libraries and targets that depend on XCTest.
+We are working on supporting libraries.
 
 ::: info UPSTREAM DEPENDENCIES
 <!-- -->

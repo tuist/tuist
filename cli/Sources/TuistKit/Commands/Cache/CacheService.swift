@@ -597,7 +597,7 @@ final class EmptyCacheService: CacheServicing {
                         .destination("platform=macOS,variant=Mac Catalyst"),
                         .xcarg("SKIP_INSTALL", "NO"),
                         .xcarg("DEBUG_INFORMATION_FORMAT", "dwarf-with-dsym"),
-                        .xcarg("ONLY_ACTIVE_ARCH", "NO"),
+                        .xcarg("ONLY_ACTIVE_ARCH", "YES"),
                         .xcarg("CODE_SIGN_IDENTITY", ""),
                         .xcarg("CODE_SIGN_ENTITLEMENTS", ""),
                         .xcarg("CODE_SIGNING_ALLOWED", "NO"),
