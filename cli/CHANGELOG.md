@@ -1,6 +1,17 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.91.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* Default to no concurrency limit when doing cache uploads and downloads by [@pepicrft](https://github.com/pepicrft) in [#8527](https://github.com/tuist/tuist/pull/8527)
+### 🐛 Bug Fixes
+
+* Bundle accessor not being generated for txt, js or json resources by [@natanrolnik](https://github.com/natanrolnik) in [#8532](https://github.com/tuist/tuist/pull/8532)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.90.0...4.91.0
+
 ## What's Changed in 4.90.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
