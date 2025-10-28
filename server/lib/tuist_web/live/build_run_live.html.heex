@@ -64,6 +64,12 @@
       selected={@selected_tab == "errors"}
       patch={"?#{Query.put(@uri.query, "tab", "errors")}"}
     />
+    <.tab_menu_horizontal_item
+      :if={@run.cacheable_tasks_count > 0}
+      label={gettext("Compilation optimizations")}
+      selected={@selected_tab == "compilation-optimizations"}
+      patch={"?#{Query.put(@uri.query, "tab", "compilation-optimizations")}"}
+    />
   </.tab_menu_horizontal>
   <%= if @selected_tab == "overview" do %>
     <.card title={gettext("Build Details")} icon="chart_arcs" data-part="build-details">
@@ -573,6 +579,91 @@
           <span data-part="title">{gettext("No errors detected")}</span>
           <span data-part="subtitle">{gettext("Looks like you're having a great day!")}</span>
         </div>
+      </.card_section>
+    </.card>
+  <% end %>
+  <%= if @selected_tab == "compilation-optimizations" do %>
+    <.card
+      title={gettext("Compilation Optimizations")}
+      icon="chart_arcs"
+      data-part="compilation-optimizations-card"
+    >
+      <.card_section data-part="compilation-optimizations-summary">
+        <div data-part="summary-grid">
+          <div data-part="summary-item">
+            <div data-part="summary-title">{gettext("Total cacheable tasks")}</div>
+            <div data-part="summary-value">{@run.cacheable_tasks_count}</div>
+          </div>
+          <div data-part="summary-item">
+            <div data-part="summary-title">{gettext("Remote cache hits")}</div>
+            <div data-part="summary-value">{@run.cacheable_task_remote_hits_count}</div>
+          </div>
+          <div data-part="summary-item">
+            <div data-part="summary-title">{gettext("Local cache hits")}</div>
+            <div data-part="summary-value">{@run.cacheable_task_local_hits_count}</div>
+          </div>
+          <div data-part="summary-item">
+            <div data-part="summary-title">{gettext("Cache misses")}</div>
+            <div data-part="summary-value">
+              {@run.cacheable_tasks_count - @run.cacheable_task_remote_hits_count -
+                @run.cacheable_task_local_hits_count}
+            </div>
+          </div>
+        </div>
+      </.card_section>
+      <.card_section data-part="cacheable-tasks-section">
+        <div data-part="filters">
+          <.form for={%{}} phx-change="search-cacheable-tasks" phx-debounce="200">
+            <.text_input
+              type="search"
+              id="search-cacheable-tasks"
+              name="search"
+              placeholder={gettext("Search...")}
+              show_suffix={false}
+              data-part="search"
+              value={@cacheable_tasks_search}
+            />
+          </.form>
+        </div>
+        <.table id="cacheable-tasks-table" rows={@cacheable_tasks}>
+          <:col :let={task} label={gettext("Type")}>
+            <.badge
+              label={task.type |> String.capitalize()}
+              color={if task.type == "swift", do: "warning", else: "information"}
+              style="light-fill"
+            />
+          </:col>
+          <:col :let={task} label={gettext("Status")}>
+            <%= case task.status do %>
+              <% "hit_local" -> %>
+                <.status_badge_cell label={gettext("Local Hit")} status="success" />
+              <% "hit_remote" -> %>
+                <.status_badge_cell label={gettext("Remote Hit")} status="success" />
+              <% "miss" -> %>
+                <.status_badge_cell label={gettext("Miss")} status="warning" />
+            <% end %>
+          </:col>
+          <:col :let={task} label={gettext("Key")}>
+            <.text_cell label={task.key} />
+          </:col>
+          <:empty_state>
+            <.table_empty_state
+              icon="chart_arcs"
+              title={gettext("No cacheable tasks found")}
+              subtitle={gettext("Cacheable tasks will appear here when using Tuist cache")}
+            />
+          </:empty_state>
+        </.table>
+        <.pagination_group
+          :if={@cacheable_tasks_meta.total_pages > 1}
+          current_page={@cacheable_tasks_page}
+          number_of_pages={@cacheable_tasks_meta.total_pages}
+          page_patch={
+            fn page ->
+              "?#{Query.put(@uri.query, "cacheable-tasks-page", page)}"
+            end
+          }
+        />
       </.card_section>
     </.card>
   <% end %>

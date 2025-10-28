@@ -155,4 +155,63 @@ defmodule TuistWeb.BuildRunLiveTest do
     # Then
     refute has_element?(lv, "a", "CI Run")
   end
+
+  test "shows compilation optimizations tab when build has cacheable tasks", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    # Given
+    cacheable_tasks = [
+      %{type: :swift, status: :hit_remote, key: "cache-key-1"},
+      %{type: :clang, status: :hit_local, key: "cache-key-2"},
+      %{type: :swift, status: :miss, key: "cache-key-3"}
+    ]
+
+    {:ok, build_run} =
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        scheme: "App",
+        cacheable_tasks: cacheable_tasks
+      )
+
+    # When
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/builds/build-runs/#{build_run.id}")
+
+    # Then
+    assert has_element?(lv, "a", "Compilation optimizations")
+
+    # When clicking on the compilation optimizations tab
+    lv |> element("a", "Compilation optimizations") |> render_click()
+
+    # Then it should show the summary statistics
+    assert has_element?(lv, "[data-part='summary-title']", "Total cacheable tasks")
+    assert has_element?(lv, "[data-part='summary-value']", "3")
+    assert has_element?(lv, "[data-part='summary-title']", "Remote cache hits")
+    assert has_element?(lv, "[data-part='summary-value']", "1")
+    assert has_element?(lv, "[data-part='summary-title']", "Local cache hits")
+    assert has_element?(lv, "[data-part='summary-value']", "1")
+    assert has_element?(lv, "[data-part='summary-title']", "Cache misses")
+    assert has_element?(lv, "[data-part='summary-value']", "1")
+  end
+
+  test "hides compilation optimizations tab when build has no cacheable tasks", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    # Given
+    {:ok, build_run} =
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        scheme: "App",
+        cacheable_tasks: []
+      )
+
+    # When
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/builds/build-runs/#{build_run.id}")
+
+    # Then
+    refute has_element?(lv, "a", "Compilation optimizations")
+  end
 end

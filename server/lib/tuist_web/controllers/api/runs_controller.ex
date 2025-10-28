@@ -434,6 +434,30 @@ defmodule TuistWeb.API.RunsController do
                      :status
                    ]
                  }
+               },
+               cacheable_tasks: %Schema{
+                 type: :array,
+                 description: "Cacheable tasks associated with the build run.",
+                 items: %Schema{
+                   type: :object,
+                   properties: %{
+                     type: %Schema{
+                       type: :string,
+                       description: "The type of cacheable task.",
+                       enum: [:clang, :swift]
+                     },
+                     status: %Schema{
+                       type: :string,
+                       description: "The cache status of the task.",
+                       enum: [:hit_local, :hit_remote, :miss]
+                     },
+                     key: %Schema{
+                       type: :string,
+                       description: "The cache key of the task."
+                     }
+                   },
+                   required: [:type, :status, :key]
+                 }
                }
              },
              required: [
@@ -522,7 +546,8 @@ defmodule TuistWeb.API.RunsController do
           ci_provider: Map.get(params, :ci_provider),
           issues: Map.get(params, :issues, []),
           files: Map.get(params, :files, []),
-          targets: Map.get(params, :targets, [])
+          targets: Map.get(params, :targets, []),
+          cacheable_tasks: Map.get(params, :cacheable_tasks, [])
         })
     end
   end

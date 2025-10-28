@@ -591,6 +591,133 @@ defmodule TuistWeb.API.RunsControllerTest do
              }
     end
 
+    test "creates a new build with cacheable tasks and calculates counts correctly", %{conn: conn} do
+      # Given
+      user = AccountsFixtures.user_fixture(preload: [:account], email: "tuist@tuist.io")
+      project = ProjectsFixtures.project_fixture(preload: [:account], account_id: user.account.id)
+
+      # When - randomize order of cacheable tasks
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/projects/#{project.account.name}/#{project.name}/runs",
+          id: UUIDv7.generate(),
+          type: "build",
+          duration: 1000,
+          is_ci: false,
+          cacheable_tasks: [
+            %{
+              type: "clang",
+              status: "hit_remote",
+              key: "cache_key_4"
+            },
+            %{
+              type: "swift",
+              status: "hit_local",
+              key: "cache_key_1"
+            },
+            %{
+              type: "swift",
+              status: "hit_remote",
+              key: "cache_key_5"
+            },
+            %{
+              type: "swift",
+              status: "miss",
+              key: "cache_key_3"
+            },
+            %{
+              type: "clang",
+              status: "hit_local",
+              key: "cache_key_2"
+            }
+          ]
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+      [build] = Tuist.Repo.all(Build)
+
+      # Verify counts are calculated correctly
+      assert build.cacheable_tasks_count == 5
+      assert build.cacheable_task_local_hits_count == 2
+      assert build.cacheable_task_remote_hits_count == 2
+
+      # Verify cacheable tasks are created in ClickHouse
+      {cacheable_tasks, _meta} =
+        Tuist.Runs.list_cacheable_tasks(%{
+          filters: [%{field: :build_run_id, op: :==, value: build.id}],
+          order_by: [:key],
+          order_directions: [:asc]
+        })
+
+      assert length(cacheable_tasks) == 5
+
+      # Compare the whole array after sorting by key
+      expected_tasks = [
+        %{type: "swift", status: "hit_local", key: "cache_key_1", build_run_id: build.id},
+        %{type: "clang", status: "hit_local", key: "cache_key_2", build_run_id: build.id},
+        %{type: "swift", status: "miss", key: "cache_key_3", build_run_id: build.id},
+        %{type: "clang", status: "hit_remote", key: "cache_key_4", build_run_id: build.id},
+        %{type: "swift", status: "hit_remote", key: "cache_key_5", build_run_id: build.id}
+      ]
+
+      actual_tasks = Enum.map(cacheable_tasks, &Map.take(&1, [:type, :status, :key, :build_run_id]))
+
+      assert actual_tasks == expected_tasks
+
+      assert response == %{
+               "id" => build.id,
+               "duration" => 1000,
+               "project_id" => project.id,
+               "url" => url(~p"/#{project.account.name}/#{project.name}/builds/build-runs/#{build.id}")
+             }
+    end
+
+    test "creates a new build with empty cacheable tasks array", %{conn: conn} do
+      # Given
+      user = AccountsFixtures.user_fixture(preload: [:account], email: "tuist@tuist.io")
+      project = ProjectsFixtures.project_fixture(preload: [:account], account_id: user.account.id)
+
+      # When
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/projects/#{project.account.name}/#{project.name}/runs",
+          id: UUIDv7.generate(),
+          type: "build",
+          duration: 1000,
+          is_ci: false,
+          cacheable_tasks: []
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+      [build] = Tuist.Repo.all(Build)
+
+      # Verify counts are 0 for empty array
+      assert build.cacheable_tasks_count == 0
+      assert build.cacheable_task_local_hits_count == 0
+      assert build.cacheable_task_remote_hits_count == 0
+
+      # Verify no cacheable tasks are created in ClickHouse
+      {cacheable_tasks, _meta} =
+        Tuist.Runs.list_cacheable_tasks(%{
+          filters: [%{field: :build_run_id, op: :==, value: build.id}]
+        })
+
+      assert cacheable_tasks == []
+
+      assert response == %{
+               "id" => build.id,
+               "duration" => 1000,
+               "project_id" => project.id,
+               "url" => url(~p"/#{project.account.name}/#{project.name}/builds/build-runs/#{build.id}")
+             }
+    end
+
     test "returns :not_found when project doesn't exist", %{conn: conn} do
       # Given
       user = AccountsFixtures.user_fixture(preload: [:account], email: "tuist@tuist.io")

@@ -25,6 +25,7 @@ Sensitive authentication data (passwords, tokens) are excluded from exports.
 - Cache events and cache action items
 - Test cases and test execution results
 - Build system data (Xcode graphs, projects, targets)
+- Cacheable tasks (Xcode cache analytics: type, status, keys)
 
 ### App Previews & Builds
 - Preview metadata (versions, platforms, git info)
@@ -35,6 +36,7 @@ Sensitive authentication data (passwords, tokens) are excluded from exports.
 - Build performance metrics
 - Build issues and compilation data
 - QA testing logs and results
+- Build runs with cache hit/miss statistics (cacheable_task_remote_hits_count, cacheable_task_local_hits_count, cacheable_tasks_count)
 
 ### Non-Exportable Data
 - Swift package registry data (shared community resources)

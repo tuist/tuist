@@ -57,6 +57,10 @@ defmodule TuistWeb.BuildRunLive do
       |> assign(:file_breakdown_active_filters, [])
       |> assign(:module_breakdown_available_filters, define_module_breakdown_filters())
       |> assign(:module_breakdown_active_filters, [])
+      |> assign(:cacheable_tasks_search, "")
+      |> assign(:cacheable_tasks, [])
+      |> assign(:cacheable_tasks_page, 1)
+      |> assign(:cacheable_tasks_meta, %{total_pages: 1})
       |> assign_async(:has_result_bundle, fn ->
         {:ok, %{has_result_bundle: (command_event && CommandEvents.has_result_bundle?(command_event)) || false}}
       end)
@@ -101,6 +105,7 @@ defmodule TuistWeb.BuildRunLive do
       |> assign(:active_filters, active_filters)
       |> assign_file_breakdown(params)
       |> assign_module_breakdown(params)
+      |> assign_cacheable_tasks(params)
       |> assign(:selected_breakdown_tab, selected_breakdown_tab)
 
     {
@@ -134,6 +139,21 @@ defmodule TuistWeb.BuildRunLive do
         socket,
         to:
           "/#{selected_account.name}/#{selected_project.name}/builds/build-runs/#{run.id}?#{uri.query |> Query.put("module-breakdown-search", search) |> Query.drop("module-breakdown-page")}"
+      )
+
+    {:noreply, socket}
+  end
+
+  def handle_event(
+        "search-cacheable-tasks",
+        %{"search" => search},
+        %{assigns: %{selected_account: selected_account, selected_project: selected_project, run: run, uri: uri}} = socket
+      ) do
+    socket =
+      push_patch(
+        socket,
+        to:
+          "/#{selected_account.name}/#{selected_project.name}/builds/build-runs/#{run.id}?#{uri.query |> Query.put("cacheable-tasks-search", search) |> Query.drop("cacheable-tasks-page")}"
       )
 
     {:noreply, socket}
@@ -712,6 +732,44 @@ defmodule TuistWeb.BuildRunLive do
         value: nil
       }
     ]
+  end
+
+  defp assign_cacheable_tasks(%{assigns: %{run: run}} = socket, params) do
+    cacheable_tasks_search = params["cacheable-tasks-search"] || ""
+
+    cacheable_tasks_page =
+      params["cacheable-tasks-page"]
+      |> to_string()
+      |> Integer.parse()
+      |> case do
+        {int, _} -> int
+        :error -> 1
+      end
+
+    flop_filters = [
+      %{field: :build_run_id, op: :==, value: run.id}
+    ]
+
+    flop_filters =
+      if cacheable_tasks_search && cacheable_tasks_search != "" do
+        flop_filters ++ [%{field: :key, op: :like, value: cacheable_tasks_search}]
+      else
+        flop_filters
+      end
+
+    options = %{
+      filters: flop_filters,
+      page: cacheable_tasks_page,
+      page_size: 50
+    }
+
+    {tasks, tasks_meta} = Runs.list_cacheable_tasks(options)
+
+    socket
+    |> assign(:cacheable_tasks_search, cacheable_tasks_search)
+    |> assign(:cacheable_tasks, tasks)
+    |> assign(:cacheable_tasks_page, cacheable_tasks_page)
+    |> assign(:cacheable_tasks_meta, tasks_meta)
   end
 
   def empty_tab_state_background(assigns) do
