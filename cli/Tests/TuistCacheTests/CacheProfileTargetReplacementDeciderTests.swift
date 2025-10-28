@@ -5,9 +5,9 @@ import XcodeGraph
 
 struct CacheProfileTargetReplacementDeciderTests {
     @Test func allPossible_without_exceptions_replaces_everything() {
-        let profile = TuistGeneratedProjectOptions.CacheProfile(
+        let profile = TuistCore.CacheProfile(
             base: .allPossible,
-            targets: []
+            targetQueries: []
         )
         let decider = CacheProfileTargetReplacementDecider(profile: profile, exceptions: [])
 
@@ -16,9 +16,9 @@ struct CacheProfileTargetReplacementDeciderTests {
     }
 
     @Test func allPossible_with_name_exception_does_not_replace_that_name() {
-        let profile = TuistGeneratedProjectOptions.CacheProfile(
+        let profile = TuistCore.CacheProfile(
             base: .allPossible,
-            targets: []
+            targetQueries: []
         )
         let decider = CacheProfileTargetReplacementDecider(profile: profile, exceptions: ["DoNotReplace"])
 
@@ -27,9 +27,9 @@ struct CacheProfileTargetReplacementDeciderTests {
     }
 
     @Test func allPossible_with_tag_exception_does_not_replace_matching_tag() {
-        let profile = TuistGeneratedProjectOptions.CacheProfile(
+        let profile = TuistCore.CacheProfile(
             base: .allPossible,
-            targets: []
+            targetQueries: []
         )
         let decider = CacheProfileTargetReplacementDecider(profile: profile, exceptions: ["tag:DoNotReplace"])
 
@@ -39,9 +39,9 @@ struct CacheProfileTargetReplacementDeciderTests {
     }
 
     @Test func onlyExternal_replaces_external_and_specific_internals() {
-        let profile = TuistGeneratedProjectOptions.CacheProfile(
+        let profile = TuistCore.CacheProfile(
             base: .onlyExternal,
-            targets: ["A", "tag:cacheable"]
+            targetQueries: ["A", "tag:cacheable"]
         )
         let decider = CacheProfileTargetReplacementDecider(profile: profile, exceptions: [])
 
@@ -55,9 +55,9 @@ struct CacheProfileTargetReplacementDeciderTests {
     }
 
     @Test func none_replaces_only_specific_internal_targets() {
-        let profile = TuistGeneratedProjectOptions.CacheProfile(
+        let profile = TuistCore.CacheProfile(
             base: .none,
-            targets: ["A", "tag:cacheable"]
+            targetQueries: ["A", "tag:cacheable"]
         )
         let decider = CacheProfileTargetReplacementDecider(profile: profile, exceptions: [])
 
@@ -67,9 +67,9 @@ struct CacheProfileTargetReplacementDeciderTests {
     }
 
     @Test func onlyExternal_with_no_targets_does_not_replace_internals() {
-        let profile = TuistGeneratedProjectOptions.CacheProfile(
+        let profile = TuistCore.CacheProfile(
             base: .onlyExternal,
-            targets: []
+            targetQueries: []
         )
         let decider = CacheProfileTargetReplacementDecider(profile: profile, exceptions: [])
 
@@ -79,9 +79,9 @@ struct CacheProfileTargetReplacementDeciderTests {
     }
 
     @Test func onlyExternal_allowed_by_name_but_excepted_by_name_not_replaced() {
-        let profile = TuistGeneratedProjectOptions.CacheProfile(
+        let profile = TuistCore.CacheProfile(
             base: .onlyExternal,
-            targets: ["A"]
+            targetQueries: ["A"]
         )
         let decider = CacheProfileTargetReplacementDecider(profile: profile, exceptions: ["A"])
 
@@ -89,9 +89,9 @@ struct CacheProfileTargetReplacementDeciderTests {
     }
 
     @Test func onlyExternal_allowed_by_tag_but_excepted_by_tag_not_replaced() {
-        let profile = TuistGeneratedProjectOptions.CacheProfile(
+        let profile = TuistCore.CacheProfile(
             base: .onlyExternal,
-            targets: ["tag:cacheable"]
+            targetQueries: ["tag:cacheable"]
         )
         let decider = CacheProfileTargetReplacementDecider(profile: profile, exceptions: ["tag:cacheable"])
 
@@ -99,9 +99,9 @@ struct CacheProfileTargetReplacementDeciderTests {
     }
 
     @Test func onlyExternal_externals_ignored_by_exceptions_still_replaced() {
-        let profile = TuistGeneratedProjectOptions.CacheProfile(
+        let profile = TuistCore.CacheProfile(
             base: .onlyExternal,
-            targets: ["A", "tag:cacheable"]
+            targetQueries: ["A", "tag:cacheable"]
         )
         let decider = CacheProfileTargetReplacementDecider(profile: profile, exceptions: ["A", "tag:cacheable"])
 
@@ -110,9 +110,9 @@ struct CacheProfileTargetReplacementDeciderTests {
     }
 
     @Test func none_allowed_by_name_but_excepted_by_name_not_replaced() {
-        let profile = TuistGeneratedProjectOptions.CacheProfile(
+        let profile = TuistCore.CacheProfile(
             base: .none,
-            targets: ["A"]
+            targetQueries: ["A"]
         )
         let decider = CacheProfileTargetReplacementDecider(profile: profile, exceptions: ["A"])
 
@@ -120,9 +120,9 @@ struct CacheProfileTargetReplacementDeciderTests {
     }
 
     @Test func none_allowed_by_tag_but_excepted_by_tag_not_replaced() {
-        let profile = TuistGeneratedProjectOptions.CacheProfile(
+        let profile = TuistCore.CacheProfile(
             base: .none,
-            targets: ["tag:cacheable"]
+            targetQueries: ["tag:cacheable"]
         )
         let decider = CacheProfileTargetReplacementDecider(profile: profile, exceptions: ["tag:cacheable"])
 

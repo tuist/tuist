@@ -25,15 +25,15 @@ extension Tuist {
         ignoreBinaryCache: Bool,
         includedTargets: Set<TargetQuery>,
         cacheProfile: String?
-    ) throws -> TuistGeneratedProjectOptions.CacheProfile {
+    ) throws -> CacheProfile {
         if ignoreBinaryCache {
             Logger.current.debug("Using cache profile none")
-            return .init(base: .none, targets: [])
+            return .init(base: .none, targetQueries: [])
         }
 
         if !includedTargets.isEmpty {
             Logger.current.debug("Using cache profile all-possible")
-            return .init(base: .allPossible, targets: [])
+            return .init(base: .allPossible, targetQueries: [])
         }
 
         let profiles = project.generatedProject?.cacheOptions.profiles
@@ -52,20 +52,20 @@ extension Tuist {
         }
 
         Logger.current.debug("Using cache profile only-external")
-        return .init(base: .onlyExternal, targets: [])
+        return .init(base: .onlyExternal, targetQueries: [])
     }
 
     private func resolveFromProfileType(
-        _ profile: TuistGeneratedProjectOptions.CacheProfileType,
-        profiles: TuistGeneratedProjectOptions.CacheProfiles?
-    ) throws -> TuistGeneratedProjectOptions.CacheProfile {
+        _ profile: CacheProfileType,
+        profiles: CacheProfiles?
+    ) throws -> CacheProfile {
         switch profile {
         case .onlyExternal:
-            return .init(base: .onlyExternal, targets: [])
+            return .init(base: .onlyExternal, targetQueries: [])
         case .allPossible:
-            return .init(base: .allPossible, targets: [])
+            return .init(base: .allPossible, targetQueries: [])
         case .none:
-            return .init(base: .none, targets: [])
+            return .init(base: .none, targetQueries: [])
         case let .custom(name):
             if let custom = profiles?.profileByName[name] {
                 return custom

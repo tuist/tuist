@@ -54,3 +54,10 @@ public struct CacheProfiles: Codable, Equatable, Sendable {
         CacheProfiles(profileByName: profileByName, defaultProfile: defaultProfile)
     }
 }
+
+extension CacheProfiles: ExpressibleByDictionaryLiteral {
+    public init(dictionaryLiteral elements: (String, CacheProfile)...) {
+        self.profileByName = Dictionary(uniqueKeysWithValues: elements)
+        self.defaultProfile = .onlyExternal
+    }
+}

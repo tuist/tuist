@@ -49,11 +49,11 @@ extension TuistCore.TuistGeneratedProjectOptions.InstallOptions {
     }
 }
 
-extension TuistCore.TuistGeneratedProjectOptions.CacheOptions {
+extension TuistCore.CacheOptions {
     static func from(
         manifest: ProjectDescription.Config.CacheOptions
     ) throws -> Self {
-        let profiles = TuistCore.TuistGeneratedProjectOptions.CacheProfiles.from(manifest: manifest.profiles)
+        let profiles = TuistCore.CacheProfiles.from(manifest: manifest.profiles)
         if case let .custom(name) = profiles.defaultProfile, profiles.profileByName[name] == nil {
             throw ConfigManifestMapperError.defaultCacheProfileNotFound(
                 profile: name,
@@ -67,7 +67,7 @@ extension TuistCore.TuistGeneratedProjectOptions.CacheOptions {
     }
 }
 
-extension TuistCore.TuistGeneratedProjectOptions.CacheProfiles {
+extension TuistCore.CacheProfiles {
     static func from(
         manifest: ProjectDescription.CacheProfiles
     ) -> Self {
@@ -78,7 +78,7 @@ extension TuistCore.TuistGeneratedProjectOptions.CacheProfiles {
     }
 }
 
-extension TuistCore.TuistGeneratedProjectOptions.CacheProfile {
+extension TuistCore.CacheProfile {
     static func from(
         manifest: ProjectDescription.CacheProfile
     ) -> Self {
@@ -89,7 +89,7 @@ extension TuistCore.TuistGeneratedProjectOptions.CacheProfile {
     }
 }
 
-extension TuistCore.TuistGeneratedProjectOptions.BaseCacheProfile {
+extension TuistCore.BaseCacheProfile {
     static func from(
         manifest: ProjectDescription.BaseCacheProfile
     ) -> Self {
@@ -101,7 +101,7 @@ extension TuistCore.TuistGeneratedProjectOptions.BaseCacheProfile {
     }
 }
 
-extension TuistCore.TuistGeneratedProjectOptions.CacheProfileType {
+extension TuistCore.CacheProfileType {
     static func from(
         manifest: ProjectDescription.CacheProfileType
     ) -> Self {

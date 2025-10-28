@@ -6,7 +6,7 @@ extension Tuist {
 
         public static func options(
             keepSourceTargets: Bool = false,
-            profiles: CacheProfiles = .profiles()
+            profiles: CacheProfiles = [:]
         ) -> Self {
             self.init(
                 keepSourceTargets: keepSourceTargets,

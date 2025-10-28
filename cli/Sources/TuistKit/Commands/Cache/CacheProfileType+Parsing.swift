@@ -1,6 +1,6 @@
 import TuistCore
 
-extension TuistGeneratedProjectOptions.CacheProfileType {
+extension CacheProfileType {
     static func from(commandLineValue value: String) -> Self {
         switch value {
         case "only-external":

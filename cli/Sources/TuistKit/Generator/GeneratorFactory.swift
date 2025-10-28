@@ -49,7 +49,7 @@ public protocol GeneratorFactorying {
         config: Tuist,
         includedTargets: Set<TargetQuery>,
         configuration: String?,
-        cacheProfile: TuistGeneratedProjectOptions.CacheProfile,
+        cacheProfile: CacheProfile,
         cacheStorage: CacheStoring
     ) -> Generating
 
@@ -63,7 +63,7 @@ public protocol GeneratorFactorying {
     func building(
         config: Tuist,
         configuration: String?,
-        cacheProfile: TuistGeneratedProjectOptions.CacheProfile,
+        cacheProfile: CacheProfile,
         cacheStorage: CacheStoring
     ) -> Generating
 
@@ -133,7 +133,7 @@ public class GeneratorFactory: GeneratorFactorying {
         config: Tuist,
         includedTargets: Set<TargetQuery>,
         configuration _: String?,
-        cacheProfile _: TuistGeneratedProjectOptions.CacheProfile,
+        cacheProfile _: CacheProfile,
         cacheStorage _: CacheStoring
     ) -> Generating {
         defaultGenerator(config: config, includedTargets: includedTargets)
@@ -142,7 +142,7 @@ public class GeneratorFactory: GeneratorFactorying {
     public func building(
         config: Tuist,
         configuration _: String?,
-        cacheProfile _: TuistGeneratedProjectOptions.CacheProfile,
+        cacheProfile _: CacheProfile,
         cacheStorage _: CacheStoring
     ) -> Generating {
         defaultGenerator(config: config, includedTargets: [])
@@ -242,7 +242,7 @@ public class GeneratorFactory: GeneratorFactorying {
             config: Tuist,
             includedTargets: Set<TargetQuery>,
             configuration: String?,
-            cacheProfile: TuistGeneratedProjectOptions.CacheProfile,
+            cacheProfile: CacheProfile,
             cacheStorage: CacheStoring
         ) -> Generating
 
@@ -256,7 +256,7 @@ public class GeneratorFactory: GeneratorFactorying {
         func building(
             config: Tuist,
             configuration: String?,
-            cacheProfile: TuistGeneratedProjectOptions.CacheProfile,
+            cacheProfile: CacheProfile,
             cacheStorage: CacheStoring
         ) -> Generating
 
@@ -296,7 +296,7 @@ public class GeneratorFactory: GeneratorFactorying {
             config: Tuist,
             includedTargets: Set<TargetQuery>,
             configuration: String?,
-            cacheProfile: TuistGeneratedProjectOptions.CacheProfile,
+            cacheProfile: CacheProfile,
             cacheStorage: CacheStoring
         ) -> Generating {
             let contentHasher = ContentHasher()
@@ -377,7 +377,7 @@ public class GeneratorFactory: GeneratorFactorying {
         func building(
             config: Tuist,
             configuration: String?,
-            cacheProfile: TuistGeneratedProjectOptions.CacheProfile,
+            cacheProfile: CacheProfile,
             cacheStorage: CacheStoring
         ) -> Generating {
             let contentHasher = ContentHasher()

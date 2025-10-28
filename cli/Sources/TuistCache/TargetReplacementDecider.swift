@@ -13,18 +13,18 @@ public protocol TargetReplacementDeciding {
 
 /// A decider that chooses to replace targets based on a cache profile.
 struct CacheProfileTargetReplacementDecider: TargetReplacementDeciding {
-    private let base: TuistGeneratedProjectOptions.BaseCacheProfile
+    private let base: BaseCacheProfile
     private let profileTargetNames: Set<String>
     private let profileTargetTags: Set<String>
     private let focusedTargetNames: Set<String>
     private let focusedTargetTags: Set<String>
 
-    init(profile: TuistGeneratedProjectOptions.CacheProfile, exceptions: Set<TargetQuery>) {
+    init(profile: CacheProfile, exceptions: Set<TargetQuery>) {
         base = profile.base
 
         var names = Set<String>()
         var tags = Set<String>()
-        for query in profile.targets {
+        for query in profile.targetQueries {
             switch query {
             case let .named(name):
                 names.insert(name)

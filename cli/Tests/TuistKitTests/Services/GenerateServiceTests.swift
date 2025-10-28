@@ -204,7 +204,7 @@ struct GenerateServiceTests {
                 config: .any,
                 includedTargets: .value(["App"]),
                 configuration: .any,
-                cacheProfile: .matching { $0 == .init(base: .allPossible, targets: []) },
+                cacheProfile: .matching { $0 == .init(base: .allPossible, targetQueries: []) },
                 cacheStorage: .any
             )
             .called(1)
@@ -243,7 +243,7 @@ struct GenerateServiceTests {
                 config: .any,
                 includedTargets: .value([]),
                 configuration: .any,
-                cacheProfile: .matching { $0 == .init(base: .allPossible, targets: []) },
+                cacheProfile: .matching { $0 == .init(base: .allPossible, targetQueries: []) },
                 cacheStorage: .any
             )
             .called(1)
@@ -282,7 +282,7 @@ struct GenerateServiceTests {
                 config: .any,
                 includedTargets: .value([]),
                 configuration: .any,
-                cacheProfile: .matching { $0 == .init(base: .none, targets: []) },
+                cacheProfile: .matching { $0 == .init(base: .none, targetQueries: []) },
                 cacheStorage: .any
             )
             .called(1)
@@ -297,7 +297,7 @@ struct GenerateServiceTests {
                 keepSourceTargets: false,
                 profiles: .init(
                     [
-                        "ci": .init(base: .onlyExternal, targets: ["tag:cacheable"]),
+                        "ci": .init(base: .onlyExternal, targetQueries: ["tag:cacheable"]),
                     ],
                     default: .custom("ci")
                 )
@@ -330,7 +330,7 @@ struct GenerateServiceTests {
                 config: .any,
                 includedTargets: .value([]),
                 configuration: .any,
-                cacheProfile: .matching { $0 == .init(base: .onlyExternal, targets: ["tag:cacheable"]) },
+                cacheProfile: .matching { $0 == .init(base: .onlyExternal, targetQueries: ["tag:cacheable"]) },
                 cacheStorage: .any
             )
             .called(1)

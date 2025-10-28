@@ -17,7 +17,7 @@ struct TuistCacheProfileResolverTests {
         )
 
         // Then
-        #expect(result == .init(base: .allPossible, targets: []))
+        #expect(result == .init(base: .allPossible, targetQueries: []))
     }
 
     @Test func resolves_from_explicit_builtins() throws {
@@ -28,18 +28,18 @@ struct TuistCacheProfileResolverTests {
         #expect(try config
             .resolveCacheProfile(ignoreBinaryCache: false, includedTargets: [], cacheProfile: "only-external") == .init(
                 base: .onlyExternal,
-                targets: []
+                targetQueries: []
             )
         )
         #expect(try config
             .resolveCacheProfile(ignoreBinaryCache: false, includedTargets: [], cacheProfile: "all-possible") == .init(
                 base: .allPossible,
-                targets: []
+                targetQueries: []
             )
         )
         #expect(try config.resolveCacheProfile(ignoreBinaryCache: false, includedTargets: [], cacheProfile: "none") == .init(
             base: .none,
-            targets: []
+            targetQueries: []
         ))
     }
 
@@ -50,7 +50,7 @@ struct TuistCacheProfileResolverTests {
                 keepSourceTargets: false,
                 profiles: .init(
                     [
-                        "development": .init(base: .onlyExternal, targets: ["tag:expensive"]),
+                        "development": .init(base: .onlyExternal, targetQueries: ["tag:expensive"]),
                     ],
                     default: .onlyExternal
                 )
@@ -65,7 +65,7 @@ struct TuistCacheProfileResolverTests {
         )
 
         // Then
-        #expect(result == .init(base: .onlyExternal, targets: ["tag:expensive"]))
+        #expect(result == .init(base: .onlyExternal, targetQueries: ["tag:expensive"]))
     }
 
     @Test func resolves_from_config_default_builtin() throws {
@@ -88,7 +88,7 @@ struct TuistCacheProfileResolverTests {
         )
 
         // Then
-        #expect(result == .init(base: .allPossible, targets: []))
+        #expect(result == .init(base: .allPossible, targetQueries: []))
     }
 
     @Test func resolves_from_config_default_custom() throws {
@@ -98,7 +98,7 @@ struct TuistCacheProfileResolverTests {
                 keepSourceTargets: false,
                 profiles: .init(
                     [
-                        "ci": .init(base: .onlyExternal, targets: ["tag:cacheable"]),
+                        "ci": .init(base: .onlyExternal, targetQueries: ["tag:cacheable"]),
                     ],
                     default: .custom("ci")
                 )
@@ -113,7 +113,7 @@ struct TuistCacheProfileResolverTests {
         )
 
         // Then
-        #expect(result == .init(base: .onlyExternal, targets: ["tag:cacheable"]))
+        #expect(result == .init(base: .onlyExternal, targetQueries: ["tag:cacheable"]))
     }
 
     @Test func throws_when_custom_profile_missing() {
@@ -143,7 +143,7 @@ struct TuistCacheProfileResolverTests {
         )
 
         // Then
-        #expect(result == .init(base: .none, targets: []))
+        #expect(result == .init(base: .none, targetQueries: []))
     }
 
     @Test func falls_back_to_onlyExternal_when_no_explicit_and_no_config_default() throws {
@@ -158,7 +158,7 @@ struct TuistCacheProfileResolverTests {
         )
 
         // Then
-        #expect(result == .init(base: .onlyExternal, targets: []))
+        #expect(result == .init(base: .onlyExternal, targetQueries: []))
     }
 
     @Test func throws_when_config_default_custom_missing() {

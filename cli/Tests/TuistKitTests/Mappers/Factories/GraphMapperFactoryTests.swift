@@ -87,7 +87,7 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
             // When
             let got = subject.generation(
                 config: .test(project: .testGeneratedProject()),
-                cacheProfile: .init(base: .onlyExternal, targets: []),
+                cacheProfile: .init(base: .onlyExternal, targetQueries: []),
                 cacheSources: includedTargets,
                 configuration: "Debug",
                 cacheStorage: cacheStorage
@@ -141,7 +141,7 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
             // When
             let got = subject.generation(
                 config: config,
-                cacheProfile: .init(base: .none, targets: []),
+                cacheProfile: .init(base: .none, targetQueries: []),
                 cacheSources: cacheSources,
                 configuration: "Debug",
                 cacheStorage: cacheStorage
@@ -160,7 +160,7 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
             // When
             let got = subject.generation(
                 config: config,
-                cacheProfile: .init(base: .onlyExternal, targets: []),
+                cacheProfile: .init(base: .onlyExternal, targetQueries: []),
                 cacheSources: cacheSources,
                 configuration: "Debug",
                 cacheStorage: cacheStorage
@@ -185,7 +185,7 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
             // When
             let got = subject.generation(
                 config: config,
-                cacheProfile: .init(base: .onlyExternal, targets: []),
+                cacheProfile: .init(base: .onlyExternal, targetQueries: []),
                 cacheSources: cacheSources,
                 configuration: "Debug",
                 cacheStorage: cacheStorage
@@ -204,7 +204,7 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
             // When
             let got = subject.automation(
                 config: config,
-                cacheProfile: .init(base: .none, targets: []),
+                cacheProfile: .init(base: .none, targetQueries: []),
                 ignoreSelectiveTesting: false,
                 testPlan: nil,
                 includedTargets: [],
@@ -225,7 +225,7 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
             // When
             let got = subject.automation(
                 config: config,
-                cacheProfile: .init(base: .none, targets: []),
+                cacheProfile: .init(base: .none, targetQueries: []),
                 ignoreSelectiveTesting: true,
                 testPlan: nil,
                 includedTargets: [],
@@ -248,7 +248,7 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
             // When
             let got = subject.automation(
                 config: config,
-                cacheProfile: .init(base: .none, targets: []),
+                cacheProfile: .init(base: .none, targetQueries: []),
                 ignoreSelectiveTesting: false,
                 testPlan: nil,
                 includedTargets: [],

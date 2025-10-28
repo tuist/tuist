@@ -55,13 +55,13 @@ struct TuistGeneratedProjectManifestMapperTests {
 
     @Test func from_mapsKeepSourceTargets_true() throws {
         let manifest = ProjectDescription.Config.CacheOptions.options(keepSourceTargets: true)
-        let got = try TuistCore.TuistGeneratedProjectOptions.CacheOptions.from(manifest: manifest)
+        let got = try TuistCore.CacheOptions.from(manifest: manifest)
         #expect(got.keepSourceTargets == true)
     }
 
     @Test func from_mapsKeepSourceTargets_false() throws {
         let manifest = ProjectDescription.Config.CacheOptions.options(keepSourceTargets: false)
-        let got = try TuistCore.TuistGeneratedProjectOptions.CacheOptions.from(manifest: manifest)
+        let got = try TuistCore.CacheOptions.from(manifest: manifest)
         #expect(got.keepSourceTargets == false)
     }
 
@@ -100,7 +100,7 @@ struct TuistGeneratedProjectManifestMapperTests {
 
     @Test func from_mapsEmptyCacheProfiles_with_default_onlyExternal() throws {
         // When
-        let got = TuistCore.TuistGeneratedProjectOptions.CacheProfiles.from(
+        let got = TuistCore.CacheProfiles.from(
             manifest: .profiles(
                 [:],
                 default: .onlyExternal
@@ -114,7 +114,7 @@ struct TuistGeneratedProjectManifestMapperTests {
 
     @Test func from_mapsCacheProfiles_entries_and_custom_default() throws {
         // When
-        let got = TuistCore.TuistGeneratedProjectOptions.CacheProfiles.from(
+        let got = TuistCore.CacheProfiles.from(
             manifest: .profiles(
                 [
                     "development": .profile(
@@ -146,7 +146,7 @@ struct TuistGeneratedProjectManifestMapperTests {
 
     @Test func from_mapsCacheOptions_profiles() throws {
         // When
-        let got = try TuistCore.TuistGeneratedProjectOptions.CacheOptions.from(
+        let got = try TuistCore.CacheOptions.from(
             manifest: .options(
                 keepSourceTargets: false,
                 profiles: .profiles(

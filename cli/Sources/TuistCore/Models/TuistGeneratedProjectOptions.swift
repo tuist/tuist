@@ -106,58 +106,6 @@ extension TuistGeneratedProjectOptions {
         }
     }
 
-    public struct CacheOptions: Codable, Equatable, Sendable, Hashable {
-        public var keepSourceTargets: Bool
-        public var profiles: CacheProfiles
-
-        public init(
-            keepSourceTargets: Bool,
-            profiles: CacheProfiles
-        ) {
-            self.keepSourceTargets = keepSourceTargets
-            self.profiles = profiles
-        }
-    }
-
-    public enum CacheProfileType: Codable, Equatable, Sendable, Hashable {
-        case onlyExternal
-        case allPossible
-        case none
-        case custom(String)
-    }
-
-    public enum BaseCacheProfile: Codable, Equatable, Sendable, Hashable {
-        case onlyExternal
-        case allPossible
-        case none
-    }
-
-    public struct CacheProfile: Codable, Equatable, Sendable, Hashable {
-        public let base: BaseCacheProfile
-        public let targetQueries: [TargetQuery]
-
-        public init(
-            base: BaseCacheProfile,
-            targetQueries: [TargetQuery]
-        ) {
-            self.base = base
-            self.targetQueries = targetQueries
-        }
-    }
-
-    public struct CacheProfiles: Codable, Equatable, Sendable, Hashable {
-        public let profileByName: [String: CacheProfile]
-        public let defaultProfile: CacheProfileType
-
-        public init(
-            _ profileByName: [String: CacheProfile],
-            default defaultProfile: CacheProfileType
-        ) {
-            self.profileByName = profileByName
-            self.defaultProfile = defaultProfile
-        }
-    }
-
     public struct InstallOptions: Codable, Equatable, Sendable, Hashable {
         public var passthroughSwiftPackageManagerArguments: [String]
 
@@ -251,18 +199,6 @@ extension TuistGeneratedProjectOptions {
         ) -> Self {
             .init(
                 passthroughSwiftPackageManagerArguments: passthroughSwiftPackageManagerArguments
-            )
-        }
-    }
-
-    extension TuistGeneratedProjectOptions.CacheOptions {
-        public static func test(
-            keepSourceTargets: Bool = false,
-            profiles: TuistGeneratedProjectOptions.CacheProfiles = .init([:], default: .onlyExternal)
-        ) -> Self {
-            .init(
-                keepSourceTargets: keepSourceTargets,
-                profiles: profiles
             )
         }
     }

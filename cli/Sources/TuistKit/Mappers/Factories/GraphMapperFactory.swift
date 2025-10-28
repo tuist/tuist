@@ -151,7 +151,7 @@ public final class GraphMapperFactory: GraphMapperFactorying {
                 let focusTargetsGraphMapper = TargetsToCacheBinariesGraphMapper(
                     config: config,
                     decider: CacheProfileTargetReplacementDecider(
-                        profile: .init(base: .allPossible, targets: []),
+                        profile: .init(base: .allPossible, targetQueries: []),
                         exceptions: includedTargets
                     ),
                     configuration: configuration,
@@ -176,7 +176,7 @@ public final class GraphMapperFactory: GraphMapperFactorying {
 
         func build(
             config: Tuist,
-            cacheProfile: TuistGeneratedProjectOptions.CacheProfile,
+            cacheProfile: CacheProfile,
             configuration: String?,
             cacheStorage: CacheStoring
         ) -> [GraphMapping] {
@@ -222,7 +222,7 @@ public final class GraphMapperFactory: GraphMapperFactorying {
 
         func generation(
             config: Tuist,
-            cacheProfile _: TuistGeneratedProjectOptions.CacheProfile,
+            cacheProfile _: CacheProfile,
             cacheSources: Set<TargetQuery>,
             configuration: String?,
             cacheStorage: CacheStoring
@@ -300,7 +300,7 @@ public final class GraphMapperFactory: GraphMapperFactorying {
             let focusTargetsGraphMapper = TargetsToCacheBinariesGraphMapper(
                 config: config,
                 decider: CacheProfileTargetReplacementDecider(
-                    profile: .init(base: .allPossible, targets: []),
+                    profile: .init(base: .allPossible, targetQueries: []),
                     exceptions: cacheSources
                 ),
                 configuration: configuration,
