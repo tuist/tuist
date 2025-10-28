@@ -174,7 +174,7 @@ generate_cache_key = fn _build_id, _task_type, _index ->
             Enum.random(?a..?z),
             Enum.random(?0..?9)
           ])
-        
+
         # 15% special base64 characters
         _ ->
           Enum.random([?+, ?/, ?=, ?_, ?-])
