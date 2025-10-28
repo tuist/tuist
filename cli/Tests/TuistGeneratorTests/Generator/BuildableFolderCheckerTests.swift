@@ -36,17 +36,19 @@ struct BuildableFolderCheckerTests {
     }
 
     @Test(.inTemporaryDirectory) func containsResources_when_containsResources() async throws {
-        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        let resourceFilePath = temporaryDirectory.appending(component: "File.xcstrings")
-        try await fileSystem.touch(resourceFilePath)
+        for fileExtension in validResourceExtensions {
+            let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+            let resourceFilePath = temporaryDirectory.appending(component: "File.\(fileExtension)")
+            try await fileSystem.touch(resourceFilePath)
 
-        let got = try await subject.containsResources([BuildableFolder(
-            path: temporaryDirectory,
-            exceptions: BuildableFolderExceptions(exceptions: []),
-            resolvedFiles: [BuildableFolderFile(path: resourceFilePath, compilerFlags: nil)]
-        )])
+            let got = try await subject.containsResources([BuildableFolder(
+                path: temporaryDirectory,
+                exceptions: BuildableFolderExceptions(exceptions: []),
+                resolvedFiles: [BuildableFolderFile(path: resourceFilePath, compilerFlags: nil)]
+            )])
 
-        #expect(got == true)
+            #expect(got == true)
+        }
     }
 
     @Test(.inTemporaryDirectory) func containsResources_when_doesntContainResources() async throws {
@@ -63,3 +65,24 @@ struct BuildableFolderCheckerTests {
         #expect(got == false)
     }
 }
+
+private let validResourceExtensions = [
+    "md",
+    "xcstrings",
+    "plist",
+    "rtf",
+    "tutorial",
+    "sks",
+    "xcprivacy",
+    "gpx",
+    "strings",
+    "stringsdict",
+    "geojson",
+    "storyboard",
+    "xib",
+    "xcfilelist",
+    "xcconfig",
+    "txt",
+    "json",
+    "js"
+]
