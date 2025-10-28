@@ -57,13 +57,13 @@ public protocol GeneratorFactorying {
     /// - Parameters:
     ///     - config: The project configuration.
     ///     - configuration: The configuration to build for.
-    ///     - cacheProfile: Cache profile to use for binary replacement.
+    ///     - ignoreBinaryCache: True to not include binaries from the cache.
     ///     - cacheStorage: The cache storage instance.
     /// - Returns: A Generator instance.
     func building(
         config: Tuist,
         configuration: String?,
-        cacheProfile: CacheProfile,
+        ignoreBinaryCache: Bool,
         cacheStorage: CacheStoring
     ) -> Generating
 
@@ -142,7 +142,7 @@ public class GeneratorFactory: GeneratorFactorying {
     public func building(
         config: Tuist,
         configuration _: String?,
-        cacheProfile _: CacheProfile,
+        ignoreBinaryCache _: Bool,
         cacheStorage _: CacheStoring
     ) -> Generating {
         defaultGenerator(config: config, includedTargets: [])
@@ -250,13 +250,13 @@ public class GeneratorFactory: GeneratorFactorying {
         /// - Parameters:
         ///     - config: The project configuration
         ///     - configuration: The configuration to build for.
-        ///     - cacheProfile: Cache profile to use for binary replacement.
+        ///     - ignoreBinaryCache: True to not include binaries from the cache.
         ///     - cacheStorage: The cache storage instance.
         /// - Returns: A Generator instance
         func building(
             config: Tuist,
             configuration: String?,
-            cacheProfile: CacheProfile,
+            ignoreBinaryCache: Bool,
             cacheStorage: CacheStoring
         ) -> Generating
 
@@ -377,9 +377,14 @@ public class GeneratorFactory: GeneratorFactorying {
         func building(
             config: Tuist,
             configuration: String?,
-            cacheProfile: CacheProfile,
+            ignoreBinaryCache: Bool,
             cacheStorage: CacheStoring
         ) -> Generating {
+            let cacheProfile = try! config.resolveCacheProfile(
+                ignoreBinaryCache: ignoreBinaryCache,
+                includedTargets: [],
+                cacheProfile: nil
+            )
             let contentHasher = ContentHasher()
             let projectMapperFactory = ProjectMapperFactory(contentHasher: contentHasher)
             let projectMappers = projectMapperFactory.automation(

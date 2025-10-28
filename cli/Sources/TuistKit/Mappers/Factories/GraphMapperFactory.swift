@@ -176,7 +176,7 @@ public final class GraphMapperFactory: GraphMapperFactorying {
 
         func build(
             config: Tuist,
-            cacheProfile: CacheProfile,
+            ignoreBinaryCache: Bool,
             configuration: String?,
             cacheStorage: CacheStoring
         ) -> [GraphMapping] {
@@ -188,17 +188,16 @@ public final class GraphMapperFactory: GraphMapperFactorying {
             mappers.append(PruneOrphanExternalTargetsGraphMapper())
             mappers.append(TreeShakePrunedTargetsGraphMapper())
 
-            let focusTargetsGraphMapper = TargetsToCacheBinariesGraphMapper(
-                config: config,
-                decider: CacheProfileTargetReplacementDecider(
-                    profile: cacheProfile,
-                    exceptions: []
-                ),
-                configuration: configuration,
-                cacheStorage: cacheStorage
-            )
-            mappers.append(focusTargetsGraphMapper)
-            mappers.append(TreeShakePrunedTargetsGraphMapper())
+            if !ignoreBinaryCache {
+                let focusTargetsGraphMapper = TargetsToCacheBinariesGraphMapper(
+                    config: config,
+                    decider: ExternalOnlyTargetReplacementDecider(),
+                    configuration: configuration,
+                    cacheStorage: cacheStorage
+                )
+                mappers.append(focusTargetsGraphMapper)
+                mappers.append(TreeShakePrunedTargetsGraphMapper())
+            }
 
             mappers.append(UpdateWorkspaceProjectsGraphMapper())
 
@@ -222,7 +221,7 @@ public final class GraphMapperFactory: GraphMapperFactorying {
 
         func generation(
             config: Tuist,
-            cacheProfile _: CacheProfile,
+            cacheProfile: CacheProfile,
             cacheSources: Set<TargetQuery>,
             configuration: String?,
             cacheStorage: CacheStoring
@@ -240,14 +239,20 @@ public final class GraphMapperFactory: GraphMapperFactorying {
                 mappers.append(TreeShakePrunedTargetsGraphMapper())
             }
 
-            let decider: TargetReplacementDeciding =
-                if cacheSources.isEmpty {
-                    ExternalOnlyTargetReplacementDecider()
-                } else {
-                    AllPossibleTargetReplacementDecider(exceptions: cacheSources)
-                }
+            if cacheProfile.base != .none {
+                let decider: TargetReplacementDeciding =
+                    if cacheSources.isEmpty {
+                        CacheProfileTargetReplacementDecider(
+                            profile: cacheProfile,
+                            exceptions: []
+                        )
+                    } else {
+                        CacheProfileTargetReplacementDecider(
+                            profile: .init(base: .allPossible, targetQueries: []),
+                            exceptions: cacheSources
+                        )
+                    }
 
-            if !ignoreBinaryCache {
                 let focusTargetsGraphMapper = TargetsToCacheBinariesGraphMapper(
                     config: config,
                     decider: decider,

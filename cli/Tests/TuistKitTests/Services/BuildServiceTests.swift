@@ -50,7 +50,7 @@ struct BuildServiceTests {
             .building(
                 config: .any,
                 configuration: .any,
-                cacheProfile: .any,
+                ignoreBinaryCache: .any,
                 cacheStorage: .any
             )
             .willReturn(generator)
@@ -72,164 +72,6 @@ struct BuildServiceTests {
             targetBuilder: targetBuilder,
             configLoader: configLoader
         )
-    }
-
-    @Test func passes_explicit_builtin_profile_to_generator() async throws {
-        try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryDirectory in
-            // Given
-            let workspacePath = temporaryDirectory.appending(component: "App.xcworkspace")
-            let graph = Graph.test()
-            let scheme = Scheme.test()
-            given(configLoader).loadConfig(path: .value(temporaryDirectory)).willReturn(
-                .test(project: .testGeneratedProject())
-            )
-            given(generator)
-                .load(path: .value(temporaryDirectory), options: .any)
-                .willReturn(graph)
-            given(buildGraphInspector)
-                .buildableSchemes(graphTraverser: .any)
-                .willReturn([scheme])
-            given(buildGraphInspector)
-                .buildableTarget(scheme: .value(scheme), graphTraverser: .any)
-                .willReturn(GraphTarget.test(path: Project.test().path, target: Target.test(), project: Project.test()))
-            given(buildGraphInspector)
-                .workspacePath(directory: .value(temporaryDirectory))
-                .willReturn(workspacePath)
-
-            // When
-            try await subject.testRun(
-                schemeName: scheme.name,
-                configuration: nil,
-                ignoreBinaryCache: false,
-                cacheProfile: .allPossible,
-                path: temporaryDirectory
-            )
-
-            // Then
-            verify(generatorFactory)
-                .building(
-                    config: .any,
-                    configuration: .any,
-                    cacheProfile: .matching { $0 == .init(base: .allPossible, targetQueries: []) },
-                    cacheStorage: .any
-                )
-                .called(1)
-        }
-    }
-
-    @Test func passes_none_when_no_binary_cache_flag_to_generator() async throws {
-        try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryDirectory in
-            // Given
-            let workspacePath = temporaryDirectory.appending(component: "App.xcworkspace")
-            let graph = Graph.test()
-            let scheme = Scheme.test()
-            given(configLoader).loadConfig(path: .value(temporaryDirectory)).willReturn(
-                .test(project: .testGeneratedProject())
-            )
-            given(generator)
-                .load(path: .value(temporaryDirectory), options: .any)
-                .willReturn(graph)
-            given(buildGraphInspector)
-                .buildableSchemes(graphTraverser: .any)
-                .willReturn([scheme])
-            given(buildGraphInspector)
-                .buildableTarget(scheme: .value(scheme), graphTraverser: .any)
-                .willReturn(GraphTarget.test(path: Project.test().path, target: Target.test(), project: Project.test()))
-            given(buildGraphInspector)
-                .workspacePath(directory: .value(temporaryDirectory))
-                .willReturn(workspacePath)
-
-            // When
-            try await subject.testRun(
-                schemeName: scheme.name,
-                configuration: nil,
-                ignoreBinaryCache: true,
-                cacheProfile: nil,
-                path: temporaryDirectory
-            )
-
-            // Then
-            verify(generatorFactory)
-                .building(
-                    config: .any,
-                    configuration: .any,
-                    cacheProfile: .matching { $0 == .init(base: .none, targetQueries: []) },
-                    cacheStorage: .any
-                )
-                .called(1)
-        }
-    }
-
-    @Test func passes_config_default_when_no_flag_to_generator() async throws {
-        try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryDirectory in
-            // Given
-            let workspacePath = temporaryDirectory.appending(component: "App.xcworkspace")
-            let graph = Graph.test()
-            let scheme = Scheme.test()
-            let tuist = Tuist.test(project:
-                .generated(.test(cacheOptions: .test(
-                    keepSourceTargets: false,
-                    profiles: .init(
-                        [
-                            "ci": .init(base: .onlyExternal, targetQueries: ["tag:cacheable"]),
-                        ],
-                        default: .custom("ci")
-                    )
-                )))
-            )
-            given(configLoader).loadConfig(path: .value(temporaryDirectory)).willReturn(tuist)
-            given(generator)
-                .load(path: .value(temporaryDirectory), options: .any)
-                .willReturn(graph)
-            given(buildGraphInspector)
-                .buildableSchemes(graphTraverser: .any)
-                .willReturn([scheme])
-            given(buildGraphInspector)
-                .buildableTarget(scheme: .value(scheme), graphTraverser: .any)
-                .willReturn(GraphTarget.test(path: Project.test().path, target: Target.test(), project: Project.test()))
-            given(buildGraphInspector)
-                .workspacePath(directory: .value(temporaryDirectory))
-                .willReturn(workspacePath)
-
-            // When
-            try await subject.testRun(
-                schemeName: scheme.name,
-                configuration: nil,
-                ignoreBinaryCache: false,
-                cacheProfile: nil,
-                path: temporaryDirectory
-            )
-
-            // Then
-            verify(generatorFactory)
-                .building(
-                    config: .any,
-                    configuration: .any,
-                    cacheProfile: .matching { $0 == .init(base: .onlyExternal, targetQueries: ["tag:cacheable"]) },
-                    cacheStorage: .any
-                )
-                .called(1)
-        }
-    }
-
-    @Test func throws_when_explicit_custom_profile_missing() async throws {
-        try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryDirectory in
-            // Given
-            given(configLoader).loadConfig(path: .value(temporaryDirectory)).willReturn(
-                .test(project: .testGeneratedProject())
-            )
-
-            // When / Then
-            await #expect(throws: CacheProfileError.profileNotFound(profile: "missing", available: [])) {
-                try await subject.testRun(
-                    schemeName: nil,
-                    configuration: nil,
-                    ignoreBinaryCache: false,
-                    cacheProfile: .custom("missing"),
-                    path: temporaryDirectory
-                )
-            }
-        }
     }
 
     @Test func throws_an_error_if_the_project_is_not_generated() async throws {
@@ -556,7 +398,6 @@ extension BuildService {
         clean: Bool = true,
         configuration: String? = nil,
         ignoreBinaryCache: Bool = false,
-        cacheProfile: CacheProfileType? = nil,
         buildOutputPath: AbsolutePath? = nil,
         derivedDataPath: String? = nil,
         path: AbsolutePath,
@@ -573,7 +414,6 @@ extension BuildService {
             clean: clean,
             configuration: configuration,
             ignoreBinaryCache: ignoreBinaryCache,
-            cacheProfile: cacheProfile,
             buildOutputPath: buildOutputPath,
             derivedDataPath: derivedDataPath,
             path: path,

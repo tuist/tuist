@@ -1,7 +1,6 @@
 import ArgumentParser
 import Foundation
 import Path
-import TuistCore
 import TuistServer
 import TuistSupport
 import XcodeGraph
@@ -147,13 +146,6 @@ public struct BuildCommand: AsyncParsableCommand, LogConfigurableCommand,
     )
     var binaryCache: Bool = true
 
-    @Option(
-        name: .long,
-        help: "Binary cache profile to use: \(BaseCacheProfile.allCases.map(\.rawValue).joined(separator: ", ")), or a custom profile name",
-        envKey: .buildCacheProfile
-    )
-    var cacheProfile: CacheProfileType?
-
     private var notAllowedPassthroughXcodeBuildArguments = [
         "-scheme",
         "-workspace",
@@ -192,7 +184,6 @@ public struct BuildCommand: AsyncParsableCommand, LogConfigurableCommand,
             clean: buildOptions.clean,
             configuration: buildOptions.configuration,
             ignoreBinaryCache: !binaryCache,
-            cacheProfile: cacheProfile,
             buildOutputPath: buildOptions.buildOutputPath.map {
                 try AbsolutePath(
                     validating: $0,

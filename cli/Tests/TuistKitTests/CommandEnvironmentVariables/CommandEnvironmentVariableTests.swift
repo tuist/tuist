@@ -36,7 +36,6 @@ struct CommandEnvironmentVariableTests {
         setVariable(.buildOptionsDerivedDataPath, value: "/path/to/derivedData")
         setVariable(.buildOptionsGenerateOnly, value: "true")
         setVariable(.buildOptionsPassthroughXcodeBuildArguments, value: "clean,-configuration,Release")
-        setVariable(.buildCacheProfile, value: "ci")
 
         let buildCommandWithEnvVars = try BuildCommand.parse([])
         #expect(buildCommandWithEnvVars.buildOptions.scheme == "Scheme1")
@@ -55,7 +54,6 @@ struct CommandEnvironmentVariableTests {
             buildCommandWithEnvVars.buildOptions.passthroughXcodeBuildArguments ==
                 ["clean", "-configuration", "Release"]
         )
-        #expect(buildCommandWithEnvVars.cacheProfile == .custom("ci"))
 
         let buildCommandWithArgs = try BuildCommand.parse([
             "Scheme2",
@@ -69,7 +67,6 @@ struct CommandEnvironmentVariableTests {
             "--build-output-path", "/new/output",
             "--derived-data-path", "/new/derivedData",
             "--no-generate-only",
-            "--cache-profile", "none",
             "--",
             "-configuration", "Debug",
         ])
@@ -85,7 +82,6 @@ struct CommandEnvironmentVariableTests {
         #expect(buildCommandWithArgs.buildOptions.derivedDataPath == "/new/derivedData")
         #expect(buildCommandWithArgs.buildOptions.generateOnly == false)
         #expect(buildCommandWithArgs.buildOptions.passthroughXcodeBuildArguments == ["-configuration", "Debug"])
-        #expect(buildCommandWithArgs.cacheProfile == .none)
     }
 
     @Test(.withMockedEnvironment()) func cleanCommandUsesEnvVars() throws {
