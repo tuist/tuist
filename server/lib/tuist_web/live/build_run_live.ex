@@ -921,4 +921,47 @@ defmodule TuistWeb.BuildRunLive do
       }
     ]
   end
+
+  def cache_chart_border_radius(local_hits, remote_hits, misses, category) do
+    # Determine which categories have values
+    has_local = local_hits > 0
+    has_remote = remote_hits > 0
+    has_misses = misses > 0
+
+    case category do
+      :local when has_local ->
+        cond do
+          # Local is the only category with values
+          not has_remote and not has_misses -> [6, 6, 6, 6]
+          # Local is leftmost (and there are other categories)
+          true -> [6, 0, 0, 6]
+        end
+
+      :remote when has_remote ->
+        cond do
+          # Remote is the only category with values
+          not has_local and not has_misses -> [6, 6, 6, 6]
+          # Remote is leftmost (no local) and rightmost (no misses)
+          not has_local and not has_misses -> [6, 6, 6, 6]
+          # Remote is leftmost (no local) but not rightmost
+          not has_local and has_misses -> [6, 0, 0, 6]
+          # Remote is rightmost (no misses) but not leftmost
+          has_local and not has_misses -> [0, 6, 6, 0]
+          # Remote is in the middle
+          true -> [0, 0, 0, 0]
+        end
+
+      :misses when has_misses ->
+        cond do
+          # Misses is the only category with values
+          not has_local and not has_remote -> [6, 6, 6, 6]
+          # Misses is rightmost (and there are other categories)
+          true -> [0, 6, 6, 0]
+        end
+
+      _ ->
+        # Category has no values
+        [0, 0, 0, 0]
+    end
+  end
 end

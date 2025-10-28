@@ -699,47 +699,53 @@
                 }
               }
             }
-            series={[
-              %{
-                name: gettext("Local"),
-                type: "bar",
-                stack: "total",
-                emphasis: %{
-                  focus: "series"
+            series={
+              local_hits = @run.cacheable_task_local_hits_count
+              remote_hits = @run.cacheable_task_remote_hits_count
+              misses = @run.cacheable_tasks_count - @run.cacheable_task_remote_hits_count - @run.cacheable_task_local_hits_count
+
+              [
+                %{
+                  name: gettext("Local"),
+                  type: "bar",
+                  stack: "total",
+                  emphasis: %{
+                    focus: "series"
+                  },
+                  data: [local_hits],
+                  color: "var:hits-chart-legend-local",
+                  itemStyle: %{
+                    borderRadius: cache_chart_border_radius(local_hits, remote_hits, misses, :local)
+                  }
                 },
-                data: [@run.cacheable_task_local_hits_count],
-                color: "var:hits-chart-legend-local",
-                itemStyle: %{
-                  borderRadius: [6, 0, 0, 6]
+                %{
+                  name: gettext("Remote"),
+                  type: "bar",
+                  stack: "total",
+                  emphasis: %{
+                    focus: "series"
+                  },
+                  data: [remote_hits],
+                  color: "var:hits-chart-legend-remote",
+                  itemStyle: %{
+                    borderRadius: cache_chart_border_radius(local_hits, remote_hits, misses, :remote)
+                  }
+                },
+                %{
+                  name: gettext("Missed"),
+                  type: "bar",
+                  stack: "total",
+                  emphasis: %{
+                    focus: "series"
+                  },
+                  data: [misses],
+                  color: "var:hits-chart-legend-missed",
+                  itemStyle: %{
+                    borderRadius: cache_chart_border_radius(local_hits, remote_hits, misses, :misses)
+                  }
                 }
-              },
-              %{
-                name: gettext("Remote"),
-                type: "bar",
-                stack: "total",
-                emphasis: %{
-                  focus: "series"
-                },
-                data: [@run.cacheable_task_remote_hits_count],
-                color: "var:hits-chart-legend-remote"
-              },
-              %{
-                name: gettext("Missed"),
-                type: "bar",
-                stack: "total",
-                emphasis: %{
-                  focus: "series"
-                },
-                data: [
-                  @run.cacheable_tasks_count - @run.cacheable_task_remote_hits_count -
-                    @run.cacheable_task_local_hits_count
-                ],
-                color: "var:hits-chart-legend-missed",
-                itemStyle: %{
-                  borderRadius: [0, 6, 6, 0]
-                }
-              }
-            ]}
+              ]
+            }
             x_axis_min={0}
             x_axis_max={@run.cacheable_tasks_count}
           />
