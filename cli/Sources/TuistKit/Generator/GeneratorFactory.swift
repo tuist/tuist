@@ -380,11 +380,6 @@ public class GeneratorFactory: GeneratorFactorying {
             ignoreBinaryCache: Bool,
             cacheStorage: CacheStoring
         ) -> Generating {
-            let cacheProfile = try! config.resolveCacheProfile(
-                ignoreBinaryCache: ignoreBinaryCache,
-                includedTargets: [],
-                cacheProfile: nil
-            )
             let contentHasher = ContentHasher()
             let projectMapperFactory = ProjectMapperFactory(contentHasher: contentHasher)
             let projectMappers = projectMapperFactory.automation(
@@ -397,7 +392,7 @@ public class GeneratorFactory: GeneratorFactorying {
 
             let graphMappers = graphMapperFactory.build(
                 config: config,
-                cacheProfile: cacheProfile,
+                ignoreBinaryCache: ignoreBinaryCache,
                 configuration: configuration,
                 cacheStorage: cacheStorage
             )
