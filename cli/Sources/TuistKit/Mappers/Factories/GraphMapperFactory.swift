@@ -240,22 +240,12 @@ public final class GraphMapperFactory: GraphMapperFactorying {
             }
 
             if cacheProfile != .none {
-                let decider: TargetReplacementDeciding =
-                    if cacheSources.isEmpty {
-                        CacheProfileTargetReplacementDecider(
-                            profile: cacheProfile,
-                            exceptions: []
-                        )
-                    } else {
-                        CacheProfileTargetReplacementDecider(
-                            profile: .allPossible,
-                            exceptions: cacheSources
-                        )
-                    }
-
                 let focusTargetsGraphMapper = TargetsToCacheBinariesGraphMapper(
                     config: config,
-                    decider: decider,
+                    decider: CacheProfileTargetReplacementDecider(
+                        profile: cacheSources.isEmpty ? cacheProfile : .allPossible,
+                        exceptions: cacheSources
+                    ),
                     configuration: configuration,
                     cacheStorage: cacheStorage
                 )
