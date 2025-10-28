@@ -8,7 +8,7 @@ enum CacheProfileError: LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case let .profileNotFound(profile, available):
-            let builtins = "only-external, all-possible, none"
+            let builtins = BaseCacheProfile.allCases.map(\.rawValue).joined(separator: ", ")
             if available.isEmpty {
                 return "Cache profile '\(profile)' not found. Available profiles: \(builtins), or custom profiles defined in profiles."
             } else {

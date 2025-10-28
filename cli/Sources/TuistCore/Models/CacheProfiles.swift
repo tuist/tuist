@@ -12,13 +12,13 @@ public enum CacheProfileType: Codable, Equatable, Sendable, Hashable {
     case custom(String)
 }
 
-public enum BaseCacheProfile: Codable, Equatable, Sendable, Hashable {
+public enum BaseCacheProfile: String, Codable, Equatable, Sendable, Hashable, CaseIterable {
     /// Replace external dependencies only (system default)
-    case onlyExternal
+    case onlyExternal = "only-external"
     /// Replace as many targets as possible (all internal targets), excluding focused targets
-    case allPossible
+    case allPossible = "all-possible"
     /// No binary replacement
-    case none
+    case none = "none"
 }
 
 public struct CacheProfile: Codable, Equatable, Sendable, Hashable {

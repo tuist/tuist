@@ -24,7 +24,7 @@ enum ConfigManifestMapperError: FatalError, Equatable {
         case let .invalidServerURL(url):
             return "The server URL '\(url)' is not a valid URL"
         case let .defaultCacheProfileNotFound(profile, available):
-            let builtins = ".onlyExternal, .allPossible, .none"
+            let builtins = BaseCacheProfile.allCases.map { ".\($0)" }.joined(separator: ", ")
             if available.isEmpty {
                 return "Default cache profile '\(profile)' not found. Available profiles: \(builtins)."
             } else {

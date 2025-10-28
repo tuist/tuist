@@ -13,7 +13,7 @@ struct TuistCacheProfileResolverTests {
         let result = try config.resolveCacheProfile(
             ignoreBinaryCache: false,
             includedTargets: ["App"],
-            cacheProfile: .none
+            cacheProfile: CacheProfileType.none
         )
 
         // Then
@@ -37,7 +37,7 @@ struct TuistCacheProfileResolverTests {
                 targetQueries: []
             )
         )
-        #expect(try config.resolveCacheProfile(ignoreBinaryCache: false, includedTargets: [], cacheProfile: .none) == .init(
+        #expect(try config.resolveCacheProfile(ignoreBinaryCache: false, includedTargets: [], cacheProfile: CacheProfileType.none) == .init(
             base: .none,
             targetQueries: []
         ))
