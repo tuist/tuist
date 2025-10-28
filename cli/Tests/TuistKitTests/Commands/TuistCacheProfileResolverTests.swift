@@ -17,7 +17,7 @@ struct TuistCacheProfileResolverTests {
         )
 
         // Then
-        #expect(result == .init(base: .allPossible, targetQueries: []))
+        #expect(result == .allPossible)
     }
 
     @Test func resolves_from_explicit_builtins() throws {
@@ -26,21 +26,12 @@ struct TuistCacheProfileResolverTests {
 
         // When / Then
         #expect(try config
-            .resolveCacheProfile(ignoreBinaryCache: false, includedTargets: [], cacheProfile: .onlyExternal) == .init(
-                base: .onlyExternal,
-                targetQueries: []
-            )
+            .resolveCacheProfile(ignoreBinaryCache: false, includedTargets: [], cacheProfile: .onlyExternal) == .onlyExternal
         )
         #expect(try config
-            .resolveCacheProfile(ignoreBinaryCache: false, includedTargets: [], cacheProfile: .allPossible) == .init(
-                base: .allPossible,
-                targetQueries: []
-            )
+            .resolveCacheProfile(ignoreBinaryCache: false, includedTargets: [], cacheProfile: .allPossible) == .allPossible
         )
-        #expect(try config.resolveCacheProfile(ignoreBinaryCache: false, includedTargets: [], cacheProfile: CacheProfileType.none) == .init(
-            base: .none,
-            targetQueries: []
-        ))
+        #expect(try config.resolveCacheProfile(ignoreBinaryCache: false, includedTargets: [], cacheProfile: CacheProfileType.none) == .none)
     }
 
     @Test func resolves_from_explicit_custom_profile() throws {
@@ -88,7 +79,7 @@ struct TuistCacheProfileResolverTests {
         )
 
         // Then
-        #expect(result == .init(base: .allPossible, targetQueries: []))
+        #expect(result == .allPossible)
     }
 
     @Test func resolves_from_config_default_custom() throws {
@@ -143,7 +134,7 @@ struct TuistCacheProfileResolverTests {
         )
 
         // Then
-        #expect(result == .init(base: .none, targetQueries: []))
+        #expect(result == .none)
     }
 
     @Test func falls_back_to_onlyExternal_when_no_explicit_and_no_config_default() throws {
@@ -158,7 +149,7 @@ struct TuistCacheProfileResolverTests {
         )
 
         // Then
-        #expect(result == .init(base: .onlyExternal, targetQueries: []))
+        #expect(result == .onlyExternal)
     }
 
     @Test func throws_when_config_default_custom_missing() {

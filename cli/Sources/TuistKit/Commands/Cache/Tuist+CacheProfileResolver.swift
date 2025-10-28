@@ -28,12 +28,12 @@ extension Tuist {
     ) throws -> CacheProfile {
         if ignoreBinaryCache {
             Logger.current.debug("Using cache profile none")
-            return .init(base: .none, targetQueries: [])
+            return .none
         }
 
         if !includedTargets.isEmpty {
             Logger.current.debug("Using cache profile all-possible")
-            return .init(base: .allPossible, targetQueries: [])
+            return .allPossible
         }
 
         let profiles = project.generatedProject?.cacheOptions.profiles
@@ -52,7 +52,7 @@ extension Tuist {
         }
 
         Logger.current.debug("Using cache profile only-external")
-        return .init(base: .onlyExternal, targetQueries: [])
+        return .onlyExternal
     }
 
     private func resolveFromProfileType(
@@ -61,11 +61,11 @@ extension Tuist {
     ) throws -> CacheProfile {
         switch profile {
         case .onlyExternal:
-            return .init(base: .onlyExternal, targetQueries: [])
+            return .onlyExternal
         case .allPossible:
-            return .init(base: .allPossible, targetQueries: [])
+            return .allPossible
         case .none:
-            return .init(base: .none, targetQueries: [])
+            return .none
         case let .custom(name):
             if let custom = profiles?.profileByName[name] {
                 return custom

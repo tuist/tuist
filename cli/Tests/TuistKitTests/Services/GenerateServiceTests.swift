@@ -204,7 +204,7 @@ struct GenerateServiceTests {
                 config: .any,
                 includedTargets: .value(["App"]),
                 configuration: .any,
-                cacheProfile: .matching { $0 == .init(base: .allPossible, targetQueries: []) },
+                cacheProfile: .matching { $0 == .allPossible },
                 cacheStorage: .any
             )
             .called(1)
@@ -243,7 +243,7 @@ struct GenerateServiceTests {
                 config: .any,
                 includedTargets: .value([]),
                 configuration: .any,
-                cacheProfile: .matching { $0 == .init(base: .allPossible, targetQueries: []) },
+                cacheProfile: .matching { $0 == .allPossible },
                 cacheStorage: .any
             )
             .called(1)
@@ -282,7 +282,7 @@ struct GenerateServiceTests {
                 config: .any,
                 includedTargets: .value([]),
                 configuration: .any,
-                cacheProfile: .matching { $0 == .init(base: .none, targetQueries: []) },
+                cacheProfile: .matching { $0 == .none },
                 cacheStorage: .any
             )
             .called(1)

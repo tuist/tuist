@@ -35,6 +35,15 @@ public struct CacheProfile: Codable, Equatable, Sendable, Hashable {
         self.base = base
         self.targetQueries = targetQueries
     }
+
+    /// A cache profile that replaces external dependencies only
+    public static let onlyExternal = CacheProfile(base: .onlyExternal, targetQueries: [])
+
+    /// A cache profile that replaces as many targets as possible with cached binaries
+    public static let allPossible = CacheProfile(base: .allPossible, targetQueries: [])
+
+    /// A cache profile that disables all binary caching
+    public static let none = CacheProfile(base: .none, targetQueries: [])
 }
 
 public struct CacheProfiles: Codable, Equatable, Sendable, Hashable {
