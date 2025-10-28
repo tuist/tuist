@@ -284,6 +284,49 @@
       }
     }
   }
+
+  & > [data-part="compilation-optimizations-card"] {
+    & > [data-part="compilation-optimizations-summary"] {
+      & > [data-part="summary-grid"] {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: var(--noora-spacing-6);
+
+        & > [data-part="summary-item"] {
+          display: flex;
+          flex-direction: column;
+          gap: var(--noora-spacing-3);
+
+          & > [data-part="summary-title"] {
+            color: var(--noora-surface-label-secondary);
+            font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+          }
+
+          & > [data-part="summary-value"] {
+            color: var(--noora-surface-label-primary);
+            font: var(--noora-font-weight-semibold) var(--noora-font-heading-medium);
+          }
+        }
+      }
+    }
+
+    & > [data-part="cacheable-tasks-chart-section"] {
+      /*padding: var(--noora-spacing-9) var(--noora-spacing-7);*/
+
+      & .noora-chart {
+        height: 62px;
+        padding: var(--noora-spacing-3);
+      }
+    }
+
+    & > [data-part="cacheable-tasks-section"] {
+      gap: var(--noora-spacing-8);
+      & > [data-part="filters"] {
+        display: flex;
+        gap: var(--noora-spacing-6);
+      }
+    }
+  }
 }
 
 .issue-card {

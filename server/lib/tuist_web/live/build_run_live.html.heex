@@ -55,6 +55,12 @@
       patch={"?#{Query.put(@uri.query, "tab", "overview")}"}
     />
     <.tab_menu_horizontal_item
+      :if={@run.cacheable_tasks_count > 0}
+      label={gettext("Compilation optimizations")}
+      selected={@selected_tab == "compilation-optimizations"}
+      patch={"?#{Query.put(@uri.query, "tab", "compilation-optimizations")}"}
+    />
+    <.tab_menu_horizontal_item
       label={gettext("Warnings")}
       selected={@selected_tab == "warnings"}
       patch={"?#{Query.put(@uri.query, "tab", "warnings")}"}
@@ -63,12 +69,6 @@
       label={gettext("Errors")}
       selected={@selected_tab == "errors"}
       patch={"?#{Query.put(@uri.query, "tab", "errors")}"}
-    />
-    <.tab_menu_horizontal_item
-      :if={@run.cacheable_tasks_count > 0}
-      label={gettext("Compilation optimizations")}
-      selected={@selected_tab == "compilation-optimizations"}
-      patch={"?#{Query.put(@uri.query, "tab", "compilation-optimizations")}"}
     />
   </.tab_menu_horizontal>
   <%= if @selected_tab == "overview" do %>
@@ -610,6 +610,97 @@
             </div>
           </div>
         </div>
+      </.card_section>
+      <.card_section :if={@run.cacheable_tasks_count > 0} data-part="cacheable-tasks-chart-section">
+        <.chart
+          id="cacheable-tasks-breakdown-chart"
+          type="bar"
+          extra_options={
+            %{
+              tooltip: %{
+                trigger: "axis",
+                axisPointer: %{
+                  type: "none"
+                }
+              },
+              legend: %{
+                left: "left",
+                top: "bottom",
+                orient: "horizontal",
+                textStyle: %{
+                  color: "var:noora-surface-label-primary",
+                  fontFamily: "monospace",
+                  fontWeight: 400,
+                  fontSize: 10,
+                  lineHeight: 12
+                },
+                icon: "path://M0 6C0 4.89543 0.895431 4 2 4H6C7.10457 4 8 4.89543 8 6C8 7.10457 7.10457 8 6 8H2C0.895431 8 0 7.10457 0 6Z",
+                itemWidth: 8,
+                itemHeight: 4
+              },
+              grid: %{
+                width: "99%",
+                left: "0.4%",
+                height: "60%",
+                top: "0%"
+              },
+              xAxis: %{
+                type: "value",
+                axisLabel: %{
+                show: false
+                },
+                splitLine: %{show: false}
+              },
+              yAxis: %{
+                type: "category",
+                data: [gettext("Cacheable Tasks")],
+                axisLabel: %{
+                  show: false
+                }
+              }
+            }
+          }
+          series={[
+          %{
+            name: gettext("Local"),
+            type: "bar",
+            stack: "total",
+            emphasis: %{
+              focus: "series"
+            },
+            data: [@run.cacheable_task_local_hits_count],
+            color: "var:hits-chart-legend-local",
+            itemStyle: %{
+                  borderRadius: [6, 0, 0, 6]
+                }
+          },
+          %{
+            name: gettext("Remote"),
+            type: "bar",
+            stack: "total",
+            emphasis: %{
+              focus: "series"
+            },
+            data: [@run.cacheable_task_remote_hits_count],
+            color: "var:hits-chart-legend-remote",
+          },
+            %{
+              name: gettext("Missed"),
+              type: "bar",
+              stack: "total",
+              emphasis: %{
+                focus: "series"
+              },
+              data: [@run.cacheable_tasks_count - @run.cacheable_task_remote_hits_count - @run.cacheable_task_local_hits_count],
+              color: "var:hits-chart-legend-missed",
+              itemStyle: %{
+                    borderRadius: [0, 6, 6, 0]
+                  }
+            }
+          ]}
+          x_axis_min={0}
+          x_axis_max={@run.cacheable_tasks_count}
+        />
       </.card_section>
       <.card_section data-part="cacheable-tasks-section">
         <div data-part="filters">

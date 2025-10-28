@@ -23,6 +23,36 @@ defmodule TuistWeb.AppLayoutComponents do
         navigate={overview_path}
         selected={overview_path == @current_path}
       />
+      <.sidebar_group
+        id="sidebar-builds"
+        label={gettext("Builds")}
+        icon="versions"
+        navigate={
+          @current_path != ~p"/#{@selected_account.name}/#{@selected_project.name}/builds" &&
+            ~p"/#{@selected_account.name}/#{@selected_project.name}/builds"
+        }
+        selected={@current_path == ~p"/#{@selected_account.name}/#{@selected_project.name}/builds"}
+        disabled={@current_path != ~p"/#{@selected_account.name}/#{@selected_project.name}/builds"}
+        default_open={
+          String.starts_with?(
+            @current_path,
+            ~p"/#{@selected_account.name}/#{@selected_project.name}/builds"
+          )
+        }
+        phx-update="ignore"
+      >
+        <.sidebar_item
+          label={gettext("Build Runs")}
+          icon="chart_column"
+          navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/builds/build-runs"}
+          selected={
+            String.starts_with?(
+              @current_path,
+              ~p"/#{@selected_account.name}/#{@selected_project.name}/builds/build-runs"
+            )
+          }
+        />
+      </.sidebar_group>
       <.sidebar_item
         label={gettext("Test Runs")}
         icon="dashboard"
@@ -86,36 +116,6 @@ defmodule TuistWeb.AppLayoutComponents do
           )
         }
       />
-      <.sidebar_group
-        id="sidebar-builds"
-        label={gettext("Builds")}
-        icon="versions"
-        navigate={
-          @current_path != ~p"/#{@selected_account.name}/#{@selected_project.name}/builds" &&
-            ~p"/#{@selected_account.name}/#{@selected_project.name}/builds"
-        }
-        selected={@current_path == ~p"/#{@selected_account.name}/#{@selected_project.name}/builds"}
-        disabled={@current_path != ~p"/#{@selected_account.name}/#{@selected_project.name}/builds"}
-        default_open={
-          String.starts_with?(
-            @current_path,
-            ~p"/#{@selected_account.name}/#{@selected_project.name}/builds"
-          )
-        }
-        phx-update="ignore"
-      >
-        <.sidebar_item
-          label={gettext("Build Runs")}
-          icon="chart_column"
-          navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/builds/build-runs"}
-          selected={
-            String.starts_with?(
-              @current_path,
-              ~p"/#{@selected_account.name}/#{@selected_project.name}/builds/build-runs"
-            )
-          }
-        />
-      </.sidebar_group>
       <.sidebar_item
         :if={Tuist.Authorization.authorize(:project_update, @current_user, @selected_project) == :ok}
         label={gettext("Settings")}
