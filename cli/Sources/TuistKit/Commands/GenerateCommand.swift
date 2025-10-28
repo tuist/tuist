@@ -4,27 +4,6 @@ import TuistCore
 import TuistServer
 import TuistSupport
 
-extension TargetQuery: @retroactive ExpressibleByArgument {
-    public init?(argument: String) {
-        self.init(stringLiteral: argument)
-    }
-}
-
-extension CacheProfileType: @retroactive ExpressibleByArgument {
-    public init?(argument: String) {
-        switch BaseCacheProfile(rawValue: argument) {
-        case .onlyExternal:
-            self = .onlyExternal
-        case .allPossible:
-            self = .allPossible
-        case .none?:
-            self = .none
-        case nil:
-            self = .custom(argument)
-        }
-    }
-}
-
 public struct GenerateCommand: AsyncParsableCommand, RecentPathRememberableCommand {
     public init() {}
 
