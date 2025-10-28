@@ -32,7 +32,8 @@ import OpenAPIURLSession
             ciRunId: String?,
             ciProjectHandle: String?,
             ciHost: String?,
-            ciProvider: CIProvider?
+            ciProvider: CIProvider?,
+            cacheableTasks: [CacheableTask]
         ) async throws -> ServerBuild
     }
 
@@ -95,7 +96,8 @@ import OpenAPIURLSession
             ciRunId: String?,
             ciProjectHandle: String?,
             ciHost: String?,
-            ciProvider: CIProvider?
+            ciProvider: CIProvider?,
+            cacheableTasks: [CacheableTask]
         ) async throws -> ServerBuild {
             let client = Client.authenticated(serverURL: serverURL)
             let handles = try fullHandleService.parse(fullHandle)
@@ -142,6 +144,8 @@ import OpenAPIURLSession
                     body: .json(
                         .case1(
                             .init(
+                                cacheable_tasks: cacheableTasks
+                                    .map(Operations.createRun.Input.Body.jsonPayload.Case1Payload.cacheable_tasksPayloadPayload.init),
                                 category: category,
                                 ci_host: ciHost,
                                 ci_project_handle: ciProjectHandle,
@@ -283,6 +287,25 @@ import OpenAPIURLSession
                 name: target.name,
                 project: target.project,
                 status: status
+            )
+        }
+    }
+
+    extension Operations.createRun.Input.Body.jsonPayload.Case1Payload.cacheable_tasksPayloadPayload {
+        fileprivate init(_ cacheableTask: CacheableTask) {
+            let taskType: Self._typePayload = switch cacheableTask.type {
+            case .swift: .swift
+            case .clang: .clang
+            }
+            let status: Self.statusPayload = switch cacheableTask.status {
+            case .localHit: .hit_local
+            case .remoteHit: .hit_remote
+            case .miss: .miss
+            }
+            self.init(
+                key: cacheableTask.key,
+                status: status,
+                _type: taskType
             )
         }
     }

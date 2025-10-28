@@ -137,7 +137,7 @@ struct InspectBuildCommandService {
         ) {
             while true {
                 if let mostRecentActivityLogFile = try await xcActivityLogController.mostRecentActivityLogFile(
-                    projectDerivedDataDirectory: projectDerivedDataDirectory,
+                    projectDerivedDataDirectory: "/Users/marekfort/Library/Developer/Xcode/DerivedData/App-ghyidfsrzqlgvhdvtluukvnmvlld",
                     filter: { !$0.signature.hasPrefix("Clean") }
                 ),
                     Environment.current.workspacePath == nil || (
@@ -195,7 +195,8 @@ struct InspectBuildCommandService {
             ciRunId: ciInfo?.runId,
             ciProjectHandle: ciInfo?.projectHandle,
             ciHost: ciInfo?.host,
-            ciProvider: ciInfo?.provider
+            ciProvider: ciInfo?.provider,
+            cacheableTasks: xcactivityLog.cacheableTasks
         )
         AlertController.current.success(
             .alert("View the analyzed build at \(build.url.absoluteString)")
