@@ -757,6 +757,15 @@
                 value={@cacheable_tasks_search}
               />
             </.form>
+            <.filter_dropdown
+              id="cacheable-tasks-filter-dropdown"
+              label={gettext("Filter")}
+              available_filters={@cacheable_tasks_available_filters}
+              active_filters={@cacheable_tasks_active_filters}
+            />
+          </div>
+          <div :if={Enum.any?(@cacheable_tasks_active_filters)} data-part="active-filters">
+            <.active_filter :for={filter <- @cacheable_tasks_active_filters} filter={filter} />
           </div>
           <.table id="cacheable-tasks-table" rows={@cacheable_tasks}>
           <:col :let={task} label={gettext("Key")}>

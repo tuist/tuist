@@ -312,6 +312,7 @@
     }
     & > [data-part="xcode-cache-card"] {
       & > [data-part="xcode-cache-card-section"] {
+        gap: var(--noora-spacing-5);
         & > [data-part="title"] {
           display: flex;
           flex-direction: row;
@@ -339,6 +340,15 @@
         & > [data-part="filters"] {
           display: flex;
           gap: var(--noora-spacing-6);
+          & .noora-dropdown-item:not([data-selected]) svg {
+            visibility: hidden;
+          }
+        }
+
+        & > [data-part="active-filters"] {
+          display: flex;
+          align-self: flex-start;
+          gap: var(--noora-spacing-4);
         }
       }
     }

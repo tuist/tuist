@@ -6,7 +6,7 @@ defmodule Tuist.Runs.CacheableTask do
 
   @derive {
     Flop.Schema,
-    filterable: [:build_run_id, :type, :status], sortable: [:inserted_at, :key]
+    filterable: [:build_run_id, :type, :status, :key], sortable: [:inserted_at, :key]
   }
 
   @primary_key false

@@ -57,6 +57,8 @@ defmodule TuistWeb.BuildRunLive do
       |> assign(:file_breakdown_active_filters, [])
       |> assign(:module_breakdown_available_filters, define_module_breakdown_filters())
       |> assign(:module_breakdown_active_filters, [])
+      |> assign(:cacheable_tasks_available_filters, define_cacheable_tasks_filters())
+      |> assign(:cacheable_tasks_active_filters, [])
       |> assign(:cacheable_tasks_search, "")
       |> assign(:cacheable_tasks, [])
       |> assign(:cacheable_tasks_page, 1)
@@ -76,30 +78,36 @@ defmodule TuistWeb.BuildRunLive do
             file_breakdown_available_filters: file_breakdown_available_filters,
             file_breakdown_active_filters: file_breakdown_active_filters,
             module_breakdown_available_filters: module_breakdown_available_filters,
-            module_breakdown_active_filters: module_breakdown_active_filters
+            module_breakdown_active_filters: module_breakdown_active_filters,
+            cacheable_tasks_available_filters: cacheable_tasks_available_filters,
+            cacheable_tasks_active_filters: cacheable_tasks_active_filters
           }
         } = socket
       ) do
     uri = URI.new!("?" <> URI.encode_query(params))
     selected_breakdown_tab = params["breakdown-tab"] || "module"
 
+    selected_tab = params["tab"] || "overview"
+
     available_filters =
-      case selected_breakdown_tab do
-        "file" -> file_breakdown_available_filters
-        "module" -> module_breakdown_available_filters
+      case {selected_tab, selected_breakdown_tab} do
+        {"overview", "file"} -> file_breakdown_available_filters
+        {"overview", "module"} -> module_breakdown_available_filters
+        {"compilation-optimizations", _} -> cacheable_tasks_available_filters
         _ -> []
       end
 
     active_filters =
-      case selected_breakdown_tab do
-        "file" -> file_breakdown_active_filters
-        "module" -> module_breakdown_active_filters
+      case {selected_tab, selected_breakdown_tab} do
+        {"overview", "file"} -> file_breakdown_active_filters
+        {"overview", "module"} -> module_breakdown_active_filters
+        {"compilation-optimizations", _} -> cacheable_tasks_active_filters
         _ -> []
       end
 
     socket =
       socket
-      |> assign(:selected_tab, params["tab"] || "overview")
+      |> assign(:selected_tab, selected_tab)
       |> assign(:uri, uri)
       |> assign(:available_filters, available_filters)
       |> assign(:active_filters, active_filters)
@@ -734,7 +742,10 @@ defmodule TuistWeb.BuildRunLive do
     ]
   end
 
-  defp assign_cacheable_tasks(%{assigns: %{run: run}} = socket, params) do
+  defp assign_cacheable_tasks(
+         %{assigns: %{run: run, cacheable_tasks_available_filters: available_filters}} = socket,
+         params
+       ) do
     cacheable_tasks_search = params["cacheable-tasks-search"] || ""
 
     cacheable_tasks_page =
@@ -746,16 +757,7 @@ defmodule TuistWeb.BuildRunLive do
         :error -> 1
       end
 
-    flop_filters = [
-      %{field: :build_run_id, op: :==, value: run.id}
-    ]
-
-    flop_filters =
-      if cacheable_tasks_search && cacheable_tasks_search != "" do
-        flop_filters ++ [%{field: :key, op: :like, value: cacheable_tasks_search}]
-      else
-        flop_filters
-      end
+    flop_filters = cacheable_tasks_filters(run, params, available_filters, cacheable_tasks_search)
 
     options = %{
       filters: flop_filters,
@@ -765,11 +767,15 @@ defmodule TuistWeb.BuildRunLive do
 
     {tasks, tasks_meta} = Runs.list_cacheable_tasks(options)
 
+    filters =
+      Filter.Operations.decode_filters_from_query(params, available_filters)
+
     socket
     |> assign(:cacheable_tasks_search, cacheable_tasks_search)
     |> assign(:cacheable_tasks, tasks)
     |> assign(:cacheable_tasks_page, cacheable_tasks_page)
     |> assign(:cacheable_tasks_meta, tasks_meta)
+    |> assign(:cacheable_tasks_active_filters, filters)
   end
 
   def empty_tab_state_background(assigns) do
@@ -865,5 +871,54 @@ defmodule TuistWeb.BuildRunLive do
       </defs>
     </svg>
     """
+  end
+
+  defp cacheable_tasks_filters(run, params, available_filters, search) do
+    base_filters =
+      [%{field: :build_run_id, op: :==, value: run.id}] ++
+        Filter.Operations.convert_filters_to_flop(
+          Filter.Operations.decode_filters_from_query(params, available_filters)
+        )
+
+    if search && search != "" do
+      base_filters ++
+        [
+          %{field: :key, op: :like, value: search}
+        ]
+    else
+      base_filters
+    end
+  end
+
+  defp define_cacheable_tasks_filters do
+    [
+      %Filter.Filter{
+        id: "type",
+        field: :type,
+        display_name: gettext("Type"),
+        type: :option,
+        options: ["swift", "clang"],
+        options_display_names: %{
+          "swift" => "Swift",
+          "clang" => "Clang"
+        },
+        operator: :==,
+        value: nil
+      },
+      %Filter.Filter{
+        id: "status",
+        field: :status,
+        display_name: gettext("Hit"),
+        type: :option,
+        options: ["hit_local", "hit_remote", "miss"],
+        options_display_names: %{
+          "hit_local" => gettext("Local"),
+          "hit_remote" => gettext("Remote"),
+          "miss" => gettext("Missed")
+        },
+        operator: :==,
+        value: nil
+      }
+    ]
   end
 end
