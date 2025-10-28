@@ -32,7 +32,7 @@ struct TuistCacheEEAcceptanceTests {
         )
 
         // When: Generate with a focuson the App
-        try await TuistTest.run(GenerateCommand.self, ["--no-open", "--path", fixtureDirectory.pathString])
+        try await TuistTest.run(GenerateCommand.self, ["--no-open", "--path", fixtureDirectory.pathString, "App", "AppTests"])
 
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
 

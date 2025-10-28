@@ -1,13 +1,15 @@
+import AppTesting
+import Testing
+import XCTest
 
-import Nimble
-import Quick
+class AppTestsXCTest: XCTestCase {
+    func test() {
+        XCTAssertCustom()
+    }
+}
 
-class TableOfContentsSpec: QuickSpec {
-    override class func spec() {
-        describe("the 'Documentation' directory") {
-            it("has everything you need to get started") {
-                expect("foo").to(contain("foo"))
-            }
-        }
+struct AppTestsSwiftTesting {
+    @Test func test() {
+        customExpect()
     }
 }

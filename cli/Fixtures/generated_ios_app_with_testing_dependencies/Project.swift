@@ -28,9 +28,24 @@ let project = Project(
             ],
             dependencies: [
                 .target(name: "App"),
-                .external(name: "Quick"),
-                .external(name: "Nimble"),
+                .target(name: "AppTesting"),
             ]
+        ),
+        .target(
+            name: "AppTesting",
+            destinations: .macOS,
+            product: .framework,
+            bundleId: "dev.tuist.AppTesting",
+            deploymentTargets: .macOS("15.7"),
+            infoPlist: .default,
+            buildableFolders: [
+                "AppTesting",
+            ],
+            dependencies: [],
+            settings: .settings(base: ["ENABLE_TESTING_SEARCH_PATHS": "YES"], configurations: [
+                .debug(name: "Debug"),
+                .release(name: "Release"),
+            ])
         ),
     ]
 )

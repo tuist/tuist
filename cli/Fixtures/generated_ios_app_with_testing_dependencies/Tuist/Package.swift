@@ -15,7 +15,5 @@ import PackageDescription
 let package = Package(
     name: "App",
     dependencies: [
-        .package(url: "https://github.com/Quick/Quick.git", .upToNextMajor(from: "7.6.0")),
-        .package(url: "https://github.com/Quick/Nimble.git", .upToNextMajor(from: "13.8.0")),
     ]
 )
