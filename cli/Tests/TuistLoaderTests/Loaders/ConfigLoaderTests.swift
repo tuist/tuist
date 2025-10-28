@@ -163,7 +163,7 @@ final class ConfigLoaderTests: TuistUnitTestCase {
         // When / Then
         await XCTAssertThrowsSpecific(
             try await subject.loadConfig(path: configPath),
-            ConfigManifestMapperError.defaultCacheProfileNotFound(profile: "missing", available: ["development"])
+            CacheOptionsManifestMapperError.defaultCacheProfileNotFound(profile: "missing", available: ["development"])
         )
     }
 

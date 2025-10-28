@@ -8,13 +8,11 @@ import TuistSupport
 enum ConfigManifestMapperError: FatalError, Equatable {
     /// Thrown when the server URL is invalid.
     case invalidServerURL(String)
-    /// Thrown when the default cache profile references a non-existent profile name.
-    case defaultCacheProfileNotFound(profile: String, available: [String])
 
     /// Error type.
     var type: ErrorType {
         switch self {
-        case .invalidServerURL, .defaultCacheProfileNotFound: return .abort
+        case .invalidServerURL: return .abort
         }
     }
 
@@ -23,14 +21,6 @@ enum ConfigManifestMapperError: FatalError, Equatable {
         switch self {
         case let .invalidServerURL(url):
             return "The server URL '\(url)' is not a valid URL"
-        case let .defaultCacheProfileNotFound(profile, available):
-            let builtins = BaseCacheProfile.allCases.map { ".\($0)" }.joined(separator: ", ")
-            if available.isEmpty {
-                return "Default cache profile '\(profile)' not found. Available profiles: \(builtins)."
-            } else {
-                let custom = available.sorted().joined(separator: ", ")
-                return "Default cache profile '\(profile)' not found. Available profiles: \(builtins), or custom profiles: \(custom)."
-            }
         }
     }
 }

@@ -340,10 +340,10 @@ struct GenerateServiceTests {
         // Given
         given(configLoader)
             .loadConfig(path: .any)
-            .willThrow(ConfigManifestMapperError.defaultCacheProfileNotFound(profile: "missing", available: []))
+            .willThrow(CacheOptionsManifestMapperError.defaultCacheProfileNotFound(profile: "missing", available: []))
 
         // When / Then
-        await #expect(throws: ConfigManifestMapperError.defaultCacheProfileNotFound(profile: "missing", available: [])) {
+        await #expect(throws: CacheOptionsManifestMapperError.defaultCacheProfileNotFound(profile: "missing", available: [])) {
             try await subject.run(
                 path: nil,
                 includedTargets: [],
