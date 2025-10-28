@@ -134,11 +134,11 @@ struct TuistGeneratedProjectManifestMapperTests {
         #expect(got.profileByName == [
             "development": .init(
                 base: .allPossible,
-                targets: ["Expensive", "tag:cacheable"]
+                targetQueries: ["Expensive", "tag:cacheable"]
             ),
             "ci": .init(
                 base: .onlyExternal,
-                targets: []
+                targetQueries: []
             ),
         ])
         #expect(got.defaultProfile == .custom("development"))
@@ -165,7 +165,7 @@ struct TuistGeneratedProjectManifestMapperTests {
         #expect(got.profiles.profileByName == [
             "debug": .init(
                 base: .onlyExternal,
-                targets: ["tag:stable"]
+                targetQueries: ["tag:stable"]
             ),
         ])
         #expect(got.profiles.defaultProfile == .custom("debug"))

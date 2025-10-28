@@ -27,15 +27,15 @@ public struct CacheProfile: Codable, Equatable, Sendable {
     /// Use `.named("MyTarget")` or `.tagged("MyTag")`.
     ///
     /// String literals like "MyTarget" and "tag:MyTag" are supported via `ExpressibleByStringLiteral`.
-    public let targets: [TargetQuery]
+    public let targetQueries: [TargetQuery]
 
     public static func profile(
         _ base: BaseCacheProfile = .onlyExternal,
-        and targets: [TargetQuery] = []
+        and targetQueries: [TargetQuery] = []
     ) -> Self {
         CacheProfile(
             base: base,
-            targets: targets
+            targetQueries: targetQueries
         )
     }
 }

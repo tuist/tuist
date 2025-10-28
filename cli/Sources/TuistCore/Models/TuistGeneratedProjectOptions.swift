@@ -134,14 +134,14 @@ extension TuistGeneratedProjectOptions {
 
     public struct CacheProfile: Codable, Equatable, Sendable, Hashable {
         public let base: BaseCacheProfile
-        public let targets: [TargetQuery]
+        public let targetQueries: [TargetQuery]
 
         public init(
             base: BaseCacheProfile,
-            targets: [TargetQuery]
+            targetQueries: [TargetQuery]
         ) {
             self.base = base
-            self.targets = targets
+            self.targetQueries = targetQueries
         }
     }
 

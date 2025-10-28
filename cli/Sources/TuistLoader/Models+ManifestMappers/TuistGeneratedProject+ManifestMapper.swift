@@ -84,7 +84,7 @@ extension TuistCore.TuistGeneratedProjectOptions.CacheProfile {
     ) -> Self {
         .init(
             base: .from(manifest: manifest.base),
-            targets: manifest.targets.map { .from(manifest: $0) }
+            targetQueries: manifest.targetQueries.map { .from(manifest: $0) }
         )
     }
 }
