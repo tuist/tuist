@@ -20,7 +20,6 @@ public protocol GeneratorFactorying {
     /// - Parameter skipUITests: Whether UI tests should be skipped.
     /// - Parameter skipUnitTests: Whether Unit tests should be skipped.
     /// - Parameter ignoreBinaryCache: True to not include binaries from the cache.
-    /// - Parameter cacheProfile: Cache profile to use for binary replacement.
     /// - Parameter ignoreSelectiveTesting: True to run all tests
     /// - Parameter cacheStorage: The cache storage instance.
     /// - Returns: A Generator instance.
