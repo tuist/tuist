@@ -36,7 +36,7 @@ struct XCActivityLogControllerTests {
             .appending(try RelativePath(validating: "../../Fixtures/clean-build.xcactivitylog"))
 
         // When
-        let got = try await subject.parse(cleanBuildXCActivityLog, projectDerivedDataDirectory: nil)
+        let got = try await subject.parse(cleanBuildXCActivityLog)
 
         // Then
         #expect(got.category == .clean)
@@ -48,7 +48,7 @@ struct XCActivityLogControllerTests {
             .appending(try RelativePath(validating: "../../Fixtures/build-with-warning.xcactivitylog"))
 
         // When
-        let got = try await subject.parse(buildWithWarningXCActivityLog, projectDerivedDataDirectory: nil)
+        let got = try await subject.parse(buildWithWarningXCActivityLog)
 
         // Then
         #expect(got.buildStep.errorCount == 0)
@@ -73,7 +73,7 @@ struct XCActivityLogControllerTests {
             .appending(try RelativePath(validating: "../../Fixtures/failed-build.xcactivitylog"))
 
         // When
-        let got = try await subject.parse(xcactivityLog, projectDerivedDataDirectory: nil)
+        let got = try await subject.parse(xcactivityLog)
 
         // Then
         #expect(got.issues.map(\.type) == [.error])
@@ -103,50 +103,6 @@ struct XCActivityLogControllerTests {
 
         // Then
         #expect(result == nil)
-    }
-    
-    @Test func parseBuildXCActivityLogWithRemoteHits() async throws {
-        // Given
-        let buildXCActivityLogWithRemoteHits = try AbsolutePath(validating: #file).parentDirectory
-            .appending(try RelativePath(validating: "../../Fixtures/build-with-remote-hits.xcactivitylog"))
-        
-        // Use a mock derived data directory - assuming cache exists for remote hits
-        let mockDerivedData = try AbsolutePath(validating: "/tmp/DerivedData")
-
-        // When
-        let got = try await subject.parse(buildXCActivityLogWithRemoteHits, projectDerivedDataDirectory: mockDerivedData)
-        
-        // Then
-        let swiftCacheTasks = got.cacheableTasks.filter { $0.type == .swift }
-        let remoteHits = swiftCacheTasks.filter { $0.status == .remoteHit }
-        let misses = swiftCacheTasks.filter { $0.status == .miss }
-        
-        #expect(remoteHits.count == 56)
-        #expect(misses.count == 4)
-    }
-    
-    @Test(.withMockedEnvironment())
-    func parseFailedBuildXCActivityLogWithMisses() async throws {
-        // Given
-        let xcactivityLog = try AbsolutePath(validating: #file).parentDirectory
-            .appending(try RelativePath(validating: "../../Fixtures/FailedBuild/failed-build-with-cache-misses.xcactivitylog"))
-        let environment = try #require(Environment.mocked)
-        environment.cacheDirectory = xcactivityLog.parentDirectory.appending(component: "cache")
-        
-        // The derived data directory path from the fixture
-        let derivedDataDirectory = try AbsolutePath(validating: #file).parentDirectory
-            .appending(try RelativePath(validating: "../../Fixtures/DerivedDataWithCompilationCacheAndMisses"))
-
-        // When
-        let got = try await subject.parse(xcactivityLog, projectDerivedDataDirectory: derivedDataDirectory)
-        
-        // Then
-        let swiftCacheTasks = got.cacheableTasks.filter { $0.type == .swift }
-        let remoteHits = swiftCacheTasks.filter { $0.status == .remoteHit }
-        let misses = swiftCacheTasks.filter { $0.status == .miss }
-        
-        #expect(remoteHits.count == 57)
-        #expect(misses.count == 3)
     }
 
     @Test(.inTemporaryDirectory)

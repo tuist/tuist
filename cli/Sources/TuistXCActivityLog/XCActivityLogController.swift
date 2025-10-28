@@ -21,7 +21,7 @@ public protocol XCActivityLogControlling {
     ]
     func buildTimesByTarget(activityLogPaths: [AbsolutePath]) async throws
         -> [String: Double]
-    func parse(_ path: AbsolutePath, projectDerivedDataDirectory: AbsolutePath?) async throws -> XCActivityLog
+    func parse(_ path: AbsolutePath) async throws -> XCActivityLog
 }
 
 extension XCActivityLogControlling {
@@ -147,7 +147,7 @@ public struct XCActivityLogController: XCActivityLogControlling {
         .first
     }
 
-    public func parse(_ path: AbsolutePath, projectDerivedDataDirectory: AbsolutePath? = nil) async throws -> XCActivityLog {
+    public func parse(_ path: AbsolutePath) async throws -> XCActivityLog {
         let activityLog = try XCLogParser.ActivityParser().parseActivityLogInURL(
             path.url,
             redacted: false,
@@ -189,17 +189,6 @@ public struct XCActivityLogController: XCActivityLogControlling {
 
             return errors.filter { $0.severity == 2 }.count + acc
         }
-        
-        let cacheableTasks: [CacheableTask]
-        if let projectDerivedDataDirectory = projectDerivedDataDirectory {
-            cacheableTasks = try await analyzeCacheableTasks(
-                activityLog: activityLog,
-                projectDerivedDataDirectory: projectDerivedDataDirectory
-            )
-        } else {
-            // If no project derived data directory is provided, we can't analyze cache tasks
-            cacheableTasks = []
-        }
 
         return XCActivityLog(
             version: activityLog.version,
@@ -225,7 +214,7 @@ public struct XCActivityLogController: XCActivityLogControlling {
                         .contains(where: { ($0.errors ?? []).contains(where: { $0.severity == 2 }) }) ? .failure : .success
                 )
             },
-            cacheableTasks: cacheableTasks
+            cacheableTasks: []
         )
     }
 
@@ -454,125 +443,6 @@ public struct XCActivityLogController: XCActivityLogControlling {
         } else {
             return nil
         }
-    }
-    
-    private func analyzeCacheableTasks(
-        activityLog: XCLogParser.IDEActivityLog,
-        projectDerivedDataDirectory: AbsolutePath
-    ) async throws -> [CacheableTask] {
-        var cacheableTasks: [CacheableTask] = []
-        var keyStatuses: [String: (taskType: CacheableTask.TaskType, hasQuery: Bool, hasMaterialize: Bool, hasUpload: Bool)] = [:]
-        
-        // Parse the activity log into build steps
-        let buildStep = try XCLogParser.ParserBuildSteps(
-            omitWarningsDetails: true,
-            omitNotesDetails: true,
-            truncLargeIssues: false
-        )
-        .parse(activityLog: activityLog)
-        
-        // Get all flattened steps
-        let allSteps = flattenedXCLogParserBuildStep([buildStep])
-        
-        // Analyze each step for cache operations
-        for step in allSteps {
-            if step.title.contains("Swift caching") || step.title.contains("Clang caching") {
-                let isSwift = step.title.contains("Swift caching")
-                let taskType: CacheableTask.TaskType = isSwift ? .swift : .clang
-                
-                // Extract key from title
-                // For query/materialize: ["key"]
-                // For upload: just the key without brackets
-                var key: String? = nil
-                
-                if step.title.contains("query key") || step.title.contains("materialize key") {
-                    // Extract key from ["key"] format
-                    if let keyMatch = try? NSRegularExpression(pattern: "\\[\"([^\"]+)\"\\]")
-                        .firstMatch(in: step.title, range: NSRange(location: 0, length: step.title.count)) {
-                        let keyRange = Range(keyMatch.range(at: 1), in: step.title)!
-                        key = String(step.title[keyRange])
-                    }
-                } else if step.title.contains("upload key") {
-                    // Extract key after "upload key " (no brackets)
-                    let pattern = "upload key ([^\\s]+)"
-                    if let keyMatch = try? NSRegularExpression(pattern: pattern)
-                        .firstMatch(in: step.title, range: NSRange(location: 0, length: step.title.count)) {
-                        let keyRange = Range(keyMatch.range(at: 1), in: step.title)!
-                        key = String(step.title[keyRange])
-                    }
-                }
-                
-                if let key = key {
-                    var status = keyStatuses[key] ?? (taskType, false, false, false)
-                    status.taskType = taskType
-                    
-                    if step.title.contains("query key") {
-                        status.hasQuery = true
-                    } else if step.title.contains("materialize key") {
-                        status.hasMaterialize = true
-                    } else if step.title.contains("upload key") {
-                        status.hasUpload = true
-                    }
-                    
-                    keyStatuses[key] = status
-                }
-            }
-        }
-        
-        // Determine cache status for each key
-        for (key, status) in keyStatuses {
-            let cacheStatus: CacheableTask.CacheStatus
-            
-            if status.hasUpload {
-                // If there's an upload, it's definitely a miss
-                cacheStatus = .miss
-            } else if status.hasQuery && !status.hasMaterialize {
-                // Query without materialize is a local hit
-                cacheStatus = .localHit
-            } else if status.hasQuery && status.hasMaterialize && !status.hasUpload {
-                // Query with materialize and no upload could be either:
-                // 1. Remote hit (successful build)
-                // 2. Miss (failed build where upload didn't happen)
-                // Only in this ambiguous case do we check the filesystem
-                if try await isRemoteHit(key: key, buildStartTime: activityLog.mainSection.timeStartedRecording) {
-                    cacheStatus = .remoteHit
-                } else {
-                    cacheStatus = .miss
-                }
-            } else {
-                // Shouldn't happen, but default to miss
-                continue
-            }
-            
-            cacheableTasks.append(CacheableTask(
-                key: key,
-                status: cacheStatus,
-                type: status.taskType
-            ))
-        }
-        
-        return cacheableTasks
-    }
-    
-    private func isRemoteHit(key: String, buildStartTime: Double) async throws -> Bool {
-        // Check our keyvalue entries index
-        let keyValueEntriesDirectory = Environment.current.cacheDirectory.appending(component: "keyvalue-entries")
-        let jsonPath = keyValueEntriesDirectory.appending(component: "\(key).json")
-        
-        // Check if the JSON file exists for this key
-        guard try await fileSystem.exists(jsonPath) else {
-            return false
-        }
-        
-        // Get creation date from file attributes
-        guard let creationDate = try await fileSystem.fileMetadata(at: jsonPath)?.lastModificationDate else {
-            return false
-        }
-        
-        // Compare with build start time
-        // If the file was created after the build started, it's a remote hit
-        // (it was fetched during this build)
-        return creationDate.timeIntervalSinceReferenceDate >= buildStartTime
     }
 }
 

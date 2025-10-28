@@ -122,18 +122,13 @@ public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.Si
     private func saveKeyValueEntries(key: String, entryKeys: [String]) async throws {
         let keyValueEntriesDirectory = environment.cacheDirectory.appending(component: "keyvalue-entries")
         
-        // Create directory if it doesn't exist
         if try await !fileSystem.exists(keyValueEntriesDirectory) {
             try await fileSystem.makeDirectory(at: keyValueEntriesDirectory)
         }
         
-        // Create a JSON file for this key
         let jsonPath = keyValueEntriesDirectory.appending(component: "\(key).json")
-        
-        // Create the JSON structure
         let jsonData = try JSONEncoder().encode(entryKeys)
         
-        // Write to file
         try jsonData.write(to: jsonPath.url)
     }
 }

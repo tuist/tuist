@@ -138,7 +138,7 @@ struct InspectBuildCommandServiceTests {
         )
 
         given(xcActivityLogController)
-            .parse(.value(activityLogPath), projectDerivedDataDirectory: .value(derivedDataPath))
+            .parse(.value(activityLogPath))
             .willReturn(
                 .test(
                     buildStep: .test(
@@ -241,7 +241,7 @@ struct InspectBuildCommandServiceTests {
         )
 
         given(xcActivityLogController)
-            .parse(.value(activityLogPath), projectDerivedDataDirectory: .value(derivedDataPath))
+            .parse(.value(activityLogPath))
             .willReturn(
                 .test()
             )
@@ -362,7 +362,7 @@ struct InspectBuildCommandServiceTests {
             filter: .any
         ).willReturn(.test(path: activityLogPath))
         given(xcActivityLogController)
-            .parse(.value(activityLogPath), projectDerivedDataDirectory: .value(derivedDataPath))
+            .parse(.value(activityLogPath))
             .willReturn(.test())
 
         given(gitController)
@@ -408,7 +408,7 @@ struct InspectBuildCommandServiceTests {
                 at: buildLogsPath.appending(component: "LogStoreManifest.plist")
             )
             given(xcActivityLogController)
-                .parse(.value(activityLogPath), projectDerivedDataDirectory: .any)
+                .parse(.value(activityLogPath))
                 .willReturn(.test())
             given(xcActivityLogController).mostRecentActivityLogFile(
                 projectDerivedDataDirectory: .value(derivedDataPath),
@@ -507,7 +507,7 @@ struct InspectBuildCommandServiceTests {
             at: buildLogsPath.appending(component: "LogStoreManifest.plist")
         )
         given(xcActivityLogController)
-            .parse(.value(activityLogPath), projectDerivedDataDirectory: .value(derivedDataPath))
+            .parse(.value(activityLogPath))
             .willReturn(.test())
         given(xcActivityLogController).mostRecentActivityLogFile(
             projectDerivedDataDirectory: .value(derivedDataPath),
