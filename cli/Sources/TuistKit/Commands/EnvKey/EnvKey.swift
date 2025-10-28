@@ -6,7 +6,6 @@ public enum EnvKey: String, CaseIterable {
     // BUILD
 
     case buildBinaryCache = "TUIST_BUILD_BINARY_CACHE"
-    case buildCacheProfile = "TUIST_BUILD_CACHE_PROFILE"
 
     // BUILD OPTIONS
 
