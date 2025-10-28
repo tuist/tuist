@@ -67,6 +67,7 @@ struct BuildableFolderCheckerTests {
 }
 
 private let validResourceExtensions = [
+    // Regular resource files
     "md",
     "xcstrings",
     "plist",
@@ -84,5 +85,14 @@ private let validResourceExtensions = [
     "xcconfig",
     "txt",
     "json",
-    "js"
+    "js",
+
+    // Folder extensions that are added as resources
+    "xcassets",
+    "scnassets",
+    "bundle",
+    "xcstickers",
+    "app",
+    "xcmappingmodel",
+    "xcdatamodeld"
 ]
