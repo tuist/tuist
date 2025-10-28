@@ -299,6 +299,9 @@
                 "tma-architecture": {
                   "text": "Modular architecture"
                 },
+                "metadata-tags": {
+                  "text": "Metadata tags"
+                },
                 "best-practices": {
                   "text": "Best practices"
                 }
