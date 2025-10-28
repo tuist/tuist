@@ -5,7 +5,7 @@ import TSCUtility
 import TuistCore
 import TuistSupport
 
-enum ConfigManifestMapperError: FatalError, Equatable {
+enum ConfigManifestMapperError: FatalError {
     /// Thrown when the server URL is invalid.
     case invalidServerURL(String)
 
