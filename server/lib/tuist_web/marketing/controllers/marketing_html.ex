@@ -9,6 +9,7 @@ defmodule TuistWeb.Marketing.MarketingHTML do
   alias Tuist.Marketing.Blog
 
   embed_templates("marketing_html/*")
+  embed_templates("marketing_html/blog/*")
 
   # Delegate to Localization module
   defdelegate localized_href(href), to: TuistWeb.Marketing.Localization
