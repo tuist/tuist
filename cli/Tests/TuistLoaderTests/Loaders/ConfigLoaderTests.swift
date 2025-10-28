@@ -147,7 +147,7 @@ final class ConfigLoaderTests: TuistUnitTestCase {
         stub(path: configPath, exists: true)
         let invalidProfiles = CacheProfiles.profiles(
             [
-                "development": .profile(base: .allPossible, targets: ["tag:cacheable"]),
+                "development": .profile(.allPossible, and: ["tag:cacheable"]),
             ],
             default: .custom("missing")
         )

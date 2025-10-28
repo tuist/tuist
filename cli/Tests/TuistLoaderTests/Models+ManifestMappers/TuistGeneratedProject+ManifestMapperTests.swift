@@ -118,12 +118,12 @@ struct TuistGeneratedProjectManifestMapperTests {
             manifest: .profiles(
                 [
                     "development": .profile(
-                        base: .allPossible,
-                        targets: ["Expensive", .tagged("cacheable")]
+                        .allPossible,
+                        and: ["Expensive", .tagged("cacheable")]
                     ),
                     "ci": .profile(
-                        base: .onlyExternal,
-                        targets: []
+                        .onlyExternal,
+                        and: []
                     ),
                 ],
                 default: .custom("development")
@@ -152,8 +152,8 @@ struct TuistGeneratedProjectManifestMapperTests {
                 profiles: .profiles(
                     [
                         "debug": .profile(
-                            base: .onlyExternal,
-                            targets: [.tagged("stable")]
+                            .onlyExternal,
+                            and: [.tagged("stable")]
                         ),
                     ],
                     default: .custom("debug")

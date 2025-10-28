@@ -30,8 +30,8 @@ public struct CacheProfile: Codable, Equatable, Sendable {
     public let targets: [TargetQuery]
 
     public static func profile(
-        base: BaseCacheProfile = .onlyExternal,
-        targets: [TargetQuery] = []
+        _ base: BaseCacheProfile = .onlyExternal,
+        and targets: [TargetQuery] = []
     ) -> Self {
         CacheProfile(
             base: base,

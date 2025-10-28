@@ -7,8 +7,8 @@ let tuist = Tuist(
             profiles: .profiles(
                 [
                     "development": .profile(
-                        base: .onlyExternal,
-                        targets: [
+                        .onlyExternal,
+                        and: [
                             "ExpensiveModule",
                             "tag:cacheable",
                         ]

@@ -6,8 +6,8 @@ final class CacheProfilesCodableTests: XCTestCase {
     func test_toJSON() throws {
         let profiles = CacheProfiles.profiles(
             [
-                "p1": .profile(base: .onlyExternal, targets: ["A", "tag:foo"]),
-                "p2": .profile(base: .none, targets: []),
+                "p1": .profile(.onlyExternal, and: ["A", "tag:foo"]),
+                "p2": .profile(.none, and: []),
             ],
             default: .allPossible
         )
