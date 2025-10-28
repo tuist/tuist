@@ -21,7 +21,7 @@ public protocol XCActivityLogControlling {
     ]
     func buildTimesByTarget(activityLogPaths: [AbsolutePath]) async throws
         -> [String: Double]
-    func parse(_ path: AbsolutePath) async throws -> XCActivityLog
+    func parse(_ path: AbsolutePath, projectDerivedDataDirectory: AbsolutePath?) async throws -> XCActivityLog
 }
 
 extension XCActivityLogControlling {
@@ -38,18 +38,15 @@ extension XCActivityLogControlling {
 // swiftlint:disable:next type_body_length
 public struct XCActivityLogController: XCActivityLogControlling {
     private let fileSystem: FileSystem
-    private let environment: Environmenting
     private let rootDirectoryLocator: RootDirectoryLocating
     private let gitController: GitControlling
 
     public init(
         fileSystem: FileSystem = FileSystem(),
-        environment: Environmenting = Environment.current,
         rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator(),
         gitController: GitControlling = GitController()
     ) {
         self.fileSystem = fileSystem
-        self.environment = environment
         self.rootDirectoryLocator = rootDirectoryLocator
         self.gitController = gitController
     }
@@ -150,7 +147,7 @@ public struct XCActivityLogController: XCActivityLogControlling {
         .first
     }
 
-    public func parse(_ path: AbsolutePath) async throws -> XCActivityLog {
+    public func parse(_ path: AbsolutePath, projectDerivedDataDirectory: AbsolutePath? = nil) async throws -> XCActivityLog {
         let activityLog = try XCLogParser.ActivityParser().parseActivityLogInURL(
             path.url,
             redacted: false,
@@ -193,10 +190,16 @@ public struct XCActivityLogController: XCActivityLogControlling {
             return errors.filter { $0.severity == 2 }.count + acc
         }
         
-        let cacheableTasks = try await analyzeCacheableTasks(
-            activityLog: activityLog,
-            projectDerivedDataDirectory: path.removingLastComponent()
-        )
+        let cacheableTasks: [CacheableTask]
+        if let projectDerivedDataDirectory = projectDerivedDataDirectory {
+            cacheableTasks = try await analyzeCacheableTasks(
+                activityLog: activityLog,
+                projectDerivedDataDirectory: projectDerivedDataDirectory
+            )
+        } else {
+            // If no project derived data directory is provided, we can't analyze cache tasks
+            cacheableTasks = []
+        }
 
         return XCActivityLog(
             version: activityLog.version,
@@ -227,8 +230,8 @@ public struct XCActivityLogController: XCActivityLogControlling {
     }
 
     private func rootDirectory() async throws -> AbsolutePath? {
-        let currentWorkingDirectory = try await environment.currentWorkingDirectory()
-        let workingDirectory = environment.workspacePath ?? currentWorkingDirectory
+        let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
+        let workingDirectory = Environment.current.workspacePath ?? currentWorkingDirectory
         if gitController.isInGitRepository(workingDirectory: workingDirectory) {
             return try gitController.topLevelGitDirectory(workingDirectory: workingDirectory)
         } else {
@@ -246,14 +249,6 @@ public struct XCActivityLogController: XCActivityLogControlling {
         return try await steps
             .filter { $0.type == .detail }
             .serialCompactMap { step -> XCActivityBuildFile? in
-                print("----")
-                print(step.title)
-                print(step.fetchedFromCache)
-                print(step.notes)
-                print(step.signature)
-                print(step.buildIdentifier)
-                print(step.domain)
-                print(step.detailStepType)
                 let type: XCActivityBuildFileType
                 switch step.detailStepType {
                 case .swiftCompilation:
@@ -524,9 +519,6 @@ public struct XCActivityLogController: XCActivityLogControlling {
             }
         }
         
-        // Check if we need to verify local cache for ambiguous cases
-        let compilationCachePath = projectDerivedDataDirectory.appending(component: "CompilationCache.noindex")
-        
         // Determine cache status for each key
         for (key, status) in keyStatuses {
             let cacheStatus: CacheableTask.CacheStatus
@@ -537,10 +529,16 @@ public struct XCActivityLogController: XCActivityLogControlling {
             } else if status.hasQuery && !status.hasMaterialize {
                 // Query without materialize is a local hit
                 cacheStatus = .localHit
-            } else if status.hasQuery && status.hasMaterialize {
-                // Query with materialize and no upload means it was a remote hit
-                // (if there was no remote hit, it would have been uploaded)
-                cacheStatus = .remoteHit
+            } else if status.hasQuery && status.hasMaterialize && !status.hasUpload {
+                // Query with materialize and no upload could be either:
+                // 1. Remote hit (successful build)
+                // 2. Miss (failed build where upload didn't happen)
+                // Only in this ambiguous case do we check the filesystem
+                if try await isRemoteHit(key: key, buildStartTime: activityLog.mainSection.timeStartedRecording) {
+                    cacheStatus = .remoteHit
+                } else {
+                    cacheStatus = .miss
+                }
             } else {
                 // Shouldn't happen, but default to miss
                 continue
@@ -554,6 +552,27 @@ public struct XCActivityLogController: XCActivityLogControlling {
         }
         
         return cacheableTasks
+    }
+    
+    private func isRemoteHit(key: String, buildStartTime: Double) async throws -> Bool {
+        // Check our keyvalue entries index
+        let keyValueEntriesDirectory = Environment.current.cacheDirectory.appending(component: "keyvalue-entries")
+        let jsonPath = keyValueEntriesDirectory.appending(component: "\(key).json")
+        
+        // Check if the JSON file exists for this key
+        guard try await fileSystem.exists(jsonPath) else {
+            return false
+        }
+        
+        // Get creation date from file attributes
+        guard let creationDate = try await fileSystem.fileMetadata(at: jsonPath)?.lastModificationDate else {
+            return false
+        }
+        
+        // Compare with build start time
+        // If the file was created after the build started, it's a remote hit
+        // (it was fetched during this build)
+        return creationDate.timeIntervalSinceReferenceDate >= buildStartTime
     }
 }
 

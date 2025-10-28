@@ -116,7 +116,7 @@ struct InspectBuildCommandService {
             projectDerivedDataDirectory: projectDerivedDataDirectory,
             referenceDate: referenceDate
         )
-        let xcactivityLog = try await xcActivityLogController.parse(mostRecentActivityLogPath)
+        let xcactivityLog = try await xcActivityLogController.parse(mostRecentActivityLogPath, projectDerivedDataDirectory: projectDerivedDataDirectory)
         try await createBuild(
             for: xcactivityLog,
             projectPath: projectPath
