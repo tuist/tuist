@@ -195,7 +195,7 @@ struct GenerateServiceTests {
             noOpen: true,
             configuration: nil,
             ignoreBinaryCache: false,
-            cacheProfile: "none"
+            cacheProfile: .none
         )
 
         // Then
@@ -234,7 +234,7 @@ struct GenerateServiceTests {
             noOpen: true,
             configuration: nil,
             ignoreBinaryCache: false,
-            cacheProfile: "all-possible"
+            cacheProfile: .allPossible
         )
 
         // Then
@@ -369,7 +369,7 @@ struct GenerateServiceTests {
                 noOpen: true,
                 configuration: nil,
                 ignoreBinaryCache: false,
-                cacheProfile: "missing"
+                cacheProfile: .custom("missing")
             )
         }
     }

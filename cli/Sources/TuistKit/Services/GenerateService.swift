@@ -41,7 +41,7 @@ final class GenerateService {
         noOpen: Bool,
         configuration: String?,
         ignoreBinaryCache: Bool,
-        cacheProfile: String?
+        cacheProfile: CacheProfileType?
     ) async throws {
         let timer = clock.startTimer()
         let path = try self.path(path)

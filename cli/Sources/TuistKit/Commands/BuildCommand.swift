@@ -1,6 +1,7 @@
 import ArgumentParser
 import Foundation
 import Path
+import TuistCore
 import TuistServer
 import TuistSupport
 import XcodeGraph
@@ -151,7 +152,7 @@ public struct BuildCommand: AsyncParsableCommand, LogConfigurableCommand,
         help: "Binary cache profile to use: 'only-external', 'all-possible', 'none', or a custom profile name",
         envKey: .buildCacheProfile
     )
-    var cacheProfile: String?
+    var cacheProfile: CacheProfileType?
 
     private var notAllowedPassthroughXcodeBuildArguments = [
         "-scheme",

@@ -10,6 +10,21 @@ extension TargetQuery: @retroactive ExpressibleByArgument {
     }
 }
 
+extension CacheProfileType: @retroactive ExpressibleByArgument {
+    public init?(argument: String) {
+        switch argument {
+        case "only-external":
+            self = .onlyExternal
+        case "all-possible":
+            self = .allPossible
+        case "none":
+            self = .none
+        default:
+            self = .custom(argument)
+        }
+    }
+}
+
 public struct GenerateCommand: AsyncParsableCommand, RecentPathRememberableCommand {
     public init() {}
 
@@ -59,7 +74,7 @@ public struct GenerateCommand: AsyncParsableCommand, RecentPathRememberableComma
         help: "Binary cache profile to use: 'only-external', 'all-possible', 'none', or a custom profile name",
         envKey: .generateCacheProfile
     )
-    var cacheProfile: String?
+    var cacheProfile: CacheProfileType?
 
     @Option(
         name: .shortAndLong,

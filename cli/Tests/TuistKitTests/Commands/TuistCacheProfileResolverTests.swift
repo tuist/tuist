@@ -13,7 +13,7 @@ struct TuistCacheProfileResolverTests {
         let result = try config.resolveCacheProfile(
             ignoreBinaryCache: false,
             includedTargets: ["App"],
-            cacheProfile: "none"
+            cacheProfile: .none
         )
 
         // Then
@@ -26,18 +26,18 @@ struct TuistCacheProfileResolverTests {
 
         // When / Then
         #expect(try config
-            .resolveCacheProfile(ignoreBinaryCache: false, includedTargets: [], cacheProfile: "only-external") == .init(
+            .resolveCacheProfile(ignoreBinaryCache: false, includedTargets: [], cacheProfile: .onlyExternal) == .init(
                 base: .onlyExternal,
                 targetQueries: []
             )
         )
         #expect(try config
-            .resolveCacheProfile(ignoreBinaryCache: false, includedTargets: [], cacheProfile: "all-possible") == .init(
+            .resolveCacheProfile(ignoreBinaryCache: false, includedTargets: [], cacheProfile: .allPossible) == .init(
                 base: .allPossible,
                 targetQueries: []
             )
         )
-        #expect(try config.resolveCacheProfile(ignoreBinaryCache: false, includedTargets: [], cacheProfile: "none") == .init(
+        #expect(try config.resolveCacheProfile(ignoreBinaryCache: false, includedTargets: [], cacheProfile: .none) == .init(
             base: .none,
             targetQueries: []
         ))
@@ -61,7 +61,7 @@ struct TuistCacheProfileResolverTests {
         let result = try config.resolveCacheProfile(
             ignoreBinaryCache: false,
             includedTargets: [],
-            cacheProfile: "development"
+            cacheProfile: .custom("development")
         )
 
         // Then
@@ -125,7 +125,7 @@ struct TuistCacheProfileResolverTests {
             _ = try config.resolveCacheProfile(
                 ignoreBinaryCache: false,
                 includedTargets: [],
-                cacheProfile: "missing"
+                cacheProfile: .custom("missing")
             )
         }
     }
@@ -139,7 +139,7 @@ struct TuistCacheProfileResolverTests {
         let result = try config.resolveCacheProfile(
             ignoreBinaryCache: true,
             includedTargets: included,
-            cacheProfile: "all-possible"
+            cacheProfile: .allPossible
         )
 
         // Then
@@ -178,7 +178,7 @@ struct TuistCacheProfileResolverTests {
             _ = try config.resolveCacheProfile(
                 ignoreBinaryCache: false,
                 includedTargets: [],
-                cacheProfile: "missing"
+                cacheProfile: .custom("missing")
             )
         }
     }

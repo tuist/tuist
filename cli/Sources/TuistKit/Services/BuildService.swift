@@ -53,7 +53,7 @@ public final class BuildService {
         clean: Bool,
         configuration: String?,
         ignoreBinaryCache: Bool,
-        cacheProfile: String?,
+        cacheProfile: CacheProfileType?,
         buildOutputPath: AbsolutePath?,
         derivedDataPath: String?,
         path: AbsolutePath,

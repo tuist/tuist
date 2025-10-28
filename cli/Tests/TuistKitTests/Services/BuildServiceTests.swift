@@ -101,7 +101,7 @@ struct BuildServiceTests {
                 schemeName: scheme.name,
                 configuration: nil,
                 ignoreBinaryCache: false,
-                cacheProfile: "all-possible",
+                cacheProfile: .allPossible,
                 path: temporaryDirectory
             )
 
@@ -225,7 +225,7 @@ struct BuildServiceTests {
                     schemeName: nil,
                     configuration: nil,
                     ignoreBinaryCache: false,
-                    cacheProfile: "missing",
+                    cacheProfile: .custom("missing"),
                     path: temporaryDirectory
                 )
             }
@@ -556,7 +556,7 @@ extension BuildService {
         clean: Bool = true,
         configuration: String? = nil,
         ignoreBinaryCache: Bool = false,
-        cacheProfile: String? = nil,
+        cacheProfile: CacheProfileType? = nil,
         buildOutputPath: AbsolutePath? = nil,
         derivedDataPath: String? = nil,
         path: AbsolutePath,

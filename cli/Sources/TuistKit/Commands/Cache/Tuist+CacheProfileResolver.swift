@@ -24,7 +24,7 @@ extension Tuist {
     func resolveCacheProfile(
         ignoreBinaryCache: Bool,
         includedTargets: Set<TargetQuery>,
-        cacheProfile: String?
+        cacheProfile: CacheProfileType?
     ) throws -> CacheProfile {
         if ignoreBinaryCache {
             Logger.current.debug("Using cache profile none")
@@ -40,7 +40,7 @@ extension Tuist {
 
         if let cacheProfile {
             Logger.current.debug("Using cache profile \(cacheProfile)")
-            return try resolveFromProfileType(.from(commandLineValue: cacheProfile), profiles: profiles)
+            return try resolveFromProfileType(cacheProfile, profiles: profiles)
         }
 
         // The default profile was already validated when loaded

@@ -55,7 +55,7 @@ struct CommandEnvironmentVariableTests {
             buildCommandWithEnvVars.buildOptions.passthroughXcodeBuildArguments ==
                 ["clean", "-configuration", "Release"]
         )
-        #expect(buildCommandWithEnvVars.cacheProfile == "ci")
+        #expect(buildCommandWithEnvVars.cacheProfile == .custom("ci"))
 
         let buildCommandWithArgs = try BuildCommand.parse([
             "Scheme2",
@@ -85,7 +85,7 @@ struct CommandEnvironmentVariableTests {
         #expect(buildCommandWithArgs.buildOptions.derivedDataPath == "/new/derivedData")
         #expect(buildCommandWithArgs.buildOptions.generateOnly == false)
         #expect(buildCommandWithArgs.buildOptions.passthroughXcodeBuildArguments == ["-configuration", "Debug"])
-        #expect(buildCommandWithArgs.cacheProfile == "none")
+        #expect(buildCommandWithArgs.cacheProfile == .none)
     }
 
     @Test(.withMockedEnvironment()) func cleanCommandUsesEnvVars() throws {
@@ -150,7 +150,7 @@ struct CommandEnvironmentVariableTests {
         #expect(generateCommandWithEnvVars.path == "/path/to/generate")
         #expect(generateCommandWithEnvVars.open == false)
         #expect(generateCommandWithEnvVars.binaryCache == false)
-        #expect(generateCommandWithEnvVars.cacheProfile == "development")
+        #expect(generateCommandWithEnvVars.cacheProfile == .custom("development"))
 
         let generateCommandWithArgs = try GenerateCommand.parse([
             "--path", "/new/generate/path",
@@ -161,7 +161,7 @@ struct CommandEnvironmentVariableTests {
         #expect(generateCommandWithArgs.path == "/new/generate/path")
         #expect(generateCommandWithArgs.open == true)
         #expect(generateCommandWithArgs.binaryCache == true)
-        #expect(generateCommandWithArgs.cacheProfile == "all-possible")
+        #expect(generateCommandWithArgs.cacheProfile == .allPossible)
     }
 
     @Test(.withMockedEnvironment()) func graphCommandUsesEnvVars() throws {
