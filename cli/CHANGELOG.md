@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.92.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add cache daemon logs by [@fortmarek](https://github.com/fortmarek) in [#8520](https://github.com/tuist/tuist/pull/8520)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.91.1...4.92.0
+
 ## What's Changed in 4.91.1<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
