@@ -369,7 +369,7 @@ struct GenerateServiceTests {
                 noOpen: true,
                 configuration: nil,
                 ignoreBinaryCache: false,
-                cacheProfile: .custom("missing")
+                cacheProfile: "missing"
             )
         }
     }

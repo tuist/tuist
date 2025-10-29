@@ -56,7 +56,7 @@ struct TuistCacheProfileResolverTests {
         let result = try config.resolveCacheProfile(
             ignoreBinaryCache: false,
             includedTargets: [],
-            cacheProfile: .custom("development")
+            cacheProfile: "development"
         )
 
         // Then
@@ -120,7 +120,7 @@ struct TuistCacheProfileResolverTests {
             _ = try config.resolveCacheProfile(
                 ignoreBinaryCache: false,
                 includedTargets: [],
-                cacheProfile: .custom("missing")
+                cacheProfile: "missing"
             )
         }
     }
@@ -173,7 +173,7 @@ struct TuistCacheProfileResolverTests {
             _ = try config.resolveCacheProfile(
                 ignoreBinaryCache: false,
                 includedTargets: [],
-                cacheProfile: .custom("missing")
+                cacheProfile: "missing"
             )
         }
     }

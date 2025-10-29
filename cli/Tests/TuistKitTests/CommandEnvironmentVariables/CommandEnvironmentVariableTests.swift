@@ -146,7 +146,7 @@ struct CommandEnvironmentVariableTests {
         #expect(generateCommandWithEnvVars.path == "/path/to/generate")
         #expect(generateCommandWithEnvVars.open == false)
         #expect(generateCommandWithEnvVars.binaryCache == false)
-        #expect(generateCommandWithEnvVars.cacheProfile == .custom("development"))
+        #expect(generateCommandWithEnvVars.cacheProfile == "development")
 
         let generateCommandWithArgs = try GenerateCommand.parse([
             "--path", "/new/generate/path",

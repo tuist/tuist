@@ -141,7 +141,7 @@ struct TuistGeneratedProjectManifestMapperTests {
                 targetQueries: []
             ),
         ])
-        #expect(got.defaultProfile == .custom("development"))
+        #expect(got.defaultProfile == "development")
     }
 
     @Test func from_mapsCacheOptions_profiles() throws {
@@ -168,7 +168,7 @@ struct TuistGeneratedProjectManifestMapperTests {
                 targetQueries: ["tag:stable"]
             ),
         ])
-        #expect(got.profiles.defaultProfile == .custom("debug"))
+        #expect(got.profiles.defaultProfile == "debug")
     }
 
     @Test func from_throws_whenCustomProfileNameIsReserved() throws {

@@ -14,7 +14,7 @@ let tuist = Tuist(
                         ]
                     ),
                 ],
-                default: .custom("development")
+                default: "development"
             )
         )
     )
