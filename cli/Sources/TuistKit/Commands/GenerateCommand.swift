@@ -62,6 +62,13 @@ public struct GenerateCommand: AsyncParsableCommand, RecentPathRememberableComma
     var configuration: String?
 
     public func run() async throws {
+        if !binaryCache {
+            AlertController.current.warning(.alert(
+                "The \(.command("--no-binary-cache")) flag is deprecated.",
+                takeaway: "Use \(.command("--cache-profile none")) instead."
+            ))
+        }
+
         try await GenerateService(
             cacheStorageFactory: Extension.cacheStorageFactory,
             generatorFactory: Extension.generatorFactory
