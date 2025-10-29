@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.93.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* xcode cache analytics by [@fortmarek](https://github.com/fortmarek) in [#8534](https://github.com/tuist/tuist/pull/8534)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.92.1...4.93.0
+
 ## What's Changed in 4.92.1<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
