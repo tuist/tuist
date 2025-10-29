@@ -156,7 +156,7 @@ defmodule TuistWeb.BuildRunLiveTest do
     refute has_element?(lv, "a", "CI Run")
   end
 
-  test "shows compilation optimizations tab when build has cacheable tasks", %{
+  test "shows cache tab when build has cacheable tasks", %{
     conn: conn,
     organization: organization,
     project: project
@@ -178,11 +178,11 @@ defmodule TuistWeb.BuildRunLiveTest do
     # When
     {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/builds/build-runs/#{build_run.id}")
 
-    # Then
-    assert has_element?(lv, "a", "Cache")
+    # Then - Check that the Cache tab is present in the horizontal tab menu
+    assert has_element?(lv, ".noora-tab-menu-horizontal-item", "Cache")
 
     # When clicking on the cache tab
-    lv |> element("a", "Cache") |> render_click()
+    lv |> element(".noora-tab-menu-horizontal-item", "Cache") |> render_click()
 
     # Then it should show the summary statistics
     assert has_element?(lv, "[data-part='title']", "Cacheable tasks")
@@ -193,7 +193,7 @@ defmodule TuistWeb.BuildRunLiveTest do
     assert has_element?(lv, "[data-part='value']", "1")
   end
 
-  test "hides compilation optimizations tab when build has no cacheable tasks", %{
+  test "hides cache tab when build has no cacheable tasks", %{
     conn: conn,
     organization: organization,
     project: project
@@ -209,7 +209,7 @@ defmodule TuistWeb.BuildRunLiveTest do
     # When
     {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/builds/build-runs/#{build_run.id}")
 
-    # Then
-    refute has_element?(lv, "a", "Cache")
+    # Then - Check that the Cache tab is not present in the horizontal tab menu
+    refute has_element?(lv, ".noora-tab-menu-horizontal-item", "Cache")
   end
 end
