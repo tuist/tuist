@@ -9,15 +9,8 @@ defmodule CacheWeb.CASController do
   def load(conn, %{"id" => id, "account_handle" => account_handle, "project_handle" => project_handle}) do
     case Authentication.ensure_project_accessible(conn, account_handle, project_handle) do
       {:ok, _auth_header} ->
-        Logger.info("Found project: #{account_handle}/#{project_handle}")
-
         key = cas_key(account_handle, project_handle, id)
-        Logger.info("Cache key: #{key}")
-
-        # Use X-Accel-Redirect to let nginx serve the file directly
-        # nginx will return 404 if the file doesn't exist
         redirect_path = "/internal-cas/#{key}"
-        Logger.info("Setting X-Accel-Redirect header: #{redirect_path}")
 
         conn
         |> put_resp_header("x-accel-redirect", redirect_path)

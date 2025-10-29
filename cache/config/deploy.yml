@@ -22,6 +22,7 @@ accessories:
         - "80:80"
         - "443:443"
     files:
+      - config/nginx.conf:/etc/nginx/nginx.conf
       - config/nginx-us.conf:/etc/nginx/user_conf.d/default.conf
     volumes:
       - /data/cas:/data/cas:ro
@@ -38,6 +39,7 @@ accessories:
         - "80:80"
         - "443:443"
     files:
+      - config/nginx.conf:/etc/nginx/nginx.conf
       - config/nginx-eu.conf:/etc/nginx/user_conf.d/default.conf
     volumes:
       - /data/cas:/data/cas:ro
