@@ -311,6 +311,13 @@ defmodule TuistWeb.BuildRunLive do
     end
   end
 
+  defp cacheable_tasks_order_by(cacheable_tasks_sort_by) do
+    case cacheable_tasks_sort_by do
+      "key" -> [:key]
+      _ -> [:key]
+    end
+  end
+
   defp assign_module_breakdown(
          %{assigns: %{run: run, module_breakdown_available_filters: available_filters}} = socket,
          params
@@ -663,6 +670,24 @@ defmodule TuistWeb.BuildRunLive do
     "?#{query}"
   end
 
+  def cacheable_tasks_column_patch_sort(
+        %{
+          uri: uri,
+          cacheable_tasks_sort_by: cacheable_tasks_sort_by,
+          cacheable_tasks_sort_order: cacheable_tasks_sort_order
+        } = _assigns,
+        column_value
+      ) do
+    sort_order =
+      case {cacheable_tasks_sort_by == column_value, cacheable_tasks_sort_order} do
+        {true, "asc"} -> "desc"
+        {true, _} -> "asc"
+        {false, _} -> "asc"
+      end
+
+    "?#{uri.query |> Query.put("cacheable-tasks-sort-by", column_value) |> Query.put("cacheable-tasks-sort-order", sort_order) |> Query.drop("cacheable-tasks-page")}"
+  end
+
   defp define_file_breakdown_filters do
     [
       %Filter.Filter{
@@ -747,6 +772,15 @@ defmodule TuistWeb.BuildRunLive do
          params
        ) do
     cacheable_tasks_search = params["cacheable-tasks-search"] || ""
+    cacheable_tasks_sort_by = params["cacheable-tasks-sort-by"] || "key"
+
+    default_sort_order =
+      case cacheable_tasks_sort_by do
+        "key" -> "desc"
+        _ -> "desc"
+      end
+
+    cacheable_tasks_sort_order = params["cacheable-tasks-sort-order"] || default_sort_order
 
     cacheable_tasks_page =
       params["cacheable-tasks-page"]
@@ -759,10 +793,16 @@ defmodule TuistWeb.BuildRunLive do
 
     flop_filters = cacheable_tasks_filters(run, params, available_filters, cacheable_tasks_search)
 
+    order_by = cacheable_tasks_order_by(cacheable_tasks_sort_by)
+
+    order_directions = map_sort_order(cacheable_tasks_sort_order)
+
     options = %{
       filters: flop_filters,
       page: cacheable_tasks_page,
-      page_size: 50
+      page_size: 50,
+      order_by: order_by,
+      order_directions: order_directions
     }
 
     {tasks, tasks_meta} = Runs.list_cacheable_tasks(options)
@@ -776,6 +816,8 @@ defmodule TuistWeb.BuildRunLive do
     |> assign(:cacheable_tasks_page, cacheable_tasks_page)
     |> assign(:cacheable_tasks_meta, tasks_meta)
     |> assign(:cacheable_tasks_active_filters, filters)
+    |> assign(:cacheable_tasks_sort_by, cacheable_tasks_sort_by)
+    |> assign(:cacheable_tasks_sort_order, cacheable_tasks_sort_order)
   end
 
   def empty_tab_state_background(assigns) do

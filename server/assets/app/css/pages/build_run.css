@@ -340,9 +340,6 @@
         & > [data-part="filters"] {
           display: flex;
           gap: var(--noora-spacing-6);
-          & .noora-dropdown-item:not([data-selected]) svg {
-            visibility: hidden;
-          }
         }
 
         & > [data-part="active-filters"] {

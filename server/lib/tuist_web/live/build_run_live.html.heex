@@ -777,7 +777,18 @@
             <.active_filter :for={filter <- @cacheable_tasks_active_filters} filter={filter} />
           </div>
           <.table id="cacheable-tasks-table" rows={@cacheable_tasks}>
-            <:col :let={task} label={gettext("Key")}>
+            <:col
+              :let={task}
+              label={gettext("Key")}
+              patch={
+                @cacheable_tasks_sort_by == "key" &&
+                  cacheable_tasks_column_patch_sort(assigns, "key")
+              }
+              icon={
+                @cacheable_tasks_sort_by == "key" &&
+                  sort_icon(@cacheable_tasks_sort_order)
+              }
+            >
               <.text_cell label={task.key} />
             </:col>
             <:col :let={task} label={gettext("Hit")}>
