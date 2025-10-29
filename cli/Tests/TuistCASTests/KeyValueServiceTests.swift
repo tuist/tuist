@@ -1,3 +1,5 @@
+import FileSystem
+import FileSystemTesting
 import Foundation
 import GRPCCore
 import Mockable
@@ -6,6 +8,7 @@ import Path
 import Testing
 import TuistServer
 import TuistSupport
+import TuistTesting
 @testable import TuistCAS
 
 struct KeyValueServiceTests {
@@ -222,6 +225,133 @@ struct KeyValueServiceTests {
         // Then
         #expect(response.error.description_p == genericError.localizedDescription)
         #expect(response.outcome == .keyNotFound)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func getValue_saves_keyvalue_entries_to_file() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let environment = try #require(Environment.mocked)
+        environment.cacheDirectory = temporaryDirectory
+        let fileSystem = FileSystem()
+
+        let key = Data("0test-key".utf8)
+        let entryKey1 = Data("test-data1".utf8).base64EncodedString()
+        let entryKey2 = Data("test-data2".utf8).base64EncodedString()
+
+        let subject = KeyValueService(
+            fullHandle: fullHandle,
+            serverURL: serverURL,
+            putCacheValueService: putCacheValueService,
+            getCacheValueService: getCacheValueService,
+            fileSystem: fileSystem
+        )
+
+        var request = CompilationCacheService_Keyvalue_V1_GetValueRequest()
+        request.key = key
+
+        let context = ServerContext.test()
+
+        let mockResponse = Operations.getCacheValue.Output.Ok.Body.jsonPayload(
+            entries: [
+                Operations.getCacheValue.Output.Ok.Body.jsonPayload.entriesPayloadPayload(
+                    value: entryKey1
+                ),
+                Operations.getCacheValue.Output.Ok.Body.jsonPayload.entriesPayloadPayload(
+                    value: entryKey2
+                ),
+            ]
+        )
+
+        given(getCacheValueService)
+            .getCacheValue(
+                casId: .any,
+                fullHandle: .any,
+                serverURL: .any
+            )
+            .willReturn(mockResponse)
+
+        // When
+        let response = try await subject.getValue(request: request, context: context)
+
+        // Then
+        #expect(response.outcome == .success)
+
+        // Verify the response contains expected values
+        switch response.contents {
+        case let .value(value):
+            #expect(value.entries["value"] == Data("test-data2".utf8))
+        default:
+            #expect(Bool(false), "Expected .value content")
+        }
+
+        // Wait a bit for the async file save to complete
+        try await Task.sleep(nanoseconds: 100_000_000) // 100ms
+
+        let keyValueEntriesDirectory = temporaryDirectory.appending(component: "KeyValueStore")
+        let expectedFilePath = keyValueEntriesDirectory.appending(component: "0~dGVzdC1rZXk=.json")
+
+        #expect(try await fileSystem.exists(expectedFilePath))
+
+        let fileData = try Data(contentsOf: expectedFilePath.url)
+        let savedEntryKeys = try JSONDecoder().decode([String].self, from: fileData)
+
+        #expect(savedEntryKeys == [entryKey1, entryKey2])
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func getValue_handles_empty_entries() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let environment = try #require(Environment.mocked)
+        environment.cacheDirectory = temporaryDirectory
+        let fileSystem = FileSystem()
+
+        let key = Data("0test-key".utf8)
+
+        let subject = KeyValueService(
+            fullHandle: fullHandle,
+            serverURL: serverURL,
+            putCacheValueService: putCacheValueService,
+            getCacheValueService: getCacheValueService,
+            fileSystem: fileSystem
+        )
+
+        var request = CompilationCacheService_Keyvalue_V1_GetValueRequest()
+        request.key = key
+
+        let context = ServerContext.test()
+
+        let mockResponse = Operations.getCacheValue.Output.Ok.Body.jsonPayload(
+            entries: []
+        )
+
+        given(getCacheValueService)
+            .getCacheValue(
+                casId: .any,
+                fullHandle: .any,
+                serverURL: .any
+            )
+            .willReturn(mockResponse)
+
+        // When
+        let response = try await subject.getValue(request: request, context: context)
+
+        // Then
+        #expect(response.outcome == .success)
+
+        // Wait a bit for the async file save to complete
+        try await Task.sleep(nanoseconds: 100_000_000) // 100ms
+
+        let keyValueEntriesDirectory = temporaryDirectory.appending(component: "KeyValueStore")
+        let expectedFilePath = keyValueEntriesDirectory.appending(component: "0~dGVzdC1rZXk=.json")
+
+        #expect(try await fileSystem.exists(expectedFilePath))
+
+        let fileData = try Data(contentsOf: expectedFilePath.url)
+        let savedEntryKeys = try JSONDecoder().decode([String].self, from: fileData)
+
+        #expect(savedEntryKeys.isEmpty)
     }
 }
 

@@ -38,18 +38,15 @@ extension XCActivityLogControlling {
 // swiftlint:disable:next type_body_length
 public struct XCActivityLogController: XCActivityLogControlling {
     private let fileSystem: FileSystem
-    private let environment: Environmenting
     private let rootDirectoryLocator: RootDirectoryLocating
     private let gitController: GitControlling
 
     public init(
         fileSystem: FileSystem = FileSystem(),
-        environment: Environmenting = Environment.current,
         rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator(),
         gitController: GitControlling = GitController()
     ) {
         self.fileSystem = fileSystem
-        self.environment = environment
         self.rootDirectoryLocator = rootDirectoryLocator
         self.gitController = gitController
     }
@@ -192,6 +189,11 @@ public struct XCActivityLogController: XCActivityLogControlling {
             return errors.filter { $0.severity == 2 }.count + acc
         }
 
+        let cacheableTasks = try await analyzeCacheableTasks(
+            buildSteps: steps,
+            buildStartTime: activityLog.mainSection.timeStartedRecording
+        )
+
         return XCActivityLog(
             version: activityLog.version,
             mainSection: XCActivityLogSection(
@@ -215,13 +217,14 @@ public struct XCActivityLogController: XCActivityLogControlling {
                     status: targetSteps
                         .contains(where: { ($0.errors ?? []).contains(where: { $0.severity == 2 }) }) ? .failure : .success
                 )
-            }
+            },
+            cacheableTasks: cacheableTasks
         )
     }
 
     private func rootDirectory() async throws -> AbsolutePath? {
-        let currentWorkingDirectory = try await environment.currentWorkingDirectory()
-        let workingDirectory = environment.workspacePath ?? currentWorkingDirectory
+        let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
+        let workingDirectory = Environment.current.workspacePath ?? currentWorkingDirectory
         if gitController.isInGitRepository(workingDirectory: workingDirectory) {
             return try gitController.topLevelGitDirectory(workingDirectory: workingDirectory)
         } else {
@@ -445,11 +448,173 @@ public struct XCActivityLogController: XCActivityLogControlling {
             return nil
         }
     }
+
+    private func analyzeCacheableTasks(
+        buildSteps: [XCLogParser.BuildStep],
+        buildStartTime: Double
+    ) async throws -> [CacheableTask] {
+        let cacheSteps = extractCacheSteps(from: buildSteps)
+        let keyStatuses = aggregateKeyStatuses(from: cacheSteps)
+
+        return try await determineCacheStatuses(
+            keyStatuses: keyStatuses,
+            buildStartTime: buildStartTime
+        )
+    }
+
+    private func extractCacheSteps(from buildSteps: [XCLogParser.BuildStep]) -> [CacheStep] {
+        return buildSteps.compactMap { step in
+            guard step.title.contains("Swift caching") || step.title.contains("Clang caching") else {
+                return nil
+            }
+
+            let taskType: CacheableTask.TaskType = step.title.contains("Swift caching") ? .swift : .clang
+
+            guard let key = extractCacheKey(from: step.title),
+                  let operation = determineCacheOperation(from: step.title)
+            else {
+                return nil
+            }
+
+            return CacheStep(key: key, taskType: taskType, operation: operation)
+        }
+    }
+
+    private func extractCacheKey(from title: String) -> String? {
+        if title.contains("query key") || title.contains("materialize key") {
+            // Extract key from ["key"] format
+            let pattern = "\\[\"([^\"]+)\"\\]"
+            return extractKeyWithPattern(pattern, from: title)
+        } else if title.contains("upload key") {
+            // Extract key after "upload key " (no brackets)
+            let pattern = "upload key ([^\\s]+)"
+            return extractKeyWithPattern(pattern, from: title)
+        }
+        return nil
+    }
+
+    private func extractKeyWithPattern(_ pattern: String, from title: String) -> String? {
+        guard let regex = try? NSRegularExpression(pattern: pattern),
+              let match = regex.firstMatch(in: title, range: NSRange(location: 0, length: title.count)),
+              let keyRange = Range(match.range(at: 1), in: title)
+        else {
+            return nil
+        }
+        return String(title[keyRange])
+    }
+
+    private func determineCacheOperation(from title: String) -> CacheOperation? {
+        if title.contains("query key") {
+            return .query
+        } else if title.contains("materialize key") {
+            return .materialize
+        } else if title.contains("upload key") {
+            return .upload
+        }
+        return nil
+    }
+
+    private func aggregateKeyStatuses(from cacheSteps: [CacheStep]) -> [String: CacheKeyStatus] {
+        var keyStatuses: [String: CacheKeyStatus] = [:]
+
+        for step in cacheSteps {
+            var status = keyStatuses[step.key] ?? CacheKeyStatus(taskType: step.taskType)
+            status.taskType = step.taskType
+
+            switch step.operation {
+            case .query:
+                status.hasQuery = true
+            case .materialize:
+                status.hasMaterialize = true
+            case .upload:
+                status.hasUpload = true
+            }
+
+            keyStatuses[step.key] = status
+        }
+
+        return keyStatuses
+    }
+
+    private func determineCacheStatuses(
+        keyStatuses: [String: CacheKeyStatus],
+        buildStartTime: Double
+    ) async throws -> [CacheableTask] {
+        return try await keyStatuses.concurrentMap { key, status in
+            let cacheStatus = try await determineCacheStatus(
+                for: status,
+                key: key,
+                buildStartTime: buildStartTime
+            )
+
+            return CacheableTask(
+                key: key,
+                status: cacheStatus,
+                type: status.taskType
+            )
+        }
+    }
+
+    private func determineCacheStatus(
+        for status: CacheKeyStatus,
+        key: String,
+        buildStartTime: Double
+    ) async throws -> CacheableTask.CacheStatus {
+        if status.hasUpload {
+            return .miss
+        } else if !status.hasQuery, status.hasMaterialize {
+            return .localHit
+        } else if status.hasQuery, status.hasMaterialize, !status.hasUpload {
+            // It's not possible to tell just from the `.xcactivitylog` whether a key is a miss with no upload (such as when a
+            // build fails) or a remote hit
+            // To distinguish these two cases, the `KeyValueService` stores remote hits in a cache directory.
+            // If there's a remote hit that occurred after the build started, we consider the cacheable task a remote hit.
+            return try await isRemoteHit(key: key, buildStartTime: buildStartTime) ? .remoteHit : .miss
+        } else {
+            return .miss
+        }
+    }
+
+    private func isRemoteHit(key: String, buildStartTime: Double) async throws -> Bool {
+        let keyValueEntriesDirectory = Environment.current.cacheDirectory.appending(component: "KeyValueStore")
+        let jsonPath = keyValueEntriesDirectory.appending(component: "\(key).json")
+
+        guard try await fileSystem.exists(jsonPath),
+              let creationDate = try await fileSystem.fileMetadata(at: jsonPath)?.lastModificationDate
+        else {
+            return false
+        }
+
+        return creationDate.timeIntervalSinceReferenceDate >= buildStartTime
+    }
 }
 
 private struct TargetWithStep {
     let name: String
     let step: BuildStep
+}
+
+private struct CacheStep {
+    let key: String
+    let taskType: CacheableTask.TaskType
+    let operation: CacheOperation
+}
+
+private enum CacheOperation {
+    case query
+    case materialize
+    case upload
+}
+
+private struct CacheKeyStatus {
+    var taskType: CacheableTask.TaskType
+    var hasQuery: Bool = false
+    var hasMaterialize: Bool = false
+    var hasUpload: Bool = false
+
+    init(taskType: CacheableTask.TaskType) {
+        self.taskType = taskType
+    }
 }
 
 extension BuildStep {

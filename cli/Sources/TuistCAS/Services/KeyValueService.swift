@@ -4,23 +4,27 @@ import GRPCCore
 import Logging
 import Path
 import TuistServer
+import TuistSupport
 
 public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.SimpleServiceProtocol {
     private let fullHandle: String
     private let serverURL: URL
     private let putCacheValueService: PutCacheValueServicing
     private let getCacheValueService: GetCacheValueServicing
+    private let fileSystem: FileSystem
 
     public init(
         fullHandle: String,
         serverURL: URL,
         putCacheValueService: PutCacheValueServicing = PutCacheValueService(),
-        getCacheValueService: GetCacheValueServicing = GetCacheValueService()
+        getCacheValueService: GetCacheValueServicing = GetCacheValueService(),
+        fileSystem: FileSystem = FileSystem()
     ) {
         self.fullHandle = fullHandle
         self.serverURL = serverURL
         self.putCacheValueService = putCacheValueService
         self.getCacheValueService = getCacheValueService
+        self.fileSystem = fileSystem
     }
 
     public func putValue(
@@ -94,11 +98,26 @@ public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.Si
                 serverURL: serverURL
             ) {
                 var value = CompilationCacheService_Keyvalue_V1_Value()
+
+                // Store entry keys for cache insights
+                var entryKeys: [String] = []
+
                 for entry in json.entries {
                     if let data = Data(base64Encoded: entry.value) {
                         value.entries["value"] = data
+                        entryKeys.append(entry.value)
                     }
                 }
+
+                // Save the entry keys to a JSON file asynchronously (non-blocking)
+                Task {
+                    do {
+                        try await saveKeyValueEntries(key: casID, entryKeys: entryKeys)
+                    } catch {
+                        Logger.current.error("Failed to save keyvalue entries for \(casID): \(error)")
+                    }
+                }
+
                 response.contents = .value(value)
                 response.outcome = .success
 
@@ -134,5 +153,18 @@ public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.Si
         "0~" + key.dropFirst().base64EncodedString()
             .replacingOccurrences(of: "/", with: "_")
             .replacingOccurrences(of: "+", with: "-")
+    }
+
+    private func saveKeyValueEntries(key: String, entryKeys: [String]) async throws {
+        let keyValueEntriesDirectory = Environment.current.cacheDirectory.appending(component: "KeyValueStore")
+
+        if try await !fileSystem.exists(keyValueEntriesDirectory) {
+            try await fileSystem.makeDirectory(at: keyValueEntriesDirectory)
+        }
+
+        let jsonPath = keyValueEntriesDirectory.appending(component: "\(key).json")
+        let jsonData = try JSONEncoder().encode(entryKeys)
+
+        try jsonData.write(to: jsonPath.url)
     }
 }
