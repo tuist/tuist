@@ -24,7 +24,7 @@ accessories:
     files:
       - config/nginx-us.conf:/etc/nginx/user_conf.d/default.conf
     volumes:
-      - /data/cas:/cas:ro
+      - /data/cas:/data/cas:ro
       - nginx-us-letsencrypt:/etc/letsencrypt
 
   nginx-eu:
@@ -40,7 +40,7 @@ accessories:
     files:
       - config/nginx-eu.conf:/etc/nginx/user_conf.d/default.conf
     volumes:
-      - /data/cas:/cas:ro
+      - /data/cas:/data/cas:ro
       - nginx-eu-letsencrypt:/etc/letsencrypt
 
 registry:
@@ -60,4 +60,4 @@ env:
     - SECRET_KEY_BASE
 
 volumes:
-  - /data/cas:/cas:rw
+  - /data/cas:/data/cas:rw
