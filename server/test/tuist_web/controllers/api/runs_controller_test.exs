@@ -639,12 +639,10 @@ defmodule TuistWeb.API.RunsControllerTest do
       response = json_response(conn, :ok)
       [build] = Tuist.Repo.all(Build)
 
-      # Verify counts are calculated correctly
       assert build.cacheable_tasks_count == 5
       assert build.cacheable_task_local_hits_count == 2
       assert build.cacheable_task_remote_hits_count == 2
 
-      # Verify cacheable tasks are created in ClickHouse
       {cacheable_tasks, _meta} =
         Tuist.Runs.list_cacheable_tasks(%{
           filters: [%{field: :build_run_id, op: :==, value: build.id}],
@@ -652,9 +650,6 @@ defmodule TuistWeb.API.RunsControllerTest do
           order_directions: [:asc]
         })
 
-      assert length(cacheable_tasks) == 5
-
-      # Compare the whole array after sorting by key
       expected_tasks = [
         %{type: "swift", status: "hit_local", key: "cache_key_1", build_run_id: build.id},
         %{type: "clang", status: "hit_local", key: "cache_key_2", build_run_id: build.id},

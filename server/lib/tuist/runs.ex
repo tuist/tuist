@@ -136,7 +136,19 @@ defmodule Tuist.Runs do
   end
 
   defp create_cacheable_tasks(build, tasks) do
-    tasks = Enum.map(tasks, &CacheableTask.changeset(build.id, &1))
+    tasks =
+      tasks
+      |> Enum.map(&CacheableTask.changeset(build.id, &1))
+      |> Enum.map(&Ecto.Changeset.apply_changes/1)
+      |> Enum.map(fn struct ->
+        %{
+          type: struct.type,
+          status: struct.status,
+          key: struct.key,
+          build_run_id: struct.build_run_id,
+          inserted_at: struct.inserted_at
+        }
+      end)
 
     IngestRepo.insert_all(CacheableTask, tasks)
   end

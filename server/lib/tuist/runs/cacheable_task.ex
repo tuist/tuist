@@ -20,12 +20,16 @@ defmodule Tuist.Runs.CacheableTask do
 
   def changeset(build_run_id, attrs) do
     %__MODULE__{}
-    |> Ecto.Changeset.cast(%{
-      build_run_id: build_run_id,
-      type: attrs[:type] && to_string(attrs[:type]),
-      status: attrs[:status] && to_string(attrs[:status]),
-      key: attrs[:key]
-    }, [:build_run_id, :type, :status, :key])
+    |> Ecto.Changeset.cast(
+      %{
+        build_run_id: build_run_id,
+        type: attrs[:type] && to_string(attrs[:type]),
+        status: attrs[:status] && to_string(attrs[:status]),
+        key: attrs[:key],
+        inserted_at: :second |> DateTime.utc_now() |> DateTime.to_naive()
+      },
+      [:build_run_id, :type, :status, :key, :inserted_at]
+    )
     |> Ecto.Changeset.validate_required([:build_run_id, :type, :status, :key])
   end
 end

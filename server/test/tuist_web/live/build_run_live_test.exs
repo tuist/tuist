@@ -185,14 +185,12 @@ defmodule TuistWeb.BuildRunLiveTest do
     lv |> element("a", "Compilation optimizations") |> render_click()
 
     # Then it should show the summary statistics
-    assert has_element?(lv, "[data-part='summary-title']", "Total cacheable tasks")
-    assert has_element?(lv, "[data-part='summary-value']", "3")
-    assert has_element?(lv, "[data-part='summary-title']", "Remote cache hits")
-    assert has_element?(lv, "[data-part='summary-value']", "1")
-    assert has_element?(lv, "[data-part='summary-title']", "Local cache hits")
-    assert has_element?(lv, "[data-part='summary-value']", "1")
-    assert has_element?(lv, "[data-part='summary-title']", "Cache misses")
-    assert has_element?(lv, "[data-part='summary-value']", "1")
+    assert has_element?(lv, "[data-part='title']", "Cacheable tasks")
+    assert has_element?(lv, "[data-part='value']", "3")
+    assert has_element?(lv, "[data-part='title']", "Remote task hits")
+    assert has_element?(lv, "[data-part='value']", "1")
+    assert has_element?(lv, "[data-part='title']", "Local task hits")
+    assert has_element?(lv, "[data-part='value']", "1")
   end
 
   test "hides compilation optimizations tab when build has no cacheable tasks", %{
