@@ -125,7 +125,7 @@ struct InspectBuildCommandService {
 
     private func mostRecentActivityLogPath(
         projectPath: AbsolutePath,
-        projectDerivedDataDirectory _: AbsolutePath,
+        projectDerivedDataDirectory: AbsolutePath,
         referenceDate: Date
     ) async throws -> AbsolutePath {
         var mostRecentActivityLogPath: AbsolutePath!
@@ -137,7 +137,7 @@ struct InspectBuildCommandService {
         ) {
             while true {
                 if let mostRecentActivityLogFile = try await xcActivityLogController.mostRecentActivityLogFile(
-                    projectDerivedDataDirectory: "/Users/marekfort/Library/Developer/Xcode/DerivedData/App-ghyidfsrzqlgvhdvtluukvnmvlld",
+                    projectDerivedDataDirectory: projectDerivedDataDirectory,
                     filter: { !$0.signature.hasPrefix("Clean") }
                 ),
                     Environment.current.workspacePath == nil || (

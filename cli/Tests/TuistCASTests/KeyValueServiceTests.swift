@@ -244,8 +244,7 @@ struct KeyValueServiceTests {
             serverURL: serverURL,
             putCacheValueService: putCacheValueService,
             getCacheValueService: getCacheValueService,
-            fileSystem: fileSystem,
-            environment: environment
+            fileSystem: fileSystem
         )
 
         var request = CompilationCacheService_Keyvalue_V1_GetValueRequest()
@@ -290,7 +289,7 @@ struct KeyValueServiceTests {
         // Wait a bit for the async file save to complete
         try await Task.sleep(nanoseconds: 200_000_000) // 200ms
 
-        let keyValueEntriesDirectory = temporaryDirectory.appending(component: "keyvalue-entries")
+        let keyValueEntriesDirectory = temporaryDirectory.appending(component: "KeyValueStore")
         let expectedFilePath = keyValueEntriesDirectory.appending(component: "0~dGVzdC1rZXk=.json")
 
         #expect(try await fileSystem.exists(expectedFilePath))
@@ -316,8 +315,7 @@ struct KeyValueServiceTests {
             serverURL: serverURL,
             putCacheValueService: putCacheValueService,
             getCacheValueService: getCacheValueService,
-            fileSystem: fileSystem,
-            environment: environment
+            fileSystem: fileSystem
         )
 
         var request = CompilationCacheService_Keyvalue_V1_GetValueRequest()
@@ -347,7 +345,7 @@ struct KeyValueServiceTests {
         // Wait a bit for the async file save to complete
         try await Task.sleep(nanoseconds: 200_000_000) // 200ms
 
-        let keyValueEntriesDirectory = temporaryDirectory.appending(component: "keyvalue-entries")
+        let keyValueEntriesDirectory = temporaryDirectory.appending(component: "KeyValueStore")
         let expectedFilePath = keyValueEntriesDirectory.appending(component: "0~dGVzdC1rZXk=.json")
 
         #expect(try await fileSystem.exists(expectedFilePath))

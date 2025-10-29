@@ -11,22 +11,19 @@ public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.Si
     private let putCacheValueService: PutCacheValueServicing
     private let getCacheValueService: GetCacheValueServicing
     private let fileSystem: FileSystem
-    private let environment: Environmenting
 
     public init(
         fullHandle: String,
         serverURL: URL,
         putCacheValueService: PutCacheValueServicing = PutCacheValueService(),
         getCacheValueService: GetCacheValueServicing = GetCacheValueService(),
-        fileSystem: FileSystem = FileSystem(),
-        environment: Environmenting = Environment.current
+        fileSystem: FileSystem = FileSystem()
     ) {
         self.fullHandle = fullHandle
         self.serverURL = serverURL
         self.putCacheValueService = putCacheValueService
         self.getCacheValueService = getCacheValueService
         self.fileSystem = fileSystem
-        self.environment = environment
     }
 
     public func putValue(
@@ -63,7 +60,6 @@ public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.Si
         context _: GRPCCore.ServerContext
     ) async throws -> CompilationCacheService_Keyvalue_V1_GetValueResponse {
         let casID = converKeyToCasID(request.key)
-        print(request.key)
 
         var response = CompilationCacheService_Keyvalue_V1_GetValueResponse()
 
@@ -75,15 +71,12 @@ public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.Si
             ) {
                 var value = CompilationCacheService_Keyvalue_V1_Value()
 
-                // Store entry keys for cache analysis
-                // The entry.value is actually the key (e.g., "0~...") that will appear in
-                // "Swift caching materialize outputs from 0~..." build steps
+                // Store entry keys for cache insights
                 var entryKeys: [String] = []
 
                 for entry in json.entries {
                     if let data = Data(base64Encoded: entry.value) {
                         value.entries["value"] = data
-                        // The value IS the entry key used in materialize steps
                         entryKeys.append(entry.value)
                     }
                 }
@@ -93,8 +86,7 @@ public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.Si
                     do {
                         try await saveKeyValueEntries(key: casID, entryKeys: entryKeys)
                     } catch {
-                        // Log error but don't fail the request
-                        print("Failed to save keyvalue entries for \(casID): \(error)")
+                        Logger.current.error("Failed to save keyvalue entries for \(casID): \(error)")
                     }
                 }
 
@@ -120,7 +112,7 @@ public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.Si
     }
 
     private func saveKeyValueEntries(key: String, entryKeys: [String]) async throws {
-        let keyValueEntriesDirectory = environment.cacheDirectory.appending(component: "keyvalue-entries")
+        let keyValueEntriesDirectory = Environment.current.cacheDirectory.appending(component: "KeyValueStore")
 
         if try await !fileSystem.exists(keyValueEntriesDirectory) {
             try await fileSystem.makeDirectory(at: keyValueEntriesDirectory)

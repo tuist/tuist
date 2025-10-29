@@ -111,7 +111,6 @@ public struct XCActivityLogController: XCActivityLogControlling {
         return buildSteps.flatMap { step in
             var flattened = [step]
             if !step.subSteps.isEmpty {
-                print("Set of steps for \(step.title): \(step.subSteps.map(\.title))")
                 flattened.append(contentsOf: flattenedXCLogParserBuildStep(step.subSteps))
             }
             return flattened
@@ -239,7 +238,7 @@ public struct XCActivityLogController: XCActivityLogControlling {
         let derivedDataDirectory = try await Environment.current.derivedDataDirectory()
         return try await steps
             .filter { $0.type == .detail }
-            .serialCompactMap { step -> XCActivityBuildFile? in
+            .concurrentCompactMap { step -> XCActivityBuildFile? in
                 let type: XCActivityBuildFileType
                 switch step.detailStepType {
                 case .swiftCompilation:
@@ -548,7 +547,7 @@ public struct XCActivityLogController: XCActivityLogControlling {
 
     private func isRemoteHit(key: String, buildStartTime: Double) async throws -> Bool {
         // Check our keyvalue entries index
-        let keyValueEntriesDirectory = Environment.current.cacheDirectory.appending(component: "keyvalue-entries")
+        let keyValueEntriesDirectory = Environment.current.cacheDirectory.appending(component: "KeyValueStore")
         let jsonPath = keyValueEntriesDirectory.appending(component: "\(key).json")
 
         // Check if the JSON file exists for this key
