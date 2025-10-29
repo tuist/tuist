@@ -189,7 +189,10 @@ public struct XCActivityLogController: XCActivityLogControlling {
             return errors.filter { $0.severity == 2 }.count + acc
         }
 
-        let cacheableTasks = try await analyzeCacheableTasks(activityLog: activityLog)
+        let cacheableTasks = try await analyzeCacheableTasks(
+            buildSteps: steps,
+            buildStartTime: activityLog.mainSection.timeStartedRecording
+        )
 
         return XCActivityLog(
             version: activityLog.version,
@@ -447,123 +450,141 @@ public struct XCActivityLogController: XCActivityLogControlling {
     }
 
     private func analyzeCacheableTasks(
-        activityLog: XCLogParser.IDEActivityLog
+        buildSteps: [XCLogParser.BuildStep],
+        buildStartTime: Double
     ) async throws -> [CacheableTask] {
-        var cacheableTasks: [CacheableTask] = []
-        var keyStatuses: [String: (taskType: CacheableTask.TaskType, hasQuery: Bool, hasMaterialize: Bool, hasUpload: Bool)] = [:]
+        let cacheSteps = extractCacheSteps(from: buildSteps)
+        let keyStatuses = aggregateKeyStatuses(from: cacheSteps)
 
-        // Parse the activity log into build steps
-        let buildStep = try XCLogParser.ParserBuildSteps(
-            omitWarningsDetails: true,
-            omitNotesDetails: true,
-            truncLargeIssues: false
+        return try await determineCacheStatuses(
+            keyStatuses: keyStatuses,
+            buildStartTime: buildStartTime
         )
-        .parse(activityLog: activityLog)
+    }
 
-        // Get all flattened steps
-        let allSteps = flattenedXCLogParserBuildStep([buildStep])
-
-        // Analyze each step for cache operations
-        for step in allSteps {
-            print(step.title)
-            if step.title.contains("Swift caching") || step.title.contains("Clang caching") {
-                let isSwift = step.title.contains("Swift caching")
-                let taskType: CacheableTask.TaskType = isSwift ? .swift : .clang
-
-                // Extract key from title
-                // For query/materialize: ["key"]
-                // For upload: just the key without brackets
-                var key: String?
-
-                if step.title.contains("query key") || step.title.contains("materialize key") {
-                    // Extract key from ["key"] format
-                    if let keyMatch = try? NSRegularExpression(pattern: "\\[\"([^\"]+)\"\\]")
-                        .firstMatch(in: step.title, range: NSRange(location: 0, length: step.title.count))
-                    {
-                        let keyRange = Range(keyMatch.range(at: 1), in: step.title)!
-                        key = String(step.title[keyRange])
-                    }
-                } else if step.title.contains("upload key") {
-                    // Extract key after "upload key " (no brackets)
-                    let pattern = "upload key ([^\\s]+)"
-                    if let keyMatch = try? NSRegularExpression(pattern: pattern)
-                        .firstMatch(in: step.title, range: NSRange(location: 0, length: step.title.count))
-                    {
-                        let keyRange = Range(keyMatch.range(at: 1), in: step.title)!
-                        key = String(step.title[keyRange])
-                    }
-                }
-
-                if let key {
-                    var status = keyStatuses[key] ?? (taskType, false, false, false)
-                    status.taskType = taskType
-
-                    if step.title.contains("query key") {
-                        status.hasQuery = true
-                    } else if step.title.contains("materialize key") {
-                        status.hasMaterialize = true
-                    } else if step.title.contains("upload key") {
-                        status.hasUpload = true
-                    }
-
-                    keyStatuses[key] = status
-                }
+    private func extractCacheSteps(from buildSteps: [XCLogParser.BuildStep]) -> [CacheStep] {
+        return buildSteps.compactMap { step in
+            guard step.title.contains("Swift caching") || step.title.contains("Clang caching") else {
+                return nil
             }
+
+            let taskType: CacheableTask.TaskType = step.title.contains("Swift caching") ? .swift : .clang
+
+            guard let key = extractCacheKey(from: step.title),
+                  let operation = determineCacheOperation(from: step.title)
+            else {
+                return nil
+            }
+
+            return CacheStep(key: key, taskType: taskType, operation: operation)
+        }
+    }
+
+    private func extractCacheKey(from title: String) -> String? {
+        if title.contains("query key") || title.contains("materialize key") {
+            // Extract key from ["key"] format
+            let pattern = "\\[\"([^\"]+)\"\\]"
+            return extractKeyWithPattern(pattern, from: title)
+        } else if title.contains("upload key") {
+            // Extract key after "upload key " (no brackets)
+            let pattern = "upload key ([^\\s]+)"
+            return extractKeyWithPattern(pattern, from: title)
+        }
+        return nil
+    }
+
+    private func extractKeyWithPattern(_ pattern: String, from title: String) -> String? {
+        guard let regex = try? NSRegularExpression(pattern: pattern),
+              let match = regex.firstMatch(in: title, range: NSRange(location: 0, length: title.count)),
+              let keyRange = Range(match.range(at: 1), in: title)
+        else {
+            return nil
+        }
+        return String(title[keyRange])
+    }
+
+    private func determineCacheOperation(from title: String) -> CacheOperation? {
+        if title.contains("query key") {
+            return .query
+        } else if title.contains("materialize key") {
+            return .materialize
+        } else if title.contains("upload key") {
+            return .upload
+        }
+        return nil
+    }
+
+    private func aggregateKeyStatuses(from cacheSteps: [CacheStep]) -> [String: CacheKeyStatus] {
+        var keyStatuses: [String: CacheKeyStatus] = [:]
+
+        for step in cacheSteps {
+            var status = keyStatuses[step.key] ?? CacheKeyStatus(taskType: step.taskType)
+            status.taskType = step.taskType
+
+            switch step.operation {
+            case .query:
+                status.hasQuery = true
+            case .materialize:
+                status.hasMaterialize = true
+            case .upload:
+                status.hasUpload = true
+            }
+
+            keyStatuses[step.key] = status
         }
 
-        // Determine cache status for each key
-        for (key, status) in keyStatuses {
-            let cacheStatus: CacheableTask.CacheStatus
+        return keyStatuses
+    }
 
-            if status.hasUpload {
-                // If there's an upload, it's definitely a miss
-                cacheStatus = .miss
-            } else if !status.hasQuery, status.hasMaterialize {
-                // Materialize without query is a local hit
-                cacheStatus = .localHit
-            } else if status.hasQuery, status.hasMaterialize, !status.hasUpload {
-                // Query with materialize and no upload could be either:
-                // 1. Remote hit (successful build)
-                // 2. Miss (failed build where upload didn't happen)
-                // Only in this ambiguous case do we check the filesystem
-                if try await isRemoteHit(key: key, buildStartTime: activityLog.mainSection.timeStartedRecording) {
-                    cacheStatus = .remoteHit
-                } else {
-                    cacheStatus = .miss
-                }
-            } else {
-                // Shouldn't happen, but default to miss
-                continue
-            }
+    private func determineCacheStatuses(
+        keyStatuses: [String: CacheKeyStatus],
+        buildStartTime: Double
+    ) async throws -> [CacheableTask] {
+        return try await keyStatuses.concurrentMap { key, status in
+            let cacheStatus = try await determineCacheStatus(
+                for: status,
+                key: key,
+                buildStartTime: buildStartTime
+            )
 
-            cacheableTasks.append(CacheableTask(
+            return CacheableTask(
                 key: key,
                 status: cacheStatus,
                 type: status.taskType
-            ))
+            )
         }
+    }
 
-        return cacheableTasks
+    private func determineCacheStatus(
+        for status: CacheKeyStatus,
+        key: String,
+        buildStartTime: Double
+    ) async throws -> CacheableTask.CacheStatus {
+        if status.hasUpload {
+            return .miss
+        } else if !status.hasQuery, status.hasMaterialize {
+            return .localHit
+        } else if status.hasQuery, status.hasMaterialize, !status.hasUpload {
+            // It's not possible to tell just from the `.xcactivitylog` whether a key is a miss with no upload (such as when a
+            // build fails) or a remote hit
+            // To distinguish these two cases, the `KeyValueService` stores remote hits in a cache directory.
+            // If there's a remote hit that occurred after the build started, we consider the cacheable task a remote hit.
+            return try await isRemoteHit(key: key, buildStartTime: buildStartTime) ? .remoteHit : .miss
+        } else {
+            return .miss
+        }
     }
 
     private func isRemoteHit(key: String, buildStartTime: Double) async throws -> Bool {
-        // Check our keyvalue entries index
         let keyValueEntriesDirectory = Environment.current.cacheDirectory.appending(component: "KeyValueStore")
         let jsonPath = keyValueEntriesDirectory.appending(component: "\(key).json")
 
-        // Check if the JSON file exists for this key
-        guard try await fileSystem.exists(jsonPath) else {
+        guard try await fileSystem.exists(jsonPath),
+              let creationDate = try await fileSystem.fileMetadata(at: jsonPath)?.lastModificationDate
+        else {
             return false
         }
 
-        // Get creation date from file attributes
-        guard let creationDate = try await fileSystem.fileMetadata(at: jsonPath)?.lastModificationDate else {
-            return false
-        }
-
-        // Compare with build start time
-        // If the file was created after the build started, it's a remote hit
-        // (it was fetched during this build)
         return creationDate.timeIntervalSinceReferenceDate >= buildStartTime
     }
 }
@@ -571,6 +592,29 @@ public struct XCActivityLogController: XCActivityLogControlling {
 private struct TargetWithStep {
     let name: String
     let step: BuildStep
+}
+
+private struct CacheStep {
+    let key: String
+    let taskType: CacheableTask.TaskType
+    let operation: CacheOperation
+}
+
+private enum CacheOperation {
+    case query
+    case materialize
+    case upload
+}
+
+private struct CacheKeyStatus {
+    var taskType: CacheableTask.TaskType
+    var hasQuery: Bool = false
+    var hasMaterialize: Bool = false
+    var hasUpload: Bool = false
+
+    init(taskType: CacheableTask.TaskType) {
+        self.taskType = taskType
+    }
 }
 
 extension BuildStep {
