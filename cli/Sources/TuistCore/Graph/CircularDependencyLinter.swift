@@ -35,6 +35,8 @@ public class CircularDependencyLinter: CircularDependencyLinting {
             return
         }
         guard let project = cache.allProjects[path] else {
+            // MARK: error thrown here
+
             throw GraphLoadingError.missingProject(path)
         }
         cache.add(project: project)
