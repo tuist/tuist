@@ -13,7 +13,7 @@ let project = Project(
             destinations: .iOS,
             product: .app,
             bundleId: "dev.tuist.MainApp",
-            deploymentTargets: .iOS("17.0.0"),
+            deploymentTargets: .iOS("26.0"),
             infoPlist: .extendingDefault(
                 with: [
                     "UILaunchStoryboardName": "LaunchScreen",
@@ -24,6 +24,8 @@ let project = Project(
             dependencies: [
                 .target(name: "Framework1"),
                 .target(name: "Framework2-iOS"),
+                .external(name: "Realm"),
+                .external(name: "RealmSwift"),
             ],
             settings: .settings(
                 base: [
@@ -49,10 +51,10 @@ let project = Project(
         .target(
             name: "Framework1",
             destinations: .iOS,
-            product: .framework,
+            product: .staticFramework,
             productName: "Framework1",
             bundleId: "dev.tuist.Framework1",
-            deploymentTargets: .iOS("17.0.0"),
+            deploymentTargets: .iOS("26.0"),
             infoPlist: .dictionary(
                 [
                     "CFBundleDevelopmentRegion": "$(DEVELOPMENT_LANGUAGE)",
@@ -71,6 +73,8 @@ let project = Project(
             sources: "Framework1/Sources/**",
             dependencies: [
                 .target(name: "Framework2-iOS"),
+                .external(name: "Realm"),
+                .external(name: "RealmSwift"),
             ],
             metadata: .metadata(tags: ["Framework1", "Frameworks"])
         ),
@@ -93,7 +97,7 @@ let project = Project(
             product: .framework,
             productName: "Framework2",
             bundleId: "dev.tuist.Framework2",
-            deploymentTargets: .iOS("17.0.0"),
+            deploymentTargets: .iOS("26.0"),
             infoPlist: "Framework2/Config/Framework2-Info.plist",
             sources: "Framework2/Sources/**",
             headers: .headers(
@@ -106,22 +110,24 @@ let project = Project(
             ],
             metadata: .metadata(tags: ["Framework2", "Frameworks"])
         ),
-        .target(
-            name: "Framework2-macOS",
-            destinations: [.mac],
-            product: .framework,
-            productName: "Framework2",
-            bundleId: "dev.tuist.Framework2",
-            infoPlist: "Framework2/Config/Framework2-Info.plist",
-            sources: "Framework2/Sources/**",
-            headers: .headers(
-                public: "Framework2/Sources/Public/**",
-                private: "Framework2/Sources/Private/**",
-                project: "Framework2/Sources/Project/**"
-            ),
-            dependencies: [],
-            metadata: .metadata(tags: ["Framework2", "Frameworks"])
-        ),
+//        .target(
+//            name: "Framework2-macOS",
+//            destinations: [.mac],
+//            product: .framework,
+//            productName: "Framework2",
+//            bundleId: "dev.tuist.Framework2",
+//            infoPlist: "Framework2/Config/Framework2-Info.plist",
+//            sources: "Framework2/Sources/**",
+//            headers: .headers(
+//                public: "Framework2/Sources/Public/**",
+//                private: "Framework2/Sources/Private/**",
+//                project: "Framework2/Sources/Project/**"
+//            ),
+//            dependencies: [
+//                .target(name: "Framework3"),
+//            ],
+//            metadata: .metadata(tags: ["Framework2", "Frameworks"])
+//        ),
         .target(
             name: "Framework2Tests",
             destinations: .iOS,
@@ -143,6 +149,8 @@ let project = Project(
             sources: "Framework3/Sources/**",
             dependencies: [
                 .target(name: "Framework4"),
+                .external(name: "Realm"),
+                .external(name: "RealmSwift"),
             ],
             metadata: .metadata(tags: ["Framework3", "Frameworks"])
         ),
@@ -151,7 +159,7 @@ let project = Project(
             destinations: .iOS,
             product: .framework,
             bundleId: "dev.tuist.Framework4",
-            deploymentTargets: .iOS("17.0.0"),
+            deploymentTargets: .iOS("26.0"),
             infoPlist: "Framework4/Config/Framework4-Info.plist",
             sources: "Framework4/Sources/**",
             dependencies: [
@@ -164,7 +172,7 @@ let project = Project(
             destinations: .iOS,
             product: .framework,
             bundleId: "dev.tuist.Framework5",
-            deploymentTargets: .iOS("17.0.0"),
+            deploymentTargets: .iOS("26.0"),
             infoPlist: "Framework5/Config/Framework5-Info.plist",
             sources: "Framework5/Sources/**",
             dependencies: [

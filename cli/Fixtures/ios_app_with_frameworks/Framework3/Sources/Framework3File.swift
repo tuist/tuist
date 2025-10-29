@@ -1,9 +1,14 @@
 import Foundation
+import RealmSwift
 
 public class Framework3File {
     public init() {}
 
     public func hello() -> String {
-        "Framework3File.hello()"
+        let obj = RealmObject()
+        print(obj)
+        return "Framework3File.hello()"
     }
 }
+
+final class RealmObject: GeoPoint {}
