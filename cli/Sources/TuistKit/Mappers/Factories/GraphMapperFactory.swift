@@ -191,7 +191,10 @@ public final class GraphMapperFactory: GraphMapperFactorying {
             if !ignoreBinaryCache {
                 let focusTargetsGraphMapper = TargetsToCacheBinariesGraphMapper(
                     config: config,
-                    decider: CacheProfileTargetReplacementDecider(profile: .none, exceptions: []),
+                    decider: CacheProfileTargetReplacementDecider(
+                        profile: .onlyExternal,
+                        exceptions: []
+                    ),
                     configuration: configuration,
                     cacheStorage: cacheStorage
                 )
