@@ -20,7 +20,18 @@
   security.sudo.wheelNeedsPassword = false;
 
   networking = {
-    hostName = "cas-cache-us-east";
+    firewall = {
+      enable = true;
+      allowedTCPPorts = [
+        22    # SSH
+        80    # HTTP
+        443   # HTTPS
+        4369  # EPMD (Erlang Port Mapper Daemon)
+      ];
+      allowedTCPPortRanges = [
+        { from = 9100; to = 9155; }  # Erlang distributed node communication
+      ];
+    };
   };
 
   virtualisation.docker = {

@@ -37,6 +37,31 @@
           };
         };
       };
+      cache = {
+        type = "disk";
+        device = "/dev/sdb";
+        content = {
+          type = "gpt";
+          partitions = {
+            data = {
+              size = "100%";
+              content = {
+                type = "filesystem";
+                format = "ext4";
+                extraArgs = ["-F" "-E" "lazy_itable_init=0,lazy_journal_init=0"];
+                mountpoint = "/cache";
+                mountOptions = [
+                  "noatime"
+                  "nodiratime"
+                  "commit=60"
+                  "lazytime"
+                  "data=ordered"
+                ];
+              };
+            };
+          };
+        };
+      };
     };
   };
 }

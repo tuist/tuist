@@ -7,14 +7,26 @@
     nixpkgs,
     disko,
     ...
-  }: {
-    nixosConfigurations.cas-cache-us-east = nixpkgs.lib.nixosSystem {
-      system = "x86_64-linux";
-      modules = [
-        disko.nixosModules.disko
-        ./configuration.nix
-        ./users.nix
-      ];
+  }: let
+    machines = [
+      "cas-cache-us-east"
+    ];
+
+    mkMachine = hostname: {
+      name = hostname;
+      value = nixpkgs.lib.nixosSystem {
+        system = "x86_64-linux";
+        modules = [
+          disko.nixosModules.disko
+          ./configuration.nix
+          ./users.nix
+          {
+            networking.hostName = hostname;
+          }
+        ];
+      };
     };
+  in {
+    nixosConfigurations = builtins.listToAttrs (map mkMachine machines);
   };
 }
