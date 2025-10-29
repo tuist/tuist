@@ -29,10 +29,10 @@ defmodule Cache.Authentication do
       {:error, 401, "Missing Authorization header"}
     else
       case get_accessible_projects(auth_header, conn) do
-        {:ok, projects} ->
-          requested_handle = "#{account_handle}/#{project_handle}"
+        {:ok, project_set} ->
+          requested_handle = String.downcase("#{account_handle}/#{project_handle}")
 
-          if project_accessible?(projects, requested_handle) do
+          if MapSet.member?(project_set, requested_handle) do
             {:ok, auth_header}
           else
             {:error, 404, "Unauthorized or not found"}
@@ -74,8 +74,13 @@ defmodule Cache.Authentication do
 
     case Req.get(url: url, headers: headers, finch: Cache.Finch, retry: false) do
       {:ok, %{status: 200, body: %{"projects" => projects}}} ->
-        project_handles = Enum.map(projects, & &1["full_name"])
-        result = {:ok, project_handles}
+        # Pre-lowercase project handles and convert to MapSet for O(1) lookup
+        project_set = 
+          projects
+          |> Enum.map(&String.downcase(&1["full_name"]))
+          |> MapSet.new()
+        
+        result = {:ok, project_set}
 
         Cachex.put(@cache_name, cache_key, result, ttl: :timer.seconds(@success_cache_ttl))
         result
@@ -103,9 +108,5 @@ defmodule Cache.Authentication do
     |> Base.encode16(case: :lower)
   end
 
-  defp project_accessible?(projects, requested_handle) do
-    Enum.any?(projects, fn project ->
-      String.downcase(project) == String.downcase(requested_handle)
-    end)
-  end
+
 end
