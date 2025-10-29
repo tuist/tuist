@@ -9,6 +9,7 @@
     ...
   }: let
     machines = [
+      "cas-cache-eu-central"
       "cas-cache-us-east"
     ];
 

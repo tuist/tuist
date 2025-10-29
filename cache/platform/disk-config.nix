@@ -48,14 +48,12 @@
               content = {
                 type = "filesystem";
                 format = "ext4";
-                extraArgs = ["-F" "-E" "lazy_itable_init=0,lazy_journal_init=0"];
-                mountpoint = "/cache";
+                extraArgs = ["-F"];
+                mountpoint = "/cas";
                 mountOptions = [
                   "noatime"
-                  "nodiratime"
                   "commit=60"
                   "lazytime"
-                  "data=ordered"
                 ];
               };
             };

@@ -3,10 +3,13 @@ image: tuist/cache
 
 servers:
   web:
+    - 91.98.81.176
     - 5.161.218.106
 
 proxy:
-  host: staging.tuist.dev
+  hosts:
+    - cas-cache-us-east.staging.tuist.dev
+    - cas-cache-eu-central.staging.tuist.dev
   app_port: 4000
   buffering:
     requests: false
