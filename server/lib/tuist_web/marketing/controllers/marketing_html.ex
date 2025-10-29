@@ -8,30 +8,44 @@ defmodule TuistWeb.Marketing.MarketingHTML do
 
   alias Tuist.Marketing.Blog
 
-  embed_templates "marketing_html/*"
+  embed_templates("marketing_html/*")
+  embed_templates("marketing_html/blog/*")
 
   # Delegate to Localization module
   defdelegate localized_href(href), to: TuistWeb.Marketing.Localization
 
-  attr :title, :string, required: true
-  attr :primary_action_title, :string, required: false
-  attr :primary_action_href, :string, required: false
-  attr :primary_action_target, :string, default: "_blank"
-  attr :secondary_action_title, :string, required: false
-  attr :secondary_action_href, :string, required: false
-  attr :secondary_action_target, :string, default: "_blank"
+  attr(:title, :string, required: true)
+  attr(:primary_action_title, :string, required: false)
+  attr(:primary_action_href, :string, required: false)
+  attr(:primary_action_target, :string, default: "_blank")
+  attr(:secondary_action_title, :string, required: false)
+  attr(:secondary_action_href, :string, required: false)
+  attr(:secondary_action_target, :string, default: "_blank")
 
   defp marketing_banner(assigns) do
     default_primary_href = localized_href("https://docs.tuist.dev/")
 
     assigns =
       assigns
-      |> assign(:primary_action_title, Map.get(assigns, :primary_action_title, dgettext("marketing", "Get started")))
-      |> assign(:primary_action_href, Map.get(assigns, :primary_action_href, default_primary_href))
-      |> assign(:secondary_action_title, Map.get(assigns, :secondary_action_title, dgettext("marketing", "Talk to us")))
+      |> assign(
+        :primary_action_title,
+        Map.get(assigns, :primary_action_title, dgettext("marketing", "Get started"))
+      )
+      |> assign(
+        :primary_action_href,
+        Map.get(assigns, :primary_action_href, default_primary_href)
+      )
+      |> assign(
+        :secondary_action_title,
+        Map.get(assigns, :secondary_action_title, dgettext("marketing", "Talk to us"))
+      )
       |> assign(
         :secondary_action_href,
-        Map.get(assigns, :secondary_action_href, "https://cal.tuist.dev/team/tuist/tuist?overlayCalendar=true")
+        Map.get(
+          assigns,
+          :secondary_action_href,
+          "https://cal.tuist.dev/team/tuist/tuist?overlayCalendar=true"
+        )
       )
 
     ~H"""
@@ -57,13 +71,13 @@ defmodule TuistWeb.Marketing.MarketingHTML do
     """
   end
 
-  attr :name, :string, required: true
-  attr :role, :string, required: true
-  attr :photo_src, :string, required: true
-  attr :github_handle, :string, required: true
-  attr :mastodon_url, :string, required: true
-  attr :bluesky_url, :string, required: false
-  attr :linkedin_url, :string, required: false
+  attr(:name, :string, required: true)
+  attr(:role, :string, required: true)
+  attr(:photo_src, :string, required: true)
+  attr(:github_handle, :string, required: true)
+  attr(:mastodon_url, :string, required: true)
+  attr(:bluesky_url, :string, required: false)
+  attr(:linkedin_url, :string, required: false)
 
   defp about_team_member(assigns) do
     ~H"""
@@ -153,12 +167,12 @@ defmodule TuistWeb.Marketing.MarketingHTML do
     """
   end
 
-  attr :quote, :string, required: true
-  attr :name, :string, required: true
-  attr :role, :string, required: true
-  attr :avatar_src, :string, required: true
-  attr :rest, :global
-  slot :logo, required: false
+  attr(:quote, :string, required: true)
+  attr(:name, :string, required: true)
+  attr(:role, :string, required: true)
+  attr(:avatar_src, :string, required: true)
+  attr(:rest, :global)
+  slot(:logo, required: false)
 
   defp home_testimonial_card(assigns) do
     ~H"""

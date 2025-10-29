@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <script nonce={get_csp_nonce()} src="https://cdn.jsdelivr.net/npm/p5@1.7.0/lib/p5.min.js"></script>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background: transparent;
+      font-family: 'Inter Variable', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+
+    #canvas-container {
+      width: 100%;
+      height: 600px;
+      position: relative;
+      background: transparent;
+      border-radius: var(--noora-radius-2xlarge, 16px);
+      cursor: copy;
+    }
+
+    canvas {
+      display: block !important;
+      border-radius: var(--noora-radius-2xlarge, 16px);
+      position: absolute !important;
+      top: 0 !important;
+      left: 0 !important;
+    }
+
+    .stats {
+      position: absolute;
+      top: var(--noora-spacing-5, 20px);
+      right: var(--noora-spacing-5, 20px);
+      background: var(--noora-background-secondary, rgba(255, 255, 255, 0.95));
+      backdrop-filter: blur(20px);
+      border-radius: var(--noora-radius-xlarge, 12px);
+      padding: var(--noora-spacing-4, 16px) var(--noora-spacing-5, 20px);
+      border: 1px solid var(--noora-border-secondary, rgba(0, 0, 0, 0.1));
+      box-shadow: var(--noora-shadow-large, 0 4px 20px rgba(0, 0, 0, 0.1));
+      z-index: 100;
+      pointer-events: none;
+    }
+
+    .stat {
+      margin-bottom: var(--noora-spacing-3, 12px);
+    }
+
+    .stat:last-child {
+      margin-bottom: 0;
+    }
+
+    .stat-label {
+      font-size: var(--noora-font-size-small, 11px);
+      color: var(--noora-surface-label-secondary, rgba(0, 0, 0, 0.6));
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: var(--noora-spacing-1, 4px);
+      font-weight: var(--noora-font-weight-semibold, 600);
+    }
+
+    .stat-value {
+      font-size: 24px;
+      font-weight: var(--noora-font-weight-bold, 700);
+      color: var(--noora-button-primary-background, #0071e3);
+    }
+
+    #ghost-agent {
+      position: absolute;
+      pointer-events: none;
+      z-index: 50;
+      opacity: 0.5;
+      font-size: 28px;
+      transform: translate(-50%, -50%);
+      display: none;
+      filter: drop-shadow(0 2px 8px rgba(124, 58, 237, 0.6));
+      animation: ghost-pulse 1.5s ease-in-out infinite;
+    }
+
+    @keyframes ghost-pulse {
+      0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.5; }
+      50% { transform: translate(-50%, -50%) scale(1.1); opacity: 0.7; }
+    }
+  </style>
+</head>
+<body>
+  <div id="canvas-container" phx-update="ignore">
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-label">Agents</div>
+        <div class="stat-value" id="agent-count">0</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Commits Today</div>
+        <div class="stat-value" id="commits-today">0</div>
+      </div>
+    </div>
+    <div id="ghost-agent">🤖</div>
+  </div>
+
+  <script nonce={get_csp_nonce()}>
+    console.log('p5.js loaded:', typeof p5);
+
+    // Configuration
+    const DEV_COMMITS_PER_HOUR = 3;
+    const AGENT_COMMITS_PER_HOUR = 2;
+    const HOUR_IN_MS = 6000; // 6 seconds = 1 hour, so 1 minute = 10 hours
+
+    // State
+    let developer;
+    let mainBranch;
+    let agents = [];
+    let particles = [];
+    let commitsToday = 0;
+    let totalCommits = 0;
+
+    new p5((p) => {
+      p.setup = function() {
+        const canvas = p.createCanvas(p.windowWidth, 600);
+        canvas.parent('canvas-container');
+
+        console.log('Canvas created:', p.width, p.height);
+
+        // Create developer node
+        developer = {
+          x: p.width * 0.2,
+          y: p.height / 2,
+          radius: 50,
+          emoji: '👨‍💻'
+        };
+
+        // Create main branch node
+        mainBranch = {
+          x: p.width * 0.8,
+          y: p.height / 2,
+          radius: 60,
+          type: 'main'
+        };
+
+        // Generate commits periodically
+        setInterval(() => {
+          // Developer commits
+          for (let i = 0; i < DEV_COMMITS_PER_HOUR; i++) {
+            setTimeout(() => {
+              createParticle(developer.x, developer.y);
+            }, p.random(HOUR_IN_MS));
+          }
+
+          // Agent commits
+          agents.forEach(agent => {
+            for (let i = 0; i < AGENT_COMMITS_PER_HOUR; i++) {
+              setTimeout(() => {
+                createParticle(agent.x, agent.y);
+              }, p.random(HOUR_IN_MS));
+            }
+          });
+        }, HOUR_IN_MS);
+
+        console.log('Setup complete');
+      };
+
+      p.draw = function() {
+        // Transparent background
+        p.clear();
+
+        // Draw connections
+        p.stroke(0, 113, 227, 60); // Noora primary color with transparency
+        p.strokeWeight(2);
+        p.drawingContext.setLineDash([5, 5]);
+        p.line(developer.x, developer.y, mainBranch.x, mainBranch.y);
+
+        agents.forEach(agent => {
+          p.line(agent.x, agent.y, mainBranch.x, mainBranch.y);
+        });
+        p.drawingContext.setLineDash([]);
+
+        // Draw developer
+        drawDeveloperNode(developer.x, developer.y, developer.radius, developer.emoji);
+
+        // Draw main branch
+        drawMainBranchNode(mainBranch.x, mainBranch.y, mainBranch.radius);
+
+        // Draw agents
+        agents.forEach(agent => {
+          agent.x += agent.vx;
+          agent.y += agent.vy;
+
+          // Bounce off walls
+          if (agent.x < agent.radius || agent.x > p.width - agent.radius) agent.vx *= -1;
+          if (agent.y < agent.radius || agent.y > p.height - agent.radius) agent.vy *= -1;
+
+          // Random drift
+          agent.vx += p.random(-0.1, 0.1);
+          agent.vy += p.random(-0.1, 0.1);
+
+          // Limit speed
+          const speed = p.sqrt(agent.vx ** 2 + agent.vy ** 2);
+          if (speed > 1.5) {
+            agent.vx = (agent.vx / speed) * 1.5;
+            agent.vy = (agent.vy / speed) * 1.5;
+          }
+
+          drawAgentNode(agent.x, agent.y, agent.radius, agent.emoji);
+        });
+
+        // Update and draw particles
+        for (let i = particles.length - 1; i >= 0; i--) {
+          const part = particles[i];
+          part.x = p.lerp(part.x, part.targetX, 0.03);
+          part.y = p.lerp(part.y, part.targetY, 0.03);
+
+          // Draw particle with glow
+          p.noStroke();
+          p.fill(0, 113, 227, 50);
+          p.circle(part.x, part.y, 16);
+
+          p.fill(0, 113, 227, 150);
+          p.circle(part.x, part.y, 10);
+
+          p.fill(255, 255, 255);
+          p.circle(part.x, part.y, 6);
+
+          // Remove if reached target
+          if (p.dist(part.x, part.y, part.targetX, part.targetY) < 5) {
+            particles.splice(i, 1);
+            commitsToday++;
+            totalCommits++;
+            updateStats();
+          }
+        }
+      };
+
+      p.mouseMoved = function() {
+        const ghost = document.getElementById('ghost-agent');
+        if (p.mouseX >= 0 && p.mouseX <= p.width && p.mouseY >= 0 && p.mouseY <= p.height) {
+          ghost.style.display = 'block';
+          ghost.style.left = p.mouseX + 'px';
+          ghost.style.top = p.mouseY + 'px';
+        } else {
+          ghost.style.display = 'none';
+        }
+      };
+
+      p.mousePressed = function() {
+        // Don't add if clicking outside canvas
+        if (p.mouseX < 0 || p.mouseX > p.width || p.mouseY < 0 || p.mouseY > p.height) {
+          return;
+        }
+
+        console.log('Adding agent at:', p.mouseX, p.mouseY);
+
+        agents.push({
+          x: p.mouseX,
+          y: p.mouseY,
+          vx: p.random(-1, 1),
+          vy: p.random(-1, 1),
+          radius: 35,
+          emoji: '🤖'
+        });
+
+        updateStats();
+      };
+
+      function drawDeveloperNode(x, y, radius, emoji) {
+        p.noStroke();
+
+        // Glow
+        p.fill(0, 113, 227, 30);
+        p.circle(x, y, radius * 2.5);
+
+        // Main circle
+        p.fill(0, 113, 227);
+        p.circle(x, y, radius * 2);
+
+        // Emoji
+        p.textAlign(p.CENTER, p.CENTER);
+        p.textSize(radius * 0.6);
+        p.fill(255);
+        p.text(emoji, x, y);
+      }
+
+      function drawAgentNode(x, y, radius, emoji) {
+        p.noStroke();
+
+        // Glow
+        p.fill(124, 58, 237, 30);
+        p.circle(x, y, radius * 2.5);
+
+        // Main circle
+        p.fill(124, 58, 237);
+        p.circle(x, y, radius * 2);
+
+        // Emoji
+        p.textAlign(p.CENTER, p.CENTER);
+        p.textSize(radius * 0.6);
+        p.fill(255);
+        p.text(emoji, x, y);
+      }
+
+      function drawMainBranchNode(x, y, radius) {
+        p.noStroke();
+
+        // Glow
+        p.fill(16, 185, 129, 30);
+        p.circle(x, y, radius * 2.5);
+
+        // Main circle
+        p.fill(16, 185, 129);
+        p.circle(x, y, radius * 2);
+
+        // Draw GitHub branch icon (simplified)
+        p.stroke(255);
+        p.strokeWeight(3);
+        p.noFill();
+
+        // Draw simplified branch icon
+        const iconSize = radius * 0.5;
+
+        // Vertical line
+        p.line(x, y - iconSize, x, y + iconSize);
+
+        // Branch circles
+        p.fill(255);
+        p.noStroke();
+        p.circle(x, y - iconSize, 8);
+        p.circle(x, y + iconSize, 8);
+        p.circle(x + iconSize * 0.6, y, 8);
+
+        // Branch line
+        p.stroke(255);
+        p.strokeWeight(3);
+        p.noFill();
+        p.arc(x, y - iconSize/2, iconSize * 1.2, iconSize * 1.2, 0, p.HALF_PI);
+      }
+
+      function createParticle(x, y) {
+        particles.push({
+          x: x,
+          y: y,
+          targetX: mainBranch.x,
+          targetY: mainBranch.y
+        });
+      }
+
+      function updateStats() {
+        document.getElementById('agent-count').textContent = agents.length;
+        document.getElementById('commits-today').textContent = commitsToday;
+      }
+
+      // Reset commits daily (every minute = 1 day)
+      setInterval(() => {
+        commitsToday = 0;
+        updateStats();
+      }, 60000);
+    });
+
+    console.log('Sketch initialized');
+  </script>
+</body>
+</html>

@@ -62,6 +62,14 @@
     max-width: 100%;
   }
 
+  & iframe[data-visualization] {
+    box-shadow: none;
+    border-radius: var(--noora-radius-2xlarge);
+    width: 100%;
+    max-width: 100%;
+    border: none;
+  }
+
   & b,
   strong {
     font: var(--noora-font-weight-semibold) var(--noora-font-body-large);
