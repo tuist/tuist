@@ -4,24 +4,25 @@ defmodule CacheWeb.CASController do
   alias Cache.Authentication
   alias Cache.Disk
 
+  require Logger
+
   def load(conn, %{"id" => id, "account_handle" => account_handle, "project_handle" => project_handle}) do
     case Authentication.ensure_project_accessible(conn, account_handle, project_handle) do
       {:ok, _auth_header} ->
+        Logger.info("Found project: #{account_handle}/#{project_handle}")
+
         key = cas_key(account_handle, project_handle, id)
+        Logger.info("Cache key: #{key}")
 
-        if Disk.exists?(key) do
-          # Use X-Accel-Redirect to let nginx serve the file directly
-          redirect_path = "/internal-cas/#{key}"
+        # Use X-Accel-Redirect to let nginx serve the file directly
+        # nginx will return 404 if the file doesn't exist
+        redirect_path = "/internal-cas/#{key}"
+        Logger.info("Setting X-Accel-Redirect header: #{redirect_path}")
 
-          conn
-          |> put_resp_header("x-accel-redirect", redirect_path)
-          |> put_resp_header("content-type", "application/octet-stream")
-          |> send_resp(200, "")
-        else
-          conn
-          |> put_status(:not_found)
-          |> json(%{message: "Artifact does not exist"})
-        end
+        conn
+        |> put_resp_header("x-accel-redirect", redirect_path)
+        |> put_resp_header("content-type", "application/octet-stream")
+        |> send_resp(200, "")
 
       {:error, status, message} ->
         conn
@@ -37,18 +38,28 @@ defmodule CacheWeb.CASController do
   def save(conn, %{"id" => id, "account_handle" => account_handle, "project_handle" => project_handle}) do
     case Authentication.ensure_project_accessible(conn, account_handle, project_handle) do
       {:ok, _auth_header} ->
+        Logger.info("Found project: #{account_handle}/#{project_handle}")
+
         key = cas_key(account_handle, project_handle, id)
+        Logger.info("Cache key: #{key}")
+
         raw_body = Map.get(conn.private, :raw_body)
 
         if Disk.exists?(key) do
+          Logger.info("Artifact already exists, skipping save")
           cleanup_tempfile(raw_body)
           send_resp(conn, :no_content, "")
         else
+          Logger.info("Persisting artifact")
+
           case persist_body(key, raw_body, conn) do
             {:ok, conn_after} ->
+              Logger.info("Artifact persisted successfully")
               send_resp(conn_after, :no_content, "")
 
             {:error, conn_after} ->
+              Logger.error("Failed to persist artifact")
+
               conn_after
               |> put_status(:internal_server_error)
               |> json(%{message: "Failed to persist artifact"})
