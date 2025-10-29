@@ -89,7 +89,7 @@ defmodule TuistWeb.BuildRunLive do
       case {selected_tab, selected_breakdown_tab} do
         {"overview", "file"} -> file_breakdown_available_filters
         {"overview", "module"} -> module_breakdown_available_filters
-        {"compilation-optimizations", _} -> cacheable_tasks_available_filters
+        {"cache", _} -> cacheable_tasks_available_filters
         _ -> []
       end
 
@@ -97,7 +97,7 @@ defmodule TuistWeb.BuildRunLive do
       case {selected_tab, selected_breakdown_tab} do
         {"overview", "file"} -> file_breakdown_active_filters
         {"overview", "module"} -> module_breakdown_active_filters
-        {"compilation-optimizations", _} -> cacheable_tasks_active_filters
+        {"cache", _} -> cacheable_tasks_active_filters
         _ -> []
       end
 

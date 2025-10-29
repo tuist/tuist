@@ -285,13 +285,13 @@
     }
   }
 
-  & > [data-part="compilation-optimizations"] {
+  & > [data-part="cache"] {
     display: flex;
     flex-direction: column;
     gap: var(--noora-spacing-6);
     padding-top: var(--noora-spacing-6);
 
-    & > [data-part="optimization-summary-card"] {
+    & > [data-part="cache-summary-card"] {
       & [data-part="widgets-card-section"] {
         display: flex;
         flex-direction: row;
