@@ -1,9 +1,9 @@
 import Foundation
-import XCTest
+import Testing
 @testable import ProjectDescription
 
-final class CacheProfilesCodableTests: XCTestCase {
-    func test_toJSON() throws {
+struct CacheProfilesCodableTests {
+    @Test func toJSON() throws {
         let profiles = CacheProfiles.profiles(
             [
                 "p1": .profile(.onlyExternal, and: ["A", "tag:foo"]),
@@ -11,6 +11,14 @@ final class CacheProfilesCodableTests: XCTestCase {
             ],
             default: .allPossible
         )
-        XCTAssertCodable(profiles)
+
+        let encoder = JSONEncoder()
+        let decoder = JSONDecoder()
+        encoder.outputFormatting = .prettyPrinted
+
+        let data = try encoder.encode(profiles)
+        let decoded = try decoder.decode(CacheProfiles.self, from: data)
+
+        #expect(profiles == decoded)
     }
 }
