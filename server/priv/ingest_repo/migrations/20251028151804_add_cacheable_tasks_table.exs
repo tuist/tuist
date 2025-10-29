@@ -5,7 +5,7 @@ defmodule Tuist.ClickHouseRepo.Migrations.AddCacheableTasksTable do
     create table(:cacheable_tasks,
              primary_key: false,
              engine: "MergeTree",
-             options: "ORDER BY (build_run_id, status, key, inserted_at)"
+             options: "ORDER BY (build_run_id, key, status, inserted_at)"
            ) do
       add :type, :"Enum8('clang' = 0, 'swift' = 1)", null: false
       add :status, :"Enum8('hit_local' = 0, 'hit_remote' = 1, 'miss' = 2)", null: false

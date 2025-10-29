@@ -133,7 +133,6 @@ builds =
         )
       )
 
-    # Generate cache stats for builds
     total_tasks = Enum.random(50..200)
     remote_hits = Enum.random(0..div(total_tasks, 2))
     local_hits = Enum.random(0..(total_tasks - remote_hits))
@@ -159,7 +158,6 @@ builds =
 
 {_count, build_records} = Repo.insert_all(Build, builds, returning: [:id])
 
-# Generate cache keys in the format: 0~base64_content
 generate_cache_key = fn _build_id, _task_type, _index ->
   # Generate base64-like content similar to the real example
   # Real keys are mostly alphanumeric with occasional + / = _ - characters
@@ -185,13 +183,10 @@ generate_cache_key = fn _build_id, _task_type, _index ->
   "0~#{content}"
 end
 
-# Generate cacheable tasks for some builds (randomized order)
 cacheable_tasks =
   build_records
   |> Enum.map(& &1.id)
-  # Randomize the order of builds
   |> Enum.shuffle()
-  # Only create cacheable tasks for 500 builds
   |> Enum.take(500)
   |> Enum.flat_map(fn build_id ->
     build = Enum.find(builds, &(&1.id == build_id))
@@ -202,7 +197,6 @@ cacheable_tasks =
 
     tasks = []
 
-    # Generate remote hits
     tasks =
       if remote_hits > 0 do
         tasks ++
@@ -219,7 +213,6 @@ cacheable_tasks =
         tasks
       end
 
-    # Generate local hits
     tasks =
       if local_hits > 0 do
         tasks ++
@@ -236,7 +229,6 @@ cacheable_tasks =
         tasks
       end
 
-    # Generate misses
     tasks =
       if misses > 0 do
         tasks ++
@@ -256,7 +248,6 @@ cacheable_tasks =
     tasks
   end)
 
-# Insert cacheable tasks into ClickHouse
 cacheable_tasks
 |> Enum.chunk_every(1000)
 |> Enum.each(fn chunk ->
