@@ -12,11 +12,15 @@
   ];
   system.stateVersion = "25.11";
 
-  boot.loader.grub = {
-    device = "nodev";
-    efiSupport = true;
-    efiInstallAsRemovable = true;
+  boot = {
+    loader.grub = {
+      device = "nodev";
+      efiSupport = true;
+      efiInstallAsRemovable = true;
+    };
+    kernelPackages = pkgs.linuxPackages_latest;
   };
+
   services.openssh.enable = true;
   security.sudo.wheelNeedsPassword = false;
 
@@ -24,16 +28,16 @@
     firewall = {
       enable = true;
       allowedTCPPorts = [
-        22 # SSH
-        80 # HTTP
-        443 # HTTPS
-        4369 # EPMD (Erlang Port Mapper Daemon)
+        22
+        80
+        443
+        4369
       ];
       allowedTCPPortRanges = [
         {
           from = 9100;
           to = 9155;
-        } # Erlang distributed node communication
+        }
       ];
     };
   };

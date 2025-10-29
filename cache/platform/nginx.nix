@@ -43,7 +43,7 @@
         };
 
         locations."/internal-cas/" = {
-          alias = "/data/cas/";
+          alias = "/cas/";
           extraConfig = ''
             internal;
 
@@ -93,7 +93,7 @@
         };
 
         locations."/internal-cas/" = {
-          alias = "/data/cas/";
+          alias = "/cas/";
           extraConfig = ''
             internal;
 
@@ -117,11 +117,14 @@
   # ACME certificate configuration
   security.acme = {
     acceptTerms = true;
-    defaults.email = "christoph@tuist.dev";
+    defaults = {
+      email = "christoph@tuist.dev";
+      server = "https://acme-v02.api.letsencrypt.org/directory";
+    };
   };
 
-  # Ensure nginx user has access to /data/cas
+  # Ensure nginx user has access to /cas
   systemd.services.nginx.serviceConfig = {
-    ReadOnlyPaths = ["/data/cas"];
+    ReadOnlyPaths = ["/cas"];
   };
 }

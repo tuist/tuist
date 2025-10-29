@@ -48,12 +48,14 @@
               content = {
                 type = "filesystem";
                 format = "ext4";
-                extraArgs = ["-F"];
+                extraArgs = ["-F" "-i" "8192"];
                 mountpoint = "/cas";
                 mountOptions = [
                   "noatime"
+                  "nodiratime"
                   "commit=60"
                   "lazytime"
+                  "discard"
                 ];
               };
             };
