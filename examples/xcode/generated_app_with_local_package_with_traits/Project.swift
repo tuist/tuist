@@ -13,18 +13,9 @@ let project = Project(
                 "App/Sources",
                 "App/Resources",
             ],
-            dependencies: []
-        ),
-        .target(
-            name: "AppTests",
-            destinations: .macOS,
-            product: .unitTests,
-            bundleId: "dev.tuist.AppTests",
-            infoPlist: .default,
-            buildableFolders: [
-                "App/Tests",
-            ],
-            dependencies: [.target(name: "App")]
+            dependencies: [
+                .external(name: "Package"),
+            ]
         ),
     ]
 )
