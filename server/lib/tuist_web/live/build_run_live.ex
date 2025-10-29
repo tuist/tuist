@@ -311,11 +311,8 @@ defmodule TuistWeb.BuildRunLive do
     end
   end
 
-  defp cacheable_tasks_order_by(cacheable_tasks_sort_by) do
-    case cacheable_tasks_sort_by do
-      "key" -> [:key]
-      _ -> [:key]
-    end
+  defp cacheable_tasks_order_by(_cacheable_tasks_sort_by) do
+    [:key]
   end
 
   defp assign_module_breakdown(
