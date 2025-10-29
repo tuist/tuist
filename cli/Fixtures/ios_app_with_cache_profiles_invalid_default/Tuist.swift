@@ -15,7 +15,7 @@ let tuist = Tuist(
                     ),
                 ],
                 // Intentionally invalid default referencing a non-existent profile
-                default: .custom("missing")
+                default: "missing"
             )
         )
     )

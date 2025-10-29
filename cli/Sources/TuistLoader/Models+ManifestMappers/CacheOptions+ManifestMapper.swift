@@ -5,11 +5,14 @@ import TuistSupport
 enum CacheOptionsManifestMapperError: FatalError, Equatable {
     /// Thrown when the default cache profile references a non-existent profile name.
     case defaultCacheProfileNotFound(profile: String, available: [String])
+    /// Thrown when a custom profile name collides with a built-in profile name.
+    case reservedProfileName(profile: String)
 
     /// Error type.
     var type: ErrorType {
         switch self {
         case .defaultCacheProfileNotFound: return .abort
+        case .reservedProfileName: return .abort
         }
     }
 
@@ -24,6 +27,9 @@ enum CacheOptionsManifestMapperError: FatalError, Equatable {
                 let custom = available.sorted().joined(separator: ", ")
                 return "Default cache profile '\(profile)' not found. Available profiles: \(builtins), or custom profiles: \(custom)."
             }
+        case let .reservedProfileName(profile):
+            let reserved = BaseCacheProfile.allCases.map(\.rawValue).joined(separator: ", ")
+            return "Custom profile name '\(profile)' is reserved. The following names cannot be used: \(reserved)."
         }
     }
 }
@@ -33,12 +39,21 @@ extension TuistCore.CacheOptions {
         manifest: ProjectDescription.Config.CacheOptions
     ) throws -> Self {
         let profiles = TuistCore.CacheProfiles.from(manifest: manifest.profiles)
+
+        // Validate that custom profile names don't use reserved built-in names
+        let reservedNames = Set(BaseCacheProfile.allCases.map(\.rawValue))
+        for profileName in profiles.profileByName.keys where reservedNames.contains(profileName) {
+            throw CacheOptionsManifestMapperError.reservedProfileName(profile: profileName)
+        }
+
+        // Validate that default profile exists if it's a custom profile
         if case let .custom(name) = profiles.defaultProfile, profiles.profileByName[name] == nil {
             throw CacheOptionsManifestMapperError.defaultCacheProfileNotFound(
                 profile: name,
                 available: Array(profiles.profileByName.keys)
             )
         }
+
         return .init(
             keepSourceTargets: manifest.keepSourceTargets,
             profiles: profiles

@@ -149,7 +149,7 @@ final class ConfigLoaderTests: TuistUnitTestCase {
             [
                 "development": .profile(.allPossible, and: ["tag:cacheable"]),
             ],
-            default: .custom("missing")
+            default: "missing"
         )
         stub(
             config: ProjectDescription.Config(project: .tuist(cacheOptions: .options(

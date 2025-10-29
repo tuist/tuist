@@ -299,7 +299,7 @@ struct GenerateServiceTests {
                     [
                         "ci": .init(base: .onlyExternal, targetQueries: ["tag:cacheable"]),
                     ],
-                    default: .custom("ci")
+                    default: "ci"
                 )
             )))
         )

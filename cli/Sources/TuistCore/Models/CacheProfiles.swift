@@ -12,6 +12,21 @@ public enum CacheProfileType: Codable, Equatable, Sendable, Hashable {
     case custom(String)
 }
 
+extension CacheProfileType: ExpressibleByStringLiteral {
+    public init(stringLiteral value: String) {
+        switch BaseCacheProfile(rawValue: value) {
+        case .onlyExternal:
+            self = .onlyExternal
+        case .allPossible:
+            self = .allPossible
+        case .none?:
+            self = .none
+        case nil:
+            self = .custom(value)
+        }
+    }
+}
+
 public enum BaseCacheProfile: String, Codable, Equatable, Sendable, Hashable, CaseIterable {
     /// Replace external dependencies only (system default)
     case onlyExternal = "only-external"

@@ -9,15 +9,6 @@ extension TargetQuery: @retroactive ExpressibleByArgument {
 
 extension CacheProfileType: @retroactive ExpressibleByArgument {
     public init?(argument: String) {
-        switch BaseCacheProfile(rawValue: argument) {
-        case .onlyExternal:
-            self = .onlyExternal
-        case .allPossible:
-            self = .allPossible
-        case .none?:
-            self = .none
-        case nil:
-            self = .custom(argument)
-        }
+        self.init(stringLiteral: argument)
     }
 }

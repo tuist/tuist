@@ -126,7 +126,7 @@ struct TuistGeneratedProjectManifestMapperTests {
                         and: []
                     ),
                 ],
-                default: .custom("development")
+                default: "development"
             )
         )
 
@@ -156,7 +156,7 @@ struct TuistGeneratedProjectManifestMapperTests {
                             and: [.tagged("stable")]
                         ),
                     ],
-                    default: .custom("debug")
+                    default: "debug"
                 )
             )
         )
@@ -169,5 +169,23 @@ struct TuistGeneratedProjectManifestMapperTests {
             ),
         ])
         #expect(got.profiles.defaultProfile == .custom("debug"))
+    }
+
+    @Test func from_throws_whenCustomProfileNameIsReserved() throws {
+        for reservedName in BaseCacheProfile.allCases.map(\.rawValue) {
+            #expect(throws: CacheOptionsManifestMapperError.reservedProfileName(profile: reservedName)) {
+                _ = try TuistCore.CacheOptions.from(
+                    manifest: .options(
+                        keepSourceTargets: false,
+                        profiles: .profiles(
+                            [
+                                reservedName: .profile(.onlyExternal, and: []),
+                            ],
+                            default: .onlyExternal
+                        )
+                    )
+                )
+            }
+        }
     }
 }

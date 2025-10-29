@@ -50,7 +50,7 @@ public struct GenerateCommand: AsyncParsableCommand, RecentPathRememberableComma
 
     @Option(
         name: .long,
-        help: "Binary cache profile to use: \(BaseCacheProfile.allCases.map(\.rawValue).joined(separator: ", ")), or a custom profile name",
+        help: "Binary cache profile to use: \(BaseCacheProfile.allCases.map(\.rawValue).joined(separator: ", ")), or a custom profile name. Defaults to the profile configured in Tuist.swift, or 'only-external' if not configured.",
         envKey: .generateCacheProfile
     )
     var cacheProfile: CacheProfileType?
