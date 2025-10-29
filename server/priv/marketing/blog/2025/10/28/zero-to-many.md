@@ -20,7 +20,7 @@ You launch your startup on a Tuesday. You're a solo founder who codes, armed wit
 
 With your AI coding assistants writing boilerplate and suggesting implementations, you're moving at a pace that would have seemed impossible five years ago. The merge throughput is pure: one developer, zero overhead, 10 to 15 commits merged to main every single day. This is the golden age. This is what velocity feels like.
 
-<iframe src="/blog/2025/10/28/zero-to-many/iframe.html?id=lone_wolf" width="100%" height="500" frameborder="0"></iframe>
+<iframe src="/blog/2025/10/28/zero-to-many/iframe.html?id=lone_wolf" width="100%" height="600" frameborder="0" data-visualization></iframe>
 
 But your app is growing. Users are signing up. And one bad commit takes down the service for three hours because there was no safety net. That's when you realize: pure velocity without quality control is just recklessness in disguise.
 
