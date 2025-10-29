@@ -41,6 +41,74 @@ defmodule Tuist.RunsTest do
       assert build.account_id == account_id
       assert build.status == :success
     end
+
+    test "creates a build with cacheable tasks and calculates counts correctly" do
+      # Given
+      project_id = ProjectsFixtures.project_fixture().id
+      account_id = AccountsFixtures.user_fixture(preload: [:account]).account.id
+
+      cacheable_tasks = [
+        %{type: :swift, status: :hit_local, key: "task1"},
+        %{type: :swift, status: :hit_remote, key: "task2"},
+        %{type: :clang, status: :miss, key: "task3"},
+        %{type: :swift, status: :hit_local, key: "task4"},
+        %{type: :clang, status: :hit_remote, key: "task5"}
+      ]
+
+      # When
+      {:ok, build} =
+        Runs.create_build(%{
+          id: UUIDv7.generate(),
+          duration: 1000,
+          macos_version: "11.2.3",
+          xcode_version: "12.4",
+          is_ci: false,
+          model_identifier: "Mac15,6",
+          scheme: "App",
+          project_id: project_id,
+          account_id: account_id,
+          status: :success,
+          issues: [],
+          files: [],
+          targets: [],
+          cacheable_tasks: cacheable_tasks
+        })
+
+      # Then
+      assert build.cacheable_tasks_count == 5
+      assert build.cacheable_task_local_hits_count == 2
+      assert build.cacheable_task_remote_hits_count == 2
+    end
+
+    test "creates a build with empty cacheable tasks" do
+      # Given
+      project_id = ProjectsFixtures.project_fixture().id
+      account_id = AccountsFixtures.user_fixture(preload: [:account]).account.id
+
+      # When
+      {:ok, build} =
+        Runs.create_build(%{
+          id: UUIDv7.generate(),
+          duration: 1000,
+          macos_version: "11.2.3",
+          xcode_version: "12.4",
+          is_ci: false,
+          model_identifier: "Mac15,6",
+          scheme: "App",
+          project_id: project_id,
+          account_id: account_id,
+          status: :success,
+          issues: [],
+          files: [],
+          targets: [],
+          cacheable_tasks: []
+        })
+
+      # Then
+      assert build.cacheable_tasks_count == 0
+      assert build.cacheable_task_local_hits_count == 0
+      assert build.cacheable_task_remote_hits_count == 0
+    end
   end
 
   describe "build/1" do
@@ -503,6 +571,97 @@ defmodule Tuist.RunsTest do
     # Then
     assert result.successful_count == 1
     assert result.failed_count == 1
+  end
+
+  describe "list_cacheable_tasks/1" do
+    test "lists cacheable tasks with pagination" do
+      # Given
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          cacheable_tasks: [
+            %{type: :swift, status: :hit_local, key: "task1"},
+            %{type: :swift, status: :hit_remote, key: "task2"},
+            %{type: :clang, status: :miss, key: "task3"},
+            %{type: :swift, status: :hit_local, key: "task4"}
+          ]
+        )
+
+      # When
+      {tasks, meta} =
+        Runs.list_cacheable_tasks(%{
+          page_size: 2,
+          filters: [%{field: :build_run_id, op: :==, value: build.id}]
+        })
+
+      # Then
+      assert length(tasks) == 2
+      assert meta.total_count == 4
+      assert meta.total_pages == 2
+    end
+
+    test "lists cacheable tasks with filters" do
+      # Given
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          cacheable_tasks: [
+            %{type: :swift, status: :hit_local, key: "swift_task"},
+            %{type: :clang, status: :hit_remote, key: "clang_task"},
+            %{type: :swift, status: :miss, key: "another_swift"}
+          ]
+        )
+
+      # When - filter by type
+      {swift_tasks, _meta} =
+        Runs.list_cacheable_tasks(%{
+          filters: [
+            %{field: :build_run_id, op: :==, value: build.id},
+            %{field: :type, op: :==, value: "swift"}
+          ]
+        })
+
+      # Then
+      assert length(swift_tasks) == 2
+      assert Enum.all?(swift_tasks, &(&1.type == "swift"))
+    end
+
+    test "lists cacheable tasks with sorting by key ascending" do
+      # Given
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          cacheable_tasks: [
+            %{type: :swift, status: :hit_local, key: "zebra_task"},
+            %{type: :swift, status: :hit_remote, key: "alpha_task"},
+            %{type: :clang, status: :miss, key: "beta_task"}
+          ]
+        )
+
+      # When
+      {tasks, _meta} =
+        Runs.list_cacheable_tasks(%{
+          filters: [%{field: :build_run_id, op: :==, value: build.id}],
+          order_by: [:key],
+          order_directions: [:asc]
+        })
+
+      # Then
+      keys = Enum.map(tasks, & &1.key)
+      assert keys == ["alpha_task", "beta_task", "zebra_task"]
+    end
+
+    test "returns empty list when no cacheable tasks exist for build" do
+      # Given
+      {:ok, build} = RunsFixtures.build_fixture(cacheable_tasks: [])
+
+      # When
+      {tasks, meta} =
+        Runs.list_cacheable_tasks(%{
+          filters: [%{field: :build_run_id, op: :==, value: build.id}]
+        })
+
+      # Then
+      assert tasks == []
+      assert meta.total_count == 0
+    end
   end
 
   describe "build_ci_run_url/1" do
