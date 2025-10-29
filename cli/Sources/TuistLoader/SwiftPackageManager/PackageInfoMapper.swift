@@ -322,7 +322,9 @@ public final class PackageInfoMapper: PackageInfoMapping {
                     productTypes: productTypes,
                     productDestinations: packageSettings.productDestinations,
                     targetSettings: packageSettings.targetSettings,
-                    packageModuleAliases: packageModuleAliases
+                    packageModuleAliases: packageModuleAliases,
+                    packageTraits: packageInfo.traits ?? [],
+                    packageSettingsProductTraits: packageSettings.productTraits
                 )
             }
 
@@ -376,7 +378,9 @@ public final class PackageInfoMapper: PackageInfoMapping {
         productTypes: [String: XcodeGraph.Product],
         productDestinations: [String: XcodeGraph.Destinations],
         targetSettings: [String: XcodeGraph.Settings],
-        packageModuleAliases: [String: [String: String]]
+        packageModuleAliases: [String: [String: String]],
+        packageTraits: [PackageTrait],
+        packageSettingsProductTraits: [String: [TuistCore.PackageSettingsTrait]]
     ) async throws -> ProjectDescription.Target? {
         // Ignores or passes a target based on the `type` and the `packageType`.
         // After that, it assumes that no target is ignored.
@@ -570,7 +574,9 @@ public final class PackageInfoMapper: PackageInfoMapping {
             settings: target.settings,
             moduleMap: moduleMap,
             targetSettings: targetSettings[target.name],
-            dependencyModuleAliases: dependencyModuleAliases
+            dependencyModuleAliases: dependencyModuleAliases,
+            packageTraits: packageTraits,
+            packageSettingsProductTraits: packageSettingsProductTraits
         )
 
         return .target(
@@ -1034,7 +1040,9 @@ extension ProjectDescription.Settings {
         settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting],
         moduleMap: ModuleMap?,
         targetSettings: XcodeGraph.Settings?,
-        dependencyModuleAliases: [String: String]
+        dependencyModuleAliases: [String: String],
+        packageTraits: [PackageTrait],
+        packageSettingsProductTraits: [String: [TuistCore.PackageSettingsTrait]]
     ) async throws -> Self? {
         let mainPath = try await target.basePath(packageFolder: packageFolder)
         let mainRelativePath = mainPath.relative(to: packageFolder)
@@ -1057,6 +1065,29 @@ extension ProjectDescription.Settings {
         var settingsDictionary: XcodeGraph.SettingsDictionary = [
             "OTHER_SWIFT_FLAGS": ["$(inherited)"],
         ]
+
+        if let traits = packageSettingsProductTraits[productName], !packageTraits.isEmpty {
+            let activeConditions = traits.flatMap { trait in
+                switch trait {
+                case .default:
+                    if let defaultTrait = packageTraits.first(where: { $0.name == "default" }) {
+                        return defaultTrait.enabledTraits
+                    } else {
+                        return []
+                    }
+                case let .named(name):
+                    if packageTraits.contains(where: { $0.name == name }) {
+                        return [name]
+                    } else {
+                        return []
+                    }
+                }
+            }.joined(separator: " ")
+            settingsDictionary.merge(
+                ["SWIFT_ACTIVE_COMPILATION_CONDITIONS": "$(inherited) \(activeConditions)"],
+                uniquingKeysWith: { $1 }
+            )
+        }
 
         // Force enable testing search paths
         let forceEnabledTestingSearchPath: Set<String> = [

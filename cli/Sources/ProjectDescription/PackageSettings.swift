@@ -45,6 +45,9 @@ public struct PackageSettings: Codable, Equatable, Sendable {
     /// Custom project configurations to be used for projects generated from SwiftPackageManager.
     public var projectOptions: [String: Project.Options]
 
+    /// A dictionary whose keys are package products, and the values are a list of traits that you'd like to include.
+    public var productTraits: [String: [PackageSettingsTrait]]
+
     /// Creates `PackageSettings` instance for custom Swift Package Manager configuration.
     /// - Parameters:
     ///     - productTypes: The custom `Product` types to be used for SPM targets.
@@ -52,18 +55,22 @@ public struct PackageSettings: Codable, Equatable, Sendable {
     ///     - baseSettings: Additional settings to be added to targets generated from SwiftPackageManager.
     ///     - targetSettings: Additional settings to be added to targets generated from SwiftPackageManager.
     ///     - projectOptions: Custom project configurations to be used for projects generated from SwiftPackageManager.
+    ///     - productTraits: A dictionary whose keys are package products, and the values are a list of traits that you'd like to
+    /// include.
     public init(
         productTypes: [String: Product] = [:],
         productDestinations: [String: Destinations] = [:],
         baseSettings: Settings = .settings(),
         targetSettings: [String: Settings] = [:],
-        projectOptions: [String: Project.Options] = [:]
+        projectOptions: [String: Project.Options] = [:],
+        productTraits: [String: [PackageSettingsTrait]] = [:]
     ) {
         self.productTypes = productTypes
         self.productDestinations = productDestinations
         self.baseSettings = baseSettings
         self.targetSettings = targetSettings
         self.projectOptions = projectOptions
+        self.productTraits = productTraits
         dumpIfNeeded(self)
     }
 
@@ -94,6 +101,7 @@ public struct PackageSettings: Codable, Equatable, Sendable {
         self.baseSettings = baseSettings
         self.targetSettings = targetSettings.mapValues { .settings(base: $0) }
         self.projectOptions = projectOptions
+        productTraits = [:]
         dumpIfNeeded(self)
     }
 }
