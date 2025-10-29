@@ -1,7 +1,6 @@
 {
   config,
   lib,
-  pkgs,
   ...
 }: {
   services.nginx = {
@@ -11,15 +10,6 @@
     recommendedOptimisation = true;
     recommendedProxySettings = true;
     recommendedTlsSettings = true;
-
-    # Performance optimizations
-    appendHttpConfig = ''
-      sendfile on;
-      tcp_nopush on;
-      tcp_nodelay on;
-      keepalive_timeout 65;
-      types_hash_max_size 2048;
-    '';
 
     virtualHosts = {
       "cache-eu-central-staging.tuist.dev" = lib.mkIf (config.networking.hostName == "cas-cache-eu-central") {
@@ -59,11 +49,6 @@
 
             # Disable access log for performance
             access_log off;
-
-            # Send files efficiently
-            sendfile on;
-            tcp_nopush on;
-            tcp_nodelay on;
 
             # No caching headers (content-addressable, so safe to cache forever)
             add_header Cache-Control "public, max-age=31536000, immutable";
@@ -114,11 +99,6 @@
 
             # Disable access log for performance
             access_log off;
-
-            # Send files efficiently
-            sendfile on;
-            tcp_nopush on;
-            tcp_nodelay on;
 
             # No caching headers (content-addressable, so safe to cache forever)
             add_header Cache-Control "public, max-age=31536000, immutable";
