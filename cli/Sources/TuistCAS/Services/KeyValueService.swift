@@ -1,6 +1,7 @@
 @preconcurrency import FileSystem
 import Foundation
 import GRPCCore
+import Logging
 import Path
 import TuistServer
 import TuistSupport
@@ -30,7 +31,16 @@ public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.Si
         request: CompilationCacheService_Keyvalue_V1_PutValueRequest,
         context _: ServerContext
     ) async throws -> CompilationCacheService_Keyvalue_V1_PutValueResponse {
+        let startTime = ProcessInfo.processInfo.systemUptime
         let casID = converKeyToCasID(request.key)
+        let keySize = request.key.count
+        let entriesCount = request.value.entries.count
+        let totalValueSize = request.value.entries.values.reduce(0) { $0 + $1.count }
+
+        Logger.current
+            .debug(
+                "KeyValue.putValue starting - key size: \(keySize) bytes, entries: \(entriesCount), total value size: \(totalValueSize) bytes, casID: \(casID)"
+            )
 
         // Convert protobuf entries to [String: String] format
         var entries: [String: String] = [:]
@@ -46,11 +56,25 @@ public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.Si
                 fullHandle: fullHandle,
                 serverURL: serverURL
             )
+
+            let duration = ProcessInfo.processInfo.systemUptime - startTime
+            Logger.current
+                .debug(
+                    "KeyValue.putValue completed successfully in \(String(format: "%.3f", duration))s for casID: \(casID)"
+                )
+
             return response
         } catch {
             var responseError = CompilationCacheService_Keyvalue_V1_ResponseError()
             responseError.description_p = error.userFriendlyDescription()
             response.error = responseError
+
+            let duration = ProcessInfo.processInfo.systemUptime - startTime
+            Logger.current
+                .error(
+                    "KeyValue.putValue failed after \(String(format: "%.3f", duration))s for casID: \(casID): \(error.userFriendlyDescription())"
+                )
+
             return response
         }
     }
@@ -59,7 +83,11 @@ public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.Si
         request: CompilationCacheService_Keyvalue_V1_GetValueRequest,
         context _: GRPCCore.ServerContext
     ) async throws -> CompilationCacheService_Keyvalue_V1_GetValueResponse {
+        let startTime = ProcessInfo.processInfo.systemUptime
         let casID = converKeyToCasID(request.key)
+        let keySize = request.key.count
+
+        Logger.current.debug("KeyValue.getValue starting - key size: \(keySize) bytes, casID: \(casID)")
 
         var response = CompilationCacheService_Keyvalue_V1_GetValueResponse()
 
@@ -92,14 +120,30 @@ public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.Si
 
                 response.contents = .value(value)
                 response.outcome = .success
+
+                let duration = ProcessInfo.processInfo.systemUptime - startTime
+                let valueSize = value.entries.values.reduce(0) { $0 + $1.count }
+                Logger.current
+                    .debug(
+                        "KeyValue.getValue completed successfully in \(String(format: "%.3f", duration))s - found value with size: \(valueSize) bytes for casID: \(casID)"
+                    )
             } else {
                 response.outcome = .keyNotFound
+                let duration = ProcessInfo.processInfo.systemUptime - startTime
+                Logger.current
+                    .debug(
+                        "KeyValue.getValue completed in \(String(format: "%.3f", duration))s - key not found for casID: \(casID)"
+                    )
             }
         } catch {
             var responseError = CompilationCacheService_Keyvalue_V1_ResponseError()
             responseError.description_p = error.userFriendlyDescription()
             response.error = responseError
             response.outcome = .keyNotFound
+
+            let duration = ProcessInfo.processInfo.systemUptime - startTime
+            Logger.current
+                .error("KeyValue.getValue failed after \(String(format: "%.3f", duration))s for casID: \(casID): \(error)")
         }
 
         return response
