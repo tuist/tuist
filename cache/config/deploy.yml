@@ -10,39 +10,6 @@ servers:
     options:
       network-alias: cache-app
 
-accessories:
-  nginx-us:
-    image: jonasal/nginx-certbot:latest
-    host: 5.161.218.106
-    env:
-      clear:
-        CERTBOT_EMAIL: christoph@tuist.dev
-    options:
-      publish:
-        - "80:80"
-        - "443:443"
-    files:
-      - config/nginx-us.conf:/etc/nginx/user_conf.d/default.conf
-    volumes:
-      - /data/cas:/data/cas:ro
-      - nginx-us-letsencrypt:/etc/letsencrypt
-
-  nginx-eu:
-    image: jonasal/nginx-certbot:latest
-    host: 91.98.81.176
-    env:
-      clear:
-        CERTBOT_EMAIL: christoph@tuist.dev
-    options:
-      publish:
-        - "80:80"
-        - "443:443"
-    files:
-      - config/nginx-eu.conf:/etc/nginx/user_conf.d/default.conf
-    volumes:
-      - /data/cas:/data/cas:ro
-      - nginx-eu-letsencrypt:/etc/letsencrypt
-
 registry:
   server: ghcr.io
   username: cschmatzler
