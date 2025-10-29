@@ -9,4 +9,4 @@ config :logger, level: :info
 config :cache, :cas,
   # TODO: Update both of these :)
   server_url: "https://tuist-staging.onrender.com",
-  storage_dir: "/data"
+  storage_dir: "/cas"

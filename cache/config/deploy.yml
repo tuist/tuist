@@ -3,21 +3,47 @@ image: tuist/cache
 
 servers:
   web:
-    - 91.98.81.176
-    - 5.161.218.106
+    hosts:
+      - 91.98.81.176
+      - 5.161.218.106
+    proxy: false
+    options:
+      network-alias: cache-app
 
-proxy:
-  hosts:
-    - cas-cache-us-east.staging.tuist.dev
-    - cas-cache-eu-central.staging.tuist.dev
-  app_port: 4000
-  buffering:
-    requests: false
-    responses: false
-  path_prefixes:
-    - /api/cache/cas
-    - /api/cache/keyvalue
-  strip_path_prefix: false
+accessories:
+  caddy-us:
+    image: caddy:2-alpine
+    host: 5.161.218.106
+    env:
+      clear:
+        CADDY_HOST: cache-us-east-staging.tuist.dev
+    options:
+      publish:
+        - "80:80"
+        - "443:443"
+        - "443:443/udp"
+    files:
+      - config/Caddyfile:/etc/caddy/Caddyfile
+    volumes:
+      - caddy-data:/data
+      - caddy-config:/config
+
+  caddy-eu:
+    image: caddy:2-alpine
+    host: 91.98.81.176
+    env:
+      clear:
+        CADDY_HOST: cache-eu-central-staging.tuist.dev
+    options:
+      publish:
+        - "80:80"
+        - "443:443"
+        - "443:443/udp"
+    files:
+      - config/Caddyfile:/etc/caddy/Caddyfile
+    volumes:
+      - caddy-data:/data
+      - caddy-config:/config
 
 registry:
   server: ghcr.io
@@ -36,4 +62,4 @@ env:
     - SECRET_KEY_BASE
 
 volumes:
-  - /data/cas:/data:rw
+  - /cas:/data:rw
