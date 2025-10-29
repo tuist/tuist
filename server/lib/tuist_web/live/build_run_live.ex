@@ -59,10 +59,6 @@ defmodule TuistWeb.BuildRunLive do
       |> assign(:module_breakdown_active_filters, [])
       |> assign(:cacheable_tasks_available_filters, define_cacheable_tasks_filters())
       |> assign(:cacheable_tasks_active_filters, [])
-      |> assign(:cacheable_tasks_search, "")
-      |> assign(:cacheable_tasks, [])
-      |> assign(:cacheable_tasks_page, 1)
-      |> assign(:cacheable_tasks_meta, %{total_pages: 1})
       |> assign_async(:has_result_bundle, fn ->
         {:ok, %{has_result_bundle: (command_event && CommandEvents.has_result_bundle?(command_event)) || false}}
       end)
@@ -960,46 +956,35 @@ defmodule TuistWeb.BuildRunLive do
   end
 
   def cache_chart_border_radius(local_hits, remote_hits, misses, category) do
-    # Determine which categories have values
     has_local = local_hits > 0
     has_remote = remote_hits > 0
     has_misses = misses > 0
 
     case category do
       :local when has_local ->
-        # Local is the only category with values
         if not has_remote and not has_misses do
           [6, 6, 6, 6]
         else
-          # Local is leftmost (and there are other categories)
           [6, 0, 0, 6]
         end
 
       :remote when has_remote ->
         cond do
-          # Remote is the only category with values
           not has_local and not has_misses -> [6, 6, 6, 6]
-          # Remote is leftmost (no local) and rightmost (no misses)
           not has_local and not has_misses -> [6, 6, 6, 6]
-          # Remote is leftmost (no local) but not rightmost
           not has_local and has_misses -> [6, 0, 0, 6]
-          # Remote is rightmost (no misses) but not leftmost
           has_local and not has_misses -> [0, 6, 6, 0]
-          # Remote is in the middle
           true -> [0, 0, 0, 0]
         end
 
       :misses when has_misses ->
-        # Misses is the only category with values
         if not has_local and not has_remote do
           [6, 6, 6, 6]
         else
-          # Misses is rightmost (and there are other categories)
           [0, 6, 6, 0]
         end
 
       _ ->
-        # Category has no values
         [0, 0, 0, 0]
     end
   end

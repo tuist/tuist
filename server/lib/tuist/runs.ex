@@ -19,7 +19,6 @@ defmodule Tuist.Runs do
   end
 
   def create_build(attrs) do
-    # Calculate cacheable task counts
     cacheable_tasks = Map.get(attrs, :cacheable_tasks, [])
 
     cacheable_task_counts = %{
