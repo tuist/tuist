@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.92.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* Add support for Internal Imports By Default for Asset accessors by [@PSKuznetsov](https://github.com/PSKuznetsov) in [#8241](https://github.com/tuist/tuist/pull/8241)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.92.0...4.92.1
+
 ## What's Changed in 4.92.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
