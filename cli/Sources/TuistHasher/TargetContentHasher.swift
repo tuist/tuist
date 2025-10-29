@@ -131,6 +131,7 @@ public final class TargetContentHasher: TargetContentHashing {
             let hash = try contentHasher.hash(
                 [
                     projectHash,
+                    graphTarget.target.name,
                     graphTarget.target.product.rawValue,
                     projectSettingsHash,
                     settingsHash,
@@ -142,6 +143,7 @@ public final class TargetContentHasher: TargetContentHashing {
             Target content hash for \(graphTarget.target.name) (external project): \(hash)
               Components:
                 project: \(projectHash)
+                name: \(graphTarget.target.name)
                 product: \(graphTarget.target.product.rawValue)
                 projectSettings: \(projectSettingsHash)
                 targetSettings: \(settingsHash ?? "nil")

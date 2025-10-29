@@ -7,7 +7,7 @@
     <header data-part="header">
       <div data-part="content">
         <div data-part="category">
-          <span>{dgettext("marketing", "Blog")}</span>
+          <a href={~p"/blog"}>{dgettext("marketing", "Blog")}</a>
           <.math_slash />
           <span>{@post.category |> to_string() |> String.capitalize()}</span>
         </div>
@@ -47,6 +47,10 @@
             </.button>
         <% end %>
       <% end %>
+    </section>
+
+    <section data-part="cta">
+      <.marketing_banner title={dgettext("marketing", "AI writes faster. So should your builds.")} />
     </section>
   </main>
 </TuistWeb.Marketing.Layouts.marketing>
