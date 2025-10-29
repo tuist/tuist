@@ -208,7 +208,7 @@ defmodule TuistWeb.BuildRunLiveTest do
 
     # When
     {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/builds/build-runs/#{build_run.id}")
-ache
+    ache
     # Then
     refute has_element?(lv, "a", "Cache")
   end
