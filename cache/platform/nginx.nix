@@ -17,7 +17,7 @@
         enableACME = true;
 
         locations."/" = {
-          proxyPass = "http://localhost:4000";
+          proxyPass = "http://127.0.0.1:4000";
           proxyWebsockets = true;
           extraConfig = ''
             proxy_set_header X-Real-IP $remote_addr;
@@ -67,7 +67,7 @@
         enableACME = true;
 
         locations."/" = {
-          proxyPass = "http://localhost:4000";
+          proxyPass = "http://127.0.0.1:4000";
           proxyWebsockets = true;
           extraConfig = ''
             proxy_set_header X-Real-IP $remote_addr;
