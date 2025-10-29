@@ -18,7 +18,7 @@ public enum BaseCacheProfile: String, Codable, Equatable, Sendable, Hashable, Ca
     /// Replace as many targets as possible (all internal targets), excluding focused targets
     case allPossible = "all-possible"
     /// No binary replacement
-    case none = "none"
+    case none
 }
 
 public struct CacheProfile: Codable, Equatable, Sendable, Hashable {

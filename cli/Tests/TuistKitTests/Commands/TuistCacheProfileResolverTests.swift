@@ -31,7 +31,11 @@ struct TuistCacheProfileResolverTests {
         #expect(try config
             .resolveCacheProfile(ignoreBinaryCache: false, includedTargets: [], cacheProfile: .allPossible) == .allPossible
         )
-        #expect(try config.resolveCacheProfile(ignoreBinaryCache: false, includedTargets: [], cacheProfile: CacheProfileType.none) == .none)
+        #expect(try config.resolveCacheProfile(
+            ignoreBinaryCache: false,
+            includedTargets: [],
+            cacheProfile: CacheProfileType.none
+        ) == .none)
     }
 
     @Test func resolves_from_explicit_custom_profile() throws {

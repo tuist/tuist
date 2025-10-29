@@ -12,14 +12,14 @@ public protocol TargetReplacementDeciding {
 }
 
 /// A decider that chooses to replace targets based on a cache profile.
-struct CacheProfileTargetReplacementDecider: TargetReplacementDeciding {
+public struct CacheProfileTargetReplacementDecider: TargetReplacementDeciding {
     private let base: BaseCacheProfile
     private let profileTargetNames: Set<String>
     private let profileTargetTags: Set<String>
     private let focusedTargetNames: Set<String>
     private let focusedTargetTags: Set<String>
 
-    init(profile: CacheProfile, exceptions: Set<TargetQuery>) {
+    public init(profile: CacheProfile, exceptions: Set<TargetQuery>) {
         base = profile.base
 
         var names = Set<String>()
@@ -49,7 +49,7 @@ struct CacheProfileTargetReplacementDecider: TargetReplacementDeciding {
         focusedTargetTags = tags
     }
 
-    func shouldReplace(project: Project, target: Target) -> Bool {
+    public func shouldReplace(project: Project, target: Target) -> Bool {
         switch project.type {
         case .external:
             switch base {
