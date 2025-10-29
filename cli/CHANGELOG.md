@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.94.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add support for Swift Package Manager strictMemorySafety setting by [@pepicrft](https://github.com/pepicrft) in [#8539](https://github.com/tuist/tuist/pull/8539)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.93.0...4.94.0
+
 ## What's Changed in 4.93.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
