@@ -615,21 +615,18 @@
             description={gettext("Cacheable tasks that were retrieved from the local cache.")}
             value={@run.cacheable_task_local_hits_count}
             id="widget-local-cache-hits"
-            empty={@run.cacheable_task_local_hits_count == 0}
           />
           <.widget
             title={gettext("Remote task hits")}
             description={gettext("Cacheable tasks that were retrieved from the remote cache.")}
             value={@run.cacheable_task_remote_hits_count}
             id="widget-remote-cache-hits"
-            empty={@run.cacheable_task_remote_hits_count == 0}
           />
           <.widget
             title={gettext("Cacheable tasks")}
             description={gettext("The total number of cacheable tasks in this build.")}
             value={@run.cacheable_tasks_count}
             id="widget-total-cacheable-tasks"
-            empty={@run.cacheable_tasks_count == 0}
           />
         </.card_section>
       </.card>
@@ -643,12 +640,12 @@
           data-part="xcode-cache-card-section"
         >
           <div data-part="title">
-          <span data-part="label">
-          {gettext("Cacheable tasks:")}
-          </span>
-          <span data-part="value">
-          {@run.cacheable_tasks_count}
-          </span>
+            <span data-part="label">
+              {gettext("Cacheable tasks:")}
+            </span>
+            <span data-part="value">
+              {@run.cacheable_tasks_count}
+            </span>
           </div>
           <.chart
             id="cacheable-tasks-breakdown-chart"
@@ -702,7 +699,10 @@
             series={
               local_hits = @run.cacheable_task_local_hits_count
               remote_hits = @run.cacheable_task_remote_hits_count
-              misses = @run.cacheable_tasks_count - @run.cacheable_task_remote_hits_count - @run.cacheable_task_local_hits_count
+
+              misses =
+                @run.cacheable_tasks_count - @run.cacheable_task_remote_hits_count -
+                  @run.cacheable_task_local_hits_count
 
               [
                 %{
@@ -715,7 +715,8 @@
                   data: [local_hits],
                   color: "var:hits-chart-legend-local",
                   itemStyle: %{
-                    borderRadius: cache_chart_border_radius(local_hits, remote_hits, misses, :local)
+                    borderRadius:
+                      cache_chart_border_radius(local_hits, remote_hits, misses, :local)
                   }
                 },
                 %{
@@ -728,7 +729,8 @@
                   data: [remote_hits],
                   color: "var:hits-chart-legend-remote",
                   itemStyle: %{
-                    borderRadius: cache_chart_border_radius(local_hits, remote_hits, misses, :remote)
+                    borderRadius:
+                      cache_chart_border_radius(local_hits, remote_hits, misses, :remote)
                   }
                 },
                 %{
@@ -741,7 +743,8 @@
                   data: [misses],
                   color: "var:hits-chart-legend-missed",
                   itemStyle: %{
-                    borderRadius: cache_chart_border_radius(local_hits, remote_hits, misses, :misses)
+                    borderRadius:
+                      cache_chart_border_radius(local_hits, remote_hits, misses, :misses)
                   }
                 }
               ]
@@ -774,19 +777,19 @@
             <.active_filter :for={filter <- @cacheable_tasks_active_filters} filter={filter} />
           </div>
           <.table id="cacheable-tasks-table" rows={@cacheable_tasks}>
-          <:col :let={task} label={gettext("Key")}>
-            <.text_cell label={task.key} />
-          </:col>
-          <:col :let={task} label={gettext("Hit")}>
-            <%= case task.status do %>
-              <% "hit_local" -> %>
-                <.badge_cell label={gettext("Local")} color="secondary" style="light-fill" />
-              <% "hit_remote" -> %>
-                <.badge_cell label={gettext("Remote")} color="focus" style="light-fill" />
-              <% "miss" -> %>
-                <.badge_cell label={gettext("Missed")} color="warning" style="light-fill" />
-            <% end %>
-          </:col>
+            <:col :let={task} label={gettext("Key")}>
+              <.text_cell label={task.key} />
+            </:col>
+            <:col :let={task} label={gettext("Hit")}>
+              <%= case task.status do %>
+                <% "hit_local" -> %>
+                  <.badge_cell label={gettext("Local")} color="secondary" style="light-fill" />
+                <% "hit_remote" -> %>
+                  <.badge_cell label={gettext("Remote")} color="focus" style="light-fill" />
+                <% "miss" -> %>
+                  <.badge_cell label={gettext("Missed")} color="warning" style="light-fill" />
+              <% end %>
+            </:col>
             <:col :let={task} label={gettext("Type")}>
               <.text_cell label={task.type |> String.capitalize()} />
             </:col>

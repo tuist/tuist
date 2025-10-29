@@ -1,3 +1,5 @@
+import FileSystem
+import FileSystemTesting
 import Foundation
 import GRPCCore
 import Mockable
@@ -6,8 +8,6 @@ import Path
 import Testing
 import TuistServer
 import TuistSupport
-import FileSystem
-import FileSystemTesting
 import TuistTesting
 @testable import TuistCAS
 
@@ -234,11 +234,11 @@ struct KeyValueServiceTests {
         let environment = try #require(Environment.mocked)
         environment.cacheDirectory = temporaryDirectory
         let fileSystem = FileSystem()
-        
+
         let key = Data("0test-key".utf8)
         let entryKey1 = Data("test-data1".utf8).base64EncodedString()
         let entryKey2 = Data("test-data2".utf8).base64EncodedString()
-        
+
         let subject = KeyValueService(
             fullHandle: fullHandle,
             serverURL: serverURL,
@@ -277,7 +277,7 @@ struct KeyValueServiceTests {
 
         // Then
         #expect(response.outcome == .success)
-        
+
         // Verify the response contains expected values
         switch response.contents {
         case let .value(value):
@@ -286,18 +286,18 @@ struct KeyValueServiceTests {
         default:
             #expect(Bool(false), "Expected .value content")
         }
-        
+
         // Wait a bit for the async file save to complete
         try await Task.sleep(nanoseconds: 200_000_000) // 200ms
-        
+
         let keyValueEntriesDirectory = temporaryDirectory.appending(component: "keyvalue-entries")
         let expectedFilePath = keyValueEntriesDirectory.appending(component: "0~dGVzdC1rZXk=.json")
-        
+
         #expect(try await fileSystem.exists(expectedFilePath))
-        
+
         let fileData = try Data(contentsOf: expectedFilePath.url)
         let savedEntryKeys = try JSONDecoder().decode([String].self, from: fileData)
-        
+
         #expect(savedEntryKeys == [entryKey1, entryKey2])
     }
 
@@ -308,9 +308,9 @@ struct KeyValueServiceTests {
         let environment = try #require(Environment.mocked)
         environment.cacheDirectory = temporaryDirectory
         let fileSystem = FileSystem()
-        
+
         let key = Data("0test-key".utf8)
-        
+
         let subject = KeyValueService(
             fullHandle: fullHandle,
             serverURL: serverURL,
@@ -343,18 +343,18 @@ struct KeyValueServiceTests {
 
         // Then
         #expect(response.outcome == .success)
-        
+
         // Wait a bit for the async file save to complete
         try await Task.sleep(nanoseconds: 200_000_000) // 200ms
-        
+
         let keyValueEntriesDirectory = temporaryDirectory.appending(component: "keyvalue-entries")
         let expectedFilePath = keyValueEntriesDirectory.appending(component: "0~dGVzdC1rZXk=.json")
-        
+
         #expect(try await fileSystem.exists(expectedFilePath))
-        
+
         let fileData = try Data(contentsOf: expectedFilePath.url)
         let savedEntryKeys = try JSONDecoder().decode([String].self, from: fileData)
-        
+
         #expect(savedEntryKeys.isEmpty)
     }
 }

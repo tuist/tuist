@@ -350,6 +350,13 @@
           align-self: flex-start;
           gap: var(--noora-spacing-4);
         }
+
+        & #cacheable-tasks-table {
+          & td:nth-child(2),
+          & td:nth-child(3) {
+            width: 12%;
+          }
+        }
       }
     }
   }

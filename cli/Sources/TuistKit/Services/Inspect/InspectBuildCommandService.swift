@@ -125,7 +125,7 @@ struct InspectBuildCommandService {
 
     private func mostRecentActivityLogPath(
         projectPath: AbsolutePath,
-        projectDerivedDataDirectory: AbsolutePath,
+        projectDerivedDataDirectory _: AbsolutePath,
         referenceDate: Date
     ) async throws -> AbsolutePath {
         var mostRecentActivityLogPath: AbsolutePath!

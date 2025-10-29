@@ -59,7 +59,7 @@ public final class MockEnvironment: Environmenting {
     public func currentWorkingDirectory() async throws -> AbsolutePath {
         directory.path.appending(components: "current")
     }
-    
+
     public var cacheDirectory: AbsolutePath
 
     public var stateDirectory: AbsolutePath

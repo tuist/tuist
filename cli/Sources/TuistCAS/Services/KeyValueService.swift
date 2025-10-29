@@ -74,12 +74,12 @@ public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.Si
                 serverURL: serverURL
             ) {
                 var value = CompilationCacheService_Keyvalue_V1_Value()
-                
+
                 // Store entry keys for cache analysis
-                // The entry.value is actually the key (e.g., "0~...") that will appear in 
+                // The entry.value is actually the key (e.g., "0~...") that will appear in
                 // "Swift caching materialize outputs from 0~..." build steps
                 var entryKeys: [String] = []
-                
+
                 for entry in json.entries {
                     if let data = Data(base64Encoded: entry.value) {
                         value.entries["value"] = data
@@ -87,7 +87,7 @@ public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.Si
                         entryKeys.append(entry.value)
                     }
                 }
-                
+
                 // Save the entry keys to a JSON file asynchronously (non-blocking)
                 Task {
                     do {
@@ -97,7 +97,7 @@ public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.Si
                         print("Failed to save keyvalue entries for \(casID): \(error)")
                     }
                 }
-                
+
                 response.contents = .value(value)
                 response.outcome = .success
             } else {
@@ -118,17 +118,17 @@ public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.Si
             .replacingOccurrences(of: "/", with: "_")
             .replacingOccurrences(of: "+", with: "-")
     }
-    
+
     private func saveKeyValueEntries(key: String, entryKeys: [String]) async throws {
         let keyValueEntriesDirectory = environment.cacheDirectory.appending(component: "keyvalue-entries")
-        
+
         if try await !fileSystem.exists(keyValueEntriesDirectory) {
             try await fileSystem.makeDirectory(at: keyValueEntriesDirectory)
         }
-        
+
         let jsonPath = keyValueEntriesDirectory.appending(component: "\(key).json")
         let jsonData = try JSONEncoder().encode(entryKeys)
-        
+
         try jsonData.write(to: jsonPath.url)
     }
 }

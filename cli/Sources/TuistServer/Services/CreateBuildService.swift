@@ -145,7 +145,9 @@ import OpenAPIURLSession
                         .case1(
                             .init(
                                 cacheable_tasks: cacheableTasks
-                                    .map(Operations.createRun.Input.Body.jsonPayload.Case1Payload.cacheable_tasksPayloadPayload.init),
+                                    .map(Operations.createRun.Input.Body.jsonPayload.Case1Payload.cacheable_tasksPayloadPayload
+                                        .init
+                                    ),
                                 category: category,
                                 ci_host: ciHost,
                                 ci_project_handle: ciProjectHandle,

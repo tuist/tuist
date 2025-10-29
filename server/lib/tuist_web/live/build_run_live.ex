@@ -876,9 +876,7 @@ defmodule TuistWeb.BuildRunLive do
   defp cacheable_tasks_filters(run, params, available_filters, search) do
     base_filters =
       [%{field: :build_run_id, op: :==, value: run.id}] ++
-        Filter.Operations.convert_filters_to_flop(
-          Filter.Operations.decode_filters_from_query(params, available_filters)
-        )
+        Filter.Operations.convert_filters_to_flop(Filter.Operations.decode_filters_from_query(params, available_filters))
 
     if search && search != "" do
       base_filters ++
@@ -930,11 +928,12 @@ defmodule TuistWeb.BuildRunLive do
 
     case category do
       :local when has_local ->
-        cond do
-          # Local is the only category with values
-          not has_remote and not has_misses -> [6, 6, 6, 6]
+        # Local is the only category with values
+        if not has_remote and not has_misses do
+          [6, 6, 6, 6]
+        else
           # Local is leftmost (and there are other categories)
-          true -> [6, 0, 0, 6]
+          [6, 0, 0, 6]
         end
 
       :remote when has_remote ->
@@ -952,11 +951,12 @@ defmodule TuistWeb.BuildRunLive do
         end
 
       :misses when has_misses ->
-        cond do
-          # Misses is the only category with values
-          not has_local and not has_remote -> [6, 6, 6, 6]
+        # Misses is the only category with values
+        if not has_local and not has_remote do
+          [6, 6, 6, 6]
+        else
           # Misses is rightmost (and there are other categories)
-          true -> [0, 6, 6, 0]
+          [0, 6, 6, 0]
         end
 
       _ ->
