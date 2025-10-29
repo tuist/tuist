@@ -56,7 +56,7 @@
     />
     <.tab_menu_horizontal_item
       :if={@run.cacheable_tasks_count > 0}
-      label={gettext("Compilation optimizations")}
+      label={gettext("Cache")}
       selected={@selected_tab == "compilation-optimizations"}
       patch={"?#{Query.put(@uri.query, "tab", "compilation-optimizations")}"}
     />

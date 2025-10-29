@@ -179,10 +179,10 @@ defmodule TuistWeb.BuildRunLiveTest do
     {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/builds/build-runs/#{build_run.id}")
 
     # Then
-    assert has_element?(lv, "a", "Compilation optimizations")
+    assert has_element?(lv, "a", "Cache")
 
-    # When clicking on the compilation optimizations tab
-    lv |> element("a", "Compilation optimizations") |> render_click()
+    # When clicking on the cache tab
+    lv |> element("a", "Cache") |> render_click()
 
     # Then it should show the summary statistics
     assert has_element?(lv, "[data-part='title']", "Cacheable tasks")
@@ -208,8 +208,8 @@ defmodule TuistWeb.BuildRunLiveTest do
 
     # When
     {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/builds/build-runs/#{build_run.id}")
-
+ache
     # Then
-    refute has_element?(lv, "a", "Compilation optimizations")
+    refute has_element?(lv, "a", "Cache")
   end
 end
