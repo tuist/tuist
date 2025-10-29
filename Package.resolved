@@ -1,5 +1,5 @@
 {
-  "originHash" : "fe071032883079fd0b33351dda6fa4a31fa773e0cde597e2dc24861e1e5bec41",
+  "originHash" : "c7a1c154f7d14661d5fee94ad427688e6d6dcf791ac52d9a2d523c418f4a942c",
   "pins" : [
     {
       "identity" : "aexml",
@@ -663,8 +663,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tuist/XcodeGraph",
       "state" : {
-        "branch" : "fix/add-strict-memory-safety-setting",
-        "revision" : "7dd9e4f7c0ae3547a7d2b4cc7f415d610814a27e"
+        "revision" : "92a45549a995ebcb16f36b0a43994d1e92300e00",
+        "version" : "1.27.0"
       }
     },
     {
