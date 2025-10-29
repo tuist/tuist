@@ -465,6 +465,7 @@ public struct XCActivityLogController: XCActivityLogControlling {
 
         // Analyze each step for cache operations
         for step in allSteps {
+            print(step.title)
             if step.title.contains("Swift caching") || step.title.contains("Clang caching") {
                 let isSwift = step.title.contains("Swift caching")
                 let taskType: CacheableTask.TaskType = isSwift ? .swift : .clang
@@ -517,8 +518,8 @@ public struct XCActivityLogController: XCActivityLogControlling {
             if status.hasUpload {
                 // If there's an upload, it's definitely a miss
                 cacheStatus = .miss
-            } else if status.hasQuery, !status.hasMaterialize {
-                // Query without materialize is a local hit
+            } else if !status.hasQuery, status.hasMaterialize {
+                // Materialize without query is a local hit
                 cacheStatus = .localHit
             } else if status.hasQuery, status.hasMaterialize, !status.hasUpload {
                 // Query with materialize and no upload could be either:

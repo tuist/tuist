@@ -13,7 +13,7 @@ struct XCActivityLogControllerTests {
     private let subject: XCActivityLogController
 
     init() throws {
-        subject = try XCActivityLogController(
+        subject = XCActivityLogController(
             fileSystem: fileSystem
         )
     }
@@ -343,25 +343,8 @@ struct XCActivityLogControllerTests {
         #expect(expectedResult.timeStoppedRecording == Date(timeIntervalSinceReferenceDate: 768_154_246.5))
     }
 
-    @Test func parseBuildXCActivityLogWithRemoteHits() async throws {
-        // Given
-        let buildXCActivityLogWithRemoteHits = try AbsolutePath(validating: #file).parentDirectory
-            .appending(try RelativePath(validating: "../../Fixtures/build-with-remote-hits.xcactivitylog"))
-
-        // When
-        let got = try await subject.parse(buildXCActivityLogWithRemoteHits)
-
-        // Then
-        let swiftCacheTasks = got.cacheableTasks.filter { $0.type == .swift }
-        let remoteHits = swiftCacheTasks.filter { $0.status == .remoteHit }
-        let misses = swiftCacheTasks.filter { $0.status == .miss }
-
-        #expect(remoteHits.count == 56)
-        #expect(misses.count == 4)
-    }
-
     @Test(.withMockedEnvironment())
-    func parseFailedBuildXCActivityLogWithMisses() async throws {
+    func parseFailedBuildXCActivityLogWithMissesAndRemoteHits() async throws {
         // Given
         let xcactivityLog = try AbsolutePath(validating: #file).parentDirectory
             .appending(try RelativePath(validating: "../../Fixtures/FailedBuild/failed-build-with-cache-misses.xcactivitylog"))
@@ -372,11 +355,27 @@ struct XCActivityLogControllerTests {
         let got = try await subject.parse(xcactivityLog)
 
         // Then
-        let swiftCacheTasks = got.cacheableTasks.filter { $0.type == .swift }
-        let remoteHits = swiftCacheTasks.filter { $0.status == .remoteHit }
-        let misses = swiftCacheTasks.filter { $0.status == .miss }
+        #expect(got.cacheableTasks.count == 60)
+        #expect(got.cacheableTasks.filter { $0.type == .swift }.count == 60)
+        #expect(got.cacheableTasks.filter { $0.status == .localHit }.count == 0)
+        #expect(got.cacheableTasks.filter { $0.status == .remoteHit }.count == 57)
+        #expect(got.cacheableTasks.filter { $0.status == .miss }.count == 3)
+    }
 
-        #expect(remoteHits.count == 57)
-        #expect(misses.count == 3)
+    @Test(.withMockedEnvironment())
+    func parseBuildXCActivityLogWithLocalHits() async throws {
+        // Given
+        let xcactivityLog = try AbsolutePath(validating: #file).parentDirectory
+            .appending(try RelativePath(validating: "../../Fixtures/build-with-local-hits.xcactivitylog"))
+
+        // When
+        let got = try await subject.parse(xcactivityLog)
+
+        // Then
+        #expect(got.cacheableTasks.count == 4)
+        #expect(got.cacheableTasks.filter { $0.type == .swift }.count == 4)
+        #expect(got.cacheableTasks.filter { $0.status == .localHit }.count == 4)
+        #expect(got.cacheableTasks.filter { $0.status == .remoteHit }.count == 0)
+        #expect(got.cacheableTasks.filter { $0.status == .miss }.count == 0)
     }
 }
