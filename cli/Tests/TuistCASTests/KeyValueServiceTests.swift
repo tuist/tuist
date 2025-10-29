@@ -280,14 +280,13 @@ struct KeyValueServiceTests {
         // Verify the response contains expected values
         switch response.contents {
         case let .value(value):
-            // The implementation overwrites the "value" key in each iteration, so only the last entry's data will be present
             #expect(value.entries["value"] == Data("test-data2".utf8))
         default:
             #expect(Bool(false), "Expected .value content")
         }
 
         // Wait a bit for the async file save to complete
-        try await Task.sleep(nanoseconds: 200_000_000) // 200ms
+        try await Task.sleep(nanoseconds: 100_000_000) // 100ms
 
         let keyValueEntriesDirectory = temporaryDirectory.appending(component: "KeyValueStore")
         let expectedFilePath = keyValueEntriesDirectory.appending(component: "0~dGVzdC1rZXk=.json")
@@ -323,7 +322,6 @@ struct KeyValueServiceTests {
 
         let context = ServerContext.test()
 
-        // Empty entries
         let mockResponse = Operations.getCacheValue.Output.Ok.Body.jsonPayload(
             entries: []
         )
@@ -343,7 +341,7 @@ struct KeyValueServiceTests {
         #expect(response.outcome == .success)
 
         // Wait a bit for the async file save to complete
-        try await Task.sleep(nanoseconds: 200_000_000) // 200ms
+        try await Task.sleep(nanoseconds: 100_000_000) // 100ms
 
         let keyValueEntriesDirectory = temporaryDirectory.appending(component: "KeyValueStore")
         let expectedFilePath = keyValueEntriesDirectory.appending(component: "0~dGVzdC1rZXk=.json")
