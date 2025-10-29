@@ -10,12 +10,13 @@ defmodule CacheWeb.CASController do
         key = cas_key(account_handle, project_handle, id)
 
         if Disk.exists?(key) do
-          stream = Disk.stream(key)
+          # Use X-Accel-Redirect to let nginx serve the file directly
+          redirect_path = "/internal-cas/#{key}"
 
           conn
-          |> put_resp_content_type("application/octet-stream")
-          |> send_chunked(200)
-          |> stream_data(stream)
+          |> put_resp_header("x-accel-redirect", redirect_path)
+          |> put_resp_header("content-type", "application/octet-stream")
+          |> send_resp(200, "")
         else
           conn
           |> put_status(:not_found)
@@ -31,15 +32,6 @@ defmodule CacheWeb.CASController do
 
   defp cas_key(account_handle, project_handle, id) do
     "#{account_handle}/#{project_handle}/cas/#{id}"
-  end
-
-  defp stream_data(conn, stream) do
-    Enum.reduce_while(stream, conn, fn chunk, conn ->
-      case chunk(conn, chunk) do
-        {:ok, conn} -> {:cont, conn}
-        {:error, :closed} -> {:halt, conn}
-      end
-    end)
   end
 
   def save(conn, %{"id" => id, "account_handle" => account_handle, "project_handle" => project_handle}) do

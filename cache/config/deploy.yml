@@ -11,39 +11,37 @@ servers:
       network-alias: cache-app
 
 accessories:
-  caddy-us:
-    image: caddy:2-alpine
+  nginx-us:
+    image: jonasal/nginx-certbot:latest
     host: 5.161.218.106
     env:
       clear:
-        CADDY_HOST: cache-us-east-staging.tuist.dev
+        CERTBOT_EMAIL: christoph@tuist.dev
     options:
       publish:
         - "80:80"
         - "443:443"
-        - "443:443/udp"
     files:
-      - config/Caddyfile:/etc/caddy/Caddyfile
+      - config/nginx-us.conf:/etc/nginx/user_conf.d/default.conf
     volumes:
-      - caddy-data:/data
-      - caddy-config:/config
+      - /cas:/cas:ro
+      - nginx-us-letsencrypt:/etc/letsencrypt
 
-  caddy-eu:
-    image: caddy:2-alpine
+  nginx-eu:
+    image: jonasal/nginx-certbot:latest
     host: 91.98.81.176
     env:
       clear:
-        CADDY_HOST: cache-eu-central-staging.tuist.dev
+        CERTBOT_EMAIL: christoph@tuist.dev
     options:
       publish:
         - "80:80"
         - "443:443"
-        - "443:443/udp"
     files:
-      - config/Caddyfile:/etc/caddy/Caddyfile
+      - config/nginx-eu.conf:/etc/nginx/user_conf.d/default.conf
     volumes:
-      - caddy-data:/data
-      - caddy-config:/config
+      - /cas:/cas:ro
+      - nginx-eu-letsencrypt:/etc/letsencrypt
 
 registry:
   server: ghcr.io
@@ -62,4 +60,4 @@ env:
     - SECRET_KEY_BASE
 
 volumes:
-  - /cas:/data:rw
+  - /cas:/cas:rw

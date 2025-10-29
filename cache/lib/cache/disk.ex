@@ -23,23 +23,6 @@ defmodule Cache.Disk do
   end
 
   @doc """
-  Returns a stream for reading an artifact from disk.
-
-  Streams the file in chunks for memory efficiency with large files.
-
-  ## Examples
-
-      iex> Cache.Disk.stream("account/project/cas/abc123")
-      #Stream<...>
-  """
-  @spec stream(String.t()) :: Enumerable.t()
-  def stream(key) do
-    key
-    |> artifact_path()
-    |> File.stream!([], 64_000)
-  end
-
-  @doc """
   Writes data to disk for the given key.
 
   Creates parent directories if they don't exist.
