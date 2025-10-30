@@ -395,8 +395,8 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
     }
 }
 
-private extension BuildableFolder {
-    var containsSourceLikeFiles: Bool {
+extension BuildableFolder {
+    fileprivate var containsSourceLikeFiles: Bool {
         if hasExtension(path.extension, in: Target.validSourceCompatibleFolderExtensions) {
             return true
         }
@@ -406,7 +406,7 @@ private extension BuildableFolder {
         }
     }
 
-    var containsResourceLikeFiles: Bool {
+    fileprivate var containsResourceLikeFiles: Bool {
         if hasExtension(path.extension, in: Target.validResourceCompatibleFolderExtensions) {
             return true
         }

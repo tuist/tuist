@@ -242,7 +242,10 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
                 path: try AbsolutePath(validating: "/resources"),
                 exceptions: BuildableFolderExceptions(exceptions: []),
                 resolvedFiles: [
-                    BuildableFolderFile(path: try AbsolutePath(validating: "/resources/en.lproj/Localizable.strings"), compilerFlags: nil),
+                    BuildableFolderFile(
+                        path: try AbsolutePath(validating: "/resources/en.lproj/Localizable.strings"),
+                        compilerFlags: nil
+                    ),
                     BuildableFolderFile(path: try AbsolutePath(validating: "/resources/Assets.xcassets"), compilerFlags: nil),
                 ]
             ),
