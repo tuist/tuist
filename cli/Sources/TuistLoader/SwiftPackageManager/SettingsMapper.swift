@@ -92,12 +92,18 @@ struct SettingsMapper {
                 defines[name] = value
             case (.c, .unsafeFlags):
                 cFlags.append(contentsOf: setting.value)
+            case (.c, .disableWarning):
+                cFlags.append("-Wno-\(setting.value[0])")
             case (.cxx, .unsafeFlags):
                 cxxFlags.append(contentsOf: setting.value)
+            case (.cxx, .disableWarning):
+                cxxFlags.append("-Wno-\(setting.value[0])")
             case (.swift, .define):
                 swiftDefines.append(contentsOf: setting.value)
             case (.swift, .unsafeFlags):
                 swiftFlags.append(contentsOf: setting.value)
+            case (.swift, .disableWarning):
+                swiftFlags.append("-Wno-\(setting.value[0])")
             case (.swift, .enableUpcomingFeature):
                 swiftFlags.append("-enable-upcoming-feature \"\(setting.value[0])\"")
             case (.swift, .enableExperimentalFeature):
@@ -123,8 +129,9 @@ struct SettingsMapper {
                 continue
             case (.c, .linkedFramework), (.c, .linkedLibrary), (.cxx, .linkedFramework), (.cxx, .linkedLibrary),
                  (.swift, .headerSearchPath), (.swift, .linkedFramework), (.swift, .linkedLibrary),
-                 (.linker, .headerSearchPath), (.linker, .define), (_, .enableUpcomingFeature),
-                 (_, .enableExperimentalFeature), (_, .swiftLanguageMode), (_, .strictMemorySafety):
+                 (.linker, .headerSearchPath), (.linker, .define), (.linker, .disableWarning),
+                 (_, .enableUpcomingFeature), (_, .enableExperimentalFeature), (_, .swiftLanguageMode),
+                 (_, .strictMemorySafety):
                 throw PackageInfoMapperError.unsupportedSetting(setting.tool, setting.name)
             }
         }
