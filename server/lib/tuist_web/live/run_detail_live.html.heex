@@ -119,7 +119,9 @@
             <div data-part="metadata">
               <div data-part="title">{gettext("Ran at")}</div>
               <span data-part="label">
-                {Timex.format!(@run.ran_at, "{WDshort} {D} {Mfull} {h24}:{m}:{s}")}
+                <time datetime={Tuist.Utilities.DateFormatter.to_iso8601(@run.ran_at)}>
+                  {Tuist.Utilities.DateFormatter.format_with_timezone(@run.ran_at, @user_timezone)}
+                </time>
               </span>
             </div>
             <div data-part="metadata">

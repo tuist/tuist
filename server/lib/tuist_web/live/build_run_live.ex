@@ -996,20 +996,5 @@ defmodule TuistWeb.BuildRunLive do
     end
   end
 
-  defp format_time_in_timezone(datetime, timezone) when is_binary(timezone) do
-    try do
-      local_time = Timex.Timezone.convert(datetime, timezone)
-      Timex.format!(local_time, "{WDshort} {D} {Mshort} {h24}:{m}:{s}")
-    rescue
-      _ ->
-        # Fallback to UTC if timezone conversion fails
-        Timex.format!(datetime, "{WDshort} {D} {Mshort} {h24}:{m}:{s}") <> " UTC"
-    end
-  end
-
-  defp format_time_in_timezone(datetime, _timezone) do
-    # Fallback when no timezone is available
-    Timex.format!(datetime, "{WDshort} {D} {Mshort} {h24}:{m}:{s}") <> " UTC"
-  end
 
 end

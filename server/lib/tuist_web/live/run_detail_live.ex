@@ -13,6 +13,13 @@ defmodule TuistWeb.RunDetailLive do
   @table_page_size 20
 
   def mount(_params, _session, %{assigns: %{selected_project: project, selected_run: run}} = socket) do
+    # Get user timezone from LiveView connection params
+    user_timezone = 
+      case get_connect_params(socket) do
+        %{"user_timezone" => timezone} -> timezone
+        _ -> nil
+      end
+
     user =
       run
       |> CommandEvents.get_user_for_command_event(preload: :account)
@@ -29,6 +36,7 @@ defmodule TuistWeb.RunDetailLive do
      |> assign(:user, user)
      |> assign(:project, project)
      |> assign(:head_title, "#{gettext("Run")} · #{slug} · Tuist")
+     |> assign(:user_timezone, user_timezone)
      |> assign_initial_analytics_state()
      |> assign(:has_selective_testing_data, Xcode.has_selective_testing_data?(run))
      |> assign(:has_binary_cache_data, Xcode.has_binary_cache_data?(run))

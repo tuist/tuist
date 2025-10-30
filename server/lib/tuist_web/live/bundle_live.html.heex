@@ -81,8 +81,8 @@
           <div data-part="metadata">
             <div data-part="title">{gettext("Created at")}</div>
             <span data-part="label">
-              <time datetime={DateTime.to_iso8601(@bundle.inserted_at)}>
-                {format_time_in_timezone(@bundle.inserted_at, @user_timezone)}
+              <time datetime={Tuist.Utilities.DateFormatter.to_iso8601(@bundle.inserted_at)}>
+                {Tuist.Utilities.DateFormatter.format_with_timezone(@bundle.inserted_at, @user_timezone)}
               </time>
             </span>
           </div>

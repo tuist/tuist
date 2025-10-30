@@ -108,4 +108,75 @@ defmodule Tuist.Utilities.DateFormatter do
   end
 
   def format_iso(_), do: "Unknown"
+
+  @doc """
+  Format datetime with timezone conversion.
+  
+  Takes a UTC datetime and converts it to the specified timezone.
+  Falls back to UTC display if timezone is nil or conversion fails.
+  
+  ## Examples
+  
+      iex> DateFormatter.format_with_timezone(~U[2024-01-15 14:30:25Z], "America/New_York")
+      "Mon 15 Jan 09:30:25 EST"
+      
+      iex> DateFormatter.format_with_timezone(~U[2024-01-15 14:30:25Z], nil)
+      "Mon 15 Jan 14:30:25 UTC"
+  """
+  def format_with_timezone(%DateTime{} = datetime, timezone) when is_binary(timezone) do
+    try do
+      local_time = Timex.Timezone.convert(datetime, timezone)
+      Timex.format!(local_time, "{WDshort} {D} {Mshort} {h24}:{m}:{s}")
+    rescue
+      _ ->
+        # Fallback to UTC if timezone conversion fails
+        Timex.format!(datetime, "{WDshort} {D} {Mshort} {h24}:{m}:{s}") <> " UTC"
+    end
+  end
+
+  def format_with_timezone(%NaiveDateTime{} = naive_datetime, timezone) when is_binary(timezone) do
+    try do
+      # Convert NaiveDateTime to DateTime assuming UTC, then convert to timezone
+      utc_datetime = DateTime.from_naive!(naive_datetime, "Etc/UTC")
+      local_time = Timex.Timezone.convert(utc_datetime, timezone)
+      Timex.format!(local_time, "{WDshort} {D} {Mshort} {h24}:{m}:{s}")
+    rescue
+      _ ->
+        # Fallback to UTC if timezone conversion fails
+        Timex.format!(naive_datetime, "{WDshort} {D} {Mshort} {h24}:{m}:{s}") <> " UTC"
+    end
+  end
+
+  def format_with_timezone(%DateTime{} = datetime, _timezone) do
+    # Fallback when no timezone is available
+    Timex.format!(datetime, "{WDshort} {D} {Mshort} {h24}:{m}:{s}") <> " UTC"
+  end
+
+  def format_with_timezone(%NaiveDateTime{} = naive_datetime, _timezone) do
+    # Fallback when no timezone is available
+    Timex.format!(naive_datetime, "{WDshort} {D} {Mshort} {h24}:{m}:{s}") <> " UTC"
+  end
+
+  def format_with_timezone(datetime, _timezone) do
+    # Fallback for other types
+    "Unknown"
+  end
+
+  @doc """
+  Convert datetime to ISO8601 format for HTML datetime attributes.
+  
+  Handles both DateTime and NaiveDateTime structs.
+  """
+  def to_iso8601(%DateTime{} = datetime) do
+    DateTime.to_iso8601(datetime)
+  end
+
+  def to_iso8601(%NaiveDateTime{} = naive_datetime) do
+    # Convert NaiveDateTime to DateTime assuming UTC, then to ISO8601
+    naive_datetime
+    |> DateTime.from_naive!("Etc/UTC")
+    |> DateTime.to_iso8601()
+  end
+
+  def to_iso8601(_), do: ""
 end
