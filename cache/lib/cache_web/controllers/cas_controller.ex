@@ -6,15 +6,12 @@ defmodule CacheWeb.CASController do
 
   require Logger
 
-  def authorize(conn, %{"account_handle" => account, "project_handle" => project}) do
-    Logger.info("Checking access for: #{account}/#{project}")
-    case Authentication.ensure_project_accessible(conn, account, project) do
+  def authorize(conn, _params) do
+    case Authentication.ensure_project_accessible_from_headers(conn) do
       {:ok, _} -> send_resp(conn, :no_content, "")
       {:error, status, _} -> send_resp(conn, status, "")
     end
   end
-
-  def authorize(conn, _), do: send_resp(conn, :bad_request, "")
 
   defp cas_key(account_handle, project_handle, id) do
     "#{account_handle}/#{project_handle}/cas/#{id}"

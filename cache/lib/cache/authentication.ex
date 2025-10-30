@@ -48,6 +48,25 @@ defmodule Cache.Authentication do
     end
   end
 
+  @doc """
+  Ensures access using project context provided via request headers.
+
+  Expected headers (lowercased by Plug):
+  - "x-account-handle"
+  - "x-project-handle"
+
+  Returns `{:ok, auth_header}` if authorized, or `{:error, status, message}`.
+  Returns `{:error, 400, _}` if headers are missing.
+  """
+  def ensure_project_accessible_from_headers(conn) do
+    with [account_handle] <- Plug.Conn.get_req_header(conn, "x-account-handle"),
+         [project_handle] <- Plug.Conn.get_req_header(conn, "x-project-handle") do
+      ensure_project_accessible(conn, account_handle, project_handle)
+    else
+      _ -> {:error, 400, "Missing account/project headers"}
+    end
+  end
+
   defp get_accessible_projects(auth_header, conn) do
     cache_key = generate_cache_key(auth_header)
 

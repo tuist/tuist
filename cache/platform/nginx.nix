@@ -14,11 +14,8 @@
       http2 on;
       ssl_session_cache shared:SSL:50m;
       ssl_session_timeout 1h;
-      # Enable session tickets to maximize TLS resumption (CPU savings)
       ssl_session_tickets on;
       ssl_prefer_server_ciphers off;
-      ssl_stapling on;
-      ssl_stapling_verify on;
       keepalive_requests 10000;
       http2_max_concurrent_streams 512;
     '';
@@ -33,18 +30,18 @@
           client_body_timeout 30m;
         '';
 
-        # Serve CAS reads directly from disk with auth_request
-        locations."~ ^/api/cache/cas/(?<id>[^/?]+)$" = {
+        locations."/api/cache/cas/" = {
           extraConfig = ''
             # Only allow GET/HEAD for this location
             if ($request_method !~ ^(GET|HEAD)$) { return 405; }
 
-            # Ask Phoenix to authorize; pass account/project via path segments
-            auth_request /_auth_cas/$arg_account_handle/$arg_project_handle;
+            # Ask Phoenix to authorize (no args in URI). Pass account/project via headers below.
+            auth_request /_auth_cas;
 
-            # Serve file directly from disk
+            # Serve file directly from disk. Rewrite once to make $uri just "/:id".
             default_type application/octet-stream;
-            try_files /cas/$arg_account_handle/$arg_project_handle/cas/$id =404;
+            rewrite ^/api/cache/cas/(.*)$ /$1 break;
+            try_files /cas/$arg_account_handle/$arg_project_handle/cas$uri =404;
 
             # Low CPU for opaque blobs
             gzip off;
@@ -54,18 +51,17 @@
           '';
         };
 
-        # (No special fallback: non-GET/HEAD returns 405)
-
-        # Internal auth subrequest target
-        locations."~ ^/_auth_cas/(?<acc>[^/]+)/(?<proj>[^/]+)$" = {
+        locations."=/_auth_cas" = {
           extraConfig = ''
             internal;
             proxy_pass_request_body off;
             proxy_set_header Content-Length "";
             proxy_set_header X-Request-ID $request_id;
             proxy_set_header Authorization $http_authorization;
+            proxy_set_header X-Account-Handle $arg_account_handle;
+            proxy_set_header X-Project-Handle $arg_project_handle;
             proxy_method HEAD;
-            proxy_pass http://127.0.0.1:4000/auth/cas?account_handle=$acc&project_handle=$proj;
+            proxy_pass http://127.0.0.1:4000/auth/cas;
           '';
         };
 
@@ -88,8 +84,6 @@
             proxy_request_buffering off;
           '';
         };
-
-        # No internal-cas location needed with direct try_files
       };
     };
   };
