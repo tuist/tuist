@@ -78,7 +78,10 @@ defmodule Cache.Authentication do
     base_url = Keyword.get(cas_config, :server_url)
     url = "#{base_url}/api/projects"
 
-    case Req.get(url: url, headers: headers, finch: Cache.Finch, retry: false) do
+    req_options = Application.get_env(:cache, :req_options, [])
+    options = Keyword.merge([url: url, headers: headers, finch: Cache.Finch, retry: false], req_options)
+
+    case Req.get(options) do
       {:ok, %{status: 200, body: %{"projects" => projects}}} ->
         # Pre-lowercase project handles and convert to MapSet for O(1) lookup
         project_set =

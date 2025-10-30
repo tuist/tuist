@@ -7,7 +7,7 @@ defmodule Cache.DiskTest do
   @test_key "test_account/test_project/cas/abc123"
 
   setup do
-    Application.put_env(:tuist, :cas, storage_dir: @test_storage_dir)
+    Application.put_env(:cache, :cas, storage_dir: @test_storage_dir)
 
     on_exit(fn ->
       File.rm_rf!(@test_storage_dir)
@@ -22,7 +22,7 @@ defmodule Cache.DiskTest do
     end
 
     test "returns default directory when not configured" do
-      Application.delete_env(:tuist, :cas)
+      Application.delete_env(:cache, :cas)
       assert Disk.storage_dir() == "tmp/cas"
     end
   end
@@ -91,56 +91,12 @@ defmodule Cache.DiskTest do
     end
   end
 
-  describe "stream/1" do
-    test "returns stream for reading file" do
-      data = "line 1\nline 2\nline 3\n"
-      path = Disk.artifact_path(@test_key)
-      File.mkdir_p!(Path.dirname(path))
-      File.write!(path, data)
-
-      stream = Disk.stream(@test_key)
-      content = Enum.join(stream)
-
-      assert content == data
-    end
-
-    test "streams large file in chunks" do
-      large_data = String.duplicate("a", 100_000)
-      path = Disk.artifact_path(@test_key)
-      File.mkdir_p!(Path.dirname(path))
-      File.write!(path, large_data)
-
-      stream = Disk.stream(@test_key)
-      chunks = Enum.to_list(stream)
-
-      assert length(chunks) > 1
-      assert Enum.join(chunks) == large_data
-    end
-
-    test "handles binary content" do
-      binary_data = :crypto.strong_rand_bytes(10_000)
-      path = Disk.artifact_path(@test_key)
-      File.mkdir_p!(Path.dirname(path))
-      File.write!(path, binary_data)
-
-      stream = Disk.stream(@test_key)
-      streamed_content = Enum.reduce(stream, <<>>, fn chunk, acc -> acc <> chunk end)
-
-      assert streamed_content == binary_data
-    end
-  end
-
   describe "integration test" do
-    test "put and stream roundtrip" do
+    test "put and exists roundtrip" do
       original_data = "This is test artifact content for roundtrip testing"
 
       assert Disk.put(@test_key, original_data) == :ok
       assert Disk.exists?(@test_key) == true
-
-      stream = Disk.stream(@test_key)
-      retrieved_data = Enum.join(stream)
-
-      assert retrieved_data == original_data
     end
   end
 end

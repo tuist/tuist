@@ -12,3 +12,6 @@ config :logger, level: :warning
 
 # Initialize plugs at runtime for faster test compilation
 config :phoenix, :plug_init_mode, :runtime
+
+# Configure Req to use Req.Test for HTTP mocking
+config :cache, :req_options, plug: {Req.Test, Cache.Authentication}
