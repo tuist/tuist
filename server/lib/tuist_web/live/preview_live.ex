@@ -12,8 +12,7 @@ defmodule TuistWeb.PreviewLive do
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Utilities.SHA
 
-  def mount(%{"id" => preview_id} = _params, session, %{assigns: %{selected_project: selected_project}} = socket) do
-    user_timezone = Tuist.Utilities.DateFormatter.get_user_timezone(session, socket)
+  def mount(%{"id" => preview_id} = _params, _session, %{assigns: %{selected_project: selected_project}} = socket) do
 
     preview =
       get_current_preview(preview_id)
@@ -52,8 +51,7 @@ defmodule TuistWeb.PreviewLive do
       |> assign(
         :preview_url,
         url(~p"/#{preview.project.account.name}/#{preview.project.name}/previews/#{preview.id}")
-      )
-      |> assign(:user_timezone, user_timezone),
+      ),
       layout: layout
     }
   end

@@ -75,6 +75,7 @@ defmodule TuistWeb do
       import TuistWeb.AppLayoutComponents
 
       on_mount(TuistWeb.CSP)
+      on_mount({TuistWeb.TimezoneHook, :assign_timezone})
 
       unquote(html_helpers())
     end

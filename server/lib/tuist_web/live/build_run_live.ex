@@ -13,8 +13,7 @@ defmodule TuistWeb.BuildRunLive do
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Utilities.Query
 
-  def mount(params, session, %{assigns: %{selected_project: project}} = socket) do
-    user_timezone = Tuist.Utilities.DateFormatter.get_user_timezone(session, socket)
+  def mount(params, _session, %{assigns: %{selected_project: project}} = socket) do
     run =
       case Runs.get_build(params["build_run_id"]) do
         nil ->
@@ -46,7 +45,6 @@ defmodule TuistWeb.BuildRunLive do
       |> assign(:run, run)
       |> assign(:command_event, command_event)
       |> assign(:head_title, "#{gettext("Build Run")} · #{slug} · Tuist")
-      |> assign(:user_timezone, user_timezone)
       |> assign(
         :warnings_grouped_by_path,
         run.issues |> Enum.filter(&(&1.type == "warning")) |> Enum.group_by(& &1.path)

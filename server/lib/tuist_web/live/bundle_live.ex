@@ -15,8 +15,7 @@ defmodule TuistWeb.BundleLive do
 
   @table_page_size 20
 
-  def mount(%{"bundle_id" => bundle_id}, session, %{assigns: %{selected_project: selected_project}} = socket) do
-    user_timezone = Tuist.Utilities.DateFormatter.get_user_timezone(session, socket)
+  def mount(%{"bundle_id" => bundle_id}, _session, %{assigns: %{selected_project: selected_project}} = socket) do
     bundle = get_selected_bundle(bundle_id)
 
     all_artifacts = flatten_artifacts(bundle.artifacts)
@@ -55,7 +54,6 @@ defmodule TuistWeb.BundleLive do
       |> assign(:artifacts_by_id, artifacts_by_id)
       |> assign(:artifacts_by_path, artifacts_by_path)
       |> assign(:base_path, base_path)
-      |> assign(:user_timezone, user_timezone)
 
     {:ok, socket}
   end
