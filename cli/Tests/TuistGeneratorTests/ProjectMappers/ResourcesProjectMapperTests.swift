@@ -234,12 +234,17 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
             BuildableFolder(
                 path: try AbsolutePath(validating: "/sources"),
                 exceptions: BuildableFolderExceptions(exceptions: []),
-                resolvedFiles: []
+                resolvedFiles: [
+                    BuildableFolderFile(path: try AbsolutePath(validating: "/sources/File.swift"), compilerFlags: nil),
+                ]
             ),
             BuildableFolder(
                 path: try AbsolutePath(validating: "/resources"),
                 exceptions: BuildableFolderExceptions(exceptions: []),
-                resolvedFiles: []
+                resolvedFiles: [
+                    BuildableFolderFile(path: try AbsolutePath(validating: "/resources/en.lproj/Localizable.strings"), compilerFlags: nil),
+                    BuildableFolderFile(path: try AbsolutePath(validating: "/resources/Assets.xcassets"), compilerFlags: nil),
+                ]
             ),
         ]
         let target = Target.test(
@@ -291,6 +296,8 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         XCTAssertEqual(resourcesTarget.bundleId, "\(target.bundleId).generated.resources")
         XCTAssertEqual(resourcesTarget.deploymentTargets, target.deploymentTargets)
         XCTAssertEqual(resourcesTarget.filesGroup, target.filesGroup)
+        XCTAssertEqual(resourcesTarget.buildableFolders, [buildableFolders[1]])
+        XCTAssertEqual(gotTarget.buildableFolders, [buildableFolders[0]])
     }
 
     func test_map_when_a_target_that_has_core_data_models_and_doesnt_supports_them() async throws {

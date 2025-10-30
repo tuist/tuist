@@ -53,6 +53,9 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         var modifiedTarget = target
 
         if !target.supportsResources {
+            let (resourceBuildableFolders, remainingBuildableFolders) = partitionBuildableFoldersForResources(
+                target.buildableFolders
+            )
             let resourcesTarget = Target(
                 name: bundleName,
                 destinations: target.destinations,
@@ -75,11 +78,13 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
                 copyFiles: target.copyFiles,
                 coreDataModels: target.coreDataModels,
                 filesGroup: target.filesGroup,
-                metadata: target.metadata
+                metadata: target.metadata,
+                buildableFolders: resourceBuildableFolders
             )
             modifiedTarget.sources = target.sources.filter { $0.path.extension != "metal" }
             modifiedTarget.resources.resources = []
             modifiedTarget.copyFiles = []
+            modifiedTarget.buildableFolders = remainingBuildableFolders
             modifiedTarget.dependencies.append(.target(
                 name: bundleName,
                 status: .required,
@@ -180,6 +185,20 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
     private func synthesizedFilePath(target: Target, project: Project, fileExtension: String) -> AbsolutePath {
         let filename = "TuistBundle+\(target.name.uppercasingFirst).\(fileExtension)"
         return project.derivedDirectoryPath(for: target).appending(components: Constants.DerivedDirectory.sources, filename)
+    }
+
+    private func partitionBuildableFoldersForResources(
+        _ folders: [BuildableFolder]
+    ) -> (resourceFolders: [BuildableFolder], remainingFolders: [BuildableFolder]) {
+        folders.reduce(into: (resourceFolders: [BuildableFolder](), remainingFolders: [BuildableFolder]())) { result, folder in
+            if folder.containsSourceLikeFiles {
+                result.remainingFolders.append(folder)
+            } else if folder.containsResourceLikeFiles {
+                result.resourceFolders.append(folder)
+            } else {
+                result.remainingFolders.append(folder)
+            }
+        }
     }
 
     // swiftlint:disable:next function_body_length
@@ -374,6 +393,33 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         }
         """
     }
+}
+
+private extension BuildableFolder {
+    var containsSourceLikeFiles: Bool {
+        if hasExtension(path.extension, in: Target.validSourceCompatibleFolderExtensions) {
+            return true
+        }
+        return resolvedFiles.contains { file in
+            hasExtension(file.path.extension, in: Target.validSourceExtensions) ||
+                hasExtension(file.path.extension, in: Target.validSourceCompatibleFolderExtensions)
+        }
+    }
+
+    var containsResourceLikeFiles: Bool {
+        if hasExtension(path.extension, in: Target.validResourceCompatibleFolderExtensions) {
+            return true
+        }
+        return resolvedFiles.contains { file in
+            hasExtension(file.path.extension, in: Target.validResourceExtensions) ||
+                hasExtension(file.path.extension, in: Target.validResourceCompatibleFolderExtensions)
+        }
+    }
+}
+
+private func hasExtension(_ extensionValue: String?, in allowedExtensions: [String]) -> Bool {
+    guard let extensionValue else { return false }
+    return allowedExtensions.contains { $0.caseInsensitiveCompare(extensionValue) == .orderedSame }
 }
 
 extension [SourceFile] {
