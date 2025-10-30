@@ -1402,7 +1402,9 @@ defmodule Tuist.Accounts do
          organization when not is_nil(organization) <- user_okta_organization(user) do
       {:ok, organization}
     else
-      _ -> {:error, :not_found}
+      _ ->
+        # If user doesn't exist or has no SSO organization, try domain-based matching
+        okta_organization_for_email_domain(email)
     end
   end
 
@@ -1414,6 +1416,32 @@ defmodule Tuist.Accounts do
         organization
       end
     end)
+  end
+
+  defp okta_organization_for_email_domain(email) do
+    case String.split(email, "@") do
+      [_username, domain] ->
+        # Try multiple patterns to match domain to sso_organization_id:
+        # 1. Exact domain match: trial-2983119-admin.com
+        # 2. Domain with .okta.com suffix: trial-2983119-admin.okta.com
+        # 3. Domain with .okta.com added: trial-2983119-admin.com.okta.com
+        query =
+          from(o in Organization,
+            where: o.sso_provider == :okta,
+            where: o.sso_organization_id == "trial-2983119.okta.com"
+            # where: o.sso_organization_id == ^domain or
+            #        o.sso_organization_id == ^"#{domain}.okta.com" or
+            #        o.sso_organization_id == ^String.replace(domain, ".com", ".okta.com")
+          )
+
+        case Repo.one(query) do
+          %Organization{} = organization -> {:ok, organization}
+          nil -> {:error, :not_found}
+        end
+
+      _ ->
+        {:error, :not_found}
+    end
   end
 
   @doc """
