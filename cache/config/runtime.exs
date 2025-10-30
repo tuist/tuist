@@ -25,4 +25,8 @@ if config_env() == :prod do
       port: port
     ],
     secret_key_base: secret_key_base
+
+  config :cache, :cas,
+    server_url: System.get_env("SERVER_URL") || raise("environment variable SERVER_URL is missing"),
+    storage_dir: System.get_env("CAS_STORAGE_DIR") || "/cas"
 end

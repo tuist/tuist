@@ -25,6 +25,7 @@ env:
   clear:
     PHX_HOST: staging-cache.tuist.dev
     SERVER_URL: https://staging.tuist.dev
+    CAS_STORAGE_DIR: /cas
   secret:
     - SECRET_KEY_BASE
 

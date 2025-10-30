@@ -5,8 +5,3 @@ config :logger, level: :info
 
 # Runtime production configuration, including reading
 # of environment variables, is done on config/runtime.exs.
-
-config :cache, :cas,
-  # TODO: Update both of these :)
-  server_url: "https://staging.tuist.dev",
-  storage_dir: "/cas"
