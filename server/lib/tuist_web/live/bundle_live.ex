@@ -16,6 +16,12 @@ defmodule TuistWeb.BundleLive do
   @table_page_size 20
 
   def mount(%{"bundle_id" => bundle_id}, _session, %{assigns: %{selected_project: selected_project}} = socket) do
+    # Get user timezone from LiveView connection params
+    user_timezone = 
+      case get_connect_params(socket) do
+        %{"user_timezone" => timezone} -> timezone
+        _ -> nil
+      end
     bundle = get_selected_bundle(bundle_id)
 
     all_artifacts = flatten_artifacts(bundle.artifacts)
@@ -54,6 +60,7 @@ defmodule TuistWeb.BundleLive do
       |> assign(:artifacts_by_id, artifacts_by_id)
       |> assign(:artifacts_by_path, artifacts_by_path)
       |> assign(:base_path, base_path)
+      |> assign(:user_timezone, user_timezone)
 
     {:ok, socket}
   end
@@ -882,4 +889,20 @@ defmodule TuistWeb.BundleLive do
   def format_bundle_type(:app), do: gettext("App bundle")
   def format_bundle_type(:xcarchive), do: gettext("XCArchive")
   def format_bundle_type(_), do: gettext("Unknown")
+
+  defp format_time_in_timezone(datetime, timezone) when is_binary(timezone) do
+    try do
+      local_time = Timex.Timezone.convert(datetime, timezone)
+      Timex.format!(local_time, "{WDshort} {D} {Mshort} {h24}:{m}:{s}")
+    rescue
+      _ ->
+        # Fallback to UTC if timezone conversion fails
+        Timex.format!(datetime, "{WDshort} {D} {Mshort} {h24}:{m}:{s}") <> " UTC"
+    end
+  end
+
+  defp format_time_in_timezone(datetime, _timezone) do
+    # Fallback when no timezone is available
+    Timex.format!(datetime, "{WDshort} {D} {Mshort} {h24}:{m}:{s}") <> " UTC"
+  end
 end

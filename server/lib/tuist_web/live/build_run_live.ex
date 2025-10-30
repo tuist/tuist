@@ -14,6 +14,12 @@ defmodule TuistWeb.BuildRunLive do
   alias TuistWeb.Utilities.Query
 
   def mount(params, _session, %{assigns: %{selected_project: project}} = socket) do
+    # Get user timezone from LiveView connection params
+    user_timezone = 
+      case get_connect_params(socket) do
+        %{"user_timezone" => timezone} -> timezone
+        _ -> nil
+      end
     run =
       case Runs.get_build(params["build_run_id"]) do
         nil ->
@@ -45,7 +51,7 @@ defmodule TuistWeb.BuildRunLive do
       |> assign(:run, run)
       |> assign(:command_event, command_event)
       |> assign(:head_title, "#{gettext("Build Run")} · #{slug} · Tuist")
-      |> assign(:user_timezone, nil)
+      |> assign(:user_timezone, user_timezone)
       |> assign(
         :warnings_grouped_by_path,
         run.issues |> Enum.filter(&(&1.type == "warning")) |> Enum.group_by(& &1.path)
@@ -117,10 +123,6 @@ defmodule TuistWeb.BuildRunLive do
       :noreply,
       socket
     }
-  end
-
-  def handle_event("set-timezone", %{"timezone" => timezone}, socket) do
-    {:noreply, assign(socket, :user_timezone, timezone)}
   end
 
   def handle_event(

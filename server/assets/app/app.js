@@ -33,7 +33,6 @@ import TimelineSeek from "./js/TimelineSeek.js";
 import BlurOnClick from "./js/BlurOnClick.js";
 import ScrollIntoView from "./js/ScrollIntoView.js";
 import StopPropagationOnDrag from "./js/StopPropagationOnDrag.js";
-import LocalTime from "./js/LocalTime.js";
 
 let csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content");
 let cspNonce = document.querySelector("meta[name='csp-nonce']").getAttribute("content");
@@ -48,14 +47,22 @@ Hooks.TimelineSeek = TimelineSeek;
 Hooks.BlurOnClick = BlurOnClick;
 Hooks.ScrollIntoView = ScrollIntoView;
 Hooks.StopPropagationOnDrag = StopPropagationOnDrag;
-Hooks.LocalTime = LocalTime;
 
 observeThemeChanges();
 Hooks.ThemeSwitcher = ThemeSwitcher;
 
+// Get user timezone for LiveView
+function getUserTimezone() {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone;
+}
+
 let liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
-  params: { _csrf_token: csrfToken, _csp_nonce: cspNonce },
+  params: { 
+    _csrf_token: csrfToken, 
+    _csp_nonce: cspNonce, 
+    user_timezone: getUserTimezone() 
+  },
   hooks: { ...Hooks, ...Noora.Hooks },
 });
 
@@ -66,6 +73,15 @@ topbar.config({
 });
 window.addEventListener("phx:page-loading-start", (_info) => topbar.show(300));
 window.addEventListener("phx:page-loading-stop", (_info) => topbar.hide());
+
+// Detect and store user timezone in cookie
+function setUserTimezone() {
+  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  document.cookie = `user_timezone=${encodeURIComponent(timezone)}; path=/; SameSite=Lax`;
+}
+
+// Set timezone on page load
+setUserTimezone();
 
 // connect if there are any LiveViews on the page
 liveSocket.connect();
