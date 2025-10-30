@@ -63,7 +63,7 @@ defmodule Cache.Authentication do
          [project_handle] <- Plug.Conn.get_req_header(conn, "x-project-handle") do
       auth_header = Plug.Conn.get_req_header(conn, "authorization") |> List.first()
 
-      Logger.debug(
+      Logger.info(
         "AUTH_CAS: Ensuring project #{project_handle} is accessible from account #{account_handle} with header #{auth_header}"
       )
 
