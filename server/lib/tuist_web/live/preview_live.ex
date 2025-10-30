@@ -6,6 +6,7 @@ defmodule TuistWeb.PreviewLive do
   import TuistWeb.Components.Terminal
   import TuistWeb.Previews.PlatformTag
   import TuistWeb.Previews.RanByBadge
+  import TuistWeb.TimezoneHelpers
 
   alias Tuist.AppBuilds
   alias Tuist.AppBuilds.AppBuild
@@ -13,17 +14,7 @@ defmodule TuistWeb.PreviewLive do
   alias TuistWeb.Utilities.SHA
 
   def mount(%{"id" => preview_id} = _params, session, %{assigns: %{selected_project: selected_project}} = socket) do
-    # Get user timezone from session (set by Timezone plug from cookie) or LiveView connection params (fallback)
-    user_timezone = 
-      case Map.get(session, "user_timezone") do
-        nil ->
-          case get_connect_params(socket) do
-            %{"user_timezone" => timezone} -> timezone
-            _ -> nil
-          end
-        timezone -> 
-          timezone
-      end
+    user_timezone = get_user_timezone(session, socket)
 
     preview =
       get_current_preview(preview_id)

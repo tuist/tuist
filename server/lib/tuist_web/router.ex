@@ -39,7 +39,7 @@ defmodule TuistWeb.Router do
     plug :accepts, ["html"]
     plug :disable_robot_indexing
     plug :fetch_session
-    plug TuistWeb.Timezone
+    plug TuistWeb.Plugs.TimezonePlug
     plug :fetch_live_flash
     plug :put_root_layout, html: {TuistWeb.Layouts, :app}
     plug :protect_from_forgery

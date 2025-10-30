@@ -1,4 +1,4 @@
-defmodule TuistWeb.Timezone do
+defmodule TuistWeb.Plugs.TimezonePlug do
   @moduledoc """
   Plug to extract user timezone from cookie and make it available to LiveViews.
   """
