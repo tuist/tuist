@@ -48,13 +48,18 @@ defmodule TuistWeb.AuthController do
                   site: "https://#{config.domain}"
                 ]
 
-                strategy_options = case params["login_hint"] do
-                  login_hint when is_binary(login_hint) ->
-                    log(:info, "Adding login_hint: #{login_hint}")
-                    Keyword.put(strategy_options, :login_hint, login_hint)
-                  _ ->
-                    strategy_options
-                end
+                strategy_options =
+                  case params["login_hint"] do
+                    login_hint when is_binary(login_hint) ->
+                      log(:info, "Adding login_hint: #{login_hint}")
+                      # Merge login_hint with default oauth2_params (scope: "openid email profile")
+                      default_oauth2_params = [scope: "openid email profile"]
+                      oauth2_params = Keyword.put(default_oauth2_params, :login_hint, login_hint)
+                      Keyword.put(strategy_options, :oauth2_params, oauth2_params)
+
+                    _ ->
+                      strategy_options
+                  end
 
                 conn
                 |> put_session(:okta_organization_id, organization_id)
