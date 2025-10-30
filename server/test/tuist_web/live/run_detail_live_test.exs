@@ -172,5 +172,6 @@ defmodule TuistWeb.RunDetailLiveTest do
       # Then
       refute has_element?(lv, ".noora-button", "Download result")
     end
+
   end
 end
