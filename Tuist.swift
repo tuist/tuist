@@ -1,11 +1,15 @@
 import ProjectDescription
 
-let config = Config(
-    fullHandle: "tuist/tuist",
-    swiftVersion: .init("5.10"),
+let tuist = Tuist(
+  fullHandle: "tuist/tuist",
+  project: .tuist(
     generationOptions: .options(
         optionalAuthentication: true,
         disableSandbox: true,
         enableCaching: true
+    ),
+    installOptions: .options(
+        passthroughSwiftPackageManagerArguments: ["--force-resolved-versions"]
     )
+  )
 )

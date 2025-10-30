@@ -95,7 +95,7 @@ final class InstallService {
 
         try await savePackageResolved(at: packageManifestPath.parentDirectory)
     }
-    
+
     private func arguments(config: Tuist, passthroughArguments: [String]) -> [String] {
         let configArguments = config.project.generatedProject?.installOptions.passthroughSwiftPackageManagerArguments ?? []
         // Passthrough arguments come last so they override config arguments (last flag wins)
