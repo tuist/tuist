@@ -59,7 +59,7 @@ organization =
   end
 
 # Update organization with SSO settings
-Tuist.Accounts.update_okta_configuration(organization.id, %{
+Accounts.update_okta_configuration(organization.id, %{
   okta_client_id: System.get_env("TUIST_OKTA_1_CLIENT_ID"),
   okta_client_secret: System.get_env("TUIST_OKTA_1_CLIENT_SECRET"),
   sso_provider: :okta,

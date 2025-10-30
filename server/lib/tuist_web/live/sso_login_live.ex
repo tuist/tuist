@@ -10,10 +10,7 @@ defmodule TuistWeb.SSOLoginLive do
     email = Flash.get(socket.assigns.flash, :email)
     form = to_form(%{"email" => email}, as: "user")
 
-    socket =
-      socket
-      |> assign(:head_title, "#{gettext("SSO Log in")} · Tuist")
-      |> assign(:form, form)
+    socket = assign(socket, :form, form)
 
     {
       :ok,
@@ -30,7 +27,7 @@ defmodule TuistWeb.SSOLoginLive do
         {:noreply, redirect(socket, to: redirect_url)}
 
       {:error, :not_found} ->
-        socket = put_flash(socket, :error, gettext("No SSO organization found for this email domain"))
+        socket = put_flash(socket, :error, gettext("No SSO organization found for this email"))
         {:noreply, socket}
     end
   end
@@ -48,7 +45,7 @@ defmodule TuistWeb.SSOLoginLive do
           <div data-part="header">
             <h1 data-part="title">{gettext("Log in to Tuist")}</h1>
             <span data-part="subtitle">
-              {gettext("Enter your work email to continue with SSO")}
+              {gettext("Log in to your enterprise account via Okta")}
             </span>
           </div>
           <.form data-part="form" for={@form} id="sso_login_form" phx-submit="submit">
@@ -65,17 +62,17 @@ defmodule TuistWeb.SSOLoginLive do
               id="email"
               label={gettext("Email address")}
               type="email"
-              placeholder="hello@yourcompany.com"
+              placeholder="hello@tuist.dev"
               show_prefix={false}
               error={Flash.get(@flash, :error)}
               show_error_message={false}
               required
             />
-            <.button variant="primary" size="large" label={gettext("Continue with SSO")} />
+            <.button variant="primary" size="large" label={gettext("Log in")} />
           </.form>
         </div>
         <div data-part="bottom-link">
-          <span>{gettext("Need help with SSO?")}</span>
+          <span>{gettext("Interested in SSO?")}</span>
           <.link_button
             href="mailto:contact@tuist.dev"
             variant="primary"

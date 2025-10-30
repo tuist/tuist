@@ -1421,17 +1421,10 @@ defmodule Tuist.Accounts do
   defp okta_organization_for_email_domain(email) do
     case String.split(email, "@") do
       [_username, domain] ->
-        # Try multiple patterns to match domain to sso_organization_id:
-        # 1. Exact domain match: trial-2983119-admin.com
-        # 2. Domain with .okta.com suffix: trial-2983119-admin.okta.com
-        # 3. Domain with .okta.com added: trial-2983119-admin.com.okta.com
         query =
           from(o in Organization,
             where: o.sso_provider == :okta,
-            where: o.sso_organization_id == "trial-2983119.okta.com"
-            # where: o.sso_organization_id == ^domain or
-            #        o.sso_organization_id == ^"#{domain}.okta.com" or
-            #        o.sso_organization_id == ^String.replace(domain, ".com", ".okta.com")
+            where: o.sso_organization_id == ^String.replace(domain, ".com", ".okta.com")
           )
 
         case Repo.one(query) do
