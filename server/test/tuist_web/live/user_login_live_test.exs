@@ -27,16 +27,26 @@ defmodule TuistWeb.UserLoginLiveTest do
 
     test "renders Okta button if Okta is configured", %{conn: conn} do
       stub(Tuist.Environment, :okta_oauth_configured?, fn -> true end)
+      stub(Tuist.Environment, :tuist_hosted?, fn -> false end)
       {:ok, _lv, html} = live(conn, ~p"/users/log_in")
 
       assert html =~ "Okta"
     end
 
-    test "does not render Okta button if Okta is not configured", %{conn: conn} do
+    test "does not render Okta button if Okta is not configured and not tuist hosted", %{conn: conn} do
       stub(Tuist.Environment, :okta_oauth_configured?, fn -> false end)
+      stub(Tuist.Environment, :tuist_hosted?, fn -> false end)
       {:ok, _lv, html} = live(conn, ~p"/users/log_in")
 
       refute html =~ "Okta"
+    end
+
+    test "renders Okta button if tuist hosted even when Okta is not configured", %{conn: conn} do
+      stub(Tuist.Environment, :okta_oauth_configured?, fn -> false end)
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+      {:ok, _lv, html} = live(conn, ~p"/users/log_in")
+
+      assert html =~ "Okta"
     end
   end
 

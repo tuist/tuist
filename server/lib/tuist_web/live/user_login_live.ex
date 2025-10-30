@@ -19,6 +19,7 @@ defmodule TuistWeb.UserLoginLive do
       |> assign(:google_configured?, Environment.google_oauth_configured?())
       |> assign(:okta_configured?, Environment.okta_oauth_configured?())
       |> assign(:apple_configured?, Environment.apple_oauth_configured?())
+      |> assign(:tuist_hosted?, Environment.tuist_hosted?())
 
     {
       :ok,
@@ -72,8 +73,8 @@ defmodule TuistWeb.UserLoginLive do
               </:icon_left>
             </.button>
             <.button
-              :if={@okta_configured?}
-              href={~p"/users/log_in/okta"}
+              :if={@okta_configured? or @tuist_hosted?}
+              href={if @tuist_hosted?, do: ~p"/users/log_in/sso", else: ~p"/users/log_in/okta"}
               variant="secondary"
               size="medium"
               label="Okta"
