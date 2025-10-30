@@ -73,7 +73,7 @@ defmodule TuistWeb.UserLoginLive do
               </:icon_left>
             </.button>
             <.button
-              :if={@okta_configured?}
+              :if={@okta_configured? or @tuist_hosted?}
               href={if @tuist_hosted?, do: ~p"/users/log_in/sso", else: ~p"/users/log_in/okta"}
               variant="secondary"
               size="medium"
