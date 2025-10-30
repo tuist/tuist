@@ -5,7 +5,6 @@ defmodule TuistWeb.BuildRunLive do
 
   import Phoenix.Component
   import TuistWeb.Runs.RanByBadge
-  import TuistWeb.TimezoneHelpers
 
   alias Noora.Filter
   alias Tuist.CommandEvents
@@ -15,7 +14,7 @@ defmodule TuistWeb.BuildRunLive do
   alias TuistWeb.Utilities.Query
 
   def mount(params, session, %{assigns: %{selected_project: project}} = socket) do
-    user_timezone = get_user_timezone(session, socket)
+    user_timezone = Tuist.Utilities.DateFormatter.get_user_timezone(session, socket)
     run =
       case Runs.get_build(params["build_run_id"]) do
         nil ->

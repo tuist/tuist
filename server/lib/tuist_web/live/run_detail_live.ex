@@ -4,7 +4,6 @@ defmodule TuistWeb.RunDetailLive do
   use Noora
 
   import TuistWeb.Runs.RanByBadge
-  import TuistWeb.TimezoneHelpers
 
   alias Tuist.CommandEvents
   alias Tuist.Projects
@@ -14,7 +13,7 @@ defmodule TuistWeb.RunDetailLive do
   @table_page_size 20
 
   def mount(_params, session, %{assigns: %{selected_project: project, selected_run: run}} = socket) do
-    user_timezone = get_user_timezone(session, socket)
+    user_timezone = Tuist.Utilities.DateFormatter.get_user_timezone(session, socket)
 
     user =
       run

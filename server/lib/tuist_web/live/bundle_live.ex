@@ -7,7 +7,6 @@ defmodule TuistWeb.BundleLive do
   import TuistWeb.Components.EmptyCardSection
   import TuistWeb.Components.TrendBadge
   import TuistWeb.Previews.PlatformIcon
-  import TuistWeb.TimezoneHelpers
 
   alias Tuist.Bundles
   alias Tuist.Projects
@@ -17,7 +16,7 @@ defmodule TuistWeb.BundleLive do
   @table_page_size 20
 
   def mount(%{"bundle_id" => bundle_id}, session, %{assigns: %{selected_project: selected_project}} = socket) do
-    user_timezone = get_user_timezone(session, socket)
+    user_timezone = Tuist.Utilities.DateFormatter.get_user_timezone(session, socket)
     bundle = get_selected_bundle(bundle_id)
 
     all_artifacts = flatten_artifacts(bundle.artifacts)

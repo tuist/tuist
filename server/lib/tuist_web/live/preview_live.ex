@@ -6,7 +6,6 @@ defmodule TuistWeb.PreviewLive do
   import TuistWeb.Components.Terminal
   import TuistWeb.Previews.PlatformTag
   import TuistWeb.Previews.RanByBadge
-  import TuistWeb.TimezoneHelpers
 
   alias Tuist.AppBuilds
   alias Tuist.AppBuilds.AppBuild
@@ -14,7 +13,7 @@ defmodule TuistWeb.PreviewLive do
   alias TuistWeb.Utilities.SHA
 
   def mount(%{"id" => preview_id} = _params, session, %{assigns: %{selected_project: selected_project}} = socket) do
-    user_timezone = get_user_timezone(session, socket)
+    user_timezone = Tuist.Utilities.DateFormatter.get_user_timezone(session, socket)
 
     preview =
       get_current_preview(preview_id)
