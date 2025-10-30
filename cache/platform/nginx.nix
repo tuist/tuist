@@ -33,19 +33,10 @@
           client_body_timeout 30m;
         '';
 
-        # Intercept GET/HEAD to legacy API route and serve directly from disk
-        # after authorizing via auth_request. Other methods (e.g. POST) fall through
-        # to Phoenix via the root proxy location.
         locations."~ ^/api/cache/cas/[^/?]+$" = {
           extraConfig = ''
-            # Only handle GET/HEAD here; send others to Phoenix
             error_page 405 = @apicas_proxy;
-            limit_except GET HEAD { return 405; }
-
-            # Authorize by consulting Phoenix with project context from query args
-            auth_request /_auth_cas?account_handle=$arg_account_handle&project_handle=$arg_project_handle;
-
-            # After auth, rewrite to internal-cas path and let nginx serve from disk
+            if ($request_method !~ ^(GET|HEAD)$) { return 405; }
             rewrite ^/api/cache/cas/(.*)$ /internal-cas/$arg_account_handle/$arg_project_handle/cas/$1 last;
 
             access_log off;
@@ -53,7 +44,6 @@
           '';
         };
 
-        # Fallback named location to proxy to Phoenix for non-GET/HEAD
         locations."@apicas_proxy" = {
           proxyPass = "http://127.0.0.1:4000";
           proxyWebsockets = false;
@@ -98,14 +88,18 @@
           '';
         };
 
-        locations."/internal-cas/" = {
+        # Internal serving location for CAS files. We authorize here to ensure
+        # auth_request still runs after the rewrite from the public path.
+        locations."~ ^/internal-cas/(?<acc>[^/]+)/(?<proj>[^/]+)/cas/(?<id>[^/]+)$" = {
           alias = "/cas/";
           extraConfig = ''
             internal;
+            # Authorize using captured path parameters
+            auth_request /_auth_cas?account_handle=$acc&project_handle=$proj;
             access_log off;
             default_type application/octet-stream;
-            # Disable compression for opaque CAS blobs to save CPU
             gzip off;
+            add_header X-Auth-Checked "1" always;
             add_header Cache-Control "public, max-age=31536000, immutable";
           '';
         };
