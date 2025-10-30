@@ -5,7 +5,7 @@ servers:
   web:
     hosts:
       - 91.98.81.176
-      - 5.161.218.106
+      # - 5.161.218.106
     proxy: false
     options:
       network-alias: cache-app

@@ -21,6 +21,6 @@ defmodule CacheWeb.Router do
   end
 
   scope "/auth", CacheWeb do
-    head "/cas", CASController, :authorize
+    get "/cas", CASController, :authorize
   end
 end

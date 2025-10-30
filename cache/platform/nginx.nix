@@ -60,7 +60,7 @@
             proxy_set_header Authorization $http_authorization;
             proxy_set_header X-Account-Handle $arg_account_handle;
             proxy_set_header X-Project-Handle $arg_project_handle;
-            proxy_method HEAD;
+            proxy_method GET;
             proxy_pass http://127.0.0.1:4000/auth/cas;
           '';
         };
