@@ -1398,6 +1398,27 @@ defmodule Tuist.Accounts do
   end
 
   def okta_organization_for_user_email(email) do
+    with user when not is_nil(user) <- get_user_by_email(email),
+         organization when not is_nil(organization) <- user_okta_organization(user) do
+      {:ok, organization}
+    else
+      _ ->
+        # If user doesn't exist or has no SSO organization, try domain-based matching
+        okta_organization_for_email_domain(email)
+    end
+  end
+
+  defp user_okta_organization(user) do
+    user_organizations = get_user_organization_accounts(user)
+
+    Enum.find_value(user_organizations, fn %{organization: organization} ->
+      if organization.sso_provider == :okta && organization.sso_organization_id do
+        organization
+      end
+    end)
+  end
+
+  defp okta_organization_for_email_domain(email) do
     case String.split(email, "@") do
       [_username, domain] ->
         query =
