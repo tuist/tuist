@@ -45,6 +45,7 @@ defmodule TuistWeb.BuildRunLive do
       |> assign(:run, run)
       |> assign(:command_event, command_event)
       |> assign(:head_title, "#{gettext("Build Run")} · #{slug} · Tuist")
+      |> assign(:user_timezone, nil)
       |> assign(
         :warnings_grouped_by_path,
         run.issues |> Enum.filter(&(&1.type == "warning")) |> Enum.group_by(& &1.path)
@@ -116,6 +117,10 @@ defmodule TuistWeb.BuildRunLive do
       :noreply,
       socket
     }
+  end
+
+  def handle_event("set-timezone", %{"timezone" => timezone}, socket) do
+    {:noreply, assign(socket, :user_timezone, timezone)}
   end
 
   def handle_event(
@@ -988,4 +993,21 @@ defmodule TuistWeb.BuildRunLive do
         [0, 0, 0, 0]
     end
   end
+
+  defp format_time_in_timezone(datetime, timezone) when is_binary(timezone) do
+    try do
+      local_time = Timex.Timezone.convert(datetime, timezone)
+      Timex.format!(local_time, "{WDshort} {D} {Mshort} {h24}:{m}:{s}")
+    rescue
+      _ ->
+        # Fallback to UTC if timezone conversion fails
+        Timex.format!(datetime, "{WDshort} {D} {Mshort} {h24}:{m}:{s}") <> " UTC"
+    end
+  end
+
+  defp format_time_in_timezone(datetime, _timezone) do
+    # Fallback when no timezone is available
+    Timex.format!(datetime, "{WDshort} {D} {Mshort} {h24}:{m}:{s}") <> " UTC"
+  end
+
 end

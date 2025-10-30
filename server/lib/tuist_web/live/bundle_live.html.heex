@@ -81,7 +81,9 @@
           <div data-part="metadata">
             <div data-part="title">{gettext("Created at")}</div>
             <span data-part="label">
-              {Timex.format!(@bundle.inserted_at, "{WDshort} {D} {Mfull} {h24}:{m}:{s}")}
+              <time datetime={DateTime.to_iso8601(@bundle.inserted_at)}>
+                {Tuist.Utilities.DateFormatter.format_full(@bundle.inserted_at)}
+              </time>
             </span>
           </div>
         </div>
