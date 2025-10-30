@@ -74,4 +74,8 @@
     pkgs.curl
     pkgs.gitMinimal
   ];
+
+  systemd.tmpfiles.rules = [
+    "Z /cas 0755 nobody nogroup - -"
+  ];
 }
