@@ -30,24 +30,32 @@
           client_body_timeout 30m;
         '';
 
-        locations."/api/cache/cas/" = {
+        locations."~ ^/api/cache/cas/(.+)$" = {
           extraConfig = ''
-            # Only allow GET/HEAD for this location
+            # Non-GET/HEAD goes to Phoenix via error_page
+            error_page 405 = @phoenix_cas;
             if ($request_method !~ ^(GET|HEAD)$) { return 405; }
 
-            # Ask Phoenix to authorize (no args in URI). Pass account/project via headers below.
+            # GET/HEAD: auth then serve from disk
             auth_request /_auth_cas;
-
-            # Serve file directly from disk. Rewrite once to make $uri just "/:id".
+            
             default_type application/octet-stream;
             rewrite ^/api/cache/cas/(.*)$ /$1 break;
             try_files /cas/$arg_account_handle/$arg_project_handle/cas$uri =404;
-
-            # Low CPU for opaque blobs
+            
             gzip off;
             access_log off;
             add_header X-Auth-Checked "1" always;
             add_header Cache-Control "public, max-age=31536000, immutable";
+          '';
+        };
+
+        locations."@phoenix_cas" = {
+          proxyPass = "http://127.0.0.1:4000";
+          proxyWebsockets = false;
+          extraConfig = ''
+            proxy_buffering off;
+            proxy_request_buffering off;
           '';
         };
 
@@ -58,10 +66,8 @@
             proxy_set_header Content-Length "";
             proxy_set_header X-Request-ID $request_id;
             proxy_set_header Authorization $http_authorization;
-            proxy_set_header X-Account-Handle $arg_account_handle;
-            proxy_set_header X-Project-Handle $arg_project_handle;
             proxy_method GET;
-            proxy_pass http://127.0.0.1:4000/auth/cas;
+            proxy_pass http://127.0.0.1:4000/auth/cas?account_handle=$arg_account_handle&project_handle=$arg_project_handle;
           '';
         };
 

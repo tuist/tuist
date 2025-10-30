@@ -6,10 +6,19 @@ defmodule CacheWeb.CASController do
 
   require Logger
 
-  def authorize(conn, _params) do
-    case Authentication.ensure_project_accessible_from_headers(conn) do
-      {:ok, _} -> send_resp(conn, :no_content, "")
-      {:error, status, _} -> send_resp(conn, status, "")
+  def authorize(conn, params) do
+    Logger.info("AUTH_CAS params: #{inspect(params)}")
+    
+    case {params["account_handle"], params["project_handle"]} do
+      {account_handle, project_handle} when is_binary(account_handle) and is_binary(project_handle) ->
+        case Authentication.ensure_project_accessible(conn, account_handle, project_handle) do
+          {:ok, _} -> send_resp(conn, :no_content, "")
+          {:error, status, _} -> send_resp(conn, status, "")
+        end
+      
+      _ ->
+        Logger.error("AUTH_CAS: Missing account_handle or project_handle in params")
+        send_resp(conn, 400, "")
     end
   end
 
