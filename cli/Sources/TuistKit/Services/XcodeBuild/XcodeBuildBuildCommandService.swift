@@ -16,6 +16,8 @@ struct XcodeBuildBuildCommandService {
     private let xcodeBuildArgumentParser: XcodeBuildArgumentParsing
     private let derivedDataLocator: DerivedDataLocating
     private let xcActivityLogController: XCActivityLogControlling
+    private let xcBeautifyController: XCBeautifyControlling
+    private let xcBeautifyArgumentParser: XCBeautifyArgumentsParsing
 
     init(
         fileSystem: FileSysteming = FileSystem(),
@@ -25,7 +27,9 @@ struct XcodeBuildBuildCommandService {
         uniqueIDGenerator: UniqueIDGenerating = UniqueIDGenerator(),
         xcodeBuildArgumentParser: XcodeBuildArgumentParsing = XcodeBuildArgumentParser(),
         derivedDataLocator: DerivedDataLocating = DerivedDataLocator(),
-        xcActivityLogController: XCActivityLogControlling = XCActivityLogController()
+        xcActivityLogController: XCActivityLogControlling = XCActivityLogController(),
+        xcBeautifyController: XCBeautifyControlling = XCBeautifyController(),
+        xcBeautifyArgumentParser: XCBeautifyArgumentsParsing = XCBeautifyArgumentsParser()
     ) {
         self.fileSystem = fileSystem
         self.xcodeBuildController = xcodeBuildController
@@ -35,16 +39,21 @@ struct XcodeBuildBuildCommandService {
         self.xcodeBuildArgumentParser = xcodeBuildArgumentParser
         self.derivedDataLocator = derivedDataLocator
         self.xcActivityLogController = xcActivityLogController
+        self.xcBeautifyController = xcBeautifyController
+        self.xcBeautifyArgumentParser = xcBeautifyArgumentParser
     }
 
-    func run(
-        passthroughXcodebuildArguments: [String]
-    ) async throws {
-        var passthroughXcodebuildArguments = passthroughXcodebuildArguments
+    func run(passthroughXcodebuildArguments: [String]) async throws {
+        let arguments = xcBeautifyArgumentParser.parse(passthroughXcodebuildArguments)
+        var passthroughXcodebuildArguments = arguments.remaining
         try await passthroughXcodebuildArguments.append(
             contentsOf: resultBundlePathArguments(passthroughXcodebuildArguments: passthroughXcodebuildArguments)
         )
-        try await xcodeBuildController.run(arguments: passthroughXcodebuildArguments)
+        let outputData = try await xcodeBuildController.run(arguments: passthroughXcodebuildArguments)
+        if !arguments.xcbeautify.isEmpty {
+            try await xcBeautifyController.run(arguments: arguments.xcbeautify, buildOutput: outputData)
+        }
+
         let xcodeBuildArguments = try await xcodeBuildArgumentParser.parse(passthroughXcodebuildArguments)
         var derivedDataPath: AbsolutePath? = xcodeBuildArguments.derivedDataPath
         if derivedDataPath == nil {
