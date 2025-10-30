@@ -61,6 +61,12 @@ defmodule Cache.Authentication do
   def ensure_project_accessible_from_headers(conn) do
     with [account_handle] <- Plug.Conn.get_req_header(conn, "x-account-handle"),
          [project_handle] <- Plug.Conn.get_req_header(conn, "x-project-handle") do
+      auth_header = Plug.Conn.get_req_header(conn, "authorization") |> List.first()
+
+      Logger.debug(
+        "AUTH_CAS: Ensuring project #{project_handle} is accessible from account #{account_handle} with header #{auth_header}"
+      )
+
       ensure_project_accessible(conn, account_handle, project_handle)
     else
       _ -> {:error, 400, "Missing account/project headers"}
@@ -130,6 +136,4 @@ defmodule Cache.Authentication do
     :crypto.hash(:sha256, auth_header)
     |> Base.encode16(case: :lower)
   end
-
-
 end
