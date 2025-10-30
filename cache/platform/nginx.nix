@@ -33,15 +33,12 @@
         locations."~ ^/api/cache/cas/(.+)$" = {
           root = "/";
           extraConfig = ''
-            # Non-GET/HEAD goes to Phoenix via error_page
             error_page 405 = @phoenix_cas;
             if ($request_method !~ ^(GET|HEAD)$) { return 405; }
 
-            # Capture query params before auth_request
             set $account $arg_account_handle;
             set $project $arg_project_handle;
 
-            # GET/HEAD: auth then serve from disk
             auth_request /_auth_cas;
 
             default_type application/octet-stream;
@@ -49,10 +46,7 @@
             try_files /cas/$account/$project/cas$uri =404;
 
             gzip off;
-            error_log /var/log/nginx/cas_debug.log debug;
-            add_header X-Auth-Checked "1" always;
-            add_header X-Account "$account" always;
-            add_header X-Project "$project" always;
+            access_log off;
             add_header Cache-Control "public, max-age=31536000, immutable";
           '';
         };
