@@ -33,28 +33,28 @@
           client_body_timeout 30m;
         '';
 
-        locations."~ ^/api/cache/cas/[^/?]+$" = {
+        # Serve CAS reads directly from disk with auth_request
+        locations."~ ^/api/cache/cas/(?<id>[^/?]+)$" = {
           extraConfig = ''
-            error_page 405 = @apicas_proxy;
+            # Only allow GET/HEAD for this location
             if ($request_method !~ ^(GET|HEAD)$) { return 405; }
-            rewrite ^/api/cache/cas/(.*)$ /internal-cas/$arg_account_handle/$arg_project_handle/cas/$1 last;
 
-            access_log off;
+            # Ask Phoenix to authorize using the same query string
+            auth_request /_auth_cas?$args;
+
+            # Serve file directly from disk
+            default_type application/octet-stream;
+            try_files /cas/$arg_account_handle/$arg_project_handle/cas/$id =404;
+
+            # Low CPU for opaque blobs
             gzip off;
+            access_log off;
+            add_header X-Auth-Checked "1" always;
+            add_header Cache-Control "public, max-age=31536000, immutable";
           '';
         };
 
-        locations."@apicas_proxy" = {
-          proxyPass = "http://127.0.0.1:4000";
-          proxyWebsockets = false;
-          extraConfig = ''
-            proxy_set_header X-Real-IP $remote_addr;
-            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-            proxy_set_header X-Forwarded-Proto $scheme;
-            proxy_set_header X-Forwarded-Host $host;
-            proxy_set_header X-Forwarded-Port $server_port;
-          '';
-        };
+        # (No special fallback: non-GET/HEAD returns 405)
 
         locations."=/_auth_cas" = {
           extraConfig = ''
@@ -64,7 +64,8 @@
             proxy_set_header X-Request-ID $request_id;
             proxy_set_header Authorization $http_authorization;
             proxy_method HEAD;
-            proxy_pass http://127.0.0.1:4000/auth/cas$is_args$args;
+            # Forward the same query string (account_handle, project_handle)
+            proxy_pass http://127.0.0.1:4000/auth/cas?$args;
           '';
         };
 
@@ -88,21 +89,7 @@
           '';
         };
 
-        # Internal serving location for CAS files. We authorize here to ensure
-        # auth_request still runs after the rewrite from the public path.
-        locations."~ ^/internal-cas/(?<acc>[^/]+)/(?<proj>[^/]+)/cas/(?<id>[^/]+)$" = {
-          alias = "/cas/";
-          extraConfig = ''
-            internal;
-            # Authorize using captured path parameters
-            auth_request /_auth_cas?account_handle=$acc&project_handle=$proj;
-            access_log off;
-            default_type application/octet-stream;
-            gzip off;
-            add_header X-Auth-Checked "1" always;
-            add_header Cache-Control "public, max-age=31536000, immutable";
-          '';
-        };
+        # No internal-cas location needed with direct try_files
       };
     };
   };

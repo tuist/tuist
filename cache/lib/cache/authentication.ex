@@ -10,6 +10,8 @@ defmodule Cache.Authentication do
   @success_cache_ttl 600
   @cache_name :cas_auth_cache
 
+  require Logger
+
   def child_spec(_) do
     %{
       id: __MODULE__,
@@ -24,6 +26,8 @@ defmodule Cache.Authentication do
   """
   def ensure_project_accessible(conn, account_handle, project_handle) do
     auth_header = Plug.Conn.get_req_header(conn, "authorization") |> List.first()
+
+    Logger.info("Checking authorization for: #{account_handle}/#{project_handle} with auth header: #{auth_header}")
 
     if is_nil(auth_header) do
       {:error, 401, "Missing Authorization header"}
@@ -75,11 +79,11 @@ defmodule Cache.Authentication do
     case Req.get(url: url, headers: headers, finch: Cache.Finch, retry: false) do
       {:ok, %{status: 200, body: %{"projects" => projects}}} ->
         # Pre-lowercase project handles and convert to MapSet for O(1) lookup
-        project_set = 
+        project_set =
           projects
           |> Enum.map(&String.downcase(&1["full_name"]))
           |> MapSet.new()
-        
+
         result = {:ok, project_set}
 
         Cachex.put(@cache_name, cache_key, result, ttl: :timer.seconds(@success_cache_ttl))
