@@ -310,13 +310,9 @@ func productType() -> Product {
 Note that Tuist <LocalizedLink href="/guides/features/projects/cost-of-convenience">does not default to convenience through implicit configuration due to its costs</LocalizedLink>. What this means is that we rely on you setting the linking type and any additional build settings that are sometimes required, like the [`-ObjC` linker flag](https://github.com/pointfreeco/swift-composable-architecture/discussions/1657#discussioncomment-4119184), to ensure the resulting binaries are correct. Therefore, the stance that we take is providing you with the resources, usually in the shape of documentation, to make the right decisions.
 
 ::: tip EXAMPLE: THE COMPOSABLE ARCHITECTURE
-
 <!-- -->
-
 A Swift Package that many projects integrate is [The Composable Architecture](https://github.com/pointfreeco/swift-composable-architecture). See more details in [this section](#the-composable-architecture).
-
 <!-- -->
-
 :::
 
 ### Scenarios {#scenarios}
@@ -398,9 +394,9 @@ When linking statically, test and app targets typically work without any issues,
 Following configuration will link everything dynamically - so app + test targets and SwiftUI previews are working.
 
 ::: tip STATIC OR DYNAMIC
-
+<!-- -->
 Dynamic linking is not always recommended. See the section [Static or dynamic](#static-or-dynamic) for more details. In this example, all dependencies are linked dynamically without conditions for simplicity.
-
+<!-- -->
 :::
 
 ```swift [Tuist/Package.swift]
@@ -451,9 +447,9 @@ let packageSettings = PackageSettings(
 ```
 
 ::: warning
-
+<!-- -->
 Instead of `import Sharing` you'll have to `import SwiftSharing` instead.
-
+<!-- -->
 :::
 
 ### Transitive static dependencies leaking through `.swiftmodule` {#transitive-static-dependencies-leaking-through-swiftmodule}
