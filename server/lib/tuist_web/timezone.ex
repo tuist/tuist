@@ -7,7 +7,7 @@ defmodule TuistWeb.Timezone do
 
   def on_mount(:assign_timezone, _params, session, socket) do
     user_timezone = get_user_timezone(session, socket)
-    
+
     {:cont, assign(socket, :user_timezone, user_timezone)}
   end
 
@@ -19,6 +19,7 @@ defmodule TuistWeb.Timezone do
           %{"user_timezone" => timezone} -> timezone
           _ -> nil
         end
+
       timezone ->
         timezone
     end

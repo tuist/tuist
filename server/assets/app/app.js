@@ -64,7 +64,7 @@ let liveSocket = new LiveSocket("/live", Socket, {
   params: {
     _csrf_token: csrfToken,
     _csp_nonce: cspNonce,
-    user_timezone: getUserTimezone()
+    user_timezone: getUserTimezone(),
   },
   hooks: { ...Hooks, ...Noora.Hooks },
 });
@@ -76,7 +76,6 @@ topbar.config({
 });
 window.addEventListener("phx:page-loading-start", (_info) => topbar.show(300));
 window.addEventListener("phx:page-loading-stop", (_info) => topbar.hide());
-
 
 // connect if there are any LiveViews on the page
 liveSocket.connect();

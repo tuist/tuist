@@ -14,7 +14,6 @@ defmodule TuistWeb.Plugs.TimezonePlug do
         timezone -> URI.decode(timezone)
       end
 
-    conn
-    |> put_session(:user_timezone, timezone)
+    put_session(conn, :user_timezone, timezone)
   end
 end

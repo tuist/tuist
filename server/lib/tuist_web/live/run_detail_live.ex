@@ -13,7 +13,6 @@ defmodule TuistWeb.RunDetailLive do
   @table_page_size 20
 
   def mount(_params, _session, %{assigns: %{selected_project: project, selected_run: run}} = socket) do
-
     user =
       run
       |> CommandEvents.get_user_for_command_event(preload: :account)

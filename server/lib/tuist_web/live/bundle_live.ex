@@ -882,5 +882,4 @@ defmodule TuistWeb.BundleLive do
   def format_bundle_type(:app), do: gettext("App bundle")
   def format_bundle_type(:xcarchive), do: gettext("XCArchive")
   def format_bundle_type(_), do: gettext("Unknown")
-
 end

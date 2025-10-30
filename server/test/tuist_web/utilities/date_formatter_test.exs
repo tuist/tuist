@@ -191,15 +191,15 @@ defmodule Tuist.Utilities.DateFormatterTest do
   describe "format_with_timezone/2" do
     test "converts UTC datetime to user timezone correctly" do
       utc_time = ~U[2024-01-15 14:30:25Z]
-      
+
       # UTC 14:30 in January = EST 09:30 (EST is UTC-5 in January)
       ny_formatted = DateFormatter.format_with_timezone(utc_time, "America/New_York")
       assert ny_formatted == "Mon 15 Jan 09:30:25"
-      
+
       # UTC 14:30 in January = GMT 14:30 (GMT is UTC+0 in January)
       london_formatted = DateFormatter.format_with_timezone(utc_time, "Europe/London")
       assert london_formatted == "Mon 15 Jan 14:30:25"
-      
+
       # UTC 14:30 in January = JST 23:30 (JST is UTC+9)
       tokyo_formatted = DateFormatter.format_with_timezone(utc_time, "Asia/Tokyo")
       assert tokyo_formatted == "Mon 15 Jan 23:30:25"
@@ -208,11 +208,11 @@ defmodule Tuist.Utilities.DateFormatterTest do
     test "handles daylight saving time correctly" do
       # July date when DST is active
       utc_summer = ~U[2024-07-15 14:30:25Z]
-      
+
       # UTC 14:30 in July = EDT 10:30 (EDT is UTC-4 during DST)
       ny_summer = DateFormatter.format_with_timezone(utc_summer, "America/New_York")
       assert ny_summer == "Mon 15 Jul 10:30:25"
-      
+
       # UTC 14:30 in July = BST 15:30 (BST is UTC+1 during DST)
       london_summer = DateFormatter.format_with_timezone(utc_summer, "Europe/London")
       assert london_summer == "Mon 15 Jul 15:30:25"
@@ -220,21 +220,21 @@ defmodule Tuist.Utilities.DateFormatterTest do
 
     test "falls back to UTC when timezone is nil" do
       utc_time = ~U[2024-01-15 14:30:25Z]
-      
+
       result = DateFormatter.format_with_timezone(utc_time, nil)
       assert result == "Mon 15 Jan 14:30:25 UTC"
     end
 
     test "falls back to UTC when timezone is invalid" do
       utc_time = ~U[2024-01-15 14:30:25Z]
-      
+
       result = DateFormatter.format_with_timezone(utc_time, "Invalid/Timezone")
       assert result == "Mon 15 Jan 14:30:25 UTC"
     end
 
     test "handles NaiveDateTime by assuming UTC" do
       naive_time = ~N[2024-01-15 14:30:25]
-      
+
       # Should convert NaiveDateTime to UTC DateTime first, then to timezone
       ny_formatted = DateFormatter.format_with_timezone(naive_time, "America/New_York")
       assert ny_formatted == "Mon 15 Jan 09:30:25"
@@ -242,7 +242,7 @@ defmodule Tuist.Utilities.DateFormatterTest do
 
     test "falls back to UTC for NaiveDateTime when timezone is nil" do
       naive_time = ~N[2024-01-15 14:30:25]
-      
+
       result = DateFormatter.format_with_timezone(naive_time, nil)
       assert result == "Mon 15 Jan 14:30:25 UTC"
     end

@@ -23,7 +23,7 @@ defmodule TuistWeb.TimezoneTest do
       socket = %LiveView.Socket{}
 
       # Stub the connect params to return timezone
-      stub(Phoenix.LiveView, :get_connect_params, fn _socket ->
+      stub(LiveView, :get_connect_params, fn _socket ->
         %{"user_timezone" => "Europe/London"}
       end)
 
@@ -40,7 +40,7 @@ defmodule TuistWeb.TimezoneTest do
       socket = %LiveView.Socket{}
 
       # Stub the connect params to return nil
-      stub(Phoenix.LiveView, :get_connect_params, fn _socket -> %{} end)
+      stub(LiveView, :get_connect_params, fn _socket -> %{} end)
 
       # When
       {:cont, updated_socket} = Timezone.on_mount(:assign_timezone, %{}, session, socket)
@@ -55,7 +55,7 @@ defmodule TuistWeb.TimezoneTest do
       socket = %LiveView.Socket{}
 
       # Stub the connect params to return nil
-      stub(Phoenix.LiveView, :get_connect_params, fn _socket -> nil end)
+      stub(LiveView, :get_connect_params, fn _socket -> nil end)
 
       # When
       {:cont, updated_socket} = Timezone.on_mount(:assign_timezone, %{}, session, socket)
