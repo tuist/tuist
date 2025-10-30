@@ -9,8 +9,8 @@
     ...
   }: let
     machines = [
-      "cas-cache-eu-central"
-      "cas-cache-us-east"
+      "cache-eu-central-staging"
+      "cache-us-east-staging"
     ];
 
     mkMachine = hostname: {
