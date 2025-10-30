@@ -15,14 +15,14 @@ defmodule TuistWeb.BuildRunLive do
 
   def mount(params, session, %{assigns: %{selected_project: project}} = socket) do
     # Get user timezone from session (set by Timezone plug from cookie) or LiveView connection params (fallback)
-    user_timezone = 
+    user_timezone =
       case Map.get(session, "user_timezone") do
         nil ->
           case get_connect_params(socket) do
             %{"user_timezone" => timezone} -> timezone
             _ -> nil
           end
-        timezone -> 
+        timezone ->
           timezone
       end
     run =

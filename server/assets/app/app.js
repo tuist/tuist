@@ -59,24 +59,12 @@ function getUserTimezone() {
   return timezone;
 }
 
-// Get timezone from cookie if available (for page refresh)
-function getTimezoneFromCookie() {
-  const cookies = document.cookie.split(';');
-  for (let cookie of cookies) {
-    const [name, value] = cookie.trim().split('=');
-    if (name === 'user_timezone') {
-      return decodeURIComponent(value);
-    }
-  }
-  return null;
-}
-
 let liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
-  params: { 
-    _csrf_token: csrfToken, 
-    _csp_nonce: cspNonce, 
-    user_timezone: getTimezoneFromCookie() || getUserTimezone() 
+  params: {
+    _csrf_token: csrfToken,
+    _csp_nonce: cspNonce,
+    user_timezone: getUserTimezone()
   },
   hooks: { ...Hooks, ...Noora.Hooks },
 });
