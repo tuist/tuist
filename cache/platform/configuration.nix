@@ -18,11 +18,34 @@
       efiSupport = true;
       efiInstallAsRemovable = true;
     };
-    kernelPackages = pkgs.linuxPackages_latest;
+    kernelPackages = pkgs.linuxPackages_6_17;
+    kernel.sysctl = {
+      "net.core.somaxconn" = 4096;
+      "net.ipv4.tcp_max_syn_backlog" = 4096;
+      "net.core.rmem_max" = 134217728;
+      "net.core.wmem_max" = 134217728;
+      "net.ipv4.tcp_rmem" = "4096 87380 67108864";
+      "net.ipv4.tcp_wmem" = "4096 65536 67108864";
+    };
   };
 
   services.openssh.enable = true;
   security.sudo.wheelNeedsPassword = false;
+
+  security.pam.loginLimits = [
+    {
+      domain = "*";
+      type = "soft";
+      item = "nofile";
+      value = "65535";
+    }
+    {
+      domain = "*";
+      type = "hard";
+      item = "nofile";
+      value = "65535";
+    }
+  ];
 
   networking = {
     firewall = {
@@ -46,12 +69,6 @@
     enable = true;
     logDriver = "json-file";
   };
-
-  # services.tailscale = {
-  #   enable = true;
-  #   openFirewall = true;
-  #   useRoutingFeatures = "server";
-  # };
 
   environment.systemPackages = map lib.lowPrio [
     pkgs.curl
