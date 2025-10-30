@@ -4,6 +4,7 @@ defmodule Tuist.Storage do
   """
   alias Tuist.Environment
   alias Tuist.Performance
+  alias Tuist.Accounts.Account
 
   def multipart_generate_url(object_key, upload_id, part_number, actor, opts \\ []) do
     opts =
@@ -32,11 +33,25 @@ defmodule Tuist.Storage do
 
     {config, bucket_name} = s3_config_and_bucket(actor)
 
+    presigned_url_opts = [
+      query_params: query_params,
+      expires_in: Keyword.get(opts, :expires_in, 3600)
+    ]
+
+    presigned_url_opts =
+      if method == :put do
+        headers = region_headers(actor)
+        if headers != [] do
+          Keyword.put(presigned_url_opts, :headers, headers)
+        else
+          presigned_url_opts
+        end
+      else
+        presigned_url_opts
+      end
+
     {:ok, url} =
-      ExAws.S3.presigned_url(config, method, bucket_name, object_key,
-        query_params: query_params,
-        expires_in: Keyword.get(opts, :expires_in, 3600)
-      )
+      ExAws.S3.presigned_url(config, method, bucket_name, object_key, presigned_url_opts)
 
     url
   end
@@ -115,9 +130,13 @@ defmodule Tuist.Storage do
 
   def put_object(object_key, content, actor) do
     {config, bucket_name} = s3_config_and_bucket(actor)
+    headers = region_headers(actor)
 
-    bucket_name
-    |> ExAws.S3.put_object(object_key, content)
+    request =
+      bucket_name
+      |> ExAws.S3.put_object(object_key, content, headers)
+
+    request
     |> ExAws.request!(Map.merge(config, fast_api_req_opts()))
   end
 
@@ -169,10 +188,11 @@ defmodule Tuist.Storage do
     {time, upload_id} =
       Performance.measure_time_in_milliseconds(fn ->
         {config, bucket_name} = s3_config_and_bucket(actor)
+        headers = region_headers(actor)
 
         %{body: %{upload_id: upload_id}} =
           bucket_name
-          |> ExAws.S3.initiate_multipart_upload(object_key)
+          |> ExAws.S3.initiate_multipart_upload(object_key, headers)
           |> ExAws.request!(Map.merge(config, fast_api_req_opts()))
 
         upload_id
@@ -268,5 +288,18 @@ defmodule Tuist.Storage do
       receive_timeout: 5_000,
       pool_timeout: 1_000
     }
+  end
+
+  defp region_headers(actor) do
+    case actor do
+      %Account{} = account ->
+        case Account.region_to_header(account.region) do
+          nil -> []
+          region -> [{"X-Tigris-Regions", region}]
+        end
+
+      _ ->
+        []
+    end
   end
 end
