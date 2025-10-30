@@ -58,6 +58,13 @@ organization =
     organization
   end
 
+Accounts.update_okta_configuration(organization.id, %{
+  okta_client_id: System.get_env("TUIST_OKTA_1_CLIENT_ID"),
+  okta_client_secret: System.get_env("TUIST_OKTA_1_CLIENT_SECRET"),
+  sso_provider: :okta,
+  sso_organization_id: "trial-2983119.okta.com"
+})
+
 _public_project =
   case Projects.get_project_by_slug("tuist/public") do
     {:ok, %Project{} = project} ->
@@ -133,6 +140,10 @@ builds =
         )
       )
 
+    total_tasks = Enum.random(50..200)
+    remote_hits = Enum.random(0..div(total_tasks, 2))
+    local_hits = Enum.random(0..(total_tasks - remote_hits))
+
     %{
       id: UUIDv7.generate(),
       duration: Enum.random(10_000..100_000),
@@ -145,11 +156,110 @@ builds =
       scheme: scheme,
       configuration: configuration,
       inserted_at: inserted_at,
-      status: status
+      status: status,
+      cacheable_tasks_count: total_tasks,
+      cacheable_task_remote_hits_count: remote_hits,
+      cacheable_task_local_hits_count: local_hits
     }
   end)
 
-Repo.insert_all(Build, builds)
+{_count, build_records} = Repo.insert_all(Build, builds, returning: [:id])
+
+generate_cache_key = fn _build_id, _task_type, _index ->
+  # Generate base64-like content similar to the real example
+  # Real keys are mostly alphanumeric with occasional + / = _ - characters
+  content =
+    1..88
+    |> Enum.map(fn i ->
+      case rem(i, 20) do
+        # 85% alphanumeric characters
+        x when x < 17 ->
+          Enum.random([
+            Enum.random(?A..?Z),
+            Enum.random(?a..?z),
+            Enum.random(?0..?9)
+          ])
+
+        # 15% special base64 characters
+        _ ->
+          Enum.random([?+, ?/, ?=, ?_, ?-])
+      end
+    end)
+    |> List.to_string()
+
+  "0~#{content}"
+end
+
+cacheable_tasks =
+  build_records
+  |> Enum.map(& &1.id)
+  |> Enum.shuffle()
+  |> Enum.take(500)
+  |> Enum.flat_map(fn build_id ->
+    build = Enum.find(builds, &(&1.id == build_id))
+    total_tasks = build.cacheable_tasks_count
+    remote_hits = build.cacheable_task_remote_hits_count
+    local_hits = build.cacheable_task_local_hits_count
+    misses = total_tasks - remote_hits - local_hits
+
+    tasks = []
+
+    tasks =
+      if remote_hits > 0 do
+        tasks ++
+          Enum.map(1..remote_hits, fn i ->
+            %{
+              build_run_id: build_id,
+              type: Enum.random(["clang", "swift"]),
+              status: "hit_remote",
+              key: generate_cache_key.(build_id, "remote", i),
+              inserted_at: DateTime.to_naive(build.inserted_at)
+            }
+          end)
+      else
+        tasks
+      end
+
+    tasks =
+      if local_hits > 0 do
+        tasks ++
+          Enum.map(1..local_hits, fn i ->
+            %{
+              build_run_id: build_id,
+              type: Enum.random(["clang", "swift"]),
+              status: "hit_local",
+              key: generate_cache_key.(build_id, "local", i),
+              inserted_at: DateTime.to_naive(build.inserted_at)
+            }
+          end)
+      else
+        tasks
+      end
+
+    tasks =
+      if misses > 0 do
+        tasks ++
+          Enum.map(1..misses, fn i ->
+            %{
+              build_run_id: build_id,
+              type: Enum.random(["clang", "swift"]),
+              status: "miss",
+              key: generate_cache_key.(build_id, "miss", i),
+              inserted_at: DateTime.to_naive(build.inserted_at)
+            }
+          end)
+      else
+        tasks
+      end
+
+    tasks
+  end)
+
+cacheable_tasks
+|> Enum.chunk_every(1000)
+|> Enum.each(fn chunk ->
+  IngestRepo.insert_all(Tuist.Runs.CacheableTask, chunk)
+end)
 
 command_events =
   Enum.map(1..8000, fn _event ->

@@ -25,6 +25,7 @@ public final class MockEnvironment: Environmenting {
             directory = .owned(try TemporaryDirectory(removeTreeOnDeinit: true))
         }
         stateDirectory = directory.path.appending(component: "state")
+        cacheDirectory = directory.path.appending(component: ".cache")
         homeDirectory = directory.path.appending(components: "home")
     }
 
@@ -59,9 +60,7 @@ public final class MockEnvironment: Environmenting {
         directory.path.appending(components: "current")
     }
 
-    public var cacheDirectory: AbsolutePath {
-        directory.path.appending(components: ".cache")
-    }
+    public var cacheDirectory: AbsolutePath
 
     public var stateDirectory: AbsolutePath
 

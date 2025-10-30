@@ -174,6 +174,31 @@ mix test test/tuist_web/live/dashboard_live_test.exs
     - Timestamps in `lib/` should be `:utc_datetime`.
 - **Comments:** Add comments for complex logic or non-obvious code. Remove `TODO` comments once addressed.
 
+## Translation Management (Gettext)
+
+**Important:** Translations are managed through Weblate. Do not manually edit translation files.
+
+**Translation File Types:**
+- `.pot` files (templates) - **CAN be modified** by developers when adding/changing translatable strings
+- `.po` files (translations) - **MUST NOT be modified** by developers
+- Only the `tuistit` bot should modify `.po` files
+
+**Workflow:**
+1. Add translatable strings using `dgettext/2` in your code
+2. Run `mix gettext.extract` to update the `.pot` template files
+3. Commit only the `.pot` files (and your code changes)
+4. Weblate will automatically sync the `.pot` changes and create translation PRs via the `tuistit` bot
+5. **Never run `mix gettext.extract --merge`** in your PRs as this modifies `.po` files
+
+**Key Principles:**
+- Currency symbols and monetary amounts should NOT be wrapped in `dgettext/2` - they must remain consistent across languages
+- Descriptive text around prices (like "and up", "per unit") SHOULD be translatable
+- Example: `"0€ " <> dgettext("marketing", "and up")` ✅
+- Anti-example: `dgettext("marketing", "0€ and up")` ❌
+
+**CI Protection:**
+The CI pipeline will fail if any `.po` files are modified by anyone other than `tuistit`.
+
 ## Deployment
 
 The application deploys to Fly.io with different environments:
@@ -394,3 +419,4 @@ This documentation is critical for:
 - Incident response and data breach notifications
 
 **Failure to keep this documentation current could result in incomplete data exports for legal requests, potentially leading to compliance violations.**
+- Don't modify content in languages other than English (source language)

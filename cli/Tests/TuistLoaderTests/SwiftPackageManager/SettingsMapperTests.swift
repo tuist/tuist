@@ -345,6 +345,44 @@ final class SettingsMapperTests: XCTestCase {
             .array(["$(inherited)", "Define1"])
         )
     }
+
+    func test_strict_memory_safety_warnings() throws {
+        let settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting] = [
+            .init(tool: .swift, name: .strictMemorySafety, condition: nil, value: ["warnings"]),
+        ]
+
+        let mapper = SettingsMapper(
+            headerSearchPaths: [],
+            mainRelativePath: try RelativePath(validating: "path"),
+            settings: settings
+        )
+
+        let resolvedSettings = try mapper.settingsDictionary()
+
+        XCTAssertEqual(
+            resolvedSettings["OTHER_SWIFT_FLAGS"],
+            .array(["$(inherited)", "-strict-memory-safety"])
+        )
+    }
+
+    func test_strict_memory_safety_errors() throws {
+        let settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting] = [
+            .init(tool: .swift, name: .strictMemorySafety, condition: nil, value: ["errors"]),
+        ]
+
+        let mapper = SettingsMapper(
+            headerSearchPaths: [],
+            mainRelativePath: try RelativePath(validating: "path"),
+            settings: settings
+        )
+
+        let resolvedSettings = try mapper.settingsDictionary()
+
+        XCTAssertEqual(
+            resolvedSettings["OTHER_SWIFT_FLAGS"],
+            .array(["$(inherited)", "-strict-memory-safety", "-Werror=StrictMemorySafety"])
+        )
+    }
 }
 
 // OTHER_LDFLAGS

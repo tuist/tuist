@@ -12,6 +12,8 @@
   }
 
   & blockquote {
+    margin-inline-start: 0px;
+    margin-inline-end: 0px;
     box-shadow:
       0 1px 1px 0 rgba(22, 24, 28, 0.05),
       0 0 0 1px rgba(46, 51, 56, 0.08),

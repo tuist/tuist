@@ -195,7 +195,8 @@ struct InspectBuildCommandService {
             ciRunId: ciInfo?.runId,
             ciProjectHandle: ciInfo?.projectHandle,
             ciHost: ciInfo?.host,
-            ciProvider: ciInfo?.provider
+            ciProvider: ciInfo?.provider,
+            cacheableTasks: xcactivityLog.cacheableTasks
         )
         AlertController.current.success(
             .alert("View the analyzed build at \(build.url.absoluteString)")

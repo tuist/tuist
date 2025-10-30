@@ -12,12 +12,23 @@ defmodule Tuist.Runs do
   alias Tuist.Runs.BuildFile
   alias Tuist.Runs.BuildIssue
   alias Tuist.Runs.BuildTarget
+  alias Tuist.Runs.CacheableTask
 
   def get_build(id) do
     Repo.get(Build, id)
   end
 
   def create_build(attrs) do
+    cacheable_tasks = Map.get(attrs, :cacheable_tasks, [])
+
+    cacheable_task_counts = %{
+      cacheable_tasks_count: length(cacheable_tasks),
+      cacheable_task_local_hits_count: Enum.count(cacheable_tasks, &(&1.status == :hit_local)),
+      cacheable_task_remote_hits_count: Enum.count(cacheable_tasks, &(&1.status == :hit_remote))
+    }
+
+    attrs = Map.merge(attrs, cacheable_task_counts)
+
     case %Build{}
          |> Build.create_changeset(attrs)
          |> Repo.insert() do
@@ -26,7 +37,8 @@ defmodule Tuist.Runs do
           [
             Task.async(fn -> create_build_issues(build, attrs.issues) end),
             Task.async(fn -> create_build_files(build, attrs.files) end),
-            Task.async(fn -> create_build_targets(build, attrs.targets) end)
+            Task.async(fn -> create_build_targets(build, attrs.targets) end),
+            Task.async(fn -> create_cacheable_tasks(build, cacheable_tasks) end)
           ],
           30_000
         )
@@ -123,12 +135,34 @@ defmodule Tuist.Runs do
     )
   end
 
+  defp create_cacheable_tasks(build, tasks) do
+    tasks =
+      tasks
+      |> Enum.map(&CacheableTask.changeset(build.id, &1))
+      |> Enum.map(&Ecto.Changeset.apply_changes/1)
+      |> Enum.map(fn struct ->
+        %{
+          type: struct.type,
+          status: struct.status,
+          key: struct.key,
+          build_run_id: struct.build_run_id,
+          inserted_at: struct.inserted_at
+        }
+      end)
+
+    IngestRepo.insert_all(CacheableTask, tasks)
+  end
+
   def list_build_files(attrs) do
     Tuist.ClickHouseFlop.validate_and_run!(BuildFile, attrs, for: BuildFile)
   end
 
   def list_build_targets(attrs) do
     Tuist.ClickHouseFlop.validate_and_run!(BuildTarget, attrs, for: BuildTarget)
+  end
+
+  def list_cacheable_tasks(attrs) do
+    Tuist.ClickHouseFlop.validate_and_run!(CacheableTask, attrs, for: CacheableTask)
   end
 
   def list_build_runs(attrs, opts \\ []) do

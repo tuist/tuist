@@ -657,6 +657,7 @@ extension PackageInfo {
                     checksum: nil
                 ),
             ],
+            traits: nil,
             platforms: [
                 .init(platformName: "ios", version: "11.0", options: []),
                 .init(platformName: "macos", version: "10.15", options: []),
@@ -705,6 +706,7 @@ extension PackageInfo {
                     checksum: nil
                 ),
             ],
+            traits: nil,
             platforms: [
                 .init(platformName: "ios", version: ProjectDescription.Platform.iOS.testVersion(), options: []),
                 .init(platformName: "macos", version: ProjectDescription.Platform.macOS.testVersion(), options: []),
@@ -738,6 +740,7 @@ extension PackageInfo {
                     checksum: nil
                 ),
             ],
+            traits: nil,
             platforms: [
                 .init(platformName: "ios", version: ProjectDescription.Platform.iOS.testVersion(), options: []),
                 .init(platformName: "macos", version: ProjectDescription.Platform.macOS.testVersion(), options: []),
@@ -921,6 +924,7 @@ extension PackageInfo {
                     checksum: nil
                 ),
             ],
+            traits: nil,
             platforms: [
                 .init(platformName: "macos", version: ProjectDescription.Platform.macOS.testVersion(), options: []),
                 .init(platformName: "ios", version: ProjectDescription.Platform.iOS.testVersion(), options: []),
@@ -1378,6 +1382,7 @@ extension PackageInfo {
                     checksum: "e367d34b193cc65e4beb441092a28112007de4aa67323a85487067de62710718"
                 ),
             ],
+            traits: nil,
             platforms: [
                 .init(platformName: "ios", version: "10.0", options: []),
             ],
@@ -1451,6 +1456,7 @@ extension PackageInfo {
                     checksum: nil
                 ),
             ],
+            traits: nil,
             platforms: [
                 .init(platformName: "ios", version: "10.0", options: []),
             ],
@@ -1482,6 +1488,7 @@ extension PackageInfo {
                     checksum: nil
                 ),
             ],
+            traits: nil,
             platforms: [
                 .init(platformName: "ios", version: "10.0", options: []),
             ],

@@ -23,7 +23,8 @@ defmodule TuistTestSupport.Utilities do
       "TRUNCATE TABLE IF EXISTS command_events",
       "TRUNCATE TABLE IF EXISTS xcode_graphs",
       "TRUNCATE TABLE IF EXISTS xcode_projects",
-      "TRUNCATE TABLE IF EXISTS xcode_targets"
+      "TRUNCATE TABLE IF EXISTS xcode_targets",
+      "TRUNCATE TABLE IF EXISTS cacheable_tasks"
     ]
 
     for command <- commands do

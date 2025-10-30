@@ -941,7 +941,7 @@ defmodule Tuist.AccountsTest do
 
   describe "invite_user_to_organization/2" do
     setup do
-      stub(Environment, :smtp_user_name, fn -> "smtp_user_name" end)
+      stub(Environment, :mailing_from_address, fn -> "noreply@tuist.dev" end)
       :ok
     end
 
@@ -1765,7 +1765,7 @@ defmodule Tuist.AccountsTest do
 
   describe "deliver_user_confirmation_instructions/2" do
     setup do
-      stub(Environment, :smtp_user_name, fn -> "stmp_user_name" end)
+      stub(Environment, :mailing_from_address, fn -> "noreply@tuist.dev" end)
       %{user: user_fixture(confirmed_at: nil)}
     end
 
@@ -1790,7 +1790,7 @@ defmodule Tuist.AccountsTest do
     setup do
       user = user_fixture(confirmed_at: nil)
 
-      stub(Environment, :smtp_user_name, fn -> "stmp_user_name" end)
+      stub(Environment, :mailing_from_address, fn -> "noreply@tuist.dev" end)
 
       token =
         extract_user_token(fn confirmation_url ->
@@ -1827,7 +1827,7 @@ defmodule Tuist.AccountsTest do
 
   describe "deliver_user_reset_password_instructions/2" do
     setup do
-      stub(Environment, :smtp_user_name, fn -> "stmp_user_name" end)
+      stub(Environment, :mailing_from_address, fn -> "noreply@tuist.dev" end)
       %{user: user_fixture()}
     end
 
@@ -1852,7 +1852,7 @@ defmodule Tuist.AccountsTest do
     setup do
       user = user_fixture()
 
-      stub(Environment, :smtp_user_name, fn -> "stmp_user_name" end)
+      stub(Environment, :mailing_from_address, fn -> "noreply@tuist.dev" end)
 
       token =
         extract_user_token(fn reset_password_url ->
@@ -2884,6 +2884,40 @@ defmodule Tuist.AccountsTest do
       # Then
       assert got_organization.id == organization.id
       assert got_organization.sso_provider == :okta
+    end
+
+    test "falls back to domain-based matching when user doesn't exist" do
+      # Given - no user exists but organization exists for domain
+      AccountsFixtures.organization_fixture(
+        sso_provider: :okta,
+        sso_organization_id: "company.okta.com"
+      )
+
+      # When
+      {:ok, organization} = Accounts.okta_organization_for_user_email("newuser@company.com")
+
+      # Then
+      assert organization.sso_provider == :okta
+      assert organization.sso_organization_id == "company.okta.com"
+    end
+
+    test "falls back to domain-based matching when user has no okta organization" do
+      # Given
+      user = AccountsFixtures.user_fixture(email: "user@company.com")
+      # User has no organization
+
+      # But organization exists for domain
+      AccountsFixtures.organization_fixture(
+        sso_provider: :okta,
+        sso_organization_id: "company.okta.com"
+      )
+
+      # When
+      {:ok, organization} = Accounts.okta_organization_for_user_email(user.email)
+
+      # Then
+      assert organization.sso_provider == :okta
+      assert organization.sso_organization_id == "company.okta.com"
     end
 
     test "returns error when user does not exist" do
