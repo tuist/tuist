@@ -25,11 +25,19 @@ public struct InstallCommand: AsyncParsableCommand {
         envKey: .installUpdate
     )
     var update: Bool = false
+    
+    @Argument(
+        parsing: .captureForPassthrough,
+        help: "Arguments to pass to the underlying 'swift package' invocation",
+        envKey: .installPassthroughArguments
+    )
+    public var passthroughArguments: [String] = []
 
     public func run() async throws {
         try await InstallService().run(
             path: path,
-            update: update
+            update: update,
+            passthroughArguments: passthroughArguments
         )
     }
 }
