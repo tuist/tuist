@@ -63,7 +63,7 @@ Accounts.update_okta_configuration(organization.id, %{
   okta_client_id: System.get_env("TUIST_OKTA_1_CLIENT_ID"),
   okta_client_secret: System.get_env("TUIST_OKTA_1_CLIENT_SECRET"),
   sso_provider: :okta,
-  sso_organization_id: "trial-2983119-admin.okta.com"
+  sso_organization_id: "trial-2983119.okta.com"
 })
 
 _public_project =
