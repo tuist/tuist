@@ -51,9 +51,24 @@ Hooks.StopPropagationOnDrag = StopPropagationOnDrag;
 observeThemeChanges();
 Hooks.ThemeSwitcher = ThemeSwitcher;
 
-// Get user timezone for LiveView
+// Get user timezone for LiveView and store in cookie
 function getUserTimezone() {
-  return Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  // Store in cookie for server-side access on refresh
+  document.cookie = `user_timezone=${encodeURIComponent(timezone)}; path=/; SameSite=Lax; max-age=31536000`; // 1 year
+  return timezone;
+}
+
+// Get timezone from cookie if available (for page refresh)
+function getTimezoneFromCookie() {
+  const cookies = document.cookie.split(';');
+  for (let cookie of cookies) {
+    const [name, value] = cookie.trim().split('=');
+    if (name === 'user_timezone') {
+      return decodeURIComponent(value);
+    }
+  }
+  return null;
 }
 
 let liveSocket = new LiveSocket("/live", Socket, {
@@ -61,7 +76,7 @@ let liveSocket = new LiveSocket("/live", Socket, {
   params: { 
     _csrf_token: csrfToken, 
     _csp_nonce: cspNonce, 
-    user_timezone: getUserTimezone() 
+    user_timezone: getTimezoneFromCookie() || getUserTimezone() 
   },
   hooks: { ...Hooks, ...Noora.Hooks },
 });
@@ -74,14 +89,6 @@ topbar.config({
 window.addEventListener("phx:page-loading-start", (_info) => topbar.show(300));
 window.addEventListener("phx:page-loading-stop", (_info) => topbar.hide());
 
-// Detect and store user timezone in cookie
-function setUserTimezone() {
-  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  document.cookie = `user_timezone=${encodeURIComponent(timezone)}; path=/; SameSite=Lax`;
-}
-
-// Set timezone on page load
-setUserTimezone();
 
 // connect if there are any LiveViews on the page
 liveSocket.connect();

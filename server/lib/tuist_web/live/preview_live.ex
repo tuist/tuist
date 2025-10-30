@@ -12,12 +12,17 @@ defmodule TuistWeb.PreviewLive do
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Utilities.SHA
 
-  def mount(%{"id" => preview_id} = _params, _session, %{assigns: %{selected_project: selected_project}} = socket) do
-    # Get user timezone from LiveView connection params
+  def mount(%{"id" => preview_id} = _params, session, %{assigns: %{selected_project: selected_project}} = socket) do
+    # Get user timezone from session (set by Timezone plug from cookie) or LiveView connection params (fallback)
     user_timezone = 
-      case get_connect_params(socket) do
-        %{"user_timezone" => timezone} -> timezone
-        _ -> nil
+      case Map.get(session, "user_timezone") do
+        nil ->
+          case get_connect_params(socket) do
+            %{"user_timezone" => timezone} -> timezone
+            _ -> nil
+          end
+        timezone -> 
+          timezone
       end
 
     preview =

@@ -15,12 +15,17 @@ defmodule TuistWeb.BundleLive do
 
   @table_page_size 20
 
-  def mount(%{"bundle_id" => bundle_id}, _session, %{assigns: %{selected_project: selected_project}} = socket) do
-    # Get user timezone from LiveView connection params
+  def mount(%{"bundle_id" => bundle_id}, session, %{assigns: %{selected_project: selected_project}} = socket) do
+    # Get user timezone from session (set by Timezone plug from cookie) or LiveView connection params (fallback)
     user_timezone = 
-      case get_connect_params(socket) do
-        %{"user_timezone" => timezone} -> timezone
-        _ -> nil
+      case Map.get(session, "user_timezone") do
+        nil ->
+          case get_connect_params(socket) do
+            %{"user_timezone" => timezone} -> timezone
+            _ -> nil
+          end
+        timezone -> 
+          timezone
       end
     bundle = get_selected_bundle(bundle_id)
 

@@ -12,12 +12,17 @@ defmodule TuistWeb.RunDetailLive do
 
   @table_page_size 20
 
-  def mount(_params, _session, %{assigns: %{selected_project: project, selected_run: run}} = socket) do
-    # Get user timezone from LiveView connection params
+  def mount(_params, session, %{assigns: %{selected_project: project, selected_run: run}} = socket) do
+    # Get user timezone from session (set by Timezone plug from cookie) or LiveView connection params (fallback)
     user_timezone = 
-      case get_connect_params(socket) do
-        %{"user_timezone" => timezone} -> timezone
-        _ -> nil
+      case Map.get(session, "user_timezone") do
+        nil ->
+          case get_connect_params(socket) do
+            %{"user_timezone" => timezone} -> timezone
+            _ -> nil
+          end
+        timezone -> 
+          timezone
       end
 
     user =
