@@ -75,17 +75,3 @@ tuist install --force-resolved-versions
 ```
 
 This flag ensures that dependencies are resolved using the exact versions pinned in `Package.resolved`, eliminating issues caused by non-determinism in dependency resolution. This is particularly important on CI where reproducible builds are critical.
-
-If you want this behavior to be the default for all environments (including developer machines), you can configure it in your `Tuist.swift`:
-
-```swift
-import ProjectDescription
-
-let tuist = Tuist(
-  project: .tuist(
-    installOptions: .options(
-        passthroughSwiftPackageManagerArguments: ["--force-resolved-versions"]
-    )
-  )
-)
-```
