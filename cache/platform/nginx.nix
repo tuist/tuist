@@ -8,7 +8,26 @@
     recommendedGzipSettings = true;
     recommendedOptimisation = true;
     recommendedProxySettings = true;
-    recommendedTlsSettings = true;
+    # Disable to avoid conflicts with custom TLS tuning below
+    recommendedTlsSettings = false;
+
+    # Global HTTP/TLS tuning. Focus: fewer TLS handshakes and longer-lived
+    # client connections to reduce CPU without relying on open_file_cache.
+    appendHttpConfig = ''
+      # Reuse TLS sessions aggressively to cut handshake CPU
+      ssl_session_cache shared:SSL:50m;
+      ssl_session_timeout 1h;
+      ssl_session_tickets off;
+      ssl_prefer_server_ciphers off;
+      ssl_stapling on;
+      ssl_stapling_verify on;
+
+      # Keep connections hot; rely on module's keepalive_timeout; set requests only
+      keepalive_requests 10000;
+
+      # Increase HTTP/2 concurrency (applies when http2 is negotiated)
+      http2_max_concurrent_streams 512;
+    '';
 
     virtualHosts = {
       "${config.networking.hostName}.tuist.dev" = {
@@ -45,6 +64,8 @@
           extraConfig = ''
             internal;
             access_log off;
+            # Disable compression for opaque CAS blobs to save CPU
+            gzip off;
             add_header Cache-Control "public, max-age=31536000, immutable";
           '';
         };
