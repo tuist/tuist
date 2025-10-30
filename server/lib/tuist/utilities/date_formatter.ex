@@ -162,21 +162,4 @@ defmodule Tuist.Utilities.DateFormatter do
     "Unknown"
   end
 
-  @doc """
-  Convert datetime to ISO8601 format for HTML datetime attributes.
-  
-  Handles both DateTime and NaiveDateTime structs.
-  """
-  def to_iso8601(%DateTime{} = datetime) do
-    DateTime.to_iso8601(datetime)
-  end
-
-  def to_iso8601(%NaiveDateTime{} = naive_datetime) do
-    # Convert NaiveDateTime to DateTime assuming UTC, then to ISO8601
-    naive_datetime
-    |> DateTime.from_naive!("Etc/UTC")
-    |> DateTime.to_iso8601()
-  end
-
-  def to_iso8601(_), do: ""
 end

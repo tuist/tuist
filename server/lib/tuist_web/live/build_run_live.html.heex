@@ -121,9 +121,7 @@
             <div data-part="metadata">
               <div data-part="title">{gettext("Built at")}</div>
               <span data-part="label">
-                <time datetime={Tuist.Utilities.DateFormatter.to_iso8601(@run.inserted_at)}>
-                  {Tuist.Utilities.DateFormatter.format_with_timezone(@run.inserted_at, @user_timezone)}
-                </time>
+                {Tuist.Utilities.DateFormatter.format_with_timezone(@run.inserted_at, @user_timezone)}
               </span>
             </div>
           </div>
