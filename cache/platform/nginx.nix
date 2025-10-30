@@ -8,24 +8,18 @@
     recommendedGzipSettings = true;
     recommendedOptimisation = true;
     recommendedProxySettings = true;
-    # Disable to avoid conflicts with custom TLS tuning below
     recommendedTlsSettings = false;
 
-    # Global HTTP/TLS tuning. Focus: fewer TLS handshakes and longer-lived
-    # client connections to reduce CPU without relying on open_file_cache.
     appendHttpConfig = ''
-      # Reuse TLS sessions aggressively to cut handshake CPU
+      http2 on;
       ssl_session_cache shared:SSL:50m;
       ssl_session_timeout 1h;
-      ssl_session_tickets off;
+      # Enable session tickets to maximize TLS resumption (CPU savings)
+      ssl_session_tickets on;
       ssl_prefer_server_ciphers off;
       ssl_stapling on;
       ssl_stapling_verify on;
-
-      # Keep connections hot; rely on module's keepalive_timeout; set requests only
       keepalive_requests 10000;
-
-      # Increase HTTP/2 concurrency (applies when http2 is negotiated)
       http2_max_concurrent_streams 512;
     '';
 
@@ -38,6 +32,51 @@
           client_max_body_size 0;
           client_body_timeout 30m;
         '';
+
+        # Intercept GET/HEAD to legacy API route and serve directly from disk
+        # after authorizing via auth_request. Other methods (e.g. POST) fall through
+        # to Phoenix via the root proxy location.
+        locations."~ ^/api/cache/cas/[^/?]+$" = {
+          extraConfig = ''
+            # Only handle GET/HEAD here; send others to Phoenix
+            error_page 405 = @apicas_proxy;
+            limit_except GET HEAD { return 405; }
+
+            # Authorize by consulting Phoenix with project context from query args
+            auth_request /_auth_cas?account_handle=$arg_account_handle&project_handle=$arg_project_handle;
+
+            # After auth, rewrite to internal-cas path and let nginx serve from disk
+            rewrite ^/api/cache/cas/(.*)$ /internal-cas/$arg_account_handle/$arg_project_handle/cas/$1 last;
+
+            access_log off;
+            gzip off;
+          '';
+        };
+
+        # Fallback named location to proxy to Phoenix for non-GET/HEAD
+        locations."@apicas_proxy" = {
+          proxyPass = "http://127.0.0.1:4000";
+          proxyWebsockets = false;
+          extraConfig = ''
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_set_header X-Forwarded-Host $host;
+            proxy_set_header X-Forwarded-Port $server_port;
+          '';
+        };
+
+        locations."=/_auth_cas" = {
+          extraConfig = ''
+            internal;
+            proxy_pass_request_body off;
+            proxy_set_header Content-Length "";
+            proxy_set_header X-Request-ID $request_id;
+            proxy_set_header Authorization $http_authorization;
+            proxy_method HEAD;
+            proxy_pass http://127.0.0.1:4000/auth/cas$is_args$args;
+          '';
+        };
 
         locations."/" = {
           proxyPass = "http://127.0.0.1:4000";
@@ -64,6 +103,7 @@
           extraConfig = ''
             internal;
             access_log off;
+            default_type application/octet-stream;
             # Disable compression for opaque CAS blobs to save CPU
             gzip off;
             add_header Cache-Control "public, max-age=31536000, immutable";

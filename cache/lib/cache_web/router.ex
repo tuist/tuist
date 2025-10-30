@@ -17,7 +17,10 @@ defmodule CacheWeb.Router do
   end
 
   scope "/api/cache", CacheWeb do
-    get "/cas/:id", CASController, :load
     post "/cas/:id", CASController, :save
+  end
+
+  scope "/auth", CacheWeb do
+    head "/cas", CASController, :authorize
   end
 end

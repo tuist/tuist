@@ -6,23 +6,14 @@ defmodule CacheWeb.CASController do
 
   require Logger
 
-  def load(conn, %{"id" => id, "account_handle" => account_handle, "project_handle" => project_handle}) do
-    case Authentication.ensure_project_accessible(conn, account_handle, project_handle) do
-      {:ok, _auth_header} ->
-        key = cas_key(account_handle, project_handle, id)
-        redirect_path = "/internal-cas/#{key}"
-
-        conn
-        |> put_resp_header("x-accel-redirect", redirect_path)
-        |> put_resp_header("content-type", "application/octet-stream")
-        |> send_resp(200, "")
-
-      {:error, status, message} ->
-        conn
-        |> put_status(status)
-        |> json(%{message: message})
+  def authorize(conn, %{"account_handle" => account, "project_handle" => project}) do
+    case Authentication.ensure_project_accessible(conn, account, project) do
+      {:ok, _} -> send_resp(conn, :no_content, "")
+      {:error, status, _} -> send_resp(conn, status, "")
     end
   end
+
+  def authorize(conn, _), do: send_resp(conn, :bad_request, "")
 
   defp cas_key(account_handle, project_handle, id) do
     "#{account_handle}/#{project_handle}/cas/#{id}"
@@ -93,4 +84,6 @@ defmodule CacheWeb.CASController do
   end
 
   defp cleanup_tempfile(_), do: :ok
+
+  # No URI fallback; nginx passes explicit project context via query params
 end
