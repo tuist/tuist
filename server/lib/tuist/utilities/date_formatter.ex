@@ -119,7 +119,7 @@ defmodule Tuist.Utilities.DateFormatter do
 
       iex> DateFormatter.format_with_timezone(~U[2024-01-15 14:30:25Z], "America/New_York")
       "Mon 15 Jan 09:30:25 EST"
-      
+
       iex> DateFormatter.format_with_timezone(~U[2024-01-15 14:30:25Z], nil)
       "Mon 15 Jan 14:30:25 UTC"
   """
@@ -153,7 +153,7 @@ defmodule Tuist.Utilities.DateFormatter do
     Timex.format!(naive_datetime, "{WDshort} {D} {Mshort} {h24}:{m}:{s}") <> " UTC"
   end
 
-  def format_with_timezone(datetime, _timezone) do
+  def format_with_timezone(_datetime, _timezone) do
     # Fallback for other types
     "Unknown"
   end
