@@ -22,6 +22,12 @@ h6 {
   margin: 0;
 }
 
+html {
+  --hits-chart-legend-remote: light-dark(var(--noora-blue-300), var(--noora-blue-700));
+  --hits-chart-legend-missed: light-dark(var(--noora-orange-300), var(--noora-orange-700));
+  --hits-chart-legend-local: light-dark(var(--noora-pink-300), var(--noora-pink-700));
+}
+
 html:not(:has([data-theme])) {
   @media (prefers-color-scheme: dark) {
     & img[data-theme="light"] {

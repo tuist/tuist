@@ -57,6 +57,8 @@ defmodule TuistWeb.BuildRunLive do
       |> assign(:file_breakdown_active_filters, [])
       |> assign(:module_breakdown_available_filters, define_module_breakdown_filters())
       |> assign(:module_breakdown_active_filters, [])
+      |> assign(:cacheable_tasks_available_filters, define_cacheable_tasks_filters())
+      |> assign(:cacheable_tasks_active_filters, [])
       |> assign_async(:has_result_bundle, fn ->
         {:ok, %{has_result_bundle: (command_event && CommandEvents.has_result_bundle?(command_event)) || false}}
       end)
@@ -72,35 +74,42 @@ defmodule TuistWeb.BuildRunLive do
             file_breakdown_available_filters: file_breakdown_available_filters,
             file_breakdown_active_filters: file_breakdown_active_filters,
             module_breakdown_available_filters: module_breakdown_available_filters,
-            module_breakdown_active_filters: module_breakdown_active_filters
+            module_breakdown_active_filters: module_breakdown_active_filters,
+            cacheable_tasks_available_filters: cacheable_tasks_available_filters,
+            cacheable_tasks_active_filters: cacheable_tasks_active_filters
           }
         } = socket
       ) do
     uri = URI.new!("?" <> URI.encode_query(params))
     selected_breakdown_tab = params["breakdown-tab"] || "module"
 
+    selected_tab = params["tab"] || "overview"
+
     available_filters =
-      case selected_breakdown_tab do
-        "file" -> file_breakdown_available_filters
-        "module" -> module_breakdown_available_filters
+      case {selected_tab, selected_breakdown_tab} do
+        {"overview", "file"} -> file_breakdown_available_filters
+        {"overview", "module"} -> module_breakdown_available_filters
+        {"cache", _} -> cacheable_tasks_available_filters
         _ -> []
       end
 
     active_filters =
-      case selected_breakdown_tab do
-        "file" -> file_breakdown_active_filters
-        "module" -> module_breakdown_active_filters
+      case {selected_tab, selected_breakdown_tab} do
+        {"overview", "file"} -> file_breakdown_active_filters
+        {"overview", "module"} -> module_breakdown_active_filters
+        {"cache", _} -> cacheable_tasks_active_filters
         _ -> []
       end
 
     socket =
       socket
-      |> assign(:selected_tab, params["tab"] || "overview")
+      |> assign(:selected_tab, selected_tab)
       |> assign(:uri, uri)
       |> assign(:available_filters, available_filters)
       |> assign(:active_filters, active_filters)
       |> assign_file_breakdown(params)
       |> assign_module_breakdown(params)
+      |> assign_cacheable_tasks(params)
       |> assign(:selected_breakdown_tab, selected_breakdown_tab)
 
     {
@@ -134,6 +143,21 @@ defmodule TuistWeb.BuildRunLive do
         socket,
         to:
           "/#{selected_account.name}/#{selected_project.name}/builds/build-runs/#{run.id}?#{uri.query |> Query.put("module-breakdown-search", search) |> Query.drop("module-breakdown-page")}"
+      )
+
+    {:noreply, socket}
+  end
+
+  def handle_event(
+        "search-cacheable-tasks",
+        %{"search" => search},
+        %{assigns: %{selected_account: selected_account, selected_project: selected_project, run: run, uri: uri}} = socket
+      ) do
+    socket =
+      push_patch(
+        socket,
+        to:
+          "/#{selected_account.name}/#{selected_project.name}/builds/build-runs/#{run.id}?#{uri.query |> Query.put("cacheable-tasks-search", search) |> Query.drop("cacheable-tasks-page")}"
       )
 
     {:noreply, socket}
@@ -281,6 +305,10 @@ defmodule TuistWeb.BuildRunLive do
       "name" -> [:name]
       _ -> [:name]
     end
+  end
+
+  defp cacheable_tasks_order_by(_cacheable_tasks_sort_by) do
+    [:key]
   end
 
   defp assign_module_breakdown(
@@ -635,6 +663,24 @@ defmodule TuistWeb.BuildRunLive do
     "?#{query}"
   end
 
+  def cacheable_tasks_column_patch_sort(
+        %{
+          uri: uri,
+          cacheable_tasks_sort_by: cacheable_tasks_sort_by,
+          cacheable_tasks_sort_order: cacheable_tasks_sort_order
+        } = _assigns,
+        column_value
+      ) do
+    sort_order =
+      case {cacheable_tasks_sort_by == column_value, cacheable_tasks_sort_order} do
+        {true, "asc"} -> "desc"
+        {true, _} -> "asc"
+        {false, _} -> "asc"
+      end
+
+    "?#{uri.query |> Query.put("cacheable-tasks-sort-by", column_value) |> Query.put("cacheable-tasks-sort-order", sort_order) |> Query.drop("cacheable-tasks-page")}"
+  end
+
   defp define_file_breakdown_filters do
     [
       %Filter.Filter{
@@ -712,6 +758,59 @@ defmodule TuistWeb.BuildRunLive do
         value: nil
       }
     ]
+  end
+
+  defp assign_cacheable_tasks(
+         %{assigns: %{run: run, cacheable_tasks_available_filters: available_filters}} = socket,
+         params
+       ) do
+    cacheable_tasks_search = params["cacheable-tasks-search"] || ""
+    cacheable_tasks_sort_by = params["cacheable-tasks-sort-by"] || "key"
+
+    default_sort_order =
+      case cacheable_tasks_sort_by do
+        "key" -> "desc"
+        _ -> "desc"
+      end
+
+    cacheable_tasks_sort_order = params["cacheable-tasks-sort-order"] || default_sort_order
+
+    cacheable_tasks_page =
+      params["cacheable-tasks-page"]
+      |> to_string()
+      |> Integer.parse()
+      |> case do
+        {int, _} -> int
+        :error -> 1
+      end
+
+    flop_filters = cacheable_tasks_filters(run, params, available_filters, cacheable_tasks_search)
+
+    order_by = cacheable_tasks_order_by(cacheable_tasks_sort_by)
+
+    order_directions = map_sort_order(cacheable_tasks_sort_order)
+
+    options = %{
+      filters: flop_filters,
+      page: cacheable_tasks_page,
+      page_size: 50,
+      order_by: order_by,
+      order_directions: order_directions
+    }
+
+    {tasks, tasks_meta} = Runs.list_cacheable_tasks(options)
+
+    filters =
+      Filter.Operations.decode_filters_from_query(params, available_filters)
+
+    socket
+    |> assign(:cacheable_tasks_search, cacheable_tasks_search)
+    |> assign(:cacheable_tasks, tasks)
+    |> assign(:cacheable_tasks_page, cacheable_tasks_page)
+    |> assign(:cacheable_tasks_meta, tasks_meta)
+    |> assign(:cacheable_tasks_active_filters, filters)
+    |> assign(:cacheable_tasks_sort_by, cacheable_tasks_sort_by)
+    |> assign(:cacheable_tasks_sort_order, cacheable_tasks_sort_order)
   end
 
   def empty_tab_state_background(assigns) do
@@ -807,5 +906,86 @@ defmodule TuistWeb.BuildRunLive do
       </defs>
     </svg>
     """
+  end
+
+  defp cacheable_tasks_filters(run, params, available_filters, search) do
+    base_filters =
+      [%{field: :build_run_id, op: :==, value: run.id}] ++
+        Filter.Operations.convert_filters_to_flop(Filter.Operations.decode_filters_from_query(params, available_filters))
+
+    if search && search != "" do
+      base_filters ++
+        [
+          %{field: :key, op: :like, value: search}
+        ]
+    else
+      base_filters
+    end
+  end
+
+  defp define_cacheable_tasks_filters do
+    [
+      %Filter.Filter{
+        id: "type",
+        field: :type,
+        display_name: gettext("Type"),
+        type: :option,
+        options: ["swift", "clang"],
+        options_display_names: %{
+          "swift" => "Swift",
+          "clang" => "Clang"
+        },
+        operator: :==,
+        value: nil
+      },
+      %Filter.Filter{
+        id: "status",
+        field: :status,
+        display_name: gettext("Hit"),
+        type: :option,
+        options: ["hit_local", "hit_remote", "miss"],
+        options_display_names: %{
+          "hit_local" => gettext("Local"),
+          "hit_remote" => gettext("Remote"),
+          "miss" => gettext("Missed")
+        },
+        operator: :==,
+        value: nil
+      }
+    ]
+  end
+
+  def cache_chart_border_radius(local_hits, remote_hits, misses, category) do
+    has_local = local_hits > 0
+    has_remote = remote_hits > 0
+    has_misses = misses > 0
+
+    case category do
+      :local when has_local ->
+        if not has_remote and not has_misses do
+          [6, 6, 6, 6]
+        else
+          [6, 0, 0, 6]
+        end
+
+      :remote when has_remote ->
+        cond do
+          not has_local and not has_misses -> [6, 6, 6, 6]
+          not has_local and not has_misses -> [6, 6, 6, 6]
+          not has_local and has_misses -> [6, 0, 0, 6]
+          has_local and not has_misses -> [0, 6, 6, 0]
+          true -> [0, 0, 0, 0]
+        end
+
+      :misses when has_misses ->
+        if not has_local and not has_remote do
+          [6, 6, 6, 6]
+        else
+          [0, 6, 6, 0]
+        end
+
+      _ ->
+        [0, 0, 0, 0]
+    end
   end
 end

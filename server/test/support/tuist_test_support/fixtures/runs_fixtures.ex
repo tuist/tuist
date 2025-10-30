@@ -38,7 +38,8 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
       ci_provider: Keyword.get(attrs, :ci_provider),
       issues: Keyword.get(attrs, :issues, []),
       files: Keyword.get(attrs, :files, []),
-      targets: Keyword.get(attrs, :targets, [])
+      targets: Keyword.get(attrs, :targets, []),
+      cacheable_tasks: Keyword.get(attrs, :cacheable_tasks, [])
     })
   end
 end

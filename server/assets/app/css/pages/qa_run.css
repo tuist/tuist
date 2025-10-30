@@ -509,10 +509,10 @@
 
               & > [data-part="step-action"] {
                 display: -webkit-box;
-                color: var(--noora-surface-label-primary);
-                font: var(--noora-font-weight-regular) var(--noora-font-body-small);
                 line-clamp: 2;
                 -webkit-line-clamp: 2;
+                color: var(--noora-surface-label-primary);
+                font: var(--noora-font-weight-regular) var(--noora-font-body-small);
                 -webkit-box-orient: vertical;
                 min-height: 32px;
                 overflow: hidden;

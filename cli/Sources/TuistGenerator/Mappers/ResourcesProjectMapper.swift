@@ -300,7 +300,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         """
         // MARK: - Objective-C Bundle Accessor
         @objc
-        public class \(target.productName.toValidSwiftIdentifier())Resources: NSObject {
+        public final class \(target.productName.toValidSwiftIdentifier())Resources: NSObject {
         @objc public class var bundle: Bundle {
             return .module
         }
