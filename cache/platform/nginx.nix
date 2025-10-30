@@ -39,8 +39,8 @@
             # Only allow GET/HEAD for this location
             if ($request_method !~ ^(GET|HEAD)$) { return 405; }
 
-            # Ask Phoenix to authorize using the same query string
-            auth_request /_auth_cas?$args;
+            # Ask Phoenix to authorize; pass account/project via path segments
+            auth_request /_auth_cas/$arg_account_handle/$arg_project_handle;
 
             # Serve file directly from disk
             default_type application/octet-stream;
@@ -56,7 +56,8 @@
 
         # (No special fallback: non-GET/HEAD returns 405)
 
-        locations."=/_auth_cas" = {
+        # Internal auth subrequest target
+        locations."~ ^/_auth_cas/(?<acc>[^/]+)/(?<proj>[^/]+)$" = {
           extraConfig = ''
             internal;
             proxy_pass_request_body off;
@@ -64,8 +65,7 @@
             proxy_set_header X-Request-ID $request_id;
             proxy_set_header Authorization $http_authorization;
             proxy_method HEAD;
-            # Forward the same query string (account_handle, project_handle)
-            proxy_pass http://127.0.0.1:4000/auth/cas?$args;
+            proxy_pass http://127.0.0.1:4000/auth/cas?account_handle=$acc&project_handle=$proj;
           '';
         };
 
