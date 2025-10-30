@@ -1,4 +1,4 @@
-defmodule TuistWeb.TimezoneHook do
+defmodule TuistWeb.Timezone do
   @moduledoc """
   LiveView hook to automatically assign user timezone to socket.
   """
