@@ -41,17 +41,28 @@ defmodule TuistWeb.AuthController do
                   "Successfully retrieved Okta config for organization: #{organization.id}, domain: #{config.domain}"
                 )
 
+                # Extract login_hint if provided
+                strategy_options = [
+                  client_id: config.client_id,
+                  client_secret: config.client_secret,
+                  site: "https://#{config.domain}"
+                ]
+
+                strategy_options = case params["login_hint"] do
+                  login_hint when is_binary(login_hint) ->
+                    log(:info, "Adding login_hint: #{login_hint}")
+                    Keyword.put(strategy_options, :login_hint, login_hint)
+                  _ ->
+                    strategy_options
+                end
+
                 conn
                 |> put_session(:okta_organization_id, organization_id)
                 |> Ueberauth.run_request(
                   "okta",
                   {
                     Ueberauth.Strategy.Okta,
-                    [
-                      client_id: config.client_id,
-                      client_secret: config.client_secret,
-                      site: "https://#{config.domain}"
-                    ]
+                    strategy_options
                   }
                 )
 
@@ -135,26 +146,11 @@ defmodule TuistWeb.AuthController do
     session_data = get_session(conn)
     log(:info, "Session data: #{inspect(session_data)}")
 
-    # Try to get organization ID from session first (existing flow), then from state parameter (new SSO flow)
-    organization_id = case session_data do
-      %{"okta_organization_id" => org_id} -> 
-        log(:info, "Successfully extracted organization_id from session: #{org_id}")
-        org_id
-      _ -> 
-        # Try to extract from state parameter
-        case extract_organization_id_from_state(params) do
-          {:ok, org_id} -> 
-            log(:info, "Successfully extracted organization_id from state: #{org_id}")
-            org_id
-          {:error, reason} -> 
-            log(:error, "Failed to extract organization_id from state: #{inspect(reason)}")
-            nil
-        end
-    end
+    case session_data do
+      %{"okta_organization_id" => organization_id} ->
+        log(:info, "Successfully extracted organization_id from session: #{organization_id}")
 
-    case organization_id do
-      org_id when not is_nil(org_id) ->
-        case Accounts.get_organization_by_id(org_id) do
+        case Accounts.get_organization_by_id(organization_id) do
           {:ok, %Organization{} = organization} ->
             log(:info, "Successfully found organization: #{inspect(organization.id)}")
 
@@ -194,7 +190,7 @@ defmodule TuistWeb.AuthController do
           error ->
             log(
               :error,
-              "Failed to find organization with id #{org_id}: #{inspect(error)}"
+              "Failed to find organization with id #{organization_id}: #{inspect(error)}"
             )
 
             conn
@@ -203,10 +199,10 @@ defmodule TuistWeb.AuthController do
             |> halt()
         end
 
-      nil ->
+      error ->
         log(
           :error,
-          "Failed to extract organization_id from session or state parameter"
+          "Failed to extract organization_id from session: #{inspect(session_data)}, error: #{inspect(error)}"
         )
 
         conn
@@ -236,24 +232,6 @@ defmodule TuistWeb.AuthController do
   defp create_device_code_if_absent(device_code) do
     if is_nil(Accounts.get_device_code(device_code)) do
       Accounts.create_device_code(device_code)
-    end
-  end
-
-  defp extract_organization_id_from_state(params) do
-    case params do
-      %{"state" => state} when is_binary(state) ->
-        try do
-          decoded_state = Base.url_decode64!(state)
-          state_data = :erlang.binary_to_term(decoded_state)
-          case state_data do
-            %{org_id: org_id} -> {:ok, org_id}
-            _ -> {:error, :invalid_state_format}
-          end
-        rescue
-          _ -> {:error, :invalid_state_encoding}
-        end
-      _ ->
-        {:error, :no_state_parameter}
     end
   end
 end

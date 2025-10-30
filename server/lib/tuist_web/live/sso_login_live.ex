@@ -5,8 +5,6 @@ defmodule TuistWeb.SSOLoginLive do
 
   alias Phoenix.Flash
   alias Tuist.Accounts
-  alias Tuist.OAuth.Okta
-  alias Tuist.Environment
 
   def mount(_params, _session, socket) do
     email = Flash.get(socket.assigns.flash, :email)
@@ -27,43 +25,14 @@ defmodule TuistWeb.SSOLoginLive do
   def handle_event("submit", %{"user" => %{"email" => email}}, socket) do
     case Accounts.okta_organization_for_user_email(email) do
       {:ok, organization} ->
-        case Okta.config_for_organization(organization) do
-          {:ok, config} ->
-            okta_url = build_okta_authorization_url(config, organization.id)
-            {:noreply, redirect(socket, external: okta_url)}
-
-          {:error, :okta_not_configured} ->
-            socket = put_flash(socket, :error, gettext("SSO is not configured for your organization"))
-            {:noreply, socket}
-        end
+        encoded_email = URI.encode_www_form(email)
+        redirect_url = "/users/auth/okta?organization_id=#{organization.id}&login_hint=#{encoded_email}"
+        {:noreply, redirect(socket, to: redirect_url)}
 
       {:error, :not_found} ->
         socket = put_flash(socket, :error, gettext("No SSO organization found for this email domain"))
         {:noreply, socket}
     end
-  end
-
-  defp build_okta_authorization_url(config, organization_id) do
-    base_url = "https://#{config.domain}"
-    callback_url = Environment.app_url(path: "/users/auth/okta/callback")
-    
-    # Encode organization ID in state parameter for callback processing
-    state_data = %{
-      random: Base.url_encode64(:crypto.strong_rand_bytes(16)),
-      org_id: organization_id
-    }
-    state = Base.url_encode64(:erlang.term_to_binary(state_data))
-
-    params = %{
-      client_id: config.client_id,
-      response_type: "code",
-      scope: "openid email profile",
-      redirect_uri: callback_url,
-      state: state
-    }
-
-    query_string = URI.encode_query(params)
-    "#{base_url}#{config.authorize_url}?#{query_string}"
   end
 
   def render(assigns) do
