@@ -13,6 +13,13 @@ defmodule TuistWeb.PreviewLive do
   alias TuistWeb.Utilities.SHA
 
   def mount(%{"id" => preview_id} = _params, _session, %{assigns: %{selected_project: selected_project}} = socket) do
+    # Get user timezone from LiveView connection params
+    user_timezone = 
+      case get_connect_params(socket) do
+        %{"user_timezone" => timezone} -> timezone
+        _ -> nil
+      end
+
     preview =
       get_current_preview(preview_id)
 
@@ -50,7 +57,8 @@ defmodule TuistWeb.PreviewLive do
       |> assign(
         :preview_url,
         url(~p"/#{preview.project.account.name}/#{preview.project.name}/previews/#{preview.id}")
-      ),
+      )
+      |> assign(:user_timezone, user_timezone),
       layout: layout
     }
   end
