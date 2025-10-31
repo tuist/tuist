@@ -515,7 +515,8 @@ public final class PackageInfoMapper: PackageInfoMapping {
                         .linker,
                         .define
                     ),
-                    (.linker, .unsafeFlags), (.linker, .disableWarning), (_, .enableExperimentalFeature), (_, .swiftLanguageMode), (
+                    (.linker, .unsafeFlags), (.linker, .disableWarning), (_, .enableExperimentalFeature), (_, .swiftLanguageMode),
+                    (
                         _,
                         .defaultIsolation
                     ), (
