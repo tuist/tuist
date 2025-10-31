@@ -33,22 +33,13 @@ defmodule Tuist.Storage do
 
     {config, bucket_name} = s3_config_and_bucket(actor)
 
+    # Note: We don't add region headers to presigned URLs because the client makes the actual request
+    # and doesn't know about the account's region setting. Region headers are only used for direct
+    # server-side operations like put_object and multipart_start.
     presigned_url_opts = [
       query_params: query_params,
       expires_in: Keyword.get(opts, :expires_in, 3600)
     ]
-
-    presigned_url_opts =
-      if method == :put do
-        headers = region_headers(actor)
-        if headers != [] do
-          Keyword.put(presigned_url_opts, :headers, headers)
-        else
-          presigned_url_opts
-        end
-      else
-        presigned_url_opts
-      end
 
     {:ok, url} =
       ExAws.S3.presigned_url(config, method, bucket_name, object_key, presigned_url_opts)
@@ -132,11 +123,12 @@ defmodule Tuist.Storage do
     {config, bucket_name} = s3_config_and_bucket(actor)
     headers = region_headers(actor)
 
-    request =
+    operation =
       bucket_name
-      |> ExAws.S3.put_object(object_key, content, headers)
+      |> ExAws.S3.put_object(object_key, content)
+      |> Map.update(:headers, Map.new(headers), &Map.merge(&1, Map.new(headers)))
 
-    request
+    operation
     |> ExAws.request!(Map.merge(config, fast_api_req_opts()))
   end
 
@@ -190,9 +182,13 @@ defmodule Tuist.Storage do
         {config, bucket_name} = s3_config_and_bucket(actor)
         headers = region_headers(actor)
 
-        %{body: %{upload_id: upload_id}} =
+        operation = 
           bucket_name
-          |> ExAws.S3.initiate_multipart_upload(object_key, headers)
+          |> ExAws.S3.initiate_multipart_upload(object_key)
+          |> Map.put(:headers, Map.new(headers))
+
+        %{body: %{upload_id: upload_id}} =
+          operation
           |> ExAws.request!(Map.merge(config, fast_api_req_opts()))
 
         upload_id

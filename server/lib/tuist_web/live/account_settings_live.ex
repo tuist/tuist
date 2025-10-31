@@ -172,10 +172,10 @@ defmodule TuistWeb.AccountSettingsLive do
     <.card_section data-part="region-card-section">
       <div data-part="header">
         <span data-part="title">
-          {gettext("Binary cache region")}
+          {gettext("Storage region")}
         </span>
         <span data-part="subtitle">
-          {gettext("Choose where your binary cache artifacts are stored for legal compliance.")}
+          {gettext("Choose where your artifacts, like module cache binaries, are stored for legal compliance.")}
         </span>
       </div>
       <div data-part="content">
@@ -189,7 +189,6 @@ defmodule TuistWeb.AccountSettingsLive do
             id="region-selection"
             field={@region_form[:region]}
             label={gettext("Region")}
-            hint={gettext("By default, binary cache artifacts are distributed across all regions. You can restrict them to specific regions for legal requirements.")}
             on_value_change="select_region"
           >
             <:item
