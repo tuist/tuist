@@ -204,7 +204,7 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
             // When
             let got = subject.automation(
                 config: config,
-                cacheProfile: .none,
+                ignoreBinaryCache: false,
                 ignoreSelectiveTesting: false,
                 testPlan: nil,
                 includedTargets: [],
@@ -225,7 +225,7 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
             // When
             let got = subject.automation(
                 config: config,
-                cacheProfile: .none,
+                ignoreBinaryCache: false,
                 ignoreSelectiveTesting: true,
                 testPlan: nil,
                 includedTargets: [],
@@ -248,7 +248,7 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
             // When
             let got = subject.automation(
                 config: config,
-                cacheProfile: .none,
+                ignoreBinaryCache: false,
                 ignoreSelectiveTesting: false,
                 testPlan: nil,
                 includedTargets: [],

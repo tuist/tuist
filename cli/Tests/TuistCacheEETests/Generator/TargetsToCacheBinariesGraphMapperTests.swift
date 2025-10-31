@@ -25,7 +25,7 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
         subject = TargetsToCacheBinariesGraphMapper(
             config: config,
             cacheGraphContentHasher: cacheGraphContentHasher,
-            decider: AllPossibleTargetReplacementDecider(exceptions: Set()),
+            decider: CacheProfileTargetReplacementDecider(profile: .allPossible, exceptions: []),
             configuration: "Debug",
             cacheGraphMutator: cacheGraphMutator,
             cacheStorage: cacheStorage
@@ -152,7 +152,7 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
         subject = TargetsToCacheBinariesGraphMapper(
             config: config,
             cacheGraphContentHasher: cacheGraphContentHasher,
-            decider: AllPossibleTargetReplacementDecider(exceptions: Set()),
+            decider: CacheProfileTargetReplacementDecider(profile: .allPossible, exceptions: []),
             configuration: "Debug",
             cacheGraphMutator: cacheGraphMutator,
             cacheStorage: cacheStorage
@@ -257,7 +257,7 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
         subject = TargetsToCacheBinariesGraphMapper(
             config: config,
             cacheGraphContentHasher: cacheGraphContentHasher,
-            decider: AllPossibleTargetReplacementDecider(exceptions: Set()),
+            decider: CacheProfileTargetReplacementDecider(profile: .allPossible, exceptions: []),
             configuration: "Debug",
             cacheGraphMutator: cacheGraphMutator,
             cacheStorage: cacheStorage
@@ -369,7 +369,7 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
         subject = TargetsToCacheBinariesGraphMapper(
             config: config,
             cacheGraphContentHasher: cacheGraphContentHasher,
-            decider: AllPossibleTargetReplacementDecider(exceptions: Set()),
+            decider: CacheProfileTargetReplacementDecider(profile: .allPossible, exceptions: []),
             configuration: "Debug",
             cacheGraphMutator: cacheGraphMutator,
             cacheStorage: cacheStorage
@@ -434,7 +434,7 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
         subject = TargetsToCacheBinariesGraphMapper(
             config: config,
             cacheGraphContentHasher: cacheGraphContentHasher,
-            decider: AllPossibleTargetReplacementDecider(exceptions: Set()),
+            decider: CacheProfileTargetReplacementDecider(profile: .allPossible, exceptions: []),
             configuration: "Debug",
             cacheGraphMutator: cacheGraphMutator,
             cacheStorage: cacheStorage
