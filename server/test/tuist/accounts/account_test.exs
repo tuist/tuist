@@ -96,6 +96,16 @@ defmodule Tuist.AccountTest do
       assert changeset.valid?
       assert changeset.changes.namespace_tenant_id == "tenant-123"
     end
+
+    test "validates region inclusion" do
+      assert Account.update_changeset(%Account{}, %{region: :all}).valid?
+      assert Account.update_changeset(%Account{}, %{region: :europe}).valid?
+      assert Account.update_changeset(%Account{}, %{region: :usa}).valid?
+      
+      changeset = Account.update_changeset(%Account{}, %{region: :invalid})
+      refute changeset.valid?
+      assert "is invalid" in errors_on(changeset).region
+    end
   end
 
   describe "create_changeset/2" do
