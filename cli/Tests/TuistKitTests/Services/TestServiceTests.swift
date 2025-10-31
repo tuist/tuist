@@ -52,7 +52,7 @@ final class TestServiceTests: TuistUnitTestCase {
 
         given(cacheStorage)
             .store(.any, cacheCategory: .any)
-            .willReturn()
+            .willReturn([])
 
         cacheDirectoriesProvider = MockCacheDirectoriesProviding()
 
@@ -594,7 +594,7 @@ final class TestServiceTests: TuistUnitTestCase {
             .willReturn(localCacheStorage)
         given(localCacheStorage)
             .store(.any, cacheCategory: .any)
-            .willReturn()
+            .willReturn([])
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(.test(project: .testGeneratedProject()))

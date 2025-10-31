@@ -291,7 +291,7 @@ final class EmptyCacheService: CacheServicing {
 
                 Logger.current.info("Storing binaries to speed up workflows", metadata: .section)
 
-                try await store(
+                let successfullyStoredTargets = try await store(
                     try await artifactsWithBuildTimes(
                         artifacts: artifactsToStore,
                         projectDerivedDataDirectory: derivedDataPath,
@@ -300,10 +300,16 @@ final class EmptyCacheService: CacheServicing {
                     cacheStorage: cacheStorage,
                     temporaryDirectory: temporaryDirectory
                 )
-            }
 
-            let targetsToStoreString = hashesByTargetToBeCached.map(\.0.target.name).sorted().joined(separator: ", ")
-            Logger.current.info("\(hashesByTargetToBeCached.count) target(s) stored: \(targetsToStoreString)")
+                let targetsStored = successfullyStoredTargets.map(\.name).sorted().joined(separator: ", ")
+                if successfullyStoredTargets.isEmpty {
+                    Logger.current.info("No targets were stored")
+                } else if successfullyStoredTargets.count == 1 {
+                    Logger.current.info("\(successfullyStoredTargets.count) target stored: \(targetsStored)")
+                } else {
+                    Logger.current.info("\(successfullyStoredTargets.count) targets stored: \(targetsStored)")
+                }
+            }
         }
 
         /// xcodebuild invocations might delete old activity logs, so to prevent that from happening, we copy them into a
@@ -758,7 +764,7 @@ final class EmptyCacheService: CacheServicing {
             _ artifacts: [CacheGraphTargetBuiltArtifact],
             cacheStorage: CacheStoring,
             temporaryDirectory: AbsolutePath
-        ) async throws {
+        ) async throws -> [CacheStorableTarget] {
             try await fileSystem.makeDirectory(at: temporaryDirectory.appending(component: "Metadatas"))
             let storableTargets = Dictionary(
                 uniqueKeysWithValues: try await artifacts
@@ -780,7 +786,7 @@ final class EmptyCacheService: CacheServicing {
                     }
             )
 
-            try await cacheStorage.store(storableTargets, cacheCategory: .binaries)
+            return try await cacheStorage.store(storableTargets, cacheCategory: .binaries)
         }
 
         private func cacheableTargets(
