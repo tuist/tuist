@@ -715,7 +715,9 @@ struct CacheRemoteStorageTests {
 
         // Then
         #expect(result.isEmpty)
-        #expect(AlertController.current.warnings().contains { $0.message.plain().contains("Failed to upload target with hash hash due to unexpected error:") })
+        #expect(AlertController.current.warnings()
+            .contains { $0.message.plain().contains("Failed to upload target with hash hash due to unexpected error:") }
+        )
     }
 
     @Test(.inTemporaryDirectory)
@@ -806,7 +808,9 @@ struct CacheRemoteStorageTests {
 
         // Then
         #expect(result.isEmpty)
-        #expect(AlertController.current.warnings().contains { $0.message.plain().contains("Failed to upload target with hash hash due to unexpected error:") })
+        #expect(AlertController.current.warnings()
+            .contains { $0.message.plain().contains("Failed to upload target with hash hash due to unexpected error:") }
+        )
     }
 
     // MARK: - Upload Error Handling Tests
@@ -936,6 +940,8 @@ struct CacheRemoteStorageTests {
         #expect(result.first?.hash == "hash2")
 
         // Verify warning was logged for failed upload
-        #expect(AlertController.current.warnings().contains { $0.message.plain().contains("Failed to upload target1 with hash hash1 due to unexpected error:") })
+        #expect(AlertController.current.warnings()
+            .contains { $0.message.plain().contains("Failed to upload target1 with hash hash1 due to unexpected error:") }
+        )
     }
 }
