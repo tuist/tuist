@@ -84,7 +84,8 @@ public enum Module: String, CaseIterable {
                             xcconfig: nil
                         ),
                     ]
-                )
+                ),
+                metadata: .metadata(tags: ["domain:generation", "layer:feature", "ee:true"])
             ),
             .target(
                 name: "TuistCacheEETests",
@@ -105,7 +106,8 @@ public enum Module: String, CaseIterable {
                     .external(name: "Path"),
                     .external(name: "FileSystem"),
                     .external(name: "Mockable"),
-                ]
+                ],
+                metadata: .metadata(tags: ["domain:generation", "layer:testing", "ee:true"])
             ),
             .target(
                 name: "TuistCacheEEAcceptanceTests",
@@ -126,7 +128,8 @@ public enum Module: String, CaseIterable {
                     .external(name: "FileSystem"),
                     .external(name: "Mockable"),
                     .external(name: "TSCTestSupport"),
-                ]
+                ],
+                metadata: .metadata(tags: ["domain:generation", "layer:testing", "ee:true"])
             ),
         ]
     }
@@ -289,6 +292,55 @@ public enum Module: String, CaseIterable {
         default:
             return nil
         }
+    }
+
+    public var tags: [String] {
+        var moduleTags: [String] = []
+
+        // Domain tags
+        switch self {
+        case .projectDescription, .projectAutomation, .support, .core:
+            moduleTags.append("domain:foundation")
+        case .generator, .hasher, .cache:
+            moduleTags.append("domain:generation")
+        case .loader, .scaffold:
+            moduleTags.append("domain:project-loading")
+        case .dependencies:
+            moduleTags.append("domain:dependencies")
+        case .server:
+            moduleTags.append("domain:server")
+        case .analytics:
+            moduleTags.append("domain:analytics")
+        case .kit:
+            moduleTags.append("domain:cli")
+        case .tuist, .tuistBenchmark, .tuistFixtureGenerator:
+            moduleTags.append("domain:cli-tools")
+        case .testing, .acceptanceTesting:
+            moduleTags.append("domain:testing")
+        case .automation:
+            moduleTags.append("domain:automation")
+        case .migration:
+            moduleTags.append("domain:migration")
+        case .plugin:
+            moduleTags.append("domain:plugins")
+        case .asyncQueue, .simulator, .xcActivityLog, .git, .rootDirectoryLocator,
+             .process, .ci, .cas, .launchctl:
+            moduleTags.append("domain:infrastructure")
+        }
+
+        // Layer tags
+        switch self {
+        case .projectDescription, .projectAutomation, .support, .core:
+            moduleTags.append("layer:foundation")
+        case .tuist, .tuistBenchmark, .tuistFixtureGenerator:
+            moduleTags.append("layer:tool")
+        case .testing, .acceptanceTesting:
+            moduleTags.append("layer:testing")
+        default:
+            moduleTags.append("layer:feature")
+        }
+
+        return moduleTags
     }
 
     public var dependencies: [TargetDependency] {
@@ -891,7 +943,8 @@ public enum Module: String, CaseIterable {
             infoPlist: .default,
             buildableFolders: [.folder("\(rootFolder)/\(name)/")],
             dependencies: dependencies,
-            settings: settings
+            settings: settings,
+            metadata: .metadata(tags: tags)
         )
     }
 
