@@ -115,24 +115,15 @@ defmodule TuistWeb.AccountSettingsLive do
   def handle_event("select_region", %{"value" => [value]}, %{assigns: %{selected_account: selected_account}} = socket) do
     region = if is_atom(value), do: value, else: String.to_existing_atom(value)
 
-    case Accounts.update_account(selected_account, %{region: region}) do
-      {:ok, account} ->
-        region_form = to_form(Account.update_changeset(account, %{}))
+    {:ok, account} = Accounts.update_account(selected_account, %{region: region})
+    region_form = to_form(Account.update_changeset(account, %{}))
 
-        socket =
-          socket
-          |> assign(selected_account: account)
-          |> assign(region_form: region_form)
-          |> put_flash(:info, gettext("Binary cache region updated successfully"))
+    socket =
+      socket
+      |> assign(selected_account: account)
+      |> assign(region_form: region_form)
 
-        {:noreply, socket}
-
-      {:error, %Ecto.Changeset{} = changeset} ->
-        {:noreply, assign(socket, region_form: to_form(changeset))}
-
-      _error ->
-        {:noreply, put_flash(socket, :error, gettext("Failed to update region"))}
-    end
+    {:noreply, socket}
   end
 
   attr(:region_form, Form, required: true)

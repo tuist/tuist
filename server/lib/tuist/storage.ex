@@ -33,9 +33,6 @@ defmodule Tuist.Storage do
 
     {config, bucket_name} = s3_config_and_bucket(actor)
 
-    # Note: We don't add region headers to presigned URLs because the client makes the actual request
-    # and doesn't know about the account's region setting. Region headers are only used for direct
-    # server-side operations like put_object and multipart_start.
     presigned_url_opts = [
       query_params: query_params,
       expires_in: Keyword.get(opts, :expires_in, 3600)
