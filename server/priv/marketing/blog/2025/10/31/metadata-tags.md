@@ -77,7 +77,12 @@ You can combine multiple dimensions on a single target, creating a rich metadata
 
 ## Focusing your development
 
-Once you have tagged your targets, you can use these tags to focus your development workflow. Want to work exclusively on the networking layer? Simply generate a focused workspace:
+Once you have tagged your targets, you can use these tags to focus your development workflow. Here's a quick walkthrough showing how this works in practice:
+
+<iframe title="Product Walkthroughs - Group your targets by tags" width="560" height="315" src="https://videos.tuist.dev/videos/embed/vfhqz7P1JbDw2tk97aUGVe" frameborder="0" allowfullscreen="" sandbox="allow-same-origin allow-scripts allow-popups allow-forms"></iframe>
+
+
+Want to work exclusively on the networking layer? Simply generate a focused workspace:
 
 ```bash
 tuist generate tag:layer:networking
@@ -262,6 +267,120 @@ let project = Project(
 ```
 
 This approach ensures every module gets tagged consistently, making your organization system reliable and maintainable as your team grows.
+
+### Organizing tags with enums
+
+For even better maintainability and compile-time safety, you can define your tags as constants organized in enum namespaces. This prevents typos and makes it easy to discover available tags:
+
+```swift
+// Tuist/ProjectDescriptionHelpers/Tags.swift
+import ProjectDescription
+
+public enum Tags {
+    // Using enums as namespaces for string constants
+    public enum Domain {
+        public static let authentication = "domain:authentication"
+        public static let payment = "domain:payment"
+        public static let settings = "domain:settings"
+        public static let networking = "domain:networking"
+    }
+
+    public enum Layer {
+        public static let ui = "layer:ui"
+        public static let business = "layer:business"
+        public static let data = "layer:data"
+    }
+
+    public enum Team {
+        public static let identity = "team:identity"
+        public static let commerce = "team:commerce"
+        public static let platform = "team:platform"
+    }
+
+    public enum Platform {
+        public static let ios = "platform:ios"
+        public static let macos = "platform:macos"
+        public static let watchos = "platform:watchos"
+    }
+}
+```
+
+Note that these are enums used as namespaces containing static string properties, not enum cases. When you access `Tags.Domain.authentication`, you get the string `"domain:authentication"` directly.
+
+Then use these constants in your target definitions:
+
+```swift
+// Tuist/ProjectDescriptionHelpers/Target+Templates.swift
+import ProjectDescription
+
+extension Target {
+    public static func feature(
+        name: String,
+        domain: String,
+        team: String,
+        layer: String,
+        dependencies: [TargetDependency] = []
+    ) -> Target {
+        .target(
+            name: name,
+            destinations: .iOS,
+            product: .framework,
+            bundleId: "com.example.\(name.lowercased())",
+            sources: ["Sources/**"],
+            dependencies: dependencies,
+            metadata: .metadata(tags: [domain, team, layer])
+        )
+    }
+}
+```
+
+And in your manifests:
+
+```swift
+import ProjectDescription
+import ProjectDescriptionHelpers
+
+let project = Project(
+    name: "Features",
+    targets: [
+        .feature(
+            name: "AuthenticationKit",
+            domain: Tags.Domain.authentication,
+            team: Tags.Team.identity,
+            layer: Tags.Layer.business
+        ),
+        .feature(
+            name: "PaymentUI",
+            domain: Tags.Domain.payment,
+            team: Tags.Team.commerce,
+            layer: Tags.Layer.ui
+        )
+    ]
+)
+```
+
+This approach provides:
+- **Autocomplete** - Your IDE suggests available tags as you type
+- **Refactoring safety** - Renaming a tag updates all usages
+- **No typos** - The compiler catches invalid tag references
+- **Discoverability** - New team members can explore available tags through IDE completion
+
+You can extend this pattern further with methods that return computed tags:
+
+```swift
+public enum Tags {
+    public enum Feature {
+        public static func name(_ value: String) -> String {
+            "feature:\(value.lowercased())"
+        }
+    }
+}
+
+// Usage
+metadata: .metadata(tags: [Tags.Feature.name("Authentication")])
+```
+
+This gives you the flexibility to generate tags dynamically while still maintaining organization and type safety.
 
 ## Best practices
 
