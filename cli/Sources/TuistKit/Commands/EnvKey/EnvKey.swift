@@ -44,6 +44,7 @@ public enum EnvKey: String, CaseIterable {
 
     case installPath = "TUIST_INSTALL_PATH"
     case installUpdate = "TUIST_INSTALL_UPDATE"
+    case installPassthroughArguments = "TUIST_INSTALL_PASSTHROUGH_ARGUMENTS"
 
     // GENERATE
 
