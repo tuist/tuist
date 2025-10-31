@@ -544,13 +544,11 @@ public struct XCActivityLogController: XCActivityLogControlling {
 
     private func determineCacheStatuses(
         keyStatuses: [String: CacheKeyStatus],
-        buildStartTime: Double
+        buildStartTime _: Double
     ) async throws -> [CacheableTask] {
         return try await keyStatuses.concurrentMap { key, status in
             let cacheStatus = try await determineCacheStatus(
-                for: status,
-                key: key,
-                buildStartTime: buildStartTime
+                for: status
             )
 
             return CacheableTask(
@@ -563,8 +561,6 @@ public struct XCActivityLogController: XCActivityLogControlling {
 
     private func determineCacheStatus(
         for status: CacheKeyStatus,
-        key _: String,
-        buildStartTime _: Double
     ) async throws -> CacheableTask.CacheStatus {
         if status.isMiss {
             return .miss
