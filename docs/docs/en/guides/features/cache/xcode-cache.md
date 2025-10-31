@@ -42,6 +42,7 @@ Add the following build settings to your Xcode project:
 COMPILATION_CACHE_ENABLE_CACHING = YES
 COMPILATION_CACHE_REMOTE_SERVICE_PATH = $HOME/.local/state/tuist/your_org_your_project.sock
 COMPILATION_CACHE_ENABLE_PLUGIN = YES
+COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS = YES
 ```
 
 Note that `COMPILATION_CACHE_REMOTE_SERVICE_PATH` and `COMPILATION_CACHE_ENABLE_PLUGIN` need to be added as **user-defined build settings** since they're not directly exposed in Xcode's build settings UI:
@@ -58,7 +59,8 @@ You can also specify these settings when running `xcodebuild` by adding the foll
 xcodebuild build -project YourProject.xcodeproj -scheme YourScheme \
     COMPILATION_CACHE_ENABLE_CACHING=YES \
     COMPILATION_CACHE_REMOTE_SERVICE_PATH=$HOME/.local/state/tuist/your_org_your_project.sock \
-    COMPILATION_CACHE_ENABLE_PLUGIN=YES
+    COMPILATION_CACHE_ENABLE_PLUGIN=YES \
+    COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS=YES
 ```
 
 ::: info GENERATED PROJECTS

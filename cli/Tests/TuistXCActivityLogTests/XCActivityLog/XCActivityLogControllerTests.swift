@@ -347,7 +347,7 @@ struct XCActivityLogControllerTests {
     func parseFailedBuildXCActivityLogWithMissesAndRemoteHits() async throws {
         // Given
         let xcactivityLog = try AbsolutePath(validating: #file).parentDirectory
-            .appending(try RelativePath(validating: "../../Fixtures/FailedBuild/failed-build-with-cache-misses.xcactivitylog"))
+            .appending(try RelativePath(validating: "../../Fixtures/failed-build-with-cache-misses.xcactivitylog"))
         let environment = try #require(Environment.mocked)
         environment.cacheDirectory = xcactivityLog.parentDirectory.appending(component: "cache")
 
@@ -358,8 +358,8 @@ struct XCActivityLogControllerTests {
         #expect(got.cacheableTasks.count == 60)
         #expect(got.cacheableTasks.filter { $0.type == .swift }.count == 60)
         #expect(got.cacheableTasks.filter { $0.status == .localHit }.count == 0)
-        #expect(got.cacheableTasks.filter { $0.status == .remoteHit }.count == 57)
-        #expect(got.cacheableTasks.filter { $0.status == .miss }.count == 3)
+        #expect(got.cacheableTasks.filter { $0.status == .remoteHit }.count == 56)
+        #expect(got.cacheableTasks.filter { $0.status == .miss }.count == 4)
     }
 
     @Test(.withMockedEnvironment())

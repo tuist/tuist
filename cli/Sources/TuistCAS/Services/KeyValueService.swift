@@ -99,22 +99,9 @@ public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.Si
             ) {
                 var value = CompilationCacheService_Keyvalue_V1_Value()
 
-                // Store entry keys for cache insights
-                var entryKeys: [String] = []
-
                 for entry in json.entries {
                     if let data = Data(base64Encoded: entry.value) {
                         value.entries["value"] = data
-                        entryKeys.append(entry.value)
-                    }
-                }
-
-                // Save the entry keys to a JSON file asynchronously (non-blocking)
-                Task {
-                    do {
-                        try await saveKeyValueEntries(key: casID, entryKeys: entryKeys)
-                    } catch {
-                        Logger.current.error("Failed to save keyvalue entries for \(casID): \(error)")
                     }
                 }
 
@@ -153,18 +140,5 @@ public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.Si
         "0~" + key.dropFirst().base64EncodedString()
             .replacingOccurrences(of: "/", with: "_")
             .replacingOccurrences(of: "+", with: "-")
-    }
-
-    private func saveKeyValueEntries(key: String, entryKeys: [String]) async throws {
-        let keyValueEntriesDirectory = Environment.current.cacheDirectory.appending(component: "KeyValueStore")
-
-        if try await !fileSystem.exists(keyValueEntriesDirectory) {
-            try await fileSystem.makeDirectory(at: keyValueEntriesDirectory)
-        }
-
-        let jsonPath = keyValueEntriesDirectory.appending(component: "\(key).json")
-        let jsonData = try JSONEncoder().encode(entryKeys)
-
-        try jsonData.write(to: jsonPath.url)
     }
 }
