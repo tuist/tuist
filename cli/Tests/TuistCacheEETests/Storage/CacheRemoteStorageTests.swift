@@ -692,7 +692,7 @@ struct CacheRemoteStorageTests {
         #expect(result.first?.hash == "hash")
     }
 
-    @Test(.inTemporaryDirectory, .withMockedLogger())
+    @Test(.inTemporaryDirectory, .withScopedAlertController())
     func store_when_multipart_upload_start_cache_service_throws_internal_server_error()
         async throws
     {
@@ -715,7 +715,7 @@ struct CacheRemoteStorageTests {
 
         // Then
         #expect(result.isEmpty)
-        TuistTest.expectLogs("Failed to upload target with hash hash due to unexpected error:")
+        #expect(AlertController.current.warnings().contains { $0.message.plain().contains("Failed to upload target with hash hash due to unexpected error:") })
     }
 
     @Test(.inTemporaryDirectory)
@@ -778,7 +778,7 @@ struct CacheRemoteStorageTests {
         #expect(result.isEmpty)
     }
 
-    @Test(.inTemporaryDirectory, .withMockedLogger())
+    @Test(.inTemporaryDirectory, .withScopedAlertController())
     func store_when_client_throws_unknown_client_error() async throws {
         // Given
         let binaryPath = try #require(FileSystem.temporaryTestDirectory)
@@ -806,7 +806,7 @@ struct CacheRemoteStorageTests {
 
         // Then
         #expect(result.isEmpty)
-        TuistTest.expectLogs("Failed to upload target with hash hash due to unexpected error:")
+        #expect(AlertController.current.warnings().contains { $0.message.plain().contains("Failed to upload target with hash hash due to unexpected error:") })
     }
 
     // MARK: - Upload Error Handling Tests
@@ -869,7 +869,7 @@ struct CacheRemoteStorageTests {
         #expect(result.contains(where: { $0.name == "target2" && $0.hash == "hash2" }))
     }
 
-    @Test(.inTemporaryDirectory, .withMockedLogger())
+    @Test(.inTemporaryDirectory, .withScopedAlertController())
     func store_handles_individual_upload_failures_gracefully() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
@@ -936,6 +936,6 @@ struct CacheRemoteStorageTests {
         #expect(result.first?.hash == "hash2")
 
         // Verify warning was logged for failed upload
-        TuistTest.expectLogs("Failed to upload target1 with hash hash1 due to unexpected error:")
+        #expect(AlertController.current.warnings().contains { $0.message.plain().contains("Failed to upload target1 with hash hash1 due to unexpected error:") })
     }
 }
