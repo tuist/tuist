@@ -1,5 +1,5 @@
 {
-  "originHash" : "c7a1c154f7d14661d5fee94ad427688e6d6dcf791ac52d9a2d523c418f4a942c",
+  "originHash" : "00a40bde8424b1ee36e340a0a11bd86d02c81891de9f772dd92d7975b55897fa",
   "pins" : [
     {
       "identity" : "aexml",
@@ -96,8 +96,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tuist/FileSystem.git",
       "state" : {
-        "revision" : "0cb0534744f19f6522e4288d170b572a35632439",
-        "version" : "0.13.13"
+        "revision" : "b711a027147aa6df8cdda789268c48d1595cc585",
+        "version" : "0.13.17"
       }
     },
     {
@@ -465,8 +465,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-nio",
       "state" : {
-        "revision" : "4e8f4b1c9adaa59315c523540c1ff2b38adc20a9",
-        "version" : "2.87.0"
+        "revision" : "a24771a4c228ff116df343c85fcf3dcfae31a06c",
+        "version" : "2.88.0"
       }
     },
     {
@@ -663,8 +663,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tuist/XcodeGraph",
       "state" : {
-        "revision" : "92a45549a995ebcb16f36b0a43994d1e92300e00",
-        "version" : "1.27.0"
+        "revision" : "a8bd3c932ce91341a8646fa781216e5aff36b815",
+        "version" : "1.28.0"
       }
     },
     {
