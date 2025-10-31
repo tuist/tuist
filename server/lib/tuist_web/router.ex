@@ -39,6 +39,7 @@ defmodule TuistWeb.Router do
     plug :accepts, ["html"]
     plug :disable_robot_indexing
     plug :fetch_session
+    plug TuistWeb.Plugs.TimezonePlug
     plug :fetch_live_flash
     plug :put_root_layout, html: {TuistWeb.Layouts, :app}
     plug :protect_from_forgery
@@ -507,6 +508,7 @@ defmodule TuistWeb.Router do
       live "/users/register", UserRegistrationLive, :new
       live "/users/log_in", UserLoginLive, :new
       live "/users/log_in/okta", UserOktaLoginLive, :new
+      live "/users/log_in/sso", SSOLoginLive, :new
       live "/users/reset_password", UserForgotPasswordLive, :new
       live "/users/reset_password/:token", UserResetPasswordLive, :edit
     end

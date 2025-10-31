@@ -345,6 +345,101 @@ final class SettingsMapperTests: XCTestCase {
             .array(["$(inherited)", "Define1"])
         )
     }
+
+    func test_strict_memory_safety_warnings() throws {
+        let settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting] = [
+            .init(tool: .swift, name: .strictMemorySafety, condition: nil, value: ["warnings"]),
+        ]
+
+        let mapper = SettingsMapper(
+            headerSearchPaths: [],
+            mainRelativePath: try RelativePath(validating: "path"),
+            settings: settings
+        )
+
+        let resolvedSettings = try mapper.settingsDictionary()
+
+        XCTAssertEqual(
+            resolvedSettings["OTHER_SWIFT_FLAGS"],
+            .array(["$(inherited)", "-strict-memory-safety"])
+        )
+    }
+
+    func test_strict_memory_safety_errors() throws {
+        let settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting] = [
+            .init(tool: .swift, name: .strictMemorySafety, condition: nil, value: ["errors"]),
+        ]
+
+        let mapper = SettingsMapper(
+            headerSearchPaths: [],
+            mainRelativePath: try RelativePath(validating: "path"),
+            settings: settings
+        )
+
+        let resolvedSettings = try mapper.settingsDictionary()
+
+        XCTAssertEqual(
+            resolvedSettings["OTHER_SWIFT_FLAGS"],
+            .array(["$(inherited)", "-strict-memory-safety", "-Werror=StrictMemorySafety"])
+        )
+    }
+
+    func test_set_OTHER_CFLAGS_with_disableWarning() throws {
+        let settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting] = [
+            .init(tool: .c, name: .disableWarning, condition: nil, value: ["unused-variable"]),
+        ]
+
+        let mapper = SettingsMapper(
+            headerSearchPaths: [],
+            mainRelativePath: try RelativePath(validating: "path"),
+            settings: settings
+        )
+
+        let resolvedSettings = try mapper.settingsDictionary()
+
+        XCTAssertEqual(
+            resolvedSettings["OTHER_CFLAGS"],
+            .array(["$(inherited)", "-Wno-unused-variable"])
+        )
+    }
+
+    func test_set_OTHER_CPLUSPLUSFLAGS_with_disableWarning() throws {
+        let settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting] = [
+            .init(tool: .cxx, name: .disableWarning, condition: nil, value: ["deprecated"]),
+        ]
+
+        let mapper = SettingsMapper(
+            headerSearchPaths: [],
+            mainRelativePath: try RelativePath(validating: "path"),
+            settings: settings
+        )
+
+        let resolvedSettings = try mapper.settingsDictionary()
+
+        XCTAssertEqual(
+            resolvedSettings["OTHER_CPLUSPLUSFLAGS"],
+            .array(["$(inherited)", "-Wno-deprecated"])
+        )
+    }
+
+    func test_set_OTHER_SWIFT_FLAGS_with_disableWarning() throws {
+        let settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting] = [
+            .init(tool: .swift, name: .disableWarning, condition: nil, value: ["unused-parameter"]),
+        ]
+
+        let mapper = SettingsMapper(
+            headerSearchPaths: [],
+            mainRelativePath: try RelativePath(validating: "path"),
+            settings: settings
+        )
+
+        let resolvedSettings = try mapper.settingsDictionary()
+
+        XCTAssertEqual(
+            resolvedSettings["OTHER_SWIFT_FLAGS"],
+            .array(["$(inherited)", "-Wno-unused-parameter"])
+        )
+    }
 }
 
 // OTHER_LDFLAGS

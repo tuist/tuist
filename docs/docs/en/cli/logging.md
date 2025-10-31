@@ -59,3 +59,13 @@ jobs:
           name: tuist-logs
           path: /tmp/tuist/logs/*.log
 ```
+
+### Cache daemon debugging {#cache-daemon-debugging}
+
+For debugging cache-related issues, Tuist logs cache daemon operations using `os_log` with the subsystem `dev.tuist.cache`. You can stream these logs in real-time using:
+
+```bash
+log stream --predicate 'subsystem == "dev.tuist.cache"' --debug
+```
+
+These logs are also visible in Console.app by filtering for the `dev.tuist.cache` subsystem. This provides detailed information about cache operations, which can help diagnose cache upload, download, and communication issues.

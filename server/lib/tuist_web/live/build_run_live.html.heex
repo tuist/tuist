@@ -55,6 +55,12 @@
       patch={"?#{Query.put(@uri.query, "tab", "overview")}"}
     />
     <.tab_menu_horizontal_item
+      :if={@run.cacheable_tasks_count > 0}
+      label={gettext("Cache")}
+      selected={@selected_tab == "cache"}
+      patch={"?#{Query.put(@uri.query, "tab", "cache")}"}
+    />
+    <.tab_menu_horizontal_item
       label={gettext("Warnings")}
       selected={@selected_tab == "warnings"}
       patch={"?#{Query.put(@uri.query, "tab", "warnings")}"}
@@ -115,7 +121,10 @@
             <div data-part="metadata">
               <div data-part="title">{gettext("Built at")}</div>
               <span data-part="label">
-                {Timex.format!(@run.inserted_at, "{WDshort} {D} {Mfull} {h24}:{m}:{s}")}
+                {Tuist.Utilities.DateFormatter.format_with_timezone(
+                  @run.inserted_at,
+                  @user_timezone
+                )}
               </span>
             </div>
           </div>
@@ -575,5 +584,249 @@
         </div>
       </.card_section>
     </.card>
+  <% end %>
+  <%= if @selected_tab == "cache" do %>
+    <div data-part="cache">
+      <.card
+        title={gettext("Cache Summary")}
+        icon="chart_arcs"
+        data-part="cache-summary-card"
+      >
+        <.card_section data-part="widgets-card-section">
+          <.widget
+            title={gettext("Hit rate")}
+            description={
+              gettext("The percentage of cacheable tasks that were cache hits (local + remote).")
+            }
+            value={
+              if @run.cacheable_tasks_count > 0 do
+                hit_rate =
+                  ((@run.cacheable_task_local_hits_count + @run.cacheable_task_remote_hits_count) /
+                     @run.cacheable_tasks_count * 100)
+                  |> Float.round(1)
+
+                gettext("%{hit_rate}%", hit_rate: hit_rate)
+              else
+                "0%"
+              end
+            }
+            id="widget-hit-rate"
+            empty={@run.cacheable_tasks_count == 0}
+          />
+          <.widget
+            title={gettext("Local task hits")}
+            description={gettext("Cacheable tasks that were retrieved from the local cache.")}
+            value={@run.cacheable_task_local_hits_count}
+            id="widget-local-cache-hits"
+          />
+          <.widget
+            title={gettext("Remote task hits")}
+            description={gettext("Cacheable tasks that were retrieved from the remote cache.")}
+            value={@run.cacheable_task_remote_hits_count}
+            id="widget-remote-cache-hits"
+          />
+          <.widget
+            title={gettext("Cacheable tasks")}
+            description={gettext("The total number of cacheable tasks in this build.")}
+            value={@run.cacheable_tasks_count}
+            id="widget-total-cacheable-tasks"
+          />
+        </.card_section>
+      </.card>
+      <.card
+        data-part="xcode-cache-card"
+        title={gettext("Xcode Cache")}
+        icon="database"
+      >
+        <.card_section
+          :if={@run.cacheable_tasks_count > 0}
+          data-part="xcode-cache-card-section"
+        >
+          <div data-part="title">
+            <span data-part="label">
+              {gettext("Cacheable tasks:")}
+            </span>
+            <span data-part="value">
+              {@run.cacheable_tasks_count}
+            </span>
+          </div>
+          <.chart
+            id="cacheable-tasks-breakdown-chart"
+            type="bar"
+            extra_options={
+              %{
+                tooltip: %{
+                  trigger: "axis",
+                  axisPointer: %{
+                    type: "none"
+                  }
+                },
+                legend: %{
+                  left: "-0.3%",
+                  top: "bottom",
+                  orient: "horizontal",
+                  textStyle: %{
+                    color: "var:noora-surface-label-primary",
+                    fontFamily: "monospace",
+                    fontWeight: 400,
+                    fontSize: 10,
+                    lineHeight: 12
+                  },
+                  icon:
+                    "path://M0 6C0 4.89543 0.895431 4 2 4H6C7.10457 4 8 4.89543 8 6C8 7.10457 7.10457 8 6 8H2C0.895431 8 0 7.10457 0 6Z",
+                  itemWidth: 8,
+                  itemHeight: 4
+                },
+                grid: %{
+                  width: "99%",
+                  left: "0%",
+                  height: "60%",
+                  top: "0%"
+                },
+                xAxis: %{
+                  type: "value",
+                  axisLabel: %{
+                    show: false
+                  },
+                  splitLine: %{show: false}
+                },
+                yAxis: %{
+                  type: "category",
+                  data: [gettext("Cacheable tasks")],
+                  axisLabel: %{
+                    show: false
+                  }
+                }
+              }
+            }
+            series={
+              local_hits = @run.cacheable_task_local_hits_count
+              remote_hits = @run.cacheable_task_remote_hits_count
+
+              misses =
+                @run.cacheable_tasks_count - @run.cacheable_task_remote_hits_count -
+                  @run.cacheable_task_local_hits_count
+
+              [
+                %{
+                  name: gettext("Local"),
+                  type: "bar",
+                  stack: "total",
+                  emphasis: %{
+                    focus: "series"
+                  },
+                  data: [local_hits],
+                  color: "var:hits-chart-legend-local",
+                  itemStyle: %{
+                    borderRadius:
+                      cache_chart_border_radius(local_hits, remote_hits, misses, :local)
+                  }
+                },
+                %{
+                  name: gettext("Remote"),
+                  type: "bar",
+                  stack: "total",
+                  emphasis: %{
+                    focus: "series"
+                  },
+                  data: [remote_hits],
+                  color: "var:hits-chart-legend-remote",
+                  itemStyle: %{
+                    borderRadius:
+                      cache_chart_border_radius(local_hits, remote_hits, misses, :remote)
+                  }
+                },
+                %{
+                  name: gettext("Missed"),
+                  type: "bar",
+                  stack: "total",
+                  emphasis: %{
+                    focus: "series"
+                  },
+                  data: [misses],
+                  color: "var:hits-chart-legend-missed",
+                  itemStyle: %{
+                    borderRadius:
+                      cache_chart_border_radius(local_hits, remote_hits, misses, :misses)
+                  }
+                }
+              ]
+            }
+            x_axis_min={0}
+            x_axis_max={@run.cacheable_tasks_count}
+          />
+        </.card_section>
+        <.card_section data-part="cacheable-tasks-section">
+          <div data-part="filters">
+            <.form for={%{}} phx-change="search-cacheable-tasks" phx-debounce="200">
+              <.text_input
+                type="search"
+                id="search-cacheable-tasks"
+                name="search"
+                placeholder={gettext("Search...")}
+                show_suffix={false}
+                data-part="search"
+                value={@cacheable_tasks_search}
+              />
+            </.form>
+            <.filter_dropdown
+              id="cacheable-tasks-filter-dropdown"
+              label={gettext("Filter")}
+              available_filters={@cacheable_tasks_available_filters}
+              active_filters={@cacheable_tasks_active_filters}
+            />
+          </div>
+          <div :if={Enum.any?(@cacheable_tasks_active_filters)} data-part="active-filters">
+            <.active_filter :for={filter <- @cacheable_tasks_active_filters} filter={filter} />
+          </div>
+          <.table id="cacheable-tasks-table" rows={@cacheable_tasks}>
+            <:col
+              :let={task}
+              label={gettext("Key")}
+              patch={
+                @cacheable_tasks_sort_by == "key" &&
+                  cacheable_tasks_column_patch_sort(assigns, "key")
+              }
+              icon={
+                @cacheable_tasks_sort_by == "key" &&
+                  sort_icon(@cacheable_tasks_sort_order)
+              }
+            >
+              <.text_cell label={task.key} />
+            </:col>
+            <:col :let={task} label={gettext("Hit")}>
+              <%= case task.status do %>
+                <% "hit_local" -> %>
+                  <.badge_cell label={gettext("Local")} color="secondary" style="light-fill" />
+                <% "hit_remote" -> %>
+                  <.badge_cell label={gettext("Remote")} color="focus" style="light-fill" />
+                <% "miss" -> %>
+                  <.badge_cell label={gettext("Missed")} color="warning" style="light-fill" />
+              <% end %>
+            </:col>
+            <:col :let={task} label={gettext("Type")}>
+              <.text_cell label={task.type |> String.capitalize()} />
+            </:col>
+            <:empty_state>
+              <.table_empty_state
+                icon="chart_arcs"
+                title={gettext("No cacheable tasks found")}
+                subtitle={gettext("Cacheable tasks will appear here when using Tuist cache")}
+              />
+            </:empty_state>
+          </.table>
+          <.pagination_group
+            :if={@cacheable_tasks_meta.total_pages > 1}
+            current_page={@cacheable_tasks_page}
+            number_of_pages={@cacheable_tasks_meta.total_pages}
+            page_patch={
+              fn page ->
+                "?#{Query.put(@uri.query, "cacheable-tasks-page", page)}"
+              end
+            }
+          />
+        </.card_section>
+      </.card>
+    </div>
   <% end %>
 </div>

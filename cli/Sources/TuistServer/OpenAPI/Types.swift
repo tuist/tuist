@@ -321,11 +321,6 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `DELETE /api/projects/{account_handle}/{project_handle}/tokens/{id}`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/{id}/delete(revokeProjectToken)`.
     func revokeProjectToken(_ input: Operations.revokeProjectToken.Input) async throws -> Operations.revokeProjectToken.Output
-    /// Get the S3 object key prefix for a project's CAS storage.
-    ///
-    /// - Remark: HTTP `GET /api/cache/prefix`.
-    /// - Remark: Generated from `#/paths//api/cache/prefix/get(getCASPrefix)`.
-    func getCASPrefix(_ input: Operations.getCASPrefix.Input) async throws -> Operations.getCASPrefix.Output
     /// Returns a project based on the handle.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}`.
@@ -1128,19 +1123,6 @@ extension APIProtocol {
     ) async throws -> Operations.revokeProjectToken.Output {
         try await revokeProjectToken(Operations.revokeProjectToken.Input(
             path: path,
-            headers: headers
-        ))
-    }
-    /// Get the S3 object key prefix for a project's CAS storage.
-    ///
-    /// - Remark: HTTP `GET /api/cache/prefix`.
-    /// - Remark: Generated from `#/paths//api/cache/prefix/get(getCASPrefix)`.
-    public func getCASPrefix(
-        query: Operations.getCASPrefix.Input.Query,
-        headers: Operations.getCASPrefix.Input.Headers = .init()
-    ) async throws -> Operations.getCASPrefix.Output {
-        try await getCASPrefix(Operations.getCASPrefix.Input(
-            query: query,
             headers: headers
         ))
     }
@@ -2408,6 +2390,64 @@ public enum Components {
         @frozen public enum RunParams: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/RunParams/case1`.
             public struct Case1Payload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/RunParams/case1/cacheable_tasksPayload`.
+                public struct cacheable_tasksPayloadPayload: Codable, Hashable, Sendable {
+                    /// The cache key of the task.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunParams/case1/cacheable_tasksPayload/key`.
+                    public var key: Swift.String
+                    /// The cache status of the task.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunParams/case1/cacheable_tasksPayload/status`.
+                    @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                        case hit_local = "hit_local"
+                        case hit_remote = "hit_remote"
+                        case miss = "miss"
+                    }
+                    /// The cache status of the task.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunParams/case1/cacheable_tasksPayload/status`.
+                    public var status: Components.Schemas.RunParams.Case1Payload.cacheable_tasksPayloadPayload.statusPayload
+                    /// The type of cacheable task.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunParams/case1/cacheable_tasksPayload/type`.
+                    @frozen public enum _typePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                        case clang = "clang"
+                        case swift = "swift"
+                    }
+                    /// The type of cacheable task.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunParams/case1/cacheable_tasksPayload/type`.
+                    public var _type: Components.Schemas.RunParams.Case1Payload.cacheable_tasksPayloadPayload._typePayload
+                    /// Creates a new `cacheable_tasksPayloadPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - key: The cache key of the task.
+                    ///   - status: The cache status of the task.
+                    ///   - _type: The type of cacheable task.
+                    public init(
+                        key: Swift.String,
+                        status: Components.Schemas.RunParams.Case1Payload.cacheable_tasksPayloadPayload.statusPayload,
+                        _type: Components.Schemas.RunParams.Case1Payload.cacheable_tasksPayloadPayload._typePayload
+                    ) {
+                        self.key = key
+                        self.status = status
+                        self._type = _type
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case key
+                        case status
+                        case _type = "type"
+                    }
+                }
+                /// Cacheable tasks associated with the build run.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunParams/case1/cacheable_tasks`.
+                public typealias cacheable_tasksPayload = [Components.Schemas.RunParams.Case1Payload.cacheable_tasksPayloadPayload]
+                /// Cacheable tasks associated with the build run.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunParams/case1/cacheable_tasks`.
+                public var cacheable_tasks: Components.Schemas.RunParams.Case1Payload.cacheable_tasksPayload?
                 /// The category of the build run, can be clean or incremental.
                 ///
                 /// - Remark: Generated from `#/components/schemas/RunParams/case1/category`.
@@ -2795,6 +2835,7 @@ public enum Components {
                 /// Creates a new `Case1Payload`.
                 ///
                 /// - Parameters:
+                ///   - cacheable_tasks: Cacheable tasks associated with the build run.
                 ///   - category: The category of the build run, can be clean or incremental.
                 ///   - ci_host: The CI host URL (optional, for self-hosted instances).
                 ///   - ci_project_handle: The CI project handle (e.g., 'owner/repo' for GitHub, project path for GitLab).
@@ -2818,6 +2859,7 @@ public enum Components {
                 ///   - _type: The type of the run, which is 'build' in this case.
                 ///   - xcode_version: The version of Xcode used during the run.
                 public init(
+                    cacheable_tasks: Components.Schemas.RunParams.Case1Payload.cacheable_tasksPayload? = nil,
                     category: Components.Schemas.RunParams.Case1Payload.categoryPayload? = nil,
                     ci_host: Swift.String? = nil,
                     ci_project_handle: Swift.String? = nil,
@@ -2841,6 +2883,7 @@ public enum Components {
                     _type: Components.Schemas.RunParams.Case1Payload._typePayload? = nil,
                     xcode_version: Swift.String? = nil
                 ) {
+                    self.cacheable_tasks = cacheable_tasks
                     self.category = category
                     self.ci_host = ci_host
                     self.ci_project_handle = ci_project_handle
@@ -2865,6 +2908,7 @@ public enum Components {
                     self.xcode_version = xcode_version
                 }
                 public enum CodingKeys: String, CodingKey {
+                    case cacheable_tasks
                     case category
                     case ci_host
                     case ci_project_handle
@@ -3827,6 +3871,64 @@ public enum Components {
         }
         /// - Remark: Generated from `#/components/schemas/BuildRun`.
         public struct BuildRun: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/BuildRun/cacheable_tasksPayload`.
+            public struct cacheable_tasksPayloadPayload: Codable, Hashable, Sendable {
+                /// The cache key of the task.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BuildRun/cacheable_tasksPayload/key`.
+                public var key: Swift.String
+                /// The cache status of the task.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BuildRun/cacheable_tasksPayload/status`.
+                @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case hit_local = "hit_local"
+                    case hit_remote = "hit_remote"
+                    case miss = "miss"
+                }
+                /// The cache status of the task.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BuildRun/cacheable_tasksPayload/status`.
+                public var status: Components.Schemas.BuildRun.cacheable_tasksPayloadPayload.statusPayload
+                /// The type of cacheable task.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BuildRun/cacheable_tasksPayload/type`.
+                @frozen public enum _typePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case clang = "clang"
+                    case swift = "swift"
+                }
+                /// The type of cacheable task.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BuildRun/cacheable_tasksPayload/type`.
+                public var _type: Components.Schemas.BuildRun.cacheable_tasksPayloadPayload._typePayload
+                /// Creates a new `cacheable_tasksPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - key: The cache key of the task.
+                ///   - status: The cache status of the task.
+                ///   - _type: The type of cacheable task.
+                public init(
+                    key: Swift.String,
+                    status: Components.Schemas.BuildRun.cacheable_tasksPayloadPayload.statusPayload,
+                    _type: Components.Schemas.BuildRun.cacheable_tasksPayloadPayload._typePayload
+                ) {
+                    self.key = key
+                    self.status = status
+                    self._type = _type
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case key
+                    case status
+                    case _type = "type"
+                }
+            }
+            /// Cacheable tasks associated with the build run.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BuildRun/cacheable_tasks`.
+            public typealias cacheable_tasksPayload = [Components.Schemas.BuildRun.cacheable_tasksPayloadPayload]
+            /// Cacheable tasks associated with the build run.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BuildRun/cacheable_tasks`.
+            public var cacheable_tasks: Components.Schemas.BuildRun.cacheable_tasksPayload?
             /// The category of the build run, can be clean or incremental.
             ///
             /// - Remark: Generated from `#/components/schemas/BuildRun/category`.
@@ -4214,6 +4316,7 @@ public enum Components {
             /// Creates a new `BuildRun`.
             ///
             /// - Parameters:
+            ///   - cacheable_tasks: Cacheable tasks associated with the build run.
             ///   - category: The category of the build run, can be clean or incremental.
             ///   - ci_host: The CI host URL (optional, for self-hosted instances).
             ///   - ci_project_handle: The CI project handle (e.g., 'owner/repo' for GitHub, project path for GitLab).
@@ -4237,6 +4340,7 @@ public enum Components {
             ///   - _type: The type of the run, which is 'build' in this case.
             ///   - xcode_version: The version of Xcode used during the run.
             public init(
+                cacheable_tasks: Components.Schemas.BuildRun.cacheable_tasksPayload? = nil,
                 category: Components.Schemas.BuildRun.categoryPayload? = nil,
                 ci_host: Swift.String? = nil,
                 ci_project_handle: Swift.String? = nil,
@@ -4260,6 +4364,7 @@ public enum Components {
                 _type: Components.Schemas.BuildRun._typePayload? = nil,
                 xcode_version: Swift.String? = nil
             ) {
+                self.cacheable_tasks = cacheable_tasks
                 self.category = category
                 self.ci_host = ci_host
                 self.ci_project_handle = ci_project_handle
@@ -4284,6 +4389,7 @@ public enum Components {
                 self.xcode_version = xcode_version
             }
             public enum CodingKeys: String, CodingKey {
+                case cacheable_tasks
                 case category
                 case ci_host
                 case ci_project_handle
@@ -20314,315 +20420,6 @@ public enum Operations {
             }
         }
     }
-    /// Get the S3 object key prefix for a project's CAS storage.
-    ///
-    /// - Remark: HTTP `GET /api/cache/prefix`.
-    /// - Remark: Generated from `#/paths//api/cache/prefix/get(getCASPrefix)`.
-    public enum getCASPrefix {
-        public static let id: Swift.String = "getCASPrefix"
-        public struct Input: Sendable, Hashable {
-            /// - Remark: Generated from `#/paths/api/cache/prefix/GET/query`.
-            public struct Query: Sendable, Hashable {
-                /// The handle of the project's account.
-                ///
-                /// - Remark: Generated from `#/paths/api/cache/prefix/GET/query/account_handle`.
-                public var account_handle: Swift.String
-                /// The handle of the project.
-                ///
-                /// - Remark: Generated from `#/paths/api/cache/prefix/GET/query/project_handle`.
-                public var project_handle: Swift.String
-                /// Creates a new `Query`.
-                ///
-                /// - Parameters:
-                ///   - account_handle: The handle of the project's account.
-                ///   - project_handle: The handle of the project.
-                public init(
-                    account_handle: Swift.String,
-                    project_handle: Swift.String
-                ) {
-                    self.account_handle = account_handle
-                    self.project_handle = project_handle
-                }
-            }
-            public var query: Operations.getCASPrefix.Input.Query
-            /// - Remark: Generated from `#/paths/api/cache/prefix/GET/header`.
-            public struct Headers: Sendable, Hashable {
-                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getCASPrefix.AcceptableContentType>]
-                /// Creates a new `Headers`.
-                ///
-                /// - Parameters:
-                ///   - accept:
-                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getCASPrefix.AcceptableContentType>] = .defaultValues()) {
-                    self.accept = accept
-                }
-            }
-            public var headers: Operations.getCASPrefix.Input.Headers
-            /// Creates a new `Input`.
-            ///
-            /// - Parameters:
-            ///   - query:
-            ///   - headers:
-            public init(
-                query: Operations.getCASPrefix.Input.Query,
-                headers: Operations.getCASPrefix.Input.Headers = .init()
-            ) {
-                self.query = query
-                self.headers = headers
-            }
-        }
-        @frozen public enum Output: Sendable, Hashable {
-            public struct Ok: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/cache/prefix/GET/responses/200/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/cache/prefix/GET/responses/200/content/json`.
-                    public struct jsonPayload: Codable, Hashable, Sendable {
-                        /// The S3 object key prefix where CAS objects should be stored.
-                        ///
-                        /// - Remark: Generated from `#/paths/api/cache/prefix/GET/responses/200/content/json/prefix`.
-                        public var prefix: Swift.String
-                        /// Creates a new `jsonPayload`.
-                        ///
-                        /// - Parameters:
-                        ///   - prefix: The S3 object key prefix where CAS objects should be stored.
-                        public init(prefix: Swift.String) {
-                            self.prefix = prefix
-                        }
-                        public enum CodingKeys: String, CodingKey {
-                            case prefix
-                        }
-                    }
-                    /// - Remark: Generated from `#/paths/api/cache/prefix/GET/responses/200/content/application\/json`.
-                    case json(Operations.getCASPrefix.Output.Ok.Body.jsonPayload)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    public var json: Operations.getCASPrefix.Output.Ok.Body.jsonPayload {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                public var body: Operations.getCASPrefix.Output.Ok.Body
-                /// Creates a new `Ok`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                public init(body: Operations.getCASPrefix.Output.Ok.Body) {
-                    self.body = body
-                }
-            }
-            /// The CAS storage prefix
-            ///
-            /// - Remark: Generated from `#/paths//api/cache/prefix/get(getCASPrefix)/responses/200`.
-            ///
-            /// HTTP response code: `200 ok`.
-            case ok(Operations.getCASPrefix.Output.Ok)
-            /// The associated value of the enum case if `self` is `.ok`.
-            ///
-            /// - Throws: An error if `self` is not `.ok`.
-            /// - SeeAlso: `.ok`.
-            public var ok: Operations.getCASPrefix.Output.Ok {
-                get throws {
-                    switch self {
-                    case let .ok(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "ok",
-                            response: self
-                        )
-                    }
-                }
-            }
-            public struct Unauthorized: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/cache/prefix/GET/responses/401/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/cache/prefix/GET/responses/401/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                public var body: Operations.getCASPrefix.Output.Unauthorized.Body
-                /// Creates a new `Unauthorized`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                public init(body: Operations.getCASPrefix.Output.Unauthorized.Body) {
-                    self.body = body
-                }
-            }
-            /// You need to be authenticated to access this resource
-            ///
-            /// - Remark: Generated from `#/paths//api/cache/prefix/get(getCASPrefix)/responses/401`.
-            ///
-            /// HTTP response code: `401 unauthorized`.
-            case unauthorized(Operations.getCASPrefix.Output.Unauthorized)
-            /// The associated value of the enum case if `self` is `.unauthorized`.
-            ///
-            /// - Throws: An error if `self` is not `.unauthorized`.
-            /// - SeeAlso: `.unauthorized`.
-            public var unauthorized: Operations.getCASPrefix.Output.Unauthorized {
-                get throws {
-                    switch self {
-                    case let .unauthorized(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "unauthorized",
-                            response: self
-                        )
-                    }
-                }
-            }
-            public struct Forbidden: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/cache/prefix/GET/responses/403/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/cache/prefix/GET/responses/403/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                public var body: Operations.getCASPrefix.Output.Forbidden.Body
-                /// Creates a new `Forbidden`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                public init(body: Operations.getCASPrefix.Output.Forbidden.Body) {
-                    self.body = body
-                }
-            }
-            /// The authenticated subject is not authorized to perform this action
-            ///
-            /// - Remark: Generated from `#/paths//api/cache/prefix/get(getCASPrefix)/responses/403`.
-            ///
-            /// HTTP response code: `403 forbidden`.
-            case forbidden(Operations.getCASPrefix.Output.Forbidden)
-            /// The associated value of the enum case if `self` is `.forbidden`.
-            ///
-            /// - Throws: An error if `self` is not `.forbidden`.
-            /// - SeeAlso: `.forbidden`.
-            public var forbidden: Operations.getCASPrefix.Output.Forbidden {
-                get throws {
-                    switch self {
-                    case let .forbidden(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "forbidden",
-                            response: self
-                        )
-                    }
-                }
-            }
-            public struct NotFound: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/cache/prefix/GET/responses/404/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/cache/prefix/GET/responses/404/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                public var body: Operations.getCASPrefix.Output.NotFound.Body
-                /// Creates a new `NotFound`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                public init(body: Operations.getCASPrefix.Output.NotFound.Body) {
-                    self.body = body
-                }
-            }
-            /// The project was not found
-            ///
-            /// - Remark: Generated from `#/paths//api/cache/prefix/get(getCASPrefix)/responses/404`.
-            ///
-            /// HTTP response code: `404 notFound`.
-            case notFound(Operations.getCASPrefix.Output.NotFound)
-            /// The associated value of the enum case if `self` is `.notFound`.
-            ///
-            /// - Throws: An error if `self` is not `.notFound`.
-            /// - SeeAlso: `.notFound`.
-            public var notFound: Operations.getCASPrefix.Output.NotFound {
-                get throws {
-                    switch self {
-                    case let .notFound(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "notFound",
-                            response: self
-                        )
-                    }
-                }
-            }
-            /// Undocumented response.
-            ///
-            /// A response with a code that is not documented in the OpenAPI document.
-            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
-        }
-        @frozen public enum AcceptableContentType: AcceptableProtocol {
-            case json
-            case other(Swift.String)
-            public init?(rawValue: Swift.String) {
-                switch rawValue.lowercased() {
-                case "application/json":
-                    self = .json
-                default:
-                    self = .other(rawValue)
-                }
-            }
-            public var rawValue: Swift.String {
-                switch self {
-                case let .other(string):
-                    return string
-                case .json:
-                    return "application/json"
-                }
-            }
-            public static var allCases: [Self] {
-                [
-                    .json
-                ]
-            }
-        }
-    }
     /// Returns a project based on the handle.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}`.
@@ -21614,6 +21411,64 @@ public enum Operations {
                 @frozen public enum jsonPayload: Codable, Hashable, Sendable {
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1`.
                     public struct Case1Payload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/cacheable_tasksPayload`.
+                        public struct cacheable_tasksPayloadPayload: Codable, Hashable, Sendable {
+                            /// The cache key of the task.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/cacheable_tasksPayload/key`.
+                            public var key: Swift.String
+                            /// The cache status of the task.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/cacheable_tasksPayload/status`.
+                            @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case hit_local = "hit_local"
+                                case hit_remote = "hit_remote"
+                                case miss = "miss"
+                            }
+                            /// The cache status of the task.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/cacheable_tasksPayload/status`.
+                            public var status: Operations.createRun.Input.Body.jsonPayload.Case1Payload.cacheable_tasksPayloadPayload.statusPayload
+                            /// The type of cacheable task.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/cacheable_tasksPayload/type`.
+                            @frozen public enum _typePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case clang = "clang"
+                                case swift = "swift"
+                            }
+                            /// The type of cacheable task.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/cacheable_tasksPayload/type`.
+                            public var _type: Operations.createRun.Input.Body.jsonPayload.Case1Payload.cacheable_tasksPayloadPayload._typePayload
+                            /// Creates a new `cacheable_tasksPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - key: The cache key of the task.
+                            ///   - status: The cache status of the task.
+                            ///   - _type: The type of cacheable task.
+                            public init(
+                                key: Swift.String,
+                                status: Operations.createRun.Input.Body.jsonPayload.Case1Payload.cacheable_tasksPayloadPayload.statusPayload,
+                                _type: Operations.createRun.Input.Body.jsonPayload.Case1Payload.cacheable_tasksPayloadPayload._typePayload
+                            ) {
+                                self.key = key
+                                self.status = status
+                                self._type = _type
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case key
+                                case status
+                                case _type = "type"
+                            }
+                        }
+                        /// Cacheable tasks associated with the build run.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/cacheable_tasks`.
+                        public typealias cacheable_tasksPayload = [Operations.createRun.Input.Body.jsonPayload.Case1Payload.cacheable_tasksPayloadPayload]
+                        /// Cacheable tasks associated with the build run.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/cacheable_tasks`.
+                        public var cacheable_tasks: Operations.createRun.Input.Body.jsonPayload.Case1Payload.cacheable_tasksPayload?
                         /// The category of the build run, can be clean or incremental.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/category`.
@@ -22001,6 +21856,7 @@ public enum Operations {
                         /// Creates a new `Case1Payload`.
                         ///
                         /// - Parameters:
+                        ///   - cacheable_tasks: Cacheable tasks associated with the build run.
                         ///   - category: The category of the build run, can be clean or incremental.
                         ///   - ci_host: The CI host URL (optional, for self-hosted instances).
                         ///   - ci_project_handle: The CI project handle (e.g., 'owner/repo' for GitHub, project path for GitLab).
@@ -22024,6 +21880,7 @@ public enum Operations {
                         ///   - _type: The type of the run, which is 'build' in this case.
                         ///   - xcode_version: The version of Xcode used during the run.
                         public init(
+                            cacheable_tasks: Operations.createRun.Input.Body.jsonPayload.Case1Payload.cacheable_tasksPayload? = nil,
                             category: Operations.createRun.Input.Body.jsonPayload.Case1Payload.categoryPayload? = nil,
                             ci_host: Swift.String? = nil,
                             ci_project_handle: Swift.String? = nil,
@@ -22047,6 +21904,7 @@ public enum Operations {
                             _type: Operations.createRun.Input.Body.jsonPayload.Case1Payload._typePayload? = nil,
                             xcode_version: Swift.String? = nil
                         ) {
+                            self.cacheable_tasks = cacheable_tasks
                             self.category = category
                             self.ci_host = ci_host
                             self.ci_project_handle = ci_project_handle
@@ -22071,6 +21929,7 @@ public enum Operations {
                             self.xcode_version = xcode_version
                         }
                         public enum CodingKeys: String, CodingKey {
+                            case cacheable_tasks
                             case category
                             case ci_host
                             case ci_project_handle

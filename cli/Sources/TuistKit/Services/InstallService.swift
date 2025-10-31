@@ -35,12 +35,13 @@ final class InstallService {
 
     func run(
         path: String?,
-        update: Bool
+        update: Bool,
+        passthroughArguments: [String],
     ) async throws {
         let path = try self.path(path)
 
         try await fetchPlugins(path: path)
-        try await fetchDependencies(path: path, update: update)
+        try await fetchDependencies(path: path, update: update, passthroughArguments: passthroughArguments)
     }
 
     // MARK: - Helpers
@@ -64,7 +65,7 @@ final class InstallService {
         AlertController.current.success(.alert("Plugins resolved and fetched successfully."))
     }
 
-    private func fetchDependencies(path: AbsolutePath, update: Bool) async throws {
+    private func fetchDependencies(path: AbsolutePath, update: Bool, passthroughArguments: [String]) async throws {
         guard let packageManifestPath = try await manifestFilesLocator.locatePackageManifest(at: path)
         else {
             return
@@ -72,27 +73,33 @@ final class InstallService {
 
         let config = try await configLoader.loadConfig(path: path)
 
+        let mergedArguments = arguments(config: config, passthroughArguments: passthroughArguments)
+
         if update {
             Logger.current.notice("Updating dependencies.", metadata: .section)
 
-            if let generatedProjectOptions = config.project.generatedProject {
-                try swiftPackageManagerController.update(
-                    at: packageManifestPath.parentDirectory,
-                    arguments: generatedProjectOptions.installOptions.passthroughSwiftPackageManagerArguments,
-                    printOutput: true
-                )
-            }
+            try swiftPackageManagerController.update(
+                at: packageManifestPath.parentDirectory,
+                arguments: mergedArguments,
+                printOutput: true
+            )
         } else {
             Logger.current.notice("Resolving and fetching dependencies.", metadata: .section)
 
             try swiftPackageManagerController.resolve(
                 at: packageManifestPath.parentDirectory,
-                arguments: config.project.generatedProject?.installOptions.passthroughSwiftPackageManagerArguments ?? [],
+                arguments: mergedArguments,
                 printOutput: true
             )
         }
 
         try await savePackageResolved(at: packageManifestPath.parentDirectory)
+    }
+
+    private func arguments(config: Tuist, passthroughArguments: [String]) -> [String] {
+        let configArguments = config.project.generatedProject?.installOptions.passthroughSwiftPackageManagerArguments ?? []
+        // Passthrough arguments come last so they override config arguments (last flag wins)
+        return configArguments + passthroughArguments
     }
 
     private func savePackageResolved(at path: AbsolutePath) async throws {

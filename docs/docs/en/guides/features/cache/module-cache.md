@@ -54,6 +54,42 @@ Binary caching is a feature designed for development workflows such as running t
 <!-- -->
 :::
 
+## Cache profiles {#cache-profiles}
+
+Tuist supports cache profiles to control how aggressively targets are replaced with cached binaries when generating projects.
+
+- Built-ins:
+  - `only-external`: replace external dependencies only (system default)
+  - `all-possible`: replace as many targets as possible (including internal targets)
+  - `none`: never replace with cached binaries
+
+Select a profile with `--cache-profile` on `tuist generate`:
+
+```bash
+# Built-in profiles
+tuist generate --cache-profile all-possible
+
+# Custom profiles (defined in Tuist Config)
+tuist generate --cache-profile development
+
+# Use config default (no flag)
+tuist generate
+
+# Focus on specific targets (implies all-possible)
+tuist generate MyModule AnotherTarget
+
+# Disable binary replacement entirely (backwards compatible)
+tuist generate --no-binary-cache  # equivalent to --cache-profile none
+```
+
+Precedence when resolving the effective behavior (highest to lowest):
+
+1. `--no-binary-cache` → profile `none`
+2. Target focus (passing targets to `generate`) → profile `all-possible`
+3. `--cache-profile <value>`
+4. Config default (if set)
+5. System default (`only-external`)
+
 ## Supported products {#supported-products}
 
 Only the following target products are cacheable by Tuist:
@@ -103,6 +139,24 @@ The following are some examples of common workflows:
 1. The CI pipeline will run `tuist build` or `tuist test` to build or test the project.
 2. The workflow will pull the most recent binaries from `main` and generate the project with them.
 3. It will then build or test the project incrementally.
+
+## Configuration {#configuration}
+
+### Cache concurrency limit {#cache-concurrency-limit}
+
+By default, Tuist downloads and uploads cache artifacts without any concurrency limit, maximizing throughput. You can control this behavior using the `TUIST_CACHE_CONCURRENCY_LIMIT` environment variable:
+
+```bash
+# Set a specific concurrency limit
+export TUIST_CACHE_CONCURRENCY_LIMIT=10
+tuist generate
+
+# Use "none" for no limit (default behavior)
+export TUIST_CACHE_CONCURRENCY_LIMIT=none
+tuist generate
+```
+
+This can be useful in environments with limited network bandwidth or to reduce system load during cache operations.
 
 ## Troubleshooting {#troubleshooting}
 

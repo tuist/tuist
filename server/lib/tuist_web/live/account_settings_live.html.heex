@@ -3,6 +3,10 @@
     {gettext("Settings")}
   </h1>
   <%= if is_nil(@selected_account.user_id) do %>
+    <.region_selection_section
+      region_form={@region_form}
+      selected_account={@selected_account}
+    />
     <.card_section data-part="rename-card-section">
       <div data-part="header">
         <span data-part="title">
@@ -129,6 +133,10 @@
       </div>
     </.card_section>
   <% else %>
+    <.region_selection_section
+      region_form={@region_form}
+      selected_account={@selected_account}
+    />
     <.card_section data-part="rename-card-section">
       <div data-part="header">
         <span data-part="title">

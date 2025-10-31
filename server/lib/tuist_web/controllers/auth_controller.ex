@@ -41,17 +41,15 @@ defmodule TuistWeb.AuthController do
                   "Successfully retrieved Okta config for organization: #{organization.id}, domain: #{config.domain}"
                 )
 
+                strategy_options = okta_strategy_options(config, params)
+
                 conn
                 |> put_session(:okta_organization_id, organization_id)
                 |> Ueberauth.run_request(
                   "okta",
                   {
                     Ueberauth.Strategy.Okta,
-                    [
-                      client_id: config.client_id,
-                      client_secret: config.client_secret,
-                      site: "https://#{config.domain}"
-                    ]
+                    strategy_options
                   }
                 )
 
@@ -221,6 +219,24 @@ defmodule TuistWeb.AuthController do
   defp create_device_code_if_absent(device_code) do
     if is_nil(Accounts.get_device_code(device_code)) do
       Accounts.create_device_code(device_code)
+    end
+  end
+
+  defp okta_strategy_options(config, params) do
+    strategy_options = [
+      client_id: config.client_id,
+      client_secret: config.client_secret,
+      site: "https://#{config.domain}"
+    ]
+
+    case params["login_hint"] do
+      login_hint when is_binary(login_hint) ->
+        default_oauth2_params = [scope: "openid email profile"]
+        oauth2_params = Keyword.put(default_oauth2_params, :login_hint, login_hint)
+        Keyword.put(strategy_options, :oauth2_params, oauth2_params)
+
+      _ ->
+        strategy_options
     end
   end
 end

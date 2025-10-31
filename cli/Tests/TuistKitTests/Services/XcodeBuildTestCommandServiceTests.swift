@@ -42,7 +42,7 @@ struct XcodeBuildTestCommandServiceTests {
             .willReturn()
         given(cacheStorage)
             .store(.any, cacheCategory: .any)
-            .willReturn()
+            .willReturn([])
         given(cacheDirectoriesProvider)
             .cacheDirectory(for: .any)
             .willReturn(try! AbsolutePath(validating: "/tmp/runs"))

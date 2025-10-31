@@ -24,6 +24,7 @@ defmodule Tuist.Accounts.Account do
     field :current_month_remote_cache_hits_count, :integer
     field :current_month_remote_cache_hits_count_updated_at, :naive_datetime
     field :namespace_tenant_id, :string
+    field :region, Ecto.Enum, values: [all: 0, europe: 1, usa: 2], default: :all
 
     belongs_to :organization, Organization
     belongs_to :user, User
@@ -88,8 +89,9 @@ defmodule Tuist.Accounts.Account do
 
   def update_changeset(account, attrs) do
     account
-    |> cast(attrs, [:name, :namespace_tenant_id])
+    |> cast(attrs, [:name, :namespace_tenant_id, :region])
     |> validate_handle()
+    |> validate_inclusion(:region, [:all, :europe, :usa])
     |> unique_constraint(:namespace_tenant_id)
   end
 

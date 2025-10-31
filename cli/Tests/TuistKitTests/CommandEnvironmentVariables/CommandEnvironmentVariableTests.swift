@@ -140,20 +140,24 @@ struct CommandEnvironmentVariableTests {
         setVariable(.generatePath, value: "/path/to/generate")
         setVariable(.generateOpen, value: "false")
         setVariable(.generateBinaryCache, value: "false")
+        setVariable(.generateCacheProfile, value: "development")
 
         let generateCommandWithEnvVars = try GenerateCommand.parse([])
         #expect(generateCommandWithEnvVars.path == "/path/to/generate")
         #expect(generateCommandWithEnvVars.open == false)
         #expect(generateCommandWithEnvVars.binaryCache == false)
+        #expect(generateCommandWithEnvVars.cacheProfile == "development")
 
         let generateCommandWithArgs = try GenerateCommand.parse([
             "--path", "/new/generate/path",
             "--open",
             "--binary-cache",
+            "--cache-profile", "all-possible",
         ])
         #expect(generateCommandWithArgs.path == "/new/generate/path")
         #expect(generateCommandWithArgs.open == true)
         #expect(generateCommandWithArgs.binaryCache == true)
+        #expect(generateCommandWithArgs.cacheProfile == .allPossible)
     }
 
     @Test(.withMockedEnvironment()) func graphCommandUsesEnvVars() throws {

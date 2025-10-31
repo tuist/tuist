@@ -284,6 +284,79 @@
       }
     }
   }
+
+  & > [data-part="cache"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-6);
+    padding-top: var(--noora-spacing-6);
+
+    & > [data-part="cache-summary-card"] {
+      & [data-part="widgets-card-section"] {
+        display: flex;
+        flex-direction: row;
+        gap: var(--noora-spacing-4);
+        background-color: var(--noora-surface-background-primary);
+        padding: var(--noora-spacing-8);
+
+        & > * {
+          flex-grow: 1;
+        }
+
+        @media (max-width: 768px) {
+          & {
+            flex-direction: column;
+          }
+        }
+      }
+    }
+    & > [data-part="xcode-cache-card"] {
+      & > [data-part="xcode-cache-card-section"] {
+        gap: var(--noora-spacing-5);
+        & > [data-part="title"] {
+          display: flex;
+          flex-direction: row;
+          align-items: center;
+          gap: var(--noora-spacing-3);
+
+          & > [data-part="label"] {
+            color: var(--noora-surface-label-secondary);
+            font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+          }
+
+          & > [data-part="value"] {
+            color: var(--noora-surface-label-primary);
+            font: var(--noora-font-weight-semibold) var(--noora-font-body-medium);
+          }
+        }
+
+        & > .noora-chart {
+          height: 62px;
+        }
+      }
+
+      & > [data-part="cacheable-tasks-section"] {
+        gap: var(--noora-spacing-8);
+        & > [data-part="filters"] {
+          display: flex;
+          gap: var(--noora-spacing-6);
+        }
+
+        & > [data-part="active-filters"] {
+          display: flex;
+          align-self: flex-start;
+          gap: var(--noora-spacing-4);
+        }
+
+        & #cacheable-tasks-table {
+          & td:nth-child(2),
+          & td:nth-child(3) {
+            width: 12%;
+          }
+        }
+      }
+    }
+  }
 }
 
 .issue-card {

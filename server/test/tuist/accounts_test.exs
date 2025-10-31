@@ -2886,6 +2886,40 @@ defmodule Tuist.AccountsTest do
       assert got_organization.sso_provider == :okta
     end
 
+    test "falls back to domain-based matching when user doesn't exist" do
+      # Given - no user exists but organization exists for domain
+      AccountsFixtures.organization_fixture(
+        sso_provider: :okta,
+        sso_organization_id: "company.okta.com"
+      )
+
+      # When
+      {:ok, organization} = Accounts.okta_organization_for_user_email("newuser@company.com")
+
+      # Then
+      assert organization.sso_provider == :okta
+      assert organization.sso_organization_id == "company.okta.com"
+    end
+
+    test "falls back to domain-based matching when user has no okta organization" do
+      # Given
+      user = AccountsFixtures.user_fixture(email: "user@company.com")
+      # User has no organization
+
+      # But organization exists for domain
+      AccountsFixtures.organization_fixture(
+        sso_provider: :okta,
+        sso_organization_id: "company.okta.com"
+      )
+
+      # When
+      {:ok, organization} = Accounts.okta_organization_for_user_email(user.email)
+
+      # Then
+      assert organization.sso_provider == :okta
+      assert organization.sso_organization_id == "company.okta.com"
+    end
+
     test "returns error when user does not exist" do
       # When / Then
       assert {:error, :not_found} ==

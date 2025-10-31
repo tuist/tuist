@@ -212,6 +212,9 @@ extension XCTestCase {
         )
     }
 
+    /// Asserts that a value can be encoded and decoded, and that the result equals the original.
+    ///
+    /// Note: For Swift Testing, use `#expect(try isCodableRoundTripable(value))` instead.
     public func XCTAssertCodable<C: Codable & Equatable>(_ subject: C, file _: StaticString = #file, line _: UInt = #line) {
         let encoder = JSONEncoder()
         let decoder = JSONDecoder()

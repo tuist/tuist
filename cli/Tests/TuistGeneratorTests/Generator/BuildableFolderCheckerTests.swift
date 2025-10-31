@@ -35,9 +35,11 @@ struct BuildableFolderCheckerTests {
         #expect(got == false)
     }
 
-    @Test(.inTemporaryDirectory) func containsResources_when_containsResources() async throws {
+    @Test(.inTemporaryDirectory, arguments: ResourceExtension.allCases)
+    func containsResources_when_containsResources(resourceExtension: ResourceExtension) async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        let resourceFilePath = temporaryDirectory.appending(component: "File.xcstrings")
+        let fileExtension = resourceExtension.rawValue
+        let resourceFilePath = temporaryDirectory.appending(component: "File.\(fileExtension)")
         try await fileSystem.touch(resourceFilePath)
 
         let got = try await subject.containsResources([BuildableFolder(
@@ -62,4 +64,10 @@ struct BuildableFolderCheckerTests {
 
         #expect(got == false)
     }
+}
+
+enum ResourceExtension: String, CaseIterable {
+    case txt
+    case json
+    case js
 }

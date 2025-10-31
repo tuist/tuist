@@ -42,6 +42,9 @@ defmodule Tuist.Runs.Build do
     field :ci_project_handle, :string
     field :ci_host, :string
     field :ci_provider, Ecto.Enum, values: [github: 0, gitlab: 1, bitrise: 2, circleci: 3, buildkite: 4, codemagic: 5]
+    field :cacheable_task_remote_hits_count, :integer, default: 0
+    field :cacheable_task_local_hits_count, :integer, default: 0
+    field :cacheable_tasks_count, :integer, default: 0
     belongs_to :project, Tuist.Projects.Project
     belongs_to :ran_by_account, Tuist.Accounts.Account, foreign_key: :account_id
     has_many :issues, Tuist.Runs.BuildIssue, foreign_key: :build_run_id
@@ -73,7 +76,10 @@ defmodule Tuist.Runs.Build do
       :ci_run_id,
       :ci_project_handle,
       :ci_host,
-      :ci_provider
+      :ci_provider,
+      :cacheable_task_remote_hits_count,
+      :cacheable_task_local_hits_count,
+      :cacheable_tasks_count
     ])
     |> validate_required([
       :id,
