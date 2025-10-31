@@ -54,6 +54,42 @@ Binary caching is a feature designed for development workflows such as running t
 <!-- -->
 :::
 
+## Cache profiles {#cache-profiles}
+
+Tuist supports cache profiles to control how aggressively targets are replaced with cached binaries when generating projects.
+
+- Built-ins:
+  - `only-external`: replace external dependencies only (system default)
+  - `all-possible`: replace as many targets as possible (including internal targets)
+  - `none`: never replace with cached binaries
+
+Select a profile with `--cache-profile` on `tuist generate`:
+
+```bash
+# Built-in profiles
+tuist generate --cache-profile all-possible
+
+# Custom profiles (defined in Tuist Config)
+tuist generate --cache-profile development
+
+# Use config default (no flag)
+tuist generate
+
+# Focus on specific targets (implies all-possible)
+tuist generate MyModule AnotherTarget
+
+# Disable binary replacement entirely (backwards compatible)
+tuist generate --no-binary-cache  # equivalent to --cache-profile none
+```
+
+Precedence when resolving the effective behavior (highest to lowest):
+
+1. `--no-binary-cache` → profile `none`
+2. Target focus (passing targets to `generate`) → profile `all-possible`
+3. `--cache-profile <value>`
+4. Config default (if set)
+5. System default (`only-external`)
+
 ## Supported products {#supported-products}
 
 Only the following target products are cacheable by Tuist:

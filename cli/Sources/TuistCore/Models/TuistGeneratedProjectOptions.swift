@@ -49,7 +49,7 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
                 enableCaching: false
             ),
             installOptions: .init(passthroughSwiftPackageManagerArguments: []),
-            cacheOptions: CacheOptions(keepSourceTargets: false)
+            cacheOptions: CacheOptions(keepSourceTargets: false, profiles: .init([:], default: .onlyExternal))
         )
     }
 }
@@ -103,16 +103,6 @@ extension TuistGeneratedProjectOptions {
             self.disableSandbox = disableSandbox
             self.includeGenerateScheme = includeGenerateScheme
             self.enableCaching = enableCaching
-        }
-    }
-
-    public struct CacheOptions: Codable, Equatable, Sendable, Hashable {
-        public var keepSourceTargets: Bool
-
-        public init(
-            keepSourceTargets: Bool = false
-        ) {
-            self.keepSourceTargets = keepSourceTargets
         }
     }
 
@@ -209,16 +199,6 @@ extension TuistGeneratedProjectOptions {
         ) -> Self {
             .init(
                 passthroughSwiftPackageManagerArguments: passthroughSwiftPackageManagerArguments
-            )
-        }
-    }
-
-    extension TuistGeneratedProjectOptions.CacheOptions {
-        public static func test(
-            keepSourceTargets: Bool = false
-        ) -> Self {
-            .init(
-                keepSourceTargets: keepSourceTargets
             )
         }
     }

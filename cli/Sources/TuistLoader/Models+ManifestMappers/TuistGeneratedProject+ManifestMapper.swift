@@ -49,16 +49,6 @@ extension TuistCore.TuistGeneratedProjectOptions.InstallOptions {
     }
 }
 
-extension TuistCore.TuistGeneratedProjectOptions.CacheOptions {
-    static func from(
-        manifest: ProjectDescription.Config.CacheOptions
-    ) -> Self {
-        return .init(
-            keepSourceTargets: manifest.keepSourceTargets
-        )
-    }
-}
-
 extension TuistCore.TuistGeneratedProjectOptions.GenerationOptions.StaticSideEffectsWarningTargets {
     static func from(manifest: ProjectDescription.Config.GenerationOptions.StaticSideEffectsWarningTargets) -> Self {
         switch manifest {
