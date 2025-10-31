@@ -1,6 +1,15 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.96.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* Add support for SwiftPM disableWarning setting by [@pepicrft](https://github.com/pepicrft) in [#8549](https://github.com/tuist/tuist/pull/8549)
+* improve upload error handling for cache artifacts by [@fortmarek](https://github.com/fortmarek) in [#8553](https://github.com/tuist/tuist/pull/8553)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.95.1...4.96.0
+
 ## What's Changed in 4.95.1<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
