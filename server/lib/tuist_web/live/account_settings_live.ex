@@ -144,15 +144,18 @@ defmodule TuistWeb.AccountSettingsLive do
         </span>
       </div>
       <div data-part="content">
+        <label data-part="select-label">
+          {gettext("Select region")}
+        </label>
         <.select
           id="region-selection"
           field={@region_form[:region]}
           label={gettext("Region")}
           on_value_change="select_region"
         >
-          <:item value="all" label="All regions" />
-          <:item value="europe" label="Europe" />
-          <:item value="usa" label="United States" />
+          <:item value="all" label={gettext("All regions")} icon="world" />
+          <:item value="europe" label={gettext("Europe")} icon="world" />
+          <:item value="usa" label={gettext("United States")} icon="world" />
         </.select>
       </div>
     </.card_section>
