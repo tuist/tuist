@@ -64,11 +64,10 @@ let project = Project(
 
 - **ProjectDescription**: `PackageDescription` 대신에 `ProjectDescription`을 사용합니다.
 - **Project:** `package` 인스턴스를 내보내는 대신에 `project` 인스턴스를 내보냅니다.
-- **Xcode language:** The primitives that you use to define your project mimic
-  Xcode's language, so you'll find schemes, targets, and build phases among
-  others.
+- **Xcode 용어:** 프로젝트 정의하는데 사용하는 기본 요소는 Xcode의 용어를 따르므로 scheme, target, build
+  phase 등을 사용할 수 있습니다.
 
-Then create a `Tuist.swift` file with the following content:
+그런 다음에 다음 내용을 포함하는 `Tuist.swift` 파일을 생성합니다:
 
 ```swift
 import ProjectDescription
@@ -76,24 +75,20 @@ import ProjectDescription
 let tuist = Tuist()
 ```
 
-The `Tuist.swift` contains the configuration for your project and its path
-serves as a reference to determine the root of your project. You can check out
-the
-<LocalizedLink href="/guides/features/projects/directory-structure">directory
-structure</LocalizedLink> document to learn more about the structure of Tuist
-projects.
+`Tuist.swift`는 프로젝트의 설정을 포함하고 이 파일의 경로가 프로젝트의 루트를 결정하는 기준이 됩니다. Tuist 프로젝트의 구조에
+대해 더 자세히 알아보려면
+<LocalizedLink href="/guides/features/projects/directory-structure">디렉토리
+구조</LocalizedLink> 문서를 확인하기 바랍니다.
 
-## Editing the project {#editing-the-project}
+## 프로젝트 편집 {#editing-the-project}
 
-You can use <LocalizedLink href="/guides/features/projects/editing">`tuist
-edit`</LocalizedLink> to edit the project in Xcode. The command will generate an
-Xcode project that you can open and start working on.
+Xcode에서 프로젝트를 편집하기 위해
+<LocalizedLink href="/guides/features/projects/editing">`tuist
+edit`</LocalizedLink>를 사용할 수 있습니다. 이 명령어는 프로젝트를 열고 작업할 수 있는 Xcode 프로젝트를 생성합니다.
 
 ```bash
 tuist edit
 ```
 
-Depending on the size of the project, you might consider using it in one shot or
-incrementally. We recommend starting with a small project to get familiar with
-the DSL and the workflow. Our advise is always to start from the most depended
-upon target and work all the way up to the top-level target.
+프로젝트 규모에 따라 한 번에 적용하거나 점진적으로 적용할지 고려할 수 있습니다. 우리는 DSL과 워크플로에 익숙해지기 위해 작은 프로젝트부터
+시작하는 것을 권장합니다. 저희의 조언은 항상 가장 많이 의존되는 타겟부터 시작해 최상위 타겟까지 점차적으로 작업해 나가길 권장합니다.
