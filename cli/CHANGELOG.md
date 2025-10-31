@@ -1,6 +1,17 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.95.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* downgrade duplicated product name linting from error to warning by [@n-zaitsev](https://github.com/n-zaitsev) in [#8540](https://github.com/tuist/tuist/pull/8540)
+
+## New Contributors
+* [@n-zaitsev](https://github.com/n-zaitsev) made their first contribution in [#8540](https://github.com/tuist/tuist/pull/8540)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.95.0...4.95.1
+
 ## What's Changed in 4.95.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
