@@ -576,7 +576,7 @@ defmodule Tuist.StorageTest do
         operation
       end)
 
-      expect(ExAws, :request!, fn ^operation, opts ->
+      expect(ExAws, :request!, fn ^operation, _opts ->
         # Verify no region headers are added
         assert operation.headers == %{}
         :ok
@@ -603,7 +603,7 @@ defmodule Tuist.StorageTest do
         operation
       end)
 
-      expect(ExAws, :request!, fn updated_operation, opts ->
+      expect(ExAws, :request!, fn updated_operation, _opts ->
         # Verify region header is added
         assert updated_operation.headers == %{"X-Tigris-Regions" => "usa"}
         :ok
@@ -630,7 +630,7 @@ defmodule Tuist.StorageTest do
         operation
       end)
 
-      expect(ExAws, :request!, fn ^operation, opts ->
+      expect(ExAws, :request!, fn ^operation, _opts ->
         # Verify no region headers are added
         assert operation.headers == %{}
         :ok
@@ -662,7 +662,7 @@ defmodule Tuist.StorageTest do
         operation
       end)
 
-      expect(ExAws, :request!, fn updated_operation, opts ->
+      expect(ExAws, :request!, fn updated_operation, _opts ->
         # Verify region header is added
         assert updated_operation.headers == %{"X-Tigris-Regions" => "eur"}
         %{body: %{upload_id: upload_id}}
@@ -696,7 +696,7 @@ defmodule Tuist.StorageTest do
         operation
       end)
 
-      expect(ExAws, :request!, fn updated_operation, opts ->
+      expect(ExAws, :request!, fn updated_operation, _opts ->
         # Verify region header is added
         assert updated_operation.headers == %{"X-Tigris-Regions" => "usa"}
         %{body: %{upload_id: upload_id}}
@@ -730,7 +730,7 @@ defmodule Tuist.StorageTest do
         operation
       end)
 
-      expect(ExAws, :request!, fn ^operation, opts ->
+      expect(ExAws, :request!, fn ^operation, _opts ->
         # Verify no region headers are added
         assert operation.headers == %{}
         %{body: %{upload_id: upload_id}}
