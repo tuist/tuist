@@ -20,7 +20,7 @@ defmodule TuistWeb.AccountSettingsLive do
     rename_account_form = to_form(Account.update_changeset(selected_account, %{}))
     delete_organization_form = to_form(%{"name" => ""})
     delete_user_form = to_form(%{"name" => ""})
-    region_form = to_form(Account.update_changeset(selected_account, %{}))
+    region_form = to_form(Account.update_changeset(selected_account, %{region: Atom.to_string(selected_account.region)}))
 
     socket =
       socket
@@ -116,12 +116,13 @@ defmodule TuistWeb.AccountSettingsLive do
     region = if is_atom(value), do: value, else: String.to_existing_atom(value)
 
     {:ok, account} = Accounts.update_account(selected_account, %{region: region})
-    region_form = to_form(Account.update_changeset(account, %{}))
+    region_form = to_form(Account.update_changeset(account, %{region: Atom.to_string(account.region)}))
 
     socket =
       socket
       |> assign(selected_account: account)
       |> assign(region_form: region_form)
+      |> put_flash(:info, gettext("Binary cache region updated successfully"))
 
     {:noreply, socket}
   end
@@ -149,9 +150,9 @@ defmodule TuistWeb.AccountSettingsLive do
           label={gettext("Region")}
           on_value_change="select_region"
         >
-          <:item value={:all} label="All regions" />
-          <:item value={:europe} label="Europe" />
-          <:item value={:usa} label="United States" />
+          <:item value="all" label="All regions" />
+          <:item value="europe" label="Europe" />
+          <:item value="usa" label="United States" />
         </.select>
       </div>
     </.card_section>
