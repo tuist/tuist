@@ -24,6 +24,19 @@ defmodule TuistWeb.API.Registry.SwiftControllerTest do
     %{conn: conn, account: account}
   end
 
+  describe "GET /api/registry/swift/availability" do
+    test "returns :ok response for availability without authentication" do
+      # Given
+      conn = build_conn()
+
+      # When
+      conn = get(conn, ~p"/api/registry/swift/availability")
+
+      # Then
+      assert conn.status == 200
+    end
+  end
+
   describe "GET /api/accounts/:account_handle/registry/swift/availability" do
     test "returns :ok response for availability", %{conn: conn, account: account} do
       # When
@@ -31,6 +44,34 @@ defmodule TuistWeb.API.Registry.SwiftControllerTest do
 
       # Then
       assert conn.status == 200
+    end
+  end
+
+  describe "GET /api/registry/swift/identifiers" do
+    test "returns not found when the package does not exist without authentication" do
+      # Given
+      conn = build_conn()
+
+      # When
+      conn = get(conn, ~p"/api/registry/swift/identifiers?url=https://github.com/Alamofire/Alamofire")
+
+      # Then
+      assert json_response(conn, :not_found) == %{
+               "message" => "The package https://github.com/Alamofire/Alamofire was not found in the registry."
+             }
+    end
+
+    test "returns the identifier when the package exists without authentication" do
+      # Given
+      conn = build_conn()
+      PackagesFixtures.package_fixture(scope: "Alamofire", name: "Alamofire")
+
+      # When
+      conn = get(conn, ~p"/api/registry/swift/identifiers?url=https://github.com/Alamofire/Alamofire")
+
+      # Then
+      response = json_response(conn, :ok)
+      assert response["identifiers"] == ["Alamofire.Alamofire"]
     end
   end
 
@@ -378,7 +419,7 @@ defmodule TuistWeb.API.Registry.SwiftControllerTest do
       assert response(conn, 200) =~ package_swift_content
 
       assert get_resp_header(conn, "link") == [
-               ~s(</api/accounts/tuist/registry/swift/Alamofire/Alamofire/5.0.0/Package.swift?swift-version=5>; rel="alternate"; filename="Package@swift-5.0.swift"; swift-tools-version="5.0", </api/accounts/tuist/registry/swift/Alamofire/Alamofire/5.0.0/Package.swift?swift-version=5.2>; rel="alternate"; filename="Package@swift-5.2.swift"; swift-tools-version="5.2")
+               ~s(</api/accounts/#{account.name}/registry/swift/Alamofire/Alamofire/5.0.0/Package.swift?swift-version=5>; rel="alternate"; filename="Package@swift-5.0.swift"; swift-tools-version="5.0", </api/accounts/#{account.name}/registry/swift/Alamofire/Alamofire/5.0.0/Package.swift?swift-version=5.2>; rel="alternate"; filename="Package@swift-5.2.swift"; swift-tools-version="5.2")
              ]
     end
 
@@ -398,6 +439,47 @@ defmodule TuistWeb.API.Registry.SwiftControllerTest do
 
       # Then
       assert conn.status == 404
+    end
+  end
+
+  describe "GET /api/registry/swift/:scope/:name/:version.zip" do
+    @describetag telemetry_listen: [:analytics, :registry, :swift, :source_archive_download]
+    test "returns version source archive without authentication" do
+      # Given
+      conn = build_conn()
+      package = PackagesFixtures.package_fixture(scope: "Alamofire", name: "Alamofire")
+
+      PackagesFixtures.package_release_fixture(
+        package_id: package.id,
+        version: "5.0.0"
+      )
+
+      stub(Storage, :object_exists?, fn "registry/swift/alamofire/alamofire/5.0.0/source_archive.zip", _actor ->
+        true
+      end)
+
+      source_archive_content = "Source archive content"
+
+      stub(Storage, :stream_object, fn _object_key, _actor ->
+        Stream.map([source_archive_content], fn chunk -> chunk end)
+      end)
+
+      # When
+      conn = get(conn, ~p"/api/registry/swift/Alamofire/Alamofire/5.0.0.zip")
+
+      # Then
+      assert response(conn, 200) =~ source_archive_content
+      assert get_resp_header(conn, "content-type") == ["application/zip; charset=utf-8"]
+
+      assert_receive {:telemetry_event,
+                      %{
+                        event: [:analytics, :registry, :swift, :source_archive_download],
+                        measurements: %{},
+                        metadata: %{}
+                      }}
+
+      # No download event should be created for unauthenticated downloads
+      assert Repo.all(PackageDownloadEvent) == []
     end
   end
 
