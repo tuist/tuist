@@ -4,6 +4,7 @@ import Mockable
 import Path
 import TuistCore
 import XcodeGraph
+import TuistSupport
 
 @Mockable
 public protocol TargetScriptsContentHashing {
@@ -48,7 +49,13 @@ public struct TargetScriptsContentHasher: TargetScriptsContentHashing {
                     pathsToHash.append(path)
                 }
             }
-            stringsToHash.append(contentsOf: try await pathsToHash.concurrentMap { try await contentHasher.hash(path: $0) })
+            stringsToHash.append(contentsOf: try await pathsToHash.concurrentMap {
+                do {
+                    return try await contentHasher.hash(path: $0)
+                } catch FileHandlerError.fileNotFound {
+                    return $0.relative(to: sourceRootPath).pathString
+                }
+            })
             stringsToHash.append(
                 contentsOf: resolvePathStrings(script.outputPaths + script.outputFileListPaths, sourceRootPath: sourceRootPath)
                     .map { $0.relative(to: sourceRootPath).pathString }
