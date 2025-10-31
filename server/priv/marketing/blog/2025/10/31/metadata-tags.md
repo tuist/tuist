@@ -4,6 +4,7 @@ category: "product"
 tags: ["cache", "modularization", "productivity"]
 excerpt: "Discover how metadata tags help you organize modules across multiple dimensions and focus development with module caching."
 author: pepicrft
+og_image_path: /marketing/images/blog/2025/10/31/metadata-tags/og.jpg
 ---
 
 As codebases grow, organizing modules becomes increasingly complex. Teams typically structure their code using familiar patterns: grouping modules by architectural layers (UI, business logic, data), by features (authentication, payments, settings), by team ownership, or by platform. These organizational patterns help maintain clarity as projects scale from a handful of modules to dozens or hundreds.
