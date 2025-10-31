@@ -19,11 +19,9 @@ Package Manager and native Xcode projects:
 
 <img style="max-width: 400px;" alt="A table that compares the regression in performance when using SPM over native Xcode projects" src="/images/guides/start/migrate/performance-table.webp">
 
-We often come across developers and organizations that challenge the need for
-Tuist considering that Swift Package Manager can take a similar project
-management role. Some venture into a migration to later on realize that their
-developer experience has degraded signicantly. For instance, the rename of a
-file might take up to 15 seconds to re-index. 15 seconds!
+우리는 Swift Package Manager로 프로젝트 관리할 수 있다는 이유로 Tuist에 의문을 제기하는 개발자나 조직을 마주치곤 합니다.
+일부는 마이그레이션을 시도하다가 개발자 경험이 크게 저하되는 것을 뒤늦게 깨닫습니다. 예를 들어 파일 이름을 변경하는데 최대 15초가 걸릴 수
+있습니다. 15초!
 
 **Whether Apple will make Swift Package Manager a built-for-scale project
 manager is uncertain.** However, we are not seeing any signs that it's
