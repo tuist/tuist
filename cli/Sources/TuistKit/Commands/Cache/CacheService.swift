@@ -232,15 +232,15 @@ final class EmptyCacheService: CacheServicing {
 
             try await FileHandler.shared.inTemporaryDirectory { temporaryDirectory in
                 var artifactsToStore: [CacheGraphTargetBuiltArtifact] = []
-                
+
                 let derivedDataPath = temporaryDirectory.appending(component: "derived-data")
                 let activityLogsDirectory = temporaryDirectory.appending(component: "activity-logs")
-                
+
                 try fileHandler.createFolder(derivedDataPath)
                 try fileHandler.createFolder(activityLogsDirectory)
-                
+
                 let xcodebuildTarget = XcodeBuildTarget(with: projectPath)
-                
+
                 var binaryArtifactDirectories: [Platform: Set<AbsolutePath>] = [:]
                 for (scheme, _) in binariesSchemes {
                     try await buildBinarySchemes(
@@ -254,9 +254,9 @@ final class EmptyCacheService: CacheServicing {
                         isReleaseConfiguration: isReleaseConfiguration
                     )
                 }
-                
+
                 try await moveActivityLogs(derivedDataPath: derivedDataPath, activityLogsDirectory: activityLogsDirectory)
-                
+
                 for (scheme, _) in bundlesSchemes {
                     artifactsToStore.append(contentsOf: try await buildBundles(
                         scheme,
@@ -266,9 +266,9 @@ final class EmptyCacheService: CacheServicing {
                         cacheableTargets: hashesByTargetToBeCached
                     ))
                 }
-                
+
                 try await moveActivityLogs(derivedDataPath: derivedDataPath, activityLogsDirectory: activityLogsDirectory)
-                
+
                 for (scheme, _) in macroSchemes {
                     artifactsToStore.append(contentsOf: try await buildMacros(
                         scheme,
@@ -279,18 +279,18 @@ final class EmptyCacheService: CacheServicing {
                         temporaryDirectory: temporaryDirectory
                     ))
                 }
-                
+
                 try await moveActivityLogs(derivedDataPath: derivedDataPath, activityLogsDirectory: activityLogsDirectory)
-                
+
                 Logger.current.info("Creating XCFrameworks", metadata: .section)
                 artifactsToStore.append(contentsOf: try await buildXCFrameworks(
                     cacheableTargets: hashesByTargetToBeCached,
                     binaryArtifactDirectories: binaryArtifactDirectories,
                     temporaryDirectory: temporaryDirectory
                 ))
-                
+
                 Logger.current.info("Storing binaries to speed up workflows", metadata: .section)
-                
+
                 let successfullyStoredTargets = try await store(
                     try await artifactsWithBuildTimes(
                         artifacts: artifactsToStore,
@@ -300,7 +300,7 @@ final class EmptyCacheService: CacheServicing {
                     cacheStorage: cacheStorage,
                     temporaryDirectory: temporaryDirectory
                 )
-                
+
                 let targetsStored = successfullyStoredTargets.map(\.name).sorted().joined(separator: ", ")
                 if successfullyStoredTargets.isEmpty {
                     Logger.current.info("No targets were stored")

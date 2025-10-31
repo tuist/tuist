@@ -238,7 +238,7 @@ final class CacheLocalStorageTests: TuistTestCase {
         let exists = try await fileSystem.exists(artifactPath)
         XCTAssertTrue(exists)
         verify(artifactSigner).sign(.value(artifactPath)).called(1)
-        
+
         // Verify return value contains the stored item
         XCTAssertEqual(result.count, 1)
         XCTAssertEqual(result.first?.name, "Test")

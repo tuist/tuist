@@ -111,7 +111,7 @@
                                 guard let url = URL(string: uploadURLString) else {
                                     throw MultipartUploadArtifactServiceError.invalidMultipartUploadURL(uploadURLString)
                                 }
-                                
+
                                 let request = uploadRequest(url: url, fileSize: UInt64(bytesRead), data: partData)
                                 let etag = try await upload(for: request)
                                 uploadedParts.mutate { $0.append((etag: etag, partNumber: currentPartNumber)) }

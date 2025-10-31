@@ -87,4 +87,3 @@ struct CacheStorageFactoryTests {
         }
     }
 }
-

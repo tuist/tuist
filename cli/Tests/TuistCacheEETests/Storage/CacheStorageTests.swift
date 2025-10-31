@@ -34,7 +34,7 @@ struct CacheStorageTests {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let testPath = temporaryDirectory.appending(component: "test.framework")
         try await FileSystem().makeDirectory(at: testPath)
-        
+
         let items = [CacheStorableItem(name: "target", hash: "hash"): [testPath]]
         let localResult = [CacheStorableItem(name: "target", hash: "hash")]
         let remoteResult = [CacheStorableItem(name: "target", hash: "hash")]
@@ -58,7 +58,7 @@ struct CacheStorageTests {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let testPath = temporaryDirectory.appending(component: "test.framework")
         try await FileSystem().makeDirectory(at: testPath)
-        
+
         let items = [CacheStorableItem(name: "target", hash: "hash"): [testPath]]
         let localResult = [CacheStorableItem(name: "target", hash: "hash")]
 
@@ -78,7 +78,7 @@ struct CacheStorageTests {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let testPath = temporaryDirectory.appending(component: "test.framework")
         try await FileSystem().makeDirectory(at: testPath)
-        
+
         let items = [CacheStorableItem(name: "target", hash: "hash"): [testPath]]
         let remoteResult = [CacheStorableItem(name: "target", hash: "hash")]
 
@@ -100,14 +100,14 @@ struct CacheStorageTests {
         let testPath2 = temporaryDirectory.appending(component: "test2.framework")
         try await FileSystem().makeDirectory(at: testPath1)
         try await FileSystem().makeDirectory(at: testPath2)
-        
+
         let items = [
             CacheStorableItem(name: "target1", hash: "hash1"): [testPath1],
-            CacheStorableItem(name: "target2", hash: "hash2"): [testPath2]
+            CacheStorableItem(name: "target2", hash: "hash2"): [testPath2],
         ]
         let localResult = [
             CacheStorableItem(name: "target1", hash: "hash1"),
-            CacheStorableItem(name: "target2", hash: "hash2")
+            CacheStorableItem(name: "target2", hash: "hash2"),
         ]
         let remoteResult = [CacheStorableItem(name: "target2", hash: "hash2")] // Only target2 succeeded
 
@@ -129,7 +129,7 @@ struct CacheStorageTests {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let testPath = temporaryDirectory.appending(component: "test.framework")
         try await FileSystem().makeDirectory(at: testPath)
-        
+
         let items = [CacheStorableItem(name: "target", hash: "hash"): [testPath]]
         let localResult = [CacheStorableItem(name: "target", hash: "hash")]
         let remoteResult: [CacheStorableItem] = [] // All remote uploads failed
@@ -150,7 +150,7 @@ struct CacheStorageTests {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let testPath = temporaryDirectory.appending(component: "test.framework")
         try await FileSystem().makeDirectory(at: testPath)
-        
+
         let items = [CacheStorableItem(name: "target", hash: "hash"): [testPath]]
         let error = TestError("Local storage failed")
 
@@ -168,7 +168,7 @@ struct CacheStorageTests {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let testPath = temporaryDirectory.appending(component: "test.framework")
         try await FileSystem().makeDirectory(at: testPath)
-        
+
         let items = [CacheStorableItem(name: "target", hash: "hash"): [testPath]]
         let localResult = [CacheStorableItem(name: "target", hash: "hash")]
         let error = TestError("Remote storage failed")
@@ -267,7 +267,7 @@ struct CacheStorageTests {
 
     private struct TestError: Error, Equatable {
         let message: String
-        
+
         init(_ message: String) {
             self.message = message
         }
