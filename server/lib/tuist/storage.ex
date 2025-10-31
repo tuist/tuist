@@ -288,11 +288,11 @@ defmodule Tuist.Storage do
 
   defp region_headers(actor) do
     case actor do
-      %Account{} = account ->
-        case Account.region_to_header(account.region) do
-          nil -> []
-          region -> [{"X-Tigris-Regions", region}]
-        end
+      %Account{region: :europe} ->
+        [{"X-Tigris-Regions", "eur"}]
+
+      %Account{region: :usa} ->
+        [{"X-Tigris-Regions", "usa"}]
 
       _ ->
         []

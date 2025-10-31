@@ -112,7 +112,7 @@ defmodule TuistWeb.AccountSettingsLive do
   end
 
   def handle_event("select_region", %{"value" => [value]}, socket) do
-    region = String.to_integer(value)
+    region = String.to_existing_atom(value)
     changeset = Account.update_changeset(socket.assigns.selected_account, %{region: region})
     region_form = to_form(changeset)
     socket = assign(socket, region_form: region_form)
@@ -191,11 +191,9 @@ defmodule TuistWeb.AccountSettingsLive do
             label={gettext("Region")}
             on_value_change="select_region"
           >
-            <:item
-              :for={{value, label} <- Account.region_options()}
-              value={value}
-              label={label}
-            />
+            <:item value="all" label="All regions" />
+            <:item value="europe" label="Europe" />
+            <:item value="usa" label="United States" />
           </.select>
           <.button
             label={gettext("Update region")}
