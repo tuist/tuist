@@ -114,7 +114,7 @@ defmodule TuistWeb.AccountSettingsLive do
 
   def handle_event("select_region", %{"value" => [value]}, %{assigns: %{selected_account: selected_account}} = socket) do
     region = if is_atom(value), do: value, else: String.to_existing_atom(value)
-    
+
     case Accounts.update_account(selected_account, %{region: region}) do
       {:ok, account} ->
         region_form = to_form(Account.update_changeset(account, %{}))

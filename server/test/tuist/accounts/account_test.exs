@@ -101,7 +101,7 @@ defmodule Tuist.AccountTest do
       assert Account.update_changeset(%Account{}, %{region: :all}).valid?
       assert Account.update_changeset(%Account{}, %{region: :europe}).valid?
       assert Account.update_changeset(%Account{}, %{region: :usa}).valid?
-      
+
       changeset = Account.update_changeset(%Account{}, %{region: :invalid})
       refute changeset.valid?
       assert "is invalid" in errors_on(changeset).region
