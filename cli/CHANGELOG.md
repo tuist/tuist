@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.97.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* Add cache profiles to fine tune cached binary replacement by [@hiltonc](https://github.com/hiltonc) in [#8122](https://github.com/tuist/tuist/pull/8122)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.96.0...4.97.0
+
 ## What's Changed in 4.96.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
