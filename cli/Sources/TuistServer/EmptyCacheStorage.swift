@@ -16,7 +16,7 @@
         }
 
         public func store(_: [CacheStorableItem: [AbsolutePath]], cacheCategory _: RemoteCacheCategory)
-            async throws
-        {}
+            async throws -> [CacheStorableItem]
+        { [] }
     }
 #endif
