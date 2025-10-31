@@ -112,49 +112,9 @@ defmodule TuistWeb.AccountSettingsLive do
     {:noreply, socket}
   end
 
-  def handle_event("select_region", %{"value" => [value]}, socket) do
-    region = String.to_existing_atom(value)
-    changeset = Account.update_changeset(socket.assigns.selected_account, %{region: region})
-    region_form = to_form(changeset)
-    socket = assign(socket, region_form: region_form)
-
-    {:noreply, socket}
-  end
-
-  def handle_event(
-        "update_region",
-        %{"account" => account_params},
-        %{assigns: %{selected_account: selected_account}} = socket
-      ) do
-    case Accounts.update_account(selected_account, account_params) do
-      {:ok, account} ->
-        region_form = to_form(Account.update_changeset(account, %{}))
-
-        socket =
-          socket
-          |> assign(selected_account: account)
-          |> assign(region_form: region_form)
-          |> put_flash(:info, gettext("Binary cache region updated successfully"))
-
-        {:noreply, socket}
-
-      {:error, %Ecto.Changeset{} = changeset} ->
-        {:noreply, assign(socket, region_form: to_form(changeset))}
-
-      _error ->
-        {:noreply, put_flash(socket, :error, gettext("Failed to update region"))}
-    end
-  end
-
-  # Fallback handler for when form submits empty data
-  def handle_event(
-        "update_region",
-        _params,
-        %{assigns: %{selected_account: selected_account, region_form: region_form}} = socket
-      ) do
-    # Get the region value from the current form state
-    region = Form.input_value(region_form, :region) || selected_account.region
-
+  def handle_event("select_region", %{"value" => [value]}, %{assigns: %{selected_account: selected_account}} = socket) do
+    region = if is_atom(value), do: value, else: String.to_existing_atom(value)
+    
     case Accounts.update_account(selected_account, %{region: region}) do
       {:ok, account} ->
         region_form = to_form(Account.update_changeset(account, %{}))
@@ -192,29 +152,16 @@ defmodule TuistWeb.AccountSettingsLive do
         </span>
       </div>
       <div data-part="content">
-        <.form
-          data-part="form"
-          for={@region_form}
-          id="update-region"
-          phx-submit="update_region"
+        <.select
+          id="region-selection"
+          field={@region_form[:region]}
+          label={gettext("Region")}
+          on_value_change="select_region"
         >
-          <.select
-            id="region-selection"
-            field={@region_form[:region]}
-            label={gettext("Region")}
-            on_value_change="select_region"
-          >
-            <:item value="all" label="All regions" />
-            <:item value="europe" label="Europe" />
-            <:item value="usa" label="United States" />
-          </.select>
-          <.button
-            label={gettext("Update region")}
-            variant="primary"
-            size="medium"
-            type="submit"
-          />
-        </.form>
+          <:item value={:all} label="All regions" />
+          <:item value={:europe} label="Europe" />
+          <:item value={:usa} label="United States" />
+        </.select>
       </div>
     </.card_section>
     """
