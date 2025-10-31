@@ -154,7 +154,7 @@ public struct RecursiveManifestLoader: RecursiveManifestLoading {
     private func loadPackageProjects(
         paths: [AbsolutePath],
         packageSettings: TuistCore.PackageSettings?,
-        disableSandbox _: Bool
+        disableSandbox: Bool
     ) async throws -> LoadedProjects {
         guard let packageSettings else { return LoadedProjects(projects: [:]) }
         var cache = [AbsolutePath: ProjectDescription.Project]()
@@ -163,7 +163,7 @@ public struct RecursiveManifestLoader: RecursiveManifestLoading {
         while !paths.isEmpty {
             paths.subtract(cache.keys)
             let projects = try await Array(paths).concurrentCompactMap {
-                let packageInfo = try await manifestLoader.loadPackage(at: $0)
+                let packageInfo = try await manifestLoader.loadPackage(at: $0, disableSandbox: disableSandbox)
                 return try await packageInfoMapper.map(
                     packageInfo: packageInfo,
                     path: $0,

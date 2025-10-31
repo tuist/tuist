@@ -29,7 +29,7 @@ struct SwiftPackageManagerGraphLoaderTests {
             .hash(Parameter<[String]>.any)
             .willProduce { $0.joined(separator: "-") }
         given(manifestLoader)
-            .loadPackage(at: .any)
+            .loadPackage(at: .any, disableSandbox: .value(true))
             .willReturn(.test())
         given(packageInfoMapper)
             .map(
@@ -106,7 +106,8 @@ struct SwiftPackageManagerGraphLoaderTests {
                 // When
                 let got = try await subject.load(
                     packagePath: temporaryDirectory.appending(component: "Package.swift"),
-                    packageSettings: packageSettings
+                    packageSettings: packageSettings,
+                    disableSandbox: true
                 )
 
                 // Then
@@ -204,7 +205,8 @@ struct SwiftPackageManagerGraphLoaderTests {
                 // When
                 let got = try await subject.load(
                     packagePath: temporaryDirectory.appending(component: "Package.swift"),
-                    packageSettings: packageSettings
+                    packageSettings: packageSettings,
+                    disableSandbox: true
                 )
 
                 // Then
@@ -266,7 +268,8 @@ struct SwiftPackageManagerGraphLoaderTests {
                 // When
                 _ = try await subject.load(
                     packagePath: temporaryDirectory.appending(component: "Package.swift"),
-                    packageSettings: packageSettings
+                    packageSettings: packageSettings,
+                    disableSandbox: true
                 )
 
                 // Then
