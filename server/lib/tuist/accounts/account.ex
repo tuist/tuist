@@ -102,5 +102,4 @@ defmodule Tuist.Accounts.Account do
     |> validate_exclusion(:name, Application.get_env(:tuist, :blocked_handles))
     |> unique_constraint(:name, name: "index_accounts_on_name")
   end
-
 end

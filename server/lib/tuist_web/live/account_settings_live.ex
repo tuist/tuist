@@ -3,11 +3,12 @@ defmodule TuistWeb.AccountSettingsLive do
   use TuistWeb, :live_view
   use Noora
 
+  import Phoenix.Component
+
+  alias Phoenix.HTML.Form
   alias Tuist.Accounts
   alias Tuist.Accounts.Account
   alias Tuist.Authorization
-
-  import Phoenix.Component
 
   @impl true
   def mount(_params, _uri, %{assigns: %{selected_account: selected_account, current_user: current_user}} = socket) do
@@ -120,10 +121,15 @@ defmodule TuistWeb.AccountSettingsLive do
     {:noreply, socket}
   end
 
-  def handle_event("update_region", %{"account" => account_params}, %{assigns: %{selected_account: selected_account}} = socket) do
+  def handle_event(
+        "update_region",
+        %{"account" => account_params},
+        %{assigns: %{selected_account: selected_account}} = socket
+      ) do
     case Accounts.update_account(selected_account, account_params) do
       {:ok, account} ->
         region_form = to_form(Account.update_changeset(account, %{}))
+
         socket =
           socket
           |> assign(selected_account: account)
@@ -141,13 +147,18 @@ defmodule TuistWeb.AccountSettingsLive do
   end
 
   # Fallback handler for when form submits empty data
-  def handle_event("update_region", _params, %{assigns: %{selected_account: selected_account, region_form: region_form}} = socket) do
+  def handle_event(
+        "update_region",
+        _params,
+        %{assigns: %{selected_account: selected_account, region_form: region_form}} = socket
+      ) do
     # Get the region value from the current form state
-    region = Phoenix.HTML.Form.input_value(region_form, :region) || selected_account.region
+    region = Form.input_value(region_form, :region) || selected_account.region
 
     case Accounts.update_account(selected_account, %{region: region}) do
       {:ok, account} ->
         region_form = to_form(Account.update_changeset(account, %{}))
+
         socket =
           socket
           |> assign(selected_account: account)
@@ -164,7 +175,7 @@ defmodule TuistWeb.AccountSettingsLive do
     end
   end
 
-  attr(:region_form, Phoenix.HTML.Form, required: true)
+  attr(:region_form, Form, required: true)
   attr(:selected_account, Account, required: true)
 
   def region_selection_section(assigns) do
@@ -175,7 +186,9 @@ defmodule TuistWeb.AccountSettingsLive do
           {gettext("Storage region")}
         </span>
         <span data-part="subtitle">
-          {gettext("Choose where your artifacts, like module cache binaries, are stored for legal compliance.")}
+          {gettext(
+            "Choose where your artifacts, like module cache binaries, are stored for legal compliance."
+          )}
         </span>
       </div>
       <div data-part="content">

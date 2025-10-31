@@ -2,9 +2,9 @@ defmodule Tuist.Storage do
   @moduledoc ~S"""
   A module that provides functions for storing and retrieving files from cloud storages
   """
+  alias Tuist.Accounts.Account
   alias Tuist.Environment
   alias Tuist.Performance
-  alias Tuist.Accounts.Account
 
   def multipart_generate_url(object_key, upload_id, part_number, actor, opts \\ []) do
     opts =
@@ -128,8 +128,7 @@ defmodule Tuist.Storage do
       |> ExAws.S3.put_object(object_key, content)
       |> Map.update(:headers, Map.new(headers), &Map.merge(&1, Map.new(headers)))
 
-    operation
-    |> ExAws.request!(Map.merge(config, fast_api_req_opts()))
+    ExAws.request!(operation, Map.merge(config, fast_api_req_opts()))
   end
 
   def object_exists?(object_key, actor) do
@@ -182,14 +181,12 @@ defmodule Tuist.Storage do
         {config, bucket_name} = s3_config_and_bucket(actor)
         headers = region_headers(actor)
 
-        operation = 
+        operation =
           bucket_name
           |> ExAws.S3.initiate_multipart_upload(object_key)
           |> Map.put(:headers, Map.new(headers))
 
-        %{body: %{upload_id: upload_id}} =
-          operation
-          |> ExAws.request!(Map.merge(config, fast_api_req_opts()))
+        %{body: %{upload_id: upload_id}} = ExAws.request!(operation, Map.merge(config, fast_api_req_opts()))
 
         upload_id
       end)
