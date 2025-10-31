@@ -29,19 +29,19 @@ at Bumble](https://medium.com/bumble-tech/scaling-ios-at-bumble-239e0fa009f2) �
 
 ::: tip SPM AS JUST A DEPENDENCY MANAGER
 <!-- -->
-Tuist는 Swift Package Manager를 의존성 관리
+Tuist는 Swift Package Manager를 의존성 관리 도구로 취급하고 이는 매우 훌륭합니다. 우리는 Swift Package
+Manager를 의존성을 분석하고 빌드하는데 사용합니다. 우리는 Swift Package Manager가 프로젝트 정의를 위해 설계되지
+않았으므로 이 목적으로 사용하지 않습니다.
 <!-- -->
 :::
 
-## Migrating from Swift Package Manager to Tuist {#migrating-from-swift-package-manager-to-tuist}
+## Swift Package Manager에서 Tuist로 마이그레이션 {#migrating-from-swift-package-manager-to-tuist}
 
-The similarities between Swift Package Manager and Tuist make the migration
-process straightforward. The main difference is that you'll be defining your
-projects using Tuist's DSL instead of `Package.swift`.
+Swift Package Manager와 Tuist는 많이 유사하므로 마이그레이션 과정이 단순합니다. 주요 차이점은 프로젝트를 정의하는데
+`Package.swift` 대신에 Tuist의 DSL을 사용해 정의합니다.
 
-First, create a `Project.swift` file next to your `Package.swift` file. The
-`Project.swift` file will contain the definition of your project. Here's an
-example of a `Project.swift` file that defines a project with a single target:
+먼저 `Project.swift` 파일을 생성하고 다음으로 `Package.swift` 파일을 생성합니다. `Project.swift` 파일은
+프로젝트 정의를 포함합니다. 다음은 단일 타겟을 가지는 프로젝트를 정의하는 `Project.swift` 파일의 예제입니다:
 
 ```swift
 import ProjectDescription
@@ -60,12 +60,10 @@ let project = Project(
 )
 ```
 
-Some things to note:
+참고할 사항:
 
-- **ProjectDescription**: Instead of using `PackageDescription`, you'll be using
-  `ProjectDescription`.
-- **Project:** Instead of exporting a `package` instance, you'll be exporting a
-  `project` instance.
+- **ProjectDescription**: `PackageDescription` 대신에 `ProjectDescription`을 사용합니다.
+- **Project:** `package` 인스턴스를 내보내는 대신에 `project` 인스턴스를 내보냅니다.
 - **Xcode language:** The primitives that you use to define your project mimic
   Xcode's language, so you'll find schemes, targets, and build phases among
   others.
