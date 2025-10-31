@@ -681,13 +681,18 @@ struct CacheRemoteStorageTests {
             }
         ).willReturn(())
 
-        // When/Then
-        try await subject.store(
+        // When
+        let result = try await subject.store(
             [.init(name: "target", hash: "hash"): [macroPath]], cacheCategory: .binaries
         )
+        
+        // Then
+        #expect(result.count == 1)
+        #expect(result.first?.name == "target")
+        #expect(result.first?.hash == "hash")
     }
 
-    @Test(.inTemporaryDirectory)
+    @Test(.inTemporaryDirectory, .withMockedLogger())
     func store_when_multipart_upload_start_cache_service_throws_internal_server_error()
         async throws
     {
@@ -703,13 +708,17 @@ struct CacheRemoteStorageTests {
             MultipartUploadStartCacheServiceError.unknownError(500)
         )
 
-        // When / Then
-        try await subject.store(
+        // When
+        let result = try await subject.store(
             [.init(name: "target", hash: "hash"): [binaryPath]], cacheCategory: .binaries
         )
+        
+        // Then
+        #expect(result.isEmpty)
+        TuistTest.expectLogs("Failed to upload target with hash hash due to unexpected error:")
     }
 
-    @Test(.inTemporaryDirectory, .withMockedLogger())
+    @Test(.inTemporaryDirectory)
     func store_when_client_throws_no_connection_error() async throws {
         // Given
         let binaryPath = try #require(FileSystem.temporaryTestDirectory)
@@ -731,15 +740,15 @@ struct CacheRemoteStorageTests {
         )
 
         // When
-        try await subject.store(
+        let result = try await subject.store(
             [.init(name: "target", hash: "hash"): [binaryPath]], cacheCategory: .binaries
         )
 
         // Then
-        TuistTest.expectLogs("You seem to be offline, skipping storing remote binaries")
+        #expect(result.isEmpty)
     }
 
-    @Test(.inTemporaryDirectory, .withMockedLogger())
+    @Test(.inTemporaryDirectory)
     func store_when_client_throws_server_unreachable_error() async throws {
         // Given
         let binaryPath = try #require(FileSystem.temporaryTestDirectory)
@@ -761,14 +770,12 @@ struct CacheRemoteStorageTests {
         )
 
         // When
-        try await subject.store(
+        let result = try await subject.store(
             [.init(name: "target", hash: "hash"): [binaryPath]], cacheCategory: .binaries
         )
 
         // Then
-        TuistTest.expectLogs(
-            "The Tuist server is unreachable, skipping storing remote binaries"
-        )
+        #expect(result.isEmpty)
     }
 
     @Test(.inTemporaryDirectory, .withMockedLogger())
@@ -793,11 +800,142 @@ struct CacheRemoteStorageTests {
         )
 
         // When
-        try await subject.store(
+        let result = try await subject.store(
             [.init(name: "target", hash: "hash"): [binaryPath]], cacheCategory: .binaries
         )
 
         // Then
-        TuistTest.expectLogs("Request timed out.")
+        #expect(result.isEmpty)
+        TuistTest.expectLogs("Failed to upload target with hash hash due to unexpected error:")
+    }
+
+    // MARK: - Upload Error Handling Tests
+
+    @Test(.inTemporaryDirectory) func store_returns_successfully_uploaded_items() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let macroPath1 = temporaryDirectory.appending(component: "macro1.macro")
+        let macroPath2 = temporaryDirectory.appending(component: "macro2.macro")
+        try FileHandler.shared.touch(macroPath1)
+        try FileHandler.shared.touch(macroPath2)
+
+        let items = [
+            CacheStorableItem(name: "target1", hash: "hash1"): [macroPath1],
+            CacheStorableItem(name: "target2", hash: "hash2"): [macroPath2]
+        ]
+
+        // Mock successful upload for both items
+        given(multipartUploadStartCacheService).uploadCache(
+            serverURL: .any,
+            projectId: .any,
+            hash: .any,
+            name: .any,
+            cacheCategory: .any
+        ).willReturn("upload-id")
+
+        given(multipartUploadGenerateURLCacheService).uploadCache(
+            serverURL: .any,
+            projectId: .any,
+            hash: .any,
+            name: .any,
+            cacheCategory: .any,
+            uploadId: .any,
+            partNumber: .any,
+            contentLength: .any
+        ).willReturn("https://tuist.dev/upload")
+
+        given(multipartUploadArtifactService).multipartUploadArtifact(
+            artifactPath: .any,
+            generateUploadURL: .any,
+            updateProgress: .any
+        ).willReturn([(etag: "etag", partNumber: 1)])
+
+        given(multipartUploadCompleteCacheService).uploadCache(
+            serverURL: .any,
+            projectId: .any,
+            hash: .any,
+            name: .any,
+            cacheCategory: .any,
+            uploadId: .any,
+            parts: .any
+        ).willReturn(())
+
+        // When
+        let result = try await subject.store(items, cacheCategory: .binaries)
+
+        // Then
+        #expect(result.count == 2)
+        #expect(result.contains(where: { $0.name == "target1" && $0.hash == "hash1" }))
+        #expect(result.contains(where: { $0.name == "target2" && $0.hash == "hash2" }))
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedLogger())
+    func store_handles_individual_upload_failures_gracefully() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let macroPath1 = temporaryDirectory.appending(component: "macro1.macro")
+        let macroPath2 = temporaryDirectory.appending(component: "macro2.macro")
+        try FileHandler.shared.touch(macroPath1)
+        try FileHandler.shared.touch(macroPath2)
+        
+        let items = [
+            CacheStorableItem(name: "target1", hash: "hash1"): [macroPath1],
+            CacheStorableItem(name: "target2", hash: "hash2"): [macroPath2]
+        ]
+        
+        // Mock successful upload for target2, but failure for target1
+        given(multipartUploadStartCacheService).uploadCache(
+            serverURL: .any,
+            projectId: .any,
+            hash: .value("hash1"),
+            name: .value("target1"),
+            cacheCategory: .any
+        ).willThrow(MultipartUploadStartCacheServiceError.unknownError(500))
+        
+        given(multipartUploadStartCacheService).uploadCache(
+            serverURL: .any,
+            projectId: .any,
+            hash: .value("hash2"),
+            name: .value("target2"),
+            cacheCategory: .any
+        ).willReturn("upload-id")
+        
+        given(multipartUploadGenerateURLCacheService).uploadCache(
+            serverURL: .any,
+            projectId: .any,
+            hash: .value("hash2"),
+            name: .value("target2"),
+            cacheCategory: .any,
+            uploadId: .any,
+            partNumber: .any,
+            contentLength: .any
+        ).willReturn("https://tuist.dev/upload")
+        
+        given(multipartUploadArtifactService).multipartUploadArtifact(
+            artifactPath: .any,
+            generateUploadURL: .any,
+            updateProgress: .any
+        ).willReturn([(etag: "etag", partNumber: 1)])
+        
+        given(multipartUploadCompleteCacheService).uploadCache(
+            serverURL: .any,
+            projectId: .any,
+            hash: .value("hash2"),
+            name: .value("target2"),
+            cacheCategory: .any,
+            uploadId: .any,
+            parts: .any
+        ).willReturn(())
+        
+        // When
+        let result = try await subject.store(items, cacheCategory: .binaries)
+        
+        // Then
+        #expect(result.count == 1)
+        #expect(result.first?.name == "target2")
+        #expect(result.first?.hash == "hash2")
+        
+        // Verify warning was logged for failed upload
+        TuistTest.expectLogs("Failed to upload target1 with hash hash1 due to unexpected error:")
     }
 }
