@@ -5,7 +5,7 @@
   "description": "Learn how to migrate from Swift Package Manager as a solution for managing your projects to Tuist projects."
 }
 ---
-# Migrate a Swift Package {#migrate-a-swift-package}
+# Swift Package 마이그레이션 {#migrate-a-swift-package}
 
 Swift Package Manager emerged as a dependency manager for Swift code that
 uninentionally found itself solving the problem of managing projects and
