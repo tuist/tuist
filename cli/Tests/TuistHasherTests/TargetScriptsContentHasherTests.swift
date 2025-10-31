@@ -299,7 +299,7 @@ final class TargetScriptsContentHasherTests: TuistUnitTestCase {
         given(contentHasher)
             .hash(path: .value(sourceRootPath.appending(try RelativePath(validating: "srcroot/replaced.txt"))))
             .willReturn(absoluteInputHash)
-        
+
         given(contentHasher)
             .hash(path: .value(sourceRootPath.appending(try RelativePath(validating: "relative/not-existing.txt"))))
             .willThrow(FileHandlerError.fileNotFound(try AbsolutePath(validating: "/")))

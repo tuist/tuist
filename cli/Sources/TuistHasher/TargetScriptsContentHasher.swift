@@ -3,8 +3,9 @@ import Logging
 import Mockable
 import Path
 import TuistCore
-import XcodeGraph
 import TuistSupport
+import XcodeGraph
+
 
 @Mockable
 public protocol TargetScriptsContentHashing {
