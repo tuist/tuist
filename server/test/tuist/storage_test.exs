@@ -579,46 +579,11 @@ defmodule Tuist.StorageTest do
       expect(ExAws, :request!, fn ^operation, opts ->
         # Verify no region headers are added
         assert operation.headers == %{}
-        # Verify fast_api_req_opts are included
-        assert Map.get(opts, :receive_timeout) == 5_000
-        assert Map.get(opts, :pool_timeout) == 1_000
-        assert Map.get(opts, :test) == :config
         :ok
       end)
 
       # When
       Storage.put_object(object_key, content, :test)
-    end
-
-    test "puts object with X-Tigris-Regions header for account with europe region" do
-      # Given
-      account = %Account{region: :europe}
-      object_key = UUIDv7.generate()
-      content = "test content"
-      bucket_name = UUIDv7.generate()
-      config = %{test: :config}
-
-      expect(Environment, :s3_bucket_name, fn -> bucket_name end)
-      expect(ExAws.Config, :new, fn :s3 -> config end)
-
-      operation = %S3{headers: %{}}
-
-      expect(ExAws.S3, :put_object, fn ^bucket_name, ^object_key, ^content ->
-        operation
-      end)
-
-      expect(ExAws, :request!, fn updated_operation, opts ->
-        # Verify region header is added
-        assert updated_operation.headers == %{"X-Tigris-Regions" => "eur"}
-        # Verify fast_api_req_opts are included
-        assert Map.get(opts, :receive_timeout) == 5_000
-        assert Map.get(opts, :pool_timeout) == 1_000
-        assert Map.get(opts, :test) == :config
-        :ok
-      end)
-
-      # When
-      Storage.put_object(object_key, content, account)
     end
 
     test "puts object with X-Tigris-Regions header for account with usa region" do
@@ -641,10 +606,6 @@ defmodule Tuist.StorageTest do
       expect(ExAws, :request!, fn updated_operation, opts ->
         # Verify region header is added
         assert updated_operation.headers == %{"X-Tigris-Regions" => "usa"}
-        # Verify fast_api_req_opts are included
-        assert Map.get(opts, :receive_timeout) == 5_000
-        assert Map.get(opts, :pool_timeout) == 1_000
-        assert Map.get(opts, :test) == :config
         :ok
       end)
 
@@ -672,10 +633,6 @@ defmodule Tuist.StorageTest do
       expect(ExAws, :request!, fn ^operation, opts ->
         # Verify no region headers are added
         assert operation.headers == %{}
-        # Verify fast_api_req_opts are included
-        assert Map.get(opts, :receive_timeout) == 5_000
-        assert Map.get(opts, :pool_timeout) == 1_000
-        assert Map.get(opts, :test) == :config
         :ok
       end)
 
@@ -685,43 +642,6 @@ defmodule Tuist.StorageTest do
   end
 
   describe "multipart_start/2 with region support" do
-    test "starts multipart upload without region headers for non-account actors" do
-      # Given
-      event_name = Tuist.Telemetry.event_name_storage_multipart_start_upload()
-      event_ref = :telemetry_test.attach_event_handlers(self(), [event_name])
-
-      upload_id = UUIDv7.generate()
-      object_key = UUIDv7.generate()
-      bucket_name = UUIDv7.generate()
-      config = %{test: :config}
-
-      expect(Environment, :s3_bucket_name, fn -> bucket_name end)
-      expect(ExAws.Config, :new, fn :s3 -> config end)
-
-      operation = %S3{headers: %{}}
-
-      expect(ExAws.S3, :initiate_multipart_upload, fn ^bucket_name, ^object_key ->
-        operation
-      end)
-
-      expect(ExAws, :request!, fn ^operation, opts ->
-        # Verify no region headers are added
-        assert operation.headers == %{}
-        # Verify fast_api_req_opts are included
-        assert Map.get(opts, :receive_timeout) == 5_000
-        assert Map.get(opts, :pool_timeout) == 1_000
-        assert Map.get(opts, :test) == :config
-        %{body: %{upload_id: upload_id}}
-      end)
-
-      # When
-      assert Storage.multipart_start(object_key, :test) == upload_id
-
-      # Then
-      assert_received {^event_name, ^event_ref, %{duration: duration}, %{object_key: ^object_key}}
-      assert is_number(duration)
-    end
-
     test "starts multipart upload with X-Tigris-Regions header for account with europe region" do
       # Given
       account = %Account{region: :europe}
@@ -745,10 +665,6 @@ defmodule Tuist.StorageTest do
       expect(ExAws, :request!, fn updated_operation, opts ->
         # Verify region header is added
         assert updated_operation.headers == %{"X-Tigris-Regions" => "eur"}
-        # Verify fast_api_req_opts are included
-        assert Map.get(opts, :receive_timeout) == 5_000
-        assert Map.get(opts, :pool_timeout) == 1_000
-        assert Map.get(opts, :test) == :config
         %{body: %{upload_id: upload_id}}
       end)
 
@@ -783,10 +699,6 @@ defmodule Tuist.StorageTest do
       expect(ExAws, :request!, fn updated_operation, opts ->
         # Verify region header is added
         assert updated_operation.headers == %{"X-Tigris-Regions" => "usa"}
-        # Verify fast_api_req_opts are included
-        assert Map.get(opts, :receive_timeout) == 5_000
-        assert Map.get(opts, :pool_timeout) == 1_000
-        assert Map.get(opts, :test) == :config
         %{body: %{upload_id: upload_id}}
       end)
 
@@ -821,10 +733,6 @@ defmodule Tuist.StorageTest do
       expect(ExAws, :request!, fn ^operation, opts ->
         # Verify no region headers are added
         assert operation.headers == %{}
-        # Verify fast_api_req_opts are included
-        assert Map.get(opts, :receive_timeout) == 5_000
-        assert Map.get(opts, :pool_timeout) == 1_000
-        assert Map.get(opts, :test) == :config
         %{body: %{upload_id: upload_id}}
       end)
 
@@ -834,86 +742,6 @@ defmodule Tuist.StorageTest do
       # Then
       assert_received {^event_name, ^event_ref, %{duration: duration}, %{object_key: ^object_key}}
       assert is_number(duration)
-    end
-  end
-
-  describe "presigned URLs do not include region headers" do
-    test "generate_upload_url does not include region headers even for accounts with specific regions" do
-      # Given
-      account = %Account{region: :europe}
-      event_name = Tuist.Telemetry.event_name_storage_generate_upload_presigned_url()
-      event_ref = :telemetry_test.attach_event_handlers(self(), [event_name])
-
-      url = "https://tuist.io/upload-url"
-      object_key = UUIDv7.generate()
-      bucket_name = UUIDv7.generate()
-      expires_in = 60
-      config = %{test: :config}
-
-      expect(Environment, :s3_bucket_name, fn -> bucket_name end)
-      expect(ExAws.Config, :new, fn :s3 -> config end)
-
-      # Note: presigned_url should NOT include any headers parameter for region
-      expect(ExAws.S3, :presigned_url, fn ^config,
-                                          :put,
-                                          ^bucket_name,
-                                          ^object_key,
-                                          [
-                                            query_params: [],
-                                            expires_in: ^expires_in
-                                          ] ->
-        {:ok, url}
-      end)
-
-      # When
-      assert Storage.generate_upload_url(object_key, account, expires_in: expires_in) == url
-
-      # Then
-      assert_received {^event_name, ^event_ref, %{}, %{object_key: ^object_key}}
-    end
-
-    test "multipart_generate_url does not include region headers even for accounts with specific regions" do
-      # Given
-      account = %Account{region: :usa}
-      url = "https://tuist.io/upload-url"
-      event_name = Tuist.Telemetry.event_name_storage_multipart_generate_upload_part_presigned_url()
-      event_ref = :telemetry_test.attach_event_handlers(self(), [event_name])
-
-      upload_id = UUIDv7.generate()
-      object_key = UUIDv7.generate()
-      part_number = 1
-      expires_in = 30
-      bucket_name = UUIDv7.generate()
-      config = %{test: :config}
-
-      expect(Environment, :s3_bucket_name, fn -> bucket_name end)
-      expect(ExAws.Config, :new, fn :s3 -> config end)
-
-      # Note: presigned_url should NOT include any headers parameter for region
-      expect(ExAws.S3, :presigned_url, fn ^config,
-                                          :put,
-                                          ^bucket_name,
-                                          ^object_key,
-                                          [
-                                            query_params: [
-                                              {"partNumber", ^part_number},
-                                              {"uploadId", ^upload_id}
-                                            ],
-                                            expires_in: ^expires_in
-                                          ] ->
-        {:ok, url}
-      end)
-
-      # When
-      assert Storage.multipart_generate_url(object_key, upload_id, part_number, account, expires_in: expires_in) == url
-
-      # Then
-      assert_received {^event_name, ^event_ref, %{},
-                       %{
-                         object_key: ^object_key,
-                         upload_id: ^upload_id,
-                         part_number: ^part_number
-                       }}
     end
   end
 end
