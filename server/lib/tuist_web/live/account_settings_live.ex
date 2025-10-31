@@ -122,7 +122,6 @@ defmodule TuistWeb.AccountSettingsLive do
       socket
       |> assign(selected_account: account)
       |> assign(region_form: region_form)
-      |> put_flash(:info, gettext("Binary cache region updated successfully"))
 
     {:noreply, socket}
   end
