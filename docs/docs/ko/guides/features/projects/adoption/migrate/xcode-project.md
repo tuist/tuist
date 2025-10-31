@@ -165,37 +165,32 @@ let package = Package(
 
 ## 마이그레이션 순서 결정 {#determine-the-migration-order}
 
-We recommend migrating the targets from the one that is the most dependent upon
-to the least. You can use the following command to list the targets of a
-project, sorted by the number of dependencies:
+의존성이 많은 타겟부터 가장 적은 순으로 마이그레이션하는 것을 추천합니다. 다음 명령어를 사용해 의존성 개수에 따라 정렬된 프로젝트의 타겟
+목록을 확인할 수 있습니다:
 
 ```bash
 tuist migration list-targets -p Project.xcodeproj
 ```
 
-Start migrating the targets from the top of the list, as they are the ones that
-are the most depended upon.
+목록의 가장 위에 있는 타겟이 의존성이 가장 많으므로 위에서 부터 마이그레이션을 시작합니다.
 
 
-## Migrate targets {#migrate-targets}
+## 타겟 마이그레이션 {#migrate-targets}
 
-Migrate the targets one by one. We recommend doing a pull request for each
-target to ensure that the changes are reviewed and tested before merging them.
+타겟을 하나씩 마이그레이션합니다. 각 타겟의 풀 리퀘스트를 생성하여 변경사항이 머지되기 전에 검토와 테스트가 이루어지는 것을 권장합니다.
 
-### Extract the target build settings into `.xcconfig` files {#extract-the-target-build-settings-into-xcconfig-files}
+### 타겟 빌드 설정을 `.xcconfig` 파일로 추출 {#extract-the-target-build-settings-into-xcconfig-files}
 
-Like you did with the project build settings, extract the target build settings
-into an `.xcconfig` file to make the target leaner and easier to migrate. You
-can use the following command to extract the build settings from the target into
-an `.xcconfig` file:
+프로젝트 빌드 설정에서 했던 것처럼 타겟 빌드 설정을 `.xcconfig` 파일로 추출하여 타겟을 더 간결하고 마이그레이션하기 쉽게 만듭니다.
+다음 명령어를 사용하여 타겟의 빌드 설정에서 `.xcconfig` 파일을 추출합니다:
 
 ```bash
 tuist migration settings-to-xcconfig -p MyApp.xcodeproj -t TargetX -x xcconfigs/TargetX.xcconfig
 ```
 
-### Define the target in the `Project.swift` file {#define-the-target-in-the-projectswift-file}
+### `Project.swift` 파일에 타겟 정의 {#define-the-target-in-the-projectswift-file}
 
-Define the target in `Project.targets`:
+`Project.targets`에 타겟 정의:
 
 ```swift
 import ProjectDescription
@@ -229,31 +224,25 @@ let project = Project(
 
 ::: info TEST TARGETS
 <!-- -->
-If the target has an associated test target, you should define it in the
-`Project.swift` file as well repeating the same steps.
+타겟의 테스트 타겟을 가지고 있다면 동일하게 `Project.swift` 파일에 정의합니다.
 <!-- -->
 :::
 
-### Validate the target migration {#validate-the-target-migration}
+### 타겟 마이그레이션 검증 {#validate-the-target-migration}
 
-Run `tuist build` and `tuist test` to ensure the project builds and tests pass.
-Additionally, you can use [xcdiff](https://github.com/bloomberg/xcdiff) to
-compare the generated Xcode project with the existing one to ensure that the
-changes are correct.
+`tuist build`와 `tuist test`를 수행하여 프로젝트 빌드와 테스트가 정상적으로 수행되는지 확인합니다. 또한
+[xcdiff](https://github.com/bloomberg/xcdiff)을 사용하여 생성된 Xcode 프로젝트와 기존 Xcode
+프로젝트를 비교하여 변경 사항이 올바른지 확인할 수 있습니다.
 
-### Repeat {#repeat}
+### 반복 {#repeat}
 
-Repeat until all the targets are fully migrated. Once you are done, we recommend
-updating your CI and CD pipelines to build and test the project using `tuist
-build` and `tuist test` commands to benefit from the speed and reliability that
-Tuist provides.
+모든 타겟을 완전히 마이그레이션할 때까지 반복합니다. 마이그레이션 완료 후에 Tuist가 제공하는 속도와 안전성의 이점을 위해 `tuist
+build`와 `tuist test` 명령어를 사용해 프로젝트 빌드와 테스트를 수행하도록 CI와 CD 파이프라인을을 업데이트하길 권장합니다.
 
-## Troubleshooting {#troubleshooting}
+## 문제 해결 {#troubleshooting}
 
-### Compilation errors due to missing files. {#compilation-errors-due-to-missing-files}
+### 파일 누락으로 인한 컴파일 오류. {#compilation-errors-due-to-missing-files}
 
-If the files associated to your Xcode project targets were not all contained in
-a file-system directory representing the target, you might end up with a project
-that doesn't compile. Make sure the list of files after generating the project
-with Tuist matches the list of files in the Xcode project, and take the
-opportunity to align the file structure with the target structure.
+Xcode 프로젝트 타겟에 연관된 파일이 타겟에 포함되지 않는 경우 컴파일되지 않는 프로젝트가 생성될 수 있습니다. Tuist로 프로젝트를
+생성한 후에 파일 목록이 Xcode 프로젝트의 파일 목록과 일치하는지 확인하고 이 기회에 파일 구조를 타겟 구조와 일치하도록 정리하는 것을
+추천합니다.
