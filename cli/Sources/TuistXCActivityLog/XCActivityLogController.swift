@@ -476,7 +476,9 @@ public struct XCActivityLogController: XCActivityLogControlling {
                 return nil
             }
 
-            return CacheStep(key: key, taskType: taskType, operation: operation)
+            let isMiss = step.notes?.contains { $0.title == "cache key query miss" } ?? false
+
+            return CacheStep(key: key, taskType: taskType, operation: operation, isMiss: isMiss)
         }
     }
 
@@ -527,7 +529,11 @@ public struct XCActivityLogController: XCActivityLogControlling {
             case .materialize:
                 status.hasMaterialize = true
             case .upload:
-                status.hasUpload = true
+                break // No longer tracking uploads
+            }
+
+            if step.isMiss {
+                status.isMiss = true
             }
 
             keyStatuses[step.key] = status
@@ -538,13 +544,11 @@ public struct XCActivityLogController: XCActivityLogControlling {
 
     private func determineCacheStatuses(
         keyStatuses: [String: CacheKeyStatus],
-        buildStartTime: Double
+        buildStartTime _: Double
     ) async throws -> [CacheableTask] {
         return try await keyStatuses.concurrentMap { key, status in
             let cacheStatus = try await determineCacheStatus(
-                for: status,
-                key: key,
-                buildStartTime: buildStartTime
+                for: status
             )
 
             return CacheableTask(
@@ -557,35 +561,16 @@ public struct XCActivityLogController: XCActivityLogControlling {
 
     private func determineCacheStatus(
         for status: CacheKeyStatus,
-        key: String,
-        buildStartTime: Double
     ) async throws -> CacheableTask.CacheStatus {
-        if status.hasUpload {
+        if status.isMiss {
             return .miss
-        } else if !status.hasQuery, status.hasMaterialize {
-            return .localHit
-        } else if status.hasQuery, status.hasMaterialize, !status.hasUpload {
-            // It's not possible to tell just from the `.xcactivitylog` whether a key is a miss with no upload (such as when a
-            // build fails) or a remote hit
-            // To distinguish these two cases, the `KeyValueService` stores remote hits in a cache directory.
-            // If there's a remote hit that occurred after the build started, we consider the cacheable task a remote hit.
-            return try await isRemoteHit(key: key, buildStartTime: buildStartTime) ? .remoteHit : .miss
         } else {
-            return .miss
+            if status.hasQuery {
+                return .remoteHit
+            } else {
+                return .localHit
+            }
         }
-    }
-
-    private func isRemoteHit(key: String, buildStartTime: Double) async throws -> Bool {
-        let keyValueEntriesDirectory = Environment.current.cacheDirectory.appending(component: "KeyValueStore")
-        let jsonPath = keyValueEntriesDirectory.appending(component: "\(key).json")
-
-        guard try await fileSystem.exists(jsonPath),
-              let creationDate = try await fileSystem.fileMetadata(at: jsonPath)?.lastModificationDate
-        else {
-            return false
-        }
-
-        return creationDate.timeIntervalSinceReferenceDate >= buildStartTime
     }
 }
 
@@ -598,6 +583,7 @@ private struct CacheStep {
     let key: String
     let taskType: CacheableTask.TaskType
     let operation: CacheOperation
+    let isMiss: Bool
 }
 
 private enum CacheOperation {
@@ -610,7 +596,7 @@ private struct CacheKeyStatus {
     var taskType: CacheableTask.TaskType
     var hasQuery: Bool = false
     var hasMaterialize: Bool = false
-    var hasUpload: Bool = false
+    var isMiss: Bool = false
 
     init(taskType: CacheableTask.TaskType) {
         self.taskType = taskType

@@ -101,6 +101,7 @@ struct XcodeCacheSettingsProjectMapperTests {
         #expect(baseSettings["EXISTING_SETTING"] == .string("value"))
         #expect(baseSettings["COMPILATION_CACHE_ENABLE_CACHING"] == .string("YES"))
         #expect(baseSettings["COMPILATION_CACHE_ENABLE_PLUGIN"] == .string("YES"))
+        #expect(baseSettings["COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS"] == .string("YES"))
 
         let socketPath = Environment.current.cacheSocketPathString(for: fullHandle)
         #expect(baseSettings["COMPILATION_CACHE_REMOTE_SERVICE_PATH"] == .string(socketPath))

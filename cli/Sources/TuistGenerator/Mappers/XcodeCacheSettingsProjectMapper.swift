@@ -35,6 +35,7 @@ public final class XcodeCacheSettingsProjectMapper: ProjectMapping {
         )
 
         baseSettings["COMPILATION_CACHE_ENABLE_PLUGIN"] = .string("YES")
+        baseSettings["COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS"] = .string("YES")
 
         project.settings = Settings(
             base: baseSettings,
