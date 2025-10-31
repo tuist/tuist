@@ -7,15 +7,11 @@
 ---
 # Swift Package 마이그레이션 {#migrate-a-swift-package}
 
-Swift Package Manager emerged as a dependency manager for Swift code that
-uninentionally found itself solving the problem of managing projects and
-supporting other programming languages like Objective-C. Because the tool was
-designed with a different purpose in mind, it can be challenging to use it to
-manage projects at scale because it lacks flexibility, performance, and power
-that Tuist provides. This is well captured in the [Scaling iOS at
-Bumble](https://medium.com/bumble-tech/scaling-ios-at-bumble-239e0fa009f2)
-article, which includes the following table comparing the performance of Swift
-Package Manager and native Xcode projects:
+Swift Package Manager는 원래 Swift 코드 의존성을 관리하기 위해 등장했지만, 의도치 않게 프로젝트 관리와
+Objective-C와 같은 다른 프로그래밍 언어 지원 문제까지 해결하게 되었습니다. 이 도구는 이런 목적으로 설계된 것이 아니기 때문에 대규모
+프로젝트를 관리할 때 Tuist가 제공하는 유연성, 성능, 강력함이 부족해 사용하기 어려울 수 있습니다. 이러한 내용은 [Scaling iOS
+at Bumble](https://medium.com/bumble-tech/scaling-ios-at-bumble-239e0fa009f2) 글에
+잘 설명되어 있으며, 여기서는 Swift Package Manager와 Xcode 프로젝트의 성능을 비교한 다음의 표도 포함하고 있습니다:
 
 <img style="max-width: 400px;" alt="A table that compares the regression in performance when using SPM over native Xcode projects" src="/images/guides/start/migrate/performance-table.webp">
 
@@ -23,22 +19,17 @@ Package Manager and native Xcode projects:
 일부는 마이그레이션을 시도하다가 개발자 경험이 크게 저하되는 것을 뒤늦게 깨닫습니다. 예를 들어 파일 이름을 변경하는데 최대 15초가 걸릴 수
 있습니다. 15초!
 
-**Whether Apple will make Swift Package Manager a built-for-scale project
-manager is uncertain.** However, we are not seeing any signs that it's
-happening. In fact, we are seeing quite the opposite. They are making
-Xcode-inspired decisions, like achieving convenience through implicit
-configurations, which
-<LocalizedLink href="/guides/features/projects/cost-of-convenience">as you might
-know,</LocalizedLink> is the source of complications at scale. We believe it'd
-take Apple to go to first principles and revisit some decisions that made sense
-as a dependency manager but not as a project manager, for example the usage of a
-compiled language as an interface to define projects.
+**Apple이 Swift Package Manager를 대규모 프로젝트 관리 도구로 발전시킬지는 확실하지 않습니다.** 그러나 아직까지는 그런
+징후가 보이지 않습니다. 오히려 반대 방향으로 가고 있습니다. Apple은 Xcode에서 영감을 받은 결정(예를 들어 암묵적 설정을 통한 편의성
+추구)을 선택하고 있는데
+<LocalizedLink href="/guides/features/projects/cost-of-convenience">이것은 알고
+있듯이</LocalizedLink> 대규모에서 복잡성을 초래합니다. 우리는 Apple이 근본적인 원칙으로 돌아가서 의존성 관리 도구로 적합하지만
+프로젝트 정의를 위해 컴파일된 언어를 인터페이스로 사용하는 방식과 같이 프로젝트 관리 도구로는 적합하지 않은 결정을 다시 검토해야 한다고
+생각합니다.
 
 ::: tip SPM AS JUST A DEPENDENCY MANAGER
 <!-- -->
-Tuist treats Swift Package Manager as a dependency manager, and it's a great
-one. We use it to resolve dependencies and to build them. We don't use it to
-define projects because it's not designed for that.
+Tuist는 Swift Package Manager를 의존성 관리
 <!-- -->
 :::
 
