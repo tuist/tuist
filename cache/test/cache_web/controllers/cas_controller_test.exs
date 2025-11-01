@@ -120,12 +120,12 @@ defmodule CacheWeb.CASControllerTest do
       assert conn.resp_body == ""
     end
 
-    test "saves artifact from tempfile when raw_body is a tempfile", %{conn: conn} do
+    test "streams large artifact to temporary file", %{conn: conn} do
       account_handle = "test-account"
       project_handle = "test-project"
       id = "abc123"
-      tmp_path = "/tmp/test_artifact_123"
       expected_key = "#{account_handle}/#{project_handle}/cas/#{id}"
+      large_body = :binary.copy("0123456789abcdef", 150_000)
 
       Authentication
       |> expect(:ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
@@ -136,7 +136,10 @@ defmodule CacheWeb.CASControllerTest do
       |> expect(:exists?, fn ^expected_key ->
         false
       end)
-      |> expect(:put_file, fn ^expected_key, ^tmp_path ->
+      |> expect(:put_file, fn ^expected_key, tmp_path ->
+        assert File.exists?(tmp_path)
+        assert File.stat!(tmp_path).size == byte_size(large_body)
+        File.rm(tmp_path)
         :ok
       end)
 
@@ -144,8 +147,8 @@ defmodule CacheWeb.CASControllerTest do
         conn
         |> put_req_header("authorization", "Bearer valid-token")
         |> put_req_header("content-type", "application/octet-stream")
-        |> Map.put(:private, Map.put(conn.private, :raw_body, {:tempfile, tmp_path}))
-        |> post("/api/cache/cas/#{id}?account_handle=#{account_handle}&project_handle=#{project_handle}", "")
+        |> Plug.Conn.put_private(:cas_body_read_opts, [length: 128_000, read_length: 128_000, read_timeout: 60_000])
+        |> post("/api/cache/cas/#{id}?account_handle=#{account_handle}&project_handle=#{project_handle}", large_body)
 
       assert conn.status == 204
       assert conn.resp_body == ""
@@ -176,37 +179,6 @@ defmodule CacheWeb.CASControllerTest do
 
       assert conn.status == 204
       assert conn.resp_body == ""
-    end
-
-    test "cleans up tempfile when artifact already exists", %{conn: conn} do
-      account_handle = "test-account"
-      project_handle = "test-project"
-      id = "abc123"
-      tmp_path = System.tmp_dir!() |> Path.join("test_artifact_cleanup_#{:rand.uniform(1000000)}")
-      expected_key = "#{account_handle}/#{project_handle}/cas/#{id}"
-
-      File.write!(tmp_path, "test content")
-
-      Authentication
-      |> expect(:ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
-        {:ok, "Bearer valid-token"}
-      end)
-
-      Disk
-      |> expect(:exists?, fn ^expected_key ->
-        true
-      end)
-
-      conn =
-        conn
-        |> put_req_header("authorization", "Bearer valid-token")
-        |> put_req_header("content-type", "application/octet-stream")
-        |> Map.put(:private, Map.put(conn.private, :raw_body, {:tempfile, tmp_path}))
-        |> post("/api/cache/cas/#{id}?account_handle=#{account_handle}&project_handle=#{project_handle}", "")
-
-      assert conn.status == 204
-      assert conn.resp_body == ""
-      refute File.exists?(tmp_path)
     end
 
     test "returns 500 when disk write fails", %{conn: conn} do
@@ -242,12 +214,12 @@ defmodule CacheWeb.CASControllerTest do
       end)
     end
 
-    test "returns 500 when put_file returns exists error", %{conn: conn} do
+    test "treats put_file exists error as success", %{conn: conn} do
       account_handle = "test-account"
       project_handle = "test-project"
       id = "abc123"
-      tmp_path = "/tmp/test_artifact_exists"
       expected_key = "#{account_handle}/#{project_handle}/cas/#{id}"
+      large_body = :binary.copy("0123456789abcdef", 150_000)
 
       Authentication
       |> expect(:ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
@@ -258,7 +230,9 @@ defmodule CacheWeb.CASControllerTest do
       |> expect(:exists?, fn ^expected_key ->
         false
       end)
-      |> expect(:put_file, fn ^expected_key, ^tmp_path ->
+      |> expect(:put_file, fn ^expected_key, tmp_path ->
+        assert File.exists?(tmp_path)
+        File.rm(tmp_path)
         {:error, :exists}
       end)
 
@@ -266,8 +240,8 @@ defmodule CacheWeb.CASControllerTest do
         conn
         |> put_req_header("authorization", "Bearer valid-token")
         |> put_req_header("content-type", "application/octet-stream")
-        |> Map.put(:private, Map.put(conn.private, :raw_body, {:tempfile, tmp_path}))
-        |> post("/api/cache/cas/#{id}?account_handle=#{account_handle}&project_handle=#{project_handle}", "")
+        |> Plug.Conn.put_private(:cas_body_read_opts, [length: 128_000, read_length: 128_000, read_timeout: 60_000])
+        |> post("/api/cache/cas/#{id}?account_handle=#{account_handle}&project_handle=#{project_handle}", large_body)
 
       assert conn.status == 204
       assert conn.resp_body == ""
