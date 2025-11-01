@@ -32,88 +32,160 @@ defmodule Cache.Authentication do
     if is_nil(auth_header) do
       {:error, 401, "Missing Authorization header"}
     else
-      case get_accessible_projects(auth_header, conn) do
-        {:ok, project_set} ->
-          requested_handle = String.downcase("#{account_handle}/#{project_handle}")
+      requested_handle = normalize_handle(account_handle, project_handle)
 
-          if MapSet.member?(project_set, requested_handle) do
-            {:ok, auth_header}
-          else
-            {:error, 404, "Unauthorized or not found"}
-          end
-
-        {:error, status, message} ->
-          {:error, status, message}
+      case authorize(auth_header, requested_handle, conn) do
+        :ok -> {:ok, auth_header}
+        {:error, status, message} -> {:error, status, message}
       end
     end
   end
 
-
-
-  defp get_accessible_projects(auth_header, conn) do
+  defp authorize(auth_header, requested_handle, conn) do
     cache_key = generate_cache_key(auth_header)
 
-    case Cachex.get(@cache_name, cache_key) do
-      {:ok, nil} ->
-        fetch_and_cache_projects(auth_header, cache_key, conn)
+    case cached_failure(cache_key) do
+      {:error, status, message} ->
+        {:error, status, message}
 
-      {:ok, cached_result} ->
-        cached_result
+      :miss ->
+        case evaluate_cached_project(cache_key, requested_handle) do
+          :authorized ->
+            :ok
 
-      _ ->
-        fetch_and_cache_projects(auth_header, cache_key, conn)
+          :unauthorized ->
+            {:error, 404, "Unauthorized or not found"}
+
+          :miss ->
+            fetch_and_cache_projects(auth_header, cache_key, requested_handle, conn)
+        end
     end
   end
 
-  defp fetch_and_cache_projects(auth_header, cache_key, conn) do
-    headers = [{"authorization", auth_header}]
+  defp cached_failure(cache_key) do
+    case Cachex.get(@cache_name, {:failure, cache_key}) do
+      {:ok, {status, message}} -> {:error, status, message}
+      _ -> :miss
+    end
+  end
 
-    headers =
-      case Plug.Conn.get_req_header(conn, "x-request-id") do
-        [request_id | _] -> [{"x-request-id", request_id} | headers]
-        _ -> headers
-      end
+  defp evaluate_cached_project(cache_key, requested_handle) do
+    case Cachex.get(@cache_name, {:primed, cache_key}) do
+      {:ok, version} when is_integer(version) ->
+        case Cachex.get(@cache_name, {cache_key, requested_handle}) do
+          {:ok, {^version, :allowed}} -> :authorized
+          {:ok, nil} -> :unauthorized
+          _ -> :miss
+        end
 
+      _ ->
+        :miss
+    end
+  end
+
+  defp fetch_and_cache_projects(auth_header, cache_key, requested_handle, conn) do
+    headers = build_headers(auth_header, conn)
+    options = request_options(headers)
+
+    case Req.get(options) do
+      {:ok, %{status: 200, body: %{"projects" => projects}}} ->
+        prime_projects(cache_key, projects, requested_handle)
+
+      {:ok, %{status: 403}} ->
+        store_failure(cache_key, 404, "Unauthorized or not found")
+
+      {:ok, %{status: 401}} ->
+        store_failure(cache_key, 401, "Unauthorized")
+
+      {:ok, %{status: status}} ->
+        {:error, status, "Server responded with status #{status}"}
+
+      {:error, reason} ->
+        Logger.warning("Failed to fetch accessible projects: #{inspect(reason)}")
+        {:error, 500, "Failed to fetch accessible projects"}
+    end
+  end
+
+  defp build_headers(auth_header, conn) do
+    base_headers = [{"authorization", auth_header}]
+
+    case Plug.Conn.get_req_header(conn, "x-request-id") do
+      [request_id | _] -> [{"x-request-id", request_id} | base_headers]
+      _ -> base_headers
+    end
+  end
+
+  defp request_options(headers) do
     cas_config = Application.get_env(:cache, :cas, [])
     base_url = Keyword.get(cas_config, :server_url)
     url = "#{base_url}/api/projects"
 
     req_options = Application.get_env(:cache, :req_options, [])
-    options = Keyword.merge([url: url, headers: headers, finch: Cache.Finch, retry: false], req_options)
 
-    case Req.get(options) do
-      {:ok, %{status: 200, body: %{"projects" => projects}}} ->
-        # Pre-lowercase project handles and convert to MapSet for O(1) lookup
-        project_set =
-          projects
-          |> Enum.map(&String.downcase(&1["full_name"]))
-          |> MapSet.new()
+    Keyword.merge(
+      [url: url, headers: headers, finch: Cache.Finch, retry: false, cache: false],
+      req_options
+    )
+  end
 
-        result = {:ok, project_set}
+  defp success_ttl do
+    :timer.seconds(@success_cache_ttl)
+  end
 
-        Cachex.put(@cache_name, cache_key, result, ttl: :timer.seconds(@success_cache_ttl))
-        result
-
-      {:ok, %{status: 403}} ->
-        result = {:error, 404, "Unauthorized or not found"}
-        Cachex.put(@cache_name, cache_key, result, ttl: :timer.seconds(@failure_cache_ttl))
-        result
-
-      {:ok, %{status: 401}} ->
-        result = {:error, 401, "Unauthorized"}
-        Cachex.put(@cache_name, cache_key, result, ttl: :timer.seconds(@failure_cache_ttl))
-        result
-
-      {:ok, %{status: status}} ->
-        {:error, status, "Server responded with status #{status}"}
-
-      {:error, _error} ->
-        {:error, 500, "Failed to fetch accessible projects"}
-    end
+  defp failure_ttl do
+    :timer.seconds(@failure_cache_ttl)
   end
 
   defp generate_cache_key(auth_header) do
     :crypto.hash(:sha256, auth_header)
     |> Base.encode16(case: :lower)
+  end
+
+  defp prime_projects(cache_key, projects, requested_handle) do
+    version = System.unique_integer([:positive, :monotonic])
+    ttl = success_ttl()
+
+    {entries, authorized?} =
+      Enum.reduce(projects, {[], false}, fn
+        %{"full_name" => full_name}, {acc, allowed?} when is_binary(full_name) ->
+          normalized = String.downcase(full_name)
+          entry = {{cache_key, normalized}, {version, :allowed}}
+          {[entry | acc], allowed? or normalized == requested_handle}
+
+        _, acc ->
+          acc
+      end)
+
+    {:ok, _} =
+      Cachex.transaction(@cache_name, [cache_key], fn cache ->
+        Cachex.put(cache, {:primed, cache_key}, version, ttl: ttl)
+        Cachex.del(cache, {:failure, cache_key})
+
+        case entries do
+          [] -> :ok
+          _ -> Cachex.put_many(cache, entries, ttl: ttl)
+        end
+
+        authorized?
+      end)
+
+    if authorized?, do: :ok, else: {:error, 404, "Unauthorized or not found"}
+  end
+
+  defp store_failure(cache_key, status, message) do
+    ttl = failure_ttl()
+
+    {:ok, _} =
+      Cachex.transaction(@cache_name, [cache_key], fn cache ->
+        Cachex.put(cache, {:failure, cache_key}, {status, message}, ttl: ttl)
+        Cachex.del(cache, {:primed, cache_key})
+      end)
+
+    {:error, status, message}
+  end
+
+  defp normalize_handle(account_handle, project_handle) do
+    "#{account_handle}/#{project_handle}"
+    |> String.downcase()
   end
 end
