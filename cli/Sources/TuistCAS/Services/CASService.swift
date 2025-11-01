@@ -5,6 +5,7 @@ import GRPCCore
 import Logging
 import Path
 import TuistServer
+import libzstd
 
 public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServiceProtocol {
     private let fullHandle: String
@@ -47,14 +48,55 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
         Logger.current.debug("CAS.load starting - casID: \(casID)")
 
         do {
-            let data = try await loadCacheCASService.loadCacheCAS(
+            let compressedData = try await loadCacheCASService.loadCacheCAS(
                 casId: casID,
                 fullHandle: fullHandle,
                 serverURL: serverURL
             )
 
+            // Decompress the data using zstd
+            let decompressedData: Data
+            do {
+                // Get the decompressed size first
+                let decompressedSize = compressedData.withUnsafeBytes { bytes in
+                    ZSTD_getFrameContentSize(bytes.baseAddress, compressedData.count)
+                }
+                
+                guard decompressedSize != ZSTD_CONTENTSIZE_ERROR && decompressedSize != ZSTD_CONTENTSIZE_UNKNOWN else {
+                    throw NSError(domain: "ZSTDError", code: -1, userInfo: [NSLocalizedDescriptionKey: "Cannot determine decompressed size"])
+                }
+                
+                var decompressedBuffer = Array<UInt8>(repeating: 0, count: Int(decompressedSize))
+                
+                let actualDecompressedSize = compressedData.withUnsafeBytes { srcBytes in
+                    decompressedBuffer.withUnsafeMutableBytes { dstBytes in
+                        ZSTD_decompress(
+                            dstBytes.baseAddress,
+                            Int(decompressedSize),
+                            srcBytes.baseAddress,
+                            compressedData.count
+                        )
+                    }
+                }
+                
+                guard ZSTD_isError(actualDecompressedSize) == 0 else {
+                    throw NSError(domain: "ZSTDError", code: Int(actualDecompressedSize), userInfo: [NSLocalizedDescriptionKey: "Decompression failed"])
+                }
+                
+                decompressedData = Data(decompressedBuffer.prefix(Int(actualDecompressedSize)))
+                Logger.current.debug("CAS.load decompressed data from \(compressedData.count) to \(decompressedData.count) bytes")
+            } catch {
+                Logger.current.error("CAS.load failed to decompress data: \(error)")
+                response.outcome = .error
+                var responseError = CompilationCacheService_Cas_V1_ResponseError()
+                responseError.description_p = "Failed to decompress data: \(error.localizedDescription)"
+                response.error = responseError
+                response.contents = .error(responseError)
+                return response
+            }
+
             var bytes = CompilationCacheService_Cas_V1_CASBytes()
-            bytes.data = data
+            bytes.data = decompressedData
 
             var blob = CompilationCacheService_Cas_V1_CASBlob()
             blob.blob = bytes
@@ -65,7 +107,7 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
             let duration = ProcessInfo.processInfo.systemUptime - startTime
             Logger.current
                 .debug(
-                    "CAS.load completed successfully in \(String(format: "%.3f", duration))s - loaded \(data.count) bytes for casID: \(casID)"
+                    "CAS.load completed successfully in \(String(format: "%.3f", duration))s - loaded \(compressedData.count) compressed bytes, decompressed to \(decompressedData.count) bytes for casID: \(casID)"
                 )
         } catch {
             response.outcome = .error
@@ -109,17 +151,50 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
             Logger.current.debug("CAS.save starting - data size: \(data.count) bytes")
         }
 
+        // Compress the data using zstd
+        let compressedData: Data
+        do {
+            let maxCompressedSize = ZSTD_compressBound(data.count)
+            var compressedBuffer = Array<UInt8>(repeating: 0, count: maxCompressedSize)
+            
+            let compressedSize = data.withUnsafeBytes { srcBytes in
+                compressedBuffer.withUnsafeMutableBytes { dstBytes in
+                    ZSTD_compress(
+                        dstBytes.baseAddress,
+                        maxCompressedSize,
+                        srcBytes.baseAddress,
+                        data.count,
+                        1 // compression level
+                    )
+                }
+            }
+            
+            guard ZSTD_isError(compressedSize) == 0 else {
+                throw NSError(domain: "ZSTDError", code: Int(compressedSize), userInfo: [NSLocalizedDescriptionKey: "Compression failed"])
+            }
+            
+            compressedData = Data(compressedBuffer.prefix(compressedSize))
+            Logger.current.debug("CAS.save compressed data from \(data.count) to \(compressedData.count) bytes")
+        } catch {
+            Logger.current.error("CAS.save failed to compress data: \(error)")
+            var responseError = CompilationCacheService_Cas_V1_ResponseError()
+            responseError.description_p = "Failed to compress data: \(error.localizedDescription)"
+            response.error = responseError
+            response.contents = .error(responseError)
+            return response
+        }
+
         let hash = SHA256.hash(data: data)
         let fingerprint = hash.compactMap { String(format: "%02X", $0) }.joined()
 
         var message = CompilationCacheService_Cas_V1_CASDataID()
         message.id = fingerprint.data(using: .utf8)!
 
-        Logger.current.debug("CAS.save computed fingerprint: \(fingerprint), data size: \(data.count) bytes")
+        Logger.current.debug("CAS.save computed fingerprint: \(fingerprint), original size: \(data.count) bytes, compressed size: \(compressedData.count) bytes")
 
         do {
             try await saveCacheCASService.saveCacheCAS(
-                data,
+                compressedData,
                 casId: fingerprint,
                 fullHandle: fullHandle,
                 serverURL: serverURL
