@@ -46,4 +46,4 @@ struct ProjectUpdateCommand: AsyncParsableCommand {
     }
 }
 
-extension ServerProject.Visibility: ExpressibleByArgument {}
+extension ServerProject.Visibility: @retroactive ExpressibleByArgument {}
