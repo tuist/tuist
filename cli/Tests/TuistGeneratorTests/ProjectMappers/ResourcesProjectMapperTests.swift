@@ -303,6 +303,170 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         XCTAssertEqual(gotTarget.buildableFolders, [buildableFolders[0]])
     }
 
+    func test_map_when_buildable_folder_contains_sources_and_resources() async throws {
+        // Given
+        let sharedFolderPath = try AbsolutePath(validating: "/shared")
+        let swiftFilePath = try AbsolutePath(validating: "/shared/File.swift")
+        let assetsPath = try AbsolutePath(validating: "/shared/Assets.xcassets")
+
+        let buildableFolder = BuildableFolder(
+            path: sharedFolderPath,
+            exceptions: BuildableFolderExceptions(exceptions: []),
+            resolvedFiles: [
+                BuildableFolderFile(path: swiftFilePath, compilerFlags: nil),
+                BuildableFolderFile(path: assetsPath, compilerFlags: nil),
+            ]
+        )
+
+        let target = Target.test(
+            product: .staticFramework,
+            sources: [],
+            resources: ResourceFileElements([]),
+            buildableFolders: [buildableFolder]
+        )
+        project = Project.test(targets: [target])
+        given(buildableFolderChecker).containsResources(.value([buildableFolder])).willReturn(true)
+        given(buildableFolderChecker).containsSources(.value([buildableFolder])).willReturn(true)
+
+        // When
+        let (gotProject, _) = try await subject.map(project: project)
+
+        // Then
+        let gotTarget = try XCTUnwrap(gotProject.targets.values.sorted().last)
+        XCTAssertEqual(gotTarget.buildableFolders.count, 1)
+        let expectedSourcesFolder = BuildableFolder(
+            path: sharedFolderPath,
+            exceptions: BuildableFolderExceptions(
+                exceptions: [
+                    BuildableFolderException(
+                        excluded: [assetsPath],
+                        compilerFlags: [:],
+                        publicHeaders: [],
+                        privateHeaders: []
+                    ),
+                ]
+            ),
+            resolvedFiles: [
+                BuildableFolderFile(path: swiftFilePath, compilerFlags: nil),
+            ]
+        )
+        XCTAssertEqual(gotTarget.buildableFolders.first, expectedSourcesFolder)
+
+        let resourcesTarget = try XCTUnwrap(gotProject.targets.values.sorted().first)
+        XCTAssertEqual(resourcesTarget.buildableFolders.count, 1)
+        let expectedResourcesFolder = BuildableFolder(
+            path: sharedFolderPath,
+            exceptions: BuildableFolderExceptions(
+                exceptions: [
+                    BuildableFolderException(
+                        excluded: [swiftFilePath],
+                        compilerFlags: [:],
+                        publicHeaders: [],
+                        privateHeaders: []
+                    ),
+                ]
+            ),
+            resolvedFiles: [
+                BuildableFolderFile(path: assetsPath, compilerFlags: nil),
+            ]
+        )
+        XCTAssertEqual(resourcesTarget.buildableFolders.first, expectedResourcesFolder)
+    }
+
+    func test_map_when_nested_buildable_folders_share_sources_and_resources() async throws {
+        // Given
+        let rootPath = try AbsolutePath(validating: "/MyTarget")
+        let sourcesPath = try AbsolutePath(validating: "/MyTarget/Sources")
+        let nestedResourcesPath = try AbsolutePath(validating: "/MyTarget/Sources/Resources")
+        let swiftFile = try AbsolutePath(validating: "/MyTarget/Sources/File.swift")
+        let assetFolder = try AbsolutePath(validating: "/MyTarget/Sources/Resources/Asset.xcassets")
+
+        let buildableFolders = [
+            BuildableFolder(
+                path: rootPath,
+                exceptions: BuildableFolderExceptions(exceptions: []),
+                resolvedFiles: [
+                    BuildableFolderFile(path: swiftFile, compilerFlags: nil),
+                    BuildableFolderFile(path: assetFolder, compilerFlags: nil),
+                ]
+            ),
+            BuildableFolder(
+                path: sourcesPath,
+                exceptions: BuildableFolderExceptions(exceptions: []),
+                resolvedFiles: [
+                    BuildableFolderFile(path: swiftFile, compilerFlags: nil),
+                ]
+            ),
+            BuildableFolder(
+                path: nestedResourcesPath,
+                exceptions: BuildableFolderExceptions(exceptions: []),
+                resolvedFiles: [
+                    BuildableFolderFile(path: assetFolder, compilerFlags: nil),
+                ]
+            ),
+        ]
+
+        let target = Target.test(
+            product: .staticFramework,
+            sources: [],
+            resources: ResourceFileElements([]),
+            buildableFolders: buildableFolders
+        )
+        project = Project.test(targets: [target])
+        given(buildableFolderChecker).containsResources(.value(buildableFolders)).willReturn(true)
+        given(buildableFolderChecker).containsSources(.value(buildableFolders)).willReturn(true)
+
+        // When
+        let (gotProject, _) = try await subject.map(project: project)
+
+        // Then
+        let gotTarget = try XCTUnwrap(gotProject.targets.values.sorted().last)
+        XCTAssertEqual(gotTarget.buildableFolders.count, 3)
+
+        let expectedRootSources = BuildableFolder(
+            path: rootPath,
+            exceptions: BuildableFolderExceptions(
+                exceptions: [
+                    BuildableFolderException(
+                        excluded: [assetFolder],
+                        compilerFlags: [:],
+                        publicHeaders: [],
+                        privateHeaders: []
+                    ),
+                ]
+            ),
+            resolvedFiles: [
+                BuildableFolderFile(path: swiftFile, compilerFlags: nil),
+            ]
+        )
+
+        XCTAssertTrue(gotTarget.buildableFolders.contains(expectedRootSources))
+        XCTAssertTrue(gotTarget.buildableFolders.contains(buildableFolders[1]))
+
+        let resourcesTarget = try XCTUnwrap(gotProject.targets.values.sorted().first)
+        XCTAssertEqual(resourcesTarget.buildableFolders.count, 2)
+
+        let expectedRootResources = BuildableFolder(
+            path: rootPath,
+            exceptions: BuildableFolderExceptions(
+                exceptions: [
+                    BuildableFolderException(
+                        excluded: [swiftFile],
+                        compilerFlags: [:],
+                        publicHeaders: [],
+                        privateHeaders: []
+                    ),
+                ]
+            ),
+            resolvedFiles: [
+                BuildableFolderFile(path: assetFolder, compilerFlags: nil),
+            ]
+        )
+
+        XCTAssertTrue(resourcesTarget.buildableFolders.contains(expectedRootResources))
+        XCTAssertTrue(resourcesTarget.buildableFolders.contains(buildableFolders[2]))
+    }
+
     func test_map_when_a_target_that_has_core_data_models_and_doesnt_supports_them() async throws {
         // Given
 
