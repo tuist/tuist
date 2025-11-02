@@ -144,7 +144,7 @@ defmodule Tuist.HTTP.PromExPlugin do
             [:tuist, :http, :send, :duration, :nanoseconds, :sum],
             event_name: [:finch, :send, :stop],
             tag_values: &send_metadata_to_tag_values/1,
-            tags: [:request_method, :request_host, :request_path],
+            tags: [:request_method, :request_host],
             description: "Summary of the time it takes to finish sending the request to the server.",
             measurement: :duration,
             unit: {:native, :nanosecond}
@@ -153,7 +153,7 @@ defmodule Tuist.HTTP.PromExPlugin do
             [:tuist, :http, :send, :duration, :nanoseconds],
             event_name: [:finch, :send, :stop],
             tag_values: &send_metadata_to_tag_values/1,
-            tags: [:request_method, :request_host, :request_path],
+            tags: [:request_method, :request_host],
             description: "Summary of the time it takes to finish sending the request to the server.",
             measurement: :duration,
             unit: {:native, :nanosecond},
