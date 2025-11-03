@@ -918,14 +918,6 @@ defmodule TuistWeb.BundlesLive do
         },
         operator: :==,
         value: nil
-      },
-      %Filter.Filter{
-        id: "inserted_at",
-        field: :inserted_at,
-        display_name: gettext("Created at"),
-        type: :date,
-        operator: :>=,
-        value: nil
       }
     ]
   end

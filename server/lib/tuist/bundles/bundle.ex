@@ -16,8 +16,7 @@ defmodule Tuist.Bundles.Bundle do
       :name,
       :install_size,
       :download_size,
-      :supported_platforms,
-      :inserted_at
+      :supported_platforms
     ],
     sortable: [:inserted_at, :install_size, :download_size]
   }

@@ -1120,31 +1120,6 @@ defmodule Tuist.BundlesTest do
       assert length(bundles) == 2
     end
 
-    test "filters bundles by creation date (greater than or equal)" do
-      # Given
-      project = ProjectsFixtures.project_fixture()
-      bundle1 = BundlesFixtures.bundle_fixture(project: project, inserted_at: ~U[2024-05-01 10:00:00Z])
-      bundle2 = BundlesFixtures.bundle_fixture(project: project, inserted_at: ~U[2024-05-02 10:00:00Z])
-      _bundle3 = BundlesFixtures.bundle_fixture(project: project, inserted_at: ~U[2024-04-01 10:00:00Z])
-
-      # When
-      {bundles, _meta} = Bundles.list_bundles(%{
-        filters: [
-          %{field: :project_id, op: :==, value: project.id},
-          %{field: :inserted_at, op: :>=, value: ~U[2024-05-01 00:00:00Z]}
-        ],
-        order_by: [:inserted_at],
-        order_directions: [:desc],
-        first: 10
-      })
-
-      # Then
-      bundle_ids = Enum.map(bundles, & &1.id)
-      assert bundle1.id in bundle_ids
-      assert bundle2.id in bundle_ids
-      assert length(bundles) == 2
-    end
-
     test "applies multiple filters simultaneously" do
       # Given
       project = ProjectsFixtures.project_fixture()
