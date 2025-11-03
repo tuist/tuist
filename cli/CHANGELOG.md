@@ -1,14 +1,22 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.97.1<!-- RELEASE NOTES START -->
+## What's Changed in 4.98.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* Optimize cache hit detection and add diagnostic remarks by [@fortmarek](https://github.com/fortmarek) in [#8556](https://github.com/tuist/tuist/pull/8556)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.97.2...4.98.0
+
+## What's Changed in 4.97.2<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
 
 * clean up warnings by [@waltflanagan](https://github.com/waltflanagan) in [#7666](https://github.com/tuist/tuist/pull/7666)
 * fix content hashing to use relative path when file does not exist by [@waltflanagan](https://github.com/waltflanagan) in [#8557](https://github.com/tuist/tuist/pull/8557)
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.97.0...4.97.1
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.97.0...4.97.2
 
 ## What's Changed in 4.97.0<!-- RELEASE NOTES START -->
 
