@@ -20,15 +20,6 @@
           <span>{@post.interviewee_name || @author["name"]}</span>
           <span>•</span>
           <span>{Timex.format!(@post.date, "{Mfull} {D}, {YYYY}")}</span>
-          <span>•</span>
-          <span>
-            {dngettext(
-              "marketing",
-              "%{count} minute",
-              "%{count} minutes",
-              ReadingTime.time(@post.body)
-            )}
-          </span>
         </div>
       </div>
 
