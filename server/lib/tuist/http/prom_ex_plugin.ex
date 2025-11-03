@@ -137,7 +137,7 @@ defmodule Tuist.HTTP.PromExPlugin do
             [:tuist, :http, :send, :count],
             event_name: [:finch, :send, :stop],
             tag_values: &send_metadata_to_tag_values/1,
-            tags: [:status, :request_method, :request_host, :request_path],
+            tags: [:status, :request_method, :request_host],
             description: "Counts the number of requests that have been sent."
           ),
           sum(
@@ -170,7 +170,7 @@ defmodule Tuist.HTTP.PromExPlugin do
             [:tuist, :http, :receive, :count],
             event_name: [:finch, :recv, :stop],
             tag_values: &receive_metadata_to_tag_values/1,
-            tags: [:status, :request_host, :request_path, :request_method],
+            tags: [:status, :request_host, :request_method],
             description: "Counts the number of responses that have been received."
           ),
           sum(
