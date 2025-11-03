@@ -20,12 +20,12 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
     ) {
         self.fullHandle = fullHandle
         self.serverURL = serverURL
-        self.saveCacheCASService = SaveCacheCASService()
-        self.loadCacheCASService = LoadCacheCASService()
-        self.fileSystem = FileSystem()
-        self.dataCompressingService = DataCompressingService()
+        saveCacheCASService = SaveCacheCASService()
+        loadCacheCASService = LoadCacheCASService()
+        fileSystem = FileSystem()
+        dataCompressingService = DataCompressingService()
     }
-    
+
     init(
         fullHandle: String,
         serverURL: URL,
@@ -156,7 +156,10 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
         var message = CompilationCacheService_Cas_V1_CASDataID()
         message.id = fingerprint.data(using: .utf8)!
 
-        Logger.current.debug("CAS.save computed fingerprint: \(fingerprint), original size: \(data.count) bytes, compressed size: \(compressedData.count) bytes")
+        Logger.current
+            .debug(
+                "CAS.save computed fingerprint: \(fingerprint), original size: \(data.count) bytes, compressed size: \(compressedData.count) bytes"
+            )
 
         do {
             try await saveCacheCASService.saveCacheCAS(

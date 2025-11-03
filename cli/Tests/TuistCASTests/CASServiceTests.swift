@@ -52,7 +52,7 @@ struct CASServiceTests {
                 serverURL: .any
             )
             .willReturn(compressedData)
-            
+
         given(dataCompressingService)
             .decompress(.any)
             .willReturn(expectedData)
@@ -77,7 +77,7 @@ struct CASServiceTests {
                 serverURL: .value(serverURL)
             )
             .called(1)
-            
+
         verify(dataCompressingService)
             .decompress(.value(compressedData))
             .called(1)
