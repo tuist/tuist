@@ -916,7 +916,7 @@ defmodule TuistWeb.BundlesLive do
           visionos: "visionOS",
           visionos_simulator: "visionOS Simulator"
         },
-        operator: :overlap,
+        operator: :==,
         value: nil
       },
       %Filter.Filter{
