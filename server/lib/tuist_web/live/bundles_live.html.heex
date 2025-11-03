@@ -122,7 +122,7 @@
       </:actions>
       <div data-part="widgets">
         <.widget
-          title={gettext("Install Size")}
+          title={gettext("Install size (MB)")}
           description={
             gettext(
               "The bundle install size. This is the uncompressed app size and represents how much space the app takes on the device."
@@ -145,7 +145,7 @@
           empty={is_nil(@bundle_size_last_bundle)}
         />
         <.widget
-          title={gettext("Download Size")}
+          title={gettext("Download size (MB)")}
           description={
             gettext(
               "The bundle download size. This is the compressed app size that the user ends up downloading from the App Store."
@@ -172,8 +172,8 @@
       >
         <span data-part="legend">
           {case @bundle_size_selected_widget do
-            "download-size" -> gettext("Download size")
-            _ -> gettext("Install Size")
+            "download-size" -> gettext("Download size (MB)")
+            _ -> gettext("Install size (MB)")
           end}
         </span>
         <.chart
@@ -254,8 +254,8 @@
             id="bundles-sort-by"
             label={
               case @bundles_sort_by do
-                "install-size" -> gettext("Install Size")
-                "download-size" -> gettext("Download Size")
+                "install-size" -> gettext("Install size (MB)")
+                "download-size" -> gettext("Download size (MB)")
                 _ -> gettext("Created at")
               end
             }
@@ -271,7 +271,7 @@
             </.dropdown_item>
             <.dropdown_item
               value="install-size"
-              label={gettext("Install Size")}
+              label={gettext("Install size (MB)")}
               patch={bundles_dropdown_item_patch_sort("install-size", @uri)}
               data-selected={@bundles_sort_by == "install-size"}
             >
@@ -279,7 +279,7 @@
             </.dropdown_item>
             <.dropdown_item
               value="download-size"
-              label={gettext("Download Size")}
+              label={gettext("Download size (MB)")}
               patch={bundles_dropdown_item_patch_sort("download-size", @uri)}
               data-selected={@bundles_sort_by == "download-size"}
             >
@@ -318,7 +318,7 @@
           </:col>
           <:col
             :let={bundle}
-            label={gettext("Install Size")}
+            label={gettext("Install size (MB)")}
             patch={
               @bundles_sort_by == "install-size" && column_patch_sort(assigns, "install-size")
             }
@@ -331,7 +331,7 @@
           </:col>
           <:col
             :let={bundle}
-            label={gettext("Download Size")}
+            label={gettext("Download size (MB)")}
             patch={
               @bundles_sort_by == "download-size" && column_patch_sort(assigns, "download-size")
             }

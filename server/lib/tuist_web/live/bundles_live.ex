@@ -26,26 +26,7 @@ defmodule TuistWeb.BundlesLive do
   end
 
   def handle_params(params, _uri, %{assigns: %{selected_project: project}} = socket) do
-    # Include all filter parameters and existing parameters
-    filter_params = 
-      params
-      |> Enum.filter(fn {key, _value} -> 
-        String.starts_with?(key, "filter-") or 
-        key in [
-          "after",
-          "before", 
-          "bundles-sort-by",
-          "bundles-sort-order",
-          "bundles-type",
-          "bundle-size-app",
-          "bundle-size-date-range", 
-          "bundle-size-selected-widget",
-          "bundle-size-branch"
-        ]
-      end)
-      |> Map.new()
-
-    uri = URI.new!("?" <> URI.encode_query(filter_params))
+    uri = URI.new!("?" <> URI.encode_query(params))
 
     bundles_sort_order = params["bundles-sort-order"] || "desc"
     bundles_sort_by = params["bundles-sort-by"] || "created-at"
@@ -115,8 +96,8 @@ defmodule TuistWeb.BundlesLive do
   defp assign_bundles(
          %{
            assigns: %{
-             selected_project: project, 
-             bundles_sort_by: bundles_sort_by, 
+             selected_project: project,
+             bundles_sort_by: bundles_sort_by,
              bundles_sort_order: bundles_sort_order,
              available_filters: available_filters
            }
@@ -165,9 +146,9 @@ defmodule TuistWeb.BundlesLive do
 
     {next_bundles, next_bundles_meta} = Bundles.list_bundles(options)
 
-    socket 
+    socket
     |> assign(:active_filters, filters)
-    |> assign(:bundles, next_bundles) 
+    |> assign(:bundles, next_bundles)
     |> assign(:bundles_meta, next_bundles_meta)
   end
 
@@ -824,7 +805,7 @@ defmodule TuistWeb.BundlesLive do
 
   defp define_filters(_project) do
     platform_options = [:ios, :ios_simulator, :macos, :watchos, :watchos_simulator, :tvos, :tvos_simulator, :visionos, :visionos_simulator]
-    
+
     [
       %Filter.Filter{
         id: "name",
@@ -859,7 +840,7 @@ defmodule TuistWeb.BundlesLive do
       %Filter.Filter{
         id: "install_size",
         field: :install_size,
-        display_name: gettext("Install Size"),
+        display_name: gettext("Install size (MB)"),
         type: :number,
         operator: :>=,
         value: nil
@@ -867,7 +848,7 @@ defmodule TuistWeb.BundlesLive do
       %Filter.Filter{
         id: "download_size",
         field: :download_size,
-        display_name: gettext("Download Size"),
+        display_name: gettext("Download size (MB)"),
         type: :number,
         operator: :>=,
         value: nil
