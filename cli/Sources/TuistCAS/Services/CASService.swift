@@ -5,7 +5,6 @@ import GRPCCore
 import Logging
 import Path
 import TuistServer
-import libzstd
 
 public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServiceProtocol {
     private let fullHandle: String
@@ -13,19 +12,34 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
     private let saveCacheCASService: SaveCacheCASServicing
     private let loadCacheCASService: LoadCacheCASServicing
     private let fileSystem: FileSysteming
+    private let dataCompressingService: DataCompressingServicing
 
     public init(
         fullHandle: String,
+        serverURL: URL
+    ) {
+        self.fullHandle = fullHandle
+        self.serverURL = serverURL
+        self.saveCacheCASService = SaveCacheCASService()
+        self.loadCacheCASService = LoadCacheCASService()
+        self.fileSystem = FileSystem()
+        self.dataCompressingService = DataCompressingService()
+    }
+    
+    init(
+        fullHandle: String,
         serverURL: URL,
-        saveCacheCASService: SaveCacheCASServicing = SaveCacheCASService(),
-        loadCacheCASService: LoadCacheCASServicing = LoadCacheCASService(),
-        fileSystem: FileSysteming = FileSystem()
+        saveCacheCASService: SaveCacheCASServicing,
+        loadCacheCASService: LoadCacheCASServicing,
+        fileSystem: FileSysteming,
+        dataCompressingService: DataCompressingServicing
     ) {
         self.fullHandle = fullHandle
         self.serverURL = serverURL
         self.saveCacheCASService = saveCacheCASService
         self.loadCacheCASService = loadCacheCASService
         self.fileSystem = fileSystem
+        self.dataCompressingService = dataCompressingService
     }
 
     public func load(
@@ -54,37 +68,10 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
                 serverURL: serverURL
             )
 
-            // Decompress the data using zstd
+            // Decompress the data
             let decompressedData: Data
             do {
-                // Get the decompressed size first
-                let decompressedSize = compressedData.withUnsafeBytes { bytes in
-                    ZSTD_getFrameContentSize(bytes.baseAddress, compressedData.count)
-                }
-                
-                guard decompressedSize != ZSTD_CONTENTSIZE_ERROR && decompressedSize != ZSTD_CONTENTSIZE_UNKNOWN else {
-                    throw NSError(domain: "ZSTDError", code: -1, userInfo: [NSLocalizedDescriptionKey: "Cannot determine decompressed size"])
-                }
-                
-                var decompressedBuffer = Array<UInt8>(repeating: 0, count: Int(decompressedSize))
-                
-                let actualDecompressedSize = compressedData.withUnsafeBytes { srcBytes in
-                    decompressedBuffer.withUnsafeMutableBytes { dstBytes in
-                        ZSTD_decompress(
-                            dstBytes.baseAddress,
-                            Int(decompressedSize),
-                            srcBytes.baseAddress,
-                            compressedData.count
-                        )
-                    }
-                }
-                
-                guard ZSTD_isError(actualDecompressedSize) == 0 else {
-                    throw NSError(domain: "ZSTDError", code: Int(actualDecompressedSize), userInfo: [NSLocalizedDescriptionKey: "Decompression failed"])
-                }
-                
-                decompressedData = Data(decompressedBuffer.prefix(Int(actualDecompressedSize)))
-                Logger.current.debug("CAS.load decompressed data from \(compressedData.count) to \(decompressedData.count) bytes")
+                decompressedData = try await dataCompressingService.decompress(compressedData)
             } catch {
                 Logger.current.error("CAS.load failed to decompress data: \(error)")
                 response.outcome = .error
@@ -151,30 +138,10 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
             Logger.current.debug("CAS.save starting - data size: \(data.count) bytes")
         }
 
-        // Compress the data using zstd
+        // Compress the data
         let compressedData: Data
         do {
-            let maxCompressedSize = ZSTD_compressBound(data.count)
-            var compressedBuffer = Array<UInt8>(repeating: 0, count: maxCompressedSize)
-            
-            let compressedSize = data.withUnsafeBytes { srcBytes in
-                compressedBuffer.withUnsafeMutableBytes { dstBytes in
-                    ZSTD_compress(
-                        dstBytes.baseAddress,
-                        maxCompressedSize,
-                        srcBytes.baseAddress,
-                        data.count,
-                        1 // compression level
-                    )
-                }
-            }
-            
-            guard ZSTD_isError(compressedSize) == 0 else {
-                throw NSError(domain: "ZSTDError", code: Int(compressedSize), userInfo: [NSLocalizedDescriptionKey: "Compression failed"])
-            }
-            
-            compressedData = Data(compressedBuffer.prefix(compressedSize))
-            Logger.current.debug("CAS.save compressed data from \(data.count) to \(compressedData.count) bytes")
+            compressedData = try await dataCompressingService.compress(data)
         } catch {
             Logger.current.error("CAS.save failed to compress data: \(error)")
             var responseError = CompilationCacheService_Cas_V1_ResponseError()

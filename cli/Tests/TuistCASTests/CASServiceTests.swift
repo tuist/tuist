@@ -1,4 +1,5 @@
 import CryptoKit
+import FileSystem
 import Foundation
 import GRPCCore
 import Mockable
@@ -13,18 +14,22 @@ struct CASServiceTests {
     private let subject: CASService
     private let saveCacheCASService: MockSaveCacheCASServicing
     private let loadCacheCASService: MockLoadCacheCASServicing
+    private let dataCompressingService: MockDataCompressingServicing
     private let fullHandle = "account-handle/project-handle"
     private let serverURL = URL(string: "https://example.com")!
 
     init() {
         saveCacheCASService = .init()
         loadCacheCASService = .init()
+        dataCompressingService = .init()
 
         subject = CASService(
             fullHandle: fullHandle,
             serverURL: serverURL,
             saveCacheCASService: saveCacheCASService,
-            loadCacheCASService: loadCacheCASService
+            loadCacheCASService: loadCacheCASService,
+            fileSystem: FileSystem(),
+            dataCompressingService: dataCompressingService
         )
     }
 
@@ -32,6 +37,7 @@ struct CASServiceTests {
     func load_when_successful() async throws {
         // Given
         let casID = "test-cas-id"
+        let compressedData = Data("compressed-data".utf8)
         let expectedData = Data("test-data".utf8)
 
         var request = CompilationCacheService_Cas_V1_CASLoadRequest()
@@ -45,6 +51,10 @@ struct CASServiceTests {
                 fullHandle: .any,
                 serverURL: .any
             )
+            .willReturn(compressedData)
+            
+        given(dataCompressingService)
+            .decompress(.any)
             .willReturn(expectedData)
 
         // When
@@ -66,6 +76,10 @@ struct CASServiceTests {
                 fullHandle: .value(fullHandle),
                 serverURL: .value(serverURL)
             )
+            .called(1)
+            
+        verify(dataCompressingService)
+            .decompress(.value(compressedData))
             .called(1)
     }
 
@@ -103,11 +117,16 @@ struct CASServiceTests {
     func save_with_direct_data() async throws {
         // Given
         let testData = Data("direct test data".utf8)
+        let compressedData = Data("compressed-data".utf8)
 
         var request = CompilationCacheService_Cas_V1_CASSaveRequest()
         request.data.blob.data = testData
 
         let context = ServerContext.test()
+
+        given(dataCompressingService)
+            .compress(.any)
+            .willReturn(compressedData)
 
         given(saveCacheCASService)
             .saveCacheCAS(
@@ -133,9 +152,13 @@ struct CASServiceTests {
             #expect(Bool(false), "Expected success, but contents is nil")
         }
 
+        verify(dataCompressingService)
+            .compress(.value(testData))
+            .called(1)
+
         verify(saveCacheCASService)
             .saveCacheCAS(
-                .value(testData),
+                .value(compressedData),
                 casId: .value(fingerprint),
                 fullHandle: .value(fullHandle),
                 serverURL: .value(serverURL)
@@ -147,12 +170,17 @@ struct CASServiceTests {
     func save_when_upload_fails() async throws {
         // Given
         let testData = Data("test data".utf8)
+        let compressedData = Data("compressed-data".utf8)
         let expectedError = SaveCacheCASServiceError.forbidden("Upload denied")
 
         var request = CompilationCacheService_Cas_V1_CASSaveRequest()
         request.data.blob.data = testData
 
         let context = ServerContext.test()
+
+        given(dataCompressingService)
+            .compress(.any)
+            .willReturn(compressedData)
 
         given(saveCacheCASService)
             .saveCacheCAS(.any, casId: .any, fullHandle: .any, serverURL: .any)
@@ -205,12 +233,17 @@ struct CASServiceTests {
     func save_when_generic_error() async throws {
         // Given
         let testData = Data("test data".utf8)
+        let compressedData = Data("compressed-data".utf8)
         let genericError = NSError(domain: "TestDomain", code: 500, userInfo: nil)
 
         var request = CompilationCacheService_Cas_V1_CASSaveRequest()
         request.data.blob.data = testData
 
         let context = ServerContext.test()
+
+        given(dataCompressingService)
+            .compress(.any)
+            .willReturn(compressedData)
 
         given(saveCacheCASService)
             .saveCacheCAS(.any, casId: .any, fullHandle: .any, serverURL: .any)
