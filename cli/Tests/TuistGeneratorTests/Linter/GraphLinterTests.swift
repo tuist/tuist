@@ -2202,7 +2202,7 @@ struct GraphLinterTests {
             results ==
                 [LintingIssue(
                     reason: "The target 'App' has dependencies with the following duplicated product names: Framework.framework",
-                    severity: .error
+                    severity: .warning
                 )]
         )
     }
@@ -2243,7 +2243,7 @@ struct GraphLinterTests {
             results ==
                 [LintingIssue(
                     reason: "The target 'App' has dependencies with the following duplicated product names: Framework.framework",
-                    severity: .error
+                    severity: .warning
                 )]
         )
     }

@@ -1419,20 +1419,20 @@ defmodule Tuist.Accounts do
   end
 
   defp okta_organization_for_email_domain(email) do
-with [_username, domain] <- String.split(email, "@"),
-     %Organization{} = organization <-
-       Repo.one(
-         from(o in Organization,
-           where: o.sso_provider == :okta,
-           where:
-             o.sso_organization_id ==
-               ^String.replace(domain, ".com", ".okta.com")
-         )
-       ) do
-    {:ok, organization}
-else
-  _ -> {:error, :not_found}
-end
+    with [_username, domain] <- String.split(email, "@"),
+         %Organization{} = organization <-
+           Repo.one(
+             from(o in Organization,
+               where: o.sso_provider == :okta,
+               where:
+                 o.sso_organization_id ==
+                   ^String.replace(domain, ".com", ".okta.com")
+             )
+           ) do
+      {:ok, organization}
+    else
+      _ -> {:error, :not_found}
+    end
   end
 
   @doc """

@@ -355,6 +355,10 @@ defmodule TuistWeb.Marketing.MarketingController do
     end
   end
 
+  def blog_post_iframe(conn, _params) do
+    render(conn, :blog_post, layout: false)
+  end
+
   def pricing(conn, _params) do
     faqs = [
       {dgettext(

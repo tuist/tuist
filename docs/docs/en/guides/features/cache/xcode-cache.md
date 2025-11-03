@@ -42,6 +42,7 @@ Add the following build settings to your Xcode project:
 COMPILATION_CACHE_ENABLE_CACHING = YES
 COMPILATION_CACHE_REMOTE_SERVICE_PATH = $HOME/.local/state/tuist/your_org_your_project.sock
 COMPILATION_CACHE_ENABLE_PLUGIN = YES
+COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS = YES
 ```
 
 Note that `COMPILATION_CACHE_REMOTE_SERVICE_PATH` and `COMPILATION_CACHE_ENABLE_PLUGIN` need to be added as **user-defined build settings** since they're not directly exposed in Xcode's build settings UI:
@@ -58,7 +59,8 @@ You can also specify these settings when running `xcodebuild` by adding the foll
 xcodebuild build -project YourProject.xcodeproj -scheme YourScheme \
     COMPILATION_CACHE_ENABLE_CACHING=YES \
     COMPILATION_CACHE_REMOTE_SERVICE_PATH=$HOME/.local/state/tuist/your_org_your_project.sock \
-    COMPILATION_CACHE_ENABLE_PLUGIN=YES
+    COMPILATION_CACHE_ENABLE_PLUGIN=YES \
+    COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS=YES
 ```
 
 ::: info GENERATED PROJECTS
@@ -85,7 +87,7 @@ let tuist = Tuist(
 
 To enable caching in your CI environment, you need to run the same command as in local environments: `tuist setup cache`.
 
-Additionally, you need to ensure the `TUIST_CONFIG_TOKEN` environment variable is set. You can create one by following the documentation <LocalizedLink href="/guides/features/automate/continuous-integration#authentication">here</LocalizedLink>. The `TUIST_CONFIG_TOKEN` environment variable _must_ be present for your build step, but we'd recommend setting it for the whole CI workflow.
+Additionally, you need to ensure the `TUIST_CONFIG_TOKEN` environment variable is set. You can create one by following the documentation <LocalizedLink href="/guides/server/authentication#as-a-project">here</LocalizedLink>. The `TUIST_CONFIG_TOKEN` environment variable _must_ be present for your build step, but we'd recommend setting it for the whole CI workflow.
 
 An example workflow for GitHub Actions could then look like this:
 ```yaml

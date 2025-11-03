@@ -45,10 +45,7 @@ defmodule TuistWeb.UserLoginLive do
           <div
             :if={oauth_configured?()}
             data-part="oauth"
-            data-compact={
-              @github_configured? and @apple_configured? and @google_configured? and
-                @okta_configured?
-            }
+            data-compact={all_oauth_providers_configured?(assigns)}
           >
             <.button
               :if={@github_configured?}
@@ -56,7 +53,9 @@ defmodule TuistWeb.UserLoginLive do
               variant="secondary"
               size="medium"
               label="GitHub"
+              icon_only={all_oauth_providers_configured?(assigns)}
             >
+              <.brand_github />
               <:icon_left>
                 <.brand_github />
               </:icon_left>
@@ -67,20 +66,11 @@ defmodule TuistWeb.UserLoginLive do
               variant="secondary"
               size="medium"
               label="Google"
+              icon_only={all_oauth_providers_configured?(assigns)}
             >
+              <.brand_google />
               <:icon_left>
                 <.brand_google />
-              </:icon_left>
-            </.button>
-            <.button
-              :if={@okta_configured? or @tuist_hosted?}
-              href={if @tuist_hosted?, do: ~p"/users/log_in/sso", else: ~p"/users/log_in/okta"}
-              variant="secondary"
-              size="medium"
-              label="Okta"
-            >
-              <:icon_left>
-                <.brand_okta />
               </:icon_left>
             </.button>
             <.button
@@ -89,9 +79,24 @@ defmodule TuistWeb.UserLoginLive do
               variant="secondary"
               size="medium"
               label="Apple"
+              icon_only={all_oauth_providers_configured?(assigns)}
             >
+              <.brand_apple />
               <:icon_left>
                 <.brand_apple />
+              </:icon_left>
+            </.button>
+            <.button
+              :if={@okta_configured? or @tuist_hosted?}
+              href={if @tuist_hosted?, do: ~p"/users/log_in/sso", else: ~p"/users/log_in/okta"}
+              variant="secondary"
+              size="medium"
+              label="Okta"
+              icon_only={all_oauth_providers_configured?(assigns)}
+            >
+              <.brand_okta />
+              <:icon_left>
+                <.brand_okta />
               </:icon_left>
             </.button>
           </div>
@@ -182,5 +187,10 @@ defmodule TuistWeb.UserLoginLive do
   defp oauth_configured? do
     Environment.github_oauth_configured?() || Environment.google_oauth_configured?() ||
       Environment.okta_oauth_configured?() || Environment.apple_oauth_configured?()
+  end
+
+  defp all_oauth_providers_configured?(assigns) do
+    assigns.github_configured? and assigns.google_configured? and
+      (assigns.okta_configured? or assigns.tuist_hosted?) and assigns.apple_configured?
   end
 end

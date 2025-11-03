@@ -311,6 +311,27 @@ get the `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` pair. The `AWS_ENDPOINT`
 should be set to `https://storage.googleapis.com`. Other environment variables
 are the same as for any other S3-compliant storage.
 
+### Email configuration {#email-configuration}
+
+Tuist requires email functionality for user authentication and transactional
+notifications (e.g., password resets, account notifications). Currently, **only
+Mailgun is supported** as the email provider.
+
+| Environment variable             | Description                                            | Required | Default | Example                |
+| -------------------------------- | ------------------------------------------------------ | -------- | ------- | ---------------------- |
+| `TUIST_MAILGUN_API_KEY`          | The API key for authenticating with Mailgun            | Yes      |         | `key-1234567890abcdef` |
+| `TUIST_MAILING_DOMAIN`           | The domain from which emails will be sent              | Yes      |         | `mg.tuist.io`          |
+| `TUIST_MAILING_FROM_ADDRESS`     | The email address that will appear in the "From" field | Yes      |         | `noreply@tuist.io`     |
+| `TUIST_MAILING_REPLY_TO_ADDRESS` | Optional reply-to address for user replies             | No       |         | `support@tuist.dev`    |
+
+::: info SMTP SUPPORT
+<!-- -->
+Generic SMTP support is not currently available. If you need SMTP support for
+your on-premise deployment, please reach out to
+[contact@tuist.dev](mailto:contact@tuist.dev) to discuss your requirements.
+<!-- -->
+:::
+
 ### Git platform configuration {#git-platform-configuration}
 
 Tuist can <LocalizedLink href="/guides/server/authentication">integrate with Git
@@ -512,6 +533,12 @@ services:
       AWS_S3_REGION: # ...
       AWS_ENDPOINT: # https://amazonaws.com
       TUIST_S3_BUCKET_NAME: # ...
+
+      # Email - https://docs.tuist.io/en/guides/server/self-host/install#email-configuration
+      TUIST_MAILGUN_API_KEY: # ...
+      TUIST_MAILING_DOMAIN: # e.g., mg.yourdomain.com
+      TUIST_MAILING_FROM_ADDRESS: # e.g., noreply@yourdomain.com
+      TUIST_MAILING_REPLY_TO_ADDRESS: # Optional, e.g., support@yourdomain.com
 
       # Other
 

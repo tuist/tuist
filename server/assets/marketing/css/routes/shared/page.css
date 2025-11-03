@@ -4,6 +4,7 @@
   flex-direction: column;
   gap: var(--noora-spacing-11);
   z-index: var(--noora-z-index-1);
+  padding-bottom: var(--noora-spacing-15);
 
   @media (min-width: 370px) {
     gap: var(--noora-spacing-9);

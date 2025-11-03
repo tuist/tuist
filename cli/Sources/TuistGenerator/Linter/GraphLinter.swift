@@ -228,7 +228,7 @@ public class GraphLinter: GraphLinting {
                 guard duplicatedProductNames.isEmpty else {
                     return [LintingIssue(
                         reason: "The target '\(targetName)' has dependencies with the following duplicated product names: \(duplicatedProductNames.joined(separator: ", "))",
-                        severity: .error
+                        severity: .warning
                     )]
                 }
                 return []

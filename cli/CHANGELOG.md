@@ -1,6 +1,59 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.98.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* Optimize cache hit detection and add diagnostic remarks by [@fortmarek](https://github.com/fortmarek) in [#8556](https://github.com/tuist/tuist/pull/8556)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.97.2...4.98.0
+
+## What's Changed in 4.97.2<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* clean up warnings by [@waltflanagan](https://github.com/waltflanagan) in [#7666](https://github.com/tuist/tuist/pull/7666)
+* fix content hashing to use relative path when file does not exist by [@waltflanagan](https://github.com/waltflanagan) in [#8557](https://github.com/tuist/tuist/pull/8557)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.97.0...4.97.2
+
+## What's Changed in 4.97.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* Add cache profiles to fine tune cached binary replacement by [@hiltonc](https://github.com/hiltonc) in [#8122](https://github.com/tuist/tuist/pull/8122)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.96.0...4.97.0
+
+## What's Changed in 4.96.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* Add support for SwiftPM disableWarning setting by [@pepicrft](https://github.com/pepicrft) in [#8549](https://github.com/tuist/tuist/pull/8549)
+* improve upload error handling for cache artifacts by [@fortmarek](https://github.com/fortmarek) in [#8553](https://github.com/tuist/tuist/pull/8553)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.95.1...4.96.0
+
+## What's Changed in 4.95.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* downgrade duplicated product name linting from error to warning by [@n-zaitsev](https://github.com/n-zaitsev) in [#8540](https://github.com/tuist/tuist/pull/8540)
+
+## New Contributors
+* [@n-zaitsev](https://github.com/n-zaitsev) made their first contribution in [#8540](https://github.com/tuist/tuist/pull/8540)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.95.0...4.95.1
+
+## What's Changed in 4.95.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* Add support for passing arguments to SwiftPM by [@pepicrft](https://github.com/pepicrft) in [#8544](https://github.com/tuist/tuist/pull/8544)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.94.0...4.95.0
+
 ## What's Changed in 4.94.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
@@ -562,9 +615,6 @@ All notable changes to this project will be documented in this file.
 ### ⛰️  Features
 
 * add filePath and customWorkingDirectory support to RunAction by [@plu](https://github.com/plu) in [#8071](https://github.com/tuist/tuist/pull/8071)
-
-## New Contributors
-* [@plu](https://github.com/plu) made their first contribution in [#8071](https://github.com/tuist/tuist/pull/8071)
 
 **Full Changelog**: https://github.com/tuist/tuist/compare/4.64.2...4.65.0
 

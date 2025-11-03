@@ -420,6 +420,13 @@ export async function guidesSidebar(locale) {
             {
               text: localizedString(
                 locale,
+                "sidebars.guides.items.develop.items.generated-projects.items.metadata-tags.text",
+              ),
+              link: `/${locale}/guides/features/projects/metadata-tags`,
+            },
+            {
+              text: localizedString(
+                locale,
                 "sidebars.guides.items.develop.items.generated-projects.items.best-practices.text",
               ),
               link: `/${locale}/guides/features/projects/best-practices`,
