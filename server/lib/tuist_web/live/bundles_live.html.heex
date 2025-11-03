@@ -298,76 +298,76 @@
         </div>
         <div :if={not Enum.empty?(@bundles)}>
           <.table
-          id="bundles-table"
-          rows={@bundles}
-          row_navigate={
-            fn bundle ->
-              url(
-                ~p"/#{@selected_project.account.name}/#{@selected_project.name}/bundles/#{bundle.id}"
-              )
-            end
-          }
-        >
-          <:col :let={bundle} label={gettext("Name")}>
-            <.text_and_description_cell label={bundle.name} />
-          </:col>
-          <:col :let={bundle} label={gettext("Branch")}>
-            <.text_cell icon="git_branch" label={bundle.git_branch || "None"} />
-          </:col>
-          <:col :let={bundle} label={gettext("Type")}>
-            <.text_cell label={format_bundle_type(bundle.type)} />
-          </:col>
-          <:col
-            :let={bundle}
-            label={gettext("Install size")}
-            patch={
-              @bundles_sort_by == "install-size" && column_patch_sort(assigns, "install-size")
-            }
-            icon={
-              @bundles_sort_by == "install-size" &&
-                sort_icon(@bundles_sort_order)
+            id="bundles-table"
+            rows={@bundles}
+            row_navigate={
+              fn bundle ->
+                url(
+                  ~p"/#{@selected_project.account.name}/#{@selected_project.name}/bundles/#{bundle.id}"
+                )
+              end
             }
           >
-            <.text_cell label={format_bytes(bundle.install_size)} />
-          </:col>
-          <:col
-            :let={bundle}
-            label={gettext("Download size")}
-            patch={
-              @bundles_sort_by == "download-size" && column_patch_sort(assigns, "download-size")
-            }
-            icon={
-              @bundles_sort_by == "download-size" &&
-                sort_icon(@bundles_sort_order)
-            }
-          >
-            <.text_cell label={
-              if bundle.download_size,
-                do: format_bytes(bundle.download_size),
-                else: gettext("Not available")
-            } />
-          </:col>
-          <:col :let={bundle} label={gettext("Commit SHA")}>
-            <.text_cell label={SHA.format_commit_sha(bundle.git_commit_sha)} />
-          </:col>
-          <:col :let={bundle} label={gettext("Platform")}>
-            <.platform_cell
-              :if={not Enum.empty?(bundle.supported_platforms)}
-              platform={bundle.supported_platforms |> hd}
-            />
-          </:col>
-          <:col
-            :let={bundle}
-            label={gettext("Created at")}
-            patch={@bundles_sort_by == "created-at" && column_patch_sort(assigns, "created-at")}
-            icon={
-              @bundles_sort_by == "created-at" &&
-                sort_icon(@bundles_sort_order)
-            }
-          >
-            <.text_cell sublabel={DateFormatter.from_now(bundle.inserted_at)} />
-          </:col>
-        </.table>
+            <:col :let={bundle} label={gettext("Name")}>
+              <.text_and_description_cell label={bundle.name} />
+            </:col>
+            <:col :let={bundle} label={gettext("Branch")}>
+              <.text_cell icon="git_branch" label={bundle.git_branch || "None"} />
+            </:col>
+            <:col :let={bundle} label={gettext("Type")}>
+              <.text_cell label={format_bundle_type(bundle.type)} />
+            </:col>
+            <:col
+              :let={bundle}
+              label={gettext("Install size")}
+              patch={
+                @bundles_sort_by == "install-size" && column_patch_sort(assigns, "install-size")
+              }
+              icon={
+                @bundles_sort_by == "install-size" &&
+                  sort_icon(@bundles_sort_order)
+              }
+            >
+              <.text_cell label={format_bytes(bundle.install_size)} />
+            </:col>
+            <:col
+              :let={bundle}
+              label={gettext("Download size")}
+              patch={
+                @bundles_sort_by == "download-size" && column_patch_sort(assigns, "download-size")
+              }
+              icon={
+                @bundles_sort_by == "download-size" &&
+                  sort_icon(@bundles_sort_order)
+              }
+            >
+              <.text_cell label={
+                if bundle.download_size,
+                  do: format_bytes(bundle.download_size),
+                  else: gettext("Not available")
+              } />
+            </:col>
+            <:col :let={bundle} label={gettext("Commit SHA")}>
+              <.text_cell label={SHA.format_commit_sha(bundle.git_commit_sha)} />
+            </:col>
+            <:col :let={bundle} label={gettext("Platform")}>
+              <.platform_cell
+                :if={not Enum.empty?(bundle.supported_platforms)}
+                platform={bundle.supported_platforms |> hd}
+              />
+            </:col>
+            <:col
+              :let={bundle}
+              label={gettext("Created at")}
+              patch={@bundles_sort_by == "created-at" && column_patch_sort(assigns, "created-at")}
+              icon={
+                @bundles_sort_by == "created-at" &&
+                  sort_icon(@bundles_sort_order)
+              }
+            >
+              <.text_cell sublabel={DateFormatter.from_now(bundle.inserted_at)} />
+            </:col>
+          </.table>
           <.pagination
             uri={@uri}
             has_previous_page={@bundles_meta.has_previous_page?}

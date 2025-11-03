@@ -828,6 +828,7 @@ end
 
 # Create bundles with artifacts
 bundle_types = [:app, :ipa, :xcarchive]
+
 platforms_combinations = [
   [:ios, :ios_simulator],
   [:macos],
@@ -879,83 +880,86 @@ Enum.map(1..20, fn index ->
       "artifact_type" => "directory",
       "path" => "#{bundle_name}.#{if bundle_type == :app, do: "app", else: "framework"}",
       "size" => 0,
-      "shasum" => :crypto.hash(:sha256, "#{bundle_name}-root-#{index}") |> Base.encode16(case: :lower)
+      "shasum" => :sha256 |> :crypto.hash("#{bundle_name}-root-#{index}") |> Base.encode16(case: :lower)
     },
     # Info.plist
     %{
       "artifact_type" => "file",
       "path" => "#{bundle_name}.#{if bundle_type == :app, do: "app", else: "framework"}/Info.plist",
       "size" => Enum.random(1000..3000),
-      "shasum" => :crypto.hash(:sha256, "#{bundle_name}-info-#{index}") |> Base.encode16(case: :lower)
+      "shasum" => :sha256 |> :crypto.hash("#{bundle_name}-info-#{index}") |> Base.encode16(case: :lower)
     },
     # Main binary
     %{
       "artifact_type" => "binary",
       "path" => "#{bundle_name}.#{if bundle_type == :app, do: "app", else: "framework"}/#{bundle_name}",
       "size" => Enum.random(1_000_000..50_000_000),
-      "shasum" => :crypto.hash(:sha256, "#{bundle_name}-binary-#{index}") |> Base.encode16(case: :lower)
+      "shasum" => :sha256 |> :crypto.hash("#{bundle_name}-binary-#{index}") |> Base.encode16(case: :lower)
     }
   ]
 
   # Add additional artifacts for apps
-  artifacts = if bundle_type == :app do
-    artifacts ++ [
-      # Assets directory
-      %{
-        "artifact_type" => "directory",
-        "path" => "#{bundle_name}.app/Assets.car",
-        "size" => 0,
-        "shasum" => :crypto.hash(:sha256, "#{bundle_name}-assets-dir-#{index}") |> Base.encode16(case: :lower)
-      },
-      # Assets catalog
-      %{
-        "artifact_type" => "asset",
-        "path" => "#{bundle_name}.app/Assets.car/Contents.json",
-        "size" => Enum.random(50_000..500_000),
-        "shasum" => :crypto.hash(:sha256, "#{bundle_name}-assets-#{index}") |> Base.encode16(case: :lower)
-      },
-      # Localization
-      %{
-        "artifact_type" => "directory",
-        "path" => "#{bundle_name}.app/en.lproj",
-        "size" => 0,
-        "shasum" => :crypto.hash(:sha256, "#{bundle_name}-localization-dir-#{index}") |> Base.encode16(case: :lower)
-      },
-      %{
-        "artifact_type" => "localization",
-        "path" => "#{bundle_name}.app/en.lproj/Localizable.strings",
-        "size" => Enum.random(1000..10000),
-        "shasum" => :crypto.hash(:sha256, "#{bundle_name}-localization-#{index}") |> Base.encode16(case: :lower)
-      },
-      # Fonts
-      %{
-        "artifact_type" => "font",
-        "path" => "#{bundle_name}.app/Fonts/CustomFont.ttf",
-        "size" => Enum.random(50_000..200_000),
-        "shasum" => :crypto.hash(:sha256, "#{bundle_name}-font-#{index}") |> Base.encode16(case: :lower)
-      }
-    ]
-  else
-    artifacts
-  end
+  artifacts =
+    if bundle_type == :app do
+      artifacts ++
+        [
+          # Assets directory
+          %{
+            "artifact_type" => "directory",
+            "path" => "#{bundle_name}.app/Assets.car",
+            "size" => 0,
+            "shasum" => :sha256 |> :crypto.hash("#{bundle_name}-assets-dir-#{index}") |> Base.encode16(case: :lower)
+          },
+          # Assets catalog
+          %{
+            "artifact_type" => "asset",
+            "path" => "#{bundle_name}.app/Assets.car/Contents.json",
+            "size" => Enum.random(50_000..500_000),
+            "shasum" => :sha256 |> :crypto.hash("#{bundle_name}-assets-#{index}") |> Base.encode16(case: :lower)
+          },
+          # Localization
+          %{
+            "artifact_type" => "directory",
+            "path" => "#{bundle_name}.app/en.lproj",
+            "size" => 0,
+            "shasum" => :sha256 |> :crypto.hash("#{bundle_name}-localization-dir-#{index}") |> Base.encode16(case: :lower)
+          },
+          %{
+            "artifact_type" => "localization",
+            "path" => "#{bundle_name}.app/en.lproj/Localizable.strings",
+            "size" => Enum.random(1000..10_000),
+            "shasum" => :sha256 |> :crypto.hash("#{bundle_name}-localization-#{index}") |> Base.encode16(case: :lower)
+          },
+          # Fonts
+          %{
+            "artifact_type" => "font",
+            "path" => "#{bundle_name}.app/Fonts/CustomFont.ttf",
+            "size" => Enum.random(50_000..200_000),
+            "shasum" => :sha256 |> :crypto.hash("#{bundle_name}-font-#{index}") |> Base.encode16(case: :lower)
+          }
+        ]
+    else
+      artifacts
+    end
 
-  {:ok, bundle} = Bundles.create_bundle(%{
-    id: bundle_id,
-    name: bundle_name,
-    app_bundle_id: "dev.tuist.#{String.downcase(bundle_name)}",
-    install_size: Enum.sum(Enum.map(artifacts, & &1["size"])),
-    download_size: Enum.random(500_000..20_000_000),
-    supported_platforms: supported_platforms,
-    version: "#{Enum.random(1..3)}.#{Enum.random(0..9)}.#{Enum.random(0..9)}",
-    git_branch: git_branch,
-    git_commit_sha: git_commit_sha,
-    git_ref: if(git_branch == "main", do: nil, else: "refs/heads/#{git_branch}"),
-    type: bundle_type,
-    project_id: tuist_project.id,
-    uploaded_by_account_id: organization.account.id,
-    inserted_at: inserted_at,
-    artifacts: artifacts
-  })
+  {:ok, bundle} =
+    Bundles.create_bundle(%{
+      id: bundle_id,
+      name: bundle_name,
+      app_bundle_id: "dev.tuist.#{String.downcase(bundle_name)}",
+      install_size: Enum.sum(Enum.map(artifacts, & &1["size"])),
+      download_size: Enum.random(500_000..20_000_000),
+      supported_platforms: supported_platforms,
+      version: "#{Enum.random(1..3)}.#{Enum.random(0..9)}.#{Enum.random(0..9)}",
+      git_branch: git_branch,
+      git_commit_sha: git_commit_sha,
+      git_ref: if(git_branch == "main", do: nil, else: "refs/heads/#{git_branch}"),
+      type: bundle_type,
+      project_id: tuist_project.id,
+      uploaded_by_account_id: organization.account.id,
+      inserted_at: inserted_at,
+      artifacts: artifacts
+    })
 
   bundle
 end)

@@ -951,17 +951,18 @@ defmodule Tuist.BundlesTest do
       project = ProjectsFixtures.project_fixture()
       bundle1 = BundlesFixtures.bundle_fixture(project: project, name: "App1")
       bundle2 = BundlesFixtures.bundle_fixture(project: project, name: "App2")
-      
+
       # Different project bundle should not be included
       _other_bundle = BundlesFixtures.bundle_fixture(name: "Other")
 
       # When
-      {bundles, _meta} = Bundles.list_bundles(%{
-        filters: [%{field: :project_id, op: :==, value: project.id}],
-        order_by: [:inserted_at],
-        order_directions: [:desc],
-        first: 10
-      })
+      {bundles, _meta} =
+        Bundles.list_bundles(%{
+          filters: [%{field: :project_id, op: :==, value: project.id}],
+          order_by: [:inserted_at],
+          order_directions: [:desc],
+          first: 10
+        })
 
       # Then
       bundle_ids = Enum.map(bundles, & &1.id)
@@ -978,15 +979,16 @@ defmodule Tuist.BundlesTest do
       _bundle3 = BundlesFixtures.bundle_fixture(project: project, name: "Framework")
 
       # When
-      {bundles, _meta} = Bundles.list_bundles(%{
-        filters: [
-          %{field: :project_id, op: :==, value: project.id},
-          %{field: :name, op: :=~, value: "App"}
-        ],
-        order_by: [:inserted_at],
-        order_directions: [:desc],
-        first: 10
-      })
+      {bundles, _meta} =
+        Bundles.list_bundles(%{
+          filters: [
+            %{field: :project_id, op: :==, value: project.id},
+            %{field: :name, op: :=~, value: "App"}
+          ],
+          order_by: [:inserted_at],
+          order_directions: [:desc],
+          first: 10
+        })
 
       # Then
       bundle_ids = Enum.map(bundles, & &1.id)
@@ -1003,15 +1005,16 @@ defmodule Tuist.BundlesTest do
       _bundle3 = BundlesFixtures.bundle_fixture(project: project, git_branch: "develop")
 
       # When
-      {bundles, _meta} = Bundles.list_bundles(%{
-        filters: [
-          %{field: :project_id, op: :==, value: project.id},
-          %{field: :git_branch, op: :=~, value: "main"}
-        ],
-        order_by: [:inserted_at],
-        order_directions: [:desc],
-        first: 10
-      })
+      {bundles, _meta} =
+        Bundles.list_bundles(%{
+          filters: [
+            %{field: :project_id, op: :==, value: project.id},
+            %{field: :git_branch, op: :=~, value: "main"}
+          ],
+          order_by: [:inserted_at],
+          order_directions: [:desc],
+          first: 10
+        })
 
       # Then
       bundle_ids = Enum.map(bundles, & &1.id)
@@ -1028,15 +1031,16 @@ defmodule Tuist.BundlesTest do
       _bundle3 = BundlesFixtures.bundle_fixture(project: project, type: :ipa)
 
       # When
-      {bundles, _meta} = Bundles.list_bundles(%{
-        filters: [
-          %{field: :project_id, op: :==, value: project.id},
-          %{field: :type, op: :==, value: :app}
-        ],
-        order_by: [:inserted_at],
-        order_directions: [:desc],
-        first: 10
-      })
+      {bundles, _meta} =
+        Bundles.list_bundles(%{
+          filters: [
+            %{field: :project_id, op: :==, value: project.id},
+            %{field: :type, op: :==, value: :app}
+          ],
+          order_by: [:inserted_at],
+          order_directions: [:desc],
+          first: 10
+        })
 
       # Then
       bundle_ids = Enum.map(bundles, & &1.id)
@@ -1048,20 +1052,25 @@ defmodule Tuist.BundlesTest do
     test "filters bundles by install size (greater than or equal)" do
       # Given
       project = ProjectsFixtures.project_fixture()
-      bundle1 = BundlesFixtures.bundle_fixture(project: project, install_size: 5_242_880)  # 5 MB
-      bundle2 = BundlesFixtures.bundle_fixture(project: project, install_size: 10_485_760) # 10 MB
-      _bundle3 = BundlesFixtures.bundle_fixture(project: project, install_size: 2_097_152) # 2 MB
+      # 5 MB
+      bundle1 = BundlesFixtures.bundle_fixture(project: project, install_size: 5_242_880)
+      # 10 MB
+      bundle2 = BundlesFixtures.bundle_fixture(project: project, install_size: 10_485_760)
+      # 2 MB
+      _bundle3 = BundlesFixtures.bundle_fixture(project: project, install_size: 2_097_152)
 
       # When
-      {bundles, _meta} = Bundles.list_bundles(%{
-        filters: [
-          %{field: :project_id, op: :==, value: project.id},
-          %{field: :install_size, op: :>=, value: 5_242_880} # 5 MB in bytes
-        ],
-        order_by: [:inserted_at],
-        order_directions: [:desc],
-        first: 10
-      })
+      {bundles, _meta} =
+        Bundles.list_bundles(%{
+          filters: [
+            %{field: :project_id, op: :==, value: project.id},
+            # 5 MB in bytes
+            %{field: :install_size, op: :>=, value: 5_242_880}
+          ],
+          order_by: [:inserted_at],
+          order_directions: [:desc],
+          first: 10
+        })
 
       # Then
       bundle_ids = Enum.map(bundles, & &1.id)
@@ -1073,20 +1082,25 @@ defmodule Tuist.BundlesTest do
     test "filters bundles by download size (greater than or equal)" do
       # Given
       project = ProjectsFixtures.project_fixture()
-      bundle1 = BundlesFixtures.bundle_fixture(project: project, download_size: 3_145_728) # 3 MB
-      bundle2 = BundlesFixtures.bundle_fixture(project: project, download_size: 8_388_608) # 8 MB
-      _bundle3 = BundlesFixtures.bundle_fixture(project: project, download_size: 1_048_576) # 1 MB
+      # 3 MB
+      bundle1 = BundlesFixtures.bundle_fixture(project: project, download_size: 3_145_728)
+      # 8 MB
+      bundle2 = BundlesFixtures.bundle_fixture(project: project, download_size: 8_388_608)
+      # 1 MB
+      _bundle3 = BundlesFixtures.bundle_fixture(project: project, download_size: 1_048_576)
 
       # When
-      {bundles, _meta} = Bundles.list_bundles(%{
-        filters: [
-          %{field: :project_id, op: :==, value: project.id},
-          %{field: :download_size, op: :>=, value: 3_145_728} # 3 MB in bytes
-        ],
-        order_by: [:inserted_at],
-        order_directions: [:desc],
-        first: 10
-      })
+      {bundles, _meta} =
+        Bundles.list_bundles(%{
+          filters: [
+            %{field: :project_id, op: :==, value: project.id},
+            # 3 MB in bytes
+            %{field: :download_size, op: :>=, value: 3_145_728}
+          ],
+          order_by: [:inserted_at],
+          order_directions: [:desc],
+          first: 10
+        })
 
       # Then
       bundle_ids = Enum.map(bundles, & &1.id)
@@ -1103,15 +1117,16 @@ defmodule Tuist.BundlesTest do
       _bundle3 = BundlesFixtures.bundle_fixture(project: project, supported_platforms: [:macos, :watchos])
 
       # When
-      {bundles, _meta} = Bundles.list_bundles(%{
-        filters: [
-          %{field: :project_id, op: :==, value: project.id},
-          %{field: :supported_platforms, op: :contains, value: :ios}
-        ],
-        order_by: [:inserted_at],
-        order_directions: [:desc],
-        first: 10
-      })
+      {bundles, _meta} =
+        Bundles.list_bundles(%{
+          filters: [
+            %{field: :project_id, op: :==, value: project.id},
+            %{field: :supported_platforms, op: :contains, value: :ios}
+          ],
+          order_by: [:inserted_at],
+          order_directions: [:desc],
+          first: 10
+        })
 
       # Then
       bundle_ids = Enum.map(bundles, & &1.id)
@@ -1123,40 +1138,47 @@ defmodule Tuist.BundlesTest do
     test "applies multiple filters simultaneously" do
       # Given
       project = ProjectsFixtures.project_fixture()
-      bundle1 = BundlesFixtures.bundle_fixture(
-        project: project, 
-        name: "TuistApp", 
-        type: :app, 
-        install_size: 5000,
-        git_branch: "main"
-      )
-      _bundle2 = BundlesFixtures.bundle_fixture(
-        project: project, 
-        name: "TuistApp", 
-        type: :ipa, 
-        install_size: 5000,
-        git_branch: "main"
-      )
-      _bundle3 = BundlesFixtures.bundle_fixture(
-        project: project, 
-        name: "Framework", 
-        type: :app, 
-        install_size: 5000,
-        git_branch: "main"
-      )
+
+      bundle1 =
+        BundlesFixtures.bundle_fixture(
+          project: project,
+          name: "TuistApp",
+          type: :app,
+          install_size: 5000,
+          git_branch: "main"
+        )
+
+      _bundle2 =
+        BundlesFixtures.bundle_fixture(
+          project: project,
+          name: "TuistApp",
+          type: :ipa,
+          install_size: 5000,
+          git_branch: "main"
+        )
+
+      _bundle3 =
+        BundlesFixtures.bundle_fixture(
+          project: project,
+          name: "Framework",
+          type: :app,
+          install_size: 5000,
+          git_branch: "main"
+        )
 
       # When
-      {bundles, _meta} = Bundles.list_bundles(%{
-        filters: [
-          %{field: :project_id, op: :==, value: project.id},
-          %{field: :name, op: :=~, value: "Tuist"},
-          %{field: :type, op: :==, value: :app},
-          %{field: :install_size, op: :>=, value: 4000}
-        ],
-        order_by: [:inserted_at],
-        order_directions: [:desc],
-        first: 10
-      })
+      {bundles, _meta} =
+        Bundles.list_bundles(%{
+          filters: [
+            %{field: :project_id, op: :==, value: project.id},
+            %{field: :name, op: :=~, value: "Tuist"},
+            %{field: :type, op: :==, value: :app},
+            %{field: :install_size, op: :>=, value: 4000}
+          ],
+          order_by: [:inserted_at],
+          order_directions: [:desc],
+          first: 10
+        })
 
       # Then
       bundle_ids = Enum.map(bundles, & &1.id)
@@ -1172,18 +1194,22 @@ defmodule Tuist.BundlesTest do
       bundle3 = BundlesFixtures.bundle_fixture(project: project, install_size: 3000)
 
       # When
-      {bundles, _meta} = Bundles.list_bundles(%{
-        filters: [%{field: :project_id, op: :==, value: project.id}],
-        order_by: [:install_size],
-        order_directions: [:desc],
-        first: 10
-      })
+      {bundles, _meta} =
+        Bundles.list_bundles(%{
+          filters: [%{field: :project_id, op: :==, value: project.id}],
+          order_by: [:install_size],
+          order_directions: [:desc],
+          first: 10
+        })
 
       # Then
       assert length(bundles) == 3
-      assert Enum.at(bundles, 0).id == bundle2.id  # 5000
-      assert Enum.at(bundles, 1).id == bundle3.id  # 3000
-      assert Enum.at(bundles, 2).id == bundle1.id  # 1000
+      # 5000
+      assert Enum.at(bundles, 0).id == bundle2.id
+      # 3000
+      assert Enum.at(bundles, 1).id == bundle3.id
+      # 1000
+      assert Enum.at(bundles, 2).id == bundle1.id
     end
 
     test "sorts bundles by download size" do
@@ -1194,18 +1220,22 @@ defmodule Tuist.BundlesTest do
       bundle3 = BundlesFixtures.bundle_fixture(project: project, download_size: 3000)
 
       # When
-      {bundles, _meta} = Bundles.list_bundles(%{
-        filters: [%{field: :project_id, op: :==, value: project.id}],
-        order_by: [:download_size],
-        order_directions: [:desc],
-        first: 10
-      })
+      {bundles, _meta} =
+        Bundles.list_bundles(%{
+          filters: [%{field: :project_id, op: :==, value: project.id}],
+          order_by: [:download_size],
+          order_directions: [:desc],
+          first: 10
+        })
 
       # Then
       assert length(bundles) == 3
-      assert Enum.at(bundles, 0).id == bundle2.id  # 5000
-      assert Enum.at(bundles, 1).id == bundle3.id  # 3000
-      assert Enum.at(bundles, 2).id == bundle1.id  # 1000
+      # 5000
+      assert Enum.at(bundles, 0).id == bundle2.id
+      # 3000
+      assert Enum.at(bundles, 1).id == bundle3.id
+      # 1000
+      assert Enum.at(bundles, 2).id == bundle1.id
     end
   end
 
@@ -1252,21 +1282,26 @@ defmodule Tuist.BundlesTest do
       # Given
       project = ProjectsFixtures.project_fixture()
       # Create bundles with sizes in bytes: 5MB, 10MB, 2MB
-      bundle_5mb = BundlesFixtures.bundle_fixture(project: project, install_size: 5_242_880)  # 5 MB
-      bundle_10mb = BundlesFixtures.bundle_fixture(project: project, install_size: 10_485_760) # 10 MB
-      _bundle_2mb = BundlesFixtures.bundle_fixture(project: project, install_size: 2_097_152)  # 2 MB
+      # 5 MB
+      bundle_5mb = BundlesFixtures.bundle_fixture(project: project, install_size: 5_242_880)
+      # 10 MB
+      bundle_10mb = BundlesFixtures.bundle_fixture(project: project, install_size: 10_485_760)
+      # 2 MB
+      _bundle_2mb = BundlesFixtures.bundle_fixture(project: project, install_size: 2_097_152)
 
       # When filtering with 5 MB (which should be converted to bytes internally)
       # Simulate what happens when user enters "5" in the Install Size (MB) filter
-      {bundles, _meta} = Bundles.list_bundles(%{
-        filters: [
-          %{field: :project_id, op: :==, value: project.id},
-          %{field: :install_size, op: :>=, value: 5_242_880} # 5 MB worth of bytes
-        ],
-        order_by: [:inserted_at],
-        order_directions: [:desc],
-        first: 10
-      })
+      {bundles, _meta} =
+        Bundles.list_bundles(%{
+          filters: [
+            %{field: :project_id, op: :==, value: project.id},
+            # 5 MB worth of bytes
+            %{field: :install_size, op: :>=, value: 5_242_880}
+          ],
+          order_by: [:inserted_at],
+          order_directions: [:desc],
+          first: 10
+        })
 
       # Then - should return bundles with 5MB or more
       bundle_ids = Enum.map(bundles, & &1.id)
@@ -1279,20 +1314,25 @@ defmodule Tuist.BundlesTest do
       # Given
       project = ProjectsFixtures.project_fixture()
       # Create bundles with sizes in bytes: 3MB, 8MB, 1MB
-      bundle_3mb = BundlesFixtures.bundle_fixture(project: project, download_size: 3_145_728) # 3 MB
-      bundle_8mb = BundlesFixtures.bundle_fixture(project: project, download_size: 8_388_608) # 8 MB
-      _bundle_1mb = BundlesFixtures.bundle_fixture(project: project, download_size: 1_048_576) # 1 MB
+      # 3 MB
+      bundle_3mb = BundlesFixtures.bundle_fixture(project: project, download_size: 3_145_728)
+      # 8 MB
+      bundle_8mb = BundlesFixtures.bundle_fixture(project: project, download_size: 8_388_608)
+      # 1 MB
+      _bundle_1mb = BundlesFixtures.bundle_fixture(project: project, download_size: 1_048_576)
 
       # When filtering with 3 MB (which should be converted to bytes internally)
-      {bundles, _meta} = Bundles.list_bundles(%{
-        filters: [
-          %{field: :project_id, op: :==, value: project.id},
-          %{field: :download_size, op: :>=, value: 3_145_728} # 3 MB worth of bytes
-        ],
-        order_by: [:inserted_at],
-        order_directions: [:desc],
-        first: 10
-      })
+      {bundles, _meta} =
+        Bundles.list_bundles(%{
+          filters: [
+            %{field: :project_id, op: :==, value: project.id},
+            # 3 MB worth of bytes
+            %{field: :download_size, op: :>=, value: 3_145_728}
+          ],
+          order_by: [:inserted_at],
+          order_directions: [:desc],
+          first: 10
+        })
 
       # Then - should return bundles with 3MB or more
       bundle_ids = Enum.map(bundles, & &1.id)
@@ -1307,15 +1347,17 @@ defmodule Tuist.BundlesTest do
       bundle1 = BundlesFixtures.bundle_fixture(project: project, install_size: 5_242_880)
 
       # When filtering with nil value (should be ignored)
-      {bundles, _meta} = Bundles.list_bundles(%{
-        filters: [
-          %{field: :project_id, op: :==, value: project.id},
-          %{field: :install_size, op: :>=, value: nil} # Should be filtered out
-        ],
-        order_by: [:inserted_at],
-        order_directions: [:desc],
-        first: 10
-      })
+      {bundles, _meta} =
+        Bundles.list_bundles(%{
+          filters: [
+            %{field: :project_id, op: :==, value: project.id},
+            # Should be filtered out
+            %{field: :install_size, op: :>=, value: nil}
+          ],
+          order_by: [:inserted_at],
+          order_directions: [:desc],
+          first: 10
+        })
 
       # Then - should return all bundles (nil filter ignored)
       bundle_ids = Enum.map(bundles, & &1.id)
@@ -1323,39 +1365,46 @@ defmodule Tuist.BundlesTest do
       assert length(bundles) == 1
     end
 
-
     test "handles platform filter conversion to contains operator" do
       # Given
       project = ProjectsFixtures.project_fixture()
-      ios_bundle = BundlesFixtures.bundle_fixture(
-        project: project, 
-        supported_platforms: [:ios, :ios_simulator]
-      )
-      macos_bundle = BundlesFixtures.bundle_fixture(
-        project: project, 
-        supported_platforms: [:macos, :watchos]
-      )
-      _mixed_bundle = BundlesFixtures.bundle_fixture(
-        project: project, 
-        supported_platforms: [:ios, :macos]
-      )
+
+      ios_bundle =
+        BundlesFixtures.bundle_fixture(
+          project: project,
+          supported_platforms: [:ios, :ios_simulator]
+        )
+
+      macos_bundle =
+        BundlesFixtures.bundle_fixture(
+          project: project,
+          supported_platforms: [:macos, :watchos]
+        )
+
+      _mixed_bundle =
+        BundlesFixtures.bundle_fixture(
+          project: project,
+          supported_platforms: [:ios, :macos]
+        )
 
       # When filtering for iOS platform (should use contains operator)
-      {bundles, _meta} = Bundles.list_bundles(%{
-        filters: [
-          %{field: :project_id, op: :==, value: project.id},
-          %{field: :supported_platforms, op: :contains, value: :ios}
-        ],
-        order_by: [:inserted_at],
-        order_directions: [:desc],
-        first: 10
-      })
+      {bundles, _meta} =
+        Bundles.list_bundles(%{
+          filters: [
+            %{field: :project_id, op: :==, value: project.id},
+            %{field: :supported_platforms, op: :contains, value: :ios}
+          ],
+          order_by: [:inserted_at],
+          order_directions: [:desc],
+          first: 10
+        })
 
       # Then - should return bundles that contain iOS platform
       bundle_ids = Enum.map(bundles, & &1.id)
       assert ios_bundle.id in bundle_ids
       refute macos_bundle.id in bundle_ids
-      assert length(bundles) == 2  # ios_bundle and mixed_bundle
+      # ios_bundle and mixed_bundle
+      assert length(bundles) == 2
     end
   end
 end

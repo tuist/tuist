@@ -9,7 +9,6 @@ defmodule TuistWeb.BundlesLive do
   import TuistWeb.Previews.PlatformTag
 
   alias Noora.Filter
-
   alias Tuist.Bundles
   alias Tuist.Projects
   alias Tuist.Utilities.DateFormatter
@@ -166,17 +165,23 @@ defmodule TuistWeb.BundlesLive do
               {_int, ""} -> true
               _ -> false
             end
-          value when is_integer(value) -> true
-          _ -> false
+
+          value when is_integer(value) ->
+            true
+
+          _ ->
+            false
         end
       end)
       |> Enum.map(fn filter ->
         # Convert MB to bytes (multiply by 1,048,576)
         # Handle both string and integer values
-        mb_value = case filter.value do
-          value when is_binary(value) -> String.to_integer(value)
-          value when is_integer(value) -> value
-        end
+        mb_value =
+          case filter.value do
+            value when is_binary(value) -> String.to_integer(value)
+            value when is_integer(value) -> value
+          end
+
         value_in_bytes = mb_value * 1_048_576
         %{field: filter.field, op: filter.operator, value: value_in_bytes}
       end)
@@ -850,7 +855,17 @@ defmodule TuistWeb.BundlesLive do
   end
 
   defp define_filters(_project) do
-    platform_options = [:ios, :ios_simulator, :macos, :watchos, :watchos_simulator, :tvos, :tvos_simulator, :visionos, :visionos_simulator]
+    platform_options = [
+      :ios,
+      :ios_simulator,
+      :macos,
+      :watchos,
+      :watchos_simulator,
+      :tvos,
+      :tvos_simulator,
+      :visionos,
+      :visionos_simulator
+    ]
 
     [
       %Filter.Filter{
