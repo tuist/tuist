@@ -68,7 +68,6 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
                 serverURL: serverURL
             )
 
-            // Decompress the data
             let decompressedData: Data
             do {
                 decompressedData = try await dataCompressingService.decompress(compressedData)
@@ -138,7 +137,6 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
             Logger.current.debug("CAS.save starting - data size: \(data.count) bytes")
         }
 
-        // Compress the data
         let compressedData: Data
         do {
             compressedData = try await dataCompressingService.compress(data)

@@ -1,8 +1,7 @@
 import ProjectDescription
 
 let tuist = Tuist(
-    fullHandle: "tuist/tuist-two",
-    // url: "https://staging.tuist.dev",
-    url: "https://cache-eu-central-staging.tuist.dev",
+    fullHandle: "tuist/tuist",
+    url: "https://canary.tuist.dev",
     project: .xcode()
 )
