@@ -4,8 +4,8 @@ image: tuist/cache
 servers:
   web:
     hosts:
-      - 91.98.153.89
-      - 5.161.104.150
+      - 91.98.81.176
+      - 5.161.218.106
     proxy: false
     options:
       network-alias: cache-app
@@ -24,7 +24,7 @@ builder:
 env:
   clear:
     PHX_HOST: staging-cache.tuist.dev
-    SERVER_URL: https://tuist.dev
+    SERVER_URL: https://staging.tuist.dev
     CAS_STORAGE_DIR: /cas
   secret:
     - SECRET_KEY_BASE

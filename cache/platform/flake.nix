@@ -9,6 +9,8 @@
     ...
   }: let
     machines = [
+      "cache-eu-central"
+      "cache-us-east"
       "cache-eu-central-staging"
       "cache-us-east-staging"
     ];
