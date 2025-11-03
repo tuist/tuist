@@ -10,7 +10,7 @@ extension Option {
         help: ArgumentHelp? = nil,
         completion: CompletionKind? = nil,
         envKey: EnvKey
-    ) where T: ExpressibleByArgument, Value == [T] {
+    ) where T: ExpressibleByArgument & Sendable, Value == [T] {
         let envValue: Value? = envKey.envValue()
         if let envValue {
             self.init(
@@ -37,7 +37,7 @@ extension Option {
         help: ArgumentHelp? = nil,
         completion: CompletionKind? = nil,
         envKey: EnvKey
-    ) where T: ExpressibleByArgument, Value == T? {
+    ) where T: ExpressibleByArgument & Sendable, Value == T? {
         if let value: T = envKey.envValue() {
             self.init(
                 wrappedValue: value,
@@ -195,7 +195,7 @@ extension Argument {
         help: ArgumentHelp? = nil,
         completion: CompletionKind? = nil,
         envKey: EnvKey
-    ) where T: ExpressibleByArgument, Value == T? {
+    ) where T: ExpressibleByArgument & Sendable, Value == T? {
         if let value: T = envKey.envValue() {
             self.init(
                 wrappedValue: value,

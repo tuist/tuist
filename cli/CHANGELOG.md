@@ -1,6 +1,15 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.97.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* clean up warnings by [@waltflanagan](https://github.com/waltflanagan) in [#7666](https://github.com/tuist/tuist/pull/7666)
+* fix content hashing to use relative path when file does not exist by [@waltflanagan](https://github.com/waltflanagan) in [#8557](https://github.com/tuist/tuist/pull/8557)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.97.0...4.97.1
+
 ## What's Changed in 4.97.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
