@@ -822,7 +822,7 @@ defmodule TuistWeb.BundlesLive do
     """
   end
 
-  defp define_filters(project) do
+  defp define_filters(_project) do
     platform_options = [:ios, :ios_simulator, :macos, :watchos, :watchos_simulator, :tvos, :tvos_simulator, :visionos, :visionos_simulator]
     
     [

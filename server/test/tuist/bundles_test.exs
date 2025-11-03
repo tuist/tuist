@@ -944,4 +944,293 @@ defmodule Tuist.BundlesTest do
       assert Bundles.get_bundle(bundle.id) == {:error, :not_found}
     end
   end
+
+  describe "list_bundles/1" do
+    test "returns all bundles for a project" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      bundle1 = BundlesFixtures.bundle_fixture(project: project, name: "App1")
+      bundle2 = BundlesFixtures.bundle_fixture(project: project, name: "App2")
+      
+      # Different project bundle should not be included
+      _other_bundle = BundlesFixtures.bundle_fixture(name: "Other")
+
+      # When
+      {bundles, _meta} = Bundles.list_bundles(%{
+        filters: [%{field: :project_id, op: :==, value: project.id}],
+        order_by: [:inserted_at],
+        order_directions: [:desc],
+        first: 10
+      })
+
+      # Then
+      bundle_ids = Enum.map(bundles, & &1.id)
+      assert bundle1.id in bundle_ids
+      assert bundle2.id in bundle_ids
+      assert length(bundles) == 2
+    end
+
+    test "filters bundles by name using text search" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      bundle1 = BundlesFixtures.bundle_fixture(project: project, name: "TuistApp")
+      bundle2 = BundlesFixtures.bundle_fixture(project: project, name: "MyApp")
+      _bundle3 = BundlesFixtures.bundle_fixture(project: project, name: "Framework")
+
+      # When
+      {bundles, _meta} = Bundles.list_bundles(%{
+        filters: [
+          %{field: :project_id, op: :==, value: project.id},
+          %{field: :name, op: :=~, value: "App"}
+        ],
+        order_by: [:inserted_at],
+        order_directions: [:desc],
+        first: 10
+      })
+
+      # Then
+      bundle_ids = Enum.map(bundles, & &1.id)
+      assert bundle1.id in bundle_ids
+      assert bundle2.id in bundle_ids
+      assert length(bundles) == 2
+    end
+
+    test "filters bundles by git branch using text search" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      bundle1 = BundlesFixtures.bundle_fixture(project: project, git_branch: "main")
+      bundle2 = BundlesFixtures.bundle_fixture(project: project, git_branch: "feature/main-update")
+      _bundle3 = BundlesFixtures.bundle_fixture(project: project, git_branch: "develop")
+
+      # When
+      {bundles, _meta} = Bundles.list_bundles(%{
+        filters: [
+          %{field: :project_id, op: :==, value: project.id},
+          %{field: :git_branch, op: :=~, value: "main"}
+        ],
+        order_by: [:inserted_at],
+        order_directions: [:desc],
+        first: 10
+      })
+
+      # Then
+      bundle_ids = Enum.map(bundles, & &1.id)
+      assert bundle1.id in bundle_ids
+      assert bundle2.id in bundle_ids
+      assert length(bundles) == 2
+    end
+
+    test "filters bundles by type" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      bundle1 = BundlesFixtures.bundle_fixture(project: project, type: :app)
+      bundle2 = BundlesFixtures.bundle_fixture(project: project, type: :app)
+      _bundle3 = BundlesFixtures.bundle_fixture(project: project, type: :ipa)
+
+      # When
+      {bundles, _meta} = Bundles.list_bundles(%{
+        filters: [
+          %{field: :project_id, op: :==, value: project.id},
+          %{field: :type, op: :==, value: :app}
+        ],
+        order_by: [:inserted_at],
+        order_directions: [:desc],
+        first: 10
+      })
+
+      # Then
+      bundle_ids = Enum.map(bundles, & &1.id)
+      assert bundle1.id in bundle_ids
+      assert bundle2.id in bundle_ids
+      assert length(bundles) == 2
+    end
+
+    test "filters bundles by install size (greater than or equal)" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      bundle1 = BundlesFixtures.bundle_fixture(project: project, install_size: 5000)
+      bundle2 = BundlesFixtures.bundle_fixture(project: project, install_size: 10000)
+      _bundle3 = BundlesFixtures.bundle_fixture(project: project, install_size: 2000)
+
+      # When
+      {bundles, _meta} = Bundles.list_bundles(%{
+        filters: [
+          %{field: :project_id, op: :==, value: project.id},
+          %{field: :install_size, op: :>=, value: 5000}
+        ],
+        order_by: [:inserted_at],
+        order_directions: [:desc],
+        first: 10
+      })
+
+      # Then
+      bundle_ids = Enum.map(bundles, & &1.id)
+      assert bundle1.id in bundle_ids
+      assert bundle2.id in bundle_ids
+      assert length(bundles) == 2
+    end
+
+    test "filters bundles by download size (greater than or equal)" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      bundle1 = BundlesFixtures.bundle_fixture(project: project, download_size: 3000)
+      bundle2 = BundlesFixtures.bundle_fixture(project: project, download_size: 8000)
+      _bundle3 = BundlesFixtures.bundle_fixture(project: project, download_size: 1000)
+
+      # When
+      {bundles, _meta} = Bundles.list_bundles(%{
+        filters: [
+          %{field: :project_id, op: :==, value: project.id},
+          %{field: :download_size, op: :>=, value: 3000}
+        ],
+        order_by: [:inserted_at],
+        order_directions: [:desc],
+        first: 10
+      })
+
+      # Then
+      bundle_ids = Enum.map(bundles, & &1.id)
+      assert bundle1.id in bundle_ids
+      assert bundle2.id in bundle_ids
+      assert length(bundles) == 2
+    end
+
+    test "filters bundles by supported platforms using overlap" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      bundle1 = BundlesFixtures.bundle_fixture(project: project, supported_platforms: [:ios, :ios_simulator])
+      bundle2 = BundlesFixtures.bundle_fixture(project: project, supported_platforms: [:ios, :macos])
+      _bundle3 = BundlesFixtures.bundle_fixture(project: project, supported_platforms: [:macos, :watchos])
+
+      # When
+      {bundles, _meta} = Bundles.list_bundles(%{
+        filters: [
+          %{field: :project_id, op: :==, value: project.id},
+          %{field: :supported_platforms, op: :contains, value: :ios}
+        ],
+        order_by: [:inserted_at],
+        order_directions: [:desc],
+        first: 10
+      })
+
+      # Then
+      bundle_ids = Enum.map(bundles, & &1.id)
+      assert bundle1.id in bundle_ids
+      assert bundle2.id in bundle_ids
+      assert length(bundles) == 2
+    end
+
+    test "filters bundles by creation date (greater than or equal)" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      bundle1 = BundlesFixtures.bundle_fixture(project: project, inserted_at: ~U[2024-05-01 10:00:00Z])
+      bundle2 = BundlesFixtures.bundle_fixture(project: project, inserted_at: ~U[2024-05-02 10:00:00Z])
+      _bundle3 = BundlesFixtures.bundle_fixture(project: project, inserted_at: ~U[2024-04-01 10:00:00Z])
+
+      # When
+      {bundles, _meta} = Bundles.list_bundles(%{
+        filters: [
+          %{field: :project_id, op: :==, value: project.id},
+          %{field: :inserted_at, op: :>=, value: ~U[2024-05-01 00:00:00Z]}
+        ],
+        order_by: [:inserted_at],
+        order_directions: [:desc],
+        first: 10
+      })
+
+      # Then
+      bundle_ids = Enum.map(bundles, & &1.id)
+      assert bundle1.id in bundle_ids
+      assert bundle2.id in bundle_ids
+      assert length(bundles) == 2
+    end
+
+    test "applies multiple filters simultaneously" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      bundle1 = BundlesFixtures.bundle_fixture(
+        project: project, 
+        name: "TuistApp", 
+        type: :app, 
+        install_size: 5000,
+        git_branch: "main"
+      )
+      _bundle2 = BundlesFixtures.bundle_fixture(
+        project: project, 
+        name: "TuistApp", 
+        type: :ipa, 
+        install_size: 5000,
+        git_branch: "main"
+      )
+      _bundle3 = BundlesFixtures.bundle_fixture(
+        project: project, 
+        name: "Framework", 
+        type: :app, 
+        install_size: 5000,
+        git_branch: "main"
+      )
+
+      # When
+      {bundles, _meta} = Bundles.list_bundles(%{
+        filters: [
+          %{field: :project_id, op: :==, value: project.id},
+          %{field: :name, op: :=~, value: "Tuist"},
+          %{field: :type, op: :==, value: :app},
+          %{field: :install_size, op: :>=, value: 4000}
+        ],
+        order_by: [:inserted_at],
+        order_directions: [:desc],
+        first: 10
+      })
+
+      # Then
+      bundle_ids = Enum.map(bundles, & &1.id)
+      assert bundle1.id in bundle_ids
+      assert length(bundles) == 1
+    end
+
+    test "sorts bundles by install size" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      bundle1 = BundlesFixtures.bundle_fixture(project: project, install_size: 1000)
+      bundle2 = BundlesFixtures.bundle_fixture(project: project, install_size: 5000)
+      bundle3 = BundlesFixtures.bundle_fixture(project: project, install_size: 3000)
+
+      # When
+      {bundles, _meta} = Bundles.list_bundles(%{
+        filters: [%{field: :project_id, op: :==, value: project.id}],
+        order_by: [:install_size],
+        order_directions: [:desc],
+        first: 10
+      })
+
+      # Then
+      assert length(bundles) == 3
+      assert Enum.at(bundles, 0).id == bundle2.id  # 5000
+      assert Enum.at(bundles, 1).id == bundle3.id  # 3000
+      assert Enum.at(bundles, 2).id == bundle1.id  # 1000
+    end
+
+    test "sorts bundles by download size" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      bundle1 = BundlesFixtures.bundle_fixture(project: project, download_size: 1000)
+      bundle2 = BundlesFixtures.bundle_fixture(project: project, download_size: 5000)
+      bundle3 = BundlesFixtures.bundle_fixture(project: project, download_size: 3000)
+
+      # When
+      {bundles, _meta} = Bundles.list_bundles(%{
+        filters: [%{field: :project_id, op: :==, value: project.id}],
+        order_by: [:download_size],
+        order_directions: [:desc],
+        first: 10
+      })
+
+      # Then
+      assert length(bundles) == 3
+      assert Enum.at(bundles, 0).id == bundle2.id  # 5000
+      assert Enum.at(bundles, 1).id == bundle3.id  # 3000
+      assert Enum.at(bundles, 2).id == bundle1.id  # 1000
+    end
+  end
 end
