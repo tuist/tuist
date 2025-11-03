@@ -314,30 +314,6 @@ if Tuist.Environment.stripe_configured?(secrets) do
     signing_secret: Tuist.Environment.stripe_endpoint_secret(secrets)
 end
 
-# Configure OAuth callback URLs to use the app URL instead of detecting from request
-# This is needed when behind a load balancer with a different Host header
-if Enum.member?([:prod, :stag, :can, :dev], env) do
-  base_url = Tuist.Environment.app_url([route_type: :app], secrets)
-
-  config :ueberauth, Ueberauth,
-    base_path: "/users/auth",
-    providers: [
-      github:
-        {Ueberauth.Strategy.Github,
-         [callback_url: "#{base_url}/users/auth/github/callback"]},
-      google:
-        {Ueberauth.Strategy.Google,
-         [callback_url: "#{base_url}/users/auth/google/callback"]},
-      apple:
-        {Ueberauth.Strategy.Apple,
-         [
-           callback_methods: ["POST"],
-           default_scope: "email",
-           callback_url: "#{base_url}/users/auth/apple/callback"
-         ]}
-    ]
-end
-
 config :ueberauth, Ueberauth.Strategy.Apple.OAuth,
   client_id: Tuist.Environment.apple_service_client_id(secrets),
   client_secret: {Tuist.OAuth.Apple, :client_secret}
