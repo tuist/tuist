@@ -151,7 +151,8 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
             return response
         }
 
-        let hash = SHA256.hash(data: data)
+        let dataWithVersion = data + "cache-v1".data(using: .utf8)!
+        let hash = SHA256.hash(data: dataWithVersion)
         let fingerprint = hash.compactMap { String(format: "%02X", $0) }.joined()
 
         var message = CompilationCacheService_Cas_V1_CASDataID()

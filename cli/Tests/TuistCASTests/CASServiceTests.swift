@@ -141,7 +141,7 @@ struct CASServiceTests {
         let response = try await subject.save(request: request, context: context)
 
         // Then
-        let fingerprint = "E32E670195BD1ED06BA6A20D7B560BED8F9F91596EEC7B050BB783FD05045D0F"
+        let fingerprint = "74E40A3FAE0D089D887556DBE3001075455BB28A7EAD99D6DE81A85EF3F3E4A8"
         #expect(response.casID.id == fingerprint.data(using: .utf8)!)
         switch response.contents {
         case .casID:
