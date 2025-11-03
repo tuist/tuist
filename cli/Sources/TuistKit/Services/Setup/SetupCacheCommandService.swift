@@ -101,6 +101,7 @@ struct SetupCacheCommandService {
                 COMPILATION_CACHE_ENABLE_CACHING=YES
                 COMPILATION_CACHE_REMOTE_SERVICE_PATH=\(Environment.current.cacheSocketPathString(for: fullHandle))
                 COMPILATION_CACHE_ENABLE_PLUGIN=YES
+                COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS=YES
 
                 Note that `COMPILATION_CACHE_REMOTE_SERVICE_PATH` and `COMPILATION_CACHE_ENABLE_PLUGIN` are currently not directly exposed by Xcode and you need to manually add these as user-defined build settings.
                 """
