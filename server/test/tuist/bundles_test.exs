@@ -1325,5 +1325,74 @@ defmodule Tuist.BundlesTest do
       assert bundle_8mb.id in bundle_ids
       assert length(bundles) == 2
     end
+
+    test "handles nil values in size filters gracefully" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      bundle1 = BundlesFixtures.bundle_fixture(project: project, install_size: 5_242_880)
+
+      # When filtering with nil value (should be ignored)
+      {bundles, _meta} = Bundles.list_bundles(%{
+        filters: [
+          %{field: :project_id, op: :==, value: project.id},
+          %{field: :install_size, op: :>=, value: nil} # Should be filtered out
+        ],
+        order_by: [:inserted_at],
+        order_directions: [:desc],
+        first: 10
+      })
+
+      # Then - should return all bundles (nil filter ignored)
+      bundle_ids = Enum.map(bundles, & &1.id)
+      assert bundle1.id in bundle_ids
+      assert length(bundles) == 1
+    end
+
+    test "handles string values in size filters" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      bundle_5mb = BundlesFixtures.bundle_fixture(project: project, install_size: 5_242_880)  # 5 MB
+      bundle_10mb = BundlesFixtures.bundle_fixture(project: project, install_size: 10_485_760) # 10 MB
+      _bundle_2mb = BundlesFixtures.bundle_fixture(project: project, install_size: 2_097_152)  # 2 MB
+
+      # When filtering with string value (as it comes from form input)
+      {bundles, _meta} = Bundles.list_bundles(%{
+        filters: [
+          %{field: :project_id, op: :==, value: project.id},
+          %{field: :install_size, op: :>=, value: "5"} # String value should be converted
+        ],
+        order_by: [:inserted_at],
+        order_directions: [:desc],
+        first: 10
+      })
+
+      # Then - should return bundles with 5MB or more
+      bundle_ids = Enum.map(bundles, & &1.id)
+      assert bundle_5mb.id in bundle_ids
+      assert bundle_10mb.id in bundle_ids
+      assert length(bundles) == 2
+    end
+
+    test "handles invalid string values in size filters gracefully" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      bundle1 = BundlesFixtures.bundle_fixture(project: project, install_size: 5_242_880)
+
+      # When filtering with invalid string value (should be ignored)
+      {bundles, _meta} = Bundles.list_bundles(%{
+        filters: [
+          %{field: :project_id, op: :==, value: project.id},
+          %{field: :install_size, op: :>=, value: "not_a_number"} # Should be filtered out
+        ],
+        order_by: [:inserted_at],
+        order_directions: [:desc],
+        first: 10
+      })
+
+      # Then - should return all bundles (invalid filter ignored)
+      bundle_ids = Enum.map(bundles, & &1.id)
+      assert bundle1.id in bundle_ids
+      assert length(bundles) == 1
+    end
   end
 end

@@ -157,9 +157,27 @@ defmodule TuistWeb.BundlesLive do
     size_filters =
       filters
       |> Enum.filter(fn filter -> filter.field in [:install_size, :download_size] end)
+      |> Enum.filter(fn filter -> not is_nil(filter.value) and filter.value != "" end)
+      |> Enum.filter(fn filter ->
+        # Only include filters that have valid numeric values
+        case filter.value do
+          value when is_binary(value) ->
+            case Integer.parse(value) do
+              {_int, ""} -> true
+              _ -> false
+            end
+          value when is_integer(value) -> true
+          _ -> false
+        end
+      end)
       |> Enum.map(fn filter ->
         # Convert MB to bytes (multiply by 1,048,576)
-        value_in_bytes = filter.value * 1_048_576
+        # Handle both string and integer values
+        mb_value = case filter.value do
+          value when is_binary(value) -> String.to_integer(value)
+          value when is_integer(value) -> value
+        end
+        value_in_bytes = mb_value * 1_048_576
         %{field: filter.field, op: filter.operator, value: value_in_bytes}
       end)
 
