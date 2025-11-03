@@ -60,4 +60,13 @@
       }
     }
   }
+
+  & [data-part="empty-bundles-table-card-section"] {
+    & > [data-part="title"] {
+      padding-top: var(--noora-spacing-5);
+    }
+    & > [data-part="image"] {
+      height: 150px;
+    }
+  }
 }
