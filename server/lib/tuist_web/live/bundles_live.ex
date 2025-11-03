@@ -80,6 +80,7 @@ defmodule TuistWeb.BundlesLive do
       )
       |> assign(:bundle_size_selected_widget, bundle_size_selected_widget)
       |> assign(:show_branch_dropdown, Bundles.has_bundles_in_project_default_branch?(project))
+      |> assign(:has_any_bundles, Bundles.has_bundles_in_project?(project))
       |> assign_bundle_size_analytics()
       |> assign_bundles(params)
     }

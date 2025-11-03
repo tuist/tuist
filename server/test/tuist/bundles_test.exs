@@ -1233,4 +1233,42 @@ defmodule Tuist.BundlesTest do
       assert Enum.at(bundles, 2).id == bundle1.id  # 1000
     end
   end
+
+  describe "has_bundles_in_project?/1" do
+    test "returns true when project has bundles" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      _bundle = BundlesFixtures.bundle_fixture(project: project)
+
+      # When
+      result = Bundles.has_bundles_in_project?(project)
+
+      # Then
+      assert result == true
+    end
+
+    test "returns false when project has no bundles" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # When
+      result = Bundles.has_bundles_in_project?(project)
+
+      # Then
+      assert result == false
+    end
+
+    test "returns true when project has bundles from different branches" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      _main_bundle = BundlesFixtures.bundle_fixture(project: project, git_branch: "main")
+      _feature_bundle = BundlesFixtures.bundle_fixture(project: project, git_branch: "feature/test")
+
+      # When
+      result = Bundles.has_bundles_in_project?(project)
+
+      # Then
+      assert result == true
+    end
+  end
 end

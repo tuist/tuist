@@ -1,4 +1,4 @@
-<%= if @bundles |> Enum.empty? do %>
+<%= if not @has_any_bundles do %>
   <.empty_state
     command="tuist inspect bundle"
     id="bundles-empty-state"
@@ -296,7 +296,8 @@
         <div :if={Enum.any?(@active_filters)} data-part="active-filters">
           <.active_filter :for={filter <- @active_filters} filter={filter} />
         </div>
-        <.table
+        <div :if={not Enum.empty?(@bundles)}>
+          <.table
           id="bundles-table"
           rows={@bundles}
           row_navigate={
@@ -318,7 +319,7 @@
           </:col>
           <:col
             :let={bundle}
-            label={gettext("Install size (MB)")}
+            label={gettext("Install size")}
             patch={
               @bundles_sort_by == "install-size" && column_patch_sort(assigns, "install-size")
             }
@@ -331,7 +332,7 @@
           </:col>
           <:col
             :let={bundle}
-            label={gettext("Download size (MB)")}
+            label={gettext("Download size")}
             patch={
               @bundles_sort_by == "download-size" && column_patch_sort(assigns, "download-size")
             }
@@ -367,13 +368,23 @@
             <.text_cell sublabel={DateFormatter.from_now(bundle.inserted_at)} />
           </:col>
         </.table>
-        <.pagination
-          uri={@uri}
-          has_previous_page={@bundles_meta.has_previous_page?}
-          has_next_page={@bundles_meta.has_next_page?}
-          start_cursor={@bundles_meta.start_cursor}
-          end_cursor={@bundles_meta.end_cursor}
-        />
+          <.pagination
+            uri={@uri}
+            has_previous_page={@bundles_meta.has_previous_page?}
+            has_next_page={@bundles_meta.has_next_page?}
+            start_cursor={@bundles_meta.start_cursor}
+            end_cursor={@bundles_meta.end_cursor}
+          />
+        </div>
+        <.empty_card_section
+          :if={Enum.empty?(@bundles)}
+          title={gettext("No data yet")}
+        >
+          <:image>
+            <img src="/images/empty_table_light.png" data-theme="light" />
+            <img src="/images/empty_table_dark.png" data-theme="dark" />
+          </:image>
+        </.empty_card_section>
       </.card_section>
     </.card>
   </div>
