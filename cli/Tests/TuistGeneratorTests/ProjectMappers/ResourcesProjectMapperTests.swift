@@ -395,6 +395,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
                 exceptions: BuildableFolderExceptions(exceptions: []),
                 resolvedFiles: [
                     BuildableFolderFile(path: swiftFile, compilerFlags: nil),
+                    BuildableFolderFile(path: assetFolder, compilerFlags: nil),
                 ]
             ),
             BuildableFolder(
@@ -421,7 +422,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
 
         // Then
         let gotTarget = try XCTUnwrap(gotProject.targets.values.sorted().last)
-        XCTAssertEqual(gotTarget.buildableFolders.count, 3)
+        XCTAssertEqual(gotTarget.buildableFolders.count, 2)
 
         let expectedRootSources = BuildableFolder(
             path: rootPath,
@@ -441,10 +442,26 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         )
 
         XCTAssertTrue(gotTarget.buildableFolders.contains(expectedRootSources))
-        XCTAssertTrue(gotTarget.buildableFolders.contains(buildableFolders[1]))
+        let expectedSourcesFolderSourcesView = BuildableFolder(
+            path: sourcesPath,
+            exceptions: BuildableFolderExceptions(
+                exceptions: [
+                    BuildableFolderException(
+                        excluded: [assetFolder],
+                        compilerFlags: [:],
+                        publicHeaders: [],
+                        privateHeaders: []
+                    ),
+                ]
+            ),
+            resolvedFiles: [
+                BuildableFolderFile(path: swiftFile, compilerFlags: nil),
+            ]
+        )
+        XCTAssertTrue(gotTarget.buildableFolders.contains(expectedSourcesFolderSourcesView))
 
         let resourcesTarget = try XCTUnwrap(gotProject.targets.values.sorted().first)
-        XCTAssertEqual(resourcesTarget.buildableFolders.count, 2)
+        XCTAssertEqual(resourcesTarget.buildableFolders.count, 3)
 
         let expectedRootResources = BuildableFolder(
             path: rootPath,
@@ -464,6 +481,23 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         )
 
         XCTAssertTrue(resourcesTarget.buildableFolders.contains(expectedRootResources))
+        let expectedSourcesFolderResourcesView = BuildableFolder(
+            path: sourcesPath,
+            exceptions: BuildableFolderExceptions(
+                exceptions: [
+                    BuildableFolderException(
+                        excluded: [swiftFile],
+                        compilerFlags: [:],
+                        publicHeaders: [],
+                        privateHeaders: []
+                    ),
+                ]
+            ),
+            resolvedFiles: [
+                BuildableFolderFile(path: assetFolder, compilerFlags: nil),
+            ]
+        )
+        XCTAssertTrue(resourcesTarget.buildableFolders.contains(expectedSourcesFolderResourcesView))
         XCTAssertTrue(resourcesTarget.buildableFolders.contains(buildableFolders[2]))
     }
 
