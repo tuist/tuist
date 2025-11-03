@@ -255,6 +255,7 @@
             label={
               case @bundles_sort_by do
                 "install-size" -> gettext("Install Size")
+                "download-size" -> gettext("Download Size")
                 _ -> gettext("Created at")
               end
             }
@@ -276,7 +277,24 @@
             >
               <:right_icon><.check /></:right_icon>
             </.dropdown_item>
+            <.dropdown_item
+              value="download-size"
+              label={gettext("Download Size")}
+              patch={bundles_dropdown_item_patch_sort("download-size", @uri)}
+              data-selected={@bundles_sort_by == "download-size"}
+            >
+              <:right_icon><.check /></:right_icon>
+            </.dropdown_item>
           </.dropdown>
+          <.filter_dropdown
+            id="filter-dropdown"
+            label={gettext("Filter")}
+            available_filters={@available_filters}
+            active_filters={@active_filters}
+          />
+        </div>
+        <div :if={Enum.any?(@active_filters)} data-part="active-filters">
+          <.active_filter :for={filter <- @active_filters} filter={filter} />
         </div>
         <.table
           id="bundles-table"
@@ -310,6 +328,23 @@
             }
           >
             <.text_cell label={format_bytes(bundle.install_size)} />
+          </:col>
+          <:col
+            :let={bundle}
+            label={gettext("Download Size")}
+            patch={
+              @bundles_sort_by == "download-size" && column_patch_sort(assigns, "download-size")
+            }
+            icon={
+              @bundles_sort_by == "download-size" &&
+                sort_icon(@bundles_sort_order)
+            }
+          >
+            <.text_cell label={
+              if bundle.download_size,
+                do: format_bytes(bundle.download_size),
+                else: gettext("Not available")
+            } />
           </:col>
           <:col :let={bundle} label={gettext("Commit SHA")}>
             <.text_cell label={SHA.format_commit_sha(bundle.git_commit_sha)} />
