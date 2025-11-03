@@ -413,10 +413,11 @@ private struct BuildableFolderPartition {
     let resourcesFolder: BuildableFolder?
 }
 
-private extension BuildableFolder {
+extension BuildableFolder {
     /// Produces copies of the buildable folder suitable for source-only and resource-only targets.
-    /// - Returns: `nil` when the folder should stay untouched on the original target, otherwise a partition describing the two views.
-    func partitionedForResources() -> BuildableFolderPartition? {
+    /// - Returns: `nil` when the folder should stay untouched on the original target, otherwise a partition describing the two
+    /// views.
+    fileprivate func partitionedForResources() -> BuildableFolderPartition? {
         if let directAssignment = folderOnlyPartition() {
             return directAssignment
         }
@@ -444,7 +445,7 @@ private extension BuildableFolder {
     private func folderOnlyPartition() -> BuildableFolderPartition? {
         // Xcode treats buildable folders as a single synchronized group. To attach the same folder to
         // multiple targets we duplicate the reference and add complementary exclusion rules to each copy.
-        if path.isResourceLike && !path.isSourceLike && resolvedFiles.isEmpty {
+        if path.isResourceLike, !path.isSourceLike, resolvedFiles.isEmpty {
             return BuildableFolderPartition(sourcesFolder: nil, resourcesFolder: self)
         }
         return nil
@@ -452,7 +453,7 @@ private extension BuildableFolder {
 
     /// Splits the folder contents into source-like and resource-like entries.
     private func splitFilesByKind() -> (sources: [BuildableFolderFile], resources: [BuildableFolderFile]) {
-        let sources = resolvedFiles.filter { $0.path.isSourceLike }
+        let sources = resolvedFiles.filter(\.path.isSourceLike)
         let resources = resolvedFiles.filter { !$0.path.isSourceLike }
         return (sources, resources)
     }
@@ -460,7 +461,7 @@ private extension BuildableFolder {
     /// Retains the folder on the original target when no resources were found, duplicating it only when both
     /// source and resource heuristics match at the folder level.
     private func handleSourceOnlyFolder() -> BuildableFolderPartition? {
-        if path.isResourceLike && path.isSourceLike {
+        if path.isResourceLike, path.isSourceLike {
             return BuildableFolderPartition(
                 sourcesFolder: BuildableFolder(
                     path: path,
@@ -500,28 +501,28 @@ private extension BuildableFolder {
     }
 }
 
-private extension AbsolutePath {
-    func matchesExtension(in allowedExtensions: [String]) -> Bool {
+extension AbsolutePath {
+    private func matchesExtension(in allowedExtensions: [String]) -> Bool {
         guard let `extension` else { return false }
         return allowedExtensions.contains { $0.caseInsensitiveCompare(`extension`) == .orderedSame }
     }
 
-    var isSourceLike: Bool {
+    fileprivate var isSourceLike: Bool {
         let validExtensions = Target.validSourceExtensions
             + Target.validSourceCompatibleFolderExtensions
             + ["h", "hpp", "hh", "hxx"]
         return matchesExtension(in: validExtensions)
     }
 
-    var isResourceLike: Bool {
+    fileprivate var isResourceLike: Bool {
         let validExtensions = Target.validResourceExtensions
             + Target.validResourceCompatibleFolderExtensions
         return matchesExtension(in: validExtensions)
     }
 }
 
-private extension BuildableFolderExceptions {
-    func addingExcluded(paths: [AbsolutePath]) -> BuildableFolderExceptions {
+extension BuildableFolderExceptions {
+    fileprivate func addingExcluded(paths: [AbsolutePath]) -> BuildableFolderExceptions {
         guard !paths.isEmpty else { return self }
         var updated = exceptions
         updated.append(
