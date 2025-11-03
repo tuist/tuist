@@ -111,7 +111,7 @@ defmodule TuistWeb.BundlesLive do
       %{field: :project_id, op: :==, value: project.id}
     ]
 
-    filter_flop_filters = Filter.Operations.convert_filters_to_flop(filters)
+    filter_flop_filters = build_flop_filters(filters)
     flop_filters = base_flop_filters ++ filter_flop_filters
 
     order_by =
@@ -151,6 +151,24 @@ defmodule TuistWeb.BundlesLive do
     |> assign(:active_filters, filters)
     |> assign(:bundles, next_bundles)
     |> assign(:bundles_meta, next_bundles_meta)
+  end
+
+  defp build_flop_filters(filters) do
+    size_filters =
+      filters
+      |> Enum.filter(fn filter -> filter.field in [:install_size, :download_size] end)
+      |> Enum.map(fn filter ->
+        # Convert MB to bytes (multiply by 1,048,576)
+        value_in_bytes = filter.value * 1_048_576
+        %{field: filter.field, op: filter.operator, value: value_in_bytes}
+      end)
+
+    other_filters =
+      filters
+      |> Enum.reject(fn filter -> filter.field in [:install_size, :download_size] end)
+      |> Filter.Operations.convert_filters_to_flop()
+
+    size_filters ++ other_filters
   end
 
   defp assign_bundle_size_analytics(

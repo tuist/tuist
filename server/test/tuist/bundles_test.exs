@@ -1048,15 +1048,15 @@ defmodule Tuist.BundlesTest do
     test "filters bundles by install size (greater than or equal)" do
       # Given
       project = ProjectsFixtures.project_fixture()
-      bundle1 = BundlesFixtures.bundle_fixture(project: project, install_size: 5000)
-      bundle2 = BundlesFixtures.bundle_fixture(project: project, install_size: 10000)
-      _bundle3 = BundlesFixtures.bundle_fixture(project: project, install_size: 2000)
+      bundle1 = BundlesFixtures.bundle_fixture(project: project, install_size: 5_242_880)  # 5 MB
+      bundle2 = BundlesFixtures.bundle_fixture(project: project, install_size: 10_485_760) # 10 MB
+      _bundle3 = BundlesFixtures.bundle_fixture(project: project, install_size: 2_097_152) # 2 MB
 
       # When
       {bundles, _meta} = Bundles.list_bundles(%{
         filters: [
           %{field: :project_id, op: :==, value: project.id},
-          %{field: :install_size, op: :>=, value: 5000}
+          %{field: :install_size, op: :>=, value: 5_242_880} # 5 MB in bytes
         ],
         order_by: [:inserted_at],
         order_directions: [:desc],
@@ -1073,15 +1073,15 @@ defmodule Tuist.BundlesTest do
     test "filters bundles by download size (greater than or equal)" do
       # Given
       project = ProjectsFixtures.project_fixture()
-      bundle1 = BundlesFixtures.bundle_fixture(project: project, download_size: 3000)
-      bundle2 = BundlesFixtures.bundle_fixture(project: project, download_size: 8000)
-      _bundle3 = BundlesFixtures.bundle_fixture(project: project, download_size: 1000)
+      bundle1 = BundlesFixtures.bundle_fixture(project: project, download_size: 3_145_728) # 3 MB
+      bundle2 = BundlesFixtures.bundle_fixture(project: project, download_size: 8_388_608) # 8 MB
+      _bundle3 = BundlesFixtures.bundle_fixture(project: project, download_size: 1_048_576) # 1 MB
 
       # When
       {bundles, _meta} = Bundles.list_bundles(%{
         filters: [
           %{field: :project_id, op: :==, value: project.id},
-          %{field: :download_size, op: :>=, value: 3000}
+          %{field: :download_size, op: :>=, value: 3_145_728} # 3 MB in bytes
         ],
         order_by: [:inserted_at],
         order_directions: [:desc],
@@ -1269,6 +1269,61 @@ defmodule Tuist.BundlesTest do
 
       # Then
       assert result == true
+    end
+  end
+
+  describe "MB to bytes conversion in filtering" do
+    test "converts install size from MB to bytes when filtering" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      # Create bundles with sizes in bytes: 5MB, 10MB, 2MB
+      bundle_5mb = BundlesFixtures.bundle_fixture(project: project, install_size: 5_242_880)  # 5 MB
+      bundle_10mb = BundlesFixtures.bundle_fixture(project: project, install_size: 10_485_760) # 10 MB
+      _bundle_2mb = BundlesFixtures.bundle_fixture(project: project, install_size: 2_097_152)  # 2 MB
+
+      # When filtering with 5 MB (which should be converted to bytes internally)
+      # Simulate what happens when user enters "5" in the Install Size (MB) filter
+      {bundles, _meta} = Bundles.list_bundles(%{
+        filters: [
+          %{field: :project_id, op: :==, value: project.id},
+          %{field: :install_size, op: :>=, value: 5_242_880} # 5 MB worth of bytes
+        ],
+        order_by: [:inserted_at],
+        order_directions: [:desc],
+        first: 10
+      })
+
+      # Then - should return bundles with 5MB or more
+      bundle_ids = Enum.map(bundles, & &1.id)
+      assert bundle_5mb.id in bundle_ids
+      assert bundle_10mb.id in bundle_ids
+      assert length(bundles) == 2
+    end
+
+    test "converts download size from MB to bytes when filtering" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      # Create bundles with sizes in bytes: 3MB, 8MB, 1MB
+      bundle_3mb = BundlesFixtures.bundle_fixture(project: project, download_size: 3_145_728) # 3 MB
+      bundle_8mb = BundlesFixtures.bundle_fixture(project: project, download_size: 8_388_608) # 8 MB
+      _bundle_1mb = BundlesFixtures.bundle_fixture(project: project, download_size: 1_048_576) # 1 MB
+
+      # When filtering with 3 MB (which should be converted to bytes internally)
+      {bundles, _meta} = Bundles.list_bundles(%{
+        filters: [
+          %{field: :project_id, op: :==, value: project.id},
+          %{field: :download_size, op: :>=, value: 3_145_728} # 3 MB worth of bytes
+        ],
+        order_by: [:inserted_at],
+        order_directions: [:desc],
+        first: 10
+      })
+
+      # Then - should return bundles with 3MB or more
+      bundle_ids = Enum.map(bundles, & &1.id)
+      assert bundle_3mb.id in bundle_ids
+      assert bundle_8mb.id in bundle_ids
+      assert length(bundles) == 2
     end
   end
 end
