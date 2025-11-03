@@ -181,12 +181,21 @@ defmodule TuistWeb.BundlesLive do
         %{field: filter.field, op: filter.operator, value: value_in_bytes}
       end)
 
+    platform_filters =
+      filters
+      |> Enum.filter(fn filter -> filter.field == :supported_platforms end)
+      |> Enum.filter(fn filter -> not is_nil(filter.value) and filter.value != "" end)
+      |> Enum.map(fn filter ->
+        # Convert to contains operator for array field filtering
+        %{field: filter.field, op: :contains, value: filter.value}
+      end)
+
     other_filters =
       filters
-      |> Enum.reject(fn filter -> filter.field in [:install_size, :download_size] end)
+      |> Enum.reject(fn filter -> filter.field in [:install_size, :download_size, :supported_platforms] end)
       |> Filter.Operations.convert_filters_to_flop()
 
-    size_filters ++ other_filters
+    size_filters ++ platform_filters ++ other_filters
   end
 
   defp assign_bundle_size_analytics(
