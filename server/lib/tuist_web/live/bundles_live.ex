@@ -26,23 +26,26 @@ defmodule TuistWeb.BundlesLive do
   end
 
   def handle_params(params, _uri, %{assigns: %{selected_project: project}} = socket) do
-    uri =
-      URI.new!(
-        "?" <>
-          URI.encode_query(
-            Map.take(params, [
-              "after",
-              "before",
-              "bundles-sort-by",
-              "bundles-sort-order",
-              "bundles-type",
-              "bundle-size-app",
-              "bundle-size-date-range",
-              "bundle-size-selected-widget",
-              "bundle-size-branch"
-            ])
-          )
-      )
+    # Include all filter parameters and existing parameters
+    filter_params = 
+      params
+      |> Enum.filter(fn {key, _value} -> 
+        String.starts_with?(key, "filter-") or 
+        key in [
+          "after",
+          "before", 
+          "bundles-sort-by",
+          "bundles-sort-order",
+          "bundles-type",
+          "bundle-size-app",
+          "bundle-size-date-range", 
+          "bundle-size-selected-widget",
+          "bundle-size-branch"
+        ]
+      end)
+      |> Map.new()
+
+    uri = URI.new!("?" <> URI.encode_query(filter_params))
 
     bundles_sort_order = params["bundles-sort-order"] || "desc"
     bundles_sort_by = params["bundles-sort-by"] || "created-at"
