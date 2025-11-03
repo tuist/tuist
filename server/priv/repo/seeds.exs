@@ -3,6 +3,7 @@ alias Tuist.AppBuilds.AppBuild
 alias Tuist.AppBuilds.Preview
 alias Tuist.Billing
 alias Tuist.Billing.Subscription
+alias Tuist.Bundles
 alias Tuist.CommandEvents
 alias Tuist.CommandEvents.Event
 alias Tuist.IngestRepo
@@ -824,3 +825,119 @@ if !Enum.empty?(token_usage_data) do
   Repo.insert_all(Billing.TokenUsage, token_usage_data)
   IO.puts("Created #{length(token_usage_data)} token usage records")
 end
+
+# Create bundles with artifacts
+bundle_types = [:app, :ipa, :xcarchive]
+
+platforms_combinations = [
+  [:ios, :ios_simulator],
+  [:macos],
+  [:ios, :ios_simulator, :macos],
+  [:watchos, :watchos_simulator],
+  [:tvos, :tvos_simulator],
+  [:visionos, :visionos_simulator]
+]
+
+git_branches = ["main", "develop", "feature/new-ui", "feature/caching", "hotfix/memory-leak"]
+
+bundle_names = [
+  "TuistApp",
+  "TuistInternalApp"
+]
+
+Enum.map(1..20, fn index ->
+  bundle_id = UUIDv7.generate()
+  bundle_name = Enum.random(bundle_names)
+  bundle_type = Enum.random(bundle_types)
+  supported_platforms = Enum.random(platforms_combinations)
+  git_branch = Enum.random(git_branches)
+
+  git_commit_sha =
+    1..40
+    |> Enum.map(fn _ -> Enum.random(~c"0123456789abcdef") end)
+    |> List.to_string()
+
+  inserted_at =
+    DateTime.new!(
+      Date.add(DateTime.utc_now(), -Enum.random(0..90)),
+      Time.new!(
+        Enum.random(0..23),
+        Enum.random(0..59),
+        Enum.random(0..59)
+      )
+    )
+
+  artifacts = [
+    %{
+      "artifact_type" => "directory",
+      "path" => "#{bundle_name}.#{"app"}",
+      "size" => 0,
+      "shasum" => :sha256 |> :crypto.hash("#{bundle_name}-root-#{index}") |> Base.encode16(case: :lower)
+    },
+    %{
+      "artifact_type" => "file",
+      "path" => "#{bundle_name}.#{"app"}/Info.plist",
+      "size" => Enum.random(1000..3000),
+      "shasum" => :sha256 |> :crypto.hash("#{bundle_name}-info-#{index}") |> Base.encode16(case: :lower)
+    },
+    %{
+      "artifact_type" => "binary",
+      "path" => "#{bundle_name}.#{"app"}/#{bundle_name}",
+      "size" => Enum.random(1_000_000..50_000_000),
+      "shasum" => :sha256 |> :crypto.hash("#{bundle_name}-binary-#{index}") |> Base.encode16(case: :lower)
+    },
+    %{
+      "artifact_type" => "directory",
+      "path" => "#{bundle_name}.app/Assets.car",
+      "size" => 0,
+      "shasum" => :sha256 |> :crypto.hash("#{bundle_name}-assets-dir-#{index}") |> Base.encode16(case: :lower)
+    },
+    %{
+      "artifact_type" => "asset",
+      "path" => "#{bundle_name}.app/Assets.car/Contents.json",
+      "size" => Enum.random(50_000..500_000),
+      "shasum" => :sha256 |> :crypto.hash("#{bundle_name}-assets-#{index}") |> Base.encode16(case: :lower)
+    },
+    # Localization
+    %{
+      "artifact_type" => "directory",
+      "path" => "#{bundle_name}.app/en.lproj",
+      "size" => 0,
+      "shasum" => :sha256 |> :crypto.hash("#{bundle_name}-localization-dir-#{index}") |> Base.encode16(case: :lower)
+    },
+    %{
+      "artifact_type" => "localization",
+      "path" => "#{bundle_name}.app/en.lproj/Localizable.strings",
+      "size" => Enum.random(1000..10_000),
+      "shasum" => :sha256 |> :crypto.hash("#{bundle_name}-localization-#{index}") |> Base.encode16(case: :lower)
+    },
+    # Fonts
+    %{
+      "artifact_type" => "font",
+      "path" => "#{bundle_name}.app/Fonts/CustomFont.ttf",
+      "size" => Enum.random(50_000..200_000),
+      "shasum" => :sha256 |> :crypto.hash("#{bundle_name}-font-#{index}") |> Base.encode16(case: :lower)
+    }
+  ]
+
+  {:ok, bundle} =
+    Bundles.create_bundle(%{
+      id: bundle_id,
+      name: bundle_name,
+      app_bundle_id: "dev.tuist.#{String.downcase(bundle_name)}",
+      install_size: Enum.sum(Enum.map(artifacts, & &1["size"])),
+      download_size: Enum.random(500_000..20_000_000),
+      supported_platforms: supported_platforms,
+      version: "#{Enum.random(1..3)}.#{Enum.random(0..9)}.#{Enum.random(0..9)}",
+      git_branch: git_branch,
+      git_commit_sha: git_commit_sha,
+      git_ref: if(git_branch == "main", do: nil, else: "refs/heads/#{git_branch}"),
+      type: bundle_type,
+      project_id: tuist_project.id,
+      uploaded_by_account_id: organization.account.id,
+      inserted_at: inserted_at,
+      artifacts: artifacts
+    })
+
+  bundle
+end)

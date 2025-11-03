@@ -449,6 +449,13 @@ defmodule Tuist.Bundles do
     |> Repo.exists?()
   end
 
+  def has_bundles_in_project?(%Project{} = project) do
+    from(b in Bundle)
+    |> where([b], b.project_id == ^project.id)
+    |> limit(1)
+    |> Repo.exists?()
+  end
+
   def delete_bundle!(%Bundle{} = bundle) do
     Repo.delete!(bundle)
   end
