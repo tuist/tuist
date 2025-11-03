@@ -490,7 +490,7 @@
       :if={Enum.any?(@bundle_size_analytics, fn [_date, value] -> value != 0 end)}
       data-part="bundle-size-chart-card-section"
     >
-      <span data-part="legend">{gettext("Install size (MB)")}</span>
+      <span data-part="legend">{gettext("Install size")}</span>
       <.chart
         id="average-bundle-size-chart"
         type="line"
