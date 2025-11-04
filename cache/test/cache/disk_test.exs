@@ -8,26 +8,28 @@ defmodule Cache.DiskTest do
 
   setup do
     {:ok, test_storage_dir} = Briefly.create(directory: true)
-    
+
     Disk
     |> stub(:storage_dir, fn -> test_storage_dir end)
     |> stub(:artifact_path, fn key -> Path.join(test_storage_dir, key) end)
     |> stub(:put, fn key, data ->
-         path = Path.join(test_storage_dir, key)
-         case data do
-           {:file, tmp_path} ->
-             File.mkdir_p!(Path.dirname(path))
-             File.rename(tmp_path, path)
-             :ok
-           binary when is_binary(binary) ->
-             File.mkdir_p!(Path.dirname(path))
-             File.write!(path, binary)
-             :ok
-         end
-       end)
+      path = Path.join(test_storage_dir, key)
+
+      case data do
+        {:file, tmp_path} ->
+          File.mkdir_p!(Path.dirname(path))
+          File.rename(tmp_path, path)
+          :ok
+
+        binary when is_binary(binary) ->
+          File.mkdir_p!(Path.dirname(path))
+          File.write!(path, binary)
+          :ok
+      end
+    end)
     |> stub(:exists?, fn key ->
-         Path.join(test_storage_dir, key) |> File.exists?()
-       end)
+      Path.join(test_storage_dir, key) |> File.exists?()
+    end)
 
     {:ok, test_storage_dir: test_storage_dir}
   end

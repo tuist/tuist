@@ -228,6 +228,7 @@ defmodule CacheWeb.KeyValueControllerTest do
 
       {:ok, stored_json} = KeyValueStore.get_key_value(cas_id, account_handle, project_handle)
       stored_response = Jason.decode!(stored_json)
+
       assert stored_response["entries"] == [
                %{"value" => "test_value_1"},
                %{"value" => "test_value_2"}

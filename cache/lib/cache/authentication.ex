@@ -117,7 +117,7 @@ defmodule Cache.Authentication do
 
   defp cache_projects({auth_key, requested_handle}, projects) do
     ttl = success_ttl()
-    
+
     project_handles =
       projects
       |> Enum.map(fn

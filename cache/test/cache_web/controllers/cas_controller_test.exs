@@ -9,7 +9,7 @@ defmodule CacheWeb.CASControllerTest do
 
   setup do
     {:ok, test_storage_dir} = Briefly.create(directory: true)
-    
+
     Disk
     |> stub(:storage_dir, fn -> test_storage_dir end)
 
