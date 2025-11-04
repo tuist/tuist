@@ -31,12 +31,6 @@
     & > [data-part="title"] {
       padding-bottom: var(--noora-spacing-8);
 
-      & > [data-part="subtitle"] {
-        color: var(--noora-surface-label-primary);
-        font-family: var(--noora-font-heading);
-        font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
-      }
-
       & > [data-part="title"] {
         color: var(--noora-surface-label-primary);
         font: var(--noora-font-weight-medium) var(--noora-font-display-xlarge);
