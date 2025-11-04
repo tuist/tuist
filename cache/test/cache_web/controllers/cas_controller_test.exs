@@ -7,6 +7,15 @@ defmodule CacheWeb.CASControllerTest do
   alias Cache.Authentication
   alias Cache.Disk
 
+  setup do
+    {:ok, test_storage_dir} = Briefly.create(directory: true)
+    
+    Disk
+    |> stub(:storage_dir, fn -> test_storage_dir end)
+
+    {:ok, test_storage_dir: test_storage_dir}
+  end
+
   describe "GET /auth/cas" do
     test "returns 204 when project is accessible", %{conn: conn} do
       account_handle = "test-account"

@@ -116,8 +116,7 @@ defmodule Cache.Authentication do
   end
 
   defp request_options(headers) do
-    cas_config = Application.get_env(:cache, :cas, [])
-    base_url = Keyword.get(cas_config, :server_url)
+    base_url = server_url()
     url = "#{base_url}/api/projects"
 
     req_options = Application.get_env(:cache, :req_options, [])
@@ -126,6 +125,13 @@ defmodule Cache.Authentication do
       [url: url, headers: headers, finch: Cache.Finch, retry: false, cache: false],
       req_options
     )
+  end
+
+  def server_url do
+    case Application.get_env(:cache, :cas, []) do
+      cas_config when is_list(cas_config) -> Keyword.get(cas_config, :server_url)
+      _ -> nil
+    end
   end
 
   defp success_ttl do

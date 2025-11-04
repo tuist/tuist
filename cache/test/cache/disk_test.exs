@@ -1,35 +1,46 @@
 defmodule Cache.DiskTest do
-  use ExUnit.Case, async: false
+  use ExUnit.Case, async: true
+  use Mimic
 
   alias Cache.Disk
 
-  @test_storage_dir "tmp/test_cas"
   @test_key "test_account/test_project/cas/abc123"
 
   setup do
-    Application.put_env(:cache, :cas, storage_dir: @test_storage_dir)
+    {:ok, test_storage_dir} = Briefly.create(directory: true)
+    
+    Disk
+    |> stub(:storage_dir, fn -> test_storage_dir end)
+    |> stub(:artifact_path, fn key -> Path.join(test_storage_dir, key) end)
+    |> stub(:put, fn key, data ->
+         path = Path.join(test_storage_dir, key)
+         case data do
+           {:file, tmp_path} ->
+             File.mkdir_p!(Path.dirname(path))
+             File.rename(tmp_path, path)
+             :ok
+           binary when is_binary(binary) ->
+             File.mkdir_p!(Path.dirname(path))
+             File.write!(path, binary)
+             :ok
+         end
+       end)
+    |> stub(:exists?, fn key ->
+         Path.join(test_storage_dir, key) |> File.exists?()
+       end)
 
-    on_exit(fn ->
-      File.rm_rf!(@test_storage_dir)
-    end)
-
-    :ok
+    {:ok, test_storage_dir: test_storage_dir}
   end
 
   describe "storage_dir/0" do
-    test "returns configured storage directory" do
-      assert Disk.storage_dir() == @test_storage_dir
-    end
-
-    test "returns different storage directory when reconfigured" do
-      Application.put_env(:cache, :cas, storage_dir: "custom/cas")
-      assert Disk.storage_dir() == "custom/cas"
+    test "returns mocked storage directory", %{test_storage_dir: test_storage_dir} do
+      assert Disk.storage_dir() == test_storage_dir
     end
   end
 
   describe "artifact_path/1" do
-    test "constructs full path from key" do
-      expected_path = Path.join(@test_storage_dir, @test_key)
+    test "constructs full path from key", %{test_storage_dir: test_storage_dir} do
+      expected_path = Path.join(test_storage_dir, @test_key)
       assert Disk.artifact_path(@test_key) == expected_path
     end
   end

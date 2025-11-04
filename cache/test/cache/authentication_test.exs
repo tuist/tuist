@@ -1,5 +1,6 @@
 defmodule Cache.AuthenticationTest do
   use ExUnit.Case, async: true
+  use Mimic
 
   alias Cache.Authentication
   import Cache.Authentication
@@ -9,9 +10,10 @@ defmodule Cache.AuthenticationTest do
   @test_server_url "http://localhost:4000"
 
   setup do
-    Application.put_env(:cache, :cas, server_url: @test_server_url)
-
     Cachex.clear(@cache_name)
+
+    Authentication
+    |> stub(:server_url, fn -> @test_server_url end)
 
     :ok
   end
