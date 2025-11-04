@@ -1,16 +1,12 @@
 defmodule CacheWeb.CASController do
   use CacheWeb, :controller
 
-  alias Cache.Authentication
   alias Cache.BodyReader
   alias Cache.Disk
 
   def authorize(conn, %{"account_handle" => account, "project_handle" => project})
       when is_binary(account) and account != "" and is_binary(project) and project != "" do
-    case Authentication.ensure_project_accessible(conn, account, project) do
-      {:ok, _} -> send_resp(conn, :no_content, "")
-      {:error, status, _} -> send_resp(conn, status, "")
-    end
+    send_resp(conn, :no_content, "")
   end
 
   def authorize(conn, _params), do: send_resp(conn, 400, "")
@@ -19,20 +15,15 @@ defmodule CacheWeb.CASController do
     "#{account_handle}/#{project_handle}/cas/#{id}"
   end
 
-  def save(conn, %{"id" => id, "account_handle" => account_handle, "project_handle" => project_handle}) do
-    with {:ok, _auth_header} <- Authentication.ensure_project_accessible(conn, account_handle, project_handle) do
-      key = cas_key(account_handle, project_handle, id)
+  def save(conn, %{"id" => id}) do
+    account_handle = conn.query_params["account_handle"]
+    project_handle = conn.query_params["project_handle"]
+    key = cas_key(account_handle, project_handle, id)
 
-      if Disk.exists?(key) do
-        handle_existing_artifact(conn)
-      else
-        save_new_artifact(conn, key)
-      end
+    if Disk.exists?(key) do
+      handle_existing_artifact(conn)
     else
-      {:error, status, message} ->
-        conn
-        |> put_status(status)
-        |> json(%{message: message})
+      save_new_artifact(conn, key)
     end
   end
 
