@@ -2,6 +2,7 @@ defmodule Cache.AuthenticationTest do
   use ExUnit.Case, async: true
 
   alias Cache.Authentication
+  import Cache.Authentication
 
   @cache_name :cas_auth_cache
   @test_auth_header "Bearer test-token-123"
@@ -216,10 +217,5 @@ defmodule Cache.AuthenticationTest do
         Plug.Conn.send_resp(conn, status, "")
       end
     end)
-  end
-
-  defp generate_cache_key(auth_header) do
-    :crypto.hash(:sha256, auth_header)
-    |> Base.encode16(case: :lower)
   end
 end

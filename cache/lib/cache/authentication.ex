@@ -32,7 +32,7 @@ defmodule Cache.Authentication do
     if is_nil(auth_header) do
       {:error, 401, "Missing Authorization header"}
     else
-      requested_handle = normalize_handle(account_handle, project_handle)
+      requested_handle = full_handle(account_handle, project_handle)
 
       case authorize(auth_header, requested_handle, conn) do
         :ok -> {:ok, auth_header}
@@ -136,7 +136,7 @@ defmodule Cache.Authentication do
     :timer.seconds(@failure_cache_ttl)
   end
 
-  defp generate_cache_key(auth_header) do
+  def generate_cache_key(auth_header) do
     :crypto.hash(:sha256, auth_header)
     |> Base.encode16(case: :lower)
   end
@@ -184,7 +184,7 @@ defmodule Cache.Authentication do
     {:error, status, message}
   end
 
-  defp normalize_handle(account_handle, project_handle) do
+  defp full_handle(account_handle, project_handle) do
     "#{account_handle}/#{project_handle}"
     |> String.downcase()
   end

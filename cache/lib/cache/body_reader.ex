@@ -18,9 +18,6 @@ defmodule Cache.BodyReader do
   - `{:error, reason, conn}` - For errors like :too_large, :timeout, etc.
   """
 
-  {:ok, binary() | {:file, Path.t()}, Plug.Conn.t()}
-  | {:error, atom(), Plug.Conn.t()}
-
   def read(conn) do
     opts = read_opts(conn)
     do_read(conn, opts, :store)
