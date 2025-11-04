@@ -19,7 +19,6 @@ public final class CacheGraphContentHasher: CacheGraphContentHashing {
     private let graphContentHasher: GraphContentHashing
     private let contentHasher: ContentHashing
     private let versionFetcher: CacheVersionFetching
-    private static let cachableProducts: Set<Product> = [.framework, .staticFramework, .bundle, .macro]
     private let defaultConfigurationFetcher: DefaultConfigurationFetching
 
     public convenience init(
@@ -83,19 +82,14 @@ public final class CacheGraphContentHasher: CacheGraphContentHashing {
 
     private func isGraphTargetHashable(
         _ target: GraphTarget,
-        graphTraverser: GraphTraversing,
+        graphTraverser _: GraphTraversing,
         excludedTargets: Set<String>
     ) -> Bool {
-        let product = target.target.product
         let name = target.target.name
-
         // The second condition is to exclude the resources bundle associated to the given target name
         let isExcluded = excludedTargets.contains(name) || excludedTargets
             .contains(target.target.name.dropPrefix("\(target.project.name)_"))
-        let dependsOnXCTest = graphTraverser.dependsOnXCTest(path: target.path, name: name)
-        let isHashableProduct = CacheGraphContentHasher.cachableProducts.contains(product)
-
-        return isHashableProduct && !isExcluded && !dependsOnXCTest
+        return target.target.isCacheable && !isExcluded
     }
 
     private func isMacro(_ target: GraphTarget, graphTraverser: GraphTraversing) -> Bool {
