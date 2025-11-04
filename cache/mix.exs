@@ -37,7 +37,6 @@ defmodule Cache.MixProject do
       {:ex_aws_s3, "~> 2.0"},
       {:hackney, "~> 1.20"},
       {:sweet_xml, "~> 0.7"},
-      # OpenAPI removed
       {:mimic, "~> 1.7", only: :test},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:req, "~> 0.1"}
