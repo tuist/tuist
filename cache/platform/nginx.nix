@@ -15,6 +15,18 @@
       ssl_prefer_server_ciphers off;
       keepalive_requests 10000;
       http2_max_concurrent_streams 512;
+
+      log_format timed_combined '$remote_addr - $remote_user [$time_local] '
+        '"$request" $status $body_bytes_sent '
+        '"$http_referer" "$http_user_agent" '
+        'rt=$request_time '
+        'uct=$upstream_connect_time '
+        'uht=$upstream_header_time '
+        'urt=$upstream_response_time '
+        'upstream_addr=$upstream_addr '
+        'cache=$upstream_cache_status';
+
+      access_log /var/log/nginx/access.log timed_combined;
     '';
 
     virtualHosts = {
@@ -43,7 +55,6 @@
             try_files /cas/$account/$project/cas$uri =404;
 
             gzip off;
-            access_log off;
             add_header Cache-Control "public, max-age=31536000, immutable";
           '';
         };
