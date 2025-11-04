@@ -20,7 +20,7 @@ You launch your startup on a Tuesday. You're a solo founder who codes, armed wit
 
 With your AI coding assistants writing boilerplate and suggesting implementations, you're moving at a pace that would have seemed impossible five years ago. The merge throughput is pure: one developer, zero overhead, 10 to 15 commits merged to main every single day. This is the golden age. This is what velocity feels like.
 
-<iframe src="/blog/2025/10/28/zero-to-many/iframe.html?id=lone_wolf" width="100%" height="600" frameborder="0" data-visualization></iframe>
+<iframe src="/blog/2025/11/6/zero-to-many/iframe.html?id=lone_wolf" width="100%" height="400" frameborder="0" data-visualization></iframe>
 
 But your app is growing. Users are signing up. And one bad commit takes down the service for three hours because there was no safety net. That's when you realize: pure velocity without quality control is just recklessness in disguise.
 
@@ -30,7 +30,7 @@ You set up GitHub Actions. You create a branch called "develop" and promise your
 
 You're still moving fast. About 11 commits a day make it to main, down slightly from your solo peak but way safer. Once or twice a week you run into a merge conflict because you both touched the same file, but it's quick to resolve. Occasionally a test fails randomly, and you just rerun the CI. Your team of two, each augmented with a couple of AI coding assistants, has added 15 to 20 minutes of overhead per commit. But you've also stopped shipping bugs to production.
 
-<iframe src="/blog/2025/10/28/zero-to-many/iframe.html?id=safety_nets" width="100%" height="500" frameborder="0"></iframe>
+<iframe src="/blog/2025/11/6/zero-to-many/iframe.html?id=safety_nets" width="100%" height="500" frameborder="0"></iframe>
 
 The app is growing. Revenue is growing. You raise a seed round and decide it's time to build a real team.
 
@@ -42,7 +42,7 @@ Li opens a PR at 9am. It sits waiting for review because you're in meetings and 
 
 This happens to everyone, all day long. PRs sit in review queues. Merge conflicts happen on one in five merges now that five people are touching overlapping code. The CI occasionally has a flaky test, and nobody's quite sure which test it is, so they just click "retry." About a third of PRs come back with requested changes, adding another round trip. The merge throughput isn't 40 commits a day. It's six.
 
-<iframe src="/blog/2025/10/28/zero-to-many/iframe.html?id=team_multiplier" width="100%" height="500" frameborder="0"></iframe>
+<iframe src="/blog/2025/11/6/zero-to-many/iframe.html?id=team_multiplier" width="100%" height="500" frameborder="0"></iframe>
 
 You hired three more people and throughput went down. This isn't what growth is supposed to look like.
 
@@ -54,7 +54,7 @@ PRs sit for four to six hours waiting for review because reviewers are context-s
 
 The math is brutal: 30 developers, each capable of producing eight features a day individually, should be generating 240 commits. The actual merge throughput is seven commits a day. The same as when you had five people.
 
-<iframe src="/blog/2025/10/28/zero-to-many/iframe.html?id=complexity_wall" width="100%" height="500" frameborder="0"></iframe>
+<iframe src="/blog/2025/11/6/zero-to-many/iframe.html?id=complexity_wall" width="100%" height="500" frameborder="0"></iframe>
 
 You're paying €4.2 million a year in engineering salaries and getting the output of seven developers. The efficiency is 2%. The waste is €3.3 million a year, just in idle time waiting for CI, reviews, and conflict resolution. The board asks why feature delivery has slowed down. You don't have a good answer.
 
@@ -71,7 +71,7 @@ Your CFO suggests hiring 10 more developers to "parallelize the work." Another �
 **Option 3: Technology Rewrite**
 A CTO from your previous company suggests you rewrite everything in React Native. "No compilation step," he says. "Way faster iteration." The rewrite would take eight months, cost your entire team's focus, and about €2.8 million in opportunity cost. And at the end, you'd have different problems: package resolution instead of compilation, bundle size instead of binary size, but the same coordination problems at 30 people.
 
-<iframe src="/blog/2025/10/28/zero-to-many/iframe.html?id=brute_force" width="100%" height="500" frameborder="0"></iframe>
+<iframe src="/blog/2025/11/6/zero-to-many/iframe.html?id=brute_force" width="100%" height="500" frameborder="0"></iframe>
 
 You pick the faster machines because it's the cheapest mistake. Throughput edges up to eight commits a day. You're paying €70,000 a year to improve efficiency from 2% to 3%. You know you're treating symptoms, not the disease. The disease is that you're building and testing everything, every time, for every change, no matter how small. But you don't know what else to do.
 
@@ -83,7 +83,7 @@ Your team spends a month implementing Tuist. You set up binary caching so when L
 
 Your CI time drops from 67 minutes to 10 minutes on average. The queue disappears because jobs finish faster. Flaky tests are down to 3% because the bad ones are quarantined. Review time drops to two hours because fast feedback means reviewers can stay in context. Merge conflicts drop to 25% because the faster cycle time means less overlapping work.
 
-<iframe src="/blog/2025/10/28/zero-to-many/iframe.html?id=smart_optimization" width="100%" height="500" frameborder="0"></iframe>
+<iframe src="/blog/2025/11/6/zero-to-many/iframe.html?id=smart_optimization" width="100%" height="500" frameborder="0"></iframe>
 
 The merge throughput climbs. Fifteen commits a day. Then 28. Then 42. It stabilizes around 45 commits a day. You're still paying €4.2 million for 30 developers. But now you're getting output equivalent to 22 developers instead of seven. The efficiency went from 2% to 15%. You unlocked €2.1 million in value. The investment was €140,000 for Tuist and one month of eng time. The payback period was three weeks.
 

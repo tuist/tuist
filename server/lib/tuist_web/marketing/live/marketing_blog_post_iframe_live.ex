@@ -2,12 +2,12 @@ defmodule TuistWeb.Marketing.MarketingBlogPostIframeLive do
   @moduledoc false
   use TuistWeb, :live_view
   use Noora
+
   import Phoenix.Component
 
   def mount(%{"id" => id}, _session, socket) do
     socket =
-      socket
-      |> attach_hook(:assign_template, :handle_params, fn _params, url, socket ->
+      attach_hook(socket, :assign_template, :handle_params, fn _params, url, socket ->
         uri = URI.parse(url)
 
         template =

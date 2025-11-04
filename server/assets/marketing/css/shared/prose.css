@@ -51,10 +51,10 @@
 
   & iframe[data-visualization] {
     box-shadow: none;
+    border: none;
     border-radius: var(--noora-radius-2xlarge);
     width: 100%;
     max-width: 100%;
-    border: none;
   }
 
   & b,

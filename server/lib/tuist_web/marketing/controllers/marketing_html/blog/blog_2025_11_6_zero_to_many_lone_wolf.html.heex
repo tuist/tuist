@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <script nonce={get_csp_nonce()} src="https://d3js.org/d3.v7.min.js"></script>
+    <script nonce={get_csp_nonce()} src="https://cdn.jsdelivr.net/npm/d3-sankey@0.12.3/dist/d3-sankey.min.js"></script>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+
+      html, body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+      }
+
+      body {
+        background: transparent;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      }
+
+      #viz-container {
+        width: 100%;
+        height: 400px;
+        position: relative;
+        background: transparent;
+      }
+
+      .metrics-grid {
+        position: absolute;
+        top: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        gap: 16px;
+        z-index: 10;
+      }
+
+      .metric-box {
+        background: var(--noora-background-secondary, #f9fafb);
+        border: 1px solid var(--noora-border-secondary, #e5e7eb);
+        border-radius: 4px;
+        padding: 12px 16px;
+        min-width: 100px;
+      }
+
+      .metric-label {
+        font-size: 10px;
+        color: var(--noora-surface-label-tertiary, #6b7280);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: 6px;
+        font-weight: 500;
+      }
+
+      .metric-value {
+        font-size: 24px;
+        font-weight: 600;
+        color: var(--noora-surface-label-primary, #111827);
+        font-variant-numeric: tabular-nums;
+      }
+
+      .metric-unit {
+        font-size: 11px;
+        color: var(--noora-surface-label-tertiary, #9ca3af);
+        margin-left: 2px;
+      }
+
+      svg {
+        display: block;
+      }
+
+      .node-label {
+        font-size: 13px;
+        font-weight: 500;
+        fill: var(--noora-surface-label-primary, #374151);
+        font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+      }
+
+      .link {
+        fill: none;
+        stroke-width: 2;
+        opacity: 0.15;
+      }
+
+      .node-rect {
+        stroke: var(--noora-background-primary, #ffffff);
+        stroke-width: 1;
+        transition: opacity 0.3s ease;
+      }
+
+      .node-rect.coding {
+        animation: coding-blink 1.2s ease-in-out infinite;
+      }
+
+      @keyframes coding-blink {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.4; }
+      }
+
+      .commit-dot {
+        filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));
+      }
+
+      .grid-line {
+        stroke: var(--noora-border-tertiary, #f3f4f6);
+        stroke-width: 1;
+        stroke-dasharray: 2, 4;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="viz-container" phx-update="ignore">
+      <div class="metrics-grid">
+        <div class="metric-box">
+          <div class="metric-label">Commits Today</div>
+          <div class="metric-value"><span id="commits-today">0</span><span class="metric-unit"></span></div>
+        </div>
+        <div class="metric-box">
+          <div class="metric-label">Efficiency</div>
+          <div class="metric-value">100<span class="metric-unit">%</span></div>
+        </div>
+      </div>
+
+      <svg id="sankey"></svg>
+    </div>
+
+    <script nonce={get_csp_nonce()}>
+      document.addEventListener('DOMContentLoaded', function() {
+        const container = document.getElementById('viz-container');
+        if (!container) {
+          console.error('viz-container not found');
+          return;
+        }
+
+        const width = container.clientWidth;
+        const height = 400;
+        const margin = { top: 120, right: 180, bottom: 20, left: 180 };
+
+        // Colors
+        const colors = {
+          developer: "#3b82f6",
+          codexLocal: "#8b5cf6",
+          codexRemote: "#ec4899",
+          main: "#10b981"
+        };
+
+        // State
+        let commitsToday = 0;
+        let codexLocalInstances = 1;
+        let codexRemoteInstances = 2;
+        let svg, graph, nodes;
+
+        // Commit rates (average seconds between commits)
+        const commitRates = {
+          developer: 8,
+          codexLocal: 12,
+          codexRemote: 15
+        };
+
+        function updateVisualization() {
+          // Define the data structure
+          const nodeData = [
+            { id: "developer", label: "Developer", color: colors.developer },
+            { id: "main", label: "main", color: colors.main }
+          ];
+
+          const links = [];
+
+          // Developer always present
+          links.push({ source: "developer", target: "main", value: 2 });
+
+          // Add local codex instances
+          for (let i = 0; i < codexLocalInstances; i++) {
+            nodeData.push({
+              id: `codex-local-${i}`,
+              label: `Codex (local)`,
+              color: colors.codexLocal
+            });
+            links.push({
+              source: `codex-local-${i}`,
+              target: "main",
+              value: 2
+            });
+          }
+
+          // Add remote codex instances
+          for (let i = 0; i < codexRemoteInstances; i++) {
+            nodeData.push({
+              id: `codex-remote-${i}`,
+              label: `Codex (remote)`,
+              color: colors.codexRemote
+            });
+            links.push({
+              source: `codex-remote-${i}`,
+              target: "main",
+              value: 2
+            });
+          }
+
+          const data = { nodes: nodeData, links };
+
+          // Clear previous visualization
+          d3.select("#sankey").selectAll("*").remove();
+
+          // Create SVG
+          svg = d3.select("#sankey")
+            .attr("width", width)
+            .attr("height", height)
+            .attr("viewBox", [0, 0, width, height])
+            .style("background", "transparent");
+
+          // Add subtle grid
+          const gridGroup = svg.append("g").attr("class", "grid");
+          for (let i = margin.top; i < height - margin.bottom; i += 40) {
+            gridGroup.append("line")
+              .attr("class", "grid-line")
+              .attr("x1", margin.left)
+              .attr("y1", i)
+              .attr("x2", width - margin.right)
+              .attr("y2", i);
+          }
+
+          // Create Sankey generator
+          const sankey = d3.sankey()
+            .nodeId(d => d.id)
+            .nodeWidth(16)
+            .nodePadding(25)
+            .extent([[margin.left, margin.top], [width - margin.right, height - margin.bottom]]);
+
+          // Process the data
+          graph = sankey({
+            nodes: data.nodes.map(d => Object.assign({}, d)),
+            links: data.links.map(d => Object.assign({}, d))
+          });
+
+          // Draw links (connection lines)
+          const linkGroups = svg.append("g")
+            .selectAll("path")
+            .data(graph.links)
+            .join("path")
+            .attr("class", "link")
+            .attr("d", d3.sankeyLinkHorizontal())
+            .attr("stroke", d => {
+              const sourceNode = data.nodes.find(n => n.id === d.source.id);
+              return sourceNode.color;
+            });
+
+          // Draw nodes
+          const nodeGroups = svg.append("g")
+            .selectAll("g")
+            .data(graph.nodes)
+            .join("g");
+
+          // Node rectangles
+          nodeGroups.append("rect")
+            .attr("class", d => d.id !== "main" ? "node-rect coding" : "node-rect")
+            .attr("x", d => d.x0)
+            .attr("y", d => d.y0)
+            .attr("height", d => d.y1 - d.y0)
+            .attr("width", d => d.x1 - d.x0)
+            .attr("fill", d => d.color)
+            .attr("rx", 2);
+
+          // Add labels
+          nodeGroups.append("text")
+            .attr("class", "node-label")
+            .attr("x", d => d.x0 < width / 2 ? d.x0 - 12 : d.x1 + 12)
+            .attr("y", d => (d.y0 + d.y1) / 2)
+            .attr("text-anchor", d => d.x0 < width / 2 ? "end" : "start")
+            .attr("dy", "0.35em")
+            .text(d => d.label);
+
+          // Schedule commits for all sources
+          const sourceNodes = graph.nodes.filter(d => d.id !== "main");
+          sourceNodes.forEach(node => {
+            scheduleCommit(node);
+          });
+        }
+
+        function scheduleCommit(sourceNode) {
+          // Determine commit rate based on source type
+          let rate;
+          if (sourceNode.id === "developer") {
+            rate = commitRates.developer;
+          } else if (sourceNode.id.includes("local")) {
+            rate = commitRates.codexLocal;
+          } else {
+            rate = commitRates.codexRemote;
+          }
+
+          // Random delay (±50% of base rate)
+          const delay = (rate * 1000) * (0.5 + Math.random());
+
+          setTimeout(() => {
+            // Find the link for this source
+            const link = graph.links.find(l => l.source.id === sourceNode.id);
+            if (link) {
+              animateCommit(sourceNode, link);
+            }
+
+            // Schedule next commit
+            scheduleCommit(sourceNode);
+          }, delay);
+        }
+
+        function animateCommit(sourceNode, link) {
+          // Get the path element for this link
+          const pathElement = svg.selectAll(".link")
+            .filter(d => d.source.id === sourceNode.id)
+            .node();
+
+          if (!pathElement) return;
+
+          const pathLength = pathElement.getTotalLength();
+          const startPoint = pathElement.getPointAtLength(0);
+
+          // Create commit dot
+          const commitDot = svg.append("circle")
+            .attr("class", "commit-dot")
+            .attr("cx", startPoint.x)
+            .attr("cy", startPoint.y)
+            .attr("r", 6)
+            .attr("fill", sourceNode.color);
+
+          // Animate along the path
+          commitDot
+            .transition()
+            .duration(1500)
+            .ease(d3.easeCubicInOut)
+            .tween("pathTween", function() {
+              return function(t) {
+                const point = pathElement.getPointAtLength(t * pathLength);
+                d3.select(this)
+                  .attr("cx", point.x)
+                  .attr("cy", point.y);
+              };
+            })
+            .on("end", () => {
+              // Flash effect on arrival
+              commitDot
+                .transition()
+                .duration(200)
+                .attr("r", 10)
+                .attr("opacity", 0.5)
+                .transition()
+                .duration(200)
+                .attr("r", 0)
+                .attr("opacity", 0)
+                .remove();
+
+              // Update counter
+              commitsToday++;
+              d3.select("#commits-today").text(commitsToday);
+            });
+        }
+
+        function randomlyAdjustAgents() {
+          // Randomly add/remove local codex
+          if (Math.random() > 0.5 && codexLocalInstances < 2) {
+            codexLocalInstances++;
+            updateVisualization();
+          } else if (Math.random() > 0.7 && codexLocalInstances > 1) {
+            codexLocalInstances--;
+            updateVisualization();
+          }
+
+          // Randomly add/remove remote codex
+          if (Math.random() > 0.6 && codexRemoteInstances < 3) {
+            codexRemoteInstances++;
+            updateVisualization();
+          } else if (Math.random() > 0.8 && codexRemoteInstances > 1) {
+            codexRemoteInstances--;
+            updateVisualization();
+          }
+
+          // Schedule next adjustment
+          setTimeout(randomlyAdjustAgents, 8000 + Math.random() * 7000);
+        }
+
+        // Initial render
+        updateVisualization();
+
+        // Start random agent adjustments
+        setTimeout(randomlyAdjustAgents, 5000);
+      });
+    </script>
+  </body>
+</html>
