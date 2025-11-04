@@ -99,6 +99,100 @@ defmodule CacheWeb.KeyValueControllerTest do
     end
   end
 
+  describe "GET /api/cache/keyvalue/:cas_id" do
+    test "gets cache value successfully when authenticated", %{conn: conn} do
+      # Given
+      account_handle = "test-account"
+      project_handle = "test-project"
+      cas_id = "test_cas_id_123"
+
+      Authentication
+      |> expect(:ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
+        {:ok, "Bearer valid-token"}
+      end)
+
+      :ok = KeyValueStore.put_key_value(cas_id, account_handle, project_handle, ["value1", "value2"])
+
+      # When
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer valid-token")
+        |> get("/api/cache/keyvalue/#{cas_id}?account_handle=#{account_handle}&project_handle=#{project_handle}")
+
+      # Then
+      response = json_response(conn, :ok)
+
+      assert response["entries"] == [
+               %{"value" => "value1"},
+               %{"value" => "value2"}
+             ]
+    end
+
+    test "returns not found when no entries exist", %{conn: conn} do
+      # Given
+      account_handle = "test-account"
+      project_handle = "test-project"
+      cas_id = "nonexistent_cas_id"
+
+      Authentication
+      |> expect(:ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
+        {:ok, "Bearer valid-token"}
+      end)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer valid-token")
+        |> get("/api/cache/keyvalue/#{cas_id}?account_handle=#{account_handle}&project_handle=#{project_handle}")
+
+      # Then
+      response = json_response(conn, :not_found)
+      assert response["message"] == "No entries found for CAS ID #{cas_id}."
+    end
+
+    test "returns 401 when authorization header is missing", %{conn: conn} do
+      # Given
+      account_handle = "test-account"
+      project_handle = "test-project"
+      cas_id = "test_cas_id"
+
+      Authentication
+      |> expect(:ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
+        {:error, 401, "Missing Authorization header"}
+      end)
+
+      # When
+      conn =
+        get(conn, "/api/cache/keyvalue/#{cas_id}?account_handle=#{account_handle}&project_handle=#{project_handle}")
+
+      # Then
+      response = json_response(conn, :unauthorized)
+      assert response["message"] == "Missing Authorization header"
+    end
+
+    test "returns 404 when project is not accessible", %{conn: conn} do
+      # Given
+      account_handle = "test-account"
+      project_handle = "test-project"
+      cas_id = "test_cas_id"
+
+      Authentication
+      |> expect(:ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
+        {:error, 404, "Unauthorized or not found"}
+      end)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer invalid-token")
+        |> get("/api/cache/keyvalue/#{cas_id}?account_handle=#{account_handle}&project_handle=#{project_handle}")
+
+      # Then
+      response = json_response(conn, :not_found)
+      assert response["message"] == "Unauthorized or not found"
+    end
+  end
+
   describe "PUT /api/cache/keyvalue" do
     test "stores cache value successfully when authenticated", %{conn: conn} do
       # Given

@@ -12,6 +12,7 @@ defmodule CacheWeb.Router do
   scope "/api/cache", CacheWeb do
     pipe_through :api_json
 
+    get "/keyvalue/:cas_id", KeyValueController, :get_value
     put "/keyvalue/:cas_id", KeyValueController, :get_value
     put "/keyvalue", KeyValueController, :put_value
   end
