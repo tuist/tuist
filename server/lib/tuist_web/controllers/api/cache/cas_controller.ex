@@ -2,9 +2,13 @@ defmodule TuistWeb.API.CASController do
   use OpenApiSpex.ControllerSpecs
   use TuistWeb, :controller
 
-  alias Tuist.Cache.Authentication
-  alias Tuist.Cache.Disk
+  alias Tuist.Storage
+  alias TuistWeb.API.Cache.Plugs.LoaderQueryPlug
   alias TuistWeb.API.Schemas.Error
+  alias TuistWeb.Authentication
+
+  plug LoaderQueryPlug
+  plug TuistWeb.API.Authorization.AuthorizationPlug, :cache
 
   plug(OpenApiSpex.Plug.CastAndValidate,
     json_render_error_v2: true,
@@ -45,37 +49,26 @@ defmodule TuistWeb.API.CASController do
     }
   )
 
-  def load(conn, %{id: id, account_handle: account_handle, project_handle: project_handle} = _params) do
-    case Authentication.ensure_project_accessible(conn, account_handle, project_handle) do
-      {:ok, _auth_header} ->
-        IO.puts("CAS Controller: attempting to load #{id}")
-        key = cas_key(account_handle, project_handle, id)
+  def load(%{assigns: %{selected_project: project, selected_account: account}} = conn, %{id: id} = _params) do
+    current_subject = Authentication.authenticated_subject(conn)
+    key = cas_key(account, project, id)
 
-        if Disk.exists?(key) do
-          IO.puts("CAS Controller: found #{id}")
-          stream = Disk.stream(key)
+    if Storage.object_exists?(key, current_subject) do
+      stream = Storage.stream_object(key, current_subject)
 
-          conn
-          |> put_resp_content_type("application/octet-stream")
-          |> send_chunked(200)
-          |> stream_data(stream)
-        else
-          IO.puts("CAS Controller: not found #{id}")
-          conn
-          |> put_status(:not_found)
-          |> json(%{message: "Artifact does not exist"})
-        end
-
-      {:error, status, message} ->
-        IO.puts("CAS Controller: unauthorized #{id}")
-        conn
-        |> put_status(status)
-        |> json(%{message: message})
+      conn
+      |> put_resp_content_type("application/octet-stream")
+      |> send_chunked(200)
+      |> stream_data(stream)
+    else
+      conn
+      |> put_status(:not_found)
+      |> json(%{message: "Artifact does not exist"})
     end
   end
 
-  defp cas_key(account_handle, project_handle, id) do
-    "#{account_handle}/#{project_handle}/cas/#{id}"
+  defp cas_key(account, project, id) do
+    "#{account.name}/#{project.name}/cas/#{id}"
   end
 
   defp stream_data(conn, stream) do
@@ -119,28 +112,18 @@ defmodule TuistWeb.API.CASController do
     }
   )
 
-  def save(conn, %{id: id, account_handle: account_handle, project_handle: project_handle} = _params) do
-    case Authentication.ensure_project_accessible(conn, account_handle, project_handle) do
-      {:ok, _auth_header} ->
-        IO.puts("CAS Controller: attempting to save #{id}")
-        {:ok, body, conn} = Plug.Conn.read_body(conn, length: 100_000_000)
-        key = cas_key(account_handle, project_handle, id)
+  def save(%{assigns: %{selected_project: project, selected_account: account}} = conn, %{id: id} = _params) do
+    current_subject = Authentication.authenticated_subject(conn)
+    {:ok, body, conn} = Plug.Conn.read_body(conn, length: 100_000_000)
+    key = cas_key(account, project, id)
 
-        if Disk.exists?(key) do
-          IO.puts("CAS Controller: already exists #{id}")
-          send_resp(conn, :no_content, "")
-        else
-          IO.puts("CAS Controller: saving #{id}")
-          Disk.put(key, body)
-          IO.puts("CAS Controller: saved #{id}")
-          send_resp(conn, :no_content, "")
-        end
+    if Storage.object_exists?(key, current_subject) do
+      send_resp(conn, :no_content, "")
+    else
+      # Stream the upload from the request body to S3
+      Storage.put_object(key, body, current_subject)
 
-      {:error, status, message} ->
-        IO.puts("CAS Controller: unauthorized #{id}")
-        conn
-        |> put_status(status)
-        |> json(%{message: message})
+      send_resp(conn, :no_content, "")
     end
   end
 end
