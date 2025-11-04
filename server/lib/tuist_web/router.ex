@@ -44,6 +44,7 @@ defmodule TuistWeb.Router do
     plug :put_root_layout, html: {TuistWeb.Layouts, :app}
     plug :protect_from_forgery
     plug :put_secure_browser_headers
+    plug TuistWeb.Plugs.UeberauthHostPlug
     plug :fetch_current_user
     plug :content_security_policy
   end
