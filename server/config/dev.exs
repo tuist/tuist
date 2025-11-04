@@ -98,11 +98,6 @@ config :tuist, TuistWeb.Endpoint,
 # Enable dev routes for dashboard and mailbox
 config :tuist, dev_routes: true
 
-config :tuist, :cas,
-  server_url: "http://localhost:8080",
-  storage_dir: "tmp/cas"
-
-
 config :tuist,
   ecto_repos: [Tuist.Repo, Tuist.IngestRepo],
   generators: [timestamp_type: :utc_datetime],
