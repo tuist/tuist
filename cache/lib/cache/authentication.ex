@@ -19,6 +19,8 @@ defmodule Cache.Authentication do
     }
   end
 
+  def cache_name, do: @cache_name
+
   @doc """
   Ensures the request has access to the specified project.
 
@@ -63,16 +65,16 @@ defmodule Cache.Authentication do
   end
 
   defp cached_failure(cache_key) do
-    case Cachex.get(@cache_name, {:failure, cache_key}) do
+    case Cachex.get(cache_name(), {:failure, cache_key}) do
       {:ok, {status, message}} -> {:error, status, message}
       _ -> :miss
     end
   end
 
   defp evaluate_cached_project(cache_key, requested_handle) do
-    case Cachex.get(@cache_name, {:primed, cache_key}) do
+    case Cachex.get(cache_name(), {:primed, cache_key}) do
       {:ok, version} when is_integer(version) ->
-        case Cachex.get(@cache_name, {cache_key, requested_handle}) do
+        case Cachex.get(cache_name(), {cache_key, requested_handle}) do
           {:ok, {^version, :allowed}} -> :authorized
           {:ok, nil} -> :unauthorized
           _ -> :miss
@@ -163,7 +165,7 @@ defmodule Cache.Authentication do
       end)
 
     {:ok, _} =
-      Cachex.transaction(@cache_name, [cache_key], fn cache ->
+      Cachex.transaction(cache_name(), [cache_key], fn cache ->
         Cachex.put(cache, {:primed, cache_key}, version, ttl: ttl)
         Cachex.del(cache, {:failure, cache_key})
 
@@ -182,7 +184,7 @@ defmodule Cache.Authentication do
     ttl = failure_ttl()
 
     {:ok, _} =
-      Cachex.transaction(@cache_name, [cache_key], fn cache ->
+      Cachex.transaction(cache_name(), [cache_key], fn cache ->
         Cachex.put(cache, {:failure, cache_key}, {status, message}, ttl: ttl)
         Cachex.del(cache, {:primed, cache_key})
       end)
