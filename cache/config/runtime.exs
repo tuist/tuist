@@ -28,5 +28,5 @@ if config_env() == :prod do
 
   config :cache, :cas,
     server_url: System.get_env("SERVER_URL") || raise("environment variable SERVER_URL is missing"),
-    storage_dir: System.get_env("CAS_STORAGE_DIR") || "/cas"
+    storage_dir: System.get_env("CAS_STORAGE_DIR") || raise("environment variable CAS_STORAGE_DIR is missing")
 end

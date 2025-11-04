@@ -42,10 +42,10 @@ defmodule Cache.Disk do
   def put(key, {:file, tmp_path}) do
     path = artifact_path(key)
 
-    case ensure_directory(path) do
-      :ok ->
-        move_file(tmp_path, path)
-
+    with :ok <- ensure_directory(path),
+         :ok <- move_file(tmp_path, path) do
+      :ok
+    else
       {:error, _} = error ->
         File.rm(tmp_path)
         error
@@ -55,18 +55,12 @@ defmodule Cache.Disk do
   def put(key, data) when is_binary(data) do
     path = artifact_path(key)
 
-    case ensure_directory(path) do
-      :ok ->
-        case File.write(path, data) do
-          :ok ->
-            :ok
-
-          {:error, reason} = error ->
-            Logger.error("Failed to write CAS artifact to #{path}: #{inspect(reason)}")
-            error
-        end
-
-      error ->
+    with :ok <- ensure_directory(path),
+         :ok <- File.write(path, data) do
+      :ok
+    else
+      {:error, reason} = error ->
+        Logger.error("Failed to write CAS artifact to #{path}: #{inspect(reason)}")
         error
     end
   end
@@ -101,7 +95,7 @@ defmodule Cache.Disk do
   """
 
   def storage_dir do
-    Application.get_env(:cache, :cas)[:storage_dir] || "tmp/cas"
+    Application.get_env(:cache, :cas)[:storage_dir]
   end
 
   defp ensure_directory(file_path) do
