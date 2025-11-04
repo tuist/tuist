@@ -9,81 +9,133 @@ defmodule Tuist.CacheTest do
     {:ok, project: project}
   end
 
-  describe "put_key_value/3" do
-    test "stores values for a key", %{project: project} do
+  describe "create_entry/1" do
+    test "creates a cache entry", %{
+      project: project
+    } do
       # Given
       cas_id = "some_cas_id"
-      values = ["value1", "value2", "value3"]
+      value = "some_value"
+
+      attrs = %{
+        cas_id: cas_id,
+        value: value,
+        project_id: project.id
+      }
 
       # When
-      result = Cache.put_key_value(cas_id, project.id, values)
+      result = Cache.create_entry(attrs)
 
       # Then
-      assert result == :ok
+      assert {:ok, entry} = result
+      assert entry.cas_id == cas_id
+      assert entry.value == value
+      assert entry.project_id == project.id
     end
   end
 
-  describe "get_key_value/2" do
-    test "returns values for a given key", %{project: project} do
+  describe "get_entries_by_cas_id_and_project_id/2" do
+    test "returns entries matching cas_id and project_id", %{project: project} do
       # Given
       cas_id = "matching_cas_id"
       project_id = project.id
-      values = ["value1", "value2"]
 
-      :ok = Cache.put_key_value(cas_id, project_id, values)
+      # Create some entries
+      {:ok, _entry1} =
+        Cache.create_entry(%{
+          cas_id: cas_id,
+          value: "value1",
+          project_id: project_id
+        })
+
+      {:ok, _entry2} =
+        Cache.create_entry(%{
+          cas_id: cas_id,
+          value: "value2",
+          project_id: project_id
+        })
+
+      {:ok, _entry3} =
+        Cache.create_entry(%{
+          cas_id: "different_cas_id",
+          value: "value3",
+          project_id: project_id
+        })
 
       # When
-      result = Cache.get_key_value(cas_id, project_id)
+      result = Cache.get_entries_by_cas_id_and_project_id(cas_id, project_id)
 
       # Then
-      assert result == values
+      assert Enum.map(result, & &1.cas_id) == [cas_id, cas_id]
+      assert Enum.map(result, & &1.cas_id) == [cas_id, cas_id]
+      assert result |> Enum.map(& &1.value) |> Enum.sort() == ["value1", "value2"]
     end
 
-    test "returns empty list when no values exist", %{project: project} do
+    test "returns empty list when no entries match", %{project: project} do
       # Given
       cas_id = "non_existent_cas_id"
       project_id = project.id
 
       # When
-      result = Cache.get_key_value(cas_id, project_id)
+      result = Cache.get_entries_by_cas_id_and_project_id(cas_id, project_id)
 
       # Then
       assert result == []
     end
+  end
 
-    test "overwrites existing values when storing", %{project: project} do
+  describe "delete_entries_by_project_id/1" do
+    test "deletes all entries for a given project", %{project: project} do
       # Given
-      cas_id = "test_cas_id"
-      project_id = project.id
-
-      :ok = Cache.put_key_value(cas_id, project_id, ["old_value1", "old_value2"])
-      :ok = Cache.put_key_value(cas_id, project_id, ["new_value1", "new_value2", "new_value3"])
-
-      # When
-      result = Cache.get_key_value(cas_id, project_id)
-
-      # Then
-      assert result == ["new_value1", "new_value2", "new_value3"]
-    end
-
-    test "isolates values by project_id", %{project: project} do
-      # Given
-      cas_id = "shared_cas_id"
       project_id = project.id
       other_project = ProjectsFixtures.project_fixture()
       other_project_id = other_project.id
 
-      # Store different values for the same cas_id but different projects
-      :ok = Cache.put_key_value(cas_id, project_id, ["project1_value"])
-      :ok = Cache.put_key_value(cas_id, other_project_id, ["project2_value"])
+      # Create entries for the target project
+      {:ok, _entry1} =
+        Cache.create_entry(%{
+          cas_id: "cas_id_1",
+          value: "value1",
+          project_id: project_id
+        })
+
+      {:ok, _entry2} =
+        Cache.create_entry(%{
+          cas_id: "cas_id_2",
+          value: "value2",
+          project_id: project_id
+        })
+
+      # Create entries for another project (should not be deleted)
+      {:ok, _entry3} =
+        Cache.create_entry(%{
+          cas_id: "cas_id_3",
+          value: "value3",
+          project_id: other_project_id
+        })
+
+      assert length(Cache.get_entries_by_cas_id_and_project_id("cas_id_1", project_id)) == 1
+      assert length(Cache.get_entries_by_cas_id_and_project_id("cas_id_2", project_id)) == 1
+      assert length(Cache.get_entries_by_cas_id_and_project_id("cas_id_3", other_project_id)) == 1
 
       # When
-      result1 = Cache.get_key_value(cas_id, project_id)
-      result2 = Cache.get_key_value(cas_id, other_project_id)
+      Cache.delete_entries_by_project_id(project_id)
 
       # Then
-      assert result1 == ["project1_value"]
-      assert result2 == ["project2_value"]
+      assert Cache.get_entries_by_cas_id_and_project_id("cas_id_1", project_id) == []
+      assert Cache.get_entries_by_cas_id_and_project_id("cas_id_2", project_id) == []
+      assert length(Cache.get_entries_by_cas_id_and_project_id("cas_id_3", other_project_id)) == 1
+    end
+
+    test "returns 0 when no entries exist for the project", %{project: project} do
+      # Given
+      project_id = project.id
+
+      # When
+      result = Cache.delete_entries_by_project_id(project_id)
+
+      # Then
+      assert result == {0, nil}
     end
   end
 end

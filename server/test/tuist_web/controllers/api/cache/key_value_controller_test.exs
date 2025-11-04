@@ -33,9 +33,14 @@ defmodule TuistWeb.API.Cache.KeyValueControllerTest do
 
       cas_id = "test_cas_id_123"
 
-      expect(Cache, :get_key_value, fn ^cas_id, project_id ->
+      entries = [
+        %{id: 1, value: "value1", cas_id: cas_id, project_id: project.id},
+        %{id: 2, value: "value2", cas_id: cas_id, project_id: project.id}
+      ]
+
+      expect(Cache, :get_entries_by_cas_id_and_project_id, fn ^cas_id, project_id ->
         assert project_id == project.id
-        ["value1", "value2"]
+        entries
       end)
 
       # When
@@ -63,7 +68,7 @@ defmodule TuistWeb.API.Cache.KeyValueControllerTest do
 
       cas_id = "nonexistent_cas_id"
 
-      expect(Cache, :get_key_value, fn ^cas_id, project_id ->
+      expect(Cache, :get_entries_by_cas_id_and_project_id, fn ^cas_id, project_id ->
         assert project_id == project.id
         []
       end)
@@ -159,10 +164,16 @@ defmodule TuistWeb.API.Cache.KeyValueControllerTest do
         "entries" => entries
       }
 
-      expect(Cache, :put_key_value, fn ^cas_id, project_id, values ->
-        assert project_id == project.id
-        assert values == ["test_value_1", "test_value_2"]
-        :ok
+      created_entries = [
+        %{id: 1, value: "test_value_1", cas_id: cas_id, project_id: project.id},
+        %{id: 2, value: "test_value_2", cas_id: cas_id, project_id: project.id}
+      ]
+
+      expect(Cache, :create_entry, 2, fn entry_attrs ->
+        case entry_attrs.value do
+          "test_value_1" -> {:ok, Enum.at(created_entries, 0)}
+          "test_value_2" -> {:ok, Enum.at(created_entries, 1)}
+        end
       end)
 
       # When

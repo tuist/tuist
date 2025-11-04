@@ -1,6 +1,5 @@
 Mimic.copy(Base)
 Mimic.copy(Briefly)
-Mimic.copy(Tuist.Cache.Disk)
 Mimic.copy(Bcrypt)
 Mimic.copy(Boruta.Oauth)
 Mimic.copy(Boruta.Openid)
