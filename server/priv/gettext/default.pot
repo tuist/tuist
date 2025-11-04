@@ -330,7 +330,7 @@ msgstr ""
 #: lib/tuist_web/live/builds_live.html.heex:35
 #: lib/tuist_web/live/builds_live.html.heex:59
 #: lib/tuist_web/live/builds_live.html.heex:89
-#: lib/tuist_web/live/bundles_live.ex:307
+#: lib/tuist_web/live/bundles_live.ex:338
 #: lib/tuist_web/live/bundles_live.html.heex:45
 #: lib/tuist_web/live/bundles_live.html.heex:60
 #: lib/tuist_web/live/bundles_live.html.heex:74
@@ -350,9 +350,10 @@ msgstr ""
 msgid "Anyone with the link"
 msgstr ""
 
-#: lib/tuist_web/live/bundle_live.ex:882
-#: lib/tuist_web/live/bundles_live.ex:300
-#: lib/tuist_web/live/bundles_live.ex:305
+#: lib/tuist_web/live/bundle_live.ex:883
+#: lib/tuist_web/live/bundles_live.ex:331
+#: lib/tuist_web/live/bundles_live.ex:336
+#: lib/tuist_web/live/bundles_live.ex:872
 #: lib/tuist_web/live/bundles_live.html.heex:90
 #, elixir-autogen, elixir-format
 msgid "App bundle"
@@ -553,7 +554,8 @@ msgstr ""
 #: lib/tuist_web/live/build_runs_live.ex:241
 #: lib/tuist_web/live/build_runs_live.html.heex:67
 #: lib/tuist_web/live/bundle_live.html.heex:76
-#: lib/tuist_web/live/bundles_live.html.heex:295
+#: lib/tuist_web/live/bundles_live.ex:860
+#: lib/tuist_web/live/bundles_live.html.heex:314
 #: lib/tuist_web/live/cache_runs_live.ex:56
 #: lib/tuist_web/live/cache_runs_live.html.heex:96
 #: lib/tuist_web/live/generate_runs_live.ex:264
@@ -818,7 +820,7 @@ msgstr ""
 
 #: lib/tuist_web/live/build_runs_live.html.heex:70
 #: lib/tuist_web/live/bundle_live.html.heex:153
-#: lib/tuist_web/live/bundles_live.html.heex:314
+#: lib/tuist_web/live/bundles_live.html.heex:350
 #: lib/tuist_web/live/preview_live.html.heex:140
 #: lib/tuist_web/live/previews_live.html.heex:54
 #: lib/tuist_web/live/qa_live.html.heex:234
@@ -1025,9 +1027,9 @@ msgid "Created %{time}"
 msgstr ""
 
 #: lib/tuist_web/live/bundle_live.html.heex:82
-#: lib/tuist_web/live/bundles_live.html.heex:258
-#: lib/tuist_web/live/bundles_live.html.heex:265
-#: lib/tuist_web/live/bundles_live.html.heex:325
+#: lib/tuist_web/live/bundles_live.html.heex:259
+#: lib/tuist_web/live/bundles_live.html.heex:266
+#: lib/tuist_web/live/bundles_live.html.heex:361
 #: lib/tuist_web/live/qa_run_live.html.heex:133
 #, elixir-autogen, elixir-format
 msgid "Created at"
@@ -1192,11 +1194,6 @@ msgstr ""
 msgid "Download"
 msgstr ""
 
-#: lib/tuist_web/live/bundles_live.html.heex:148
-#, elixir-autogen, elixir-format
-msgid "Download Size"
-msgstr ""
-
 #: lib/tuist_web/components/account_dropdown.ex:75
 #, elixir-autogen, elixir-format
 msgid "Download macOS app"
@@ -1210,7 +1207,7 @@ msgstr ""
 
 #: lib/tuist_web/live/bundle_live.html.heex:100
 #: lib/tuist_web/live/bundle_live.html.heex:103
-#: lib/tuist_web/live/bundles_live.html.heex:175
+#: lib/tuist_web/live/bundles_live.html.heex:335
 #, elixir-autogen, elixir-format
 msgid "Download size"
 msgstr ""
@@ -1496,6 +1493,7 @@ msgstr ""
 #: lib/tuist_web/live/build_run_live.html.heex:439
 #: lib/tuist_web/live/build_run_live.html.heex:774
 #: lib/tuist_web/live/build_runs_live.html.heex:34
+#: lib/tuist_web/live/bundles_live.html.heex:291
 #: lib/tuist_web/live/cache_runs_live.html.heex:43
 #: lib/tuist_web/live/generate_runs_live.html.heex:34
 #: lib/tuist_web/live/test_runs_live.html.heex:187
@@ -1664,9 +1662,10 @@ msgstr ""
 msgid "Hola %{name}, you can reset your password by clicking the button below:"
 msgstr ""
 
-#: lib/tuist_web/live/bundle_live.ex:881
-#: lib/tuist_web/live/bundles_live.ex:299
-#: lib/tuist_web/live/bundles_live.ex:304
+#: lib/tuist_web/live/bundle_live.ex:882
+#: lib/tuist_web/live/bundles_live.ex:330
+#: lib/tuist_web/live/bundles_live.ex:335
+#: lib/tuist_web/live/bundles_live.ex:873
 #: lib/tuist_web/live/bundles_live.html.heex:82
 #, elixir-autogen, elixir-format
 msgid "IPA"
@@ -1709,15 +1708,6 @@ msgstr ""
 msgid "Install GitHub App"
 msgstr ""
 
-#: lib/tuist_web/live/bundles_live.html.heex:125
-#: lib/tuist_web/live/bundles_live.html.heex:176
-#: lib/tuist_web/live/bundles_live.html.heex:257
-#: lib/tuist_web/live/bundles_live.html.heex:273
-#: lib/tuist_web/live/bundles_live.html.heex:303
-#, elixir-autogen, elixir-format
-msgid "Install Size"
-msgstr ""
-
 #: lib/tuist_web/live/connect_live.ex:38
 #, elixir-autogen, elixir-format
 msgid "Install Tuist CLI"
@@ -1726,6 +1716,7 @@ msgstr ""
 #: lib/tuist_web/live/bundle_live.html.heex:126
 #: lib/tuist_web/live/bundle_live.html.heex:129
 #: lib/tuist_web/live/bundles_live.html.heex:229
+#: lib/tuist_web/live/bundles_live.html.heex:322
 #: lib/tuist_web/live/overview_live.html.heex:493
 #, elixir-autogen, elixir-format
 msgid "Install size"
@@ -2036,7 +2027,8 @@ msgstr ""
 #: lib/tuist_web/live/bundle_live.html.heex:613
 #: lib/tuist_web/live/bundle_live.html.heex:620
 #: lib/tuist_web/live/bundle_live.html.heex:639
-#: lib/tuist_web/live/bundles_live.html.heex:292
+#: lib/tuist_web/live/bundles_live.ex:852
+#: lib/tuist_web/live/bundles_live.html.heex:311
 #: lib/tuist_web/live/create_organization_live.ex:45
 #: lib/tuist_web/live/create_project_live.ex:63
 #: lib/tuist_web/live/previews_live.html.heex:41
@@ -2106,6 +2098,7 @@ msgstr ""
 #: lib/tuist_web/live/builds_live.html.heex:497
 #: lib/tuist_web/live/builds_live.html.heex:623
 #: lib/tuist_web/live/builds_live.html.heex:756
+#: lib/tuist_web/live/bundles_live.html.heex:381
 #: lib/tuist_web/live/cache_runs_live.html.heex:144
 #: lib/tuist_web/live/generate_runs_live.html.heex:127
 #: lib/tuist_web/live/qa_live.html.heex:169
@@ -2195,6 +2188,7 @@ msgid "None"
 msgstr ""
 
 #: lib/tuist_web/live/bundle_live.html.heex:120
+#: lib/tuist_web/live/bundles_live.html.heex:347
 #, elixir-autogen, elixir-format
 msgid "Not available"
 msgstr ""
@@ -2386,7 +2380,8 @@ msgid "Pending"
 msgstr ""
 
 #: lib/tuist_web/live/bundle_live.html.heex:72
-#: lib/tuist_web/live/bundles_live.html.heex:317
+#: lib/tuist_web/live/bundles_live.ex:898
+#: lib/tuist_web/live/bundles_live.html.heex:353
 #: lib/tuist_web/live/qa_live.html.heex:212
 #: lib/tuist_web/live/qa_run_live.html.heex:113
 #, elixir-autogen, elixir-format
@@ -2978,7 +2973,7 @@ msgstr ""
 #: lib/tuist_web/live/build_runs_live.html.heex:13
 #: lib/tuist_web/live/bundle_live.html.heex:489
 #: lib/tuist_web/live/bundle_live.html.heex:616
-#: lib/tuist_web/live/bundles_live.html.heex:261
+#: lib/tuist_web/live/bundles_live.html.heex:262
 #: lib/tuist_web/live/cache_runs_live.html.heex:14
 #: lib/tuist_web/live/generate_runs_live.html.heex:13
 #, elixir-autogen, elixir-format
@@ -3393,7 +3388,8 @@ msgstr ""
 #: lib/tuist_web/live/build_run_live.html.heex:807
 #: lib/tuist_web/live/bundle_live.html.heex:52
 #: lib/tuist_web/live/bundle_live.html.heex:526
-#: lib/tuist_web/live/bundles_live.html.heex:298
+#: lib/tuist_web/live/bundles_live.ex:868
+#: lib/tuist_web/live/bundles_live.html.heex:317
 #, elixir-autogen, elixir-format
 msgid "Type"
 msgstr ""
@@ -3422,11 +3418,11 @@ msgstr ""
 #: lib/tuist_web/live/builds_live.html.heex:717
 #: lib/tuist_web/live/builds_live.html.heex:727
 #: lib/tuist_web/live/builds_live.html.heex:744
-#: lib/tuist_web/live/bundle_live.ex:884
+#: lib/tuist_web/live/bundle_live.ex:885
 #: lib/tuist_web/live/bundle_live.html.heex:78
 #: lib/tuist_web/live/bundle_live.html.heex:156
 #: lib/tuist_web/live/bundle_live.html.heex:223
-#: lib/tuist_web/live/bundles_live.ex:302
+#: lib/tuist_web/live/bundles_live.ex:333
 #: lib/tuist_web/live/qa_run_live.html.heex:171
 #: lib/tuist_web/live/run_detail_live.html.heex:252
 #: lib/tuist_web/live/run_detail_live.html.heex:346
@@ -3712,9 +3708,10 @@ msgstr ""
 msgid "Welcome! Create an account to continue"
 msgstr ""
 
-#: lib/tuist_web/live/bundle_live.ex:883
-#: lib/tuist_web/live/bundles_live.ex:301
-#: lib/tuist_web/live/bundles_live.ex:306
+#: lib/tuist_web/live/bundle_live.ex:884
+#: lib/tuist_web/live/bundles_live.ex:332
+#: lib/tuist_web/live/bundles_live.ex:337
+#: lib/tuist_web/live/bundles_live.ex:874
 #: lib/tuist_web/live/bundles_live.html.heex:98
 #, elixir-autogen, elixir-format
 msgid "XCArchive"
@@ -3939,7 +3936,7 @@ msgid "p99"
 msgstr ""
 
 #: lib/tuist_web/live/builds_live.ex:260
-#: lib/tuist_web/live/bundles_live.ex:214
+#: lib/tuist_web/live/bundles_live.ex:246
 #: lib/tuist_web/live/overview_live.ex:279
 #: lib/tuist_web/live/qa_live.ex:151
 #: lib/tuist_web/live/test_runs_live.ex:254
@@ -3948,7 +3945,7 @@ msgid "since last month"
 msgstr ""
 
 #: lib/tuist_web/live/builds_live.ex:258
-#: lib/tuist_web/live/bundles_live.ex:212
+#: lib/tuist_web/live/bundles_live.ex:244
 #: lib/tuist_web/live/overview_live.ex:277
 #: lib/tuist_web/live/qa_live.ex:149
 #: lib/tuist_web/live/test_runs_live.ex:252
@@ -3957,7 +3954,7 @@ msgid "since last week"
 msgstr ""
 
 #: lib/tuist_web/live/builds_live.ex:259
-#: lib/tuist_web/live/bundles_live.ex:213
+#: lib/tuist_web/live/bundles_live.ex:245
 #: lib/tuist_web/live/overview_live.ex:278
 #: lib/tuist_web/live/qa_live.ex:150
 #: lib/tuist_web/live/test_runs_live.ex:253
@@ -4107,4 +4104,22 @@ msgstr ""
 #: lib/tuist_web/live/build_run_live.html.heex:638
 #, elixir-autogen, elixir-format
 msgid "Xcode Cache"
+msgstr ""
+
+#: lib/tuist_web/live/bundles_live.ex:890
+#: lib/tuist_web/live/bundles_live.html.heex:148
+#: lib/tuist_web/live/bundles_live.html.heex:175
+#: lib/tuist_web/live/bundles_live.html.heex:258
+#: lib/tuist_web/live/bundles_live.html.heex:282
+#, elixir-autogen, elixir-format
+msgid "Download size (MB)"
+msgstr ""
+
+#: lib/tuist_web/live/bundles_live.ex:882
+#: lib/tuist_web/live/bundles_live.html.heex:125
+#: lib/tuist_web/live/bundles_live.html.heex:176
+#: lib/tuist_web/live/bundles_live.html.heex:257
+#: lib/tuist_web/live/bundles_live.html.heex:274
+#, elixir-autogen, elixir-format
+msgid "Install size (MB)"
 msgstr ""
