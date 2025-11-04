@@ -136,7 +136,7 @@ defmodule CacheWeb.CASControllerTest do
       |> expect(:exists?, fn ^expected_key ->
         false
       end)
-      |> expect(:put_file, fn ^expected_key, tmp_path ->
+      |> expect(:put, fn ^expected_key, {:file, tmp_path} ->
         assert File.exists?(tmp_path)
         assert File.stat!(tmp_path).size == byte_size(large_body)
         File.rm(tmp_path)
@@ -147,7 +147,7 @@ defmodule CacheWeb.CASControllerTest do
         conn
         |> put_req_header("authorization", "Bearer valid-token")
         |> put_req_header("content-type", "application/octet-stream")
-        |> Plug.Conn.put_private(:cas_body_read_opts, [length: 128_000, read_length: 128_000, read_timeout: 60_000])
+        |> Plug.Conn.put_private(:body_read_opts, length: 128_000, read_length: 128_000, read_timeout: 60_000)
         |> post("/api/cache/cas/#{id}?account_handle=#{account_handle}&project_handle=#{project_handle}", large_body)
 
       assert conn.status == 204
@@ -230,7 +230,7 @@ defmodule CacheWeb.CASControllerTest do
       |> expect(:exists?, fn ^expected_key ->
         false
       end)
-      |> expect(:put_file, fn ^expected_key, tmp_path ->
+      |> expect(:put, fn ^expected_key, {:file, tmp_path} ->
         assert File.exists?(tmp_path)
         File.rm(tmp_path)
         {:error, :exists}
@@ -240,7 +240,7 @@ defmodule CacheWeb.CASControllerTest do
         conn
         |> put_req_header("authorization", "Bearer valid-token")
         |> put_req_header("content-type", "application/octet-stream")
-        |> Plug.Conn.put_private(:cas_body_read_opts, [length: 128_000, read_length: 128_000, read_timeout: 60_000])
+        |> Plug.Conn.put_private(:body_read_opts, length: 128_000, read_length: 128_000, read_timeout: 60_000)
         |> post("/api/cache/cas/#{id}?account_handle=#{account_handle}&project_handle=#{project_handle}", large_body)
 
       assert conn.status == 204

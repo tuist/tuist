@@ -15,7 +15,7 @@ defmodule Cache.Disk do
       iex> Cache.Disk.exists?("account/project/cas/abc123")
       true
   """
-  
+
   def exists?(key) do
     key
     |> artifact_path()
@@ -25,15 +25,34 @@ defmodule Cache.Disk do
   @doc """
   Writes data to disk for the given key.
 
+  Accepts either binary data or a file path. For file paths, the file is moved
+  into place without reading into memory (efficient for large uploads).
+
   Creates parent directories if they don't exist.
 
   ## Examples
 
       iex> Cache.Disk.put("account/project/cas/abc123", <<1, 2, 3>>)
       :ok
+
+      iex> Cache.Disk.put("account/project/cas/abc123", {:file, "/tmp/upload-123"})
+      :ok
   """
-  
-  def put(key, data) do
+
+  def put(key, {:file, tmp_path}) do
+    path = artifact_path(key)
+
+    case ensure_directory(path) do
+      :ok ->
+        move_file(tmp_path, path)
+
+      {:error, _} = error ->
+        File.rm(tmp_path)
+        error
+    end
+  end
+
+  def put(key, data) when is_binary(data) do
     path = artifact_path(key)
 
     case ensure_directory(path) do
@@ -54,19 +73,12 @@ defmodule Cache.Disk do
 
   @doc """
   Moves a temporary file into place for the given key without reading it into memory.
+
+  Deprecated: Use `put(key, {:file, tmp_path})` instead.
   """
-  
+
   def put_file(key, tmp_path) do
-    path = artifact_path(key)
-
-    case ensure_directory(path) do
-      :ok ->
-        do_move_file(tmp_path, path)
-
-      {:error, _} = error ->
-        File.rm(tmp_path)
-        error
-    end
+    put(key, {:file, tmp_path})
   end
 
   @doc """
@@ -77,7 +89,7 @@ defmodule Cache.Disk do
       iex> Cache.Disk.artifact_path("account/project/cas/abc123")
       "/var/tuist/cas/account/project/cas/abc123"
   """
-  
+
   def artifact_path(key) do
     Path.join(storage_dir(), key)
   end
@@ -87,7 +99,7 @@ defmodule Cache.Disk do
 
   Defaults to "tmp/cas" if not configured.
   """
-  
+
   def storage_dir do
     Application.get_env(:cache, :cas)[:storage_dir] || "tmp/cas"
   end
@@ -105,32 +117,19 @@ defmodule Cache.Disk do
     end
   end
 
-  defp do_move_file(tmp_path, target_path) do
-    if File.exists?(target_path) do
-      File.rm(tmp_path)
-      {:error, :exists}
+  defp move_file(tmp_path, target_path) do
+    with false <- File.exists?(target_path),
+         :ok <- File.rename(tmp_path, target_path) do
+      :ok
     else
-      case File.rename(tmp_path, target_path) do
-        :ok ->
-          :ok
+      true ->
+        File.rm(tmp_path)
+        {:error, :exists}
 
-        {:error, :exdev} ->
-          case File.cp(tmp_path, target_path) do
-            :ok ->
-              File.rm(tmp_path)
-              :ok
-
-            {:error, reason} = error ->
-              File.rm(tmp_path)
-              Logger.error("Failed to copy CAS artifact to #{target_path}: #{inspect(reason)}")
-              error
-          end
-
-        {:error, reason} = error ->
-          File.rm(tmp_path)
-          Logger.error("Failed to move CAS artifact to #{target_path}: #{inspect(reason)}")
-          error
-      end
+      {:error, reason} ->
+        File.rm(tmp_path)
+        Logger.error("Failed to move CAS artifact to #{target_path}: #{inspect(reason)}")
+        {:error, reason}
     end
   end
 end
