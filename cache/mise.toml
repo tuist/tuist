@@ -1,2 +1,5 @@
 [tools]
+elixir = "1.18.3"
+erlang = "27.2"
 ruby = "latest"
+"gem:kamal" = "2.8.1"

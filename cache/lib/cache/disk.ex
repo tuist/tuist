@@ -15,7 +15,7 @@ defmodule Cache.Disk do
       iex> Cache.Disk.exists?("account/project/cas/abc123")
       true
   """
-  @spec exists?(String.t()) :: boolean()
+  
   def exists?(key) do
     key
     |> artifact_path()
@@ -32,7 +32,7 @@ defmodule Cache.Disk do
       iex> Cache.Disk.put("account/project/cas/abc123", <<1, 2, 3>>)
       :ok
   """
-  @spec put(String.t(), binary()) :: :ok | {:error, term()}
+  
   def put(key, data) do
     path = artifact_path(key)
 
@@ -55,7 +55,7 @@ defmodule Cache.Disk do
   @doc """
   Moves a temporary file into place for the given key without reading it into memory.
   """
-  @spec put_file(String.t(), Path.t()) :: :ok | {:error, term()}
+  
   def put_file(key, tmp_path) do
     path = artifact_path(key)
 
@@ -77,7 +77,7 @@ defmodule Cache.Disk do
       iex> Cache.Disk.artifact_path("account/project/cas/abc123")
       "/var/tuist/cas/account/project/cas/abc123"
   """
-  @spec artifact_path(String.t()) :: Path.t()
+  
   def artifact_path(key) do
     Path.join(storage_dir(), key)
   end
@@ -87,7 +87,7 @@ defmodule Cache.Disk do
 
   Defaults to "tmp/cas" if not configured.
   """
-  @spec storage_dir() :: Path.t()
+  
   def storage_dir do
     Application.get_env(:cache, :cas)[:storage_dir] || "tmp/cas"
   end
