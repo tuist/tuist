@@ -29,8 +29,6 @@ defmodule Cache.Authentication do
   def ensure_project_accessible(conn, account_handle, project_handle) do
     auth_header = Plug.Conn.get_req_header(conn, "authorization") |> List.first()
 
-    Logger.info("Checking authorization for: #{account_handle}/#{project_handle} with auth header: #{auth_header}")
-
     if is_nil(auth_header) do
       {:error, 401, "Missing Authorization header"}
     else
@@ -44,60 +42,28 @@ defmodule Cache.Authentication do
   end
 
   defp authorize(auth_header, requested_handle, conn) do
-    cache_key = generate_cache_key(auth_header)
+    cache_key = {generate_cache_key(auth_header), requested_handle}
 
-    case cached_failure(cache_key) do
-      {:error, status, message} ->
-        {:error, status, message}
-
-      :miss ->
-        case evaluate_cached_project(cache_key, requested_handle) do
-          :authorized ->
-            :ok
-
-          :unauthorized ->
-            {:error, 404, "Unauthorized or not found"}
-
-          :miss ->
-            fetch_and_cache_projects(auth_header, cache_key, requested_handle, conn)
-        end
+    case Cachex.get(cache_name(), cache_key) do
+      {:ok, nil} -> fetch_and_cache_projects(auth_header, cache_key, conn)
+      {:ok, result} -> result
+      _ -> fetch_and_cache_projects(auth_header, cache_key, conn)
     end
   end
 
-  defp cached_failure(cache_key) do
-    case Cachex.get(cache_name(), {:failure, cache_key}) do
-      {:ok, {status, message}} -> {:error, status, message}
-      _ -> :miss
-    end
-  end
-
-  defp evaluate_cached_project(cache_key, requested_handle) do
-    case Cachex.get(cache_name(), {:primed, cache_key}) do
-      {:ok, version} when is_integer(version) ->
-        case Cachex.get(cache_name(), {cache_key, requested_handle}) do
-          {:ok, {^version, :allowed}} -> :authorized
-          {:ok, nil} -> :unauthorized
-          _ -> :miss
-        end
-
-      _ ->
-        :miss
-    end
-  end
-
-  defp fetch_and_cache_projects(auth_header, cache_key, requested_handle, conn) do
+  defp fetch_and_cache_projects(auth_header, cache_key, conn) do
     headers = build_headers(auth_header, conn)
     options = request_options(headers)
 
     case Req.get(options) do
       {:ok, %{status: 200, body: %{"projects" => projects}}} ->
-        prime_projects(cache_key, projects, requested_handle)
+        cache_projects(cache_key, projects)
 
       {:ok, %{status: 403}} ->
-        store_failure(cache_key, 404, "Unauthorized or not found")
+        cache_result(cache_key, {:error, 404, "Unauthorized or not found"}, failure_ttl())
 
       {:ok, %{status: 401}} ->
-        store_failure(cache_key, 401, "Unauthorized")
+        cache_result(cache_key, {:error, 401, "Unauthorized"}, failure_ttl())
 
       {:ok, %{status: status}} ->
         {:error, status, "Server responded with status #{status}"}
@@ -149,47 +115,31 @@ defmodule Cache.Authentication do
     |> Base.encode16(case: :lower)
   end
 
-  defp prime_projects(cache_key, projects, requested_handle) do
-    version = System.unique_integer([:positive, :monotonic])
+  defp cache_projects({auth_key, requested_handle}, projects) do
     ttl = success_ttl()
-
-    {entries, authorized?} =
-      Enum.reduce(projects, {[], false}, fn
-        %{"full_name" => full_name}, {acc, allowed?} when is_binary(full_name) ->
-          normalized = String.downcase(full_name)
-          entry = {{cache_key, normalized}, {version, :allowed}}
-          {[entry | acc], allowed? or normalized == requested_handle}
-
-        _, acc ->
-          acc
+    
+    project_handles =
+      projects
+      |> Enum.map(fn
+        %{"full_name" => name} when is_binary(name) -> String.downcase(name)
+        _ -> nil
       end)
+      |> Enum.reject(&is_nil/1)
+      |> MapSet.new()
 
-    {:ok, _} =
-      Cachex.transaction(cache_name(), [cache_key], fn cache ->
-        Cachex.put(cache, {:primed, cache_key}, version, ttl: ttl)
-        Cachex.del(cache, {:failure, cache_key})
+    result =
+      if MapSet.member?(project_handles, requested_handle) do
+        :ok
+      else
+        {:error, 404, "Unauthorized or not found"}
+      end
 
-        case entries do
-          [] -> :ok
-          _ -> Cachex.put_many(cache, entries, ttl: ttl)
-        end
-
-        authorized?
-      end)
-
-    if authorized?, do: :ok, else: {:error, 404, "Unauthorized or not found"}
+    cache_result({auth_key, requested_handle}, result, ttl)
   end
 
-  defp store_failure(cache_key, status, message) do
-    ttl = failure_ttl()
-
-    {:ok, _} =
-      Cachex.transaction(cache_name(), [cache_key], fn cache ->
-        Cachex.put(cache, {:failure, cache_key}, {status, message}, ttl: ttl)
-        Cachex.del(cache, {:primed, cache_key})
-      end)
-
-    {:error, status, message}
+  defp cache_result(cache_key, result, ttl) do
+    Cachex.put(cache_name(), cache_key, result, ttl: ttl)
+    result
   end
 
   defp full_handle(account_handle, project_handle) do

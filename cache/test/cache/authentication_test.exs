@@ -115,13 +115,9 @@ defmodule Cache.AuthenticationTest do
 
       Authentication.ensure_project_accessible(conn, "account", "project")
 
-      cache_key = generate_cache_key(@test_auth_header)
+      cache_key = {generate_cache_key(@test_auth_header), "account/project"}
 
-      {:ok, version} = Cachex.get(@cache_name, {:primed, cache_key})
-      assert is_integer(version)
-
-      {:ok, {^version, :allowed}} =
-        Cachex.get(@cache_name, {cache_key, "account/project"})
+      {:ok, :ok} = Cachex.get(@cache_name, cache_key)
     end
 
     test "uses cached result on subsequent calls" do
@@ -143,10 +139,10 @@ defmodule Cache.AuthenticationTest do
 
       Authentication.ensure_project_accessible(conn, "account", "project")
 
-      cache_key = generate_cache_key(@test_auth_header)
-      {:ok, cached_result} = Cachex.get(@cache_name, {:failure, cache_key})
+      cache_key = {generate_cache_key(@test_auth_header), "account/project"}
+      {:ok, cached_result} = Cachex.get(@cache_name, cache_key)
 
-      assert cached_result == {401, "Unauthorized"}
+      assert cached_result == {:error, 401, "Unauthorized"}
     end
 
     test "caches 403 errors with shorter TTL" do
@@ -156,10 +152,10 @@ defmodule Cache.AuthenticationTest do
 
       Authentication.ensure_project_accessible(conn, "account", "project")
 
-      cache_key = generate_cache_key(@test_auth_header)
-      {:ok, cached_result} = Cachex.get(@cache_name, {:failure, cache_key})
+      cache_key = {generate_cache_key(@test_auth_header), "account/project"}
+      {:ok, cached_result} = Cachex.get(@cache_name, cache_key)
 
-      assert cached_result == {404, "Unauthorized or not found"}
+      assert cached_result == {:error, 404, "Unauthorized or not found"}
     end
 
     test "different auth headers have different cache keys" do
@@ -176,13 +172,13 @@ defmodule Cache.AuthenticationTest do
       stub_api_call(200, %{"projects" => projects2})
       {:ok, _} = Authentication.ensure_project_accessible(conn2, "account2", "project2")
 
-      key1 = generate_cache_key(@test_auth_header)
-      key2 = generate_cache_key(other_auth_header)
+      cache_key1 = {generate_cache_key(@test_auth_header), "account1/project1"}
+      cache_key2 = {generate_cache_key(other_auth_header), "account2/project2"}
 
-      {:ok, version1} = Cachex.get(@cache_name, {:primed, key1})
-      {:ok, version2} = Cachex.get(@cache_name, {:primed, key2})
+      {:ok, :ok} = Cachex.get(@cache_name, cache_key1)
+      {:ok, :ok} = Cachex.get(@cache_name, cache_key2)
 
-      refute version1 == version2
+      refute cache_key1 == cache_key2
     end
   end
 
