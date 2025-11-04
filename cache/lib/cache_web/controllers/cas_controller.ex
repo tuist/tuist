@@ -1,12 +1,16 @@
 defmodule CacheWeb.CASController do
   use CacheWeb, :controller
 
+  alias Cache.Authentication
   alias Cache.BodyReader
   alias Cache.Disk
 
   def authorize(conn, %{"account_handle" => account, "project_handle" => project})
       when is_binary(account) and account != "" and is_binary(project) and project != "" do
-    send_resp(conn, :no_content, "")
+    case Authentication.ensure_project_accessible(conn, account, project) do
+      {:ok, _} -> send_resp(conn, :no_content, "")
+      {:error, status, _} -> send_resp(conn, status, "")
+    end
   end
 
   def authorize(conn, _params), do: send_resp(conn, 400, "")

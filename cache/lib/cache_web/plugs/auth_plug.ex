@@ -24,34 +24,21 @@ defmodule CacheWeb.Plugs.AuthPlug do
     account_handle = conn.query_params["account_handle"]
     project_handle = conn.query_params["project_handle"]
 
-    cond do
-      is_nil(account_handle) or account_handle == "" ->
-        error_response(conn, 400, "Missing account_handle")
-
-      is_nil(project_handle) or project_handle == "" ->
-        error_response(conn, 400, "Missing project_handle")
-
-      true ->
-        case Authentication.ensure_project_accessible(conn, account_handle, project_handle) do
-          {:ok, _auth_header} ->
-            conn
-
-          {:error, status, message} ->
-            error_response(conn, status, message)
-        end
+    with {:ok, account} when account != "" <- {:ok, account_handle},
+         {:ok, project} when project != "" <- {:ok, project_handle},
+         {:ok, _auth_header} <- Authentication.ensure_project_accessible(conn, account, project) do
+      conn
+    else
+      {:ok, _} -> error_response(conn, 400, "Missing account_handle")
+      {:error, 400, _} -> error_response(conn, 400, "Missing project_handle")
+      {:error, status, message} -> error_response(conn, status, message)
     end
   end
 
   defp error_response(conn, status, message) do
-    if String.contains?(conn.request_path, "/auth/cas") do
-      conn
-      |> send_resp(status, "")
-      |> halt()
-    else
-      conn
-      |> put_resp_content_type("application/json")
-      |> send_resp(status, Jason.encode!(%{message: message}))
-      |> halt()
-    end
+    conn
+    |> put_resp_content_type("application/json")
+    |> send_resp(status, Jason.encode!(%{message: message}))
+    |> halt()
   end
 end

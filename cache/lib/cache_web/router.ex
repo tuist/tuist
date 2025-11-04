@@ -23,7 +23,7 @@ defmodule CacheWeb.Router do
   end
 
   scope "/auth", CacheWeb do
-    pipe_through :project_auth
+    pipe_through :api_json
     get "/cas", CASController, :authorize
   end
 end
