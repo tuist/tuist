@@ -21,9 +21,9 @@ defmodule Cache.DiskTest do
       assert Disk.storage_dir() == @test_storage_dir
     end
 
-    test "returns default directory when not configured" do
-      Application.delete_env(:cache, :cas)
-      assert Disk.storage_dir() == "tmp/cas"
+    test "returns different storage directory when reconfigured" do
+      Application.put_env(:cache, :cas, storage_dir: "custom/cas")
+      assert Disk.storage_dir() == "custom/cas"
     end
   end
 
