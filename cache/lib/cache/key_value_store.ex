@@ -41,23 +41,10 @@ defmodule Cache.KeyValueStore do
   end
 
   @doc """
-  Retrieves the array of values for a given CAS ID, account, and project.
-  Returns an empty list if not found.
-  """
-  def get_key_value(cas_id, account_handle, project_handle) do
-    key = build_key(account_handle, project_handle, cas_id)
-
-    case fetch_entry(key) do
-      {:ok, %{values: values}} -> values
-      :not_found -> []
-    end
-  end
-
-  @doc """
   Retrieves the pre-encoded JSON payload for a given CAS ID, account, and project.
   Returns `:not_found` if no entry is stored.
   """
-  def get_key_value_payload(cas_id, account_handle, project_handle) do
+  def get_key_value(cas_id, account_handle, project_handle) do
     key = build_key(account_handle, project_handle, cas_id)
 
     case fetch_entry(key) do

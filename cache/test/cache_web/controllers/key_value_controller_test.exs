@@ -132,8 +132,12 @@ defmodule CacheWeb.KeyValueControllerTest do
       assert conn.status == 204
       assert conn.resp_body == ""
 
-      stored_values = KeyValueStore.get_key_value(cas_id, account_handle, project_handle)
-      assert stored_values == ["test_value_1", "test_value_2"]
+      {:ok, stored_json} = KeyValueStore.get_key_value(cas_id, account_handle, project_handle)
+      stored_response = Jason.decode!(stored_json)
+      assert stored_response["entries"] == [
+               %{"value" => "test_value_1"},
+               %{"value" => "test_value_2"}
+             ]
     end
 
     test "returns 401 when authorization header is missing", %{conn: conn} do
