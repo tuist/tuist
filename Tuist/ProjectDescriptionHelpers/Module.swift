@@ -636,6 +636,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "GRPCNIOTransportHTTP2"),
                     .external(name: "GRPCProtobuf"),
                     .external(name: "SwiftProtobuf"),
+                    .external(name: "libzstd"),
                 ]
             case .launchctl:
                 [
