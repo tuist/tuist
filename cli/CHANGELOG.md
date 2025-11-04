@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.99.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* optimize Xcode cache by compressing CAS artifacts by [@fortmarek](https://github.com/fortmarek) in [#8565](https://github.com/tuist/tuist/pull/8565)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.98.0...4.99.0
+
 ## What's Changed in 4.98.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
