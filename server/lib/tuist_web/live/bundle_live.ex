@@ -825,7 +825,8 @@ defmodule TuistWeb.BundleLive do
     full_artifact = path && Map.get(artifacts_by_path, path)
 
     if full_artifact do
-      Map.put(artifact, :collapsed?, full_artifact.collapsed? || false)
+      collapsed = Map.get(full_artifact, :collapsed?, false)
+      Map.put(artifact, :collapsed?, collapsed)
     else
       artifact
     end
