@@ -75,7 +75,7 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
                 Logger.current.error("CAS.load failed to decompress data: \(error)")
                 response.outcome = .error
                 var responseError = CompilationCacheService_Cas_V1_ResponseError()
-                responseError.description_p = "Failed to decompress data: \(error.localizedDescription)"
+                responseError.description_p = error.userFriendlyDescription()
                 response.error = responseError
                 response.contents = .error(responseError)
                 return response
