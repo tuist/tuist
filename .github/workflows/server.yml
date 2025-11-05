@@ -62,12 +62,13 @@ jobs:
       - run: mise run install
       - name: Check marketing gettext template is up-to-date
         run: |
-          # Extract only to check if marketing.pot changes
+          # Extract only (without --merge) to check if marketing.pot changes
+          # DO NOT use --merge here as it would modify .po translation files
           cp priv/gettext/marketing.pot priv/gettext/marketing.pot.backup
-          mix gettext.extract --merge > /dev/null 2>&1 || true
+          mix gettext.extract > /dev/null 2>&1 || true
 
           if ! diff -q priv/gettext/marketing.pot.backup priv/gettext/marketing.pot > /dev/null; then
-            echo "::error title=Marketing gettext template out of sync::The marketing.pot file is not up-to-date. Please run 'mix gettext.extract' in the server directory and commit the changes."
+            echo "::error title=Marketing gettext template out of sync::The marketing.pot file is not up-to-date. Please run 'mix gettext.extract' (WITHOUT --merge) in the server directory and commit the changes."
             rm priv/gettext/marketing.pot.backup
             exit 1
           else
