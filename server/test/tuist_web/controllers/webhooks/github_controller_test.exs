@@ -356,7 +356,9 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
       assert result.status == 200
     end
 
-    test "handles installation created event when installation not found", %{conn: conn} do
+    test "handles installation created event when installation not found and logs error", %{
+      conn: conn
+    } do
       # Given
       installation_id = "88888"
       html_url = "https://github.com/organizations/tuist/settings/installations/88888"
@@ -367,14 +369,21 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
       end)
 
       # When
-      result =
-        GitHubController.handle(conn, %{
-          "action" => "created",
-          "installation" => %{"id" => installation_id, "html_url" => html_url}
-        })
+      log =
+        ExUnit.CaptureLog.capture_log(fn ->
+          result =
+            GitHubController.handle(conn, %{
+              "action" => "created",
+              "installation" => %{"id" => installation_id, "html_url" => html_url}
+            })
 
-      # Then
-      assert result.status == 200
+          # Then
+          assert result.status == 200
+        end)
+
+      # Verify error was logged
+      assert log =~ "installation_id=#{installation_id}"
+      assert log =~ "installation not found in database"
     end
 
     test "returns ok for installation events with non-deleted actions", %{conn: conn} do

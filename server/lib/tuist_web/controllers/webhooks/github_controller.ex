@@ -98,11 +98,23 @@ defmodule TuistWeb.Webhooks.GitHubController do
          "action" => "created",
          "installation" => %{"id" => installation_id, "html_url" => html_url}
        }) do
-    {:ok, _} = update_github_app_installation_html_url(installation_id, html_url)
+    case update_github_app_installation_html_url(installation_id, html_url) do
+      {:ok, _} ->
+        conn
+        |> put_status(:ok)
+        |> json(%{status: "ok"})
 
-    conn
-    |> put_status(:ok)
-    |> json(%{status: "ok"})
+      {:error, :not_found} ->
+        require Logger
+
+        Logger.error(
+          "Received GitHub installation.created webhook for installation_id=#{installation_id} but installation not found in database. This indicates the setup callback was not processed."
+        )
+
+        conn
+        |> put_status(:ok)
+        |> json(%{status: "ok"})
+    end
   end
 
   defp handle_installation(conn, _params) do
