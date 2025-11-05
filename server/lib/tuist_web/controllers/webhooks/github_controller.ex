@@ -100,19 +100,19 @@ defmodule TuistWeb.Webhooks.GitHubController do
          "action" => "created",
          "installation" => %{"id" => installation_id, "html_url" => html_url}
        }) do
-    case update_github_app_installation_html_url(installation_id, html_url) do
+    case update_github_app_installation_html_url_with_retry(installation_id, html_url) do
       {:ok, _} ->
         conn
         |> put_status(:ok)
         |> json(%{status: "ok"})
 
-      {:error, :not_found} ->
-        # This is expected due to a race condition: the webhook often arrives before
-        # or in parallel with the setup callback that creates the installation record.
-        # The html_url is only used for a convenience UI link and is not critical.
-        # If needed, it will be updated on the next webhook event (e.g., repositories_added).
-        Logger.info(
-          "GitHub installation.created webhook arrived before setup callback for installation_id=#{installation_id}. Skipping html_url update - will be set on next webhook or can be derived from installation_id."
+      {:error, :not_found_after_retries} ->
+        # After retries, the installation still doesn't exist. This could indicate:
+        # 1. The setup callback failed or was never called
+        # 2. The user closed the browser before completing setup
+        # 3. Network issues prevented the redirect
+        Logger.warning(
+          "GitHub installation.created webhook for installation_id=#{installation_id} but installation not found after retries. Setup callback may have failed."
         )
 
         conn
@@ -265,6 +265,27 @@ defmodule TuistWeb.Webhooks.GitHubController do
 
       {:error, :not_found} ->
         {:error, :not_found}
+    end
+  end
+
+  defp update_github_app_installation_html_url_with_retry(installation_id, html_url, attempt \\ 1) do
+    max_attempts = 3
+    retry_delay_ms = 1000
+
+    case update_github_app_installation_html_url(installation_id, html_url) do
+      {:ok, result} ->
+        {:ok, result}
+
+      {:error, :not_found} when attempt < max_attempts ->
+        Logger.info(
+          "GitHub installation not found for installation_id=#{installation_id}, attempt #{attempt}/#{max_attempts}. Retrying in #{retry_delay_ms}ms..."
+        )
+
+        Process.sleep(retry_delay_ms)
+        update_github_app_installation_html_url_with_retry(installation_id, html_url, attempt + 1)
+
+      {:error, :not_found} ->
+        {:error, :not_found_after_retries}
     end
   end
 end

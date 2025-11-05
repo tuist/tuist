@@ -356,7 +356,7 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
       assert result.status == 200
     end
 
-    test "handles installation created event when installation not found due to race condition",
+    test "handles installation created event when installation not found after retries",
          %{
            conn: conn
          } do
@@ -365,7 +365,8 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
       html_url = "https://github.com/organizations/tuist/settings/installations/88888"
       conn = put_req_header(conn, "x-github-event", "installation")
 
-      expect(VCS, :get_github_app_installation_by_installation_id, fn ^installation_id ->
+      # Expect 3 attempts (original + 2 retries)
+      expect(VCS, :get_github_app_installation_by_installation_id, 3, fn ^installation_id ->
         {:error, :not_found}
       end)
 
@@ -382,9 +383,67 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
           assert result.status == 200
         end)
 
-      # Verify info log was generated (not error, since this is expected race condition)
+      # Verify retry attempts were logged
       assert log =~ "installation_id=#{installation_id}"
-      assert log =~ "arrived before setup callback"
+      assert log =~ "attempt 1/3"
+      assert log =~ "attempt 2/3"
+      # Final warning after all retries exhausted
+      assert log =~ "not found after retries"
+    end
+
+    test "handles installation created event with successful retry",
+         %{
+           conn: conn
+         } do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = user.account
+      installation_id = "99999"
+      html_url = "https://github.com/organizations/tuist/settings/installations/99999"
+
+      github_app_installation =
+        VCSFixtures.github_app_installation_fixture(
+          account_id: account.id,
+          installation_id: installation_id
+        )
+
+      conn = put_req_header(conn, "x-github-event", "installation")
+
+      # First attempt fails, second attempt succeeds (simulating race condition resolved)
+      expect(VCS, :get_github_app_installation_by_installation_id, 2, fn ^installation_id ->
+        # First call returns not found
+        case Process.get(:attempt_count, 0) do
+          0 ->
+            Process.put(:attempt_count, 1)
+            {:error, :not_found}
+
+          _ ->
+            {:ok, github_app_installation}
+        end
+      end)
+
+      expect(VCS, :update_github_app_installation, fn ^github_app_installation,
+                                                      %{html_url: ^html_url} ->
+        {:ok, %{github_app_installation | html_url: html_url}}
+      end)
+
+      # When
+      log =
+        ExUnit.CaptureLog.capture_log(fn ->
+          result =
+            GitHubController.handle(conn, %{
+              "action" => "created",
+              "installation" => %{"id" => installation_id, "html_url" => html_url}
+            })
+
+          # Then
+          assert result.status == 200
+        end)
+
+      # Verify retry happened and eventually succeeded
+      assert log =~ "installation_id=#{installation_id}"
+      assert log =~ "attempt 1/3"
+      refute log =~ "not found after retries"
     end
 
     test "returns ok for installation events with non-deleted actions", %{conn: conn} do
