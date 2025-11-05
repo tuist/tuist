@@ -1,14 +1,14 @@
 defmodule TuistWeb.Webhooks.GitHubController do
   use TuistWeb, :controller
 
-  require Logger
-
   alias Tuist.AppBuilds
   alias Tuist.Environment
   alias Tuist.Projects
   alias Tuist.QA
   alias Tuist.Repo
   alias Tuist.VCS
+
+  require Logger
 
   def handle(conn, params) do
     event_type = conn |> get_req_header("x-github-event") |> List.first()
@@ -85,10 +85,7 @@ defmodule TuistWeb.Webhooks.GitHubController do
     |> json(%{status: "ok"})
   end
 
-  defp handle_installation(conn, %{
-         "action" => "deleted",
-         "installation" => %{"id" => installation_id}
-       }) do
+  defp handle_installation(conn, %{"action" => "deleted", "installation" => %{"id" => installation_id}}) do
     {:ok, _} = delete_github_app_installation(installation_id)
 
     conn

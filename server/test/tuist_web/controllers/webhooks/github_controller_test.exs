@@ -340,8 +340,7 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
         {:ok, github_app_installation}
       end)
 
-      expect(VCS, :update_github_app_installation, fn ^github_app_installation,
-                                                      %{html_url: ^html_url} ->
+      expect(VCS, :update_github_app_installation, fn ^github_app_installation, %{html_url: ^html_url} ->
         {:ok, %{github_app_installation | html_url: html_url}}
       end)
 
@@ -421,8 +420,7 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
         end
       end)
 
-      expect(VCS, :update_github_app_installation, fn ^github_app_installation,
-                                                      %{html_url: ^html_url} ->
+      expect(VCS, :update_github_app_installation, fn ^github_app_installation, %{html_url: ^html_url} ->
         {:ok, %{github_app_installation | html_url: html_url}}
       end)
 
@@ -501,9 +499,7 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
       # Given
       conn = put_req_header(conn, "x-github-event", "issue_comment")
 
-      expect(Projects, :project_by_name_and_vcs_repository_full_handle, fn "nonexistent",
-                                                                           "org/monorepo",
-                                                                           _ ->
+      expect(Projects, :project_by_name_and_vcs_repository_full_handle, fn "nonexistent", "org/monorepo", _ ->
         {:error, :not_found}
       end)
 
