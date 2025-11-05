@@ -96,7 +96,7 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
             response.outcome = .success
 
             let duration = ProcessInfo.processInfo.systemUptime - startTime
-            
+
             // Store metadata for the load operation in background
             Task {
                 let finishedAt = Date()
@@ -195,7 +195,7 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
             response.contents = .casID(message)
 
             let duration = ProcessInfo.processInfo.systemUptime - startTime
-            
+
             // Store metadata for the save operation in background
             Task {
                 let finishedAt = Date()

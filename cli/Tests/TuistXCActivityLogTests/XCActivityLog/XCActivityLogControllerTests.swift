@@ -363,6 +363,54 @@ struct XCActivityLogControllerTests {
     }
 
     @Test(.withMockedEnvironment())
+    func parseBuildXCActivityLogWithRemoteHits() async throws {
+        // Given
+        let xcactivityLog = try AbsolutePath(validating: #file).parentDirectory
+            .appending(try RelativePath(validating: "../../Fixtures/build-with-remote-hits/build-with-remote-hits.xcactivitylog"))
+        let environment = try #require(Environment.mocked)
+        environment.stateDirectory = xcactivityLog.parentDirectory.appending(component: "state")
+
+        // When
+        let got = try await subject.parse(xcactivityLog)
+
+        // Then
+        #expect(got.cacheableTasks.count == 4)
+        #expect(got.cacheableTasks.filter { $0.type == .swift }.count == 4)
+        #expect(got.cacheableTasks.filter { $0.status == .remoteHit }.count == 4)
+        print(got.casTasks.sorted(by: { $0.checksum > $1.checksum }).map(\.startedAt.timeIntervalSince1970))
+        print(got.casTasks.sorted(by: { $0.checksum > $1.checksum }).map(\.finishedAt.timeIntervalSince1970))
+        #expect(got.casTasks.sorted(by: { $0.checksum > $1.checksum }) == [
+            CASTask(
+                nodeID: "0~49C6atHfmLcVaRO9lWE7wi7It4d3XXldCc6LDXAC1aWAP-QrpArK3FmZCo0AfkqQ2s8Iv849KKmGuzfXPHL39Q==",
+                checksum: "FB2B7F87083C8A254241BBF8252BA6CD6D6F0C9092A111F4C7D28A3B4B90D4BB",
+                size: 58816,
+                startedAt: Date(timeIntervalSince1970: 1762345427.0),
+                finishedAt: Date(timeIntervalSince1970: 1762345427.063),
+                duration: 0.06271795835345984,
+                compressedSize: 17474
+            ),
+            CASTask(
+                nodeID: "0~qeHr278TkWv-ycmH7r4g5Qpttl9k2OSZizeDRQ_uvdOI1neASwjp_tr-fyGJpDzpnTWYnaeXAOfvxVzWSRtb6w==",
+                checksum: "1AA11EDE9E7D361F00311116278DB5D504862C5361177CA7DB948CA6BE9F8200",
+                size: 360,
+                startedAt: Date(timeIntervalSince1970: 1762345427.0),
+                finishedAt: Date(timeIntervalSince1970: 1762345427.06),
+                duration: 0.06029745831619948,
+                compressedSize: 239
+            ),
+            CASTask(
+                nodeID: "0~WEQaHKJTHxk9lH2TjUnA35KCw98xCj0YZtedxm9Pcr8tJgZUptlaFMEML50DYq0ZNsecu6K-aRW_BeQtqEX-uA==",
+                checksum: "061F37DBA51A251AB6DCC00BB34E25985A41F6FFDB599E2CBD6825AA8F2F5EF7",
+                size: 3468,
+                startedAt: Date(timeIntervalSince1970: 1762345427.0),
+                finishedAt: Date(timeIntervalSince1970: 1762345427.062),
+                duration: 0.062295541632920504,
+                compressedSize: 1457
+            ),
+        ])
+    }
+
+    @Test(.withMockedEnvironment())
     func parseBuildXCActivityLogWithLocalHits() async throws {
         // Given
         let xcactivityLog = try AbsolutePath(validating: #file).parentDirectory

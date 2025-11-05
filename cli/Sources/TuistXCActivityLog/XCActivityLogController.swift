@@ -474,15 +474,15 @@ public struct XCActivityLogController: XCActivityLogControlling {
 
     private func analyzeCASKeys(from buildSteps: [XCLogParser.BuildStep]) async throws -> [CASTask] {
         let nodeIDs = extractNodeIDs(from: buildSteps)
-        
+
         let casTasks = try await nodeIDs.concurrentCompactMap { nodeID in
-            let checksum = try await self.nodeMappingStore.checksum(for: nodeID)
-            
+            let checksum = try await nodeMappingStore.checksum(for: nodeID)
+
             // Get metadata using the checksum if available
             if let checksumValue = checksum {
                 do {
-                    let metadata = try await self.metadataStore.metadata(for: checksumValue)
-                    if let metadata = metadata {
+                    let metadata = try await metadataStore.metadata(for: checksumValue)
+                    if let metadata {
                         return CASTask(
                             nodeID: nodeID,
                             checksum: checksumValue,
@@ -497,19 +497,19 @@ public struct XCActivityLogController: XCActivityLogControlling {
                     // Log error but continue with next node
                 }
             }
-            
+
             return nil
         }
-        
+
         return casTasks
     }
-    
+
     private func extractNodeIDs(from buildSteps: [XCLogParser.BuildStep]) -> [String] {
         return buildSteps.compactMap { step in
-            guard step.title.contains("Swift caching") && step.title.contains("materialize outputs from") else {
+            guard step.title.contains("Swift caching"), step.title.contains("materialize outputs from") else {
                 return nil
             }
-            
+
             return extractNodeIDFromMaterializeOutput(from: step.title)
         }
     }
@@ -558,7 +558,8 @@ public struct XCActivityLogController: XCActivityLogControlling {
     }
 
     private func extractNodeIDFromMaterializeOutput(from title: String) -> String? {
-        // Look for pattern like "materialize outputs from 0~2RChGLVUbFYywptVOBlPj1PMji8tjYNewcA2JotitM54zN26O0V8bbRDNXy_mHUpqvS2RBv8jaNmZmspWzMJbg=="
+        // Look for pattern like "materialize outputs from
+        // 0~2RChGLVUbFYywptVOBlPj1PMji8tjYNewcA2JotitM54zN26O0V8bbRDNXy_mHUpqvS2RBv8jaNmZmspWzMJbg=="
         let pattern = "materialize outputs from (0~[A-Za-z0-9+/_=-]+)"
         return extractKeyWithPattern(pattern, from: title)
     }

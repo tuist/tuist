@@ -6,9 +6,21 @@ import Mockable
 import OpenAPIRuntime
 import Path
 import Testing
+import TuistCASAnalytics
 import TuistServer
 import TuistSupport
 @testable import TuistCAS
+
+struct MockCASTaskMetadataStore: CASTaskMetadataStoring {
+    func storeMetadata(_: CASTaskMetadata, for _: String) async throws {
+        // Mock implementation - do nothing
+    }
+
+    func metadata(for _: String) async throws -> CASTaskMetadata? {
+        // Mock implementation - return nil
+        return nil
+    }
+}
 
 struct CASServiceTests {
     private let subject: CASService
@@ -29,7 +41,8 @@ struct CASServiceTests {
             saveCacheCASService: saveCacheCASService,
             loadCacheCASService: loadCacheCASService,
             fileSystem: FileSystem(),
-            dataCompressingService: dataCompressingService
+            dataCompressingService: dataCompressingService,
+            metadataStore: MockCASTaskMetadataStore()
         )
     }
 
