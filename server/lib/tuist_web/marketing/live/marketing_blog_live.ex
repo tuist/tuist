@@ -66,7 +66,6 @@ defmodule TuistWeb.Marketing.MarketingBlogLive do
         Enum.filter(filtered_posts, &(&1.category == category))
       end
 
-    # Remove highlighted post from filtered posts to avoid duplication
     filtered_posts = Enum.reject(filtered_posts, fn post -> post.slug == highlighted_post.slug end)
 
     # Calculate pagination
