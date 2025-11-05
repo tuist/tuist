@@ -1,4 +1,5 @@
 import Foundation
+import Mockable
 
 /// Metadata for CAS output operations
 public struct CASOutputMetadata: Codable {
@@ -27,6 +28,7 @@ public struct CASOutputMetadata: Codable {
 }
 
 /// Protocol for storing and retrieving CAS output metadata
+@Mockable
 public protocol CASOutputMetadataStoring: Sendable {
     /// Store metadata for a CAS output identified by CAS ID
     func storeMetadata(_ metadata: CASOutputMetadata, for casID: String) async throws

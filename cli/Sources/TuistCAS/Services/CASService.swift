@@ -97,23 +97,12 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
 
             let duration = ProcessInfo.processInfo.systemUptime - startTime
 
-            // Store metadata for the load operation in background
-            Task {
-                let finishedAt = Date()
-                let startedAt = Date(timeIntervalSinceNow: -duration)
-                let metadata = CASOutputMetadata(
-                    size: decompressedData.count,
-                    startedAt: startedAt,
-                    finishedAt: finishedAt,
-                    duration: duration,
-                    compressedSize: compressedData.count
-                )
-                do {
-                    try await metadataStore.storeMetadata(metadata, for: casID)
-                } catch {
-                    Logger.current.error("Failed to store CAS load metadata for casID: \(casID): \(error)")
-                }
-            }
+            storeMetadata(
+                size: decompressedData.count,
+                compressedSize: compressedData.count,
+                duration: duration,
+                for: casID
+            )
             Logger.current
                 .debug(
                     "CAS.load completed successfully in \(String(format: "%.3f", duration))s - loaded \(compressedData.count) compressed bytes, decompressed to \(decompressedData.count) bytes for casID: \(casID)"
@@ -126,7 +115,9 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
             response.contents = .error(responseError)
 
             let duration = ProcessInfo.processInfo.systemUptime - startTime
-            Logger.current.error("CAS.load failed after \(String(format: "%.3f", duration))s for casID: \(casID): \(error)")
+            Logger.current.error(
+                "CAS.load failed after \(String(format: "%.3f", duration))s for casID: \(casID): \(error)"
+            )
         }
 
         return response
@@ -143,7 +134,9 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
         let isFilePath = !request.data.blob.filePath.isEmpty
 
         if isFilePath {
-            Logger.current.debug("CAS.save starting - reading from file: \(request.data.blob.filePath)")
+            Logger.current.debug(
+                "CAS.save starting - reading from file: \(request.data.blob.filePath)"
+            )
             do {
                 let absolutePath = try AbsolutePath(validating: request.data.blob.filePath)
                 data = try await fileSystem.readFile(at: absolutePath)
@@ -152,7 +145,9 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
                 responseError.description_p = error.userFriendlyDescription()
                 response.error = responseError
                 response.contents = .error(responseError)
-                Logger.current.error("CAS.save failed to read file \(request.data.blob.filePath): \(error)")
+                Logger.current.error(
+                    "CAS.save failed to read file \(request.data.blob.filePath): \(error)"
+                )
                 return response
             }
         } else {
@@ -196,23 +191,12 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
 
             let duration = ProcessInfo.processInfo.systemUptime - startTime
 
-            // Store metadata for the save operation in background
-            Task {
-                let finishedAt = Date()
-                let startedAt = Date(timeIntervalSinceNow: -duration)
-                let metadata = CASOutputMetadata(
-                    size: data.count,
-                    startedAt: startedAt,
-                    finishedAt: finishedAt,
-                    duration: duration,
-                    compressedSize: compressedData.count
-                )
-                do {
-                    try await metadataStore.storeMetadata(metadata, for: fingerprint)
-                } catch {
-                    Logger.current.error("Failed to store CAS save metadata for fingerprint: \(fingerprint): \(error)")
-                }
-            }
+            storeMetadata(
+                size: data.count,
+                compressedSize: compressedData.count,
+                duration: duration,
+                for: fingerprint
+            )
             Logger.current
                 .debug(
                     "CAS.save completed successfully in \(String(format: "%.3f", duration))s for fingerprint: \(fingerprint)"
@@ -255,5 +239,31 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
         response.error = responseError
         response.contents = .error(responseError)
         return response
+    }
+
+    private func storeMetadata(
+        size: Int,
+        compressedSize: Int,
+        duration: TimeInterval,
+        for casID: String
+    ) {
+        let finishedAt = Date()
+        let startedAt = Date(timeIntervalSinceNow: -duration)
+        Task {
+            let metadata = CASOutputMetadata(
+                size: size,
+                startedAt: startedAt,
+                finishedAt: finishedAt,
+                duration: duration,
+                compressedSize: compressedSize
+            )
+            do {
+                try await metadataStore.storeMetadata(metadata, for: casID)
+            } catch {
+                Logger.current.error(
+                    "Failed to store CAS metadata for casID: \(casID): \(error)"
+                )
+            }
+        }
     }
 }

@@ -2,6 +2,6 @@ import ProjectDescription
 
 let tuist = Tuist(
     fullHandle: "tuist/cas",
-    url: "https://canary.tuis.dev",
+    url: "https://canary.tuist.dev",
     project: .xcode()
 )

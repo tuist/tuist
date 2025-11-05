@@ -61,7 +61,6 @@ public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.Si
                 serverURL: serverURL
             )
 
-            // Parse and store node ID to checksum mappings from the put data
             Task {
                 for (_, data) in request.value.entries {
                     await parseAndStoreMappings(from: data)
@@ -114,7 +113,6 @@ public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.Si
                     if let data = Data(base64Encoded: entry.value) {
                         value.entries["value"] = data
 
-                        // Parse and store node ID to checksum mappings
                         Task {
                             await parseAndStoreMappings(from: data)
                         }

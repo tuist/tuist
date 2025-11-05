@@ -1,9 +1,11 @@
 import FileSystem
 import Foundation
+import Mockable
 import Path
 import TuistSupport
 
 /// Protocol for storing and retrieving CAS node ID to checksum mappings
+@Mockable
 public protocol CASNodeStoring: Sendable {
     /// Store a mapping between a node ID and checksum hex
     func storeNode(_ nodeID: String, checksum: String) async throws
