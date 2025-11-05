@@ -42,7 +42,6 @@ defmodule TuistWeb.Marketing.MarketingBlogLive do
     previous_page = Map.get(socket.assigns, :current_page, 1)
     page_changed = page != previous_page
 
-    # Highlighted post is always the first post overall (not affected by filters)
     highlighted_post = List.first(all_posts)
 
     # Filter by search query (search across title, excerpt, and content)
