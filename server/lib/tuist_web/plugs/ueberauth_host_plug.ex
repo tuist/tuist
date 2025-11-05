@@ -11,7 +11,7 @@ defmodule TuistWeb.Plugs.UeberauthHostPlug do
   def init(opts), do: opts
 
   def call(conn, _opts) do
-    app_url = Tuist.Environment.app_url([route_type: :app])
+    app_url = Tuist.Environment.app_url(route_type: :app)
     %{host: app_host, scheme: app_scheme} = URI.parse(app_url)
 
     conn
