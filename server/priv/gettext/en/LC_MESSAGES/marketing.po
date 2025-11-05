@@ -98,7 +98,7 @@ msgstr ""
 msgid "Air"
 msgstr ""
 
-#: lib/tuist_web/marketing/live/marketing_blog_live.html.heex:46
+#: lib/tuist_web/marketing/live/marketing_blog_live.html.heex:45
 #: lib/tuist_web/marketing/live/marketing_changelog_live.html.heex:14
 #, elixir-autogen, elixir-format
 msgid "All"
@@ -878,7 +878,7 @@ msgstr ""
 msgid "QA"
 msgstr ""
 
-#: lib/tuist_web/marketing/live/marketing_blog_live.ex:96
+#: lib/tuist_web/marketing/live/marketing_blog_live.ex:97
 #: lib/tuist_web/marketing/structured_markup.ex:186
 #, elixir-autogen, elixir-format
 msgid "Read engaging stories and expert insights."
