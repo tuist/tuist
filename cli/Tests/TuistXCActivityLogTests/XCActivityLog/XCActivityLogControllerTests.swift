@@ -385,7 +385,8 @@ struct XCActivityLogControllerTests {
                 startedAt: Date(timeIntervalSince1970: 1_762_345_427.0),
                 finishedAt: Date(timeIntervalSince1970: 1_762_345_427.063),
                 duration: 0.06271795835345984,
-                compressedSize: 17474
+                compressedSize: 17474,
+                operation: .download
             ),
             CASOutput(
                 nodeID: "0~qeHr278TkWv-ycmH7r4g5Qpttl9k2OSZizeDRQ_uvdOI1neASwjp_tr-fyGJpDzpnTWYnaeXAOfvxVzWSRtb6w==",
@@ -394,7 +395,8 @@ struct XCActivityLogControllerTests {
                 startedAt: Date(timeIntervalSince1970: 1_762_345_427.0),
                 finishedAt: Date(timeIntervalSince1970: 1_762_345_427.06),
                 duration: 0.06029745831619948,
-                compressedSize: 239
+                compressedSize: 239,
+                operation: .download
             ),
             CASOutput(
                 nodeID: "0~WEQaHKJTHxk9lH2TjUnA35KCw98xCj0YZtedxm9Pcr8tJgZUptlaFMEML50DYq0ZNsecu6K-aRW_BeQtqEX-uA==",
@@ -403,11 +405,12 @@ struct XCActivityLogControllerTests {
                 startedAt: Date(timeIntervalSince1970: 1_762_345_427.0),
                 finishedAt: Date(timeIntervalSince1970: 1_762_345_427.062),
                 duration: 0.062295541632920504,
-                compressedSize: 1457
+                compressedSize: 1457,
+                operation: .download
             ),
         ])
     }
-    
+
     @Test(.withMockedEnvironment())
     func parseBuildXCActivityLogWithUploads() async throws {
         // Given
@@ -422,8 +425,8 @@ struct XCActivityLogControllerTests {
         // Then
         #expect(got.cacheableTasks.count == 2)
         #expect(got.cacheableTasks.filter { $0.type == .swift }.count == 2)
-        #expect(got.cacheableTasks.filter { $0.status == .miss}.count == 2)
-        print(got.casOutputs)
+        #expect(got.cacheableTasks.filter { $0.status == .miss }.count == 2)
+        #expect(got.casOutputs.filter { $0.operation == .upload }.count == 9)
     }
 
     @Test(.withMockedEnvironment())

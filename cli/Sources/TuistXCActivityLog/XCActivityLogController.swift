@@ -473,9 +473,10 @@ public struct XCActivityLogController: XCActivityLogControlling {
     }
 
     private func analyzeCASKeys(from buildSteps: [XCLogParser.BuildStep]) async throws -> [CASOutput] {
-        let nodeIDs = extractNodeIDs(from: buildSteps)
+        let downloadNodeIDs = extractNodeIDs(from: buildSteps)
+        let uploadNodeIDs = extractUploadNodeIDs(from: buildSteps)
 
-        let casOutputs = try await nodeIDs.concurrentCompactMap { nodeID in
+        let downloadOutputs = try await downloadNodeIDs.concurrentCompactMap { nodeID in
             let checksum = try await nodeStore.checksum(for: nodeID)
 
             // Get metadata using the checksum if available
@@ -490,7 +491,8 @@ public struct XCActivityLogController: XCActivityLogControlling {
                             startedAt: metadata.startedAt,
                             finishedAt: metadata.finishedAt,
                             duration: metadata.duration,
-                            compressedSize: metadata.compressedSize
+                            compressedSize: metadata.compressedSize,
+                            operation: .download
                         )
                     }
                 } catch {
@@ -501,7 +503,34 @@ public struct XCActivityLogController: XCActivityLogControlling {
             return nil
         }
 
-        return casOutputs
+        let uploadOutputs = try await uploadNodeIDs.concurrentCompactMap { nodeID in
+            let checksum = try await nodeStore.checksum(for: nodeID)
+
+            // Get metadata using the checksum if available
+            if let checksumValue = checksum {
+                do {
+                    let metadata = try await metadataStore.metadata(for: checksumValue)
+                    if let metadata {
+                        return CASOutput(
+                            nodeID: nodeID,
+                            checksum: checksumValue,
+                            size: metadata.size,
+                            startedAt: metadata.startedAt,
+                            finishedAt: metadata.finishedAt,
+                            duration: metadata.duration,
+                            compressedSize: metadata.compressedSize,
+                            operation: .upload
+                        )
+                    }
+                } catch {
+                    // Log error but continue with next node
+                }
+            }
+
+            return nil
+        }
+
+        return downloadOutputs + uploadOutputs
     }
 
     private func extractNodeIDs(from buildSteps: [XCLogParser.BuildStep]) -> [String] {
@@ -512,6 +541,25 @@ public struct XCActivityLogController: XCActivityLogControlling {
 
             return extractNodeIDFromMaterializeOutput(from: step.title)
         }
+    }
+
+    private func extractUploadNodeIDs(from buildSteps: [XCLogParser.BuildStep]) -> [String] {
+        let allNodeIDs = buildSteps.flatMap { step -> [String] in
+            guard step.title.contains("Swift caching upload key") else {
+                return []
+            }
+
+            // Check if any notes contain upload information
+            guard let notes = step.notes else { return [] }
+
+            return notes.compactMap { note in
+                if note.title.hasPrefix("uploaded CAS output ") {
+                    return extractNodeIDFromUploadNote(from: note.title)
+                }
+                return nil
+            }
+        }
+        return allNodeIDs.uniqued()
     }
 
     private func extractCacheSteps(from buildSteps: [XCLogParser.BuildStep]) -> [CacheStep] {
@@ -562,6 +610,16 @@ public struct XCActivityLogController: XCActivityLogControlling {
         // 0~2RChGLVUbFYywptVOBlPj1PMji8tjYNewcA2JotitM54zN26O0V8bbRDNXy_mHUpqvS2RBv8jaNmZmspWzMJbg=="
         let pattern = "materialize outputs from (0~[A-Za-z0-9+/_=-]+)"
         return extractKeyWithPattern(pattern, from: title)
+    }
+
+    private func extractNodeIDFromUploadNote(from noteTitle: String) -> String? {
+        // Look for pattern like "uploaded CAS output dependencies:
+        // 0~7ggSktnzZ-Yj0taRxkKjkznD04YdB2Qzbs6wQT8TNb_KvR8g59lJ6_5EHgv6O4ImIjnuaJAmhHupGgNCH39h3w=="
+        // or "uploaded CAS output swiftmodule:
+        // 0~aorpjrOr3Did8RDSWKJu6zM4b_K3gr7CLg9L8Dt7xZ4cqv6apqvCxSGLITD5XPfk8vJhNQlJEWmYieDyR108Ug=="
+        // The category can be any arbitrary string without spaces
+        let pattern = "uploaded CAS output [^\\s]+: (0~[A-Za-z0-9+/_=-]+)"
+        return extractKeyWithPattern(pattern, from: noteTitle)
     }
 
     private func determineCacheOperation(from title: String) -> CacheOperation? {

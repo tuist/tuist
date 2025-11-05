@@ -1,5 +1,10 @@
 import Foundation
 
+public enum CASOperation: Equatable {
+    case download
+    case upload
+}
+
 public struct CASOutput: Equatable {
     public let nodeID: String
     public let checksum: String
@@ -8,6 +13,7 @@ public struct CASOutput: Equatable {
     public let finishedAt: Date
     public let duration: TimeInterval
     public let compressedSize: Int
+    public let operation: CASOperation
 
     public init(
         nodeID: String,
@@ -16,7 +22,8 @@ public struct CASOutput: Equatable {
         startedAt: Date,
         finishedAt: Date,
         duration: TimeInterval,
-        compressedSize: Int
+        compressedSize: Int,
+        operation: CASOperation
     ) {
         self.nodeID = nodeID
         self.checksum = checksum
@@ -25,5 +32,6 @@ public struct CASOutput: Equatable {
         self.finishedAt = finishedAt
         self.duration = duration
         self.compressedSize = compressedSize
+        self.operation = operation
     }
 }
