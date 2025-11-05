@@ -1,6 +1,16 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.99.2<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* ensure disableSandbox config is used when dumping package manifests by [@pepicrft](https://github.com/pepicrft) in [#8475](https://github.com/tuist/tuist/pull/8475)
+* support import kind declarations in inspect by [@hiltonc](https://github.com/hiltonc) in [#8455](https://github.com/tuist/tuist/pull/8455)
+* cache Config manifest to improve performance by [@hiltonc](https://github.com/hiltonc) in [#8561](https://github.com/tuist/tuist/pull/8561)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.99.1...4.99.2
+
 ## What's Changed in 4.99.1<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
