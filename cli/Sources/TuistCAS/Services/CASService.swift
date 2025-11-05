@@ -14,14 +14,29 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
     private let loadCacheCASService: LoadCacheCASServicing
     private let fileSystem: FileSysteming
     private let metadataStore: CASTaskMetadataStoring
+    private let dataCompressingService: DataCompressingServicing
 
     public init(
         fullHandle: String,
+        serverURL: URL
+    ) {
+        self.fullHandle = fullHandle
+        self.serverURL = serverURL
+        saveCacheCASService = SaveCacheCASService()
+        loadCacheCASService = LoadCacheCASService()
+        fileSystem = FileSystem()
+        dataCompressingService = DataCompressingService()
+        metadataStore = FileCASTaskMetadataStore()
+    }
+
+    init(
+        fullHandle: String,
         serverURL: URL,
-        saveCacheCASService: SaveCacheCASServicing = SaveCacheCASService(),
-        loadCacheCASService: LoadCacheCASServicing = LoadCacheCASService(),
-        fileSystem: FileSysteming = FileSystem(),
-        metadataStore: CASTaskMetadataStoring = FileCASTaskMetadataStore()
+        saveCacheCASService: SaveCacheCASServicing,
+        loadCacheCASService: LoadCacheCASServicing,
+        fileSystem: FileSysteming,
+        dataCompressingService: DataCompressingServicing,
+        metadataStore: CASTaskMetadataStoring
     ) {
         self.fullHandle = fullHandle
         self.serverURL = serverURL
@@ -29,6 +44,7 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
         self.loadCacheCASService = loadCacheCASService
         self.fileSystem = fileSystem
         self.metadataStore = metadataStore
+        self.dataCompressingService = dataCompressingService
     }
 
     public func load(
@@ -51,14 +67,27 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
         Logger.current.debug("CAS.load starting - casID: \(casID)")
 
         do {
-            let data = try await loadCacheCASService.loadCacheCAS(
+            let compressedData = try await loadCacheCASService.loadCacheCAS(
                 casId: casID,
                 fullHandle: fullHandle,
                 serverURL: serverURL
             )
 
+            let decompressedData: Data
+            do {
+                decompressedData = try await dataCompressingService.decompress(compressedData)
+            } catch {
+                Logger.current.error("CAS.load failed to decompress data: \(error)")
+                response.outcome = .error
+                var responseError = CompilationCacheService_Cas_V1_ResponseError()
+                responseError.description_p = error.userFriendlyDescription()
+                response.error = responseError
+                response.contents = .error(responseError)
+                return response
+            }
+
             var bytes = CompilationCacheService_Cas_V1_CASBytes()
-            bytes.data = data
+            bytes.data = decompressedData
 
             var blob = CompilationCacheService_Cas_V1_CASBlob()
             blob.blob = bytes
@@ -79,7 +108,7 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
             let duration = ProcessInfo.processInfo.systemUptime - startTime
             Logger.current
                 .debug(
-                    "CAS.load completed successfully in \(String(format: "%.3f", duration))s - loaded \(data.count) bytes for casID: \(casID)"
+                    "CAS.load completed successfully in \(String(format: "%.3f", duration))s - loaded \(compressedData.count) compressed bytes, decompressed to \(decompressedData.count) bytes for casID: \(casID)"
                 )
         } catch {
             response.outcome = .error
@@ -123,17 +152,33 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
             Logger.current.debug("CAS.save starting - data size: \(data.count) bytes")
         }
 
-        let hash = SHA256.hash(data: data)
+        let compressedData: Data
+        do {
+            compressedData = try await dataCompressingService.compress(data)
+        } catch {
+            Logger.current.error("CAS.save failed to compress data: \(error)")
+            var responseError = CompilationCacheService_Cas_V1_ResponseError()
+            responseError.description_p = "Failed to compress data: \(error.localizedDescription)"
+            response.error = responseError
+            response.contents = .error(responseError)
+            return response
+        }
+
+        let dataWithVersion = data + "cache-v1".data(using: .utf8)!
+        let hash = SHA256.hash(data: dataWithVersion)
         let fingerprint = hash.compactMap { String(format: "%02X", $0) }.joined()
 
         var message = CompilationCacheService_Cas_V1_CASDataID()
         message.id = fingerprint.data(using: .utf8)!
 
-        Logger.current.debug("CAS.save computed fingerprint: \(fingerprint), data size: \(data.count) bytes")
+        Logger.current
+            .debug(
+                "CAS.save computed fingerprint: \(fingerprint), original size: \(data.count) bytes, compressed size: \(compressedData.count) bytes"
+            )
 
         do {
             try await saveCacheCASService.saveCacheCAS(
-                data,
+                compressedData,
                 casId: fingerprint,
                 fullHandle: fullHandle,
                 serverURL: serverURL

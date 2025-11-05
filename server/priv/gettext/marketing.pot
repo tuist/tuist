@@ -16,13 +16,6 @@ msgstr ""
 msgid "\"We could solve our immediate problems and do so while maintaining a familiar"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/blog_post.html.heex:25
-#, elixir-autogen, elixir-format
-msgid "%{count} minute"
-msgid_plural "%{count} minutes"
-msgstr[0] ""
-msgstr[1] ""
-
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:85
 #, elixir-autogen, elixir-format
 msgid "105 remote binaries pulled"
@@ -1611,7 +1604,7 @@ msgstr ""
 msgid "per additional unit"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/blog_post.html.heex:53
+#: lib/tuist_web/marketing/controllers/marketing_html/blog_post.html.heex:44
 #, elixir-autogen, elixir-format
 msgid "AI writes faster. So should your builds."
 msgstr ""

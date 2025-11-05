@@ -44,6 +44,7 @@ defmodule TuistWeb.Router do
     plug :put_root_layout, html: {TuistWeb.Layouts, :app}
     plug :protect_from_forgery
     plug :put_secure_browser_headers
+    plug TuistWeb.Plugs.UeberauthHostPlug
     plug :fetch_current_user
     plug :content_security_policy
   end
@@ -66,6 +67,7 @@ defmodule TuistWeb.Router do
     plug :fetch_live_flash
     plug :protect_from_forgery
     plug :put_secure_browser_headers
+    plug TuistWeb.Plugs.UeberauthHostPlug
     plug Ueberauth
   end
 
@@ -78,6 +80,7 @@ defmodule TuistWeb.Router do
     plug :fetch_live_flash
     plug :put_root_layout, html: {TuistWeb.Layouts, :app}
     plug :put_secure_browser_headers
+    plug TuistWeb.Plugs.UeberauthHostPlug
     plug Ueberauth
     plug :fetch_current_user
     plug :content_security_policy
@@ -91,6 +94,7 @@ defmodule TuistWeb.Router do
     plug :put_root_layout, html: {TuistWeb.Marketing.Layouts, :root}
     plug :protect_from_forgery
     plug :put_secure_browser_headers
+    plug TuistWeb.Plugs.UeberauthHostPlug
     plug Ueberauth
     plug :fetch_current_user
     plug :assign_current_path

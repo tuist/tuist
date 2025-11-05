@@ -480,6 +480,7 @@ let targets: [Target] = [
             .product(name: "GRPCCore", package: "grpc-swift-2"),
             .product(name: "GRPCProtobuf", package: "grpc-swift-protobuf"),
             .product(name: "SwiftProtobuf", package: "swift-protobuf"),
+            .product(name: "libzstd", package: "zstd"),
             "Mockable",
             pathDependency,
         ],
@@ -696,6 +697,7 @@ let package = Package(
         ),
         .package(url: "https://github.com/grpc/grpc-swift-protobuf.git", from: "2.0.0"),
         .package(url: "https://github.com/grpc/grpc-swift-nio-transport.git", from: "2.0.0"),
+        .package(url: "https://github.com/facebook/zstd.git", from: "1.5.0"),
     ],
     targets: targets,
     swiftLanguageModes: [.v5]

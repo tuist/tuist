@@ -1,0 +1,32 @@
+service: cache
+image: tuist/cache
+
+servers:
+  web:
+    hosts:
+      - 91.98.81.176
+      - 5.161.218.106
+    proxy: false
+    options:
+      network-alias: cache-app
+      publish:
+        - "127.0.0.1:4000:4000"
+
+registry:
+  server: ghcr.io
+  username: cschmatzler
+  password:
+    - KAMAL_REGISTRY_PASSWORD
+
+builder:
+  arch: amd64
+
+env:
+  clear:
+    SERVER_URL: https://staging.tuist.dev
+    CAS_STORAGE_DIR: /cas
+  secret:
+    - SECRET_KEY_BASE
+
+volumes:
+  - /cas:/cas:rw
