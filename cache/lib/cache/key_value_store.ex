@@ -8,7 +8,7 @@ defmodule Cache.KeyValueStore do
 
   @cache_name :cache_keyvalue_store
   # 1 week
-  @ttl_ms :timer.hours(24 * 7)
+  @ttl_ms to_timeout(week: 1)
 
   @doc """
   Starts the cache with the configured settings.
@@ -56,7 +56,7 @@ defmodule Cache.KeyValueStore do
   defp cache_options do
     [
       stats: false,
-      expiration: expiration(default: @ttl_ms, interval: :timer.minutes(5)),
+      expiration: expiration(default: @ttl_ms, interval: to_timeout(minute: 5)),
       backend_options: [read_concurrency: true, write_concurrency: true]
     ]
   end

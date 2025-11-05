@@ -5,16 +5,30 @@ defmodule Cache.Application do
 
   @impl true
   def start(_type, _args) do
+    if System.get_env("SKIP_MIGRATIONS") != "true" do
+      migrate()
+    end
+
     children = [
+      Cache.Repo,
       {Phoenix.PubSub, name: Cache.PubSub},
       Cache.Authentication,
       Cache.KeyValueStore,
       CacheWeb.Endpoint,
-      {Finch, name: Cache.Finch}
+      {Finch, name: Cache.Finch},
+      {Oban, Application.get_env(:cache, Oban)}
     ]
 
     opts = [strategy: :one_for_one, name: Cache.Supervisor]
     Supervisor.start_link(children, opts)
+  end
+
+  defp migrate do
+    repos = Application.fetch_env!(:cache, :ecto_repos)
+
+    for repo <- repos do
+      {:ok, _, _} = Ecto.Migrator.with_repo(repo, &Ecto.Migrator.run(&1, :up, all: true))
+    end
   end
 
   @impl true

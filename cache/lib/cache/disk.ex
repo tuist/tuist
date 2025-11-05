@@ -12,35 +12,36 @@ defmodule Cache.Disk do
 
   ## Examples
 
-      iex> Cache.Disk.exists?("account/project/cas/abc123")
+      iex> Cache.Disk.exists?("account", "project", "abc123")
       true
   """
 
-  def exists?(key) do
-    key
+  def exists?(account_handle, project_handle, id) do
+    account_handle
+    |> cas_key(project_handle, id)
     |> artifact_path()
     |> File.exists?()
   end
 
   @doc """
-  Writes data to disk for the given key.
+  Writes data to disk for given account, project, and artifact ID.
 
-  Accepts either binary data or a file path. For file paths, the file is moved
+  Accepts either binary data or a file path. For file paths, file is moved
   into place without reading into memory (efficient for large uploads).
 
   Creates parent directories if they don't exist.
 
   ## Examples
 
-      iex> Cache.Disk.put("account/project/cas/abc123", <<1, 2, 3>>)
+      iex> Cache.Disk.put("account", "project", "abc123", <<1, 2, 3>>)
       :ok
 
-      iex> Cache.Disk.put("account/project/cas/abc123", {:file, "/tmp/upload-123"})
+      iex> Cache.Disk.put("account", "project", "abc123", {:file, "/tmp/upload-123"})
       :ok
   """
 
-  def put(key, {:file, tmp_path}) do
-    path = artifact_path(key)
+  def put(account_handle, project_handle, id, {:file, tmp_path}) do
+    path = account_handle |> cas_key(project_handle, id) |> artifact_path()
 
     with :ok <- ensure_directory(path),
          :ok <- move_file(tmp_path, path) do
@@ -52,8 +53,8 @@ defmodule Cache.Disk do
     end
   end
 
-  def put(key, data) when is_binary(data) do
-    path = artifact_path(key)
+  def put(account_handle, project_handle, id, data) when is_binary(data) do
+    path = account_handle |> cas_key(project_handle, id) |> artifact_path()
 
     with :ok <- ensure_directory(path),
          :ok <- File.write(path, data) do
@@ -63,16 +64,6 @@ defmodule Cache.Disk do
         Logger.error("Failed to write CAS artifact to #{path}: #{inspect(reason)}")
         error
     end
-  end
-
-  @doc """
-  Moves a temporary file into place for the given key without reading it into memory.
-
-  Deprecated: Use `put(key, {:file, tmp_path})` instead.
-  """
-
-  def put_file(key, tmp_path) do
-    put(key, {:file, tmp_path})
   end
 
   @doc """
@@ -89,6 +80,18 @@ defmodule Cache.Disk do
   end
 
   @doc """
+  Constructs a CAS key from account handle, project handle, and artifact ID.
+
+  ## Examples
+
+      iex> Cache.Disk.cas_key("account", "project", "abc123")
+      "account/project/cas/abc123"
+  """
+  def cas_key(account_handle, project_handle, id) do
+    "#{account_handle}/#{project_handle}/cas/#{id}"
+  end
+
+  @doc """
   Returns the configured storage directory for CAS artifacts.
 
   Defaults to "tmp/cas" if not configured.
@@ -96,6 +99,24 @@ defmodule Cache.Disk do
 
   def storage_dir do
     Application.get_env(:cache, :cas)[:storage_dir]
+  end
+
+  @doc """
+  Returns local file path for a given account, project, and artifact ID if the file exists.
+
+  ## Examples
+
+      iex> Cache.Disk.get_local_path("account", "project", "abc123")
+      {:ok, "/var/tuist/cas/account/project/cas/abc123"}
+  """
+  def get_local_path(account_handle, project_handle, id) do
+    path = account_handle |> cas_key(project_handle, id) |> artifact_path()
+
+    if File.exists?(path) do
+      {:ok, path}
+    else
+      {:error, :not_found}
+    end
   end
 
   defp ensure_directory(file_path) do

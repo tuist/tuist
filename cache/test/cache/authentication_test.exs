@@ -2,8 +2,9 @@ defmodule Cache.AuthenticationTest do
   use ExUnit.Case, async: true
   use Mimic
 
-  alias Cache.Authentication
   import Cache.Authentication
+
+  alias Cache.Authentication
 
   @cache_name :cas_auth_cache
   @test_auth_header "Bearer test-token-123"
@@ -12,9 +13,7 @@ defmodule Cache.AuthenticationTest do
   setup do
     Cachex.clear(@cache_name)
 
-    Authentication
-    |> stub(:server_url, fn -> @test_server_url end)
-
+    stub(Authentication, :server_url, fn -> @test_server_url end)
     :ok
   end
 
@@ -124,7 +123,7 @@ defmodule Cache.AuthenticationTest do
       projects = [%{"full_name" => "account/project"}]
       conn = build_conn([{"authorization", @test_auth_header}])
 
-      Req.Test.expect(Cache.Authentication, fn conn ->
+      Req.Test.expect(Authentication, fn conn ->
         Req.Test.json(conn, %{"projects" => projects})
       end)
 
@@ -186,7 +185,7 @@ defmodule Cache.AuthenticationTest do
     test "returns valid child spec for supervision tree" do
       spec = Authentication.child_spec([])
 
-      assert %{id: Cache.Authentication, start: {Cachex, :start_link, [@cache_name, []]}} = spec
+      assert %{id: Authentication, start: {Cachex, :start_link, [@cache_name, []]}} = spec
     end
   end
 
@@ -202,7 +201,7 @@ defmodule Cache.AuthenticationTest do
   end
 
   defp stub_api_call_with_headers(status, body, expected_headers) do
-    Req.Test.stub(Cache.Authentication, fn conn ->
+    Req.Test.stub(Authentication, fn conn ->
       if expected_headers do
         for {key, value} <- expected_headers do
           assert value in Plug.Conn.get_req_header(conn, key)

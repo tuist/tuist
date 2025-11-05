@@ -12,8 +12,7 @@ defmodule CacheWeb.KeyValueControllerTest do
       project_handle = "test-project"
       cas_id = "test_cas_id_123"
 
-      Authentication
-      |> expect(:ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
+      expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
         {:ok, "Bearer valid-token"}
       end)
 
@@ -40,8 +39,7 @@ defmodule CacheWeb.KeyValueControllerTest do
       project_handle = "test-project"
       cas_id = "nonexistent_cas_id"
 
-      Authentication
-      |> expect(:ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
+      expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
         {:ok, "Bearer valid-token"}
       end)
 
@@ -62,8 +60,7 @@ defmodule CacheWeb.KeyValueControllerTest do
       project_handle = "test-project"
       cas_id = "test_cas_id"
 
-      Authentication
-      |> expect(:ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
+      expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
         {:error, 401, "Missing Authorization header"}
       end)
 
@@ -82,8 +79,7 @@ defmodule CacheWeb.KeyValueControllerTest do
       project_handle = "test-project"
       cas_id = "test_cas_id"
 
-      Authentication
-      |> expect(:ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
+      expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
         {:error, 404, "Unauthorized or not found"}
       end)
 
@@ -106,8 +102,7 @@ defmodule CacheWeb.KeyValueControllerTest do
       project_handle = "test-project"
       cas_id = "test_cas_id_123"
 
-      Authentication
-      |> expect(:ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
+      expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
         {:ok, "Bearer valid-token"}
       end)
 
@@ -134,8 +129,7 @@ defmodule CacheWeb.KeyValueControllerTest do
       project_handle = "test-project"
       cas_id = "nonexistent_cas_id"
 
-      Authentication
-      |> expect(:ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
+      expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
         {:ok, "Bearer valid-token"}
       end)
 
@@ -156,8 +150,7 @@ defmodule CacheWeb.KeyValueControllerTest do
       project_handle = "test-project"
       cas_id = "test_cas_id"
 
-      Authentication
-      |> expect(:ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
+      expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
         {:error, 401, "Missing Authorization header"}
       end)
 
@@ -176,8 +169,7 @@ defmodule CacheWeb.KeyValueControllerTest do
       project_handle = "test-project"
       cas_id = "test_cas_id"
 
-      Authentication
-      |> expect(:ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
+      expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
         {:error, 404, "Unauthorized or not found"}
       end)
 
@@ -200,8 +192,7 @@ defmodule CacheWeb.KeyValueControllerTest do
       project_handle = "test-project"
       cas_id = "test_cas_id_123"
 
-      Authentication
-      |> expect(:ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
+      expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
         {:ok, "Bearer valid-token"}
       end)
 
@@ -240,8 +231,7 @@ defmodule CacheWeb.KeyValueControllerTest do
       account_handle = "test-account"
       project_handle = "test-project"
 
-      Authentication
-      |> expect(:ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
+      expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
         {:error, 401, "Missing Authorization header"}
       end)
 
@@ -266,8 +256,7 @@ defmodule CacheWeb.KeyValueControllerTest do
       account_handle = "test-account"
       project_handle = "test-project"
 
-      Authentication
-      |> expect(:ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
+      expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
         {:error, 404, "Unauthorized or not found"}
       end)
 
