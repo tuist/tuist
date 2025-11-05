@@ -206,7 +206,9 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
       assert result.status == 200
     end
 
-    test "creates pending QA run when no app build exists and feature flag is enabled", %{conn: conn} do
+    test "creates pending QA run when no app build exists and feature flag is enabled", %{
+      conn: conn
+    } do
       # Given
       organization = AccountsFixtures.organization_fixture()
       account = Repo.get_by!(Account, organization_id: organization.id)
@@ -299,6 +301,26 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
       assert result.status == 200
     end
 
+    test "handles installation deleted event when installation not found", %{conn: conn} do
+      # Given
+      installation_id = "99999"
+      conn = put_req_header(conn, "x-github-event", "installation")
+
+      expect(VCS, :get_github_app_installation_by_installation_id, fn ^installation_id ->
+        {:error, :not_found}
+      end)
+
+      # When
+      result =
+        GitHubController.handle(conn, %{
+          "action" => "deleted",
+          "installation" => %{"id" => installation_id}
+        })
+
+      # Then
+      assert result.status == 200
+    end
+
     test "handles installation created event successfully", %{conn: conn} do
       # Given
       user = AccountsFixtures.user_fixture()
@@ -318,8 +340,30 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
         {:ok, github_app_installation}
       end)
 
-      expect(VCS, :update_github_app_installation, fn ^github_app_installation, %{html_url: ^html_url} ->
+      expect(VCS, :update_github_app_installation, fn ^github_app_installation,
+                                                      %{html_url: ^html_url} ->
         {:ok, %{github_app_installation | html_url: html_url}}
+      end)
+
+      # When
+      result =
+        GitHubController.handle(conn, %{
+          "action" => "created",
+          "installation" => %{"id" => installation_id, "html_url" => html_url}
+        })
+
+      # Then
+      assert result.status == 200
+    end
+
+    test "handles installation created event when installation not found", %{conn: conn} do
+      # Given
+      installation_id = "88888"
+      html_url = "https://github.com/organizations/tuist/settings/installations/88888"
+      conn = put_req_header(conn, "x-github-event", "installation")
+
+      expect(VCS, :get_github_app_installation_by_installation_id, fn ^installation_id ->
+        {:error, :not_found}
       end)
 
       # When
@@ -397,7 +441,9 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
       # Given
       conn = put_req_header(conn, "x-github-event", "issue_comment")
 
-      expect(Projects, :project_by_name_and_vcs_repository_full_handle, fn "nonexistent", "org/monorepo", _ ->
+      expect(Projects, :project_by_name_and_vcs_repository_full_handle, fn "nonexistent",
+                                                                           "org/monorepo",
+                                                                           _ ->
         {:error, :not_found}
       end)
 
@@ -468,7 +514,8 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
       assert result.status == 200
     end
 
-    test "handles multiple projects connected to same repository with deterministic comment creation", %{conn: conn} do
+    test "handles multiple projects connected to same repository with deterministic comment creation",
+         %{conn: conn} do
       # Given
       organization = AccountsFixtures.organization_fixture()
       account = Repo.get_by!(Account, organization_id: organization.id)

@@ -83,7 +83,10 @@ defmodule TuistWeb.Webhooks.GitHubController do
     |> json(%{status: "ok"})
   end
 
-  defp handle_installation(conn, %{"action" => "deleted", "installation" => %{"id" => installation_id}}) do
+  defp handle_installation(conn, %{
+         "action" => "deleted",
+         "installation" => %{"id" => installation_id}
+       }) do
     {:ok, _} = delete_github_app_installation(installation_id)
 
     conn
@@ -111,10 +114,15 @@ defmodule TuistWeb.Webhooks.GitHubController do
   defp get_project_for_qa(qa_result, repository_full_name) do
     case qa_result do
       {project_name, _prompt} when not is_nil(project_name) ->
-        Projects.project_by_name_and_vcs_repository_full_handle(project_name, repository_full_name, preload: :account)
+        Projects.project_by_name_and_vcs_repository_full_handle(
+          project_name,
+          repository_full_name,
+          preload: :account
+        )
 
       {nil, _prompt} ->
-        projects = Projects.projects_by_vcs_repository_full_handle(repository_full_name, preload: :account)
+        projects =
+          Projects.projects_by_vcs_repository_full_handle(repository_full_name, preload: :account)
 
         case projects do
           [] -> {:error, :not_found}
@@ -225,12 +233,22 @@ defmodule TuistWeb.Webhooks.GitHubController do
   end
 
   defp delete_github_app_installation(installation_id) do
-    {:ok, github_app_installation} = VCS.get_github_app_installation_by_installation_id(installation_id)
-    VCS.delete_github_app_installation(github_app_installation)
+    case VCS.get_github_app_installation_by_installation_id(installation_id) do
+      {:ok, github_app_installation} ->
+        VCS.delete_github_app_installation(github_app_installation)
+
+      {:error, :not_found} ->
+        {:ok, :already_deleted}
+    end
   end
 
   defp update_github_app_installation_html_url(installation_id, html_url) do
-    {:ok, github_app_installation} = VCS.get_github_app_installation_by_installation_id(installation_id)
-    VCS.update_github_app_installation(github_app_installation, %{html_url: html_url})
+    case VCS.get_github_app_installation_by_installation_id(installation_id) do
+      {:ok, github_app_installation} ->
+        VCS.update_github_app_installation(github_app_installation, %{html_url: html_url})
+
+      {:error, :not_found} ->
+        {:error, :not_found}
+    end
   end
 end
