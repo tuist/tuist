@@ -13,7 +13,7 @@ public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.Si
     private let putCacheValueService: PutCacheValueServicing
     private let getCacheValueService: GetCacheValueServicing
     private let fileSystem: FileSystem
-    private let nodeMappingStore: CASNodeMappingStoring
+    private let nodeMappingStore: CASNodeStoring
 
     public init(
         fullHandle: String,
@@ -21,7 +21,7 @@ public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.Si
         putCacheValueService: PutCacheValueServicing = PutCacheValueService(),
         getCacheValueService: GetCacheValueServicing = GetCacheValueService(),
         fileSystem: FileSystem = FileSystem(),
-        nodeMappingStore: CASNodeMappingStoring = CASNodeStore()
+        nodeMappingStore: CASNodeStoring = CASNodeStore()
     ) {
         self.fullHandle = fullHandle
         self.serverURL = serverURL

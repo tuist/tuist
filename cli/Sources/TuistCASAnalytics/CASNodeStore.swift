@@ -3,7 +3,16 @@ import Foundation
 import Path
 import TuistSupport
 
-public final class CASNodeStore: CASNodeMappingStoring {
+/// Protocol for storing and retrieving CAS node ID to checksum mappings
+public protocol CASNodeStoring: Sendable {
+    /// Store a mapping between a node ID and checksum hex
+    func storeNode(_ nodeID: String, checksum: String) async throws
+
+    /// Retrieve checksum hex for a given node ID
+    func checksum(for nodeID: String) async throws -> String?
+}
+
+public final class CASNodeStore: CASNodeStoring {
     private let fileSystem: FileSysteming
 
     public init(fileSystem: FileSysteming = FileSystem()) {

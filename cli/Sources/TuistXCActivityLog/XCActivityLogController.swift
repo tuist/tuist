@@ -41,14 +41,14 @@ public struct XCActivityLogController: XCActivityLogControlling {
     private let fileSystem: FileSystem
     private let rootDirectoryLocator: RootDirectoryLocating
     private let gitController: GitControlling
-    private let nodeMappingStore: CASNodeMappingStoring
+    private let nodeMappingStore: CASNodeStoring
     private let metadataStore: CASOutputMetadataStoring
 
     public init(
         fileSystem: FileSystem = FileSystem(),
         rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator(),
         gitController: GitControlling = GitController(),
-        nodeMappingStore: CASNodeMappingStoring = CASNodeStore(),
+        nodeMappingStore: CASNodeStoring = CASNodeStore(),
         metadataStore: CASOutputMetadataStoring = CASOutputMetadataStore()
     ) {
         self.fileSystem = fileSystem
