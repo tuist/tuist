@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.99.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* Fix buildable folder resource placement for static targets by [@natanrolnik](https://github.com/natanrolnik) in [#8548](https://github.com/tuist/tuist/pull/8548)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.99.0...4.99.1
+
 ## What's Changed in 4.99.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
