@@ -3,7 +3,7 @@ import Foundation
 import Path
 import TuistSupport
 
-public final class FileCASOutputMetadataStore: CASOutputMetadataStoring {
+public final class CASOutputMetadataStore: CASOutputMetadataStoring {
     private let fileSystem: FileSysteming
 
     public init(fileSystem: FileSysteming = FileSystem()) {

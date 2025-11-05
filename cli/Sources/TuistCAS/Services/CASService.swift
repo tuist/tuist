@@ -26,7 +26,7 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
         loadCacheCASService = LoadCacheCASService()
         fileSystem = FileSystem()
         dataCompressingService = DataCompressingService()
-        metadataStore = FileCASOutputMetadataStore()
+        metadataStore = CASOutputMetadataStore()
     }
 
     init(

@@ -21,7 +21,7 @@ public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.Si
         putCacheValueService: PutCacheValueServicing = PutCacheValueService(),
         getCacheValueService: GetCacheValueServicing = GetCacheValueService(),
         fileSystem: FileSystem = FileSystem(),
-        nodeMappingStore: CASNodeMappingStoring = FileCASNodeMappingStore()
+        nodeMappingStore: CASNodeMappingStoring = CASNodeStore()
     ) {
         self.fullHandle = fullHandle
         self.serverURL = serverURL

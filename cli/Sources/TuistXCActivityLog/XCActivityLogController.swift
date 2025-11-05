@@ -48,8 +48,8 @@ public struct XCActivityLogController: XCActivityLogControlling {
         fileSystem: FileSystem = FileSystem(),
         rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator(),
         gitController: GitControlling = GitController(),
-        nodeMappingStore: CASNodeMappingStoring = FileCASNodeMappingStore(),
-        metadataStore: CASOutputMetadataStoring = FileCASOutputMetadataStore()
+        nodeMappingStore: CASNodeMappingStoring = CASNodeStore(),
+        metadataStore: CASOutputMetadataStoring = CASOutputMetadataStore()
     ) {
         self.fileSystem = fileSystem
         self.rootDirectoryLocator = rootDirectoryLocator

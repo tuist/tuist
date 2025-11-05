@@ -3,7 +3,7 @@ import Foundation
 import Path
 import TuistSupport
 
-public final class FileCASNodeMappingStore: CASNodeMappingStoring {
+public final class CASNodeStore: CASNodeMappingStoring {
     private let fileSystem: FileSysteming
 
     public init(fileSystem: FileSysteming = FileSystem()) {
