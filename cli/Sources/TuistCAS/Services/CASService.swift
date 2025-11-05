@@ -4,6 +4,7 @@ import Foundation
 import GRPCCore
 import Logging
 import Path
+import TuistCASAnalytics
 import TuistServer
 
 public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServiceProtocol {
@@ -12,19 +13,22 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
     private let saveCacheCASService: SaveCacheCASServicing
     private let loadCacheCASService: LoadCacheCASServicing
     private let fileSystem: FileSysteming
+    private let metadataStore: CASTaskMetadataStoring
 
     public init(
         fullHandle: String,
         serverURL: URL,
         saveCacheCASService: SaveCacheCASServicing = SaveCacheCASService(),
         loadCacheCASService: LoadCacheCASServicing = LoadCacheCASService(),
-        fileSystem: FileSysteming = FileSystem()
+        fileSystem: FileSysteming = FileSystem(),
+        metadataStore: CASTaskMetadataStoring = FileCASTaskMetadataStore()
     ) {
         self.fullHandle = fullHandle
         self.serverURL = serverURL
         self.saveCacheCASService = saveCacheCASService
         self.loadCacheCASService = loadCacheCASService
         self.fileSystem = fileSystem
+        self.metadataStore = metadataStore
     }
 
     public func load(
@@ -61,6 +65,16 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
 
             response.contents = .data(blob)
             response.outcome = .success
+
+            // Store metadata for the load operation in background
+            Task {
+                let metadata = CASTaskMetadata(size: data.count)
+                do {
+                    try await metadataStore.storeMetadata(metadata, for: casID)
+                } catch {
+                    Logger.current.error("Failed to store CAS load metadata for casID: \(casID): \(error)")
+                }
+            }
 
             let duration = ProcessInfo.processInfo.systemUptime - startTime
             Logger.current
@@ -126,6 +140,16 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
             )
             response.casID = message
             response.contents = .casID(message)
+
+            // Store metadata for the save operation in background
+            Task {
+                let metadata = CASTaskMetadata(size: data.count)
+                do {
+                    try await metadataStore.storeMetadata(metadata, for: fingerprint)
+                } catch {
+                    Logger.current.error("Failed to store CAS save metadata for fingerprint: \(fingerprint): \(error)")
+                }
+            }
 
             let duration = ProcessInfo.processInfo.systemUptime - startTime
             Logger.current

@@ -476,6 +476,7 @@ let targets: [Target] = [
         dependencies: [
             "TuistServer",
             "TuistRootDirectoryLocator",
+            "TuistCASAnalytics",
             .product(name: "GRPCCore", package: "grpc-swift-2"),
             .product(name: "GRPCProtobuf", package: "grpc-swift-protobuf"),
             .product(name: "SwiftProtobuf", package: "swift-protobuf"),
@@ -484,6 +485,19 @@ let targets: [Target] = [
         ],
         path: "cli/Sources/TuistCAS",
         exclude: ["cas.proto", "keyvalue.proto", "grpc-swift-proto-generator-config.json"],
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug))
+        ]
+    ),
+    .target(
+        name: "TuistCASAnalytics",
+        dependencies: [
+            "TuistSupport",
+            "FileSystem",
+            pathDependency,
+            "Mockable",
+        ],
+        path: "cli/Sources/TuistCASAnalytics",
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug))
         ]

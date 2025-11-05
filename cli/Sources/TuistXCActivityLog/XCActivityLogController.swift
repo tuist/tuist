@@ -2,6 +2,7 @@ import FileSystem
 import Foundation
 import Mockable
 import Path
+import TuistCASAnalytics
 import TuistGit
 import TuistRootDirectoryLocator
 import TuistSupport
@@ -40,15 +41,21 @@ public struct XCActivityLogController: XCActivityLogControlling {
     private let fileSystem: FileSystem
     private let rootDirectoryLocator: RootDirectoryLocating
     private let gitController: GitControlling
+    private let nodeMappingStore: CASNodeMappingStoring
+    private let metadataStore: CASTaskMetadataStoring
 
     public init(
         fileSystem: FileSystem = FileSystem(),
         rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator(),
-        gitController: GitControlling = GitController()
+        gitController: GitControlling = GitController(),
+        nodeMappingStore: CASNodeMappingStoring = FileCASNodeMappingStore(),
+        metadataStore: CASTaskMetadataStoring = FileCASTaskMetadataStore()
     ) {
         self.fileSystem = fileSystem
         self.rootDirectoryLocator = rootDirectoryLocator
         self.gitController = gitController
+        self.nodeMappingStore = nodeMappingStore
+        self.metadataStore = metadataStore
     }
 
     public func buildTimesByTarget(projectDerivedDataDirectory: AbsolutePath) async throws
@@ -194,6 +201,8 @@ public struct XCActivityLogController: XCActivityLogControlling {
             buildStartTime: activityLog.mainSection.timeStartedRecording
         )
 
+        let casTasks = try await analyzeCASKeys(from: steps)
+
         return XCActivityLog(
             version: activityLog.version,
             mainSection: XCActivityLogSection(
@@ -218,7 +227,8 @@ public struct XCActivityLogController: XCActivityLogControlling {
                         .contains(where: { ($0.errors ?? []).contains(where: { $0.severity == 2 }) }) ? .failure : .success
                 )
             },
-            cacheableTasks: cacheableTasks
+            cacheableTasks: cacheableTasks,
+            casTasks: casTasks
         )
     }
 
@@ -462,6 +472,39 @@ public struct XCActivityLogController: XCActivityLogControlling {
         )
     }
 
+    private func analyzeCASKeys(from buildSteps: [XCLogParser.BuildStep]) async throws -> [CASTask] {
+        let nodeIDs = extractNodeIDs(from: buildSteps)
+        
+        let casTasks = try await nodeIDs.concurrentMap { nodeID in
+            let checksum = try await self.nodeMappingStore.checksum(for: nodeID)
+            var size: Int?
+            
+            // Get metadata using the checksum if available
+            if let checksumValue = checksum {
+                do {
+                    let metadata = try await self.metadataStore.metadata(for: checksumValue)
+                    size = metadata?.size
+                } catch {
+                    // Log error but continue with checksum only
+                }
+            }
+            
+            return CASTask(nodeID: nodeID, checksum: checksum, size: size)
+        }
+        
+        return casTasks
+    }
+    
+    private func extractNodeIDs(from buildSteps: [XCLogParser.BuildStep]) -> [String] {
+        return buildSteps.compactMap { step in
+            guard step.title.contains("Swift caching") && step.title.contains("materialize outputs from") else {
+                return nil
+            }
+            
+            return extractNodeIDFromMaterializeOutput(from: step.title)
+        }
+    }
+
     private func extractCacheSteps(from buildSteps: [XCLogParser.BuildStep]) -> [CacheStep] {
         return buildSteps.compactMap { step in
             guard step.title.contains("Swift caching") || step.title.contains("Clang caching") else {
@@ -503,6 +546,12 @@ public struct XCActivityLogController: XCActivityLogControlling {
             return nil
         }
         return String(title[keyRange])
+    }
+
+    private func extractNodeIDFromMaterializeOutput(from title: String) -> String? {
+        // Look for pattern like "materialize outputs from 0~2RChGLVUbFYywptVOBlPj1PMji8tjYNewcA2JotitM54zN26O0V8bbRDNXy_mHUpqvS2RBv8jaNmZmspWzMJbg=="
+        let pattern = "materialize outputs from (0~[A-Za-z0-9+/_=-]+)"
+        return extractKeyWithPattern(pattern, from: title)
     }
 
     private func determineCacheOperation(from title: String) -> CacheOperation? {

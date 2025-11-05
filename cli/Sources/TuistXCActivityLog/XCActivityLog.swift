@@ -9,6 +9,7 @@ public struct XCActivityLog {
     public let files: [XCActivityBuildFile]
     public let targets: [XCActivityTarget]
     public let cacheableTasks: [CacheableTask]
+    public let casTasks: [CASTask]
 }
 
 #if DEBUG
@@ -21,7 +22,8 @@ public struct XCActivityLog {
             issues: [XCActivityIssue] = [],
             files: [XCActivityBuildFile] = [],
             targets: [XCActivityTarget] = [],
-            cacheableTasks: [CacheableTask] = []
+            cacheableTasks: [CacheableTask] = [],
+            casTasks: [CASTask] = []
         ) -> XCActivityLog {
             XCActivityLog(
                 version: version,
@@ -31,7 +33,8 @@ public struct XCActivityLog {
                 issues: issues,
                 files: files,
                 targets: targets,
-                cacheableTasks: cacheableTasks
+                cacheableTasks: cacheableTasks,
+                casTasks: casTasks
             )
         }
     }
