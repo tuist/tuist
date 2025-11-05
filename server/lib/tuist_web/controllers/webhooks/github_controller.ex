@@ -1,6 +1,8 @@
 defmodule TuistWeb.Webhooks.GitHubController do
   use TuistWeb, :controller
 
+  require Logger
+
   alias Tuist.AppBuilds
   alias Tuist.Environment
   alias Tuist.Projects
@@ -105,8 +107,6 @@ defmodule TuistWeb.Webhooks.GitHubController do
         |> json(%{status: "ok"})
 
       {:error, :not_found} ->
-        require Logger
-
         Logger.error(
           "Received GitHub installation.created webhook for installation_id=#{installation_id} but installation not found in database. This indicates the setup callback was not processed."
         )
