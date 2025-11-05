@@ -63,7 +63,7 @@ public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.Si
 
             Task {
                 for (_, data) in request.value.entries {
-                    await parseAndStoreMappings(from: data)
+                    await parseAndStoreCASNodes(from: data)
                 }
             }
 
@@ -114,7 +114,7 @@ public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.Si
                         value.entries["value"] = data
 
                         Task {
-                            await parseAndStoreMappings(from: data)
+                            await parseAndStoreCASNodes(from: data)
                         }
                     }
                 }
@@ -156,8 +156,17 @@ public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.Si
             .replacingOccurrences(of: "+", with: "-")
     }
 
-    /// Parse CompileJobResultResponse data and store node ID to checksum mappings
-    private func parseAndStoreMappings(from data: Data) async {
+    /// For each CAS node, we need to know what CAS checksums it relates to for CAS analytics.
+    /// This parsing is a bit tricky. Ideally, we would have a more type-safe way to parse this, but the way entry is encoded is
+    /// done in the closed source CAS plugin.
+    /// We could use the following command, but that would require us to rehash all the content, making the analysis slow:
+    /// ```
+    /// /Applications/Xcode-26.0.1.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/llvm-cas
+    /// --fcas - plugin - path = "/Applications/Xcode-26.0.1.app/Contents/Developer/usr/lib/libToolchainCASPlugin.dylib"
+    /// --cas = "/Users/marekfort/Library/Developer/Xcode/DerivedData/CompilationCache.noindex/plugin" --cat - node - data
+    /// "0~DsrOlkm-YT-52KKLfjpp4DaFdCZH6diFHz2CENsVN4SDon18_MT4ovquwH1BbkLmCaL597K3hbuINRUqRTuIgw=="
+    /// ```
+    private func parseAndStoreCASNodes(from data: Data) async {
         var offset = 0
 
         // Skip metadata at the beginning and look for CAS entries
