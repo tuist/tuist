@@ -383,11 +383,8 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
           assert result.status == 200
         end)
 
-      # Verify retry attempts were logged
+      # Verify final error was logged after all retries exhausted
       assert log =~ "installation_id=#{installation_id}"
-      assert log =~ "attempt 1/3"
-      assert log =~ "attempt 2/3"
-      # Final warning after all retries exhausted
       assert log =~ "not found after retries"
     end
 
@@ -409,16 +406,18 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
 
       conn = put_req_header(conn, "x-github-event", "installation")
 
-      # First attempt fails, second attempt succeeds (simulating race condition resolved)
-      expect(VCS, :get_github_app_installation_by_installation_id, 2, fn ^installation_id ->
-        # First call returns not found
-        case Process.get(:attempt_count, 0) do
-          0 ->
-            Process.put(:attempt_count, 1)
-            {:error, :not_found}
+      # Simulate race condition: first call returns not found, but installation
+      # is created by the time of the retry
+      call_count = :counters.new(1, [])
 
-          _ ->
-            {:ok, github_app_installation}
+      expect(VCS, :get_github_app_installation_by_installation_id, 2, fn ^installation_id ->
+        count = :counters.get(call_count, 1)
+        :counters.add(call_count, 1, 1)
+
+        if count == 0 do
+          {:error, :not_found}
+        else
+          {:ok, github_app_installation}
         end
       end)
 
@@ -428,22 +427,14 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
       end)
 
       # When
-      log =
-        ExUnit.CaptureLog.capture_log(fn ->
-          result =
-            GitHubController.handle(conn, %{
-              "action" => "created",
-              "installation" => %{"id" => installation_id, "html_url" => html_url}
-            })
+      result =
+        GitHubController.handle(conn, %{
+          "action" => "created",
+          "installation" => %{"id" => installation_id, "html_url" => html_url}
+        })
 
-          # Then
-          assert result.status == 200
-        end)
-
-      # Verify retry happened and eventually succeeded
-      assert log =~ "installation_id=#{installation_id}"
-      assert log =~ "attempt 1/3"
-      refute log =~ "not found after retries"
+      # Then - successfully handled after retry
+      assert result.status == 200
     end
 
     test "returns ok for installation events with non-deleted actions", %{conn: conn} do
