@@ -22,7 +22,7 @@ With your AI coding assistants writing boilerplate and suggesting implementation
 
 <iframe src="/blog/2025/11/6/zero-to-many/iframe.html?id=lone_wolf" width="100%" height="400" frameborder="0" data-visualization></iframe>
 
-But your app is growing. Users are signing up. And one bad commit takes down the service for three hours because there was no safety net. That's when you realize: pure velocity without quality control is just recklessness in disguise.
+But your app is growing. Users are signing up. And one bad commit ships a critical bug in your weekly release because there was no safety net. That's when you realize: pure velocity without quality control is just recklessness in disguise.
 
 ## Phase 2: Adding Safety Nets
 
@@ -30,7 +30,7 @@ You set up GitHub Actions. You create a branch called "develop" and promise your
 
 You're still moving fast. About 11 commits a day make it to main, down slightly from your solo peak but way safer. Once or twice a week you run into a merge conflict because you both touched the same file, but it's quick to resolve. Occasionally a test fails randomly, and you just rerun the CI. Your team of two, each augmented with a couple of AI coding assistants, has added 15 to 20 minutes of overhead per commit. But you've also stopped shipping bugs to production.
 
-<iframe src="/blog/2025/11/6/zero-to-many/iframe.html?id=safety_nets" width="100%" height="500" frameborder="0"></iframe>
+<iframe src="/blog/2025/11/6/zero-to-many/iframe.html?id=safety_nets" width="100%" height="400" frameborder="0" data-visualization></iframe>
 
 The app is growing. Revenue is growing. You raise a seed round and decide it's time to build a real team.
 

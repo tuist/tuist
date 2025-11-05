@@ -1,17 +1,332 @@
-<div id="dosbox"></div>
-<br />
-<button onclick="dosbox.requestFullScreen();">Make fullscreen</button>
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <script nonce={get_csp_nonce()} src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
 
-<script type="text/javascript" src="https://js-dos.com/cdn/js-dos-api.js">
-</script>
-<script type="text/javascript">
-  var dosbox = new Dosbox({
-    id: "dosbox",
-    onload: function (dosbox) {
-      dosbox.run("upload/DOOM-@evilution.zip", "./doom");
-    },
-    onrun: function (dosbox, app) {
-      console.log("App '" + app + "' is running");
-    }
-  });
-</script>
+      html, body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+      }
+
+      body {
+        background: transparent;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      }
+
+      #viz-container {
+        width: 100%;
+        height: 400px;
+        position: relative;
+        background: transparent;
+      }
+
+      .metrics-grid {
+        position: absolute;
+        top: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        gap: 16px;
+        z-index: 10;
+      }
+
+      .metric-box {
+        background: var(--noora-background-secondary, #f9fafb);
+        border: 1px solid var(--noora-border-secondary, #e5e7eb);
+        border-radius: 4px;
+        padding: 12px 16px;
+        min-width: 100px;
+      }
+
+      .metric-label {
+        font-size: 10px;
+        color: var(--noora-surface-label-tertiary, #6b7280);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: 6px;
+        font-weight: 500;
+      }
+
+      .metric-value {
+        font-size: 24px;
+        font-weight: 600;
+        color: var(--noora-surface-label-primary, #111827);
+        font-variant-numeric: tabular-nums;
+      }
+
+      svg {
+        display: block;
+      }
+
+      .grid-cell {
+        stroke: var(--noora-border-tertiary, #e5e7eb);
+        stroke-width: 1;
+        fill: #f9fafb;
+      }
+
+      .axis-label {
+        font-size: 11px;
+        font-weight: 600;
+        fill: var(--noora-surface-label-secondary, #6b7280);
+        font-family: 'SF Mono', Monaco, monospace;
+      }
+
+      .legend-item {
+        font-size: 10px;
+        fill: var(--noora-surface-label-tertiary, #6b7280);
+        font-family: 'SF Mono', Monaco, monospace;
+      }
+
+      .ripple {
+        pointer-events: none;
+        fill: none;
+        stroke-width: 2;
+        opacity: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="viz-container" phx-update="ignore">
+      <div class="metrics-grid">
+        <div class="metric-box">
+          <div class="metric-label">Commits Today</div>
+          <div class="metric-value"><span id="commits-today">0</span></div>
+        </div>
+        <div class="metric-box">
+          <div class="metric-label">Efficiency</div>
+          <div class="metric-value">100<span>%</span></div>
+        </div>
+      </div>
+
+      <svg id="heatmap-svg"></svg>
+    </div>
+
+    <script nonce={get_csp_nonce()}>
+      document.addEventListener('DOMContentLoaded', function() {
+        const container = document.getElementById('viz-container');
+        if (!container) return;
+
+        const width = container.clientWidth;
+        const height = 400;
+        const margin = { top: 100, right: 40, bottom: 60, left: 100 };
+
+        const gridWidth = width - margin.left - margin.right;
+        const gridHeight = height - margin.top - margin.bottom;
+
+        // Grid dimensions
+        const cols = 12;
+        const rows = 8;
+        const cellWidth = gridWidth / cols;
+        const cellHeight = gridHeight / rows;
+
+        let commitsToday = 0;
+
+        // Create SVG
+        const svg = d3.select("#heatmap-svg")
+          .attr("width", width)
+          .attr("height", height)
+          .attr("viewBox", [0, 0, width, height])
+          .style("background", "transparent");
+
+        const g = svg.append('g')
+          .attr('transform', `translate(${margin.left},${margin.top})`);
+
+        // Colors for different sources
+        const sources = [
+          { id: 'developer', name: 'Developer', color: '#3b82f6' },
+          { id: 'codex-local', name: 'Codex (local)', color: '#8b5cf6' },
+          { id: 'codex-remote', name: 'Codex (remote)', color: '#ec4899' }
+        ];
+
+        // Initialize grid data
+        const gridData = [];
+        for (let row = 0; row < rows; row++) {
+          for (let col = 0; col < cols; col++) {
+            gridData.push({
+              row,
+              col,
+              x: col * cellWidth,
+              y: row * cellHeight,
+              activity: 0, // 0-1 intensity
+              lastSource: null
+            });
+          }
+        }
+
+        // Draw grid
+        const cells = g.append('g').attr('class', 'cells')
+          .selectAll('rect')
+          .data(gridData)
+          .join('rect')
+          .attr('class', 'grid-cell')
+          .attr('x', d => d.x)
+          .attr('y', d => d.y)
+          .attr('width', cellWidth)
+          .attr('height', cellHeight);
+
+        // Ripple layer
+        const rippleLayer = g.append('g').attr('class', 'ripples');
+
+        // Labels
+        svg.append('text')
+          .attr('class', 'axis-label')
+          .attr('x', margin.left - 10)
+          .attr('y', margin.top - 20)
+          .attr('text-anchor', 'end')
+          .text('Codebase Areas');
+
+        svg.append('text')
+          .attr('class', 'axis-label')
+          .attr('x', width - margin.right)
+          .attr('y', height - margin.bottom + 40)
+          .attr('text-anchor', 'end')
+          .text('← Modules & Components →');
+
+        // Legend
+        const legend = svg.append('g')
+          .attr('transform', `translate(${margin.left}, ${height - 30})`);
+
+        sources.forEach((source, i) => {
+          const legendX = i * 150;
+
+          legend.append('rect')
+            .attr('x', legendX)
+            .attr('y', 0)
+            .attr('width', 12)
+            .attr('height', 12)
+            .attr('fill', source.color)
+            .attr('opacity', 0.6);
+
+          legend.append('text')
+            .attr('class', 'legend-item')
+            .attr('x', legendX + 18)
+            .attr('y', 10)
+            .text(source.name);
+        });
+
+        // Activity decay over time
+        function decayActivity() {
+          gridData.forEach(cell => {
+            if (cell.activity > 0) {
+              cell.activity *= 0.95; // Decay
+              if (cell.activity < 0.01) {
+                cell.activity = 0;
+                cell.lastSource = null;
+              }
+            }
+          });
+
+          updateCells();
+        }
+
+        function updateCells() {
+          cells
+            .attr('fill', d => {
+              if (d.activity === 0) return '#f9fafb';
+              return d.lastSource ? d.lastSource.color : '#f3f4f6';
+            })
+            .attr('fill-opacity', d => d.activity === 0 ? 1 : 0.4 + d.activity * 0.6);
+        }
+
+        function startCoding() {
+          const source = sources[Math.floor(Math.random() * sources.length)];
+
+          // Pick a random area (cluster of cells)
+          const centerCol = Math.floor(Math.random() * cols);
+          const centerRow = Math.floor(Math.random() * rows);
+
+          // Light up cells around the center
+          gridData.forEach(cell => {
+            const distance = Math.sqrt(
+              Math.pow(cell.col - centerCol, 2) +
+              Math.pow(cell.row - centerRow, 2)
+            );
+
+            if (distance < 2) {
+              cell.activity = Math.max(cell.activity, 0.8 - distance * 0.2);
+              cell.lastSource = source;
+            }
+          });
+
+          updateCells();
+        }
+
+        function createCommit() {
+          // Find active cells
+          const activeCells = gridData.filter(d => d.activity > 0.5);
+          if (activeCells.length === 0) return;
+
+          const cell = activeCells[Math.floor(Math.random() * activeCells.length)];
+
+          // Create ripple effect
+          const centerX = cell.x + cellWidth / 2;
+          const centerY = cell.y + cellHeight / 2;
+
+          const ripple = rippleLayer.append('circle')
+            .attr('class', 'ripple')
+            .attr('cx', centerX)
+            .attr('cy', centerY)
+            .attr('r', 5)
+            .attr('stroke', cell.lastSource.color);
+
+          ripple
+            .transition()
+            .duration(1500)
+            .attr('r', 80)
+            .attr('opacity', 0.6)
+            .transition()
+            .duration(500)
+            .attr('opacity', 0)
+            .remove();
+
+          // Reset that area
+          gridData.forEach(d => {
+            const distance = Math.sqrt(
+              Math.pow(d.x + cellWidth / 2 - centerX, 2) +
+              Math.pow(d.y + cellHeight / 2 - centerY, 2)
+            );
+
+            if (distance < cellWidth * 2) {
+              d.activity = 0;
+              d.lastSource = null;
+            }
+          });
+
+          updateCells();
+
+          // Update counter
+          commitsToday++;
+          d3.select('#commits-today').text(commitsToday);
+        }
+
+        // Animation loop
+        setInterval(decayActivity, 100);
+
+        // Random coding activity
+        setInterval(() => {
+          if (Math.random() > 0.3) {
+            startCoding();
+          }
+        }, 1500);
+
+        // Random commits
+        setInterval(() => {
+          if (Math.random() > 0.5) {
+            createCommit();
+          }
+        }, 3000);
+
+        // Initial activity
+        setTimeout(startCoding, 500);
+      });
+    </script>
+  </body>
+</html>
