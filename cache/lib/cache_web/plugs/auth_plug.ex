@@ -14,9 +14,10 @@ defmodule CacheWeb.Plugs.AuthPlug do
   """
 
   import Plug.Conn
-  require Logger
 
   alias Cache.Authentication
+
+  require Logger
 
   def init(opts), do: opts
 

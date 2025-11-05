@@ -19,15 +19,15 @@ defmodule CacheWeb.ConnCase do
 
   using do
     quote do
+      use CacheWeb, :verified_routes
+
+      import CacheWeb.ConnCase
+      import Phoenix.ConnTest
+      import Plug.Conn
       # The default endpoint for testing
       @endpoint CacheWeb.Endpoint
 
-      use CacheWeb, :verified_routes
-
       # Import conveniences for testing with connections
-      import Plug.Conn
-      import Phoenix.ConnTest
-      import CacheWeb.ConnCase
     end
   end
 

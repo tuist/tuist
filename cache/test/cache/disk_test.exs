@@ -4,7 +4,10 @@ defmodule Cache.DiskTest do
 
   alias Cache.Disk
 
-  @test_key "test_account/test_project/cas/abc123"
+  @test_account "test_account"
+  @test_project "test_project"
+  @test_id "abc123"
+  @test_key "#{@test_account}/#{@test_project}/cas/#{@test_id}"
 
   setup do
     {:ok, test_storage_dir} = Briefly.create(directory: true)
@@ -12,7 +15,8 @@ defmodule Cache.DiskTest do
     Disk
     |> stub(:storage_dir, fn -> test_storage_dir end)
     |> stub(:artifact_path, fn key -> Path.join(test_storage_dir, key) end)
-    |> stub(:put, fn key, data ->
+    |> stub(:put, fn account_handle, project_handle, id, data ->
+      key = "#{account_handle}/#{project_handle}/cas/#{id}"
       path = Path.join(test_storage_dir, key)
 
       case data do
@@ -27,8 +31,19 @@ defmodule Cache.DiskTest do
           :ok
       end
     end)
-    |> stub(:exists?, fn key ->
-      Path.join(test_storage_dir, key) |> File.exists?()
+    |> stub(:exists?, fn account_handle, project_handle, id ->
+      key = "#{account_handle}/#{project_handle}/cas/#{id}"
+      test_storage_dir |> Path.join(key) |> File.exists?()
+    end)
+    |> stub(:get_local_path, fn account_handle, project_handle, id ->
+      key = "#{account_handle}/#{project_handle}/cas/#{id}"
+      path = Path.join(test_storage_dir, key)
+
+      if File.exists?(path) do
+        {:ok, path}
+      else
+        {:error, :not_found}
+      end
     end)
 
     {:ok, test_storage_dir: test_storage_dir}
@@ -47,25 +62,25 @@ defmodule Cache.DiskTest do
     end
   end
 
-  describe "exists?/1" do
+  describe "exists?/3" do
     test "returns true when file exists" do
       path = Disk.artifact_path(@test_key)
       File.mkdir_p!(Path.dirname(path))
       File.write!(path, "test content")
 
-      assert Disk.exists?(@test_key) == true
+      assert Disk.exists?(@test_account, @test_project, @test_id) == true
     end
 
     test "returns false when file doesn't exist" do
-      assert Disk.exists?("nonexistent/key") == false
+      assert Disk.exists?("nonexistent", "project", "id") == false
     end
   end
 
-  describe "put/2" do
+  describe "put/4" do
     test "writes data to disk successfully" do
       data = "test artifact data"
 
-      assert Disk.put(@test_key, data) == :ok
+      assert Disk.put(@test_account, @test_project, @test_id, data) == :ok
 
       path = Disk.artifact_path(@test_key)
       assert File.exists?(path)
@@ -73,12 +88,11 @@ defmodule Cache.DiskTest do
     end
 
     test "creates parent directories if they don't exist" do
-      deep_key = "account/project/cas/deeply/nested/artifact"
       data = "nested artifact"
 
-      assert Disk.put(deep_key, data) == :ok
+      assert Disk.put("account", "project", "deeply/nested/artifact", data) == :ok
 
-      path = Disk.artifact_path(deep_key)
+      path = Disk.artifact_path("account/project/cas/deeply/nested/artifact")
       assert File.exists?(path)
       assert File.read!(path) == data
     end
@@ -89,7 +103,7 @@ defmodule Cache.DiskTest do
       File.write!(path, "old content")
 
       new_data = "new content"
-      assert Disk.put(@test_key, new_data) == :ok
+      assert Disk.put(@test_account, @test_project, @test_id, new_data) == :ok
 
       assert File.read!(path) == new_data
     end
@@ -97,10 +111,27 @@ defmodule Cache.DiskTest do
     test "handles binary data" do
       binary_data = <<1, 2, 3, 4, 5, 255, 0, 128>>
 
-      assert Disk.put(@test_key, binary_data) == :ok
+      assert Disk.put(@test_account, @test_project, @test_id, binary_data) == :ok
 
       path = Disk.artifact_path(@test_key)
       assert File.read!(path) == binary_data
+    end
+  end
+
+  describe "get_local_path/3" do
+    test "returns path when file exists" do
+      data = "test content"
+      assert Disk.put(@test_account, @test_project, @test_id, data) == :ok
+
+      result = Disk.get_local_path(@test_account, @test_project, @test_id)
+      assert {:ok, path} = result
+      assert path == Disk.artifact_path(@test_key)
+      assert File.read!(path) == data
+    end
+
+    test "returns error when file doesn't exist" do
+      result = Disk.get_local_path("nonexistent", "project", "id")
+      assert result == {:error, :not_found}
     end
   end
 
@@ -108,8 +139,8 @@ defmodule Cache.DiskTest do
     test "put and exists roundtrip" do
       original_data = "This is test artifact content for roundtrip testing"
 
-      assert Disk.put(@test_key, original_data) == :ok
-      assert Disk.exists?(@test_key) == true
+      assert Disk.put(@test_account, @test_project, @test_id, original_data) == :ok
+      assert Disk.exists?(@test_account, @test_project, @test_id) == true
     end
   end
 end

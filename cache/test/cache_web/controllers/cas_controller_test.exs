@@ -10,9 +10,7 @@ defmodule CacheWeb.CASControllerTest do
   setup do
     {:ok, test_storage_dir} = Briefly.create(directory: true)
 
-    Disk
-    |> stub(:storage_dir, fn -> test_storage_dir end)
-
+    stub(Disk, :storage_dir, fn -> test_storage_dir end)
     {:ok, test_storage_dir: test_storage_dir}
   end
 
@@ -21,8 +19,7 @@ defmodule CacheWeb.CASControllerTest do
       account_handle = "test-account"
       project_handle = "test-project"
 
-      Authentication
-      |> expect(:ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
+      expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
         {:ok, "Bearer valid-token"}
       end)
 
@@ -39,8 +36,7 @@ defmodule CacheWeb.CASControllerTest do
       account_handle = "test-account"
       project_handle = "test-project"
 
-      Authentication
-      |> expect(:ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
+      expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
         {:error, 401, "Missing Authorization header"}
       end)
 
@@ -55,8 +51,7 @@ defmodule CacheWeb.CASControllerTest do
       account_handle = "test-account"
       project_handle = "test-project"
 
-      Authentication
-      |> expect(:ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
+      expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
         {:error, 404, "Unauthorized or not found"}
       end)
 
@@ -104,63 +99,63 @@ defmodule CacheWeb.CASControllerTest do
       project_handle = "test-project"
       id = "abc123"
       body = "test artifact content"
-      expected_key = "#{account_handle}/#{project_handle}/cas/#{id}"
 
-      Authentication
-      |> expect(:ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
+      expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
         {:ok, "Bearer valid-token"}
       end)
 
       Disk
-      |> expect(:exists?, fn ^expected_key ->
+      |> expect(:exists?, fn ^account_handle, ^project_handle, ^id ->
         false
       end)
-      |> expect(:put, fn ^expected_key, ^body ->
+      |> expect(:put, fn ^account_handle, ^project_handle, ^id, ^body ->
         :ok
       end)
 
-      conn =
-        conn
-        |> put_req_header("authorization", "Bearer valid-token")
-        |> put_req_header("content-type", "application/octet-stream")
-        |> post("/api/cache/cas/#{id}?account_handle=#{account_handle}&project_handle=#{project_handle}", body)
+      capture_log(fn ->
+        conn =
+          conn
+          |> put_req_header("authorization", "Bearer valid-token")
+          |> put_req_header("content-type", "application/octet-stream")
+          |> post("/api/cache/cas/#{id}?account_handle=#{account_handle}&project_handle=#{project_handle}", body)
 
-      assert conn.status == 204
-      assert conn.resp_body == ""
+        assert conn.status == 204
+        assert conn.resp_body == ""
+      end)
     end
 
     test "streams large artifact to temporary file", %{conn: conn} do
       account_handle = "test-account"
       project_handle = "test-project"
       id = "abc123"
-      expected_key = "#{account_handle}/#{project_handle}/cas/#{id}"
       large_body = :binary.copy("0123456789abcdef", 150_000)
 
-      Authentication
-      |> expect(:ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
+      expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
         {:ok, "Bearer valid-token"}
       end)
 
       Disk
-      |> expect(:exists?, fn ^expected_key ->
+      |> expect(:exists?, fn ^account_handle, ^project_handle, ^id ->
         false
       end)
-      |> expect(:put, fn ^expected_key, {:file, tmp_path} ->
+      |> expect(:put, fn ^account_handle, ^project_handle, ^id, {:file, tmp_path} ->
         assert File.exists?(tmp_path)
         assert File.stat!(tmp_path).size == byte_size(large_body)
         File.rm(tmp_path)
         :ok
       end)
 
-      conn =
-        conn
-        |> put_req_header("authorization", "Bearer valid-token")
-        |> put_req_header("content-type", "application/octet-stream")
-        |> Plug.Conn.put_private(:body_read_opts, length: 128_000, read_length: 128_000, read_timeout: 60_000)
-        |> post("/api/cache/cas/#{id}?account_handle=#{account_handle}&project_handle=#{project_handle}", large_body)
+      capture_log(fn ->
+        conn =
+          conn
+          |> put_req_header("authorization", "Bearer valid-token")
+          |> put_req_header("content-type", "application/octet-stream")
+          |> Plug.Conn.put_private(:body_read_opts, length: 128_000, read_length: 128_000, read_timeout: 60_000)
+          |> post("/api/cache/cas/#{id}?account_handle=#{account_handle}&project_handle=#{project_handle}", large_body)
 
-      assert conn.status == 204
-      assert conn.resp_body == ""
+        assert conn.status == 204
+        assert conn.resp_body == ""
+      end)
     end
 
     test "skips save when artifact already exists", %{conn: conn} do
@@ -168,15 +163,12 @@ defmodule CacheWeb.CASControllerTest do
       project_handle = "test-project"
       id = "abc123"
       body = "test artifact content"
-      expected_key = "#{account_handle}/#{project_handle}/cas/#{id}"
 
-      Authentication
-      |> expect(:ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
+      expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
         {:ok, "Bearer valid-token"}
       end)
 
-      Disk
-      |> expect(:exists?, fn ^expected_key ->
+      expect(Disk, :exists?, fn ^account_handle, ^project_handle, ^id ->
         true
       end)
 
@@ -195,18 +187,16 @@ defmodule CacheWeb.CASControllerTest do
       project_handle = "test-project"
       id = "abc123"
       body = "test artifact content"
-      expected_key = "#{account_handle}/#{project_handle}/cas/#{id}"
 
-      Authentication
-      |> expect(:ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
+      expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
         {:ok, "Bearer valid-token"}
       end)
 
       Disk
-      |> expect(:exists?, fn ^expected_key ->
+      |> expect(:exists?, fn ^account_handle, ^project_handle, ^id ->
         false
       end)
-      |> expect(:put, fn ^expected_key, ^body ->
+      |> expect(:put, fn ^account_handle, ^project_handle, ^id, ^body ->
         {:error, :enospc}
       end)
 
@@ -227,19 +217,17 @@ defmodule CacheWeb.CASControllerTest do
       account_handle = "test-account"
       project_handle = "test-project"
       id = "abc123"
-      expected_key = "#{account_handle}/#{project_handle}/cas/#{id}"
       large_body = :binary.copy("0123456789abcdef", 150_000)
 
-      Authentication
-      |> expect(:ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
+      expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
         {:ok, "Bearer valid-token"}
       end)
 
       Disk
-      |> expect(:exists?, fn ^expected_key ->
+      |> expect(:exists?, fn ^account_handle, ^project_handle, ^id ->
         false
       end)
-      |> expect(:put, fn ^expected_key, {:file, tmp_path} ->
+      |> expect(:put, fn ^account_handle, ^project_handle, ^id, {:file, tmp_path} ->
         assert File.exists?(tmp_path)
         File.rm(tmp_path)
         {:error, :exists}
@@ -261,8 +249,7 @@ defmodule CacheWeb.CASControllerTest do
       project_handle = "test-project"
       id = "abc123"
 
-      Authentication
-      |> expect(:ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
+      expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
         {:error, 401, "Missing Authorization header"}
       end)
 
@@ -281,8 +268,7 @@ defmodule CacheWeb.CASControllerTest do
       project_handle = "test-project"
       id = "abc123"
 
-      Authentication
-      |> expect(:ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
+      expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
         {:error, 404, "Unauthorized or not found"}
       end)
 

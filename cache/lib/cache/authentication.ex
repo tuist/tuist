@@ -6,11 +6,11 @@ defmodule Cache.Authentication do
   by calling the server's /api/projects endpoint and caching the results.
   """
 
+  require Logger
+
   @failure_cache_ttl 3
   @success_cache_ttl 600
   @cache_name :cas_auth_cache
-
-  require Logger
 
   def child_spec(_) do
     %{
@@ -27,7 +27,7 @@ defmodule Cache.Authentication do
   Returns `{:ok, auth_header}` if authorized, or `{:error, status, message}` otherwise.
   """
   def ensure_project_accessible(conn, account_handle, project_handle) do
-    auth_header = Plug.Conn.get_req_header(conn, "authorization") |> List.first()
+    auth_header = conn |> Plug.Conn.get_req_header("authorization") |> List.first()
 
     if is_nil(auth_header) do
       {:error, 401, "Missing Authorization header"}
@@ -103,15 +103,16 @@ defmodule Cache.Authentication do
   end
 
   defp success_ttl do
-    :timer.seconds(@success_cache_ttl)
+    to_timeout(second: @success_cache_ttl)
   end
 
   defp failure_ttl do
-    :timer.seconds(@failure_cache_ttl)
+    to_timeout(second: @failure_cache_ttl)
   end
 
   def generate_cache_key(auth_header) do
-    :crypto.hash(:sha256, auth_header)
+    :sha256
+    |> :crypto.hash(auth_header)
     |> Base.encode16(case: :lower)
   end
 
@@ -143,7 +144,6 @@ defmodule Cache.Authentication do
   end
 
   defp full_handle(account_handle, project_handle) do
-    "#{account_handle}/#{project_handle}"
-    |> String.downcase()
+    String.downcase("#{account_handle}/#{project_handle}")
   end
 end
