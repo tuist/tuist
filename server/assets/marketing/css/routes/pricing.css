@@ -443,13 +443,13 @@
           overflow: hidden;
 
           & > p {
-            min-height: 0;
-            padding: 0 var(--noora-spacing-7);
-            color: var(--noora-surface-label-primary);
-            font: var(--noora-font-weight-regular) var(--noora-font-body-large);
-            margin: 0;
             transform: translateZ(0);
             will-change: grid-template-rows;
+            margin: 0;
+            padding: 0 var(--noora-spacing-7);
+            min-height: 0;
+            color: var(--noora-surface-label-primary);
+            font: var(--noora-font-weight-regular) var(--noora-font-body-large);
           }
         }
 

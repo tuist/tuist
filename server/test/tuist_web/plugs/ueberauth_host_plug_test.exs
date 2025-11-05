@@ -12,8 +12,7 @@ defmodule TuistWeb.Plugs.UeberauthHostPlugTest do
       conn = build_conn(:get, "/users/auth/github")
       opts = UeberauthHostPlug.init([])
 
-      Tuist.Environment
-      |> expect(:app_url, fn [route_type: :app] ->
+      expect(Tuist.Environment, :app_url, fn [route_type: :app] ->
         "https://tuist.dev"
       end)
 
@@ -29,8 +28,7 @@ defmodule TuistWeb.Plugs.UeberauthHostPlugTest do
       conn = build_conn(:get, "/users/auth/github")
       opts = UeberauthHostPlug.init([])
 
-      Tuist.Environment
-      |> expect(:app_url, fn [route_type: :app] ->
+      expect(Tuist.Environment, :app_url, fn [route_type: :app] ->
         "https://tuist.dev"
       end)
 
@@ -46,8 +44,7 @@ defmodule TuistWeb.Plugs.UeberauthHostPlugTest do
       conn = build_conn(:get, "/users/auth/github")
       opts = UeberauthHostPlug.init([])
 
-      Tuist.Environment
-      |> expect(:app_url, fn [route_type: :app] ->
+      expect(Tuist.Environment, :app_url, fn [route_type: :app] ->
         "http://localhost:4000"
       end)
 
@@ -62,14 +59,14 @@ defmodule TuistWeb.Plugs.UeberauthHostPlugTest do
     test "overrides existing x-forwarded-host header from load balancer" do
       # Given
       conn =
-        build_conn(:get, "/users/auth/github")
+        :get
+        |> build_conn("/users/auth/github")
         |> Plug.Conn.put_req_header("x-forwarded-host", "tuist.onrender.com")
         |> Map.put(:host, "tuist.onrender.com")
 
       opts = UeberauthHostPlug.init([])
 
-      Tuist.Environment
-      |> expect(:app_url, fn [route_type: :app] ->
+      expect(Tuist.Environment, :app_url, fn [route_type: :app] ->
         "https://tuist.dev"
       end)
 
