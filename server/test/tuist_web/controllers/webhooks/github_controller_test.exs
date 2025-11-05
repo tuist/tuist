@@ -356,9 +356,10 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
       assert result.status == 200
     end
 
-    test "handles installation created event when installation not found and logs error", %{
-      conn: conn
-    } do
+    test "handles installation created event when installation not found due to race condition",
+         %{
+           conn: conn
+         } do
       # Given
       installation_id = "88888"
       html_url = "https://github.com/organizations/tuist/settings/installations/88888"
@@ -381,9 +382,9 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
           assert result.status == 200
         end)
 
-      # Verify error was logged
+      # Verify info log was generated (not error, since this is expected race condition)
       assert log =~ "installation_id=#{installation_id}"
-      assert log =~ "installation not found in database"
+      assert log =~ "arrived before setup callback"
     end
 
     test "returns ok for installation events with non-deleted actions", %{conn: conn} do

@@ -107,8 +107,12 @@ defmodule TuistWeb.Webhooks.GitHubController do
         |> json(%{status: "ok"})
 
       {:error, :not_found} ->
-        Logger.error(
-          "Received GitHub installation.created webhook for installation_id=#{installation_id} but installation not found in database. This indicates the setup callback was not processed."
+        # This is expected due to a race condition: the webhook often arrives before
+        # or in parallel with the setup callback that creates the installation record.
+        # The html_url is only used for a convenience UI link and is not critical.
+        # If needed, it will be updated on the next webhook event (e.g., repositories_added).
+        Logger.info(
+          "GitHub installation.created webhook arrived before setup callback for installation_id=#{installation_id}. Skipping html_url update - will be set on next webhook or can be derived from installation_id."
         )
 
         conn
