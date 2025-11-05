@@ -61,6 +61,13 @@ public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.Si
                 serverURL: serverURL
             )
 
+            // Parse and store node ID to checksum mappings from the put data
+            Task {
+                for (_, data) in request.value.entries {
+                    await parseAndStoreMappings(from: data)
+                }
+            }
+
             let duration = ProcessInfo.processInfo.systemUptime - startTime
             Logger.current
                 .debug(
@@ -108,7 +115,9 @@ public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.Si
                         value.entries["value"] = data
 
                         // Parse and store node ID to checksum mappings
-                        await parseAndStoreMappings(from: data)
+                        Task {
+                            await parseAndStoreMappings(from: data)
+                        }
                     }
                 }
 

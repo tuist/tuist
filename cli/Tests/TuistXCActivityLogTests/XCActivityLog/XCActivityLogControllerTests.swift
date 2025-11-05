@@ -377,8 +377,6 @@ struct XCActivityLogControllerTests {
         #expect(got.cacheableTasks.count == 4)
         #expect(got.cacheableTasks.filter { $0.type == .swift }.count == 4)
         #expect(got.cacheableTasks.filter { $0.status == .remoteHit }.count == 4)
-        print(got.casOutputs.sorted(by: { $0.checksum > $1.checksum }).map(\.startedAt.timeIntervalSince1970))
-        print(got.casOutputs.sorted(by: { $0.checksum > $1.checksum }).map(\.finishedAt.timeIntervalSince1970))
         #expect(got.casOutputs.sorted(by: { $0.checksum > $1.checksum }) == [
             CASOutput(
                 nodeID: "0~49C6atHfmLcVaRO9lWE7wi7It4d3XXldCc6LDXAC1aWAP-QrpArK3FmZCo0AfkqQ2s8Iv849KKmGuzfXPHL39Q==",
@@ -408,6 +406,24 @@ struct XCActivityLogControllerTests {
                 compressedSize: 1457
             ),
         ])
+    }
+    
+    @Test(.withMockedEnvironment())
+    func parseBuildXCActivityLogWithUploads() async throws {
+        // Given
+        let xcactivityLog = try AbsolutePath(validating: #file).parentDirectory
+            .appending(try RelativePath(validating: "../../Fixtures/build-with-uploads/build-with-uploads.xcactivitylog"))
+        let environment = try #require(Environment.mocked)
+        environment.stateDirectory = xcactivityLog.parentDirectory.appending(component: "state")
+
+        // When
+        let got = try await subject.parse(xcactivityLog)
+
+        // Then
+        #expect(got.cacheableTasks.count == 2)
+        #expect(got.cacheableTasks.filter { $0.type == .swift }.count == 2)
+        #expect(got.cacheableTasks.filter { $0.status == .miss}.count == 2)
+        print(got.casOutputs)
     }
 
     @Test(.withMockedEnvironment())
