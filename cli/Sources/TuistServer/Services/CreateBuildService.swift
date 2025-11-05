@@ -34,7 +34,7 @@ import OpenAPIURLSession
             ciHost: String?,
             ciProvider: CIProvider?,
             cacheableTasks: [CacheableTask],
-            casTasks: [CASTask]
+            casOutputs: [CASOutput]
         ) async throws -> ServerBuild
     }
 
@@ -99,7 +99,7 @@ import OpenAPIURLSession
             ciHost: String?,
             ciProvider: CIProvider?,
             cacheableTasks: [CacheableTask],
-            casTasks: [CASTask]
+            casOutputs: [CASOutput]
         ) async throws -> ServerBuild {
             let client = Client.authenticated(serverURL: serverURL)
             let handles = try fullHandleService.parse(fullHandle)
@@ -150,7 +150,7 @@ import OpenAPIURLSession
                                     .map(Operations.createRun.Input.Body.jsonPayload.Case1Payload.cacheable_tasksPayloadPayload
                                         .init
                                     ),
-                                cas_outputs: casTasks
+                                cas_outputs: casOutputs
                                     .map(Operations.createRun.Input.Body.jsonPayload.Case1Payload.cas_outputsPayloadPayload.init),
                                 category: category,
                                 ci_host: ciHost,
@@ -317,16 +317,16 @@ import OpenAPIURLSession
     }
 
     extension Operations.createRun.Input.Body.jsonPayload.Case1Payload.cas_outputsPayloadPayload {
-        fileprivate init(_ casTask: CASTask) {
+        fileprivate init(_ casOutput: CASOutput) {
             self.init(
-                checksum: casTask.checksum,
-                compressed_size: casTask.compressedSize,
-                duration: casTask.duration,
-                finished_at: casTask.finishedAt,
-                node_id: casTask.nodeID,
+                checksum: casOutput.checksum,
+                compressed_size: casOutput.compressedSize,
+                duration: casOutput.duration,
+                finished_at: casOutput.finishedAt,
+                node_id: casOutput.nodeID,
                 operation: .download,
-                size: casTask.size,
-                started_at: casTask.startedAt
+                size: casOutput.size,
+                started_at: casOutput.startedAt
             )
         }
     }

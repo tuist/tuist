@@ -13,7 +13,7 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
     private let saveCacheCASService: SaveCacheCASServicing
     private let loadCacheCASService: LoadCacheCASServicing
     private let fileSystem: FileSysteming
-    private let metadataStore: CASTaskMetadataStoring
+    private let metadataStore: CASOutputMetadataStoring
     private let dataCompressingService: DataCompressingServicing
 
     public init(
@@ -26,7 +26,7 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
         loadCacheCASService = LoadCacheCASService()
         fileSystem = FileSystem()
         dataCompressingService = DataCompressingService()
-        metadataStore = FileCASTaskMetadataStore()
+        metadataStore = FileCASOutputMetadataStore()
     }
 
     init(
@@ -36,7 +36,7 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
         loadCacheCASService: LoadCacheCASServicing,
         fileSystem: FileSysteming,
         dataCompressingService: DataCompressingServicing,
-        metadataStore: CASTaskMetadataStoring
+        metadataStore: CASOutputMetadataStoring
     ) {
         self.fullHandle = fullHandle
         self.serverURL = serverURL
@@ -101,7 +101,7 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
             Task {
                 let finishedAt = Date()
                 let startedAt = Date(timeIntervalSinceNow: -duration)
-                let metadata = CASTaskMetadata(
+                let metadata = CASOutputMetadata(
                     size: decompressedData.count,
                     startedAt: startedAt,
                     finishedAt: finishedAt,
@@ -200,7 +200,7 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
             Task {
                 let finishedAt = Date()
                 let startedAt = Date(timeIntervalSinceNow: -duration)
-                let metadata = CASTaskMetadata(
+                let metadata = CASOutputMetadata(
                     size: data.count,
                     startedAt: startedAt,
                     finishedAt: finishedAt,

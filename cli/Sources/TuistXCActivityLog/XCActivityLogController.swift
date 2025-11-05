@@ -42,14 +42,14 @@ public struct XCActivityLogController: XCActivityLogControlling {
     private let rootDirectoryLocator: RootDirectoryLocating
     private let gitController: GitControlling
     private let nodeMappingStore: CASNodeMappingStoring
-    private let metadataStore: CASTaskMetadataStoring
+    private let metadataStore: CASOutputMetadataStoring
 
     public init(
         fileSystem: FileSystem = FileSystem(),
         rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator(),
         gitController: GitControlling = GitController(),
         nodeMappingStore: CASNodeMappingStoring = FileCASNodeMappingStore(),
-        metadataStore: CASTaskMetadataStoring = FileCASTaskMetadataStore()
+        metadataStore: CASOutputMetadataStoring = FileCASOutputMetadataStore()
     ) {
         self.fileSystem = fileSystem
         self.rootDirectoryLocator = rootDirectoryLocator
@@ -201,7 +201,7 @@ public struct XCActivityLogController: XCActivityLogControlling {
             buildStartTime: activityLog.mainSection.timeStartedRecording
         )
 
-        let casTasks = try await analyzeCASKeys(from: steps)
+        let casOutputs = try await analyzeCASKeys(from: steps)
 
         return XCActivityLog(
             version: activityLog.version,
@@ -228,7 +228,7 @@ public struct XCActivityLogController: XCActivityLogControlling {
                 )
             },
             cacheableTasks: cacheableTasks,
-            casTasks: casTasks
+            casOutputs: casOutputs
         )
     }
 
@@ -472,10 +472,10 @@ public struct XCActivityLogController: XCActivityLogControlling {
         )
     }
 
-    private func analyzeCASKeys(from buildSteps: [XCLogParser.BuildStep]) async throws -> [CASTask] {
+    private func analyzeCASKeys(from buildSteps: [XCLogParser.BuildStep]) async throws -> [CASOutput] {
         let nodeIDs = extractNodeIDs(from: buildSteps)
 
-        let casTasks = try await nodeIDs.concurrentCompactMap { nodeID in
+        let casOutputs = try await nodeIDs.concurrentCompactMap { nodeID in
             let checksum = try await nodeMappingStore.checksum(for: nodeID)
 
             // Get metadata using the checksum if available
@@ -483,7 +483,7 @@ public struct XCActivityLogController: XCActivityLogControlling {
                 do {
                     let metadata = try await metadataStore.metadata(for: checksumValue)
                     if let metadata {
-                        return CASTask(
+                        return CASOutput(
                             nodeID: nodeID,
                             checksum: checksumValue,
                             size: metadata.size,
@@ -501,7 +501,7 @@ public struct XCActivityLogController: XCActivityLogControlling {
             return nil
         }
 
-        return casTasks
+        return casOutputs
     }
 
     private func extractNodeIDs(from buildSteps: [XCLogParser.BuildStep]) -> [String] {

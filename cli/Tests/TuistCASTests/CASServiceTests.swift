@@ -11,12 +11,12 @@ import TuistServer
 import TuistSupport
 @testable import TuistCAS
 
-struct MockCASTaskMetadataStore: CASTaskMetadataStoring {
-    func storeMetadata(_: CASTaskMetadata, for _: String) async throws {
+struct MockCASOutputMetadataStore: CASOutputMetadataStoring {
+    func storeMetadata(_: CASOutputMetadata, for _: String) async throws {
         // Mock implementation - do nothing
     }
 
-    func metadata(for _: String) async throws -> CASTaskMetadata? {
+    func metadata(for _: String) async throws -> CASOutputMetadata? {
         // Mock implementation - return nil
         return nil
     }
@@ -42,7 +42,7 @@ struct CASServiceTests {
             loadCacheCASService: loadCacheCASService,
             fileSystem: FileSystem(),
             dataCompressingService: dataCompressingService,
-            metadataStore: MockCASTaskMetadataStore()
+            metadataStore: MockCASOutputMetadataStore()
         )
     }
 

@@ -1,6 +1,6 @@
 import Foundation
 
-public struct CASTask: Equatable {
+public struct CASOutput: Equatable {
     public let nodeID: String
     public let checksum: String
     public let size: Int

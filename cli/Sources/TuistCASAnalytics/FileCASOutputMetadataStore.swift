@@ -3,14 +3,14 @@ import Foundation
 import Path
 import TuistSupport
 
-public final class FileCASTaskMetadataStore: CASTaskMetadataStoring {
+public final class FileCASOutputMetadataStore: CASOutputMetadataStoring {
     private let fileSystem: FileSysteming
 
     public init(fileSystem: FileSysteming = FileSystem()) {
         self.fileSystem = fileSystem
     }
 
-    public func storeMetadata(_ metadata: CASTaskMetadata, for casID: String) async throws {
+    public func storeMetadata(_ metadata: CASOutputMetadata, for casID: String) async throws {
         let casDirectory = Environment.current.stateDirectory.appending(component: "cas")
         try await ensureCasDirectoryExists(casDirectory)
 
@@ -30,7 +30,7 @@ public final class FileCASTaskMetadataStore: CASTaskMetadataStoring {
         try await fileSystem.writeText(jsonString, at: metadataFilePath)
     }
 
-    public func metadata(for casID: String) async throws -> CASTaskMetadata? {
+    public func metadata(for casID: String) async throws -> CASOutputMetadata? {
         let casDirectory = Environment.current.stateDirectory.appending(component: "cas")
         let sanitizedCasID = sanitizeCasID(casID)
         let metadataFilePath = casDirectory.appending(component: "\(sanitizedCasID).json")
@@ -61,7 +61,7 @@ public final class FileCASTaskMetadataStore: CASTaskMetadataStoring {
 
             throw DecodingError.dataCorruptedError(in: container, debugDescription: "Invalid date format")
         }
-        return try decoder.decode(CASTaskMetadata.self, from: jsonData)
+        return try decoder.decode(CASOutputMetadata.self, from: jsonData)
     }
 
     // MARK: - Private Methods
