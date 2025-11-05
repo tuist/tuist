@@ -107,12 +107,14 @@ defmodule TuistWeb.Webhooks.GitHubController do
         |> json(%{status: "ok"})
 
       {:error, :not_found_after_retries} ->
-        # After retries, the installation still doesn't exist. This could indicate:
+        # After retries, the installation still doesn't exist. This indicates a broken user flow:
         # 1. The setup callback failed or was never called
         # 2. The user closed the browser before completing setup
         # 3. Network issues prevented the redirect
-        Logger.warning(
-          "GitHub installation.created webhook for installation_id=#{installation_id} but installation not found after retries. Setup callback may have failed."
+        # This means the installation exists in GitHub but not in our database,
+        # creating an orphaned installation that requires manual reconciliation.
+        Logger.error(
+          "GitHub installation.created webhook for installation_id=#{installation_id} but installation not found after retries. Setup callback may have failed. Manual intervention may be required."
         )
 
         conn
