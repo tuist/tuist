@@ -41,20 +41,20 @@ public struct XCActivityLogController: XCActivityLogControlling {
     private let fileSystem: FileSystem
     private let rootDirectoryLocator: RootDirectoryLocating
     private let gitController: GitControlling
-    private let nodeMappingStore: CASNodeStoring
+    private let nodeStore: CASNodeStoring
     private let metadataStore: CASOutputMetadataStoring
 
     public init(
         fileSystem: FileSystem = FileSystem(),
         rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator(),
         gitController: GitControlling = GitController(),
-        nodeMappingStore: CASNodeStoring = CASNodeStore(),
+        nodeStore: CASNodeStoring = CASNodeStore(),
         metadataStore: CASOutputMetadataStoring = CASOutputMetadataStore()
     ) {
         self.fileSystem = fileSystem
         self.rootDirectoryLocator = rootDirectoryLocator
         self.gitController = gitController
-        self.nodeMappingStore = nodeMappingStore
+        self.nodeStore = nodeStore
         self.metadataStore = metadataStore
     }
 
@@ -476,7 +476,7 @@ public struct XCActivityLogController: XCActivityLogControlling {
         let nodeIDs = extractNodeIDs(from: buildSteps)
 
         let casOutputs = try await nodeIDs.concurrentCompactMap { nodeID in
-            let checksum = try await nodeMappingStore.checksum(for: nodeID)
+            let checksum = try await nodeStore.checksum(for: nodeID)
 
             // Get metadata using the checksum if available
             if let checksumValue = checksum {

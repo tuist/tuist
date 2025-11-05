@@ -13,7 +13,7 @@ public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.Si
     private let putCacheValueService: PutCacheValueServicing
     private let getCacheValueService: GetCacheValueServicing
     private let fileSystem: FileSystem
-    private let nodeMappingStore: CASNodeStoring
+    private let nodeStore: CASNodeStoring
 
     public init(
         fullHandle: String,
@@ -21,14 +21,14 @@ public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.Si
         putCacheValueService: PutCacheValueServicing = PutCacheValueService(),
         getCacheValueService: GetCacheValueServicing = GetCacheValueService(),
         fileSystem: FileSystem = FileSystem(),
-        nodeMappingStore: CASNodeStoring = CASNodeStore()
+        nodeStore: CASNodeStoring = CASNodeStore()
     ) {
         self.fullHandle = fullHandle
         self.serverURL = serverURL
         self.putCacheValueService = putCacheValueService
         self.getCacheValueService = getCacheValueService
         self.fileSystem = fileSystem
-        self.nodeMappingStore = nodeMappingStore
+        self.nodeStore = nodeStore
     }
 
     public func putValue(
@@ -183,7 +183,7 @@ public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.Si
 
                     // Store the mapping
                     do {
-                        try await nodeMappingStore.storeNode(nodeID, checksum: hexString.uppercased())
+                        try await nodeStore.storeNode(nodeID, checksum: hexString.uppercased())
                     } catch {
                         Logger.current.error("Failed to store node mapping: \(error)")
                     }
