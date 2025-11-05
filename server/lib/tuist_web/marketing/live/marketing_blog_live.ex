@@ -42,6 +42,8 @@ defmodule TuistWeb.Marketing.MarketingBlogLive do
     previous_page = Map.get(socket.assigns, :current_page, 1)
     page_changed = page != previous_page
 
+    highlighted_post = List.first(all_posts)
+
     # Filter by search query (search across title, excerpt, and content)
     filtered_posts =
       if search_query == "" do
@@ -64,15 +66,14 @@ defmodule TuistWeb.Marketing.MarketingBlogLive do
         Enum.filter(filtered_posts, &(&1.category == category))
       end
 
+    filtered_posts = Enum.reject(filtered_posts, fn post -> post.slug == highlighted_post.slug end)
+
     # Calculate pagination
     total_posts = length(filtered_posts)
     total_pages = max(ceil(total_posts / @posts_per_page), 1)
     page = min(max(page, 1), total_pages)
     start_index = (page - 1) * @posts_per_page
     paginated_posts = Enum.slice(filtered_posts, start_index, @posts_per_page)
-
-    # Highlighted post is always the first post overall (not affected by filters)
-    highlighted_post = List.first(all_posts)
 
     socket =
       socket
