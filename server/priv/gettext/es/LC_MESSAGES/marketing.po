@@ -1,5 +1,5 @@
 msgid ""
-msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-10-24 08:40+0000\nPO-Revision-Date: 2025-11-05 17:58+0000\nLast-Translator: Anonymous <noreply@weblate.org>\nLanguage-Team: Spanish <https://translate.tuist.dev/projects/tuist/marketing/es/>\nLanguage: es\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=2; plural=n != 1;\nX-Generator: Weblate 5.14\n"
+msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-10-24 08:40+0000\nPO-Revision-Date: 2025-11-05 17:58+0000\nLast-Translator: Weblate Admin <admin@cloudron.local>\nLanguage-Team: Spanish <https://translate.tuist.dev/projects/tuist/marketing/es/>\nLanguage: es\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=2; plural=n != 1;\nX-Generator: Weblate 5.14\n"
 
 ## This file is a PO Template file.
 ##
@@ -147,16 +147,12 @@ msgstr "Todas las funciones que necesitas,"
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:158
 #, elixir-autogen, elixir-format
 msgid "Analyze build times per target and file with metadata like environment, Xcode version, and commit."
-msgstr ""
-"Analiza los tiempos de compilación por target y archivo con metadatos como "
-"entorno, versión de Xcode y commit."
+msgstr "Analiza los tiempos de compilación por target y archivo con metadatos como entorno, versión de Xcode y commit."
 
 #: lib/tuist_web/marketing/live/marketing_qa_live.ex:31
 #, elixir-autogen, elixir-format
 msgid "Automate testing your apps for Apple platforms using agents."
-msgstr ""
-"Automatice el testeo de sus aplicaciones para plataformas Apple utilizando "
-"agentes de AI."
+msgstr "Automatice el testeo de sus aplicaciones para plataformas Apple utilizando agentes de AI."
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:60
 #, elixir-autogen, elixir-format
@@ -224,9 +220,7 @@ msgstr "Compilaciones"
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:498
 #, elixir-autogen, elixir-format
 msgid "Bumble solved key issues without changing the core dev experience"
-msgstr ""
-"Bumble resolvió problemas críticos sin comprometer la experiencia del "
-"desarrolador."
+msgstr "Bumble resolvió problemas críticos sin comprometer la experiencia del desarrolador."
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:369
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:170
