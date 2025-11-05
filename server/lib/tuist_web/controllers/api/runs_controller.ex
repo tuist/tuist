@@ -458,6 +458,51 @@ defmodule TuistWeb.API.RunsController do
                    },
                    required: [:type, :status, :key]
                  }
+               },
+               cas_outputs: %Schema{
+                 type: :array,
+                 description: "CAS output operations associated with the build run.",
+                 items: %Schema{
+                   type: :object,
+                   properties: %{
+                     node_id: %Schema{
+                       type: :string,
+                       description: "The CAS node identifier."
+                     },
+                     checksum: %Schema{
+                       type: :string,
+                       description: "The checksum of the CAS object."
+                     },
+                     size: %Schema{
+                       type: :integer,
+                       description: "The size of the CAS object in bytes."
+                     },
+                     started_at: %Schema{
+                       type: :string,
+                       format: "date-time",
+                       description: "When the CAS operation started."
+                     },
+                     finished_at: %Schema{
+                       type: :string,
+                       format: "date-time",
+                       description: "When the CAS operation finished."
+                     },
+                     duration: %Schema{
+                       type: :number,
+                       description: "The duration of the CAS operation in seconds."
+                     },
+                     compressed_size: %Schema{
+                       type: :integer,
+                       description: "The compressed size of the CAS object in bytes."
+                     },
+                     operation: %Schema{
+                       type: :string,
+                       description: "The type of CAS operation.",
+                       enum: [:download, :upload]
+                     }
+                   },
+                   required: [:node_id, :checksum, :size, :started_at, :finished_at, :duration, :compressed_size, :operation]
+                 }
                }
              },
              required: [
@@ -547,7 +592,8 @@ defmodule TuistWeb.API.RunsController do
           issues: Map.get(params, :issues, []),
           files: Map.get(params, :files, []),
           targets: Map.get(params, :targets, []),
-          cacheable_tasks: Map.get(params, :cacheable_tasks, [])
+          cacheable_tasks: Map.get(params, :cacheable_tasks, []),
+          cas_outputs: Map.get(params, :cas_outputs, [])
         })
     end
   end

@@ -33,7 +33,8 @@ import OpenAPIURLSession
             ciProjectHandle: String?,
             ciHost: String?,
             ciProvider: CIProvider?,
-            cacheableTasks: [CacheableTask]
+            cacheableTasks: [CacheableTask],
+            casTasks: [CASTask]
         ) async throws -> ServerBuild
     }
 
@@ -97,7 +98,8 @@ import OpenAPIURLSession
             ciProjectHandle: String?,
             ciHost: String?,
             ciProvider: CIProvider?,
-            cacheableTasks: [CacheableTask]
+            cacheableTasks: [CacheableTask],
+            casTasks: [CASTask]
         ) async throws -> ServerBuild {
             let client = Client.authenticated(serverURL: serverURL)
             let handles = try fullHandleService.parse(fullHandle)
@@ -148,6 +150,8 @@ import OpenAPIURLSession
                                     .map(Operations.createRun.Input.Body.jsonPayload.Case1Payload.cacheable_tasksPayloadPayload
                                         .init
                                     ),
+                                cas_outputs: casTasks
+                                    .map(Operations.createRun.Input.Body.jsonPayload.Case1Payload.cas_outputsPayloadPayload.init),
                                 category: category,
                                 ci_host: ciHost,
                                 ci_project_handle: ciProjectHandle,
@@ -308,6 +312,21 @@ import OpenAPIURLSession
                 key: cacheableTask.key,
                 status: status,
                 _type: taskType
+            )
+        }
+    }
+
+    extension Operations.createRun.Input.Body.jsonPayload.Case1Payload.cas_outputsPayloadPayload {
+        fileprivate init(_ casTask: CASTask) {
+            self.init(
+                checksum: casTask.checksum,
+                compressed_size: casTask.compressedSize,
+                duration: casTask.duration,
+                finished_at: casTask.finishedAt,
+                node_id: casTask.nodeID,
+                operation: .download,
+                size: casTask.size,
+                started_at: casTask.startedAt
             )
         }
     }

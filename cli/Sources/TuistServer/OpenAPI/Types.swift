@@ -2448,6 +2448,96 @@ public enum Components {
                 ///
                 /// - Remark: Generated from `#/components/schemas/RunParams/case1/cacheable_tasks`.
                 public var cacheable_tasks: Components.Schemas.RunParams.Case1Payload.cacheable_tasksPayload?
+                /// - Remark: Generated from `#/components/schemas/RunParams/case1/cas_outputsPayload`.
+                public struct cas_outputsPayloadPayload: Codable, Hashable, Sendable {
+                    /// The checksum of the CAS object.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunParams/case1/cas_outputsPayload/checksum`.
+                    public var checksum: Swift.String
+                    /// The compressed size of the CAS object in bytes.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunParams/case1/cas_outputsPayload/compressed_size`.
+                    public var compressed_size: Swift.Int
+                    /// The duration of the CAS operation in seconds.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunParams/case1/cas_outputsPayload/duration`.
+                    public var duration: Swift.Double
+                    /// When the CAS operation finished.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunParams/case1/cas_outputsPayload/finished_at`.
+                    public var finished_at: Foundation.Date
+                    /// The CAS node identifier.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunParams/case1/cas_outputsPayload/node_id`.
+                    public var node_id: Swift.String
+                    /// The type of CAS operation.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunParams/case1/cas_outputsPayload/operation`.
+                    @frozen public enum operationPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                        case download = "download"
+                        case upload = "upload"
+                    }
+                    /// The type of CAS operation.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunParams/case1/cas_outputsPayload/operation`.
+                    public var operation: Components.Schemas.RunParams.Case1Payload.cas_outputsPayloadPayload.operationPayload
+                    /// The size of the CAS object in bytes.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunParams/case1/cas_outputsPayload/size`.
+                    public var size: Swift.Int
+                    /// When the CAS operation started.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunParams/case1/cas_outputsPayload/started_at`.
+                    public var started_at: Foundation.Date
+                    /// Creates a new `cas_outputsPayloadPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - checksum: The checksum of the CAS object.
+                    ///   - compressed_size: The compressed size of the CAS object in bytes.
+                    ///   - duration: The duration of the CAS operation in seconds.
+                    ///   - finished_at: When the CAS operation finished.
+                    ///   - node_id: The CAS node identifier.
+                    ///   - operation: The type of CAS operation.
+                    ///   - size: The size of the CAS object in bytes.
+                    ///   - started_at: When the CAS operation started.
+                    public init(
+                        checksum: Swift.String,
+                        compressed_size: Swift.Int,
+                        duration: Swift.Double,
+                        finished_at: Foundation.Date,
+                        node_id: Swift.String,
+                        operation: Components.Schemas.RunParams.Case1Payload.cas_outputsPayloadPayload.operationPayload,
+                        size: Swift.Int,
+                        started_at: Foundation.Date
+                    ) {
+                        self.checksum = checksum
+                        self.compressed_size = compressed_size
+                        self.duration = duration
+                        self.finished_at = finished_at
+                        self.node_id = node_id
+                        self.operation = operation
+                        self.size = size
+                        self.started_at = started_at
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case checksum
+                        case compressed_size
+                        case duration
+                        case finished_at
+                        case node_id
+                        case operation
+                        case size
+                        case started_at
+                    }
+                }
+                /// CAS output operations associated with the build run.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunParams/case1/cas_outputs`.
+                public typealias cas_outputsPayload = [Components.Schemas.RunParams.Case1Payload.cas_outputsPayloadPayload]
+                /// CAS output operations associated with the build run.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunParams/case1/cas_outputs`.
+                public var cas_outputs: Components.Schemas.RunParams.Case1Payload.cas_outputsPayload?
                 /// The category of the build run, can be clean or incremental.
                 ///
                 /// - Remark: Generated from `#/components/schemas/RunParams/case1/category`.
@@ -2836,6 +2926,7 @@ public enum Components {
                 ///
                 /// - Parameters:
                 ///   - cacheable_tasks: Cacheable tasks associated with the build run.
+                ///   - cas_outputs: CAS output operations associated with the build run.
                 ///   - category: The category of the build run, can be clean or incremental.
                 ///   - ci_host: The CI host URL (optional, for self-hosted instances).
                 ///   - ci_project_handle: The CI project handle (e.g., 'owner/repo' for GitHub, project path for GitLab).
@@ -2860,6 +2951,7 @@ public enum Components {
                 ///   - xcode_version: The version of Xcode used during the run.
                 public init(
                     cacheable_tasks: Components.Schemas.RunParams.Case1Payload.cacheable_tasksPayload? = nil,
+                    cas_outputs: Components.Schemas.RunParams.Case1Payload.cas_outputsPayload? = nil,
                     category: Components.Schemas.RunParams.Case1Payload.categoryPayload? = nil,
                     ci_host: Swift.String? = nil,
                     ci_project_handle: Swift.String? = nil,
@@ -2884,6 +2976,7 @@ public enum Components {
                     xcode_version: Swift.String? = nil
                 ) {
                     self.cacheable_tasks = cacheable_tasks
+                    self.cas_outputs = cas_outputs
                     self.category = category
                     self.ci_host = ci_host
                     self.ci_project_handle = ci_project_handle
@@ -2909,6 +3002,7 @@ public enum Components {
                 }
                 public enum CodingKeys: String, CodingKey {
                     case cacheable_tasks
+                    case cas_outputs
                     case category
                     case ci_host
                     case ci_project_handle
@@ -3929,6 +4023,96 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/BuildRun/cacheable_tasks`.
             public var cacheable_tasks: Components.Schemas.BuildRun.cacheable_tasksPayload?
+            /// - Remark: Generated from `#/components/schemas/BuildRun/cas_outputsPayload`.
+            public struct cas_outputsPayloadPayload: Codable, Hashable, Sendable {
+                /// The checksum of the CAS object.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BuildRun/cas_outputsPayload/checksum`.
+                public var checksum: Swift.String
+                /// The compressed size of the CAS object in bytes.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BuildRun/cas_outputsPayload/compressed_size`.
+                public var compressed_size: Swift.Int
+                /// The duration of the CAS operation in seconds.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BuildRun/cas_outputsPayload/duration`.
+                public var duration: Swift.Double
+                /// When the CAS operation finished.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BuildRun/cas_outputsPayload/finished_at`.
+                public var finished_at: Foundation.Date
+                /// The CAS node identifier.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BuildRun/cas_outputsPayload/node_id`.
+                public var node_id: Swift.String
+                /// The type of CAS operation.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BuildRun/cas_outputsPayload/operation`.
+                @frozen public enum operationPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case download = "download"
+                    case upload = "upload"
+                }
+                /// The type of CAS operation.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BuildRun/cas_outputsPayload/operation`.
+                public var operation: Components.Schemas.BuildRun.cas_outputsPayloadPayload.operationPayload
+                /// The size of the CAS object in bytes.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BuildRun/cas_outputsPayload/size`.
+                public var size: Swift.Int
+                /// When the CAS operation started.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BuildRun/cas_outputsPayload/started_at`.
+                public var started_at: Foundation.Date
+                /// Creates a new `cas_outputsPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - checksum: The checksum of the CAS object.
+                ///   - compressed_size: The compressed size of the CAS object in bytes.
+                ///   - duration: The duration of the CAS operation in seconds.
+                ///   - finished_at: When the CAS operation finished.
+                ///   - node_id: The CAS node identifier.
+                ///   - operation: The type of CAS operation.
+                ///   - size: The size of the CAS object in bytes.
+                ///   - started_at: When the CAS operation started.
+                public init(
+                    checksum: Swift.String,
+                    compressed_size: Swift.Int,
+                    duration: Swift.Double,
+                    finished_at: Foundation.Date,
+                    node_id: Swift.String,
+                    operation: Components.Schemas.BuildRun.cas_outputsPayloadPayload.operationPayload,
+                    size: Swift.Int,
+                    started_at: Foundation.Date
+                ) {
+                    self.checksum = checksum
+                    self.compressed_size = compressed_size
+                    self.duration = duration
+                    self.finished_at = finished_at
+                    self.node_id = node_id
+                    self.operation = operation
+                    self.size = size
+                    self.started_at = started_at
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case checksum
+                    case compressed_size
+                    case duration
+                    case finished_at
+                    case node_id
+                    case operation
+                    case size
+                    case started_at
+                }
+            }
+            /// CAS output operations associated with the build run.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BuildRun/cas_outputs`.
+            public typealias cas_outputsPayload = [Components.Schemas.BuildRun.cas_outputsPayloadPayload]
+            /// CAS output operations associated with the build run.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BuildRun/cas_outputs`.
+            public var cas_outputs: Components.Schemas.BuildRun.cas_outputsPayload?
             /// The category of the build run, can be clean or incremental.
             ///
             /// - Remark: Generated from `#/components/schemas/BuildRun/category`.
@@ -4317,6 +4501,7 @@ public enum Components {
             ///
             /// - Parameters:
             ///   - cacheable_tasks: Cacheable tasks associated with the build run.
+            ///   - cas_outputs: CAS output operations associated with the build run.
             ///   - category: The category of the build run, can be clean or incremental.
             ///   - ci_host: The CI host URL (optional, for self-hosted instances).
             ///   - ci_project_handle: The CI project handle (e.g., 'owner/repo' for GitHub, project path for GitLab).
@@ -4341,6 +4526,7 @@ public enum Components {
             ///   - xcode_version: The version of Xcode used during the run.
             public init(
                 cacheable_tasks: Components.Schemas.BuildRun.cacheable_tasksPayload? = nil,
+                cas_outputs: Components.Schemas.BuildRun.cas_outputsPayload? = nil,
                 category: Components.Schemas.BuildRun.categoryPayload? = nil,
                 ci_host: Swift.String? = nil,
                 ci_project_handle: Swift.String? = nil,
@@ -4365,6 +4551,7 @@ public enum Components {
                 xcode_version: Swift.String? = nil
             ) {
                 self.cacheable_tasks = cacheable_tasks
+                self.cas_outputs = cas_outputs
                 self.category = category
                 self.ci_host = ci_host
                 self.ci_project_handle = ci_project_handle
@@ -4390,6 +4577,7 @@ public enum Components {
             }
             public enum CodingKeys: String, CodingKey {
                 case cacheable_tasks
+                case cas_outputs
                 case category
                 case ci_host
                 case ci_project_handle
@@ -21469,6 +21657,96 @@ public enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/cacheable_tasks`.
                         public var cacheable_tasks: Operations.createRun.Input.Body.jsonPayload.Case1Payload.cacheable_tasksPayload?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/cas_outputsPayload`.
+                        public struct cas_outputsPayloadPayload: Codable, Hashable, Sendable {
+                            /// The checksum of the CAS object.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/cas_outputsPayload/checksum`.
+                            public var checksum: Swift.String
+                            /// The compressed size of the CAS object in bytes.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/cas_outputsPayload/compressed_size`.
+                            public var compressed_size: Swift.Int
+                            /// The duration of the CAS operation in seconds.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/cas_outputsPayload/duration`.
+                            public var duration: Swift.Double
+                            /// When the CAS operation finished.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/cas_outputsPayload/finished_at`.
+                            public var finished_at: Foundation.Date
+                            /// The CAS node identifier.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/cas_outputsPayload/node_id`.
+                            public var node_id: Swift.String
+                            /// The type of CAS operation.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/cas_outputsPayload/operation`.
+                            @frozen public enum operationPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case download = "download"
+                                case upload = "upload"
+                            }
+                            /// The type of CAS operation.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/cas_outputsPayload/operation`.
+                            public var operation: Operations.createRun.Input.Body.jsonPayload.Case1Payload.cas_outputsPayloadPayload.operationPayload
+                            /// The size of the CAS object in bytes.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/cas_outputsPayload/size`.
+                            public var size: Swift.Int
+                            /// When the CAS operation started.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/cas_outputsPayload/started_at`.
+                            public var started_at: Foundation.Date
+                            /// Creates a new `cas_outputsPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - checksum: The checksum of the CAS object.
+                            ///   - compressed_size: The compressed size of the CAS object in bytes.
+                            ///   - duration: The duration of the CAS operation in seconds.
+                            ///   - finished_at: When the CAS operation finished.
+                            ///   - node_id: The CAS node identifier.
+                            ///   - operation: The type of CAS operation.
+                            ///   - size: The size of the CAS object in bytes.
+                            ///   - started_at: When the CAS operation started.
+                            public init(
+                                checksum: Swift.String,
+                                compressed_size: Swift.Int,
+                                duration: Swift.Double,
+                                finished_at: Foundation.Date,
+                                node_id: Swift.String,
+                                operation: Operations.createRun.Input.Body.jsonPayload.Case1Payload.cas_outputsPayloadPayload.operationPayload,
+                                size: Swift.Int,
+                                started_at: Foundation.Date
+                            ) {
+                                self.checksum = checksum
+                                self.compressed_size = compressed_size
+                                self.duration = duration
+                                self.finished_at = finished_at
+                                self.node_id = node_id
+                                self.operation = operation
+                                self.size = size
+                                self.started_at = started_at
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case checksum
+                                case compressed_size
+                                case duration
+                                case finished_at
+                                case node_id
+                                case operation
+                                case size
+                                case started_at
+                            }
+                        }
+                        /// CAS output operations associated with the build run.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/cas_outputs`.
+                        public typealias cas_outputsPayload = [Operations.createRun.Input.Body.jsonPayload.Case1Payload.cas_outputsPayloadPayload]
+                        /// CAS output operations associated with the build run.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/cas_outputs`.
+                        public var cas_outputs: Operations.createRun.Input.Body.jsonPayload.Case1Payload.cas_outputsPayload?
                         /// The category of the build run, can be clean or incremental.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/category`.
@@ -21857,6 +22135,7 @@ public enum Operations {
                         ///
                         /// - Parameters:
                         ///   - cacheable_tasks: Cacheable tasks associated with the build run.
+                        ///   - cas_outputs: CAS output operations associated with the build run.
                         ///   - category: The category of the build run, can be clean or incremental.
                         ///   - ci_host: The CI host URL (optional, for self-hosted instances).
                         ///   - ci_project_handle: The CI project handle (e.g., 'owner/repo' for GitHub, project path for GitLab).
@@ -21881,6 +22160,7 @@ public enum Operations {
                         ///   - xcode_version: The version of Xcode used during the run.
                         public init(
                             cacheable_tasks: Operations.createRun.Input.Body.jsonPayload.Case1Payload.cacheable_tasksPayload? = nil,
+                            cas_outputs: Operations.createRun.Input.Body.jsonPayload.Case1Payload.cas_outputsPayload? = nil,
                             category: Operations.createRun.Input.Body.jsonPayload.Case1Payload.categoryPayload? = nil,
                             ci_host: Swift.String? = nil,
                             ci_project_handle: Swift.String? = nil,
@@ -21905,6 +22185,7 @@ public enum Operations {
                             xcode_version: Swift.String? = nil
                         ) {
                             self.cacheable_tasks = cacheable_tasks
+                            self.cas_outputs = cas_outputs
                             self.category = category
                             self.ci_host = ci_host
                             self.ci_project_handle = ci_project_handle
@@ -21930,6 +22211,7 @@ public enum Operations {
                         }
                         public enum CodingKeys: String, CodingKey {
                             case cacheable_tasks
+                            case cas_outputs
                             case category
                             case ci_host
                             case ci_project_handle
