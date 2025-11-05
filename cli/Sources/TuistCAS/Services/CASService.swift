@@ -95,17 +95,25 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
             response.contents = .data(blob)
             response.outcome = .success
 
+            let duration = ProcessInfo.processInfo.systemUptime - startTime
+            
             // Store metadata for the load operation in background
             Task {
-                let metadata = CASTaskMetadata(size: data.count)
+                let finishedAt = Date()
+                let startedAt = Date(timeIntervalSinceNow: -duration)
+                let metadata = CASTaskMetadata(
+                    size: decompressedData.count,
+                    startedAt: startedAt,
+                    finishedAt: finishedAt,
+                    duration: duration,
+                    compressedSize: compressedData.count
+                )
                 do {
                     try await metadataStore.storeMetadata(metadata, for: casID)
                 } catch {
                     Logger.current.error("Failed to store CAS load metadata for casID: \(casID): \(error)")
                 }
             }
-
-            let duration = ProcessInfo.processInfo.systemUptime - startTime
             Logger.current
                 .debug(
                     "CAS.load completed successfully in \(String(format: "%.3f", duration))s - loaded \(compressedData.count) compressed bytes, decompressed to \(decompressedData.count) bytes for casID: \(casID)"
@@ -186,17 +194,25 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
             response.casID = message
             response.contents = .casID(message)
 
+            let duration = ProcessInfo.processInfo.systemUptime - startTime
+            
             // Store metadata for the save operation in background
             Task {
-                let metadata = CASTaskMetadata(size: data.count)
+                let finishedAt = Date()
+                let startedAt = Date(timeIntervalSinceNow: -duration)
+                let metadata = CASTaskMetadata(
+                    size: data.count,
+                    startedAt: startedAt,
+                    finishedAt: finishedAt,
+                    duration: duration,
+                    compressedSize: compressedData.count
+                )
                 do {
                     try await metadataStore.storeMetadata(metadata, for: fingerprint)
                 } catch {
                     Logger.current.error("Failed to store CAS save metadata for fingerprint: \(fingerprint): \(error)")
                 }
             }
-
-            let duration = ProcessInfo.processInfo.systemUptime - startTime
             Logger.current
                 .debug(
                     "CAS.save completed successfully in \(String(format: "%.3f", duration))s for fingerprint: \(fingerprint)"

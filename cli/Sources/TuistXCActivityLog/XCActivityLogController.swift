@@ -475,21 +475,30 @@ public struct XCActivityLogController: XCActivityLogControlling {
     private func analyzeCASKeys(from buildSteps: [XCLogParser.BuildStep]) async throws -> [CASTask] {
         let nodeIDs = extractNodeIDs(from: buildSteps)
         
-        let casTasks = try await nodeIDs.concurrentMap { nodeID in
+        let casTasks = try await nodeIDs.concurrentCompactMap { nodeID in
             let checksum = try await self.nodeMappingStore.checksum(for: nodeID)
-            var size: Int?
             
             // Get metadata using the checksum if available
             if let checksumValue = checksum {
                 do {
                     let metadata = try await self.metadataStore.metadata(for: checksumValue)
-                    size = metadata?.size
+                    if let metadata = metadata {
+                        return CASTask(
+                            nodeID: nodeID,
+                            checksum: checksumValue,
+                            size: metadata.size,
+                            startedAt: metadata.startedAt,
+                            finishedAt: metadata.finishedAt,
+                            duration: metadata.duration,
+                            compressedSize: metadata.compressedSize
+                        )
+                    }
                 } catch {
-                    // Log error but continue with checksum only
+                    // Log error but continue with next node
                 }
             }
             
-            return CASTask(nodeID: nodeID, checksum: checksum, size: size)
+            return nil
         }
         
         return casTasks

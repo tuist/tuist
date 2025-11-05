@@ -5,12 +5,24 @@ public struct CASTaskMetadata: Codable {
     /// Size of the task data in bytes
     public let size: Int
     
-    /// Timestamp when the task was recorded
-    public let timestamp: Date
+    /// When the task started
+    public let startedAt: Date
     
-    public init(size: Int, timestamp: Date = Date()) {
+    /// When the task finished
+    public let finishedAt: Date
+    
+    /// Duration of the task in seconds
+    public let duration: TimeInterval
+    
+    /// Compressed size of the data in bytes
+    public let compressedSize: Int
+    
+    public init(size: Int, startedAt: Date, finishedAt: Date, duration: TimeInterval, compressedSize: Int) {
         self.size = size
-        self.timestamp = timestamp
+        self.startedAt = startedAt
+        self.finishedAt = finishedAt
+        self.duration = duration
+        self.compressedSize = compressedSize
     }
 }
 
