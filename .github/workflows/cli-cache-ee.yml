@@ -19,6 +19,7 @@ on:
       - "Tuist/**"
       - ".xcode-version"
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - .github/workflows/cli-cache-ee.yml
       - mise/tasks/cli/ee.sh
@@ -99,7 +100,7 @@ jobs:
       always() &&
       (github.event_name == 'push' ||
        github.event_name == 'workflow_dispatch' ||
-       (github.event_name == 'pull_request' && needs.check-team-membership.outputs.is-team-member == 'true'))
+       (github.event_name == 'pull_request' && needs.check-team-membership.outputs.is-team-member == 'true' && github.event.pull_request.draft == false))
     steps:
       - uses: actions/checkout@v4
         if: ${{ github.event.inputs.commit_sha == '' }}
@@ -143,7 +144,7 @@ jobs:
       always() &&
       (github.event_name == 'push' ||
        github.event_name == 'workflow_dispatch' ||
-       (github.event_name == 'pull_request' && needs.check-team-membership.outputs.is-team-member == 'true'))
+       (github.event_name == 'pull_request' && needs.check-team-membership.outputs.is-team-member == 'true' && github.event.pull_request.draft == false))
     steps:
       - uses: actions/checkout@v4
         if: ${{ github.event.inputs.commit_sha == '' }}
@@ -187,7 +188,7 @@ jobs:
       always() &&
       (github.event_name == 'push' ||
        github.event_name == 'workflow_dispatch' ||
-       (github.event_name == 'pull_request' && needs.check-team-membership.outputs.is-team-member == 'true'))
+       (github.event_name == 'pull_request' && needs.check-team-membership.outputs.is-team-member == 'true' && github.event.pull_request.draft == false))
     steps:
       - uses: actions/checkout@v4
         if: ${{ github.event.inputs.commit_sha == '' }}
