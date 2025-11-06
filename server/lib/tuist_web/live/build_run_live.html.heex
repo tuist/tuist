@@ -656,13 +656,9 @@
             title={gettext("Download throughput")}
             description={gettext("Time-weighted average download speed in bytes per second.")}
             value={
-              if @cas_metrics.time_weighted_avg_download_throughput > 0 do
                 Tuist.Utilities.ByteFormatter.format_bytes(
                   trunc(@cas_metrics.time_weighted_avg_download_throughput)
-                ) <> "/s"
-              else
-                "0 B/s"
-              end
+                ) <> gettext("/s")
             }
             id="widget-download-throughput"
           />
@@ -670,13 +666,9 @@
             title={gettext("Upload throughput")}
             description={gettext("Time-weighted average upload speed in bytes per second.")}
             value={
-              if @cas_metrics.time_weighted_avg_upload_throughput > 0 do
                 Tuist.Utilities.ByteFormatter.format_bytes(
                   trunc(@cas_metrics.time_weighted_avg_upload_throughput)
-                ) <> "/s"
-              else
-                "0 B/s"
-              end
+                ) <> gettext("/s")
             }
             id="widget-upload-throughput"
           />

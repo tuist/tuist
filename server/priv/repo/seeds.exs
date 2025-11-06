@@ -301,8 +301,6 @@ cas_outputs =
       # 30-90% compression
       duration = Enum.random(100..30_000)
 
-      # 100ms to 30s in milliseconds
-
       %{
         build_run_id: build.id,
         node_id: generate_cas_node_id.(),
