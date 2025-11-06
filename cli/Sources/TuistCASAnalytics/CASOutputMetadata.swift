@@ -18,13 +18,3 @@ public struct CASOutputMetadata: Codable {
         self.compressedSize = compressedSize
     }
 }
-
-/// Protocol for storing and retrieving CAS output metadata
-@Mockable
-public protocol CASOutputMetadataStoring: Sendable {
-    /// Store metadata for a CAS output identified by CAS ID
-    func storeMetadata(_ metadata: CASOutputMetadata, for casID: String) async throws
-
-    /// Retrieve metadata for a CAS output
-    func metadata(for casID: String) async throws -> CASOutputMetadata?
-}
