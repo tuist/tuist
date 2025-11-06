@@ -13,7 +13,6 @@ defmodule Cache.MixProject do
     ]
   end
 
-  # Configuration for the OTP application.
   def application do
     [
       mod: {Cache.Application, []},
@@ -21,11 +20,9 @@ defmodule Cache.MixProject do
     ]
   end
 
-  # Specifies which paths to compile per environment.
   defp elixirc_paths(:test), do: ["lib", "test/support"]
   defp elixirc_paths(_), do: ["lib"]
 
-  # Specifies your project dependencies.
   defp deps do
     [
       {:appsignal, "~> 2.8"},
@@ -44,13 +41,15 @@ defmodule Cache.MixProject do
       {:oban, "~> 2.17"},
       {:phoenix, "~> 1.7.12"},
       {:phoenix_pubsub, "~> 2.1"},
+      {:plug, "~> 1.18"},
+      {:plug_cowboy, "~> 2.7"},
+      {:prom_ex, "~> 1.10"},
       {:req, "~> 0.1"},
       {:styler, "~> 1.0", only: [:dev, :test], runtime: false},
       {:sweet_xml, "~> 0.7"}
     ]
   end
 
-  # Aliases are shortcuts or tasks specific to the current project.
   defp aliases do
     [
       setup: ["deps.get"]

@@ -5,6 +5,12 @@ config :appsignal, :config,
   name: "Cache",
   active: true
 
+config :cache, Cache.PromEx,
+  disabled: false,
+  manual_metrics_start_delay: :no_delay,
+  drop_metrics_groups: [],
+  grafana: :disabled
+
 config :cache, CacheWeb.Endpoint,
   url: [host: "localhost"],
   adapter: Bandit.PhoenixAdapter,
