@@ -73,7 +73,8 @@ jobs:
     if: |
       always() &&
       !cancelled() &&
-      !contains(needs.*.result, 'failure')
+      !contains(needs.*.result, 'failure') &&
+      (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
       - uses: actions/checkout@v4
       - name: Select Xcode
@@ -114,7 +115,8 @@ jobs:
     if: |
       always() &&
       !cancelled() &&
-      !contains(needs.*.result, 'failure')
+      !contains(needs.*.result, 'failure') &&
+      (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
       - uses: actions/checkout@v4
       - name: Select Xcode
@@ -147,7 +149,8 @@ jobs:
     if: |
       always() &&
       !cancelled() &&
-      !contains(needs.*.result, 'failure')
+      !contains(needs.*.result, 'failure') &&
+      (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
       - uses: actions/checkout@v4
       - name: Select Xcode

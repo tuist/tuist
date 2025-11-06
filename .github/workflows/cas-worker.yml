@@ -36,6 +36,7 @@ jobs:
     name: Test
     runs-on: namespace-profile-default
     timeout-minutes: 15
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
       - name: Restore PNPM Cache

@@ -70,6 +70,7 @@ jobs:
   cli-spm-build:
     name: SwiftPM Build
     runs-on: macos-26
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
       - name: Select Xcode
@@ -119,6 +120,7 @@ jobs:
   cli-unit-tests:
     name: Unit Tests
     runs-on: namespace-profile-default-macos
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
       - name: Select Xcode
@@ -144,6 +146,7 @@ jobs:
     name: Automation Acceptance Tests
     runs-on: macos-26
     timeout-minutes: 60
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
       - name: Select Xcode
@@ -175,6 +178,7 @@ jobs:
     name: Dependencies Acceptance Tests
     runs-on: macos-26
     timeout-minutes: 60
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
       - name: Select Xcode
@@ -213,6 +217,7 @@ jobs:
     name: Generator Acceptance Tests
     runs-on: macos-26
     timeout-minutes: 60
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
       - name: Select Xcode
@@ -244,6 +249,7 @@ jobs:
     name: Kit Acceptance Tests
     runs-on: macos-26
     timeout-minutes: 60
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
       - name: Select Xcode
