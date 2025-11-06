@@ -412,15 +412,17 @@ struct XCActivityLogControllerTests {
             .appending(try RelativePath(validating: "../../Fixtures/build-with-uploads/build-with-uploads.xcactivitylog"))
         let environment = try #require(Environment.mocked)
         environment.stateDirectory = xcactivityLog.parentDirectory.appending(component: "state")
-
+        
         // When
         let got = try await subject.parse(xcactivityLog)
-
+        
         // Then
         #expect(got.cacheableTasks.count == 2)
         #expect(got.cacheableTasks.filter { $0.type == .swift }.count == 2)
         #expect(got.cacheableTasks.filter { $0.status == .miss }.count == 2)
         #expect(got.casOutputs.filter { $0.operation == .upload }.count == 9)
+        #expect(got.cacheableTasks.sorted(by: { $0.key > $1.key }).map(\.readDuration) == [0.09602287504822016, 0.0980583333875984])
+        #expect(got.cacheableTasks.sorted(by: { $0.key > $1.key }).map(\.writeDuration) == [0.10685816663317382, 0.11120187502820045])
     }
 
     @Test(.withMockedEnvironment())
