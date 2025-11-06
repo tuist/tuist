@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.100.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* cas output analytics by [@fortmarek](https://github.com/fortmarek) in [#8584](https://github.com/tuist/tuist/pull/8584)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.99.2...4.100.0
+
 ## What's Changed in 4.99.2<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
