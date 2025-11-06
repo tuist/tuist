@@ -6,6 +6,7 @@ defmodule CacheWeb.CASControllerTest do
 
   alias Cache.Authentication
   alias Cache.Disk
+  alias Oban
 
   setup do
     {:ok, test_storage_dir} = Briefly.create(directory: true)
@@ -14,84 +15,6 @@ defmodule CacheWeb.CASControllerTest do
     {:ok, test_storage_dir: test_storage_dir}
   end
 
-  describe "GET /auth/cas" do
-    test "returns 204 when project is accessible", %{conn: conn} do
-      account_handle = "test-account"
-      project_handle = "test-project"
-
-      expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
-        {:ok, "Bearer valid-token"}
-      end)
-
-      conn =
-        conn
-        |> put_req_header("authorization", "Bearer valid-token")
-        |> get("/auth/cas?account_handle=#{account_handle}&project_handle=#{project_handle}")
-
-      assert conn.status == 204
-      assert conn.resp_body == ""
-    end
-
-    test "returns error status when authentication fails", %{conn: conn} do
-      account_handle = "test-account"
-      project_handle = "test-project"
-
-      expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
-        {:error, 401, "Missing Authorization header"}
-      end)
-
-      conn =
-        get(conn, "/auth/cas?account_handle=#{account_handle}&project_handle=#{project_handle}")
-
-      assert conn.status == 401
-      assert conn.resp_body == ""
-    end
-
-    test "returns 404 when project is not found", %{conn: conn} do
-      account_handle = "test-account"
-      project_handle = "test-project"
-
-      expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
-        {:error, 404, "Unauthorized or not found"}
-      end)
-
-      conn =
-        conn
-        |> put_req_header("authorization", "Bearer invalid-token")
-        |> get("/auth/cas?account_handle=#{account_handle}&project_handle=#{project_handle}")
-
-      assert conn.status == 404
-      assert conn.resp_body == ""
-    end
-
-    test "returns 400 when account_handle is missing", %{conn: conn} do
-      conn = get(conn, "/auth/cas?project_handle=test-project")
-
-      assert conn.status == 400
-      assert conn.resp_body == ""
-    end
-
-    test "returns 400 when project_handle is missing", %{conn: conn} do
-      conn = get(conn, "/auth/cas?account_handle=test-account")
-
-      assert conn.status == 400
-      assert conn.resp_body == ""
-    end
-
-    test "returns 400 when account_handle is empty", %{conn: conn} do
-      conn = get(conn, "/auth/cas?account_handle=&project_handle=test-project")
-
-      assert conn.status == 400
-      assert conn.resp_body == ""
-    end
-
-    test "returns 400 when project_handle is empty", %{conn: conn} do
-      conn = get(conn, "/auth/cas?account_handle=test-account&project_handle=")
-
-      assert conn.status == 400
-      assert conn.resp_body == ""
-    end
-  end
 
   describe "POST /api/cache/cas/:id" do
     test "saves artifact successfully when authenticated", %{conn: conn} do
@@ -111,6 +34,8 @@ defmodule CacheWeb.CASControllerTest do
       |> expect(:put, fn ^account_handle, ^project_handle, ^id, ^body ->
         :ok
       end)
+
+      expect(Oban, :insert, fn changeset -> {:ok, changeset} end)
 
       capture_log(fn ->
         conn =
@@ -144,6 +69,8 @@ defmodule CacheWeb.CASControllerTest do
         File.rm(tmp_path)
         :ok
       end)
+
+      expect(Oban, :insert, fn changeset -> {:ok, changeset} end)
 
       capture_log(fn ->
         conn =
@@ -281,6 +208,59 @@ defmodule CacheWeb.CASControllerTest do
       assert conn.status == 404
       response = json_response(conn, 404)
       assert response["message"] == "Unauthorized or not found"
+    end
+  end
+
+  describe "GET /api/cache/cas/*id" do
+    test "returns X-Accel-Redirect when authenticated", %{conn: conn} do
+      account_handle = "test-account"
+      project_handle = "test-project"
+      id = "abc123"
+
+      expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
+        {:ok, "Bearer valid-token"}
+      end)
+
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer valid-token")
+        |> get("/api/cache/cas/#{id}?account_handle=#{account_handle}&project_handle=#{project_handle}")
+
+      assert conn.status == 200
+      assert get_resp_header(conn, "x-accel-redirect") == ["/internal/cas/#{account_handle}/#{project_handle}/cas/#{id}"]
+      assert conn.resp_body == ""
+    end
+
+    test "returns 401 when authentication fails", %{conn: conn} do
+      account_handle = "test-account"
+      project_handle = "test-project"
+      id = "abc123"
+
+      expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
+        {:error, 401, "Missing Authorization header"}
+      end)
+
+      conn = get(conn, "/api/cache/cas/#{id}?account_handle=#{account_handle}&project_handle=#{project_handle}")
+
+      assert conn.status == 401
+      response = json_response(conn, 401)
+      assert response["message"] == "Missing Authorization header"
+    end
+
+    test "returns 401 when account_handle is missing", %{conn: conn} do
+      conn = get(conn, "/api/cache/cas/abc123?project_handle=test-project")
+
+      assert conn.status == 401
+      response = json_response(conn, 401)
+      assert response["message"] == "Missing Authorization header"
+    end
+
+    test "returns 401 when project_handle is missing", %{conn: conn} do
+      conn = get(conn, "/api/cache/cas/abc123?account_handle=test-account")
+
+      assert conn.status == 401
+      response = json_response(conn, 401)
+      assert response["message"] == "Missing Authorization header"
     end
   end
 end

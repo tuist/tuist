@@ -1,25 +1,19 @@
 defmodule CacheWeb.CASController do
   use CacheWeb, :controller
 
-  alias Cache.Authentication
   alias Cache.BodyReader
   alias Cache.Disk
   alias Cache.S3UploadWorker
 
-  def authorize(conn, %{"account_handle" => account, "project_handle" => project})
-      when is_binary(account) and account != "" and is_binary(project) and project != "" do
-    case Authentication.ensure_project_accessible(conn, account, project) do
-      {:ok, _} -> send_resp(conn, :no_content, "")
-      {:error, status, _} -> send_resp(conn, status, "")
-    end
+  def download(conn, %{"id" => id, "account_handle" => account_handle, "project_handle" => project_handle}) do
+    internal_path = Disk.internal_accel_path(account_handle, project_handle, id)
+
+    conn
+    |> put_resp_header("x-accel-redirect", internal_path)
+    |> send_resp(:ok, "")
   end
 
-  def authorize(conn, _params), do: send_resp(conn, 400, "")
-
-  def save(conn, %{"id" => id}) do
-    account_handle = conn.query_params["account_handle"]
-    project_handle = conn.query_params["project_handle"]
-
+  def save(conn, %{"id" => id, "account_handle" => account_handle, "project_handle" => project_handle}) do
     if Disk.exists?(account_handle, project_handle, id) do
       handle_existing_artifact(conn)
     else
