@@ -28,7 +28,7 @@ public struct CASNodeStore: CASNodeStoring {
         let sanitizedNodeID = sanitizeNodeID(nodeID)
         let nodeFilePath = nodesDirectory.appending(component: sanitizedNodeID)
 
-        try await fileSystem.writeText(checksum, at: nodeFilePath)
+        try await fileSystem.writeText(checksum, at: nodeFilePath, options: Set([.overwrite]))
     }
 
     public func checksum(for nodeID: String) async throws -> String? {
