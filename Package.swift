@@ -422,6 +422,7 @@ let targets: [Target] = [
             "TuistCore",
             "TuistSupport",
             "TuistRootDirectoryLocator",
+            "TuistCasAnalytics",
             "TuistGit",
             "FileSystem",
             "XCLogParser",

@@ -608,6 +608,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.core.targetName),
                     .target(name: Module.support.targetName),
                     .target(name: Module.rootDirectoryLocator.targetName),
+                    .target(name: Module.casAnalytics.targetName),
                     .target(name: Module.git.targetName),
                     .external(name: "FileSystem"),
                     .external(name: "XCLogParser"),
