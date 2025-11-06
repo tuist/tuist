@@ -256,12 +256,17 @@ defmodule TuistWeb.UserRegistrationLive do
            handle: Map.get(user_params, "username")
          ) do
       {:ok, user} ->
-        Accounts.deliver_user_confirmation_instructions(%{
-          user: user,
-          confirmation_url: &url(~p"/users/confirm/#{&1}")
-        })
+        if Environment.skip_email_confirmation?() do
+          # When email confirmation is skipped, redirect directly to login
+          {:noreply, redirect(socket, to: ~p"/users/log_in")}
+        else
+          Accounts.deliver_user_confirmation_instructions(%{
+            user: user,
+            confirmation_url: &url(~p"/users/confirm/#{&1}")
+          })
 
-        {:noreply, assign(socket, :success, true)}
+          {:noreply, assign(socket, :success, true)}
+        end
 
       {:error, :account_handle_taken} ->
         {:noreply, put_flash(socket, :error, gettext("Account name is already taken"))}

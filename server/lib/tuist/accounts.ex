@@ -67,7 +67,7 @@ defmodule Tuist.Accounts do
   end
 
   def get_account_by_handle(handle) do
-    Repo.one(from a in Account, where: ilike(a.name, ^handle))
+    Repo.one(from(a in Account, where: ilike(a.name, ^handle)))
   end
 
   @doc ~S"""
@@ -76,7 +76,7 @@ defmodule Tuist.Accounts do
   def get_organization_by_id(id, attrs \\ []) do
     preload = Keyword.get(attrs, :preload, [:account])
 
-    case Repo.one(from o in Organization, where: o.id == ^id, preload: ^preload) do
+    case Repo.one(from(o in Organization, where: o.id == ^id, preload: ^preload)) do
       nil -> {:error, :not_found}
       %Organization{} = organization -> {:ok, organization}
     end
@@ -174,9 +174,10 @@ defmodule Tuist.Accounts do
   """
   def get_user_by_token(token) do
     Repo.one(
-      from u in User,
+      from(u in User,
         where: u.token == ^token,
         preload: [:account]
+      )
     )
   end
 
@@ -199,7 +200,9 @@ defmodule Tuist.Accounts do
     created_at = Keyword.get(attrs, :created_at, DateTime.utc_now())
 
     {:ok, device_code} =
-      Repo.insert(DeviceCode.create_changeset(%DeviceCode{}, %{code: code, created_at: created_at}))
+      Repo.insert(
+        DeviceCode.create_changeset(%DeviceCode{}, %{code: code, created_at: created_at})
+      )
 
     device_code
   end
@@ -211,15 +214,15 @@ defmodule Tuist.Accounts do
     - `email` - The email address of the user.
   """
   def get_user_by_email(email) do
-    Repo.one(from u in User, where: u.email == ^email, preload: [:account])
+    Repo.one(from(u in User, where: u.email == ^email, preload: [:account]))
   end
 
   def get_user_by_id(id) do
-    Repo.one(from u in User, where: u.id == ^id, preload: [:account])
+    Repo.one(from(u in User, where: u.id == ^id, preload: [:account]))
   end
 
   def list_users_with_accounts_by_ids(ids) when is_list(ids) do
-    Repo.all(from u in User, where: u.id in ^ids, preload: [:account])
+    Repo.all(from(u in User, where: u.id in ^ids, preload: [:account]))
   end
 
   def get_oauth2_identity_by_provider_and_id(provider, id_in_provider) do
@@ -319,7 +322,10 @@ defmodule Tuist.Accounts do
     end
   end
 
-  defp create_organization_multi(%{name: name, creator: %User{id: user_id, email: user_email}}, opts) do
+  defp create_organization_multi(
+         %{name: name, creator: %User{id: user_id, email: user_email}},
+         opts
+       ) do
     sso_provider = Keyword.get(opts, :sso_provider)
     sso_organization_id = Keyword.get(opts, :sso_organization_id)
     okta_client_id = Keyword.get(opts, :okta_client_id)
@@ -489,7 +495,7 @@ defmodule Tuist.Accounts do
          |> String.downcase()) <> suffix
 
     password = Keyword.get(opts, :password, "")
-    confirmed_at = Keyword.get(opts, :confirmed_at, nil)
+    confirmed_at = Keyword.get(opts, :confirmed_at, default_confirmed_at())
     oauth2_identity = Keyword.get(opts, :oauth2_identity, nil)
     created_at = Keyword.get(opts, :created_at, DateTime.utc_now())
 
@@ -516,7 +522,8 @@ defmodule Tuist.Accounts do
           Account.create_changeset(%Account{}, %{
             user_id: user_id,
             name: handle,
-            current_month_remote_cache_hits_count: Keyword.get(opts, :current_month_remote_cache_hits_count, 0),
+            current_month_remote_cache_hits_count:
+              Keyword.get(opts, :current_month_remote_cache_hits_count, 0),
             current_month_remote_cache_hits_count_updated_at:
               Keyword.get(opts, :current_month_remote_cache_hits_count_updated_at),
             customer_id: customer_id,
@@ -585,11 +592,16 @@ defmodule Tuist.Accounts do
     end
   end
 
-  def update_account_current_month_usage(account_id, %{remote_cache_hits_count: remote_cache_hits_count}, opts \\ []) do
+  def update_account_current_month_usage(
+        account_id,
+        %{remote_cache_hits_count: remote_cache_hits_count},
+        opts \\ []
+      ) do
     %Account{id: account_id}
     |> Account.billing_changeset(%{
       current_month_remote_cache_hits_count: remote_cache_hits_count,
-      current_month_remote_cache_hits_count_updated_at: Keyword.get(opts, :updated_at, NaiveDateTime.utc_now())
+      current_month_remote_cache_hits_count_updated_at:
+        Keyword.get(opts, :updated_at, NaiveDateTime.utc_now())
     })
     |> Repo.update!()
   end
@@ -701,8 +713,10 @@ defmodule Tuist.Accounts do
         left_join: ur in assoc(u, :user_roles),
         left_join: r in Role,
         on: ur.role_id == r.id,
-        where: oi.provider == ^provider and oi.provider_organization_id == ^provider_organization_id,
-        where: is_nil(r.id) or r.resource_type != "Organization" or r.resource_id != ^organization.id,
+        where:
+          oi.provider == ^provider and oi.provider_organization_id == ^provider_organization_id,
+        where:
+          is_nil(r.id) or r.resource_type != "Organization" or r.resource_id != ^organization.id,
         distinct: u.id,
         preload: [:oauth2_identities]
       )
@@ -724,12 +738,18 @@ defmodule Tuist.Accounts do
     length(users)
   end
 
-  def assign_existing_sso_users_to_organization(_organization, _provider, _provider_organization_id), do: 0
+  def assign_existing_sso_users_to_organization(
+        _organization,
+        _provider,
+        _provider_organization_id
+      ),
+      do: 0
 
   def get_account_from_customer_id(customer_id) do
     query =
-      from a in Account,
+      from(a in Account,
         where: a.customer_id == ^customer_id
+      )
 
     Repo.one(query)
   end
@@ -814,7 +834,10 @@ defmodule Tuist.Accounts do
     end
   end
 
-  def remove_user_from_organization(%User{id: user_id} = user, %Organization{id: organization_id} = organization) do
+  def remove_user_from_organization(
+        %User{id: user_id} = user,
+        %Organization{id: organization_id} = organization
+      ) do
     query =
       from(u in UserRole,
         join: r in Role,
@@ -857,7 +880,11 @@ defmodule Tuist.Accounts do
     Repo.one(query)
   end
 
-  def update_user_role_in_organization(%User{id: user_id}, %Organization{id: organization_id}, role) do
+  def update_user_role_in_organization(
+        %User{id: user_id},
+        %Organization{id: organization_id},
+        role
+      ) do
     query =
       from(u in UserRole,
         join: r in Role,
@@ -909,7 +936,11 @@ defmodule Tuist.Accounts do
 
   def invite_user_to_organization(
         email,
-        %{inviter: %User{id: user_id} = inviter, to: %Organization{id: organization_id} = organization, url: url_fun},
+        %{
+          inviter: %User{id: user_id} = inviter,
+          to: %Organization{id: organization_id} = organization,
+          url: url_fun
+        },
         opts \\ []
       )
       when is_function(url_fun, 1) do
@@ -998,7 +1029,10 @@ defmodule Tuist.Accounts do
   end
 
   def get_invitation_by_token(token, %User{} = invitee) do
-    invitation = Invitation |> Repo.get_by(token: token, invitee_email: invitee.email) |> Repo.preload(inviter: :account)
+    invitation =
+      Invitation
+      |> Repo.get_by(token: token, invitee_email: invitee.email)
+      |> Repo.preload(inviter: :account)
 
     cond do
       is_nil(invitation) ->
@@ -1041,7 +1075,10 @@ defmodule Tuist.Accounts do
     Repo.exists?(query)
   end
 
-  def organization_user?(%User{id: user_id} = user, %Organization{id: organization_id} = organization) do
+  def organization_user?(
+        %User{id: user_id} = user,
+        %Organization{id: organization_id} = organization
+      ) do
     query =
       from(u in UserRole,
         join: r in Role,
@@ -1058,11 +1095,14 @@ defmodule Tuist.Accounts do
     Repo.get(Invitation, id)
   end
 
-  def get_invitation_by_invitee_email_and_organization(invitee_email, %Organization{id: organization_id}) do
+  def get_invitation_by_invitee_email_and_organization(invitee_email, %Organization{
+        id: organization_id
+      }) do
     Repo.one(
-      from i in Invitation,
+      from(i in Invitation,
         where: i.invitee_email == ^invitee_email,
         where: i.organization_id == ^organization_id
+      )
     )
   end
 
@@ -1098,9 +1138,10 @@ defmodule Tuist.Accounts do
       nil
 
   """
-  def get_user_by_email_and_password(email, password) when is_binary(email) and is_binary(password) do
+  def get_user_by_email_and_password(email, password)
+      when is_binary(email) and is_binary(password) do
     user =
-      Repo.one(from u in User, where: u.email == ^email, preload: [:account])
+      Repo.one(from(u in User, where: u.email == ^email, preload: [:account]))
 
     if User.valid_password?(user, password) do
       if is_nil(user.confirmed_at) do
@@ -1270,7 +1311,10 @@ defmodule Tuist.Accounts do
       {:ok, %{to: ..., body: ...}}
 
   """
-  def deliver_user_reset_password_instructions(%{user: %User{} = user, reset_password_url: reset_password_url})
+  def deliver_user_reset_password_instructions(%{
+        user: %User{} = user,
+        reset_password_url: reset_password_url
+      })
       when is_function(reset_password_url, 1) do
     {encoded_token, user_token} = UserToken.build_email_token(user, "reset_password")
     Repo.insert!(user_token)
@@ -1474,4 +1518,12 @@ defmodule Tuist.Accounts do
 
   def organization?(account), do: !is_nil(account.organization_id)
   def user?(account), do: !is_nil(account.user_id)
+
+  defp default_confirmed_at do
+    if Environment.skip_email_confirmation?() do
+      NaiveDateTime.utc_now()
+    else
+      nil
+    end
+  end
 end

@@ -87,7 +87,8 @@ defmodule Tuist.Environment do
   end
 
   def license_key(secrets \\ secrets()) do
-    System.get_env("TUIST_LICENSE_KEY") || get([:license], secrets) || get([:license, :key], secrets)
+    System.get_env("TUIST_LICENSE_KEY") || get([:license], secrets) ||
+      get([:license, :key], secrets)
   end
 
   def license_certificate_base64(secrets \\ secrets()) do
@@ -451,7 +452,8 @@ defmodule Tuist.Environment do
   end
 
   def github_app_configured?(secrets \\ secrets()) do
-    github_app_name(secrets) != nil and github_oauth_configured?(secrets) and github_app_private_key(secrets) != nil
+    github_app_name(secrets) != nil and github_oauth_configured?(secrets) and
+      github_app_private_key(secrets) != nil
   end
 
   def google_oauth_client_id(secrets \\ secrets()) do
@@ -527,6 +529,13 @@ defmodule Tuist.Environment do
   def mail_configured?(secrets \\ secrets()) do
     mailgun_api_key(secrets) != nil and mailing_domain(secrets) != nil and
       mailing_from_address(secrets) != nil
+  end
+
+  def skip_email_confirmation?(secrets \\ secrets()) do
+    case get([:skip_email_confirmation], secrets) do
+      skip when is_binary(skip) -> truthy?(skip)
+      _ -> false
+    end
   end
 
   def clickhouse_url(secrets \\ secrets()) do

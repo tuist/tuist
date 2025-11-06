@@ -229,14 +229,23 @@ Tuist requires email functionality for user authentication and transactional not
 
 | Environment variable | Description | Required | Default | Example |
 | --- | --- | --- | --- | --- |
-| `TUIST_MAILGUN_API_KEY` | The API key for authenticating with Mailgun | Yes | | `key-1234567890abcdef` |
-| `TUIST_MAILING_DOMAIN` | The domain from which emails will be sent | Yes | | `mg.tuist.io` |
-| `TUIST_MAILING_FROM_ADDRESS` | The email address that will appear in the "From" field | Yes | | `noreply@tuist.io` |
+| `TUIST_MAILGUN_API_KEY` | The API key for authenticating with Mailgun | Yes* | | `key-1234567890abcdef` |
+| `TUIST_MAILING_DOMAIN` | The domain from which emails will be sent | Yes* | | `mg.tuist.io` |
+| `TUIST_MAILING_FROM_ADDRESS` | The email address that will appear in the "From" field | Yes* | | `noreply@tuist.io` |
 | `TUIST_MAILING_REPLY_TO_ADDRESS` | Optional reply-to address for user replies | No | | `support@tuist.dev` |
+| `TUIST_SKIP_EMAIL_CONFIRMATION` | Skip email confirmation for new user registrations. When enabled, users are automatically confirmed and can log in immediately after registration. **Use this for on-premise installations without internet access or email providers** | No | `false` | `true`, `1`, `yes` |
+
+\* Email configuration variables are required unless `TUIST_SKIP_EMAIL_CONFIRMATION` is enabled
 
 ::: info SMTP SUPPORT
 <!-- -->
 Generic SMTP support is not currently available. If you need SMTP support for your on-premise deployment, please reach out to [contact@tuist.dev](mailto:contact@tuist.dev) to discuss your requirements.
+<!-- -->
+:::
+
+::: warning AIR-GAPPED DEPLOYMENTS
+<!-- -->
+For on-premise installations without internet access, set `TUIST_SKIP_EMAIL_CONFIRMATION=true` to bypass email confirmation requirements. Users will be able to log in immediately after registration without needing to confirm their email address.
 <!-- -->
 :::
 
