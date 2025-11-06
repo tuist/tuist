@@ -881,7 +881,7 @@ defmodule Tuist.RunsTest do
       # When
       # Add a small delay to ensure ClickHouse has processed the data
       Process.sleep(100)
-      
+
       metrics = Runs.cas_output_metrics(build.id)
 
       # Then
@@ -941,8 +941,8 @@ defmodule Tuist.RunsTest do
             %{
               node_id: "node2",
               checksum: "def456",
-              size: 10000,
-              duration: 10000,
+              size: 10_000,
+              duration: 10_000,
               compressed_size: 8000,
               operation: :download
             }
@@ -955,7 +955,7 @@ defmodule Tuist.RunsTest do
       # Then
       assert metrics.download_count == 2
       assert metrics.upload_count == 0
-      assert metrics.download_bytes == 15000
+      assert metrics.download_bytes == 15_000
       assert metrics.upload_bytes == 0
       # Time-weighted average: (5000 + 10000) / (5000 + 10000) * 1000 = 1000 bytes/s
       assert metrics.time_weighted_avg_download_throughput == 1.0
@@ -978,7 +978,7 @@ defmodule Tuist.RunsTest do
             %{
               node_id: "node2",
               checksum: "def456",
-              size: 12000,
+              size: 12_000,
               duration: 6000,
               compressed_size: 9600,
               operation: :upload
@@ -993,7 +993,7 @@ defmodule Tuist.RunsTest do
       assert metrics.download_count == 0
       assert metrics.upload_count == 2
       assert metrics.download_bytes == 0
-      assert metrics.upload_bytes == 20000
+      assert metrics.upload_bytes == 20_000
       assert metrics.time_weighted_avg_download_throughput == 0
       # Time-weighted average: (8000 + 12000) / (4000 + 6000) * 1000 = 2000 bytes/s
       assert metrics.time_weighted_avg_upload_throughput == 2.0
@@ -1045,25 +1045,25 @@ defmodule Tuist.RunsTest do
             %{
               node_id: "node1",
               checksum: "abc123",
-              size: 10000,
-              duration: 10000,
+              size: 10_000,
+              duration: 10_000,
               compressed_size: 8000,
               operation: :download
             },
             %{
               node_id: "node2",
               checksum: "def456",
-              size: 20000,
+              size: 20_000,
               duration: 4000,
-              compressed_size: 16000,
+              compressed_size: 16_000,
               operation: :upload
             },
             %{
               node_id: "node3",
               checksum: "ghi789",
-              size: 15000,
+              size: 15_000,
               duration: 5000,
-              compressed_size: 12000,
+              compressed_size: 12_000,
               operation: :download
             }
           ]
@@ -1075,8 +1075,8 @@ defmodule Tuist.RunsTest do
       # Then
       assert metrics.download_count == 2
       assert metrics.upload_count == 1
-      assert metrics.download_bytes == 25000
-      assert metrics.upload_bytes == 20000
+      assert metrics.download_bytes == 25_000
+      assert metrics.upload_bytes == 20_000
       # Download throughput: (10000 + 15000) / (10000 + 5000) * 1000 = 1666.67 bytes/s
       assert_in_delta metrics.time_weighted_avg_download_throughput, 1.6666666666666667, 0.001
       # Upload throughput: 20000 / 4000 * 1000 = 5000 bytes/s

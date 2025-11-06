@@ -269,13 +269,15 @@ generate_cas_node_id = fn ->
     |> Enum.map(fn _ ->
       Enum.random([
         Enum.random(?A..?Z),
-        Enum.random(?a..?z), 
+        Enum.random(?a..?z),
         Enum.random(?0..?9),
-        ?+, ?/, ?=
+        ?+,
+        ?/,
+        ?=
       ])
     end)
     |> List.to_string()
-  
+
   content
 end
 
@@ -287,16 +289,19 @@ generate_checksum = fn ->
 end
 
 cas_outputs =
-  builds
-  |> Enum.flat_map(fn build ->
+  Enum.flat_map(builds, fn build ->
     # Generate 5-25 CAS operations per build
     operation_count = Enum.random(5..25)
-    
+
     Enum.map(1..operation_count, fn _i ->
       operation = Enum.random(["download", "upload"])
-      size = Enum.random(1024..50_000_000) # 1KB to 50MB
-      compressed_size = trunc(size * (0.3 + :rand.uniform() * 0.6)) # 30-90% compression
-      duration = Enum.random(100..30_000) # 100ms to 30s in milliseconds
+      size = Enum.random(1024..50_000_000)
+      # 1KB to 50MB
+      compressed_size = trunc(size * (0.3 + :rand.uniform() * 0.6))
+      # 30-90% compression
+      duration = Enum.random(100..30_000)
+
+      # 100ms to 30s in milliseconds
 
       %{
         build_run_id: build.id,

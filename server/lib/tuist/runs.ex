@@ -195,38 +195,39 @@ defmodule Tuist.Runs do
 
   def cas_output_metrics(build_run_id) do
     query = """
-    SELECT 
+    SELECT
       countIf(operation = 'download') as download_count,
       countIf(operation = 'upload') as upload_count,
       sumIf(size, operation = 'download') as download_bytes,
       sumIf(size, operation = 'upload') as upload_bytes,
       sumIf(size, operation = 'download' AND duration > 0) / sumIf(duration, operation = 'download' AND duration > 0) * 1000 as time_weighted_avg_download_throughput,
       sumIf(size, operation = 'upload' AND duration > 0) / sumIf(duration, operation = 'upload' AND duration > 0) * 1000 as time_weighted_avg_upload_throughput
-    FROM cas_outputs 
+    FROM cas_outputs
     WHERE build_run_id = {build_run_id:UUID}
     """
 
-    case IngestRepo.query(query, %{build_run_id: build_run_id}) do
-      {:ok, %{rows: [[download_count, upload_count, download_bytes, upload_bytes, time_weighted_avg_download_throughput, time_weighted_avg_upload_throughput]]}} ->
-        %{
-          download_count: download_count,
-          upload_count: upload_count,
-          download_bytes: download_bytes || 0,
-          upload_bytes: upload_bytes || 0,
-          time_weighted_avg_download_throughput: time_weighted_avg_download_throughput || 0,
-          time_weighted_avg_upload_throughput: time_weighted_avg_upload_throughput || 0
-        }
+    {:ok,
+     %{
+       rows: [
+         [
+           download_count,
+           upload_count,
+           download_bytes,
+           upload_bytes,
+           time_weighted_avg_download_throughput,
+           time_weighted_avg_upload_throughput
+         ]
+       ]
+     }} = IngestRepo.query(query, %{build_run_id: build_run_id})
 
-      _ ->
-        %{
-          download_count: 0,
-          upload_count: 0,
-          download_bytes: 0,
-          upload_bytes: 0,
-          time_weighted_avg_download_throughput: 0,
-          time_weighted_avg_upload_throughput: 0
-        }
-    end
+    %{
+      download_count: download_count,
+      upload_count: upload_count,
+      download_bytes: download_bytes || 0,
+      upload_bytes: upload_bytes || 0,
+      time_weighted_avg_download_throughput: time_weighted_avg_download_throughput || 0,
+      time_weighted_avg_upload_throughput: time_weighted_avg_upload_throughput || 0
+    }
   end
 
   def list_build_runs(attrs, opts \\ []) do

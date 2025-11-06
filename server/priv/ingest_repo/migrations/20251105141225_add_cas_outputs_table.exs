@@ -9,9 +9,9 @@ defmodule Tuist.ClickHouseRepo.Migrations.AddCasOutputsTable do
            ) do
       add :node_id, :string, null: false
       add :checksum, :string, null: false
-      add :size, :"UInt64", null: false
-      add :duration, :"UInt64", null: false
-      add :compressed_size, :"UInt64", null: false
+      add :size, :UInt64, null: false
+      add :duration, :UInt64, null: false
+      add :compressed_size, :UInt64, null: false
       add :operation, :"Enum8('download' = 0, 'upload' = 1)", null: false
       add :build_run_id, :uuid, null: false
       add :inserted_at, :timestamp, default: fragment("now()")

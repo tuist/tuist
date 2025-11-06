@@ -36,6 +36,14 @@ defmodule Tuist.Runs.CASOutput do
       },
       [:build_run_id, :node_id, :checksum, :size, :duration, :compressed_size, :operation, :inserted_at]
     )
-    |> Ecto.Changeset.validate_required([:build_run_id, :node_id, :checksum, :size, :duration, :compressed_size, :operation])
+    |> Ecto.Changeset.validate_required([
+      :build_run_id,
+      :node_id,
+      :checksum,
+      :size,
+      :duration,
+      :compressed_size,
+      :operation
+    ])
   end
 end
