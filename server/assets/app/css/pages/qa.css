@@ -88,60 +88,60 @@
     overflow: hidden;
 
     & [data-part="illustration"] {
-  width: 100%;
-  max-width: 1184px; /* Match SVG viewBox width */
-  overflow: hidden;
-  
-  & > div {
-    opacity: 0.6;
-    width: 100%;
-    height: auto;
-    
-    & svg {
       width: 100%;
-      height: auto;
-      display: block;
+      max-width: 1184px; /* Match SVG viewBox width */
+      overflow: hidden;
+
+      & > div {
+        opacity: 0.6;
+        width: 100%;
+        height: auto;
+
+        & svg {
+          display: block;
+          width: 100%;
+          height: auto;
+        }
+      }
+
+      /* Default: show light, hide dark */
+      & > div[data-theme="light"] {
+        display: block;
+      }
+
+      & > div[data-theme="dark"] {
+        display: none;
+      }
+
+      /* Prefers dark mode: hide light, show dark */
+      @media (prefers-color-scheme: dark) {
+        & > div[data-theme="light"] {
+          display: none;
+        }
+
+        & > div[data-theme="dark"] {
+          display: block;
+        }
+      }
+
+      /* Explicit dark theme: hide light, show dark */
+      [data-theme="dark"] & > div[data-theme="light"] {
+        display: none;
+      }
+
+      [data-theme="dark"] & > div[data-theme="dark"] {
+        display: block;
+      }
+
+      /* Explicit light theme: show light, hide dark */
+      [data-theme="light"] & > div[data-theme="light"] {
+        display: block;
+      }
+
+      [data-theme="light"] & > div[data-theme="dark"] {
+        display: none;
+      }
     }
-  }
-
-  /* Default: show light, hide dark */
-  & > div[data-theme="light"] {
-    display: block;
-  }
-
-  & > div[data-theme="dark"] {
-    display: none;
-  }
-
-  /* Prefers dark mode: hide light, show dark */
-  @media (prefers-color-scheme: dark) {
-    & > div[data-theme="light"] {
-      display: none;
-    }
-
-    & > div[data-theme="dark"] {
-      display: block;
-    }
-  }
-
-  /* Explicit dark theme: hide light, show dark */
-  [data-theme="dark"] & > div[data-theme="light"] {
-    display: none;
-  }
-
-  [data-theme="dark"] & > div[data-theme="dark"] {
-    display: block;
-  }
-  
-  /* Explicit light theme: show light, hide dark */
-  [data-theme="light"] & > div[data-theme="light"] {
-    display: block;
-  }
-
-  [data-theme="light"] & > div[data-theme="dark"] {
-    display: none;
-  }
-}
   }
 
   & > [data-part="content"] {
