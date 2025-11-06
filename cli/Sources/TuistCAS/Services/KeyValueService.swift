@@ -73,7 +73,7 @@ public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.Si
             let duration = ProcessInfo.processInfo.systemUptime - startTime
 
             storeMetadata(
-                duration: duration,
+                duration: duration * 1000,
                 for: casID,
                 operationType: .write
             )
@@ -135,7 +135,6 @@ public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.Si
 
                 duration = ProcessInfo.processInfo.systemUptime - startTime
 
-
                 let valueSize = value.entries.values.reduce(0) { $0 + $1.count }
                 Logger.current
                     .debug(
@@ -161,7 +160,7 @@ public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.Si
         }
 
         storeMetadata(
-            duration: duration,
+            duration: duration * 1000,
             for: casID,
             operationType: .read
         )

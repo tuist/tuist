@@ -679,125 +679,155 @@
         title={gettext("Xcode Cache")}
         icon="database"
       >
-        <.card_section
-          :if={@run.cacheable_tasks_count > 0}
-          data-part="xcode-cache-card-section"
-        >
-          <div data-part="title">
-            <span data-part="label">
-              {gettext("Cacheable tasks:")}
-            </span>
-            <span data-part="value">
-              {@run.cacheable_tasks_count}
-            </span>
-          </div>
-          <.chart
-            id="cacheable-tasks-breakdown-chart"
-            type="bar"
-            extra_options={
-              %{
-                tooltip: %{
-                  trigger: "axis",
-                  axisPointer: %{
-                    type: "none"
-                  }
-                },
-                legend: %{
-                  left: "-0.3%",
-                  top: "bottom",
-                  orient: "horizontal",
-                  textStyle: %{
-                    color: "var:noora-surface-label-primary",
-                    fontFamily: "monospace",
-                    fontWeight: 400,
-                    fontSize: 10,
-                    lineHeight: 12
+        <.card_section data-part="xcode-cache-card-section">
+          <.card_section
+            :if={@run.cacheable_tasks_count > 0}
+            data-part="cacheable-tasks-card-section"
+          >
+            <div data-part="title">
+              <span data-part="label">
+                {gettext("Cacheable tasks:")}
+              </span>
+              <span data-part="value">
+                {@run.cacheable_tasks_count}
+              </span>
+            </div>
+            <.chart
+              id="cacheable-tasks-breakdown-chart"
+              type="bar"
+              extra_options={
+                %{
+                  tooltip: %{
+                    trigger: "axis",
+                    axisPointer: %{
+                      type: "none"
+                    }
                   },
-                  icon:
-                    "path://M0 6C0 4.89543 0.895431 4 2 4H6C7.10457 4 8 4.89543 8 6C8 7.10457 7.10457 8 6 8H2C0.895431 8 0 7.10457 0 6Z",
-                  itemWidth: 8,
-                  itemHeight: 4
-                },
-                grid: %{
-                  width: "99%",
-                  left: "0%",
-                  height: "60%",
-                  top: "0%"
-                },
-                xAxis: %{
-                  type: "value",
-                  axisLabel: %{
-                    show: false
+                  legend: %{
+                    left: "-0.3%",
+                    top: "bottom",
+                    orient: "horizontal",
+                    textStyle: %{
+                      color: "var:noora-surface-label-primary",
+                      fontFamily: "monospace",
+                      fontWeight: 400,
+                      fontSize: 10,
+                      lineHeight: 12
+                    },
+                    icon:
+                      "path://M0 6C0 4.89543 0.895431 4 2 4H6C7.10457 4 8 4.89543 8 6C8 7.10457 7.10457 8 6 8H2C0.895431 8 0 7.10457 0 6Z",
+                    itemWidth: 8,
+                    itemHeight: 4
                   },
-                  splitLine: %{show: false}
-                },
-                yAxis: %{
-                  type: "category",
-                  data: [gettext("Cacheable tasks")],
-                  axisLabel: %{
-                    show: false
+                  grid: %{
+                    width: "99%",
+                    left: "0%",
+                    height: "60%",
+                    top: "0%"
+                  },
+                  xAxis: %{
+                    type: "value",
+                    axisLabel: %{
+                      show: false
+                    },
+                    splitLine: %{show: false}
+                  },
+                  yAxis: %{
+                    type: "category",
+                    data: [gettext("Cacheable tasks")],
+                    axisLabel: %{
+                      show: false
+                    }
                   }
                 }
               }
-            }
-            series={
-              local_hits = @run.cacheable_task_local_hits_count
-              remote_hits = @run.cacheable_task_remote_hits_count
+              series={
+                local_hits = @run.cacheable_task_local_hits_count
+                remote_hits = @run.cacheable_task_remote_hits_count
 
-              misses =
-                @run.cacheable_tasks_count - @run.cacheable_task_remote_hits_count -
-                  @run.cacheable_task_local_hits_count
+                misses =
+                  @run.cacheable_tasks_count - @run.cacheable_task_remote_hits_count -
+                    @run.cacheable_task_local_hits_count
 
-              [
-                %{
-                  name: gettext("Local"),
-                  type: "bar",
-                  stack: "total",
-                  emphasis: %{
-                    focus: "series"
+                [
+                  %{
+                    name: gettext("Local"),
+                    type: "bar",
+                    stack: "total",
+                    emphasis: %{
+                      focus: "series"
+                    },
+                    data: [local_hits],
+                    color: "var:hits-chart-legend-local",
+                    itemStyle: %{
+                      borderRadius:
+                        cache_chart_border_radius(local_hits, remote_hits, misses, :local)
+                    }
                   },
-                  data: [local_hits],
-                  color: "var:hits-chart-legend-local",
-                  itemStyle: %{
-                    borderRadius:
-                      cache_chart_border_radius(local_hits, remote_hits, misses, :local)
-                  }
-                },
-                %{
-                  name: gettext("Remote"),
-                  type: "bar",
-                  stack: "total",
-                  emphasis: %{
-                    focus: "series"
+                  %{
+                    name: gettext("Remote"),
+                    type: "bar",
+                    stack: "total",
+                    emphasis: %{
+                      focus: "series"
+                    },
+                    data: [remote_hits],
+                    color: "var:hits-chart-legend-remote",
+                    itemStyle: %{
+                      borderRadius:
+                        cache_chart_border_radius(local_hits, remote_hits, misses, :remote)
+                    }
                   },
-                  data: [remote_hits],
-                  color: "var:hits-chart-legend-remote",
-                  itemStyle: %{
-                    borderRadius:
-                      cache_chart_border_radius(local_hits, remote_hits, misses, :remote)
+                  %{
+                    name: gettext("Missed"),
+                    type: "bar",
+                    stack: "total",
+                    emphasis: %{
+                      focus: "series"
+                    },
+                    data: [misses],
+                    color: "var:hits-chart-legend-missed",
+                    itemStyle: %{
+                      borderRadius:
+                        cache_chart_border_radius(local_hits, remote_hits, misses, :misses)
+                    }
                   }
-                },
-                %{
-                  name: gettext("Missed"),
-                  type: "bar",
-                  stack: "total",
-                  emphasis: %{
-                    focus: "series"
-                  },
-                  data: [misses],
-                  color: "var:hits-chart-legend-missed",
-                  itemStyle: %{
-                    borderRadius:
-                      cache_chart_border_radius(local_hits, remote_hits, misses, :misses)
-                  }
-                }
-              ]
-            }
-            x_axis_min={0}
-            x_axis_max={@run.cacheable_tasks_count}
-          />
-        </.card_section>
-        <.card_section data-part="cacheable-tasks-section">
+                ]
+              }
+              x_axis_min={0}
+              x_axis_max={@run.cacheable_tasks_count}
+            />
+          </.card_section>
+          <div data-part="latency-widgets">
+            <.widget
+              title={gettext("Average read latency")}
+              description={gettext("Average time to read cacheable tasks from cache.")}
+              value={
+                if @cacheable_task_latency_metrics.avg_read_duration > 0 do
+                  Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                    trunc(@cacheable_task_latency_metrics.avg_read_duration)
+                  )
+                else
+                  "N/A"
+                end
+              }
+              id="widget-avg-read-latency"
+            />
+            <.widget
+              title={gettext("Average write latency")}
+              description={gettext("Average time to write cacheable tasks to cache.")}
+              value={
+                if @cacheable_task_latency_metrics.avg_write_duration > 0 do
+                  Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                    trunc(@cacheable_task_latency_metrics.avg_write_duration)
+                  )
+                else
+                  "N/A"
+                end
+              }
+              id="widget-avg-write-latency"
+            />
+          </div>
           <div data-part="filters">
             <.form for={%{}} phx-change="search-cacheable-tasks" phx-debounce="200">
               <.text_input

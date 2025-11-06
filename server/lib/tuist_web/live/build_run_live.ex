@@ -41,12 +41,14 @@ defmodule TuistWeb.BuildRunLive do
     end
 
     cas_metrics = Runs.cas_output_metrics(run.id)
+    cacheable_task_latency_metrics = Runs.cacheable_task_latency_metrics(run.id)
 
     socket =
       socket
       |> assign(:run, run)
       |> assign(:command_event, command_event)
       |> assign(:cas_metrics, cas_metrics)
+      |> assign(:cacheable_task_latency_metrics, cacheable_task_latency_metrics)
       |> assign(:head_title, "#{gettext("Build Run")} · #{slug} · Tuist")
       |> assign(
         :warnings_grouped_by_path,

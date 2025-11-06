@@ -230,6 +230,32 @@ defmodule Tuist.Runs do
     }
   end
 
+  def cacheable_task_latency_metrics(build_run_id) do
+    query = """
+    SELECT
+      avg(read_duration) as avg_read_duration,
+      avg(write_duration) as avg_write_duration
+    FROM cacheable_tasks
+    WHERE build_run_id = {build_run_id:UUID}
+    AND (read_duration IS NOT NULL OR write_duration IS NOT NULL)
+    """
+
+    {:ok,
+     %{
+       rows: [
+         [
+           avg_read_duration,
+           avg_write_duration
+         ]
+       ]
+     }} = IngestRepo.query(query, %{build_run_id: build_run_id})
+
+    %{
+      avg_read_duration: avg_read_duration || 0,
+      avg_write_duration: avg_write_duration || 0
+    }
+  end
+
   def list_build_runs(attrs, opts \\ []) do
     preload = Keyword.get(opts, :preload, [])
 
