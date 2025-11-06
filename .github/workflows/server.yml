@@ -9,6 +9,7 @@ on:
       - .github/workflows/server.yml
       - server/pnpm-lock.yaml
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - server/**
       - .github/workflows/server.yml

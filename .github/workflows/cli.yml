@@ -17,6 +17,7 @@ on:
       - "Tuist/**"
       - ".xcode-version"
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - "cli/TuistCacheEE"
       - "cli/TuistCacheEE/**"

@@ -10,6 +10,7 @@ on:
       - pnpm-lock.yaml
       - handbook/package.json
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - handbook/**
       - .github/workflows/handbook.yml

@@ -9,6 +9,7 @@ on:
       - .github/workflows/cas-worker.yml
       - pnpm-lock.yaml
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - cas-worker/**
       - .github/workflows/cas-worker.yml
