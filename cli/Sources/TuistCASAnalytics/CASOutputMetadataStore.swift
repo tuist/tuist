@@ -1,8 +1,8 @@
 @preconcurrency import FileSystem
 import Foundation
+import Mockable
 import Path
 import TuistSupport
-import Mockable
 
 /// Protocol for storing and retrieving CAS output metadata
 @Mockable
@@ -29,12 +29,6 @@ public struct CASOutputMetadataStore: CASOutputMetadataStoring {
         let metadataFilePath = casDirectory.appending(component: "\(sanitizedCasID).json")
 
         let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .custom { date, encoder in
-            let formatter = ISO8601DateFormatter()
-            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-            var container = encoder.singleValueContainer()
-            try container.encode(formatter.string(from: date))
-        }
         let jsonData = try encoder.encode(metadata)
         let jsonString = String(data: jsonData, encoding: .utf8)!
 
@@ -54,24 +48,6 @@ public struct CASOutputMetadataStore: CASOutputMetadataStoring {
         let jsonData = jsonString.data(using: .utf8)!
 
         let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .custom { decoder in
-            let container = try decoder.singleValueContainer()
-            let dateString = try container.decode(String.self)
-
-            let formatter = ISO8601DateFormatter()
-            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-            if let date = formatter.date(from: dateString) {
-                return date
-            }
-
-            // Fallback to standard ISO8601 format if fractional seconds parsing fails
-            formatter.formatOptions = [.withInternetDateTime]
-            if let date = formatter.date(from: dateString) {
-                return date
-            }
-
-            throw DecodingError.dataCorruptedError(in: container, debugDescription: "Invalid date format")
-        }
         return try decoder.decode(CASOutputMetadata.self, from: jsonData)
     }
 
