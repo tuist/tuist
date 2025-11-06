@@ -85,40 +85,63 @@
     left: 0;
     justify-content: center;
     align-items: flex-start;
+    overflow: hidden;
 
     & [data-part="illustration"] {
-      & img {
-        opacity: 0.6;
-        width: 100%;
-        height: auto;
-      }
-
-      & img[data-theme="light"] {
-        display: block;
-      }
-
-      & img[data-theme="dark"] {
-        display: none;
-      }
-
-      @media (prefers-color-scheme: dark) {
-        & img[data-theme="light"] {
-          display: none;
-        }
-
-        & img[data-theme="dark"] {
-          display: block;
-        }
-      }
-
-      [data-theme="dark"] & img[data-theme="light"] {
-        display: none;
-      }
-
-      [data-theme="dark"] & img[data-theme="dark"] {
-        display: block;
-      }
+  width: 100%;
+  max-width: 1184px; /* Match SVG viewBox width */
+  overflow: hidden;
+  
+  & > div {
+    opacity: 0.6;
+    width: 100%;
+    height: auto;
+    
+    & svg {
+      width: 100%;
+      height: auto;
+      display: block;
     }
+  }
+
+  /* Default: show light, hide dark */
+  & > div[data-theme="light"] {
+    display: block;
+  }
+
+  & > div[data-theme="dark"] {
+    display: none;
+  }
+
+  /* Prefers dark mode: hide light, show dark */
+  @media (prefers-color-scheme: dark) {
+    & > div[data-theme="light"] {
+      display: none;
+    }
+
+    & > div[data-theme="dark"] {
+      display: block;
+    }
+  }
+
+  /* Explicit dark theme: hide light, show dark */
+  [data-theme="dark"] & > div[data-theme="light"] {
+    display: none;
+  }
+
+  [data-theme="dark"] & > div[data-theme="dark"] {
+    display: block;
+  }
+  
+  /* Explicit light theme: show light, hide dark */
+  [data-theme="light"] & > div[data-theme="light"] {
+    display: block;
+  }
+
+  [data-theme="light"] & > div[data-theme="dark"] {
+    display: none;
+  }
+}
   }
 
   & > [data-part="content"] {

@@ -278,11 +278,17 @@
   <div id="qa-empty-state">
     <div data-part="background">
       <div data-part="illustration">
-        <img src="/images/empty_qa_light.png" data-theme="light" alt="QA illustration" />
-        <img src="/images/empty_qa_dark.png" data-theme="dark" alt="QA illustration" />
+        <!-- Replace the static images with SVG backgrounds -->
+        <div data-theme="light">
+          <.empty_state_light_background />
+        </div>
+        <div data-theme="dark">
+          <.empty_state_dark_background />
+        </div>
       </div>
     </div>
     <div data-part="content">
+      <!-- KEEP ALL EXISTING CARD_SECTION AND TERMINAL CONTENT -->
       <.card_section data-part="step-one">
         <div data-part="header">
           <span data-part="title">
