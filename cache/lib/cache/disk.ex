@@ -97,8 +97,8 @@ defmodule Cache.Disk do
   The returned path maps to the nginx internal location that aliases the
   physical CAS storage directory.
   """
-  def internal_accel_path(account_handle, project_handle, id) do
-    "/internal/cas/" <> cas_key(account_handle, project_handle, id)
+  def local_accel_path(account_handle, project_handle, id) do
+    "/internal/local/" <> cas_key(account_handle, project_handle, id)
   end
 
   @doc """

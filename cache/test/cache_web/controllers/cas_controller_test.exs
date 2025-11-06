@@ -6,7 +6,6 @@ defmodule CacheWeb.CASControllerTest do
 
   alias Cache.Authentication
   alias Cache.Disk
-  alias Oban
 
   setup do
     {:ok, test_storage_dir} = Briefly.create(directory: true)
@@ -14,7 +13,6 @@ defmodule CacheWeb.CASControllerTest do
     stub(Disk, :storage_dir, fn -> test_storage_dir end)
     {:ok, test_storage_dir: test_storage_dir}
   end
-
 
   describe "POST /api/cache/cas/:id" do
     test "saves artifact successfully when authenticated", %{conn: conn} do
@@ -212,7 +210,7 @@ defmodule CacheWeb.CASControllerTest do
   end
 
   describe "GET /api/cache/cas/*id" do
-    test "returns X-Accel-Redirect when authenticated", %{conn: conn} do
+    test "returns X-Accel-Redirect to local file when on disk", %{conn: conn} do
       account_handle = "test-account"
       project_handle = "test-project"
       id = "abc123"
@@ -221,13 +219,86 @@ defmodule CacheWeb.CASControllerTest do
         {:ok, "Bearer valid-token"}
       end)
 
+      expect(Disk, :exists?, fn ^account_handle, ^project_handle, ^id ->
+        true
+      end)
+
       conn =
         conn
         |> put_req_header("authorization", "Bearer valid-token")
         |> get("/api/cache/cas/#{id}?account_handle=#{account_handle}&project_handle=#{project_handle}")
 
       assert conn.status == 200
-      assert get_resp_header(conn, "x-accel-redirect") == ["/internal/cas/#{account_handle}/#{project_handle}/cas/#{id}"]
+
+      assert get_resp_header(conn, "x-accel-redirect") == [
+               "/internal/local/#{account_handle}/#{project_handle}/cas/#{id}"
+             ]
+
+      assert conn.resp_body == ""
+    end
+
+    test "returns X-Accel-Redirect to remote when not on disk and S3 presign succeeds", %{conn: conn} do
+      account_handle = "test-account"
+      project_handle = "test-project"
+      id = "abc123"
+
+      expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
+        {:ok, "Bearer valid-token"}
+      end)
+
+      expect(Disk, :exists?, fn ^account_handle, ^project_handle, ^id ->
+        false
+      end)
+
+      # Stub presign to return a deterministic URL
+      expect(Cache.S3, :presign_download_url, fn key ->
+        assert key == "#{account_handle}/#{project_handle}/cas/#{id}"
+        {:ok, "https://example.com/prefix/#{account_handle}/#{project_handle}/cas/#{id}?token=abc"}
+      end)
+
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer valid-token")
+        |> get("/api/cache/cas/#{id}?account_handle=#{account_handle}&project_handle=#{project_handle}")
+
+      assert conn.status == 200
+
+      assert get_resp_header(conn, "x-accel-redirect") == [
+               "/internal/remote/https/example.com/prefix/#{account_handle}/#{project_handle}/cas/#{id}?token=abc"
+             ]
+
+      assert conn.resp_body == ""
+    end
+
+    test "returns 404 when S3 presign fails", %{conn: conn} do
+      account_handle = "test-account"
+      project_handle = "test-project"
+      id = "abc123"
+
+      expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
+        {:ok, "Bearer valid-token"}
+      end)
+
+      expect(Disk, :exists?, fn ^account_handle, ^project_handle, ^id ->
+        false
+      end)
+
+      expect(Cache.S3, :presign_download_url, fn key ->
+        assert key == "#{account_handle}/#{project_handle}/cas/#{id}"
+        {:error, :s3_not_configured}
+      end)
+
+      capture_log(fn ->
+        conn
+        |> put_req_header("authorization", "Bearer valid-token")
+        |> get("/api/cache/cas/#{id}?account_handle=#{account_handle}&project_handle=#{project_handle}")
+        |> then(&send(self(), {:returned_conn, &1}))
+      end)
+
+      assert_receive {:returned_conn, conn}
+
+      assert conn.status == 404
+      assert get_resp_header(conn, "x-accel-redirect") == []
       assert conn.resp_body == ""
     end
 
