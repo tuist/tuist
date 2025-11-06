@@ -41,21 +41,21 @@ public struct XCActivityLogController: XCActivityLogControlling {
     private let fileSystem: FileSystem
     private let rootDirectoryLocator: RootDirectoryLocating
     private let gitController: GitControlling
-    private let nodeStore: CASNodeStoring
-    private let metadataStore: CASOutputMetadataStoring
+    private let casNodeStore: CASNodeStoring
+    private let casOutputMetadataStore: CASOutputMetadataStoring
 
     public init(
         fileSystem: FileSystem = FileSystem(),
         rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator(),
         gitController: GitControlling = GitController(),
-        nodeStore: CASNodeStoring = CASNodeStore(),
-        metadataStore: CASOutputMetadataStoring = CASOutputMetadataStore()
+        casNodeStore: CASNodeStoring = CASNodeStore(),
+        casOutputMetadataStore: CASOutputMetadataStoring = CASOutputMetadataStore()
     ) {
         self.fileSystem = fileSystem
         self.rootDirectoryLocator = rootDirectoryLocator
         self.gitController = gitController
-        self.nodeStore = nodeStore
-        self.metadataStore = metadataStore
+        self.casNodeStore = casNodeStore
+        self.casOutputMetadataStore = casOutputMetadataStore
     }
 
     public func buildTimesByTarget(projectDerivedDataDirectory: AbsolutePath) async throws
@@ -473,63 +473,36 @@ public struct XCActivityLogController: XCActivityLogControlling {
     }
 
     private func analyzeCASKeys(from buildSteps: [XCLogParser.BuildStep]) async throws -> [CASOutput] {
-        let downloadNodeIDs = extractNodeIDs(from: buildSteps)
+        let downloadNodeIDs = extractDownloadNodeIDs(from: buildSteps)
         let uploadNodeIDs = extractUploadNodeIDs(from: buildSteps)
 
         let downloadOutputs = try await downloadNodeIDs.concurrentCompactMap { nodeID in
-            let checksum = try await nodeStore.checksum(for: nodeID)
-
-            // Get metadata using the checksum if available
-            if let checksumValue = checksum {
-                do {
-                    let metadata = try await metadataStore.metadata(for: checksumValue)
-                    if let metadata {
-                        return CASOutput(
-                            nodeID: nodeID,
-                            checksum: checksumValue,
-                            size: metadata.size,
-                            duration: metadata.duration,
-                            compressedSize: metadata.compressedSize,
-                            operation: .download
-                        )
-                    }
-                } catch {
-                    // Log error but continue with next node
-                }
-            }
-
-            return nil
+            try await createCASOutput(for: nodeID, operation: .download)
         }
 
         let uploadOutputs = try await uploadNodeIDs.concurrentCompactMap { nodeID in
-            let checksum = try await nodeStore.checksum(for: nodeID)
-
-            // Get metadata using the checksum if available
-            if let checksumValue = checksum {
-                do {
-                    let metadata = try await metadataStore.metadata(for: checksumValue)
-                    if let metadata {
-                        return CASOutput(
-                            nodeID: nodeID,
-                            checksum: checksumValue,
-                            size: metadata.size,
-                            duration: metadata.duration,
-                            compressedSize: metadata.compressedSize,
-                            operation: .upload
-                        )
-                    }
-                } catch {
-                    // Log error but continue with next node
-                }
-            }
-
-            return nil
+            try await createCASOutput(for: nodeID, operation: .upload)
         }
 
         return downloadOutputs + uploadOutputs
     }
 
-    private func extractNodeIDs(from buildSteps: [XCLogParser.BuildStep]) -> [String] {
+    private func createCASOutput(for nodeID: String, operation: CASOperation) async throws -> CASOutput? {
+        guard let checksum = try await casNodeStore.checksum(for: nodeID),
+              let metadata = try await casOutputMetadataStore.metadata(for: checksum)
+        else { return nil }
+
+        return CASOutput(
+            nodeID: nodeID,
+            checksum: checksum,
+            size: metadata.size,
+            duration: metadata.duration,
+            compressedSize: metadata.compressedSize,
+            operation: operation
+        )
+    }
+
+    private func extractDownloadNodeIDs(from buildSteps: [XCLogParser.BuildStep]) -> [String] {
         return buildSteps.compactMap { step in
             guard step.title.contains("Swift caching"), step.title.contains("materialize outputs from") else {
                 return nil
