@@ -135,16 +135,16 @@ defmodule Cache.DiskTest do
     end
   end
 
-  describe "internal_accel_path/3" do
+  describe "local_accel_path/3" do
     test "builds internal X-Accel-Redirect path for simple id" do
-      path = Disk.internal_accel_path(@test_account, @test_project, @test_id)
-      assert path == "/internal/cas/#{@test_key}"
+      path = Disk.local_accel_path(@test_account, @test_project, @test_id)
+      assert path == "/internal/local/#{@test_key}"
     end
 
     test "builds internal path for nested id" do
       nested_id = "deeply/nested/artifact"
       path = Disk.internal_accel_path(@test_account, @test_project, nested_id)
-      assert path == "/internal/cas/#{@test_account}/#{@test_project}/cas/#{nested_id}"
+      assert path == "/internal/local/#{@test_account}/#{@test_project}/cas/#{nested_id}"
     end
   end
 

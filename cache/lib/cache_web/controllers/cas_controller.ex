@@ -3,14 +3,33 @@ defmodule CacheWeb.CASController do
 
   alias Cache.BodyReader
   alias Cache.Disk
+  alias Cache.S3
   alias Cache.S3UploadWorker
 
-  def download(conn, %{"id" => id, "account_handle" => account_handle, "project_handle" => project_handle}) do
-    internal_path = Disk.internal_accel_path(account_handle, project_handle, id)
+  require Logger
 
-    conn
-    |> put_resp_header("x-accel-redirect", internal_path)
-    |> send_resp(:ok, "")
+  def download(conn, %{"id" => id, "account_handle" => account_handle, "project_handle" => project_handle}) do
+    key = Disk.cas_key(account_handle, project_handle, id)
+
+    if Disk.exists?(account_handle, project_handle, id) do
+      local_path = Disk.local_accel_path(account_handle, project_handle, id)
+
+      conn
+      |> put_resp_header("x-accel-redirect", local_path)
+      |> send_resp(:ok, "")
+    else
+      case S3.presign_download_url(key) do
+        {:ok, url} ->
+          conn
+          |> put_resp_header("x-accel-redirect", S3.remote_accel_path(url))
+          |> send_resp(:ok, "")
+
+        {:error, reason} ->
+          Logger.error("Failed to presign S3 URL for key #{key} with reason: #{inspect(reason)}")
+          conn
+          |> send_resp(:not_found, "")
+      end
+    end
   end
 
   def save(conn, %{"id" => id, "account_handle" => account_handle, "project_handle" => project_handle}) do

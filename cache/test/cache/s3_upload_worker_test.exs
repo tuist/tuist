@@ -8,7 +8,6 @@ defmodule Cache.Workers.S3UploadWorkerTest do
   alias Cache.S3UploadWorker
   alias Ecto.Adapters.SQL.Sandbox
   alias ExAws.S3.Upload
-  alias Oban
 
   setup do
     :ok = Sandbox.checkout(Repo)
@@ -24,7 +23,11 @@ defmodule Cache.Workers.S3UploadWorkerTest do
       id = "test_hash"
 
       expect(Oban, :insert, fn changeset ->
-        {:ok, %{changeset | changes: Map.put(changeset.changes, :args, %{"key" => "test_account/test_project/cas/test_hash"})}}
+        {:ok,
+         %{
+           changeset
+           | changes: Map.put(changeset.changes, :args, %{"key" => "test_account/test_project/cas/test_hash"})
+         }}
       end)
 
       capture_log(fn ->
