@@ -13,6 +13,7 @@ defmodule Tuist.GitHub.Releases do
   and avoiding excessive API requests to GitHub.
   """
 
+  alias Tuist.GitHub.Retry
   alias Tuist.KeyValueStore
 
   require Logger
@@ -56,7 +57,9 @@ defmodule Tuist.GitHub.Releases do
   end
 
   defp req_releases do
-    case Req.get(releases_url(), finch: Tuist.Finch) do
+    req_opts = [finch: Tuist.Finch] ++ Retry.retry_options()
+
+    case Req.get(releases_url(), req_opts) do
       {:ok, %Req.Response{status: 200, body: releases}} ->
         releases
 
@@ -83,8 +86,9 @@ defmodule Tuist.GitHub.Releases do
 
   defp fetch_latest_app_release(opts \\ []) do
     url = Keyword.get(opts, :url, releases_url())
+    req_opts = [finch: Tuist.Finch] ++ Retry.retry_options()
 
-    case Req.get(url, finch: Tuist.Finch) do
+    case Req.get(url, req_opts) do
       {:ok, %Req.Response{status: 200, body: releases, headers: headers}} ->
         next_url = extract_next_url(headers)
 
