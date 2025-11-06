@@ -23,7 +23,7 @@ public struct CASOutputMetadataStore: CASOutputMetadataStoring {
 
     public func storeMetadata(_ metadata: CASOutputMetadata, for casID: String) async throws {
         let casDirectory = Environment.current.stateDirectory.appending(component: "cas")
-        try await ensureCasDirectoryExists(casDirectory)
+        try await fileSystem.makeDirectory(at: casDirectory)
 
         let sanitizedCasID = sanitizeCasID(casID)
         let metadataFilePath = casDirectory.appending(component: "\(sanitizedCasID).json")
@@ -52,12 +52,6 @@ public struct CASOutputMetadataStore: CASOutputMetadataStoring {
     }
 
     // MARK: - Private Methods
-
-    private func ensureCasDirectoryExists(_ casDirectory: AbsolutePath) async throws {
-        if try await !fileSystem.exists(casDirectory) {
-            try await fileSystem.makeDirectory(at: casDirectory)
-        }
-    }
 
     private func sanitizeCasID(_ casID: String) -> String {
         // Replace any characters that aren't filesystem-safe with underscores

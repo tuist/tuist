@@ -476,15 +476,22 @@ public struct XCActivityLogController: XCActivityLogControlling {
         let downloadNodeIDs = extractDownloadNodeIDs(from: buildSteps)
         let uploadNodeIDs = extractUploadNodeIDs(from: buildSteps)
 
-        let downloadOutputs = try await downloadNodeIDs.concurrentCompactMap { nodeID in
+        async let downloadOutputs = createCASOutputDownloads(nodeIDs: downloadNodeIDs)
+        async let uploadOutputs = createCASOutputUploads(nodeIDs: uploadNodeIDs)
+
+        return try await downloadOutputs + uploadOutputs
+    }
+
+    private func createCASOutputDownloads(nodeIDs: [String]) async throws -> [CASOutput] {
+        return try await nodeIDs.concurrentCompactMap { nodeID in
             try await createCASOutput(for: nodeID, operation: .download)
         }
+    }
 
-        let uploadOutputs = try await uploadNodeIDs.concurrentCompactMap { nodeID in
+    private func createCASOutputUploads(nodeIDs: [String]) async throws -> [CASOutput] {
+        return try await nodeIDs.concurrentCompactMap { nodeID in
             try await createCASOutput(for: nodeID, operation: .upload)
         }
-
-        return downloadOutputs + uploadOutputs
     }
 
     private func createCASOutput(for nodeID: String, operation: CASOperation) async throws -> CASOutput? {

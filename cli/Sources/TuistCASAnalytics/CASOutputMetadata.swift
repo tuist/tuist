@@ -6,7 +6,7 @@ public struct CASOutputMetadata: Codable {
     /// Size of the output data in bytes
     public let size: Int
 
-    /// Duration of the output in seconds
+    /// Duration of the download/upload of the output in seconds
     public let duration: TimeInterval
 
     /// Compressed size of the data in bytes

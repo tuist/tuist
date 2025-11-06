@@ -23,7 +23,7 @@ public struct CASNodeStore: CASNodeStoring {
 
     public func storeNode(_ nodeID: String, checksum: String) async throws {
         let nodesDirectory = Environment.current.stateDirectory.appending(component: "nodes")
-        try await ensureNodesDirectoryExists(nodesDirectory)
+        try await fileSystem.makeDirectory(at: nodesDirectory)
 
         let sanitizedNodeID = sanitizeNodeID(nodeID)
         let nodeFilePath = nodesDirectory.appending(component: sanitizedNodeID)
@@ -44,12 +44,6 @@ public struct CASNodeStore: CASNodeStoring {
     }
 
     // MARK: - Private Methods
-
-    private func ensureNodesDirectoryExists(_ nodesDirectory: AbsolutePath) async throws {
-        if try await !fileSystem.exists(nodesDirectory) {
-            try await fileSystem.makeDirectory(at: nodesDirectory)
-        }
-    }
 
     private func sanitizeNodeID(_ nodeID: String) -> String {
         // Replace any characters that aren't filesystem-safe with underscores

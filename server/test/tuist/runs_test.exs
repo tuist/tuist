@@ -879,9 +879,6 @@ defmodule Tuist.RunsTest do
         )
 
       # When
-      # Add a small delay to ensure ClickHouse has processed the data
-      Process.sleep(100)
-
       metrics = Runs.cas_output_metrics(build.id)
 
       # Then
