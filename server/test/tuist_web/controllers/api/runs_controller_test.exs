@@ -713,6 +713,106 @@ defmodule TuistWeb.API.RunsControllerTest do
              }
     end
 
+    test "creates a new build with CAS outputs", %{conn: conn} do
+      # Given
+      user = AccountsFixtures.user_fixture(preload: [:account], email: "tuist@tuist.io")
+      project = ProjectsFixtures.project_fixture(preload: [:account], account_id: user.account.id)
+
+      # When
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/projects/#{project.account.name}/#{project.name}/runs",
+          id: UUIDv7.generate(),
+          type: "build",
+          duration: 1000,
+          is_ci: false,
+          cas_outputs: [
+            %{
+              node_id: "MyTarget",
+              checksum: "abc123def456",
+              size: 1024,
+              duration: 1.5,
+              compressed_size: 512,
+              operation: "download"
+            },
+            %{
+              node_id: "AnotherTarget",
+              checksum: "xyz789",
+              size: 2048,
+              duration: 2.0,
+              compressed_size: 1024,
+              operation: "upload"
+            },
+            %{
+              node_id: "ThirdTarget",
+              checksum: "def456ghi",
+              size: 4096,
+              duration: 0.5,
+              compressed_size: 2048,
+              operation: "download"
+            }
+          ]
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+      [build] = Tuist.Repo.all(Build)
+
+      {cas_outputs, _meta} =
+        Tuist.Runs.list_cas_outputs(%{
+          filters: [%{field: :build_run_id, op: :==, value: build.id}],
+          order_by: [:node_id],
+          order_directions: [:asc]
+        })
+
+      expected_outputs = [
+        %{
+          node_id: "AnotherTarget",
+          checksum: "xyz789",
+          size: 2048,
+          duration: 2000,
+          compressed_size: 1024,
+          operation: "upload",
+          build_run_id: String.downcase(build.id)
+        },
+        %{
+          node_id: "MyTarget",
+          checksum: "abc123def456",
+          size: 1024,
+          duration: 1500,
+          compressed_size: 512,
+          operation: "download",
+          build_run_id: String.downcase(build.id)
+        },
+        %{
+          node_id: "ThirdTarget",
+          checksum: "def456ghi",
+          size: 4096,
+          duration: 500,
+          compressed_size: 2048,
+          operation: "download",
+          build_run_id: String.downcase(build.id)
+        }
+      ]
+
+      actual_outputs =
+        Enum.map(
+          cas_outputs,
+          &Map.take(&1, [:node_id, :checksum, :size, :duration, :compressed_size, :operation, :build_run_id])
+        )
+
+      assert actual_outputs == expected_outputs
+
+      assert response == %{
+               "id" => build.id,
+               "duration" => 1000,
+               "project_id" => project.id,
+               "url" => url(~p"/#{project.account.name}/#{project.name}/builds/build-runs/#{build.id}")
+             }
+    end
+
     test "returns :not_found when project doesn't exist", %{conn: conn} do
       # Given
       user = AccountsFixtures.user_fixture(preload: [:account], email: "tuist@tuist.io")

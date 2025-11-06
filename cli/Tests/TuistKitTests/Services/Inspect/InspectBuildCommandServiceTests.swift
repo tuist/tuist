@@ -81,7 +81,8 @@ struct InspectBuildCommandServiceTests {
                 ciProjectHandle: .any,
                 ciHost: .any,
                 ciProvider: .any,
-                cacheableTasks: .any
+                cacheableTasks: .any,
+                casOutputs: .any
             )
             .willReturn(.test())
 
@@ -220,7 +221,8 @@ struct InspectBuildCommandServiceTests {
                 ciProjectHandle: .value("test-project"),
                 ciHost: .value("github.com"),
                 ciProvider: .value(.github),
-                cacheableTasks: .value([])
+                cacheableTasks: .value([]),
+                casOutputs: .value([])
             )
             .called(1)
     }
@@ -299,7 +301,8 @@ struct InspectBuildCommandServiceTests {
                 ciProjectHandle: .any,
                 ciHost: .any,
                 ciProvider: .any,
-                cacheableTasks: .any
+                cacheableTasks: .any,
+                casOutputs: .any
             )
             .called(1)
     }

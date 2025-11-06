@@ -4,6 +4,7 @@ import Foundation
 import GRPCCore
 import Logging
 import Path
+import TuistCASAnalytics
 import TuistServer
 
 public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServiceProtocol {
@@ -12,6 +13,7 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
     private let saveCacheCASService: SaveCacheCASServicing
     private let loadCacheCASService: LoadCacheCASServicing
     private let fileSystem: FileSysteming
+    private let metadataStore: CASOutputMetadataStoring
     private let dataCompressingService: DataCompressingServicing
 
     public init(
@@ -24,6 +26,7 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
         loadCacheCASService = LoadCacheCASService()
         fileSystem = FileSystem()
         dataCompressingService = DataCompressingService()
+        metadataStore = CASOutputMetadataStore()
     }
 
     init(
@@ -32,13 +35,15 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
         saveCacheCASService: SaveCacheCASServicing,
         loadCacheCASService: LoadCacheCASServicing,
         fileSystem: FileSysteming,
-        dataCompressingService: DataCompressingServicing
+        dataCompressingService: DataCompressingServicing,
+        metadataStore: CASOutputMetadataStoring
     ) {
         self.fullHandle = fullHandle
         self.serverURL = serverURL
         self.saveCacheCASService = saveCacheCASService
         self.loadCacheCASService = loadCacheCASService
         self.fileSystem = fileSystem
+        self.metadataStore = metadataStore
         self.dataCompressingService = dataCompressingService
     }
 
@@ -91,6 +96,13 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
             response.outcome = .success
 
             let duration = ProcessInfo.processInfo.systemUptime - startTime
+
+            storeMetadata(
+                size: decompressedData.count,
+                compressedSize: compressedData.count,
+                duration: duration,
+                for: casID
+            )
             Logger.current
                 .debug(
                     "CAS.load completed successfully in \(String(format: "%.3f", duration))s - loaded \(compressedData.count) compressed bytes, decompressed to \(decompressedData.count) bytes for casID: \(casID)"
@@ -103,7 +115,9 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
             response.contents = .error(responseError)
 
             let duration = ProcessInfo.processInfo.systemUptime - startTime
-            Logger.current.error("CAS.load failed after \(String(format: "%.3f", duration))s for casID: \(casID): \(error)")
+            Logger.current.error(
+                "CAS.load failed after \(String(format: "%.3f", duration))s for casID: \(casID): \(error)"
+            )
         }
 
         return response
@@ -120,7 +134,9 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
         let isFilePath = !request.data.blob.filePath.isEmpty
 
         if isFilePath {
-            Logger.current.debug("CAS.save starting - reading from file: \(request.data.blob.filePath)")
+            Logger.current.debug(
+                "CAS.save starting - reading from file: \(request.data.blob.filePath)"
+            )
             do {
                 let absolutePath = try AbsolutePath(validating: request.data.blob.filePath)
                 data = try await fileSystem.readFile(at: absolutePath)
@@ -129,7 +145,9 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
                 responseError.description_p = error.userFriendlyDescription()
                 response.error = responseError
                 response.contents = .error(responseError)
-                Logger.current.error("CAS.save failed to read file \(request.data.blob.filePath): \(error)")
+                Logger.current.error(
+                    "CAS.save failed to read file \(request.data.blob.filePath): \(error)"
+                )
                 return response
             }
         } else {
@@ -172,6 +190,13 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
             response.contents = .casID(message)
 
             let duration = ProcessInfo.processInfo.systemUptime - startTime
+
+            storeMetadata(
+                size: data.count,
+                compressedSize: compressedData.count,
+                duration: duration,
+                for: fingerprint
+            )
             Logger.current
                 .debug(
                     "CAS.save completed successfully in \(String(format: "%.3f", duration))s for fingerprint: \(fingerprint)"
@@ -214,5 +239,27 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
         response.error = responseError
         response.contents = .error(responseError)
         return response
+    }
+
+    private func storeMetadata(
+        size: Int,
+        compressedSize: Int,
+        duration: TimeInterval,
+        for casID: String
+    ) {
+        Task {
+            let metadata = CASOutputMetadata(
+                size: size,
+                duration: duration,
+                compressedSize: compressedSize
+            )
+            do {
+                try await metadataStore.storeMetadata(metadata, for: casID)
+            } catch {
+                Logger.current.error(
+                    "Failed to store CAS metadata for casID: \(casID): \(error)"
+                )
+            }
+        }
     }
 }

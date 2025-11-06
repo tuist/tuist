@@ -40,10 +40,13 @@ defmodule TuistWeb.BuildRunLive do
       raise NotFoundError, gettext("Build not found.")
     end
 
+    cas_metrics = Runs.cas_output_metrics(run.id)
+
     socket =
       socket
       |> assign(:run, run)
       |> assign(:command_event, command_event)
+      |> assign(:cas_metrics, cas_metrics)
       |> assign(:head_title, "#{gettext("Build Run")} · #{slug} · Tuist")
       |> assign(
         :warnings_grouped_by_path,

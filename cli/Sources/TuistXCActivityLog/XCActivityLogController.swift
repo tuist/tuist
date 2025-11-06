@@ -2,6 +2,7 @@ import FileSystem
 import Foundation
 import Mockable
 import Path
+import TuistCASAnalytics
 import TuistGit
 import TuistRootDirectoryLocator
 import TuistSupport
@@ -40,15 +41,21 @@ public struct XCActivityLogController: XCActivityLogControlling {
     private let fileSystem: FileSystem
     private let rootDirectoryLocator: RootDirectoryLocating
     private let gitController: GitControlling
+    private let casNodeStore: CASNodeStoring
+    private let casOutputMetadataStore: CASOutputMetadataStoring
 
     public init(
         fileSystem: FileSystem = FileSystem(),
         rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator(),
-        gitController: GitControlling = GitController()
+        gitController: GitControlling = GitController(),
+        casNodeStore: CASNodeStoring = CASNodeStore(),
+        casOutputMetadataStore: CASOutputMetadataStoring = CASOutputMetadataStore()
     ) {
         self.fileSystem = fileSystem
         self.rootDirectoryLocator = rootDirectoryLocator
         self.gitController = gitController
+        self.casNodeStore = casNodeStore
+        self.casOutputMetadataStore = casOutputMetadataStore
     }
 
     public func buildTimesByTarget(projectDerivedDataDirectory: AbsolutePath) async throws
@@ -194,6 +201,8 @@ public struct XCActivityLogController: XCActivityLogControlling {
             buildStartTime: activityLog.mainSection.timeStartedRecording
         )
 
+        let casOutputs = try await analyzeCASKeys(from: steps)
+
         return XCActivityLog(
             version: activityLog.version,
             mainSection: XCActivityLogSection(
@@ -218,7 +227,8 @@ public struct XCActivityLogController: XCActivityLogControlling {
                         .contains(where: { ($0.errors ?? []).contains(where: { $0.severity == 2 }) }) ? .failure : .success
                 )
             },
-            cacheableTasks: cacheableTasks
+            cacheableTasks: cacheableTasks,
+            casOutputs: casOutputs
         )
     }
 
@@ -462,6 +472,72 @@ public struct XCActivityLogController: XCActivityLogControlling {
         )
     }
 
+    private func analyzeCASKeys(from buildSteps: [XCLogParser.BuildStep]) async throws -> [CASOutput] {
+        let downloadNodeIDs = extractDownloadNodeIDs(from: buildSteps)
+        let uploadNodeIDs = extractUploadNodeIDs(from: buildSteps)
+
+        async let downloadOutputs = createCASOutputDownloads(nodeIDs: downloadNodeIDs)
+        async let uploadOutputs = createCASOutputUploads(nodeIDs: uploadNodeIDs)
+
+        return try await downloadOutputs + uploadOutputs
+    }
+
+    private func createCASOutputDownloads(nodeIDs: [String]) async throws -> [CASOutput] {
+        return try await nodeIDs.concurrentCompactMap { nodeID in
+            try await createCASOutput(for: nodeID, operation: .download)
+        }
+    }
+
+    private func createCASOutputUploads(nodeIDs: [String]) async throws -> [CASOutput] {
+        return try await nodeIDs.concurrentCompactMap { nodeID in
+            try await createCASOutput(for: nodeID, operation: .upload)
+        }
+    }
+
+    private func createCASOutput(for nodeID: String, operation: CASOperation) async throws -> CASOutput? {
+        guard let checksum = try await casNodeStore.checksum(for: nodeID),
+              let metadata = try await casOutputMetadataStore.metadata(for: checksum)
+        else { return nil }
+
+        return CASOutput(
+            nodeID: nodeID,
+            checksum: checksum,
+            size: metadata.size,
+            duration: metadata.duration,
+            compressedSize: metadata.compressedSize,
+            operation: operation
+        )
+    }
+
+    private func extractDownloadNodeIDs(from buildSteps: [XCLogParser.BuildStep]) -> [String] {
+        return buildSteps.compactMap { step in
+            guard step.title.contains("Swift caching"), step.title.contains("materialize outputs from") else {
+                return nil
+            }
+
+            return extractNodeIDFromMaterializeOutput(from: step.title)
+        }
+    }
+
+    private func extractUploadNodeIDs(from buildSteps: [XCLogParser.BuildStep]) -> [String] {
+        let allNodeIDs = buildSteps.flatMap { step -> [String] in
+            guard step.title.contains("Swift caching upload key") else {
+                return []
+            }
+
+            // Check if any notes contain upload information
+            guard let notes = step.notes else { return [] }
+
+            return notes.compactMap { note in
+                if note.title.hasPrefix("uploaded CAS output ") {
+                    return extractNodeIDFromUploadNote(from: note.title)
+                }
+                return nil
+            }
+        }
+        return allNodeIDs.uniqued()
+    }
+
     private func extractCacheSteps(from buildSteps: [XCLogParser.BuildStep]) -> [CacheStep] {
         return buildSteps.compactMap { step in
             guard step.title.contains("Swift caching") || step.title.contains("Clang caching") else {
@@ -503,6 +579,23 @@ public struct XCActivityLogController: XCActivityLogControlling {
             return nil
         }
         return String(title[keyRange])
+    }
+
+    private func extractNodeIDFromMaterializeOutput(from title: String) -> String? {
+        // Look for pattern like "materialize outputs from
+        // 0~2RChGLVUbFYywptVOBlPj1PMji8tjYNewcA2JotitM54zN26O0V8bbRDNXy_mHUpqvS2RBv8jaNmZmspWzMJbg=="
+        let pattern = "materialize outputs from (0~[A-Za-z0-9+/_=-]+)"
+        return extractKeyWithPattern(pattern, from: title)
+    }
+
+    private func extractNodeIDFromUploadNote(from noteTitle: String) -> String? {
+        // Look for pattern like "uploaded CAS output dependencies:
+        // 0~7ggSktnzZ-Yj0taRxkKjkznD04YdB2Qzbs6wQT8TNb_KvR8g59lJ6_5EHgv6O4ImIjnuaJAmhHupGgNCH39h3w=="
+        // or "uploaded CAS output swiftmodule:
+        // 0~aorpjrOr3Did8RDSWKJu6zM4b_K3gr7CLg9L8Dt7xZ4cqv6apqvCxSGLITD5XPfk8vJhNQlJEWmYieDyR108Ug=="
+        // The category can be any arbitrary string without spaces
+        let pattern = "uploaded CAS output [^\\s]+: (0~[A-Za-z0-9+/_=-]+)"
+        return extractKeyWithPattern(pattern, from: noteTitle)
     }
 
     private func determineCacheOperation(from title: String) -> CacheOperation? {

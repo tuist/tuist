@@ -13,6 +13,7 @@ defmodule Tuist.Runs do
   alias Tuist.Runs.BuildIssue
   alias Tuist.Runs.BuildTarget
   alias Tuist.Runs.CacheableTask
+  alias Tuist.Runs.CASOutput
 
   def get_build(id) do
     Repo.get(Build, id)
@@ -20,6 +21,7 @@ defmodule Tuist.Runs do
 
   def create_build(attrs) do
     cacheable_tasks = Map.get(attrs, :cacheable_tasks, [])
+    cas_outputs = Map.get(attrs, :cas_outputs, [])
 
     cacheable_task_counts = %{
       cacheable_tasks_count: length(cacheable_tasks),
@@ -38,7 +40,8 @@ defmodule Tuist.Runs do
             Task.async(fn -> create_build_issues(build, attrs.issues) end),
             Task.async(fn -> create_build_files(build, attrs.files) end),
             Task.async(fn -> create_build_targets(build, attrs.targets) end),
-            Task.async(fn -> create_cacheable_tasks(build, cacheable_tasks) end)
+            Task.async(fn -> create_cacheable_tasks(build, cacheable_tasks) end),
+            Task.async(fn -> create_cas_outputs(build, cas_outputs) end)
           ],
           30_000
         )
@@ -153,6 +156,27 @@ defmodule Tuist.Runs do
     IngestRepo.insert_all(CacheableTask, tasks)
   end
 
+  defp create_cas_outputs(build, outputs) do
+    outputs =
+      outputs
+      |> Enum.map(&CASOutput.changeset(build.id, &1))
+      |> Enum.map(&Ecto.Changeset.apply_changes/1)
+      |> Enum.map(fn struct ->
+        %{
+          node_id: struct.node_id,
+          checksum: struct.checksum,
+          size: struct.size,
+          duration: struct.duration,
+          compressed_size: struct.compressed_size,
+          operation: struct.operation,
+          build_run_id: struct.build_run_id,
+          inserted_at: struct.inserted_at
+        }
+      end)
+
+    IngestRepo.insert_all(CASOutput, outputs)
+  end
+
   def list_build_files(attrs) do
     Tuist.ClickHouseFlop.validate_and_run!(BuildFile, attrs, for: BuildFile)
   end
@@ -163,6 +187,47 @@ defmodule Tuist.Runs do
 
   def list_cacheable_tasks(attrs) do
     Tuist.ClickHouseFlop.validate_and_run!(CacheableTask, attrs, for: CacheableTask)
+  end
+
+  def list_cas_outputs(attrs) do
+    Tuist.ClickHouseFlop.validate_and_run!(CASOutput, attrs, for: CASOutput)
+  end
+
+  def cas_output_metrics(build_run_id) do
+    query = """
+    SELECT
+      countIf(operation = 'download') as download_count,
+      countIf(operation = 'upload') as upload_count,
+      sumIf(size, operation = 'download') as download_bytes,
+      sumIf(size, operation = 'upload') as upload_bytes,
+      sumIf(size, operation = 'download' AND duration > 0) / sumIf(duration, operation = 'download' AND duration > 0) * 1000 as time_weighted_avg_download_throughput,
+      sumIf(size, operation = 'upload' AND duration > 0) / sumIf(duration, operation = 'upload' AND duration > 0) * 1000 as time_weighted_avg_upload_throughput
+    FROM cas_outputs
+    WHERE build_run_id = {build_run_id:UUID}
+    """
+
+    {:ok,
+     %{
+       rows: [
+         [
+           download_count,
+           upload_count,
+           download_bytes,
+           upload_bytes,
+           time_weighted_avg_download_throughput,
+           time_weighted_avg_upload_throughput
+         ]
+       ]
+     }} = IngestRepo.query(query, %{build_run_id: build_run_id})
+
+    %{
+      download_count: download_count,
+      upload_count: upload_count,
+      download_bytes: download_bytes || 0,
+      upload_bytes: upload_bytes || 0,
+      time_weighted_avg_download_throughput: time_weighted_avg_download_throughput || 0,
+      time_weighted_avg_upload_throughput: time_weighted_avg_upload_throughput || 0
+    }
   end
 
   def list_build_runs(attrs, opts \\ []) do

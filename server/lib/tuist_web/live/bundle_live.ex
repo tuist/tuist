@@ -10,6 +10,7 @@ defmodule TuistWeb.BundleLive do
 
   alias Tuist.Bundles
   alias Tuist.Projects
+  alias Tuist.Utilities.ByteFormatter
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Utilities.Query
 
@@ -731,7 +732,7 @@ defmodule TuistWeb.BundleLive do
   end
 
   defp format_bytes(bytes) when is_integer(bytes) do
-    Bundles.format_bytes(bytes)
+    ByteFormatter.format_bytes(bytes)
   end
 
   defp to_atom(input) when is_binary(input), do: String.to_existing_atom(input)

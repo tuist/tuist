@@ -33,7 +33,8 @@ import OpenAPIURLSession
             ciProjectHandle: String?,
             ciHost: String?,
             ciProvider: CIProvider?,
-            cacheableTasks: [CacheableTask]
+            cacheableTasks: [CacheableTask],
+            casOutputs: [CASOutput]
         ) async throws -> ServerBuild
     }
 
@@ -97,7 +98,8 @@ import OpenAPIURLSession
             ciProjectHandle: String?,
             ciHost: String?,
             ciProvider: CIProvider?,
-            cacheableTasks: [CacheableTask]
+            cacheableTasks: [CacheableTask],
+            casOutputs: [CASOutput]
         ) async throws -> ServerBuild {
             let client = Client.authenticated(serverURL: serverURL)
             let handles = try fullHandleService.parse(fullHandle)
@@ -148,6 +150,8 @@ import OpenAPIURLSession
                                     .map(Operations.createRun.Input.Body.jsonPayload.Case1Payload.cacheable_tasksPayloadPayload
                                         .init
                                     ),
+                                cas_outputs: casOutputs
+                                    .map(Operations.createRun.Input.Body.jsonPayload.Case1Payload.cas_outputsPayloadPayload.init),
                                 category: category,
                                 ci_host: ciHost,
                                 ci_project_handle: ciProjectHandle,
@@ -308,6 +312,23 @@ import OpenAPIURLSession
                 key: cacheableTask.key,
                 status: status,
                 _type: taskType
+            )
+        }
+    }
+
+    extension Operations.createRun.Input.Body.jsonPayload.Case1Payload.cas_outputsPayloadPayload {
+        fileprivate init(_ casOutput: CASOutput) {
+            let operation: Self.operationPayload = switch casOutput.operation {
+            case .download: .download
+            case .upload: .upload
+            }
+            self.init(
+                checksum: casOutput.checksum,
+                compressed_size: casOutput.compressedSize,
+                duration: casOutput.duration,
+                node_id: casOutput.nodeID,
+                operation: operation,
+                size: casOutput.size
             )
         }
     }

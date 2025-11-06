@@ -6,6 +6,7 @@ import Mockable
 import OpenAPIRuntime
 import Path
 import Testing
+import TuistCASAnalytics
 import TuistServer
 import TuistSupport
 @testable import TuistCAS
@@ -15,6 +16,7 @@ struct CASServiceTests {
     private let saveCacheCASService: MockSaveCacheCASServicing
     private let loadCacheCASService: MockLoadCacheCASServicing
     private let dataCompressingService: MockDataCompressingServicing
+    private let metadataStore: MockCASOutputMetadataStoring
     private let fullHandle = "account-handle/project-handle"
     private let serverURL = URL(string: "https://example.com")!
 
@@ -22,6 +24,7 @@ struct CASServiceTests {
         saveCacheCASService = .init()
         loadCacheCASService = .init()
         dataCompressingService = .init()
+        metadataStore = .init()
 
         subject = CASService(
             fullHandle: fullHandle,
@@ -29,7 +32,8 @@ struct CASServiceTests {
             saveCacheCASService: saveCacheCASService,
             loadCacheCASService: loadCacheCASService,
             fileSystem: FileSystem(),
-            dataCompressingService: dataCompressingService
+            dataCompressingService: dataCompressingService,
+            metadataStore: metadataStore
         )
     }
 
@@ -57,6 +61,10 @@ struct CASServiceTests {
             .decompress(.any)
             .willReturn(expectedData)
 
+        given(metadataStore)
+            .storeMetadata(.any, for: .any)
+            .willReturn()
+
         // When
         let response = try await subject.load(request: request, context: context)
 
@@ -80,6 +88,10 @@ struct CASServiceTests {
 
         verify(dataCompressingService)
             .decompress(.value(compressedData))
+            .called(1)
+
+        verify(metadataStore)
+            .storeMetadata(.any, for: .value(casID))
             .called(1)
     }
 
@@ -137,6 +149,10 @@ struct CASServiceTests {
             )
             .willReturn()
 
+        given(metadataStore)
+            .storeMetadata(.any, for: .any)
+            .willReturn()
+
         // When
         let response = try await subject.save(request: request, context: context)
 
@@ -163,6 +179,10 @@ struct CASServiceTests {
                 fullHandle: .value(fullHandle),
                 serverURL: .value(serverURL)
             )
+            .called(1)
+
+        verify(metadataStore)
+            .storeMetadata(.any, for: .value(fingerprint))
             .called(1)
     }
 

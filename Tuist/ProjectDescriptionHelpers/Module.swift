@@ -31,6 +31,7 @@ public enum Module: String, CaseIterable {
     case process = "TuistProcess"
     case ci = "TuistCI"
     case cas = "TuistCAS"
+    case casAnalytics = "TuistCASAnalytics"
     case launchctl = "TuistLaunchctl"
 
     func forceStaticLinking() -> Bool {
@@ -324,7 +325,7 @@ public enum Module: String, CaseIterable {
         case .plugin:
             moduleTags.append("domain:plugins")
         case .asyncQueue, .simulator, .xcActivityLog, .git, .rootDirectoryLocator,
-             .process, .ci, .cas, .launchctl:
+             .process, .ci, .cas, .casAnalytics, .launchctl:
             moduleTags.append("domain:infrastructure")
         }
 
@@ -607,6 +608,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.core.targetName),
                     .target(name: Module.support.targetName),
                     .target(name: Module.rootDirectoryLocator.targetName),
+                    .target(name: Module.casAnalytics.targetName),
                     .target(name: Module.git.targetName),
                     .external(name: "FileSystem"),
                     .external(name: "XCLogParser"),
@@ -632,11 +634,17 @@ public enum Module: String, CaseIterable {
                 [
                     .target(name: Module.core.targetName),
                     .target(name: Module.server.targetName),
+                    .target(name: Module.casAnalytics.targetName),
                     .external(name: "GRPCCore"),
                     .external(name: "GRPCNIOTransportHTTP2"),
                     .external(name: "GRPCProtobuf"),
                     .external(name: "SwiftProtobuf"),
                     .external(name: "libzstd"),
+                ]
+            case .casAnalytics:
+                [
+                    .target(name: Module.support.targetName),
+                    .external(name: "FileSystem"),
                 ]
             case .launchctl:
                 [
@@ -840,9 +848,16 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.testing.targetName),
                     .target(name: Module.core.targetName),
                     .target(name: Module.server.targetName),
+                    .target(name: Module.casAnalytics.targetName),
                     .external(name: "GRPCCore"),
                     .external(name: "GRPCProtobuf"),
                     .external(name: "SwiftProtobuf"),
+                ]
+            case .casAnalytics:
+                [
+                    .target(name: Module.testing.targetName),
+                    .target(name: Module.support.targetName),
+                    .external(name: "FileSystem"),
                 ]
             case .launchctl:
                 [

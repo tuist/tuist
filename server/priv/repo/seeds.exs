@@ -262,6 +262,64 @@ cacheable_tasks
   IngestRepo.insert_all(Tuist.Runs.CacheableTask, chunk)
 end)
 
+generate_cas_node_id = fn ->
+  # Generate realistic CAS node IDs (base64-like strings)
+  content =
+    1..64
+    |> Enum.map(fn _ ->
+      Enum.random([
+        Enum.random(?A..?Z),
+        Enum.random(?a..?z),
+        Enum.random(?0..?9),
+        ?+,
+        ?/,
+        ?=
+      ])
+    end)
+    |> List.to_string()
+
+  content
+end
+
+generate_checksum = fn ->
+  # Generate SHA256-like checksums
+  1..64
+  |> Enum.map(fn _ -> Enum.random(~c"0123456789abcdef") end)
+  |> List.to_string()
+end
+
+cas_outputs =
+  Enum.flat_map(builds, fn build ->
+    # Generate 5-25 CAS operations per build
+    operation_count = Enum.random(5..25)
+
+    Enum.map(1..operation_count, fn _i ->
+      operation = Enum.random(["download", "upload"])
+      size = Enum.random(1024..50_000_000)
+      # 1KB to 50MB
+      compressed_size = trunc(size * (0.3 + :rand.uniform() * 0.6))
+      # 30-90% compression
+      duration = Enum.random(100..30_000)
+
+      %{
+        build_run_id: build.id,
+        node_id: generate_cas_node_id.(),
+        checksum: generate_checksum.(),
+        size: size,
+        duration: duration,
+        compressed_size: compressed_size,
+        operation: operation,
+        inserted_at: DateTime.to_naive(build.inserted_at)
+      }
+    end)
+  end)
+
+cas_outputs
+|> Enum.chunk_every(1000)
+|> Enum.each(fn chunk ->
+  IngestRepo.insert_all(Tuist.Runs.CASOutput, chunk)
+end)
+
 command_events =
   Enum.map(1..8000, fn _event ->
     names = ["test", "cache", "generate"]

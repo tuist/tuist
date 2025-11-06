@@ -844,4 +844,240 @@ defmodule Tuist.RunsTest do
       assert url == nil
     end
   end
+
+  describe "cas_output_metrics/1" do
+    test "returns correct metrics for build with CAS outputs" do
+      # Given
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          cas_outputs: [
+            %{
+              node_id: "node1",
+              checksum: "abc123",
+              size: 2000,
+              duration: 2000,
+              compressed_size: 1600,
+              operation: :download
+            },
+            %{
+              node_id: "node2",
+              checksum: "def456",
+              size: 2000,
+              duration: 2000,
+              compressed_size: 1600,
+              operation: :download
+            },
+            %{
+              node_id: "node3",
+              checksum: "ghi789",
+              size: 2000,
+              duration: 2000,
+              compressed_size: 1600,
+              operation: :upload
+            }
+          ]
+        )
+
+      # When
+      metrics = Runs.cas_output_metrics(build.id)
+
+      # Then
+      assert metrics.download_count == 2
+      assert metrics.upload_count == 1
+      assert metrics.download_bytes == 4000
+      assert metrics.upload_bytes == 2000
+      assert metrics.time_weighted_avg_download_throughput == 1.0
+      assert metrics.time_weighted_avg_upload_throughput == 1.0
+    end
+
+    test "returns zeros for build with no CAS outputs" do
+      # Given
+      {:ok, build} = RunsFixtures.build_fixture(cas_outputs: [])
+
+      # When
+      metrics = Runs.cas_output_metrics(build.id)
+
+      # Then
+      assert metrics.download_count == 0
+      assert metrics.upload_count == 0
+      assert metrics.download_bytes == 0
+      assert metrics.upload_bytes == 0
+      assert metrics.time_weighted_avg_download_throughput == 0
+      assert metrics.time_weighted_avg_upload_throughput == 0
+    end
+
+    test "returns zeros for non-existent build" do
+      # Given
+      non_existent_build_id = UUIDv7.generate()
+
+      # When
+      metrics = Runs.cas_output_metrics(non_existent_build_id)
+
+      # Then
+      assert metrics.download_count == 0
+      assert metrics.upload_count == 0
+      assert metrics.download_bytes == 0
+      assert metrics.upload_bytes == 0
+      assert metrics.time_weighted_avg_download_throughput == 0
+      assert metrics.time_weighted_avg_upload_throughput == 0
+    end
+
+    test "handles only download operations" do
+      # Given
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          cas_outputs: [
+            %{
+              node_id: "node1",
+              checksum: "abc123",
+              size: 5000,
+              duration: 5000,
+              compressed_size: 4000,
+              operation: :download
+            },
+            %{
+              node_id: "node2",
+              checksum: "def456",
+              size: 10_000,
+              duration: 10_000,
+              compressed_size: 8000,
+              operation: :download
+            }
+          ]
+        )
+
+      # When
+      metrics = Runs.cas_output_metrics(build.id)
+
+      # Then
+      assert metrics.download_count == 2
+      assert metrics.upload_count == 0
+      assert metrics.download_bytes == 15_000
+      assert metrics.upload_bytes == 0
+      # Time-weighted average: (5000 + 10000) / (5000 + 10000) * 1000 = 1000 bytes/s
+      assert metrics.time_weighted_avg_download_throughput == 1.0
+      assert metrics.time_weighted_avg_upload_throughput == 0
+    end
+
+    test "handles only upload operations" do
+      # Given
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          cas_outputs: [
+            %{
+              node_id: "node1",
+              checksum: "abc123",
+              size: 8000,
+              duration: 4000,
+              compressed_size: 6400,
+              operation: :upload
+            },
+            %{
+              node_id: "node2",
+              checksum: "def456",
+              size: 12_000,
+              duration: 6000,
+              compressed_size: 9600,
+              operation: :upload
+            }
+          ]
+        )
+
+      # When
+      metrics = Runs.cas_output_metrics(build.id)
+
+      # Then
+      assert metrics.download_count == 0
+      assert metrics.upload_count == 2
+      assert metrics.download_bytes == 0
+      assert metrics.upload_bytes == 20_000
+      assert metrics.time_weighted_avg_download_throughput == 0
+      # Time-weighted average: (8000 + 12000) / (4000 + 6000) * 1000 = 2000 bytes/s
+      assert metrics.time_weighted_avg_upload_throughput == 2.0
+    end
+
+    test "ignores operations with zero duration for throughput calculation" do
+      # Given
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          cas_outputs: [
+            %{
+              node_id: "node1",
+              checksum: "abc123",
+              size: 1000,
+              duration: 0,
+              compressed_size: 800,
+              operation: :download
+            },
+            %{
+              node_id: "node2",
+              checksum: "def456",
+              size: 2000,
+              duration: 2000,
+              compressed_size: 1600,
+              operation: :download
+            }
+          ]
+        )
+
+      # When
+      metrics = Runs.cas_output_metrics(build.id)
+
+      # Then
+      assert metrics.download_count == 2
+      assert metrics.upload_count == 0
+      assert metrics.download_bytes == 3000
+      assert metrics.upload_bytes == 0
+      # Only the second operation (duration > 0) is included in throughput
+      # Time-weighted average: 2000 / 2000 * 1000 = 1000 bytes/s
+      assert metrics.time_weighted_avg_download_throughput == 1.0
+      assert metrics.time_weighted_avg_upload_throughput == 0
+    end
+
+    test "handles mixed operations with different throughputs" do
+      # Given
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          cas_outputs: [
+            %{
+              node_id: "node1",
+              checksum: "abc123",
+              size: 10_000,
+              duration: 10_000,
+              compressed_size: 8000,
+              operation: :download
+            },
+            %{
+              node_id: "node2",
+              checksum: "def456",
+              size: 20_000,
+              duration: 4000,
+              compressed_size: 16_000,
+              operation: :upload
+            },
+            %{
+              node_id: "node3",
+              checksum: "ghi789",
+              size: 15_000,
+              duration: 5000,
+              compressed_size: 12_000,
+              operation: :download
+            }
+          ]
+        )
+
+      # When
+      metrics = Runs.cas_output_metrics(build.id)
+
+      # Then
+      assert metrics.download_count == 2
+      assert metrics.upload_count == 1
+      assert metrics.download_bytes == 25_000
+      assert metrics.upload_bytes == 20_000
+      # Download throughput: (10000 + 15000) / (10000 + 5000) * 1000 = 1666.67 bytes/s
+      assert_in_delta metrics.time_weighted_avg_download_throughput, 1.6666666666666667, 0.001
+      # Upload throughput: 20000 / 4000 * 1000 = 5000 bytes/s
+      assert metrics.time_weighted_avg_upload_throughput == 5.0
+    end
+  end
 end
