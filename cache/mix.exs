@@ -28,6 +28,8 @@ defmodule Cache.MixProject do
   # Specifies your project dependencies.
   defp deps do
     [
+      {:appsignal, "~> 2.8"},
+      {:appsignal_phoenix, "~> 2.0"},
       {:bandit, "~> 1.8"},
       {:briefly, "~> 0.5", only: :test},
       {:cachex, "~> 3.6"},

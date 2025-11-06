@@ -25,9 +25,12 @@ defmodule CacheWeb.CASController do
           |> send_resp(:ok, "")
 
         {:error, reason} ->
-          Logger.error("Failed to presign S3 URL for key #{key} with reason: #{inspect(reason)}")
-          conn
-          |> send_resp(:not_found, "")
+          Appsignal.send_error(%RuntimeError{message: "Failed to presign S3 url"}, %{
+            key: key,
+            reason: reason
+          })
+
+          send_resp(conn, :not_found, "")
       end
     end
   end
