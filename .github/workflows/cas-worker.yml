@@ -9,6 +9,7 @@ on:
       - .github/workflows/cas-worker.yml
       - pnpm-lock.yaml
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - cas-worker/**
       - .github/workflows/cas-worker.yml
@@ -36,6 +37,7 @@ jobs:
     name: Test
     runs-on: namespace-profile-default
     timeout-minutes: 15
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
       - name: Restore PNPM Cache

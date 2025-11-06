@@ -9,6 +9,7 @@ on:
       - .github/workflows/server.yml
       - server/pnpm-lock.yaml
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - server/**
       - .github/workflows/server.yml
@@ -37,6 +38,7 @@ jobs:
     name: Gettext (Marketing)
     runs-on: namespace-profile-default
     timeout-minutes: 15
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
       - name: Restore Mix Cache
@@ -142,6 +144,7 @@ jobs:
     name: Test
     runs-on: namespace-profile-default
     timeout-minutes: 15
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     services:
       postgres:
         image: timescale/timescaledb-ha:pg16
@@ -186,6 +189,7 @@ jobs:
     name: Credo
     runs-on: namespace-profile-default
     timeout-minutes: 15
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
       - name: Restore Mix Cache
@@ -244,6 +248,7 @@ jobs:
     name: esbuild
     runs-on: namespace-profile-default
     timeout-minutes: 15
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4 # v4
       - name: Restore Mix Cache
@@ -289,6 +294,7 @@ jobs:
     name: Security
     runs-on: namespace-profile-default
     timeout-minutes: 15
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
       - name: Restore Mix Cache
@@ -318,6 +324,7 @@ jobs:
     name: Docker build
     runs-on: namespace-profile-default
     timeout-minutes: 15
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -418,6 +425,7 @@ jobs:
     name: Seed
     runs-on: namespace-profile-default
     timeout-minutes: 15
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     services:
       postgres:
         image: timescale/timescaledb-ha:pg16

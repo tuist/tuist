@@ -10,6 +10,7 @@ on:
       - pnpm-lock.yaml
       - handbook/package.json
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - handbook/**
       - .github/workflows/handbook.yml
@@ -32,6 +33,7 @@ jobs:
     name: Build & Deploy
     runs-on: "ubuntu-latest"
     timeout-minutes: 15
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
       - name: Restore PNPM Cache

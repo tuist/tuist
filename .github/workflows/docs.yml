@@ -13,6 +13,7 @@ on:
       - docs/pnpm-lock.yaml
       - handbook/package.json
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - docs/**
       - .github/workflows/docs.yml
@@ -39,6 +40,7 @@ jobs:
   build-deploy:
     name: Build & Deploy
     runs-on: macos-26
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
       - name: Restore PNPM Cache
