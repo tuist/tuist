@@ -533,8 +533,12 @@ defmodule Tuist.Environment do
 
   def skip_email_confirmation?(secrets \\ secrets()) do
     case get([:skip_email_confirmation], secrets) do
-      skip when is_binary(skip) -> truthy?(skip)
-      _ -> false
+      skip when is_binary(skip) ->
+        truthy?(skip)
+
+      _ ->
+        # Default to true if email is not configured (e.g., air-gapped environments)
+        not mail_configured?(secrets)
     end
   end
 

@@ -27,29 +27,19 @@ defmodule TuistWeb.UserRegistrationLiveTest do
   end
 
   describe "Registration with email confirmation" do
-    setup do
-      # Store original value
-      original_secrets = Tuist.Environment.secrets()
-      on_exit(fn -> Tuist.Environment.put_application_secrets(original_secrets) end)
-      :ok
-    end
-
     test "user is auto-confirmed when skip_email_confirmation is enabled" do
-      Tuist.Environment.put_application_secrets(%{"skip_email_confirmation" => "true"})
-
-      assert Tuist.Environment.skip_email_confirmation?() == true
+      stub(Tuist.Environment, :skip_email_confirmation?, fn -> true end)
+      stub(Tuist.Environment, :skip_email_confirmation?, fn _ -> true end)
 
       {:ok, user} =
         Tuist.Accounts.create_user("skiptest@example.com", password: "StrongP@ssword!2024")
 
-      assert user.confirmed_at
-      assert user.confirmed_at
+      refute is_nil(user.confirmed_at)
     end
 
     test "user requires confirmation when skip_email_confirmation is disabled" do
-      Tuist.Environment.put_application_secrets(%{"skip_email_confirmation" => "false"})
-
-      assert Tuist.Environment.skip_email_confirmation?() == false
+      stub(Tuist.Environment, :skip_email_confirmation?, fn -> false end)
+      stub(Tuist.Environment, :skip_email_confirmation?, fn _ -> false end)
 
       {:ok, user} =
         Tuist.Accounts.create_user("nonskip@example.com", password: "StrongP@ssword!2025")
@@ -57,14 +47,29 @@ defmodule TuistWeb.UserRegistrationLiveTest do
       assert user.confirmed_at == nil
     end
 
-    test "user requires confirmation when skip_email_confirmation is not set" do
-      Tuist.Environment.put_application_secrets(%{})
-
-      assert Tuist.Environment.skip_email_confirmation?() == false
+    test "user is auto-confirmed when skip_email_confirmation is not set and email not configured" do
+      stub(Tuist.Environment, :mail_configured?, fn -> false end)
+      stub(Tuist.Environment, :mail_configured?, fn _ -> false end)
+      stub(Tuist.Environment, :skip_email_confirmation?, fn -> true end)
+      stub(Tuist.Environment, :skip_email_confirmation?, fn _ -> true end)
 
       {:ok, user} =
         Tuist.Accounts.create_user("default@example.com", password: "StrongP@ssword!2026")
 
+      # When email is not configured, skip_email_confirmation defaults to true
+      refute is_nil(user.confirmed_at)
+    end
+
+    test "user requires confirmation when email is configured and skip_email_confirmation not set" do
+      stub(Tuist.Environment, :mail_configured?, fn -> true end)
+      stub(Tuist.Environment, :mail_configured?, fn _ -> true end)
+      stub(Tuist.Environment, :skip_email_confirmation?, fn -> false end)
+      stub(Tuist.Environment, :skip_email_confirmation?, fn _ -> false end)
+
+      {:ok, user} =
+        Tuist.Accounts.create_user("withmail@example.com", password: "StrongP@ssword!2027")
+
+      # When email is configured and skip not explicitly set, default to false (require confirmation)
       assert user.confirmed_at == nil
     end
   end

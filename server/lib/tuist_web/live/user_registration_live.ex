@@ -8,6 +8,7 @@ defmodule TuistWeb.UserRegistrationLive do
   alias Phoenix.Flash
   alias Tuist.Accounts
   alias Tuist.Environment
+  alias Tuist.Repo
 
   def render(assigns) do
     ~H"""
@@ -257,8 +258,13 @@ defmodule TuistWeb.UserRegistrationLive do
          ) do
       {:ok, user} ->
         if Environment.skip_email_confirmation?() do
-          # When email confirmation is skipped, redirect directly to login
-          {:noreply, redirect(socket, to: ~p"/users/log_in")}
+          # When email confirmation is skipped, log in the user automatically
+          user = Repo.preload(user, :account)
+
+          {:noreply,
+           socket
+           |> put_flash(:info, gettext("Account created successfully!"))
+           |> TuistWeb.Authentication.log_in_user(user)}
         else
           Accounts.deliver_user_confirmation_instructions(%{
             user: user,

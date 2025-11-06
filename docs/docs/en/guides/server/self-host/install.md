@@ -233,9 +233,9 @@ Tuist requires email functionality for user authentication and transactional not
 | `TUIST_MAILING_DOMAIN` | The domain from which emails will be sent | Yes* | | `mg.tuist.io` |
 | `TUIST_MAILING_FROM_ADDRESS` | The email address that will appear in the "From" field | Yes* | | `noreply@tuist.io` |
 | `TUIST_MAILING_REPLY_TO_ADDRESS` | Optional reply-to address for user replies | No | | `support@tuist.dev` |
-| `TUIST_SKIP_EMAIL_CONFIRMATION` | Skip email confirmation for new user registrations. When enabled, users are automatically confirmed and can log in immediately after registration. **Use this for on-premise installations without internet access or email providers** | No | `false` | `true`, `1`, `yes` |
+| `TUIST_SKIP_EMAIL_CONFIRMATION` | Skip email confirmation for new user registrations. When enabled, users are automatically confirmed and can log in immediately after registration | No | `true` if email not configured, `false` if email is configured | `true`, `false`, `1`, `0` |
 
-\* Email configuration variables are required unless `TUIST_SKIP_EMAIL_CONFIRMATION` is enabled
+\* Email configuration variables are required only if you want to send emails. If not configured, email confirmation is automatically skipped
 
 ::: info SMTP SUPPORT
 <!-- -->
@@ -243,9 +243,9 @@ Generic SMTP support is not currently available. If you need SMTP support for yo
 <!-- -->
 :::
 
-::: warning AIR-GAPPED DEPLOYMENTS
+::: info AIR-GAPPED DEPLOYMENTS
 <!-- -->
-For on-premise installations without internet access, set `TUIST_SKIP_EMAIL_CONFIRMATION=true` to bypass email confirmation requirements. Users will be able to log in immediately after registration without needing to confirm their email address.
+For on-premise installations without internet access or email provider configuration, email confirmation is automatically skipped by default. Users can log in immediately after registration. If you have email configured but still want to skip confirmation, set `TUIST_SKIP_EMAIL_CONFIRMATION=true`. To require email confirmation when email is configured, set `TUIST_SKIP_EMAIL_CONFIRMATION=false`.
 <!-- -->
 :::
 
