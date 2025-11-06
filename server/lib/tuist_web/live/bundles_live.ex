@@ -11,6 +11,7 @@ defmodule TuistWeb.BundlesLive do
   alias Noora.Filter
   alias Tuist.Bundles
   alias Tuist.Projects
+  alias Tuist.Utilities.ByteFormatter
   alias Tuist.Utilities.DateFormatter
   alias TuistWeb.Utilities.Query
   alias TuistWeb.Utilities.SHA
@@ -324,7 +325,7 @@ defmodule TuistWeb.BundlesLive do
   end
 
   defp format_bytes(bytes) when is_integer(bytes) do
-    Bundles.format_bytes(bytes)
+    ByteFormatter.format_bytes(bytes)
   end
 
   def format_bundle_type(:ipa), do: gettext("IPA")

@@ -19,6 +19,7 @@ defmodule Tuist.VCS do
   alias Tuist.Projects
   alias Tuist.Repo
   alias Tuist.Runs
+  alias Tuist.Utilities.ByteFormatter
   alias Tuist.Utilities.DateFormatter
   alias Tuist.VCS
   alias Tuist.VCS.GitHubAppInstallation
@@ -376,7 +377,7 @@ defmodule Tuist.VCS do
       #{Enum.map(bundles, fn bundle ->
         {install_size_deviation, download_size_deviation} = project_bundle_size_deviations(project, bundle)
         """
-        | [#{bundle.name}](#{bundle_url.(%{project: project, bundle: bundle})}) | [#{String.slice(bundle.git_commit_sha, 0, 9)}](#{git_remote_url_origin}/commit/#{bundle.git_commit_sha}) | <div align="center">#{Bundles.format_bytes(bundle.install_size)}#{install_size_deviation}</div> | <div align="center">#{format_bundle_download_size(bundle.download_size)}#{download_size_deviation}</div> |
+        | [#{bundle.name}](#{bundle_url.(%{project: project, bundle: bundle})}) | [#{String.slice(bundle.git_commit_sha, 0, 9)}](#{git_remote_url_origin}/commit/#{bundle.git_commit_sha}) | <div align="center">#{ByteFormatter.format_bytes(bundle.install_size)}#{install_size_deviation}</div> | <div align="center">#{format_bundle_download_size(bundle.download_size)}#{download_size_deviation}</div> |
         """
       end)}
       """
@@ -409,10 +410,10 @@ defmodule Tuist.VCS do
 
     cond do
       size < last_size ->
-        "<br/>`Δ -#{Bundles.format_bytes(absolute_delta)} (#{deviation_percentage}%)`"
+        "<br/>`Δ -#{ByteFormatter.format_bytes(absolute_delta)} (#{deviation_percentage}%)`"
 
       size > last_size ->
-        "<br/>`Δ +#{Bundles.format_bytes(absolute_delta)} (+#{deviation_percentage}%)`"
+        "<br/>`Δ +#{ByteFormatter.format_bytes(absolute_delta)} (+#{deviation_percentage}%)`"
 
       true ->
         ""
@@ -420,7 +421,7 @@ defmodule Tuist.VCS do
   end
 
   defp format_bundle_download_size(nil), do: gettext("Unknown")
-  defp format_bundle_download_size(size) when is_integer(size), do: Bundles.format_bytes(size)
+  defp format_bundle_download_size(size) when is_integer(size), do: ByteFormatter.format_bytes(size)
 
   defp get_issue_id_from_git_ref(git_ref) do
     [issue_id, _merge] = git_ref |> String.split("/") |> Enum.take(-2)
