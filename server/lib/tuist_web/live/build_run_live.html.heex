@@ -800,8 +800,15 @@
           </.card_section>
           <div data-part="latency-widgets">
             <.widget
-              title={gettext("Average read latency")}
-              description={gettext("Average time to read cacheable tasks from cache.")}
+              title={
+                case @selected_read_latency_type do
+                  "avg" -> gettext("Avg. latency reading cache keys")
+                  "p99" -> gettext("p99 latency reading cache keys")
+                  "p90" -> gettext("p90 latency reading cache keys")
+                  "p50" -> gettext("p50 latency reading cache keys")
+                end
+              }
+              description={gettext("Time to read cache keys, which uniquely identify cacheable tasks, from cache.")}
               value={
                 latency_value =
                   get_latency_value(
@@ -879,8 +886,15 @@
               </:select>
             </.widget>
             <.widget
-              title={gettext("Average write latency")}
-              description={gettext("Average time to write cacheable tasks to cache.")}
+              title={
+                case @selected_write_latency_type do
+                  "avg" -> gettext("Avg. latency writing cache keys")
+                  "p99" -> gettext("p99 latency writing cache keys")
+                  "p90" -> gettext("p90 latency writing cache keys")
+                  "p50" -> gettext("p50 latency writing cache keys")
+                end
+              }
+              description={gettext("Time to write cache keys, which uniquely identify cacheable tasks, to cache.")}
               value={
                 latency_value =
                   get_latency_value(
