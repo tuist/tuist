@@ -2462,10 +2462,6 @@ public enum Components {
                     ///
                     /// - Remark: Generated from `#/components/schemas/RunParams/case1/cas_outputsPayload/duration`.
                     public var duration: Swift.Double
-                    /// When the CAS operation finished.
-                    ///
-                    /// - Remark: Generated from `#/components/schemas/RunParams/case1/cas_outputsPayload/finished_at`.
-                    public var finished_at: Foundation.Date
                     /// The CAS node identifier.
                     ///
                     /// - Remark: Generated from `#/components/schemas/RunParams/case1/cas_outputsPayload/node_id`.
@@ -2485,49 +2481,37 @@ public enum Components {
                     ///
                     /// - Remark: Generated from `#/components/schemas/RunParams/case1/cas_outputsPayload/size`.
                     public var size: Swift.Int
-                    /// When the CAS operation started.
-                    ///
-                    /// - Remark: Generated from `#/components/schemas/RunParams/case1/cas_outputsPayload/started_at`.
-                    public var started_at: Foundation.Date
                     /// Creates a new `cas_outputsPayloadPayload`.
                     ///
                     /// - Parameters:
                     ///   - checksum: The checksum of the CAS object.
                     ///   - compressed_size: The compressed size of the CAS object in bytes.
                     ///   - duration: The duration of the CAS operation in seconds.
-                    ///   - finished_at: When the CAS operation finished.
                     ///   - node_id: The CAS node identifier.
                     ///   - operation: The type of CAS operation.
                     ///   - size: The size of the CAS object in bytes.
-                    ///   - started_at: When the CAS operation started.
                     public init(
                         checksum: Swift.String,
                         compressed_size: Swift.Int,
                         duration: Swift.Double,
-                        finished_at: Foundation.Date,
                         node_id: Swift.String,
                         operation: Components.Schemas.RunParams.Case1Payload.cas_outputsPayloadPayload.operationPayload,
-                        size: Swift.Int,
-                        started_at: Foundation.Date
+                        size: Swift.Int
                     ) {
                         self.checksum = checksum
                         self.compressed_size = compressed_size
                         self.duration = duration
-                        self.finished_at = finished_at
                         self.node_id = node_id
                         self.operation = operation
                         self.size = size
-                        self.started_at = started_at
                     }
                     public enum CodingKeys: String, CodingKey {
                         case checksum
                         case compressed_size
                         case duration
-                        case finished_at
                         case node_id
                         case operation
                         case size
-                        case started_at
                     }
                 }
                 /// CAS output operations associated with the build run.
@@ -4037,10 +4021,6 @@ public enum Components {
                 ///
                 /// - Remark: Generated from `#/components/schemas/BuildRun/cas_outputsPayload/duration`.
                 public var duration: Swift.Double
-                /// When the CAS operation finished.
-                ///
-                /// - Remark: Generated from `#/components/schemas/BuildRun/cas_outputsPayload/finished_at`.
-                public var finished_at: Foundation.Date
                 /// The CAS node identifier.
                 ///
                 /// - Remark: Generated from `#/components/schemas/BuildRun/cas_outputsPayload/node_id`.
@@ -4060,49 +4040,37 @@ public enum Components {
                 ///
                 /// - Remark: Generated from `#/components/schemas/BuildRun/cas_outputsPayload/size`.
                 public var size: Swift.Int
-                /// When the CAS operation started.
-                ///
-                /// - Remark: Generated from `#/components/schemas/BuildRun/cas_outputsPayload/started_at`.
-                public var started_at: Foundation.Date
                 /// Creates a new `cas_outputsPayloadPayload`.
                 ///
                 /// - Parameters:
                 ///   - checksum: The checksum of the CAS object.
                 ///   - compressed_size: The compressed size of the CAS object in bytes.
                 ///   - duration: The duration of the CAS operation in seconds.
-                ///   - finished_at: When the CAS operation finished.
                 ///   - node_id: The CAS node identifier.
                 ///   - operation: The type of CAS operation.
                 ///   - size: The size of the CAS object in bytes.
-                ///   - started_at: When the CAS operation started.
                 public init(
                     checksum: Swift.String,
                     compressed_size: Swift.Int,
                     duration: Swift.Double,
-                    finished_at: Foundation.Date,
                     node_id: Swift.String,
                     operation: Components.Schemas.BuildRun.cas_outputsPayloadPayload.operationPayload,
-                    size: Swift.Int,
-                    started_at: Foundation.Date
+                    size: Swift.Int
                 ) {
                     self.checksum = checksum
                     self.compressed_size = compressed_size
                     self.duration = duration
-                    self.finished_at = finished_at
                     self.node_id = node_id
                     self.operation = operation
                     self.size = size
-                    self.started_at = started_at
                 }
                 public enum CodingKeys: String, CodingKey {
                     case checksum
                     case compressed_size
                     case duration
-                    case finished_at
                     case node_id
                     case operation
                     case size
-                    case started_at
                 }
             }
             /// CAS output operations associated with the build run.
@@ -21671,10 +21639,6 @@ public enum Operations {
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/cas_outputsPayload/duration`.
                             public var duration: Swift.Double
-                            /// When the CAS operation finished.
-                            ///
-                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/cas_outputsPayload/finished_at`.
-                            public var finished_at: Foundation.Date
                             /// The CAS node identifier.
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/cas_outputsPayload/node_id`.
@@ -21694,49 +21658,37 @@ public enum Operations {
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/cas_outputsPayload/size`.
                             public var size: Swift.Int
-                            /// When the CAS operation started.
-                            ///
-                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/cas_outputsPayload/started_at`.
-                            public var started_at: Foundation.Date
                             /// Creates a new `cas_outputsPayloadPayload`.
                             ///
                             /// - Parameters:
                             ///   - checksum: The checksum of the CAS object.
                             ///   - compressed_size: The compressed size of the CAS object in bytes.
                             ///   - duration: The duration of the CAS operation in seconds.
-                            ///   - finished_at: When the CAS operation finished.
                             ///   - node_id: The CAS node identifier.
                             ///   - operation: The type of CAS operation.
                             ///   - size: The size of the CAS object in bytes.
-                            ///   - started_at: When the CAS operation started.
                             public init(
                                 checksum: Swift.String,
                                 compressed_size: Swift.Int,
                                 duration: Swift.Double,
-                                finished_at: Foundation.Date,
                                 node_id: Swift.String,
                                 operation: Operations.createRun.Input.Body.jsonPayload.Case1Payload.cas_outputsPayloadPayload.operationPayload,
-                                size: Swift.Int,
-                                started_at: Foundation.Date
+                                size: Swift.Int
                             ) {
                                 self.checksum = checksum
                                 self.compressed_size = compressed_size
                                 self.duration = duration
-                                self.finished_at = finished_at
                                 self.node_id = node_id
                                 self.operation = operation
                                 self.size = size
-                                self.started_at = started_at
                             }
                             public enum CodingKeys: String, CodingKey {
                                 case checksum
                                 case compressed_size
                                 case duration
-                                case finished_at
                                 case node_id
                                 case operation
                                 case size
-                                case started_at
                             }
                         }
                         /// CAS output operations associated with the build run.

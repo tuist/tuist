@@ -1,4 +1,4 @@
-import FileSystem
+@preconcurrency import FileSystem
 import Foundation
 import Mockable
 import Path
@@ -28,7 +28,7 @@ public struct CASNodeStore: CASNodeStoring {
         let sanitizedNodeID = sanitizeNodeID(nodeID)
         let nodeFilePath = nodesDirectory.appending(component: sanitizedNodeID)
 
-        try await fileSystem.writeText(checksum, at: nodeFilePath, options: Set([.overwrite]))
+        try await fileSystem.writeText(checksum, at: nodeFilePath, encoding: .utf8, options: Set([.overwrite]))
     }
 
     public func checksum(for nodeID: String) async throws -> String? {

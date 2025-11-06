@@ -794,12 +794,6 @@ components:
                     type: number
                     x-struct:
                     x-validate:
-                  finished_at:
-                    description: When the CAS operation finished.
-                    format: date-time
-                    type: string
-                    x-struct:
-                    x-validate:
                   node_id:
                     description: The CAS node identifier.
                     type: string
@@ -818,18 +812,10 @@ components:
                     type: integer
                     x-struct:
                     x-validate:
-                  started_at:
-                    description: When the CAS operation started.
-                    format: date-time
-                    type: string
-                    x-struct:
-                    x-validate:
                 required:
                   - node_id
                   - checksum
                   - size
-                  - started_at
-                  - finished_at
                   - duration
                   - compressed_size
                   - operation
@@ -1839,12 +1825,6 @@ components:
                 type: number
                 x-struct:
                 x-validate:
-              finished_at:
-                description: When the CAS operation finished.
-                format: date-time
-                type: string
-                x-struct:
-                x-validate:
               node_id:
                 description: The CAS node identifier.
                 type: string
@@ -1863,18 +1843,10 @@ components:
                 type: integer
                 x-struct:
                 x-validate:
-              started_at:
-                description: When the CAS operation started.
-                format: date-time
-                type: string
-                x-struct:
-                x-validate:
             required:
               - node_id
               - checksum
               - size
-              - started_at
-              - finished_at
               - duration
               - compressed_size
               - operation
@@ -6149,12 +6121,6 @@ paths:
                             type: number
                             x-struct:
                             x-validate:
-                          finished_at:
-                            description: When the CAS operation finished.
-                            format: date-time
-                            type: string
-                            x-struct:
-                            x-validate:
                           node_id:
                             description: The CAS node identifier.
                             type: string
@@ -6173,18 +6139,10 @@ paths:
                             type: integer
                             x-struct:
                             x-validate:
-                          started_at:
-                            description: When the CAS operation started.
-                            format: date-time
-                            type: string
-                            x-struct:
-                            x-validate:
                         required:
                           - node_id
                           - checksum
                           - size
-                          - started_at
-                          - finished_at
                           - duration
                           - compressed_size
                           - operation
