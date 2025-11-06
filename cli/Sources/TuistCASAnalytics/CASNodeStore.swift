@@ -14,7 +14,7 @@ public protocol CASNodeStoring: Sendable {
     func checksum(for nodeID: String) async throws -> String?
 }
 
-public final class CASNodeStore: CASNodeStoring {
+public struct CASNodeStore: CASNodeStoring {
     private let fileSystem: FileSysteming
 
     public init(fileSystem: FileSysteming = FileSystem()) {
