@@ -26,7 +26,7 @@ defmodule Tuist.GitHub.ReleasesTest do
       stub(
         Req,
         :get,
-        fn ^releases_url, [finch: Tuist.Finch] ->
+        fn ^releases_url, _opts ->
           {:ok, %Req.Response{status: 200, body: [release]}}
         end
       )
@@ -50,7 +50,8 @@ defmodule Tuist.GitHub.ReleasesTest do
         "assets" => [
           %{
             "name" => "tuist.zip",
-            "browser_download_url" => "https://github.com/tuist/tuist/releases/download/app@0.1.0/app.dmg"
+            "browser_download_url" =>
+              "https://github.com/tuist/tuist/releases/download/app@0.1.0/app.dmg"
           }
         ]
       }
@@ -60,7 +61,7 @@ defmodule Tuist.GitHub.ReleasesTest do
       stub(
         Req,
         :get,
-        fn ^releases_url, [finch: Tuist.Finch] ->
+        fn ^releases_url, _opts ->
           {:ok,
            %Req.Response{
              status: 200,
@@ -93,7 +94,7 @@ defmodule Tuist.GitHub.ReleasesTest do
     stub(
       Req,
       :get,
-      fn ^releases_url, [finch: Tuist.Finch] ->
+      fn ^releases_url, _opts ->
         {:ok, %Req.Response{status: 502}}
       end
     )
@@ -117,11 +118,13 @@ defmodule Tuist.GitHub.ReleasesTest do
         "assets" => [
           %{
             "name" => "SHASUMS512.txt",
-            "browser_download_url" => "https://github.com/tuist/tuist/releases/download/app@0.1.0/SHASUMS512.txt"
+            "browser_download_url" =>
+              "https://github.com/tuist/tuist/releases/download/app@0.1.0/SHASUMS512.txt"
           },
           %{
             "name" => "Tuist.dmg",
-            "browser_download_url" => "https://github.com/tuist/tuist/releases/download/app@0.1.0/Tuist.dmg"
+            "browser_download_url" =>
+              "https://github.com/tuist/tuist/releases/download/app@0.1.0/Tuist.dmg"
           }
         ]
       }
@@ -131,7 +134,7 @@ defmodule Tuist.GitHub.ReleasesTest do
       stub(
         Req,
         :get,
-        fn ^releases_url, [finch: Tuist.Finch] ->
+        fn ^releases_url, _opts ->
           {:ok, %Req.Response{status: 200, body: [release]}}
         end
       )
@@ -152,7 +155,7 @@ defmodule Tuist.GitHub.ReleasesTest do
       stub(
         Req,
         :get,
-        fn ^releases_url, [finch: Tuist.Finch] ->
+        fn ^releases_url, _opts ->
           {:ok,
            %Req.Response{
              status: 200,
@@ -170,11 +173,13 @@ defmodule Tuist.GitHub.ReleasesTest do
                  "assets" => [
                    %{
                      "name" => "SHASUMS512.txt",
-                     "browser_download_url" => "https://github.com/tuist/tuist/releases/download/app@0.1.0/SHASUMS512.txt"
+                     "browser_download_url" =>
+                       "https://github.com/tuist/tuist/releases/download/app@0.1.0/SHASUMS512.txt"
                    },
                    %{
                      "name" => "Tuist.dmg",
-                     "browser_download_url" => "https://github.com/tuist/tuist/releases/download/app@0.1.0/Tuist.dmg"
+                     "browser_download_url" =>
+                       "https://github.com/tuist/tuist/releases/download/app@0.1.0/Tuist.dmg"
                    }
                  ]
                }
@@ -198,7 +203,7 @@ defmodule Tuist.GitHub.ReleasesTest do
       stub(
         Req,
         :get,
-        fn ^releases_url, [finch: Tuist.Finch] ->
+        fn ^releases_url, _opts ->
           {:ok,
            %Req.Response{
              status: 200,
@@ -210,7 +215,8 @@ defmodule Tuist.GitHub.ReleasesTest do
                  "assets" => [
                    %{
                      "name" => "SHASUMS512.txt",
-                     "browser_download_url" => "https://github.com/tuist/tuist/releases/download/app@0.2.0/SHASUMS512.txt"
+                     "browser_download_url" =>
+                       "https://github.com/tuist/tuist/releases/download/app@0.2.0/SHASUMS512.txt"
                    }
                  ]
                },
@@ -221,11 +227,13 @@ defmodule Tuist.GitHub.ReleasesTest do
                  "assets" => [
                    %{
                      "name" => "SHASUMS512.txt",
-                     "browser_download_url" => "https://github.com/tuist/tuist/releases/download/app@0.1.0/SHASUMS512.txt"
+                     "browser_download_url" =>
+                       "https://github.com/tuist/tuist/releases/download/app@0.1.0/SHASUMS512.txt"
                    },
                    %{
                      "name" => "Tuist.dmg",
-                     "browser_download_url" => "https://github.com/tuist/tuist/releases/download/app@0.1.0/Tuist.dmg"
+                     "browser_download_url" =>
+                       "https://github.com/tuist/tuist/releases/download/app@0.1.0/Tuist.dmg"
                    }
                  ]
                }
@@ -263,7 +271,8 @@ defmodule Tuist.GitHub.ReleasesTest do
         "assets" => [
           %{
             "name" => "Tuist.dmg",
-            "browser_download_url" => "https://github.com/tuist/tuist/releases/download/app@1.0.0/Tuist.dmg"
+            "browser_download_url" =>
+              "https://github.com/tuist/tuist/releases/download/app@1.0.0/Tuist.dmg"
           }
         ]
       }
@@ -271,7 +280,7 @@ defmodule Tuist.GitHub.ReleasesTest do
       stub(
         Req,
         :get,
-        fn url, [finch: Tuist.Finch] ->
+        fn url, _opts ->
           cond do
             url == releases_url ->
               {:ok,

@@ -51,7 +51,11 @@ defmodule Tuist.GitHub.ClientTest do
 
       # When
       comments =
-        Client.get_comments(%{repository_full_handle: "tuist/tuist", issue_id: 1, installation_id: "installation-id"})
+        Client.get_comments(%{
+          repository_full_handle: "tuist/tuist",
+          issue_id: 1,
+          installation_id: "installation-id"
+        })
 
       # Then
       assert comments ==
@@ -88,7 +92,11 @@ defmodule Tuist.GitHub.ClientTest do
 
       # When
       comments =
-        Client.get_comments(%{repository_full_handle: "tuist/tuist", issue_id: 1, installation_id: "installation-id"})
+        Client.get_comments(%{
+          repository_full_handle: "tuist/tuist",
+          issue_id: 1,
+          installation_id: "installation-id"
+        })
 
       # Then
       assert comments == {:ok, [%Comment{id: "comment-id", client_id: nil}]}
@@ -102,7 +110,11 @@ defmodule Tuist.GitHub.ClientTest do
 
       # When
       comments =
-        Client.get_comments(%{repository_full_handle: "tuist/tuist", issue_id: 1, installation_id: "installation-id"})
+        Client.get_comments(%{
+          repository_full_handle: "tuist/tuist",
+          issue_id: 1,
+          installation_id: "installation-id"
+        })
 
       # Then
       assert comments == {:error, "Unexpected status code: 500. Body: \"\""}
@@ -116,7 +128,11 @@ defmodule Tuist.GitHub.ClientTest do
 
       # When
       comments =
-        Client.get_comments(%{repository_full_handle: "tuist/tuist", issue_id: 1, installation_id: "installation-id"})
+        Client.get_comments(%{
+          repository_full_handle: "tuist/tuist",
+          issue_id: 1,
+          installation_id: "installation-id"
+        })
 
       # Then
       assert comments == {:error, "Unexpected status code: 403. Body: \"\""}
@@ -129,7 +145,12 @@ defmodule Tuist.GitHub.ClientTest do
       end)
 
       # When
-      got = Client.get_comments(%{repository_full_handle: "tuist/tuist", issue_id: 1, installation_id: "installation-id"})
+      got =
+        Client.get_comments(%{
+          repository_full_handle: "tuist/tuist",
+          issue_id: 1,
+          installation_id: "installation-id"
+        })
 
       # Then
       assert got ==
@@ -231,45 +252,37 @@ defmodule Tuist.GitHub.ClientTest do
       stub(
         Req,
         :get,
-        fn
-          [
-            url: "https://api.github.com/repos/tuist/tuist/tags?page_size=100",
-            headers: @default_api_headers,
-            finch: Tuist.Finch,
-            retry: _
-          ] ->
-            {:ok,
-             %Req.Response{
-               status: 200,
-               headers: %{
-                 "link" => [
-                   ~s(<https://api.github.com/repos/tuist/tuist/tags?page=2>; rel="next", <https://api.github.com/repos/tuist/tuist/tags?page=2>; rel="last")
+        fn opts ->
+          case Keyword.get(opts, :url) do
+            "https://api.github.com/repos/tuist/tuist/tags?page_size=100" ->
+              {:ok,
+               %Req.Response{
+                 status: 200,
+                 headers: %{
+                   "link" => [
+                     ~s(<https://api.github.com/repos/tuist/tuist/tags?page=2>; rel="next", <https://api.github.com/repos/tuist/tuist/tags?page=2>; rel="last")
+                   ]
+                 },
+                 body: [
+                   %{"name" => "1.0.2"},
+                   %{"name" => "1.0.1"}
                  ]
-               },
-               body: [
-                 %{"name" => "1.0.2"},
-                 %{"name" => "1.0.1"}
-               ]
-             }}
+               }}
 
-          [
-            url: "https://api.github.com/repos/tuist/tuist/tags?page=2&page_size=100",
-            headers: @default_api_headers,
-            finch: Tuist.Finch,
-            retry: _
-          ] ->
-            {:ok,
-             %Req.Response{
-               status: 200,
-               headers: %{
-                 "link" => [
-                   "<https://api.github.com/repos/tuist/tuist/tags?page=2>; rel=\"last\""
+            "https://api.github.com/repos/tuist/tuist/tags?page=2&page_size=100" ->
+              {:ok,
+               %Req.Response{
+                 status: 200,
+                 headers: %{
+                   "link" => [
+                     "<https://api.github.com/repos/tuist/tuist/tags?page=2>; rel=\"last\""
+                   ]
+                 },
+                 body: [
+                   %{"name" => "1.0.0"}
                  ]
-               },
-               body: [
-                 %{"name" => "1.0.0"}
-               ]
-             }}
+               }}
+          end
         end
       )
 
@@ -285,23 +298,17 @@ defmodule Tuist.GitHub.ClientTest do
       stub(
         Req,
         :get,
-        fn
-          [
-            url: "https://api.github.com/repos/tuist/tuist/tags?page_size=100",
-            headers: @default_api_headers,
-            finch: Tuist.Finch,
-            retry: _
-          ] ->
-            {:ok,
-             %Req.Response{
-               status: 200,
-               headers: %{
-                 "link" => [
-                   "<https://api.github.com/repos/tuist/tuist/tags?page=1>; rel=\"last\""
-                 ]
-               },
-               body: []
-             }}
+        fn _opts ->
+          {:ok,
+           %Req.Response{
+             status: 200,
+             headers: %{
+               "link" => [
+                 "<https://api.github.com/repos/tuist/tuist/tags?page=1>; rel=\"last\""
+               ]
+             },
+             body: []
+           }}
         end
       )
 
@@ -472,7 +479,10 @@ defmodule Tuist.GitHub.ClientTest do
       assert result ==
                {:ok,
                 %{
-                  meta: %{next_url: "https://api.github.com/installation/repositories?per_page=100&page=2"},
+                  meta: %{
+                    next_url:
+                      "https://api.github.com/installation/repositories?per_page=100&page=2"
+                  },
                   repositories: [
                     %{
                       id: 123,
