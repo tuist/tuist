@@ -19,23 +19,19 @@
       body {
         background: transparent;
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        display: flex;
+        align-items: flex-start;
       }
 
       #viz-container {
         width: 100%;
-        height: 400px;
+        height: 100%;
         position: relative;
         background: transparent;
       }
 
       .metrics-grid {
-        position: absolute;
-        top: 20px;
-        left: 50%;
-        transform: translateX(-50%);
-        display: flex;
-        gap: 16px;
-        z-index: 10;
+        display: none;
       }
 
       .metric-box {
@@ -116,7 +112,7 @@
 
         const width = container.clientWidth;
         const height = 400;
-        const margin = { top: 100, right: 40, bottom: 60, left: 100 };
+        const margin = { top: 20, right: 40, bottom: 60, left: 100 };
 
         const gridWidth = width - margin.left - margin.right;
         const gridHeight = height - margin.top - margin.bottom;
@@ -212,6 +208,8 @@
             .text(source.name);
         });
 
+        let needsUpdate = false;
+
         // Activity decay over time
         function decayActivity() {
           gridData.forEach(cell => {
@@ -224,10 +222,13 @@
             }
           });
 
-          updateCells();
+          needsUpdate = true;
         }
 
         function updateCells() {
+          if (!needsUpdate) return;
+          needsUpdate = false;
+
           cells
             .attr('fill', d => {
               if (d.activity === 0) return '#f9fafb';
@@ -235,6 +236,13 @@
             })
             .attr('fill-opacity', d => d.activity === 0 ? 1 : 0.4 + d.activity * 0.6);
         }
+
+        // Use requestAnimationFrame for smooth updates
+        function animationLoop() {
+          updateCells();
+          requestAnimationFrame(animationLoop);
+        }
+        requestAnimationFrame(animationLoop);
 
         function startCoding() {
           const source = sources[Math.floor(Math.random() * sources.length)];
@@ -256,7 +264,7 @@
             }
           });
 
-          updateCells();
+          needsUpdate = true;
         }
 
         function createCommit() {
@@ -300,29 +308,29 @@
             }
           });
 
-          updateCells();
+          needsUpdate = true;
 
           // Update counter
           commitsToday++;
           d3.select('#commits-today').text(commitsToday);
         }
 
-        // Animation loop
-        setInterval(decayActivity, 100);
+        // Animation loop - reduced frequency for better performance
+        setInterval(decayActivity, 200);
 
-        // Random coding activity
+        // Random coding activity - less frequent
         setInterval(() => {
-          if (Math.random() > 0.3) {
+          if (Math.random() > 0.4) {
             startCoding();
           }
-        }, 1500);
+        }, 2000);
 
-        // Random commits
+        // Random commits - less frequent
         setInterval(() => {
-          if (Math.random() > 0.5) {
+          if (Math.random() > 0.6) {
             createCommit();
           }
-        }, 3000);
+        }, 4000);
 
         // Initial activity
         setTimeout(startCoding, 500);
