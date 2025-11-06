@@ -178,10 +178,7 @@ defmodule Tuist.GitHub.Client do
     end
   end
 
-  def get_repository_content(
-        %{repository_full_handle: repository_full_handle, token: token},
-        opts \\ []
-      ) do
+  def get_repository_content(%{repository_full_handle: repository_full_handle, token: token}, opts \\ []) do
     path = Keyword.get(opts, :path, "")
     url = "https://api.github.com/repos/#{repository_full_handle}/contents/#{path}"
 

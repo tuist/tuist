@@ -480,8 +480,7 @@ defmodule Tuist.GitHub.ClientTest do
                {:ok,
                 %{
                   meta: %{
-                    next_url:
-                      "https://api.github.com/installation/repositories?per_page=100&page=2"
+                    next_url: "https://api.github.com/installation/repositories?per_page=100&page=2"
                   },
                   repositories: [
                     %{

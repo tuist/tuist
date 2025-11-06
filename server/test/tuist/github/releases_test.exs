@@ -50,8 +50,7 @@ defmodule Tuist.GitHub.ReleasesTest do
         "assets" => [
           %{
             "name" => "tuist.zip",
-            "browser_download_url" =>
-              "https://github.com/tuist/tuist/releases/download/app@0.1.0/app.dmg"
+            "browser_download_url" => "https://github.com/tuist/tuist/releases/download/app@0.1.0/app.dmg"
           }
         ]
       }
@@ -118,13 +117,11 @@ defmodule Tuist.GitHub.ReleasesTest do
         "assets" => [
           %{
             "name" => "SHASUMS512.txt",
-            "browser_download_url" =>
-              "https://github.com/tuist/tuist/releases/download/app@0.1.0/SHASUMS512.txt"
+            "browser_download_url" => "https://github.com/tuist/tuist/releases/download/app@0.1.0/SHASUMS512.txt"
           },
           %{
             "name" => "Tuist.dmg",
-            "browser_download_url" =>
-              "https://github.com/tuist/tuist/releases/download/app@0.1.0/Tuist.dmg"
+            "browser_download_url" => "https://github.com/tuist/tuist/releases/download/app@0.1.0/Tuist.dmg"
           }
         ]
       }
@@ -173,13 +170,11 @@ defmodule Tuist.GitHub.ReleasesTest do
                  "assets" => [
                    %{
                      "name" => "SHASUMS512.txt",
-                     "browser_download_url" =>
-                       "https://github.com/tuist/tuist/releases/download/app@0.1.0/SHASUMS512.txt"
+                     "browser_download_url" => "https://github.com/tuist/tuist/releases/download/app@0.1.0/SHASUMS512.txt"
                    },
                    %{
                      "name" => "Tuist.dmg",
-                     "browser_download_url" =>
-                       "https://github.com/tuist/tuist/releases/download/app@0.1.0/Tuist.dmg"
+                     "browser_download_url" => "https://github.com/tuist/tuist/releases/download/app@0.1.0/Tuist.dmg"
                    }
                  ]
                }
@@ -215,8 +210,7 @@ defmodule Tuist.GitHub.ReleasesTest do
                  "assets" => [
                    %{
                      "name" => "SHASUMS512.txt",
-                     "browser_download_url" =>
-                       "https://github.com/tuist/tuist/releases/download/app@0.2.0/SHASUMS512.txt"
+                     "browser_download_url" => "https://github.com/tuist/tuist/releases/download/app@0.2.0/SHASUMS512.txt"
                    }
                  ]
                },
@@ -227,13 +221,11 @@ defmodule Tuist.GitHub.ReleasesTest do
                  "assets" => [
                    %{
                      "name" => "SHASUMS512.txt",
-                     "browser_download_url" =>
-                       "https://github.com/tuist/tuist/releases/download/app@0.1.0/SHASUMS512.txt"
+                     "browser_download_url" => "https://github.com/tuist/tuist/releases/download/app@0.1.0/SHASUMS512.txt"
                    },
                    %{
                      "name" => "Tuist.dmg",
-                     "browser_download_url" =>
-                       "https://github.com/tuist/tuist/releases/download/app@0.1.0/Tuist.dmg"
+                     "browser_download_url" => "https://github.com/tuist/tuist/releases/download/app@0.1.0/Tuist.dmg"
                    }
                  ]
                }
@@ -271,8 +263,7 @@ defmodule Tuist.GitHub.ReleasesTest do
         "assets" => [
           %{
             "name" => "Tuist.dmg",
-            "browser_download_url" =>
-              "https://github.com/tuist/tuist/releases/download/app@1.0.0/Tuist.dmg"
+            "browser_download_url" => "https://github.com/tuist/tuist/releases/download/app@1.0.0/Tuist.dmg"
           }
         ]
       }
