@@ -42,8 +42,8 @@ defmodule TuistWeb.UserRegistrationLiveTest do
       {:ok, user} =
         Tuist.Accounts.create_user("skiptest@example.com", password: "StrongP@ssword!2024")
 
-      assert user.confirmed_at != nil
-      refute is_nil(user.confirmed_at)
+      assert user.confirmed_at
+      assert user.confirmed_at
     end
 
     test "user requires confirmation when skip_email_confirmation is disabled" do
