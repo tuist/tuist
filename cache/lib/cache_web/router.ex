@@ -19,11 +19,7 @@ defmodule CacheWeb.Router do
     get "/keyvalue/:cas_id", KeyValueController, :get_value
     put "/keyvalue/:cas_id", KeyValueController, :get_value
     put "/keyvalue", KeyValueController, :put_value
+    get "/cas/:id", CASController, :download
     post "/cas/:id", CASController, :save
-  end
-
-  scope "/auth", CacheWeb do
-    pipe_through :api_json
-    get "/cas", CASController, :authorize
   end
 end

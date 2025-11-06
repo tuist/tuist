@@ -92,6 +92,16 @@ defmodule Cache.Disk do
   end
 
   @doc """
+  Build the internal X-Accel-Redirect path for a CAS artifact.
+
+  The returned path maps to the nginx internal location that aliases the
+  physical CAS storage directory.
+  """
+  def internal_accel_path(account_handle, project_handle, id) do
+    "/internal/cas/" <> cas_key(account_handle, project_handle, id)
+  end
+
+  @doc """
   Returns the configured storage directory for CAS artifacts.
 
   Defaults to "tmp/cas" if not configured.
