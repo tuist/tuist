@@ -5,6 +5,7 @@ defmodule TuistWeb.BuildsLive do
 
   import TuistWeb.Components.EmptyCardSection
   import TuistWeb.Runs.RanByBadge
+  import TuistWeb.PercentileDropdownWidget
 
   alias Tuist.Runs
   alias Tuist.Runs.Analytics
@@ -39,7 +40,8 @@ defmodule TuistWeb.BuildsLive do
               "analytics-date-range",
               "analytics-build-scheme",
               "analytics-build-configuration",
-              "analytics-build-category"
+              "analytics-build-category",
+              "build-duration-type"
             ])
           )
       )
@@ -118,6 +120,7 @@ defmodule TuistWeb.BuildsLive do
     |> assign(:analytics_build_category, analytics_build_category)
     |> assign(:build_schemes, Runs.project_build_schemes(project))
     |> assign(:build_configurations, Runs.project_build_configurations(project))
+    |> assign(:selected_build_duration_type, params["build-duration-type"] || "avg")
   end
 
   defp opts_with_analytics_build_scheme(opts, analytics_build_scheme) do
@@ -214,6 +217,21 @@ defmodule TuistWeb.BuildsLive do
     {:noreply, socket}
   end
 
+  def handle_event(
+        "select_build_duration_type",
+        %{"type" => type},
+        %{assigns: %{selected_account: selected_account, selected_project: selected_project, uri: uri}} = socket
+      ) do
+    socket =
+      push_patch(
+        socket,
+        to:
+          "/#{selected_account.name}/#{selected_project.name}/builds?#{Query.put(uri.query, "build-duration-type", type)}"
+      )
+
+    {:noreply, socket}
+  end
+
   defp assign_recent_builds(%{assigns: %{selected_project: project}} = socket) do
     {recent_builds, _meta} =
       Runs.list_build_runs(
@@ -283,5 +301,63 @@ defmodule TuistWeb.BuildsLive do
       end
 
     labels
+  end
+
+  defp calculate_average_duration(%{values: values}) when is_list(values) and length(values) > 0 do
+    Enum.sum(values) / length(values)
+  end
+
+  defp calculate_average_duration(_), do: 0
+
+  def get_build_duration_value(
+        builds_duration_analytics,
+        builds_p99_durations,
+        builds_p90_durations,
+        builds_p50_durations,
+        type
+      ) do
+    case type do
+      "avg" -> builds_duration_analytics.total_average_duration
+      "p99" -> calculate_average_duration(builds_p99_durations)
+      "p90" -> calculate_average_duration(builds_p90_durations)
+      "p50" -> calculate_average_duration(builds_p50_durations)
+      _ -> builds_duration_analytics.total_average_duration
+    end
+  end
+
+  def format_build_duration_metrics(
+        builds_duration_analytics,
+        builds_p99_durations,
+        builds_p90_durations,
+        builds_p50_durations
+      ) do
+    %{
+      avg:
+        Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+          builds_duration_analytics.total_average_duration
+        ),
+      p99:
+        Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+          trunc(calculate_average_duration(builds_p99_durations))
+        ),
+      p90:
+        Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+          trunc(calculate_average_duration(builds_p90_durations))
+        ),
+      p50:
+        Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+          trunc(calculate_average_duration(builds_p50_durations))
+        )
+    }
+  end
+
+  def get_build_duration_title(type) do
+    case type do
+      "avg" -> gettext("Avg. build duration")
+      "p99" -> gettext("p99 build duration")
+      "p90" -> gettext("p90 build duration")
+      "p50" -> gettext("p50 build duration")
+      _ -> gettext("Avg. build duration")
+    end
   end
 end

@@ -172,16 +172,32 @@
         trend_label={@analytics_trend_label}
         empty={@failed_builds_analytics.count == 0}
       />
-      <.widget
-        title={gettext("Avg. build duration")}
+      <.percentile_dropdown_widget
+        id="widget-build-duration"
+        title={get_build_duration_title(@selected_build_duration_type)}
         legend_color="secondary"
         description={gettext("The average build duration with individual percentile intervals.")}
         value={
           Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
-            @builds_duration_analytics.total_average_duration
+            get_build_duration_value(
+              @builds_duration_analytics,
+              @builds_p99_durations,
+              @builds_p90_durations,
+              @builds_p50_durations,
+              @selected_build_duration_type
+            )
           )
         }
-        id="widget-build-duration"
+        metrics={
+          format_build_duration_metrics(
+            @builds_duration_analytics,
+            @builds_p99_durations,
+            @builds_p90_durations,
+            @builds_p50_durations
+          )
+        }
+        selected_type={@selected_build_duration_type}
+        event_name="select_build_duration_type"
         patch={"?#{Query.put(@uri.query, "analytics-selected-widget", "build-duration")}"}
         replace={true}
         selected={@analytics_selected_widget == "build-duration"}

@@ -799,15 +799,9 @@
             />
           </.card_section>
           <div data-part="latency-widgets">
-            <.widget
-              title={
-                case @selected_read_latency_type do
-                  "avg" -> gettext("Avg. latency reading cache keys")
-                  "p99" -> gettext("p99 latency reading cache keys")
-                  "p90" -> gettext("p90 latency reading cache keys")
-                  "p50" -> gettext("p50 latency reading cache keys")
-                end
-              }
+            <.percentile_dropdown_widget
+              id="widget-avg-read-latency"
+              title={get_latency_title(@selected_read_latency_type, :read)}
               description={gettext("Time to read cache keys, which uniquely identify cacheable tasks, from cache.")}
               value={
                 latency_value =
@@ -825,75 +819,13 @@
                   "N/A"
                 end
               }
-              id="widget-avg-read-latency"
-            >
-              <:select>
-                <.dropdown
-                  id="read-latency-type-dropdown"
-                  icon_only
-                  label={get_latency_label(@selected_read_latency_type)}
-                >
-                  <:icon><.chevron_down /></:icon>
-                  <.dropdown_item
-                    value="avg"
-                    phx-click="select_read_latency_type"
-                    phx-value-type="avg"
-                    data-selected={@selected_read_latency_type == "avg"}
-                  >
-                    <.latency_dropdown_item
-                      type="avg"
-                      metrics={@cacheable_task_latency_metrics}
-                      operation={:read}
-                    />
-                  </.dropdown_item>
-                  <.dropdown_item
-                    value="p99"
-                    phx-click="select_read_latency_type"
-                    phx-value-type="p99"
-                    data-selected={@selected_read_latency_type == "p99"}
-                  >
-                    <.latency_dropdown_item
-                      type="p99"
-                      metrics={@cacheable_task_latency_metrics}
-                      operation={:read}
-                    />
-                  </.dropdown_item>
-                  <.dropdown_item
-                    value="p90"
-                    phx-click="select_read_latency_type"
-                    phx-value-type="p90"
-                    data-selected={@selected_read_latency_type == "p90"}
-                  >
-                    <.latency_dropdown_item
-                      type="p90"
-                      metrics={@cacheable_task_latency_metrics}
-                      operation={:read}
-                    />
-                  </.dropdown_item>
-                  <.dropdown_item
-                    value="p50"
-                    phx-click="select_read_latency_type"
-                    phx-value-type="p50"
-                    data-selected={@selected_read_latency_type == "p50"}
-                  >
-                    <.latency_dropdown_item
-                      type="p50"
-                      metrics={@cacheable_task_latency_metrics}
-                      operation={:read}
-                    />
-                  </.dropdown_item>
-                </.dropdown>
-              </:select>
-            </.widget>
-            <.widget
-              title={
-                case @selected_write_latency_type do
-                  "avg" -> gettext("Avg. latency writing cache keys")
-                  "p99" -> gettext("p99 latency writing cache keys")
-                  "p90" -> gettext("p90 latency writing cache keys")
-                  "p50" -> gettext("p50 latency writing cache keys")
-                end
-              }
+              metrics={format_latency_metrics(@cacheable_task_latency_metrics, :read)}
+              selected_type={@selected_read_latency_type}
+              event_name="select_read_latency_type"
+            />
+            <.percentile_dropdown_widget
+              id="widget-avg-write-latency"
+              title={get_latency_title(@selected_write_latency_type, :write)}
               description={gettext("Time to write cache keys, which uniquely identify cacheable tasks, to cache.")}
               value={
                 latency_value =
@@ -911,66 +843,10 @@
                   "N/A"
                 end
               }
-              id="widget-avg-write-latency"
-            >
-              <:select>
-                <.dropdown
-                  id="write-latency-type-dropdown"
-                  icon_only
-                  label={get_latency_label(@selected_write_latency_type)}
-                >
-                  <:icon><.chevron_down /></:icon>
-                  <.dropdown_item
-                    value="avg"
-                    phx-click="select_write_latency_type"
-                    phx-value-type="avg"
-                    data-selected={@selected_write_latency_type == "avg"}
-                  >
-                    <.latency_dropdown_item
-                      type="avg"
-                      metrics={@cacheable_task_latency_metrics}
-                      operation={:write}
-                    />
-                  </.dropdown_item>
-                  <.dropdown_item
-                    value="p99"
-                    phx-click="select_write_latency_type"
-                    phx-value-type="p99"
-                    data-selected={@selected_write_latency_type == "p99"}
-                  >
-                    <.latency_dropdown_item
-                      type="p99"
-                      metrics={@cacheable_task_latency_metrics}
-                      operation={:write}
-                    />
-                  </.dropdown_item>
-                  <.dropdown_item
-                    value="p90"
-                    phx-click="select_write_latency_type"
-                    phx-value-type="p90"
-                    data-selected={@selected_write_latency_type == "p90"}
-                  >
-                    <.latency_dropdown_item
-                      type="p90"
-                      metrics={@cacheable_task_latency_metrics}
-                      operation={:write}
-                    />
-                  </.dropdown_item>
-                  <.dropdown_item
-                    value="p50"
-                    phx-click="select_write_latency_type"
-                    phx-value-type="p50"
-                    data-selected={@selected_write_latency_type == "p50"}
-                  >
-                    <.latency_dropdown_item
-                      type="p50"
-                      metrics={@cacheable_task_latency_metrics}
-                      operation={:write}
-                    />
-                  </.dropdown_item>
-                </.dropdown>
-              </:select>
-            </.widget>
+              metrics={format_latency_metrics(@cacheable_task_latency_metrics, :write)}
+              selected_type={@selected_write_latency_type}
+              event_name="select_write_latency_type"
+            />
           </div>
           <div data-part="filters">
             <.form for={%{}} phx-change="search-cacheable-tasks" phx-debounce="200">

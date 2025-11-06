@@ -5,6 +5,7 @@ defmodule TuistWeb.BuildRunLive do
 
   import Phoenix.Component
   import TuistWeb.Runs.RanByBadge
+  import TuistWeb.PercentileDropdownWidget
 
   alias Noora.Filter
   alias Tuist.CommandEvents
@@ -1048,46 +1049,38 @@ defmodule TuistWeb.BuildRunLive do
     Map.get(metrics, key, 0)
   end
 
-  def get_latency_label(type) do
+  def format_latency_metrics(metrics, operation) do
+    format_value = fn type ->
+      latency_value = get_latency_value(metrics, type, operation)
+
+      if latency_value > 0 do
+        Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(trunc(latency_value))
+      else
+        "N/A"
+      end
+    end
+
+    %{
+      avg: format_value.("avg"),
+      p99: format_value.("p99"),
+      p90: format_value.("p90"),
+      p50: format_value.("p50")
+    }
+  end
+
+  def get_latency_title(type, operation) do
+    operation_text =
+      case operation do
+        :read -> gettext("reading cache keys")
+        :write -> gettext("writing cache keys")
+      end
+
     case type do
-      "avg" -> gettext("Avg.")
-      "p99" -> "p99"
-      "p90" -> "p90"
-      "p50" -> "p50"
-      _ -> gettext("Avg.")
+      "avg" -> gettext("Avg. latency %{operation}", operation: operation_text)
+      "p99" -> gettext("p99 latency %{operation}", operation: operation_text)
+      "p90" -> gettext("p90 latency %{operation}", operation: operation_text)
+      "p50" -> gettext("p50 latency %{operation}", operation: operation_text)
     end
   end
 
-  attr(:type, :string, required: true, values: ~w(avg p99 p90 p50))
-  attr(:metrics, :map, required: true)
-  attr(:operation, :atom, required: true, values: [:read, :write])
-
-  def latency_dropdown_item(assigns) do
-    ~H"""
-    <div data-part="latency-item">
-      <div data-part="dot" data-color={get_latency_color(@type)}></div>
-      <span data-part="label">{get_latency_label(@type)}</span>
-      <span data-part="separator">-</span>
-      <span data-part="value">
-        {latency_value = get_latency_value(@metrics, @type, @operation)
-
-        if latency_value > 0 do
-          Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(trunc(latency_value))
-        else
-          "N/A"
-        end}
-      </span>
-    </div>
-    """
-  end
-
-  defp get_latency_color(type) do
-    case type do
-      "avg" -> "blue"
-      "p99" -> "green"
-      "p90" -> "pink"
-      "p50" -> "orange"
-      _ -> "blue"
-    end
-  end
 end
