@@ -68,6 +68,8 @@ defmodule TuistWeb.AppComponents do
 
   attr(:empty, :boolean, default: false, doc: "Whether the widget is empty")
 
+  slot(:select, doc: "Optional select dropdown to display next to the title")
+
   def widget(assigns) do
     ~H"""
     <%= if @empty do %>
@@ -107,7 +109,10 @@ defmodule TuistWeb.AppComponents do
           data-part="legend"
         >
         </div>
-        <span data-part="title">{@title}</span>
+        <div data-part="title">
+        <span data-part="label">{@title}</span>
+        {render_slot(@select)}
+        </div>
         <.tooltip
           :if={@description}
           id={@id <> "-tooltip"}

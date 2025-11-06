@@ -64,6 +64,8 @@ defmodule TuistWeb.BuildRunLive do
       |> assign(:module_breakdown_active_filters, [])
       |> assign(:cacheable_tasks_available_filters, define_cacheable_tasks_filters())
       |> assign(:cacheable_tasks_active_filters, [])
+      |> assign(:selected_read_latency_type, "avg")
+      |> assign(:selected_write_latency_type, "avg")
       |> assign_async(:has_result_bundle, fn ->
         {:ok, %{has_result_bundle: (command_event && CommandEvents.has_result_bundle?(command_event)) || false}}
       end)
@@ -106,12 +108,17 @@ defmodule TuistWeb.BuildRunLive do
         _ -> []
       end
 
+    selected_read_latency_type = params["read-latency-type"] || "avg"
+    selected_write_latency_type = params["write-latency-type"] || "avg"
+
     socket =
       socket
       |> assign(:selected_tab, selected_tab)
       |> assign(:uri, uri)
       |> assign(:available_filters, available_filters)
       |> assign(:active_filters, active_filters)
+      |> assign(:selected_read_latency_type, selected_read_latency_type)
+      |> assign(:selected_write_latency_type, selected_write_latency_type)
       |> assign_file_breakdown(params)
       |> assign_module_breakdown(params)
       |> assign_cacheable_tasks(params)
@@ -193,6 +200,36 @@ defmodule TuistWeb.BuildRunLive do
      # There's a DOM reconciliation bug where the dropdown closes and then reappears somewhere else on the page. To remedy, just nuke it entirely.
      |> push_event("close-dropdown", %{id: "all", all: true})
      |> push_event("close-popover", %{id: "all", all: true})}
+  end
+
+  def handle_event(
+        "select_read_latency_type",
+        %{"type" => type},
+        %{assigns: %{selected_account: selected_account, selected_project: selected_project, run: run, uri: uri}} = socket
+      ) do
+    socket =
+      push_patch(
+        socket,
+        to:
+          "/#{selected_account.name}/#{selected_project.name}/builds/build-runs/#{run.id}?#{Query.put(uri.query, "read-latency-type", type)}"
+      )
+
+    {:noreply, socket}
+  end
+
+  def handle_event(
+        "select_write_latency_type",
+        %{"type" => type},
+        %{assigns: %{selected_account: selected_account, selected_project: selected_project, run: run, uri: uri}} = socket
+      ) do
+    socket =
+      push_patch(
+        socket,
+        to:
+          "/#{selected_account.name}/#{selected_project.name}/builds/build-runs/#{run.id}?#{Query.put(uri.query, "write-latency-type", type)}"
+      )
+
+    {:noreply, socket}
   end
 
   defp file_breakdown_filters(run, params, available_filters, search) do
@@ -991,6 +1028,66 @@ defmodule TuistWeb.BuildRunLive do
 
       _ ->
         [0, 0, 0, 0]
+    end
+  end
+
+  def get_latency_value(metrics, type, operation) do
+    key =
+      case {operation, type} do
+        {:read, "avg"} -> :avg_read_duration
+        {:read, "p99"} -> :p99_read_duration
+        {:read, "p90"} -> :p90_read_duration
+        {:read, "p50"} -> :p50_read_duration
+        {:write, "avg"} -> :avg_write_duration
+        {:write, "p99"} -> :p99_write_duration
+        {:write, "p90"} -> :p90_write_duration
+        {:write, "p50"} -> :p50_write_duration
+        _ -> :avg_read_duration
+      end
+
+    Map.get(metrics, key, 0)
+  end
+
+  def get_latency_label(type) do
+    case type do
+      "avg" -> gettext("Avg.")
+      "p99" -> "p99"
+      "p90" -> "p90"
+      "p50" -> "p50"
+      _ -> gettext("Avg.")
+    end
+  end
+
+  attr(:type, :string, required: true, values: ~w(avg p99 p90 p50))
+  attr(:metrics, :map, required: true)
+  attr(:operation, :atom, required: true, values: [:read, :write])
+
+  def latency_dropdown_item(assigns) do
+    ~H"""
+    <div data-part="latency-item">
+      <div data-part="dot" data-color={get_latency_color(@type)}></div>
+      <span data-part="label">{get_latency_label(@type)}</span>
+      <span data-part="separator">-</span>
+      <span data-part="value">
+        {latency_value = get_latency_value(@metrics, @type, @operation)
+
+        if latency_value > 0 do
+          Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(trunc(latency_value))
+        else
+          "N/A"
+        end}
+      </span>
+    </div>
+    """
+  end
+
+  defp get_latency_color(type) do
+    case type do
+      "avg" -> "blue"
+      "p99" -> "green"
+      "p90" -> "pink"
+      "p50" -> "orange"
+      _ -> "blue"
     end
   end
 end

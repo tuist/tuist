@@ -346,6 +346,55 @@
           & > * {
             flex-grow: 1;
           }
+
+          & .noora-dropdown-item:not([data-selected]) svg {
+            visibility: hidden;
+          }
+
+          & [data-part="latency-item"] {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            gap: var(--noora-spacing-2);
+
+            & > [data-part="dot"] {
+              width: 8px;
+              height: 8px;
+              border-radius: 50%;
+              flex-shrink: 0;
+
+              &[data-color="blue"] {
+                background-color: var(--noora-chart-legend-secondary);
+              }
+
+              &[data-color="green"] {
+                background-color: var(--noora-chart-p99);
+              }
+
+              &[data-color="pink"] {
+                background-color: var(--noora-chart-p90);
+              }
+
+              &[data-color="orange"] {
+                background-color: var(--noora-chart-p50);
+              }
+            }
+
+            & > [data-part="label"] {
+              color: var(--noora-surface-label-primary);
+              font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+            }
+
+            & > [data-part="separator"] {
+              color: var(--noora-surface-label-secondary);
+              font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+            }
+
+            & > [data-part="value"] {
+              color: var(--noora-surface-label-primary);
+              font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+            }
+          }
         }
 
         & > [data-part="filters"] {

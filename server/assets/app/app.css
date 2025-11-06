@@ -100,6 +100,16 @@ a {
   & > [data-part="header"] {
     display: flex;
     flex-direction: row;
+    & > [data-part="title"] button {
+      box-shadow: unset;
+      background: unset;
+      padding: unset;
+      width: 16px;
+      height: 16px;
+      & > [data-part="icon"] {
+        color: var(--noora-surface-label-primary);
+      }
+    }
 
     & > [data-part="legend"] {
       margin-right: var(--noora-spacing-3);
@@ -122,8 +132,13 @@ a {
 
     & > [data-part="title"] {
       flex-grow: 1;
-      color: var(--noora-surface-label-secondary);
-      font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+      display: flex;
+      flex-direction: row;
+      gap: var(--noora-spacing-3);
+      & > [data-part="label"] {
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+      }
     }
   }
 

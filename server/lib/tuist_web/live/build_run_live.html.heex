@@ -803,30 +803,160 @@
               title={gettext("Average read latency")}
               description={gettext("Average time to read cacheable tasks from cache.")}
               value={
-                if @cacheable_task_latency_metrics.avg_read_duration > 0 do
+                latency_value =
+                  get_latency_value(
+                    @cacheable_task_latency_metrics,
+                    @selected_read_latency_type,
+                    :read
+                  )
+
+                if latency_value > 0 do
                   Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
-                    trunc(@cacheable_task_latency_metrics.avg_read_duration)
+                    trunc(latency_value)
                   )
                 else
                   "N/A"
                 end
               }
               id="widget-avg-read-latency"
-            />
+            >
+              <:select>
+                <.dropdown
+                  id="read-latency-type-dropdown"
+                  icon_only
+                  label={get_latency_label(@selected_read_latency_type)}
+                >
+                  <:icon><.chevron_down /></:icon>
+                  <.dropdown_item
+                    value="avg"
+                    phx-click="select_read_latency_type"
+                    phx-value-type="avg"
+                    data-selected={@selected_read_latency_type == "avg"}
+                  >
+                    <.latency_dropdown_item
+                      type="avg"
+                      metrics={@cacheable_task_latency_metrics}
+                      operation={:read}
+                    />
+                  </.dropdown_item>
+                  <.dropdown_item
+                    value="p99"
+                    phx-click="select_read_latency_type"
+                    phx-value-type="p99"
+                    data-selected={@selected_read_latency_type == "p99"}
+                  >
+                    <.latency_dropdown_item
+                      type="p99"
+                      metrics={@cacheable_task_latency_metrics}
+                      operation={:read}
+                    />
+                  </.dropdown_item>
+                  <.dropdown_item
+                    value="p90"
+                    phx-click="select_read_latency_type"
+                    phx-value-type="p90"
+                    data-selected={@selected_read_latency_type == "p90"}
+                  >
+                    <.latency_dropdown_item
+                      type="p90"
+                      metrics={@cacheable_task_latency_metrics}
+                      operation={:read}
+                    />
+                  </.dropdown_item>
+                  <.dropdown_item
+                    value="p50"
+                    phx-click="select_read_latency_type"
+                    phx-value-type="p50"
+                    data-selected={@selected_read_latency_type == "p50"}
+                  >
+                    <.latency_dropdown_item
+                      type="p50"
+                      metrics={@cacheable_task_latency_metrics}
+                      operation={:read}
+                    />
+                  </.dropdown_item>
+                </.dropdown>
+              </:select>
+            </.widget>
             <.widget
               title={gettext("Average write latency")}
               description={gettext("Average time to write cacheable tasks to cache.")}
               value={
-                if @cacheable_task_latency_metrics.avg_write_duration > 0 do
+                latency_value =
+                  get_latency_value(
+                    @cacheable_task_latency_metrics,
+                    @selected_write_latency_type,
+                    :write
+                  )
+
+                if latency_value > 0 do
                   Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
-                    trunc(@cacheable_task_latency_metrics.avg_write_duration)
+                    trunc(latency_value)
                   )
                 else
                   "N/A"
                 end
               }
               id="widget-avg-write-latency"
-            />
+            >
+              <:select>
+                <.dropdown
+                  id="write-latency-type-dropdown"
+                  icon_only
+                  label={get_latency_label(@selected_write_latency_type)}
+                >
+                  <:icon><.chevron_down /></:icon>
+                  <.dropdown_item
+                    value="avg"
+                    phx-click="select_write_latency_type"
+                    phx-value-type="avg"
+                    data-selected={@selected_write_latency_type == "avg"}
+                  >
+                    <.latency_dropdown_item
+                      type="avg"
+                      metrics={@cacheable_task_latency_metrics}
+                      operation={:write}
+                    />
+                  </.dropdown_item>
+                  <.dropdown_item
+                    value="p99"
+                    phx-click="select_write_latency_type"
+                    phx-value-type="p99"
+                    data-selected={@selected_write_latency_type == "p99"}
+                  >
+                    <.latency_dropdown_item
+                      type="p99"
+                      metrics={@cacheable_task_latency_metrics}
+                      operation={:write}
+                    />
+                  </.dropdown_item>
+                  <.dropdown_item
+                    value="p90"
+                    phx-click="select_write_latency_type"
+                    phx-value-type="p90"
+                    data-selected={@selected_write_latency_type == "p90"}
+                  >
+                    <.latency_dropdown_item
+                      type="p90"
+                      metrics={@cacheable_task_latency_metrics}
+                      operation={:write}
+                    />
+                  </.dropdown_item>
+                  <.dropdown_item
+                    value="p50"
+                    phx-click="select_write_latency_type"
+                    phx-value-type="p50"
+                    data-selected={@selected_write_latency_type == "p50"}
+                  >
+                    <.latency_dropdown_item
+                      type="p50"
+                      metrics={@cacheable_task_latency_metrics}
+                      operation={:write}
+                    />
+                  </.dropdown_item>
+                </.dropdown>
+              </:select>
+            </.widget>
           </div>
           <div data-part="filters">
             <.form for={%{}} phx-change="search-cacheable-tasks" phx-debounce="200">
