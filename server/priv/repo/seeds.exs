@@ -297,21 +297,12 @@ cas_outputs =
       size = Enum.random(1024..50_000_000) # 1KB to 50MB
       compressed_size = trunc(size * (0.3 + :rand.uniform() * 0.6)) # 30-90% compression
       duration = Enum.random(100..30_000) # 100ms to 30s in milliseconds
-      
-      base_time = build.inserted_at
-      
-      # Generate realistic start and finish times within the build duration
-      operation_start_offset = Enum.random(0..div(build.duration, 2))
-      operation_start = DateTime.add(base_time, operation_start_offset * 1000, :microsecond)
-      operation_finish = DateTime.add(operation_start, duration * 1000, :microsecond)
-      
+
       %{
         build_run_id: build.id,
         node_id: generate_cas_node_id.(),
         checksum: generate_checksum.(),
         size: size,
-        started_at: DateTime.to_naive(operation_start),
-        finished_at: DateTime.to_naive(operation_finish),
         duration: duration,
         compressed_size: compressed_size,
         operation: operation,

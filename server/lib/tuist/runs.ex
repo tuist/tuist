@@ -166,8 +166,6 @@ defmodule Tuist.Runs do
           node_id: struct.node_id,
           checksum: struct.checksum,
           size: struct.size,
-          started_at: struct.started_at,
-          finished_at: struct.finished_at,
           duration: struct.duration,
           compressed_size: struct.compressed_size,
           operation: struct.operation,

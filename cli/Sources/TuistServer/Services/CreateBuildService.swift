@@ -326,11 +326,9 @@ import OpenAPIURLSession
                 checksum: casOutput.checksum,
                 compressed_size: casOutput.compressedSize,
                 duration: casOutput.duration,
-                finished_at: casOutput.finishedAt,
                 node_id: casOutput.nodeID,
                 operation: operation,
-                size: casOutput.size,
-                started_at: casOutput.startedAt
+                size: casOutput.size
             )
         }
     }

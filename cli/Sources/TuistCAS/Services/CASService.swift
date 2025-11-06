@@ -247,13 +247,9 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
         duration: TimeInterval,
         for casID: String
     ) {
-        let finishedAt = Date()
-        let startedAt = Date(timeIntervalSinceNow: -duration)
         Task {
             let metadata = CASOutputMetadata(
                 size: size,
-                startedAt: startedAt,
-                finishedAt: finishedAt,
                 duration: duration,
                 compressedSize: compressedSize
             )

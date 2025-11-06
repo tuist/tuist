@@ -21,8 +21,6 @@ struct CASOutputMetadataStoreTests {
         let casID = "test-cas-id"
         let metadata = CASOutputMetadata(
             size: 1024,
-            startedAt: Date(timeIntervalSince1970: 1_234_567_890.123),
-            finishedAt: Date(timeIntervalSince1970: 1_234_567_895.456),
             duration: 5.333,
             compressedSize: 512
         )
@@ -51,8 +49,6 @@ struct CASOutputMetadataStoreTests {
         let casID = "test/cas:id~with/special:chars"
         let metadata = CASOutputMetadata(
             size: 1024,
-            startedAt: Date(),
-            finishedAt: Date().addingTimeInterval(5),
             duration: 5.0,
             compressedSize: 512
         )
@@ -93,8 +89,6 @@ struct CASOutputMetadataStoreTests {
         let casID = "test-cas-id"
         let metadata = CASOutputMetadata(
             size: 2048,
-            startedAt: Date(timeIntervalSince1970: 1_234_567_890.123),
-            finishedAt: Date(timeIntervalSince1970: 1_234_567_895.456),
             duration: 5.333,
             compressedSize: 1024
         )
@@ -122,8 +116,6 @@ struct CASOutputMetadataStoreTests {
         let casID = "roundtrip-test"
         let originalMetadata = CASOutputMetadata(
             size: 4096,
-            startedAt: Date(timeIntervalSince1970: 1_234_567_890.789),
-            finishedAt: Date(timeIntervalSince1970: 1_234_567_900.123),
             duration: 9.334,
             compressedSize: 2048
         )

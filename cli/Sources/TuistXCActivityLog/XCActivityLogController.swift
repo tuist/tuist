@@ -488,8 +488,6 @@ public struct XCActivityLogController: XCActivityLogControlling {
                             nodeID: nodeID,
                             checksum: checksumValue,
                             size: metadata.size,
-                            startedAt: metadata.startedAt,
-                            finishedAt: metadata.finishedAt,
                             duration: metadata.duration,
                             compressedSize: metadata.compressedSize,
                             operation: .download
@@ -515,8 +513,6 @@ public struct XCActivityLogController: XCActivityLogControlling {
                             nodeID: nodeID,
                             checksum: checksumValue,
                             size: metadata.size,
-                            startedAt: metadata.startedAt,
-                            finishedAt: metadata.finishedAt,
                             duration: metadata.duration,
                             compressedSize: metadata.compressedSize,
                             operation: .upload

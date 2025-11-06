@@ -855,8 +855,6 @@ defmodule Tuist.RunsTest do
               node_id: "node1",
               checksum: "abc123",
               size: 2000,
-              started_at: ~U[2024-01-01 10:00:00.000Z],
-              finished_at: ~U[2024-01-01 10:00:02.000Z],
               duration: 2000,
               compressed_size: 1600,
               operation: :download
@@ -865,8 +863,6 @@ defmodule Tuist.RunsTest do
               node_id: "node2",
               checksum: "def456",
               size: 2000,
-              started_at: ~U[2024-01-01 10:00:03.000Z],
-              finished_at: ~U[2024-01-01 10:00:05.000Z],
               duration: 2000,
               compressed_size: 1600,
               operation: :download
@@ -875,8 +871,6 @@ defmodule Tuist.RunsTest do
               node_id: "node3",
               checksum: "ghi789",
               size: 2000,
-              started_at: ~U[2024-01-01 10:00:06.000Z],
-              finished_at: ~U[2024-01-01 10:00:08.000Z],
               duration: 2000,
               compressed_size: 1600,
               operation: :upload
@@ -940,8 +934,6 @@ defmodule Tuist.RunsTest do
               node_id: "node1",
               checksum: "abc123",
               size: 5000,
-              started_at: ~U[2024-01-01 10:00:00.000Z],
-              finished_at: ~U[2024-01-01 10:00:05.000Z],
               duration: 5000,
               compressed_size: 4000,
               operation: :download
@@ -950,8 +942,6 @@ defmodule Tuist.RunsTest do
               node_id: "node2",
               checksum: "def456",
               size: 10000,
-              started_at: ~U[2024-01-01 10:00:06.000Z],
-              finished_at: ~U[2024-01-01 10:00:16.000Z],
               duration: 10000,
               compressed_size: 8000,
               operation: :download
@@ -981,8 +971,6 @@ defmodule Tuist.RunsTest do
               node_id: "node1",
               checksum: "abc123",
               size: 8000,
-              started_at: ~U[2024-01-01 10:00:00.000Z],
-              finished_at: ~U[2024-01-01 10:00:04.000Z],
               duration: 4000,
               compressed_size: 6400,
               operation: :upload
@@ -991,8 +979,6 @@ defmodule Tuist.RunsTest do
               node_id: "node2",
               checksum: "def456",
               size: 12000,
-              started_at: ~U[2024-01-01 10:00:05.000Z],
-              finished_at: ~U[2024-01-01 10:00:11.000Z],
               duration: 6000,
               compressed_size: 9600,
               operation: :upload
@@ -1022,8 +1008,6 @@ defmodule Tuist.RunsTest do
               node_id: "node1",
               checksum: "abc123",
               size: 1000,
-              started_at: ~U[2024-01-01 10:00:00.000Z],
-              finished_at: ~U[2024-01-01 10:00:00.000Z],
               duration: 0,
               compressed_size: 800,
               operation: :download
@@ -1032,8 +1016,6 @@ defmodule Tuist.RunsTest do
               node_id: "node2",
               checksum: "def456",
               size: 2000,
-              started_at: ~U[2024-01-01 10:00:01.000Z],
-              finished_at: ~U[2024-01-01 10:00:03.000Z],
               duration: 2000,
               compressed_size: 1600,
               operation: :download
@@ -1064,8 +1046,6 @@ defmodule Tuist.RunsTest do
               node_id: "node1",
               checksum: "abc123",
               size: 10000,
-              started_at: ~U[2024-01-01 10:00:00.000Z],
-              finished_at: ~U[2024-01-01 10:00:10.000Z],
               duration: 10000,
               compressed_size: 8000,
               operation: :download
@@ -1074,8 +1054,6 @@ defmodule Tuist.RunsTest do
               node_id: "node2",
               checksum: "def456",
               size: 20000,
-              started_at: ~U[2024-01-01 10:00:11.000Z],
-              finished_at: ~U[2024-01-01 10:00:15.000Z],
               duration: 4000,
               compressed_size: 16000,
               operation: :upload
@@ -1084,8 +1062,6 @@ defmodule Tuist.RunsTest do
               node_id: "node3",
               checksum: "ghi789",
               size: 15000,
-              started_at: ~U[2024-01-01 10:00:16.000Z],
-              finished_at: ~U[2024-01-01 10:00:21.000Z],
               duration: 5000,
               compressed_size: 12000,
               operation: :download

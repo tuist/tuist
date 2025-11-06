@@ -477,16 +477,6 @@ defmodule TuistWeb.API.RunsController do
                        type: :integer,
                        description: "The size of the CAS object in bytes."
                      },
-                     started_at: %Schema{
-                       type: :string,
-                       format: "date-time",
-                       description: "When the CAS operation started."
-                     },
-                     finished_at: %Schema{
-                       type: :string,
-                       format: "date-time",
-                       description: "When the CAS operation finished."
-                     },
                      duration: %Schema{
                        type: :number,
                        description: "The duration of the CAS operation in seconds."
@@ -501,7 +491,7 @@ defmodule TuistWeb.API.RunsController do
                        enum: [:download, :upload]
                      }
                    },
-                   required: [:node_id, :checksum, :size, :started_at, :finished_at, :duration, :compressed_size, :operation]
+                   required: [:node_id, :checksum, :size, :duration, :compressed_size, :operation]
                  }
                }
              },
