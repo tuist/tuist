@@ -1005,26 +1005,26 @@
               >
                 <.dropdown_item
                   value="node-id"
-                  label={gettext("Key")}
                   patch={cas_outputs_dropdown_item_patch_sort("node-id", @uri)}
                   data-selected={@cas_outputs_sort_by == "node-id"}
                 >
+                  {gettext("Key")}
                   <:right_icon><.check /></:right_icon>
                 </.dropdown_item>
                 <.dropdown_item
                   value="size"
-                  label={gettext("Size")}
                   patch={cas_outputs_dropdown_item_patch_sort("size", @uri)}
                   data-selected={@cas_outputs_sort_by == "size"}
                 >
+                  {gettext("Size")}
                   <:right_icon><.check /></:right_icon>
                 </.dropdown_item>
                 <.dropdown_item
                   value="compressed-size"
-                  label={gettext("Compressed Size")}
                   patch={cas_outputs_dropdown_item_patch_sort("compressed-size", @uri)}
                   data-selected={@cas_outputs_sort_by == "compressed-size"}
                 >
+                  {gettext("Compressed Size")}
                   <:right_icon><.check /></:right_icon>
                 </.dropdown_item>
               </.dropdown>
