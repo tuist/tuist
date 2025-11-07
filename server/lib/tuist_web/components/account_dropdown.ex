@@ -198,7 +198,7 @@ defmodule TuistWeb.AccountDropdown do
     <input type="radio" id={@id} name={@name} value="dark" phx-hook="ThemeSwitcher" />
     <label for={@id}>
       <svg width="122" height="84" viewBox="0 0 122 84" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <g clip-path="url(#clip0_4950_6688)">
+        <g clip-path={"url(##{@id}-clip0_856_2644)"}>
           <path
             d="M0 8C0 3.58172 3.58172 0 8 0H114C118.418 0 122 3.58172 122 8V76C122 80.4183 118.418 84 114 84H8C3.58172 84 0 80.4183 0 76V8Z"
             fill="#0E0E0E"
@@ -269,7 +269,7 @@ defmodule TuistWeb.AccountDropdown do
           stroke="#464646"
         />
         <defs>
-          <clipPath id="clip0_4950_6688">
+          <clipPath id={"#{@id}-clip0_856_2644"}>
             <path
               d="M0 8C0 3.58172 3.58172 0 8 0H114C118.418 0 122 3.58172 122 8V76C122 80.4183 118.418 84 114 84H8C3.58172 84 0 80.4183 0 76V8Z"
               fill="white"
@@ -289,10 +289,10 @@ defmodule TuistWeb.AccountDropdown do
     <input type="radio" id={@id} name={@name} value="system" phx-hook="ThemeSwitcher" />
     <label for={@id}>
       <svg width="122" height="84" viewBox="0 0 122 84" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <g clip-path="url(#a)">
-          <g clip-path="url(#b)">
+        <g clip-path={"url(##{@id}-clip0_856_2670)"}>
+          <g clip-path={"url(##{@id}-clip1_856_2670)"}>
             <path d="M0 8a8 8 0 0 1 8-8h53v84H8a8 8 0 0 1-8-8z" fill="#fdfdfd" />
-            <g clip-path="url(#c)">
+            <g clip-path={"url(##{@id}-clip2_856_2670)"}>
               <path
                 d="M0 8a8 8 0 0 1 8-8h106a8 8 0 0 1 8 8v68a8 8 0 0 1-8 8H8a8 8 0 0 1-8-8z"
                 fill="#fdfdfd"
@@ -312,9 +312,9 @@ defmodule TuistWeb.AccountDropdown do
               stroke="#d8dbdf"
             />
           </g>
-          <g clip-path="url(#d)">
+          <g clip-path={"url(##{@id}-clip3_856_2670)"}>
             <path d="M61 0h53a8 8 0 0 1 8 8v68a8 8 0 0 1-8 8H61z" fill="#fdfdfd" />
-            <g clip-path="url(#e)">
+            <g clip-path={"url(##{@id}-clip4_856_2670)"}>
               <path
                 d="M0 8a8 8 0 0 1 8-8h106a8 8 0 0 1 8 8v68a8 8 0 0 1-8 8H8a8 8 0 0 1-8-8z"
                 fill="#0e0e0e"
@@ -331,22 +331,22 @@ defmodule TuistWeb.AccountDropdown do
           </g>
         </g>
         <defs>
-          <clipPath id="a">
+          <clipPath id={"#{@id}-clip0_856_2670"}>
             <path fill="#fff" d="M0 0h122v84H0z" />
           </clipPath>
-          <clipPath id="b">
+          <clipPath id={"#{@id}-clip1_856_2670"}>
             <path d="M0 8a8 8 0 0 1 8-8h53v84H8a8 8 0 0 1-8-8z" fill="#fff" />
           </clipPath>
-          <clipPath id="c">
+          <clipPath id={"#{@id}-clip2_856_2670"}>
             <path
               d="M0 8a8 8 0 0 1 8-8h106a8 8 0 0 1 8 8v68a8 8 0 0 1-8 8H8a8 8 0 0 1-8-8z"
               fill="#fff"
             />
           </clipPath>
-          <clipPath id="d">
+          <clipPath id={"#{@id}-clip3_856_2670"}>
             <path d="M61 0h53a8 8 0 0 1 8 8v68a8 8 0 0 1-8 8H61z" fill="#fff" />
           </clipPath>
-          <clipPath id="e">
+          <clipPath id={"#{@id}-clip4_856_2670"}>
             <path
               d="M0 8a8 8 0 0 1 8-8h106a8 8 0 0 1 8 8v68a8 8 0 0 1-8 8H8a8 8 0 0 1-8-8z"
               fill="#fff"
