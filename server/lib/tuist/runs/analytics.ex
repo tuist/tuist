@@ -265,6 +265,7 @@ defmodule Tuist.Runs.Analytics do
           previous_value: previous_period_percentile,
           current_value: current_period_percentile
         ),
+      total_percentile_duration: current_period_percentile,
       dates: Enum.map(durations, & &1.date),
       values: Enum.map(durations, & &1.value)
     }

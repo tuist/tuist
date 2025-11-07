@@ -321,12 +321,6 @@ defmodule TuistWeb.BuildsLive do
     labels
   end
 
-  defp calculate_average_duration(%{values: values}) when is_list(values) and length(values) > 0 do
-    Enum.sum(values) / length(values)
-  end
-
-  defp calculate_average_duration(_), do: 0
-
   def get_build_duration_value(
         builds_duration_analytics,
         builds_p99_durations,
@@ -336,9 +330,9 @@ defmodule TuistWeb.BuildsLive do
       ) do
     case type do
       "avg" -> builds_duration_analytics.total_average_duration
-      "p99" -> calculate_average_duration(builds_p99_durations)
-      "p90" -> calculate_average_duration(builds_p90_durations)
-      "p50" -> calculate_average_duration(builds_p50_durations)
+      "p99" -> builds_p99_durations.total_percentile_duration
+      "p90" -> builds_p90_durations.total_percentile_duration
+      "p50" -> builds_p50_durations.total_percentile_duration
       _ -> builds_duration_analytics.total_average_duration
     end
   end
@@ -351,9 +345,9 @@ defmodule TuistWeb.BuildsLive do
       ) do
     %{
       avg: DateFormatter.format_duration_from_milliseconds(builds_duration_analytics.total_average_duration),
-      p99: DateFormatter.format_duration_from_milliseconds(trunc(calculate_average_duration(builds_p99_durations))),
-      p90: DateFormatter.format_duration_from_milliseconds(trunc(calculate_average_duration(builds_p90_durations))),
-      p50: DateFormatter.format_duration_from_milliseconds(trunc(calculate_average_duration(builds_p50_durations)))
+      p99: DateFormatter.format_duration_from_milliseconds(builds_p99_durations.total_percentile_duration),
+      p90: DateFormatter.format_duration_from_milliseconds(builds_p90_durations.total_percentile_duration),
+      p50: DateFormatter.format_duration_from_milliseconds(builds_p50_durations.total_percentile_duration)
     }
   end
 

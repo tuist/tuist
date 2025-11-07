@@ -300,6 +300,8 @@ defmodule Tuist.Runs.AnalyticsTest do
 
       # Then
       assert got.values == [0, 1500.0, 3000.0]
+      # P50 of [1500, 2000, 2000, 4000, 1_000_000] = 2000
+      assert got.total_percentile_duration == 2000.0
     end
 
     test "returns trend comparing current period percentile to previous period" do
@@ -364,6 +366,8 @@ defmodule Tuist.Runs.AnalyticsTest do
       # Trend from 1000 to 2000 = +100%
       assert got.trend == 100.0
       assert got.values == [1000.0, 2000.0, 3000.0]
+      # P50 of [1000, 2000, 3000] = 2000
+      assert got.total_percentile_duration == 2000.0
     end
   end
 
