@@ -1033,36 +1033,4 @@ defmodule TuistWeb.BuildRunLive do
         [0, 0, 0, 0]
     end
   end
-
-  def get_latency_value(metrics, type, operation) do
-    key =
-      case {operation, type} do
-        {:read, "avg"} -> :avg_read_duration
-        {:read, "p99"} -> :p99_read_duration
-        {:read, "p90"} -> :p90_read_duration
-        {:read, "p50"} -> :p50_read_duration
-        {:write, "avg"} -> :avg_write_duration
-        {:write, "p99"} -> :p99_write_duration
-        {:write, "p90"} -> :p90_write_duration
-        {:write, "p50"} -> :p50_write_duration
-        _ -> :avg_read_duration
-      end
-
-    Map.get(metrics, key, 0)
-  end
-
-  def get_latency_title(type, operation) do
-    operation_text =
-      case operation do
-        :read -> gettext("reading cache keys")
-        :write -> gettext("writing cache keys")
-      end
-
-    case type do
-      "avg" -> gettext("Avg. latency %{operation}", operation: operation_text)
-      "p99" -> gettext("p99 latency %{operation}", operation: operation_text)
-      "p90" -> gettext("p90 latency %{operation}", operation: operation_text)
-      "p50" -> gettext("p50 latency %{operation}", operation: operation_text)
-    end
-  end
 end

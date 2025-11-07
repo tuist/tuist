@@ -801,7 +801,14 @@
           <div data-part="latency-widgets">
             <.percentile_dropdown_widget
               id="widget-avg-read-latency"
-              title={get_latency_title(@selected_read_latency_type, :read)}
+              title={
+                case @selected_read_latency_type do
+                  "avg" -> gettext("Avg. latency reading cache keys")
+                  "p99" -> gettext("p99 latency reading cache keys")
+                  "p90" -> gettext("p90 latency reading cache keys")
+                  "p50" -> gettext("p50 latency reading cache keys")
+                end
+              }
               description={
                 gettext(
                   "Time to read cache keys, which uniquely identify cacheable tasks, from cache."
@@ -809,11 +816,12 @@
               }
               value={
                 Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
-                  get_latency_value(
-                    @cacheable_task_latency_metrics,
-                    @selected_read_latency_type,
-                    :read
-                  )
+                  case @selected_read_latency_type do
+                    "avg" -> @cacheable_task_latency_metrics.avg_read_duration
+                    "p99" -> @cacheable_task_latency_metrics.p99_read_duration
+                    "p90" -> @cacheable_task_latency_metrics.p90_read_duration
+                    "p50" -> @cacheable_task_latency_metrics.p50_read_duration
+                  end
                 )
               }
               metrics={
@@ -841,7 +849,14 @@
             />
             <.percentile_dropdown_widget
               id="widget-avg-write-latency"
-              title={get_latency_title(@selected_write_latency_type, :write)}
+              title={
+                case @selected_write_latency_type do
+                  "avg" -> gettext("Avg. latency writing cache keys")
+                  "p99" -> gettext("p99 latency writing cache keys")
+                  "p90" -> gettext("p90 latency writing cache keys")
+                  "p50" -> gettext("p50 latency writing cache keys")
+                end
+              }
               description={
                 gettext(
                   "Time to write cache keys, which uniquely identify cacheable tasks, to cache."
@@ -849,11 +864,12 @@
               }
               value={
                 Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
-                  get_latency_value(
-                    @cacheable_task_latency_metrics,
-                    @selected_write_latency_type,
-                    :write
-                  )
+                  case @selected_write_latency_type do
+                    "avg" -> @cacheable_task_latency_metrics.avg_write_duration
+                    "p99" -> @cacheable_task_latency_metrics.p99_write_duration
+                    "p90" -> @cacheable_task_latency_metrics.p90_write_duration
+                    "p50" -> @cacheable_task_latency_metrics.p50_write_duration
+                  end
                 )
               }
               metrics={
