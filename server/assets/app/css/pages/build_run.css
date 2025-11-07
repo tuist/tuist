@@ -315,7 +315,8 @@
       & > [data-part="xcode-cache-card-section"] {
         gap: var(--noora-spacing-8);
         padding: var(--noora-spacing-8);
-        & > [data-part="cacheable-tasks-card-section"] {
+        & > [data-part="cacheable-tasks-card-section"],
+        & > [data-part="cas-outputs-breakdown-card-section"] {
           gap: var(--noora-spacing-5);
           & > [data-part="title"] {
             display: flex;

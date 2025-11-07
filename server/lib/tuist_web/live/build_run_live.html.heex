@@ -979,6 +979,112 @@
             />
           <% end %>
           <%= if @selected_cache_tab == "cas-outputs" do %>
+            <.card_section
+              :if={@cas_metrics.download_count > 0 or @cas_metrics.upload_count > 0}
+              data-part="cas-outputs-breakdown-card-section"
+            >
+              <div data-part="title">
+                <span data-part="label">
+                  {gettext("CAS outputs:")}
+                </span>
+                <span data-part="value">
+                  {@cas_metrics.download_count + @cas_metrics.upload_count}
+                </span>
+              </div>
+              <.chart
+                id="cas-outputs-breakdown-chart"
+                type="bar"
+                extra_options={
+                  %{
+                    tooltip: %{
+                      trigger: "axis",
+                      axisPointer: %{
+                        type: "none"
+                      }
+                    },
+                    legend: %{
+                      left: "-0.3%",
+                      top: "bottom",
+                      orient: "horizontal",
+                      textStyle: %{
+                        color: "var:noora-surface-label-primary",
+                        fontFamily: "monospace",
+                        fontWeight: 400,
+                        fontSize: 10,
+                        lineHeight: 12
+                      },
+                      icon:
+                        "path://M0 6C0 4.89543 0.895431 4 2 4H6C7.10457 4 8 4.89543 8 6C8 7.10457 7.10457 8 6 8H2C0.895431 8 0 7.10457 0 6Z",
+                      itemWidth: 8,
+                      itemHeight: 4
+                    },
+                    grid: %{
+                      width: "99%",
+                      left: "0%",
+                      height: "60%",
+                      top: "0%"
+                    },
+                    xAxis: %{
+                      type: "value",
+                      axisLabel: %{
+                        show: false
+                      },
+                      splitLine: %{show: false}
+                    },
+                    yAxis: %{
+                      type: "category",
+                      data: [gettext("CAS outputs")],
+                      axisLabel: %{
+                        show: false
+                      }
+                    }
+                  }
+                }
+                series={
+                  download_count = @cas_metrics.download_count
+                  upload_count = @cas_metrics.upload_count
+
+                  [
+                    %{
+                      name: gettext("Download"),
+                      type: "bar",
+                      stack: "total",
+                      emphasis: %{
+                        focus: "series"
+                      },
+                      data: [download_count],
+                      color: "var:hits-chart-legend-remote",
+                      itemStyle: %{
+                        borderRadius:
+                          if(download_count > 0 and upload_count == 0,
+                            do: [8, 8, 8, 8],
+                            else: if(download_count > 0, do: [8, 0, 0, 8], else: [0, 0, 0, 0])
+                          )
+                      }
+                    },
+                    %{
+                      name: gettext("Upload"),
+                      type: "bar",
+                      stack: "total",
+                      emphasis: %{
+                        focus: "series"
+                      },
+                      data: [upload_count],
+                      color: "var:hits-chart-legend-local",
+                      itemStyle: %{
+                        borderRadius:
+                          if(upload_count > 0 and download_count == 0,
+                            do: [8, 8, 8, 8],
+                            else: if(upload_count > 0, do: [0, 8, 8, 0], else: [0, 0, 0, 0])
+                          )
+                      }
+                    }
+                  ]
+                }
+                x_axis_min={0}
+                x_axis_max={@cas_metrics.download_count + @cas_metrics.upload_count}
+              />
+            </.card_section>
             <div data-part="filters">
               <.form for={%{}} phx-change="search-cas-outputs" phx-debounce="200">
                 <.text_input
@@ -1056,9 +1162,9 @@
               <:col :let={output} label={gettext("Status")}>
                 <%= case output.operation do %>
                   <% "download" -> %>
-                    <.badge_cell label={gettext("Download")} color="information" style="light-fill" />
+                    <.badge_cell label={gettext("Download")} color="focus" style="light-fill" />
                   <% "upload" -> %>
-                    <.badge_cell label={gettext("Upload")} color="success" style="light-fill" />
+                    <.badge_cell label={gettext("Upload")} color="secondary" style="light-fill" />
                 <% end %>
               </:col>
               <:col
