@@ -41,9 +41,9 @@ defmodule Tuist.Runs.CASOutputTest do
       assert changeset.changes.operation == "upload"
     end
 
-    test "converts duration from seconds to milliseconds" do
+    test "truncates duration milliseconds to integer" do
       build_run_id = "B12673DA-1345-4077-BB30-D7576FEACE09"
-      attrs = Map.put(@valid_attrs, :duration, 2.5)
+      attrs = Map.put(@valid_attrs, :duration, 2500.7)
 
       changeset = CASOutput.changeset(build_run_id, attrs)
 
@@ -51,9 +51,9 @@ defmodule Tuist.Runs.CASOutputTest do
       assert changeset.changes.duration == 2500
     end
 
-    test "truncates duration when converting to milliseconds" do
+    test "truncates fractional milliseconds" do
       build_run_id = "B12673DA-1345-4077-BB30-D7576FEACE09"
-      attrs = Map.put(@valid_attrs, :duration, 1.9999)
+      attrs = Map.put(@valid_attrs, :duration, 1999.9)
 
       changeset = CASOutput.changeset(build_run_id, attrs)
 
@@ -63,7 +63,7 @@ defmodule Tuist.Runs.CASOutputTest do
 
     test "handles integer duration values" do
       build_run_id = "B12673DA-1345-4077-BB30-D7576FEACE09"
-      attrs = Map.put(@valid_attrs, :duration, 3)
+      attrs = Map.put(@valid_attrs, :duration, 3000)
 
       changeset = CASOutput.changeset(build_run_id, attrs)
 
