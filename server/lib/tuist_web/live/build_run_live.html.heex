@@ -1089,6 +1089,22 @@
               >
                 <.text_cell label={Tuist.Utilities.ByteFormatter.format_bytes(output.compressed_size)} />
               </:col>
+              <:col :let={output}>
+                <.button_cell>
+                  <:button>
+                    <.button
+                      id={"cas-output-copy-#{output.node_id}"}
+                      variant="secondary"
+                      size="small"
+                      icon_only
+                      phx-hook="Clipboard"
+                      data-clipboard-value={output.node_id}
+                    >
+                      <.copy />
+                    </.button>
+                  </:button>
+                </.button_cell>
+              </:col>
               <:empty_state>
                 <.table_empty_state
                   icon="package"
