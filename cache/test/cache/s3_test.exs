@@ -50,4 +50,51 @@ defmodule Cache.S3Test do
       assert S3.remote_accel_path(url) == "/internal/remote/https/example.com/"
     end
   end
+
+  describe "exists?/1" do
+    test "returns true when file exists in S3" do
+      key = "acc/proj/cas/abc"
+
+      expect(ExAws.S3, :head_object, fn "test-bucket", ^key ->
+        %ExAws.Operation.S3{
+          bucket: "test-bucket",
+          path: key
+        }
+      end)
+
+      expect(ExAws, :request, fn _head_object -> {:ok, %{status_code: 200}} end)
+
+      assert S3.exists?(key) == true
+    end
+
+    test "returns false when file does not exist in S3 (404)" do
+      key = "acc/proj/cas/nonexistent"
+
+      expect(ExAws.S3, :head_object, fn "test-bucket", ^key ->
+        %ExAws.Operation.S3{
+          bucket: "test-bucket",
+          path: key
+        }
+      end)
+
+      expect(ExAws, :request, fn _head_object -> {:error, {:http_error, 404, "Not Found"}} end)
+
+      assert S3.exists?(key) == false
+    end
+
+    test "returns false when S3 request fails" do
+      key = "acc/proj/cas/error"
+
+      expect(ExAws.S3, :head_object, fn "test-bucket", ^key ->
+        %ExAws.Operation.S3{
+          bucket: "test-bucket",
+          path: key
+        }
+      end)
+
+      expect(ExAws, :request, fn _head_object -> {:error, :timeout} end)
+
+      assert S3.exists?(key) == false
+    end
+  end
 end

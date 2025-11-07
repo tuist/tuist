@@ -143,7 +143,7 @@ defmodule Cache.DiskTest do
 
     test "builds internal path for nested id" do
       nested_id = "deeply/nested/artifact"
-      path = Disk.internal_accel_path(@test_account, @test_project, nested_id)
+      path = Disk.local_accel_path(@test_account, @test_project, nested_id)
       assert path == "/internal/local/#{@test_account}/#{@test_project}/cas/#{nested_id}"
     end
   end
