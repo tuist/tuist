@@ -434,6 +434,23 @@
           }
         });
 
+        // Listen for pause/resume messages from parent page
+        window.addEventListener('message', (event) => {
+          if (event.data.action === 'pause') {
+            isPaused = true;
+            // Clear all pending commit timers
+            commitTimers.forEach(timer => clearTimeout(timer));
+            commitTimers = [];
+          } else if (event.data.action === 'resume') {
+            isPaused = false;
+            // Restart commit scheduling
+            const sourceNodes = graph.nodes.filter(d => d.id.includes("developer") || d.id.includes("codex"));
+            sourceNodes.forEach(node => {
+              scheduleCommit(node);
+            });
+          }
+        });
+
         function scheduleCommit(sourceNode) {
           if (isPaused) return;
 

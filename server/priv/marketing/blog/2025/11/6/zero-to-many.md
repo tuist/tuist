@@ -20,7 +20,7 @@ You launch your startup on a Tuesday. You're a solo founder who codes, armed wit
 
 With your AI coding assistants writing boilerplate and suggesting implementations, you're moving at a pace that would have seemed impossible five years ago. The merge throughput is pure: one developer, zero overhead, 10 to 15 commits merged to main every single day. This is the golden age. This is what velocity feels like.
 
-<iframe src="/blog/2025/11/6/zero-to-many/iframe.html?id=lone_wolf" width="100%" height="400" frameborder="0" data-visualization></iframe>
+<iframe src="/blog/2025/11/6/zero-to-many/iframe.html?id=lone_wolf" width="100%" height="400" frameborder="0" data-visualization loading="lazy"></iframe>
 
 But your app is growing. Users are signing up. And one bad commit ships a critical bug in your weekly release because there was no safety net. That's when you realize: pure velocity without quality control is just recklessness in disguise.
 
@@ -30,7 +30,7 @@ You set up GitHub Actions. You create a branch called "develop" and promise your
 
 You're still moving fast. About 11 commits a day make it to main, down slightly from your solo peak but way safer. Once or twice a week you run into a merge conflict because you both touched the same file, but it's quick to resolve. Occasionally a test fails randomly, and you just rerun the CI. Your team of two, each augmented with a couple of AI coding assistants, has added 15 to 20 minutes of overhead per commit. But you've also stopped shipping bugs to production.
 
-<iframe src="/blog/2025/11/6/zero-to-many/iframe.html?id=safety_nets" width="100%" height="400" frameborder="0" data-visualization></iframe>
+<iframe src="/blog/2025/11/6/zero-to-many/iframe.html?id=safety_nets" width="100%" height="400" frameborder="0" data-visualization loading="lazy"></iframe>
 
 The app is growing. Revenue is growing. You raise a seed round and decide it's time to build a real team.
 
@@ -44,86 +44,129 @@ This happens to everyone, all day long. PRs sit in review queues. Merge conflict
 
 And then there's the CI bottleneck. Your provider asked you to estimate how many runners you'd need. That works when your workload is predictable, but it's not. Nobody's is. During peak hours, PRs pile up waiting for available runners. Your team sits idle, watching the queue grow. The provider is just leaking the pain of hosting Mac minis to you. They can't absorb your elastic demand because they don't operate at the scale you need. You're not blocked by budget. You're blocked by infrastructure that can't keep up.
 
-<iframe src="/blog/2025/11/6/zero-to-many/iframe.html?id=team_multiplier" width="100%" height="650" frameborder="0" data-visualization></iframe>
+<iframe src="/blog/2025/11/6/zero-to-many/iframe.html?id=team_multiplier" width="100%" height="650" frameborder="0" data-visualization loading="lazy"></iframe>
 
 You hired three more people and throughput improved, but not nearly as much as you expected. This isn't what growth is supposed to look like.
 
 ## Phase 4: The Complexity Wall
 
-Two years in, your company has 30 engineers across four teams. Mobile, backend, platform, and data. Everyone is shipping code, everyone has AI tools making them more productive than ever, and the feature velocity should be incredible. The CI now takes 67 minutes. Sometimes 82 if you're unlucky with the test runner allocation, which takes up to 12 minutes just to start because the queue is backed up. Nobody remembers who wrote half the tests in the suite. One in five CI runs fails because of a flaky test, and debugging which test is flaky wastes hours.
+Two years in, your mobile team has grown to 30 engineers. Everyone is shipping code, everyone has AI tools making them more productive than ever, and the feature velocity should be incredible. The CI now takes 15 minutes. Sometimes 25 if you're unlucky with the test runner allocation, which takes a few minutes just to start because the queue is backed up. Nobody remembers who wrote half the tests in the suite. One in five CI runs fails because of a flaky test, and debugging which test is flaky wastes hours.
 
-PRs sit for four to six hours waiting for review because reviewers are context-switching between their own features, meetings, and the three other PRs in their queue. When reviews finally happen, 40% come back with requested changes. More waiting. More CI runs. Merge conflicts happen on two out of every five merges now. Multiple teams work in the shared authentication layer, the API gateway, the database models. When someone finally resolves a conflict and merges, they hold their breath hoping nobody else merged in the 67 minutes the CI was running. If they did, back to square one.
+PRs sit for four to six hours waiting for review because reviewers are context-switching between their own features, meetings, and the three other PRs in their queue. When reviews finally happen, 40% come back with requested changes. More waiting. More CI runs. Merge conflicts happen on two out of every five merges now. When someone finally resolves a conflict and merges, they hold their breath hoping nobody else merged in the 15 minutes the CI was running. If they did, back to square one.
 
-The math is brutal: 30 developers, each capable of producing eight features a day individually, should be generating 240 commits. The actual merge throughput is seven commits a day. The same as when you had five people.
+The math is brutal: 30 developers, each capable of producing eight features a day individually, should be generating 240 commits. The actual merge throughput is 70 commits a day.
 
-<iframe src="/blog/2025/11/6/zero-to-many/iframe.html?id=complexity_wall" width="100%" height="500" frameborder="0"></iframe>
+<iframe src="/blog/2025/11/6/zero-to-many/iframe.html?id=complexity_wall" width="100%" height="500" frameborder="0" data-visualization loading="lazy"></iframe>
 
-You're paying €4.2 million a year in engineering salaries and getting the output of seven developers. The efficiency is 2%. The waste is €3.3 million a year, just in idle time waiting for CI, reviews, and conflict resolution. The board asks why feature delivery has slowed down. You don't have a good answer.
+You're paying €4.2 million a year in engineering salaries and getting the output of six developers. The efficiency is 29%. The waste is €3 million a year, just in idle time waiting for CI, reviews, and conflict resolution. The board asks why feature delivery has slowed down. You don't have a good answer.
 
 ## Phase 5: The Brute Force Trap
 
 Your VP of Engineering has a plan. Three plans, actually. Each one sounds reasonable in isolation, but none of them address the root problem:
 
 **Option 1: Faster Machines**
-"We'll upgrade to the beefiest CI runners GitHub offers," he says. Sixteen cores instead of four. The cost is €70,000 a year, but it'll cut the 67-minute CI down to maybe 35 minutes. Your team calculates: that's a 17% improvement in throughput. Seven commits a day becomes eight. For €70K.
+"We'll upgrade to the beefiest CI runners GitHub offers," he says. Sixteen cores instead of four. The cost is €300,000 a year, but it'll cut the 15-minute CI down to maybe 8 minutes. Your team calculates: that's a 14% improvement in throughput. Seventy commits a day becomes eighty. For €300K.
 
 **Option 2: More People**
 Your CFO suggests hiring 10 more developers to "parallelize the work." Another €1.4 million in salary. But you've learned the math by now. More people means more conflicts, longer review queues, even slower CI. Throughput might not move at all. It might even go down.
 
 **Option 3: Technology Rewrite**
-A CTO from your previous company suggests you rewrite everything in React Native. "No compilation step," he says. "Way faster iteration." The rewrite would take eight months, cost your entire team's focus, and about €2.8 million in opportunity cost. And at the end, you'd have different problems: package resolution instead of compilation, bundle size instead of binary size, but the same coordination problems at 30 people.
+A CTO from your previous company suggests you rewrite everything in React Native. "No compilation step," he says. "Way faster iteration." The rewrite would take eight months, cost your entire team's focus, and about €2.8 million in opportunity cost. And at the end, you'd inherit a new set of problems:
 
-<iframe src="/blog/2025/11/6/zero-to-many/iframe.html?id=brute_force" width="100%" height="500" frameborder="0"></iframe>
+- **A brittle foundation built on constantly-evolving packages.** The ecosystem moves fast, breaking changes are common, and keeping dependencies up to date becomes a perpetual maintenance burden. What works today might require rewrites tomorrow.
 
-You pick the faster machines because it's the cheapest mistake. Throughput edges up to eight commits a day. You're paying €70,000 a year to improve efficiency from 2% to 3%. You know you're treating symptoms, not the disease. The disease is that you're building and testing everything, every time, for every change, no matter how small. But you don't know what else to do.
+- **A massively expanded security surface.** Instead of relying on platform APIs maintained by Apple and Google, you now depend on hundreds of npm packages, each with their own maintainers, each a potential entry point for supply chain attacks.
+
+- **Platform features become harder to access.** Every time iOS or Android releases a new API, you wait for someone in the community to write a bridge. Native features that should take hours now take days or weeks, assuming someone builds the bridge at all.
+
+- **Performance optimization becomes the default state.** Instead of focusing on building features, your team spends cycles debugging why lists scroll slowly, why animations drop frames, why the app uses too much memory. The abstraction layer adds overhead that you constantly fight against.
+
+But you'd still have the same coordination problems at 30 people.
+
+You pick the faster machines because it's the cheapest mistake. Throughput edges up to eighty commits a day. You're paying €300,000 a year to improve efficiency from 29% to 33%. You know you're treating symptoms, not the disease. The disease is that you're building and testing everything, every time, for every change, no matter how small. But you don't know what else to do.
 
 ## Phase 6: Smart Optimization
 
-Then you talk to an engineering leader at another company who faced the same wall. "Stop building everything," he says. "You're compiling modules that didn't change. You're running tests for code nobody touched. Of course it takes an hour." He introduces you to build caching and selective testing. The idea is simple: only rebuild what changed, only test what's affected, and share the cached results across your entire team and CI.
+But there's an elephant in the room. Something that would be cheaper than all three options, and would have a dramatically better impact.
 
-Your team spends a month implementing Tuist. You set up binary caching so when Li changes the authentication module, the other 47 modules use cached builds. You implement selective testing so the CI only runs the 200 tests affected by the change, not all 3,400. You add flakiness detection that automatically quarantines unreliable tests until someone fixes them. The first PR after the optimization merges in 11 minutes. The second takes nine. A complex change touching multiple modules takes 14 minutes.
+What if you didn't compile and test everything every time? What if you could diff the changes to be selective about what to compile and what to test? When Li changes the authentication module, why are you rebuilding the 47 other modules that didn't change? When someone touches a networking utility, why are you running the entire 3,400-test suite instead of just the 200 tests that actually depend on that code?
 
-Your CI time drops from 67 minutes to 10 minutes on average. The queue disappears because jobs finish faster. Flaky tests are down to 3% because the bad ones are quarantined. Review time drops to two hours because fast feedback means reviewers can stay in context. Merge conflicts drop to 25% because the faster cycle time means less overlapping work.
+Then you talk to an engineering leader at another company who faced the same wall. "We implemented Tuist," he says. "[Binary caching](https://docs.tuist.dev/en/guides/develop/build/cache) and [selective testing](https://docs.tuist.dev/en/guides/develop/test/smart-runner). Changed everything." The idea is simple: only rebuild what changed, only test what's affected, and share the cached results across your entire team and CI.
 
-<iframe src="/blog/2025/11/6/zero-to-many/iframe.html?id=smart_optimization" width="100%" height="500" frameborder="0"></iframe>
+Your team spends a month implementing Tuist. You set up [binary caching](https://docs.tuist.dev/en/guides/develop/build/cache) so when Li changes the authentication module, the other 47 modules use cached builds from the last time they were compiled. You implement [selective testing](https://docs.tuist.dev/en/guides/develop/test/smart-runner) so the CI only runs the 200 tests affected by the change, not all 3,400. The first PR after the optimization merges in 4 minutes. The second takes three. A complex change touching multiple modules takes 6 minutes.
 
-The merge throughput climbs. Fifteen commits a day. Then 28. Then 42. It stabilizes around 45 commits a day. You're still paying €4.2 million for 30 developers. But now you're getting output equivalent to 22 developers instead of seven. The efficiency went from 2% to 15%. You unlocked €2.1 million in value. The investment was €140,000 for Tuist and one month of eng time. The payback period was three weeks.
+Your CI time drops from 15 minutes to 3 minutes on average. The queue disappears because jobs finish faster. Review time drops to two hours because fast feedback means reviewers can stay in context. Merge conflicts drop to 25% because the faster cycle time means less overlapping work. The merge throughput climbs. Eighty commits a day. Then 110. Then 140. It stabilizes around 150 commits a day. 
+
+You're still paying €4.2 million for 30 developers. But now you're getting output equivalent to 19 developers instead of nine. The efficiency went from 29% to 63%. You unlocked €1.4 million in value. The investment was roughly a third of a single engineer's salary per year for Tuist and one month of eng time. The payback period was measured in days, not years.
 
 ## What Just Happened
 
-Let's trace your journey in numbers. At one developer, you had 100% efficiency. Ten commits a day from one person's work. At two developers, efficiency dropped to 55%. Eleven commits from two people. At five developers, efficiency fell to 12%. Six commits from five people. At thirty developers, efficiency collapsed to 2%. Seven commits from thirty people who should be producing 240. After optimization, with the same thirty developers, you climbed back to 15% efficiency. Forty-five commits a day. Still not perfect, but 6.5× better than where you were.
+Let's trace your journey in numbers. At one developer, you had 100% efficiency. Eleven commits a day from one person's work. At two developers, efficiency dropped to 83%. Fifteen commits from two people. At five developers, efficiency fell to 56%. Twenty-five commits from five people. At thirty developers, efficiency crashed to 29%. Seventy commits from thirty people who should be producing 240. 
 
-## The Choice
+After optimization, with the same thirty developers, you climbed to 63% efficiency. One hundred and fifty commits a day. Not perfect, but more than double where you were. And here's the key insight: **you optimized workflows first, not hardware**. Instead of spending €300,000 per year to make your waste happen slightly faster, you spent a third of one engineer's salary to eliminate the waste itself. The hardware approach would have given you 10 more commits per day. The workflow approach gave you 80 more commits per day.
 
-Every engineering organization faces this curve. You can see it in your own numbers if you look. Count your commits per day. Count your team size. Measure your CI time. Do the math. Then you have three options:
+## Why Most Companies Get This Wrong
 
-**Ignore it:** Accept 2% efficiency. Keep paying millions in salaries for work that never ships because people are waiting for builds, waiting for tests, waiting for reviews to free up because nobody can context-switch while waiting an hour for CI.
+Here's the pattern we see repeatedly: companies optimize in the wrong order and waste millions before discovering the right solution.
 
-**Brute force it:** Buy faster machines for €70K a year and get 15% improvement. Hire more people for €1.4M a year and get no improvement or negative improvement. Rewrite in a different stack for €2.8M and get different problems.
+**The typical sequence looks like this:**
 
-**Optimize it:** Fix the actual problem, which is building and testing everything all the time regardless of what changed. Get 6× to 10× improvement. Pay back the investment in weeks.
+**Year 1:** Team hits 15-minute CI times. Leadership approves €300K/year for faster runners. CI drops to 8 minutes. Everyone celebrates the "30% improvement" while ignoring that throughput barely moved. The team is still building and testing everything, just slightly faster.
 
-## The Math on Your Options
+**Year 2:** Throughput is still terrible. Leadership hires 10 more developers for €1.4M/year, expecting output to increase proportionally. Instead, coordination overhead grows faster than output. More merge conflicts. Longer review queues. CI queue times increase because now 40 people are pushing to the same runners. Efficiency drops further.
 
-Let's put real numbers on this. Your three expensive options:
+**Year 3:** Someone suggests a technology rewrite. "React Native has no compile times!" Six months and €2.8M in opportunity cost later, they've traded Swift compile times for JavaScript bundle times and inherited a fragile dependency tree. The coordination problems are identical. They just happen in a different language.
 
-- **Hiring 10 more developers** costs you €1.4 million per year. And as you've seen, it might actually make throughput worse because of increased coordination overhead.
-- **Upgrading to the fastest CI machines** available costs you €70,000 per year and gives you maybe a 15% to 20% improvement. You're still building and testing everything, just slightly faster.
-- **Rewriting in a different technology stack** costs you six to eight months of your entire team's time, which at 30 developers is roughly €2.8 million in opportunity cost. And you'll still have the same coordination problems, just with different build tools.
+**Total spend over three years:** €4.5M in direct costs, plus countless hours of engineering time, and throughput improved maybe 20%.
 
-Now compare that to the smart approach: Tuist's binary caching and selective testing. With Tuist's cache, when your developers change one module out of 48, the other 47 modules use cached builds. They don't recompile. They don't rebuild. They just use the artifacts that already exist, whether from their own previous builds or from their teammates' builds, all shared through distributed caching. With Tuist's selective testing, when your developers change authentication code, the CI runs the 200 tests that actually touch authentication. Not the 3,400 tests in your entire suite. Just the ones that matter for that change.
+**The alternative sequence that actually works:**
 
-The result: your 67-minute CI drops to 10 minutes. Your flaky tests get quarantined automatically. Your review cycles speed up because feedback is fast enough that reviewers stay in context. Your merge conflicts drop because people aren't waiting so long that they overlap. The investment is €140,000 for Tuist plus about one month of engineering time to implement it properly. Compare that to €1.4M for more people who slow you down, or €70K per year for faster machines that barely help, or €2.8M for a rewrite that doesn't solve the problem. The payback period is measured in weeks, not years.
+**Month 1:** Implement [binary caching](https://docs.tuist.dev/en/guides/develop/build/cache) and [selective testing](https://docs.tuist.dev/en/guides/develop/test/smart-runner). When a developer changes one module, the other 47 use cached builds. When someone touches authentication code, only the 200 affected tests run, not all 3,400.
 
-## Model Your Own Numbers
+**The result:** CI drops from 15 minutes to 3 minutes. Not by building faster, but by building less. Only what changed. Only what matters. The cost is a third of one engineer's salary per year. The gain is 10 engineers worth of output. The payback happens in days.
 
-Use the interactive calculators in each phase above to model your own organization. Adjust team size, CI turnaround time, review time, conflict probability, and flakiness rates. Watch what happens to merge throughput. Then ask yourself four questions:
+The difference isn't just the ROI, though that's dramatic. The difference is that one approach treats symptoms while the other fixes the disease. Faster hardware makes waste happen faster. Better workflows eliminate the waste entirely.
 
-- How many commits does your team merge per day?
-- What's your average CI turnaround time?
-- How much time do your developers spend waiting for CI instead of writing code?
-- What could you ship to customers if your throughput doubled?
+## Calculate Your Own Numbers
 
-The cost of slow builds isn't developer frustration, though that's real. The cost is millions of euros in wasted salary and missed market opportunities. Features that ship next quarter instead of this quarter. Competitors who move faster. Customers who leave because the bug fix took too long. This story is every company's story. The only question is which chapter you're in, and how long you'll wait before writing the next one.
+Use the calculator below to model your organization's efficiency and see the potential impact of workflow optimization. Enter your team size, current CI time, and other factors to understand where you stand and what optimization could unlock.
+
+<div phx-update="ignore">
+  <iframe src="/blog/2025/11/6/zero-to-many/iframe.html?id=calculator" width="100%" height="850" frameborder="0" data-visualization loading="lazy"></iframe>
+</div>
+
+The patterns are consistent across organizations: efficiency drops as coordination overhead increases, and traditional solutions (more hardware, more people, technology rewrites) barely move the needle. The cost of slow builds isn't developer frustration, though that's real. The cost is millions of euros in wasted salary and missed market opportunities. Features that ship next quarter instead of this quarter. Competitors who move faster. Customers who leave because the bug fix took too long.
+
+**Here's the fundamental insight**: optimize workflows before hardware. A faster machine makes your waste happen faster. A better workflow eliminates the waste. One costs 6 times more and gives you 14% improvement. The other costs a fraction and gives you 117% improvement. This story is every company's story. The only question is which chapter you're in, and whether you'll choose to optimize the right thing.
 
 [Get started with Tuist](https://tuist.io) and see the difference in days, not months.
+
+<script>
+  // Intersection Observer to pause/resume iframe animations when they leave/enter viewport
+  const observerOptions = {
+    root: null,
+    rootMargin: '50px',
+    threshold: 0.1
+  };
+
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      const iframe = entry.target;
+      if (entry.isIntersecting) {
+        // Resume animation when iframe is visible
+        iframe.contentWindow?.postMessage({ action: 'resume' }, '*');
+      } else {
+        // Pause animation when iframe is not visible
+        iframe.contentWindow?.postMessage({ action: 'pause' }, '*');
+      }
+    });
+  }, observerOptions);
+
+  // Observe all visualization iframes
+  document.addEventListener('DOMContentLoaded', () => {
+    const iframes = document.querySelectorAll('iframe[data-visualization]');
+    iframes.forEach(iframe => {
+      observer.observe(iframe);
+    });
+  });
+</script>

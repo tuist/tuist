@@ -341,6 +341,15 @@
           }
         });
 
+        // Listen for pause/resume messages from parent page
+        window.addEventListener('message', (event) => {
+          if (event.data.action === 'pause') {
+            isPaused = true;
+          } else if (event.data.action === 'resume') {
+            isPaused = false;
+          }
+        });
+
         function scheduleCommit(sourceNode) {
           // Determine commit rate
           let rate = commitRates.developer;

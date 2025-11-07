@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+
+      html, body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+      }
+
+      body {
+        background: transparent;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      }
+
+      .calculator-container {
+        width: 100%;
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 0;
+      }
+
+      .input-group {
+        margin-bottom: var(--noora-spacing-6);
+      }
+
+      .input-label {
+        display: block;
+        font-size: 14px;
+        font-weight: 500;
+        color: var(--noora-surface-label-primary, #111827);
+        margin-bottom: var(--noora-spacing-3);
+      }
+
+      .input-hint {
+        font-size: 11px;
+        color: var(--noora-surface-label-tertiary, #9ca3af);
+        margin-top: var(--noora-spacing-2);
+      }
+
+      input[type="range"] {
+        width: 100%;
+        padding: 0;
+        height: 4px;
+        -webkit-appearance: none;
+        appearance: none;
+        background: var(--noora-border-secondary, #e5e7eb);
+        outline: none;
+        border-radius: var(--noora-radius-full);
+      }
+
+      input[type="range"]::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 16px;
+        height: 16px;
+        background: var(--noora-accent-primary, #3b82f6);
+        cursor: pointer;
+        border-radius: 50%;
+        transition: transform 0.15s ease;
+      }
+
+      input[type="range"]::-webkit-slider-thumb:hover {
+        transform: scale(1.1);
+      }
+
+      input[type="range"]::-moz-range-thumb {
+        width: 16px;
+        height: 16px;
+        background: var(--noora-accent-primary, #3b82f6);
+        cursor: pointer;
+        border-radius: 50%;
+        border: none;
+        transition: transform 0.15s ease;
+      }
+
+      input[type="range"]::-moz-range-thumb:hover {
+        transform: scale(1.1);
+      }
+
+      .range-value {
+        display: inline-block;
+        margin-left: var(--noora-spacing-3);
+        font-weight: 600;
+        font-size: 14px;
+        color: var(--noora-surface-label-primary, #111827);
+      }
+
+      .results {
+        margin-top: var(--noora-spacing-8);
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: var(--noora-spacing-4);
+      }
+
+      .results-column {
+        padding: var(--noora-spacing-5);
+        background: transparent;
+        border-radius: var(--noora-radius-medium);
+        border: 1px solid var(--noora-border-secondary, #e5e7eb);
+      }
+
+      .column-title {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--noora-surface-label-secondary, #6b7280);
+        margin-bottom: var(--noora-spacing-4);
+        text-align: center;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+
+      .result-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: var(--noora-spacing-3) 0;
+        border-bottom: 1px solid var(--noora-border-tertiary, #f3f4f6);
+      }
+
+      .result-row:last-child {
+        border-bottom: none;
+      }
+
+      .result-label {
+        font-size: 13px;
+        color: var(--noora-surface-label-tertiary, #9ca3af);
+      }
+
+      .result-value {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--noora-surface-label-primary, #111827);
+        font-feature-settings: "tnum";
+        font-variant-numeric: tabular-nums;
+      }
+
+      .result-value.highlight {
+        color: var(--noora-accent-primary, #3b82f6);
+        font-size: 15px;
+      }
+
+      .result-value.negative {
+        color: var(--noora-error, #ef4444);
+      }
+
+      .result-value.positive {
+        color: var(--noora-success, #10b981);
+      }
+
+      .impact-summary {
+        grid-column: 1 / -1;
+        padding: var(--noora-spacing-5);
+        background: transparent;
+        border-radius: var(--noora-radius-medium);
+        border: 1px solid var(--noora-border-secondary, #e5e7eb);
+        margin-top: var(--noora-spacing-4);
+      }
+
+      .impact-summary-title {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--noora-surface-label-secondary, #6b7280);
+        margin-bottom: var(--noora-spacing-5);
+        text-align: center;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+
+      .impact-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: var(--noora-spacing-4);
+      }
+
+      .impact-item {
+        text-align: center;
+        padding: var(--noora-spacing-3);
+      }
+
+      .impact-label {
+        font-size: 11px;
+        color: var(--noora-surface-label-tertiary, #9ca3af);
+        margin-bottom: var(--noora-spacing-2);
+      }
+
+      .impact-value {
+        font-size: 24px;
+        font-weight: 700;
+        color: var(--noora-accent-primary, #3b82f6);
+        font-feature-settings: "tnum";
+        font-variant-numeric: tabular-nums;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="calculator-container">
+      <div class="input-group">
+        <label class="input-label">
+          Team Size
+          <span class="range-value" id="team-size-value">30</span>
+        </label>
+        <input type="range" id="team-size" min="1" max="100" value="30" />
+        <div class="input-hint">Number of developers on your team</div>
+      </div>
+
+      <div class="input-group">
+        <label class="input-label">
+          Average CI Time (minutes)
+          <span class="range-value" id="ci-time-value">15</span>
+        </label>
+        <input type="range" id="ci-time" min="1" max="60" value="15" />
+        <div class="input-hint">How long does your CI pipeline take?</div>
+      </div>
+
+      <div class="input-group">
+        <label class="input-label">
+          Average Salary (€)
+          <span class="range-value" id="salary-value">140,000</span>
+        </label>
+        <input type="range" id="salary" min="50000" max="250000" step="10000" value="140000" />
+        <div class="input-hint">Average annual salary per developer</div>
+      </div>
+
+      <div class="input-group">
+        <label class="input-label">
+          Conflict Rate (%)
+          <span class="range-value" id="conflict-rate-value">40</span>
+        </label>
+        <input type="range" id="conflict-rate" min="0" max="100" value="40" />
+        <div class="input-hint">Percentage of PRs that hit merge conflicts</div>
+      </div>
+
+      <div class="results">
+        <div class="results-column">
+          <div class="column-title">Current State</div>
+          <div class="result-row">
+            <span class="result-label">Commits per Day</span>
+            <span class="result-value" id="current-commits">70</span>
+          </div>
+          <div class="result-row">
+            <span class="result-label">Expected Commits</span>
+            <span class="result-value" id="expected-commits">240</span>
+          </div>
+          <div class="result-row">
+            <span class="result-label">Efficiency</span>
+            <span class="result-value negative" id="current-efficiency">29%</span>
+          </div>
+          <div class="result-row">
+            <span class="result-label">Annual Salary Cost</span>
+            <span class="result-value" id="salary-cost">€4.2M</span>
+          </div>
+          <div class="result-row">
+            <span class="result-label">Wasted Value/Year</span>
+            <span class="result-value negative" id="wasted-value">€3.0M</span>
+          </div>
+        </div>
+
+        <div class="results-column">
+          <div class="column-title">With Tuist</div>
+          <div class="result-row">
+            <span class="result-label">CI Time</span>
+            <span class="result-value positive" id="optimized-ci">3 min</span>
+          </div>
+          <div class="result-row">
+            <span class="result-label">Commits per Day</span>
+            <span class="result-value positive" id="optimized-commits">150</span>
+          </div>
+          <div class="result-row">
+            <span class="result-label">Efficiency</span>
+            <span class="result-value positive" id="optimized-efficiency">63%</span>
+          </div>
+          <div class="result-row">
+            <span class="result-label">Value Unlocked/Year</span>
+            <span class="result-value highlight positive" id="unlocked-value">€1.4M</span>
+          </div>
+          <div class="result-row">
+            <span class="result-label">Tuist Cost/Year</span>
+            <span class="result-value" id="tuist-cost">€50K</span>
+          </div>
+          <div class="result-row">
+            <span class="result-label">ROI</span>
+            <span class="result-value highlight positive" id="roi">28×</span>
+          </div>
+        </div>
+
+        <div class="impact-summary">
+          <div class="impact-summary-title">Tuist Impact Summary</div>
+          <div class="impact-grid">
+            <div class="impact-item">
+              <div class="impact-label">Additional Commits/Day</div>
+              <div class="impact-value" id="impact-commits">+80</div>
+            </div>
+            <div class="impact-item">
+              <div class="impact-label">Efficiency Gain</div>
+              <div class="impact-value" id="impact-efficiency">+34%</div>
+            </div>
+            <div class="impact-item">
+              <div class="impact-label">CI Time Reduction</div>
+              <div class="impact-value" id="impact-ci">-80%</div>
+            </div>
+            <div class="impact-item">
+              <div class="impact-label">Engineers Added</div>
+              <div class="impact-value" id="impact-engineers">+10</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script nonce={get_csp_nonce()}>
+      const teamSizeInput = document.getElementById('team-size');
+      const ciTimeInput = document.getElementById('ci-time');
+      const salaryInput = document.getElementById('salary');
+      const conflictRateInput = document.getElementById('conflict-rate');
+
+      const teamSizeValue = document.getElementById('team-size-value');
+      const ciTimeValue = document.getElementById('ci-time-value');
+      const salaryValue = document.getElementById('salary-value');
+      const conflictRateValue = document.getElementById('conflict-rate-value');
+
+      const currentCommitsEl = document.getElementById('current-commits');
+      const expectedCommitsEl = document.getElementById('expected-commits');
+      const currentEfficiencyEl = document.getElementById('current-efficiency');
+      const salaryCostEl = document.getElementById('salary-cost');
+      const wastedValueEl = document.getElementById('wasted-value');
+
+      const optimizedCiEl = document.getElementById('optimized-ci');
+      const optimizedCommitsEl = document.getElementById('optimized-commits');
+      const optimizedEfficiencyEl = document.getElementById('optimized-efficiency');
+      const unlockedValueEl = document.getElementById('unlocked-value');
+      const tuistCostEl = document.getElementById('tuist-cost');
+      const roiEl = document.getElementById('roi');
+
+      const impactCommitsEl = document.getElementById('impact-commits');
+      const impactEfficiencyEl = document.getElementById('impact-efficiency');
+      const impactCiEl = document.getElementById('impact-ci');
+      const impactEngineersEl = document.getElementById('impact-engineers');
+
+      function formatMoney(value) {
+        if (value >= 1000000) {
+          return '€' + (value / 1000000).toFixed(1) + 'M';
+        } else if (value >= 1000) {
+          return '€' + (value / 1000).toFixed(0) + 'K';
+        }
+        return '€' + value.toFixed(0);
+      }
+
+      function formatNumber(value) {
+        return value.toLocaleString('en-US');
+      }
+
+      function calculate() {
+        const teamSize = parseInt(teamSizeInput.value);
+        const ciTime = parseInt(ciTimeInput.value);
+        const salary = parseInt(salaryInput.value);
+        const conflictRate = parseInt(conflictRateInput.value) / 100;
+
+        // Update display values
+        teamSizeValue.textContent = teamSize;
+        ciTimeValue.textContent = ciTime;
+        salaryValue.textContent = formatNumber(salary);
+        conflictRateValue.textContent = Math.round(conflictRate * 100);
+
+        // Base commit rate per developer (11 commits/day solo)
+        const baseCommitRate = 11;
+
+        // Calculate expected commits (linear scaling)
+        const expectedCommits = Math.round(teamSize * baseCommitRate);
+
+        // Calculate efficiency loss based on team size, CI time, and conflicts
+        const coordinationOverhead = Math.min(0.95, (teamSize - 1) * 0.025);
+        const ciOverhead = Math.min(0.5, (ciTime / 60) * 0.4);
+        const conflictOverhead = conflictRate * 0.3;
+
+        const totalOverhead = coordinationOverhead + ciOverhead + conflictOverhead;
+        const efficiency = Math.max(0.05, 1 - totalOverhead);
+
+        const currentCommits = Math.round(expectedCommits * efficiency);
+
+        // Calculate costs
+        const totalSalaryCost = teamSize * salary;
+        const wastedValue = totalSalaryCost * (1 - efficiency);
+
+        // Optimized scenario (with Tuist)
+        const optimizedCiTime = Math.max(1, Math.round(ciTime * 0.2)); // 80% reduction
+        const optimizedEfficiency = Math.min(0.75, efficiency * 2.2); // Significant improvement
+        const optimizedCommits = Math.round(expectedCommits * optimizedEfficiency);
+
+        const unlockedValue = (optimizedEfficiency - efficiency) * totalSalaryCost;
+        const tuistCost = Math.round(teamSize * 60 * 12); // €60/dev/month
+        const roi = (unlockedValue / tuistCost).toFixed(0);
+
+        // Update current state
+        currentCommitsEl.textContent = currentCommits;
+        expectedCommitsEl.textContent = expectedCommits;
+        currentEfficiencyEl.textContent = Math.round(efficiency * 100) + '%';
+        salaryCostEl.textContent = formatMoney(totalSalaryCost);
+        wastedValueEl.textContent = formatMoney(wastedValue);
+
+        // Update optimized state
+        optimizedCiEl.textContent = optimizedCiTime + ' min';
+        optimizedCommitsEl.textContent = optimizedCommits;
+        optimizedEfficiencyEl.textContent = Math.round(optimizedEfficiency * 100) + '%';
+        unlockedValueEl.textContent = formatMoney(unlockedValue);
+        tuistCostEl.textContent = formatMoney(tuistCost);
+        roiEl.textContent = roi + '×';
+
+        // Update impact summary
+        const commitGain = optimizedCommits - currentCommits;
+        const efficiencyGain = Math.round((optimizedEfficiency - efficiency) * 100);
+        const ciReduction = Math.round((1 - optimizedCiTime / ciTime) * 100);
+        const currentEffectiveEngineers = Math.round(teamSize * efficiency);
+        const optimizedEffectiveEngineers = Math.round(teamSize * optimizedEfficiency);
+        const engineersAdded = optimizedEffectiveEngineers - currentEffectiveEngineers;
+
+        impactCommitsEl.textContent = '+' + commitGain;
+        impactEfficiencyEl.textContent = '+' + efficiencyGain + '%';
+        impactCiEl.textContent = '-' + ciReduction + '%';
+        impactEngineersEl.textContent = '+' + engineersAdded;
+      }
+
+      // Add event listeners
+      teamSizeInput.addEventListener('input', calculate);
+      ciTimeInput.addEventListener('input', calculate);
+      salaryInput.addEventListener('input', calculate);
+      conflictRateInput.addEventListener('input', calculate);
+
+      // Initial calculation
+      calculate();
+    </script>
+  </body>
+</html>
