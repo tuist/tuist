@@ -191,6 +191,52 @@ generate_cache_key = fn _build_id, _task_type, _index ->
   "0~#{content}"
 end
 
+generate_task_description = fn task_type ->
+  swift_files = [
+    "ContentView.swift",
+    "AppDelegate.swift",
+    "ViewModel.swift",
+    "MainView.swift",
+    "NetworkManager.swift",
+    "DataModel.swift",
+    "HomeViewController.swift",
+    "SettingsView.swift",
+    "ProfileViewModel.swift",
+    "AuthenticationService.swift"
+  ]
+
+  clang_files = [
+    "main.m",
+    "NetworkManager.m",
+    "Utils.c",
+    "DataProcessor.mm",
+    "ImageHelper.m",
+    "CacheManager.m",
+    "Analytics.m",
+    "Bridge.mm"
+  ]
+
+  swift_actions = [
+    "Compiling",
+    "Emitting module for"
+  ]
+
+  clang_actions = [
+    "Compiling"
+  ]
+
+  case task_type do
+    "swift" ->
+      action = Enum.random(swift_actions)
+      file = Enum.random(swift_files)
+      if action == "Emitting module for", do: String.replace(file, ".swift", ""), else: file
+      "#{action} #{if action == "Emitting module for", do: String.replace(file, ".swift", ""), else: file}"
+
+    "clang" ->
+      "Compiling #{Enum.random(clang_files)}"
+  end
+end
+
 cacheable_tasks =
   build_records
   |> Enum.map(& &1.id)
@@ -209,13 +255,15 @@ cacheable_tasks =
       if remote_hits > 0 do
         tasks ++
           Enum.map(1..remote_hits, fn i ->
+            task_type = Enum.random(["clang", "swift"])
             %{
               build_run_id: build_id,
-              type: Enum.random(["clang", "swift"]),
+              type: task_type,
               status: "hit_remote",
               key: generate_cache_key.(build_id, "remote", i),
               read_duration: Enum.random(100..2000) * 1.0,
               write_duration: nil,
+              description: generate_task_description.(task_type),
               inserted_at: DateTime.to_naive(build.inserted_at)
             }
           end)
@@ -227,13 +275,15 @@ cacheable_tasks =
       if local_hits > 0 do
         tasks ++
           Enum.map(1..local_hits, fn i ->
+            task_type = Enum.random(["clang", "swift"])
             %{
               build_run_id: build_id,
-              type: Enum.random(["clang", "swift"]),
+              type: task_type,
               status: "hit_local",
               key: generate_cache_key.(build_id, "local", i),
               read_duration: Enum.random(10..100) * 1.0,
               write_duration: nil,
+              description: generate_task_description.(task_type),
               inserted_at: DateTime.to_naive(build.inserted_at)
             }
           end)
@@ -245,13 +295,15 @@ cacheable_tasks =
       if misses > 0 do
         tasks ++
           Enum.map(1..misses, fn i ->
+            task_type = Enum.random(["clang", "swift"])
             %{
               build_run_id: build_id,
-              type: Enum.random(["clang", "swift"]),
+              type: task_type,
               status: "miss",
               key: generate_cache_key.(build_id, "miss", i),
               read_duration: Enum.random(50..500) * 1.0,
               write_duration: Enum.random(100..2000) * 1.0,
+              description: generate_task_description.(task_type),
               inserted_at: DateTime.to_naive(build.inserted_at)
             }
           end)

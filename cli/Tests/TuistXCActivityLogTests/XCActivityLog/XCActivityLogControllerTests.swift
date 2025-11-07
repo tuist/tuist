@@ -360,6 +360,7 @@ struct XCActivityLogControllerTests {
         #expect(got.cacheableTasks.filter { $0.status == .localHit }.count == 0)
         #expect(got.cacheableTasks.filter { $0.status == .remoteHit }.count == 56)
         #expect(got.cacheableTasks.filter { $0.status == .miss }.count == 4)
+        #expect(got.cacheableTasks.first(where: { $0.description == "Emitting module for App" })?.key == "0~2mxgYt89XELBx7Yle2QsoK_eC5ZW-zz7c2IzKlQ4FeelsLoqKbnPfM1Q9VyYsasx6L_wBw2KmcwklmaOhsUARw==")
     }
 
     @Test(.withMockedEnvironment())

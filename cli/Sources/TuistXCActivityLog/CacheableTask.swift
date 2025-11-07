@@ -17,18 +17,21 @@ public struct CacheableTask: Equatable {
     public let type: TaskType
     public let readDuration: TimeInterval?
     public let writeDuration: TimeInterval?
+    public let description: String?
 
     public init(
         key: String,
         status: CacheStatus,
         type: TaskType,
         readDuration: TimeInterval? = nil,
-        writeDuration: TimeInterval? = nil
+        writeDuration: TimeInterval? = nil,
+        description: String? = nil
     ) {
         self.key = key
         self.status = status
         self.type = type
         self.readDuration = readDuration
         self.writeDuration = writeDuration
+        self.description = description
     }
 }

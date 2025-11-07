@@ -900,6 +900,9 @@
               <.active_filter :for={filter <- @cacheable_tasks_active_filters} filter={filter} />
             </div>
             <.table id="cacheable-tasks-table" rows={@cacheable_tasks}>
+              <:col :let={task} label={gettext("Task")}>
+                <.text_cell label={task.description || gettext("Unknown")} />
+              </:col>
               <:col
                 :let={task}
                 label={gettext("Key")}

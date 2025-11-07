@@ -743,6 +743,11 @@ components:
               description: Cacheable tasks associated with the build run.
               items:
                 properties:
+                  description:
+                    description: Optional description of the cacheable task.
+                    type: string
+                    x-struct:
+                    x-validate:
                   key:
                     description: The cache key of the task.
                     type: string
@@ -1784,6 +1789,11 @@ components:
           description: Cacheable tasks associated with the build run.
           items:
             properties:
+              description:
+                description: Optional description of the cacheable task.
+                type: string
+                x-struct:
+                x-validate:
               key:
                 description: The cache key of the task.
                 type: string
@@ -6090,6 +6100,11 @@ paths:
                       description: Cacheable tasks associated with the build run.
                       items:
                         properties:
+                          description:
+                            description: Optional description of the cacheable task.
+                            type: string
+                            x-struct:
+                            x-validate:
                           key:
                             description: The cache key of the task.
                             type: string

@@ -2392,6 +2392,10 @@ public enum Components {
             public struct Case1Payload: Codable, Hashable, Sendable {
                 /// - Remark: Generated from `#/components/schemas/RunParams/case1/cacheable_tasksPayload`.
                 public struct cacheable_tasksPayloadPayload: Codable, Hashable, Sendable {
+                    /// Optional description of the cacheable task.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunParams/case1/cacheable_tasksPayload/description`.
+                    public var description: Swift.String?
                     /// The cache key of the task.
                     ///
                     /// - Remark: Generated from `#/components/schemas/RunParams/case1/cacheable_tasksPayload/key`.
@@ -2430,18 +2434,21 @@ public enum Components {
                     /// Creates a new `cacheable_tasksPayloadPayload`.
                     ///
                     /// - Parameters:
+                    ///   - description: Optional description of the cacheable task.
                     ///   - key: The cache key of the task.
                     ///   - read_duration: The duration in milliseconds for reading from cache.
                     ///   - status: The cache status of the task.
                     ///   - _type: The type of cacheable task.
                     ///   - write_duration: The duration in milliseconds for writing to cache.
                     public init(
+                        description: Swift.String? = nil,
                         key: Swift.String,
                         read_duration: Swift.Double? = nil,
                         status: Components.Schemas.RunParams.Case1Payload.cacheable_tasksPayloadPayload.statusPayload,
                         _type: Components.Schemas.RunParams.Case1Payload.cacheable_tasksPayloadPayload._typePayload,
                         write_duration: Swift.Double? = nil
                     ) {
+                        self.description = description
                         self.key = key
                         self.read_duration = read_duration
                         self.status = status
@@ -2449,6 +2456,7 @@ public enum Components {
                         self.write_duration = write_duration
                     }
                     public enum CodingKeys: String, CodingKey {
+                        case description
                         case key
                         case read_duration
                         case status
@@ -3967,6 +3975,10 @@ public enum Components {
         public struct BuildRun: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/BuildRun/cacheable_tasksPayload`.
             public struct cacheable_tasksPayloadPayload: Codable, Hashable, Sendable {
+                /// Optional description of the cacheable task.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BuildRun/cacheable_tasksPayload/description`.
+                public var description: Swift.String?
                 /// The cache key of the task.
                 ///
                 /// - Remark: Generated from `#/components/schemas/BuildRun/cacheable_tasksPayload/key`.
@@ -4005,18 +4017,21 @@ public enum Components {
                 /// Creates a new `cacheable_tasksPayloadPayload`.
                 ///
                 /// - Parameters:
+                ///   - description: Optional description of the cacheable task.
                 ///   - key: The cache key of the task.
                 ///   - read_duration: The duration in milliseconds for reading from cache.
                 ///   - status: The cache status of the task.
                 ///   - _type: The type of cacheable task.
                 ///   - write_duration: The duration in milliseconds for writing to cache.
                 public init(
+                    description: Swift.String? = nil,
                     key: Swift.String,
                     read_duration: Swift.Double? = nil,
                     status: Components.Schemas.BuildRun.cacheable_tasksPayloadPayload.statusPayload,
                     _type: Components.Schemas.BuildRun.cacheable_tasksPayloadPayload._typePayload,
                     write_duration: Swift.Double? = nil
                 ) {
+                    self.description = description
                     self.key = key
                     self.read_duration = read_duration
                     self.status = status
@@ -4024,6 +4039,7 @@ public enum Components {
                     self.write_duration = write_duration
                 }
                 public enum CodingKeys: String, CodingKey {
+                    case description
                     case key
                     case read_duration
                     case status
@@ -21601,6 +21617,10 @@ public enum Operations {
                     public struct Case1Payload: Codable, Hashable, Sendable {
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/cacheable_tasksPayload`.
                         public struct cacheable_tasksPayloadPayload: Codable, Hashable, Sendable {
+                            /// Optional description of the cacheable task.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/cacheable_tasksPayload/description`.
+                            public var description: Swift.String?
                             /// The cache key of the task.
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/cacheable_tasksPayload/key`.
@@ -21639,18 +21659,21 @@ public enum Operations {
                             /// Creates a new `cacheable_tasksPayloadPayload`.
                             ///
                             /// - Parameters:
+                            ///   - description: Optional description of the cacheable task.
                             ///   - key: The cache key of the task.
                             ///   - read_duration: The duration in milliseconds for reading from cache.
                             ///   - status: The cache status of the task.
                             ///   - _type: The type of cacheable task.
                             ///   - write_duration: The duration in milliseconds for writing to cache.
                             public init(
+                                description: Swift.String? = nil,
                                 key: Swift.String,
                                 read_duration: Swift.Double? = nil,
                                 status: Operations.createRun.Input.Body.jsonPayload.Case1Payload.cacheable_tasksPayloadPayload.statusPayload,
                                 _type: Operations.createRun.Input.Body.jsonPayload.Case1Payload.cacheable_tasksPayloadPayload._typePayload,
                                 write_duration: Swift.Double? = nil
                             ) {
+                                self.description = description
                                 self.key = key
                                 self.read_duration = read_duration
                                 self.status = status
@@ -21658,6 +21681,7 @@ public enum Operations {
                                 self.write_duration = write_duration
                             }
                             public enum CodingKeys: String, CodingKey {
+                                case description
                                 case key
                                 case read_duration
                                 case status
