@@ -174,27 +174,52 @@
       />
       <.percentile_dropdown_widget
         id="widget-build-duration"
-        title={get_build_duration_title(@selected_build_duration_type)}
-        legend_color={build_duration_legend_color(@selected_build_duration_type)}
+        title={
+          case @selected_build_duration_type do
+            "p99" -> gettext("p99 build duration")
+            "p90" -> gettext("p90 build duration")
+            "p50" -> gettext("p50 build duration")
+            _ -> gettext("Avg. build duration")
+          end
+        }
+        legend_color={
+          case @selected_build_duration_type do
+            "p99" -> "p99"
+            "p90" -> "p90"
+            "p50" -> "p50"
+            _ -> "secondary"
+          end
+        }
         description={gettext("The average build duration with individual percentile intervals.")}
         value={
           Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
-            get_build_duration_value(
-              @builds_duration_analytics,
-              @builds_p99_durations,
-              @builds_p90_durations,
-              @builds_p50_durations,
-              @selected_build_duration_type
-            )
+            case @selected_build_duration_type do
+              "p99" -> @builds_p99_durations.total_percentile_duration
+              "p90" -> @builds_p90_durations.total_percentile_duration
+              "p50" -> @builds_p50_durations.total_percentile_duration
+              _ -> @builds_duration_analytics.total_average_duration
+            end
           )
         }
         metrics={
-          format_build_duration_metrics(
-            @builds_duration_analytics,
-            @builds_p99_durations,
-            @builds_p90_durations,
-            @builds_p50_durations
-          )
+          %{
+            avg:
+              Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                @builds_duration_analytics.total_average_duration
+              ),
+            p99:
+              Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                @builds_p99_durations.total_percentile_duration
+              ),
+            p90:
+              Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                @builds_p90_durations.total_percentile_duration
+              ),
+            p50:
+              Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                @builds_p50_durations.total_percentile_duration
+              )
+          }
         }
         selected_type={@selected_build_duration_type}
         event_name="select_build_duration_type"
@@ -202,13 +227,12 @@
         phx_value_widget="build-duration"
         selected={@analytics_selected_widget == "build-duration"}
         trend_value={
-          get_build_duration_trend(
-            @builds_duration_analytics,
-            @builds_p99_durations,
-            @builds_p90_durations,
-            @builds_p50_durations,
-            @selected_build_duration_type
-          )
+          case @selected_build_duration_type do
+            "p99" -> @builds_p99_durations.trend
+            "p90" -> @builds_p90_durations.trend
+            "p50" -> @builds_p50_durations.trend
+            _ -> @builds_duration_analytics.trend
+          end
         }
         trend_inverse={true}
         trend_label={@analytics_trend_label}

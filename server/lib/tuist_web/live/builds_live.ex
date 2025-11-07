@@ -9,7 +9,6 @@ defmodule TuistWeb.BuildsLive do
 
   alias Tuist.Runs
   alias Tuist.Runs.Analytics
-  alias Tuist.Utilities.DateFormatter
   alias TuistWeb.Utilities.Query
 
   def mount(params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
@@ -319,71 +318,5 @@ defmodule TuistWeb.BuildsLive do
       end
 
     labels
-  end
-
-  def get_build_duration_value(
-        builds_duration_analytics,
-        builds_p99_durations,
-        builds_p90_durations,
-        builds_p50_durations,
-        type
-      ) do
-    case type do
-      "avg" -> builds_duration_analytics.total_average_duration
-      "p99" -> builds_p99_durations.total_percentile_duration
-      "p90" -> builds_p90_durations.total_percentile_duration
-      "p50" -> builds_p50_durations.total_percentile_duration
-      _ -> builds_duration_analytics.total_average_duration
-    end
-  end
-
-  def format_build_duration_metrics(
-        builds_duration_analytics,
-        builds_p99_durations,
-        builds_p90_durations,
-        builds_p50_durations
-      ) do
-    %{
-      avg: DateFormatter.format_duration_from_milliseconds(builds_duration_analytics.total_average_duration),
-      p99: DateFormatter.format_duration_from_milliseconds(builds_p99_durations.total_percentile_duration),
-      p90: DateFormatter.format_duration_from_milliseconds(builds_p90_durations.total_percentile_duration),
-      p50: DateFormatter.format_duration_from_milliseconds(builds_p50_durations.total_percentile_duration)
-    }
-  end
-
-  def get_build_duration_title(type) do
-    case type do
-      "avg" -> gettext("Avg. build duration")
-      "p99" -> gettext("p99 build duration")
-      "p90" -> gettext("p90 build duration")
-      "p50" -> gettext("p50 build duration")
-      _ -> gettext("Avg. build duration")
-    end
-  end
-
-  def build_duration_legend_color(type) do
-    case type do
-      "avg" -> "secondary"
-      "p99" -> "p99"
-      "p90" -> "p90"
-      "p50" -> "p50"
-      _ -> "secondary"
-    end
-  end
-
-  def get_build_duration_trend(
-        builds_duration_analytics,
-        builds_p99_durations,
-        builds_p90_durations,
-        builds_p50_durations,
-        type
-      ) do
-    case type do
-      "avg" -> builds_duration_analytics.trend
-      "p99" -> builds_p99_durations.trend
-      "p90" -> builds_p90_durations.trend
-      "p50" -> builds_p50_durations.trend
-      _ -> builds_duration_analytics.trend
-    end
   end
 end
