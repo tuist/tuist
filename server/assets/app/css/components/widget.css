@@ -1,6 +1,6 @@
 .tuist-widget-link {
-  text-decoration: unset;
   cursor: pointer;
+  text-decoration: unset;
 
   &:not(:has(.noora-dropdown:hover)) .tuist-widget:hover {
     background-color: var(--noora-surface-background-secondary);

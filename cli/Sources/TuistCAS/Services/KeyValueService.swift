@@ -164,7 +164,7 @@ public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.Si
             for: casID,
             operationType: .read
         )
-        
+
         return response
     }
 

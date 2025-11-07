@@ -26,7 +26,11 @@ public struct KeyValueMetadataStore: KeyValueMetadataStoring {
         self.fileSystem = fileSystem
     }
 
-    public func storeMetadata(_ metadata: KeyValueMetadata, for cacheKey: String, operationType: KeyValueOperationType) async throws {
+    public func storeMetadata(
+        _ metadata: KeyValueMetadata,
+        for cacheKey: String,
+        operationType: KeyValueOperationType
+    ) async throws {
         let keyValueDirectory = Environment.current.stateDirectory
             .appending(component: "keyvalue")
             .appending(component: operationType.rawValue)
