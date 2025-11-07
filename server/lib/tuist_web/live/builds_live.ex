@@ -4,11 +4,12 @@ defmodule TuistWeb.BuildsLive do
   use Noora
 
   import TuistWeb.Components.EmptyCardSection
-  import TuistWeb.Runs.RanByBadge
   import TuistWeb.PercentileDropdownWidget
+  import TuistWeb.Runs.RanByBadge
 
   alias Tuist.Runs
   alias Tuist.Runs.Analytics
+  alias Tuist.Utilities.DateFormatter
   alias TuistWeb.Utilities.Query
 
   def mount(params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
@@ -232,6 +233,21 @@ defmodule TuistWeb.BuildsLive do
     {:noreply, socket}
   end
 
+  def handle_event(
+        "select_widget",
+        %{"widget" => widget},
+        %{assigns: %{selected_account: selected_account, selected_project: selected_project, uri: uri}} = socket
+      ) do
+    socket =
+      push_patch(
+        socket,
+        to:
+          "/#{selected_account.name}/#{selected_project.name}/builds?#{Query.put(uri.query, "analytics-selected-widget", widget)}"
+      )
+
+    {:noreply, socket}
+  end
+
   defp assign_recent_builds(%{assigns: %{selected_project: project}} = socket) do
     {recent_builds, _meta} =
       Runs.list_build_runs(
@@ -332,22 +348,10 @@ defmodule TuistWeb.BuildsLive do
         builds_p50_durations
       ) do
     %{
-      avg:
-        Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
-          builds_duration_analytics.total_average_duration
-        ),
-      p99:
-        Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
-          trunc(calculate_average_duration(builds_p99_durations))
-        ),
-      p90:
-        Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
-          trunc(calculate_average_duration(builds_p90_durations))
-        ),
-      p50:
-        Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
-          trunc(calculate_average_duration(builds_p50_durations))
-        )
+      avg: DateFormatter.format_duration_from_milliseconds(builds_duration_analytics.total_average_duration),
+      p99: DateFormatter.format_duration_from_milliseconds(trunc(calculate_average_duration(builds_p99_durations))),
+      p90: DateFormatter.format_duration_from_milliseconds(trunc(calculate_average_duration(builds_p90_durations))),
+      p50: DateFormatter.format_duration_from_milliseconds(trunc(calculate_average_duration(builds_p50_durations)))
     }
   end
 

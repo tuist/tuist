@@ -4,8 +4,8 @@ defmodule TuistWeb.BuildRunLive do
   use Noora
 
   import Phoenix.Component
-  import TuistWeb.Runs.RanByBadge
   import TuistWeb.PercentileDropdownWidget
+  import TuistWeb.Runs.RanByBadge
 
   alias Noora.Filter
   alias Tuist.CommandEvents
@@ -1082,5 +1082,4 @@ defmodule TuistWeb.BuildRunLive do
       "p50" -> gettext("p50 latency %{operation}", operation: operation_text)
     end
   end
-
 end

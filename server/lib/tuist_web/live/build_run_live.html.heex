@@ -802,7 +802,11 @@
             <.percentile_dropdown_widget
               id="widget-avg-read-latency"
               title={get_latency_title(@selected_read_latency_type, :read)}
-              description={gettext("Time to read cache keys, which uniquely identify cacheable tasks, from cache.")}
+              description={
+                gettext(
+                  "Time to read cache keys, which uniquely identify cacheable tasks, from cache."
+                )
+              }
               value={
                 latency_value =
                   get_latency_value(
@@ -826,7 +830,11 @@
             <.percentile_dropdown_widget
               id="widget-avg-write-latency"
               title={get_latency_title(@selected_write_latency_type, :write)}
-              description={gettext("Time to write cache keys, which uniquely identify cacheable tasks, to cache.")}
+              description={
+                gettext(
+                  "Time to write cache keys, which uniquely identify cacheable tasks, to cache."
+                )
+              }
               value={
                 latency_value =
                   get_latency_value(

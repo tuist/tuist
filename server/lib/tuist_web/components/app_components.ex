@@ -68,6 +68,10 @@ defmodule TuistWeb.AppComponents do
 
   attr(:empty, :boolean, default: false, doc: "Whether the widget is empty")
 
+  attr(:phx_click, :string, default: nil, doc: "Phoenix event to trigger on widget click")
+
+  attr(:phx_value_widget, :string, default: nil, doc: "Widget ID value to pass with phx-click event")
+
   slot(:select, doc: "Optional select dropdown to display next to the title")
 
   def widget(assigns) do
@@ -94,7 +98,19 @@ defmodule TuistWeb.AppComponents do
       >
         <.static_widget {assigns} />
       </.link>
-      <.static_widget :if={!@patch} {assigns} />
+      <div
+        :if={@phx_click && !@patch}
+        role="button"
+        tabindex="0"
+        phx-click={@phx_click}
+        phx-value-widget={@phx_value_widget}
+        phx-key="Enter"
+        data-selected={@selected}
+        class="tuist-widget-link"
+      >
+        <.static_widget {assigns} />
+      </div>
+      <.static_widget :if={!@patch && !@phx_click} {assigns} />
     <% end %>
     """
   end
@@ -110,8 +126,8 @@ defmodule TuistWeb.AppComponents do
         >
         </div>
         <div data-part="title">
-        <span data-part="label">{@title}</span>
-        {render_slot(@select)}
+          <span data-part="label">{@title}</span>
+          {render_slot(@select)}
         </div>
         <.tooltip
           :if={@description}

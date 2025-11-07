@@ -5,10 +5,10 @@
   gap: var(--noora-spacing-2);
 
   & > [data-part="dot"] {
+    flex-shrink: 0;
+    border-radius: 50%;
     width: 8px;
     height: 8px;
-    border-radius: 50%;
-    flex-shrink: 0;
 
     &[data-color="blue"] {
       background-color: var(--noora-chart-legend-secondary);

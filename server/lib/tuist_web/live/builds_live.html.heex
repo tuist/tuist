@@ -134,8 +134,8 @@
         description={gettext("The total number of builds.")}
         value={@total_builds_analytics.count}
         id="widget-total-builds"
-        patch={"?#{Query.put(@uri.query, "analytics-selected-widget", "total-builds")}"}
-        replace={true}
+        phx_click="select_widget"
+        phx_value_widget="total-builds"
         selected={@analytics_selected_widget == "total-builds"}
         trend_value={@total_builds_analytics.trend}
         trend_label={@analytics_trend_label}
@@ -151,8 +151,8 @@
           )
         }
         id="widget-build-success-rate"
-        patch={"?#{Query.put(@uri.query, "analytics-selected-widget", "build-success-rate")}"}
-        replace={true}
+        phx_click="select_widget"
+        phx_value_widget="build-success-rate"
         selected={@analytics_selected_widget == "build-success-rate"}
         trend_value={@build_success_rate_analytics.trend}
         trend_label={@analytics_trend_label}
@@ -164,8 +164,8 @@
         description={gettext("The number of builds that failed.")}
         value={@failed_builds_analytics.count}
         id="widget-failed-builds"
-        patch={"?#{Query.put(@uri.query, "analytics-selected-widget", "failed-builds")}"}
-        replace={true}
+        phx_click="select_widget"
+        phx_value_widget="failed-builds"
         selected={@analytics_selected_widget == "failed-builds"}
         trend_value={@failed_builds_analytics.trend}
         trend_inverse={true}
@@ -198,8 +198,8 @@
         }
         selected_type={@selected_build_duration_type}
         event_name="select_build_duration_type"
-        patch={"?#{Query.put(@uri.query, "analytics-selected-widget", "build-duration")}"}
-        replace={true}
+        phx_click="select_widget"
+        phx_value_widget="build-duration"
         selected={@analytics_selected_widget == "build-duration"}
         trend_value={@builds_duration_analytics.trend}
         trend_inverse={true}

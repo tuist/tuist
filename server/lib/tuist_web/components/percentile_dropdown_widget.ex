@@ -20,6 +20,8 @@ defmodule TuistWeb.PercentileDropdownWidget do
   attr(:trend_value, :any, default: nil)
   attr(:trend_inverse, :boolean, default: false)
   attr(:trend_label, :string, default: nil)
+  attr(:phx_click, :string, default: nil, doc: "Phoenix event to trigger on widget click")
+  attr(:phx_value_widget, :string, default: nil, doc: "Widget ID value to pass with phx-click event")
 
   def percentile_dropdown_widget(assigns) do
     ~H"""
@@ -36,6 +38,8 @@ defmodule TuistWeb.PercentileDropdownWidget do
       trend_value={@trend_value}
       trend_inverse={@trend_inverse}
       trend_label={@trend_label}
+      phx_click={@phx_click}
+      phx_value_widget={@phx_value_widget}
     >
       <:select>
         <.dropdown
