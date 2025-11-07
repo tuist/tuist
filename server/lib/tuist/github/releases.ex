@@ -57,7 +57,8 @@ defmodule Tuist.GitHub.Releases do
   end
 
   defp req_releases do
-    req_opts = [finch: Tuist.Finch] ++ Retry.retry_options()
+    headers = github_auth_headers()
+    req_opts = [finch: Tuist.Finch, headers: headers] ++ Retry.retry_options()
 
     case Req.get(releases_url(), req_opts) do
       {:ok, %Req.Response{status: 200, body: releases}} ->
@@ -68,6 +69,19 @@ defmodule Tuist.GitHub.Releases do
 
       {:error, _reason} ->
         []
+    end
+  end
+
+  defp github_auth_headers do
+    case Tuist.Environment.github_token_update_package_releases() do
+      nil ->
+        []
+
+      token ->
+        [
+          {"Accept", "application/vnd.github.v3+json"},
+          {"Authorization", "Bearer #{token}"}
+        ]
     end
   end
 
@@ -86,7 +100,8 @@ defmodule Tuist.GitHub.Releases do
 
   defp fetch_latest_app_release(opts \\ []) do
     url = Keyword.get(opts, :url, releases_url())
-    req_opts = [finch: Tuist.Finch] ++ Retry.retry_options()
+    headers = github_auth_headers()
+    req_opts = [finch: Tuist.Finch, headers: headers] ++ Retry.retry_options()
 
     case Req.get(url, req_opts) do
       {:ok, %Req.Response{status: 200, body: releases, headers: headers}} ->
