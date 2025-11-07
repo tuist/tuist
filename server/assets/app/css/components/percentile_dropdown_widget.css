@@ -1,0 +1,52 @@
+.tuist-widget [data-part="percentile-item"] {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--noora-spacing-2);
+
+  & > [data-part="dot"] {
+    flex-shrink: 0;
+    border-radius: 50%;
+    width: 8px;
+    height: 8px;
+
+    &[data-type="avg"] {
+      background-color: var(--noora-chart-legend-secondary);
+    }
+
+    &[data-type="p99"] {
+      background-color: var(--noora-chart-p99);
+    }
+
+    &[data-type="p90"] {
+      background-color: var(--noora-chart-p90);
+    }
+
+    &[data-type="p50"] {
+      background-color: var(--noora-chart-p50);
+    }
+  }
+
+  & > [data-part="label"] {
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+  }
+
+  & > [data-part="separator"] {
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+  }
+
+  & > [data-part="value"] {
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+  }
+}
+
+.tuist-widget .noora-dropdown-item:not([data-selected]) svg {
+  visibility: hidden;
+}
+
+.tuist-widget .noora-dropdown-item[data-selected] {
+  background: var(--noora-surface-background-secondary);
+}

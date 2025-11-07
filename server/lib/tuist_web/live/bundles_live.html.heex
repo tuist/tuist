@@ -130,7 +130,8 @@
           }
           value={@bundle_size_last_bundle && format_bytes(@bundle_size_last_bundle.install_size)}
           id="widget-install-size"
-          patch={"?#{Query.put(@uri.query, "bundle-size-selected-widget", "install-size")}"}
+          phx_click="select_widget"
+          phx_value_widget="install-size"
           selected={@bundle_size_selected_widget == "install-size"}
           trend_value={
             (@bundle_size_last_bundle && @bundle_size_previous_bundle &&
@@ -156,7 +157,8 @@
                format_bytes(@bundle_size_last_bundle.download_size)) || gettext("0 MB")
           }
           id="widget-download-size"
-          patch={"?#{Query.put(@uri.query, "bundle-size-selected-widget", "download-size")}"}
+          phx_click="select_widget"
+          phx_value_widget="download-size"
           selected={@bundle_size_selected_widget == "download-size"}
           trend_value={
             bundle_size_trend_value(@bundle_size_last_bundle, @bundle_size_previous_bundle)

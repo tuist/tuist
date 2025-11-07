@@ -16,6 +16,8 @@ defmodule Tuist.Runs.CacheableTask do
     field :key, Ch, type: "String"
     field :build_run_id, Ch, type: "UUID"
     field :inserted_at, Ch, type: "DateTime"
+    field :read_duration, Ch, type: "Nullable(Float64)"
+    field :write_duration, Ch, type: "Nullable(Float64)"
   end
 
   def changeset(build_run_id, attrs) do
@@ -26,9 +28,11 @@ defmodule Tuist.Runs.CacheableTask do
         type: attrs[:type] && to_string(attrs[:type]),
         status: attrs[:status] && to_string(attrs[:status]),
         key: attrs[:key],
+        read_duration: attrs[:read_duration],
+        write_duration: attrs[:write_duration],
         inserted_at: :second |> DateTime.utc_now() |> DateTime.to_naive()
       },
-      [:build_run_id, :type, :status, :key, :inserted_at]
+      [:build_run_id, :type, :status, :key, :read_duration, :write_duration, :inserted_at]
     )
     |> Ecto.Changeset.validate_required([:build_run_id, :type, :status, :key])
   end

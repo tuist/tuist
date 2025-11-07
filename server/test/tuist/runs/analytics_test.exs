@@ -300,6 +300,74 @@ defmodule Tuist.Runs.AnalyticsTest do
 
       # Then
       assert got.values == [0, 1500.0, 3000.0]
+      # P50 of [1500, 2000, 2000, 4000, 1_000_000] = 2000
+      assert got.total_percentile_duration == 2000.0
+    end
+
+    test "returns trend comparing current period percentile to previous period" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      # Previous period (2024-04-25 to 2024-04-27): builds with p50 of 1000
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 500,
+        inserted_at: ~U[2024-04-25 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 1000,
+        inserted_at: ~U[2024-04-26 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 1500,
+        inserted_at: ~U[2024-04-27 03:00:00Z]
+      )
+
+      # Current period (2024-04-28 to 2024-04-30): builds with p50 of 2000
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 1000,
+        inserted_at: ~U[2024-04-28 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 2000,
+        inserted_at: ~U[2024-04-29 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 3000,
+        inserted_at: ~U[2024-04-30 03:00:00Z]
+      )
+
+      # When
+      got =
+        Analytics.build_percentile_durations(
+          project.id,
+          0.5,
+          start_date: ~D[2024-04-28],
+          end_date: ~D[2024-04-30]
+        )
+
+      # Then
+      # Trend from 1000 to 2000 = +100%
+      assert got.trend == 100.0
+      assert got.values == [1000.0, 2000.0, 3000.0]
+      # P50 of [1000, 2000, 3000] = 2000
+      assert got.total_percentile_duration == 2000.0
     end
   end
 

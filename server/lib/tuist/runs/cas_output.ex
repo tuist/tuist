@@ -29,7 +29,7 @@ defmodule Tuist.Runs.CASOutput do
         node_id: attrs[:node_id],
         checksum: attrs[:checksum],
         size: attrs[:size],
-        duration: attrs[:duration] && trunc(attrs[:duration] * 1000),
+        duration: attrs[:duration] && trunc(attrs[:duration]),
         compressed_size: attrs[:compressed_size],
         operation: attrs[:operation] && to_string(attrs[:operation]),
         inserted_at: :second |> DateTime.utc_now() |> DateTime.to_naive()

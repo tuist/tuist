@@ -4,6 +4,7 @@ defmodule TuistWeb.BuildRunLive do
   use Noora
 
   import Phoenix.Component
+  import TuistWeb.PercentileDropdownWidget
   import TuistWeb.Runs.RanByBadge
 
   alias Noora.Filter
@@ -41,12 +42,14 @@ defmodule TuistWeb.BuildRunLive do
     end
 
     cas_metrics = Runs.cas_output_metrics(run.id)
+    cacheable_task_latency_metrics = Runs.cacheable_task_latency_metrics(run.id)
 
     socket =
       socket
       |> assign(:run, run)
       |> assign(:command_event, command_event)
       |> assign(:cas_metrics, cas_metrics)
+      |> assign(:cacheable_task_latency_metrics, cacheable_task_latency_metrics)
       |> assign(:head_title, "#{gettext("Build Run")} · #{slug} · Tuist")
       |> assign(
         :warnings_grouped_by_path,
@@ -62,6 +65,8 @@ defmodule TuistWeb.BuildRunLive do
       |> assign(:module_breakdown_active_filters, [])
       |> assign(:cacheable_tasks_available_filters, define_cacheable_tasks_filters())
       |> assign(:cacheable_tasks_active_filters, [])
+      |> assign(:selected_read_latency_type, "avg")
+      |> assign(:selected_write_latency_type, "avg")
       |> assign_async(:has_result_bundle, fn ->
         {:ok, %{has_result_bundle: (command_event && CommandEvents.has_result_bundle?(command_event)) || false}}
       end)
@@ -104,12 +109,17 @@ defmodule TuistWeb.BuildRunLive do
         _ -> []
       end
 
+    selected_read_latency_type = params["read-latency-type"] || "avg"
+    selected_write_latency_type = params["write-latency-type"] || "avg"
+
     socket =
       socket
       |> assign(:selected_tab, selected_tab)
       |> assign(:uri, uri)
       |> assign(:available_filters, available_filters)
       |> assign(:active_filters, active_filters)
+      |> assign(:selected_read_latency_type, selected_read_latency_type)
+      |> assign(:selected_write_latency_type, selected_write_latency_type)
       |> assign_file_breakdown(params)
       |> assign_module_breakdown(params)
       |> assign_cacheable_tasks(params)
@@ -191,6 +201,38 @@ defmodule TuistWeb.BuildRunLive do
      # There's a DOM reconciliation bug where the dropdown closes and then reappears somewhere else on the page. To remedy, just nuke it entirely.
      |> push_event("close-dropdown", %{id: "all", all: true})
      |> push_event("close-popover", %{id: "all", all: true})}
+  end
+
+  def handle_event(
+        "select_read_latency_type",
+        %{"type" => type},
+        %{assigns: %{selected_account: selected_account, selected_project: selected_project, run: run, uri: uri}} = socket
+      ) do
+    socket =
+      push_patch(
+        socket,
+        to:
+          "/#{selected_account.name}/#{selected_project.name}/builds/build-runs/#{run.id}?#{Query.put(uri.query, "read-latency-type", type)}",
+        replace: true
+      )
+
+    {:noreply, socket}
+  end
+
+  def handle_event(
+        "select_write_latency_type",
+        %{"type" => type},
+        %{assigns: %{selected_account: selected_account, selected_project: selected_project, run: run, uri: uri}} = socket
+      ) do
+    socket =
+      push_patch(
+        socket,
+        to:
+          "/#{selected_account.name}/#{selected_project.name}/builds/build-runs/#{run.id}?#{Query.put(uri.query, "write-latency-type", type)}",
+        replace: true
+      )
+
+    {:noreply, socket}
   end
 
   defp file_breakdown_filters(run, params, available_filters, search) do

@@ -214,6 +214,8 @@ cacheable_tasks =
               type: Enum.random(["clang", "swift"]),
               status: "hit_remote",
               key: generate_cache_key.(build_id, "remote", i),
+              read_duration: Enum.random(100..2000) * 1.0,
+              write_duration: nil,
               inserted_at: DateTime.to_naive(build.inserted_at)
             }
           end)
@@ -230,6 +232,8 @@ cacheable_tasks =
               type: Enum.random(["clang", "swift"]),
               status: "hit_local",
               key: generate_cache_key.(build_id, "local", i),
+              read_duration: Enum.random(10..100) * 1.0,
+              write_duration: nil,
               inserted_at: DateTime.to_naive(build.inserted_at)
             }
           end)
@@ -246,6 +250,8 @@ cacheable_tasks =
               type: Enum.random(["clang", "swift"]),
               status: "miss",
               key: generate_cache_key.(build_id, "miss", i),
+              read_duration: Enum.random(50..500) * 1.0,
+              write_duration: Enum.random(100..2000) * 1.0,
               inserted_at: DateTime.to_naive(build.inserted_at)
             }
           end)
@@ -610,19 +616,6 @@ qa_prompts = [
 ]
 
 qa_statuses = ["pending", "running", "completed", "failed"]
-
-qa_summaries = [
-  "All tests passed successfully. The app flows work as expected.",
-  "Found minor UI issues in the onboarding flow. Overall functionality is good.",
-  "Critical bug discovered in the payment process. Needs immediate attention.",
-  "App performance is excellent. All accessibility features work correctly.",
-  "Login functionality has some edge case issues that need addressing.",
-  "Great user experience overall. Minor improvements suggested for navigation.",
-  "App crashes when handling large datasets. Memory optimization needed.",
-  "Perfect implementation of dark mode. All UI elements adapt correctly.",
-  "Push notifications work but delivery timing could be improved.",
-  "Offline mode works well but sync process could be faster."
-]
 
 selected_app_builds = Enum.take_random(app_builds, 25)
 

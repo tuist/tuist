@@ -748,6 +748,11 @@ components:
                     type: string
                     x-struct:
                     x-validate:
+                  read_duration:
+                    description: The duration in milliseconds for reading from cache.
+                    type: number
+                    x-struct:
+                    x-validate:
                   status:
                     description: The cache status of the task.
                     enum:
@@ -763,6 +768,11 @@ components:
                       - clang
                       - swift
                     type: string
+                    x-struct:
+                    x-validate:
+                  write_duration:
+                    description: The duration in milliseconds for writing to cache.
+                    type: number
                     x-struct:
                     x-validate:
                 required:
@@ -790,7 +800,7 @@ components:
                     x-struct:
                     x-validate:
                   duration:
-                    description: The duration of the CAS operation in seconds.
+                    description: The duration of the CAS operation in milliseconds.
                     type: number
                     x-struct:
                     x-validate:
@@ -1779,6 +1789,11 @@ components:
                 type: string
                 x-struct:
                 x-validate:
+              read_duration:
+                description: The duration in milliseconds for reading from cache.
+                type: number
+                x-struct:
+                x-validate:
               status:
                 description: The cache status of the task.
                 enum:
@@ -1794,6 +1809,11 @@ components:
                   - clang
                   - swift
                 type: string
+                x-struct:
+                x-validate:
+              write_duration:
+                description: The duration in milliseconds for writing to cache.
+                type: number
                 x-struct:
                 x-validate:
             required:
@@ -1821,7 +1841,7 @@ components:
                 x-struct:
                 x-validate:
               duration:
-                description: The duration of the CAS operation in seconds.
+                description: The duration of the CAS operation in milliseconds.
                 type: number
                 x-struct:
                 x-validate:
@@ -3087,22 +3107,6 @@ paths:
             type: integer
             x-struct:
             x-validate:
-        - description: The handle of the account.
-          in: path
-          name: account_handle
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-        - description: The handle of the project.
-          in: path
-          name: project_handle
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
         - description: Number of items per page.
           in: query
           name: page_size
@@ -3115,6 +3119,22 @@ paths:
           in: query
           name: git_branch
           required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
           schema:
             type: string
             x-struct:
@@ -6075,6 +6095,11 @@ paths:
                             type: string
                             x-struct:
                             x-validate:
+                          read_duration:
+                            description: The duration in milliseconds for reading from cache.
+                            type: number
+                            x-struct:
+                            x-validate:
                           status:
                             description: The cache status of the task.
                             enum:
@@ -6090,6 +6115,11 @@ paths:
                               - clang
                               - swift
                             type: string
+                            x-struct:
+                            x-validate:
+                          write_duration:
+                            description: The duration in milliseconds for writing to cache.
+                            type: number
                             x-struct:
                             x-validate:
                         required:
@@ -6117,7 +6147,7 @@ paths:
                             x-struct:
                             x-validate:
                           duration:
-                            description: The duration of the CAS operation in seconds.
+                            description: The duration of the CAS operation in milliseconds.
                             type: number
                             x-struct:
                             x-validate:

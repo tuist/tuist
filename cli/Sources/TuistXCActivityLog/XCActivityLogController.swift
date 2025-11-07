@@ -43,19 +43,22 @@ public struct XCActivityLogController: XCActivityLogControlling {
     private let gitController: GitControlling
     private let casNodeStore: CASNodeStoring
     private let casOutputMetadataStore: CASOutputMetadataStoring
+    private let keyValueMetadataStore: KeyValueMetadataStoring
 
     public init(
         fileSystem: FileSystem = FileSystem(),
         rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator(),
         gitController: GitControlling = GitController(),
         casNodeStore: CASNodeStoring = CASNodeStore(),
-        casOutputMetadataStore: CASOutputMetadataStoring = CASOutputMetadataStore()
+        casOutputMetadataStore: CASOutputMetadataStoring = CASOutputMetadataStore(),
+        keyValueMetadataStore: KeyValueMetadataStoring = KeyValueMetadataStore()
     ) {
         self.fileSystem = fileSystem
         self.rootDirectoryLocator = rootDirectoryLocator
         self.gitController = gitController
         self.casNodeStore = casNodeStore
         self.casOutputMetadataStore = casOutputMetadataStore
+        self.keyValueMetadataStore = keyValueMetadataStore
     }
 
     public func buildTimesByTarget(projectDerivedDataDirectory: AbsolutePath) async throws
@@ -622,7 +625,7 @@ public struct XCActivityLogController: XCActivityLogControlling {
             case .materialize:
                 status.hasMaterialize = true
             case .upload:
-                break // No longer tracking uploads
+                status.hasUpload = true
             }
 
             if step.isMiss {
@@ -644,10 +647,24 @@ public struct XCActivityLogController: XCActivityLogControlling {
                 for: status
             )
 
+            let readDuration: TimeInterval? = if cacheStatus == .remoteHit || cacheStatus == .miss {
+                try await keyValueMetadataStore.metadata(for: key, operationType: .read)?.duration
+            } else {
+                nil
+            }
+
+            let writeDuration: TimeInterval? = if status.hasUpload {
+                try await keyValueMetadataStore.metadata(for: key, operationType: .write)?.duration
+            } else {
+                nil
+            }
+
             return CacheableTask(
                 key: key,
                 status: cacheStatus,
-                type: status.taskType
+                type: status.taskType,
+                readDuration: readDuration,
+                writeDuration: writeDuration
             )
         }
     }
@@ -690,6 +707,7 @@ private struct CacheKeyStatus {
     var hasQuery: Bool = false
     var hasMaterialize: Bool = false
     var isMiss: Bool = false
+    var hasUpload: Bool = false
 
     init(taskType: CacheableTask.TaskType) {
         self.taskType = taskType

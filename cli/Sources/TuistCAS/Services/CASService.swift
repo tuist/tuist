@@ -100,7 +100,7 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
             storeMetadata(
                 size: decompressedData.count,
                 compressedSize: compressedData.count,
-                duration: duration,
+                duration: duration * 1000,
                 for: casID
             )
             Logger.current
@@ -194,7 +194,7 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
             storeMetadata(
                 size: data.count,
                 compressedSize: compressedData.count,
-                duration: duration,
+                duration: duration * 1000,
                 for: fingerprint
             )
             Logger.current

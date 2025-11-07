@@ -149,6 +149,8 @@ defmodule Tuist.Runs do
           status: struct.status,
           key: struct.key,
           build_run_id: struct.build_run_id,
+          read_duration: struct.read_duration,
+          write_duration: struct.write_duration,
           inserted_at: struct.inserted_at
         }
       end)
@@ -227,6 +229,50 @@ defmodule Tuist.Runs do
       upload_bytes: upload_bytes || 0,
       time_weighted_avg_download_throughput: time_weighted_avg_download_throughput || 0,
       time_weighted_avg_upload_throughput: time_weighted_avg_upload_throughput || 0
+    }
+  end
+
+  def cacheable_task_latency_metrics(build_run_id) do
+    query = """
+    SELECT
+      avg(read_duration) as avg_read_duration,
+      avg(write_duration) as avg_write_duration,
+      quantile(0.99)(read_duration) as p99_read_duration,
+      quantile(0.99)(write_duration) as p99_write_duration,
+      quantile(0.90)(read_duration) as p90_read_duration,
+      quantile(0.90)(write_duration) as p90_write_duration,
+      quantile(0.50)(read_duration) as p50_read_duration,
+      quantile(0.50)(write_duration) as p50_write_duration
+    FROM cacheable_tasks
+    WHERE build_run_id = {build_run_id:UUID}
+    AND (read_duration IS NOT NULL OR write_duration IS NOT NULL)
+    """
+
+    {:ok,
+     %{
+       rows: [
+         [
+           avg_read_duration,
+           avg_write_duration,
+           p99_read_duration,
+           p99_write_duration,
+           p90_read_duration,
+           p90_write_duration,
+           p50_read_duration,
+           p50_write_duration
+         ]
+       ]
+     }} = IngestRepo.query(query, %{build_run_id: build_run_id})
+
+    %{
+      avg_read_duration: avg_read_duration || 0,
+      avg_write_duration: avg_write_duration || 0,
+      p99_read_duration: p99_read_duration || 0,
+      p99_write_duration: p99_write_duration || 0,
+      p90_read_duration: p90_read_duration || 0,
+      p90_write_duration: p90_write_duration || 0,
+      p50_read_duration: p50_read_duration || 0,
+      p50_write_duration: p50_write_duration || 0
     }
   end
 

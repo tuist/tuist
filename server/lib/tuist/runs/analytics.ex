@@ -226,8 +226,21 @@ defmodule Tuist.Runs.Analytics do
     start_date = Keyword.get(opts, :start_date, Date.add(DateTime.utc_now(), -30))
     end_date = Keyword.get(opts, :end_date, DateTime.to_date(DateTime.utc_now()))
 
+    days_delta = Date.diff(end_date, start_date)
     date_period = date_period(start_date: start_date, end_date: end_date)
     time_bucket = time_bucket_for_date_period(date_period)
+
+    current_period_percentile =
+      build_period_percentile(project_id, percentile, start_date, end_date, opts)
+
+    previous_period_percentile =
+      build_period_percentile(
+        project_id,
+        percentile,
+        Date.add(start_date, -days_delta),
+        start_date,
+        opts
+      )
 
     durations_data =
       from(b in Build,
@@ -247,9 +260,30 @@ defmodule Tuist.Runs.Analytics do
     durations = process_durations_data(durations_data, start_date, end_date, date_period)
 
     %{
+      trend:
+        trend(
+          previous_value: previous_period_percentile,
+          current_value: current_period_percentile
+        ),
+      total_percentile_duration: current_period_percentile,
       dates: Enum.map(durations, & &1.date),
       values: Enum.map(durations, & &1.value)
     }
+  end
+
+  defp build_period_percentile(project_id, percentile, start_date, end_date, opts) do
+    result =
+      from(b in Build,
+        where:
+          b.inserted_at > ^DateTime.new!(start_date, ~T[00:00:00]) and
+            b.inserted_at < ^DateTime.new!(end_date, ~T[23:59:59]) and
+            b.project_id == ^project_id,
+        select: fragment("percentile_cont(?) within group (order by ?)", ^percentile, b.duration)
+      )
+      |> add_filters(opts)
+      |> Repo.one()
+
+    normalize_result(result)
   end
 
   def runs_duration_analytics(name, opts) do

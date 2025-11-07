@@ -454,6 +454,14 @@ defmodule TuistWeb.API.RunsController do
                      key: %Schema{
                        type: :string,
                        description: "The cache key of the task."
+                     },
+                     read_duration: %Schema{
+                       type: :number,
+                       description: "The duration in milliseconds for reading from cache."
+                     },
+                     write_duration: %Schema{
+                       type: :number,
+                       description: "The duration in milliseconds for writing to cache."
                      }
                    },
                    required: [:type, :status, :key]
@@ -479,7 +487,7 @@ defmodule TuistWeb.API.RunsController do
                      },
                      duration: %Schema{
                        type: :number,
-                       description: "The duration of the CAS operation in seconds."
+                       description: "The duration of the CAS operation in milliseconds."
                      },
                      compressed_size: %Schema{
                        type: :integer,

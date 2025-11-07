@@ -134,8 +134,8 @@
         description={gettext("The total number of builds.")}
         value={@total_builds_analytics.count}
         id="widget-total-builds"
-        patch={"?#{Query.put(@uri.query, "analytics-selected-widget", "total-builds")}"}
-        replace={true}
+        phx_click="select_widget"
+        phx_value_widget="total-builds"
         selected={@analytics_selected_widget == "total-builds"}
         trend_value={@total_builds_analytics.trend}
         trend_label={@analytics_trend_label}
@@ -151,8 +151,8 @@
           )
         }
         id="widget-build-success-rate"
-        patch={"?#{Query.put(@uri.query, "analytics-selected-widget", "build-success-rate")}"}
-        replace={true}
+        phx_click="select_widget"
+        phx_value_widget="build-success-rate"
         selected={@analytics_selected_widget == "build-success-rate"}
         trend_value={@build_success_rate_analytics.trend}
         trend_label={@analytics_trend_label}
@@ -164,28 +164,76 @@
         description={gettext("The number of builds that failed.")}
         value={@failed_builds_analytics.count}
         id="widget-failed-builds"
-        patch={"?#{Query.put(@uri.query, "analytics-selected-widget", "failed-builds")}"}
-        replace={true}
+        phx_click="select_widget"
+        phx_value_widget="failed-builds"
         selected={@analytics_selected_widget == "failed-builds"}
         trend_value={@failed_builds_analytics.trend}
         trend_inverse={true}
         trend_label={@analytics_trend_label}
         empty={@failed_builds_analytics.count == 0}
       />
-      <.widget
-        title={gettext("Avg. build duration")}
-        legend_color="secondary"
+      <.percentile_dropdown_widget
+        id="widget-build-duration"
+        title={
+          case @selected_build_duration_type do
+            "p99" -> gettext("p99 build duration")
+            "p90" -> gettext("p90 build duration")
+            "p50" -> gettext("p50 build duration")
+            _ -> gettext("Avg. build duration")
+          end
+        }
+        legend_color={
+          case @selected_build_duration_type do
+            "p99" -> "p99"
+            "p90" -> "p90"
+            "p50" -> "p50"
+            _ -> "secondary"
+          end
+        }
         description={gettext("The average build duration with individual percentile intervals.")}
         value={
           Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
-            @builds_duration_analytics.total_average_duration
+            case @selected_build_duration_type do
+              "p99" -> @builds_p99_durations.total_percentile_duration
+              "p90" -> @builds_p90_durations.total_percentile_duration
+              "p50" -> @builds_p50_durations.total_percentile_duration
+              _ -> @builds_duration_analytics.total_average_duration
+            end
           )
         }
-        id="widget-build-duration"
-        patch={"?#{Query.put(@uri.query, "analytics-selected-widget", "build-duration")}"}
-        replace={true}
+        metrics={
+          %{
+            avg:
+              Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                @builds_duration_analytics.total_average_duration
+              ),
+            p99:
+              Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                @builds_p99_durations.total_percentile_duration
+              ),
+            p90:
+              Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                @builds_p90_durations.total_percentile_duration
+              ),
+            p50:
+              Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                @builds_p50_durations.total_percentile_duration
+              )
+          }
+        }
+        selected_type={@selected_build_duration_type}
+        event_name="select_build_duration_type"
+        phx_click="select_widget"
+        phx_value_widget="build-duration"
         selected={@analytics_selected_widget == "build-duration"}
-        trend_value={@builds_duration_analytics.trend}
+        trend_value={
+          case @selected_build_duration_type do
+            "p99" -> @builds_p99_durations.trend
+            "p90" -> @builds_p90_durations.trend
+            "p50" -> @builds_p50_durations.trend
+            _ -> @builds_duration_analytics.trend
+          end
+        }
         trend_inverse={true}
         trend_label={@analytics_trend_label}
         empty={@builds_duration_analytics.total_average_duration == 0}

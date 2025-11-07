@@ -2396,6 +2396,10 @@ public enum Components {
                     ///
                     /// - Remark: Generated from `#/components/schemas/RunParams/case1/cacheable_tasksPayload/key`.
                     public var key: Swift.String
+                    /// The duration in milliseconds for reading from cache.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunParams/case1/cacheable_tasksPayload/read_duration`.
+                    public var read_duration: Swift.Double?
                     /// The cache status of the task.
                     ///
                     /// - Remark: Generated from `#/components/schemas/RunParams/case1/cacheable_tasksPayload/status`.
@@ -2419,25 +2423,37 @@ public enum Components {
                     ///
                     /// - Remark: Generated from `#/components/schemas/RunParams/case1/cacheable_tasksPayload/type`.
                     public var _type: Components.Schemas.RunParams.Case1Payload.cacheable_tasksPayloadPayload._typePayload
+                    /// The duration in milliseconds for writing to cache.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunParams/case1/cacheable_tasksPayload/write_duration`.
+                    public var write_duration: Swift.Double?
                     /// Creates a new `cacheable_tasksPayloadPayload`.
                     ///
                     /// - Parameters:
                     ///   - key: The cache key of the task.
+                    ///   - read_duration: The duration in milliseconds for reading from cache.
                     ///   - status: The cache status of the task.
                     ///   - _type: The type of cacheable task.
+                    ///   - write_duration: The duration in milliseconds for writing to cache.
                     public init(
                         key: Swift.String,
+                        read_duration: Swift.Double? = nil,
                         status: Components.Schemas.RunParams.Case1Payload.cacheable_tasksPayloadPayload.statusPayload,
-                        _type: Components.Schemas.RunParams.Case1Payload.cacheable_tasksPayloadPayload._typePayload
+                        _type: Components.Schemas.RunParams.Case1Payload.cacheable_tasksPayloadPayload._typePayload,
+                        write_duration: Swift.Double? = nil
                     ) {
                         self.key = key
+                        self.read_duration = read_duration
                         self.status = status
                         self._type = _type
+                        self.write_duration = write_duration
                     }
                     public enum CodingKeys: String, CodingKey {
                         case key
+                        case read_duration
                         case status
                         case _type = "type"
+                        case write_duration
                     }
                 }
                 /// Cacheable tasks associated with the build run.
@@ -2458,7 +2474,7 @@ public enum Components {
                     ///
                     /// - Remark: Generated from `#/components/schemas/RunParams/case1/cas_outputsPayload/compressed_size`.
                     public var compressed_size: Swift.Int
-                    /// The duration of the CAS operation in seconds.
+                    /// The duration of the CAS operation in milliseconds.
                     ///
                     /// - Remark: Generated from `#/components/schemas/RunParams/case1/cas_outputsPayload/duration`.
                     public var duration: Swift.Double
@@ -2486,7 +2502,7 @@ public enum Components {
                     /// - Parameters:
                     ///   - checksum: The checksum of the CAS object.
                     ///   - compressed_size: The compressed size of the CAS object in bytes.
-                    ///   - duration: The duration of the CAS operation in seconds.
+                    ///   - duration: The duration of the CAS operation in milliseconds.
                     ///   - node_id: The CAS node identifier.
                     ///   - operation: The type of CAS operation.
                     ///   - size: The size of the CAS object in bytes.
@@ -3955,6 +3971,10 @@ public enum Components {
                 ///
                 /// - Remark: Generated from `#/components/schemas/BuildRun/cacheable_tasksPayload/key`.
                 public var key: Swift.String
+                /// The duration in milliseconds for reading from cache.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BuildRun/cacheable_tasksPayload/read_duration`.
+                public var read_duration: Swift.Double?
                 /// The cache status of the task.
                 ///
                 /// - Remark: Generated from `#/components/schemas/BuildRun/cacheable_tasksPayload/status`.
@@ -3978,25 +3998,37 @@ public enum Components {
                 ///
                 /// - Remark: Generated from `#/components/schemas/BuildRun/cacheable_tasksPayload/type`.
                 public var _type: Components.Schemas.BuildRun.cacheable_tasksPayloadPayload._typePayload
+                /// The duration in milliseconds for writing to cache.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BuildRun/cacheable_tasksPayload/write_duration`.
+                public var write_duration: Swift.Double?
                 /// Creates a new `cacheable_tasksPayloadPayload`.
                 ///
                 /// - Parameters:
                 ///   - key: The cache key of the task.
+                ///   - read_duration: The duration in milliseconds for reading from cache.
                 ///   - status: The cache status of the task.
                 ///   - _type: The type of cacheable task.
+                ///   - write_duration: The duration in milliseconds for writing to cache.
                 public init(
                     key: Swift.String,
+                    read_duration: Swift.Double? = nil,
                     status: Components.Schemas.BuildRun.cacheable_tasksPayloadPayload.statusPayload,
-                    _type: Components.Schemas.BuildRun.cacheable_tasksPayloadPayload._typePayload
+                    _type: Components.Schemas.BuildRun.cacheable_tasksPayloadPayload._typePayload,
+                    write_duration: Swift.Double? = nil
                 ) {
                     self.key = key
+                    self.read_duration = read_duration
                     self.status = status
                     self._type = _type
+                    self.write_duration = write_duration
                 }
                 public enum CodingKeys: String, CodingKey {
                     case key
+                    case read_duration
                     case status
                     case _type = "type"
+                    case write_duration
                 }
             }
             /// Cacheable tasks associated with the build run.
@@ -4017,7 +4049,7 @@ public enum Components {
                 ///
                 /// - Remark: Generated from `#/components/schemas/BuildRun/cas_outputsPayload/compressed_size`.
                 public var compressed_size: Swift.Int
-                /// The duration of the CAS operation in seconds.
+                /// The duration of the CAS operation in milliseconds.
                 ///
                 /// - Remark: Generated from `#/components/schemas/BuildRun/cas_outputsPayload/duration`.
                 public var duration: Swift.Double
@@ -4045,7 +4077,7 @@ public enum Components {
                 /// - Parameters:
                 ///   - checksum: The checksum of the CAS object.
                 ///   - compressed_size: The compressed size of the CAS object in bytes.
-                ///   - duration: The duration of the CAS operation in seconds.
+                ///   - duration: The duration of the CAS operation in milliseconds.
                 ///   - node_id: The CAS node identifier.
                 ///   - operation: The type of CAS operation.
                 ///   - size: The size of the CAS object in bytes.
@@ -21573,6 +21605,10 @@ public enum Operations {
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/cacheable_tasksPayload/key`.
                             public var key: Swift.String
+                            /// The duration in milliseconds for reading from cache.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/cacheable_tasksPayload/read_duration`.
+                            public var read_duration: Swift.Double?
                             /// The cache status of the task.
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/cacheable_tasksPayload/status`.
@@ -21596,25 +21632,37 @@ public enum Operations {
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/cacheable_tasksPayload/type`.
                             public var _type: Operations.createRun.Input.Body.jsonPayload.Case1Payload.cacheable_tasksPayloadPayload._typePayload
+                            /// The duration in milliseconds for writing to cache.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/cacheable_tasksPayload/write_duration`.
+                            public var write_duration: Swift.Double?
                             /// Creates a new `cacheable_tasksPayloadPayload`.
                             ///
                             /// - Parameters:
                             ///   - key: The cache key of the task.
+                            ///   - read_duration: The duration in milliseconds for reading from cache.
                             ///   - status: The cache status of the task.
                             ///   - _type: The type of cacheable task.
+                            ///   - write_duration: The duration in milliseconds for writing to cache.
                             public init(
                                 key: Swift.String,
+                                read_duration: Swift.Double? = nil,
                                 status: Operations.createRun.Input.Body.jsonPayload.Case1Payload.cacheable_tasksPayloadPayload.statusPayload,
-                                _type: Operations.createRun.Input.Body.jsonPayload.Case1Payload.cacheable_tasksPayloadPayload._typePayload
+                                _type: Operations.createRun.Input.Body.jsonPayload.Case1Payload.cacheable_tasksPayloadPayload._typePayload,
+                                write_duration: Swift.Double? = nil
                             ) {
                                 self.key = key
+                                self.read_duration = read_duration
                                 self.status = status
                                 self._type = _type
+                                self.write_duration = write_duration
                             }
                             public enum CodingKeys: String, CodingKey {
                                 case key
+                                case read_duration
                                 case status
                                 case _type = "type"
+                                case write_duration
                             }
                         }
                         /// Cacheable tasks associated with the build run.
@@ -21635,7 +21683,7 @@ public enum Operations {
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/cas_outputsPayload/compressed_size`.
                             public var compressed_size: Swift.Int
-                            /// The duration of the CAS operation in seconds.
+                            /// The duration of the CAS operation in milliseconds.
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/cas_outputsPayload/duration`.
                             public var duration: Swift.Double
@@ -21663,7 +21711,7 @@ public enum Operations {
                             /// - Parameters:
                             ///   - checksum: The checksum of the CAS object.
                             ///   - compressed_size: The compressed size of the CAS object in bytes.
-                            ///   - duration: The duration of the CAS operation in seconds.
+                            ///   - duration: The duration of the CAS operation in milliseconds.
                             ///   - node_id: The CAS node identifier.
                             ///   - operation: The type of CAS operation.
                             ///   - size: The size of the CAS object in bytes.

@@ -10,6 +10,7 @@ defmodule TuistWeb.QALive do
   alias Tuist.AppBuilds.Preview
   alias Tuist.QA
   alias Tuist.Utilities.DateFormatter
+  alias TuistWeb.Utilities.Query
   alias TuistWeb.Utilities.SHA
 
   def mount(_params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
@@ -35,6 +36,22 @@ defmodule TuistWeb.QALive do
       |> assign_analytics(params)
       |> load_qa_runs(params)
     }
+  end
+
+  def handle_event(
+        "select_widget",
+        %{"widget" => widget},
+        %{assigns: %{selected_account: selected_account, selected_project: selected_project, uri: uri}} = socket
+      ) do
+    socket =
+      push_patch(
+        socket,
+        to:
+          "/#{selected_account.name}/#{selected_project.name}/qa?#{Query.put(uri.query, "analytics_selected_widget", widget)}",
+        replace: true
+      )
+
+    {:noreply, socket}
   end
 
   defp load_qa_runs(socket, params \\ %{}) do

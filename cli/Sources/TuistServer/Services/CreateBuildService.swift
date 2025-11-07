@@ -310,8 +310,10 @@ import OpenAPIURLSession
             }
             self.init(
                 key: cacheableTask.key,
+                read_duration: cacheableTask.readDuration,
                 status: status,
-                _type: taskType
+                _type: taskType,
+                write_duration: cacheableTask.writeDuration
             )
         }
     }

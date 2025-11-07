@@ -733,7 +733,7 @@ defmodule TuistWeb.API.RunsControllerTest do
               node_id: "MyTarget",
               checksum: "abc123def456",
               size: 1024,
-              duration: 1.5,
+              duration: 1500,
               compressed_size: 512,
               operation: "download"
             },
@@ -741,7 +741,7 @@ defmodule TuistWeb.API.RunsControllerTest do
               node_id: "AnotherTarget",
               checksum: "xyz789",
               size: 2048,
-              duration: 2.0,
+              duration: 2000,
               compressed_size: 1024,
               operation: "upload"
             },
@@ -749,7 +749,7 @@ defmodule TuistWeb.API.RunsControllerTest do
               node_id: "ThirdTarget",
               checksum: "def456ghi",
               size: 4096,
-              duration: 0.5,
+              duration: 500,
               compressed_size: 2048,
               operation: "download"
             }

@@ -14,6 +14,7 @@ public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.Si
     private let getCacheValueService: GetCacheValueServicing
     private let fileSystem: FileSystem
     private let nodeStore: CASNodeStoring
+    private let metadataStore: KeyValueMetadataStoring
 
     public init(
         fullHandle: String,
@@ -21,7 +22,8 @@ public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.Si
         putCacheValueService: PutCacheValueServicing = PutCacheValueService(),
         getCacheValueService: GetCacheValueServicing = GetCacheValueService(),
         fileSystem: FileSystem = FileSystem(),
-        nodeStore: CASNodeStoring = CASNodeStore()
+        nodeStore: CASNodeStoring = CASNodeStore(),
+        metadataStore: KeyValueMetadataStoring = KeyValueMetadataStore()
     ) {
         self.fullHandle = fullHandle
         self.serverURL = serverURL
@@ -29,6 +31,7 @@ public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.Si
         self.getCacheValueService = getCacheValueService
         self.fileSystem = fileSystem
         self.nodeStore = nodeStore
+        self.metadataStore = metadataStore
     }
 
     public func putValue(
@@ -68,6 +71,13 @@ public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.Si
             }
 
             let duration = ProcessInfo.processInfo.systemUptime - startTime
+
+            storeMetadata(
+                duration: duration * 1000,
+                for: casID,
+                operationType: .write
+            )
+
             Logger.current
                 .debug(
                     "KeyValue.putValue completed successfully in \(String(format: "%.3f", duration))s for casID: \(casID)"
@@ -100,6 +110,7 @@ public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.Si
         Logger.current.debug("KeyValue.getValue starting - key size: \(keySize) bytes, casID: \(casID)")
 
         var response = CompilationCacheService_Keyvalue_V1_GetValueResponse()
+        let duration: TimeInterval
 
         do {
             if let json = try await getCacheValueService.getCacheValue(
@@ -122,7 +133,8 @@ public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.Si
                 response.contents = .value(value)
                 response.outcome = .success
 
-                let duration = ProcessInfo.processInfo.systemUptime - startTime
+                duration = ProcessInfo.processInfo.systemUptime - startTime
+
                 let valueSize = value.entries.values.reduce(0) { $0 + $1.count }
                 Logger.current
                     .debug(
@@ -130,7 +142,7 @@ public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.Si
                     )
             } else {
                 response.outcome = .keyNotFound
-                let duration = ProcessInfo.processInfo.systemUptime - startTime
+                duration = ProcessInfo.processInfo.systemUptime - startTime
                 Logger.current
                     .debug(
                         "KeyValue.getValue completed in \(String(format: "%.3f", duration))s - key not found for casID: \(casID)"
@@ -142,10 +154,16 @@ public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.Si
             response.error = responseError
             response.outcome = .keyNotFound
 
-            let duration = ProcessInfo.processInfo.systemUptime - startTime
+            duration = ProcessInfo.processInfo.systemUptime - startTime
             Logger.current
                 .error("KeyValue.getValue failed after \(String(format: "%.3f", duration))s for casID: \(casID): \(error)")
         }
+
+        storeMetadata(
+            duration: duration * 1000,
+            for: casID,
+            operationType: .read
+        )
 
         return response
     }
@@ -246,5 +264,22 @@ public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.Si
     private func isValidHex(_ str: String) -> Bool {
         let hexChars = Set("0123456789ABCDEFabcdef")
         return str.allSatisfy { hexChars.contains($0) }
+    }
+
+    private func storeMetadata(
+        duration: TimeInterval,
+        for cacheKey: String,
+        operationType: KeyValueOperationType
+    ) {
+        Task {
+            let metadata = KeyValueMetadata(duration: duration)
+            do {
+                try await metadataStore.storeMetadata(metadata, for: cacheKey, operationType: operationType)
+            } catch {
+                Logger.current.error(
+                    "Failed to store KeyValue metadata for cacheKey: \(cacheKey): \(error)"
+                )
+            }
+        }
     }
 }

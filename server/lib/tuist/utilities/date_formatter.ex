@@ -15,6 +15,7 @@ defmodule Tuist.Utilities.DateFormatter do
 
   def format_duration_from_milliseconds(duration_ms, opts \\ []) do
     include_seconds = Keyword.get(opts, :include_seconds, true)
+    duration_ms = trunc(duration_ms)
 
     cond do
       duration_ms == 0 ->
@@ -24,7 +25,6 @@ defmodule Tuist.Utilities.DateFormatter do
         "#{duration_ms}ms"
 
       true ->
-        duration_ms = trunc(duration_ms)
         hours = div(duration_ms, 3_600_000)
         remainder = rem(duration_ms, 3_600_000)
 

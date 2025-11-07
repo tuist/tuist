@@ -324,6 +324,22 @@ defmodule TuistWeb.BundlesLive do
      |> push_event("close-popover", %{id: "all", all: true})}
   end
 
+  def handle_event(
+        "select_widget",
+        %{"widget" => widget},
+        %{assigns: %{selected_account: selected_account, selected_project: selected_project, uri: uri}} = socket
+      ) do
+    socket =
+      push_patch(
+        socket,
+        to:
+          "/#{selected_account.name}/#{selected_project.name}/bundles?#{Query.put(uri.query, "bundle-size-selected-widget", widget)}",
+        replace: true
+      )
+
+    {:noreply, socket}
+  end
+
   defp format_bytes(bytes) when is_integer(bytes) do
     ByteFormatter.format_bytes(bytes)
   end
