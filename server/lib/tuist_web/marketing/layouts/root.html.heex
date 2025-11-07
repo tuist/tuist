@@ -10,6 +10,29 @@
     </.live_title>
     <TuistWeb.LayoutComponents.head_meta_meta_tags {assigns} />
     <TuistWeb.LayoutComponents.head_x_meta_tags {assigns} />
+    <!-- Language alternates for SEO -->
+    <%= for locale <- TuistWeb.Marketing.Localization.all_locales() do %>
+      <link
+        rel="alternate"
+        hreflang={locale}
+        href={
+          Tuist.Environment.app_url(
+            path:
+              TuistWeb.Marketing.Localization.localized_href(
+                TuistWeb.Marketing.Localization.current_path(assigns),
+                locale
+              )
+          )
+        }
+      />
+    <% end %>
+    <link
+      rel="alternate"
+      hreflang="x-default"
+      href={
+        Tuist.Environment.app_url(path: TuistWeb.Marketing.Localization.current_path(assigns))
+      }
+    />
     <script
       :for={
         structured_data <-

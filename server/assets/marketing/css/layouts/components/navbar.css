@@ -531,7 +531,8 @@
           border-radius: var(--noora-radius-xlarge);
           background: #fff;
 
-          &.show {
+          &.show,
+          &[data-open="true"] {
             transform: translateX(-50%) translateY(0);
             visibility: visible;
             opacity: 1;
