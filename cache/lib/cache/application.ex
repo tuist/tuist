@@ -10,6 +10,7 @@ defmodule Cache.Application do
     end
 
     children = [
+      Cache.PromEx,
       Cache.Repo,
       {Phoenix.PubSub, name: Cache.PubSub},
       Cache.Authentication,
