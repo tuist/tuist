@@ -2,7 +2,7 @@
   text-decoration: unset;
   cursor: pointer;
 
-  & .tuist-widget:hover {
+  &:not(:has(.noora-dropdown:hover)) .tuist-widget:hover {
     background-color: var(--noora-surface-background-secondary);
   }
 
