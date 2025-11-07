@@ -201,7 +201,15 @@
         phx_click="select_widget"
         phx_value_widget="build-duration"
         selected={@analytics_selected_widget == "build-duration"}
-        trend_value={@builds_duration_analytics.trend}
+        trend_value={
+          get_build_duration_trend(
+            @builds_duration_analytics,
+            @builds_p99_durations,
+            @builds_p90_durations,
+            @builds_p50_durations,
+            @selected_build_duration_type
+          )
+        }
         trend_inverse={true}
         trend_label={@analytics_trend_label}
         empty={@builds_duration_analytics.total_average_duration == 0}

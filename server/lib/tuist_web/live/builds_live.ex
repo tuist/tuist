@@ -376,4 +376,20 @@ defmodule TuistWeb.BuildsLive do
       _ -> "secondary"
     end
   end
+
+  def get_build_duration_trend(
+        builds_duration_analytics,
+        builds_p99_durations,
+        builds_p90_durations,
+        builds_p50_durations,
+        type
+      ) do
+    case type do
+      "avg" -> builds_duration_analytics.trend
+      "p99" -> builds_p99_durations.trend
+      "p90" -> builds_p90_durations.trend
+      "p50" -> builds_p50_durations.trend
+      _ -> builds_duration_analytics.trend
+    end
+  end
 end
