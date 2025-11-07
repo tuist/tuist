@@ -2,8 +2,13 @@
 <html>
   <head>
     <meta charset="UTF-8" />
-    <script nonce={get_csp_nonce()} src="https://d3js.org/d3.v7.min.js"></script>
-    <script nonce={get_csp_nonce()} src="https://cdn.jsdelivr.net/npm/d3-sankey@0.12.3/dist/d3-sankey.min.js"></script>
+    <script nonce={get_csp_nonce()} src="https://d3js.org/d3.v7.min.js">
+    </script>
+    <script
+      nonce={get_csp_nonce()}
+      src="https://cdn.jsdelivr.net/npm/d3-sankey@0.12.3/dist/d3-sankey.min.js"
+    >
+    </script>
     <style>
       * {
         box-sizing: border-box;
@@ -45,9 +50,9 @@
       .ci-pool {
         position: absolute;
         bottom: 5px;
-        left: 50%;
-        transform: translateX(-50%);
-        width: 70%;
+        left: 0;
+        right: 0;
+        padding: 0 20px;
         text-align: center;
       }
 
@@ -64,7 +69,7 @@
         grid-template-columns: repeat(4, 1fr);
         grid-template-rows: repeat(2, 1fr);
         gap: 8px;
-        max-width: 400px;
+        width: 100%;
         margin: 0 auto;
       }
 
@@ -154,7 +159,7 @@
 
         const width = container.clientWidth;
         const height = 400;
-        const margin = { top: 30, right: 180, bottom: 95, left: 180 };
+        const margin = { top: 30, right: 180, bottom: 95, left: 200 };
 
         // Colors
         const colors = {
@@ -287,16 +292,25 @@
             .attr("dy", d => d.x0 >= width / 3 && d.x0 <= width * 2/3 ? "0" : "0.35em")
             .text(d => d.label);
 
-          // Add bounce counters for source nodes
-          nodeGroups
-            .filter(d => d.id.includes("developer") || d.id.includes("codex"))
-            .append("text")
+          // Add bounce counters for source nodes (two lines below the main label)
+          const bounceGroups = nodeGroups
+            .filter(d => d.id.includes("developer") || d.id.includes("codex"));
+
+          bounceGroups.append("text")
             .attr("class", "bounce-counter")
             .attr("id", d => `bounce-${d.id}`)
             .attr("x", d => d.x0 - 12)
-            .attr("y", d => Math.max(Math.min((d.y0 + d.y1) / 2 + 20, height - margin.bottom - 10), margin.top + 20))
+            .attr("y", d => (d.y0 + d.y1) / 2 + 15)
             .attr("text-anchor", "end")
-            .text("↻ 0 bounced");
+            .text("↻ 0");
+
+          bounceGroups.append("text")
+            .attr("class", "bounce-counter")
+            .attr("id", d => `bounce-text-${d.id}`)
+            .attr("x", d => d.x0 - 12)
+            .attr("y", d => (d.y0 + d.y1) / 2 + 25)
+            .attr("text-anchor", "end")
+            .text("bounced");
 
           // Add commits counter under main
           nodeGroups
@@ -400,7 +414,7 @@
 
                   // Update bounce counter for this source
                   bounces[sourceNode.id]++;
-                  d3.select(`#bounce-${sourceNode.id}`).text(`↻ ${bounces[sourceNode.id]} bounced`);
+                  d3.select(`#bounce-${sourceNode.id}`).text(`↻ ${bounces[sourceNode.id]}`);
                 }, 500);
               } else {
                 // Add to CI queue - will be processed by CI runner pool

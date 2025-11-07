@@ -42,9 +42,11 @@ Li opens a PR at 9am. It sits waiting for review because you're in meetings and 
 
 This happens to everyone, all day long. PRs sit in review queues. Merge conflicts happen on one in five merges now that five people are touching overlapping code. The CI occasionally has a flaky test, and nobody's quite sure which test it is, so they just click "retry." About a third of PRs come back with requested changes, adding another round trip. The merge throughput isn't 40 commits a day. It's six.
 
-<iframe src="/blog/2025/11/6/zero-to-many/iframe.html?id=team_multiplier" width="100%" height="500" frameborder="0"></iframe>
+And then there's the CI bottleneck. Your provider asked you to estimate how many runners you'd need. That works when your workload is predictable, but it's not. Nobody's is. During peak hours, PRs pile up waiting for available runners. Your team sits idle, watching the queue grow. The provider is just leaking the pain of hosting Mac minis to you. They can't absorb your elastic demand because they don't operate at the scale you need. You're not blocked by budget. You're blocked by infrastructure that can't keep up.
 
-You hired three more people and throughput went down. This isn't what growth is supposed to look like.
+<iframe src="/blog/2025/11/6/zero-to-many/iframe.html?id=team_multiplier" width="100%" height="650" frameborder="0" data-visualization></iframe>
+
+You hired three more people and throughput improved, but not nearly as much as you expected. This isn't what growth is supposed to look like.
 
 ## Phase 4: The Complexity Wall
 
