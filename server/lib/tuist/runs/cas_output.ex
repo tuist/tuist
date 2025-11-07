@@ -6,7 +6,8 @@ defmodule Tuist.Runs.CASOutput do
 
   @derive {
     Flop.Schema,
-    filterable: [:build_run_id, :node_id, :operation], sortable: [:node_id]
+    filterable: [:build_run_id, :node_id, :operation, :size, :compressed_size],
+    sortable: [:node_id, :size, :compressed_size]
   }
 
   @primary_key false
