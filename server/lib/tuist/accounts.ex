@@ -1484,8 +1484,6 @@ defmodule Tuist.Accounts do
   defp default_confirmed_at do
     if Environment.skip_email_confirmation?() do
       NaiveDateTime.utc_now()
-    else
-      nil
     end
   end
 end
