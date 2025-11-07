@@ -28,7 +28,7 @@ defmodule TuistWeb.AppComponents do
   attr(:title, :string, required: true, doc: "The title of the widget.")
 
   attr(:legend_color, :string,
-    values: ~w(primary secondary destructive),
+    values: ~w(primary secondary destructive p99 p90 p50),
     required: false,
     doc: "The color of the legend. The legend is hidden if the value is `nil`."
   )

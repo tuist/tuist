@@ -366,4 +366,14 @@ defmodule TuistWeb.BuildsLive do
       _ -> gettext("Avg. build duration")
     end
   end
+
+  def build_duration_legend_color(type) do
+    case type do
+      "avg" -> "secondary"
+      "p99" -> "p99"
+      "p90" -> "p90"
+      "p50" -> "p50"
+      _ -> "secondary"
+    end
+  end
 end

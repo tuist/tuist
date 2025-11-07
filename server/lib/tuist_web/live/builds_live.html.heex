@@ -175,7 +175,7 @@
       <.percentile_dropdown_widget
         id="widget-build-duration"
         title={get_build_duration_title(@selected_build_duration_type)}
-        legend_color="secondary"
+        legend_color={build_duration_legend_color(@selected_build_duration_type)}
         description={gettext("The average build duration with individual percentile intervals.")}
         value={
           Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(

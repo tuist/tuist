@@ -132,6 +132,18 @@ a {
       &[data-color="destructive"] {
         background-color: var(--noora-chart-destructive);
       }
+
+      &[data-color="p99"] {
+        background-color: var(--noora-chart-p99);
+      }
+
+      &[data-color="p90"] {
+        background-color: var(--noora-chart-p90);
+      }
+
+      &[data-color="p50"] {
+        background-color: var(--noora-chart-p50);
+      }
     }
 
     & > [data-part="title"] {
