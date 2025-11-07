@@ -212,7 +212,8 @@ defmodule TuistWeb.BuildRunLive do
       push_patch(
         socket,
         to:
-          "/#{selected_account.name}/#{selected_project.name}/builds/build-runs/#{run.id}?#{Query.put(uri.query, "read-latency-type", type)}"
+          "/#{selected_account.name}/#{selected_project.name}/builds/build-runs/#{run.id}?#{Query.put(uri.query, "read-latency-type", type)}",
+        replace: true
       )
 
     {:noreply, socket}
@@ -227,7 +228,8 @@ defmodule TuistWeb.BuildRunLive do
       push_patch(
         socket,
         to:
-          "/#{selected_account.name}/#{selected_project.name}/builds/build-runs/#{run.id}?#{Query.put(uri.query, "write-latency-type", type)}"
+          "/#{selected_account.name}/#{selected_project.name}/builds/build-runs/#{run.id}?#{Query.put(uri.query, "write-latency-type", type)}",
+        replace: true
       )
 
     {:noreply, socket}

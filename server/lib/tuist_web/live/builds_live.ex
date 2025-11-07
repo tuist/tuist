@@ -227,7 +227,8 @@ defmodule TuistWeb.BuildsLive do
       push_patch(
         socket,
         to:
-          "/#{selected_account.name}/#{selected_project.name}/builds?#{Query.put(uri.query, "build-duration-type", type)}"
+          "/#{selected_account.name}/#{selected_project.name}/builds?#{Query.put(uri.query, "build-duration-type", type)}",
+        replace: true
       )
 
     {:noreply, socket}
@@ -242,7 +243,8 @@ defmodule TuistWeb.BuildsLive do
       push_patch(
         socket,
         to:
-          "/#{selected_account.name}/#{selected_project.name}/builds?#{Query.put(uri.query, "analytics-selected-widget", widget)}"
+          "/#{selected_account.name}/#{selected_project.name}/builds?#{Query.put(uri.query, "analytics-selected-widget", widget)}",
+        replace: true
       )
 
     {:noreply, socket}

@@ -136,7 +136,8 @@ defmodule TuistWeb.TestRunsLive do
       push_patch(
         socket,
         to:
-          "/#{selected_account.name}/#{selected_project.name}/tests/test-runs?#{Query.put(uri.query, "analytics_selected_widget", widget)}"
+          "/#{selected_account.name}/#{selected_project.name}/tests/test-runs?#{Query.put(uri.query, "analytics_selected_widget", widget)}",
+        replace: true
       )
 
     {:noreply, socket}

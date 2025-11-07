@@ -333,7 +333,8 @@ defmodule TuistWeb.BundlesLive do
       push_patch(
         socket,
         to:
-          "/#{selected_account.name}/#{selected_project.name}/bundles?#{Query.put(uri.query, "bundle-size-selected-widget", widget)}"
+          "/#{selected_account.name}/#{selected_project.name}/bundles?#{Query.put(uri.query, "bundle-size-selected-widget", widget)}",
+        replace: true
       )
 
     {:noreply, socket}
