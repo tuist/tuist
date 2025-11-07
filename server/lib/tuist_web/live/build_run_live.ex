@@ -1076,11 +1076,23 @@ defmodule TuistWeb.BuildRunLive do
   end
 
   defp convert_mb_to_bytes(%{field: field, value: value} = filter)
-       when field in [:size, :compressed_size] and is_number(value) do
-    %{filter | value: trunc(value * 1024 * 1024)}
+       when field in [:size, :compressed_size] do
+    case parse_number(value) do
+      nil -> filter
+      number -> %{filter | value: trunc(number * 1024 * 1024)}
+    end
   end
 
   defp convert_mb_to_bytes(filter), do: filter
+
+  defp parse_number(value) when is_number(value), do: value
+  defp parse_number(value) when is_binary(value) do
+    case Float.parse(value) do
+      {number, _} -> number
+      :error -> nil
+    end
+  end
+  defp parse_number(_), do: nil
 
   defp cas_outputs_order_by(sort_by) do
     case sort_by do
