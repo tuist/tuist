@@ -181,10 +181,8 @@ defmodule Tuist.Billing do
         # ignore the webhooks for those customers.
         :ok
 
-      is_nil(current_subscription) and plan == :none ->
-        # If there's no existing subscription and we can't determine the plan from
-        # the subscription items (e.g., unrecognized price IDs), skip creating a record.
-        :ok
+      plan == :none ->
+        raise "Unable to determine plan from subscription items. Subscription ID: #{subscription.id}, Price IDs: #{inspect(Enum.map(subscription.items.data, & &1.price.id))}"
 
       is_nil(current_subscription) ->
         %Subscription{}
@@ -198,19 +196,10 @@ defmodule Tuist.Billing do
         })
         |> Repo.insert!()
 
-      plan != :none ->
+      true ->
         current_subscription
         |> Subscription.update_changeset(%{
           plan: plan,
-          status: subscription.status,
-          default_payment_method: subscription.default_payment_method,
-          trial_end: trial_end
-        })
-        |> Repo.update!()
-
-      plan == :none ->
-        current_subscription
-        |> Subscription.update_changeset(%{
           status: subscription.status,
           default_payment_method: subscription.default_payment_method,
           trial_end: trial_end
