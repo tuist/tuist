@@ -291,8 +291,7 @@
     gap: var(--noora-spacing-6);
     padding-top: var(--noora-spacing-6);
 
-    & > [data-part="cache-summary-card"],
-    & > [data-part="cas-outputs-card"] {
+    & > [data-part="cache-summary-card"] {
       & [data-part="widgets-card-section"] {
         display: flex;
         flex-direction: row;
@@ -340,7 +339,8 @@
           }
         }
 
-        & > [data-part="latency-widgets"] {
+        & > [data-part="latency-widgets"],
+        & > [data-part="throughput-widgets"] {
           display: flex;
           flex-direction: row;
           gap: var(--noora-spacing-4);
