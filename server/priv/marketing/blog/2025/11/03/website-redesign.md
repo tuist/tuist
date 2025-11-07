@@ -67,7 +67,7 @@ We also introduced community metrics to highlight our open-source growth and ins
 
 ## Unifying the Brand and Visual Language
 
-Finally, we wanted to make sure our website felt like a natural extension of our newly redesigned dashboard. The previous site had a different tone and visual style, which made the overall experience feel disconnected. We brought everything together under a unified brand identity and built the website using the Noora Design System. All core elements, buttons, input fields, shadows, colors, and variables, are based on Noora for consistency and scalability.
+Finally, we wanted to make sure our website felt like a natural extension of our newly redesigned dashboard. The previous site had a different tone and visual style, which made the overall experience feel disconnected. We brought everything together under a unified brand identity and built the website using the [Noora Design System](https://github.com/tuist/noora). All core elements, buttons, input fields, shadows, colors, and variables, are based on Noora for consistency and scalability.
 
 While the foundation remains the same, we introduced and customized several components specifically for the website, such as blog post cards, header background visuals, and the overall gradient-driven style. You can think of it as a more stylized, marketing-focused version of Noora. Even the custom illustrations were designed using Noora’s color variables to keep everything visually cohesive.
 
