@@ -181,6 +181,9 @@ defmodule Tuist.Billing do
         # ignore the webhooks for those customers.
         :ok
 
+      plan == :none ->
+        raise "Unable to determine plan from subscription items. Subscription ID: #{subscription.id}, Price IDs: #{inspect(Enum.map(subscription.items.data, & &1.price.id))}"
+
       is_nil(current_subscription) ->
         %Subscription{}
         |> Subscription.create_changeset(%{
@@ -193,19 +196,10 @@ defmodule Tuist.Billing do
         })
         |> Repo.insert!()
 
-      plan != :none ->
+      true ->
         current_subscription
         |> Subscription.update_changeset(%{
           plan: plan,
-          status: subscription.status,
-          default_payment_method: subscription.default_payment_method,
-          trial_end: trial_end
-        })
-        |> Repo.update!()
-
-      plan == :none ->
-        current_subscription
-        |> Subscription.update_changeset(%{
           status: subscription.status,
           default_payment_method: subscription.default_payment_method,
           trial_end: trial_end
@@ -217,21 +211,16 @@ defmodule Tuist.Billing do
   end
 
   defp get_plan(subscription) do
-    active = subscription.status in ["active", "trialing"]
     subscription_prices = Enum.map(subscription.items.data, & &1.price.id)
     available_prices = Tuist.Environment.stripe_prices()
 
-    if active do
-      plan =
-        available_prices
-        |> Enum.filter(&plan_valid?(&1, subscription_prices))
-        |> Enum.map(&elem(&1, 0))
-        |> List.first()
+    plan =
+      available_prices
+      |> Enum.filter(&plan_valid?(&1, subscription_prices))
+      |> Enum.map(&elem(&1, 0))
+      |> List.first()
 
-      if plan == nil, do: :none, else: plan
-    else
-      :none
-    end
+    if plan == nil, do: :none, else: plan
   end
 
   defp plan_valid?({plan, plan_prices}, subscription_prices) do
@@ -259,7 +248,9 @@ defmodule Tuist.Billing do
     }
   end
 
-  def get_estimated_next_payment(%{current_month_remote_cache_hits_count: current_month_remote_cache_hits_count}) do
+  def get_estimated_next_payment(%{
+        current_month_remote_cache_hits_count: current_month_remote_cache_hits_count
+      }) do
     remote_cache_hits_threshold = get_payment_thresholds()[:remote_cache_hits]
 
     if current_month_remote_cache_hits_count < remote_cache_hits_threshold do
@@ -382,7 +373,8 @@ defmodule Tuist.Billing do
           account_name: a.name,
           twelve_month_total_input_tokens: coalesce(sum(tu.input_tokens), 0),
           twelve_month_total_output_tokens: coalesce(sum(tu.output_tokens), 0),
-          twelve_month_total_tokens: coalesce(sum(tu.input_tokens), 0) + coalesce(sum(tu.output_tokens), 0),
+          twelve_month_total_tokens:
+            coalesce(sum(tu.input_tokens), 0) + coalesce(sum(tu.output_tokens), 0),
           twelve_month_average_tokens:
             fragment(
               "CASE WHEN count(distinct ?) > 0 THEN (coalesce(sum(?), 0) + coalesce(sum(?), 0)) / count(distinct ?) ELSE 0 END",
@@ -493,7 +485,8 @@ defmodule Tuist.Billing do
       from(tu in TokenUsage,
         join: a in assoc(tu, :account),
         where:
-          a.customer_id == ^customer_id and tu.timestamp >= ^start_of_yesterday and tu.timestamp <= ^end_of_yesterday,
+          a.customer_id == ^customer_id and tu.timestamp >= ^start_of_yesterday and
+            tu.timestamp <= ^end_of_yesterday,
         select: {sum(tu.input_tokens), sum(tu.output_tokens)}
       )
     )
@@ -507,7 +500,8 @@ defmodule Tuist.Billing do
     {input_tokens, output_tokens} = get_yesterdays_customer_llm_token_usage(customer_id)
     path = Stripe.OpenApi.Path.replace_path_params("/v1/billing/meter_events", [], [])
 
-    input_identifier = "#{customer_id}-input-#{Timex.format!(Tuist.Time.utc_now(), "{YYYY}.{0M}.{D}")}"
+    input_identifier =
+      "#{customer_id}-input-#{Timex.format!(Tuist.Time.utc_now(), "{YYYY}.{0M}.{D}")}"
 
     {:ok, _} =
       []
@@ -524,7 +518,8 @@ defmodule Tuist.Billing do
       |> Stripe.Request.put_method(:post)
       |> Stripe.Request.make_request()
 
-    output_identifier = "#{customer_id}-output-#{Timex.format!(Tuist.Time.utc_now(), "{YYYY}.{0M}.{D}")}"
+    output_identifier =
+      "#{customer_id}-output-#{Timex.format!(Tuist.Time.utc_now(), "{YYYY}.{0M}.{D}")}"
 
     {:ok, _} =
       []
