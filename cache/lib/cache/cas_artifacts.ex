@@ -33,7 +33,7 @@ defmodule Cache.CASArtifacts do
 
   @doc """
   Tracks access to a CAS artifact by updating its metadata in the database.
-  
+
   Creates or updates a CASArtifact record with the current file size and access time.
   Uses upsert logic to handle conflicts on the key field.
   """

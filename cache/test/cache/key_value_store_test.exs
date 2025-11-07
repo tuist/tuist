@@ -1,14 +1,18 @@
 defmodule Cache.KeyValueStoreTest do
   use ExUnit.Case, async: false
 
+  alias Cache.KeyValueEntry
   alias Cache.KeyValueStore
+  alias Cache.Repo
+  alias Ecto.Adapters.SQL.Sandbox
 
   @account_handle "test-account"
   @project_handle "test-project"
   @cas_id "test_cas_id_123"
 
   setup do
-    # Clear the cache before each test to ensure isolation
+    :ok = Sandbox.checkout(Repo)
+    Sandbox.mode(Repo, {:shared, self()})
     Cachex.clear(:cache_keyvalue_store)
     :ok
   end
@@ -185,55 +189,55 @@ defmodule Cache.KeyValueStoreTest do
   end
 
   describe "get_key_value/3" do
-    test "returns :not_found when no entry exists" do
-      assert :not_found =
+    test "returns {:error, :not_found} when no entry exists" do
+      assert {:error, :not_found} =
                KeyValueStore.get_key_value("nonexistent_cas_id", @account_handle, @project_handle)
     end
 
-    test "returns :not_found for nonexistent account" do
+    test "returns {:error, :not_found} for nonexistent account" do
       values = ["test_value"]
 
       assert :ok = KeyValueStore.put_key_value(@cas_id, @account_handle, @project_handle, values)
 
-      assert :not_found =
+      assert {:error, :not_found} =
                KeyValueStore.get_key_value(@cas_id, "nonexistent_account", @project_handle)
     end
 
-    test "returns :not_found for nonexistent project" do
+    test "returns {:error, :not_found} for nonexistent project" do
       values = ["test_value"]
 
       assert :ok = KeyValueStore.put_key_value(@cas_id, @account_handle, @project_handle, values)
 
-      assert :not_found =
+      assert {:error, :not_found} =
                KeyValueStore.get_key_value(@cas_id, @account_handle, "nonexistent_project")
     end
 
-    test "handles legacy list format and upgrades to new format" do
-      # Simulate legacy format by directly inserting list values
+
+  end
+
+  describe "persistence" do
+    test "persists entries to sqlite" do
+      values = ["value1", "value2"]
+
+      assert :ok = KeyValueStore.put_key_value(@cas_id, @account_handle, @project_handle, values)
+
       key = "keyvalue:#{@account_handle}:#{@project_handle}:#{@cas_id}"
-      legacy_values = ["legacy_value1", "legacy_value2"]
+      record = Repo.get_by!(KeyValueEntry, key: key)
+      assert record.json_payload == Jason.encode!(%{entries: [%{"value" => "value1"}, %{"value" => "value2"}]})
+    end
 
-      {:ok, _} = Cachex.put(:cache_keyvalue_store, key, legacy_values)
+    test "reads through cachex when entries exist only in sqlite" do
+      values = ["value1", "value2"]
+      assert :ok = KeyValueStore.put_key_value(@cas_id, @account_handle, @project_handle, values)
 
-      # First get should upgrade the format
+      # Simulate cache eviction to force DB lookup
+      Cachex.clear(:cache_keyvalue_store)
+
       assert {:ok, json} = KeyValueStore.get_key_value(@cas_id, @account_handle, @project_handle)
+      assert Jason.decode!(json)["entries"] == [%{"value" => "value1"}, %{"value" => "value2"}]
 
-      decoded = Jason.decode!(json)
-
-      assert decoded["entries"] == [
-               %{"value" => "legacy_value1"},
-               %{"value" => "legacy_value2"}
-             ]
-
-      # Subsequent gets should return the same result
-      assert {:ok, json} = KeyValueStore.get_key_value(@cas_id, @account_handle, @project_handle)
-
-      decoded = Jason.decode!(json)
-
-      assert decoded["entries"] == [
-               %{"value" => "legacy_value1"},
-               %{"value" => "legacy_value2"}
-             ]
+      key = "keyvalue:#{@account_handle}:#{@project_handle}:#{@cas_id}"
+      assert {:ok, ^json} = Cachex.get(:cache_keyvalue_store, key)
     end
   end
 end

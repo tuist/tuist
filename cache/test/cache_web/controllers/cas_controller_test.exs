@@ -1,5 +1,5 @@
 defmodule CacheWeb.CASControllerTest do
-  use CacheWeb.ConnCase
+  use CacheWeb.ConnCase, async: true
   use Mimic
 
   import ExUnit.CaptureLog
@@ -7,17 +7,11 @@ defmodule CacheWeb.CASControllerTest do
   alias Cache.Authentication
   alias Cache.CASArtifacts
   alias Cache.Disk
-  alias Cache.Repo
-  alias Ecto.Adapters.SQL.Sandbox
 
   setup do
     {:ok, test_storage_dir} = Briefly.create(directory: true)
 
     stub(Disk, :storage_dir, fn -> test_storage_dir end)
-
-    # Set up database sandbox for tests that need database access
-    :ok = Sandbox.checkout(Repo)
-
 
     {:ok, test_storage_dir: test_storage_dir}
   end
