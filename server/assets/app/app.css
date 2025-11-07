@@ -107,6 +107,9 @@ a {
       padding: unset;
       width: 16px;
       height: 16px;
+      &:hover > [data-part="icon"] {
+        color: var(--noora-surface-label-secondary);
+      }
       & > [data-part="icon"] {
         color: var(--noora-surface-label-primary);
       }

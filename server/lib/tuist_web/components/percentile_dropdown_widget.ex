@@ -38,6 +38,7 @@ defmodule TuistWeb.PercentileDropdownWidget do
       phx_value_widget={@phx_value_widget}
     >
       <:select>
+      <div phx-click={JS.exec("event.stopPropagation()", to: "window")}>
         <.dropdown
           id={"#{@id}-dropdown"}
           icon_only
@@ -89,6 +90,7 @@ defmodule TuistWeb.PercentileDropdownWidget do
             />
           </.dropdown_item>
         </.dropdown>
+        </div>
       </:select>
     </.widget>
     """
