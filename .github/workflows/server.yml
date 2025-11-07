@@ -9,6 +9,7 @@ on:
       - .github/workflows/server.yml
       - server/pnpm-lock.yaml
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - server/**
       - .github/workflows/server.yml
@@ -37,6 +38,7 @@ jobs:
     name: Gettext (Marketing)
     runs-on: namespace-profile-default
     timeout-minutes: 15
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
       - name: Restore Mix Cache
@@ -62,12 +64,13 @@ jobs:
       - run: mise run install
       - name: Check marketing gettext template is up-to-date
         run: |
-          # Extract only to check if marketing.pot changes
+          # Extract only (without --merge) to check if marketing.pot changes
+          # DO NOT use --merge here as it would modify .po translation files
           cp priv/gettext/marketing.pot priv/gettext/marketing.pot.backup
-          mix gettext.extract --merge > /dev/null 2>&1 || true
+          mix gettext.extract > /dev/null 2>&1 || true
 
           if ! diff -q priv/gettext/marketing.pot.backup priv/gettext/marketing.pot > /dev/null; then
-            echo "::error title=Marketing gettext template out of sync::The marketing.pot file is not up-to-date. Please run 'mix gettext.extract' in the server directory and commit the changes."
+            echo "::error title=Marketing gettext template out of sync::The marketing.pot file is not up-to-date. Please run 'mix gettext.extract' (WITHOUT --merge) in the server directory and commit the changes."
             rm priv/gettext/marketing.pot.backup
             exit 1
           else
@@ -108,24 +111,32 @@ jobs:
           # Get the PR author
           PR_AUTHOR="${{ github.event.pull_request.user.login }}"
 
-          # Get list of modified .po files in this PR
-          MODIFIED_PO_FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | grep '\.po$' || true)
+          # Get list of added and modified .po files in this PR
+          ADDED_PO_FILES=$(git diff --name-only --diff-filter=A origin/${{ github.base_ref }}...HEAD | grep '\.po$' || true)
+          MODIFIED_PO_FILES=$(git diff --name-only --diff-filter=M origin/${{ github.base_ref }}...HEAD | grep '\.po$' || true)
 
-          if [ -z "$MODIFIED_PO_FILES" ]; then
+          if [ -z "$ADDED_PO_FILES" ] && [ -z "$MODIFIED_PO_FILES" ]; then
             echo "✅ No .po files modified in this PR"
             exit 0
           fi
 
-          # If any .po files are modified and author is not tuistit, fail
+          # Allow adding new language directories (one-time setup), but block modifications
           if [ "$PR_AUTHOR" != "tuistit" ]; then
-            echo "::error title=Translation files modified::Translation files (.po) were modified by $PR_AUTHOR. Only the tuistit bot should modify translation files. Translations should be managed through Weblate."
-            echo ""
-            echo "Modified translation files:"
-            echo "$MODIFIED_PO_FILES"
-            echo ""
-            echo "If you need to update translations, please use Weblate instead of editing .po files directly."
-            echo "You should only commit .pot (template) files, not .po (translation) files."
-            exit 1
+            if [ -n "$MODIFIED_PO_FILES" ]; then
+              echo "::error title=Translation files modified::Translation files (.po) were modified by $PR_AUTHOR. Only the tuistit bot should modify translation files. Translations should be managed through Weblate."
+              echo ""
+              echo "Modified translation files:"
+              echo "$MODIFIED_PO_FILES"
+              echo ""
+              echo "If you need to update translations, please use Weblate instead of editing .po files directly."
+              echo "You should only commit .pot (template) files, not .po (translation) files."
+              exit 1
+            elif [ -n "$ADDED_PO_FILES" ]; then
+              echo "⚠️  New translation files added by $PR_AUTHOR:"
+              echo "$ADDED_PO_FILES"
+              echo ""
+              echo "✅ Allowing new language setup. Future modifications should go through Weblate."
+            fi
           else
             echo "✅ Translation files modified by tuistit bot"
           fi
@@ -133,6 +144,7 @@ jobs:
     name: Test
     runs-on: namespace-profile-default
     timeout-minutes: 15
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     services:
       postgres:
         image: timescale/timescaledb-ha:pg16
@@ -177,6 +189,7 @@ jobs:
     name: Credo
     runs-on: namespace-profile-default
     timeout-minutes: 15
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
       - name: Restore Mix Cache
@@ -235,6 +248,7 @@ jobs:
     name: esbuild
     runs-on: namespace-profile-default
     timeout-minutes: 15
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4 # v4
       - name: Restore Mix Cache
@@ -280,6 +294,7 @@ jobs:
     name: Security
     runs-on: namespace-profile-default
     timeout-minutes: 15
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
       - name: Restore Mix Cache
@@ -309,6 +324,7 @@ jobs:
     name: Docker build
     runs-on: namespace-profile-default
     timeout-minutes: 15
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -409,6 +425,7 @@ jobs:
     name: Seed
     runs-on: namespace-profile-default
     timeout-minutes: 15
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     services:
       postgres:
         image: timescale/timescaledb-ha:pg16

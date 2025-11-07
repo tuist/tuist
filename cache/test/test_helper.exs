@@ -1,5 +1,11 @@
 Mimic.copy(Cache.Authentication)
 Mimic.copy(Cache.Disk)
 Mimic.copy(Cache.KeyValueStore)
+Mimic.copy(ExAws.S3.Upload)
+Mimic.copy(ExAws.S3)
+Mimic.copy(ExAws)
+Mimic.copy(ExAws.Config)
+Mimic.copy(Cache.S3)
+Mimic.copy(Oban)
 
 ExUnit.start()

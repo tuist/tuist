@@ -3985,14 +3985,9 @@ msgstr ""
 msgid "•"
 msgstr ""
 
-#: lib/tuist_web/marketing/live/marketing_blog_live.html.heex:9
+#: lib/tuist_web/marketing/live/marketing_blog_live.html.heex:10
 #, elixir-autogen, elixir-format
 msgid "Blog"
-msgstr ""
-
-#: lib/tuist_web/marketing/live/marketing_blog_live.html.heex:11
-#, elixir-autogen, elixir-format
-msgid "Engaging stories and expert insights"
 msgstr ""
 
 #: lib/tuist_web/live/account_settings_live.ex:155

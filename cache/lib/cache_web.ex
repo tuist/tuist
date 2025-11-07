@@ -21,9 +21,10 @@ defmodule CacheWeb do
     quote do
       use Phoenix.Router, helpers: false
 
+      import Phoenix.Controller
+
       # Import common connection and controller functions to use in pipelines
       import Plug.Conn
-      import Phoenix.Controller
     end
   end
 

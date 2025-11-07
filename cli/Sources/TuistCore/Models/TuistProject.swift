@@ -13,6 +13,14 @@ public enum TuistProject: Equatable, Hashable, Sendable {
         }
     }
 
+    public var disableSandbox: Bool {
+        switch self {
+        case let .generated(options): return options.generationOptions.disableSandbox
+        case .xcode: return true
+        case .swiftPackage: return true
+        }
+    }
+
     public var isGenerated: Bool {
         switch self {
         case .generated: return true

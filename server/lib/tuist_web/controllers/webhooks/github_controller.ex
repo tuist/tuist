@@ -8,6 +8,8 @@ defmodule TuistWeb.Webhooks.GitHubController do
   alias Tuist.Repo
   alias Tuist.VCS
 
+  require Logger
+
   def handle(conn, params) do
     event_type = conn |> get_req_header("x-github-event") |> List.first()
 
@@ -95,11 +97,27 @@ defmodule TuistWeb.Webhooks.GitHubController do
          "action" => "created",
          "installation" => %{"id" => installation_id, "html_url" => html_url}
        }) do
-    {:ok, _} = update_github_app_installation_html_url(installation_id, html_url)
+    case update_github_app_installation_html_url_with_retry(installation_id, html_url) do
+      {:ok, _} ->
+        conn
+        |> put_status(:ok)
+        |> json(%{status: "ok"})
 
-    conn
-    |> put_status(:ok)
-    |> json(%{status: "ok"})
+      {:error, :not_found_after_retries} ->
+        # After retries, the installation still doesn't exist. This indicates a broken user flow:
+        # 1. The setup callback failed or was never called
+        # 2. The user closed the browser before completing setup
+        # 3. Network issues prevented the redirect
+        # This means the installation exists in GitHub but not in our database,
+        # creating an orphaned installation that requires manual reconciliation.
+        Logger.error(
+          "GitHub installation.created webhook for installation_id=#{installation_id} but installation not found after retries. Setup callback may have failed. Manual intervention may be required."
+        )
+
+        conn
+        |> put_status(:ok)
+        |> json(%{status: "ok"})
+    end
   end
 
   defp handle_installation(conn, _params) do
@@ -111,10 +129,15 @@ defmodule TuistWeb.Webhooks.GitHubController do
   defp get_project_for_qa(qa_result, repository_full_name) do
     case qa_result do
       {project_name, _prompt} when not is_nil(project_name) ->
-        Projects.project_by_name_and_vcs_repository_full_handle(project_name, repository_full_name, preload: :account)
+        Projects.project_by_name_and_vcs_repository_full_handle(
+          project_name,
+          repository_full_name,
+          preload: :account
+        )
 
       {nil, _prompt} ->
-        projects = Projects.projects_by_vcs_repository_full_handle(repository_full_name, preload: :account)
+        projects =
+          Projects.projects_by_vcs_repository_full_handle(repository_full_name, preload: :account)
 
         case projects do
           [] -> {:error, :not_found}
@@ -225,12 +248,43 @@ defmodule TuistWeb.Webhooks.GitHubController do
   end
 
   defp delete_github_app_installation(installation_id) do
-    {:ok, github_app_installation} = VCS.get_github_app_installation_by_installation_id(installation_id)
-    VCS.delete_github_app_installation(github_app_installation)
+    case VCS.get_github_app_installation_by_installation_id(installation_id) do
+      {:ok, github_app_installation} ->
+        VCS.delete_github_app_installation(github_app_installation)
+
+      {:error, :not_found} ->
+        {:ok, :already_deleted}
+    end
   end
 
   defp update_github_app_installation_html_url(installation_id, html_url) do
-    {:ok, github_app_installation} = VCS.get_github_app_installation_by_installation_id(installation_id)
-    VCS.update_github_app_installation(github_app_installation, %{html_url: html_url})
+    case VCS.get_github_app_installation_by_installation_id(installation_id) do
+      {:ok, github_app_installation} ->
+        VCS.update_github_app_installation(github_app_installation, %{html_url: html_url})
+
+      {:error, :not_found} ->
+        {:error, :not_found}
+    end
+  end
+
+  defp update_github_app_installation_html_url_with_retry(installation_id, html_url, attempt \\ 1) do
+    max_attempts = 3
+    retry_delay_ms = 1000
+
+    case update_github_app_installation_html_url(installation_id, html_url) do
+      {:ok, result} ->
+        {:ok, result}
+
+      {:error, :not_found} when attempt < max_attempts ->
+        Logger.info(
+          "GitHub installation not found for installation_id=#{installation_id}, attempt #{attempt}/#{max_attempts}. Retrying in #{retry_delay_ms}ms..."
+        )
+
+        Process.sleep(retry_delay_ms)
+        update_github_app_installation_html_url_with_retry(installation_id, html_url, attempt + 1)
+
+      {:error, :not_found} ->
+        {:error, :not_found_after_retries}
+    end
   end
 end

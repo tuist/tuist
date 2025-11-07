@@ -1,9 +1,5 @@
 import Config
 
-config :cache,
-  namespace: Cache
-
-# Configures the endpoint
 config :cache, CacheWeb.Endpoint,
   url: [host: "localhost"],
   adapter: Bandit.PhoenixAdapter,
@@ -14,14 +10,23 @@ config :cache, CacheWeb.Endpoint,
   pubsub_server: Cache.PubSub,
   live_view: [signing_salt: "unique_salt_here"]
 
-# Configures Elixir's Logger
+config :cache, Oban,
+  repo: Cache.Repo,
+  engine: Oban.Engines.Lite,
+  queues: [s3_uploads: 10],
+  plugins: [
+    Oban.Plugins.Pruner
+  ]
+
+config :cache, ecto_repos: [Cache.Repo]
+
+config :cache,
+  namespace: Cache
+
 config :logger, :console,
   format: "$time $metadata[$level] $message\n",
   metadata: [:request_id]
 
-# Use Jason for JSON encoding
 config :phoenix, :json_library, Jason
 
-# Import environment specific config. This must remain at the bottom
-# of this file so it overrides the configuration defined above.
 import_config "#{config_env()}.exs"

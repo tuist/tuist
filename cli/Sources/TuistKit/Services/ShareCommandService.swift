@@ -160,7 +160,7 @@ struct ShareCommandService {
 
             let (graph, _, _, _) = try await manifestGraphLoader.load(
                 path: path,
-                disableSandbox: config.project.generatedProject?.generationOptions.disableSandbox ?? true
+                disableSandbox: config.project.disableSandbox
             )
             let graphTraverser = GraphTraverser(graph: graph)
             let shareableTargets =
