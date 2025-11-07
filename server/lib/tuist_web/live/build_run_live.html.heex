@@ -1053,7 +1053,7 @@
               >
                 <.text_cell label={output.node_id} />
               </:col>
-              <:col :let={output} label={gettext("Operation")}>
+              <:col :let={output} label={gettext("Status")}>
                 <%= case output.operation do %>
                   <% "download" -> %>
                     <.badge_cell label={gettext("Download")} color="information" style="light-fill" />

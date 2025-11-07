@@ -1029,7 +1029,7 @@ defmodule TuistWeb.BuildRunLive do
       %Filter.Filter{
         id: "operation",
         field: :operation,
-        display_name: gettext("Operation"),
+        display_name: gettext("Status"),
         type: :option,
         options: ["download", "upload"],
         options_display_names: %{
