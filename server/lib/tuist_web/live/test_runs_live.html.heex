@@ -61,8 +61,8 @@
         id="widget-test-run-count"
         trend_value={@test_runs_analytics.trend}
         trend_label={@analytics_trend_label}
-        patch={"?#{Query.put(@uri.query, "analytics_selected_widget", "test_run_count")}"}
-        replace={true}
+        phx_click="select_widget"
+        phx_value_widget="test_run_count"
         selected={@analytics_selected_widget == "test_run_count"}
         empty={@test_runs_analytics.count == 0}
       />
@@ -78,8 +78,8 @@
         trend_value={@failed_test_runs_analytics.trend}
         trend_label={@analytics_trend_label}
         trend_inverse
-        patch={"?#{Query.put(@uri.query, "analytics_selected_widget", "failed_test_run_count")}"}
-        replace={true}
+        phx_click="select_widget"
+        phx_value_widget="failed_test_run_count"
         selected={@analytics_selected_widget == "failed_test_run_count"}
         empty={@test_runs_analytics.count == 0}
       />
@@ -102,8 +102,8 @@
         trend_value={@test_runs_duration_analytics.trend}
         trend_label={@analytics_trend_label}
         trend_inverse
-        patch={"?#{Query.put(@uri.query, "analytics_selected_widget", "test_run_duration")}"}
-        replace={true}
+        phx_click="select_widget"
+        phx_value_widget="test_run_duration"
         selected={@analytics_selected_widget == "test_run_duration"}
         empty={@test_runs_analytics.count == 0}
       />

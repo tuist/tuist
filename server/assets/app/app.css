@@ -61,6 +61,7 @@ a {
 
 .tuist-widget-link {
   text-decoration: unset;
+  cursor: pointer;
 
   & .tuist-widget:hover {
     background-color: var(--noora-surface-background-secondary);

@@ -54,16 +54,9 @@ defmodule TuistWeb.AppComponents do
     doc: "Set this to true when smaller number means the trend is positive."
   )
 
-  attr(:patch, :string, default: nil, doc: "Patches the current LiveView")
-
-  attr(:replace, :boolean,
-    default: false,
-    doc: "Whether to replace the current history entry when patching."
-  )
-
   attr(:selected, :boolean,
     default: false,
-    doc: "Whether the widget is selected. Only applicable when patch is not nil."
+    doc: "Whether the widget is selected."
   )
 
   attr(:empty, :boolean, default: false, doc: "Whether the widget is empty")
@@ -89,17 +82,8 @@ defmodule TuistWeb.AppComponents do
         </span>
       </.card_section>
     <% else %>
-      <.link
-        :if={@patch}
-        patch={@patch}
-        replace={@replace}
-        data-selected={@selected}
-        class="tuist-widget-link"
-      >
-        <.static_widget {assigns} />
-      </.link>
       <div
-        :if={@phx_click && !@patch}
+        :if={@phx_click}
         role="button"
         tabindex="0"
         phx-click={@phx_click}
@@ -110,7 +94,7 @@ defmodule TuistWeb.AppComponents do
       >
         <.static_widget {assigns} />
       </div>
-      <.static_widget :if={!@patch && !@phx_click} {assigns} />
+      <.static_widget :if={!@phx_click} {assigns} />
     <% end %>
     """
   end
