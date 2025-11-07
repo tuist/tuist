@@ -293,13 +293,17 @@ defmodule TuistWeb.Marketing.MarketingController do
         &Tuist.Environment.app_url(path: ~p"/newsletter/issues/#{&1.number}")
       )
 
-    entries =
-      [
-        Tuist.Environment.app_url(path: ~p"/"),
-        Tuist.Environment.app_url(path: ~p"/pricing"),
-        Tuist.Environment.app_url(path: ~p"/blog"),
-        Tuist.Environment.app_url(path: ~p"/changelog")
-      ] ++ page_urls ++ post_urls ++ newsletter_issue_urls
+    base_paths = [~p"/", ~p"/pricing", ~p"/blog", ~p"/changelog"]
+
+    # Generate URLs for all locales
+    localized_entries =
+      for locale <- Localization.all_locales(),
+          path <- base_paths do
+        localized_path = Localization.localized_href(path, locale)
+        Tuist.Environment.app_url(path: localized_path)
+      end
+
+    entries = localized_entries ++ page_urls ++ post_urls ++ newsletter_issue_urls
 
     conn
     |> assign(:entries, entries)

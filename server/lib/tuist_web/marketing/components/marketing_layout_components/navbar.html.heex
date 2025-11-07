@@ -125,7 +125,7 @@ resources_items = [
 ] %>
 <header id="marketing-navbar">
   <div data-part="bar">
-    <.link href={~p"/"} data-part="tuist">
+    <.link href={TuistWeb.Marketing.MarketingHTML.localized_href("/")} data-part="tuist">
       <img data-part="logo" src={~p"/marketing/images/components/navbar/logo.webp"} alt="Tuist" />
       <h3 data-part="title">Tuist</h3>
     </.link>
@@ -285,88 +285,37 @@ resources_items = [
       </div>
     </nav>
     <nav data-part="actions" aria-label="Call to action">
-      <%!-- <div data-part="menu" phx-hook="NavbarDropdown" id="marketing-navbar-languages-menu">
-      <div data-part="action">
-        <span data-part="title">
-          <.language />
-        </span>
-        <span data-part="chevron"><.chevron_down /></span>
+      <div
+        data-part="menu"
+        phx-hook="NavbarDropdown"
+        id="marketing-navbar-languages-menu"
+        data-open="false"
+      >
+        <div data-part="action" data-open="false">
+          <span data-part="title">
+            <.language />
+          </span>
+          <span data-part="chevron"><.chevron_down /></span>
+        </div>
+        <div data-part="dropdown" data-dropdown="languages" data-open="false">
+          <.link href={
+            TuistWeb.Marketing.Localization.localized_href(
+              TuistWeb.Marketing.Localization.current_path(assigns),
+              "en"
+            )
+          }>
+            English
+          </.link>
+          <.link href={
+            TuistWeb.Marketing.Localization.localized_href(
+              TuistWeb.Marketing.Localization.current_path(assigns),
+              "ru"
+            )
+          }>
+            Русский <span>(Russian)</span>
+          </.link>
+        </div>
       </div>
-      <div data-part="dropdown" data-dropdown="languages">
-        <.link href={
-          TuistWeb.Marketing.Localization.localized_href(
-            TuistWeb.Marketing.Localization.current_path(assigns),
-            "en"
-          )
-        }>
-          English
-        </.link>
-        <.link href={
-          TuistWeb.Marketing.Localization.localized_href(
-            TuistWeb.Marketing.Localization.current_path(assigns),
-            "ko"
-          )
-        }>
-          한국어 <span>(Korean)</span>
-        </.link>
-        <.link href={
-          TuistWeb.Marketing.Localization.localized_href(
-            TuistWeb.Marketing.Localization.current_path(assigns),
-            "ja"
-          )
-        }>
-          日本語 <span>(Japanese)</span>
-        </.link>
-        <.link href={
-          TuistWeb.Marketing.Localization.localized_href(
-            TuistWeb.Marketing.Localization.current_path(assigns),
-            "ru"
-          )
-        }>
-          Русский <span>(Russian)</span>
-        </.link>
-        <.link href={
-          TuistWeb.Marketing.Localization.localized_href(
-            TuistWeb.Marketing.Localization.current_path(assigns),
-            "es"
-          )
-        }>
-          Castellano <span>(Spanish)</span>
-        </.link>
-        <.link href={
-          TuistWeb.Marketing.Localization.localized_href(
-            TuistWeb.Marketing.Localization.current_path(assigns),
-            "pt"
-          )
-        }>
-          Português <span>(Portuguese)</span>
-        </.link>
-        <.link href={
-          TuistWeb.Marketing.Localization.localized_href(
-            TuistWeb.Marketing.Localization.current_path(assigns),
-            "ar"
-          )
-        }>
-          العربية <span>(Arabic)</span>
-        </.link>
-        <.link href={
-          TuistWeb.Marketing.Localization.localized_href(
-            TuistWeb.Marketing.Localization.current_path(assigns),
-            "zh"
-          )
-        }>
-          中文 <span>(Chinese)</span>
-        </.link>
-        <.link href={
-          TuistWeb.Marketing.Localization.localized_href(
-            TuistWeb.Marketing.Localization.current_path(assigns),
-            "pl"
-          )
-        }>
-          Polski <span>(Polish)</span>
-        </.link>
-      </div>
-    </div> --%>
       <.button
         :if={is_nil(TuistWeb.Authentication.current_user(assigns))}
         href={~p"/users/register"}
