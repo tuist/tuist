@@ -19,8 +19,11 @@ defmodule Cache.S3UploadWorker do
         :ok
 
       {:error, reason} ->
-        # TODO: Add AppSignal exception
-        Logger.error("Failed to upload artifact to S3 #{key}: #{inspect(reason)}")
+        Appsignal.send_error(%RuntimeError{message: "Failed to upload artifact to S3"}, %{
+          key: key,
+          reason: reason
+        })
+
         {:error, reason}
     end
   end

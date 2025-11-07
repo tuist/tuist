@@ -1,5 +1,10 @@
 import Config
 
+config :appsignal, :config,
+  otp_app: :cache,
+  name: "Cache",
+  active: true
+
 config :cache, CacheWeb.Endpoint,
   url: [host: "localhost"],
   adapter: Bandit.PhoenixAdapter,

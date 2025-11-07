@@ -11,6 +11,10 @@ if config_env() == :prod do
   host = System.get_env("PHX_HOST")
   port = String.to_integer(System.get_env("PORT") || "4000")
 
+  config :appsignal, :config,
+    push_api_key: System.get_env("APPSIGNAL_PUSH_API_KEY"),
+    env: System.get_env("APPSIGNAL_ENV")
+
   config :cache, Cache.Repo,
     database: "/cas/repo.sqlite",
     pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10"),

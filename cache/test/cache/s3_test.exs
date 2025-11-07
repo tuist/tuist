@@ -45,7 +45,6 @@ defmodule Cache.S3Test do
       assert S3.remote_accel_path("https://example.com/bar") == "/internal/remote/https/example.com/bar"
     end
 
-
     test "ensures path slash when path missing" do
       url = "https://example.com"
       assert S3.remote_accel_path(url) == "/internal/remote/https/example.com/"
