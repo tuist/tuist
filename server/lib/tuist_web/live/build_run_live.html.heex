@@ -900,22 +900,19 @@
               <.active_filter :for={filter <- @cacheable_tasks_active_filters} filter={filter} />
             </div>
             <.table id="cacheable-tasks-table" rows={@cacheable_tasks}>
-              <:col :let={task} label={gettext("Task")}>
-                <.text_cell label={task.description || gettext("Unknown")} />
-              </:col>
               <:col
                 :let={task}
-                label={gettext("Key")}
+                label={gettext("Task")}
                 patch={
-                  @cacheable_tasks_sort_by == "key" &&
-                    cacheable_tasks_column_patch_sort(assigns, "key")
+                  @cacheable_tasks_sort_by == "description" &&
+                    cacheable_tasks_column_patch_sort(assigns, "description")
                 }
                 icon={
-                  @cacheable_tasks_sort_by == "key" &&
+                  @cacheable_tasks_sort_by == "description" &&
                     sort_icon(@cacheable_tasks_sort_order)
                 }
               >
-                <.text_cell label={task.key} />
+                <.text_cell label={task.description || gettext("Unknown")} />
               </:col>
               <:col :let={task} label={gettext("Hit")}>
                 <%= case task.status do %>
@@ -929,6 +926,36 @@
               </:col>
               <:col :let={task} label={gettext("Type")}>
                 <.text_cell label={task.type |> String.capitalize()} />
+              </:col>
+              <:col
+                :let={task}
+                label={gettext("Cache key")}
+                patch={
+                  @cacheable_tasks_sort_by == "key" &&
+                    cacheable_tasks_column_patch_sort(assigns, "key")
+                }
+                icon={
+                  @cacheable_tasks_sort_by == "key" &&
+                    sort_icon(@cacheable_tasks_sort_order)
+                }
+              >
+                <.text_cell label={String.slice(task.key, 0, 30) <> if(String.length(task.key) > 30, do: "...", else: "")} />
+              </:col>
+              <:col :let={task}>
+                <.button_cell>
+                  <:button>
+                    <.button
+                      id={"cacheable-task-copy-#{task.key}"}
+                      variant="secondary"
+                      size="small"
+                      icon_only
+                      phx-hook="Clipboard"
+                      data-clipboard-value={task.key}
+                    >
+                      <.copy />
+                    </.button>
+                  </:button>
+                </.button_cell>
               </:col>
               <:empty_state>
                 <.table_empty_state

@@ -376,8 +376,12 @@ defmodule TuistWeb.BuildRunLive do
     end
   end
 
-  defp cacheable_tasks_order_by(_cacheable_tasks_sort_by) do
-    [:key]
+  defp cacheable_tasks_order_by(cacheable_tasks_sort_by) do
+    case cacheable_tasks_sort_by do
+      "description" -> [:description]
+      "key" -> [:key]
+      _ -> [:description]
+    end
   end
 
   defp assign_module_breakdown(
@@ -834,10 +838,11 @@ defmodule TuistWeb.BuildRunLive do
          params
        ) do
     cacheable_tasks_search = params["cacheable-tasks-search"] || ""
-    cacheable_tasks_sort_by = params["cacheable-tasks-sort-by"] || "key"
+    cacheable_tasks_sort_by = params["cacheable-tasks-sort-by"] || "description"
 
     default_sort_order =
       case cacheable_tasks_sort_by do
+        "description" -> "desc"
         "key" -> "desc"
         _ -> "desc"
       end
