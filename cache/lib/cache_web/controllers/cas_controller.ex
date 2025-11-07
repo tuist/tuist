@@ -17,6 +17,7 @@ defmodule CacheWeb.CASController do
 
     if Disk.exists?(account_handle, project_handle, id) do
       local_path = Disk.local_accel_path(account_handle, project_handle, id)
+      record_access(account_handle, project_handle, id)
       :telemetry.execute([:cache, :cas, :download, :disk_hit], %{}, %{})
 
       conn
@@ -24,6 +25,7 @@ defmodule CacheWeb.CASController do
       |> send_resp(:ok, "")
     else
       :telemetry.execute([:cache, :cas, :download, :disk_miss], %{}, %{})
+      record_access(account_handle, project_handle, id)
 
       Task.start(fn ->
         S3DownloadWorker.enqueue_download(account_handle, project_handle, id)
@@ -119,5 +121,15 @@ defmodule CacheWeb.CASController do
     conn
     |> put_status(status)
     |> json(%{message: message})
+  end
+
+  defp record_access(account_handle, project_handle, id) do
+    case CASArtifacts.mark_access(account_handle, project_handle, id) do
+      :ok ->
+        :ok
+
+      {:error, reason} ->
+        Logger.warning("Failed to record CAS access for #{account_handle}/#{project_handle}/#{id}: #{inspect(reason)}")
+    end
   end
 end

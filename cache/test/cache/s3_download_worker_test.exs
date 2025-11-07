@@ -4,6 +4,7 @@ defmodule Cache.Workers.S3DownloadWorkerTest do
 
   import ExUnit.CaptureLog
 
+  alias Cache.CASArtifacts
   alias Cache.Repo
   alias Cache.S3DownloadWorker
   alias Ecto.Adapters.SQL.Sandbox
@@ -66,6 +67,11 @@ defmodule Cache.Workers.S3DownloadWorkerTest do
       expect(ExAws, :request, fn {:download_operation, "test-bucket", ^key, ^local_path} ->
         File.write!(local_path, "test downloaded content")
         {:ok, %{status_code: 200}}
+      end)
+
+      expect(CASArtifacts, :record_write, fn ^account_handle, ^project_handle, ^id, size ->
+        assert size == byte_size("test downloaded content")
+        :ok
       end)
 
       job = %Oban.Job{
