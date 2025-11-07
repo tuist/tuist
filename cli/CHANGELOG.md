@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.101.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* track cache key read/write latency by [@fortmarek](https://github.com/fortmarek) in [#8598](https://github.com/tuist/tuist/pull/8598)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.100.0...4.101.0
+
 ## What's Changed in 4.100.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
