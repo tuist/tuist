@@ -14,6 +14,7 @@ struct KeyValueServiceTests {
     private let putCacheValueService: MockPutCacheValueServicing
     private let getCacheValueService: MockGetCacheValueServicing
     private let nodeStore: MockCASNodeStoring
+    private let metadataStore: MockKeyValueMetadataStoring
     private let fullHandle = "tuist/tuist"
     private let serverURL = URL(string: "https://example.com")!
     /// Sample protobuf data containing multiple CAS entries
@@ -25,13 +26,15 @@ struct KeyValueServiceTests {
         putCacheValueService = MockPutCacheValueServicing()
         getCacheValueService = MockGetCacheValueServicing()
         nodeStore = MockCASNodeStoring()
+        metadataStore = MockKeyValueMetadataStoring()
 
         subject = KeyValueService(
             fullHandle: fullHandle,
             serverURL: serverURL,
             putCacheValueService: putCacheValueService,
             getCacheValueService: getCacheValueService,
-            nodeStore: nodeStore
+            nodeStore: nodeStore,
+            metadataStore: metadataStore
         )
     }
 
@@ -56,6 +59,10 @@ struct KeyValueServiceTests {
             )
             .willReturn()
 
+        given(metadataStore)
+            .storeMetadata(.any, for: .any, operationType: .any)
+            .willReturn()
+
         // When
         let response = try await subject.putValue(request: request, context: context)
 
@@ -68,6 +75,17 @@ struct KeyValueServiceTests {
                 entries: .value(["key1": valueData.base64EncodedString()]),
                 fullHandle: .any,
                 serverURL: .any
+            )
+            .called(1)
+
+        // Wait for async Task to complete
+        try await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
+
+        verify(metadataStore)
+            .storeMetadata(
+                .any,
+                for: .value("0~SDVUUkZaeVZXcEdZVTVzY0VaVVdHaHFZa2hDV2xsWWIzZFFVVDA5"),
+                operationType: .value(.write)
             )
             .called(1)
     }
@@ -122,6 +140,10 @@ struct KeyValueServiceTests {
             )
             .willReturn(mockResponse)
 
+        given(metadataStore)
+            .storeMetadata(.any, for: .any, operationType: .any)
+            .willReturn()
+
         // When
         let response = try await subject.getValue(request: request, context: context)
 
@@ -134,6 +156,13 @@ struct KeyValueServiceTests {
         default:
             #expect(Bool(false), "Expected .value content")
         }
+
+        // Wait for async Task to complete
+        try await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
+
+        verify(metadataStore)
+            .storeMetadata(.any, for: .any, operationType: .value(.read))
+            .called(1)
     }
 
     @Test
@@ -150,11 +179,22 @@ struct KeyValueServiceTests {
             .getCacheValue(casId: .any, fullHandle: .any, serverURL: .any)
             .willReturn(nil)
 
+        given(metadataStore)
+            .storeMetadata(.any, for: .any, operationType: .any)
+            .willReturn()
+
         // When
         let response = try await subject.getValue(request: request, context: context)
 
         // Then
         #expect(response.outcome == .keyNotFound)
+
+        // Wait for async Task to complete
+        try await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
+
+        verify(metadataStore)
+            .storeMetadata(.any, for: .any, operationType: .value(.read))
+            .called(1)
     }
 
     @Test
@@ -172,12 +212,23 @@ struct KeyValueServiceTests {
             .getCacheValue(casId: .any, fullHandle: .any, serverURL: .any)
             .willThrow(expectedError)
 
+        given(metadataStore)
+            .storeMetadata(.any, for: .any, operationType: .any)
+            .willReturn()
+
         // When
         let response = try await subject.getValue(request: request, context: context)
 
         // Then
         #expect(response.error.description_p == "Invalid token")
         #expect(response.outcome == .keyNotFound)
+
+        // Wait for async Task to complete
+        try await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
+
+        verify(metadataStore)
+            .storeMetadata(.any, for: .any, operationType: .value(.read))
+            .called(1)
     }
 
     @Test
@@ -224,12 +275,23 @@ struct KeyValueServiceTests {
             .getCacheValue(casId: .any, fullHandle: .any, serverURL: .any)
             .willThrow(genericError)
 
+        given(metadataStore)
+            .storeMetadata(.any, for: .any, operationType: .any)
+            .willReturn()
+
         // When
         let response = try await subject.getValue(request: request, context: context)
 
         // Then
         #expect(response.error.description_p == genericError.localizedDescription)
         #expect(response.outcome == .keyNotFound)
+
+        // Wait for async Task to complete
+        try await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
+
+        verify(metadataStore)
+            .storeMetadata(.any, for: .any, operationType: .value(.read))
+            .called(1)
     }
 
     @Test
@@ -251,6 +313,10 @@ struct KeyValueServiceTests {
             .storeNode(.any, checksum: .any)
             .willReturn()
 
+        given(metadataStore)
+            .storeMetadata(.any, for: .any, operationType: .any)
+            .willReturn()
+
         // When
         let response = try await subject.putValue(request: request, context: context)
 
@@ -264,6 +330,10 @@ struct KeyValueServiceTests {
         verify(nodeStore)
             .storeNode(.any, checksum: .any)
             .called(4)
+
+        verify(metadataStore)
+            .storeMetadata(.any, for: .any, operationType: .value(.write))
+            .called(1)
     }
 
     @Test
@@ -292,6 +362,10 @@ struct KeyValueServiceTests {
             .storeNode(.any, checksum: .any)
             .willReturn()
 
+        given(metadataStore)
+            .storeMetadata(.any, for: .any, operationType: .any)
+            .willReturn()
+
         // When
         let response = try await subject.getValue(request: request, context: context)
 
@@ -305,6 +379,10 @@ struct KeyValueServiceTests {
         verify(nodeStore)
             .storeNode(.any, checksum: .any)
             .called(4)
+
+        verify(metadataStore)
+            .storeMetadata(.any, for: .any, operationType: .value(.read))
+            .called(1)
     }
 
     @Test
@@ -327,6 +405,10 @@ struct KeyValueServiceTests {
             .storeNode(.any, checksum: .any)
             .willThrow(NSError(domain: "TestError", code: 1))
 
+        given(metadataStore)
+            .storeMetadata(.any, for: .any, operationType: .any)
+            .willReturn()
+
         // When
         let response = try await subject.putValue(request: request, context: context)
 
@@ -340,6 +422,10 @@ struct KeyValueServiceTests {
         verify(nodeStore)
             .storeNode(.any, checksum: .any)
             .called(.atLeastOnce)
+
+        verify(metadataStore)
+            .storeMetadata(.any, for: .any, operationType: .value(.write))
+            .called(1)
     }
 
     @Test
@@ -362,6 +448,10 @@ struct KeyValueServiceTests {
             .storeNode(.any, checksum: .any)
             .willReturn()
 
+        given(metadataStore)
+            .storeMetadata(.any, for: .any, operationType: .any)
+            .willReturn()
+
         // When
         let response = try await subject.putValue(request: request, context: context)
 
@@ -375,6 +465,10 @@ struct KeyValueServiceTests {
         verify(nodeStore)
             .storeNode(.any, checksum: .any)
             .called(0)
+
+        verify(metadataStore)
+            .storeMetadata(.any, for: .any, operationType: .value(.write))
+            .called(1)
     }
 }
 

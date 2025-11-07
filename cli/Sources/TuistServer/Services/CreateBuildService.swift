@@ -335,21 +335,4 @@ import OpenAPIURLSession
         }
     }
 
-    extension Operations.createRun.Input.Body.jsonPayload.Case1Payload.cas_outputsPayloadPayload {
-        fileprivate init(_ casOutput: CASOutput) {
-            let operation: Self.operationPayload = switch casOutput.operation {
-            case .download: .download
-            case .upload: .upload
-            }
-            self.init(
-                checksum: casOutput.checksum,
-                compressed_size: casOutput.compressedSize,
-                duration: casOutput.duration,
-                node_id: casOutput.nodeID,
-                operation: operation,
-                size: casOutput.size
-            )
-        }
-    }
-
 #endif
