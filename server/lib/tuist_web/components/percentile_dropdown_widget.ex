@@ -1,5 +1,33 @@
 defmodule TuistWeb.PercentileDropdownWidget do
-  @moduledoc false
+  @moduledoc """
+  A widget component that displays metrics with a dropdown for selecting different percentile views.
+
+  This component combines a display widget with a dropdown menu that allows users to switch between
+  different statistical views of the same metric: average (avg), 99th percentile (p99),
+  90th percentile (p90), and 50th percentile (p50).
+
+  Each percentile option is displayed with a colored dot indicator, label, and corresponding value.
+  The colors are defined in CSS using the `data-type` attribute:
+  - avg: blue (--noora-chart-legend-secondary)
+  - p99: green (--noora-chart-p99)
+  - p90: pink (--noora-chart-p90)
+  - p50: orange (--noora-chart-p50)
+
+  ## Example
+
+      <.percentile_dropdown_widget
+        id="latency-widget"
+        title="Latency"
+        description="Response time"
+        value="125ms"
+        metrics=%{avg: "100ms", p99: "250ms", p90: "180ms", p50: "95ms"}
+        selected_type="p99"
+        event_name="change_percentile"
+        legend_color="green"
+        trend_value="+5%"
+        trend_label="vs last week"
+      />
+  """
   use TuistWeb, :html
   use Noora
 
@@ -42,7 +70,7 @@ defmodule TuistWeb.PercentileDropdownWidget do
           <.dropdown
             id={"#{@id}-dropdown"}
             icon_only
-            label={get_percentile_label(@selected_type)}
+            label={percentile_label(@selected_type)}
           >
             <:icon><.chevron_down /></:icon>
             <.dropdown_item
@@ -99,25 +127,19 @@ defmodule TuistWeb.PercentileDropdownWidget do
   defp percentile_dropdown_item(assigns) do
     ~H"""
     <div data-part="percentile-item">
-      <div data-part="dot" data-color={get_percentile_color(assigns.type)}></div>
-      <span data-part="label">{get_percentile_label(assigns.type)}</span>
+      <div data-part="dot" data-type={@type}></div>
+      <span data-part="label">{percentile_label(@type)}</span>
       <span data-part="separator">-</span>
       <span data-part="value">
-        {Map.get(assigns.metrics, String.to_atom(assigns.type), "N/A")}
+        {Map.get(@metrics, String.to_atom(@type), gettext("N/A"))}
       </span>
     </div>
     """
   end
 
-  defp get_percentile_label("avg"), do: gettext("Avg.")
-  defp get_percentile_label("p99"), do: "p99"
-  defp get_percentile_label("p90"), do: "p90"
-  defp get_percentile_label("p50"), do: "p50"
-  defp get_percentile_label(_), do: gettext("Avg.")
-
-  defp get_percentile_color("avg"), do: "blue"
-  defp get_percentile_color("p99"), do: "green"
-  defp get_percentile_color("p90"), do: "pink"
-  defp get_percentile_color("p50"), do: "orange"
-  defp get_percentile_color(_), do: "blue"
+  defp percentile_label("avg"), do: gettext("Avg.")
+  defp percentile_label("p99"), do: gettext("p99")
+  defp percentile_label("p90"), do: gettext("p90")
+  defp percentile_label("p50"), do: gettext("p50")
+  defp percentile_label(_), do: gettext("Avg.")
 end

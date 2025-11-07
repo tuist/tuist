@@ -1,5 +1,81 @@
 defmodule TuistWeb.Widget do
-  @moduledoc false
+  @moduledoc """
+  A reusable card-based widget component for displaying metrics and data visualizations.
+
+  This component provides a consistent UI pattern for showing key metrics, statistics, or data points
+  across the application. Widgets can display a value, optional trend information, and can be made
+  interactive with click handlers.
+
+  ## Features
+
+  - **Value Display**: Shows a primary metric value with title and optional description
+  - **Legend**: Color-coded legend indicator (primary, secondary, destructive, p99, p90, p50)
+  - **Trend Indicators**: Shows trend changes with percentage values and custom labels
+  - **Interactive**: Can be made clickable with Phoenix events
+  - **Selection State**: Visual feedback when a widget is selected
+  - **Empty State**: Special styling when no data is available
+  - **Custom Select Slot**: Allows embedding custom select/dropdown controls
+
+  ## Examples
+
+  ### Basic Widget
+
+      <.widget
+        id="total-users"
+        title="Total Users"
+        value="1,234"
+        legend_color="primary"
+      />
+
+  ### Widget with Trend
+
+      <.widget
+        id="response-time"
+        title="Avg Response Time"
+        value="125ms"
+        legend_color="secondary"
+        trend_value={-5}
+        trend_label="vs last week"
+        trend_inverse={true}
+      />
+
+  ### Interactive Widget
+
+      <.widget
+        id="cache-hits"
+        title="Cache Hits"
+        value="98.5%"
+        description="Percentage of requests served from cache"
+        selected={@selected_widget == "cache-hits"}
+        phx_click="select_widget"
+        phx_value_widget="cache-hits"
+      />
+
+  ### Widget with Custom Select
+
+      <.widget
+        id="latency"
+        title="Latency"
+        value="250ms"
+        legend_color="p99"
+      >
+        <:select>
+          <.dropdown id="latency-dropdown">
+            <.dropdown_item>p99</.dropdown_item>
+            <.dropdown_item>p90</.dropdown_item>
+          </.dropdown>
+        </:select>
+      </.widget>
+
+  ### Empty Widget
+
+      <.widget
+        id="no-data"
+        title="Analytics"
+        value=""
+        empty={true}
+      />
+  """
   use Phoenix.Component
   use Gettext, backend: TuistWeb.Gettext
   use Noora

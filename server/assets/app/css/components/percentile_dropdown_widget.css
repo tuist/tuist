@@ -10,19 +10,19 @@
     width: 8px;
     height: 8px;
 
-    &[data-color="blue"] {
+    &[data-type="avg"] {
       background-color: var(--noora-chart-legend-secondary);
     }
 
-    &[data-color="green"] {
+    &[data-type="p99"] {
       background-color: var(--noora-chart-p99);
     }
 
-    &[data-color="pink"] {
+    &[data-type="p90"] {
       background-color: var(--noora-chart-p90);
     }
 
-    &[data-color="orange"] {
+    &[data-type="p50"] {
       background-color: var(--noora-chart-p50);
     }
   }
