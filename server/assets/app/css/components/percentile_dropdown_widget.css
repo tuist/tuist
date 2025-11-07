@@ -43,10 +43,10 @@
   }
 }
 
-.noora-widget .noora-dropdown-item:not([data-selected]) svg {
+.tuist-widget .noora-dropdown-item:not([data-selected]) svg {
   visibility: hidden;
 }
 
-.noora-widget .noora-dropdown-item[data-selected] {
+.tuist-widget .noora-dropdown-item[data-selected] {
   background: var(--noora-surface-background-secondary);
 }
