@@ -5,12 +5,20 @@ defmodule CacheWeb.CASControllerTest do
   import ExUnit.CaptureLog
 
   alias Cache.Authentication
+  alias Cache.CASArtifacts
   alias Cache.Disk
+  alias Cache.Repo
+  alias Ecto.Adapters.SQL.Sandbox
 
   setup do
     {:ok, test_storage_dir} = Briefly.create(directory: true)
 
     stub(Disk, :storage_dir, fn -> test_storage_dir end)
+
+    # Set up database sandbox for tests that need database access
+    :ok = Sandbox.checkout(Repo)
+
+
     {:ok, test_storage_dir: test_storage_dir}
   end
 
@@ -223,6 +231,11 @@ defmodule CacheWeb.CASControllerTest do
         true
       end)
 
+      expect(CASArtifacts, :track_artifact_access, fn key ->
+        assert key == "#{account_handle}/#{project_handle}/cas/#{id}"
+        :ok
+      end)
+
       conn =
         conn
         |> put_req_header("authorization", "Bearer valid-token")
@@ -248,6 +261,11 @@ defmodule CacheWeb.CASControllerTest do
 
       expect(Disk, :exists?, fn ^account_handle, ^project_handle, ^id ->
         false
+      end)
+
+      expect(CASArtifacts, :track_artifact_access, fn key ->
+        assert key == "#{account_handle}/#{project_handle}/cas/#{id}"
+        :ok
       end)
 
       # Stub presign to return a deterministic URL
@@ -283,6 +301,11 @@ defmodule CacheWeb.CASControllerTest do
         false
       end)
 
+      expect(CASArtifacts, :track_artifact_access, fn key ->
+        assert key == "#{account_handle}/#{project_handle}/cas/#{id}"
+        :ok
+      end)
+
       expect(Cache.S3, :presign_download_url, fn key ->
         assert key == "#{account_handle}/#{project_handle}/cas/#{id}"
         {:error, :s3_not_configured}
@@ -315,6 +338,11 @@ defmodule CacheWeb.CASControllerTest do
         false
       end)
 
+      expect(CASArtifacts, :track_artifact_access, fn key ->
+        assert key == "#{account_handle}/#{project_handle}/cas/#{id}"
+        :ok
+      end)
+
       expect(Cache.S3, :presign_download_url, fn key ->
         assert key == "#{account_handle}/#{project_handle}/cas/#{id}"
         {:ok, "https://example.com/prefix/#{account_handle}/#{project_handle}/cas/#{id}?token=abc"}
@@ -324,10 +352,7 @@ defmodule CacheWeb.CASControllerTest do
         assert changeset.changes.worker == "Cache.S3DownloadWorker"
 
         assert changeset.changes.args == %{
-                 key: "#{account_handle}/#{project_handle}/cas/#{id}",
-                 account_handle: account_handle,
-                 project_handle: project_handle,
-                 id: id
+                 key: "#{account_handle}/#{project_handle}/cas/#{id}"
                }
 
         {:ok, changeset}
@@ -360,6 +385,11 @@ defmodule CacheWeb.CASControllerTest do
 
       expect(Disk, :exists?, fn ^account_handle, ^project_handle, ^id ->
         false
+      end)
+
+      expect(CASArtifacts, :track_artifact_access, fn key ->
+        assert key == "#{account_handle}/#{project_handle}/cas/#{id}"
+        :ok
       end)
 
       expect(Cache.S3, :presign_download_url, fn key ->

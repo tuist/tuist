@@ -129,6 +129,34 @@ defmodule Cache.Disk do
     end
   end
 
+  @doc """
+  Lists all artifact paths on disk.
+  """
+  def list_artifact_paths(dir \\ storage_dir()) do
+    dir
+    |> Path.join("**/*")
+    |> Path.wildcard(match_dot: true)
+    |> Enum.filter(&File.regular?/1)
+  end
+
+  @doc """
+  Returns disk usage stats for the filesystem that backs the provided path.
+  """
+
+  def usage(path) when is_binary(path) do
+    expanded_path = Path.expand(path)
+
+    case System.cmd("df", ["-Pk", expanded_path], stderr_to_stdout: true) do
+      {output, 0} ->
+        parse_df_output(output)
+
+      {output, exit_code} ->
+        Logger.warning("df exited with #{exit_code} while inspecting #{expanded_path}: #{String.trim(output)}")
+
+        {:error, :df_failed}
+    end
+  end
+
   defp ensure_directory(file_path) do
     dir = Path.dirname(file_path)
 
@@ -155,6 +183,58 @@ defmodule Cache.Disk do
         File.rm(tmp_path)
         Logger.error("Failed to move CAS artifact to #{target_path}: #{inspect(reason)}")
         {:error, reason}
+    end
+  end
+
+  defp parse_df_output(output) do
+    lines =
+      output
+      |> String.trim()
+      |> String.split("\n", trim: true)
+
+    case lines do
+      [_header, data_line | _] ->
+        parse_df_data_line(data_line)
+
+      _ ->
+        {:error, :unexpected_df_output}
+    end
+  end
+
+  defp parse_df_data_line(line) do
+    case String.split(line, ~r/\s+/, trim: true) do
+      [_filesystem, blocks, used, available, capacity | _] ->
+        with {:ok, total_bytes} <- parse_kbytes(blocks),
+             {:ok, used_bytes} <- parse_kbytes(used),
+             {:ok, available_bytes} <- parse_kbytes(available),
+             {:ok, percent_used} <- parse_percent(capacity) do
+          {:ok,
+           %{
+             total_bytes: total_bytes,
+             used_bytes: used_bytes,
+             available_bytes: available_bytes,
+             percent_used: percent_used
+           }}
+        end
+
+      _ ->
+        {:error, :unexpected_df_fields}
+    end
+  end
+
+  defp parse_kbytes(value) do
+    case Integer.parse(value) do
+      {int, _} when int >= 0 -> {:ok, int * 1024}
+      _ -> {:error, :invalid_number}
+    end
+  end
+
+  defp parse_percent(value) do
+    sanitized = String.trim_trailing(value, "%")
+
+    case Float.parse(sanitized) do
+      {number, _} when number >= 0 -> {:ok, number}
+      _ -> {:error, :invalid_percent}
     end
   end
 end

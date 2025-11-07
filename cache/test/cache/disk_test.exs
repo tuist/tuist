@@ -2,6 +2,9 @@ defmodule Cache.DiskTest do
   use ExUnit.Case, async: true
   use Mimic
 
+  import ExUnit.CaptureLog
+
+  alias Cache.CASArtifacts
   alias Cache.Disk
 
   @test_account "test_account"
@@ -46,6 +49,7 @@ defmodule Cache.DiskTest do
       end
     end)
 
+    stub(CASArtifacts, :track_artifact_access, fn _key -> :ok end)
     {:ok, test_storage_dir: test_storage_dir}
   end
 
@@ -154,6 +158,29 @@ defmodule Cache.DiskTest do
 
       assert Disk.put(@test_account, @test_project, @test_id, original_data) == :ok
       assert Disk.exists?(@test_account, @test_project, @test_id) == true
+    end
+  end
+
+  describe "usage/1" do
+    test "returns disk usage stats for an existing directory" do
+      {:ok, dir} = Briefly.create(directory: true)
+
+      assert {:ok, stats} = Disk.usage(dir)
+      assert stats.total_bytes > 0
+      assert stats.used_bytes >= 0
+      assert stats.available_bytes >= 0
+      assert stats.percent_used >= 0.0
+    end
+
+    test "returns error when df fails for missing path" do
+      missing_path = Path.join(System.tmp_dir!(), "nonexistent-#{System.unique_integer([:positive])}")
+
+      log =
+        capture_log(fn ->
+          assert {:error, :df_failed} = Disk.usage(missing_path)
+        end)
+
+      assert log =~ "df exited with 1"
     end
   end
 end

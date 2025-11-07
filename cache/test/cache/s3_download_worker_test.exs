@@ -53,9 +53,6 @@ defmodule Cache.Workers.S3DownloadWorkerTest do
   describe "perform/1" do
     test "successfully downloads file from S3 when it exists" do
       key = "test_account/test_project/cas/test_hash"
-      account_handle = "test_account"
-      project_handle = "test_project"
-      id = "test_hash"
       {:ok, tmp_dir} = Briefly.create(directory: true)
       local_path = Path.join(tmp_dir, "test_hash")
 
@@ -73,10 +70,7 @@ defmodule Cache.Workers.S3DownloadWorkerTest do
 
       job = %Oban.Job{
         args: %{
-          "key" => key,
-          "account_handle" => account_handle,
-          "project_handle" => project_handle,
-          "id" => id
+          "key" => key
         }
       }
 
@@ -111,9 +105,6 @@ defmodule Cache.Workers.S3DownloadWorkerTest do
 
     test "handles S3 download failure" do
       key = "test_account/test_project/cas/test_hash"
-      account_handle = "test_account"
-      project_handle = "test_project"
-      id = "test_hash"
       {:ok, tmp_dir} = Briefly.create(directory: true)
       local_path = Path.join(tmp_dir, "test_hash")
 
@@ -130,10 +121,7 @@ defmodule Cache.Workers.S3DownloadWorkerTest do
 
       job = %Oban.Job{
         args: %{
-          "key" => key,
-          "account_handle" => account_handle,
-          "project_handle" => project_handle,
-          "id" => id
+          "key" => key
         }
       }
 

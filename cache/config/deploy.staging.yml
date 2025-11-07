@@ -38,3 +38,4 @@ env:
 
 volumes:
   - /cas:/cas:rw
+  - /etc/hostname:/etc/host_hostname:ro
