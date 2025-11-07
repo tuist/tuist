@@ -808,22 +808,34 @@
                 )
               }
               value={
-                latency_value =
+                Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
                   get_latency_value(
                     @cacheable_task_latency_metrics,
                     @selected_read_latency_type,
                     :read
                   )
-
-                if latency_value > 0 do
-                  Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
-                    trunc(latency_value)
-                  )
-                else
-                  "N/A"
-                end
+                )
               }
-              metrics={format_latency_metrics(@cacheable_task_latency_metrics, :read)}
+              metrics={
+                %{
+                  avg:
+                    Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                      @cacheable_task_latency_metrics.avg_read_duration
+                    ),
+                  p99:
+                    Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                      @cacheable_task_latency_metrics.p99_read_duration
+                    ),
+                  p90:
+                    Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                      @cacheable_task_latency_metrics.p90_read_duration
+                    ),
+                  p50:
+                    Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                      @cacheable_task_latency_metrics.p50_read_duration
+                    )
+                }
+              }
               selected_type={@selected_read_latency_type}
               event_name="select_read_latency_type"
             />
@@ -836,22 +848,34 @@
                 )
               }
               value={
-                latency_value =
+                Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
                   get_latency_value(
                     @cacheable_task_latency_metrics,
                     @selected_write_latency_type,
                     :write
                   )
-
-                if latency_value > 0 do
-                  Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
-                    trunc(latency_value)
-                  )
-                else
-                  "N/A"
-                end
+                )
               }
-              metrics={format_latency_metrics(@cacheable_task_latency_metrics, :write)}
+              metrics={
+                %{
+                  avg:
+                    Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                      @cacheable_task_latency_metrics.avg_write_duration
+                    ),
+                  p99:
+                    Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                      @cacheable_task_latency_metrics.p99_write_duration
+                    ),
+                  p90:
+                    Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                      @cacheable_task_latency_metrics.p90_write_duration
+                    ),
+                  p50:
+                    Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                      @cacheable_task_latency_metrics.p50_write_duration
+                    )
+                }
+              }
               selected_type={@selected_write_latency_type}
               event_name="select_write_latency_type"
             />

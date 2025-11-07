@@ -886,8 +886,8 @@ defmodule Tuist.RunsTest do
       assert metrics.upload_count == 1
       assert metrics.download_bytes == 4000
       assert metrics.upload_bytes == 2000
-      assert metrics.time_weighted_avg_download_throughput == 1.0
-      assert metrics.time_weighted_avg_upload_throughput == 1.0
+      assert metrics.time_weighted_avg_download_throughput == 1000.0
+      assert metrics.time_weighted_avg_upload_throughput == 1000.0
     end
 
     test "returns zeros for build with no CAS outputs" do
@@ -955,7 +955,7 @@ defmodule Tuist.RunsTest do
       assert metrics.download_bytes == 15_000
       assert metrics.upload_bytes == 0
       # Time-weighted average: (5000 + 10000) / (5000 + 10000) * 1000 = 1000 bytes/s
-      assert metrics.time_weighted_avg_download_throughput == 1.0
+      assert metrics.time_weighted_avg_download_throughput == 1000.0
       assert metrics.time_weighted_avg_upload_throughput == 0
     end
 
@@ -993,7 +993,7 @@ defmodule Tuist.RunsTest do
       assert metrics.upload_bytes == 20_000
       assert metrics.time_weighted_avg_download_throughput == 0
       # Time-weighted average: (8000 + 12000) / (4000 + 6000) * 1000 = 2000 bytes/s
-      assert metrics.time_weighted_avg_upload_throughput == 2.0
+      assert metrics.time_weighted_avg_upload_throughput == 2000.0
     end
 
     test "ignores operations with zero duration for throughput calculation" do
@@ -1030,7 +1030,7 @@ defmodule Tuist.RunsTest do
       assert metrics.upload_bytes == 0
       # Only the second operation (duration > 0) is included in throughput
       # Time-weighted average: 2000 / 2000 * 1000 = 1000 bytes/s
-      assert metrics.time_weighted_avg_download_throughput == 1.0
+      assert metrics.time_weighted_avg_download_throughput == 1000.0
       assert metrics.time_weighted_avg_upload_throughput == 0
     end
 
@@ -1075,9 +1075,82 @@ defmodule Tuist.RunsTest do
       assert metrics.download_bytes == 25_000
       assert metrics.upload_bytes == 20_000
       # Download throughput: (10000 + 15000) / (10000 + 5000) * 1000 = 1666.67 bytes/s
-      assert_in_delta metrics.time_weighted_avg_download_throughput, 1.6666666666666667, 0.001
+      assert_in_delta metrics.time_weighted_avg_download_throughput, 1666.67, 0.1
       # Upload throughput: 20000 / 4000 * 1000 = 5000 bytes/s
-      assert metrics.time_weighted_avg_upload_throughput == 5.0
+      assert metrics.time_weighted_avg_upload_throughput == 5000.0
+    end
+  end
+
+  describe "cacheable_task_latency_metrics/1" do
+    test "returns correct metrics for build with cacheable tasks with durations" do
+      # Given
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          cacheable_tasks: [
+            %{
+              type: :swift,
+              status: :hit_local,
+              key: "task1",
+              read_duration: 100.0,
+              write_duration: nil
+            },
+            %{
+              type: :swift,
+              status: :miss,
+              key: "task2",
+              read_duration: nil,
+              write_duration: 200.0
+            },
+            %{
+              type: :clang,
+              status: :hit_remote,
+              key: "task3",
+              read_duration: 150.0,
+              write_duration: 250.0
+            },
+            %{
+              type: :swift,
+              status: :hit_local,
+              key: "task4",
+              read_duration: 200.0,
+              write_duration: 300.0
+            }
+          ]
+        )
+
+      # When
+      metrics = Runs.cacheable_task_latency_metrics(build.id)
+
+      # Then
+      assert metrics.avg_read_duration == 150.0
+      assert metrics.avg_write_duration == 250.0
+      assert metrics.p99_read_duration == 199.0
+      assert metrics.p99_write_duration == 299.0
+      assert metrics.p90_read_duration == 190.0
+      assert metrics.p90_write_duration == 290.0
+      assert metrics.p50_read_duration == 150.0
+      assert metrics.p50_write_duration == 250.0
+    end
+
+    test "returns zeros for build with no cacheable tasks" do
+      # Given
+      {:ok, build} = RunsFixtures.build_fixture(cacheable_tasks: [])
+
+      # Allow ClickHouse to process the insert
+      Process.sleep(100)
+
+      # When
+      metrics = Runs.cacheable_task_latency_metrics(build.id)
+
+      # Then
+      assert metrics.avg_read_duration == 0
+      assert metrics.avg_write_duration == 0
+      assert metrics.p99_read_duration == 0
+      assert metrics.p99_write_duration == 0
+      assert metrics.p90_read_duration == 0
+      assert metrics.p90_write_duration == 0
+      assert metrics.p50_read_duration == 0
+      assert metrics.p50_write_duration == 0
     end
   end
 end

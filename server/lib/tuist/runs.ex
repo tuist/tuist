@@ -149,6 +149,8 @@ defmodule Tuist.Runs do
           status: struct.status,
           key: struct.key,
           build_run_id: struct.build_run_id,
+          read_duration: struct.read_duration,
+          write_duration: struct.write_duration,
           inserted_at: struct.inserted_at
         }
       end)

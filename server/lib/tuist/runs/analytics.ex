@@ -230,11 +230,9 @@ defmodule Tuist.Runs.Analytics do
     date_period = date_period(start_date: start_date, end_date: end_date)
     time_bucket = time_bucket_for_date_period(date_period)
 
-    # Get current period percentile data
     current_period_percentile =
       build_period_percentile(project_id, percentile, start_date, end_date, opts)
 
-    # Get previous period percentile data for trend calculation
     previous_period_percentile =
       build_period_percentile(
         project_id,

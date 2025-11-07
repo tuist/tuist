@@ -1051,25 +1051,6 @@ defmodule TuistWeb.BuildRunLive do
     Map.get(metrics, key, 0)
   end
 
-  def format_latency_metrics(metrics, operation) do
-    format_value = fn type ->
-      latency_value = get_latency_value(metrics, type, operation)
-
-      if latency_value > 0 do
-        Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(trunc(latency_value))
-      else
-        "N/A"
-      end
-    end
-
-    %{
-      avg: format_value.("avg"),
-      p99: format_value.("p99"),
-      p90: format_value.("p90"),
-      p50: format_value.("p50")
-    }
-  end
-
   def get_latency_title(type, operation) do
     operation_text =
       case operation do
