@@ -1047,21 +1047,21 @@
             <div data-part="throughput-widgets">
               <.widget
                 title={gettext("Download throughput")}
-                description={gettext("Time-weighted average download speed in bytes per second.")}
+                description={gettext("Time-weighted average download throughput in megabits per second.")}
                 value={
-                  Tuist.Utilities.ByteFormatter.format_bytes(
-                    trunc(@cas_metrics.time_weighted_avg_download_throughput)
-                  ) <> gettext("/s")
+                  Tuist.Utilities.ThroughputFormatter.format_throughput(
+                    @cas_metrics.time_weighted_avg_download_throughput
+                  )
                 }
                 id="widget-download-throughput"
               />
               <.widget
                 title={gettext("Upload throughput")}
-                description={gettext("Time-weighted average upload speed in bytes per second.")}
+                description={gettext("Time-weighted average upload throughput in megabits per second.")}
                 value={
-                  Tuist.Utilities.ByteFormatter.format_bytes(
-                    trunc(@cas_metrics.time_weighted_avg_upload_throughput)
-                  ) <> gettext("/s")
+                  Tuist.Utilities.ThroughputFormatter.format_throughput(
+                    @cas_metrics.time_weighted_avg_upload_throughput
+                  )
                 }
                 id="widget-upload-throughput"
               />
