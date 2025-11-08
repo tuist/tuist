@@ -178,11 +178,11 @@ defmodule TuistWeb.BuildRunLiveTest do
     # When
     {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/builds/build-runs/#{build_run.id}")
 
-    # Then - Check that the Cache tab is present in the horizontal tab menu
-    assert has_element?(lv, ".noora-tab-menu-horizontal-item", "Cache")
+    # Then - Check that the Xcode Cache tab is present in the horizontal tab menu
+    assert has_element?(lv, ".noora-tab-menu-horizontal-item", "Xcode Cache")
 
-    # When clicking on the cache tab
-    lv |> element(".noora-tab-menu-horizontal-item", "Cache") |> render_click()
+    # When clicking on the xcode cache tab
+    lv |> element(".noora-tab-menu-horizontal-item", "Xcode Cache") |> render_click()
 
     # Then it should show the summary statistics
     assert has_element?(lv, "[data-part='title']", "Cacheable tasks")
@@ -209,7 +209,7 @@ defmodule TuistWeb.BuildRunLiveTest do
     # When
     {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/builds/build-runs/#{build_run.id}")
 
-    # Then - Check that the Cache tab is not present in the horizontal tab menu
-    refute has_element?(lv, ".noora-tab-menu-horizontal-item", "Cache")
+    # Then - Check that the Xcode Cache tab is not present in the horizontal tab menu
+    refute has_element?(lv, ".noora-tab-menu-horizontal-item", "Xcode Cache")
   end
 end

@@ -56,9 +56,9 @@
     />
     <.tab_menu_horizontal_item
       :if={@run.cacheable_tasks_count > 0}
-      label={gettext("Cache")}
-      selected={@selected_tab == "cache"}
-      patch={"?#{Query.put(@uri.query, "tab", "cache")}"}
+      label={gettext("Xcode Cache")}
+      selected={@selected_tab == "xcode-cache"}
+      patch={"?#{Query.put(@uri.query, "tab", "xcode-cache")}"}
     />
     <.tab_menu_horizontal_item
       label={gettext("Warnings")}
@@ -585,7 +585,7 @@
       </.card_section>
     </.card>
   <% end %>
-  <%= if @selected_tab == "cache" do %>
+  <%= if @selected_tab == "xcode-cache" do %>
     <div data-part="cache">
       <.card
         title={gettext("Cache Summary")}
