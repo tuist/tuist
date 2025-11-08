@@ -5,32 +5,6 @@ import TuistLoader
 import TuistSupport
 import XcodeGraph
 
-struct InspectImplicitImportsServiceErrorIssue: Equatable {
-    let target: String
-    let implicitDependencies: Set<String>
-}
-
-enum InspectImplicitImportsServiceError: FatalError, Equatable {
-    case implicitImportsFound([InspectImplicitImportsServiceErrorIssue])
-
-    var description: String {
-        switch self {
-        case let .implicitImportsFound(issues):
-            """
-            The following implicit dependencies were found:
-            \(
-                issues.map { " - \($0.target) implicitly depends on: \($0.implicitDependencies.joined(separator: ", "))" }
-                    .joined(separator: "\n")
-            )
-            """
-        }
-    }
-
-    var type: ErrorType {
-        .abort
-    }
-}
-
 final class InspectImplicitImportsService {
     private let configLoader: ConfigLoading
     private let generatorFactory: GeneratorFactorying
@@ -60,11 +34,7 @@ final class InspectImplicitImportsService {
             ignoreTagsMatching: []
         )
         if !issues.isEmpty {
-            Logger.current.log(
-                level: .info,
-                "The following implicit dependencies were found:"
-            )
-            try issues.printAndThrowErrorsIfNeeded()
+            throw InspectImportsServiceError.implicitImportsFound(issues)
         }
         Logger.current.log(
             level: .info,
