@@ -1,5 +1,5 @@
 msgid ""
-msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-05 17:58+0000\nPO-Revision-Date: 2025-11-07 16:10+0000\nLast-Translator: Boram Jeong <bbiguduk@gmail.com>\nLanguage-Team: Korean <https://translate.tuist.dev/projects/tuist/marketing/ko/>\nLanguage: ko\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\nX-Generator: Weblate 5.14.1\n"
+msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-05 17:58+0000\nPO-Revision-Date: 2025-11-09 18:25+0000\nLast-Translator: Boram Jeong <bbiguduk@gmail.com>\nLanguage-Team: Korean <https://translate.tuist.dev/projects/tuist/marketing/ko/>\nLanguage: ko\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\nX-Generator: Weblate 5.14.3\n"
 
 ## This file is a PO Template file.
 ##
@@ -138,12 +138,12 @@ msgstr "기본 가격"
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:24
 #, elixir-autogen, elixir-format
 msgid "Best for teams and growing startups."
-msgstr ""
+msgstr "팀과 성장 중인 스타트업에 가장 적합합니다."
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:589
 #, elixir-autogen, elixir-format
 msgid "Beyond expectations"
-msgstr ""
+msgstr "기대 그 이상"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:214
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:87
@@ -154,66 +154,66 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_html/blog_post.html.heex:10
 #, elixir-autogen, elixir-format
 msgid "Blog"
-msgstr ""
+msgstr "블로그"
 
 #: lib/tuist_web/marketing/controllers/marketing_xml/blog_atom.xml.eex:4
 #: lib/tuist_web/marketing/controllers/marketing_xml/blog_rss.xml.eex:5
 #, elixir-autogen, elixir-format
 msgid "Blog posts by the Tuist team."
-msgstr ""
+msgstr "Tuist 팀이 작성한 블로그 게시글입니다."
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:264
 #, elixir-autogen, elixir-format
 msgid "Bluesky"
-msgstr ""
+msgstr "Bluesky"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:333
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:156
 #, elixir-autogen, elixir-format
 msgid "Build Insights"
-msgstr ""
+msgstr "빌드 인사이트"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:40
 #, elixir-autogen, elixir-format
 msgid "Build insights"
-msgstr ""
+msgstr "빌드 인사이트"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:53
 #, elixir-autogen, elixir-format
 msgid "Build times reduced by 80%"
-msgstr ""
+msgstr "빌드 시간 80% 단축"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/about.html.heex:9
 #, elixir-autogen, elixir-format
 msgid "Building the future of scalable app development"
-msgstr ""
+msgstr "확장 가능한 앱 개발의 미래 구축"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:318
 #, elixir-autogen, elixir-format
 msgid "Builds"
-msgstr ""
+msgstr "빌드"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:498
 #, elixir-autogen, elixir-format
 msgid "Bumble solved key issues without changing the core dev experience"
-msgstr ""
+msgstr "Bumble은 핵심 개발 경험을 유지하면서 주요 문제를 해결했습니다"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:369
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:170
 #, elixir-autogen, elixir-format
 msgid "Bundle Insights"
-msgstr ""
+msgstr "번들 인사이트"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:108
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:351
 #, elixir-autogen, elixir-format
 msgid "Bundle analysis"
-msgstr ""
+msgstr "번들 분석"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:49
 #, elixir-autogen, elixir-format
 msgid "Bundle insights"
-msgstr ""
+msgstr "번들 인사이트"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:60
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:147
@@ -223,12 +223,12 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:233
 #, elixir-autogen, elixir-format
 msgid "Cache"
-msgstr ""
+msgstr "캐시"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:455
 #, elixir-autogen, elixir-format
 msgid "Can I change or cancel my plan at any time?"
-msgstr ""
+msgstr "언제나 요금제를 변경하거나 취소할 수 있나요?"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:149
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:169
@@ -239,85 +239,85 @@ msgstr ""
 #: lib/tuist_web/marketing/structured_markup.ex:218
 #, elixir-autogen, elixir-format
 msgid "Changelog"
-msgstr ""
+msgstr "변경사항"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/cta.html.heex:6
 #, elixir-autogen, elixir-format
 msgid "Chat with the founders"
-msgstr ""
+msgstr "창립자와 대화하기"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:116
 #, elixir-autogen, elixir-format
 msgid "Check our sources, issues, and PRs"
-msgstr ""
+msgstr "소스, 이슈, PR 확인"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:375
 #, elixir-autogen, elixir-format
 msgid "Check out our GitHub to see all the action—where the magic happens and collaboration thrives."
-msgstr ""
+msgstr "모든 활동과 협업이 활발한 GitHub을 확인해보세요."
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:77
 #, elixir-autogen, elixir-format
 msgid "Check out our REST API documentation"
-msgstr ""
+msgstr "REST API 문서 확인"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:71
 #, elixir-autogen, elixir-format
 msgid "Check out our documentation"
-msgstr ""
+msgstr "문서 확인"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:127
 #, elixir-autogen, elixir-format
 msgid "Close menu"
-msgstr ""
+msgstr "닫기"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:166
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:339
 #, elixir-autogen, elixir-format
 msgid "Community"
-msgstr ""
+msgstr "커뮤니티"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/support.html.heex:43
 #, elixir-autogen, elixir-format
 msgid "Community Forum"
-msgstr ""
+msgstr "커뮤니티 포럼"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:182
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:109
 #, elixir-autogen, elixir-format
 msgid "Community forum"
-msgstr ""
+msgstr "커뮤니티 포럼"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:210
 #, elixir-autogen, elixir-format
 msgid "Community support"
-msgstr ""
+msgstr "커뮤니티 지원"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:17
 #, elixir-autogen, elixir-format
 msgid "Community support via forum"
-msgstr ""
+msgstr "포럼을 통한 커뮤니티 지원"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:208
 #, elixir-autogen, elixir-format
 msgid "Company"
-msgstr ""
+msgstr "회사"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:298
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:324
 #, elixir-autogen, elixir-format
 msgid "Compare our plans"
-msgstr ""
+msgstr "요금제 비교"
 
 #: lib/tuist_web/marketing/live/marketing_qa_live.html.heex:49
 #, elixir-autogen, elixir-format
 msgid "Concise Summary"
-msgstr ""
+msgstr "요약"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/support.html.heex:46
 #, elixir-autogen, elixir-format
 msgid "Connect with other Tuist users, share experiences, and get help from the community."
-msgstr ""
+msgstr "커뮤니티를 통해 다른 Tuist 사용자와 연락하고 경험을 공유하고 도움을 받을 수 있습니다."
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:217
 #, elixir-autogen, elixir-format
