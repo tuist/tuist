@@ -4,6 +4,7 @@ defmodule CacheWeb.CASController do
   alias Cache.BodyReader
   alias Cache.Disk
   alias Cache.S3
+  alias Cache.S3DownloadWorker
   alias Cache.S3UploadWorker
 
   require Logger
@@ -21,6 +22,10 @@ defmodule CacheWeb.CASController do
       |> send_resp(:ok, "")
     else
       :telemetry.execute([:cache, :cas, :download, :disk_miss], %{}, %{})
+
+      Task.start(fn ->
+        S3DownloadWorker.enqueue_download(account_handle, project_handle, id)
+      end)
 
       case S3.presign_download_url(key) do
         {:ok, url} ->

@@ -34,4 +34,16 @@ defmodule Cache.S3 do
       _ -> base <> "?" <> query
     end
   end
+
+  def exists?(key) when is_binary(key) do
+    bucket = Application.get_env(:cache, :s3)[:bucket]
+
+    case bucket
+         |> ExAws.S3.head_object(key)
+         |> ExAws.request() do
+      {:ok, _response} -> true
+      {:error, {:http_error, 404, _}} -> false
+      {:error, _reason} -> false
+    end
+  end
 end

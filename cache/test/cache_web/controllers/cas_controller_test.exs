@@ -302,6 +302,91 @@ defmodule CacheWeb.CASControllerTest do
       assert conn.resp_body == ""
     end
 
+    test "spawns download worker when file not on disk and S3 presign succeeds", %{conn: conn} do
+      account_handle = "test-account"
+      project_handle = "test-project"
+      id = "abc123"
+
+      expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
+        {:ok, "Bearer valid-token"}
+      end)
+
+      expect(Disk, :exists?, fn ^account_handle, ^project_handle, ^id ->
+        false
+      end)
+
+      expect(Cache.S3, :presign_download_url, fn key ->
+        assert key == "#{account_handle}/#{project_handle}/cas/#{id}"
+        {:ok, "https://example.com/prefix/#{account_handle}/#{project_handle}/cas/#{id}?token=abc"}
+      end)
+
+      expect(Oban, :insert, fn changeset ->
+        assert changeset.changes.worker == "Cache.S3DownloadWorker"
+
+        assert changeset.changes.args == %{
+                 key: "#{account_handle}/#{project_handle}/cas/#{id}",
+                 account_handle: account_handle,
+                 project_handle: project_handle,
+                 id: id
+               }
+
+        {:ok, changeset}
+      end)
+
+      capture_log(fn ->
+        conn =
+          conn
+          |> put_req_header("authorization", "Bearer valid-token")
+          |> get("/api/cache/cas/#{id}?account_handle=#{account_handle}&project_handle=#{project_handle}")
+
+        assert conn.status == 200
+
+        assert get_resp_header(conn, "x-accel-redirect") == [
+                 "/internal/remote/https/example.com/prefix/#{account_handle}/#{project_handle}/cas/#{id}?token=abc"
+               ]
+
+        assert conn.resp_body == ""
+      end)
+    end
+
+    test "continues normally even if download worker enqueue fails", %{conn: conn} do
+      account_handle = "test-account"
+      project_handle = "test-project"
+      id = "abc123"
+
+      expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
+        {:ok, "Bearer valid-token"}
+      end)
+
+      expect(Disk, :exists?, fn ^account_handle, ^project_handle, ^id ->
+        false
+      end)
+
+      expect(Cache.S3, :presign_download_url, fn key ->
+        assert key == "#{account_handle}/#{project_handle}/cas/#{id}"
+        {:ok, "https://example.com/prefix/#{account_handle}/#{project_handle}/cas/#{id}?token=abc"}
+      end)
+
+      expect(Oban, :insert, fn _changeset ->
+        {:error, %Ecto.Changeset{}}
+      end)
+
+      capture_log(fn ->
+        conn =
+          conn
+          |> put_req_header("authorization", "Bearer valid-token")
+          |> get("/api/cache/cas/#{id}?account_handle=#{account_handle}&project_handle=#{project_handle}")
+
+        assert conn.status == 200
+
+        assert get_resp_header(conn, "x-accel-redirect") == [
+                 "/internal/remote/https/example.com/prefix/#{account_handle}/#{project_handle}/cas/#{id}?token=abc"
+               ]
+
+        assert conn.resp_body == ""
+      end)
+    end
+
     test "returns 401 when authentication fails", %{conn: conn} do
       account_handle = "test-account"
       project_handle = "test-project"
