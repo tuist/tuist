@@ -44,8 +44,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Test docker-compose configuration
-        working-directory: docs
-        run: ./test-docker-compose.sh
+        run: ./docs/test-docker-compose.sh
 
   build-deploy:
     name: Build & Deploy
