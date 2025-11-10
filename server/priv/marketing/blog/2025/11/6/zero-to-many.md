@@ -1,5 +1,5 @@
 ---
-title: "From Zero to Many: The Hidden Cost of Scale"
+title: "Build Smart Before You Build Fast"
 category: "learn"
 tags: ["scalability", "productivity", "roi"]
 excerpt: "Discover how merge throughput evolves as your team grows, and why optimizing build and test times becomes critical for business velocity"
