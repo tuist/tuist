@@ -650,8 +650,8 @@ defmodule TuistWeb.API.BundlesControllerTest do
       response = json_response(conn, 422)
 
       # OpenAPI Spex validates the UUID format and returns an error message
-      assert response["message"] =~ "bundle_id"
-      assert response["message"] =~ invalid_bundle_id
+      assert response["message"] =~ "Invalid format"
+      assert response["message"] =~ ":uuid"
     end
 
     test "returns validation error when bundle_id is malformed", %{conn: conn, user: user, project: project} do
@@ -667,8 +667,8 @@ defmodule TuistWeb.API.BundlesControllerTest do
       # Then
       response = json_response(conn, 422)
 
-      assert response["message"] =~ "bundle_id"
-      assert response["message"] =~ invalid_bundle_id
+      assert response["message"] =~ "Invalid format"
+      assert response["message"] =~ ":uuid"
     end
   end
 end

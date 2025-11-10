@@ -152,7 +152,9 @@ defmodule TuistWeb.API.BundlesController do
       forbidden: {"You are not authorized to view this bundle", "application/json", Error}
     }
 
-  def show(%{assigns: %{selected_project: selected_project}} = conn, %{"bundle_id" => bundle_id}) do
+  def show(%{assigns: %{selected_project: selected_project}} = conn, params) do
+    bundle_id = params["bundle_id"] || params[:bundle_id]
+
     case Bundles.get_bundle(bundle_id,
            project_id: selected_project.id,
            preload: [:uploaded_by_account, project: :account]
