@@ -23,6 +23,7 @@ defmodule TuistWeb.API.BundlesController do
     json_render_error_v2: true,
     render_error: TuistWeb.RenderAPIErrorPlug
   )
+  when action in [:show, :index]
 
   tags ["Bundles"]
 
