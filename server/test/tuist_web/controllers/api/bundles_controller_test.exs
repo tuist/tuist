@@ -213,12 +213,11 @@ defmodule TuistWeb.API.BundlesControllerTest do
         |> put_req_header("content-type", "application/json")
         |> post(~p"/api/projects/#{project.account.name}/#{project.name}/bundles", bundle_params)
 
-      # When
-      response = json_response(conn, :bad_request)
+      # When - OpenApiSpex returns 422 for validation errors
+      response = json_response(conn, 422)
 
       # Then
-      assert response["message"] == "There was an error handling your request."
-      assert response["fields"]["supported_platforms"] == ["is invalid"]
+      assert response["message"] =~ "Invalid value"
     end
 
     test "returns forbidden when user is not authorized to create a bundle", %{
@@ -510,17 +509,17 @@ defmodule TuistWeb.API.BundlesControllerTest do
       project: project
     } do
       artifact_1 = %{
-        "artifact_type" => "file",
-        "path" => "app.ipa",
-        "size" => 4096,
-        "shasum" => "ipa789"
+        artifact_type: :file,
+        path: "app.ipa",
+        size: 4096,
+        shasum: "ipa789"
       }
 
       artifact_2 = %{
-        "artifact_type" => "asset",
-        "path" => "icon.png",
-        "size" => 1024,
-        "shasum" => "icon123"
+        artifact_type: :asset,
+        path: "icon.png",
+        size: 1024,
+        shasum: "icon123"
       }
 
       artifacts = [
@@ -557,18 +556,18 @@ defmodule TuistWeb.API.BundlesControllerTest do
                "version" => bundle.version,
                "artifacts" => [
                  %{
-                   "artifact_type" => artifact_1["artifact_type"],
+                   "artifact_type" => Atom.to_string(artifact_1.artifact_type),
                    "children" => nil,
-                   "path" => artifact_1["path"],
-                   "shasum" => artifact_1["shasum"],
-                   "size" => artifact_1["size"]
+                   "path" => artifact_1.path,
+                   "shasum" => artifact_1.shasum,
+                   "size" => artifact_1.size
                  },
                  %{
-                   "artifact_type" => artifact_2["artifact_type"],
+                   "artifact_type" => Atom.to_string(artifact_2.artifact_type),
                    "children" => nil,
-                   "path" => artifact_2["path"],
-                   "shasum" => artifact_2["shasum"],
-                   "size" => artifact_2["size"]
+                   "path" => artifact_2.path,
+                   "shasum" => artifact_2.shasum,
+                   "size" => artifact_2.size
                  }
                ]
              }

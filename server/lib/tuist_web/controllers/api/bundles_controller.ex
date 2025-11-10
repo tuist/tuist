@@ -19,20 +19,15 @@ defmodule TuistWeb.API.BundlesController do
   plug(TuistWeb.Plugs.LoaderPlug)
   plug(TuistWeb.API.Authorization.AuthorizationPlug, :bundle)
 
-  plug :openapi_validation when action in [:show, :index]
+  plug(
+    OpenApiSpex.Plug.CastAndValidate,
+    json_render_error_v2: true,
+    render_error: TuistWeb.RenderAPIErrorPlug
+  )
 
-  defp openapi_validation(conn, _opts) do
-    OpenApiSpex.Plug.CastAndValidate.call(conn,
-      OpenApiSpex.Plug.CastAndValidate.init(
-        json_render_error_v2: true,
-        render_error: TuistWeb.RenderAPIErrorPlug
-      )
-    )
-  end
+  tags(["Bundles"])
 
-  tags ["Bundles"]
-
-  operation :index,
+  operation(:index,
     summary: "List bundles for a project",
     operation_id: "listBundles",
     parameters: %{
@@ -84,6 +79,7 @@ defmodule TuistWeb.API.BundlesController do
       unauthorized: {"You need to be authenticated to list bundles", "application/json", Error},
       forbidden: {"You are not authorized to list bundles", "application/json", Error}
     }
+  )
 
   def index(%{assigns: %{selected_project: selected_project}} = conn, params) do
     filters = [
@@ -91,7 +87,7 @@ defmodule TuistWeb.API.BundlesController do
     ]
 
     filters =
-      case Map.get(params, "git_branch") do
+      case Map.get(params, :git_branch) do
         nil -> filters
         branch -> [%{field: :git_branch, op: :==, value: branch} | filters]
       end
@@ -100,11 +96,11 @@ defmodule TuistWeb.API.BundlesController do
       filters: filters,
       order_by: [:inserted_at],
       order_directions: [:desc],
-      page_size: Map.get(params, "page_size", 20)
+      page_size: Map.get(params, :page_size, 20)
     }
 
     flop_params =
-      case Map.get(params, "page") do
+      case Map.get(params, :page) do
         nil -> flop_params
         page -> Map.put(flop_params, :page, page)
       end
@@ -127,7 +123,7 @@ defmodule TuistWeb.API.BundlesController do
     })
   end
 
-  operation :show,
+  operation(:show,
     summary: "Get a single bundle by ID",
     operation_id: "getBundle",
     parameters: %{
@@ -154,12 +150,14 @@ defmodule TuistWeb.API.BundlesController do
       ok: {"Bundle details", "application/json", Bundle},
       unprocessable_entity: {"Invalid request parameters", "application/json", Error},
       not_found: {"Bundle not found", "application/json", Error},
-      unauthorized: {"You need to be authenticated to view this bundle", "application/json", Error},
+      unauthorized:
+        {"You need to be authenticated to view this bundle", "application/json", Error},
       forbidden: {"You are not authorized to view this bundle", "application/json", Error}
     }
+  )
 
   def show(%{assigns: %{selected_project: selected_project}} = conn, params) do
-    bundle_id = params["bundle_id"] || params[:bundle_id]
+    bundle_id = params[:bundle_id]
 
     case Bundles.get_bundle(bundle_id,
            project_id: selected_project.id,
@@ -177,7 +175,7 @@ defmodule TuistWeb.API.BundlesController do
     end
   end
 
-  operation :create,
+  operation(:create,
     summary: "Create a new bundle with artifacts",
     operation_id: "createBundle",
     request_body:
@@ -268,12 +266,14 @@ defmodule TuistWeb.API.BundlesController do
     responses: %{
       ok: {"The bundle was created successfully", "application/json", Bundle},
       bad_request: {"Validation errors occurred", "application/json", ValidationError},
-      unauthorized: {"You need to be authenticated to create a bundle", "application/json", Error},
+      unauthorized:
+        {"You need to be authenticated to create a bundle", "application/json", Error},
       forbidden: {"You are not authorized to create a bundle", "application/json", Error}
     }
+  )
 
-  def create(%{assigns: %{selected_project: selected_project}} = conn, params) do
-    bundle_params = params["bundle"] || params[:bundle]
+  def create(%{assigns: %{selected_project: selected_project}, body_params: body_params} = conn, _params) do
+    bundle_params = body_params[:bundle]
     id = UUIDv7.generate()
 
     account_id =
@@ -284,23 +284,31 @@ defmodule TuistWeb.API.BundlesController do
       end
 
     # Derive type if not provided for older CLI versions: :ipa if download_size is specified, :app otherwise
-    type = get_bundle_field(bundle_params, "type") || derive_bundle_type(get_bundle_field(bundle_params, "download_size"))
+    type =
+      Map.get(bundle_params, :type) ||
+        derive_bundle_type(Map.get(bundle_params, :download_size))
+
+    # Convert OpenApiSpex BundleArtifact structs to plain maps with atom keys
+    artifacts =
+      bundle_params
+      |> Map.get(:artifacts, [])
+      |> Enum.map(&struct_to_map/1)
 
     with {:ok, %Bundles.Bundle{} = bundle} <-
            Bundles.create_bundle(
              %{
                id: id,
                project_id: selected_project.id,
-               app_bundle_id: get_bundle_field(bundle_params, "app_bundle_id"),
-               name: get_bundle_field(bundle_params, "name"),
-               install_size: get_bundle_field(bundle_params, "install_size"),
-               download_size: get_bundle_field(bundle_params, "download_size"),
-               supported_platforms: get_bundle_field(bundle_params, "supported_platforms"),
-               version: get_bundle_field(bundle_params, "version"),
-               artifacts: get_bundle_field(bundle_params, "artifacts"),
-               git_branch: get_bundle_field(bundle_params, "git_branch"),
-               git_commit_sha: get_bundle_field(bundle_params, "git_commit_sha"),
-               git_ref: get_bundle_field(bundle_params, "git_ref"),
+               app_bundle_id: Map.get(bundle_params, :app_bundle_id),
+               name: Map.get(bundle_params, :name),
+               install_size: Map.get(bundle_params, :install_size),
+               download_size: Map.get(bundle_params, :download_size),
+               supported_platforms: Map.get(bundle_params, :supported_platforms),
+               version: Map.get(bundle_params, :version),
+               artifacts: artifacts,
+               git_branch: Map.get(bundle_params, :git_branch),
+               git_commit_sha: Map.get(bundle_params, :git_commit_sha),
+               git_ref: Map.get(bundle_params, :git_ref),
                type: type,
                uploaded_by_account_id: account_id
              },
@@ -312,8 +320,15 @@ defmodule TuistWeb.API.BundlesController do
     end
   end
 
-  defp get_bundle_field(bundle, field) when is_binary(field) do
-    bundle[field] || bundle[String.to_atom(field)]
+  # Convert OpenApiSpex structs to plain maps with atom keys, recursively
+  defp struct_to_map(%BundleArtifact{} = artifact) do
+    %{
+      artifact_type: artifact.artifact_type,
+      path: artifact.path,
+      size: artifact.size,
+      shasum: artifact.shasum,
+      children: artifact.children && Enum.map(artifact.children, &struct_to_map/1)
+    }
   end
 
   defp derive_bundle_type(download_size) when is_nil(download_size), do: "app"
