@@ -368,6 +368,44 @@
           & td:nth-child(3) {
             width: 12%;
           }
+
+          & [data-part="cas-outputs-list"] {
+            display: flex;
+            flex-direction: column;
+            gap: 0;
+
+            & [data-part="cas-output-item"] {
+              background-color: var(--noora-surface-background-secondary);
+              display: flex;
+              min-height: 64px;
+
+                & [data-part="cas-output-text"] {
+                  padding: var(--noora-spacing-3) var(--noora-spacing-5);
+                  border-radius: var(--noora-radius-medium);
+                  flex: 1;
+                  min-width: 0;
+                  margin: 0;
+                  color: var(--noora-surface-label-primary);
+                  font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+                  text-align: left;
+
+                  & [data-part="cas-output-label"] {
+                    color: var(--noora-surface-label-primary);
+                    font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+                    line-height: 20px;
+                  }
+
+                  & [data-part="cas-output-hash"] {
+                    color: var(--noora-surface-label-primary);
+                    font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+                    line-height: 20px;
+                    text-decoration: underline;
+                    text-decoration-skip-ink: none;
+                    text-underline-position: from-font;
+                  }
+                }
+            }
+          }
         }
       }
     }

@@ -988,10 +988,10 @@
                 %>
                 <div data-part="cas-outputs-list">
                   <%= for cas_output <- cas_outputs do %>
-                    <div data-part="cas-output-item" style="padding: 0.5rem 0;">
-                      <span style="font-size: 0.875rem; color: var(--text-secondary);">
-                        CAS Output <%= Map.get(cas_output, :node_id, "unknown") %>
-                      </span>
+                    <div data-part="cas-output-item">
+                          <p data-part="cas-output-text">
+                            <span data-part="cas-output-label">CAS output <%= Map.get(cas_output, :description, "swift dependencies") %>: </span><span data-part="cas-output-hash"><%= Map.get(cas_output, :node_id, "unknown") %></span><span data-part="cas-output-label">....</span>
+                          </p>
                     </div>
                   <% end %>
                 </div>
