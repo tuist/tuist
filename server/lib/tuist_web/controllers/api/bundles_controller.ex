@@ -267,7 +267,7 @@ defmodule TuistWeb.API.BundlesController do
     }
 
   def create(%{assigns: %{selected_project: selected_project}} = conn, params) do
-    bundle = params["bundle"]
+    bundle_params = params["bundle"] || params[:bundle]
     id = UUIDv7.generate()
 
     account_id =
@@ -278,23 +278,23 @@ defmodule TuistWeb.API.BundlesController do
       end
 
     # Derive type if not provided for older CLI versions: :ipa if download_size is specified, :app otherwise
-    type = bundle["type"] || derive_bundle_type(bundle["download_size"])
+    type = get_bundle_field(bundle_params, "type") || derive_bundle_type(get_bundle_field(bundle_params, "download_size"))
 
     with {:ok, %Bundles.Bundle{} = bundle} <-
            Bundles.create_bundle(
              %{
                id: id,
                project_id: selected_project.id,
-               app_bundle_id: bundle["app_bundle_id"],
-               name: bundle["name"],
-               install_size: bundle["install_size"],
-               download_size: bundle["download_size"],
-               supported_platforms: bundle["supported_platforms"],
-               version: bundle["version"],
-               artifacts: bundle["artifacts"],
-               git_branch: bundle["git_branch"],
-               git_commit_sha: bundle["git_commit_sha"],
-               git_ref: bundle["git_ref"],
+               app_bundle_id: get_bundle_field(bundle_params, "app_bundle_id"),
+               name: get_bundle_field(bundle_params, "name"),
+               install_size: get_bundle_field(bundle_params, "install_size"),
+               download_size: get_bundle_field(bundle_params, "download_size"),
+               supported_platforms: get_bundle_field(bundle_params, "supported_platforms"),
+               version: get_bundle_field(bundle_params, "version"),
+               artifacts: get_bundle_field(bundle_params, "artifacts"),
+               git_branch: get_bundle_field(bundle_params, "git_branch"),
+               git_commit_sha: get_bundle_field(bundle_params, "git_commit_sha"),
+               git_ref: get_bundle_field(bundle_params, "git_ref"),
                type: type,
                uploaded_by_account_id: account_id
              },
@@ -304,6 +304,10 @@ defmodule TuistWeb.API.BundlesController do
       |> put_status(:ok)
       |> json(bundle_to_map(bundle))
     end
+  end
+
+  defp get_bundle_field(bundle, field) when is_binary(field) do
+    bundle[field] || bundle[String.to_atom(field)]
   end
 
   defp derive_bundle_type(download_size) when is_nil(download_size), do: "app"
