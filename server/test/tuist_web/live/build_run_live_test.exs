@@ -185,12 +185,11 @@ defmodule TuistWeb.BuildRunLiveTest do
     lv |> element(".noora-tab-menu-horizontal-item", "Xcode Cache") |> render_click()
 
     # Then it should show the summary statistics
-    assert has_element?(lv, "[data-part='title']", "Cacheable tasks")
-    assert has_element?(lv, "[data-part='value']", "3")
-    assert has_element?(lv, "[data-part='title']", "Remote task hits")
+    assert has_element?(lv, "[data-part='title']", "Task hits")
+    assert has_element?(lv, "[data-part='value']", "2")
+    assert has_element?(lv, "[data-part='title']", "Task misses")
     assert has_element?(lv, "[data-part='value']", "1")
-    assert has_element?(lv, "[data-part='title']", "Local task hits")
-    assert has_element?(lv, "[data-part='value']", "1")
+    assert has_element?(lv, "[data-part='title']", "Hit rate")
   end
 
   test "hides cache tab when build has no cacheable tasks", %{

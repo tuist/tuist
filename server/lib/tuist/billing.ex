@@ -248,9 +248,7 @@ defmodule Tuist.Billing do
     }
   end
 
-  def get_estimated_next_payment(%{
-        current_month_remote_cache_hits_count: current_month_remote_cache_hits_count
-      }) do
+  def get_estimated_next_payment(%{current_month_remote_cache_hits_count: current_month_remote_cache_hits_count}) do
     remote_cache_hits_threshold = get_payment_thresholds()[:remote_cache_hits]
 
     if current_month_remote_cache_hits_count < remote_cache_hits_threshold do
@@ -373,8 +371,7 @@ defmodule Tuist.Billing do
           account_name: a.name,
           twelve_month_total_input_tokens: coalesce(sum(tu.input_tokens), 0),
           twelve_month_total_output_tokens: coalesce(sum(tu.output_tokens), 0),
-          twelve_month_total_tokens:
-            coalesce(sum(tu.input_tokens), 0) + coalesce(sum(tu.output_tokens), 0),
+          twelve_month_total_tokens: coalesce(sum(tu.input_tokens), 0) + coalesce(sum(tu.output_tokens), 0),
           twelve_month_average_tokens:
             fragment(
               "CASE WHEN count(distinct ?) > 0 THEN (coalesce(sum(?), 0) + coalesce(sum(?), 0)) / count(distinct ?) ELSE 0 END",
