@@ -994,6 +994,7 @@
                         <.popover
                           id={"cas-output-popover-#{cas_output.node_id}"}
                           tabindex="-1"
+                          placement="top"
                         >
                           <:trigger :let={attrs}>
                             <span {attrs} data-part="cas-output-hash"><%= String.slice(cas_output.node_id, 0, 40) %></span>
