@@ -256,6 +256,7 @@ cacheable_tasks =
         tasks ++
           Enum.map(1..remote_hits, fn i ->
             task_type = Enum.random(["clang", "swift"])
+
             %{
               build_run_id: build_id,
               type: task_type,
@@ -276,6 +277,7 @@ cacheable_tasks =
         tasks ++
           Enum.map(1..local_hits, fn i ->
             task_type = Enum.random(["clang", "swift"])
+
             %{
               build_run_id: build_id,
               type: task_type,
@@ -296,6 +298,7 @@ cacheable_tasks =
         tasks ++
           Enum.map(1..misses, fn i ->
             task_type = Enum.random(["clang", "swift"])
+
             %{
               build_run_id: build_id,
               type: task_type,

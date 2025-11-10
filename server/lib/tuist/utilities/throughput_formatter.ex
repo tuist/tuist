@@ -18,6 +18,8 @@ defmodule Tuist.Utilities.ThroughputFormatter do
   def format_throughput(bytes_per_second) when is_number(bytes_per_second) do
     # Convert bytes/s to Mbps: bytes * 8 bits/byte / 1,000,000 bits/Mb
     mbps = bytes_per_second * 8 / 1_000_000
-    "#{Float.round(mbps, 1)} Mbps"
+    # Use :erlang.float_to_binary to avoid scientific notation for large values
+    formatted = :erlang.float_to_binary(mbps, decimals: 1)
+    "#{formatted} Mbps"
   end
 end

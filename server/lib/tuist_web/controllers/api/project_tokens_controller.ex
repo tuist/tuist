@@ -196,8 +196,7 @@ defmodule TuistWeb.API.ProjectTokensController do
   )
 
   def delete(
-        %{path_params: %{"account_handle" => account_handle, "project_handle" => project_handle, "id" => token_id}} =
-          conn,
+        %{path_params: %{"account_handle" => account_handle, "project_handle" => project_handle, "id" => token_id}} = conn,
         _params
       ) do
     current_user = Authentication.current_user(conn)

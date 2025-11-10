@@ -1066,7 +1066,8 @@ defmodule TuistWeb.BuildRunLive do
   defp cas_outputs_filters(run, params, available_filters, search) do
     base_filters =
       [%{field: :build_run_id, op: :==, value: run.id}] ++
-        (Filter.Operations.decode_filters_from_query(params, available_filters)
+        (params
+         |> Filter.Operations.decode_filters_from_query(available_filters)
          |> Filter.Operations.convert_filters_to_flop()
          |> Enum.map(&convert_mb_to_bytes/1))
 
@@ -1080,8 +1081,7 @@ defmodule TuistWeb.BuildRunLive do
     end
   end
 
-  defp convert_mb_to_bytes(%{field: field, value: value} = filter)
-       when field in [:size, :compressed_size] do
+  defp convert_mb_to_bytes(%{field: field, value: value} = filter) when field in [:size, :compressed_size] do
     case parse_number(value) do
       nil -> filter
       number -> %{filter | value: trunc(number * 1024 * 1024)}
@@ -1091,12 +1091,14 @@ defmodule TuistWeb.BuildRunLive do
   defp convert_mb_to_bytes(filter), do: filter
 
   defp parse_number(value) when is_number(value), do: value
+
   defp parse_number(value) when is_binary(value) do
     case Float.parse(value) do
       {number, _} -> number
       :error -> nil
     end
   end
+
   defp parse_number(_), do: nil
 
   defp cas_outputs_order_by(sort_by) do
@@ -1108,10 +1110,7 @@ defmodule TuistWeb.BuildRunLive do
     end
   end
 
-  defp assign_cas_outputs(
-         %{assigns: %{run: run, cas_outputs_available_filters: available_filters}} = socket,
-         params
-       ) do
+  defp assign_cas_outputs(%{assigns: %{run: run, cas_outputs_available_filters: available_filters}} = socket, params) do
     cas_outputs_search = params["cas-outputs-search"] || ""
     cas_outputs_sort_by = params["cas-outputs-sort-by"] || "compressed-size"
 
@@ -1162,11 +1161,7 @@ defmodule TuistWeb.BuildRunLive do
   end
 
   def cas_outputs_column_patch_sort(
-        %{
-          uri: uri,
-          cas_outputs_sort_by: cas_outputs_sort_by,
-          cas_outputs_sort_order: cas_outputs_sort_order
-        } = _assigns,
+        %{uri: uri, cas_outputs_sort_by: cas_outputs_sort_by, cas_outputs_sort_order: cas_outputs_sort_order} = _assigns,
         column_value
       ) do
     sort_order =

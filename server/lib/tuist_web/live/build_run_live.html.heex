@@ -595,7 +595,9 @@
         <.card_section data-part="widgets-card-section">
           <.widget
             title={gettext("Task hits")}
-            description={gettext("Cacheable tasks that were retrieved from cache (local + remote).")}
+            description={
+              gettext("Cacheable tasks that were retrieved from cache (local + remote).")
+            }
             value={@run.cacheable_task_local_hits_count + @run.cacheable_task_remote_hits_count}
             id="widget-task-hits"
           />
@@ -1086,7 +1088,9 @@
             <div data-part="throughput-widgets">
               <.widget
                 title={gettext("Download throughput")}
-                description={gettext("Time-weighted average download throughput in megabits per second.")}
+                description={
+                  gettext("Time-weighted average download throughput in megabits per second.")
+                }
                 value={
                   Tuist.Utilities.ThroughputFormatter.format_throughput(
                     @cas_metrics.time_weighted_avg_download_throughput
@@ -1096,7 +1100,9 @@
               />
               <.widget
                 title={gettext("Upload throughput")}
-                description={gettext("Time-weighted average upload throughput in megabits per second.")}
+                description={
+                  gettext("Time-weighted average upload throughput in megabits per second.")
+                }
                 value={
                   Tuist.Utilities.ThroughputFormatter.format_throughput(
                     @cas_metrics.time_weighted_avg_upload_throughput
@@ -1213,7 +1219,9 @@
                     sort_icon(@cas_outputs_sort_order)
                 }
               >
-                <.text_cell label={Tuist.Utilities.ByteFormatter.format_bytes(output.compressed_size)} />
+                <.text_cell label={
+                  Tuist.Utilities.ByteFormatter.format_bytes(output.compressed_size)
+                } />
               </:col>
               <:col :let={output}>
                 <.button_cell>
