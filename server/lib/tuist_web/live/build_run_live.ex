@@ -151,7 +151,7 @@ defmodule TuistWeb.BuildRunLive do
       push_patch(
         socket,
         to:
-          "/#{selected_account.name}/#{selected_project.name}/builds/build-runs/#{run.id}?#{uri.query |> Query.put("file-breakdown-search", search) |> Query.drop("file-breakdown-page")}"
+          ~p"/#{selected_account.name}/#{selected_project.name}/builds/build-runs/#{run.id}?#{uri.query |> Query.put("file-breakdown-search", search) |> Query.drop("file-breakdown-page")}"
       )
 
     {:noreply, socket}
@@ -166,7 +166,7 @@ defmodule TuistWeb.BuildRunLive do
       push_patch(
         socket,
         to:
-          "/#{selected_account.name}/#{selected_project.name}/builds/build-runs/#{run.id}?#{uri.query |> Query.put("module-breakdown-search", search) |> Query.drop("module-breakdown-page")}"
+          ~p"/#{selected_account.name}/#{selected_project.name}/builds/build-runs/#{run.id}?#{uri.query |> Query.put("module-breakdown-search", search) |> Query.drop("module-breakdown-page")}"
       )
 
     {:noreply, socket}
@@ -181,7 +181,7 @@ defmodule TuistWeb.BuildRunLive do
       push_patch(
         socket,
         to:
-          "/#{selected_account.name}/#{selected_project.name}/builds/build-runs/#{run.id}?#{uri.query |> Query.put("cacheable-tasks-search", search) |> Query.drop("cacheable-tasks-page")}"
+          ~p"/#{selected_account.name}/#{selected_project.name}/builds/build-runs/#{run.id}?#{uri.query |> Query.put("cacheable-tasks-search", search) |> Query.drop("cacheable-tasks-page")}"
       )
 
     {:noreply, socket}
@@ -196,7 +196,7 @@ defmodule TuistWeb.BuildRunLive do
       push_patch(
         socket,
         to:
-          "/#{selected_account.name}/#{selected_project.name}/builds/build-runs/#{run.id}?#{uri.query |> Query.put("cas-outputs-search", search) |> Query.drop("cas-outputs-page")}"
+          ~p"/#{selected_account.name}/#{selected_project.name}/builds/build-runs/#{run.id}?#{uri.query |> Query.put("cas-outputs-search", search) |> Query.drop("cas-outputs-page")}"
       )
 
     {:noreply, socket}
@@ -238,7 +238,7 @@ defmodule TuistWeb.BuildRunLive do
       push_patch(
         socket,
         to:
-          "/#{selected_account.name}/#{selected_project.name}/builds/build-runs/#{run.id}?#{Query.put(uri.query, "read-latency-type", type)}",
+          ~p"/#{selected_account.name}/#{selected_project.name}/builds/build-runs/#{run.id}?#{Query.put(uri.query, "read-latency-type", type)}",
         replace: true
       )
 
@@ -254,7 +254,7 @@ defmodule TuistWeb.BuildRunLive do
       push_patch(
         socket,
         to:
-          "/#{selected_account.name}/#{selected_project.name}/builds/build-runs/#{run.id}?#{Query.put(uri.query, "write-latency-type", type)}",
+          ~p"/#{selected_account.name}/#{selected_project.name}/builds/build-runs/#{run.id}?#{Query.put(uri.query, "write-latency-type", type)}",
         replace: true
       )
 
