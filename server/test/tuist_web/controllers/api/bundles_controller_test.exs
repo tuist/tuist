@@ -213,8 +213,8 @@ defmodule TuistWeb.API.BundlesControllerTest do
         |> put_req_header("content-type", "application/json")
         |> post(~p"/api/projects/#{project.account.name}/#{project.name}/bundles", bundle_params)
 
-      # When - OpenApiSpex returns 422 for validation errors
-      response = json_response(conn, 422)
+      # When
+      response = json_response(conn, :bad_request)
 
       # Then
       assert response["message"] =~ "Invalid value"
@@ -645,8 +645,8 @@ defmodule TuistWeb.API.BundlesControllerTest do
         |> Authentication.put_current_user(user)
         |> get(~p"/api/projects/#{project.account.name}/#{project.name}/bundles/#{invalid_bundle_id}")
 
-      # Then - OpenAPI Spex returns 422 for validation errors
-      response = json_response(conn, 422)
+      # Then
+      response = json_response(conn, :bad_request)
 
       # OpenAPI Spex validates the UUID format and returns an error message
       assert response["message"] =~ "Invalid format"
@@ -664,7 +664,7 @@ defmodule TuistWeb.API.BundlesControllerTest do
         |> get(~p"/api/projects/#{project.account.name}/#{project.name}/bundles/#{invalid_bundle_id}")
 
       # Then
-      response = json_response(conn, 422)
+      response = json_response(conn, :bad_request)
 
       assert response["message"] =~ "Invalid format"
       assert response["message"] =~ ":uuid"
