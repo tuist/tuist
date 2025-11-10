@@ -100,7 +100,7 @@
 
     @media (min-width: 1024px) {
       display: grid;
-      grid-template-columns: 1fr 1px 600px;
+      grid-template-columns: 1fr 1px 769px;
       column-gap: var(--noora-spacing-6);
       row-gap: var(--noora-spacing-10);
       align-items: start;
@@ -202,11 +202,12 @@
   & > [data-part="more"] {
     display: flex;
     justify-content: center;
+    align-items: center;
     padding-right: var(--noora-spacing-6);
     padding-left: var(--noora-spacing-6);
 
     @media (min-width: 1024px) {
-      justify-content: flex-start;
+      justify-content: center;
       margin-right: auto;
       margin-left: auto;
       padding-right: var(--noora-spacing-6);
