@@ -57,9 +57,7 @@ To run it, your infrastructure must support running Docker images. Note that mos
 
 ### Postgres database {#postgres-database}
 
-In addition to running the Docker images, you’ll need a [Postgres database](https://www.postgresql.org/) to store relational data. Most infrastructure providers include Posgres databases in their offering (e.g., [AWS](https://aws.amazon.com/rds/postgresql/) & [Google Cloud](https://cloud.google.com/sql/docs/postgres)).
-
-For performant analytics, we use a [Timescale Postgres extension](https://www.timescale.com/). You need to make sure that TimescaleDB is installed on the machine running the Postgres database. Follow the installation instructions [here](https://docs.timescale.com/self-hosted/latest/install/) to learn more. If you are unable to install the Timescale extension, you can set up your own dashboard using the Prometheus metrics.
+In addition to running the Docker images, you'll need a [Postgres database](https://www.postgresql.org/) to store relational data. Most infrastructure providers include Postgres databases in their offering (e.g., [AWS](https://aws.amazon.com/rds/postgresql/) & [Google Cloud](https://cloud.google.com/sql/docs/postgres)).
 
 ::: info MIGRATIONS
 <!-- -->
@@ -263,6 +261,83 @@ On top of the `TUIST_GITHUB_APP_CLIENT_ID` and `TUIST_GITHUB_APP_CLIENT_SECRET`,
 | --- | --- | --- | --- | --- |
 | `TUIST_GITHUB_APP_PRIVATE_KEY` | The private key of the GitHub application | Yes | | `-----BEGIN RSA PRIVATE KEY-----...` |
 
+## Testing Locally {#testing-locally}
+
+We provide a comprehensive Docker Compose configuration that includes all required dependencies for testing Tuist server on your local machine before deploying to your infrastructure:
+
+- PostgreSQL 16
+- ClickHouse for analytics
+- ClickHouse Keeper for coordination
+- MinIO for S3-compatible storage
+- Redis for rate limiting
+- pgweb for database administration
+
+::: danger LICENSE REQUIRED
+A valid `TUIST_LICENSE` environment variable is legally required to run the Tuist server, including local development instances. If you need a license, please reach out to [contact@tuist.dev](mailto:contact@tuist.dev).
+:::
+
+**Quick Start:**
+
+1. Download the configuration files:
+   ```bash
+   curl -O https://docs.tuist.io/server/self-host/docker-compose.yml
+   curl -O https://docs.tuist.io/server/self-host/clickhouse-config.xml
+   curl -O https://docs.tuist.io/server/self-host/clickhouse-keeper-config.xml
+   curl -O https://docs.tuist.io/server/self-host/.env.example
+   ```
+
+2. Configure environment variables:
+   ```bash
+   cp .env.example .env
+   # Edit .env and add your TUIST_LICENSE and authentication credentials
+   ```
+
+3. Start all services:
+   ```bash
+   docker compose up -d
+   # or with podman:
+   podman compose up -d
+   ```
+
+4. Access the server at http://localhost:8080
+
+**Service Endpoints:**
+- Tuist Server: http://localhost:8080
+- MinIO Console: http://localhost:9003 (credentials: `tuist` / `tuist_dev_password`)
+- MinIO API: http://localhost:9002
+- pgweb (PostgreSQL UI): http://localhost:8081
+- Prometheus Metrics: http://localhost:9091/metrics
+- ClickHouse HTTP: http://localhost:8124
+
+**Common Commands:**
+
+Check service status:
+```bash
+docker compose ps
+# or: podman compose ps
+```
+
+View logs:
+```bash
+docker compose logs -f tuist
+```
+
+Stop services:
+```bash
+docker compose down
+```
+
+Reset everything (deletes all data):
+```bash
+docker compose down -v
+```
+
+**Configuration Files:**
+- [docker-compose.yml](/server/self-host/docker-compose.yml) - Complete Docker Compose configuration
+- [clickhouse-config.xml](/server/self-host/clickhouse-config.xml) - ClickHouse configuration
+- [clickhouse-keeper-config.xml](/server/self-host/clickhouse-keeper-config.xml) - ClickHouse Keeper configuration
+- [.env.example](/server/self-host/.env.example) - Example environment variables file
+
 ## Deployment {#deployment}
 
 The official Tuist Docker image is available at:
@@ -351,98 +426,6 @@ kill_timeout = "5s"
 
 Then you can run `fly launch --local-only --no-deploy` to launch the app. On subsequent deploys, instead of running `fly launch --local-only`, you will need to run `fly deploy --local-only`. Fly.io doesn't allow to pull private Docker images, which is why we need to use the `--local-only` flag.
 
-### Docker Compose {#docker-compose}
-
-Below is an example of a `docker-compose.yml` file that you can use as a reference to deploy the service:
-
-```yaml
-version: '3.8'
-services:
-  db:
-    image: timescale/timescaledb-ha:pg16
-    restart: always
-    environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - PGDATA=/var/lib/postgresql/data/pgdata
-    ports:
-      - '5432:5432'
-    volumes:
-      - db:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
-  pgweb:
-    container_name: pgweb
-    restart: always
-    image: sosedoff/pgweb
-    ports:
-      - "8081:8081"
-    links:
-      - db:db
-    environment:
-      PGWEB_DATABASE_URL: postgres://postgres:postgres@db:5432/postgres?sslmode=disable
-    depends_on:
-      - db
-
-  tuist:
-    image: ghcr.io/tuist/tuist:latest
-    container_name: tuist
-    depends_on:
-      - db
-    ports:
-      - "80:80"
-      - "8080:8080"
-      - "443:443"
-    expose:
-      - "80"
-      - "8080"
-      - "443:443"
-    environment:
-      # Base Tuist Env - https://docs.tuist.io/en/guides/dashboard/on-premise/install#base-environment-configuration
-      TUIST_USE_SSL_FOR_DATABASE: "0"
-      TUIST_LICENSE:  # ...
-      DATABASE_URL: postgres://postgres:postgres@db:5432/postgres?sslmode=disable
-      TUIST_APP_URL: https://localhost:8080
-      TUIST_SECRET_KEY_BASE: # ...
-      WEB_CONCURRENCY: 80
-
-      # Auth - one method
-      # GitHub Auth - https://docs.tuist.io/en/guides/dashboard/on-premise/install#github
-      TUIST_GITHUB_OAUTH_ID:
-      TUIST_GITHUB_APP_CLIENT_SECRET:
-
-      # Okta Auth - https://docs.tuist.io/en/guides/dashboard/on-premise/install#okta
-      TUIST_OKTA_SITE:
-      TUIST_OKTA_CLIENT_ID:
-      TUIST_OKTA_CLIENT_SECRET:
-      TUIST_OKTA_AUTHORIZE_URL: # Optional
-      TUIST_OKTA_TOKEN_URL: # Optional
-      TUIST_OKTA_USER_INFO_URL: # Optional
-      TUIST_OKTA_EVENT_HOOK_SECRET: # Optional
-
-      # Storage
-      AWS_ACCESS_KEY_ID: # ...
-      AWS_SECRET_ACCESS_KEY: # ...
-      AWS_S3_REGION: # ...
-      AWS_ENDPOINT: # https://amazonaws.com
-      TUIST_S3_BUCKET_NAME: # ...
-
-      # Email - https://docs.tuist.io/en/guides/server/self-host/install#email-configuration
-      TUIST_MAILGUN_API_KEY: # ...
-      TUIST_MAILING_DOMAIN: # e.g., mg.yourdomain.com
-      TUIST_MAILING_FROM_ADDRESS: # e.g., noreply@yourdomain.com
-      TUIST_MAILING_REPLY_TO_ADDRESS: # Optional, e.g., support@yourdomain.com
-
-      # Other
-
-volumes:
-  db:
-    driver: local
-```
 
 ## Prometheus metrics {#prometheus-metrics}
 
