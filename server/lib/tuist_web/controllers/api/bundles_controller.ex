@@ -19,11 +19,16 @@ defmodule TuistWeb.API.BundlesController do
   plug(TuistWeb.Plugs.LoaderPlug)
   plug(TuistWeb.API.Authorization.AuthorizationPlug, :bundle)
 
-  plug(OpenApiSpex.Plug.CastAndValidate,
-    json_render_error_v2: true,
-    render_error: TuistWeb.RenderAPIErrorPlug,
-    only: [:show, :index]
-  )
+  plug :openapi_validation when action in [:show, :index]
+
+  defp openapi_validation(conn, _opts) do
+    OpenApiSpex.Plug.CastAndValidate.call(conn,
+      OpenApiSpex.Plug.CastAndValidate.init(
+        json_render_error_v2: true,
+        render_error: TuistWeb.RenderAPIErrorPlug
+      )
+    )
+  end
 
   tags ["Bundles"]
 
