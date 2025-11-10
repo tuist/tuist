@@ -8,7 +8,7 @@ YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
 # Configuration
-COMPOSE_FILE="docs/public/server/self-host/docker-compose.yml"
+COMPOSE_DIR="docs/docs/public/server/self-host"
 MAX_WAIT_TIME=300  # 5 minutes
 CHECK_INTERVAL=5   # Check every 5 seconds
 
@@ -32,33 +32,38 @@ fi
 echo -e "${GREEN}✓${NC} Using: $DOCKER_CMD"
 echo ""
 
+# Change to project root
+PROJECT_ROOT="$(dirname "$0")/.."
+cd "$PROJECT_ROOT"
+
 # Cleanup function
 cleanup() {
     echo ""
     echo -e "${YELLOW}Cleaning up...${NC}"
-    cd "$(dirname "$0")/.."
-    $DOCKER_CMD -f "$COMPOSE_FILE" down -v --remove-orphans 2>/dev/null || true
+    cd "$PROJECT_ROOT/$COMPOSE_DIR"
+    $DOCKER_CMD down -v --remove-orphans 2>/dev/null || true
     echo -e "${GREEN}✓${NC} Cleanup complete"
 }
 
 # Set trap to cleanup on exit
 trap cleanup EXIT INT TERM
 
-# Change to project root
-cd "$(dirname "$0")/.."
+# Change to docker-compose directory for validation
+cd "$COMPOSE_DIR"
 
 # Validate docker-compose file
 echo "Validating docker-compose file..."
-if $DOCKER_CMD -f "$COMPOSE_FILE" config > /dev/null 2>&1; then
+if $DOCKER_CMD config > /dev/null 2>&1; then
     echo -e "${GREEN}✓${NC} Docker Compose file is valid"
 else
     echo -e "${RED}✗${NC} Docker Compose file is invalid"
+    $DOCKER_CMD config
     exit 1
 fi
 echo ""
 
 # Create a minimal .env file for testing (if it doesn't exist)
-ENV_FILE="$(dirname "$COMPOSE_FILE")/.env"
+ENV_FILE=".env"
 if [ ! -f "$ENV_FILE" ]; then
     echo "Creating minimal .env file for testing..."
     cat > "$ENV_FILE" << 'ENVEOF'
@@ -73,7 +78,7 @@ fi
 
 # Start services
 echo "Starting services..."
-if $DOCKER_CMD -f "$COMPOSE_FILE" up -d; then
+if $DOCKER_CMD up -d; then
     echo -e "${GREEN}✓${NC} Services started"
 else
     echo -e "${RED}✗${NC} Failed to start services"
@@ -84,11 +89,11 @@ echo ""
 # Function to check service health
 check_service_health() {
     local service=$1
-    local status=$($DOCKER_CMD -f "$COMPOSE_FILE" ps --format json "$service" 2>/dev/null | grep -o '"Health":"[^"]*"' | cut -d'"' -f4)
-    
+    local status=$($DOCKER_CMD ps --format json "$service" 2>/dev/null | grep -o '"Health":"[^"]*"' | cut -d'"' -f4)
+
     if [ -z "$status" ]; then
         # If no health check is defined, check if the service is running
-        local state=$($DOCKER_CMD -f "$COMPOSE_FILE" ps --format json "$service" 2>/dev/null | grep -o '"State":"[^"]*"' | cut -d'"' -f4)
+        local state=$($DOCKER_CMD ps --format json "$service" 2>/dev/null | grep -o '"State":"[^"]*"' | cut -d'"' -f4)
         if [ "$state" = "running" ]; then
             echo "running"
         else
@@ -132,10 +137,10 @@ while [ $ELAPSED -lt $MAX_WAIT_TIME ]; do
         echo -e "${RED}✗${NC} Timeout waiting for services to be healthy"
         echo ""
         echo "Service status:"
-        $DOCKER_CMD -f "$COMPOSE_FILE" ps
+        $DOCKER_CMD ps
         echo ""
         echo "Logs:"
-        $DOCKER_CMD -f "$COMPOSE_FILE" logs --tail=50
+        $DOCKER_CMD logs --tail=50
         exit 1
     fi
     
@@ -158,6 +163,6 @@ echo ""
 
 # Show running services
 echo "Running services:"
-$DOCKER_CMD -f "$COMPOSE_FILE" ps
+$DOCKER_CMD ps
 
 exit 0
