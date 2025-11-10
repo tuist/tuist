@@ -377,31 +377,28 @@
             & [data-part="cas-output-item"] {
               background-color: var(--noora-surface-background-secondary);
               display: flex;
-              min-height: 64px;
 
                 & [data-part="cas-output-text"] {
-                  padding: var(--noora-spacing-3) var(--noora-spacing-5);
-                  border-radius: var(--noora-radius-medium);
-                  flex: 1;
-                  min-width: 0;
-                  margin: 0;
+                  display: flex;
+                  flex-direction: row;
+                  padding: var(--noora-spacing-5);
                   color: var(--noora-surface-label-primary);
                   font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
-                  text-align: left;
 
                   & [data-part="cas-output-label"] {
                     color: var(--noora-surface-label-primary);
                     font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
-                    line-height: 20px;
+                    padding-right: var(--noora-spacing-1);
                   }
 
-                  & [data-part="cas-output-hash"] {
+                  & [data-part="trigger"] {
                     color: var(--noora-surface-label-primary);
                     font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
                     line-height: 20px;
                     text-decoration: underline;
                     text-decoration-skip-ink: none;
                     text-underline-position: from-font;
+                    cursor: pointer;
                   }
                 }
             }
@@ -409,6 +406,24 @@
         }
       }
     }
+  }
+}
+
+[data-part="hash-tooltip-content"] {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--noora-spacing-1);
+  padding: var(--noora-spacing-3);
+
+  & [data-part="hash-tooltip-text"] {
+    margin: 0;
+    width: 356px;
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+    line-height: 20px;
+    white-space: pre-wrap;
+    word-break: break-all;
   }
 }
 
