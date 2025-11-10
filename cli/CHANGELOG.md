@@ -1,6 +1,20 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.102.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* track cacheable task description by [@fortmarek](https://github.com/fortmarek) in [#8603](https://github.com/tuist/tuist/pull/8603)
+### 🐛 Bug Fixes
+
+* Add extended string delimiter to Strings value in PlistsTemplate by [@ast3150](https://github.com/ast3150) in [#8607](https://github.com/tuist/tuist/pull/8607)
+
+## New Contributors
+* [@ast3150](https://github.com/ast3150) made their first contribution in [#8607](https://github.com/tuist/tuist/pull/8607)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.101.0...4.102.0
+
 ## What's Changed in 4.101.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
