@@ -1001,12 +1001,14 @@
                           <div data-part="hash-tooltip-content">
                             <p data-part="hash-tooltip-text"><%= cas_output.node_id %></p>
                             <.button
+                              id={"cas-output-copy-#{cas_output.node_id}"}
                               variant="secondary"
                               size="small"
                               label={gettext("Copy")}
                               phx-hook="Clipboard"
                               tabindex="-1"
                               data-clipboard-value={cas_output.node_id}
+                              phx-click={JS.dispatch("pointerdown", to: "body")}
                             >
                               <:icon_right><.copy /></:icon_right>
                             </.button>
