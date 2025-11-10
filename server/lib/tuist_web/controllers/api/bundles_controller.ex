@@ -19,6 +19,11 @@ defmodule TuistWeb.API.BundlesController do
   plug(TuistWeb.Plugs.LoaderPlug)
   plug(TuistWeb.API.Authorization.AuthorizationPlug, :bundle)
 
+  plug(OpenApiSpex.Plug.CastAndValidate,
+    json_render_error_v2: true,
+    render_error: TuistWeb.RenderAPIErrorPlug
+  )
+
   tags ["Bundles"]
 
   operation :index,
@@ -134,13 +139,14 @@ defmodule TuistWeb.API.BundlesController do
       ],
       bundle_id: [
         in: :path,
-        type: :string,
+        schema: %Schema{type: :string, format: :uuid},
         required: true,
         description: "The ID of the bundle."
       ]
     },
     responses: %{
       ok: {"Bundle details", "application/json", Bundle},
+      unprocessable_entity: {"Invalid request parameters", "application/json", Error},
       not_found: {"Bundle not found", "application/json", Error},
       unauthorized: {"You need to be authenticated to view this bundle", "application/json", Error},
       forbidden: {"You are not authorized to view this bundle", "application/json", Error}

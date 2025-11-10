@@ -635,5 +635,40 @@ defmodule TuistWeb.API.BundlesControllerTest do
       response = json_response(conn, :forbidden)
       assert response["message"] == "#{user.account.name} is not authorized to read bundle"
     end
+
+    test "returns validation error when bundle_id is not a valid UUID", %{conn: conn, user: user, project: project} do
+      # Given
+      invalid_bundle_id = "com.example.app.#{UUIDv7.generate()}"
+
+      # When
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> get(~p"/api/projects/#{project.account.name}/#{project.name}/bundles/#{invalid_bundle_id}")
+
+      # Then - OpenAPI Spex returns 422 for validation errors
+      response = json_response(conn, 422)
+
+      # OpenAPI Spex validates the UUID format and returns an error message
+      assert response["message"] =~ "bundle_id"
+      assert response["message"] =~ invalid_bundle_id
+    end
+
+    test "returns validation error when bundle_id is malformed", %{conn: conn, user: user, project: project} do
+      # Given
+      invalid_bundle_id = "not-a-uuid-at-all"
+
+      # When
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> get(~p"/api/projects/#{project.account.name}/#{project.name}/bundles/#{invalid_bundle_id}")
+
+      # Then
+      response = json_response(conn, 422)
+
+      assert response["message"] =~ "bundle_id"
+      assert response["message"] =~ invalid_bundle_id
+    end
   end
 end
