@@ -14,7 +14,6 @@ defmodule TuistWeb.UserLoginLive do
       socket
       |> assign(:head_title, "#{gettext("Log in")} · Tuist")
       |> assign(:form, form)
-      |> assign(:mail_configured?, Environment.mail_configured?())
       |> assign(:github_configured?, Environment.github_oauth_configured?())
       |> assign(:google_configured?, Environment.google_oauth_configured?())
       |> assign(:okta_configured?, Environment.okta_oauth_configured?())
@@ -100,7 +99,7 @@ defmodule TuistWeb.UserLoginLive do
               </:icon_left>
             </.button>
           </div>
-          <.line_divider :if={oauth_configured?() and @mail_configured?} text="OR" />
+          <.line_divider :if={oauth_configured?()} text="OR" />
           <.alert
             :if={Flash.get(@flash, :info)}
             id="flash"
@@ -110,7 +109,6 @@ defmodule TuistWeb.UserLoginLive do
             title={Flash.get(@flash, :info)}
           />
           <.form
-            :if={@mail_configured?}
             data-part="form"
             for={@form}
             id="login_form"
@@ -165,8 +163,8 @@ defmodule TuistWeb.UserLoginLive do
             <.button variant="primary" size="large" label={gettext("Log in")} tabindex={4} />
           </.form>
         </div>
-        <div :if={@mail_configured?} data-part="bottom-link">
-          <span>{gettext("Don’t have an account?")}</span>
+        <div data-part="bottom-link">
+          <span>{gettext("Don't have an account?")}</span>
           <.link_button
             navigate={~p"/users/register"}
             variant="primary"
