@@ -233,7 +233,8 @@ generate_task_description = fn task_type ->
       "#{action} #{if action == "Emitting module for", do: String.replace(file, ".swift", ""), else: file}"
 
     "clang" ->
-      "Compiling #{Enum.random(clang_files)}"
+      action = Enum.random(clang_actions)
+      "#{action} #{Enum.random(clang_files)}"
   end
 end
 
@@ -975,54 +976,54 @@ Enum.map(1..20, fn index ->
 
   artifacts = [
     %{
-      "artifact_type" => "directory",
-      "path" => "#{bundle_name}.#{"app"}",
-      "size" => 0,
-      "shasum" => :sha256 |> :crypto.hash("#{bundle_name}-root-#{index}") |> Base.encode16(case: :lower)
+      artifact_type: :directory,
+      path: "#{bundle_name}.#{"app"}",
+      size: 0,
+      shasum: :sha256 |> :crypto.hash("#{bundle_name}-root-#{index}") |> Base.encode16(case: :lower)
     },
     %{
-      "artifact_type" => "file",
-      "path" => "#{bundle_name}.#{"app"}/Info.plist",
-      "size" => Enum.random(1000..3000),
-      "shasum" => :sha256 |> :crypto.hash("#{bundle_name}-info-#{index}") |> Base.encode16(case: :lower)
+      artifact_type: :file,
+      path: "#{bundle_name}.#{"app"}/Info.plist",
+      size: Enum.random(1000..3000),
+      shasum: :sha256 |> :crypto.hash("#{bundle_name}-info-#{index}") |> Base.encode16(case: :lower)
     },
     %{
-      "artifact_type" => "binary",
-      "path" => "#{bundle_name}.#{"app"}/#{bundle_name}",
-      "size" => Enum.random(1_000_000..50_000_000),
-      "shasum" => :sha256 |> :crypto.hash("#{bundle_name}-binary-#{index}") |> Base.encode16(case: :lower)
+      artifact_type: :binary,
+      path: "#{bundle_name}.#{"app"}/#{bundle_name}",
+      size: Enum.random(1_000_000..50_000_000),
+      shasum: :sha256 |> :crypto.hash("#{bundle_name}-binary-#{index}") |> Base.encode16(case: :lower)
     },
     %{
-      "artifact_type" => "directory",
-      "path" => "#{bundle_name}.app/Assets.car",
-      "size" => 0,
-      "shasum" => :sha256 |> :crypto.hash("#{bundle_name}-assets-dir-#{index}") |> Base.encode16(case: :lower)
+      artifact_type: :directory,
+      path: "#{bundle_name}.app/Assets.car",
+      size: 0,
+      shasum: :sha256 |> :crypto.hash("#{bundle_name}-assets-dir-#{index}") |> Base.encode16(case: :lower)
     },
     %{
-      "artifact_type" => "asset",
-      "path" => "#{bundle_name}.app/Assets.car/Contents.json",
-      "size" => Enum.random(50_000..500_000),
-      "shasum" => :sha256 |> :crypto.hash("#{bundle_name}-assets-#{index}") |> Base.encode16(case: :lower)
+      artifact_type: :asset,
+      path: "#{bundle_name}.app/Assets.car/Contents.json",
+      size: Enum.random(50_000..500_000),
+      shasum: :sha256 |> :crypto.hash("#{bundle_name}-assets-#{index}") |> Base.encode16(case: :lower)
     },
     # Localization
     %{
-      "artifact_type" => "directory",
-      "path" => "#{bundle_name}.app/en.lproj",
-      "size" => 0,
-      "shasum" => :sha256 |> :crypto.hash("#{bundle_name}-localization-dir-#{index}") |> Base.encode16(case: :lower)
+      artifact_type: :directory,
+      path: "#{bundle_name}.app/en.lproj",
+      size: 0,
+      shasum: :sha256 |> :crypto.hash("#{bundle_name}-localization-dir-#{index}") |> Base.encode16(case: :lower)
     },
     %{
-      "artifact_type" => "localization",
-      "path" => "#{bundle_name}.app/en.lproj/Localizable.strings",
-      "size" => Enum.random(1000..10_000),
-      "shasum" => :sha256 |> :crypto.hash("#{bundle_name}-localization-#{index}") |> Base.encode16(case: :lower)
+      artifact_type: :localization,
+      path: "#{bundle_name}.app/en.lproj/Localizable.strings",
+      size: Enum.random(1000..10_000),
+      shasum: :sha256 |> :crypto.hash("#{bundle_name}-localization-#{index}") |> Base.encode16(case: :lower)
     },
     # Fonts
     %{
-      "artifact_type" => "font",
-      "path" => "#{bundle_name}.app/Fonts/CustomFont.ttf",
-      "size" => Enum.random(50_000..200_000),
-      "shasum" => :sha256 |> :crypto.hash("#{bundle_name}-font-#{index}") |> Base.encode16(case: :lower)
+      artifact_type: :font,
+      path: "#{bundle_name}.app/Fonts/CustomFont.ttf",
+      size: Enum.random(50_000..200_000),
+      shasum: :sha256 |> :crypto.hash("#{bundle_name}-font-#{index}") |> Base.encode16(case: :lower)
     }
   ]
 
@@ -1031,7 +1032,7 @@ Enum.map(1..20, fn index ->
       id: bundle_id,
       name: bundle_name,
       app_bundle_id: "dev.tuist.#{String.downcase(bundle_name)}",
-      install_size: Enum.sum(Enum.map(artifacts, & &1["size"])),
+      install_size: Enum.sum(Enum.map(artifacts, & &1.size)),
       download_size: Enum.random(500_000..20_000_000),
       supported_platforms: supported_platforms,
       version: "#{Enum.random(1..3)}.#{Enum.random(0..9)}.#{Enum.random(0..9)}",

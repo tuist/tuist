@@ -462,25 +462,25 @@ defmodule Tuist.Bundles do
 
     Enum.flat_map(artifacts, fn artifact ->
       artifact_id = UUIDv7.generate()
-      artifact_type = artifact["artifact_type"]
+      artifact_type = Map.get(artifact, :artifact_type)
 
-      if !Enum.member?(valid_artifact_types, artifact_type) do
+      if !Enum.member?(valid_artifact_types, Atom.to_string(artifact_type)) do
         raise "Invalid artifact type: #{artifact_type}. Must be one of #{inspect(valid_artifact_types)}."
       end
 
       current_artifact = %{
         id: artifact_id,
-        artifact_type: String.to_atom(artifact["artifact_type"]),
-        path: artifact["path"],
-        size: artifact["size"],
-        shasum: artifact["shasum"],
+        artifact_type: Map.get(artifact, :artifact_type),
+        path: Map.get(artifact, :path),
+        size: Map.get(artifact, :size),
+        shasum: Map.get(artifact, :shasum),
         bundle_id: bundle_id,
         artifact_id: parent_id,
         inserted_at: current_timestamp,
         updated_at: current_timestamp
       }
 
-      children = artifact["children"] || []
+      children = Map.get(artifact, :children) || []
       child_artifacts = flatten_artifacts(children, bundle_id, artifact_id, current_timestamp)
 
       [current_artifact | child_artifacts]
