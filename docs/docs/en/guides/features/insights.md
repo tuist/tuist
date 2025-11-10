@@ -109,8 +109,7 @@ let project = Project(
                     .executionAction(
                         title: "Inspect Build",
                         scriptText: """
-                        eval \"$($HOME/.local/bin/mise activate -C $SRCROOT bash --shims)\"
-                        tuist inspect build
+                        $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect build
                         """,
                         target: "MyApp"
                     )
