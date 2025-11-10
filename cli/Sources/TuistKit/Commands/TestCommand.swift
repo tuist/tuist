@@ -4,14 +4,54 @@ import Path
 import TuistCore
 import TuistServer
 import TuistSupport
+import XcodeGraph
 
 enum TuistTestFlagError: FatalError, Equatable {
     case invalidCombination([String])
 
     var description: String {
         switch self {
+        case let .invalidCombination(flags):
+            "Invalid combination of flags: \(flags.joined(separator: ", "))"
+        }
+    }
+
+    var type: ErrorType {
+        switch self {
+        case .invalidCombination:
+            .abort
+        }
+    }
+}
+
+enum PlatformValidationError: FatalError, Equatable {
+    case invalidPlatform(String, availablePlatforms: [String])
+    case emptyPlatformList
+    case parsingError(String)
+
+    var description: String {
+        switch self {
+        case let .invalidPlatform(platform, availablePlatforms):
+            "Invalid platform '\(platform)'. Supported platforms: \(availablePlatforms.joined(separator: ", "))"
+        case .emptyPlatformList:
+            "At least one platform must be specified when using --platforms option"
+        case let .parsingError(error):
+            "Error parsing platforms: \(error)"
+        }
+    }
+
+    var type: ErrorType {
+        switch self {
+        case .invalidPlatform, .emptyPlatformList, .parsingError:
+            .abort
+        }
+    }
+}
+
+    var description: String {
+        switch self {
         case let .invalidCombination(arguments):
-            "The arguments \(arguments.joined(separator: ", ")) are mutually exclusive, only of them can be used."
+            "The arguments \(arguments.joined(separator: ", ")) are mutually exclusive, only one of them can be used."
         }
     }
 
@@ -54,8 +94,7 @@ public struct TestCommand: AsyncParsableCommand, LogConfigurableCommand,
 
     @Flag(
         name: .shortAndLong,
-        help:
-        "When passed, the result necessary for test selection is not persisted to the server.",
+        help: "When passed, the result necessary for test selection is not persisted to the server.",
         envKey: .testNoUpload
     )
     var noUpload: Bool = false
@@ -77,10 +116,10 @@ public struct TestCommand: AsyncParsableCommand, LogConfigurableCommand,
 
     @Option(
         name: .long,
-        help: "Test on a specific platform.",
-        envKey: .testPlatform
+        help: "Test on specific platforms (comma-separated: ios, tvos, macos, watchos, visionos).",
+        envKey: .testPlatforms
     )
-    var platform: String?
+    var platforms: String?
 
     @Option(
         name: .shortAndLong,
@@ -161,8 +200,7 @@ public struct TestCommand: AsyncParsableCommand, LogConfigurableCommand,
     @Option(
         name: .long,
         parsing: .upToNextOption,
-        help:
-        "The list of test identifiers you want to skip testing. Expected format is TestTarget[/TestClass[/TestMethod]].",
+        help: "The list of test identifiers you want to skip testing. Expected format is TestTarget[/TestClass[/TestMethod]].",
         envKey: .testSkipTestTargets
     )
     var skipTestTargets: [TestIdentifier] = []
@@ -170,8 +208,7 @@ public struct TestCommand: AsyncParsableCommand, LogConfigurableCommand,
     @Option(
         name: .customLong("filter-configurations"),
         parsing: .upToNextOption,
-        help:
-        "The list of configurations you want to test. It is applied before --skip-configuration",
+        help: "The list of configurations you want to test. It is applied before --skip-configuration",
         envKey: .testConfigurations
     )
     var configurations: [String] = []
@@ -282,55 +319,158 @@ public struct TestCommand: AsyncParsableCommand, LogConfigurableCommand,
                 FileHandler.shared.currentPath
             }
 
-        let action: XcodeBuildTestAction =
-            if buildOnly {
-                .build
-            } else if withoutBuilding {
-                .testWithoutBuilding
-            } else {
-                .test
+        // Parse and validate platforms
+        let platformList: [XcodeGraph.Platform]
+        if let platformsString = platforms {
+            do {
+                let supportedPlatforms = ["ios", "tvos", "macos", "watchos", "visionos"]
+                platformList = try platformsString
+                    .split(separator: ",")
+                    .map { platformString in
+                        let trimmedString = String(platformString.trimmingCharacters(in: .whitespaces))
+                        guard let platform = XcodeGraph.Platform(rawValue: trimmedString.lowercased()) else {
+                            throw PlatformValidationError.invalidPlatform(trimmedString, availablePlatforms: supportedPlatforms)
+                        }
+                        return platform
+                    }
+                
+                if platformList.isEmpty {
+                    throw PlatformValidationError.emptyPlatformList
+                }
+                
+                // Log platforms that will be tested
+                let platformNames = platformList.map { $0.rawValue.capitalized }
+                Logger.current.log(level: .info, "🎯 Testing on platforms: \(platformNames.joined(separator: ", "))")
+                
+            } catch let error as PlatformValidationError {
+                throw error
+            } catch {
+                throw PlatformValidationError.parsingError(error.localizedDescription)
             }
+        } else {
+            platformList = [nil].compactMap { $0 } // Default to single test with no specific platform
+        }
 
-        try await TestService(
-            generatorFactory: Extension.generatorFactory,
-            cacheStorageFactory: Extension.cacheStorageFactory
-        ).run(
-            runId: RunMetadataStorage.current.runId,
-            schemeName: scheme,
-            clean: clean,
-            noUpload: noUpload,
-            configuration: configuration,
-            path: absolutePath,
-            deviceName: device,
-            platform: platform,
-            osVersion: os,
-            action: action,
-            rosetta: rosetta,
-            skipUITests: skipUITests,
-            skipUnitTests: skipUnitTests,
-            resultBundlePath: resultBundlePath.map {
-                try AbsolutePath(
-                    validating: $0,
-                    relativeTo: FileHandler.shared.currentPath
-                )
-            },
-            derivedDataPath: derivedDataPath,
-            retryCount: retryCount,
-            testTargets: testTargets,
-            skipTestTargets: skipTestTargets,
-            testPlanConfiguration: testPlan.map { testPlan in
-                TestPlanConfiguration(
-                    testPlan: testPlan,
-                    configurations: configurations,
-                    skipConfigurations: skipConfigurations
-                )
-            },
-            validateTestTargetsParameters: false,
-            ignoreBinaryCache: !binaryCache,
-            ignoreSelectiveTesting: !selectiveTesting,
-            generateOnly: generateOnly,
-            passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
-        )
+        // Test for each platform
+        if platformList.isEmpty {
+            // Default single test without platform specification
+            let action: XcodeBuildTestAction =
+                if buildOnly {
+                    .build
+                } else if withoutBuilding {
+                    .testWithoutBuilding
+                } else {
+                    .test
+                }
+
+            try await TestService(
+                generatorFactory: Extension.generatorFactory,
+                cacheStorageFactory: Extension.cacheStorageFactory
+            ).run(
+                runId: RunMetadataStorage.current.runId,
+                schemeName: scheme,
+                clean: clean,
+                noUpload: noUpload,
+                configuration: configuration,
+                path: absolutePath,
+                deviceName: device,
+                platform: nil,
+                osVersion: os,
+                action: action,
+                rosetta: rosetta,
+                skipUITests: skipUITests,
+                skipUnitTests: skipUnitTests,
+                resultBundlePath: resultBundlePath.map {
+                    try AbsolutePath(
+                        validating: $0,
+                        relativeTo: FileHandler.shared.currentPath
+                    )
+                },
+                derivedDataPath: derivedDataPath,
+                retryCount: retryCount,
+                testTargets: testTargets,
+                skipTestTargets: skipTestTargets,
+                testPlanConfiguration: testPlan.map { testPlan in
+                    TestPlanConfiguration(
+                        testPlan: testPlan,
+                        configurations: configurations,
+                        skipConfigurations: skipConfigurations
+                    )
+                },
+                validateTestTargetsParameters: false,
+                ignoreBinaryCache: !binaryCache,
+                ignoreSelectiveTesting: !selectiveTesting,
+                generateOnly: generateOnly,
+                passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
+            )
+        } else {
+            // Multi-platform test
+            for (index, platform) in platformList.enumerated() {
+                let platformName = platform.rawValue.capitalized
+                let progressInfo = platformList.count > 1 ? " (\(index + 1)/\(platformList.count))" : ""
+                Logger.current.log(level: .info, "🧪 Testing on \(platformName)\(progressInfo)")
+                
+                let action: XcodeBuildTestAction =
+                    if buildOnly {
+                        .build
+                    } else if withoutBuilding {
+                        .testWithoutBuilding
+                    } else {
+                        .test
+                    }
+
+                do {
+                    try await TestService(
+                        generatorFactory: Extension.generatorFactory,
+                        cacheStorageFactory: Extension.cacheStorageFactory
+                    ).run(
+                        runId: RunMetadataStorage.current.runId,
+                        schemeName: scheme,
+                        clean: clean,
+                        noUpload: noUpload,
+                        configuration: configuration,
+                        path: absolutePath,
+                        deviceName: device,
+                        platform: platform,
+                        osVersion: os,
+                        action: action,
+                        rosetta: rosetta,
+                        skipUITests: skipUITests,
+                        skipUnitTests: skipUnitTests,
+                        resultBundlePath: resultBundlePath.map {
+                            try AbsolutePath(
+                                validating: $0,
+                                relativeTo: FileHandler.shared.currentPath
+                            )
+                        },
+                        derivedDataPath: derivedDataPath,
+                        retryCount: retryCount,
+                        testTargets: testTargets,
+                        skipTestTargets: skipTestTargets,
+                        testPlanConfiguration: testPlan.map { testPlan in
+                            TestPlanConfiguration(
+                                testPlan: testPlan,
+                                configurations: configurations,
+                                skipConfigurations: skipConfigurations
+                            )
+                        },
+                        validateTestTargetsParameters: false,
+                        ignoreBinaryCache: !binaryCache,
+                        ignoreSelectiveTesting: !selectiveTesting,
+                        generateOnly: generateOnly,
+                        passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
+                    )
+                    Logger.current.log(level: .info, "✅ \(platformName) tests completed successfully")
+                } catch {
+                    Logger.current.log(level: .error, "❌ \(platformName) tests failed: \(error.localizedDescription)")
+                    throw error
+                }
+            }
+            
+            if platformList.count > 1 {
+                Logger.current.log(level: .info, "🎉 Successfully tested on all \(platformList.count) platforms")
+            }
+        }
     }
 }
 

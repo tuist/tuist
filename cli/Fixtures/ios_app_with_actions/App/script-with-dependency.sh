@@ -1,1 +1,0 @@
-echo "${TEMP_DIR}"/copy.lock: "${SRCROOT}"/Sources/AppDelegate.swift > "${TEMP_DIR}"/dependencies.d

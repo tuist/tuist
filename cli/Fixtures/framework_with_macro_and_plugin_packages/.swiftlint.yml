@@ -1,5 +1,0 @@
-opt_in_rules:
-    - missing_docs
-
-included:
-  - Sources

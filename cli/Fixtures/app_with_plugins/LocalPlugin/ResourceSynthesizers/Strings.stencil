@@ -1,3 +1,0 @@
-enum {{ name }}Strings {
-    static let hello: String = "Hello from a custom template!"
-}

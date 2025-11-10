@@ -1,8 +1,0 @@
-{
-  "recommendations": [
-    "editorconfig.editorconfig",
-    "esbenp.prettier-vscode",
-    "victorbjorklund.phoenix",
-    "JakeBecker.elixir-ls"
-  ]
-}

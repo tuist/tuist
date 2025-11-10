@@ -23,6 +23,30 @@ enum XcodeBuildPassthroughArgumentError: FatalError, Equatable {
     }
 }
 
+enum PlatformValidationError: FatalError, Equatable {
+    case invalidPlatform(String, availablePlatforms: [String])
+    case emptyPlatformList
+    case parsingError(String)
+
+    var description: String {
+        switch self {
+        case let .invalidPlatform(platform, availablePlatforms):
+            "Invalid platform '\(platform)'. Supported platforms: \(availablePlatforms.joined(separator: ", "))"
+        case .emptyPlatformList:
+            "At least one platform must be specified when using --platforms option"
+        case let .parsingError(error):
+            "Error parsing platforms: \(error)"
+        }
+    }
+
+    var type: ErrorType {
+        switch self {
+        case .invalidPlatform, .emptyPlatformList, .parsingError:
+            .abort
+        }
+    }
+}
+
 public struct BuildOptions: ParsableArguments {
     public init() {}
 
@@ -65,10 +89,10 @@ public struct BuildOptions: ParsableArguments {
 
     @Option(
         name: .long,
-        help: "Build for a specific platform.",
-        envKey: .buildOptionsPlatform
+        help: "Build for specific platforms (comma-separated: ios, tvos, macos, watchos, visionos).",
+        envKey: .buildOptionsPlatforms
     )
-    public var platform: XcodeGraph.Platform?
+    public var platforms: String?
 
     @Option(
         name: .shortAndLong,
@@ -175,30 +199,108 @@ public struct BuildCommand: AsyncParsableCommand, LogConfigurableCommand,
                 FileHandler.shared.currentPath
             }
 
-        try await BuildService(
-            generatorFactory: Extension.generatorFactory,
-            cacheStorageFactory: Extension.cacheStorageFactory
-        ).run(
-            schemeName: buildOptions.scheme,
-            generate: buildOptions.generate,
-            clean: buildOptions.clean,
-            configuration: buildOptions.configuration,
-            ignoreBinaryCache: !binaryCache,
-            buildOutputPath: buildOptions.buildOutputPath.map {
-                try AbsolutePath(
-                    validating: $0,
-                    relativeTo: FileHandler.shared.currentPath
-                )
-            },
-            derivedDataPath: buildOptions.derivedDataPath,
-            path: absolutePath,
-            device: buildOptions.device,
-            platform: buildOptions.platform,
-            osVersion: buildOptions.os,
-            rosetta: buildOptions.rosetta,
-            generateOnly: buildOptions.generateOnly,
-            passthroughXcodeBuildArguments: buildOptions.passthroughXcodeBuildArguments
-        )
+        // Parse and validate platforms
+        let platformList: [XcodeGraph.Platform]
+        if let platformsString = buildOptions.platforms {
+            do {
+                let supportedPlatforms = ["ios", "tvos", "macos", "watchos", "visionos"]
+                platformList = try platformsString
+                    .split(separator: ",")
+                    .map { platformString in
+                        let trimmedString = String(platformString.trimmingCharacters(in: .whitespaces))
+                        guard let platform = XcodeGraph.Platform(rawValue: trimmedString.lowercased()) else {
+                            throw PlatformValidationError.invalidPlatform(trimmedString, availablePlatforms: supportedPlatforms)
+                        }
+                        return platform
+                    }
+                
+                if platformList.isEmpty {
+                    throw PlatformValidationError.emptyPlatformList
+                }
+                
+                // Log platforms that will be built
+                let platformNames = platformList.map { $0.rawValue.capitalized }
+                Logger.current.log(level: .info, "🎯 Building for platforms: \(platformNames.joined(separator: ", "))")
+                
+            } catch let error as PlatformValidationError {
+                throw error
+            } catch {
+                throw PlatformValidationError.parsingError(error.localizedDescription)
+            }
+        } else {
+            platformList = [nil].compactMap { $0 } // Default to single build with no specific platform
+        }
+
+        // Build for each platform
+        if platformList.isEmpty {
+            // Default single build without platform specification
+            try await BuildService(
+                generatorFactory: Extension.generatorFactory,
+                cacheStorageFactory: Extension.cacheStorageFactory
+            ).run(
+                schemeName: buildOptions.scheme,
+                generate: buildOptions.generate,
+                clean: buildOptions.clean,
+                configuration: buildOptions.configuration,
+                ignoreBinaryCache: !binaryCache,
+                buildOutputPath: buildOptions.buildOutputPath.map {
+                    try AbsolutePath(
+                        validating: $0,
+                        relativeTo: FileHandler.shared.currentPath
+                    )
+                },
+                derivedDataPath: buildOptions.derivedDataPath,
+                path: absolutePath,
+                device: buildOptions.device,
+                platform: nil,
+                osVersion: buildOptions.os,
+                rosetta: buildOptions.rosetta,
+                generateOnly: buildOptions.generateOnly,
+                passthroughXcodeBuildArguments: buildOptions.passthroughXcodeBuildArguments
+            )
+        } else {
+            // Multi-platform build
+            for (index, platform) in platformList.enumerated() {
+                let platformName = platform.rawValue.capitalized
+                let progressInfo = platformList.count > 1 ? " (\(index + 1)/\(platformList.count))" : ""
+                Logger.current.log(level: .info, "🏗️  Building for \(platformName)\(progressInfo)")
+                
+                do {
+                    try await BuildService(
+                        generatorFactory: Extension.generatorFactory,
+                        cacheStorageFactory: Extension.cacheStorageFactory
+                    ).run(
+                        schemeName: buildOptions.scheme,
+                        generate: buildOptions.generate,
+                        clean: buildOptions.clean,
+                        configuration: buildOptions.configuration,
+                        ignoreBinaryCache: !binaryCache,
+                        buildOutputPath: buildOptions.buildOutputPath.map {
+                            try AbsolutePath(
+                                validating: $0,
+                                relativeTo: FileHandler.shared.currentPath
+                            )
+                        },
+                        derivedDataPath: buildOptions.derivedDataPath,
+                        path: absolutePath,
+                        device: buildOptions.device,
+                        platform: platform,
+                        osVersion: buildOptions.os,
+                        rosetta: buildOptions.rosetta,
+                        generateOnly: buildOptions.generateOnly,
+                        passthroughXcodeBuildArguments: buildOptions.passthroughXcodeBuildArguments
+                    )
+                    Logger.current.log(level: .info, "✅ \(platformName) build completed successfully")
+                } catch {
+                    Logger.current.log(level: .error, "❌ \(platformName) build failed: \(error.localizedDescription)")
+                    throw error
+                }
+            }
+            
+            if platformList.count > 1 {
+                Logger.current.log(level: .info, "🎉 Successfully built for all \(platformList.count) platforms")
+            }
+        }
     }
 }
 

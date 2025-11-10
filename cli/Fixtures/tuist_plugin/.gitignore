@@ -1,5 +1,0 @@
-build/**
-Tasks/.build
-Tasks/.swiftpm
-.swiftpm
-.build
