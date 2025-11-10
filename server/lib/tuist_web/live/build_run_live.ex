@@ -69,6 +69,8 @@ defmodule TuistWeb.BuildRunLive do
       |> assign(:cas_outputs_active_filters, [])
       |> assign(:selected_read_latency_type, "avg")
       |> assign(:selected_write_latency_type, "avg")
+      |> assign(:expanded_task_keys, MapSet.new())
+      |> assign(:task_cas_outputs_map, %{})
       |> assign_async(:has_result_bundle, fn ->
         {:ok, %{has_result_bundle: (command_event && CommandEvents.has_result_bundle?(command_event)) || false}}
       end)
@@ -257,6 +259,21 @@ defmodule TuistWeb.BuildRunLive do
       )
 
     {:noreply, socket}
+  end
+
+  def handle_event(
+        "toggle_task_expansion",
+        %{"row-key" => task_key},
+        %{assigns: %{expanded_task_keys: expanded_task_keys}} = socket
+      ) do
+    updated_expanded_keys =
+      if MapSet.member?(expanded_task_keys, task_key) do
+        MapSet.delete(expanded_task_keys, task_key)
+      else
+        MapSet.put(expanded_task_keys, task_key)
+      end
+
+    {:noreply, assign(socket, :expanded_task_keys, updated_expanded_keys)}
   end
 
   defp file_breakdown_filters(run, params, available_filters, search) do
@@ -874,8 +891,37 @@ defmodule TuistWeb.BuildRunLive do
 
     {tasks, tasks_meta} = Runs.list_cacheable_tasks(options)
 
+    # Fetch CAS outputs for all tasks on the current page
+    all_node_ids =
+      tasks
+      |> Enum.flat_map(fn task ->
+        # Handle case where cas_output_node_ids might be nil or missing
+        Map.get(task, :cas_output_node_ids, []) || []
+      end)
+      |> Enum.uniq()
+
+    cas_outputs = Runs.get_cas_outputs_by_node_ids(run.id, all_node_ids)
+
+    # Create a map from task key to its CAS outputs
+    task_cas_outputs_map =
+      tasks
+      |> Enum.map(fn task ->
+        task_node_ids = Map.get(task, :cas_output_node_ids, []) || []
+
+        outputs =
+          Enum.filter(cas_outputs, fn output ->
+            output.node_id in task_node_ids
+          end)
+
+        {task.key, outputs}
+      end)
+      |> Map.new()
+
     filters =
       Filter.Operations.decode_filters_from_query(params, available_filters)
+
+    # Ensure task_cas_outputs_map is always a map
+    final_map = if is_map(task_cas_outputs_map), do: task_cas_outputs_map, else: %{}
 
     socket
     |> assign(:cacheable_tasks_search, cacheable_tasks_search)
@@ -885,6 +931,7 @@ defmodule TuistWeb.BuildRunLive do
     |> assign(:cacheable_tasks_active_filters, filters)
     |> assign(:cacheable_tasks_sort_by, cacheable_tasks_sort_by)
     |> assign(:cacheable_tasks_sort_order, cacheable_tasks_sort_order)
+    |> assign(:task_cas_outputs_map, final_map)
   end
 
   def empty_tab_state_background(assigns) do
