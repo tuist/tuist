@@ -468,9 +468,11 @@ public struct XCActivityLogController: XCActivityLogControlling {
     ) async throws -> [CacheableTask] {
         let cacheSteps = extractCacheSteps(from: buildSteps)
         let keyStatuses = aggregateKeyStatuses(from: cacheSteps)
+        let keyDescriptions = extractKeyDescriptions(from: buildSteps)
 
         return try await determineCacheStatuses(
             keyStatuses: keyStatuses,
+            keyDescriptions: keyDescriptions,
             buildStartTime: buildStartTime
         )
     }
@@ -539,6 +541,30 @@ public struct XCActivityLogController: XCActivityLogControlling {
             }
         }
         return allNodeIDs.uniqued()
+    }
+
+    private func extractKeyDescriptions(from buildSteps: [XCLogParser.BuildStep]) -> [String: String] {
+        var keyDescriptions: [String: String] = [:]
+
+        for step in buildSteps {
+            guard let notes = step.notes else { continue }
+
+            for note in notes {
+                // Check for "local cache found for key:" or "Local cache miss for key:"
+                let pattern = "(?:local cache found for key:|Local cache miss for key:)\\s+(0~[A-Za-z0-9+/_=-]+)"
+                guard let regex = try? NSRegularExpression(pattern: pattern),
+                      let match = regex.firstMatch(in: note.title, range: NSRange(location: 0, length: note.title.count)),
+                      let keyRange = Range(match.range(at: 1), in: note.title)
+                else {
+                    continue
+                }
+
+                let key = String(note.title[keyRange])
+                keyDescriptions[key] = step.title
+            }
+        }
+
+        return keyDescriptions
     }
 
     private func extractCacheSteps(from buildSteps: [XCLogParser.BuildStep]) -> [CacheStep] {
@@ -640,6 +666,7 @@ public struct XCActivityLogController: XCActivityLogControlling {
 
     private func determineCacheStatuses(
         keyStatuses: [String: CacheKeyStatus],
+        keyDescriptions: [String: String],
         buildStartTime _: Double
     ) async throws -> [CacheableTask] {
         return try await keyStatuses.concurrentMap { key, status in
@@ -664,7 +691,8 @@ public struct XCActivityLogController: XCActivityLogControlling {
                 status: cacheStatus,
                 type: status.taskType,
                 readDuration: readDuration,
-                writeDuration: writeDuration
+                writeDuration: writeDuration,
+                description: keyDescriptions[key]
             )
         }
     }

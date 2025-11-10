@@ -291,8 +291,7 @@
     gap: var(--noora-spacing-6);
     padding-top: var(--noora-spacing-6);
 
-    & > [data-part="cache-summary-card"],
-    & > [data-part="cas-outputs-card"] {
+    & > [data-part="cache-summary-card"] {
       & [data-part="widgets-card-section"] {
         display: flex;
         flex-direction: row;
@@ -315,7 +314,8 @@
       & > [data-part="xcode-cache-card-section"] {
         gap: var(--noora-spacing-8);
         padding: var(--noora-spacing-8);
-        & > [data-part="cacheable-tasks-card-section"] {
+        & > [data-part="cacheable-tasks-card-section"],
+        & > [data-part="cas-outputs-breakdown-card-section"] {
           gap: var(--noora-spacing-5);
           & > [data-part="title"] {
             display: flex;
@@ -339,7 +339,8 @@
           }
         }
 
-        & > [data-part="latency-widgets"] {
+        & > [data-part="latency-widgets"],
+        & > [data-part="throughput-widgets"] {
           display: flex;
           flex-direction: row;
           gap: var(--noora-spacing-4);
@@ -351,6 +352,9 @@
         & > [data-part="filters"] {
           display: flex;
           gap: var(--noora-spacing-6);
+          & .noora-dropdown-item:not([data-selected]) svg {
+            visibility: hidden;
+          }
         }
 
         & > [data-part="active-filters"] {

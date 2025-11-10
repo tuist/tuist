@@ -462,6 +462,10 @@ defmodule TuistWeb.API.RunsController do
                      write_duration: %Schema{
                        type: :number,
                        description: "The duration in milliseconds for writing to cache."
+                     },
+                     description: %Schema{
+                       type: :string,
+                       description: "Optional description of the cacheable task."
                      }
                    },
                    required: [:type, :status, :key]

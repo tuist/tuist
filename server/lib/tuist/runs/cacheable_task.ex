@@ -6,7 +6,7 @@ defmodule Tuist.Runs.CacheableTask do
 
   @derive {
     Flop.Schema,
-    filterable: [:build_run_id, :type, :status, :key], sortable: [:inserted_at, :key]
+    filterable: [:build_run_id, :type, :status, :key], sortable: [:inserted_at, :key, :description]
   }
 
   @primary_key false
@@ -18,6 +18,7 @@ defmodule Tuist.Runs.CacheableTask do
     field :inserted_at, Ch, type: "DateTime"
     field :read_duration, Ch, type: "Nullable(Float64)"
     field :write_duration, Ch, type: "Nullable(Float64)"
+    field :description, Ch, type: "Nullable(String)"
   end
 
   def changeset(build_run_id, attrs) do
@@ -30,9 +31,10 @@ defmodule Tuist.Runs.CacheableTask do
         key: attrs[:key],
         read_duration: attrs[:read_duration],
         write_duration: attrs[:write_duration],
+        description: attrs[:description],
         inserted_at: :second |> DateTime.utc_now() |> DateTime.to_naive()
       },
-      [:build_run_id, :type, :status, :key, :read_duration, :write_duration, :inserted_at]
+      [:build_run_id, :type, :status, :key, :read_duration, :write_duration, :description, :inserted_at]
     )
     |> Ecto.Changeset.validate_required([:build_run_id, :type, :status, :key])
   end

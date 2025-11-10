@@ -95,6 +95,7 @@ defmodule Tuist do
       Time,
       Utilities.ByteFormatter,
       Utilities.DateFormatter,
+      Utilities.ThroughputFormatter,
       VCS,
       UUIDv7,
       OAuth.Apple,

@@ -65,6 +65,8 @@ defmodule TuistWeb.BuildRunLive do
       |> assign(:module_breakdown_active_filters, [])
       |> assign(:cacheable_tasks_available_filters, define_cacheable_tasks_filters())
       |> assign(:cacheable_tasks_active_filters, [])
+      |> assign(:cas_outputs_available_filters, define_cas_outputs_filters())
+      |> assign(:cas_outputs_active_filters, [])
       |> assign(:selected_read_latency_type, "avg")
       |> assign(:selected_write_latency_type, "avg")
       |> assign_async(:has_result_bundle, fn ->
@@ -84,28 +86,33 @@ defmodule TuistWeb.BuildRunLive do
             module_breakdown_available_filters: module_breakdown_available_filters,
             module_breakdown_active_filters: module_breakdown_active_filters,
             cacheable_tasks_available_filters: cacheable_tasks_available_filters,
-            cacheable_tasks_active_filters: cacheable_tasks_active_filters
+            cacheable_tasks_active_filters: cacheable_tasks_active_filters,
+            cas_outputs_available_filters: cas_outputs_available_filters,
+            cas_outputs_active_filters: cas_outputs_active_filters
           }
         } = socket
       ) do
     uri = URI.new!("?" <> URI.encode_query(params))
     selected_breakdown_tab = params["breakdown-tab"] || "module"
+    selected_cache_tab = params["cache-tab"] || "cacheable-tasks"
 
     selected_tab = params["tab"] || "overview"
 
     available_filters =
-      case {selected_tab, selected_breakdown_tab} do
-        {"overview", "file"} -> file_breakdown_available_filters
-        {"overview", "module"} -> module_breakdown_available_filters
-        {"cache", _} -> cacheable_tasks_available_filters
+      case {selected_tab, selected_breakdown_tab, selected_cache_tab} do
+        {"overview", "file", _} -> file_breakdown_available_filters
+        {"overview", "module", _} -> module_breakdown_available_filters
+        {"xcode-cache", _, "cacheable-tasks"} -> cacheable_tasks_available_filters
+        {"xcode-cache", _, "cas-outputs"} -> cas_outputs_available_filters
         _ -> []
       end
 
     active_filters =
-      case {selected_tab, selected_breakdown_tab} do
-        {"overview", "file"} -> file_breakdown_active_filters
-        {"overview", "module"} -> module_breakdown_active_filters
-        {"cache", _} -> cacheable_tasks_active_filters
+      case {selected_tab, selected_breakdown_tab, selected_cache_tab} do
+        {"overview", "file", _} -> file_breakdown_active_filters
+        {"overview", "module", _} -> module_breakdown_active_filters
+        {"xcode-cache", _, "cacheable-tasks"} -> cacheable_tasks_active_filters
+        {"xcode-cache", _, "cas-outputs"} -> cas_outputs_active_filters
         _ -> []
       end
 
@@ -123,7 +130,9 @@ defmodule TuistWeb.BuildRunLive do
       |> assign_file_breakdown(params)
       |> assign_module_breakdown(params)
       |> assign_cacheable_tasks(params)
+      |> assign_cas_outputs(params)
       |> assign(:selected_breakdown_tab, selected_breakdown_tab)
+      |> assign(:selected_cache_tab, selected_cache_tab)
 
     {
       :noreply,
@@ -171,6 +180,21 @@ defmodule TuistWeb.BuildRunLive do
         socket,
         to:
           "/#{selected_account.name}/#{selected_project.name}/builds/build-runs/#{run.id}?#{uri.query |> Query.put("cacheable-tasks-search", search) |> Query.drop("cacheable-tasks-page")}"
+      )
+
+    {:noreply, socket}
+  end
+
+  def handle_event(
+        "search-cas-outputs",
+        %{"search" => search},
+        %{assigns: %{selected_account: selected_account, selected_project: selected_project, run: run, uri: uri}} = socket
+      ) do
+    socket =
+      push_patch(
+        socket,
+        to:
+          "/#{selected_account.name}/#{selected_project.name}/builds/build-runs/#{run.id}?#{uri.query |> Query.put("cas-outputs-search", search) |> Query.drop("cas-outputs-page")}"
       )
 
     {:noreply, socket}
@@ -352,8 +376,12 @@ defmodule TuistWeb.BuildRunLive do
     end
   end
 
-  defp cacheable_tasks_order_by(_cacheable_tasks_sort_by) do
-    [:key]
+  defp cacheable_tasks_order_by(cacheable_tasks_sort_by) do
+    case cacheable_tasks_sort_by do
+      "description" -> [:description]
+      "key" -> [:key]
+      _ -> [:description]
+    end
   end
 
   defp assign_module_breakdown(
@@ -810,10 +838,11 @@ defmodule TuistWeb.BuildRunLive do
          params
        ) do
     cacheable_tasks_search = params["cacheable-tasks-search"] || ""
-    cacheable_tasks_sort_by = params["cacheable-tasks-sort-by"] || "key"
+    cacheable_tasks_sort_by = params["cacheable-tasks-sort-by"] || "description"
 
     default_sort_order =
       case cacheable_tasks_sort_by do
+        "description" -> "desc"
         "key" -> "desc"
         _ -> "desc"
       end
@@ -998,6 +1027,161 @@ defmodule TuistWeb.BuildRunLive do
         value: nil
       }
     ]
+  end
+
+  defp define_cas_outputs_filters do
+    [
+      %Filter.Filter{
+        id: "operation",
+        field: :operation,
+        display_name: gettext("Status"),
+        type: :option,
+        options: ["download", "upload"],
+        options_display_names: %{
+          "download" => gettext("Download"),
+          "upload" => gettext("Upload")
+        },
+        operator: :==,
+        value: nil
+      },
+      %Filter.Filter{
+        id: "cas_output_size",
+        field: :size,
+        display_name: gettext("Size (MB)"),
+        type: :number,
+        operator: :>,
+        value: ""
+      },
+      %Filter.Filter{
+        id: "cas_output_compressed_size",
+        field: :compressed_size,
+        display_name: gettext("Compressed Size (MB)"),
+        type: :number,
+        operator: :>,
+        value: ""
+      }
+    ]
+  end
+
+  defp cas_outputs_filters(run, params, available_filters, search) do
+    base_filters =
+      [%{field: :build_run_id, op: :==, value: run.id}] ++
+        (params
+         |> Filter.Operations.decode_filters_from_query(available_filters)
+         |> Filter.Operations.convert_filters_to_flop()
+         |> Enum.map(&convert_mb_to_bytes/1))
+
+    if search && search != "" do
+      base_filters ++
+        [
+          %{field: :node_id, op: :like, value: search}
+        ]
+    else
+      base_filters
+    end
+  end
+
+  defp convert_mb_to_bytes(%{field: field, value: value} = filter) when field in [:size, :compressed_size] do
+    case parse_number(value) do
+      nil -> filter
+      number -> %{filter | value: trunc(number * 1024 * 1024)}
+    end
+  end
+
+  defp convert_mb_to_bytes(filter), do: filter
+
+  defp parse_number(value) when is_number(value), do: value
+
+  defp parse_number(value) when is_binary(value) do
+    case Float.parse(value) do
+      {number, _} -> number
+      :error -> nil
+    end
+  end
+
+  defp parse_number(_), do: nil
+
+  defp cas_outputs_order_by(sort_by) do
+    case sort_by do
+      "node-id" -> [:node_id]
+      "size" -> [:size]
+      "compressed-size" -> [:compressed_size]
+      _ -> [:compressed_size]
+    end
+  end
+
+  defp assign_cas_outputs(%{assigns: %{run: run, cas_outputs_available_filters: available_filters}} = socket, params) do
+    cas_outputs_search = params["cas-outputs-search"] || ""
+    cas_outputs_sort_by = params["cas-outputs-sort-by"] || "compressed-size"
+
+    default_sort_order =
+      case cas_outputs_sort_by do
+        "node-id" -> "asc"
+        _ -> "desc"
+      end
+
+    cas_outputs_sort_order = params["cas-outputs-sort-order"] || default_sort_order
+
+    cas_outputs_page =
+      params["cas-outputs-page"]
+      |> to_string()
+      |> Integer.parse()
+      |> case do
+        {int, _} -> int
+        :error -> 1
+      end
+
+    flop_filters = cas_outputs_filters(run, params, available_filters, cas_outputs_search)
+
+    order_by = cas_outputs_order_by(cas_outputs_sort_by)
+
+    order_directions = map_sort_order(cas_outputs_sort_order)
+
+    options = %{
+      filters: flop_filters,
+      page: cas_outputs_page,
+      page_size: 50,
+      order_by: order_by,
+      order_directions: order_directions
+    }
+
+    {outputs, outputs_meta} = Runs.list_cas_outputs(options)
+
+    filters =
+      Filter.Operations.decode_filters_from_query(params, available_filters)
+
+    socket
+    |> assign(:cas_outputs_search, cas_outputs_search)
+    |> assign(:cas_outputs, outputs)
+    |> assign(:cas_outputs_page, cas_outputs_page)
+    |> assign(:cas_outputs_meta, outputs_meta)
+    |> assign(:cas_outputs_active_filters, filters)
+    |> assign(:cas_outputs_sort_by, cas_outputs_sort_by)
+    |> assign(:cas_outputs_sort_order, cas_outputs_sort_order)
+  end
+
+  def cas_outputs_column_patch_sort(
+        %{uri: uri, cas_outputs_sort_by: cas_outputs_sort_by, cas_outputs_sort_order: cas_outputs_sort_order} = _assigns,
+        column_value
+      ) do
+    sort_order =
+      case {cas_outputs_sort_by == column_value, cas_outputs_sort_order} do
+        {true, "asc"} -> "desc"
+        {true, _} -> "asc"
+        {false, _} -> "asc"
+      end
+
+    "?#{uri.query |> Query.put("cas-outputs-sort-by", column_value) |> Query.put("cas-outputs-sort-order", sort_order) |> Query.drop("cas-outputs-page")}"
+  end
+
+  def cas_outputs_dropdown_item_patch_sort(cas_outputs_sort_by, uri) do
+    query =
+      uri.query
+      |> Query.put("cas-outputs-sort-by", cas_outputs_sort_by)
+      |> Query.drop("cas-outputs-page")
+      |> Query.drop("cas-outputs-sort-order")
+
+    "?#{query}"
   end
 
   def cache_chart_border_radius(local_hits, remote_hits, misses, category) do
