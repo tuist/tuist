@@ -77,6 +77,7 @@ let package = Package(
 )
 ```
 <!-- -->
+:::
 
 `Project.swift` is the manifest file where you'll define your project, and
 `Package.swift` is the manifest file where you'll define your dependencies. The
@@ -89,6 +90,7 @@ To prevent conflicts with the existing Xcode project, we recommend adding the
 `-Tuist` suffix to the project name. You can drop it once you've fully migrated
 your project to Tuist.
 <!-- -->
+:::
 
 ## Build and test the Tuist project in CI {#build-and-test-the-tuist-project-in-ci}
 
@@ -176,6 +178,7 @@ You can override the product type for a specific package by adding it to the
 `productTypes` dictionary in the `PackageSettings` struct. By default, Tuist
 assumes that all packages are static frameworks.
 <!-- -->
+:::
 
 
 ## Determine the migration order {#determine-the-migration-order}
@@ -247,6 +250,7 @@ let project = Project(
 If the target has an associated test target, you should define it in the
 `Project.swift` file as well repeating the same steps.
 <!-- -->
+:::
 
 ### Validate the target migration {#validate-the-target-migration}
 
