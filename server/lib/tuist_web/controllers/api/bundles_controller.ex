@@ -21,9 +21,9 @@ defmodule TuistWeb.API.BundlesController do
 
   plug(OpenApiSpex.Plug.CastAndValidate,
     json_render_error_v2: true,
-    render_error: TuistWeb.RenderAPIErrorPlug
+    render_error: TuistWeb.RenderAPIErrorPlug,
+    only: [:show, :index]
   )
-  when action in [:show, :index]
 
   tags ["Bundles"]
 
