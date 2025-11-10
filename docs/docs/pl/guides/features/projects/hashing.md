@@ -56,14 +56,14 @@ environments or invocations, it might be related to differences across the
 environments or a bug in the hashing logic. We recommend following these steps
 to debug the issue:
 
-1. Run `tuist hash cache` or `tuist hash test` (hashes for
+1. Run `tuist hash cache` or `tuist hash selective-testing` (hashes for
    <LocalizedLink href="/guides/features/cache">binary caching</LocalizedLink>
    or <LocalizedLink href="/guides/features/selective-testing">selective
    testing</LocalizedLink>), copy the hashes, rename the project directory, and
    run the command again. The hashes should match.
 2. If the hashes don't match, it's likely that the generated project depends on
-   the environment. Run `tuist graph --json` in both cases and compare the
-   graphs. Alternatively, generate the projects and compare their
+   the environment. Run `tuist graph --format json` in both cases and compare
+   the graphs. Alternatively, generate the projects and compare their
    `project.pbxproj` files with a diff tool such as
    [Diffchecker](https://www.diffchecker.com).
 3. If the hashes are the same but differ across environments (for example, CI
