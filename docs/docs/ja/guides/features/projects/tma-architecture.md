@@ -22,7 +22,6 @@ This architecture was previously known as µFeatures. We've renamed it to The
 Modular Architecture (TMA) to better reflect its purpose and the principles
 behind it.
 <!-- -->
-:::
 
 ## Core principle {#core-principle}
 
@@ -63,7 +62,6 @@ enforce in your project thanks to Tuist's DSL.
 `Feature` can use `FeatureTesting` as a Development Asset to allow for UI
 previews
 <!-- -->
-:::
 
 ::: warning COMPILER DIRECTIVES INSTEAD OF TESTING TARGETS
 <!-- -->
@@ -72,7 +70,6 @@ the `Feature` or `FeatureInterface` targets when compiling for `Debug`. You
 simplify the graph, but you'll end up compiling code that you won't need for
 running the app.
 <!-- -->
-:::
 
 ## Why a module {#why-a-module}
 
@@ -167,7 +164,6 @@ libraries](https://developer.apple.com/documentation/xcode/configuring-your-proj
 However, that introduces build-time non-determinism that makes your build
 non-reproducible and harder to optimize so we don't recommend using it.
 <!-- -->
-:::
 
 ## Code {#code}
 
