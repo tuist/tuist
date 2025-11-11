@@ -263,6 +263,19 @@ generate_checksum = fn ->
   |> List.to_string()
 end
 
+cas_file_types = [
+  "object",
+  "swiftmodule",
+  "swiftdoc",
+  "dependencies",
+  "llvm-bc",
+  "assembly",
+  "swiftinterface",
+  "diagnostics",
+  "swift-dependencies",
+  "swiftsourceinfo"
+]
+
 cas_outputs =
   Enum.flat_map(builds, fn build ->
     # Generate 5-25 CAS operations per build
@@ -284,6 +297,7 @@ cas_outputs =
         duration: duration,
         compressed_size: compressed_size,
         operation: operation,
+        type: Enum.random(cas_file_types),
         inserted_at: DateTime.to_naive(build.inserted_at)
       }
     end)

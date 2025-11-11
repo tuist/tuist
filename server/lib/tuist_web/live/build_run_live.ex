@@ -1050,14 +1050,9 @@ defmodule TuistWeb.BuildRunLive do
         id: "type",
         field: :type,
         display_name: gettext("Type"),
-        type: :option,
-        options: ["swift", "clang"],
-        options_display_names: %{
-          "swift" => "Swift",
-          "clang" => "Clang"
-        },
+        type: :text,
         operator: :==,
-        value: nil
+        value: ""
       },
       %Filter.Filter{
         id: "status",
@@ -1090,6 +1085,14 @@ defmodule TuistWeb.BuildRunLive do
         },
         operator: :==,
         value: nil
+      },
+      %Filter.Filter{
+        id: "cas_output_type",
+        field: :type,
+        display_name: gettext("Type"),
+        type: :text,
+        operator: :==,
+        value: ""
       },
       %Filter.Filter{
         id: "cas_output_size",

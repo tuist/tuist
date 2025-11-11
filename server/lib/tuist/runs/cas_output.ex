@@ -6,7 +6,7 @@ defmodule Tuist.Runs.CASOutput do
 
   @derive {
     Flop.Schema,
-    filterable: [:build_run_id, :node_id, :operation, :size, :compressed_size],
+    filterable: [:build_run_id, :node_id, :operation, :size, :compressed_size, :type],
     sortable: [:node_id, :size, :compressed_size]
   }
 
@@ -18,6 +18,7 @@ defmodule Tuist.Runs.CASOutput do
     field :duration, Ch, type: "UInt64"
     field :compressed_size, Ch, type: "UInt64"
     field :operation, Ch, type: "Enum8('download' = 0, 'upload' = 1)"
+    field :type, Ch, type: "Nullable(String)"
     field :build_run_id, Ch, type: "UUID"
     field :inserted_at, Ch, type: "DateTime"
   end
@@ -33,9 +34,10 @@ defmodule Tuist.Runs.CASOutput do
         duration: attrs[:duration] && trunc(attrs[:duration]),
         compressed_size: attrs[:compressed_size],
         operation: attrs[:operation] && to_string(attrs[:operation]),
+        type: attrs[:type],
         inserted_at: :second |> DateTime.utc_now() |> DateTime.to_naive()
       },
-      [:build_run_id, :node_id, :checksum, :size, :duration, :compressed_size, :operation, :inserted_at]
+      [:build_run_id, :node_id, :checksum, :size, :duration, :compressed_size, :operation, :type, :inserted_at]
     )
     |> Ecto.Changeset.validate_required([
       :build_run_id,

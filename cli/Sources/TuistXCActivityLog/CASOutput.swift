@@ -12,6 +12,7 @@ public struct CASOutput: Equatable {
     public let duration: TimeInterval
     public let compressedSize: Int
     public let operation: CASOperation
+    public let type: String
 
     public init(
         nodeID: String,
@@ -19,7 +20,8 @@ public struct CASOutput: Equatable {
         size: Int,
         duration: TimeInterval,
         compressedSize: Int,
-        operation: CASOperation
+        operation: CASOperation,
+        type: String
     ) {
         self.nodeID = nodeID
         self.checksum = checksum
@@ -27,5 +29,6 @@ public struct CASOutput: Equatable {
         self.duration = duration
         self.compressedSize = compressedSize
         self.operation = operation
+        self.type = type
     }
 }

@@ -989,7 +989,7 @@
                   <%= for cas_output <- cas_outputs do %>
                     <div data-part="cas-output-item">
                       <span data-part="cas-output-text">
-                        <span data-part="cas-output-label">{gettext("CAS output: ")}</span>
+                        <span data-part="cas-output-label">{gettext("CAS output")} {cas_output.type || gettext("unknown")}: </span>
                         <.popover
                           id={"cas-output-popover-#{cas_output.node_id}"}
                           tabindex="-1"
@@ -1253,6 +1253,9 @@
                   <% "upload" -> %>
                     <.badge_cell label={gettext("Upload")} color="secondary" style="light-fill" />
                 <% end %>
+              </:col>
+              <:col :let={output} label={gettext("Type")}>
+                <.text_cell label={output.type || gettext("Unknown")} />
               </:col>
               <:col
                 :let={output}

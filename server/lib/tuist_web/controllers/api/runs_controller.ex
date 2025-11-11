@@ -501,6 +501,10 @@ defmodule TuistWeb.API.RunsController do
                        type: :string,
                        description: "The type of CAS operation.",
                        enum: [:download, :upload]
+                     },
+                     type: %Schema{
+                       type: :string,
+                       description: "The type of the CAS output."
                      }
                    },
                    required: [:node_id, :checksum, :size, :duration, :compressed_size, :operation]
