@@ -1498,26 +1498,16 @@ components:
     CacheEndpoints:
       description: List of available cache endpoints
       properties:
-        data:
-          properties:
-            endpoints:
-              items:
-                type: string
-                x-struct:
-                x-validate:
-              type: array
-              x-struct:
-              x-validate:
-          type: object
+        endpoints:
+          items:
+            type: string
+            x-struct:
+            x-validate:
+          type: array
           x-struct:
           x-validate:
-        status:
-          default: success
-          enum:
-            - success
-          type: string
-          x-struct:
-          x-validate:
+      required:
+        - endpoints
       title: CacheEndpoints
       type: object
       x-struct:
@@ -5451,26 +5441,16 @@ paths:
               schema:
                 description: List of available cache endpoints
                 properties:
-                  data:
-                    properties:
-                      endpoints:
-                        items:
-                          type: string
-                          x-struct:
-                          x-validate:
-                        type: array
-                        x-struct:
-                        x-validate:
-                    type: object
+                  endpoints:
+                    items:
+                      type: string
+                      x-struct:
+                      x-validate:
+                    type: array
                     x-struct:
                     x-validate:
-                  status:
-                    default: success
-                    enum:
-                      - success
-                    type: string
-                    x-struct:
-                    x-validate:
+                required:
+                  - endpoints
                 title: CacheEndpoints
                 type: object
                 x-struct:

@@ -3636,44 +3636,17 @@ public enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/CacheEndpoints`.
         public struct CacheEndpoints: Codable, Hashable, Sendable {
-            /// - Remark: Generated from `#/components/schemas/CacheEndpoints/data`.
-            public struct dataPayload: Codable, Hashable, Sendable {
-                /// - Remark: Generated from `#/components/schemas/CacheEndpoints/data/endpoints`.
-                public var endpoints: [Swift.String]?
-                /// Creates a new `dataPayload`.
-                ///
-                /// - Parameters:
-                ///   - endpoints:
-                public init(endpoints: [Swift.String]? = nil) {
-                    self.endpoints = endpoints
-                }
-                public enum CodingKeys: String, CodingKey {
-                    case endpoints
-                }
-            }
-            /// - Remark: Generated from `#/components/schemas/CacheEndpoints/data`.
-            public var data: Components.Schemas.CacheEndpoints.dataPayload?
-            /// - Remark: Generated from `#/components/schemas/CacheEndpoints/status`.
-            @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                case success = "success"
-            }
-            /// - Remark: Generated from `#/components/schemas/CacheEndpoints/status`.
-            public var status: Components.Schemas.CacheEndpoints.statusPayload?
+            /// - Remark: Generated from `#/components/schemas/CacheEndpoints/endpoints`.
+            public var endpoints: [Swift.String]
             /// Creates a new `CacheEndpoints`.
             ///
             /// - Parameters:
-            ///   - data:
-            ///   - status:
-            public init(
-                data: Components.Schemas.CacheEndpoints.dataPayload? = nil,
-                status: Components.Schemas.CacheEndpoints.statusPayload? = nil
-            ) {
-                self.data = data
-                self.status = status
+            ///   - endpoints:
+            public init(endpoints: [Swift.String]) {
+                self.endpoints = endpoints
             }
             public enum CodingKeys: String, CodingKey {
-                case data
-                case status
+                case endpoints
             }
         }
         /// The schema for a Tuist run.
@@ -18548,44 +18521,17 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/cache/endpoints/GET/responses/200/content/json`.
                     public struct jsonPayload: Codable, Hashable, Sendable {
-                        /// - Remark: Generated from `#/paths/api/cache/endpoints/GET/responses/200/content/json/data`.
-                        public struct dataPayload: Codable, Hashable, Sendable {
-                            /// - Remark: Generated from `#/paths/api/cache/endpoints/GET/responses/200/content/json/data/endpoints`.
-                            public var endpoints: [Swift.String]?
-                            /// Creates a new `dataPayload`.
-                            ///
-                            /// - Parameters:
-                            ///   - endpoints:
-                            public init(endpoints: [Swift.String]? = nil) {
-                                self.endpoints = endpoints
-                            }
-                            public enum CodingKeys: String, CodingKey {
-                                case endpoints
-                            }
-                        }
-                        /// - Remark: Generated from `#/paths/api/cache/endpoints/GET/responses/200/content/json/data`.
-                        public var data: Operations.getCacheEndpoints.Output.Ok.Body.jsonPayload.dataPayload?
-                        /// - Remark: Generated from `#/paths/api/cache/endpoints/GET/responses/200/content/json/status`.
-                        @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                            case success = "success"
-                        }
-                        /// - Remark: Generated from `#/paths/api/cache/endpoints/GET/responses/200/content/json/status`.
-                        public var status: Operations.getCacheEndpoints.Output.Ok.Body.jsonPayload.statusPayload?
+                        /// - Remark: Generated from `#/paths/api/cache/endpoints/GET/responses/200/content/json/endpoints`.
+                        public var endpoints: [Swift.String]
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
-                        ///   - data:
-                        ///   - status:
-                        public init(
-                            data: Operations.getCacheEndpoints.Output.Ok.Body.jsonPayload.dataPayload? = nil,
-                            status: Operations.getCacheEndpoints.Output.Ok.Body.jsonPayload.statusPayload? = nil
-                        ) {
-                            self.data = data
-                            self.status = status
+                        ///   - endpoints:
+                        public init(endpoints: [Swift.String]) {
+                            self.endpoints = endpoints
                         }
                         public enum CodingKeys: String, CodingKey {
-                            case data
-                            case status
+                            case endpoints
                         }
                     }
                     /// - Remark: Generated from `#/paths/api/cache/endpoints/GET/responses/200/content/application\/json`.

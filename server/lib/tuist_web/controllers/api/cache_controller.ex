@@ -46,6 +46,7 @@ defmodule TuistWeb.API.CacheController do
            title: "CacheEndpoints",
            description: "List of available cache endpoints",
            type: :object,
+           required: [:endpoints],
            properties: %{
              endpoints: %Schema{
                type: :array,

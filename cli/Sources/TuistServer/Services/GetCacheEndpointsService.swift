@@ -3,7 +3,7 @@ import Mockable
 import OpenAPIURLSession
 
 @Mockable
-public protocol GetCacheEndpointsServicing {
+public protocol GetCacheEndpointsServicing: Sendable {
     func getCacheEndpoints(
         serverURL: URL
     ) async throws -> [String]
@@ -11,19 +11,16 @@ public protocol GetCacheEndpointsServicing {
 
 enum GetCacheEndpointsServiceError: LocalizedError {
     case unknownError(Int)
-    case noEndpointsAvailable
 
     var errorDescription: String? {
         switch self {
         case let .unknownError(statusCode):
             return "Failed to retrieve cache endpoints due to an unknown server response of \(statusCode)."
-        case .noEndpointsAvailable:
-            return "No cache endpoints are available."
         }
     }
 }
 
-public final class GetCacheEndpointsService: GetCacheEndpointsServicing {
+public struct GetCacheEndpointsService: GetCacheEndpointsServicing {
     public init() {}
 
     public func getCacheEndpoints(
@@ -37,10 +34,7 @@ public final class GetCacheEndpointsService: GetCacheEndpointsServicing {
         case let .ok(okResponse):
             switch okResponse.body {
             case let .json(endpoints):
-                guard let endpointsList = endpoints.data?.endpoints, !endpointsList.isEmpty else {
-                    throw GetCacheEndpointsServiceError.noEndpointsAvailable
-                }
-                return endpointsList
+                return endpoints.endpoints
             }
         case let .undocumented(statusCode: statusCode, _):
             throw GetCacheEndpointsServiceError.unknownError(statusCode)

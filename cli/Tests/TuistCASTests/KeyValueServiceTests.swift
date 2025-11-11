@@ -31,6 +31,7 @@ struct KeyValueServiceTests {
         subject = KeyValueService(
             fullHandle: fullHandle,
             serverURL: serverURL,
+            cacheURLStore: MockCacheURLStoring(),
             putCacheValueService: putCacheValueService,
             getCacheValueService: getCacheValueService,
             nodeStore: nodeStore,

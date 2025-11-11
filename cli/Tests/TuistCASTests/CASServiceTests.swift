@@ -29,6 +29,7 @@ struct CASServiceTests {
         subject = CASService(
             fullHandle: fullHandle,
             serverURL: serverURL,
+            cacheURLStore: MockCacheURLStoring(),
             saveCacheCASService: saveCacheCASService,
             loadCacheCASService: loadCacheCASService,
             fileSystem: FileSystem(),
