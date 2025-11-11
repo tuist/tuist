@@ -211,8 +211,6 @@ defmodule Cache.KeyValueStoreTest do
       assert {:error, :not_found} =
                KeyValueStore.get_key_value(@cas_id, @account_handle, "nonexistent_project")
     end
-
-
   end
 
   describe "persistence" do

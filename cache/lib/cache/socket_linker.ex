@@ -65,10 +65,7 @@ defmodule Cache.SocketLinker do
 
   defp socket_env(var) do
     case System.get_env(var) do
-      nil ->
-        :error
-
-      "" ->
+      value when value in [nil, ""] ->
         :error
 
       value ->
