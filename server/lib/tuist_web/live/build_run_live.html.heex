@@ -979,7 +979,7 @@
                     <div data-part="cas-output-item">
                       <span data-part="cas-output-text">
                         <span data-part="cas-output-label">
-                          {gettext("CAS output")} {cas_output.type || gettext("unknown")}:
+                          {gettext("CAS output")} {cas_output.type}:
                         </span>
                         <.popover
                           id={"cas-output-popover-#{cas_output.node_id}"}
@@ -1252,7 +1252,7 @@
                 <% end %>
               </:col>
               <:col :let={output} label={gettext("Type")}>
-                <.text_cell label={output.type || gettext("Unknown")} />
+                <.text_cell label={output.type} />
               </:col>
               <:col
                 :let={output}

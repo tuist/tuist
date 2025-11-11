@@ -4,7 +4,7 @@ defmodule Tuist.IngestRepo.Migrations.AddTypeEnumToCasOutputs do
   def up do
     execute("""
     ALTER TABLE cas_outputs
-    ADD COLUMN type Nullable(Enum16(
+    ADD COLUMN type Enum16(
       'swift' = 0, 'sil' = 1, 'sib' = 2, 'image' = 3, 'dSYM' = 4, 'dependencies' = 5,
       'emit-module-dependencies' = 6, 'autolink' = 7, 'swiftmodule' = 8, 'swiftdoc' = 9,
       'swiftinterface' = 10, 'object' = 11, 'ast-dump' = 12, 'raw-sil' = 13, 'raw-sib' = 14,
@@ -18,8 +18,9 @@ defmodule Tuist.IngestRepo.Migrations.AddTypeEnumToCasOutputs do
       'api-baseline-json' = 36, 'abi-baseline-json' = 37, 'const-values' = 38,
       'api-descriptor-json' = 39, 'swift-module-summary' = 40, 'module-semantic-info' = 41,
       'cached-diagnostics' = 42, 'json-supported-swift-features' = 43, 'modulemap' = 44,
-      'pch' = 45, 'pcm' = 46, 'tbd' = 47, 'remap' = 48, 'localization-strings' = 49, 'clang-header' = 50
-    ))
+      'pch' = 45, 'pcm' = 46, 'tbd' = 47, 'remap' = 48, 'localization-strings' = 49, 'clang-header' = 50,
+      'unknown' = 255
+    ) DEFAULT 'unknown'
     """)
   end
 
