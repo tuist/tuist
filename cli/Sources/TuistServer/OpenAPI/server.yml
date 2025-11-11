@@ -827,6 +827,63 @@ components:
                     type: integer
                     x-struct:
                     x-validate:
+                  type:
+                    description: The type of the CAS output file.
+                    enum:
+                      - swift
+                      - sil
+                      - sib
+                      - image
+                      - dSYM
+                      - dependencies
+                      - emit-module-dependencies
+                      - autolink
+                      - swiftmodule
+                      - swiftdoc
+                      - swiftinterface
+                      - object
+                      - ast-dump
+                      - raw-sil
+                      - raw-sib
+                      - raw-llvm-ir
+                      - llvm-ir
+                      - llvm-bc
+                      - private-swiftinterface
+                      - package-swiftinterface
+                      - objc-header
+                      - swift-dependencies
+                      - dependency-scanner-cache
+                      - json-dependencies
+                      - json-target-info
+                      - json-supported-features
+                      - json-module-artifacts
+                      - imported-modules
+                      - module-trace
+                      - index-data
+                      - index-unit-output-path
+                      - yaml-opt-record
+                      - bitstream-opt-record
+                      - diagnostics
+                      - emit-module-diagnostics
+                      - dependency-scan-diagnostics
+                      - api-baseline-json
+                      - abi-baseline-json
+                      - const-values
+                      - api-descriptor-json
+                      - swift-module-summary
+                      - module-semantic-info
+                      - cached-diagnostics
+                      - json-supported-swift-features
+                      - modulemap
+                      - pch
+                      - pcm
+                      - tbd
+                      - remap
+                      - localization-strings
+                      - clang-header
+                    type: string
+                    x-struct:
+                    x-validate:
                 required:
                   - node_id
                   - checksum
@@ -1871,6 +1928,63 @@ components:
               size:
                 description: The size of the CAS object in bytes.
                 type: integer
+                x-struct:
+                x-validate:
+              type:
+                description: The type of the CAS output file.
+                enum:
+                  - swift
+                  - sil
+                  - sib
+                  - image
+                  - dSYM
+                  - dependencies
+                  - emit-module-dependencies
+                  - autolink
+                  - swiftmodule
+                  - swiftdoc
+                  - swiftinterface
+                  - object
+                  - ast-dump
+                  - raw-sil
+                  - raw-sib
+                  - raw-llvm-ir
+                  - llvm-ir
+                  - llvm-bc
+                  - private-swiftinterface
+                  - package-swiftinterface
+                  - objc-header
+                  - swift-dependencies
+                  - dependency-scanner-cache
+                  - json-dependencies
+                  - json-target-info
+                  - json-supported-features
+                  - json-module-artifacts
+                  - imported-modules
+                  - module-trace
+                  - index-data
+                  - index-unit-output-path
+                  - yaml-opt-record
+                  - bitstream-opt-record
+                  - diagnostics
+                  - emit-module-diagnostics
+                  - dependency-scan-diagnostics
+                  - api-baseline-json
+                  - abi-baseline-json
+                  - const-values
+                  - api-descriptor-json
+                  - swift-module-summary
+                  - module-semantic-info
+                  - cached-diagnostics
+                  - json-supported-swift-features
+                  - modulemap
+                  - pch
+                  - pcm
+                  - tbd
+                  - remap
+                  - localization-strings
+                  - clang-header
+                type: string
                 x-struct:
                 x-validate:
             required:
@@ -6182,6 +6296,63 @@ paths:
                           size:
                             description: The size of the CAS object in bytes.
                             type: integer
+                            x-struct:
+                            x-validate:
+                          type:
+                            description: The type of the CAS output file.
+                            enum:
+                              - swift
+                              - sil
+                              - sib
+                              - image
+                              - dSYM
+                              - dependencies
+                              - emit-module-dependencies
+                              - autolink
+                              - swiftmodule
+                              - swiftdoc
+                              - swiftinterface
+                              - object
+                              - ast-dump
+                              - raw-sil
+                              - raw-sib
+                              - raw-llvm-ir
+                              - llvm-ir
+                              - llvm-bc
+                              - private-swiftinterface
+                              - package-swiftinterface
+                              - objc-header
+                              - swift-dependencies
+                              - dependency-scanner-cache
+                              - json-dependencies
+                              - json-target-info
+                              - json-supported-features
+                              - json-module-artifacts
+                              - imported-modules
+                              - module-trace
+                              - index-data
+                              - index-unit-output-path
+                              - yaml-opt-record
+                              - bitstream-opt-record
+                              - diagnostics
+                              - emit-module-diagnostics
+                              - dependency-scan-diagnostics
+                              - api-baseline-json
+                              - abi-baseline-json
+                              - const-values
+                              - api-descriptor-json
+                              - swift-module-summary
+                              - module-semantic-info
+                              - cached-diagnostics
+                              - json-supported-swift-features
+                              - modulemap
+                              - pch
+                              - pcm
+                              - tbd
+                              - remap
+                              - localization-strings
+                              - clang-header
+                            type: string
                             x-struct:
                             x-validate:
                         required:

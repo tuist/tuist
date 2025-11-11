@@ -1231,7 +1231,7 @@
             <div :if={Enum.any?(@cas_outputs_active_filters)} data-part="active-filters">
               <.active_filter :for={filter <- @cas_outputs_active_filters} filter={filter} />
             </div>
-            <.table id="cas-outputs-table" rows={@cas_outputs}>
+            <.table id="cas-outputs-table" rows={@cas_outputs} row_key={fn output -> "#{output.node_id}-#{output.operation}" end}>
               <:col
                 :let={output}
                 label={gettext("Key")}

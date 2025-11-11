@@ -665,8 +665,9 @@ public struct XCActivityLogController: XCActivityLogControlling {
         else {
             return nil
         }
-        let type = String(noteTitle[typeRange])
+        let typeString = String(noteTitle[typeRange])
         let nodeID = String(noteTitle[nodeIDRange])
+        guard let type = CASOutputType(rawValue: typeString) else { return nil }
         return CASNodeMetadata(nodeID: nodeID, type: type)
     }
 
@@ -679,8 +680,9 @@ public struct XCActivityLogController: XCActivityLogControlling {
         else {
             return nil
         }
-        let type = String(noteTitle[typeRange])
+        let typeString = String(noteTitle[typeRange])
         let nodeID = String(noteTitle[nodeIDRange])
+        guard let type = CASOutputType(rawValue: typeString) else { return nil }
         return CASNodeMetadata(nodeID: nodeID, type: type)
     }
 
@@ -801,7 +803,7 @@ private struct CacheKeyStatus {
 
 private struct CASNodeMetadata: Hashable {
     let nodeID: String
-    let type: String
+    let type: CASOutputType
 }
 
 extension BuildStep {

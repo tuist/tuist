@@ -268,12 +268,10 @@ cas_file_types = [
   "swiftmodule",
   "swiftdoc",
   "dependencies",
-  "llvm-bc",
-  "assembly",
-  "swiftinterface",
-  "diagnostics",
   "swift-dependencies",
-  "swiftsourceinfo"
+  "swiftinterface",
+  "llvm-bc",
+  "diagnostics"
 ]
 
 cas_outputs =

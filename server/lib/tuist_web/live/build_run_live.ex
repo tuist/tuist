@@ -1032,7 +1032,10 @@ defmodule TuistWeb.BuildRunLive do
   defp cacheable_tasks_filters(run, params, available_filters, search) do
     base_filters =
       [%{field: :build_run_id, op: :==, value: run.id}] ++
-        Filter.Operations.convert_filters_to_flop(Filter.Operations.decode_filters_from_query(params, available_filters))
+        (params
+         |> Filter.Operations.decode_filters_from_query(available_filters)
+         |> Filter.Operations.convert_filters_to_flop()
+         |> Enum.map(&remap_cacheable_task_type_field/1))
 
     if search && search != "" do
       base_filters ++
@@ -1045,14 +1048,21 @@ defmodule TuistWeb.BuildRunLive do
   end
 
   defp define_cacheable_tasks_filters do
+    cacheable_task_type_options = ["clang", "swift"]
+
     [
       %Filter.Filter{
-        id: "type",
+        id: "cacheable_task_type",
         field: :type,
         display_name: gettext("Type"),
-        type: :text,
+        type: :option,
+        options: cacheable_task_type_options,
+        options_display_names: %{
+          "clang" => "Clang",
+          "swift" => "Swift"
+        },
         operator: :==,
-        value: ""
+        value: nil
       },
       %Filter.Filter{
         id: "status",
@@ -1072,6 +1082,8 @@ defmodule TuistWeb.BuildRunLive do
   end
 
   defp define_cas_outputs_filters do
+    cas_output_type_options = Enum.sort(["swift", "sil", "sib", "image", "dSYM", "dependencies", "emit-module-dependencies", "autolink", "swiftmodule", "swiftdoc", "swiftinterface", "object", "ast-dump", "raw-sil", "raw-sib", "raw-llvm-ir", "llvm-ir", "llvm-bc", "private-swiftinterface", "package-swiftinterface", "objc-header", "swift-dependencies", "dependency-scanner-cache", "json-dependencies", "json-target-info", "json-supported-features", "json-module-artifacts", "imported-modules", "module-trace", "index-data", "index-unit-output-path", "yaml-opt-record", "bitstream-opt-record", "diagnostics", "emit-module-diagnostics", "dependency-scan-diagnostics", "api-baseline-json", "abi-baseline-json", "const-values", "api-descriptor-json", "swift-module-summary", "module-semantic-info", "cached-diagnostics", "json-supported-swift-features", "modulemap", "pch", "pcm", "tbd", "remap", "localization-strings", "clang-header"])
+
     [
       %Filter.Filter{
         id: "operation",
@@ -1090,9 +1102,11 @@ defmodule TuistWeb.BuildRunLive do
         id: "cas_output_type",
         field: :type,
         display_name: gettext("Type"),
-        type: :text,
+        type: :option,
+        options: cas_output_type_options,
+        options_display_names: Map.new(cas_output_type_options, &{&1, &1}),
         operator: :==,
-        value: ""
+        value: nil
       },
       %Filter.Filter{
         id: "cas_output_size",
@@ -1119,7 +1133,8 @@ defmodule TuistWeb.BuildRunLive do
         (params
          |> Filter.Operations.decode_filters_from_query(available_filters)
          |> Filter.Operations.convert_filters_to_flop()
-         |> Enum.map(&convert_mb_to_bytes/1))
+         |> Enum.map(&convert_mb_to_bytes/1)
+         |> Enum.map(&remap_cas_output_type_field/1))
 
     if search && search != "" do
       base_filters ++
@@ -1139,6 +1154,18 @@ defmodule TuistWeb.BuildRunLive do
   end
 
   defp convert_mb_to_bytes(filter), do: filter
+
+  defp remap_cas_output_type_field(%{field: :cas_output_type} = filter) do
+    %{filter | field: :type}
+  end
+
+  defp remap_cas_output_type_field(filter), do: filter
+
+  defp remap_cacheable_task_type_field(%{field: :cacheable_task_type} = filter) do
+    %{filter | field: :type}
+  end
+
+  defp remap_cacheable_task_type_field(filter), do: filter
 
   defp parse_number(value) when is_number(value), do: value
 

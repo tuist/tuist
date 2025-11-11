@@ -171,6 +171,7 @@ defmodule Tuist.Runs do
           duration: struct.duration,
           compressed_size: struct.compressed_size,
           operation: struct.operation,
+          type: struct.type,
           build_run_id: struct.build_run_id,
           inserted_at: struct.inserted_at
         }
