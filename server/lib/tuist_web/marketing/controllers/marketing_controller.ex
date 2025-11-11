@@ -61,8 +61,6 @@ defmodule TuistWeb.Marketing.MarketingController do
   end
 
   defp get_featured_testimonials("ru") do
-    # Russian testimonials - falls back to English for now
-    # Add Russian-specific testimonials here when ready
     get_english_featured_testimonials()
   end
 
@@ -74,7 +72,6 @@ defmodule TuistWeb.Marketing.MarketingController do
     english_columns = get_english_testimonial_columns()
 
     [
-      # Column 1 - Korean testimonials
       [
         %{
           quote:
@@ -106,16 +103,12 @@ defmodule TuistWeb.Marketing.MarketingController do
           logo_svg: nil
         }
       ],
-      # Column 2 - Use English version
       Enum.at(english_columns, 1),
-      # Column 3 - Use English version
       Enum.at(english_columns, 2)
     ]
   end
 
   defp get_testimonial_columns("ru") do
-    # Russian testimonial columns - falls back to English for now
-    # Add Russian-specific testimonial columns here when ready
     get_english_testimonial_columns()
   end
 
