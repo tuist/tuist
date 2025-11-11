@@ -1,5 +1,5 @@
 msgid ""
-msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-05 17:58+0000\nPO-Revision-Date: 2025-11-11 09:31+0000\nLast-Translator: 이영준 <kofggm@gmail.com>\nLanguage-Team: Korean <https://translate.tuist.dev/projects/tuist/marketing/ko/>\nLanguage: ko\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\nX-Generator: Weblate 5.14.3\n"
+msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-05 17:58+0000\nPO-Revision-Date: 2025-11-11 09:41+0000\nLast-Translator: 이영준 <kofggm@gmail.com>\nLanguage-Team: Korean <https://translate.tuist.dev/projects/tuist/marketing/ko/>\nLanguage: ko\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\nX-Generator: Weblate 5.14.3\n"
 
 ## This file is a PO Template file.
 ##
@@ -377,29 +377,29 @@ msgstr "개발자들"
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:411
 #, elixir-autogen, elixir-format
 msgid "Discover our flexible pricing plans at Tuist. Enjoy a free tier with no time limits, and pay only for what you use. Plus, it's free forever for open source projects."
-msgstr ""
+msgstr "Tuist의 유동적인 요금제를 확인하세요. 제한 없는 무료 요금제를 사용해보고 필요할 때만 지불하세요. 추가로 오픈소스 프로젝트들에는 영원히 무료로 제공됩니다."
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:511
 #, elixir-autogen, elixir-format
 msgid "Do you offer annual billing discounts?"
-msgstr ""
+msgstr "연간 할인을 제공합니까?"
 
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:386
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:651
 #, elixir-autogen, elixir-format
 msgid "Do you offer discounts for non-profits and open-source?"
-msgstr ""
+msgstr "비영리 단체나 오픈소스 프로젝트를 위한 할인을 제공합니까?"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:402
 #, elixir-autogen, elixir-format
 msgid "Do you support a seat-based pricing model?"
-msgstr ""
+msgstr "사용자(개발자) 수 기반의 요금제를 제공합니까?"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:166
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:312
 #, elixir-autogen, elixir-format
 msgid "Docs"
-msgstr ""
+msgstr "설명서"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:155
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:70
