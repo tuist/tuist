@@ -111,7 +111,7 @@ final class XcodeControllerTests: TuistUnitTestCase {
             developerPath,
 
             // DEVELOPER_DIR=/path/to/Xcode.app
-            contentsPath
+            temporaryPath
         ]
 
         for path in developerPaths {
