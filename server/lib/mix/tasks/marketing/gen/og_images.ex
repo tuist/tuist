@@ -7,7 +7,9 @@ defmodule Mix.Tasks.Marketing.Gen.OgImages do
   use Gettext, backend: TuistWeb.Gettext
 
   alias Tuist.Marketing.OpenGraph
-  alias TuistWeb.Marketing.Localization
+
+  # Available locales for OG image generation
+  @locales ["en", "ko", "ru", "ja"]
 
   def run(_args) do
     og_images_directory =
@@ -34,7 +36,7 @@ defmodule Mix.Tasks.Marketing.Gen.OgImages do
     dynamic_pages = Tuist.Marketing.Pages.get_pages()
 
     # Generate OG images for all locales
-    for locale <- Localization.all_locales() do
+    for locale <- @locales do
       # Set the locale for gettext
       Gettext.put_locale(TuistWeb.Gettext, locale)
 
