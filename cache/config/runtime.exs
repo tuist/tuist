@@ -26,15 +26,13 @@ if config_env() == :prod do
       nil ->
         [
           ip: {0, 0, 0, 0, 0, 0, 0, 0},
-          port: port,
-          transport_options: [num_acceptors: num_acceptors]
+          port: port
         ]
 
       "" ->
         [
           ip: {0, 0, 0, 0, 0, 0, 0, 0},
-          port: port,
-          transport_options: [num_acceptors: num_acceptors]
+          port: port
         ]
 
       path ->
@@ -42,12 +40,8 @@ if config_env() == :prod do
         _ = File.rm(path)
 
         [
-          transport_module: ThousandIsland.Transports.UNIX,
-          transport_options: [
-            path: path,
-            mode: 0o777,
-            num_acceptors: num_acceptors
-          ]
+          ip: {:local, path},
+          port: 0
         ]
     end
 
