@@ -8,10 +8,17 @@ defmodule Tuist.Marketing.OpenGraph do
 
   @max_length 35
 
-  def generate_og_image(title, path) do
+  @doc """
+  Generates an OG image with the given title and saves it to the specified path.
+
+  If locale is provided, it will be included in the path structure before the filename.
+  For example: path="/og/about.jpg", locale="ko" -> "/og/ko/about.jpg"
+  """
+  def generate_og_image(title, path, locale \\ nil) do
+    final_path = apply_locale_to_path(path, locale)
     {title_line_1, title_line_2, title_line_3} = og_image_title_lines(title)
 
-    parent_directory = Path.dirname(path)
+    parent_directory = Path.dirname(final_path)
 
     if not File.exists?(parent_directory) do
       File.mkdir_p!(parent_directory)
@@ -64,7 +71,16 @@ defmodule Tuist.Marketing.OpenGraph do
       end
 
     # Save as JPEG with high quality and proper color space
-    Image.write!(image, path, quality: 95, strip_metadata: false)
+    Image.write!(image, final_path, quality: 95, strip_metadata: false)
+  end
+
+  defp apply_locale_to_path(path, nil), do: path
+  defp apply_locale_to_path(path, "en"), do: path
+
+  defp apply_locale_to_path(path, locale) do
+    dirname = Path.dirname(path)
+    basename = Path.basename(path)
+    Path.join([dirname, locale, basename])
   end
 
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
