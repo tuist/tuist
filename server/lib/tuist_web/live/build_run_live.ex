@@ -209,7 +209,7 @@ defmodule TuistWeb.BuildRunLive do
      socket
      |> push_patch(
        to:
-         "/#{socket.assigns.selected_project.account.name}/#{socket.assigns.selected_project.name}/builds/build-runs/#{socket.assigns.run.id}?#{updated_params}"
+         ~p"/#{socket.assigns.selected_project.account.name}/#{socket.assigns.selected_project.name}/builds/build-runs/#{socket.assigns.run.id}?#{updated_params}"
      )
      |> push_event("open-dropdown", %{id: "filter-#{filter_id}-value-dropdown"})
      |> push_event("open-popover", %{id: "filter-#{filter_id}-value-popover"})}
@@ -222,7 +222,7 @@ defmodule TuistWeb.BuildRunLive do
      socket
      |> push_patch(
        to:
-         "/#{socket.assigns.selected_project.account.name}/#{socket.assigns.selected_project.name}/builds/build-runs/#{socket.assigns.run.id}?#{updated_query_params}"
+         ~p"/#{socket.assigns.selected_project.account.name}/#{socket.assigns.selected_project.name}/builds/build-runs/#{socket.assigns.run.id}?#{updated_query_params}"
      )
      # There's a DOM reconciliation bug where the dropdown closes and then reappears somewhere else on the page. To remedy, just nuke it entirely.
      |> push_event("close-dropdown", %{id: "all", all: true})
@@ -894,10 +894,7 @@ defmodule TuistWeb.BuildRunLive do
     # Fetch CAS outputs for all tasks on the current page
     all_node_ids =
       tasks
-      |> Enum.flat_map(fn task ->
-        # Handle case where cas_output_node_ids might be nil or missing
-        Map.get(task, :cas_output_node_ids, []) || []
-      end)
+      |> Enum.flat_map(& &1.cas_output_node_ids)
       |> Enum.uniq()
 
     cas_outputs = Runs.get_cas_outputs_by_node_ids(run.id, all_node_ids)
@@ -905,11 +902,9 @@ defmodule TuistWeb.BuildRunLive do
     # Create a map from task key to its CAS outputs
     task_cas_outputs_map =
       Map.new(tasks, fn task ->
-        task_node_ids = Map.get(task, :cas_output_node_ids, []) || []
-
         outputs =
           Enum.filter(cas_outputs, fn output ->
-            output.node_id in task_node_ids
+            output.node_id in task.cas_output_node_ids
           end)
 
         {task.key, outputs}
@@ -917,9 +912,6 @@ defmodule TuistWeb.BuildRunLive do
 
     filters =
       Filter.Operations.decode_filters_from_query(params, available_filters)
-
-    # Ensure task_cas_outputs_map is always a map
-    final_map = if is_map(task_cas_outputs_map), do: task_cas_outputs_map, else: %{}
 
     socket
     |> assign(:cacheable_tasks_search, cacheable_tasks_search)
@@ -929,7 +921,7 @@ defmodule TuistWeb.BuildRunLive do
     |> assign(:cacheable_tasks_active_filters, filters)
     |> assign(:cacheable_tasks_sort_by, cacheable_tasks_sort_by)
     |> assign(:cacheable_tasks_sort_order, cacheable_tasks_sort_order)
-    |> assign(:task_cas_outputs_map, final_map)
+    |> assign(:task_cas_outputs_map, task_cas_outputs_map)
   end
 
   def empty_tab_state_background(assigns) do
