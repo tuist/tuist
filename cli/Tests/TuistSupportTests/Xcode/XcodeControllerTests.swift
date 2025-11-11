@@ -121,8 +121,24 @@ final class XcodeControllerTests: TuistUnitTestCase {
                 let xcodeVersion = try await subject.selectedVersion()
 
                 // Then
-                XCTAssertEqual(Version(11, 3, 0), xcodeVersion)
+                XCTAssertEqual(Version(11, 3, 0), xcodeVersion, "path: \(path)")
             }
+        }
+    }
+
+    func test_selectedVersion_when_developerDirIsInvalid() async throws {
+        // Given
+        let temporaryPath = try temporaryPath()
+        let developerPath = temporaryPath.appending(component: "does-not-exist")
+        let environment = try MockEnvironment()
+        environment.variables["DEVELOPER_DIR"] = developerPath.pathString
+
+        try await Environment.$current.withValue(environment) {
+            // Then
+            await XCTAssertThrowsSpecific(
+                try await subject.selectedVersion(),
+                XcodeError.infoPlistNotFound(.environment(developerPath))
+            )
         }
     }
 }
