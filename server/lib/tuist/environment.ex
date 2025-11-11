@@ -114,13 +114,13 @@ defmodule Tuist.Environment do
         endpoints |> String.split(",") |> Enum.map(&String.trim/1)
 
       _ ->
-        case env() do
-          :prod -> ["https://cache-eu-central.tuist.dev", "https://cache-us-east.tuist.dev"]
-          :stag -> ["https://cache-eu-central-staging.tuist.dev", "https://cache-us-east-staging.tuist.dev"]
-          :can -> ["https://cache-eu-central-canary.tuist.dev", "https://cache-us-east-canary.tuist.dev"]
-          :dev -> ["https://cache-eu-central-staging.tuist.dev", "https://cache-us-east-staging.tuist.dev"]
-          # :dev -> ["http://localhost:8087"]
-          :test -> ["https://cache-eu-central-test.tuist.dev", "https://cache-us-east-test.tuist.dev"]
+        cond do
+          prod?() -> ["https://cache-eu-central.tuist.dev", "https://cache-us-east.tuist.dev"]
+          stag?() -> ["https://cache-eu-central-staging.tuist.dev", "https://cache-us-east-staging.tuist.dev"]
+          can?() -> ["https://cache-eu-central-canary.tuist.dev", "https://cache-us-east-canary.tuist.dev"]
+          dev?() -> ["http://localhost:8087"]
+          test?() -> ["https://cache-eu-central-test.tuist.dev", "https://cache-us-east-test.tuist.dev"]
+          true -> []
         end
     end
   end
