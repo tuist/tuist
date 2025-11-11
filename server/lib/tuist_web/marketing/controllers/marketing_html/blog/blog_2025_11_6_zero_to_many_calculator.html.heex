@@ -93,28 +93,113 @@
         color: var(--noora-surface-label-primary, #111827);
       }
 
-      .results {
-        margin-top: var(--noora-spacing-8);
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: var(--noora-spacing-4);
-      }
-
-      .results-column {
+      .current-state {
+        margin-top: var(--noora-spacing-6);
         padding: var(--noora-spacing-5);
         background: transparent;
         border-radius: var(--noora-radius-medium);
         border: 1px solid var(--noora-border-secondary, #e5e7eb);
+        margin-bottom: var(--noora-spacing-6);
       }
 
-      .column-title {
+      .section-title {
+        font-size: 15px;
+        font-weight: 600;
+        color: var(--noora-surface-label-primary, #111827);
+        margin-bottom: var(--noora-spacing-5);
+      }
+
+      .comparison-title {
+        font-size: 15px;
+        font-weight: 600;
+        color: var(--noora-surface-label-primary, #111827);
+        margin-bottom: var(--noora-spacing-2);
+      }
+
+      .comparison-subtitle {
+        font-size: 12px;
+        color: var(--noora-surface-label-tertiary, #9ca3af);
+        margin-bottom: var(--noora-spacing-6);
+      }
+
+      .comparison-table {
+        margin-top: var(--noora-spacing-6);
+        border: 1px solid var(--noora-border-secondary, #e5e7eb);
+        border-radius: var(--noora-radius-medium);
+        overflow: hidden;
+      }
+
+      .comparison-header {
+        display: grid;
+        grid-template-columns: 2fr 1fr 1fr 1fr;
+        gap: var(--noora-spacing-3);
+        padding: var(--noora-spacing-4);
+        background: var(--noora-surface-tertiary, #f9fafb);
+        border-bottom: 1px solid var(--noora-border-secondary, #e5e7eb);
+      }
+
+      .header-cell {
         font-size: 13px;
         font-weight: 600;
         color: var(--noora-surface-label-secondary, #6b7280);
-        margin-bottom: var(--noora-spacing-4);
         text-align: center;
+        position: relative;
+      }
+
+      .header-cell:first-child {
+        text-align: left;
+      }
+
+      .header-cell.recommended::after {
+        content: "Best ROI";
+        position: absolute;
+        top: -18px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: var(--noora-accent-primary, #3b82f6);
+        color: white;
+        padding: 2px 10px;
+        border-radius: var(--noora-radius-full);
+        font-size: 10px;
+        font-weight: 600;
         text-transform: uppercase;
         letter-spacing: 0.05em;
+        white-space: nowrap;
+      }
+
+      .comparison-row {
+        display: grid;
+        grid-template-columns: 2fr 1fr 1fr 1fr;
+        gap: var(--noora-spacing-3);
+        padding: var(--noora-spacing-4);
+        border-bottom: 1px solid var(--noora-border-tertiary, #f3f4f6);
+      }
+
+      .comparison-row:last-child {
+        border-bottom: none;
+      }
+
+      .comparison-row.highlight {
+        background: var(--noora-accent-surface, #eff6ff);
+      }
+
+      .row-label {
+        font-size: 13px;
+        color: var(--noora-surface-label-secondary, #6b7280);
+        display: flex;
+        align-items: center;
+      }
+
+      .row-value {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--noora-surface-label-primary, #111827);
+        text-align: center;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-feature-settings: "tnum";
+        font-variant-numeric: tabular-nums;
       }
 
       .result-row {
@@ -155,48 +240,45 @@
         color: var(--noora-success, #10b981);
       }
 
-      .impact-summary {
-        grid-column: 1 / -1;
+      .winner-summary {
+        margin-top: var(--noora-spacing-6);
         padding: var(--noora-spacing-5);
-        background: transparent;
+        background: var(--noora-accent-surface, #eff6ff);
         border-radius: var(--noora-radius-medium);
-        border: 1px solid var(--noora-border-secondary, #e5e7eb);
-        margin-top: var(--noora-spacing-4);
+        border: 1px solid var(--noora-accent-border, #bfdbfe);
+        text-align: center;
       }
 
-      .impact-summary-title {
-        font-size: 13px;
+      .winner-title {
+        font-size: 14px;
         font-weight: 600;
-        color: var(--noora-surface-label-secondary, #6b7280);
-        margin-bottom: var(--noora-spacing-5);
-        text-align: center;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-      }
-
-      .impact-grid {
-        display: grid;
-        grid-template-columns: repeat(4, 1fr);
-        gap: var(--noora-spacing-4);
-      }
-
-      .impact-item {
-        text-align: center;
-        padding: var(--noora-spacing-3);
-      }
-
-      .impact-label {
-        font-size: 11px;
-        color: var(--noora-surface-label-tertiary, #9ca3af);
-        margin-bottom: var(--noora-spacing-2);
-      }
-
-      .impact-value {
-        font-size: 24px;
-        font-weight: 700;
         color: var(--noora-accent-primary, #3b82f6);
-        font-feature-settings: "tnum";
-        font-variant-numeric: tabular-nums;
+        margin-bottom: var(--noora-spacing-3);
+      }
+
+      .winner-text {
+        font-size: 13px;
+        color: var(--noora-surface-label-secondary, #6b7280);
+        line-height: 1.5;
+      }
+
+      @media (max-width: 768px) {
+        .comparison-header,
+        .comparison-row {
+          grid-template-columns: 1.5fr 1fr 1fr 1fr;
+          font-size: 12px;
+        }
+
+        .header-cell,
+        .row-label,
+        .row-value {
+          font-size: 11px;
+        }
+
+        .header-cell.recommended::after {
+          font-size: 9px;
+          padding: 1px 8px;
+        }
       }
     </style>
   </head>
@@ -238,80 +320,83 @@
         <div class="input-hint">Percentage of PRs that hit merge conflicts</div>
       </div>
 
-      <div class="results">
-        <div class="results-column">
-          <div class="column-title">Current State</div>
-          <div class="result-row">
-            <span class="result-label">Commits per Day</span>
-            <span class="result-value" id="current-commits">70</span>
-          </div>
-          <div class="result-row">
-            <span class="result-label">Expected Commits</span>
-            <span class="result-value" id="expected-commits">240</span>
-          </div>
-          <div class="result-row">
-            <span class="result-label">Efficiency</span>
-            <span class="result-value negative" id="current-efficiency">29%</span>
-          </div>
-          <div class="result-row">
-            <span class="result-label">Annual Salary Cost</span>
-            <span class="result-value" id="salary-cost">€4.2M</span>
-          </div>
-          <div class="result-row">
-            <span class="result-label">Wasted Value/Year</span>
-            <span class="result-value negative" id="wasted-value">€3.0M</span>
-          </div>
+      <div class="current-state">
+        <div class="section-title">Your Current State</div>
+        <div class="result-row">
+          <span class="result-label">Commits per Day</span>
+          <span class="result-value" id="current-commits">70</span>
+        </div>
+        <div class="result-row">
+          <span class="result-label">Efficiency</span>
+          <span class="result-value negative" id="current-efficiency">29%</span>
+        </div>
+        <div class="result-row">
+          <span class="result-label">Annual Salary Cost</span>
+          <span class="result-value" id="salary-cost">€4.2M</span>
+        </div>
+        <div class="result-row">
+          <span class="result-label">Wasted Value/Year</span>
+          <span class="result-value negative" id="wasted-value">€3.0M</span>
+        </div>
+      </div>
+
+      <div class="comparison-title">Compare Solutions</div>
+      <div class="comparison-subtitle">Three ways to improve throughput. Which has the best ROI?</div>
+
+      <div class="comparison-table">
+        <div class="comparison-header">
+          <div class="header-cell">Metric</div>
+          <div class="header-cell recommended">Workflow Optimization</div>
+          <div class="header-cell">Hire More Developers</div>
+          <div class="header-cell">Faster CI Hardware</div>
         </div>
 
-        <div class="results-column">
-          <div class="column-title">With Tuist</div>
-          <div class="result-row">
-            <span class="result-label">CI Time</span>
-            <span class="result-value positive" id="optimized-ci">3 min</span>
-          </div>
-          <div class="result-row">
-            <span class="result-label">Commits per Day</span>
-            <span class="result-value positive" id="optimized-commits">150</span>
-          </div>
-          <div class="result-row">
-            <span class="result-label">Efficiency</span>
-            <span class="result-value positive" id="optimized-efficiency">63%</span>
-          </div>
-          <div class="result-row">
-            <span class="result-label">Value Unlocked/Year</span>
-            <span class="result-value highlight positive" id="unlocked-value">€1.4M</span>
-          </div>
-          <div class="result-row">
-            <span class="result-label">Tuist Cost/Year</span>
-            <span class="result-value" id="tuist-cost">€50K</span>
-          </div>
-          <div class="result-row">
-            <span class="result-label">ROI</span>
-            <span class="result-value highlight positive" id="roi">28×</span>
-          </div>
+        <div class="comparison-row">
+          <div class="row-label">Solution</div>
+          <div class="row-value">Tuist</div>
+          <div class="row-value" id="hire-count">Hire +10 devs</div>
+          <div class="row-value" id="hardware-solution">Faster runners</div>
         </div>
 
-        <div class="impact-summary">
-          <div class="impact-summary-title">Tuist Impact Summary</div>
-          <div class="impact-grid">
-            <div class="impact-item">
-              <div class="impact-label">Additional Commits/Day</div>
-              <div class="impact-value" id="impact-commits">+80</div>
-            </div>
-            <div class="impact-item">
-              <div class="impact-label">Efficiency Gain</div>
-              <div class="impact-value" id="impact-efficiency">+34%</div>
-            </div>
-            <div class="impact-item">
-              <div class="impact-label">CI Time Reduction</div>
-              <div class="impact-value" id="impact-ci">-80%</div>
-            </div>
-            <div class="impact-item">
-              <div class="impact-label">Engineers Added</div>
-              <div class="impact-value" id="impact-engineers">+10</div>
-            </div>
-          </div>
+        <div class="comparison-row">
+          <div class="row-label">Commits per Day</div>
+          <div class="row-value positive" id="tuist-commits">150</div>
+          <div class="row-value" id="hire-commits">75</div>
+          <div class="row-value" id="hardware-commits">80</div>
         </div>
+
+        <div class="comparison-row">
+          <div class="row-label">Team Efficiency</div>
+          <div class="row-value positive" id="tuist-efficiency">63%</div>
+          <div class="row-value negative" id="hire-efficiency">19%</div>
+          <div class="row-value" id="hardware-efficiency">33%</div>
+        </div>
+
+        <div class="comparison-row">
+          <div class="row-label">Annual Cost</div>
+          <div class="row-value" id="tuist-cost">€50K</div>
+          <div class="row-value negative" id="hire-cost">€1.4M</div>
+          <div class="row-value" id="hardware-cost">€300K</div>
+        </div>
+
+        <div class="comparison-row highlight">
+          <div class="row-label">Net Benefit/Year</div>
+          <div class="row-value positive" id="tuist-benefit">€1.4M</div>
+          <div class="row-value negative" id="hire-benefit">-€1.3M</div>
+          <div class="row-value" id="hardware-benefit">€170K</div>
+        </div>
+
+        <div class="comparison-row highlight">
+          <div class="row-label">Return on Investment</div>
+          <div class="row-value positive" id="tuist-roi">28×</div>
+          <div class="row-value negative" id="hire-roi">-1×</div>
+          <div class="row-value" id="hardware-roi">1.6×</div>
+        </div>
+      </div>
+
+      <div class="winner-summary">
+        <div class="winner-title">Tuist delivers <span id="comparison-multiplier">17×</span> better ROI than faster hardware</div>
+        <div class="winner-text">Optimize workflows before hardware. Eliminate waste instead of making it happen faster.</div>
       </div>
     </div>
 
@@ -326,23 +411,36 @@
       const salaryValue = document.getElementById('salary-value');
       const conflictRateValue = document.getElementById('conflict-rate-value');
 
+      // Current state elements
       const currentCommitsEl = document.getElementById('current-commits');
-      const expectedCommitsEl = document.getElementById('expected-commits');
       const currentEfficiencyEl = document.getElementById('current-efficiency');
       const salaryCostEl = document.getElementById('salary-cost');
       const wastedValueEl = document.getElementById('wasted-value');
 
-      const optimizedCiEl = document.getElementById('optimized-ci');
-      const optimizedCommitsEl = document.getElementById('optimized-commits');
-      const optimizedEfficiencyEl = document.getElementById('optimized-efficiency');
-      const unlockedValueEl = document.getElementById('unlocked-value');
+      // Tuist solution elements
+      const tuistCommitsEl = document.getElementById('tuist-commits');
+      const tuistEfficiencyEl = document.getElementById('tuist-efficiency');
       const tuistCostEl = document.getElementById('tuist-cost');
-      const roiEl = document.getElementById('roi');
+      const tuistBenefitEl = document.getElementById('tuist-benefit');
+      const tuistRoiEl = document.getElementById('tuist-roi');
 
-      const impactCommitsEl = document.getElementById('impact-commits');
-      const impactEfficiencyEl = document.getElementById('impact-efficiency');
-      const impactCiEl = document.getElementById('impact-ci');
-      const impactEngineersEl = document.getElementById('impact-engineers');
+      // Hiring solution elements
+      const hireCountEl = document.getElementById('hire-count');
+      const hireCommitsEl = document.getElementById('hire-commits');
+      const hireEfficiencyEl = document.getElementById('hire-efficiency');
+      const hireCostEl = document.getElementById('hire-cost');
+      const hireBenefitEl = document.getElementById('hire-benefit');
+      const hireRoiEl = document.getElementById('hire-roi');
+
+      // Hardware solution elements
+      const hardwareSolutionEl = document.getElementById('hardware-solution');
+      const hardwareCommitsEl = document.getElementById('hardware-commits');
+      const hardwareEfficiencyEl = document.getElementById('hardware-efficiency');
+      const hardwareCostEl = document.getElementById('hardware-cost');
+      const hardwareBenefitEl = document.getElementById('hardware-benefit');
+      const hardwareRoiEl = document.getElementById('hardware-roi');
+
+      const comparisonMultiplierEl = document.getElementById('comparison-multiplier');
 
       function formatMoney(value) {
         if (value >= 1000000) {
@@ -369,62 +467,90 @@
         salaryValue.textContent = formatNumber(salary);
         conflictRateValue.textContent = Math.round(conflictRate * 100);
 
-        // Base commit rate per developer (11 commits/day solo)
-        const baseCommitRate = 11;
-
-        // Calculate expected commits (linear scaling)
+        // Base commit rate per developer (8 commits/day in ideal conditions)
+        const baseCommitRate = 8;
         const expectedCommits = Math.round(teamSize * baseCommitRate);
 
-        // Calculate efficiency loss based on team size, CI time, and conflicts
-        const coordinationOverhead = Math.min(0.95, (teamSize - 1) * 0.025);
-        const ciOverhead = Math.min(0.5, (ciTime / 60) * 0.4);
-        const conflictOverhead = conflictRate * 0.3;
-
+        // Calculate current efficiency based on team size, CI time, and conflicts
+        // Use more modest overhead calculations
+        const coordinationOverhead = Math.min(0.6, (teamSize - 1) * 0.015); // Less harsh
+        const ciOverhead = Math.min(0.3, (ciTime / 60) * 0.25); // Less harsh
+        const conflictOverhead = conflictRate * 0.2; // Less harsh
         const totalOverhead = coordinationOverhead + ciOverhead + conflictOverhead;
-        const efficiency = Math.max(0.05, 1 - totalOverhead);
-
-        const currentCommits = Math.round(expectedCommits * efficiency);
+        const currentEfficiency = Math.max(0.15, 1 - totalOverhead); // Higher minimum
+        const currentCommits = Math.round(expectedCommits * currentEfficiency);
 
         // Calculate costs
         const totalSalaryCost = teamSize * salary;
-        const wastedValue = totalSalaryCost * (1 - efficiency);
+        const wastedValue = totalSalaryCost * (1 - currentEfficiency);
 
-        // Optimized scenario (with Tuist)
-        const optimizedCiTime = Math.max(1, Math.round(ciTime * 0.2)); // 80% reduction
-        const optimizedEfficiency = Math.min(0.75, efficiency * 2.2); // Significant improvement
-        const optimizedCommits = Math.round(expectedCommits * optimizedEfficiency);
+        // SOLUTION 1: Tuist (workflow optimization)
+        const tuistCiTime = Math.max(1, Math.round(ciTime * 0.2)); // 80% CI reduction
+        const tuistEfficiency = Math.min(0.75, currentEfficiency * 2.0); // Significant boost
+        const tuistCommits = Math.round(expectedCommits * tuistEfficiency);
+        const tuistAnnualCost = Math.round(teamSize * 60 * 12); // €60/dev/month
+        const tuistValueUnlocked = (tuistEfficiency - currentEfficiency) * totalSalaryCost;
+        const tuistNetBenefit = tuistValueUnlocked - tuistAnnualCost;
+        const tuistROI = tuistNetBenefit / tuistAnnualCost;
 
-        const unlockedValue = (optimizedEfficiency - efficiency) * totalSalaryCost;
-        const tuistCost = Math.round(teamSize * 60 * 12); // €60/dev/month
-        const roi = (unlockedValue / tuistCost).toFixed(0);
+        // SOLUTION 2: Hire more developers
+        const additionalDevs = Math.round(teamSize * 0.33); // Hire 33% more
+        const newTeamSize = teamSize + additionalDevs;
+        const newExpectedCommits = Math.round(newTeamSize * baseCommitRate);
+        // Coordination overhead increases but not dramatically
+        const newCoordinationOverhead = Math.min(0.65, (newTeamSize - 1) * 0.015);
+        const newTotalOverhead = newCoordinationOverhead + ciOverhead + conflictOverhead * 1.15;
+        const hireEfficiency = Math.max(0.15, 1 - newTotalOverhead);
+        const hireCommits = Math.round(newExpectedCommits * hireEfficiency);
+        const hireAnnualCost = additionalDevs * salary;
+        const hireValueUnlocked = (hireCommits - currentCommits) / baseCommitRate * salary;
+        const hireNetBenefit = hireValueUnlocked - hireAnnualCost;
+        const hireROI = hireNetBenefit / hireAnnualCost;
+
+        // SOLUTION 3: Faster hardware (cuts CI time by ~50%)
+        const hardwareCiTime = Math.max(3, Math.round(ciTime * 0.5));
+        const hardwareCiOverhead = Math.min(0.3, (hardwareCiTime / 60) * 0.25);
+        const hardwareTotalOverhead = coordinationOverhead + hardwareCiOverhead + conflictOverhead;
+        const hardwareEfficiency = Math.max(0.15, 1 - hardwareTotalOverhead);
+        const hardwareCommits = Math.round(expectedCommits * hardwareEfficiency);
+        // Hardware cost scales with team size (~€10K per developer annually)
+        const hardwareAnnualCost = Math.round(teamSize * 10000);
+        const hardwareValueUnlocked = (hardwareEfficiency - currentEfficiency) * totalSalaryCost;
+        const hardwareNetBenefit = hardwareValueUnlocked - hardwareAnnualCost;
+        const hardwareROI = hardwareNetBenefit / hardwareAnnualCost;
 
         // Update current state
         currentCommitsEl.textContent = currentCommits;
-        expectedCommitsEl.textContent = expectedCommits;
-        currentEfficiencyEl.textContent = Math.round(efficiency * 100) + '%';
+        currentEfficiencyEl.textContent = Math.round(currentEfficiency * 100) + '%';
         salaryCostEl.textContent = formatMoney(totalSalaryCost);
         wastedValueEl.textContent = formatMoney(wastedValue);
 
-        // Update optimized state
-        optimizedCiEl.textContent = optimizedCiTime + ' min';
-        optimizedCommitsEl.textContent = optimizedCommits;
-        optimizedEfficiencyEl.textContent = Math.round(optimizedEfficiency * 100) + '%';
-        unlockedValueEl.textContent = formatMoney(unlockedValue);
-        tuistCostEl.textContent = formatMoney(tuistCost);
-        roiEl.textContent = roi + '×';
+        // Update Tuist solution
+        tuistCommitsEl.textContent = tuistCommits;
+        tuistEfficiencyEl.textContent = Math.round(tuistEfficiency * 100) + '%';
+        tuistCostEl.textContent = formatMoney(tuistAnnualCost);
+        tuistBenefitEl.textContent = formatMoney(tuistNetBenefit);
+        tuistRoiEl.textContent = tuistROI.toFixed(0) + '×';
 
-        // Update impact summary
-        const commitGain = optimizedCommits - currentCommits;
-        const efficiencyGain = Math.round((optimizedEfficiency - efficiency) * 100);
-        const ciReduction = Math.round((1 - optimizedCiTime / ciTime) * 100);
-        const currentEffectiveEngineers = Math.round(teamSize * efficiency);
-        const optimizedEffectiveEngineers = Math.round(teamSize * optimizedEfficiency);
-        const engineersAdded = optimizedEffectiveEngineers - currentEffectiveEngineers;
+        // Update hiring solution
+        hireCountEl.textContent = 'Hire +' + additionalDevs + ' devs (33%)';
+        hireCommitsEl.textContent = hireCommits;
+        hireEfficiencyEl.textContent = Math.round(hireEfficiency * 100) + '%';
+        hireCostEl.textContent = formatMoney(hireAnnualCost);
+        hireBenefitEl.textContent = formatMoney(hireNetBenefit);
+        hireRoiEl.textContent = hireROI.toFixed(1) + '×';
 
-        impactCommitsEl.textContent = '+' + commitGain;
-        impactEfficiencyEl.textContent = '+' + efficiencyGain + '%';
-        impactCiEl.textContent = '-' + ciReduction + '%';
-        impactEngineersEl.textContent = '+' + engineersAdded;
+        // Update hardware solution
+        hardwareSolutionEl.textContent = 'Faster runners (€10K/dev)';
+        hardwareCommitsEl.textContent = hardwareCommits;
+        hardwareEfficiencyEl.textContent = Math.round(hardwareEfficiency * 100) + '%';
+        hardwareCostEl.textContent = formatMoney(hardwareAnnualCost);
+        hardwareBenefitEl.textContent = formatMoney(hardwareNetBenefit);
+        hardwareRoiEl.textContent = hardwareROI.toFixed(1) + '×';
+
+        // Update comparison multiplier
+        const comparisonMultiplier = (tuistROI / Math.max(hardwareROI, 0.1)).toFixed(0);
+        comparisonMultiplierEl.textContent = comparisonMultiplier + '×';
       }
 
       // Add event listeners

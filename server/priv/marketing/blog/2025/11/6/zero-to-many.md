@@ -8,6 +8,10 @@ author: pepicrft
 
 You're about to live through a story that every engineering leader eventually experiences. It's a story about growth, about success, and about an invisible tax that quietly erodes everything you've built. It starts with velocity. Then it ends with waiting.
 
+In systems thinking, there's a pattern called ["Shifting the Burden"](https://thesystemsthinker.com/shifting-the-burden-moving-beyond-a-reactive-orientation/), identified by Peter Senge in "The Fifth Discipline", where organizations repeatedly apply symptomatic solutions that provide quick relief while the fundamental problem grows worse. When build times slow down, companies buy faster hardware. When throughput drops, they hire more developers. When coordination fails, they rewrite everything in a different technology. These solutions feel productive because they're tangible and immediate. But they're treating symptoms, not the disease. And with each symptomatic fix, the organization becomes more dependent on them, while losing the capability to solve the underlying problem.
+
+This is that story. And it costs companies millions before they realize what's happening.
+
 ## The Metric That Rules Everything
 
 There's a number that determines whether your engineering organization is thriving or drowning. It's not lines of code. It's not story points. It's not even bugs per release. It's **merge throughput**: how many code changes successfully make it into your main branch each day. This single number tells you how fast features reach your customers, how quickly bugs get fixed, how rapidly you can respond to market demands. It's the heartbeat of your engineering organization.
@@ -20,7 +24,7 @@ You launch your startup on a Tuesday. You're a solo founder who codes, armed wit
 
 With your AI coding assistants writing boilerplate and suggesting implementations, you're moving at a pace that would have seemed impossible five years ago. The merge throughput is pure: one developer, zero overhead, 10 to 15 commits merged to main every single day. This is the golden age. This is what velocity feels like.
 
-<iframe src="/blog/2025/11/6/zero-to-many/iframe.html?id=lone_wolf" width="100%" height="400" frameborder="0" data-visualization loading="lazy"></iframe>
+<iframe src="/blog/2025/11/6/zero-to-many/iframe.html?id=lone_wolf" width="100%" height="400" frameborder="0" data-visualization></iframe>
 
 But your app is growing. Users are signing up. And one bad commit ships a critical bug in your weekly release because there was no safety net. That's when you realize: pure velocity without quality control is just recklessness in disguise.
 
@@ -28,9 +32,9 @@ But your app is growing. Users are signing up. And one bad commit ships a critic
 
 You set up GitHub Actions. You create a branch called "develop" and promise yourself you'll only merge to main after tests pass. You hire your first engineer, Marcus, who's also using AI coding tools to write code faster. Now when you want to ship a feature, you open a pull request. The CI kicks off, running tests and linting. It takes eight minutes. Marcus reviews your code over lunch, another 20 minutes. Then it merges. When Marcus ships code, you review. Another 20 minutes. CI runs. Eight minutes. Merge.
 
-You're still moving fast. About 11 commits a day make it to main, down slightly from your solo peak but way safer. Once or twice a week you run into a merge conflict because you both touched the same file, but it's quick to resolve. Occasionally a test fails randomly, and you just rerun the CI. Your team of two, each augmented with a couple of AI coding assistants, has added 15 to 20 minutes of overhead per commit. But you've also stopped shipping bugs to production.
+You're still moving fast. About 15 commits a day make it to main, down slightly from your combined potential but way safer. Once or twice a week you run into a merge conflict because you both touched the same file, but it's quick to resolve. Occasionally a test fails randomly, and you just rerun the CI. Your team of two, each augmented with a couple of AI coding assistants, has added 15 to 20 minutes of overhead per commit. But you've also stopped shipping bugs in your weekly releases.
 
-<iframe src="/blog/2025/11/6/zero-to-many/iframe.html?id=safety_nets" width="100%" height="400" frameborder="0" data-visualization loading="lazy"></iframe>
+<iframe src="/blog/2025/11/6/zero-to-many/iframe.html?id=safety_nets" width="100%" height="400" frameborder="0" data-visualization></iframe>
 
 The app is growing. Revenue is growing. You raise a seed round and decide it's time to build a real team.
 
@@ -40,11 +44,11 @@ Six months later, you have five engineers. Everyone has AI assistants helping th
 
 Li opens a PR at 9am. It sits waiting for review because you're in meetings and Marcus is deep in his own feature. Three hours later, you finally review it. You request changes, there's a naming inconsistency and a missing edge case. Li makes the updates, but now the CI is taking 22 minutes because the test suite has grown. And when it finishes, there's a merge conflict because Marcus merged something that touched the same service. Li resolves it, reruns CI, another 22 minutes. It's 3pm. One commit, six hours.
 
-This happens to everyone, all day long. PRs sit in review queues. Merge conflicts happen on one in five merges now that five people are touching overlapping code. The CI occasionally has a flaky test, and nobody's quite sure which test it is, so they just click "retry." About a third of PRs come back with requested changes, adding another round trip. The merge throughput isn't 40 commits a day. It's six.
+This happens to everyone, all day long. PRs sit in review queues. Merge conflicts happen on one in five merges now that five people are touching overlapping code. The CI occasionally has a flaky test, and nobody's quite sure which test it is, so they just click "retry." About a third of PRs come back with requested changes, adding another round trip. The merge throughput isn't 40 commits a day. It's 25.
 
 And then there's the CI bottleneck. Your provider asked you to estimate how many runners you'd need. That works when your workload is predictable, but it's not. Nobody's is. During peak hours, PRs pile up waiting for available runners. Your team sits idle, watching the queue grow. The provider is just leaking the pain of hosting Mac minis to you. They can't absorb your elastic demand because they don't operate at the scale you need. You're not blocked by budget. You're blocked by infrastructure that can't keep up.
 
-<iframe src="/blog/2025/11/6/zero-to-many/iframe.html?id=team_multiplier" width="100%" height="650" frameborder="0" data-visualization loading="lazy"></iframe>
+<iframe src="/blog/2025/11/6/zero-to-many/iframe.html?id=team_multiplier" width="100%" height="650" frameborder="0" data-visualization></iframe>
 
 You hired three more people and throughput improved, but not nearly as much as you expected. This isn't what growth is supposed to look like.
 
@@ -56,9 +60,9 @@ PRs sit for four to six hours waiting for review because reviewers are context-s
 
 The math is brutal: 30 developers, each capable of producing eight features a day individually, should be generating 240 commits. The actual merge throughput is 70 commits a day.
 
-<iframe src="/blog/2025/11/6/zero-to-many/iframe.html?id=complexity_wall" width="100%" height="500" frameborder="0" data-visualization loading="lazy"></iframe>
+<iframe src="/blog/2025/11/6/zero-to-many/iframe.html?id=complexity_wall" width="100%" height="500" frameborder="0" data-visualization></iframe>
 
-You're paying €4.2 million a year in engineering salaries and getting the output of six developers. The efficiency is 29%. The waste is €3 million a year, just in idle time waiting for CI, reviews, and conflict resolution. The board asks why feature delivery has slowed down. You don't have a good answer.
+You're paying €4.2 million a year in engineering salaries and getting the output of nine developers. The efficiency is 29%. The waste is €3 million a year, just in idle time waiting for CI, reviews, and conflict resolution. The board asks why feature delivery has slowed down. You don't have a good answer.
 
 ## Phase 5: The Brute Force Trap
 
@@ -101,7 +105,7 @@ You're still paying €4.2 million for 30 developers. But now you're getting out
 
 ## What Just Happened
 
-Let's trace your journey in numbers. At one developer, you had 100% efficiency. Eleven commits a day from one person's work. At two developers, efficiency dropped to 83%. Fifteen commits from two people. At five developers, efficiency fell to 56%. Twenty-five commits from five people. At thirty developers, efficiency crashed to 29%. Seventy commits from thirty people who should be producing 240. 
+Let's trace your journey in numbers. At one developer, you had pure efficiency. Ten commits a day from one person's work, zero overhead. At two developers, you maintained 75% efficiency. Fifteen commits from two people who could theoretically produce twenty. At five developers, efficiency dropped to 50%. Twenty-five commits from five people who could produce fifty. At thirty developers, efficiency crashed to 29%. Seventy commits from thirty people who should be producing 240. 
 
 After optimization, with the same thirty developers, you climbed to 63% efficiency. One hundred and fifty commits a day. Not perfect, but more than double where you were. And here's the key insight: **you optimized workflows first, not hardware**. Instead of spending €300,000 per year to make your waste happen slightly faster, you spent a third of one engineer's salary to eliminate the waste itself. The hardware approach would have given you 10 more commits per day. The workflow approach gave you 80 more commits per day.
 
@@ -127,13 +131,11 @@ Here's the pattern we see repeatedly: companies optimize in the wrong order and 
 
 The difference isn't just the ROI, though that's dramatic. The difference is that one approach treats symptoms while the other fixes the disease. Faster hardware makes waste happen faster. Better workflows eliminate the waste entirely.
 
-## Calculate Your Own Numbers
+## Compare the Real ROI
 
-Use the calculator below to model your organization's efficiency and see the potential impact of workflow optimization. Enter your team size, current CI time, and other factors to understand where you stand and what optimization could unlock.
+Use the calculator below to compare three common approaches to improving throughput: workflow optimization (Tuist), hiring more developers, or buying faster hardware. Enter your team's numbers and see which solution delivers the best return on investment.
 
-<div phx-update="ignore">
-  <iframe src="/blog/2025/11/6/zero-to-many/iframe.html?id=calculator" width="100%" height="850" frameborder="0" data-visualization loading="lazy"></iframe>
-</div>
+<iframe src="/blog/2025/11/6/zero-to-many/iframe.html?id=calculator" width="100%" height="1000" frameborder="0" data-visualization></iframe>
 
 The patterns are consistent across organizations: efficiency drops as coordination overhead increases, and traditional solutions (more hardware, more people, technology rewrites) barely move the needle. The cost of slow builds isn't developer frustration, though that's real. The cost is millions of euros in wasted salary and missed market opportunities. Features that ship next quarter instead of this quarter. Competitors who move faster. Customers who leave because the bug fix took too long.
 
