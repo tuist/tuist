@@ -9,8 +9,6 @@ servers:
     proxy: false
     options:
       network-alias: cache-app
-      publish:
-        - "127.0.0.1:9091:9091"
 
 registry:
   server: ghcr.io
