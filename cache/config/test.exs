@@ -1,5 +1,7 @@
 import Config
 
+config :appsignal, :config, active: false
+
 config :cache, Cache.Repo,
   database: Path.expand("../test.sqlite3", __DIR__),
   pool: Ecto.Adapters.SQL.Sandbox,

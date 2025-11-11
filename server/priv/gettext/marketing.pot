@@ -1,19 +1,5 @@
-#, fuzzy
 msgid ""
-msgstr ""
-"Project-Id-Version: PACKAGE VERSION\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2025-11-05 17:58+0000\n"
-"PO-Revision-Date: 2025-11-05 17:58+0000\n"
-"Last-Translator: Anonymous <noreply@weblate.org>\n"
-"Language-Team: English <https://translate.tuist.dev/projects/tuist/marketing/"
-"en/>\n"
-"Language: en\n"
-"MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=UTF-8\n"
-"Content-Transfer-Encoding: ENCODING\n"
-"Plural-Forms: nplurals=2; plural=n != 1;\n"
-"X-Generator: Weblate 5.14\n"
+msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-05 17:58+0000\nPO-Revision-Date: 2025-11-05 18:19+0000\nLast-Translator: Anonymous <noreply@weblate.org>\nLanguage-Team: English <https://translate.tuist.dev/projects/tuist/marketing/en/>\nLanguage: en\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=2; plural=n != 1;\nX-Generator: Weblate 5.14\n"
 
 ## This file is a PO Template file.
 ##
@@ -25,7 +11,6 @@ msgstr ""
 ## date. Leave "msgstr"s empty as changing them here has no
 ## effect: edit them in PO (.po) files instead.
 #
-
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:418
 #, elixir-autogen, elixir-format
 msgid "\"We could solve our immediate problems and do so while maintaining a familiar"

@@ -24,10 +24,23 @@ config :cache, CacheWeb.Endpoint,
 config :cache, Oban,
   repo: Cache.Repo,
   engine: Oban.Engines.Lite,
-  queues: [s3_uploads: 10],
+  queues: [
+    s3_uploads: 10,
+    s3_downloads: 10,
+    maintenance: 1
+  ],
   plugins: [
-    Oban.Plugins.Pruner
+    Oban.Plugins.Pruner,
+    {Oban.Plugins.Cron,
+     crontab: [
+       {"*/10 * * * *", Cache.DiskEvictionWorker}
+     ]}
   ]
+
+config :cache, :cas,
+  storage_dir: "tmp/cas",
+  disk_usage_high_watermark_percent: 85.0,
+  disk_usage_target_percent: 70.0
 
 config :cache, ecto_repos: [Cache.Repo]
 

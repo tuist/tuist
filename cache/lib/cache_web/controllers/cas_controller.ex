@@ -2,8 +2,10 @@ defmodule CacheWeb.CASController do
   use CacheWeb, :controller
 
   alias Cache.BodyReader
+  alias Cache.CASArtifacts
   alias Cache.Disk
   alias Cache.S3
+  alias Cache.S3DownloadWorker
   alias Cache.S3UploadWorker
 
   require Logger
@@ -11,6 +13,7 @@ defmodule CacheWeb.CASController do
   def download(conn, %{"id" => id, "account_handle" => account_handle, "project_handle" => project_handle}) do
     :telemetry.execute([:cache, :cas, :download, :hit], %{}, %{})
     key = Disk.cas_key(account_handle, project_handle, id)
+    :ok = CASArtifacts.track_artifact_access(key)
 
     if Disk.exists?(account_handle, project_handle, id) do
       local_path = Disk.local_accel_path(account_handle, project_handle, id)
@@ -21,6 +24,10 @@ defmodule CacheWeb.CASController do
       |> send_resp(:ok, "")
     else
       :telemetry.execute([:cache, :cas, :download, :disk_miss], %{}, %{})
+
+      Task.start(fn ->
+        S3DownloadWorker.enqueue_download(account_handle, project_handle, id)
+      end)
 
       case S3.presign_download_url(key) do
         {:ok, url} ->
@@ -94,6 +101,7 @@ defmodule CacheWeb.CASController do
     case Disk.put(account_handle, project_handle, id, data) do
       :ok ->
         :telemetry.execute([:cache, :cas, :upload, :success], %{size: size}, %{})
+        :ok = CASArtifacts.track_artifact_access(Disk.cas_key(account_handle, project_handle, id))
         S3UploadWorker.enqueue_upload(account_handle, project_handle, id)
         send_resp(conn, :no_content, "")
 

@@ -62,10 +62,10 @@ defmodule Tuist.BundlesTest do
           project_id: project_id,
           artifacts: [
             %{
-              "artifact_type" => "invalid",
-              "path" => "Tuist.app/Tuist.bundle",
-              "shasum" => "092378b10a45c64bbf5cb8846dd13ff03e728f7925994b812c40b8922644d325",
-              "size" => 1183
+              artifact_type: :invalid,
+              path: "Tuist.app/Tuist.bundle",
+              shasum: "092378b10a45c64bbf5cb8846dd13ff03e728f7925994b812c40b8922644d325",
+              size: 1183
             }
           ]
         })
