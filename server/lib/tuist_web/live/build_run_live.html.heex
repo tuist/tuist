@@ -974,20 +974,8 @@
                 </.button_cell>
               </:col>
               <:expanded_content :let={task}>
-                <% cas_outputs =
-                  if is_map(@task_cas_outputs_map) do
-                    outputs = Map.get(@task_cas_outputs_map, task.key, [])
-                    # Ensure we have a list and filter out any non-map values
-                    if is_list(outputs) do
-                      Enum.filter(outputs, &is_map/1)
-                    else
-                      []
-                    end
-                  else
-                    []
-                  end %>
                 <div data-part="cas-outputs-list">
-                  <%= for cas_output <- cas_outputs do %>
+                  <%= for cas_output <- Map.get(@task_cas_outputs_map, task.key, []) do %>
                     <div data-part="cas-output-item">
                       <span data-part="cas-output-text">
                         <span data-part="cas-output-label">
