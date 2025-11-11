@@ -21,15 +21,24 @@ defmodule TuistWeb.API.CacheControllerTest do
 
   describe "GET /api/cache/endpoints" do
     test "returns list of cache endpoints", %{conn: conn} do
+      # Given
+      user = AccountsFixtures.user_fixture()
+
+      expected_endpoints = [
+        "https://cache-eu-central-test.tuist.dev",
+        "https://cache-us-east-test.tuist.dev"
+      ]
+
+      stub(Tuist.Environment, :cache_endpoints, fn -> expected_endpoints end)
+
+      conn = Authentication.put_current_user(conn, user)
+
       # When
       conn = get(conn, ~p"/api/cache/endpoints")
 
       # Then
       response = json_response(conn, 200)
-      assert response["status"] == "success"
-      response_data = response["data"]
-      assert is_list(response_data["endpoints"])
-      assert Enum.all?(response_data["endpoints"], &is_binary/1)
+      assert response["endpoints"] == expected_endpoints
     end
   end
 

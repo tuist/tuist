@@ -47,15 +47,9 @@ defmodule TuistWeb.API.CacheController do
            description: "List of available cache endpoints",
            type: :object,
            properties: %{
-             status: %Schema{type: :string, default: "success", enum: ["success"]},
-             data: %Schema{
-               type: :object,
-               properties: %{
-                 endpoints: %Schema{
-                   type: :array,
-                   items: %Schema{type: :string}
-                 }
-               }
+             endpoints: %Schema{
+               type: :array,
+               items: %Schema{type: :string}
              }
            }
          }}
@@ -64,7 +58,7 @@ defmodule TuistWeb.API.CacheController do
 
   def endpoints(conn, _params) do
     endpoints = Tuist.Environment.cache_endpoints()
-    json(conn, %{status: "success", data: %{endpoints: endpoints}})
+    json(conn, %{endpoints: endpoints})
   end
 
   operation(:get_cache_action_item,
