@@ -53,9 +53,9 @@ defmodule TuistWeb.Marketing.MarketingController do
 
   defp get_featured_testimonials("ko") do
     %{
-      quote_line_one: "TODO: Add Korean quote line one here",
-      quote_line_two: "TODO: Add Korean quote line two here",
-      author_name: "TODO: Add Korean author name and company",
+      quote_line_one: "Tuist를 적용했을 뿐인데 빌드 속도가 25% 단축되었어요!",
+      quote_line_two: "한국 iOS 개발자들에게 정말 인기 있는 도구 입니다",
+      author_name: "이영준 (Youngjun Lee), 게임도우미",
       author_avatar: "https://www.gravatar.com/avatar/placeholder"
     }
   end
@@ -288,8 +288,7 @@ defmodule TuistWeb.Marketing.MarketingController do
     |> assign_structured_data(
       get_breadcrumbs_structured_data([
         {dgettext("marketing", "Tuist"), Tuist.Environment.app_url(path: ~p"/")},
-        {dgettext("marketing", "Swift Stories Newsletter"),
-         Tuist.Environment.app_url(path: ~p"/newsletter")}
+        {dgettext("marketing", "Swift Stories Newsletter"), Tuist.Environment.app_url(path: ~p"/newsletter")}
       ])
     )
     |> assign(
@@ -414,9 +413,7 @@ defmodule TuistWeb.Marketing.MarketingController do
 
         nil ->
           raise NotFoundError,
-                dgettext("marketing", "The newsletter issue %{issue_number} was not found.",
-                  issue_number: issue_number
-                )
+                dgettext("marketing", "The newsletter issue %{issue_number} was not found.", issue_number: issue_number)
       end
 
     conn =
@@ -569,8 +566,7 @@ defmodule TuistWeb.Marketing.MarketingController do
          <p>Our commitment to open-source and our core values shape our unique approach to pricing. Unlike many models that try to extract every dollar from you with "contact sales" calls, limited demos, and other sales tactics, we believe in fairness and transparency. We treat everyone equally and set prices that are fair for all. By choosing our services, you are not only getting a great product but also supporting the development of more open-source projects. We see building a thriving business as a long-term journey, not a short-term sprint filled with shady practices. You can %{read_more}  about our philosophy.</p>
          <p>By supporting Tuist, you are also supporting the development of more open-source software for the Swift ecosystem.</p>
          """,
-         read_more:
-           "<a href=\"#{~p"/blog/2024/11/05/our-pricing-philosophy"}\">#{dgettext("marketing", "read more")}</a>"
+         read_more: "<a href=\"#{~p"/blog/2024/11/05/our-pricing-philosophy"}\">#{dgettext("marketing", "read more")}</a>"
        )},
       {dgettext("marketing", "How can I estimate the cost of my project?"),
        dgettext(
@@ -628,9 +624,7 @@ defmodule TuistWeb.Marketing.MarketingController do
     |> assign(:head_description, head_description)
     |> assign(
       :head_image,
-      Tuist.Environment.app_url(
-        path: "/marketing/images/og/#{page.slug |> String.split("/") |> List.last()}.jpg"
-      )
+      Tuist.Environment.app_url(path: "/marketing/images/og/#{page.slug |> String.split("/") |> List.last()}.jpg")
     )
     |> assign(:head_twitter_card, "summary_large_image")
     |> assign_structured_data(
