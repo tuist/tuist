@@ -13,6 +13,7 @@
       "cache-us-east"
       "cache-eu-central-staging"
       "cache-us-east-staging"
+      "cache-eu-central-canary"
     ];
 
     mkMachine = hostname: {
