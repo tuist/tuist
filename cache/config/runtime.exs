@@ -1,11 +1,5 @@
 import Config
 
-config :cache, Cache.PromEx,
-  metrics_server: [
-    port: 9091,
-    auth_strategy: :none
-  ]
-
 if config_env() == :prod do
   secret_key_base =
     System.get_env("SECRET_KEY_BASE") ||
