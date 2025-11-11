@@ -387,7 +387,8 @@ struct XCActivityLogControllerTests {
                 size: 58816,
                 duration: 62.71795835345984,
                 compressedSize: 17474,
-                operation: .download
+                operation: .download,
+                type: .object
             ),
             CASOutput(
                 nodeID: "0~qeHr278TkWv-ycmH7r4g5Qpttl9k2OSZizeDRQ_uvdOI1neASwjp_tr-fyGJpDzpnTWYnaeXAOfvxVzWSRtb6w==",
@@ -395,7 +396,8 @@ struct XCActivityLogControllerTests {
                 size: 360,
                 duration: 60.29745831619948,
                 compressedSize: 239,
-                operation: .download
+                operation: .download,
+                type: .localizationStrings
             ),
             CASOutput(
                 nodeID: "0~WEQaHKJTHxk9lH2TjUnA35KCw98xCj0YZtedxm9Pcr8tJgZUptlaFMEML50DYq0ZNsecu6K-aRW_BeQtqEX-uA==",
@@ -403,7 +405,8 @@ struct XCActivityLogControllerTests {
                 size: 3468,
                 duration: 62.295541632920504,
                 compressedSize: 1457,
-                operation: .download
+                operation: .download,
+                type: .swiftSourceInfoFile
             ),
         ])
     }

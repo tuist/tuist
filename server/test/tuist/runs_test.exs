@@ -857,7 +857,8 @@ defmodule Tuist.RunsTest do
               size: 2000,
               duration: 2000,
               compressed_size: 1600,
-              operation: :download
+              operation: :download,
+              type: :swift
             },
             %{
               node_id: "node2",
@@ -865,7 +866,8 @@ defmodule Tuist.RunsTest do
               size: 2000,
               duration: 2000,
               compressed_size: 1600,
-              operation: :download
+              operation: :download,
+              type: :swift
             },
             %{
               node_id: "node3",
@@ -873,7 +875,8 @@ defmodule Tuist.RunsTest do
               size: 2000,
               duration: 2000,
               compressed_size: 1600,
-              operation: :upload
+              operation: :upload,
+              type: :swift
             }
           ]
         )
@@ -933,7 +936,8 @@ defmodule Tuist.RunsTest do
               size: 5000,
               duration: 5000,
               compressed_size: 4000,
-              operation: :download
+              operation: :download,
+              type: :swift
             },
             %{
               node_id: "node2",
@@ -941,7 +945,8 @@ defmodule Tuist.RunsTest do
               size: 10_000,
               duration: 10_000,
               compressed_size: 8000,
-              operation: :download
+              operation: :download,
+              type: :swift
             }
           ]
         )
@@ -970,7 +975,8 @@ defmodule Tuist.RunsTest do
               size: 8000,
               duration: 4000,
               compressed_size: 6400,
-              operation: :upload
+              operation: :upload,
+              type: :swift
             },
             %{
               node_id: "node2",
@@ -978,7 +984,8 @@ defmodule Tuist.RunsTest do
               size: 12_000,
               duration: 6000,
               compressed_size: 9600,
-              operation: :upload
+              operation: :upload,
+              type: :swift
             }
           ]
         )
@@ -1007,7 +1014,8 @@ defmodule Tuist.RunsTest do
               size: 1000,
               duration: 0,
               compressed_size: 800,
-              operation: :download
+              operation: :download,
+              type: :swift
             },
             %{
               node_id: "node2",
@@ -1015,7 +1023,8 @@ defmodule Tuist.RunsTest do
               size: 2000,
               duration: 2000,
               compressed_size: 1600,
-              operation: :download
+              operation: :download,
+              type: :swift
             }
           ]
         )
@@ -1045,7 +1054,8 @@ defmodule Tuist.RunsTest do
               size: 10_000,
               duration: 10_000,
               compressed_size: 8000,
-              operation: :download
+              operation: :download,
+              type: :swift
             },
             %{
               node_id: "node2",
@@ -1053,7 +1063,8 @@ defmodule Tuist.RunsTest do
               size: 20_000,
               duration: 4000,
               compressed_size: 16_000,
-              operation: :upload
+              operation: :upload,
+              type: :swift
             },
             %{
               node_id: "node3",
@@ -1061,7 +1072,8 @@ defmodule Tuist.RunsTest do
               size: 15_000,
               duration: 5000,
               compressed_size: 12_000,
-              operation: :download
+              operation: :download,
+              type: :swift
             }
           ]
         )
@@ -1151,6 +1163,78 @@ defmodule Tuist.RunsTest do
       assert metrics.p90_write_duration == 0
       assert metrics.p50_read_duration == 0
       assert metrics.p50_write_duration == 0
+    end
+  end
+
+  describe "get_cas_outputs_by_node_ids/2" do
+    test "returns CAS outputs matching the given node_ids" do
+      # Given
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          cas_outputs: [
+            %{
+              node_id: "node1",
+              checksum: "abc123",
+              size: 1000,
+              duration: 100,
+              compressed_size: 800,
+              operation: :download,
+              type: :swift
+            },
+            %{
+              node_id: "node2",
+              checksum: "def456",
+              size: 2000,
+              duration: 200,
+              compressed_size: 1600,
+              operation: :upload,
+              type: :swift
+            },
+            %{
+              node_id: "node3",
+              checksum: "ghi789",
+              size: 3000,
+              duration: 300,
+              compressed_size: 2400,
+              operation: :download,
+              type: :swift
+            }
+          ]
+        )
+
+      # When
+      outputs = Runs.get_cas_outputs_by_node_ids(build.id, ["node1", "node3"])
+
+      # Then
+      assert length(outputs) == 2
+      node_ids = Enum.map(outputs, & &1.node_id)
+      assert "node1" in node_ids
+      assert "node3" in node_ids
+      refute "node2" in node_ids
+    end
+
+    test "returns empty list when node_ids is empty" do
+      # Given
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          cas_outputs: [
+            %{
+              node_id: "node1",
+              checksum: "abc123",
+              size: 1000,
+              duration: 100,
+              compressed_size: 800,
+              operation: :download,
+              type: :swift
+            }
+          ]
+        )
+
+      # When
+      outputs = Runs.get_cas_outputs_by_node_ids(build.id, [])
+
+      # Then
+      assert outputs == []
     end
   end
 end

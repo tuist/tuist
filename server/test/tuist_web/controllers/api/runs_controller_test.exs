@@ -735,7 +735,8 @@ defmodule TuistWeb.API.RunsControllerTest do
               size: 1024,
               duration: 1500,
               compressed_size: 512,
-              operation: "download"
+              operation: "download",
+              type: "swiftmodule"
             },
             %{
               node_id: "AnotherTarget",
@@ -743,7 +744,8 @@ defmodule TuistWeb.API.RunsControllerTest do
               size: 2048,
               duration: 2000,
               compressed_size: 1024,
-              operation: "upload"
+              operation: "upload",
+              type: "swift-dependencies"
             },
             %{
               node_id: "ThirdTarget",
@@ -751,7 +753,8 @@ defmodule TuistWeb.API.RunsControllerTest do
               size: 4096,
               duration: 500,
               compressed_size: 2048,
-              operation: "download"
+              operation: "download",
+              type: "object"
             }
           ]
         )
@@ -775,6 +778,7 @@ defmodule TuistWeb.API.RunsControllerTest do
           duration: 2000,
           compressed_size: 1024,
           operation: "upload",
+          type: "swift-dependencies",
           build_run_id: String.downcase(build.id)
         },
         %{
@@ -784,6 +788,7 @@ defmodule TuistWeb.API.RunsControllerTest do
           duration: 1500,
           compressed_size: 512,
           operation: "download",
+          type: "swiftmodule",
           build_run_id: String.downcase(build.id)
         },
         %{
@@ -793,6 +798,7 @@ defmodule TuistWeb.API.RunsControllerTest do
           duration: 500,
           compressed_size: 2048,
           operation: "download",
+          type: "object",
           build_run_id: String.downcase(build.id)
         }
       ]
@@ -800,7 +806,7 @@ defmodule TuistWeb.API.RunsControllerTest do
       actual_outputs =
         Enum.map(
           cas_outputs,
-          &Map.take(&1, [:node_id, :checksum, :size, :duration, :compressed_size, :operation, :build_run_id])
+          &Map.take(&1, [:node_id, :checksum, :size, :duration, :compressed_size, :operation, :type, :build_run_id])
         )
 
       assert actual_outputs == expected_outputs
