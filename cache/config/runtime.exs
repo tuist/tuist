@@ -19,16 +19,35 @@ if config_env() == :prod do
 
   num_acceptors = String.to_integer(System.get_env("PHX_SERVER_ACCEPTORS") || "100")
 
-  http_config =
-    case Cache.SocketConfig.prepare_bind(num_acceptors) do
-      {:ok, socket_http_config, _config} ->
-        socket_http_config
+  socket_path = System.get_env("PHX_SOCKET_PATH")
 
-      :error ->
+  http_config =
+    case socket_path do
+      nil ->
         [
           ip: {0, 0, 0, 0, 0, 0, 0, 0},
           port: port,
           transport_options: [num_acceptors: num_acceptors]
+        ]
+
+      "" ->
+        [
+          ip: {0, 0, 0, 0, 0, 0, 0, 0},
+          port: port,
+          transport_options: [num_acceptors: num_acceptors]
+        ]
+
+      path ->
+        File.mkdir_p!(Path.dirname(path))
+        _ = File.rm(path)
+
+        [
+          transport_module: ThousandIsland.Transports.UNIX,
+          transport_options: [
+            path: path,
+            mode: 0o777,
+            num_acceptors: num_acceptors
+          ]
         ]
     end
 

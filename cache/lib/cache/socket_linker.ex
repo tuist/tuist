@@ -3,8 +3,6 @@ defmodule Cache.SocketLinker do
 
   require Logger
 
-  alias Cache.SocketConfig
-
   def child_spec(_args) do
     %{
       id: __MODULE__,
@@ -15,13 +13,13 @@ defmodule Cache.SocketLinker do
   end
 
   defp promote_socket_link do
-    case Cache.SocketConfig.fetch() do
-      {:ok, config} ->
-        wait_for_socket(config.path)
-        publish_link(config.path, config.link)
-
-      :error ->
-        :ok
+    with {:ok, target} <- socket_env("PHX_SOCKET_PATH"),
+         {:ok, link} <- socket_env("PHX_SOCKET_LINK") do
+      File.mkdir_p!(Path.dirname(link))
+      wait_for_socket(target)
+      publish_link(target, link)
+    else
+      _ -> :ok
     end
   end
 
@@ -52,6 +50,7 @@ defmodule Cache.SocketLinker do
     tmp_link = "#{link}.tmp"
 
     _ = File.rm(tmp_link)
+
     case File.ln_s(target, tmp_link) do
       :ok ->
         _ = File.rm(link)
@@ -61,6 +60,19 @@ defmodule Cache.SocketLinker do
 
       {:error, reason} ->
         Logger.error("Failed to create socket symlink #{tmp_link}: #{inspect(reason)}")
+    end
+  end
+
+  defp socket_env(var) do
+    case System.get_env(var) do
+      nil ->
+        :error
+
+      "" ->
+        :error
+
+      value ->
+        {:ok, value}
     end
   end
 end

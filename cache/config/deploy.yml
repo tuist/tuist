@@ -24,8 +24,8 @@ env:
     SERVER_URL: https://tuist.dev
     CAS_STORAGE_DIR: /cas
     APPSIGNAL_ENV: prod
-    PHX_SOCKET_DIR: /run/cache
-    PHX_SOCKET_BASENAME: cache
+    PHX_SOCKET_PATH: /run/cache/cache.sock
+    PHX_SOCKET_LINK: /run/cache/current.sock
 
   secret:
     - SECRET_KEY_BASE
