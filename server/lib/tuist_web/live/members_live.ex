@@ -65,7 +65,11 @@ defmodule TuistWeb.MembersLive do
             />
           </.tab_menu_horizontal>
           <div :if={@selected_inner_tab == "members"} data-part="content">
-            <.table id="members-table" rows={@members}>
+            <.table
+              id="members-table"
+              rows={@members}
+              row_key={fn [member, _role] -> "member-#{member.id}" end}
+            >
               <:col :let={[member, _role]} label={gettext("Member")}>
                 <.text_and_description_cell label={member.account.name}>
                   <:image>

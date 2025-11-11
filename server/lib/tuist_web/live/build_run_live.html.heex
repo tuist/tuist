@@ -901,7 +901,11 @@
             <div :if={Enum.any?(@cacheable_tasks_active_filters)} data-part="active-filters">
               <.active_filter :for={filter <- @cacheable_tasks_active_filters} filter={filter} />
             </div>
-            <.table id="cacheable-tasks-table" rows={@cacheable_tasks}>
+            <.table
+              id="cacheable-tasks-table"
+              rows={@cacheable_tasks}
+              row_key={fn task -> "cacheable-task-#{task.key}" end}
+            >
               <:col
                 :let={task}
                 label={gettext("Task")}
