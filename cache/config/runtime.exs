@@ -16,20 +16,11 @@ if config_env() == :prod do
 
   host = System.get_env("PHX_HOST")
   port = String.to_integer(System.get_env("PORT") || "4000")
-
-  num_acceptors = String.to_integer(System.get_env("PHX_SERVER_ACCEPTORS") || "100")
-
   socket_path = System.get_env("PHX_SOCKET_PATH")
 
   http_config =
     case socket_path do
       nil ->
-        [
-          ip: {0, 0, 0, 0, 0, 0, 0, 0},
-          port: port
-        ]
-
-      "" ->
         [
           ip: {0, 0, 0, 0, 0, 0, 0, 0},
           port: port
