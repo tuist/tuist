@@ -1,5 +1,5 @@
 msgid ""
-msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-05 17:58+0000\nPO-Revision-Date: 2025-11-10 18:37+0000\nLast-Translator: Boram Jeong <bbiguduk@gmail.com>\nLanguage-Team: Korean <https://translate.tuist.dev/projects/tuist/marketing/ko/>\nLanguage: ko\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\nX-Generator: Weblate 5.14.3\n"
+msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-05 17:58+0000\nPO-Revision-Date: 2025-11-11 09:31+0000\nLast-Translator: 이영준 <kofggm@gmail.com>\nLanguage-Team: Korean <https://translate.tuist.dev/projects/tuist/marketing/ko/>\nLanguage: ko\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\nX-Generator: Weblate 5.14.3\n"
 
 ## This file is a PO Template file.
 ##
@@ -244,7 +244,7 @@ msgstr "변경사항"
 #: lib/tuist_web/marketing/components/marketing_layout_components/cta.html.heex:6
 #, elixir-autogen, elixir-format
 msgid "Chat with the founders"
-msgstr "창립자와 대화하기"
+msgstr "창립자들과 이야기 나누기"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:116
 #, elixir-autogen, elixir-format
@@ -254,7 +254,7 @@ msgstr "소스, 이슈, PR 확인"
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:375
 #, elixir-autogen, elixir-format
 msgid "Check out our GitHub to see all the action—where the magic happens and collaboration thrives."
-msgstr "모든 활동과 협업이 활발한 GitHub을 확인해보세요."
+msgstr "우리의 이 모든 마법이 일어나고 협업이 이루어지고 있는 GitHub을 확인해보세요."
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:77
 #, elixir-autogen, elixir-format
@@ -264,7 +264,7 @@ msgstr "REST API 문서 확인"
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:71
 #, elixir-autogen, elixir-format
 msgid "Check out our documentation"
-msgstr "문서 확인"
+msgstr "설명서 보기"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:127
 #, elixir-autogen, elixir-format
@@ -280,13 +280,13 @@ msgstr "커뮤니티"
 #: lib/tuist_web/marketing/controllers/marketing_html/support.html.heex:43
 #, elixir-autogen, elixir-format
 msgid "Community Forum"
-msgstr "커뮤니티 포럼"
+msgstr "온라인 커뮤니티"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:182
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:109
 #, elixir-autogen, elixir-format
 msgid "Community forum"
-msgstr "커뮤니티 포럼"
+msgstr "온라인 커뮤니티"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:210
 #, elixir-autogen, elixir-format
@@ -296,7 +296,7 @@ msgstr "커뮤니티 지원"
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:17
 #, elixir-autogen, elixir-format
 msgid "Community support via forum"
-msgstr "포럼을 통한 커뮤니티 지원"
+msgstr "온라인으로 커뮤니티 지원"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:208
 #, elixir-autogen, elixir-format
@@ -317,54 +317,54 @@ msgstr "요약"
 #: lib/tuist_web/marketing/controllers/marketing_html/support.html.heex:46
 #, elixir-autogen, elixir-format
 msgid "Connect with other Tuist users, share experiences, and get help from the community."
-msgstr "커뮤니티를 통해 다른 Tuist 사용자와 연락하고 경험을 공유하고 도움을 받을 수 있습니다."
+msgstr "커뮤니티를 통해 다른 Tuist 사용자와 연락 및 경험을 공유하고 도움을 받을 수 있습니다."
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:217
 #, elixir-autogen, elixir-format
 msgid "Contact"
-msgstr ""
+msgstr "문의하기"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:46
 #, elixir-autogen, elixir-format
 msgid "Contact us"
-msgstr ""
+msgstr "우리에게 문의하세요"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:577
 #, elixir-autogen, elixir-format
 msgid "Contributors"
-msgstr ""
+msgstr "기여자들"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:300
 #, elixir-autogen, elixir-format
 msgid "Cookie policy"
-msgstr ""
+msgstr "쿠키 정책"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:41
 #, elixir-autogen, elixir-format
 msgid "Create your plan or self-host your instance."
-msgstr ""
+msgstr "요금제를 선택하거나 자체 구축하세요."
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:196
 #, elixir-autogen, elixir-format
 msgid "Custom legal agreements and terms of service tailored to your organization's needs."
-msgstr ""
+msgstr "귀사의 요구에 맞게 법적 계약서 및 사용 약관을 수정하세요."
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:14
 #, elixir-autogen, elixir-format
 msgid "Cuts build times by caching and reusing binaries"
-msgstr ""
+msgstr "바이너리 캐싱과 재사용으로 빌드 시간을 줄여줍니다"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:95
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:202
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:393
 #, elixir-autogen, elixir-format
 msgid "Dashboard"
-msgstr ""
+msgstr "상황판"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:42
 #, elixir-autogen, elixir-format
 msgid "Designed for large scale organizations."
-msgstr ""
+msgstr "대규모 조직을 위해 설계됨."
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:79
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:163
@@ -372,7 +372,7 @@ msgstr ""
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:444
 #, elixir-autogen, elixir-format
 msgid "Developers"
-msgstr ""
+msgstr "개발자들"
 
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:411
 #, elixir-autogen, elixir-format
@@ -977,7 +977,7 @@ msgstr ""
 #: lib/tuist_web/marketing/live/marketing_qa_live.html.heex:91
 #, elixir-autogen, elixir-format
 msgid "Sign up to get early access to Tuist QA"
-msgstr ""
+msgstr "Tuist QA를 위한 미리 사용해보기에 가입하세요"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:619
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:678
@@ -1295,7 +1295,7 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:120
 #, elixir-autogen, elixir-format
 msgid "Turn projects defined with a Swift-DSL into Xcode workspaces and projects."
-msgstr ""
+msgstr "Swift-DSL로 정의된 프로젝트를 Xcode 워크스페이스와 프로젝트로 전환하세요"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:98
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:99
@@ -1322,7 +1322,7 @@ msgstr ""
 #: lib/tuist_web/marketing/components/marketing_layout_components/cta.html.heex:3
 #, elixir-autogen, elixir-format
 msgid "Unlock your iOS team's full potential"
-msgstr ""
+msgstr "iOS 팀 최대의 가능성을 개방하세요."
 
 #: lib/tuist_web/marketing/controllers/marketing_xml/changelog_atom.xml.eex:4
 #: lib/tuist_web/marketing/controllers/marketing_xml/changelog_rss.xml.eex:5
@@ -1333,7 +1333,7 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:23
 #, elixir-autogen, elixir-format
 msgid "Usage-based pricing after free tier."
-msgstr ""
+msgstr "무료 요금제 제한 이상에서 사용량 기반 과금"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:71
 #, elixir-autogen, elixir-format
