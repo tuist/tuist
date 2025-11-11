@@ -90,10 +90,8 @@
       flex-grow: 1;
       flex-direction: row;
       gap: var(--noora-spacing-3);
-      & > [data-part="label"] {
-        color: var(--noora-surface-label-primary);
-        font: var(--noora-font-weight-medium) var(--noora-font-body-small);
-      }
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-medium) var(--noora-font-body-small);
     }
   }
 

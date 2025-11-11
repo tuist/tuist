@@ -262,7 +262,7 @@ defmodule TuistWeb.BuildRunLive do
   end
 
   def handle_event(
-        "toggle_task_expansion",
+        "toggle-expand",
         %{"row-key" => task_key},
         %{assigns: %{expanded_task_keys: expanded_task_keys}} = socket
       ) do
