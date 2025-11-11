@@ -372,7 +372,6 @@
           & [data-part="cas-outputs-list"] {
             display: flex;
             flex-direction: column;
-            gap: 0;
 
             & > [data-part="cas-output-item"] {
               display: flex;
