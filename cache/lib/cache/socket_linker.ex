@@ -25,13 +25,8 @@ defmodule Cache.SocketLinker do
 
   defp wait_for_socket(target, attempt \\ 0) do
     case File.stat(target) do
-      {:ok, %File.Stat{type: :socket}} ->
+      {:ok, _stat} ->
         :ok
-
-      {:ok, _other} ->
-        maybe_log_wait(target, attempt)
-        Process.sleep(100)
-        wait_for_socket(target, attempt + 1)
 
       {:error, :enoent} ->
         maybe_log_wait(target, attempt)
