@@ -8,13 +8,14 @@ defmodule Cache.S3DownloadWorker do
   require Logger
 
   @impl Oban.Worker
-  def perform(%Oban.Job{args: %{"key" => key}}) do
+  def perform(%Oban.Job{args: %{"key" => key} = _args}) do
     Logger.info("Starting S3 download for artifact: #{key}")
 
     if Cache.S3.exists?(key) do
       local_path = Cache.Disk.artifact_path(key)
 
       :ok = download_from_s3(key, local_path)
+      :ok
     else
       Logger.info("Artifact not found in S3, skipping download: #{key}")
       :ok
@@ -24,7 +25,9 @@ defmodule Cache.S3DownloadWorker do
   def enqueue_download(account_handle, project_handle, id) do
     key = Cache.Disk.cas_key(account_handle, project_handle, id)
 
-    %{key: key}
+    %{
+      key: key
+    }
     |> __MODULE__.new()
     |> Oban.insert()
   end

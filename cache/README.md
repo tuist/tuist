@@ -33,10 +33,12 @@ This service provides:
 
 2. Configure environment variables:
    - `SECRET_KEY_BASE` - Phoenix secret key base (generate with `mix phx.gen.secret`)
-   - `PHX_HOST` - Hostname for the service
+   - `PHX_HOST` - Hostname for the service (release entrypoint sets `$(cat /etc/host_hostname).tuist.dev`)
    - `PORT` - Port to run on (default: 4000)
    - `SERVER_URL` - URL of the main Tuist server for authentication
    - `CAS_STORAGE_DIR` - Directory for CAS artifact storage (default: `/cas`)
+   - `CAS_DISK_HIGH_WATERMARK_PERCENT` - Optional high watermark (%) that triggers disk eviction (default: `85`)
+   - `CAS_DISK_TARGET_PERCENT` - Optional target usage (%) the eviction job aims for after cleanup (default: `70`)
 
 3. Start the server:
    ```bash
@@ -66,11 +68,13 @@ The service runs on port 4000 by default in development mode.
 - **Cache.Disk** - Local disk storage backend for CAS objects
   - Atomic file operations with proper error handling
   - Cross-device move support (falls back to copy)
+- **Cache.CASArtifacts** - Persists artifact metadata in SQLite to power LRU eviction logic
 - **Cache.KeyValueStore** - In-memory Cachex-based key-value store
 - **Cache.Authentication** - Authentication against Tuist server API
   - Caches successful auth for 10 minutes
   - Caches failures for 3 seconds
   - Validates project access via `/api/projects` endpoint
+- **Cache.DiskEvictionWorker** - Scheduled Oban worker that evicts least-recently-used artifacts when the CAS volume crosses the configured high watermark
 
 ### Nginx Integration
 
@@ -106,6 +110,7 @@ The cache service is optimized for the **read path**, specifically for handling 
 - **Project isolation**: Artifacts organized by `account/project/cas/` structure
 - **Volume mount**: `/cas` directory mounted for persistent storage
 - **Atomic operations**: Proper handling of concurrent writes and race conditions
+- **Automatic eviction**: Background worker uses SQLite-tracked access metadata to free least-recently-used artifacts when disk usage crosses the configured watermark, while retaining authoritative copies in S3
 
 ## Deployment
 
