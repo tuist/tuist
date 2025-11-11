@@ -151,7 +151,7 @@ defmodule TuistWeb.BuildRunLive do
       push_patch(
         socket,
         to:
-          ~p"/#{selected_account.name}/#{selected_project.name}/builds/build-runs/#{run.id}?#{uri.query |> Query.put("file-breakdown-search", search) |> Query.drop("file-breakdown-page")}"
+          "/#{selected_account.name}/#{selected_project.name}/builds/build-runs/#{run.id}?#{uri.query |> Query.put("file-breakdown-search", search) |> Query.drop("file-breakdown-page")}"
       )
 
     {:noreply, socket}
@@ -166,7 +166,7 @@ defmodule TuistWeb.BuildRunLive do
       push_patch(
         socket,
         to:
-          ~p"/#{selected_account.name}/#{selected_project.name}/builds/build-runs/#{run.id}?#{uri.query |> Query.put("module-breakdown-search", search) |> Query.drop("module-breakdown-page")}"
+          "/#{selected_account.name}/#{selected_project.name}/builds/build-runs/#{run.id}?#{uri.query |> Query.put("module-breakdown-search", search) |> Query.drop("module-breakdown-page")}"
       )
 
     {:noreply, socket}
@@ -181,7 +181,7 @@ defmodule TuistWeb.BuildRunLive do
       push_patch(
         socket,
         to:
-          ~p"/#{selected_account.name}/#{selected_project.name}/builds/build-runs/#{run.id}?#{uri.query |> Query.put("cacheable-tasks-search", search) |> Query.drop("cacheable-tasks-page")}"
+          "/#{selected_account.name}/#{selected_project.name}/builds/build-runs/#{run.id}?#{uri.query |> Query.put("cacheable-tasks-search", search) |> Query.drop("cacheable-tasks-page")}"
       )
 
     {:noreply, socket}
@@ -196,7 +196,7 @@ defmodule TuistWeb.BuildRunLive do
       push_patch(
         socket,
         to:
-          ~p"/#{selected_account.name}/#{selected_project.name}/builds/build-runs/#{run.id}?#{uri.query |> Query.put("cas-outputs-search", search) |> Query.drop("cas-outputs-page")}"
+          "/#{selected_account.name}/#{selected_project.name}/builds/build-runs/#{run.id}?#{uri.query |> Query.put("cas-outputs-search", search) |> Query.drop("cas-outputs-page")}"
       )
 
     {:noreply, socket}
@@ -209,7 +209,7 @@ defmodule TuistWeb.BuildRunLive do
      socket
      |> push_patch(
        to:
-         ~p"/#{socket.assigns.selected_project.account.name}/#{socket.assigns.selected_project.name}/builds/build-runs/#{socket.assigns.run.id}?#{updated_params}"
+         "/#{socket.assigns.selected_project.account.name}/#{socket.assigns.selected_project.name}/builds/build-runs/#{socket.assigns.run.id}?#{updated_params}"
      )
      |> push_event("open-dropdown", %{id: "filter-#{filter_id}-value-dropdown"})
      |> push_event("open-popover", %{id: "filter-#{filter_id}-value-popover"})}
@@ -222,7 +222,7 @@ defmodule TuistWeb.BuildRunLive do
      socket
      |> push_patch(
        to:
-         ~p"/#{socket.assigns.selected_project.account.name}/#{socket.assigns.selected_project.name}/builds/build-runs/#{socket.assigns.run.id}?#{updated_query_params}"
+         "/#{socket.assigns.selected_project.account.name}/#{socket.assigns.selected_project.name}/builds/build-runs/#{socket.assigns.run.id}?#{updated_query_params}"
      )
      # There's a DOM reconciliation bug where the dropdown closes and then reappears somewhere else on the page. To remedy, just nuke it entirely.
      |> push_event("close-dropdown", %{id: "all", all: true})
@@ -238,7 +238,7 @@ defmodule TuistWeb.BuildRunLive do
       push_patch(
         socket,
         to:
-          ~p"/#{selected_account.name}/#{selected_project.name}/builds/build-runs/#{run.id}?#{Query.put(uri.query, "read-latency-type", type)}",
+          "/#{selected_account.name}/#{selected_project.name}/builds/build-runs/#{run.id}?#{Query.put(uri.query, "read-latency-type", type)}",
         replace: true
       )
 
@@ -254,7 +254,7 @@ defmodule TuistWeb.BuildRunLive do
       push_patch(
         socket,
         to:
-          ~p"/#{selected_account.name}/#{selected_project.name}/builds/build-runs/#{run.id}?#{Query.put(uri.query, "write-latency-type", type)}",
+          "/#{selected_account.name}/#{selected_project.name}/builds/build-runs/#{run.id}?#{Query.put(uri.query, "write-latency-type", type)}",
         replace: true
       )
 

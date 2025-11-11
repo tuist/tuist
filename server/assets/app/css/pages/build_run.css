@@ -374,18 +374,18 @@
             flex-direction: column;
             gap: 0;
 
-            & [data-part="cas-output-item"] {
+            & > [data-part="cas-output-item"] {
               display: flex;
               background-color: var(--noora-surface-background-secondary);
 
-              & [data-part="cas-output-text"] {
+              & > [data-part="cas-output-text"] {
                 display: flex;
                 flex-direction: row;
                 padding: var(--noora-spacing-5);
                 color: var(--noora-surface-label-primary);
                 font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
 
-                & [data-part="cas-output-label"] {
+                & > [data-part="cas-output-label"] {
                   padding-right: var(--noora-spacing-1);
                   color: var(--noora-surface-label-primary);
                   font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
@@ -395,10 +395,21 @@
                   cursor: pointer;
                   color: var(--noora-surface-label-primary);
                   font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
-                  line-height: 20px;
                   text-decoration: underline;
-                  text-decoration-skip-ink: none;
-                  text-underline-position: from-font;
+                }
+
+                & [data-part="hash-tooltip-content"] {
+                  display: flex;
+                  flex-direction: column;
+                  align-items: flex-end;
+                  gap: var(--noora-spacing-1);
+                  padding: var(--noora-spacing-3);
+
+                  & [data-part="hash-tooltip-text"] {
+                    max-width: 356px;
+                    color: var(--noora-surface-label-primary);
+                    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+                  }
                 }
               }
             }
@@ -406,24 +417,6 @@
         }
       }
     }
-  }
-}
-
-[data-part="hash-tooltip-content"] {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: var(--noora-spacing-1);
-  padding: var(--noora-spacing-3);
-
-  & [data-part="hash-tooltip-text"] {
-    margin: 0;
-    width: 356px;
-    color: var(--noora-surface-label-primary);
-    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
-    line-height: 20px;
-    white-space: pre-wrap;
-    word-break: break-all;
   }
 }
 
