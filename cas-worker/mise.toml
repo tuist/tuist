@@ -1,5 +1,0 @@
-[tools]
-  elixir = "1.18.4-otp-27"
-  erlang = "27.3.2"
-  pnpm = "10.17.1"
-  node = "24"
