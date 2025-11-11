@@ -368,6 +368,51 @@
           & td:nth-child(3) {
             width: 12%;
           }
+
+          & [data-part="cas-outputs-list"] {
+            display: flex;
+            flex-direction: column;
+
+            & > [data-part="cas-output-item"] {
+              display: flex;
+              background-color: var(--noora-surface-background-secondary);
+
+              & > [data-part="cas-output-text"] {
+                display: flex;
+                flex-direction: row;
+                padding: var(--noora-spacing-5);
+                color: var(--noora-surface-label-primary);
+                font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+
+                & > [data-part="cas-output-label"] {
+                  padding-right: var(--noora-spacing-1);
+                  color: var(--noora-surface-label-primary);
+                  font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+                }
+
+                & [data-part="trigger"] {
+                  cursor: pointer;
+                  color: var(--noora-surface-label-primary);
+                  font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+                  text-decoration: underline;
+                }
+
+                & [data-part="hash-tooltip-content"] {
+                  display: flex;
+                  flex-direction: column;
+                  align-items: flex-end;
+                  gap: var(--noora-spacing-1);
+                  padding: var(--noora-spacing-3);
+
+                  & [data-part="hash-tooltip-text"] {
+                    max-width: 356px;
+                    color: var(--noora-surface-label-primary);
+                    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+                  }
+                }
+              }
+            }
+          }
         }
       }
     }

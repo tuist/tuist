@@ -2521,6 +2521,66 @@ public enum Components {
                     ///
                     /// - Remark: Generated from `#/components/schemas/RunParams/case1/cas_outputsPayload/size`.
                     public var size: Swift.Int
+                    /// The type of the CAS output file.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunParams/case1/cas_outputsPayload/type`.
+                    @frozen public enum _typePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                        case swift = "swift"
+                        case sil = "sil"
+                        case sib = "sib"
+                        case image = "image"
+                        case dSYM = "dSYM"
+                        case dependencies = "dependencies"
+                        case emit_hyphen_module_hyphen_dependencies = "emit-module-dependencies"
+                        case autolink = "autolink"
+                        case swiftmodule = "swiftmodule"
+                        case swiftdoc = "swiftdoc"
+                        case swiftinterface = "swiftinterface"
+                        case object = "object"
+                        case ast_hyphen_dump = "ast-dump"
+                        case raw_hyphen_sil = "raw-sil"
+                        case raw_hyphen_sib = "raw-sib"
+                        case raw_hyphen_llvm_hyphen_ir = "raw-llvm-ir"
+                        case llvm_hyphen_ir = "llvm-ir"
+                        case llvm_hyphen_bc = "llvm-bc"
+                        case private_hyphen_swiftinterface = "private-swiftinterface"
+                        case package_hyphen_swiftinterface = "package-swiftinterface"
+                        case objc_hyphen_header = "objc-header"
+                        case swift_hyphen_dependencies = "swift-dependencies"
+                        case dependency_hyphen_scanner_hyphen_cache = "dependency-scanner-cache"
+                        case json_hyphen_dependencies = "json-dependencies"
+                        case json_hyphen_target_hyphen_info = "json-target-info"
+                        case json_hyphen_supported_hyphen_features = "json-supported-features"
+                        case json_hyphen_module_hyphen_artifacts = "json-module-artifacts"
+                        case imported_hyphen_modules = "imported-modules"
+                        case module_hyphen_trace = "module-trace"
+                        case index_hyphen_data = "index-data"
+                        case index_hyphen_unit_hyphen_output_hyphen_path = "index-unit-output-path"
+                        case yaml_hyphen_opt_hyphen_record = "yaml-opt-record"
+                        case bitstream_hyphen_opt_hyphen_record = "bitstream-opt-record"
+                        case diagnostics = "diagnostics"
+                        case emit_hyphen_module_hyphen_diagnostics = "emit-module-diagnostics"
+                        case dependency_hyphen_scan_hyphen_diagnostics = "dependency-scan-diagnostics"
+                        case api_hyphen_baseline_hyphen_json = "api-baseline-json"
+                        case abi_hyphen_baseline_hyphen_json = "abi-baseline-json"
+                        case const_hyphen_values = "const-values"
+                        case api_hyphen_descriptor_hyphen_json = "api-descriptor-json"
+                        case swift_hyphen_module_hyphen_summary = "swift-module-summary"
+                        case module_hyphen_semantic_hyphen_info = "module-semantic-info"
+                        case cached_hyphen_diagnostics = "cached-diagnostics"
+                        case json_hyphen_supported_hyphen_swift_hyphen_features = "json-supported-swift-features"
+                        case modulemap = "modulemap"
+                        case pch = "pch"
+                        case pcm = "pcm"
+                        case tbd = "tbd"
+                        case remap = "remap"
+                        case localization_hyphen_strings = "localization-strings"
+                        case clang_hyphen_header = "clang-header"
+                    }
+                    /// The type of the CAS output file.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunParams/case1/cas_outputsPayload/type`.
+                    public var _type: Components.Schemas.RunParams.Case1Payload.cas_outputsPayloadPayload._typePayload?
                     /// Creates a new `cas_outputsPayloadPayload`.
                     ///
                     /// - Parameters:
@@ -2530,13 +2590,15 @@ public enum Components {
                     ///   - node_id: The CAS node identifier.
                     ///   - operation: The type of CAS operation.
                     ///   - size: The size of the CAS object in bytes.
+                    ///   - _type: The type of the CAS output file.
                     public init(
                         checksum: Swift.String,
                         compressed_size: Swift.Int,
                         duration: Swift.Double,
                         node_id: Swift.String,
                         operation: Components.Schemas.RunParams.Case1Payload.cas_outputsPayloadPayload.operationPayload,
-                        size: Swift.Int
+                        size: Swift.Int,
+                        _type: Components.Schemas.RunParams.Case1Payload.cas_outputsPayloadPayload._typePayload? = nil
                     ) {
                         self.checksum = checksum
                         self.compressed_size = compressed_size
@@ -2544,6 +2606,7 @@ public enum Components {
                         self.node_id = node_id
                         self.operation = operation
                         self.size = size
+                        self._type = _type
                     }
                     public enum CodingKeys: String, CodingKey {
                         case checksum
@@ -2552,6 +2615,7 @@ public enum Components {
                         case node_id
                         case operation
                         case size
+                        case _type = "type"
                     }
                 }
                 /// CAS output operations associated with the build run.
@@ -4121,6 +4185,66 @@ public enum Components {
                 ///
                 /// - Remark: Generated from `#/components/schemas/BuildRun/cas_outputsPayload/size`.
                 public var size: Swift.Int
+                /// The type of the CAS output file.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BuildRun/cas_outputsPayload/type`.
+                @frozen public enum _typePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case swift = "swift"
+                    case sil = "sil"
+                    case sib = "sib"
+                    case image = "image"
+                    case dSYM = "dSYM"
+                    case dependencies = "dependencies"
+                    case emit_hyphen_module_hyphen_dependencies = "emit-module-dependencies"
+                    case autolink = "autolink"
+                    case swiftmodule = "swiftmodule"
+                    case swiftdoc = "swiftdoc"
+                    case swiftinterface = "swiftinterface"
+                    case object = "object"
+                    case ast_hyphen_dump = "ast-dump"
+                    case raw_hyphen_sil = "raw-sil"
+                    case raw_hyphen_sib = "raw-sib"
+                    case raw_hyphen_llvm_hyphen_ir = "raw-llvm-ir"
+                    case llvm_hyphen_ir = "llvm-ir"
+                    case llvm_hyphen_bc = "llvm-bc"
+                    case private_hyphen_swiftinterface = "private-swiftinterface"
+                    case package_hyphen_swiftinterface = "package-swiftinterface"
+                    case objc_hyphen_header = "objc-header"
+                    case swift_hyphen_dependencies = "swift-dependencies"
+                    case dependency_hyphen_scanner_hyphen_cache = "dependency-scanner-cache"
+                    case json_hyphen_dependencies = "json-dependencies"
+                    case json_hyphen_target_hyphen_info = "json-target-info"
+                    case json_hyphen_supported_hyphen_features = "json-supported-features"
+                    case json_hyphen_module_hyphen_artifacts = "json-module-artifacts"
+                    case imported_hyphen_modules = "imported-modules"
+                    case module_hyphen_trace = "module-trace"
+                    case index_hyphen_data = "index-data"
+                    case index_hyphen_unit_hyphen_output_hyphen_path = "index-unit-output-path"
+                    case yaml_hyphen_opt_hyphen_record = "yaml-opt-record"
+                    case bitstream_hyphen_opt_hyphen_record = "bitstream-opt-record"
+                    case diagnostics = "diagnostics"
+                    case emit_hyphen_module_hyphen_diagnostics = "emit-module-diagnostics"
+                    case dependency_hyphen_scan_hyphen_diagnostics = "dependency-scan-diagnostics"
+                    case api_hyphen_baseline_hyphen_json = "api-baseline-json"
+                    case abi_hyphen_baseline_hyphen_json = "abi-baseline-json"
+                    case const_hyphen_values = "const-values"
+                    case api_hyphen_descriptor_hyphen_json = "api-descriptor-json"
+                    case swift_hyphen_module_hyphen_summary = "swift-module-summary"
+                    case module_hyphen_semantic_hyphen_info = "module-semantic-info"
+                    case cached_hyphen_diagnostics = "cached-diagnostics"
+                    case json_hyphen_supported_hyphen_swift_hyphen_features = "json-supported-swift-features"
+                    case modulemap = "modulemap"
+                    case pch = "pch"
+                    case pcm = "pcm"
+                    case tbd = "tbd"
+                    case remap = "remap"
+                    case localization_hyphen_strings = "localization-strings"
+                    case clang_hyphen_header = "clang-header"
+                }
+                /// The type of the CAS output file.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BuildRun/cas_outputsPayload/type`.
+                public var _type: Components.Schemas.BuildRun.cas_outputsPayloadPayload._typePayload?
                 /// Creates a new `cas_outputsPayloadPayload`.
                 ///
                 /// - Parameters:
@@ -4130,13 +4254,15 @@ public enum Components {
                 ///   - node_id: The CAS node identifier.
                 ///   - operation: The type of CAS operation.
                 ///   - size: The size of the CAS object in bytes.
+                ///   - _type: The type of the CAS output file.
                 public init(
                     checksum: Swift.String,
                     compressed_size: Swift.Int,
                     duration: Swift.Double,
                     node_id: Swift.String,
                     operation: Components.Schemas.BuildRun.cas_outputsPayloadPayload.operationPayload,
-                    size: Swift.Int
+                    size: Swift.Int,
+                    _type: Components.Schemas.BuildRun.cas_outputsPayloadPayload._typePayload? = nil
                 ) {
                     self.checksum = checksum
                     self.compressed_size = compressed_size
@@ -4144,6 +4270,7 @@ public enum Components {
                     self.node_id = node_id
                     self.operation = operation
                     self.size = size
+                    self._type = _type
                 }
                 public enum CodingKeys: String, CodingKey {
                     case checksum
@@ -4152,6 +4279,7 @@ public enum Components {
                     case node_id
                     case operation
                     case size
+                    case _type = "type"
                 }
             }
             /// CAS output operations associated with the build run.
@@ -21943,6 +22071,66 @@ public enum Operations {
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/cas_outputsPayload/size`.
                             public var size: Swift.Int
+                            /// The type of the CAS output file.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/cas_outputsPayload/type`.
+                            @frozen public enum _typePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case swift = "swift"
+                                case sil = "sil"
+                                case sib = "sib"
+                                case image = "image"
+                                case dSYM = "dSYM"
+                                case dependencies = "dependencies"
+                                case emit_hyphen_module_hyphen_dependencies = "emit-module-dependencies"
+                                case autolink = "autolink"
+                                case swiftmodule = "swiftmodule"
+                                case swiftdoc = "swiftdoc"
+                                case swiftinterface = "swiftinterface"
+                                case object = "object"
+                                case ast_hyphen_dump = "ast-dump"
+                                case raw_hyphen_sil = "raw-sil"
+                                case raw_hyphen_sib = "raw-sib"
+                                case raw_hyphen_llvm_hyphen_ir = "raw-llvm-ir"
+                                case llvm_hyphen_ir = "llvm-ir"
+                                case llvm_hyphen_bc = "llvm-bc"
+                                case private_hyphen_swiftinterface = "private-swiftinterface"
+                                case package_hyphen_swiftinterface = "package-swiftinterface"
+                                case objc_hyphen_header = "objc-header"
+                                case swift_hyphen_dependencies = "swift-dependencies"
+                                case dependency_hyphen_scanner_hyphen_cache = "dependency-scanner-cache"
+                                case json_hyphen_dependencies = "json-dependencies"
+                                case json_hyphen_target_hyphen_info = "json-target-info"
+                                case json_hyphen_supported_hyphen_features = "json-supported-features"
+                                case json_hyphen_module_hyphen_artifacts = "json-module-artifacts"
+                                case imported_hyphen_modules = "imported-modules"
+                                case module_hyphen_trace = "module-trace"
+                                case index_hyphen_data = "index-data"
+                                case index_hyphen_unit_hyphen_output_hyphen_path = "index-unit-output-path"
+                                case yaml_hyphen_opt_hyphen_record = "yaml-opt-record"
+                                case bitstream_hyphen_opt_hyphen_record = "bitstream-opt-record"
+                                case diagnostics = "diagnostics"
+                                case emit_hyphen_module_hyphen_diagnostics = "emit-module-diagnostics"
+                                case dependency_hyphen_scan_hyphen_diagnostics = "dependency-scan-diagnostics"
+                                case api_hyphen_baseline_hyphen_json = "api-baseline-json"
+                                case abi_hyphen_baseline_hyphen_json = "abi-baseline-json"
+                                case const_hyphen_values = "const-values"
+                                case api_hyphen_descriptor_hyphen_json = "api-descriptor-json"
+                                case swift_hyphen_module_hyphen_summary = "swift-module-summary"
+                                case module_hyphen_semantic_hyphen_info = "module-semantic-info"
+                                case cached_hyphen_diagnostics = "cached-diagnostics"
+                                case json_hyphen_supported_hyphen_swift_hyphen_features = "json-supported-swift-features"
+                                case modulemap = "modulemap"
+                                case pch = "pch"
+                                case pcm = "pcm"
+                                case tbd = "tbd"
+                                case remap = "remap"
+                                case localization_hyphen_strings = "localization-strings"
+                                case clang_hyphen_header = "clang-header"
+                            }
+                            /// The type of the CAS output file.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/cas_outputsPayload/type`.
+                            public var _type: Operations.createRun.Input.Body.jsonPayload.Case1Payload.cas_outputsPayloadPayload._typePayload?
                             /// Creates a new `cas_outputsPayloadPayload`.
                             ///
                             /// - Parameters:
@@ -21952,13 +22140,15 @@ public enum Operations {
                             ///   - node_id: The CAS node identifier.
                             ///   - operation: The type of CAS operation.
                             ///   - size: The size of the CAS object in bytes.
+                            ///   - _type: The type of the CAS output file.
                             public init(
                                 checksum: Swift.String,
                                 compressed_size: Swift.Int,
                                 duration: Swift.Double,
                                 node_id: Swift.String,
                                 operation: Operations.createRun.Input.Body.jsonPayload.Case1Payload.cas_outputsPayloadPayload.operationPayload,
-                                size: Swift.Int
+                                size: Swift.Int,
+                                _type: Operations.createRun.Input.Body.jsonPayload.Case1Payload.cas_outputsPayloadPayload._typePayload? = nil
                             ) {
                                 self.checksum = checksum
                                 self.compressed_size = compressed_size
@@ -21966,6 +22156,7 @@ public enum Operations {
                                 self.node_id = node_id
                                 self.operation = operation
                                 self.size = size
+                                self._type = _type
                             }
                             public enum CodingKeys: String, CodingKey {
                                 case checksum
@@ -21974,6 +22165,7 @@ public enum Operations {
                                 case node_id
                                 case operation
                                 case size
+                                case _type = "type"
                             }
                         }
                         /// CAS output operations associated with the build run.

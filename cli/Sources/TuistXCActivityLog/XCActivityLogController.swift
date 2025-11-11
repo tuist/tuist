@@ -478,39 +478,40 @@ public struct XCActivityLogController: XCActivityLogControlling {
     }
 
     private func analyzeCASKeys(from buildSteps: [XCLogParser.BuildStep]) async throws -> [CASOutput] {
-        let downloadNodeIDs = extractDownloadNodeIDs(from: buildSteps)
-        let uploadNodeIDs = extractUploadNodeIDs(from: buildSteps)
+        let downloadNodeMetadata = extractDownloadNodeMetadata(from: buildSteps)
+        let uploadNodeMetadata = extractUploadNodeMetadata(from: buildSteps)
 
-        async let downloadOutputs = createCASOutputDownloads(nodeIDs: downloadNodeIDs)
-        async let uploadOutputs = createCASOutputUploads(nodeIDs: uploadNodeIDs)
+        async let downloadOutputs = createCASOutputDownloads(nodeMetadata: downloadNodeMetadata)
+        async let uploadOutputs = createCASOutputUploads(nodeMetadata: uploadNodeMetadata)
 
         return try await downloadOutputs + uploadOutputs
     }
 
-    private func createCASOutputDownloads(nodeIDs: [String]) async throws -> [CASOutput] {
-        return try await nodeIDs.concurrentCompactMap { nodeID in
-            try await createCASOutput(for: nodeID, operation: .download)
+    private func createCASOutputDownloads(nodeMetadata: [CASNodeMetadata]) async throws -> [CASOutput] {
+        return try await nodeMetadata.concurrentCompactMap { metadata in
+            try await createCASOutput(for: metadata, operation: .download)
         }
     }
 
-    private func createCASOutputUploads(nodeIDs: [String]) async throws -> [CASOutput] {
-        return try await nodeIDs.concurrentCompactMap { nodeID in
-            try await createCASOutput(for: nodeID, operation: .upload)
+    private func createCASOutputUploads(nodeMetadata: [CASNodeMetadata]) async throws -> [CASOutput] {
+        return try await nodeMetadata.concurrentCompactMap { metadata in
+            try await createCASOutput(for: metadata, operation: .upload)
         }
     }
 
-    private func createCASOutput(for nodeID: String, operation: CASOperation) async throws -> CASOutput? {
-        guard let checksum = try await casNodeStore.checksum(for: nodeID),
+    private func createCASOutput(for nodeMetadata: CASNodeMetadata, operation: CASOperation) async throws -> CASOutput? {
+        guard let checksum = try await casNodeStore.checksum(for: nodeMetadata.nodeID),
               let metadata = try await casOutputMetadataStore.metadata(for: checksum)
         else { return nil }
 
         return CASOutput(
-            nodeID: nodeID,
+            nodeID: nodeMetadata.nodeID,
             checksum: checksum,
             size: metadata.size,
             duration: metadata.duration,
             compressedSize: metadata.compressedSize,
-            operation: operation
+            operation: operation,
+            type: nodeMetadata.type
         )
     }
 
@@ -521,6 +522,16 @@ public struct XCActivityLogController: XCActivityLogControlling {
             }
 
             return extractNodeIDFromMaterializeOutput(from: step.title)
+        }
+    }
+
+    private func extractDownloadNodeMetadata(from buildSteps: [XCLogParser.BuildStep]) -> [CASNodeMetadata] {
+        return buildSteps.flatMap { step -> [CASNodeMetadata] in
+            guard let notes = step.notes else { return [] }
+
+            return notes.compactMap { note in
+                extractNodeIDAndTypeFromNote(from: note.title)
+            }
         }
     }
 
@@ -541,6 +552,24 @@ public struct XCActivityLogController: XCActivityLogControlling {
             }
         }
         return allNodeIDs.uniqued()
+    }
+
+    private func extractUploadNodeMetadata(from buildSteps: [XCLogParser.BuildStep]) -> [CASNodeMetadata] {
+        let allMetadata = buildSteps.flatMap { step -> [CASNodeMetadata] in
+            guard step.title.contains("Swift caching upload key") else {
+                return []
+            }
+
+            guard let notes = step.notes else { return [] }
+
+            return notes.compactMap { note in
+                if note.title.hasPrefix("uploaded CAS output ") {
+                    return extractNodeIDAndTypeFromUploadNote(from: note.title)
+                }
+                return nil
+            }
+        }
+        return allMetadata.uniqued()
     }
 
     private func extractKeyDescriptions(from buildSteps: [XCLogParser.BuildStep]) -> [String: String] {
@@ -625,6 +654,36 @@ public struct XCActivityLogController: XCActivityLogControlling {
         // The category can be any arbitrary string without spaces
         let pattern = "uploaded CAS output [^\\s]+: (0~[A-Za-z0-9+/_=-]+)"
         return extractKeyWithPattern(pattern, from: noteTitle)
+    }
+
+    private func extractNodeIDAndTypeFromUploadNote(from noteTitle: String) -> CASNodeMetadata? {
+        let pattern = "uploaded CAS output ([^\\s]+): (0~[A-Za-z0-9+/_=-]+)"
+        guard let regex = try? NSRegularExpression(pattern: pattern),
+              let match = regex.firstMatch(in: noteTitle, range: NSRange(location: 0, length: noteTitle.count)),
+              let typeRange = Range(match.range(at: 1), in: noteTitle),
+              let nodeIDRange = Range(match.range(at: 2), in: noteTitle)
+        else {
+            return nil
+        }
+        let typeString = String(noteTitle[typeRange])
+        let nodeID = String(noteTitle[nodeIDRange])
+        guard let type = CASOutputType(rawValue: typeString) else { return nil }
+        return CASNodeMetadata(nodeID: nodeID, type: type)
+    }
+
+    private func extractNodeIDAndTypeFromNote(from noteTitle: String) -> CASNodeMetadata? {
+        let pattern = "CAS output ([^\\s]+): (0~[A-Za-z0-9+/_=-]+)"
+        guard let regex = try? NSRegularExpression(pattern: pattern),
+              let match = regex.firstMatch(in: noteTitle, range: NSRange(location: 0, length: noteTitle.count)),
+              let typeRange = Range(match.range(at: 1), in: noteTitle),
+              let nodeIDRange = Range(match.range(at: 2), in: noteTitle)
+        else {
+            return nil
+        }
+        let typeString = String(noteTitle[typeRange])
+        let nodeID = String(noteTitle[nodeIDRange])
+        guard let type = CASOutputType(rawValue: typeString) else { return nil }
+        return CASNodeMetadata(nodeID: nodeID, type: type)
     }
 
     private func determineCacheOperation(from title: String) -> CacheOperation? {
@@ -740,6 +799,11 @@ private struct CacheKeyStatus {
     init(taskType: CacheableTask.TaskType) {
         self.taskType = taskType
     }
+}
+
+private struct CASNodeMetadata: Hashable {
+    let nodeID: String
+    let type: CASOutputType
 }
 
 extension BuildStep {

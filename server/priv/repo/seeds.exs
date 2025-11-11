@@ -233,96 +233,9 @@ generate_task_description = fn task_type ->
       "#{action} #{if action == "Emitting module for", do: String.replace(file, ".swift", ""), else: file}"
 
     "clang" ->
-      action = Enum.random(clang_actions)
-      "#{action} #{Enum.random(clang_files)}"
+      "Compiling #{Enum.random(clang_files)}"
   end
 end
-
-cacheable_tasks =
-  build_records
-  |> Enum.map(& &1.id)
-  |> Enum.shuffle()
-  |> Enum.take(500)
-  |> Enum.flat_map(fn build_id ->
-    build = Enum.find(builds, &(&1.id == build_id))
-    total_tasks = build.cacheable_tasks_count
-    remote_hits = build.cacheable_task_remote_hits_count
-    local_hits = build.cacheable_task_local_hits_count
-    misses = total_tasks - remote_hits - local_hits
-
-    tasks = []
-
-    tasks =
-      if remote_hits > 0 do
-        tasks ++
-          Enum.map(1..remote_hits, fn i ->
-            task_type = Enum.random(["clang", "swift"])
-
-            %{
-              build_run_id: build_id,
-              type: task_type,
-              status: "hit_remote",
-              key: generate_cache_key.(build_id, "remote", i),
-              read_duration: Enum.random(100..2000) * 1.0,
-              write_duration: nil,
-              description: generate_task_description.(task_type),
-              inserted_at: DateTime.to_naive(build.inserted_at)
-            }
-          end)
-      else
-        tasks
-      end
-
-    tasks =
-      if local_hits > 0 do
-        tasks ++
-          Enum.map(1..local_hits, fn i ->
-            task_type = Enum.random(["clang", "swift"])
-
-            %{
-              build_run_id: build_id,
-              type: task_type,
-              status: "hit_local",
-              key: generate_cache_key.(build_id, "local", i),
-              read_duration: Enum.random(10..100) * 1.0,
-              write_duration: nil,
-              description: generate_task_description.(task_type),
-              inserted_at: DateTime.to_naive(build.inserted_at)
-            }
-          end)
-      else
-        tasks
-      end
-
-    tasks =
-      if misses > 0 do
-        tasks ++
-          Enum.map(1..misses, fn i ->
-            task_type = Enum.random(["clang", "swift"])
-
-            %{
-              build_run_id: build_id,
-              type: task_type,
-              status: "miss",
-              key: generate_cache_key.(build_id, "miss", i),
-              read_duration: Enum.random(50..500) * 1.0,
-              write_duration: Enum.random(100..2000) * 1.0,
-              description: generate_task_description.(task_type),
-              inserted_at: DateTime.to_naive(build.inserted_at)
-            }
-          end)
-      else
-        tasks
-      end
-
-    tasks
-  end)
-
-cacheable_tasks
-|> Enum.chunk_every(1000)
-|> Enum.each(fn chunk ->
-  IngestRepo.insert_all(Tuist.Runs.CacheableTask, chunk)
-end)
 
 generate_cas_node_id = fn ->
   # Generate realistic CAS node IDs (base64-like strings)
@@ -350,6 +263,17 @@ generate_checksum = fn ->
   |> List.to_string()
 end
 
+cas_file_types = [
+  "object",
+  "swiftmodule",
+  "swiftdoc",
+  "dependencies",
+  "swift-dependencies",
+  "swiftinterface",
+  "llvm-bc",
+  "diagnostics"
+]
+
 cas_outputs =
   Enum.flat_map(builds, fn build ->
     # Generate 5-25 CAS operations per build
@@ -371,6 +295,7 @@ cas_outputs =
         duration: duration,
         compressed_size: compressed_size,
         operation: operation,
+        type: Enum.random(cas_file_types),
         inserted_at: DateTime.to_naive(build.inserted_at)
       }
     end)
@@ -380,6 +305,110 @@ cas_outputs
 |> Enum.chunk_every(1000)
 |> Enum.each(fn chunk ->
   IngestRepo.insert_all(Tuist.Runs.CASOutput, chunk)
+end)
+
+# Group CAS outputs by build_id for later use
+cas_outputs_by_build = Enum.group_by(cas_outputs, & &1.build_run_id)
+
+cacheable_tasks =
+  build_records
+  |> Enum.map(& &1.id)
+  |> Enum.shuffle()
+  |> Enum.take(500)
+  |> Enum.flat_map(fn build_id ->
+    build = Enum.find(builds, &(&1.id == build_id))
+    total_tasks = build.cacheable_tasks_count
+    remote_hits = build.cacheable_task_remote_hits_count
+    local_hits = build.cacheable_task_local_hits_count
+    misses = total_tasks - remote_hits - local_hits
+
+    # Get CAS output node_ids for this build
+    cas_node_ids =
+      cas_outputs_by_build
+      |> Map.get(build_id, [])
+      |> Enum.map(& &1.node_id)
+
+    tasks = []
+
+    tasks =
+      if remote_hits > 0 do
+        tasks ++
+          Enum.map(1..remote_hits, fn i ->
+            task_type = Enum.random(["clang", "swift"])
+            # Randomly select 0-5 CAS output node_ids for this task
+            selected_node_ids = Enum.take_random(cas_node_ids, Enum.random(0..min(5, length(cas_node_ids))))
+
+            %{
+              build_run_id: build_id,
+              type: task_type,
+              status: "hit_remote",
+              key: generate_cache_key.(build_id, "remote", i),
+              read_duration: Enum.random(100..2000) * 1.0,
+              write_duration: nil,
+              description: generate_task_description.(task_type),
+              cas_output_node_ids: selected_node_ids,
+              inserted_at: DateTime.to_naive(build.inserted_at)
+            }
+          end)
+      else
+        tasks
+      end
+
+    tasks =
+      if local_hits > 0 do
+        tasks ++
+          Enum.map(1..local_hits, fn i ->
+            task_type = Enum.random(["clang", "swift"])
+            # Randomly select 0-5 CAS output node_ids for this task
+            selected_node_ids = Enum.take_random(cas_node_ids, Enum.random(0..min(5, length(cas_node_ids))))
+
+            %{
+              build_run_id: build_id,
+              type: task_type,
+              status: "hit_local",
+              key: generate_cache_key.(build_id, "local", i),
+              read_duration: Enum.random(10..100) * 1.0,
+              write_duration: nil,
+              description: generate_task_description.(task_type),
+              cas_output_node_ids: selected_node_ids,
+              inserted_at: DateTime.to_naive(build.inserted_at)
+            }
+          end)
+      else
+        tasks
+      end
+
+    tasks =
+      if misses > 0 do
+        tasks ++
+          Enum.map(1..misses, fn i ->
+            task_type = Enum.random(["clang", "swift"])
+            # Randomly select 0-5 CAS output node_ids for this task
+            selected_node_ids = Enum.take_random(cas_node_ids, Enum.random(0..min(5, length(cas_node_ids))))
+
+            %{
+              build_run_id: build_id,
+              type: task_type,
+              status: "miss",
+              key: generate_cache_key.(build_id, "miss", i),
+              read_duration: Enum.random(50..500) * 1.0,
+              write_duration: Enum.random(100..2000) * 1.0,
+              description: generate_task_description.(task_type),
+              cas_output_node_ids: selected_node_ids,
+              inserted_at: DateTime.to_naive(build.inserted_at)
+            }
+          end)
+      else
+        tasks
+      end
+
+    tasks
+  end)
+
+cacheable_tasks
+|> Enum.chunk_every(1000)
+|> Enum.each(fn chunk ->
+  IngestRepo.insert_all(Tuist.Runs.CacheableTask, chunk)
 end)
 
 command_events =

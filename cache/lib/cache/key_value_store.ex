@@ -101,9 +101,8 @@ defmodule Cache.KeyValueStore do
 
   defp load_from_persistence(key) do
     case Repo.get_by(KeyValueEntry, key: key) do
-       nil ->
-         {:error, :not_found}
-
+      nil ->
+        {:error, :not_found}
 
       record ->
         Cachex.put(@cache_name, key, record.json_payload)

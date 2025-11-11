@@ -69,6 +69,8 @@ defmodule TuistWeb.BuildRunLive do
       |> assign(:cas_outputs_active_filters, [])
       |> assign(:selected_read_latency_type, "avg")
       |> assign(:selected_write_latency_type, "avg")
+      |> assign(:expanded_task_keys, MapSet.new())
+      |> assign(:task_cas_outputs_map, %{})
       |> assign_async(:has_result_bundle, fn ->
         {:ok, %{has_result_bundle: (command_event && CommandEvents.has_result_bundle?(command_event)) || false}}
       end)
@@ -257,6 +259,21 @@ defmodule TuistWeb.BuildRunLive do
       )
 
     {:noreply, socket}
+  end
+
+  def handle_event(
+        "toggle-expand",
+        %{"row-key" => task_key},
+        %{assigns: %{expanded_task_keys: expanded_task_keys}} = socket
+      ) do
+    updated_expanded_keys =
+      if MapSet.member?(expanded_task_keys, task_key) do
+        MapSet.delete(expanded_task_keys, task_key)
+      else
+        MapSet.put(expanded_task_keys, task_key)
+      end
+
+    {:noreply, assign(socket, :expanded_task_keys, updated_expanded_keys)}
   end
 
   defp file_breakdown_filters(run, params, available_filters, search) do
@@ -874,6 +891,25 @@ defmodule TuistWeb.BuildRunLive do
 
     {tasks, tasks_meta} = Runs.list_cacheable_tasks(options)
 
+    # Fetch CAS outputs for all tasks on the current page
+    all_node_ids =
+      tasks
+      |> Enum.flat_map(& &1.cas_output_node_ids)
+      |> Enum.uniq()
+
+    cas_outputs = Runs.get_cas_outputs_by_node_ids(run.id, all_node_ids)
+
+    # Create a map from task key to its CAS outputs
+    task_cas_outputs_map =
+      Map.new(tasks, fn task ->
+        outputs =
+          Enum.filter(cas_outputs, fn output ->
+            output.node_id in task.cas_output_node_ids
+          end)
+
+        {task.key, outputs}
+      end)
+
     filters =
       Filter.Operations.decode_filters_from_query(params, available_filters)
 
@@ -885,6 +921,7 @@ defmodule TuistWeb.BuildRunLive do
     |> assign(:cacheable_tasks_active_filters, filters)
     |> assign(:cacheable_tasks_sort_by, cacheable_tasks_sort_by)
     |> assign(:cacheable_tasks_sort_order, cacheable_tasks_sort_order)
+    |> assign(:task_cas_outputs_map, task_cas_outputs_map)
   end
 
   def empty_tab_state_background(assigns) do
@@ -985,7 +1022,10 @@ defmodule TuistWeb.BuildRunLive do
   defp cacheable_tasks_filters(run, params, available_filters, search) do
     base_filters =
       [%{field: :build_run_id, op: :==, value: run.id}] ++
-        Filter.Operations.convert_filters_to_flop(Filter.Operations.decode_filters_from_query(params, available_filters))
+        (params
+         |> Filter.Operations.decode_filters_from_query(available_filters)
+         |> Filter.Operations.convert_filters_to_flop()
+         |> Enum.map(&remap_cacheable_task_type_field/1))
 
     if search && search != "" do
       base_filters ++
@@ -998,16 +1038,18 @@ defmodule TuistWeb.BuildRunLive do
   end
 
   defp define_cacheable_tasks_filters do
+    cacheable_task_type_options = ["clang", "swift"]
+
     [
       %Filter.Filter{
-        id: "type",
+        id: "cacheable_task_type",
         field: :type,
         display_name: gettext("Type"),
         type: :option,
-        options: ["swift", "clang"],
+        options: cacheable_task_type_options,
         options_display_names: %{
-          "swift" => "Swift",
-          "clang" => "Clang"
+          "clang" => "Clang",
+          "swift" => "Swift"
         },
         operator: :==,
         value: nil
@@ -1030,6 +1072,61 @@ defmodule TuistWeb.BuildRunLive do
   end
 
   defp define_cas_outputs_filters do
+    cas_output_type_options =
+      Enum.sort([
+        "swift",
+        "sil",
+        "sib",
+        "image",
+        "dSYM",
+        "dependencies",
+        "emit-module-dependencies",
+        "autolink",
+        "swiftmodule",
+        "swiftdoc",
+        "swiftinterface",
+        "object",
+        "ast-dump",
+        "raw-sil",
+        "raw-sib",
+        "raw-llvm-ir",
+        "llvm-ir",
+        "llvm-bc",
+        "private-swiftinterface",
+        "package-swiftinterface",
+        "objc-header",
+        "swift-dependencies",
+        "dependency-scanner-cache",
+        "json-dependencies",
+        "json-target-info",
+        "json-supported-features",
+        "json-module-artifacts",
+        "imported-modules",
+        "module-trace",
+        "index-data",
+        "index-unit-output-path",
+        "yaml-opt-record",
+        "bitstream-opt-record",
+        "diagnostics",
+        "emit-module-diagnostics",
+        "dependency-scan-diagnostics",
+        "api-baseline-json",
+        "abi-baseline-json",
+        "const-values",
+        "api-descriptor-json",
+        "swift-module-summary",
+        "module-semantic-info",
+        "cached-diagnostics",
+        "json-supported-swift-features",
+        "modulemap",
+        "pch",
+        "pcm",
+        "tbd",
+        "remap",
+        "localization-strings",
+        "clang-header"
+      ])
+
     [
       %Filter.Filter{
         id: "operation",
@@ -1041,6 +1138,16 @@ defmodule TuistWeb.BuildRunLive do
           "download" => gettext("Download"),
           "upload" => gettext("Upload")
         },
+        operator: :==,
+        value: nil
+      },
+      %Filter.Filter{
+        id: "cas_output_type",
+        field: :type,
+        display_name: gettext("Type"),
+        type: :option,
+        options: cas_output_type_options,
+        options_display_names: Map.new(cas_output_type_options, &{&1, &1}),
         operator: :==,
         value: nil
       },
@@ -1069,7 +1176,8 @@ defmodule TuistWeb.BuildRunLive do
         (params
          |> Filter.Operations.decode_filters_from_query(available_filters)
          |> Filter.Operations.convert_filters_to_flop()
-         |> Enum.map(&convert_mb_to_bytes/1))
+         |> Enum.map(&convert_mb_to_bytes/1)
+         |> Enum.map(&remap_cas_output_type_field/1))
 
     if search && search != "" do
       base_filters ++
@@ -1089,6 +1197,18 @@ defmodule TuistWeb.BuildRunLive do
   end
 
   defp convert_mb_to_bytes(filter), do: filter
+
+  defp remap_cas_output_type_field(%{field: :cas_output_type} = filter) do
+    %{filter | field: :type}
+  end
+
+  defp remap_cas_output_type_field(filter), do: filter
+
+  defp remap_cacheable_task_type_field(%{field: :cacheable_task_type} = filter) do
+    %{filter | field: :type}
+  end
+
+  defp remap_cacheable_task_type_field(filter), do: filter
 
   defp parse_number(value) when is_number(value), do: value
 

@@ -171,6 +171,7 @@ defmodule Tuist.Runs do
           duration: struct.duration,
           compressed_size: struct.compressed_size,
           operation: struct.operation,
+          type: struct.type,
           build_run_id: struct.build_run_id,
           inserted_at: struct.inserted_at
         }
@@ -193,6 +194,14 @@ defmodule Tuist.Runs do
 
   def list_cas_outputs(attrs) do
     Tuist.ClickHouseFlop.validate_and_run!(CASOutput, attrs, for: CASOutput)
+  end
+
+  def get_cas_outputs_by_node_ids(build_run_id, node_ids) when is_list(node_ids) do
+    if Enum.empty?(node_ids) do
+      []
+    else
+      IngestRepo.all(from(c in CASOutput, where: c.build_run_id == ^build_run_id and c.node_id in ^node_ids))
+    end
   end
 
   def cas_output_metrics(build_run_id) do

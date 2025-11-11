@@ -904,7 +904,17 @@
             <.table
               id="cacheable-tasks-table"
               rows={@cacheable_tasks}
-              row_key={fn task -> "cacheable-task-#{task.key}" end}
+              row_key={fn task -> task.key end}
+              row_expandable={
+                fn task ->
+                  if is_map(@task_cas_outputs_map) do
+                    not Enum.empty?(Map.get(@task_cas_outputs_map, task.key, []))
+                  else
+                    false
+                  end
+                end
+              }
+              expanded_rows={MapSet.to_list(@expanded_task_keys)}
             >
               <:col
                 :let={task}
@@ -963,6 +973,46 @@
                   </:button>
                 </.button_cell>
               </:col>
+              <:expanded_content :let={task}>
+                <div data-part="cas-outputs-list">
+                  <%= for cas_output <- Map.get(@task_cas_outputs_map, task.key, []) do %>
+                    <div data-part="cas-output-item">
+                      <span data-part="cas-output-text">
+                        <span data-part="cas-output-label">
+                          {gettext("CAS output")} {cas_output.type}:
+                        </span>
+                        <.popover
+                          id={"cas-output-popover-#{cas_output.node_id}"}
+                          tabindex="-1"
+                          placement="top"
+                        >
+                          <:trigger :let={attrs}>
+                            <span {attrs} data-part="cas-output-hash">
+                              {String.slice(cas_output.node_id, 0, 40)}
+                            </span>
+                          </:trigger>
+                          <div data-part="hash-tooltip-content">
+                            <p data-part="hash-tooltip-text">{cas_output.node_id}</p>
+                            <.button
+                              id={"cas-output-copy-#{cas_output.node_id}"}
+                              variant="secondary"
+                              size="small"
+                              label={gettext("Copy")}
+                              phx-hook="Clipboard"
+                              tabindex="-1"
+                              data-clipboard-value={cas_output.node_id}
+                              phx-click={JS.dispatch("pointerdown", to: "body")}
+                            >
+                              <:icon_right><.copy /></:icon_right>
+                            </.button>
+                          </div>
+                        </.popover>
+                        <span data-part="cas-output-label">...</span>
+                      </span>
+                    </div>
+                  <% end %>
+                </div>
+              </:expanded_content>
               <:empty_state>
                 <.table_empty_state
                   icon="chart_arcs"
@@ -1174,7 +1224,11 @@
             <div :if={Enum.any?(@cas_outputs_active_filters)} data-part="active-filters">
               <.active_filter :for={filter <- @cas_outputs_active_filters} filter={filter} />
             </div>
-            <.table id="cas-outputs-table" rows={@cas_outputs}>
+            <.table
+              id="cas-outputs-table"
+              rows={@cas_outputs}
+              row_key={fn output -> "#{output.node_id}-#{output.operation}" end}
+            >
               <:col
                 :let={output}
                 label={gettext("Key")}
@@ -1196,6 +1250,9 @@
                   <% "upload" -> %>
                     <.badge_cell label={gettext("Upload")} color="secondary" style="light-fill" />
                 <% end %>
+              </:col>
+              <:col :let={output} label={gettext("Type")}>
+                <.text_cell label={output.type} />
               </:col>
               <:col
                 :let={output}
