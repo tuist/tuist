@@ -38,6 +38,7 @@ public final class XcodeController: XcodeControlling, @unchecked Sendable {
         if let selectedXcode = selectedXcode.value {
             return selectedXcode
         } else {
+            let xcodePath: AbsolutePath
             if let environmentValue = Environment.current.variables["DEVELOPER_DIR"] {
                 // It's valid to either point DEVELOPER_DIR directly to Xcode.app/ - or
                 // to the developer content directory. See man xcode-select # ENVIRONMENT
@@ -45,12 +46,15 @@ public final class XcodeController: XcodeControlling, @unchecked Sendable {
                 if path.pathString.hasSuffix("Contents/Developer") {
                     path = path.parentDirectory.parentDirectory
                 }
-                let value = try await Xcode.read(path: path)
-                selectedXcode.mutate { $0 = value }
-                return value
+                xcodePath = path
+            } else {
+                let path = try System.shared.capture(["xcode-select", "-p"]).spm_chomp()
+                xcodePath = try AbsolutePath(validating: path).parentDirectory.parentDirectory
             }
-            let path = try System.shared.capture(["xcode-select", "-p"]).spm_chomp()
-            let value = try await Xcode.read(path: try AbsolutePath(validating: path).parentDirectory.parentDirectory)
+
+            Logger.current.debug("Using Xcode at \(xcodePath)")
+
+            let value = try await Xcode.read(path: xcodePath)
             selectedXcode.mutate { $0 = value }
             return value
         }
