@@ -191,7 +191,6 @@ public struct TuistCommand: AsyncParsableCommand {
             "If the error is not actionable, let's discuss it in the \(.link(title: "Troubleshooting & how to", href: "https://community.tuist.dev/c/troubleshooting-how-to/6"))",
             "If you are very certain it's a bug, \(.link(title: "file an issue", href: "https://github.com/tuist/tuist"))",
         ]
-        var shouldOutputLogFilePath = true
         let exitCode = exitCode(for: error).rawValue
 
         if error.localizedDescription.contains("ArgumentParser") {
@@ -202,10 +201,6 @@ public struct TuistCommand: AsyncParsableCommand {
                   as? ServerClientAuthenticationError
         {
             errorAlertMessage = "\(underlyingServerClientError.errorDescription ?? "Unknown error")"
-        } else if let fatalError = error as? InspectImportsFatalError {
-            errorAlertMessage = "\(fatalError.description)"
-            errorAlertNextSteps = []
-            shouldOutputLogFilePath = false
         } else if let fatalError = error as? FatalError {
             let isSilent = fatalError.type == .abortSilent || fatalError.type == .bugSilent
             if !fatalError.description.isEmpty, !isSilent {
@@ -230,7 +225,7 @@ public struct TuistCommand: AsyncParsableCommand {
 
         outputCompletion(
             logFilePath: logFilePath,
-            shouldOutputLogFilePath: shouldOutputLogFilePath,
+            shouldOutputLogFilePath: true,
             errorAlertMessage: errorAlertMessage,
             errorAlertNextSteps: errorAlertNextSteps
         )
