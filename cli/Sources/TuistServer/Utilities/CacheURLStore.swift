@@ -112,19 +112,10 @@ public actor CacheURLStore: CacheURLStoring {
         return await withCheckedContinuation { continuation in
             let delegate = MetricsDelegate(continuation: continuation)
             let session = URLSession(configuration: .default, delegate: delegate, delegateQueue: nil)
+            delegate.session = session
 
             Task {
-                do {
-                    let (_, response) = try await session.data(for: request)
-
-                    if let httpResponse = response as? HTTPURLResponse,
-                       !(200 ... 299).contains(httpResponse.statusCode)
-                    {
-                        delegate.handleFailure()
-                    }
-                } catch {
-                    delegate.handleFailure()
-                }
+                _ = try? await session.data(for: request)
             }
         }
     }
@@ -132,33 +123,30 @@ public actor CacheURLStore: CacheURLStoring {
 
 private final class MetricsDelegate: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
     private let latencyContinuation: CheckedContinuation<TimeInterval?, Never>
-    private var hasResumed = false
-    private let lock = NSLock()
+    var session: URLSession?
 
     init(continuation: CheckedContinuation<TimeInterval?, Never>) {
         latencyContinuation = continuation
         super.init()
     }
 
-    func handleFailure() {
-        lock.lock()
-        defer { lock.unlock() }
-
-        guard !hasResumed else { return }
-        hasResumed = true
-        latencyContinuation.resume(returning: nil)
-    }
-
     func urlSession(
         _: URLSession,
-        task _: URLSessionTask,
+        task: URLSessionTask,
         didFinishCollecting metrics: URLSessionTaskMetrics
     ) {
-        lock.lock()
-        defer { lock.unlock() }
+        defer {
+            session?.invalidateAndCancel()
+            session = nil
+        }
 
-        guard !hasResumed else { return }
-        hasResumed = true
+        // Check if the response status is successful
+        if let httpResponse = task.response as? HTTPURLResponse,
+           !(200 ... 299).contains(httpResponse.statusCode)
+        {
+            latencyContinuation.resume(returning: nil)
+            return
+        }
 
         guard let transactionMetrics = metrics.transactionMetrics.first,
               let requestStartDate = transactionMetrics.fetchStartDate,
