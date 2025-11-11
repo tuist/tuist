@@ -651,14 +651,12 @@ defmodule TuistWeb.Marketing.MarketingController do
     put_resp_header(conn, "server", "Bandit")
   end
 
-  @doc """
-  Builds a locale-specific OG image path. For English, returns the path as-is.
-  For other locales, inserts the locale before the filename.
-
-  Examples:
-    - og_image_path("/marketing/images/og/about.jpg", "en") -> "/marketing/images/og/about.jpg"
-    - og_image_path("/marketing/images/og/about.jpg", "ko") -> "/marketing/images/og/ko/about.jpg"
-  """
+  # Builds a locale-specific OG image path. For English, returns the path as-is.
+  # For other locales, inserts the locale before the filename.
+  #
+  # Examples:
+  #   - og_image_path("/marketing/images/og/about.jpg", "en") -> "/marketing/images/og/about.jpg"
+  #   - og_image_path("/marketing/images/og/about.jpg", "ko") -> "/marketing/images/og/ko/about.jpg"
   defp og_image_path(path, locale \\ nil) do
     locale = locale || Gettext.get_locale(TuistWeb.Gettext)
 
