@@ -10,7 +10,6 @@ servers:
     options:
       network-alias: cache-app
       publish:
-        - "127.0.0.1:4000:4000"
         - "127.0.0.1:9091:9091"
 
 registry:
@@ -27,6 +26,9 @@ env:
     SERVER_URL: https://staging.tuist.dev
     CAS_STORAGE_DIR: /cas
     APPSIGNAL_ENV: stag
+    PHX_SOCKET_DIR: /run/cache
+    PHX_SOCKET_BASENAME: cache
+
   secret:
     - SECRET_KEY_BASE
     - APPSIGNAL_PUSH_API_KEY
@@ -38,4 +40,5 @@ env:
 
 volumes:
   - /cas:/cas:rw
+  - /run/cache:/run/cache:rw
   - /etc/hostname:/etc/host_hostname:ro

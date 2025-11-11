@@ -17,6 +17,21 @@ if config_env() == :prod do
   host = System.get_env("PHX_HOST")
   port = String.to_integer(System.get_env("PORT") || "4000")
 
+  num_acceptors = String.to_integer(System.get_env("PHX_SERVER_ACCEPTORS") || "100")
+
+  http_config =
+    case Cache.SocketConfig.prepare_bind(num_acceptors) do
+      {:ok, socket_http_config, _config} ->
+        socket_http_config
+
+      :error ->
+        [
+          ip: {0, 0, 0, 0, 0, 0, 0, 0},
+          port: port,
+          transport_options: [num_acceptors: num_acceptors]
+        ]
+    end
+
   config :appsignal, :config,
     push_api_key: System.get_env("APPSIGNAL_PUSH_API_KEY"),
     env: System.get_env("APPSIGNAL_ENV")
@@ -29,10 +44,7 @@ if config_env() == :prod do
   config :cache, CacheWeb.Endpoint,
     server: true,
     url: [host: host, port: 443, scheme: "https"],
-    http: [
-      ip: {0, 0, 0, 0, 0, 0, 0, 0},
-      port: port
-    ],
+    http: http_config,
     secret_key_base: secret_key_base
 
   config :cache, :cas,

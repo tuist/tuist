@@ -79,5 +79,6 @@
 
   systemd.tmpfiles.rules = [
     "Z /cas 0755 nobody nogroup - -"
+    "d /run/cache 0777 root root - -"
   ];
 }

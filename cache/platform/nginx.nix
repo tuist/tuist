@@ -40,7 +40,7 @@
         '';
 
         locations."/" = {
-          proxyPass = "http://127.0.0.1:4000";
+          proxyPass = "http://unix:/run/cache/current.sock:/";
           proxyWebsockets = true;
           extraConfig = ''
             proxy_set_header X-Real-IP $remote_addr;

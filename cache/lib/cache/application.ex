@@ -16,6 +16,7 @@ defmodule Cache.Application do
       Cache.Authentication,
       Cache.KeyValueStore,
       CacheWeb.Endpoint,
+      Cache.SocketLinker,
       {Finch, name: Cache.Finch},
       {Oban, Application.get_env(:cache, Oban)}
     ]
