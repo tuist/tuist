@@ -56,7 +56,8 @@ struct KeyValueServiceTests {
                 casId: .any,
                 entries: .any,
                 fullHandle: .value("tuist/tuist"),
-                serverURL: .value(URL(string: "https://example.com")!)
+                serverURL: .any,
+                authenticationURL: .value(URL(string: "https://example.com")!)
             )
             .willReturn()
 
@@ -75,7 +76,8 @@ struct KeyValueServiceTests {
                 casId: .value("0~SDVUUkZaeVZXcEdZVTVzY0VaVVdHaHFZa2hDV2xsWWIzZFFVVDA5"),
                 entries: .value(["key1": valueData.base64EncodedString()]),
                 fullHandle: .any,
-                serverURL: .any
+                serverURL: .any,
+                authenticationURL: .any
             )
             .called(1)
 
@@ -103,7 +105,7 @@ struct KeyValueServiceTests {
         let context = ServerContext.test()
 
         given(putCacheValueService)
-            .putCacheValue(casId: .any, entries: .any, fullHandle: .any, serverURL: .any)
+            .putCacheValue(casId: .any, entries: .any, fullHandle: .any, serverURL: .any, authenticationURL: .any)
             .willThrow(expectedError)
 
         // When
@@ -137,7 +139,8 @@ struct KeyValueServiceTests {
             .getCacheValue(
                 casId: .any,
                 fullHandle: .any,
-                serverURL: .any
+                serverURL: .any,
+                authenticationURL: .any
             )
             .willReturn(mockResponse)
 
@@ -177,7 +180,7 @@ struct KeyValueServiceTests {
         let context = ServerContext.test()
 
         given(getCacheValueService)
-            .getCacheValue(casId: .any, fullHandle: .any, serverURL: .any)
+            .getCacheValue(casId: .any, fullHandle: .any, serverURL: .any, authenticationURL: .any)
             .willReturn(nil)
 
         given(metadataStore)
@@ -210,7 +213,7 @@ struct KeyValueServiceTests {
         let context = ServerContext.test()
 
         given(getCacheValueService)
-            .getCacheValue(casId: .any, fullHandle: .any, serverURL: .any)
+            .getCacheValue(casId: .any, fullHandle: .any, serverURL: .any, authenticationURL: .any)
             .willThrow(expectedError)
 
         given(metadataStore)
@@ -250,7 +253,7 @@ struct KeyValueServiceTests {
         let context = ServerContext.test()
 
         given(putCacheValueService)
-            .putCacheValue(casId: .any, entries: .any, fullHandle: .any, serverURL: .any)
+            .putCacheValue(casId: .any, entries: .any, fullHandle: .any, serverURL: .any, authenticationURL: .any)
             .willThrow(clientError)
 
         // When
@@ -273,7 +276,7 @@ struct KeyValueServiceTests {
         let context = ServerContext.test()
 
         given(getCacheValueService)
-            .getCacheValue(casId: .any, fullHandle: .any, serverURL: .any)
+            .getCacheValue(casId: .any, fullHandle: .any, serverURL: .any, authenticationURL: .any)
             .willThrow(genericError)
 
         given(metadataStore)
@@ -307,7 +310,7 @@ struct KeyValueServiceTests {
         let context = ServerContext.test()
 
         given(putCacheValueService)
-            .putCacheValue(casId: .any, entries: .any, fullHandle: .any, serverURL: .any)
+            .putCacheValue(casId: .any, entries: .any, fullHandle: .any, serverURL: .any, authenticationURL: .any)
             .willReturn()
 
         given(nodeStore)
@@ -356,7 +359,7 @@ struct KeyValueServiceTests {
         )
 
         given(getCacheValueService)
-            .getCacheValue(casId: .any, fullHandle: .any, serverURL: .any)
+            .getCacheValue(casId: .any, fullHandle: .any, serverURL: .any, authenticationURL: .any)
             .willReturn(mockResponse)
 
         given(nodeStore)
@@ -398,7 +401,7 @@ struct KeyValueServiceTests {
         let context = ServerContext.test()
 
         given(putCacheValueService)
-            .putCacheValue(casId: .any, entries: .any, fullHandle: .any, serverURL: .any)
+            .putCacheValue(casId: .any, entries: .any, fullHandle: .any, serverURL: .any, authenticationURL: .any)
             .willReturn()
 
         // Configure node store to fail
@@ -442,7 +445,7 @@ struct KeyValueServiceTests {
         let context = ServerContext.test()
 
         given(putCacheValueService)
-            .putCacheValue(casId: .any, entries: .any, fullHandle: .any, serverURL: .any)
+            .putCacheValue(casId: .any, entries: .any, fullHandle: .any, serverURL: .any, authenticationURL: .any)
             .willReturn()
 
         given(nodeStore)

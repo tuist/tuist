@@ -60,11 +60,13 @@ public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.Si
 
         var response = CompilationCacheService_Keyvalue_V1_PutValueResponse()
         do {
+            let cacheURL = try await cacheURLStore.getCacheURL(for: serverURL)
             try await putCacheValueService.putCacheValue(
                 casId: casID,
                 entries: entries,
                 fullHandle: fullHandle,
-                serverURL: serverURL
+                serverURL: cacheURL,
+                authenticationURL: serverURL
             )
 
             Task {
@@ -116,10 +118,12 @@ public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.Si
         let duration: TimeInterval
 
         do {
+            let cacheURL = try await cacheURLStore.getCacheURL(for: serverURL)
             if let json = try await getCacheValueService.getCacheValue(
                 casId: casID,
                 fullHandle: fullHandle,
-                serverURL: serverURL
+                serverURL: cacheURL,
+                authenticationURL: serverURL
             ) {
                 var value = CompilationCacheService_Keyvalue_V1_Value()
 
