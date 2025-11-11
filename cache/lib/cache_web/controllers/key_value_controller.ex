@@ -16,7 +16,7 @@ defmodule CacheWeb.KeyValueController do
         |> put_resp_content_type("application/json")
         |> send_resp(:ok, payload)
 
-      :not_found ->
+      {:error, :not_found} ->
         :telemetry.execute([:cache, :kv, :get, :miss], %{count: 1}, %{})
 
         conn

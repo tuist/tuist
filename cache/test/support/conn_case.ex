@@ -17,6 +17,9 @@ defmodule CacheWeb.ConnCase do
 
   use ExUnit.CaseTemplate
 
+  alias Cache.Repo
+  alias Ecto.Adapters.SQL.Sandbox
+
   using do
     quote do
       use CacheWeb, :verified_routes
@@ -32,8 +35,11 @@ defmodule CacheWeb.ConnCase do
   end
 
   setup _tags do
-    # Clear the cache before each test
+    :ok = Sandbox.checkout(Repo)
+
     Cachex.clear(:cache_keyvalue_store)
+    Cachex.clear(:cas_auth_cache)
+
     {:ok, conn: Phoenix.ConnTest.build_conn()}
   end
 end
