@@ -337,6 +337,7 @@ cacheable_tasks =
             task_type = Enum.random(["clang", "swift"])
             # Randomly select 0-5 CAS output node_ids for this task
             selected_node_ids = Enum.take_random(cas_node_ids, Enum.random(0..min(5, length(cas_node_ids))))
+
             %{
               build_run_id: build_id,
               type: task_type,
@@ -360,6 +361,7 @@ cacheable_tasks =
             task_type = Enum.random(["clang", "swift"])
             # Randomly select 0-5 CAS output node_ids for this task
             selected_node_ids = Enum.take_random(cas_node_ids, Enum.random(0..min(5, length(cas_node_ids))))
+
             %{
               build_run_id: build_id,
               type: task_type,
@@ -383,6 +385,7 @@ cacheable_tasks =
             task_type = Enum.random(["clang", "swift"])
             # Randomly select 0-5 CAS output node_ids for this task
             selected_node_ids = Enum.take_random(cas_node_ids, Enum.random(0..min(5, length(cas_node_ids))))
+
             %{
               build_run_id: build_id,
               type: task_type,

@@ -22,7 +22,7 @@ import { Socket } from "phoenix";
 import { LiveSocket } from "phoenix_live_view";
 import topbar from "./js/vendor/topbar.js";
 // import Noora from "noora";
-import Noora from "/Users/marekfort/Developer/noora/web/priv/static/noora.js"
+import Noora from "/Users/marekfort/Developer/noora/web/priv/static/noora.js";
 import "./app.css";
 import ThemeSwitcher, { observeThemeChanges } from "./js/ThemeSwitcher.js";
 import ImageFallback from "./js/ImageFallback.js";

@@ -904,8 +904,7 @@ defmodule TuistWeb.BuildRunLive do
 
     # Create a map from task key to its CAS outputs
     task_cas_outputs_map =
-      tasks
-      |> Enum.map(fn task ->
+      Map.new(tasks, fn task ->
         task_node_ids = Map.get(task, :cas_output_node_ids, []) || []
 
         outputs =
@@ -915,7 +914,6 @@ defmodule TuistWeb.BuildRunLive do
 
         {task.key, outputs}
       end)
-      |> Map.new()
 
     filters =
       Filter.Operations.decode_filters_from_query(params, available_filters)
@@ -1082,7 +1080,60 @@ defmodule TuistWeb.BuildRunLive do
   end
 
   defp define_cas_outputs_filters do
-    cas_output_type_options = Enum.sort(["swift", "sil", "sib", "image", "dSYM", "dependencies", "emit-module-dependencies", "autolink", "swiftmodule", "swiftdoc", "swiftinterface", "object", "ast-dump", "raw-sil", "raw-sib", "raw-llvm-ir", "llvm-ir", "llvm-bc", "private-swiftinterface", "package-swiftinterface", "objc-header", "swift-dependencies", "dependency-scanner-cache", "json-dependencies", "json-target-info", "json-supported-features", "json-module-artifacts", "imported-modules", "module-trace", "index-data", "index-unit-output-path", "yaml-opt-record", "bitstream-opt-record", "diagnostics", "emit-module-diagnostics", "dependency-scan-diagnostics", "api-baseline-json", "abi-baseline-json", "const-values", "api-descriptor-json", "swift-module-summary", "module-semantic-info", "cached-diagnostics", "json-supported-swift-features", "modulemap", "pch", "pcm", "tbd", "remap", "localization-strings", "clang-header"])
+    cas_output_type_options =
+      Enum.sort([
+        "swift",
+        "sil",
+        "sib",
+        "image",
+        "dSYM",
+        "dependencies",
+        "emit-module-dependencies",
+        "autolink",
+        "swiftmodule",
+        "swiftdoc",
+        "swiftinterface",
+        "object",
+        "ast-dump",
+        "raw-sil",
+        "raw-sib",
+        "raw-llvm-ir",
+        "llvm-ir",
+        "llvm-bc",
+        "private-swiftinterface",
+        "package-swiftinterface",
+        "objc-header",
+        "swift-dependencies",
+        "dependency-scanner-cache",
+        "json-dependencies",
+        "json-target-info",
+        "json-supported-features",
+        "json-module-artifacts",
+        "imported-modules",
+        "module-trace",
+        "index-data",
+        "index-unit-output-path",
+        "yaml-opt-record",
+        "bitstream-opt-record",
+        "diagnostics",
+        "emit-module-diagnostics",
+        "dependency-scan-diagnostics",
+        "api-baseline-json",
+        "abi-baseline-json",
+        "const-values",
+        "api-descriptor-json",
+        "swift-module-summary",
+        "module-semantic-info",
+        "cached-diagnostics",
+        "json-supported-swift-features",
+        "modulemap",
+        "pch",
+        "pcm",
+        "tbd",
+        "remap",
+        "localization-strings",
+        "clang-header"
+      ])
 
     [
       %Filter.Filter{

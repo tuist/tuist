@@ -36,7 +36,17 @@ defmodule Tuist.Runs.CacheableTask do
         cas_output_node_ids: attrs[:cas_output_node_ids] || [],
         inserted_at: :second |> DateTime.utc_now() |> DateTime.to_naive()
       },
-      [:build_run_id, :type, :status, :key, :read_duration, :write_duration, :description, :cas_output_node_ids, :inserted_at]
+      [
+        :build_run_id,
+        :type,
+        :status,
+        :key,
+        :read_duration,
+        :write_duration,
+        :description,
+        :cas_output_node_ids,
+        :inserted_at
+      ]
     )
     |> Ecto.Changeset.validate_required([:build_run_id, :type, :status, :key])
   end

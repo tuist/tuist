@@ -200,10 +200,7 @@ defmodule Tuist.Runs do
     if Enum.empty?(node_ids) do
       []
     else
-      from(c in CASOutput,
-        where: c.build_run_id == ^build_run_id and c.node_id in ^node_ids
-      )
-      |> IngestRepo.all()
+      IngestRepo.all(from(c in CASOutput, where: c.build_run_id == ^build_run_id and c.node_id in ^node_ids))
     end
   end
 

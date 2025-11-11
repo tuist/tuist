@@ -9,10 +9,10 @@ public enum CASOutputType: String, Equatable {
     case swift
     case sil
     case sib
-    case image = "image"
+    case image
     case object
     case dSYM
-    case dependencies = "dependencies"
+    case dependencies
     case autolink
     case swiftModule = "swiftmodule"
     case swiftDocumentation = "swiftdoc"

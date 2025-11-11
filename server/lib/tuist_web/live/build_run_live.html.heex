@@ -905,13 +905,15 @@
               id="cacheable-tasks-table"
               rows={@cacheable_tasks}
               row_key={fn task -> task.key end}
-              row_expandable={fn task ->
-                if is_map(@task_cas_outputs_map) do
-                  not Enum.empty?(Map.get(@task_cas_outputs_map, task.key, []))
-                else
-                  false
+              row_expandable={
+                fn task ->
+                  if is_map(@task_cas_outputs_map) do
+                    not Enum.empty?(Map.get(@task_cas_outputs_map, task.key, []))
+                  else
+                    false
+                  end
                 end
-              end}
+              }
               expanded_rows={MapSet.to_list(@expanded_task_keys)}
             >
               <:col
@@ -972,8 +974,8 @@
                 </.button_cell>
               </:col>
               <:expanded_content :let={task}>
-                <%
-                  cas_outputs = if is_map(@task_cas_outputs_map) do
+                <% cas_outputs =
+                  if is_map(@task_cas_outputs_map) do
                     outputs = Map.get(@task_cas_outputs_map, task.key, [])
                     # Ensure we have a list and filter out any non-map values
                     if is_list(outputs) do
@@ -983,23 +985,26 @@
                     end
                   else
                     []
-                  end
-                %>
+                  end %>
                 <div data-part="cas-outputs-list">
                   <%= for cas_output <- cas_outputs do %>
                     <div data-part="cas-output-item">
                       <span data-part="cas-output-text">
-                        <span data-part="cas-output-label">{gettext("CAS output")} {cas_output.type || gettext("unknown")}: </span>
+                        <span data-part="cas-output-label">
+                          {gettext("CAS output")} {cas_output.type || gettext("unknown")}: 
+                        </span>
                         <.popover
                           id={"cas-output-popover-#{cas_output.node_id}"}
                           tabindex="-1"
                           placement="top"
                         >
                           <:trigger :let={attrs}>
-                            <span {attrs} data-part="cas-output-hash"><%= String.slice(cas_output.node_id, 0, 40) %></span>
+                            <span {attrs} data-part="cas-output-hash">
+                              {String.slice(cas_output.node_id, 0, 40)}
+                            </span>
                           </:trigger>
                           <div data-part="hash-tooltip-content">
-                            <p data-part="hash-tooltip-text"><%= cas_output.node_id %></p>
+                            <p data-part="hash-tooltip-text">{cas_output.node_id}</p>
                             <.button
                               id={"cas-output-copy-#{cas_output.node_id}"}
                               variant="secondary"
@@ -1231,7 +1236,11 @@
             <div :if={Enum.any?(@cas_outputs_active_filters)} data-part="active-filters">
               <.active_filter :for={filter <- @cas_outputs_active_filters} filter={filter} />
             </div>
-            <.table id="cas-outputs-table" rows={@cas_outputs} row_key={fn output -> "#{output.node_id}-#{output.operation}" end}>
+            <.table
+              id="cas-outputs-table"
+              rows={@cas_outputs}
+              row_key={fn output -> "#{output.node_id}-#{output.operation}" end}
+            >
               <:col
                 :let={output}
                 label={gettext("Key")}
