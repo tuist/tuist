@@ -1153,4 +1153,72 @@ defmodule Tuist.RunsTest do
       assert metrics.p50_write_duration == 0
     end
   end
+
+  describe "get_cas_outputs_by_node_ids/2" do
+    test "returns CAS outputs matching the given node_ids" do
+      # Given
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          cas_outputs: [
+            %{
+              node_id: "node1",
+              checksum: "abc123",
+              size: 1000,
+              duration: 100,
+              compressed_size: 800,
+              operation: :download
+            },
+            %{
+              node_id: "node2",
+              checksum: "def456",
+              size: 2000,
+              duration: 200,
+              compressed_size: 1600,
+              operation: :upload
+            },
+            %{
+              node_id: "node3",
+              checksum: "ghi789",
+              size: 3000,
+              duration: 300,
+              compressed_size: 2400,
+              operation: :download
+            }
+          ]
+        )
+
+      # When
+      outputs = Runs.get_cas_outputs_by_node_ids(build.id, ["node1", "node3"])
+
+      # Then
+      assert length(outputs) == 2
+      node_ids = Enum.map(outputs, & &1.node_id)
+      assert "node1" in node_ids
+      assert "node3" in node_ids
+      refute "node2" in node_ids
+    end
+
+    test "returns empty list when node_ids is empty" do
+      # Given
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          cas_outputs: [
+            %{
+              node_id: "node1",
+              checksum: "abc123",
+              size: 1000,
+              duration: 100,
+              compressed_size: 800,
+              operation: :download
+            }
+          ]
+        )
+
+      # When
+      outputs = Runs.get_cas_outputs_by_node_ids(build.id, [])
+
+      # Then
+      assert outputs == []
+    end
+  end
 end
