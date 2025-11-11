@@ -272,6 +272,13 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `PUT /api/cache/keyvalue/{cas_id}`.
     /// - Remark: Generated from `#/paths//api/cache/keyvalue/{cas_id}/put(getCacheValue)`.
     func getCacheValue(_ input: Operations.getCacheValue.Input) async throws -> Operations.getCacheValue.Output
+    /// Get cache endpoints.
+    ///
+    /// This endpoint returns a list of available cache endpoints.
+    ///
+    /// - Remark: HTTP `GET /api/cache/endpoints`.
+    /// - Remark: Generated from `#/paths//api/cache/endpoints/get(getCacheEndpoints)`.
+    func getCacheEndpoints(_ input: Operations.getCacheEndpoints.Input) async throws -> Operations.getCacheEndpoints.Output
     /// It completes a multi-part upload.
     ///
     /// Given the upload ID and all the parts with their ETags, this endpoint completes the multipart upload.
@@ -1024,6 +1031,15 @@ extension APIProtocol {
             query: query,
             headers: headers
         ))
+    }
+    /// Get cache endpoints.
+    ///
+    /// This endpoint returns a list of available cache endpoints.
+    ///
+    /// - Remark: HTTP `GET /api/cache/endpoints`.
+    /// - Remark: Generated from `#/paths//api/cache/endpoints/get(getCacheEndpoints)`.
+    public func getCacheEndpoints(headers: Operations.getCacheEndpoints.Input.Headers = .init()) async throws -> Operations.getCacheEndpoints.Output {
+        try await getCacheEndpoints(Operations.getCacheEndpoints.Input(headers: headers))
     }
     /// It completes a multi-part upload.
     ///
@@ -3616,6 +3632,50 @@ public enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/RunsIndexPage`.
         public typealias RunsIndexPage = Swift.Int
+        /// List of available cache endpoints
+        ///
+        /// - Remark: Generated from `#/components/schemas/CacheEndpoints`.
+        public struct CacheEndpoints: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/CacheEndpoints/data`.
+            public struct dataPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/CacheEndpoints/data/endpoints`.
+                public var endpoints: [Swift.String]?
+                /// Creates a new `dataPayload`.
+                ///
+                /// - Parameters:
+                ///   - endpoints:
+                public init(endpoints: [Swift.String]? = nil) {
+                    self.endpoints = endpoints
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case endpoints
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/CacheEndpoints/data`.
+            public var data: Components.Schemas.CacheEndpoints.dataPayload?
+            /// - Remark: Generated from `#/components/schemas/CacheEndpoints/status`.
+            @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case success = "success"
+            }
+            /// - Remark: Generated from `#/components/schemas/CacheEndpoints/status`.
+            public var status: Components.Schemas.CacheEndpoints.statusPayload?
+            /// Creates a new `CacheEndpoints`.
+            ///
+            /// - Parameters:
+            ///   - data:
+            ///   - status:
+            public init(
+                data: Components.Schemas.CacheEndpoints.dataPayload? = nil,
+                status: Components.Schemas.CacheEndpoints.statusPayload? = nil
+            ) {
+                self.data = data
+                self.status = status
+            }
+            public enum CodingKeys: String, CodingKey {
+                case data
+                case status
+            }
+        }
         /// The schema for a Tuist run.
         ///
         /// - Remark: Generated from `#/components/schemas/Run`.
@@ -14975,6 +15035,57 @@ public enum Operations {
                     }
                 }
             }
+            public struct UnprocessableContent: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}/GET/responses/422/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}/GET/responses/422/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getBundle.Output.UnprocessableContent.Body
+                /// Creates a new `UnprocessableContent`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getBundle.Output.UnprocessableContent.Body) {
+                    self.body = body
+                }
+            }
+            /// Invalid request parameters
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}/get(getBundle)/responses/422`.
+            ///
+            /// HTTP response code: `422 unprocessableContent`.
+            case unprocessableContent(Operations.getBundle.Output.UnprocessableContent)
+            /// The associated value of the enum case if `self` is `.unprocessableContent`.
+            ///
+            /// - Throws: An error if `self` is not `.unprocessableContent`.
+            /// - SeeAlso: `.unprocessableContent`.
+            public var unprocessableContent: Operations.getBundle.Output.UnprocessableContent {
+                get throws {
+                    switch self {
+                    case let .unprocessableContent(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unprocessableContent",
+                            response: self
+                        )
+                    }
+                }
+            }
             /// Undocumented response.
             ///
             /// A response with a code that is not documented in the OpenAPI document.
@@ -18364,6 +18475,162 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Get cache endpoints.
+    ///
+    /// This endpoint returns a list of available cache endpoints.
+    ///
+    /// - Remark: HTTP `GET /api/cache/endpoints`.
+    /// - Remark: Generated from `#/paths//api/cache/endpoints/get(getCacheEndpoints)`.
+    public enum getCacheEndpoints {
+        public static let id: Swift.String = "getCacheEndpoints"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/cache/endpoints/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getCacheEndpoints.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getCacheEndpoints.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.getCacheEndpoints.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            public init(headers: Operations.getCacheEndpoints.Input.Headers = .init()) {
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/cache/endpoints/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// List of available cache endpoints
+                    ///
+                    /// - Remark: Generated from `#/paths/api/cache/endpoints/GET/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/cache/endpoints/GET/responses/200/content/json/data`.
+                        public struct dataPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/cache/endpoints/GET/responses/200/content/json/data/endpoints`.
+                            public var endpoints: [Swift.String]?
+                            /// Creates a new `dataPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - endpoints:
+                            public init(endpoints: [Swift.String]? = nil) {
+                                self.endpoints = endpoints
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case endpoints
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/cache/endpoints/GET/responses/200/content/json/data`.
+                        public var data: Operations.getCacheEndpoints.Output.Ok.Body.jsonPayload.dataPayload?
+                        /// - Remark: Generated from `#/paths/api/cache/endpoints/GET/responses/200/content/json/status`.
+                        @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                            case success = "success"
+                        }
+                        /// - Remark: Generated from `#/paths/api/cache/endpoints/GET/responses/200/content/json/status`.
+                        public var status: Operations.getCacheEndpoints.Output.Ok.Body.jsonPayload.statusPayload?
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - data:
+                        ///   - status:
+                        public init(
+                            data: Operations.getCacheEndpoints.Output.Ok.Body.jsonPayload.dataPayload? = nil,
+                            status: Operations.getCacheEndpoints.Output.Ok.Body.jsonPayload.statusPayload? = nil
+                        ) {
+                            self.data = data
+                            self.status = status
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case data
+                            case status
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/cache/endpoints/GET/responses/200/content/application\/json`.
+                    case json(Operations.getCacheEndpoints.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.getCacheEndpoints.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getCacheEndpoints.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getCacheEndpoints.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// List of cache endpoints
+            ///
+            /// - Remark: Generated from `#/paths//api/cache/endpoints/get(getCacheEndpoints)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.getCacheEndpoints.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.getCacheEndpoints.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
                             response: self
                         )
                     }

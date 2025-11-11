@@ -4248,6 +4248,28 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .notFound(.init(body: body))
+                case 422:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.getBundle.Output.UnprocessableContent.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .unprocessableContent(.init(body: body))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -5734,6 +5756,68 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .notFound(.init(body: body))
+                default:
+                    return .undocumented(
+                        statusCode: response.status.code,
+                        .init(
+                            headerFields: response.headerFields,
+                            body: responseBody
+                        )
+                    )
+                }
+            }
+        )
+    }
+    /// Get cache endpoints.
+    ///
+    /// This endpoint returns a list of available cache endpoints.
+    ///
+    /// - Remark: HTTP `GET /api/cache/endpoints`.
+    /// - Remark: Generated from `#/paths//api/cache/endpoints/get(getCacheEndpoints)`.
+    public func getCacheEndpoints(_ input: Operations.getCacheEndpoints.Input) async throws -> Operations.getCacheEndpoints.Output {
+        try await client.send(
+            input: input,
+            forOperation: Operations.getCacheEndpoints.id,
+            serializer: { input in
+                let path = try converter.renderedPath(
+                    template: "/api/cache/endpoints",
+                    parameters: []
+                )
+                var request: HTTPTypes.HTTPRequest = .init(
+                    soar_path: path,
+                    method: .get
+                )
+                suppressMutabilityWarning(&request)
+                converter.setAcceptHeader(
+                    in: &request.headerFields,
+                    contentTypes: input.headers.accept
+                )
+                return (request, nil)
+            },
+            deserializer: { response, responseBody in
+                switch response.status.code {
+                case 200:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.getCacheEndpoints.Output.Ok.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Operations.getCacheEndpoints.Output.Ok.Body.jsonPayload.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .ok(.init(body: body))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,

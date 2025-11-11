@@ -19,6 +19,20 @@ defmodule TuistWeb.API.CacheControllerTest do
     %{cache: cache}
   end
 
+  describe "GET /api/cache/endpoints" do
+    test "returns list of cache endpoints", %{conn: conn} do
+      # When
+      conn = get(conn, ~p"/api/cache/endpoints")
+
+      # Then
+      response = json_response(conn, 200)
+      assert response["status"] == "success"
+      response_data = response["data"]
+      assert is_list(response_data["endpoints"])
+      assert Enum.all?(response_data["endpoints"], &is_binary/1)
+    end
+  end
+
   describe "GET /api/cache" do
     test "returns download url", %{conn: conn, cache: cache} do
       # Given

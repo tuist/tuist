@@ -10,6 +10,7 @@ import TuistSupport
 public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.SimpleServiceProtocol {
     private let fullHandle: String
     private let serverURL: URL
+    private let cacheURLStore: CacheURLStoring
     private let putCacheValueService: PutCacheValueServicing
     private let getCacheValueService: GetCacheValueServicing
     private let fileSystem: FileSystem
@@ -19,6 +20,7 @@ public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.Si
     public init(
         fullHandle: String,
         serverURL: URL,
+        cacheURLStore: CacheURLStoring,
         putCacheValueService: PutCacheValueServicing = PutCacheValueService(),
         getCacheValueService: GetCacheValueServicing = GetCacheValueService(),
         fileSystem: FileSystem = FileSystem(),
@@ -27,6 +29,7 @@ public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.Si
     ) {
         self.fullHandle = fullHandle
         self.serverURL = serverURL
+        self.cacheURLStore = cacheURLStore
         self.putCacheValueService = putCacheValueService
         self.getCacheValueService = getCacheValueService
         self.fileSystem = fileSystem
