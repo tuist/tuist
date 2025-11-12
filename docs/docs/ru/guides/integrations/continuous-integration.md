@@ -25,6 +25,7 @@ projects as the source of truth, you'll need to add a
 script to install Tuist and run the commands you need, for example `tuist
 generate`:
 
+::: code-group
 
 ```bash [Mise]
 #!/bin/sh
@@ -52,6 +53,7 @@ tuist generate
 In [Codemagic](https://codemagic.io), you can add an additional step to your
 workflow to install Tuist:
 
+::: code-group
 ```yaml [Mise]
 workflows:
   lint:
@@ -89,6 +91,7 @@ workflows:
 On [GitHub Actions](https://docs.github.com/en/actions) you can add an
 additional step to install Tuist. You have several options:
 
+::: code-group
 ```yaml [Mise]
 name: Build Application
 on:

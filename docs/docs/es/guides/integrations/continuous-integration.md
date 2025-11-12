@@ -25,6 +25,7 @@ projects as the source of truth, you'll need to add a
 script to install Tuist and run the commands you need, for example `tuist
 generate`:
 
+::: code-group
 
 ```bash [Mise]
 #!/bin/sh
@@ -46,11 +47,13 @@ brew install --formula tuist@x.y.z
 tuist generate
 ```
 <!-- -->
+:::
 ### Codemagic {#codemagic}
 
 In [Codemagic](https://codemagic.io), you can add an additional step to your
 workflow to install Tuist:
 
+::: code-group
 ```yaml [Mise]
 workflows:
   lint:
@@ -81,12 +84,14 @@ workflows:
         script: tuist build
 ```
 <!-- -->
+:::
 
 ### GitHub Actions {#github-actions}
 
 On [GitHub Actions](https://docs.github.com/en/actions) you can add an
 additional step to install Tuist. You have several options:
 
+::: code-group
 ```yaml [Mise]
 name: Build Application
 on:
@@ -141,6 +146,7 @@ jobs:
       - run: tuist build
 ```
 <!-- -->
+:::
 
 If you are already using Homebrew or Mise to install tools from your CI
 pipelines, we recommend staying consistent with your existing approach.
@@ -154,6 +160,7 @@ We recommend using `mise use --pin` in your Tuist projects to pin the version of
 Tuist across environments. The command will create a `.tool-versions` file
 containing the version of Tuist.
 <!-- -->
+:::
 
 ## Authentication {#authentication}
 
@@ -177,3 +184,4 @@ Tuist only uses the token when it detects it's running on a CI environment. If
 your CI environment is not detected, you can force the token usage by setting
 the environment variable `CI` to `1`.
 <!-- -->
+:::
