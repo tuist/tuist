@@ -36,6 +36,23 @@ defmodule TuistWeb.BuildRunsLive do
     build_runs_sort_by = params["build-runs-sort-by"] || "ran-at"
     build_runs_sort_order = params["build-runs-sort-order"] || "desc"
 
+    # Clear cursors if sort parameters have changed to prevent cursor/order mismatch
+    # This handles both UI navigation (socket state changes) and direct URL navigation
+    params =
+      cond do
+        # If sort params changed from previous socket state
+        sort_changed?(socket, build_runs_sort_by, build_runs_sort_order) ->
+          Map.drop(params, ["before", "after"])
+
+        # If explicit sort params are present with cursors (e.g., bookmarked URL)
+        # Default sort is "ran-at"/"desc", so explicit params indicate potential cursor mismatch
+        has_cursor?(params) and has_explicit_sort_params?(params) ->
+          Map.drop(params, ["before", "after"])
+
+        true ->
+          params
+      end
+
     socket =
       socket
       |> assign(:uri, uri)
@@ -61,6 +78,20 @@ defmodule TuistWeb.BuildRunsLive do
 
   def handle_info(_event, socket) do
     {:noreply, socket}
+  end
+
+  defp sort_changed?(socket, new_sort_by, new_sort_order) do
+    Map.has_key?(socket.assigns, :build_runs_sort_by) and
+      (socket.assigns.build_runs_sort_by != new_sort_by or
+         socket.assigns.build_runs_sort_order != new_sort_order)
+  end
+
+  defp has_cursor?(params) do
+    Map.has_key?(params, "after") or Map.has_key?(params, "before")
+  end
+
+  defp has_explicit_sort_params?(params) do
+    Map.has_key?(params, "build-runs-sort-by") or Map.has_key?(params, "build-runs-sort-order")
   end
 
   defp assign_build_runs(
@@ -157,7 +188,11 @@ defmodule TuistWeb.BuildRunsLive do
   end
 
   def handle_event("add_filter", %{"value" => filter_id}, socket) do
-    updated_params = Filter.Operations.add_filter_to_query(filter_id, socket)
+    updated_params =
+      filter_id
+      |> Filter.Operations.add_filter_to_query(socket)
+      |> Map.delete("after")
+      |> Map.delete("before")
 
     {:noreply,
      socket
@@ -170,7 +205,11 @@ defmodule TuistWeb.BuildRunsLive do
   end
 
   def handle_event("update_filter", params, socket) do
-    updated_query_params = Filter.Operations.update_filters_in_query(params, socket)
+    updated_query_params =
+      params
+      |> Filter.Operations.update_filters_in_query(socket)
+      |> Map.delete("after")
+      |> Map.delete("before")
 
     {:noreply,
      socket

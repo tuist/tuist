@@ -32,6 +32,18 @@ defmodule TuistWeb.GenerateRunsLive do
     generate_runs_sort_by = params["generate_runs_sort_by"] || "ran_at"
     generate_runs_sort_order = params["generate_runs_sort_order"] || "desc"
 
+    params =
+      cond do
+        sort_changed?(socket, generate_runs_sort_by, generate_runs_sort_order) ->
+          Map.drop(params, ["before", "after"])
+
+        has_cursor?(params) and has_explicit_sort_params?(params) ->
+          Map.drop(params, ["before", "after"])
+
+        true ->
+          params
+      end
+
     {
       :noreply,
       socket
@@ -53,7 +65,11 @@ defmodule TuistWeb.GenerateRunsLive do
   end
 
   def handle_event("add_filter", %{"value" => filter_id}, socket) do
-    updated_params = Filter.Operations.add_filter_to_query(filter_id, socket)
+    updated_params =
+      filter_id
+      |> Filter.Operations.add_filter_to_query(socket)
+      |> Map.delete("after")
+      |> Map.delete("before")
 
     {:noreply,
      socket
@@ -66,7 +82,11 @@ defmodule TuistWeb.GenerateRunsLive do
   end
 
   def handle_event("update_filter", params, socket) do
-    updated_query_params = Filter.Operations.update_filters_in_query(params, socket)
+    updated_query_params =
+      params
+      |> Filter.Operations.update_filters_in_query(socket)
+      |> Map.delete("after")
+      |> Map.delete("before")
 
     {:noreply,
      socket
@@ -302,5 +322,19 @@ defmodule TuistWeb.GenerateRunsLive do
       end
 
     base ++ organization
+  end
+
+  defp sort_changed?(socket, new_sort_by, new_sort_order) do
+    Map.has_key?(socket.assigns, :generate_runs_sort_by) and
+      (socket.assigns.generate_runs_sort_by != new_sort_by or
+         socket.assigns.generate_runs_sort_order != new_sort_order)
+  end
+
+  defp has_cursor?(params) do
+    Map.has_key?(params, "after") or Map.has_key?(params, "before")
+  end
+
+  defp has_explicit_sort_params?(params) do
+    Map.has_key?(params, "generate_runs_sort_by") or Map.has_key?(params, "generate_runs_sort_order")
   end
 end
