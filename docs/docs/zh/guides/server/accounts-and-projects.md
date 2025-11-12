@@ -32,6 +32,7 @@ Most operations to manage accounts and projects are done through the CLI. We are
 working on a web interface that will make it easier to manage accounts and
 projects.
 <!-- -->
+:::
 
 You can manage the organization through the subcommands under
 <LocalizedLink href="/cli/organization">`tuist organization`</LocalizedLink>. To
@@ -68,6 +69,7 @@ Note that there are some features like
 require you having a Tuist project. If you are using raw Xcode projects, you
 won't be able to use those features.
 <!-- -->
+:::
 
 Your project's URL is constructed by using the full handle. For example, Tuist's
 dashboard, which is public, is accessible at
