@@ -360,14 +360,10 @@ features = [
               </div>
 
               <.tooltip
+                :if={not is_nil(feature.hint) and not is_nil(feature.hint_text)}
                 id={"#{feature.name}-hint"}
                 size="large"
-                description={
-                  dgettext(
-                    "marketing",
-                    "A hit is a Tuist CLI invocation that results in an interaction with the server to optimize builds or test runs."
-                  )
-                }
+                description={feature.hint_text}
                 title={dgettext("marketing", "Hits")}
               >
                 <:trigger :let={attrs}>
