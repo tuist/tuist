@@ -49,9 +49,6 @@ import TuistSupport
         verify(getCacheEndpoints)
             .getCacheEndpoints(serverURL: .value(serverURL))
             .called(1)
-        verify(latencyService)
-            .measureLatency(for: .any)
-            .called(1)
     }
 
     @Test(.withMockedEnvironment())

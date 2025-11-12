@@ -45,7 +45,7 @@ defmodule TuistWeb.API.Cache.KeyValueControllerTest do
 
       # When
       conn =
-        put(conn, ~p"/api/cache/keyvalue/#{cas_id}?account_handle=#{account_handle}&project_handle=#{project_handle}")
+        get(conn, ~p"/api/cache/keyvalue/#{cas_id}?account_handle=#{account_handle}&project_handle=#{project_handle}")
 
       # Then
       response = json_response(conn, :ok)
@@ -75,7 +75,7 @@ defmodule TuistWeb.API.Cache.KeyValueControllerTest do
 
       # When
       conn =
-        put(conn, ~p"/api/cache/keyvalue/#{cas_id}?account_handle=#{account_handle}&project_handle=#{project_handle}")
+        get(conn, ~p"/api/cache/keyvalue/#{cas_id}?account_handle=#{account_handle}&project_handle=#{project_handle}")
 
       # Then
       response = json_response(conn, :not_found)
@@ -95,7 +95,7 @@ defmodule TuistWeb.API.Cache.KeyValueControllerTest do
 
       # When/Then
       assert_raise NotFoundError, fn ->
-        put(conn, ~p"/api/cache/keyvalue/#{cas_id}?account_handle=nonexistent-account&project_handle=#{project_handle}")
+        get(conn, ~p"/api/cache/keyvalue/#{cas_id}?account_handle=nonexistent-account&project_handle=#{project_handle}")
       end
     end
 
@@ -112,7 +112,7 @@ defmodule TuistWeb.API.Cache.KeyValueControllerTest do
 
       # When/Then
       assert_raise NotFoundError, fn ->
-        put(conn, ~p"/api/cache/keyvalue/#{cas_id}?account_handle=#{account_handle}&project_handle=nonexistent-project")
+        get(conn, ~p"/api/cache/keyvalue/#{cas_id}?account_handle=#{account_handle}&project_handle=nonexistent-project")
       end
     end
 
@@ -130,7 +130,7 @@ defmodule TuistWeb.API.Cache.KeyValueControllerTest do
 
       # When
       conn =
-        put(
+        get(
           conn,
           ~p"/api/cache/keyvalue/#{cas_id}?account_handle=#{other_project.account.name}&project_handle=#{other_project.name}"
         )
