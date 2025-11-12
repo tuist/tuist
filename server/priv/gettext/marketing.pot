@@ -507,7 +507,7 @@ msgstr ""
 msgid "Get help when you need it through various support channels."
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html.ex:31
+#: lib/tuist_web/marketing/controllers/marketing_html.ex:32
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:35
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:10
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:28
@@ -1125,7 +1125,7 @@ msgstr ""
 msgid "Tailored legal terms"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html.ex:39
+#: lib/tuist_web/marketing/controllers/marketing_html.ex:40
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:43
 #, elixir-autogen, elixir-format
 msgid "Talk to us"
@@ -1602,7 +1602,7 @@ msgstr ""
 msgid "per additional unit"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/blog_post.html.heex:44
+#: lib/tuist_web/marketing/controllers/marketing_html/blog_post.html.heex:46
 #, elixir-autogen, elixir-format
 msgid "AI writes faster. So should your builds."
 msgstr ""
