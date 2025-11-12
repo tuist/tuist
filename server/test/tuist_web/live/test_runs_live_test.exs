@@ -43,5 +43,44 @@ defmodule TuistWeb.TestRunsLiveTest do
       # Then
       assert has_element?(lv, "[data-part='test-runs-table']")
     end
+
+    test "handles cursor from another page with different sort fields", %{
+      conn: conn,
+      user: user,
+      organization: organization,
+      project: project
+    } do
+      for i <- 1..25 do
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          user_id: user.id,
+          name: "test",
+          command_arguments: ["test", "App-#{i}"],
+          duration: i * 1000
+        )
+      end
+
+      # Generate a cursor with duration sorting (simulating a cursor from another page like bundles)
+      {_events, %{end_cursor: cursor}} =
+        Tuist.CommandEvents.list_command_events(%{
+          filters: [
+            %{field: :project_id, op: :==, value: project.id}
+          ],
+          order_by: [:duration],
+          order_directions: [:desc],
+          first: 20
+        })
+
+      # Navigate to test runs with a cursor that encodes duration field
+      # Test runs always sorts by created_at, so this cursor is incompatible
+      # Before the fix, this would raise Flop.InvalidParamsError
+      assert {:ok, lv, _html} =
+               live(
+                 conn,
+                 ~p"/#{organization.account.name}/#{project.name}/tests/test-runs?after=#{cursor}"
+               )
+
+      assert has_element?(lv, "span", "tuist test App-1")
+    end
   end
 end

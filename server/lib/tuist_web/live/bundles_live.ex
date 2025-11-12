@@ -32,6 +32,18 @@ defmodule TuistWeb.BundlesLive do
     bundles_sort_by = params["bundles-sort-by"] || "created-at"
     bundles_type = params["bundles-type"] || "any"
 
+    params =
+      cond do
+        sort_changed?(socket, bundles_sort_by, bundles_sort_order) ->
+          Map.drop(params, ["before", "after"])
+
+        has_cursor?(params) and has_explicit_sort_params?(params) ->
+          Map.drop(params, ["before", "after"])
+
+        true ->
+          params
+      end
+
     bundle_size_apps = Bundles.distinct_project_app_bundles(project)
     bundle_size_selected_app = params["bundle-size-app"] || Bundles.default_app(project)
     bundle_size_date_range = params["bundle-size-date-range"] || "last-30-days"
@@ -298,7 +310,11 @@ defmodule TuistWeb.BundlesLive do
   end
 
   def handle_event("add_filter", %{"value" => filter_id}, socket) do
-    updated_params = Filter.Operations.add_filter_to_query(filter_id, socket)
+    updated_params =
+      filter_id
+      |> Filter.Operations.add_filter_to_query(socket)
+      |> Map.delete("after")
+      |> Map.delete("before")
 
     {:noreply,
      socket
@@ -311,7 +327,11 @@ defmodule TuistWeb.BundlesLive do
   end
 
   def handle_event("update_filter", params, socket) do
-    updated_query_params = Filter.Operations.update_filters_in_query(params, socket)
+    updated_query_params =
+      params
+      |> Filter.Operations.update_filters_in_query(socket)
+      |> Map.delete("after")
+      |> Map.delete("before")
 
     {:noreply,
      socket
@@ -358,6 +378,20 @@ defmodule TuistWeb.BundlesLive do
   defp string_to_bundle_type("app"), do: :app
   defp string_to_bundle_type("xcarchive"), do: :xcarchive
   defp string_to_bundle_type(_), do: nil
+
+  defp sort_changed?(socket, new_sort_by, new_sort_order) do
+    Map.has_key?(socket.assigns, :bundles_sort_by) and
+      (socket.assigns.bundles_sort_by != new_sort_by or
+         socket.assigns.bundles_sort_order != new_sort_order)
+  end
+
+  defp has_cursor?(params) do
+    Map.has_key?(params, "after") or Map.has_key?(params, "before")
+  end
+
+  defp has_explicit_sort_params?(params) do
+    Map.has_key?(params, "bundles-sort-by") or Map.has_key?(params, "bundles-sort-order")
+  end
 
   def empty_state_light_background(assigns) do
     ~H"""
