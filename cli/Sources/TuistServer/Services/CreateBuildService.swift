@@ -309,6 +309,7 @@ import OpenAPIURLSession
             case .miss: .miss
             }
             self.init(
+                cas_output_node_ids: cacheableTask.nodeIDs,
                 description: cacheableTask.description,
                 key: cacheableTask.key,
                 read_duration: cacheableTask.readDuration,

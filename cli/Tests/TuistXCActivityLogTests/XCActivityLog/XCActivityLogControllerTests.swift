@@ -409,6 +409,7 @@ struct XCActivityLogControllerTests {
                 type: .swiftSourceInfoFile
             ),
         ])
+        #expect(got.cacheableTasks.map(\.nodeIDs).flatMap { $0 }.count == 25)
     }
 
     @Test(.withMockedEnvironment())
@@ -432,6 +433,7 @@ struct XCActivityLogControllerTests {
             106.85816663317382,
             111.20187502820045,
         ])
+        #expect(got.cacheableTasks.map(\.nodeIDs).flatMap { $0 }.count == 13)
     }
 
     @Test(.withMockedEnvironment())

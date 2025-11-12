@@ -469,10 +469,12 @@ public struct XCActivityLogController: XCActivityLogControlling {
         let cacheSteps = extractCacheSteps(from: buildSteps)
         let keyStatuses = aggregateKeyStatuses(from: cacheSteps)
         let keyDescriptions = extractKeyDescriptions(from: buildSteps)
+        let keyNodeIDs = extractKeyNodeIDs(from: buildSteps)
 
         return try await determineCacheStatuses(
             keyStatuses: keyStatuses,
             keyDescriptions: keyDescriptions,
+            keyNodeIDs: keyNodeIDs,
             buildStartTime: buildStartTime
         )
     }
@@ -515,16 +517,6 @@ public struct XCActivityLogController: XCActivityLogControlling {
         )
     }
 
-    private func extractDownloadNodeIDs(from buildSteps: [XCLogParser.BuildStep]) -> [String] {
-        return buildSteps.compactMap { step in
-            guard step.title.contains("Swift caching"), step.title.contains("materialize outputs from") else {
-                return nil
-            }
-
-            return extractNodeIDFromMaterializeOutput(from: step.title)
-        }
-    }
-
     private func extractDownloadNodeMetadata(from buildSteps: [XCLogParser.BuildStep]) -> [CASNodeMetadata] {
         return buildSteps.flatMap { step -> [CASNodeMetadata] in
             guard let notes = step.notes else { return [] }
@@ -533,25 +525,6 @@ public struct XCActivityLogController: XCActivityLogControlling {
                 extractNodeIDAndTypeFromNote(from: note.title)
             }
         }
-    }
-
-    private func extractUploadNodeIDs(from buildSteps: [XCLogParser.BuildStep]) -> [String] {
-        let allNodeIDs = buildSteps.flatMap { step -> [String] in
-            guard step.title.contains("Swift caching upload key") else {
-                return []
-            }
-
-            // Check if any notes contain upload information
-            guard let notes = step.notes else { return [] }
-
-            return notes.compactMap { note in
-                if note.title.hasPrefix("uploaded CAS output ") {
-                    return extractNodeIDFromUploadNote(from: note.title)
-                }
-                return nil
-            }
-        }
-        return allNodeIDs.uniqued()
     }
 
     private func extractUploadNodeMetadata(from buildSteps: [XCLogParser.BuildStep]) -> [CASNodeMetadata] {
@@ -572,6 +545,18 @@ public struct XCActivityLogController: XCActivityLogControlling {
         return allMetadata.uniqued()
     }
 
+    private func extractCacheKeyFromNote(_ noteTitle: String) -> String? {
+        // Check for "local cache found for key:" or "local cache miss for key:"
+        let pattern = "(?i)(?:local cache found for key:|local cache miss for key:)\\s+(0~[A-Za-z0-9+/_=-]+)"
+        guard let regex = try? NSRegularExpression(pattern: pattern),
+              let match = regex.firstMatch(in: noteTitle, range: NSRange(location: 0, length: noteTitle.count)),
+              let keyRange = Range(match.range(at: 1), in: noteTitle)
+        else {
+            return nil
+        }
+        return String(noteTitle[keyRange])
+    }
+
     private func extractKeyDescriptions(from buildSteps: [XCLogParser.BuildStep]) -> [String: String] {
         var keyDescriptions: [String: String] = [:]
 
@@ -579,21 +564,39 @@ public struct XCActivityLogController: XCActivityLogControlling {
             guard let notes = step.notes else { continue }
 
             for note in notes {
-                // Check for "local cache found for key:" or "local cache miss for key:"
-                let pattern = "(?i)(?:local cache found for key:|local cache miss for key:)\\s+(0~[A-Za-z0-9+/_=-]+)"
-                guard let regex = try? NSRegularExpression(pattern: pattern),
-                      let match = regex.firstMatch(in: note.title, range: NSRange(location: 0, length: note.title.count)),
-                      let keyRange = Range(match.range(at: 1), in: note.title)
-                else {
+                guard let key = extractCacheKeyFromNote(note.title) else {
                     continue
                 }
-
-                let key = String(note.title[keyRange])
                 keyDescriptions[key] = step.title
             }
         }
 
         return keyDescriptions
+    }
+
+    private func extractKeyNodeIDs(from buildSteps: [XCLogParser.BuildStep]) -> [String: Set<String>] {
+        var keyNodeIDs: [String: Set<String>] = [:]
+
+        for step in buildSteps {
+            guard let notes = step.notes else { continue }
+
+            guard let cacheKey = extractCacheKey(from: step.title) ?? notes.compactMap({ extractCacheKeyFromNote($0.title) })
+                .first else { continue }
+
+            // Then, extract all node IDs from the notes
+            for note in notes {
+                // Check for download pattern: "CAS output <type>: <nodeID>"
+                if let nodeID = extractNodeIDFromNote(from: note.title) {
+                    keyNodeIDs[cacheKey, default: []].insert(nodeID)
+                }
+                // Check for upload pattern: "uploaded CAS output <type>: <nodeID>"
+                else if let nodeID = extractNodeIDFromUploadNote(from: note.title) {
+                    keyNodeIDs[cacheKey, default: []].insert(nodeID)
+                }
+            }
+        }
+
+        return keyNodeIDs
     }
 
     private func extractCacheSteps(from buildSteps: [XCLogParser.BuildStep]) -> [CacheStep] {
@@ -639,11 +642,10 @@ public struct XCActivityLogController: XCActivityLogControlling {
         return String(title[keyRange])
     }
 
-    private func extractNodeIDFromMaterializeOutput(from title: String) -> String? {
-        // Look for pattern like "materialize outputs from
-        // 0~2RChGLVUbFYywptVOBlPj1PMji8tjYNewcA2JotitM54zN26O0V8bbRDNXy_mHUpqvS2RBv8jaNmZmspWzMJbg=="
-        let pattern = "materialize outputs from (0~[A-Za-z0-9+/_=-]+)"
-        return extractKeyWithPattern(pattern, from: title)
+    private func extractNodeIDFromNote(from noteTitle: String) -> String? {
+        // Look for pattern like "CAS output <type>: <nodeID>"
+        let pattern = "CAS output [^\\s]+: (0~[A-Za-z0-9+/_=-]+)"
+        return extractKeyWithPattern(pattern, from: noteTitle)
     }
 
     private func extractNodeIDFromUploadNote(from noteTitle: String) -> String? {
@@ -726,6 +728,7 @@ public struct XCActivityLogController: XCActivityLogControlling {
     private func determineCacheStatuses(
         keyStatuses: [String: CacheKeyStatus],
         keyDescriptions: [String: String],
+        keyNodeIDs: [String: Set<String>],
         buildStartTime _: Double
     ) async throws -> [CacheableTask] {
         return try await keyStatuses.concurrentMap { key, status in
@@ -751,7 +754,8 @@ public struct XCActivityLogController: XCActivityLogControlling {
                 type: status.taskType,
                 readDuration: readDuration,
                 writeDuration: writeDuration,
-                description: keyDescriptions[key]
+                description: keyDescriptions[key],
+                nodeIDs: Array(keyNodeIDs[key] ?? [])
             )
         }
     }

@@ -2408,6 +2408,10 @@ public enum Components {
             public struct Case1Payload: Codable, Hashable, Sendable {
                 /// - Remark: Generated from `#/components/schemas/RunParams/case1/cacheable_tasksPayload`.
                 public struct cacheable_tasksPayloadPayload: Codable, Hashable, Sendable {
+                    /// Array of CAS output node IDs associated with this cacheable task.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunParams/case1/cacheable_tasksPayload/cas_output_node_ids`.
+                    public var cas_output_node_ids: [Swift.String]?
                     /// Optional description of the cacheable task.
                     ///
                     /// - Remark: Generated from `#/components/schemas/RunParams/case1/cacheable_tasksPayload/description`.
@@ -2450,6 +2454,7 @@ public enum Components {
                     /// Creates a new `cacheable_tasksPayloadPayload`.
                     ///
                     /// - Parameters:
+                    ///   - cas_output_node_ids: Array of CAS output node IDs associated with this cacheable task.
                     ///   - description: Optional description of the cacheable task.
                     ///   - key: The cache key of the task.
                     ///   - read_duration: The duration in milliseconds for reading from cache.
@@ -2457,6 +2462,7 @@ public enum Components {
                     ///   - _type: The type of cacheable task.
                     ///   - write_duration: The duration in milliseconds for writing to cache.
                     public init(
+                        cas_output_node_ids: [Swift.String]? = nil,
                         description: Swift.String? = nil,
                         key: Swift.String,
                         read_duration: Swift.Double? = nil,
@@ -2464,6 +2470,7 @@ public enum Components {
                         _type: Components.Schemas.RunParams.Case1Payload.cacheable_tasksPayloadPayload._typePayload,
                         write_duration: Swift.Double? = nil
                     ) {
+                        self.cas_output_node_ids = cas_output_node_ids
                         self.description = description
                         self.key = key
                         self.read_duration = read_duration
@@ -2472,6 +2479,7 @@ public enum Components {
                         self.write_duration = write_duration
                     }
                     public enum CodingKeys: String, CodingKey {
+                        case cas_output_node_ids
                         case description
                         case key
                         case read_duration
@@ -4075,6 +4083,10 @@ public enum Components {
         public struct BuildRun: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/BuildRun/cacheable_tasksPayload`.
             public struct cacheable_tasksPayloadPayload: Codable, Hashable, Sendable {
+                /// Array of CAS output node IDs associated with this cacheable task.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BuildRun/cacheable_tasksPayload/cas_output_node_ids`.
+                public var cas_output_node_ids: [Swift.String]?
                 /// Optional description of the cacheable task.
                 ///
                 /// - Remark: Generated from `#/components/schemas/BuildRun/cacheable_tasksPayload/description`.
@@ -4117,6 +4129,7 @@ public enum Components {
                 /// Creates a new `cacheable_tasksPayloadPayload`.
                 ///
                 /// - Parameters:
+                ///   - cas_output_node_ids: Array of CAS output node IDs associated with this cacheable task.
                 ///   - description: Optional description of the cacheable task.
                 ///   - key: The cache key of the task.
                 ///   - read_duration: The duration in milliseconds for reading from cache.
@@ -4124,6 +4137,7 @@ public enum Components {
                 ///   - _type: The type of cacheable task.
                 ///   - write_duration: The duration in milliseconds for writing to cache.
                 public init(
+                    cas_output_node_ids: [Swift.String]? = nil,
                     description: Swift.String? = nil,
                     key: Swift.String,
                     read_duration: Swift.Double? = nil,
@@ -4131,6 +4145,7 @@ public enum Components {
                     _type: Components.Schemas.BuildRun.cacheable_tasksPayloadPayload._typePayload,
                     write_duration: Swift.Double? = nil
                 ) {
+                    self.cas_output_node_ids = cas_output_node_ids
                     self.description = description
                     self.key = key
                     self.read_duration = read_duration
@@ -4139,6 +4154,7 @@ public enum Components {
                     self.write_duration = write_duration
                 }
                 public enum CodingKeys: String, CodingKey {
+                    case cas_output_node_ids
                     case description
                     case key
                     case read_duration
@@ -21964,6 +21980,10 @@ public enum Operations {
                     public struct Case1Payload: Codable, Hashable, Sendable {
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/cacheable_tasksPayload`.
                         public struct cacheable_tasksPayloadPayload: Codable, Hashable, Sendable {
+                            /// Array of CAS output node IDs associated with this cacheable task.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/cacheable_tasksPayload/cas_output_node_ids`.
+                            public var cas_output_node_ids: [Swift.String]?
                             /// Optional description of the cacheable task.
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/cacheable_tasksPayload/description`.
@@ -22006,6 +22026,7 @@ public enum Operations {
                             /// Creates a new `cacheable_tasksPayloadPayload`.
                             ///
                             /// - Parameters:
+                            ///   - cas_output_node_ids: Array of CAS output node IDs associated with this cacheable task.
                             ///   - description: Optional description of the cacheable task.
                             ///   - key: The cache key of the task.
                             ///   - read_duration: The duration in milliseconds for reading from cache.
@@ -22013,6 +22034,7 @@ public enum Operations {
                             ///   - _type: The type of cacheable task.
                             ///   - write_duration: The duration in milliseconds for writing to cache.
                             public init(
+                                cas_output_node_ids: [Swift.String]? = nil,
                                 description: Swift.String? = nil,
                                 key: Swift.String,
                                 read_duration: Swift.Double? = nil,
@@ -22020,6 +22042,7 @@ public enum Operations {
                                 _type: Operations.createRun.Input.Body.jsonPayload.Case1Payload.cacheable_tasksPayloadPayload._typePayload,
                                 write_duration: Swift.Double? = nil
                             ) {
+                                self.cas_output_node_ids = cas_output_node_ids
                                 self.description = description
                                 self.key = key
                                 self.read_duration = read_duration
@@ -22028,6 +22051,7 @@ public enum Operations {
                                 self.write_duration = write_duration
                             }
                             public enum CodingKeys: String, CodingKey {
+                                case cas_output_node_ids
                                 case description
                                 case key
                                 case read_duration

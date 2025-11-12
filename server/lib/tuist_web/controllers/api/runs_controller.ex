@@ -467,6 +467,11 @@ defmodule TuistWeb.API.RunsController do
                      description: %Schema{
                        type: :string,
                        description: "Optional description of the cacheable task."
+                     },
+                     cas_output_node_ids: %Schema{
+                       type: :array,
+                       description: "Array of CAS output node IDs associated with this cacheable task.",
+                       items: %Schema{type: :string}
                      }
                    },
                    required: [:type, :status, :key]
