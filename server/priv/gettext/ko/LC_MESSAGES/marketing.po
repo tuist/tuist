@@ -1,5 +1,5 @@
 msgid ""
-msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-05 17:58+0000\nPO-Revision-Date: 2025-11-12 12:59+0000\nLast-Translator: 이영준 <kofggm@gmail.com>\nLanguage-Team: Korean <https://translate.tuist.dev/projects/tuist/marketing/ko/>\nLanguage: ko\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\nX-Generator: Weblate 5.14.3\n"
+msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-05 17:58+0000\nPO-Revision-Date: 2025-11-12 13:01+0000\nLast-Translator: 이영준 <kofggm@gmail.com>\nLanguage-Team: Korean <https://translate.tuist.dev/projects/tuist/marketing/ko/>\nLanguage: ko\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\nX-Generator: Weblate 5.14.3\n"
 
 ## This file is a PO Template file.
 ##
@@ -1052,7 +1052,7 @@ msgstr "Slack과 이메일을 통한 기본 지원"
 #: lib/tuist_web/marketing/controllers/marketing_html/about.html.heex:107
 #, elixir-autogen, elixir-format
 msgid "Standards"
-msgstr "기본 사항"
+msgstr "선택"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:523
 #, elixir-autogen, elixir-format
