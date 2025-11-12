@@ -20,7 +20,6 @@ mise x tuist@latest -- tuist init
 tuist init
 ```
 <!-- -->
-:::
 
 The command will walk you through the steps to
 <LocalizedLink href="/guides/features/projects">create a generated
@@ -40,4 +39,3 @@ our
 <LocalizedLink href="/guides/features/projects/adoption/migrate/xcode-project">migration
 guide</LocalizedLink>.
 <!-- -->
-:::
