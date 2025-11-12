@@ -829,6 +829,13 @@
                 }
                 selected_type={@selected_read_latency_type}
                 event_name="select_read_latency_type"
+                empty={
+                  @cacheable_task_latency_metrics.avg_read_duration == 0 and
+                    @cacheable_task_latency_metrics.p99_read_duration == 0 and
+                    @cacheable_task_latency_metrics.p90_read_duration == 0 and
+                    @cacheable_task_latency_metrics.p50_read_duration == 0
+                }
+                empty_label={gettext("No data")}
               />
               <.percentile_dropdown_widget
                 id="widget-avg-write-latency"
@@ -877,6 +884,13 @@
                 }
                 selected_type={@selected_write_latency_type}
                 event_name="select_write_latency_type"
+                empty={
+                  @cacheable_task_latency_metrics.avg_write_duration == 0 and
+                    @cacheable_task_latency_metrics.p99_write_duration == 0 and
+                    @cacheable_task_latency_metrics.p90_write_duration == 0 and
+                    @cacheable_task_latency_metrics.p50_write_duration == 0
+                }
+                empty_label={gettext("No data")}
               />
             </div>
             <div data-part="filters">
@@ -1151,6 +1165,8 @@
                   )
                 }
                 id="widget-download-throughput"
+                empty={@cas_metrics.time_weighted_avg_download_throughput == 0}
+                empty_label={gettext("No data")}
               />
               <.widget
                 title={gettext("Upload throughput")}
@@ -1163,6 +1179,8 @@
                   )
                 }
                 id="widget-upload-throughput"
+                empty={@cas_metrics.time_weighted_avg_upload_throughput == 0}
+                empty_label={gettext("No data")}
               />
             </div>
             <div data-part="filters">

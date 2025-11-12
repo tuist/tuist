@@ -41,6 +41,7 @@ defmodule TuistWeb.PercentileDropdownWidget do
   attr(:selected_type, :string, required: true, values: ~w(avg p99 p90 p50))
   attr(:event_name, :string, required: true, doc: "Phoenix event name for selection changes")
   attr(:empty, :boolean, default: false)
+  attr(:empty_label, :string, default: nil)
   attr(:legend_color, :string, default: nil)
   attr(:selected, :boolean, default: false)
   attr(:trend_value, :any, default: nil)
@@ -57,6 +58,7 @@ defmodule TuistWeb.PercentileDropdownWidget do
       value={@value}
       id={@id}
       empty={@empty}
+      empty_label={@empty_label}
       legend_color={@legend_color}
       selected={@selected}
       trend_value={@trend_value}
