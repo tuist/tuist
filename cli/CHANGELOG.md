@@ -1,7 +1,15 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.102.0<!-- RELEASE NOTES START -->
+## What's Changed in 4.104.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* connect directly to the cache endpoint by [@fortmarek](https://github.com/fortmarek) in [#8628](https://github.com/tuist/tuist/pull/8628)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.103.0...4.104.0
+
+## What's Changed in 4.103.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
 
@@ -14,7 +22,7 @@ All notable changes to this project will be documented in this file.
 ## New Contributors
 * [@ast3150](https://github.com/ast3150) made their first contribution in [#8607](https://github.com/tuist/tuist/pull/8607)
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.101.0...4.102.0
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.101.0...4.103.0
 
 ## What's Changed in 4.101.0<!-- RELEASE NOTES START -->
 
