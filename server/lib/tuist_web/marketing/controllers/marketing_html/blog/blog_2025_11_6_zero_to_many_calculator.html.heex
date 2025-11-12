@@ -151,7 +151,7 @@
       }
 
       .header-cell.recommended::after {
-        content: "Best ROI";
+        content: "Best Value";
         position: absolute;
         top: -18px;
         left: 50%;
@@ -246,7 +246,6 @@
         background: var(--noora-accent-surface, #eff6ff);
         border-radius: var(--noora-radius-medium);
         border: 1px solid var(--noora-accent-border, #bfdbfe);
-        text-align: center;
       }
 
       .winner-title {
@@ -286,62 +285,48 @@
     <div class="calculator-container">
       <div class="input-group">
         <label class="input-label">
-          Team Size
-          <span class="range-value" id="team-size-value">30</span>
+          Team Size <span class="range-value" id="team-size-value">30</span>
         </label>
-        <input type="range" id="team-size" min="1" max="100" value="30" />
+        <input type="range" id="team-size" min="5" max="100" value="30" />
         <div class="input-hint">Number of developers on your team</div>
       </div>
 
       <div class="input-group">
         <label class="input-label">
-          Average CI Time (minutes)
-          <span class="range-value" id="ci-time-value">15</span>
+          Current CI Time (minutes) <span class="range-value" id="ci-time-value">20</span>
         </label>
-        <input type="range" id="ci-time" min="1" max="60" value="15" />
-        <div class="input-hint">How long does your CI pipeline take?</div>
+        <input type="range" id="ci-time" min="5" max="60" value="20" />
+        <div class="input-hint">Average build and test time in CI</div>
       </div>
 
       <div class="input-group">
         <label class="input-label">
-          Average Salary (€)
-          <span class="range-value" id="salary-value">140,000</span>
+          Average Salary (€) <span class="range-value" id="salary-value">140,000</span>
         </label>
         <input type="range" id="salary" min="50000" max="250000" step="10000" value="140000" />
         <div class="input-hint">Average annual salary per developer</div>
       </div>
 
-      <div class="input-group">
-        <label class="input-label">
-          Conflict Rate (%)
-          <span class="range-value" id="conflict-rate-value">40</span>
-        </label>
-        <input type="range" id="conflict-rate" min="0" max="100" value="40" />
-        <div class="input-hint">Percentage of PRs that hit merge conflicts</div>
-      </div>
-
       <div class="current-state">
         <div class="section-title">Your Current State</div>
         <div class="result-row">
-          <span class="result-label">Commits per Day</span>
-          <span class="result-value" id="current-commits">70</span>
+          <span class="result-label">Average Build Time</span>
+          <span class="result-value" id="current-build-time">20 min</span>
         </div>
         <div class="result-row">
-          <span class="result-label">Efficiency</span>
-          <span class="result-value negative" id="current-efficiency">29%</span>
+          <span class="result-label">Time Waiting Per Dev/Day</span>
+          <span class="result-value negative" id="current-wait-time">60 min</span>
         </div>
         <div class="result-row">
-          <span class="result-label">Annual Salary Cost</span>
-          <span class="result-value" id="salary-cost">€4.2M</span>
-        </div>
-        <div class="result-row">
-          <span class="result-label">Wasted Value/Year</span>
-          <span class="result-value negative" id="wasted-value">€3.0M</span>
+          <span class="result-label">Annual Time Cost</span>
+          <span class="result-value negative" id="annual-time-cost">5 FTE</span>
         </div>
       </div>
 
-      <div class="comparison-title">Compare Solutions</div>
-      <div class="comparison-subtitle">Three ways to improve throughput. Which has the best ROI?</div>
+      <div class="comparison-title">Compare Your Options</div>
+      <div class="comparison-subtitle">
+        Three ways to reduce build times. Which delivers the best value?
+      </div>
 
       <div class="comparison-table">
         <div class="comparison-header">
@@ -353,54 +338,56 @@
 
         <div class="comparison-row">
           <div class="row-label">Solution</div>
-          <div class="row-value">Tuist</div>
-          <div class="row-value" id="hire-count">Hire +10 devs</div>
-          <div class="row-value" id="hardware-solution">Faster runners</div>
+          <div class="row-value">Tuist Caching</div>
+          <div class="row-value" id="hire-count">+10 developers</div>
+          <div class="row-value">Faster runners</div>
         </div>
 
         <div class="comparison-row">
-          <div class="row-label">Commits per Day</div>
-          <div class="row-value positive" id="tuist-commits">150</div>
-          <div class="row-value" id="hire-commits">75</div>
-          <div class="row-value" id="hardware-commits">80</div>
+          <div class="row-label">New Build Time</div>
+          <div class="row-value positive" id="tuist-build-time">4 min</div>
+          <div class="row-value" id="hire-build-time">20 min</div>
+          <div class="row-value" id="hardware-build-time">12 min</div>
         </div>
 
         <div class="comparison-row">
-          <div class="row-label">Team Efficiency</div>
-          <div class="row-value positive" id="tuist-efficiency">63%</div>
-          <div class="row-value negative" id="hire-efficiency">19%</div>
-          <div class="row-value" id="hardware-efficiency">33%</div>
+          <div class="row-label">Time Saved Per Dev/Day</div>
+          <div class="row-value positive" id="tuist-time-saved">48 min</div>
+          <div class="row-value negative" id="hire-time-saved">-15 min</div>
+          <div class="row-value" id="hardware-time-saved">24 min</div>
+        </div>
+
+        <div class="comparison-row">
+          <div class="row-label">Annual Time Saved</div>
+          <div class="row-value positive" id="tuist-annual-saved">4 FTE</div>
+          <div class="row-value negative" id="hire-annual-saved">-3 FTE</div>
+          <div class="row-value" id="hardware-annual-saved">2 FTE</div>
         </div>
 
         <div class="comparison-row">
           <div class="row-label">Annual Cost</div>
-          <div class="row-value" id="tuist-cost">€50K</div>
+          <div class="row-value" id="tuist-cost">€22K</div>
           <div class="row-value negative" id="hire-cost">€1.4M</div>
           <div class="row-value" id="hardware-cost">€300K</div>
         </div>
 
         <div class="comparison-row highlight">
-          <div class="row-label">Net Benefit/Year</div>
-          <div class="row-value positive" id="tuist-benefit">€1.4M</div>
-          <div class="row-value negative" id="hire-benefit">-€1.3M</div>
-          <div class="row-value" id="hardware-benefit">€170K</div>
-        </div>
-
-        <div class="comparison-row highlight">
-          <div class="row-label">Return on Investment</div>
-          <div class="row-value positive" id="tuist-roi">28×</div>
-          <div class="row-value negative" id="hire-roi">-1×</div>
-          <div class="row-value" id="hardware-roi">1.6×</div>
+          <div class="row-label">Value of Time Saved</div>
+          <div class="row-value positive" id="tuist-value">€560K</div>
+          <div class="row-value negative" id="hire-value">-€420K</div>
+          <div class="row-value" id="hardware-value">€280K</div>
         </div>
       </div>
 
       <div class="winner-summary">
         <div class="winner-title">
-          Tuist ROI: <span id="tuist-roi-summary" class="positive">20×</span> |
-          Hardware ROI: <span id="hardware-roi-summary">1.5×</span> |
-          Hiring ROI: <span id="hiring-roi-summary" class="negative">-0.5×</span>
+          Tuist saves <span id="tuist-summary-time">4 FTE</span>
+          worth of time for <span id="tuist-summary-cost">€22K/year</span>
         </div>
-        <div class="winner-text">Optimize workflows before hardware. Eliminate waste instead of making it happen faster.</div>
+        <div class="winner-text">
+          That's equivalent to <span id="tuist-summary-value">€560K</span>
+          in developer time, at a fraction of the cost of faster hardware or hiring.
+        </div>
       </div>
     </div>
 
@@ -408,46 +395,42 @@
       const teamSizeInput = document.getElementById('team-size');
       const ciTimeInput = document.getElementById('ci-time');
       const salaryInput = document.getElementById('salary');
-      const conflictRateInput = document.getElementById('conflict-rate');
 
       const teamSizeValue = document.getElementById('team-size-value');
       const ciTimeValue = document.getElementById('ci-time-value');
       const salaryValue = document.getElementById('salary-value');
-      const conflictRateValue = document.getElementById('conflict-rate-value');
 
       // Current state elements
-      const currentCommitsEl = document.getElementById('current-commits');
-      const currentEfficiencyEl = document.getElementById('current-efficiency');
-      const salaryCostEl = document.getElementById('salary-cost');
-      const wastedValueEl = document.getElementById('wasted-value');
+      const currentBuildTimeEl = document.getElementById('current-build-time');
+      const currentWaitTimeEl = document.getElementById('current-wait-time');
+      const annualTimeCostEl = document.getElementById('annual-time-cost');
 
       // Tuist solution elements
-      const tuistCommitsEl = document.getElementById('tuist-commits');
-      const tuistEfficiencyEl = document.getElementById('tuist-efficiency');
+      const tuistBuildTimeEl = document.getElementById('tuist-build-time');
+      const tuistTimeSavedEl = document.getElementById('tuist-time-saved');
+      const tuistAnnualSavedEl = document.getElementById('tuist-annual-saved');
       const tuistCostEl = document.getElementById('tuist-cost');
-      const tuistBenefitEl = document.getElementById('tuist-benefit');
-      const tuistRoiEl = document.getElementById('tuist-roi');
+      const tuistValueEl = document.getElementById('tuist-value');
 
       // Hiring solution elements
       const hireCountEl = document.getElementById('hire-count');
-      const hireCommitsEl = document.getElementById('hire-commits');
-      const hireEfficiencyEl = document.getElementById('hire-efficiency');
+      const hireBuildTimeEl = document.getElementById('hire-build-time');
+      const hireTimeSavedEl = document.getElementById('hire-time-saved');
+      const hireAnnualSavedEl = document.getElementById('hire-annual-saved');
       const hireCostEl = document.getElementById('hire-cost');
-      const hireBenefitEl = document.getElementById('hire-benefit');
-      const hireRoiEl = document.getElementById('hire-roi');
+      const hireValueEl = document.getElementById('hire-value');
 
       // Hardware solution elements
-      const hardwareSolutionEl = document.getElementById('hardware-solution');
-      const hardwareCommitsEl = document.getElementById('hardware-commits');
-      const hardwareEfficiencyEl = document.getElementById('hardware-efficiency');
+      const hardwareBuildTimeEl = document.getElementById('hardware-build-time');
+      const hardwareTimeSavedEl = document.getElementById('hardware-time-saved');
+      const hardwareAnnualSavedEl = document.getElementById('hardware-annual-saved');
       const hardwareCostEl = document.getElementById('hardware-cost');
-      const hardwareBenefitEl = document.getElementById('hardware-benefit');
-      const hardwareRoiEl = document.getElementById('hardware-roi');
+      const hardwareValueEl = document.getElementById('hardware-value');
 
       // Summary elements
-      const tuistRoiSummaryEl = document.getElementById('tuist-roi-summary');
-      const hardwareRoiSummaryEl = document.getElementById('hardware-roi-summary');
-      const hiringRoiSummaryEl = document.getElementById('hiring-roi-summary');
+      const tuistSummaryTimeEl = document.getElementById('tuist-summary-time');
+      const tuistSummaryCostEl = document.getElementById('tuist-summary-cost');
+      const tuistSummaryValueEl = document.getElementById('tuist-summary-value');
 
       function formatMoney(value) {
         if (value >= 1000000) {
@@ -462,110 +445,112 @@
         return value.toLocaleString('en-US');
       }
 
+      function formatTime(minutes) {
+        if (minutes >= 60) {
+          const hours = Math.floor(minutes / 60);
+          const mins = Math.round(minutes % 60);
+          return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+        }
+        return `${Math.round(minutes)} min`;
+      }
+
+      function formatFTE(fte) {
+        return fte.toFixed(1) + ' FTE';
+      }
+
       function calculate() {
         const teamSize = parseInt(teamSizeInput.value);
         const ciTime = parseInt(ciTimeInput.value);
         const salary = parseInt(salaryInput.value);
-        const conflictRate = parseInt(conflictRateInput.value) / 100;
 
         // Update display values
         teamSizeValue.textContent = teamSize;
         ciTimeValue.textContent = ciTime;
         salaryValue.textContent = formatNumber(salary);
-        conflictRateValue.textContent = Math.round(conflictRate * 100);
 
-        // Base commit rate per developer (8 commits/day in ideal conditions)
-        const baseCommitRate = 8;
-        const expectedCommits = Math.round(teamSize * baseCommitRate);
+        // Assumptions:
+        // - Developers wait for CI 3-4 times per day (conservative estimate)
+        // - Working hours: 8 hours/day, 220 working days/year
+        const ciRunsPerDay = 3;
+        const workingHoursPerYear = 220 * 8;
+        const currentWaitTimePerDay = ciTime * ciRunsPerDay; // minutes per day
+        const currentWaitHoursPerYear = (currentWaitTimePerDay / 60) * 220;
+        const currentTimeCostFTE = (currentWaitHoursPerYear * teamSize) / workingHoursPerYear;
 
-        // Calculate current efficiency based on team size, CI time, and conflicts
-        // Use more modest overhead calculations
-        const coordinationOverhead = Math.min(0.6, (teamSize - 1) * 0.015); // Less harsh
-        const ciOverhead = Math.min(0.3, (ciTime / 60) * 0.25); // Less harsh
-        const conflictOverhead = conflictRate * 0.2; // Less harsh
-        const totalOverhead = coordinationOverhead + ciOverhead + conflictOverhead;
-        const currentEfficiency = Math.max(0.15, 1 - totalOverhead); // Higher minimum
-        const currentCommits = Math.round(expectedCommits * currentEfficiency);
+        // CURRENT STATE
+        currentBuildTimeEl.textContent = ciTime + ' min';
+        currentWaitTimeEl.textContent = formatTime(currentWaitTimePerDay);
+        annualTimeCostEl.textContent = formatFTE(currentTimeCostFTE);
 
-        // Calculate costs
-        const totalSalaryCost = teamSize * salary;
-        const wastedValue = totalSalaryCost * (1 - currentEfficiency);
+        // SOLUTION 1: Tuist (80% build time reduction)
+        const tuistBuildTime = Math.max(2, Math.round(ciTime * 0.2));
+        const tuistWaitTimePerDay = tuistBuildTime * ciRunsPerDay;
+        const tuistTimeSavedPerDay = currentWaitTimePerDay - tuistWaitTimePerDay;
+        const tuistHoursSavedPerYear = (tuistTimeSavedPerDay / 60) * 220;
+        const tuistFTESaved = (tuistHoursSavedPerYear * teamSize) / workingHoursPerYear;
+        const tuistAnnualCost = teamSize * 60 * 12; // €60/dev/month
+        const tuistValueSaved = tuistFTESaved * salary;
 
-        // SOLUTION 1: Tuist (workflow optimization)
-        const tuistCiTime = Math.max(1, Math.round(ciTime * 0.2)); // 80% CI reduction
-        const tuistEfficiency = Math.min(0.75, currentEfficiency * 2.0); // Significant boost
-        const tuistCommits = Math.round(expectedCommits * tuistEfficiency);
-        const tuistAnnualCost = Math.round(teamSize * 60 * 12); // €60/dev/month
-        const tuistValueUnlocked = (tuistEfficiency - currentEfficiency) * totalSalaryCost;
-        const tuistNetBenefit = tuistValueUnlocked - tuistAnnualCost;
-        const tuistROI = tuistNetBenefit / tuistAnnualCost;
-
-        // SOLUTION 2: Hire more developers
-        const additionalDevs = Math.round(teamSize * 0.33); // Hire 33% more
-        const newTeamSize = teamSize + additionalDevs;
-        const newExpectedCommits = Math.round(newTeamSize * baseCommitRate);
-        // Coordination overhead increases but not dramatically
-        const newCoordinationOverhead = Math.min(0.65, (newTeamSize - 1) * 0.015);
-        const newTotalOverhead = newCoordinationOverhead + ciOverhead + conflictOverhead * 1.15;
-        const hireEfficiency = Math.max(0.15, 1 - newTotalOverhead);
-        const hireCommits = Math.round(newExpectedCommits * hireEfficiency);
-        const hireAnnualCost = additionalDevs * salary;
-        const hireValueUnlocked = (hireCommits - currentCommits) / baseCommitRate * salary;
-        const hireNetBenefit = hireValueUnlocked - hireAnnualCost;
-        const hireROI = hireNetBenefit / hireAnnualCost;
-
-        // SOLUTION 3: Faster hardware (cuts CI time by ~50%)
-        const hardwareCiTime = Math.max(3, Math.round(ciTime * 0.5));
-        const hardwareCiOverhead = Math.min(0.3, (hardwareCiTime / 60) * 0.25);
-        const hardwareTotalOverhead = coordinationOverhead + hardwareCiOverhead + conflictOverhead;
-        const hardwareEfficiency = Math.max(0.15, 1 - hardwareTotalOverhead);
-        const hardwareCommits = Math.round(expectedCommits * hardwareEfficiency);
-        // Hardware cost scales with team size (~€10K per developer annually)
-        const hardwareAnnualCost = Math.round(teamSize * 10000);
-        const hardwareValueUnlocked = (hardwareEfficiency - currentEfficiency) * totalSalaryCost;
-        const hardwareNetBenefit = hardwareValueUnlocked - hardwareAnnualCost;
-        const hardwareROI = hardwareNetBenefit / hardwareAnnualCost;
-
-        // Update current state
-        currentCommitsEl.textContent = currentCommits;
-        currentEfficiencyEl.textContent = Math.round(currentEfficiency * 100) + '%';
-        salaryCostEl.textContent = formatMoney(totalSalaryCost);
-        wastedValueEl.textContent = formatMoney(wastedValue);
-
-        // Update Tuist solution
-        tuistCommitsEl.textContent = tuistCommits;
-        tuistEfficiencyEl.textContent = Math.round(tuistEfficiency * 100) + '%';
+        tuistBuildTimeEl.textContent = tuistBuildTime + ' min';
+        tuistTimeSavedEl.textContent = formatTime(tuistTimeSavedPerDay);
+        tuistAnnualSavedEl.textContent = formatFTE(tuistFTESaved);
         tuistCostEl.textContent = formatMoney(tuistAnnualCost);
-        tuistBenefitEl.textContent = formatMoney(tuistNetBenefit);
-        tuistRoiEl.textContent = tuistROI.toFixed(0) + '×';
+        tuistValueEl.textContent = formatMoney(tuistValueSaved);
 
-        // Update hiring solution
-        hireCountEl.textContent = 'Hire +' + additionalDevs + ' devs (33%)';
-        hireCommitsEl.textContent = hireCommits;
-        hireEfficiencyEl.textContent = Math.round(hireEfficiency * 100) + '%';
+        // SOLUTION 2: Hire more developers (33% more, but wait times increase)
+        const additionalDevs = Math.round(teamSize * 0.33);
+        const newTeamSize = teamSize + additionalDevs;
+        // More devs = more CI contention, longer queues: wait time increases by ~25%
+        const hireWaitTimePerDay = currentWaitTimePerDay * 1.25;
+        const hireTimeSavedPerDay = currentWaitTimePerDay - hireWaitTimePerDay;
+        const hireHoursSavedPerYear = (hireTimeSavedPerDay / 60) * 220;
+        const hireFTESaved = (hireHoursSavedPerYear * teamSize) / workingHoursPerYear;
+        const hireAnnualCost = additionalDevs * salary;
+        const hireValueSaved = hireFTESaved * salary;
+
+        hireCountEl.textContent = '+' + additionalDevs + ' developers';
+        hireBuildTimeEl.textContent = ciTime + ' min';
+        hireTimeSavedEl.textContent = formatTime(Math.abs(hireTimeSavedPerDay));
+        hireAnnualSavedEl.textContent = formatFTE(hireFTESaved);
         hireCostEl.textContent = formatMoney(hireAnnualCost);
-        hireBenefitEl.textContent = formatMoney(hireNetBenefit);
-        hireRoiEl.textContent = hireROI.toFixed(1) + '×';
+        hireValueEl.textContent = formatMoney(hireValueSaved);
 
-        // Update hardware solution
-        hardwareSolutionEl.textContent = 'Faster runners (€10K/dev)';
-        hardwareCommitsEl.textContent = hardwareCommits;
-        hardwareEfficiencyEl.textContent = Math.round(hardwareEfficiency * 100) + '%';
+        // Apply negative class if time is wasted instead of saved
+        if (hireTimeSavedPerDay < 0) {
+          hireTimeSavedEl.classList.add('negative');
+          hireAnnualSavedEl.classList.add('negative');
+          hireValueEl.classList.add('negative');
+        } else {
+          hireTimeSavedEl.classList.remove('negative');
+          hireAnnualSavedEl.classList.remove('negative');
+          hireValueEl.classList.remove('negative');
+        }
+
+        // SOLUTION 3: Faster hardware (40% build time reduction)
+        const hardwareBuildTime = Math.max(3, Math.round(ciTime * 0.6));
+        const hardwareWaitTimePerDay = hardwareBuildTime * ciRunsPerDay;
+        const hardwareTimeSavedPerDay = currentWaitTimePerDay - hardwareWaitTimePerDay;
+        const hardwareHoursSavedPerYear = (hardwareTimeSavedPerDay / 60) * 220;
+        const hardwareFTESaved = (hardwareHoursSavedPerYear * teamSize) / workingHoursPerYear;
+        const hardwareAnnualCost = teamSize * 10000; // €10K per dev/year
+        const hardwareValueSaved = hardwareFTESaved * salary;
+
+        hardwareBuildTimeEl.textContent = hardwareBuildTime + ' min';
+        hardwareTimeSavedEl.textContent = formatTime(hardwareTimeSavedPerDay);
+        hardwareAnnualSavedEl.textContent = formatFTE(hardwareFTESaved);
         hardwareCostEl.textContent = formatMoney(hardwareAnnualCost);
-        hardwareBenefitEl.textContent = formatMoney(hardwareNetBenefit);
-        hardwareRoiEl.textContent = hardwareROI.toFixed(1) + '×';
+        hardwareValueEl.textContent = formatMoney(hardwareValueSaved);
 
-        // Update ROI summary comparison
-        tuistRoiSummaryEl.textContent = tuistROI.toFixed(0) + '×';
-        hardwareRoiSummaryEl.textContent = hardwareROI.toFixed(1) + '×';
-        hiringRoiSummaryEl.textContent = hireROI.toFixed(1) + '×';
+        // Update summary
+        tuistSummaryTimeEl.textContent = formatFTE(tuistFTESaved);
+        tuistSummaryCostEl.textContent = formatMoney(tuistAnnualCost);
+        tuistSummaryValueEl.textContent = formatMoney(tuistValueSaved);
       }
 
       // Add event listeners
       teamSizeInput.addEventListener('input', calculate);
       ciTimeInput.addEventListener('input', calculate);
       salaryInput.addEventListener('input', calculate);
-      conflictRateInput.addEventListener('input', calculate);
 
       // Initial calculation
       calculate();
