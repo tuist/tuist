@@ -73,8 +73,6 @@
   environment.systemPackages = map lib.lowPrio [
     pkgs.curl
     pkgs.gitMinimal
-		pkgs.fio
-		pkgs.ioping
   ];
 
   systemd.tmpfiles.rules = [
