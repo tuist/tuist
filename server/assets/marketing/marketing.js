@@ -12,7 +12,7 @@ let cspNonce = document.querySelector("meta[name='csp-nonce']").getAttribute("co
 let liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: { _csrf_token: csrfToken, _csp_nonce: cspNonce },
-  hooks: { ...Noora, ...Hooks },
+  hooks: { ...Noora.Hooks, ...Hooks },
 });
 liveSocket.connect();
 

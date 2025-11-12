@@ -348,7 +348,24 @@ features = [
               <div :if={feature.description} data-part="feature-description">
                 {feature.description}
               </div>
-              <.hint_text :if={feature.hint} label={feature.hint} />
+
+              <.tooltip
+                id="tooltip-single-large"
+                size="large"
+                description={
+                  dgettext(
+                    "marketing",
+                    "A hit is a Tuist CLI invocation that results in an interaction with the server to optimize builds or test runs."
+                  )
+                }
+                title={dgettext("marketing", "Hits")}
+              >
+                <:trigger :let={attrs}>
+                  <span {attrs}>
+                    <.hint_text :if={feature.hint} label={feature.hint} />
+                  </span>
+                </:trigger>
+              </.tooltip>
             </th>
             <td
               :for={{value, index} <- Enum.with_index(feature.values)}
