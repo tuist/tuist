@@ -151,6 +151,8 @@ defmodule Tuist.Runs do
           build_run_id: struct.build_run_id,
           read_duration: struct.read_duration,
           write_duration: struct.write_duration,
+          description: struct.description,
+          cas_output_node_ids: struct.cas_output_node_ids,
           inserted_at: struct.inserted_at
         }
       end)

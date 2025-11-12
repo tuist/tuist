@@ -4,6 +4,7 @@ defmodule TuistWeb.API.RunsController do
 
   alias OpenApiSpex.Schema
   alias Tuist.Runs
+  alias Tuist.Runs.CASOutput
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.Run
   alias TuistWeb.API.Schemas.Runs.Build
@@ -466,6 +467,11 @@ defmodule TuistWeb.API.RunsController do
                      description: %Schema{
                        type: :string,
                        description: "Optional description of the cacheable task."
+                     },
+                     cas_output_node_ids: %Schema{
+                       type: :array,
+                       description: "Array of CAS output node IDs associated with this cacheable task.",
+                       items: %Schema{type: :string}
                      }
                    },
                    required: [:type, :status, :key]
@@ -505,59 +511,7 @@ defmodule TuistWeb.API.RunsController do
                      type: %Schema{
                        type: :string,
                        description: "The type of the CAS output file.",
-                       enum: [
-                         :swift,
-                         :sil,
-                         :sib,
-                         :image,
-                         :dSYM,
-                         :dependencies,
-                         :"emit-module-dependencies",
-                         :autolink,
-                         :swiftmodule,
-                         :swiftdoc,
-                         :swiftinterface,
-                         :object,
-                         :"ast-dump",
-                         :"raw-sil",
-                         :"raw-sib",
-                         :"raw-llvm-ir",
-                         :"llvm-ir",
-                         :"llvm-bc",
-                         :"private-swiftinterface",
-                         :"package-swiftinterface",
-                         :"objc-header",
-                         :"swift-dependencies",
-                         :"dependency-scanner-cache",
-                         :"json-dependencies",
-                         :"json-target-info",
-                         :"json-supported-features",
-                         :"json-module-artifacts",
-                         :"imported-modules",
-                         :"module-trace",
-                         :"index-data",
-                         :"index-unit-output-path",
-                         :"yaml-opt-record",
-                         :"bitstream-opt-record",
-                         :diagnostics,
-                         :"emit-module-diagnostics",
-                         :"dependency-scan-diagnostics",
-                         :"api-baseline-json",
-                         :"abi-baseline-json",
-                         :"const-values",
-                         :"api-descriptor-json",
-                         :"swift-module-summary",
-                         :"module-semantic-info",
-                         :"cached-diagnostics",
-                         :"json-supported-swift-features",
-                         :modulemap,
-                         :pch,
-                         :pcm,
-                         :tbd,
-                         :remap,
-                         :"localization-strings",
-                         :"clang-header"
-                       ]
+                       enum: Enum.map(CASOutput.valid_types(), &String.to_atom/1)
                      }
                    },
                    required: [:node_id, :checksum, :size, :duration, :compressed_size, :operation]

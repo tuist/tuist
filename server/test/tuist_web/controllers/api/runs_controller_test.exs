@@ -871,5 +871,93 @@ defmodule TuistWeb.API.RunsControllerTest do
                "message" => "tuist is not authorized to create run"
              }
     end
+
+    test "creates a new build with cacheable tasks that have cas_output_node_ids", %{conn: conn} do
+      # Given
+      user = AccountsFixtures.user_fixture(preload: [:account], email: "tuist@tuist.io")
+      project = ProjectsFixtures.project_fixture(preload: [:account], account_id: user.account.id)
+
+      # When
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/projects/#{project.account.name}/#{project.name}/runs",
+          id: UUIDv7.generate(),
+          type: "build",
+          duration: 1000,
+          is_ci: false,
+          cacheable_tasks: [
+            %{
+              type: "swift",
+              status: "hit_local",
+              key: "cache_key_1",
+              cas_output_node_ids: ["node_id_1", "node_id_2"]
+            },
+            %{
+              type: "clang",
+              status: "hit_remote",
+              key: "cache_key_2",
+              cas_output_node_ids: ["node_id_3"]
+            },
+            %{
+              type: "swift",
+              status: "miss",
+              key: "cache_key_3",
+              cas_output_node_ids: []
+            }
+          ]
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+      [build] = Tuist.Repo.all(Build)
+
+      {cacheable_tasks, _meta} =
+        Tuist.Runs.list_cacheable_tasks(%{
+          filters: [%{field: :build_run_id, op: :==, value: build.id}],
+          order_by: [:key],
+          order_directions: [:asc]
+        })
+
+      expected_tasks = [
+        %{
+          type: "swift",
+          status: "hit_local",
+          key: "cache_key_1",
+          cas_output_node_ids: ["node_id_1", "node_id_2"],
+          build_run_id: build.id
+        },
+        %{
+          type: "clang",
+          status: "hit_remote",
+          key: "cache_key_2",
+          cas_output_node_ids: ["node_id_3"],
+          build_run_id: build.id
+        },
+        %{
+          type: "swift",
+          status: "miss",
+          key: "cache_key_3",
+          cas_output_node_ids: [],
+          build_run_id: build.id
+        }
+      ]
+
+      actual_tasks =
+        Enum.map(
+          cacheable_tasks,
+          &Map.take(&1, [:type, :status, :key, :cas_output_node_ids, :build_run_id])
+        )
+
+      assert actual_tasks == expected_tasks
+
+      assert response == %{
+               "id" => build.id,
+               "duration" => 1000,
+               "project_id" => project.id,
+               "url" => url(~p"/#{project.account.name}/#{project.name}/builds/build-runs/#{build.id}")
+             }
+    end
   end
 end

@@ -11,6 +11,7 @@ defmodule TuistWeb.BuildRunLive do
   alias Tuist.CommandEvents
   alias Tuist.Projects
   alias Tuist.Runs
+  alias Tuist.Runs.CASOutput
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Utilities.Query
 
@@ -1072,60 +1073,7 @@ defmodule TuistWeb.BuildRunLive do
   end
 
   defp define_cas_outputs_filters do
-    cas_output_type_options =
-      Enum.sort([
-        "swift",
-        "sil",
-        "sib",
-        "image",
-        "dSYM",
-        "dependencies",
-        "emit-module-dependencies",
-        "autolink",
-        "swiftmodule",
-        "swiftdoc",
-        "swiftinterface",
-        "object",
-        "ast-dump",
-        "raw-sil",
-        "raw-sib",
-        "raw-llvm-ir",
-        "llvm-ir",
-        "llvm-bc",
-        "private-swiftinterface",
-        "package-swiftinterface",
-        "objc-header",
-        "swift-dependencies",
-        "dependency-scanner-cache",
-        "json-dependencies",
-        "json-target-info",
-        "json-supported-features",
-        "json-module-artifacts",
-        "imported-modules",
-        "module-trace",
-        "index-data",
-        "index-unit-output-path",
-        "yaml-opt-record",
-        "bitstream-opt-record",
-        "diagnostics",
-        "emit-module-diagnostics",
-        "dependency-scan-diagnostics",
-        "api-baseline-json",
-        "abi-baseline-json",
-        "const-values",
-        "api-descriptor-json",
-        "swift-module-summary",
-        "module-semantic-info",
-        "cached-diagnostics",
-        "json-supported-swift-features",
-        "modulemap",
-        "pch",
-        "pcm",
-        "tbd",
-        "remap",
-        "localization-strings",
-        "clang-header"
-      ])
+    cas_output_type_options = CASOutput.valid_types() |> List.delete("unknown") |> Enum.sort()
 
     [
       %Filter.Filter{

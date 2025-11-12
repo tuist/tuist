@@ -34,6 +34,7 @@ defmodule Tuist do
       Registry.Swift.Packages.PackageRelease,
       Runs,
       Runs.Build,
+      Runs.CASOutput,
       Runs.Analytics,
       # App
       # -----

@@ -743,6 +743,15 @@ components:
               description: Cacheable tasks associated with the build run.
               items:
                 properties:
+                  cas_output_node_ids:
+                    description: Array of CAS output node IDs associated with this cacheable task.
+                    items:
+                      type: string
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
                   description:
                     description: Optional description of the cacheable task.
                     type: string
@@ -881,6 +890,9 @@ components:
                       - remap
                       - localization-strings
                       - clang-header
+                      - swiftsourceinfo
+                      - assembly
+                      - unknown
                     type: string
                     x-struct:
                     x-validate:
@@ -1863,6 +1875,15 @@ components:
           description: Cacheable tasks associated with the build run.
           items:
             properties:
+              cas_output_node_ids:
+                description: Array of CAS output node IDs associated with this cacheable task.
+                items:
+                  type: string
+                  x-struct:
+                  x-validate:
+                type: array
+                x-struct:
+                x-validate:
               description:
                 description: Optional description of the cacheable task.
                 type: string
@@ -2001,6 +2022,9 @@ components:
                   - remap
                   - localization-strings
                   - clang-header
+                  - swiftsourceinfo
+                  - assembly
+                  - unknown
                 type: string
                 x-struct:
                 x-validate:
@@ -6269,6 +6293,15 @@ paths:
                       description: Cacheable tasks associated with the build run.
                       items:
                         properties:
+                          cas_output_node_ids:
+                            description: Array of CAS output node IDs associated with this cacheable task.
+                            items:
+                              type: string
+                              x-struct:
+                              x-validate:
+                            type: array
+                            x-struct:
+                            x-validate:
                           description:
                             description: Optional description of the cacheable task.
                             type: string
@@ -6407,6 +6440,9 @@ paths:
                               - remap
                               - localization-strings
                               - clang-header
+                              - swiftsourceinfo
+                              - assembly
+                              - unknown
                             type: string
                             x-struct:
                             x-validate:
