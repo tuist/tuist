@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.104.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* misreported Xcode cache analytics by [@fortmarek](https://github.com/fortmarek) in [#8638](https://github.com/tuist/tuist/pull/8638)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.104.0...4.104.1
+
 ## What's Changed in 4.104.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
